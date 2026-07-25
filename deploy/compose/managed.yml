@@ -16,6 +16,19 @@
 # deploy/selfhost/setup-stalwart.sh instead (the ONE canonical way; see that
 # script's header) — deploy/compose/setup-managed-demo.sh does this for you,
 # joined to this stack's network so the worker reaches it by name.
+#
+# Pinned project `name` below is load-bearing, not cosmetic: without it, `docker compose`
+# derives the resource-name prefix from the CURRENT DIRECTORY'S BASENAME ("compose"), so on a
+# shared host, any other unrelated project also run from a directory literally named `compose`
+# collides on the exact same volume/network names (compose_postgres_data,
+# compose_open-migrate-network, ...). Confirmed live on the Spark box (2026-07-25): `open-migrate-db`
+# silently mounted a `compose_postgres_data` volume created two days earlier -- NOT this project's
+# data -- so its `openmigrate` role's real password didn't match this stack's own .env, and every
+# app-tier connection failed with "password authentication failed" despite .env, the container's
+# own POSTGRES_PASSWORD env var, and a local-socket/127.0.0.1 psql check all agreeing (the latter
+# two are trusted by Postgres's default pg_hba.conf and never actually check the password -- only
+# a connection from another container's real IP exercises the scram-sha-256 rule and exposed this).
+name: open-migrate-managed
 services:
   # PostgreSQL Database
   postgres:
