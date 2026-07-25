@@ -43,6 +43,7 @@ import {
   PgMigrationStatusStore,
   recordComputeForRun,
   recordApiCallForRun,
+  runMigrations,
 } from '@openmig/ledger';
 import { InProcessScheduler } from '@openmig/scheduler/in-process';
 import { runShadowPass, runCalendarSync, runContactSync, runFileSync } from '@openmig/core';
@@ -281,6 +282,12 @@ export async function start(options: ManagedSchedulerOptions = {}): Promise<Mana
   const port = options.port ?? Number(process.env.PORT ?? 8082);
   const host = options.host ?? process.env.HOST ?? '0.0.0.0';
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+
+  // Self-migrate first, same as apps/api and apps/selfhost -- this process has no
+  // depends_on ordering against api in managed.yml (only postgres/trigger-api), so it can
+  // race api for who migrates first. migrate.ts's advisory lock + idempotent re-run makes
+  // that race safe either way.
+  await runMigrations({ connectionString: databaseUrl });
 
   const pool = new Pool({ connectionString: databaseUrl });
   const scheduler = new InProcessScheduler();
