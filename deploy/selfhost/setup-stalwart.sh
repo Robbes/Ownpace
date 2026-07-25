@@ -37,6 +37,13 @@ set -euo pipefail
 #   STALWART_JMAP_PORT          host port for JMAP/management (default 18080)
 #   STALWART_IMAPS_PORT         host port for IMAPS (default 1993)
 #   STALWART_RECOVERY_PASSWORD  recovery-mode admin password (default provision_password)
+#   STALWART_CLI_URL            URL stalwart-cli itself connects to for provisioning
+#                                (default http://127.0.0.1:$JMAP_PORT, i.e. the published
+#                                port). Override to http://stalwart:8080 if the caller is a
+#                                Docker-outside-of-Docker sandbox that has joined $NETWORK —
+#                                see docs/stalwart-integration-fix.md's DooD section. Only
+#                                affects stalwart-cli; the readiness check below always goes
+#                                through `docker exec`, so it needs no such override.
 
 IMAGE="stalwartlabs/stalwart:v0.16.10"
 CONTAINER="${STALWART_CONTAINER:-openmig-dev-stalwart}"
@@ -46,6 +53,7 @@ NETWORK="${STALWART_NETWORK:-openmig_dev-network}"
 JMAP_PORT="${STALWART_JMAP_PORT:-18080}"
 IMAPS_PORT="${STALWART_IMAPS_PORT:-1993}"
 RECOVERY_PASSWORD="${STALWART_RECOVERY_PASSWORD:-provision_password}"
+CLI_URL="${STALWART_CLI_URL:-http://127.0.0.1:${JMAP_PORT}}"
 
 STALWART_CLI="${STALWART_CLI_PATH:-stalwart-cli}"
 command -v "$STALWART_CLI" >/dev/null 2>&1 || {
@@ -80,10 +88,21 @@ docker run --rm --entrypoint /bin/sh --user root \
   "$IMAGE" \
   -c 'echo "{\"@type\":\"RocksDb\",\"path\":\"/opt/stalwart/data\"}" > /etc/stalwart/config.json && chmod 644 /etc/stalwart/config.json' >/dev/null
 
+# Checks readiness via `docker exec` into the target container itself, curling its own
+# localhost — NOT `curl http://127.0.0.1:${JMAP_PORT}` from this script's own caller. That
+# used to be the check, and it produced a false "never came up" here: in a
+# Docker-outside-of-Docker sandbox (this script's caller only reaches Docker via a mounted
+# docker.sock), `127.0.0.1` in the CALLER's shell is a different network namespace from
+# where the published port actually lands — the container was genuinely listening and
+# responding (confirmed via `docker exec $CONTAINER curl ...` returning a real HTTP status)
+# the whole time. `docker exec` always runs inside the target container's own namespace, so
+# this check is correct in both a bare-host and a sandboxed context — see
+# docs/stalwart-integration-fix.md's "Open, NOT YET RESOLVED" section for the investigation
+# that found this (now resolved).
 wait_for_jmap() {
   local label="$1"
   for i in $(seq 1 60); do
-    curl -sf "http://127.0.0.1:${JMAP_PORT}/.well-known/jmap" >/dev/null 2>&1 && return 0
+    docker exec "$CONTAINER" curl -sf -o /dev/null "http://127.0.0.1:8080/.well-known/jmap" 2>/dev/null && return 0
     if [ "$i" -eq 60 ]; then
       echo "[setup-stalwart] $label never came up after 60s" >&2
       docker logs "$CONTAINER" 2>&1 | tail -100 >&2
@@ -123,7 +142,11 @@ cat > "$PLAN_FILE" <<'PLAN'
 {"@type":"upsert","object":"Account","matchOn":["name"],"value":{"target-shared":{"@type":"User","name":"target-shared","domainId":"#dom-a","credentials":{"0":{"@type":"Password","secret":"target-shared_password"}},"roles":{"@type":"User"},"permissions":{"@type":"Inherit"},"encryptionAtRest":{"@type":"Disabled"}}}}
 PLAN
 
-"$STALWART_CLI" --url "http://127.0.0.1:${JMAP_PORT}" --user admin --password "${RECOVERY_PASSWORD}" apply --file "$PLAN_FILE"
+# Unlike wait_for_jmap above, this genuinely can't go through `docker exec` — stalwart-cli
+# isn't installed in the target image, it's a host binary. If the caller can't reach
+# 127.0.0.1:$JMAP_PORT (e.g. a Docker-outside-of-Docker sandbox), set STALWART_CLI_URL to
+# http://stalwart:8080 after joining the caller to $NETWORK — see this script's header.
+"$STALWART_CLI" --url "$CLI_URL" --user admin --password "${RECOVERY_PASSWORD}" apply --file "$PLAN_FILE"
 
 echo "[setup-stalwart] Stopping recovery container..."
 docker stop "$CONTAINER" >/dev/null

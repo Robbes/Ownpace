@@ -284,7 +284,27 @@ in `setup-stalwart.sh` (both phases mount `$CONFIG_VOLUME:/etc/stalwart:ro`), so
 identically on a bare runner and inside a sandbox. The old advice below ("switch config delivery ...
 if it ever needs to run inside a DooD sandbox") is done, not still-open — don't re-derive it.
 
-### Open, NOT YET RESOLVED: recovery-mode listener sometimes doesn't appear to bind
+### RESOLVED (2026-07-25): the loopback trap, confirmed and fixed in setup-stalwart.sh itself
+
+Reproduced from inside `oh-agent-server` (a DooD sandbox) after the fixes above: `setup-stalwart.sh`
+reported "Recovery listener never came up after 60s" exactly as described below. Following this
+section's own checklist item 2, ran `docker exec open-migrate-stalwart curl -sf -o /dev/null -w
+"HTTP %{http_code}" http://127.0.0.1:8080/.well-known/jmap` — returned `HTTP 307` immediately.
+**Confirmed**: Stalwart was genuinely up and responding the whole time; `wait_for_jmap`'s check
+(`curl http://127.0.0.1:${JMAP_PORT}` from the *caller's* shell) was hitting the DooD loopback trap
+in item 0 above, not a real Stalwart problem. Fixed directly in `setup-stalwart.sh`:
+`wait_for_jmap` now runs its check via `docker exec "$CONTAINER" curl ...` (inside the target
+container's own namespace) instead of the caller's own `127.0.0.1`, which is correct in both a
+bare-host and a sandboxed context. `stalwart-cli`'s own provisioning call **can't** go through
+`docker exec` (it's a host binary, not present in the target image), so it keeps using
+`127.0.0.1:$JMAP_PORT` by default but now honors a `STALWART_CLI_URL` override — join the sandbox's
+own container to `$NETWORK` and set `STALWART_CLI_URL=http://stalwart:8080` if the default doesn't
+reach it.
+
+**If you still see "never came up" after this fix**, it's either genuinely new (see item 4 below) or
+you're on a checkout from before this fix — `git pull` and retry before investigating further.
+
+### Historical: recovery-mode listener sometimes doesn't appear to bind (superseded by the fix above)
 
 While debugging the above, the same agent — after fixing config delivery so `config.json` was
 confirmed present and non-empty in the volume — still saw phase 1 (recovery mode) fail: the

@@ -31,6 +31,13 @@ set -euo pipefail
 #     setup-stalwart.sh with managed-specific defaults so this never collides with the
 #     dev/e2e Stalwart instance (deploy/compose/dev.yml + setup-stalwart.sh's own
 #     defaults) if both run on one host.
+#   STALWART_CLI_URL — forwarded to setup-stalwart.sh. If you're running this from a
+#     Docker-outside-of-Docker sandbox (only reaches Docker via a mounted docker.sock),
+#     127.0.0.1:<published-port> may not be reachable from your own shell even though
+#     Stalwart is genuinely up (see docs/stalwart-integration-fix.md's DooD section).
+#     Join your own container to $MANAGED_NETWORK (`docker network connect
+#     open-migrate-network <your-container>`) and set STALWART_CLI_URL=http://stalwart:8080
+#     if the default doesn't work.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
