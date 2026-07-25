@@ -119,12 +119,15 @@ wait_for_jmap() {
 # DooD involved: confirmed live on the Spark box (2026-07-25) — wait_for_jmap passed, the very
 # next line's stalwart-cli call failed with "error sending request for url
 # (.../api/schema)", yet a manual curl against the same published port succeeded moments later.
-# Poll the actual CLI_URL here so stalwart-cli never races that gap.
+# Poll the actual CLI_URL here so stalwart-cli never races that gap. 90s, not 30s: on a busy
+# shared host (confirmed live, Spark box, 2026-07-25 -- this fired right after tearing down 7
+# containers and starting postgres+nextcloud in the same breath), the published-port wiring can
+# lag well past 30s even though the container itself is healthy throughout.
 wait_for_cli_url() {
-  for i in $(seq 1 30); do
+  for i in $(seq 1 90); do
     curl -sf -o /dev/null "${CLI_URL}/.well-known/jmap" 2>/dev/null && return 0
-    if [ "$i" -eq 30 ]; then
-      echo "[setup-stalwart] stalwart-cli's target ($CLI_URL) never became reachable after 30s" >&2
+    if [ "$i" -eq 90 ]; then
+      echo "[setup-stalwart] stalwart-cli's target ($CLI_URL) never became reachable after 90s" >&2
       return 1
     fi
     sleep 1
