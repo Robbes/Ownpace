@@ -419,19 +419,38 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
       ? completedTimestamps.sort().at(-1)
       : undefined;
 
-    // Config is real (host/port/baseUrl/username come straight from the connection's
-    // non-secret config JSON); the password field stays masked — connection.config
-    // never carries credentials (those live encrypted in secretRef, decrypted only
-    // server-side for a sync pass), and the web app's schema expects the field to
-    // exist, so it's populated with a placeholder rather than a real secret.
+    // Config is real: host/port/useSsl come straight from the connection's non-secret
+    // config JSON. username is NOT in that JSON, though — create-mapping stores it
+    // encrypted alongside the password (SecretStore.encryptCredentials({ username,
+    // password })), so it has to be decrypted to surface it here. password itself
+    // stays masked — never return the real secret, even though it's technically
+    // available server-side for a sync pass.
+    const usernameFor = (conn: typeof sourceConn): string | undefined => {
+      if (!conn?.secretRef) return undefined;
+      try {
+        return SecretStore.decryptCredentials(conn.secretRef).username;
+      } catch {
+        return undefined;
+      }
+    };
+
     res.json({
       id: mapping.id,
       tenantId,
+      tenant_id: tenantId, // TODO: drop once all consumers are confirmed on tenantId (camelCase)
       name: mapping.name ?? mapping.mode,
       sourceType: sourceConn?.kind ?? 'unknown',
       targetType: targetConn?.kind ?? 'unknown',
-      sourceConfig: { ...(sourceConn?.config as Record<string, unknown> ?? {}), password: '***' },
-      targetConfig: { ...(targetConn?.config as Record<string, unknown> ?? {}), password: '***' },
+      sourceConfig: {
+        ...(sourceConn?.config as Record<string, unknown> ?? {}),
+        username: usernameFor(sourceConn),
+        password: '***',
+      },
+      targetConfig: {
+        ...(targetConn?.config as Record<string, unknown> ?? {}),
+        username: usernameFor(targetConn),
+        password: '***',
+      },
       syncConfig: {
         domains: scopeRows.map((r) => r.domain),
         schedule: mapping.schedule ?? undefined,
