@@ -23,6 +23,20 @@ set -euo pipefail
 #   NEXTCLOUD_SOURCE_PASSWORD source account password (required)
 #   NEXTCLOUD_TARGET_USER    target account userid (default e2e-target)
 #   NEXTCLOUD_TARGET_PASSWORD target account password (required)
+#   NEXTCLOUD_URL            base URL every curl call in this script (readiness, user
+#                            creation, home-set touches) actually uses (default
+#                            http://127.0.0.1:$NEXTCLOUD_HOST_PORT). Override to
+#                            http://nextcloud/ (the compose network alias, already a
+#                            trusted domain -- see NEXTCLOUD_TRUSTED_DOMAINS in
+#                            managed.yml) if you're calling this from a
+#                            Docker-outside-of-Docker sandbox joined to that network:
+#                            127.0.0.1:<published-port> can be unreachable from such a
+#                            caller's own shell even though Nextcloud is genuinely up
+#                            (same trap documented for Stalwart in
+#                            docs/stalwart-integration-fix.md's DooD section --
+#                            confirmed to affect this script too, 2026-07-25, via a
+#                            PROPFIND that failed with curl status 000 while `docker
+#                            exec ... occ status` confirmed the app was fully installed).
 
 CONTAINER="${NEXTCLOUD_CONTAINER:-openmig-dev-nextcloud}"
 HOST_PORT="${NEXTCLOUD_HOST_PORT:?NEXTCLOUD_HOST_PORT is required}"
@@ -33,7 +47,7 @@ SOURCE_PASSWORD="${NEXTCLOUD_SOURCE_PASSWORD:?NEXTCLOUD_SOURCE_PASSWORD is requi
 TARGET_USER="${NEXTCLOUD_TARGET_USER:-e2e-target}"
 TARGET_PASSWORD="${NEXTCLOUD_TARGET_PASSWORD:?NEXTCLOUD_TARGET_PASSWORD is required}"
 
-BASE_URL="http://127.0.0.1:${HOST_PORT}"
+BASE_URL="${NEXTCLOUD_URL:-http://127.0.0.1:${HOST_PORT}}"
 
 echo "[setup-nextcloud-users] Waiting for internal readiness (status.php via docker exec)..."
 internal_ready=false

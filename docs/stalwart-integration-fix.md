@@ -304,6 +304,28 @@ reach it.
 **If you still see "never came up" after this fix**, it's either genuinely new (see item 4 below) or
 you're on a checkout from before this fix — `git pull` and retry before investigating further.
 
+### RESOLVED (2026-07-25): the same loopback trap, confirmed in setup-nextcloud-users.sh too
+
+Not Stalwart-specific after all: reproduced the identical DooD symptom in
+`deploy/selfhost/setup-nextcloud-users.sh`'s "external DAV readiness" PROPFIND check, called from
+`setup-managed-demo.sh` while running inside `oh-agent-server`. `docker exec "$CONTAINER" occ
+status` confirmed Nextcloud was fully installed and healthy, yet the PROPFIND against
+`http://127.0.0.1:$NEXTCLOUD_HOST_PORT/remote.php/dav/` failed with curl status `000` (no
+connection at all) — exactly the loopback-namespace trap described above, just hitting a
+different script. Every subsequent curl in that script (user creation, home-set touches) uses the
+same base URL, so it wasn't only the readiness check that would have failed.
+
+**Fixed** the same way as `STALWART_CLI_URL`: `setup-nextcloud-users.sh` now takes a
+`NEXTCLOUD_URL` override (default unchanged, `http://127.0.0.1:$NEXTCLOUD_HOST_PORT`), and
+`setup-managed-demo.sh` forwards it. Join the sandbox's own container to `$MANAGED_NETWORK` and set
+`NEXTCLOUD_URL=http://nextcloud/` — that hostname is already registered as a trusted domain (see
+`NEXTCLOUD_TRUSTED_DOMAINS` in `managed.yml`) — if the default doesn't work.
+
+**Lesson for next time**: any script in this repo that curls a container's *published* host port
+from the caller's own shell (rather than via `docker exec` into the target, or via a compose
+network alias) is a candidate for this exact trap in a DooD sandbox. Check new scripts against
+this before assuming a "never came up" failure is a real backend bug.
+
 ### RESOLVED (2026-07-25): a second, different race — stalwart-cli hits the published port before it's wired up, even on a bare host
 
 Reproduced on the Spark box's own bare shell (not a DooD sandbox — `DOCKER_HOST` unset, default

@@ -41,6 +41,10 @@ set -euo pipefail
 #     Join your own container to $MANAGED_NETWORK (`docker network connect
 #     open-migrate-managed_open-migrate-network <your-container>`) and set
 #     STALWART_CLI_URL=http://stalwart:8080 if the default doesn't work.
+#   NEXTCLOUD_URL — forwarded to setup-nextcloud-users.sh, same DooD caveat as
+#     STALWART_CLI_URL above (confirmed to affect this script too, 2026-07-25). Join
+#     $MANAGED_NETWORK as above and set NEXTCLOUD_URL=http://nextcloud/ if the default
+#     127.0.0.1:$NEXTCLOUD_HOST_PORT doesn't work.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -72,6 +76,7 @@ STALWART_IMAPS_PORT="${STALWART_IMAPS_PORT:-1994}" \
 echo "[setup-managed-demo] Provisioning demo Nextcloud accounts (DAV source+target)..."
 NEXTCLOUD_CONTAINER="${NEXTCLOUD_CONTAINER}" \
 NEXTCLOUD_HOST_PORT="${NEXTCLOUD_HOST_PORT}" \
+NEXTCLOUD_URL="${NEXTCLOUD_URL:-}" \
 NEXTCLOUD_ADMIN_PASSWORD="${NEXTCLOUD_ADMIN_PASSWORD:-admin_managed_pw}" \
 NEXTCLOUD_SOURCE_USER=tenant-a-source NEXTCLOUD_SOURCE_PASSWORD=tenant_a_source_pw \
 NEXTCLOUD_TARGET_USER=tenant-a-target NEXTCLOUD_TARGET_PASSWORD=tenant_a_target_pw \
@@ -79,6 +84,7 @@ NEXTCLOUD_TARGET_USER=tenant-a-target NEXTCLOUD_TARGET_PASSWORD=tenant_a_target_
 
 NEXTCLOUD_CONTAINER="${NEXTCLOUD_CONTAINER}" \
 NEXTCLOUD_HOST_PORT="${NEXTCLOUD_HOST_PORT}" \
+NEXTCLOUD_URL="${NEXTCLOUD_URL:-}" \
 NEXTCLOUD_ADMIN_PASSWORD="${NEXTCLOUD_ADMIN_PASSWORD:-admin_managed_pw}" \
 NEXTCLOUD_SOURCE_USER=tenant-b-source NEXTCLOUD_SOURCE_PASSWORD=tenant_b_source_pw \
 NEXTCLOUD_TARGET_USER=tenant-b-target NEXTCLOUD_TARGET_PASSWORD=tenant_b_target_pw \
