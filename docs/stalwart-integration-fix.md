@@ -304,6 +304,34 @@ reach it.
 **If you still see "never came up" after this fix**, it's either genuinely new (see item 4 below) or
 you're on a checkout from before this fix — `git pull` and retry before investigating further.
 
+### RESOLVED (2026-07-25): a second, different race — stalwart-cli hits the published port before it's wired up, even on a bare host
+
+Reproduced on the Spark box's own bare shell (not a DooD sandbox — `DOCKER_HOST` unset, default
+context, confirmed via `docker context show`): `setup-stalwart.sh` passed `wait_for_jmap` ("Recovery
+listener" check via `docker exec`, hitting the container's own internal `localhost:8080`), then the
+very next line — the `stalwart-cli apply` call, which targets `$CLI_URL` (the *published* port,
+`127.0.0.1:18081` by default) — failed immediately with `error sending request for url
+(http://127.0.0.1:18081/api/schema)`. Manual diagnostics moments later showed the port was
+completely fine: `docker port`, `docker inspect .NetworkSettings.Ports`, `ss -tlnp`, and a plain
+`curl -v http://127.0.0.1:18081/.well-known/jmap` all confirmed it was bound and returning `HTTP
+307` correctly.
+
+**Root cause**: `wait_for_jmap`'s `docker exec`-based check only proves the container's *own*
+loopback is serving. It says nothing about whether Docker's port-publish path (the userland-proxy
+or NAT rule that makes `127.0.0.1:18081` on the host reach the container's `8080`) has finished
+wiring up yet — that's a separate mechanism from the app process binding its socket, and it can lag
+by a moment even with no DooD sandbox involved at all. `stalwart-cli` is a host binary that has no
+choice but to go through that published-port path (it can't use `docker exec`, see the note in
+`setup-stalwart.sh` itself), so it can race a wiring gap that the internal-check-based
+`wait_for_jmap` is blind to.
+
+**Fixed** in `setup-stalwart.sh`: added `wait_for_cli_url()`, which polls `$CLI_URL` directly (the
+same path `stalwart-cli` itself will use) via a plain `curl` from the script's own shell, called
+right after `wait_for_jmap` and right before the `stalwart-cli apply` line. This closes the gap
+regardless of whether `$CLI_URL` is the default published-port form or a `STALWART_CLI_URL`
+override for a DooD sandbox — either way, the thing that's about to call `stalwart-cli` now waits
+for exactly the path `stalwart-cli` will use, not a different one.
+
 ### Historical: recovery-mode listener sometimes doesn't appear to bind (superseded by the fix above)
 
 While debugging the above, the same agent — after fixing config delivery so `config.json` was

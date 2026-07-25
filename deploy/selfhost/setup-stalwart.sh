@@ -112,6 +112,25 @@ wait_for_jmap() {
   done
 }
 
+# wait_for_jmap only proves the container's OWN loopback is serving — it says nothing about
+# whether the *published* port (what stalwart-cli, a host binary, actually connects to via
+# $CLI_URL) is wired up yet. Those are two different paths (internal bind vs. Docker's
+# port-publish/NAT), and the latter can lag the former by a moment even on a bare host with no
+# DooD involved: confirmed live on the Spark box (2026-07-25) — wait_for_jmap passed, the very
+# next line's stalwart-cli call failed with "error sending request for url
+# (.../api/schema)", yet a manual curl against the same published port succeeded moments later.
+# Poll the actual CLI_URL here so stalwart-cli never races that gap.
+wait_for_cli_url() {
+  for i in $(seq 1 30); do
+    curl -sf -o /dev/null "${CLI_URL}/.well-known/jmap" 2>/dev/null && return 0
+    if [ "$i" -eq 30 ]; then
+      echo "[setup-stalwart] stalwart-cli's target ($CLI_URL) never became reachable after 30s" >&2
+      return 1
+    fi
+    sleep 1
+  done
+}
+
 echo "[setup-stalwart] Phase 1: recovery mode (provisioning)..."
 docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
 # --user root: named Docker volumes are created root-owned, but the Stalwart image runs as a
@@ -132,6 +151,7 @@ docker run -d \
   "$IMAGE" --config /etc/stalwart/config.json >/dev/null
 
 wait_for_jmap "Recovery listener"
+wait_for_cli_url
 
 echo "[setup-stalwart] Provisioning accounts..."
 cat > "$PLAN_FILE" <<'PLAN'
