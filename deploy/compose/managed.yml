@@ -118,10 +118,15 @@ services:
       # this is never actually queried, but the webapp still unconditionally does
       # `new URL(CLICKHOUSE_URL)` at boot regardless of that setting -- an empty string
       # crashes the whole process with "TypeError: Invalid URL" (confirmed live on the
-      # Spark box, 2026-07-25: trigger-api crash-looped on every restart). Any
-      # syntactically valid URL satisfies the constructor without ClickHouse needing to
-      # be reachable.
+      # Spark box, 2026-07-25: trigger-api crash-looped on every restart). A
+      # syntactically valid URL satisfies that constructor, BUT docker/scripts/entrypoint.sh
+      # (verified against the v4.5.4 tag) separately treats any non-empty CLICKHOUSE_URL as
+      # "run real ClickHouse migrations via goose" unless SKIP_CLICKHOUSE_MIGRATIONS=1 --
+      # without this flag, goose then fails trying to actually reach a ClickHouse instance
+      # that doesn't exist in this stack (also confirmed live: "goose run: clickhouse [dsn
+      # parse]: http with TLS specify"). Both settings are needed together.
       CLICKHOUSE_URL: "http://localhost:8123"
+      SKIP_CLICKHOUSE_MIGRATIONS: "1"
       EVENT_REPOSITORY_DEFAULT_STORE: postgres
       # Realtime streams - disabled, using v1 (Redis) instead
       REALTIME_STREAMS_DEFAULT_VERSION: v1
