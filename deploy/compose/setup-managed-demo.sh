@@ -22,8 +22,11 @@ set -euo pipefail
 # Idempotent: both underlying scripts are safe to re-run.
 #
 # Env overrides (all optional):
-#   MANAGED_NETWORK          compose network the worker/api containers are on
-#                             (default open-migrate-network, matches managed.yml)
+#   MANAGED_NETWORK          the ACTUAL compose network name the worker/api containers are on
+#                             (default open-migrate-managed_open-migrate-network -- Compose
+#                             prefixes managed.yml's `open-migrate-network` key with its pinned
+#                             project name `open-migrate-managed`; verify with `docker compose -f
+#                             managed.yml config` if that pinned name ever changes)
 #   NEXTCLOUD_CONTAINER       (default open-migrate-nextcloud, matches managed.yml)
 #   NEXTCLOUD_HOST_PORT       host port nextcloud's :80 is published on
 #                             (default 8083, matches managed.yml's NEXTCLOUD_PORT default)
@@ -36,13 +39,20 @@ set -euo pipefail
 #     127.0.0.1:<published-port> may not be reachable from your own shell even though
 #     Stalwart is genuinely up (see docs/stalwart-integration-fix.md's DooD section).
 #     Join your own container to $MANAGED_NETWORK (`docker network connect
-#     open-migrate-network <your-container>`) and set STALWART_CLI_URL=http://stalwart:8080
-#     if the default doesn't work.
+#     open-migrate-managed_open-migrate-network <your-container>`) and set
+#     STALWART_CLI_URL=http://stalwart:8080 if the default doesn't work.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-MANAGED_NETWORK="${MANAGED_NETWORK:-open-migrate-network}"
+# Must match the ACTUAL Docker network name docker compose creates for managed.yml's
+# `open-migrate-network` key, which Compose prefixes with the project name (managed.yml pins
+# `name: open-migrate-managed`, so this is fixed/predictable -- verify with `docker compose -f
+# managed.yml config` if you ever change that pinned name). Getting this wrong doesn't error: it
+# just makes setup-stalwart.sh silently create and join an ISOLATED network of its own, leaving
+# Stalwart unreachable from api/worker with no obvious symptom until a sync actually tries to
+# connect (confirmed live on the Spark box, 2026-07-25, while chasing an unrelated Postgres bug).
+MANAGED_NETWORK="${MANAGED_NETWORK:-open-migrate-managed_open-migrate-network}"
 NEXTCLOUD_CONTAINER="${NEXTCLOUD_CONTAINER:-open-migrate-nextcloud}"
 NEXTCLOUD_HOST_PORT="${NEXTCLOUD_HOST_PORT:-8083}"
 
