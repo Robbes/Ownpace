@@ -12,6 +12,7 @@ import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth';
 import type { AuthenticatedRequest } from '../../types/api';
 import { eq, and, desc } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
+import { PgMigrationStatusStore } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import { getTriggerClient } from '@openmig/scheduler';
 import type { DiscoveryDomain, TenantId, MappingId } from '@openmig/shared';
@@ -346,28 +347,62 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
 
     const pool = getSharedPool();
 
-    // Query mapping with RLS enforcement via withTenantDb
-    const mappings = await withTenantDb(tenantId, pool, async (db) => {
-      return await db
-        .select()
-        .from(schema.mailboxMapping)
-        .where(
-          and(
-            eq(schema.mailboxMapping.id, mappingId),
-            eq(schema.mailboxMapping.tenantId, tenantId)
-          )
-        );
-    });
+    // Query the mapping + its real source/target connections + scope selection +
+    // ledger-derived per-domain status, all RLS-enforced under one tenant context.
+    // Previously this handler returned hardcoded placeholder data (imap.example.com,
+    // a fixed lastSyncAt, domains: ['email']) regardless of the mapping's actual
+    // config or sync state — this is the real fix, not a Docker/environment issue.
+    const { mapping, sourceConn, targetConn, scopeRows, domainStatus } = await withTenantDb(
+      tenantId,
+      pool,
+      async (db) => {
+        const mappings = await db
+          .select()
+          .from(schema.mailboxMapping)
+          .where(
+            and(
+              eq(schema.mailboxMapping.id, mappingId),
+              eq(schema.mailboxMapping.tenantId, tenantId)
+            )
+          );
+        const mapping = mappings[0];
+        if (!mapping) {
+          return { mapping: null, sourceConn: null, targetConn: null, scopeRows: [], domainStatus: [] };
+        }
 
-    if (mappings.length === 0) {
-      res.status(404).json({
-        error: 'Not found',
-        message: 'Mapping not found',
-      });
-      return;
-    }
+        const [sourceRows, targetRows, scopeRows, domainStatus] = await Promise.all([
+          db
+            .select()
+            .from(schema.connection)
+            .where(and(eq(schema.connection.tenantId, tenantId), eq(schema.connection.role, 'source'))),
+          db
+            .select()
+            .from(schema.connection)
+            .where(and(eq(schema.connection.tenantId, tenantId), eq(schema.connection.role, 'target'))),
+          db
+            .select()
+            .from(schema.scopeSelection)
+            .where(
+              and(
+                eq(schema.scopeSelection.tenantId, tenantId),
+                eq(schema.scopeSelection.mappingId, mappingId),
+                eq(schema.scopeSelection.included, true),
+              ),
+            )
+            .orderBy(schema.scopeSelection.domain),
+          new PgMigrationStatusStore(db).getStatus(tenantId as TenantId, mappingId as MappingId),
+        ]);
 
-    const mapping = mappings[0];
+        return {
+          mapping,
+          sourceConn: sourceRows[0] ?? null,
+          targetConn: targetRows[0] ?? null,
+          scopeRows,
+          domainStatus,
+        };
+      },
+    );
+
     if (!mapping) {
       res.status(404).json({
         error: 'Not found',
@@ -376,33 +411,36 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
       return;
     }
 
+    // lastSyncAt: the most recent domain completion, if any have completed yet.
+    const completedTimestamps = domainStatus
+      .map((s) => s.completedAt)
+      .filter((v): v is string => typeof v === 'string');
+    const lastSyncAt = completedTimestamps.length > 0
+      ? completedTimestamps.sort().at(-1)
+      : undefined;
+
+    // Config is real (host/port/baseUrl/username come straight from the connection's
+    // non-secret config JSON); the password field stays masked — connection.config
+    // never carries credentials (those live encrypted in secretRef, decrypted only
+    // server-side for a sync pass), and the web app's schema expects the field to
+    // exist, so it's populated with a placeholder rather than a real secret.
     res.json({
       id: mapping.id,
-      tenant_id: tenantId,
-      name: mapping.mode,
-      sourceType: 'imap',
-      targetType: 'jmap',
-      sourceConfig: {
-        host: 'imap.example.com',
-        port: 993,
-        username: 'user@example.com',
-        useSsl: true,
-      },
-      targetConfig: {
-        host: 'jmap.example.com',
-        port: 443,
-        username: 'user@example.com',
-        password: '***',
-        useSsl: true,
-      },
+      tenantId,
+      name: mapping.name ?? mapping.mode,
+      sourceType: sourceConn?.kind ?? 'unknown',
+      targetType: targetConn?.kind ?? 'unknown',
+      sourceConfig: { ...(sourceConn?.config as Record<string, unknown> ?? {}), password: '***' },
+      targetConfig: { ...(targetConn?.config as Record<string, unknown> ?? {}), password: '***' },
       syncConfig: {
-        domains: ['email'],
-        schedule: '0 2 * * *',
+        domains: scopeRows.map((r) => r.domain),
+        schedule: mapping.schedule ?? undefined,
       },
       status: mapping.status,
       mode: mapping.mode,
       pattern: mapping.pattern,
-      lastSyncAt: new Date().toISOString(),
+      domainStatus,
+      lastSyncAt,
       createdAt: mapping.createdAt,
       updatedAt: mapping.updatedAt,
     });
