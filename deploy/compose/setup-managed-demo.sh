@@ -45,9 +45,26 @@ set -euo pipefail
 #     STALWART_CLI_URL above (confirmed to affect this script too, 2026-07-25). Join
 #     $MANAGED_NETWORK as above and set NEXTCLOUD_URL=http://nextcloud/ if the default
 #     127.0.0.1:$NEXTCLOUD_HOST_PORT doesn't work.
+#   NEXTCLOUD_ADMIN_PASSWORD — the admin password to authenticate account-provisioning
+#     requests with. Read from deploy/compose/.env automatically if not set in your own
+#     environment (falls back to the same admin_managed_pw default docker-compose itself
+#     uses for the fallback case where .env doesn't set it either -- see managed.yml). Set
+#     it explicitly only if your .env genuinely differs from what actually created the
+#     running container (e.g. you changed .env after `docker compose up` without
+#     recreating nextcloud). Getting this wrong doesn't error at bring-up: it makes every
+#     account-provisioning request 401, which then trips Nextcloud's brute-force guard
+#     into 429s on top (confirmed live on the Spark box, 2026-07-25 -- managed.env.example
+#     ships NEXTCLOUD_ADMIN_PASSWORD=change-me-nextcloud-admin, NOT this script's old
+#     hardcoded admin_managed_pw fallback, and the manual .env setup walkthrough never
+#     overrides it).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
+COMPOSE_ENV_FILE="${REPO_ROOT}/deploy/compose/.env"
+if [ -z "${NEXTCLOUD_ADMIN_PASSWORD:-}" ] && [ -f "$COMPOSE_ENV_FILE" ]; then
+  NEXTCLOUD_ADMIN_PASSWORD="$(grep -E '^NEXTCLOUD_ADMIN_PASSWORD=' "$COMPOSE_ENV_FILE" | tail -1 | cut -d= -f2-)"
+fi
 
 # Must match the ACTUAL Docker network name docker compose creates for managed.yml's
 # `open-migrate-network` key, which Compose prefixes with the project name (managed.yml pins
