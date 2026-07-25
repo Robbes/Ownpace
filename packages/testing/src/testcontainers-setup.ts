@@ -692,6 +692,19 @@ async function startStalwart(): Promise<{
     await new Promise(resolve => setTimeout(resolve, 3000));
   }
 
+  // A container disappearing from `docker ps` only means the container object is
+  // gone — it does NOT guarantee the Stalwart process has finished closing its file
+  // descriptors and releasing the RocksDB LOCK file at the filesystem/volume level.
+  // This settling wait previously only ran on the timeout-fallback branch above; the
+  // common (fast) path fell straight through to Phase 2's first start attempt with
+  // zero buffer, making that first attempt prone to racing the lock release and
+  // failing near-instantly (observed: Phase 2 exiting before Stalwart's own logger
+  // even initializes — i.e. before a RocksDB lock error would normally be logged,
+  // producing an empty stalwart-phase2.log despite the retry loop's log consumer
+  // being correctly attached).
+  console.log('[StalwartSetup] Settling before Phase 2 (let the RocksDB LOCK file release)...');
+  await new Promise(resolve => setTimeout(resolve, 3000));
+
   console.log('[StalwartSetup] Phase 1 fully terminated. RocksDB lock released.');
   console.log('[StalwartSetup] Phase 2: Starting normal mode container with provisioned data...');
 
