@@ -428,9 +428,14 @@ export class CalDAVSource implements CalendarSource {
       const colorMatch = responseXml.match(/<[A-Za-z]+:color[^>]*>([^<]*)<\/[A-Za-z]+:color>/i);
       const color = colorMatch && colorMatch[1] ? colorMatch[1].trim() : undefined;
 
-      // Skip Nextcloud internal collections
+      // Skip Nextcloud internal collections. MUST check the stable path segment, not the
+      // human-readable displayname -- confirmed live against Nextcloud 34 for the sibling
+      // CardDAV filter (same bug pattern): internal collections get a friendly displayname
+      // (e.g. "z-server-generated--system" displays as "Accounts"), which never matches these
+      // patterns, so checking `displayName || extractNameFromPath(href)` (displayName wins
+      // whenever present) would let them leak through as syncable collections.
+      if (this.isInternalCollection(this.extractNameFromPath(href))) continue;
       const name = displayName || this.extractNameFromPath(href);
-      if (this.isInternalCollection(name)) continue;
 
       // Build the folder path
       const path = this.normalizePath(href);

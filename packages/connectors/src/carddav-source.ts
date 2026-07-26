@@ -466,10 +466,17 @@ export class CarddavSource implements ContactSource {
       const colorMatch = responseContent.match(/<[A-Za-z]+:color[^>]*>([^<]+)<\/[A-Za-z]+:color>/i);
       const _color = colorMatch && colorMatch[1] ? colorMatch[1].trim() : undefined;
 
-      // Skip Nextcloud internal address books
-      const name = displayName || this.extractNameFromPath(path);
-      if (this.isInternalCollection(name)) continue;
+      // Skip Nextcloud internal address books. MUST check the stable path segment, not the
+      // human-readable displayname -- confirmed live against Nextcloud 34: the internal
+      // "z-server-generated--system" collection (path segment, matches the pattern below) has
+      // displayname "Accounts", and "z-app-generated--contactsinteraction--recent" has
+      // displayname "Recently contacted" -- neither matches any pattern, so checking
+      // `displayName || extractNameFromPath(path)` (displayName wins whenever present) let both
+      // leak through as syncable collections; every account on the Nextcloud instance showed up
+      // as a "contact" to migrate.
+      if (this.isInternalCollection(this.extractNameFromPath(path))) continue;
 
+      const name = displayName || this.extractNameFromPath(path);
       folders.push({
         path,
         name,
