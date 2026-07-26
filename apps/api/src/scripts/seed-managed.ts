@@ -85,7 +85,16 @@ const STALWART_MAIL = { host: 'stalwart', imapsPort: 993, jmapBaseUrl: 'http://s
 // Demo Nextcloud accounts (provisioned by setup-managed-demo.sh via the canonical
 // deploy/selfhost/setup-nextcloud-users.sh, run once per tenant with tenant-specific
 // usernames). Reached by the compose service name "nextcloud".
-const NEXTCLOUD_DAV_BASE_URL = 'http://nextcloud/';
+//
+// MUST be the actual DAV base (".../remote.php/dav/"), not the bare site origin --
+// CalDAVTargetWriter/CardDAVTargetWriter (packages/engines) have no well-known/home-set
+// discovery of their own (unlike CalDAVSource/CarddavSource, packages/connectors): they
+// assume `config.url` IS ALREADY the DAV base and build collection paths directly under it
+// (e.g. `${baseUrl}/calendars/${username}/...`), matching the self-host convention where an
+// operator configures this url by hand. Confirmed live on the Spark box: with the bare
+// origin, MKCALENDAR/MKCOL landed on Nextcloud's plain web-UI routes and got its HTML 404
+// page back, not a DAV error.
+const NEXTCLOUD_DAV_BASE_URL = 'http://nextcloud/remote.php/dav/';
 
 const DEMO_TENANTS: readonly DemoTenant[] = [
   {
