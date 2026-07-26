@@ -193,13 +193,40 @@ export class WebDAVTargetWriter implements FileTargetWriter {
   }
 
   private async createDirectory(path: string, _folder: FileFolder): Promise<void> {
-    await this.httpClient.request({
+    await this.requestWithRetry({
       method: 'MKCOL',
       url: this.buildUrl(path),
       headers: {
         Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
       },
     });
+  }
+
+  /**
+   * Retry a write request a few times on a transient 5xx before giving up. Needed for the
+   * demo/self-host Nextcloud backend, which uses SQLite by default -- a single-writer database
+   * that genuinely returns "SQLSTATE[HY000]: General error: 5 database is locked" under
+   * concurrent domain writes (confirmed live for the sibling CalDAV/CardDAV target writers,
+   * same server). The lock is transient by nature, so a short backoff is the standard mitigation
+   * rather than requiring every demo deployment to run a concurrent-safe database.
+   */
+  private async requestWithRetry(
+    options: HttpRequestOptions,
+    attempts = 3,
+    backoffMs = 250,
+  ): Promise<HttpResponse> {
+    let lastResponse: HttpResponse | undefined;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      const response = await this.httpClient.request(options);
+      if (response.status < 500 || attempt === attempts) {
+        return response;
+      }
+      lastResponse = response;
+      await new Promise((resolve) => setTimeout(resolve, backoffMs * attempt));
+    }
+    // Unreachable in practice (the loop always returns on its last iteration), but keeps
+    // TypeScript happy about a guaranteed return value.
+    return lastResponse as HttpResponse;
   }
 
   private async uploadFile(parentId: string, raw: RawFileItem): Promise<string> {
@@ -215,7 +242,7 @@ export class WebDAVTargetWriter implements FileTargetWriter {
 
     // Simple PUT for small files - only if content exists
     if (raw.content) {
-      await this.httpClient.request({
+      await this.requestWithRetry({
         method: 'PUT',
         url: this.buildUrl(filePath),
         body: raw.content,
@@ -243,7 +270,7 @@ export class WebDAVTargetWriter implements FileTargetWriter {
 
       const range = `bytes=${start}-${end - 1}/${content.length}`;
 
-      await this.httpClient.request({
+      await this.requestWithRetry({
         method: 'PUT',
         url: this.buildUrl(filePath),
         body: chunk,
