@@ -28,7 +28,7 @@ Verified state:
 | [0008](./0008-o365-graph-source.md) | Production O365 source | ✅ **Reported done** — `MsalTokenProvider`, Graph calendar/contacts/drive sources, `ThrottleLimiter`, secret-gated e2e harness all present. The 24 h real-tenant soak is manual/secret-gated (not verifiable from the repo). |
 | [0009](./0009-cutover-integration.md) | Cutover made real | 🟡 **Near-complete** — T1/T2/T5/T6 done & integration-tested. **Owner decision (2026-07-16): verify-only DNS** → T4 (deSEC provider writes) deferred; only open item is the T3 DoH-resolver upgrade + verify-only tests. |
 | [0010](./0010-selfhost-edition.md) | Self-host edition | 🟡 **T1–T4 + T6 done & merged; T5 e2e written, needs a seeded run.** (PRs #62/#63 packaging+docs, #64 pool-leak, #65/#70/#73 review+T5). `apps/selfhost/src/index.ts` is now a **real entrypoint** (migrate → load config dir → `InProcessScheduler` → `/healthz`+`/status` → graceful shutdown, all four domains, zero managed leakage); startup migration runner (`packages/ledger/src/migrate.ts`), bundled-Postgres compose + Dockerfile, env-file secrets all present. **Only open:** T5's zero-duplicates assertion needs a **seeded, non-zero source** run on a Docker host (§5 acceptance centerpiece). **Postgres-only (ADR-0023).** |
-| [0011](./0011-managed-edition-hardening.md) | Managed edition hardening | 🟡 **T1–T6 done & merged; only T7 remains.** T1 runtime RLS, T2 real API persistence, T3 Trigger.dev wiring, T4 usage metering, T5 billing + Mollie webhook e2e, T6 web on the real API. The **T3 remainder is now closed** (PR #67): cal/contact/file domains wired via `buildDomainDepsFromMapping`, and `run-cutover.ts`/`run-rollback.ts` are real (final pass + verification gate that aborts on FAIL; honest rollback). Post-#56 review PRs hardened it further — tenant-authz RLS gate (#71), auth JWKS precedence (#69), members-rollback (#68), billing-webhook (#66). **Remaining:** T7 — app-tier Dockerfiles + live `compose up` DoD verification (draft on PR #57, needs a Docker host); only DNS provider **writes** stay deferred (2026-07-16 verify-only decision). |
+| [0011](./0011-managed-edition-hardening.md) | Managed edition hardening | ✅ **T1–T7 all done.** T1 runtime RLS, T2 real API persistence, T3 Trigger.dev wiring, T4 usage metering, T5 billing + Mollie webhook e2e, T6 web on the real API. The T3 remainder closed (PR #67): cal/contact/file domains wired via `buildDomainDepsFromMapping`, and `run-cutover.ts`/`run-rollback.ts` are real (final pass + verification gate that aborts on FAIL; honest rollback). Post-#56 review PRs hardened it further — tenant-authz RLS gate (#71), auth JWKS precedence (#69), members-rollback (#68), billing-webhook (#66). **T7 closed 2026-07-26** (PR #118/`pr-57-draft`): live `compose up` DoD verified with real, externally-confirmed evidence — cross-domain shadow syncs (mail + calendar + contact) landing real data in the actual target backend, RLS isolation, billing/usage, and an honest ledger-derived status endpoint; 13 real bugs found and fixed along the way (see the workplan's Status block). One already-scoped residual gap: the file/WebDAV domain needs a schema change (per-domain connection config) to work in the managed edition, tracked separately, not a T7 blocker. Only DNS provider **writes** stay deferred (2026-07-16 verify-only decision). |
 | [0012](./0012-cutover-completion-summary.md) | Cutover completion summary | 📄 History doc for the 0009 cutover work (not a forward plan). |
 | [0013](./0013-discovery-preview-confirm.md) | Pre-sync discovery, preview & confirm | ⬜ **Drafted, not started.** Read-only per-domain counts (mail/cal/contacts/files) + the §11.2 scope manifest with a **"Start migration"** green light that flips the mapping `paused`→`active` (reuses the schedule-driven model). Background discovery job + poll. **Both editions get a confirm screen** — managed React wizard step; self-host a minimal appliance-served static page (hard rule 5). Decisions locked with the owner 2026-07-21. |
 
@@ -44,24 +44,25 @@ demonstrate zero-duplicates. On the managed side, the 0011 **T3 remainder closed
 cutover with a verification gate + honest rollback + non-mail domains, PR #67), and a wave of
 review fixes hardened tenant-authz/RLS (#71), auth JWKS precedence (#69), members-rollback (#68),
 and billing webhooks (#66); web-auth (consistent 401 logout) + scheduler single-flight were fixed
-in #72. With these, **0011 T1–T6 are done** (only T7 — container images + a live `compose up` DoD —
-is left) and **0010** is one seeded acceptance run from complete. **ADR-0023 (Postgres-only)**
-still stands — **do not reintroduce SQLite / a second dialect.**
+in #72. With these, **0011 T1–T7 are all done** (T7 closed 2026-07-26 with real live-stack
+evidence — see the 0011 row above) and **0010** is one seeded acceptance run from complete.
+**ADR-0023 (Postgres-only)** still stands — **do not reintroduce SQLite / a second dialect** in
+open-migrate's own schema (the managed edition's *demo* Nextcloud backend is a third-party app
+with its own SQLite default — unrelated, and already worked around with a write-retry rather than
+migrated, see 0011's Status block).
 
 ## Recommended order (from here)
 
-The two open acceptance items both need a **Docker host** (this appliance-level verification can't
-be done in a Docker-free CI runner):
-
-1. **Finish 0011 T7** (the only open managed task) — build/verify the app-tier Dockerfiles and run
-   the clean `docker compose -f deploy/compose/managed.yml up` → two-tenant DoD journey on a Docker
-   host. Draft staged on PR #57; brief in `docs/design/0011-t7-dockerfiles-handoff.md`.
-2. **Close 0010 T5** — seed Stalwart with N>0 items, then run first-pass / `docker compose restart
+1. **Close 0010 T5** — seed Stalwart with N>0 items, then run first-pass / `docker compose restart
    app` / second-pass against `deploy/selfhost/compose.yml` and capture that `/status` `itemsSynced`
-   does **not** grow (the §5 zero-duplicates centerpiece). Everything else in 0010 is done.
-3. **0009 T3** — DoH-resolver upgrade (small; anytime) closes out cutover.
-4. **0013 (discovery/preview & confirm)** — drafted; the pre-sync counts + scope manifest + "Start
+   does **not** grow (the §5 zero-duplicates centerpiece). Everything else in 0010 is done. Needs a
+   Docker host.
+2. **0009 T3** — DoH-resolver upgrade (small; anytime) closes out cutover.
+3. **0013 (discovery/preview & confirm)** — drafted; the pre-sync counts + scope manifest + "Start
    migration" green light. Fully testable without Docker (unit + jsdom component tests).
+4. Optionally: give the managed edition's `connection` schema per-domain config (fixes the 0011 T7
+   file/WebDAV residual gap) — a real schema change, not urgent since 3 of 4 demo domains already
+   prove the pipeline.
 5. Later: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists), Proton path.
 
