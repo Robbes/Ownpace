@@ -78,8 +78,12 @@ export class WebdavFileSource implements FileSource {
   ): Promise<{ items: ReadonlyArray<RawFileItem>; nextCursor: SyncCursor }> {
     const folderPath = this.normalizePath(folder.path);
 
-    // folder.path is now root-relative (see toRelativePath), so it's config-derived: buildUrl (Rule B)
-    const response = await this.performPropfind(folderPath, '1', false);
+    // folder.path is root-relative to THIS connection's own root (config.url + rootPath, see
+    // toRelativePath), not to config.url alone -- combine with rootPath before treating it as a
+    // config-derived path (Rule B). buildUrl() by itself only appends to config.url, matching how
+    // listFolders() already passes the full rootPath directly as its own "path" argument.
+    const rootedPath = this.combineWithRootPath(folderPath);
+    const response = await this.performPropfind(rootedPath, '1', false);
     
     // Parse entries and filter for files (not directories)
     const items: RawFileItem[] = [];
@@ -604,6 +608,19 @@ export class WebdavFileSource implements FileSource {
     const base = this.basePathname();
     const relative = pathname.startsWith(base) ? pathname.slice(base.length) : pathname.replace(/^\/+/, '');
     return decodeURIComponent(relative).replace(/\/+$/, '');
+  }
+
+  /**
+   * Prefix a root-relative path with this connection's own configured rootPath, producing a
+   * config-derived path suitable for buildUrl (Rule B). Inverse of toRelativePath.
+   */
+  private combineWithRootPath(relativePath: string): string {
+    const root = (this.config.rootPath ?? '').replace(/\/+$/, '');
+    const rel = relativePath.replace(/^\/+/, '');
+    if (rel === '') {
+      return root === '' ? '/' : root;
+    }
+    return root === '' ? `/${rel}` : `${root}/${rel}`;
   }
 
   /**
