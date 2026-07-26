@@ -125,8 +125,23 @@ export class CarddavSource implements ContactSource {
           }
         }
       } else if (response.status === 200 || response.status === 204) {
-        // Well-known URI exists but may not redirect - try PROPFIND on it
-        const homeSet = await this.discoverHomeSetFromPrincipal(wellKnownUrl);
+        // Well-known URI exists but may not redirect the way this code expects. Note: with the
+        // native-fetch-backed httpClient this connector actually uses (no `redirect: 'manual'`),
+        // fetch ALWAYS follows redirects transparently -- so this is really the ONLY branch that
+        // ever executes, and `wellKnownUrl` here has already been silently redirected to wherever
+        // the server sent it (confirmed live against Nextcloud: to /remote.php/dav/, the DAV
+        // root -- NOT a principal resource).
+        let homeSet = await this.discoverHomeSetFromPrincipal(wellKnownUrl);
+        if (!homeSet) {
+          // addressbook-home-set is a PRINCIPAL property (RFC 6352 §7.1.1), not a DAV-root one --
+          // querying it directly on the (post-redirect) DAV root gets an embedded 404 for that
+          // specific property even though the PROPFIND itself returns 207. Resolve
+          // current-user-principal there first, then query addressbook-home-set on THAT.
+          const principalUrl = await this.discoverPrincipalUrl(wellKnownUrl);
+          if (principalUrl) {
+            homeSet = await this.discoverHomeSetFromPrincipal(principalUrl);
+          }
+        }
         if (homeSet) {
           this.addressBookHomeSet = homeSet;
           return;
@@ -363,15 +378,57 @@ export class CarddavSource implements ContactSource {
   }
 
   /**
+   * Extract a property's href value from a multistatus response body, tolerating any XML
+   * namespace prefix the server chooses to echo back (a server is never required to preserve the
+   * client's chosen prefix), and the href nested inside a <?:href> child element -- confirmed live
+   * against Nextcloud/sabre-dav for the sibling calendar-home-set property, same server stack.
+   */
+  private static extractHrefProperty(body: string, elementName: string): string | null {
+    const outer = body.match(
+      new RegExp(`<[\\w-]+:${elementName}[^>]*>([\\s\\S]*?)<\\/[\\w-]+:${elementName}>`, 'i'),
+    );
+    const outerContent = outer?.[1];
+    if (outerContent === undefined) return null;
+    const hrefMatch = outerContent.match(/<[\w-]+:href[^>]*>([^<]+)<\/[\w-]+:href>/i);
+    const value = (hrefMatch?.[1] ?? outerContent).trim();
+    return value || null;
+  }
+
+  /**
+   * Resolve the current-user-principal at a given URL (needed because a well-known-redirect
+   * target commonly resolves to the DAV root, not a principal resource -- see
+   * discoverAddressBookHomeSet's well-known branch for why this matters).
+   */
+  private async discoverPrincipalUrl(url: string): Promise<string | null> {
+    const propfind = `<?xml version="1.0" encoding="utf-8"?>
+      <D:propfind xmlns:D="DAV:">
+        <D:prop>
+          <D:current-user-principal/>
+        </D:prop>
+      </D:propfind>`;
+
+    const response = await this.httpClient.request({
+      method: 'PROPFIND',
+      url,
+      body: propfind,
+      headers: {
+        'Content-Type': 'application/xml',
+        Depth: '0',
+        Authorization: this.getAuthorizationHeader(),
+      },
+    });
+
+    if (response.status !== 207) return null;
+    const href = CarddavSource.extractHrefProperty(response.body, 'current-user-principal');
+    return href ? this.resolveHref(href) : null;
+  }
+
+  /**
    * Parse address book home set from PROPFIND response.
    */
   private parseAddressBookHomeSetResponse(body: string): string | null {
-    // Look for addressbook-home-set in the response - namespace-agnostic
-    const match = body.match(/<[A-Za-z]+:addressbook-home-set[^>]*>([^<]+)<\/[A-Za-z]+:addressbook-home-set>/i);
-    if (match && match[1]) {
-      return this.normalizePath(match[1].trim());
-    }
-    return null;
+    const value = CarddavSource.extractHrefProperty(body, 'addressbook-home-set');
+    return value ? this.normalizePath(value) : null;
   }
 
   /**
