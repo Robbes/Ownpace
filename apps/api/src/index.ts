@@ -10,6 +10,7 @@ import type { Request, Response, NextFunction, Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import { runMigrations } from '@openmig/ledger';
 
 // Import types
 import type { AuthenticatedRequest, JwtPayload } from './types/api';
@@ -64,12 +65,25 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
   });
 });
 
-// Start server
+// Start server. Self-migrates first (under migrate.ts's advisory lock, idempotent) --
+// the managed edition has no separate migration step, unlike apps/selfhost, so this is
+// the only thing that ever creates the managed schema on a fresh database.
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
-    console.log(`API server running on port ${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  });
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error('DATABASE_URL is required');
+  }
+  runMigrations({ connectionString: databaseUrl })
+    .then(() => {
+      app.listen(PORT, () => {
+        console.log(`API server running on port ${PORT}`);
+        console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      });
+    })
+    .catch((err) => {
+      console.error('API failed to start: migrations failed:', err);
+      process.exit(1);
+    });
 }
 
 export { app };

@@ -238,7 +238,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter {
         </D:set>
       </C:mkcalendar>`;
 
-    const response = await this.httpClient.request({
+    const response = await this.requestWithRetry({
       method: 'MKCALENDAR',
       url: this.buildUrl(path),
       body: mkcalendar,
@@ -251,6 +251,33 @@ export class CalDAVTargetWriter implements CalendarTargetWriter {
     if (response.status !== 201) {
       throw new Error(`MKCALENDAR failed for ${path} with status ${response.status}: ${response.body}`);
     }
+  }
+
+  /**
+   * Retry a write request a few times on a transient 5xx before giving up. Needed for the
+   * demo/self-host Nextcloud backend, which uses SQLite by default -- a single-writer database
+   * that genuinely returns "SQLSTATE[HY000]: General error: 5 database is locked" under
+   * concurrent domain writes (confirmed live: calendar and contact syncs racing the same
+   * account). The lock is transient by nature, so a short backoff is the standard mitigation
+   * rather than requiring every demo deployment to run a concurrent-safe database.
+   */
+  private async requestWithRetry(
+    options: HttpRequestOptions,
+    attempts = 3,
+    backoffMs = 250,
+  ): Promise<HttpResponse> {
+    let lastResponse: HttpResponse | undefined;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      const response = await this.httpClient.request(options);
+      if (response.status < 500 || attempt === attempts) {
+        return response;
+      }
+      lastResponse = response;
+      await new Promise((resolve) => setTimeout(resolve, backoffMs * attempt));
+    }
+    // Unreachable in practice (the loop always returns on its last iteration), but keeps
+    // TypeScript happy about a guaranteed return value.
+    return lastResponse as HttpResponse;
   }
 
   private extractUidFromIcalendar(icalendar: string): string {
@@ -271,7 +298,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter {
     const filename = `${uid}.ics`;
     const eventPath = `${calendarId}${filename}`;
 
-    const response = await this.httpClient.request({
+    const response = await this.requestWithRetry({
       method: 'PUT',
       url: this.buildUrl(eventPath),
       body: raw.icalendar,

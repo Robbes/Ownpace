@@ -272,6 +272,123 @@ repo's test setup, check whether it reproduces in a plain (non-nested) Docker en
 if it only fails when Docker is reached via a mounted socket, it's almost certainly one of the
 items above, not a regression here.
 
+### Update (2026-07-23): the bind-mount trap is now FIXED in `setup-stalwart.sh`, not just documented
+
+An agent hit exactly the predicted "Is a directory" failure (see "Note on bind-mount vs copy for
+config delivery" below) while trying to provision Stalwart from inside a DooD sandbox for the
+managed-edition T7 demo backend, and worked out a fix independently: deliver `config.json` via a
+named Docker volume, seeded by a throwaway `--rm` container that writes the file with shell
+redirection (`echo ... > /etc/stalwart/config.json`), instead of a bind-mounted host path. This is
+exactly the "named-volume stage" this doc already prescribed as the fix — it's now applied directly
+in `setup-stalwart.sh` (both phases mount `$CONFIG_VOLUME:/etc/stalwart:ro`), so it works
+identically on a bare runner and inside a sandbox. The old advice below ("switch config delivery ...
+if it ever needs to run inside a DooD sandbox") is done, not still-open — don't re-derive it.
+
+### RESOLVED (2026-07-25): the loopback trap, confirmed and fixed in setup-stalwart.sh itself
+
+Reproduced from inside `oh-agent-server` (a DooD sandbox) after the fixes above: `setup-stalwart.sh`
+reported "Recovery listener never came up after 60s" exactly as described below. Following this
+section's own checklist item 2, ran `docker exec open-migrate-stalwart curl -sf -o /dev/null -w
+"HTTP %{http_code}" http://127.0.0.1:8080/.well-known/jmap` — returned `HTTP 307` immediately.
+**Confirmed**: Stalwart was genuinely up and responding the whole time; `wait_for_jmap`'s check
+(`curl http://127.0.0.1:${JMAP_PORT}` from the *caller's* shell) was hitting the DooD loopback trap
+in item 0 above, not a real Stalwart problem. Fixed directly in `setup-stalwart.sh`:
+`wait_for_jmap` now runs its check via `docker exec "$CONTAINER" curl ...` (inside the target
+container's own namespace) instead of the caller's own `127.0.0.1`, which is correct in both a
+bare-host and a sandboxed context. `stalwart-cli`'s own provisioning call **can't** go through
+`docker exec` (it's a host binary, not present in the target image), so it keeps using
+`127.0.0.1:$JMAP_PORT` by default but now honors a `STALWART_CLI_URL` override — join the sandbox's
+own container to `$NETWORK` and set `STALWART_CLI_URL=http://stalwart:8080` if the default doesn't
+reach it.
+
+**If you still see "never came up" after this fix**, it's either genuinely new (see item 4 below) or
+you're on a checkout from before this fix — `git pull` and retry before investigating further.
+
+### RESOLVED (2026-07-25): the same loopback trap, confirmed in setup-nextcloud-users.sh too
+
+Not Stalwart-specific after all: reproduced the identical DooD symptom in
+`deploy/selfhost/setup-nextcloud-users.sh`'s "external DAV readiness" PROPFIND check, called from
+`setup-managed-demo.sh` while running inside `oh-agent-server`. `docker exec "$CONTAINER" occ
+status` confirmed Nextcloud was fully installed and healthy, yet the PROPFIND against
+`http://127.0.0.1:$NEXTCLOUD_HOST_PORT/remote.php/dav/` failed with curl status `000` (no
+connection at all) — exactly the loopback-namespace trap described above, just hitting a
+different script. Every subsequent curl in that script (user creation, home-set touches) uses the
+same base URL, so it wasn't only the readiness check that would have failed.
+
+**Fixed** the same way as `STALWART_CLI_URL`: `setup-nextcloud-users.sh` now takes a
+`NEXTCLOUD_URL` override (default unchanged, `http://127.0.0.1:$NEXTCLOUD_HOST_PORT`), and
+`setup-managed-demo.sh` forwards it. Join the sandbox's own container to `$MANAGED_NETWORK` and set
+`NEXTCLOUD_URL=http://nextcloud/` — that hostname is already registered as a trusted domain (see
+`NEXTCLOUD_TRUSTED_DOMAINS` in `managed.yml`) — if the default doesn't work.
+
+**Lesson for next time**: any script in this repo that curls a container's *published* host port
+from the caller's own shell (rather than via `docker exec` into the target, or via a compose
+network alias) is a candidate for this exact trap in a DooD sandbox. Check new scripts against
+this before assuming a "never came up" failure is a real backend bug.
+
+### RESOLVED (2026-07-25): a second, different race — stalwart-cli hits the published port before it's wired up, even on a bare host
+
+Reproduced on the Spark box's own bare shell (not a DooD sandbox — `DOCKER_HOST` unset, default
+context, confirmed via `docker context show`): `setup-stalwart.sh` passed `wait_for_jmap` ("Recovery
+listener" check via `docker exec`, hitting the container's own internal `localhost:8080`), then the
+very next line — the `stalwart-cli apply` call, which targets `$CLI_URL` (the *published* port,
+`127.0.0.1:18081` by default) — failed immediately with `error sending request for url
+(http://127.0.0.1:18081/api/schema)`. Manual diagnostics moments later showed the port was
+completely fine: `docker port`, `docker inspect .NetworkSettings.Ports`, `ss -tlnp`, and a plain
+`curl -v http://127.0.0.1:18081/.well-known/jmap` all confirmed it was bound and returning `HTTP
+307` correctly.
+
+**Root cause**: `wait_for_jmap`'s `docker exec`-based check only proves the container's *own*
+loopback is serving. It says nothing about whether Docker's port-publish path (the userland-proxy
+or NAT rule that makes `127.0.0.1:18081` on the host reach the container's `8080`) has finished
+wiring up yet — that's a separate mechanism from the app process binding its socket, and it can lag
+by a moment even with no DooD sandbox involved at all. `stalwart-cli` is a host binary that has no
+choice but to go through that published-port path (it can't use `docker exec`, see the note in
+`setup-stalwart.sh` itself), so it can race a wiring gap that the internal-check-based
+`wait_for_jmap` is blind to.
+
+**Fixed** in `setup-stalwart.sh`: added `wait_for_cli_url()`, which polls `$CLI_URL` directly (the
+same path `stalwart-cli` itself will use) via a plain `curl` from the script's own shell, called
+right after `wait_for_jmap` and right before the `stalwart-cli apply` line. This closes the gap
+regardless of whether `$CLI_URL` is the default published-port form or a `STALWART_CLI_URL`
+override for a DooD sandbox — either way, the thing that's about to call `stalwart-cli` now waits
+for exactly the path `stalwart-cli` will use, not a different one.
+
+### Historical: recovery-mode listener sometimes doesn't appear to bind (superseded by the fix above)
+
+While debugging the above, the same agent — after fixing config delivery so `config.json` was
+confirmed present and non-empty in the volume — still saw phase 1 (recovery mode) fail: the
+container logged `Network listener started ... localPort = 8080` and reported `healthy`, but
+`curl http://127.0.0.1:<published-port>/.well-known/jmap` timed out/refused, AND (this is the part
+that rules out simple host/sandbox-loopback confusion) `docker exec <container> cat /proc/net/tcp`
+showed no `LISTEN` (state `0A`) entry for port 8080 (`0x1F90`) at all, only unrelated
+`CLOSE_WAIT` sockets. This was investigated for a long time (IPv6 checks, `/proc/net/tcp`
+forensics, browsing stalwartlabs' docs site and GitHub — several of those URLs 404'd) without
+reaching a confirmed root cause. **This is a real open question, not resolved by this doc update.**
+
+Before repeating that investigation, rule these out first, cheaply:
+1. **Confirm you're actually re-testing after the config-delivery fix above**, not against a
+   container started before it (`docker rm -f` the container and volume, don't just re-run against
+   stale state — see the "Docker debris"/stale-volume items elsewhere in this doc and in the 0011
+   workplan's T7 status for how often stale state has produced misleading failures here).
+2. **Separate "can't reach it from my sandbox's own loopback" from "genuinely not listening."** The
+   agent's `curl 127.0.0.1:<port>` test is exactly the DooD localhost-confusion trap in item 0 above
+   — if the agent's own container isn't on the same network as the target and isn't using
+   `docker exec`, a refused/timed-out curl from its own `127.0.0.1` proves nothing either way. The
+   `docker exec ... /proc/net/tcp` check is the one piece of evidence in that session that isn't
+   explained by the loopback trap (it inspects the target container's own namespace directly) — if
+   you reproduce this, lead with that check specifically, and try `docker exec <container> curl
+   127.0.0.1:8080/.well-known/jmap` (from inside the container itself) as a second, even more direct
+   confirmation before concluding anything about the published port or the sandbox's network.
+3. **Try a bare (non-nested) Docker host if you have one available.** Per the "Rule" above this
+   section: if a failure only reproduces inside a DooD sandbox, it's more likely something about that
+   environment than a Stalwart/script bug — `setup-stalwart.sh` (pre-this-fix, bind-mount and all)
+   is proven working on the bare Spark runner per "Round 4" below.
+4. If it reproduces even via `docker exec` on a bare host, that's a genuine, novel finding worth its
+   own investigation (image bug, `STALWART_RECOVERY_MODE` regression in v0.16.10, resource limits
+   inside the sandbox preventing the listener thread from starting, etc.) — but confirm 1–3 first
+   before spending hours on it again.
+
 ## Bugs found via Spark box forensics, and how they were actually fixed
 
 Three **independent, already-committed bugs** surfaced while diagnosing a stranded agent session,

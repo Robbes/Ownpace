@@ -130,6 +130,31 @@ describe('POST /api/migrations — real persistence', () => {
     }
   });
 
+  it('GET returns real, ledger-derived data — not the old hardcoded placeholders', async () => {
+    const res = await request
+      .get(`/api/migrations/${createdMappingId}`)
+      .set('Authorization', `Bearer ${token(TENANT_A)}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.tenantId).toBe(TENANT_A);
+    // Previously always 'imap.example.com'/'jmap.example.com' regardless of the
+    // mapping's real config — now the actual stored connection config.
+    expect(res.body.sourceConfig).toMatchObject({ host: 'imap.src.test', port: 993, username: 'src@acme.test' });
+    expect(res.body.targetConfig).toMatchObject({ host: 'jmap.tgt.test', port: 443, username: 'tgt@acme.test' });
+    // Never the real secret, even though the rest of the config is real now.
+    expect(res.body.sourceConfig.password).toBe('***');
+    expect(res.body.targetConfig.password).toBe('***');
+    // Previously always ['email'] regardless of what was actually selected.
+    expect(res.body.syncConfig.domains).toEqual(['calendar', 'email']);
+    expect(res.body.syncConfig.schedule).toBe('*/15 * * * *');
+    // Ledger-derived per-domain status — empty because no sync has run yet for this
+    // mapping (previously this field didn't exist at all).
+    expect(res.body.domainStatus).toEqual([]);
+    // Previously always `new Date().toISOString()` regardless of whether anything
+    // had ever actually synced.
+    expect(res.body.lastSyncAt).toBeUndefined();
+  });
+
   it('is tenant-isolated: tenant B cannot see tenant A mapping', async () => {
     const res = await request
       .get(`/api/migrations/${createdMappingId}`)
