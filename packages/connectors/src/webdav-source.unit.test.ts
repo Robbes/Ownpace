@@ -289,7 +289,10 @@ describe('WebdavFileSource', () => {
       const file = (source as any).parseFileFromEntry(pdfEntry);
 
       expect(file).toBeDefined();
-      expect(file.path).toBe('/documents/report.pdf');
+      // Root-relative (see toRelativePath): this connection's own base is 'https://example.com/webdav',
+      // so a server-returned '/documents/report.pdf' href (outside that base) is relative-ized to
+      // 'documents/report.pdf' rather than kept as an absolute, account-specific href.
+      expect(file.path).toBe('documents/report.pdf');
       expect(file.name).toBe('report.pdf');
       expect(file.size).toBe(1048576);
       expect(file.mimeType).toBe('application/pdf');
@@ -309,7 +312,7 @@ describe('WebdavFileSource', () => {
       const file = (source as any).parseFileFromEntry(minimalEntry);
       
       expect(file).toBeDefined();
-      expect(file.path).toBe('/minimal.txt');
+      expect(file.path).toBe('minimal.txt');
       expect(file.name).toBe('minimal.txt');
       expect(file.size).toBe(0);
       expect(file.etag).toBe('');
@@ -329,7 +332,7 @@ describe('WebdavFileSource', () => {
       const folder = (source as any).parseFolderFromEntry(folderEntry);
 
       expect(folder).toBeDefined();
-      expect(folder.path).toBe('/quota-folder');
+      expect(folder.path).toBe('quota-folder');
       expect(folder.name).toBe('Quota Folder');
       expect(folder.quota).toBeDefined();
       expect(folder.quota?.used).toBe(1073741824);
@@ -461,16 +464,16 @@ describe('WebdavFileSource', () => {
       const cursorData = {
         folder: '/documents',
         etags: {
-          '/documents/report.pdf': 'abc123def456', // Same as in response
-          '/documents/image.png': 'different-etag', // Different from response
+          'documents/report.pdf': 'abc123def456', // Same as in response
+          'documents/image.png': 'different-etag', // Different from response
         },
         sizes: {
-          '/documents/report.pdf': 1048576,
-          '/documents/image.png': 524288,
+          'documents/report.pdf': 1048576,
+          'documents/image.png': 524288,
         },
         mtimes: {
-          '/documents/report.pdf': '2024-01-15T12:00:00.000Z',
-          '/documents/image.png': '2024-01-16T09:15:00.000Z',
+          'documents/report.pdf': '2024-01-15T12:00:00.000Z',
+          'documents/image.png': '2024-01-16T09:15:00.000Z',
         },
       };
       const cursor = {
@@ -492,7 +495,7 @@ describe('WebdavFileSource', () => {
       // report.pdf should be filtered out (unchanged)
       // image.png should be included (changed)
       expect(result.items).toHaveLength(1);
-      expect(result.items[0]?.item.path).toBe('/documents/image.png');
+      expect(result.items[0]?.item.path).toBe('documents/image.png');
     });
   });
 
