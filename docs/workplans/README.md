@@ -53,15 +53,24 @@ migrated, see 0011's Status block).
 
 ## Recommended order (from here)
 
+**Note (2026-07-26):** this session confirmed live Docker-host access (the Spark box), used to do
+the 0011 T7/file-domain verification above. The same access removes the only blocker on 0010 T5
+below — it's no longer "needs a Docker host, do it eventually," it's immediately actionable.
+
 1. **Close 0010 T5** — seed Stalwart with N>0 items, then run first-pass / `docker compose restart
    app` / second-pass against `deploy/selfhost/compose.yml` and capture that `/status` `itemsSynced`
-   does **not** grow (the §5 zero-duplicates centerpiece). Everything else in 0010 is done. Needs a
-   Docker host.
+   does **not** grow (the §5 zero-duplicates centerpiece). Everything else in 0010 is done. Now
+   unblocked (see note above) — the single remaining item to fully close 0010.
 2. **0009 T3** — DoH-resolver upgrade (small; anytime) closes out cutover.
 3. **0013 (discovery/preview & confirm)** — drafted; the pre-sync counts + scope manifest + "Start
    migration" green light. Fully testable without Docker (unit + jsdom component tests).
 4. Later: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists), Proton path.
+
+## Currently in flight
+
+- **PR #119** (`pr-57-draft` → `main`): closes the 0011 file/WebDAV domain gap (see the 0011 row
+  above for the full write-up). CI green, live-verified on the Spark box, not yet merged.
 
 Numbering note: `0001-start-prompt.md` is a historical bootstrap prompt, not a plan. The
 `migration/nextjs-15` branch was **not** adopted (Vite stays; tag `archive/nextjs-15` preserves
