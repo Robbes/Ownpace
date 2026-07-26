@@ -339,6 +339,24 @@ describe('WebdavFileSource', () => {
       expect(folder.quota?.available).toBe(10737418240);
     });
 
+    it('resolves the connection\'s own root to an empty relative path even without a trailing slash', () => {
+      // Real bug, confirmed live against Nextcloud: a depth:1 PROPFIND's self-entry for the
+      // account root can come back WITHOUT a trailing slash (e.g. '/webdav' instead of
+      // '/webdav/'), even though every other returned collection href has one. Before the fix,
+      // this mismatch made the prefix check in toRelativePath fail for the root specifically,
+      // resolving it to almost its entire absolute path instead of '' -- which then made
+      // listSince() build a garbled, doubled URL for the root "folder".
+      const source = new WebdavFileSource(testConfig);
+      const rootEntry: any = {
+        href: '/webdav', // no trailing slash, matching config.url's own path exactly
+        status: 'HTTP/1.1 200 OK',
+        displayName: '',
+        resourceType: ['collection'],
+      };
+      const folder = (source as any).parseFolderFromEntry(rootEntry);
+      expect(folder.path).toBe('');
+    });
+
     it('should parse file creation date', () => {
       const source = new WebdavFileSource(testConfig);
       

@@ -605,8 +605,21 @@ export class WebdavFileSource implements FileSource {
    */
   private toRelativePath(href: string): string {
     const pathname = new URL(this.resolveHref(href)).pathname;
-    const base = this.basePathname();
-    const relative = pathname.startsWith(base) ? pathname.slice(base.length) : pathname.replace(/^\/+/, '');
+    const base = this.basePathname(); // always trailing-slash-terminated
+    // The root's own self-entry in a depth:1 PROPFIND response can come back WITHOUT a
+    // trailing slash (confirmed live against Nextcloud) even though every other collection
+    // href has one -- comparing pathname directly against `base` then fails the prefix check
+    // (pathname is one character "shorter"), falling through to the generic branch and
+    // returning almost the entire absolute path instead of ''. Check both slash variants of
+    // the root explicitly before falling back to a prefix match for non-root paths.
+    let relative: string;
+    if (pathname === base || pathname === base.slice(0, -1)) {
+      relative = '';
+    } else if (pathname.startsWith(base)) {
+      relative = pathname.slice(base.length);
+    } else {
+      relative = pathname.replace(/^\/+/, '');
+    }
     return decodeURIComponent(relative).replace(/\/+$/, '');
   }
 
