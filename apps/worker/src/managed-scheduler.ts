@@ -103,27 +103,28 @@ async function loadEnabledDomains(pool: Pool, tenantId: string, mappingId: strin
   return rows.map((r) => r.domain);
 }
 
-/** Build deps, run the domain's sync, and track migration_status (mirrors run-delta-sync.ts). */
+/** Build deps, run the domain's sync, and track migration_status (mirrors orchestration.ts's
+ * runAllDomains -- initDomainStatus is the only INSERT; markInProgress/markCompleted/markFailed
+ * are plain UPDATEs that silently no-op without it, for every domain including email. Confirmed
+ * live: before this fix, GET /:mappingId's domainStatus came back empty for both demo tenants
+ * despite real sync activity in the worker logs -- initDomainStatus was never called anywhere in
+ * this file. */
 async function runDomain(pool: Pool, tenantId: TenantId, mappingId: MappingId, domain: Domain): Promise<void> {
-  if (domain === 'email') {
-    // buildDepsFromMapping wraps all DB ops in withTenant() and manages the
-    // email domain's migration_status itself.
-    const deps = await buildDepsFromMapping(pool, tenantId, mappingId);
-    try {
-      const result = await runShadowPass(deps);
-      console.log(`[managed-scheduler] ${mappingId}/email: ${result.created} created, ${result.skipped} skipped`);
-    } finally {
-      await deps.close();
-    }
-    return;
-  }
-
   await withTenant(pool, tenantId, async (db) => {
-    await new PgMigrationStatusStore(db).markInProgress(tenantId, mappingId, domain);
+    const statusStore = new PgMigrationStatusStore(db);
+    await statusStore.initDomainStatus(tenantId, mappingId, domain);
+    await statusStore.markInProgress(tenantId, mappingId, domain);
   });
   try {
     let result: { created: number; skipped: number };
-    if (domain === 'calendar') {
+    if (domain === 'email') {
+      const deps = await buildDepsFromMapping(pool, tenantId, mappingId);
+      try {
+        result = await runShadowPass(deps);
+      } finally {
+        await deps.close();
+      }
+    } else if (domain === 'calendar') {
       const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'calendar');
       try {
         result = await runCalendarSync(deps);
