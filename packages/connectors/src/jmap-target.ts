@@ -449,11 +449,21 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
       const found = ids.length > 0 ? ids[0] : undefined;
       return found;
     } catch (err) {
-      // Query might not be supported; return undefined. Surface the reason —
-      // a swallowed failure here reads as "not present" to upsertEmail, which
-      // would then append a duplicate (hard rule 1/9).
-      console.warn('[jmap-target] Email/query failed, treating as not-found:', (err as Error).message);
-      return undefined;
+      // A failed lookup is NOT "not found". upsertEmail reads `undefined` as
+      // "this message isn't on the target yet" and APPENDs — so swallowing a
+      // transient Email/query failure here silently creates a duplicate, which
+      // breaks the one property the whole product rests on (hard rule 1;
+      // hard rule 9 forbids turning failures into empty results).
+      //
+      // Failing loudly is safe and resumable: the pass aborts, the folder keeps
+      // its old cursor, and the next pass re-scans from the same point.
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `Email/query lookup failed for Message-ID ${naturalKey} in mailbox ${mailboxId}; ` +
+          `refusing to treat this as "not present" because that would append a duplicate. ` +
+          `Cause: ${message}`,
+        { cause: err },
+      );
     }
   }
 
