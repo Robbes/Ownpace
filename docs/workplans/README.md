@@ -194,9 +194,27 @@ actually left:
      else, and starting there would prefix every key out of alignment with the ledger. Covered
      by `dav-multistatus.unit.test.ts` (17), `dav-reindexers.unit.test.ts` (17) and
      `dav-factories.unit.test.ts` (3).
-2. Next: a size/content hash on `TargetEntry`, which closes both `checksumUnavailable > 0`
-   (§20's checksum leg does not run today) and `totalBytesTarget === null`.
-3. Later: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
+   - ✅ **Done — both halves of §20 now measure something.** `TargetEntry` gained `sizeBytes`
+     (JMAP `size`, IMAP `RFC822.SIZE`, DAV `getcontentlength`), so `totalBytesTarget` is a real
+     sum instead of always `null`. It stays `null` unless EVERY matched item carried a size — a
+     partial sum reads as a shortfall against the source total, i.e. as data loss rather than as
+     a gap in measurement. `TargetReindexer` gained an optional `contentHashFor(entry)`, called
+     for sampled items only, which finally makes "checksum sampling" sample something:
+     implemented for **mail** (a JMAP blob / IMAP `BODY[]` is the message as submitted) and
+     **files** (WebDAV serves back the bytes that were PUT), and deliberately **not** for
+     CalDAV/CardDAV, because those servers re-serialize iCalendar and vCard (property order,
+     re-folded lines, their own PRODID) so every item would hash differently and a healthy
+     migration would report as 100% corrupt — those samples stay `checksumUnavailable`, which
+     says "not measured". An unreadable item is likewise counted unavailable, never as a
+     mismatch. Two bugs found while building it: the WebDAV HTTP client only exposed
+     UTF-8-decoded text, so hashing a binary file would have differed from its source hash for
+     every non-ASCII byte (`bodyBytes` added; absence returns undefined rather than hashing the
+     lossy string), and `ImapDavMailTarget.listEntries` still fell back to `messageId ||
+     String(uid)` on the SUCCESS path — the exact UID fallback its own catch block refuses to
+     make, which would key a ledger row that can never match and duplicate the message on the
+     next sync. Covered by `verification-bytes-and-checksums.unit.test.ts` (10) plus 7 more in
+     the DAV reindexer suite.
+2. Next: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 
 No plan is blocked or mid-flight.

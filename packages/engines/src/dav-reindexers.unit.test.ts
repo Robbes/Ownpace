@@ -20,6 +20,7 @@ import {
   calendarNaturalKeyHash,
   contactNaturalKeyHash,
   fileNaturalKeyHash,
+  fileContentHash,
   type Ledger,
 } from '@openmig/shared';
 import { CalDAVTargetWriter, type HttpClient as CalHttp } from './caldav-target-writer';
@@ -417,6 +418,101 @@ describe('WebDAVTargetWriter.listEntries', () => {
     ]);
   });
 
+  it('carries the size the server reported, so target bytes can be measured', async () => {
+    const { writer } = fileWriter([
+      { match: /^PROPFIND .*\/files\/alice\/Documents/, body: DOCS_LISTING },
+      { match: /^PROPFIND/, body: ROOT_LISTING },
+    ]);
+
+    const entries = await collect(writer.listEntries());
+    const bySize = Object.fromEntries(entries.map((e) => [e.naturalKey, e.sizeBytes]));
+
+    expect(bySize['readme.txt']).toBe(12);
+    expect(bySize['Documents/Meeting notes.txt']).toBe(34);
+  });
+
+  it('leaves sizeBytes undefined when the server omits getcontentlength', async () => {
+    // Never a fabricated 0: verification only sums when EVERY item was
+    // measured, and a fake zero would make a complete target look short.
+    const noLength = ROOT_LISTING.replace(/<d:getcontentlength>\d+<\/d:getcontentlength>/g, '');
+    const { writer } = fileWriter([
+      { match: /^PROPFIND .*\/files\/alice\/Documents/, body: DOCS_LISTING },
+      { match: /^PROPFIND/, body: noLength },
+    ]);
+
+    const entries = await collect(writer.listEntries());
+    expect(entries.find((e) => e.naturalKey === 'readme.txt')?.sizeBytes).toBeUndefined();
+  });
+
+  it('hashes a sampled file from its raw bytes', async () => {
+    const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff]);
+    const { client } = fakeHttp([]);
+    const writer = new WebDAVTargetWriter(
+      { url: FILES_BASE, username: 'alice', password: 'pw' },
+      {
+        ledger,
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        httpClient: {
+          async request() {
+            return { status: 200, body: '<mangled>', headers: {}, bodyBytes: bytes };
+          },
+        } as never,
+      },
+    );
+    void client;
+
+    const hash = await writer.contentHashFor({
+      naturalKey: 'logo.png',
+      targetId: 'logo.png',
+      mailboxId: '',
+    });
+
+    // Hashing the decoded `body` string instead would differ from this for any
+    // non-ASCII byte — every binary file reported as corrupt.
+    expect(hash).toBe(fileContentHash(bytes));
+  });
+
+  it('returns undefined rather than hashing lossy text when bytes are unavailable', async () => {
+    const writer = new WebDAVTargetWriter(
+      { url: FILES_BASE, username: 'alice', password: 'pw' },
+      {
+        ledger,
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        httpClient: {
+          async request() {
+            return { status: 200, body: 'text only', headers: {} };
+          },
+        } as never,
+      },
+    );
+
+    expect(
+      await writer.contentHashFor({ naturalKey: 'a.txt', targetId: 'a.txt', mailboxId: '' }),
+    ).toBeUndefined();
+  });
+
+  it('returns undefined when the file cannot be fetched — unavailable, not corrupt', async () => {
+    const writer = new WebDAVTargetWriter(
+      { url: FILES_BASE, username: 'alice', password: 'pw' },
+      {
+        ledger,
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        httpClient: {
+          async request() {
+            return { status: 404, body: '', headers: {} };
+          },
+        } as never,
+      },
+    );
+
+    expect(
+      await writer.contentHashFor({ naturalKey: 'gone.txt', targetId: 'gone.txt', mailboxId: '' }),
+    ).toBeUndefined();
+  });
+
   it('can be scoped to one directory', async () => {
     const { writer, calls } = fileWriter([{ match: /^PROPFIND/, body: DOCS_LISTING }]);
 
@@ -424,5 +520,34 @@ describe('WebDAVTargetWriter.listEntries', () => {
 
     expect(entries.map((e) => e.naturalKey)).toEqual(['Documents/Meeting notes.txt']);
     expect(calls).toHaveLength(1);
+  });
+});
+
+describe('DAV writers that must NOT hash content', () => {
+  it('CalDAV and CardDAV do not implement contentHashFor', () => {
+    // Servers re-serialize iCalendar and vCard (property order, re-folded
+    // lines, their own PRODID), so a hash of what comes back would differ from
+    // the source hash for EVERY item — a healthy migration reported as 100%
+    // corrupt. Those samples stay `checksumUnavailable` instead.
+    const { writer: cal } = calWriter([]);
+    const { writer: card } = cardWriter([]);
+
+    expect((cal as { contentHashFor?: unknown }).contentHashFor).toBeUndefined();
+    expect((card as { contentHashFor?: unknown }).contentHashFor).toBeUndefined();
+  });
+
+  it('but they do report sizes, so target bytes are still measurable', async () => {
+    const withLength = CAL_EVENTS.replace(
+      /<d:getetag>"e1"<\/d:getetag>/,
+      '<d:getetag>"e1"</d:getetag><d:getcontentlength>512</d:getcontentlength>',
+    );
+    const { writer } = calWriter([
+      { match: /^PROPFIND/, body: CAL_HOME_SET },
+      { match: /^REPORT/, body: withLength },
+    ]);
+
+    const entries = await collect(writer.listEntries());
+    expect(entries[0]!.sizeBytes).toBe(512);
+    expect(entries[1]!.sizeBytes).toBeUndefined();
   });
 });

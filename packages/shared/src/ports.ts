@@ -188,6 +188,16 @@ export interface TargetEntry {
   readonly mailboxId: string;
   /** Content hash, if cheaply available from the listing; used as a fallback key. */
   readonly contentHash?: string;
+  /**
+   * Size in bytes as the target reports it, when the listing already carries it
+   * (JMAP `size`, IMAP `RFC822.SIZE`, DAV `getcontentlength`).
+   *
+   * This is what lets verification report `totalBytesTarget` as a real
+   * measurement. Leave it undefined rather than guessing: an estimated total is
+   * indistinguishable from a measured one in the report, and the whole point of
+   * the field is that it was measured.
+   */
+  readonly sizeBytes?: number;
 }
 
 /**
@@ -199,6 +209,27 @@ export interface TargetEntry {
 export interface TargetReindexer {
   /** Stream every existing item's natural key + target id (optionally scoped to one mailbox). */
   listEntries(mailboxId?: string): AsyncIterable<TargetEntry>;
+
+  /**
+   * Hash the item's content AS STORED ON THE TARGET, for §20 checksum sampling.
+   * Called only for sampled items, so it may fetch the body.
+   *
+   * Implement this ONLY where the target stores the bytes verbatim, so the
+   * result is directly comparable to the source hash the ledger recorded —
+   * mail (a JMAP blob / IMAP `BODY[]` is the message as submitted) and files
+   * (WebDAV serves back what was PUT).
+   *
+   * Deliberately NOT implemented for CalDAV/CardDAV: servers re-serialize
+   * iCalendar and vCard (property reordering, re-folded lines, their own
+   * PRODID), so a hash of what comes back would differ from the source hash for
+   * every single item — reporting a healthy migration as 100% corrupt. Leaving
+   * it out means those samples are counted as `checksumUnavailable`, which says
+   * "not measured" instead of inventing a verdict.
+   *
+   * Return undefined when this particular item's content cannot be read;
+   * the sample is then counted as unavailable rather than as a mismatch.
+   */
+  contentHashFor?(entry: TargetEntry): Promise<string | undefined>;
 }
 
 /** One row of idempotency state. */

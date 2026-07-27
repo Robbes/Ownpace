@@ -18,7 +18,7 @@ import type {
   TargetEntry,
 } from '@openmig/shared';
 import { fileNaturalKeyHash, fileContentHash } from '@openmig/shared';
-import { parseMultiStatus, isCollection, hrefRelativeTo } from './dav-multistatus';
+import { parseMultiStatus, isCollection, hrefRelativeTo, sizeOf } from './dav-multistatus';
 
 /**
  * Configuration for WebDAV target writer
@@ -226,7 +226,12 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
           }
           continue;
         }
-        yield { naturalKey: entry.path, targetId: entry.path, mailboxId: dir };
+        yield {
+          naturalKey: entry.path,
+          targetId: entry.path,
+          mailboxId: dir,
+          ...(entry.sizeBytes === undefined ? {} : { sizeBytes: entry.sizeBytes }),
+        };
       }
     }
   }
@@ -234,7 +239,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
   /** One Depth:1 PROPFIND, as root-relative children (the directory itself excluded). */
   private async propfindChildren(
     dir: string,
-  ): Promise<Array<{ path: string; isDirectory: boolean }>> {
+  ): Promise<Array<{ path: string; isDirectory: boolean; sizeBytes?: number }>> {
     const response = await this.httpClient.request({
       method: 'PROPFIND',
       url: this.buildUrl(dir),
@@ -257,15 +262,48 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
     }
 
     const self = this.normalizeRelativePath(dir);
-    const children: Array<{ path: string; isDirectory: boolean }> = [];
+    const children: Array<{ path: string; isDirectory: boolean; sizeBytes?: number }> = [];
     for (const item of parseMultiStatus(response.body)) {
       const relative = hrefRelativeTo(item.href, this.buildUrl(''));
       if (relative === undefined) continue; // points outside this endpoint
       const path = this.normalizeRelativePath(relative);
       if (path === self) continue; // Depth:1 returns the collection itself
-      children.push({ path, isDirectory: isCollection(item.xml) });
+      children.push({ path, isDirectory: isCollection(item.xml), ...sizeOf(item.xml) });
     }
     return children;
+  }
+
+  /**
+   * Hash a sampled file as it is stored on the target (§20 checksum leg).
+   *
+   * Files are the clean case: WebDAV serves back exactly the bytes that were
+   * PUT, so `fileContentHash` over a GET is directly comparable to the source
+   * hash the ledger recorded. (CalDAV/CardDAV deliberately do not implement
+   * this — those servers re-serialize what they store.)
+   *
+   * Called for sampled items only. Returns undefined when the file cannot be
+   * read: the sample is then counted as unavailable, never as a mismatch.
+   */
+  async contentHashFor(entry: TargetEntry): Promise<string | undefined> {
+    const filePath = this.normalizeRelativePath(entry.naturalKey);
+    let response: HttpResponse;
+    try {
+      response = await this.httpClient.request({
+        method: 'GET',
+        url: this.buildUrl(filePath),
+        headers: {
+          Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
+        },
+      });
+    } catch {
+      return undefined;
+    }
+
+    if (response.status !== 200) return undefined;
+    // Bytes only. Hashing the UTF-8 decoded `body` would differ from the source
+    // hash for every non-ASCII binary file — reporting healthy files as corrupt.
+    if (!response.bodyBytes) return undefined;
+    return fileContentHash(response.bodyBytes);
   }
 
   // Private helper methods
@@ -421,6 +459,15 @@ export interface HttpResponse {
   status: number;
   body: string;
   headers: Record<string, string>;
+  /**
+   * The response's raw bytes, when the client captured them.
+   *
+   * `body` is UTF-8 decoded text, which is lossy for binary content — a PDF or
+   * an image round-tripped through it does not hash to what was uploaded. Any
+   * byte-level use (checksum sampling) must read this, and treat its absence as
+   * "cannot measure" rather than falling back to the string.
+   */
+  bodyBytes?: Uint8Array;
 }
 
 /**
@@ -435,7 +482,10 @@ function createDefaultHttpClient(): HttpClient {
         body: options.body,
       });
 
-      const body = await response.text();
+      // Read once as bytes, then decode for the XML callers. Reading
+      // `.text()` alone would leave no way to hash binary file content.
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      const body = new TextDecoder().decode(bytes);
       const headers: Record<string, string> = {};
       response.headers.forEach((value, key) => {
         headers[key] = value;
@@ -445,6 +495,7 @@ function createDefaultHttpClient(): HttpClient {
         status: response.status,
         body,
         headers,
+        bodyBytes: bytes,
       };
     },
   };

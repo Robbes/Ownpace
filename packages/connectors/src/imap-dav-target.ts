@@ -13,6 +13,7 @@ import type {
   MailKeyword,
   UpsertResult,
 } from "@openmig/shared";
+import { contentHash } from "@openmig/shared";
 
 /**
  * Configuration for IMAP target connection.
@@ -489,11 +490,19 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
           try {
             // Fetch Message-ID header using node-imap directly
             let messageId: string | undefined;
-            
+            let sizeBytes: number | undefined;
+
             await new Promise<void>((resolve, reject) => {
               const fetch = imap.fetch([uid], { bodies: ['HEADER'] });
-              
-              fetch.on('message', (msg: { on: (event: string, cb: (stream: { on: (event: string, cb: (chunk: Buffer) => void) => void; once: (event: string, cb: () => void) => void }) => void) => void }) => {
+
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              fetch.on('message', (msg: any) => {
+                // RFC822.SIZE, which node-imap reports on every fetch. Free
+                // here, and what lets verification report totalBytesTarget as a
+                // measurement rather than null.
+                msg.on('attributes', (attrs: { size?: number }) => {
+                  if (typeof attrs?.size === 'number') sizeBytes = attrs.size;
+                });
                 msg.on('body', (stream: { on: (event: string, cb: (chunk: Buffer) => void) => void; once: (event: string, cb: () => void) => void }) => {
                   let headers = '';
                   stream.on('data', (chunk: Buffer) => {
@@ -517,10 +526,26 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
               fetch.once('end', () => resolve());
             });
             
+            if (!messageId) {
+              // The fetch succeeded but carried no Message-ID header. This used
+              // to fall through to `messageId || String(uid)` — the very UID
+              // fallback the catch block below refuses to make, just on the
+              // success path where nothing threw. A UID-keyed ledger row can
+              // never match the message's real Message-ID, so the next sync
+              // treats it as unknown and re-appends it: a duplicate created by
+              // the reindex meant to prevent one.
+              throw new Error(
+                `No Message-ID header for UID ${uid} in mailbox ${boxName} during reindex; ` +
+                  `refusing to key the entry by UID because the resulting ledger row would ` +
+                  `never match and the message would be duplicated.`,
+              );
+            }
+
             yield {
-              naturalKey: messageId || String(uid),
+              naturalKey: messageId,
               targetId: String(uid),
               mailboxId: boxName,
+              ...(typeof sizeBytes === 'number' ? { sizeBytes } : {}),
             };
           } catch (fetchErr) {
             // Falling back to the UID as the natural key is worse than failing:
@@ -551,4 +576,47 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
       }
     }
   }
+  /**
+   * Hash a sampled message as it is stored on the target (§20 checksum leg).
+   *
+   * `BODY[]` is the message as appended, so hashing it with the same
+   * `contentHash` the sync path used on the source is a like-for-like
+   * comparison. Called for sampled items only.
+   *
+   * Returns undefined when the body cannot be read — the sample is then counted
+   * as unavailable, never as a mismatch. Absence of evidence is not evidence of
+   * corruption; scoring it as one is the bug #139 fixed.
+   */
+  async contentHashFor(entry: TargetEntry): Promise<string | undefined> {
+    await this.ensureConnected();
+    if (!this.conn) return undefined;
+
+    const uid = Number(entry.targetId);
+    if (!Number.isInteger(uid)) return undefined;
+
+    try {
+      await this.conn.openBox(entry.mailboxId);
+      const imap = this.conn.imap;
+
+      const chunks: Buffer[] = [];
+      await new Promise<void>((resolve, reject) => {
+        const fetch = imap.fetch([uid], { bodies: [''] });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        fetch.on('message', (msg: any) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          msg.on('body', (stream: any) => {
+            stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+          });
+        });
+        fetch.once('error', reject);
+        fetch.once('end', () => resolve());
+      });
+
+      if (chunks.length === 0) return undefined;
+      return contentHash(new Uint8Array(Buffer.concat(chunks)));
+    } catch {
+      return undefined;
+    }
+  }
+
 }

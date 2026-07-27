@@ -105,6 +105,21 @@ export function hrefRelativeTo(href: string, baseUrl: string): string | undefine
 }
 
 /**
+ * The `getcontentlength` a response reports, as a spreadable `{ sizeBytes }`.
+ *
+ * Returns `{}` — not `{ sizeBytes: 0 }` — when the server omits the property or
+ * sends something unparseable. Zero is a real size, and a fabricated zero would
+ * quietly drag `totalBytesTarget` below the source total, which reads as data
+ * loss rather than as a gap in measurement.
+ */
+export function sizeOf(responseXml: string): { sizeBytes?: number } {
+  const raw = firstElementText(responseXml, 'getcontentlength');
+  if (raw === undefined) return {};
+  const parsed = Number(raw.trim());
+  return Number.isInteger(parsed) && parsed >= 0 ? { sizeBytes: parsed } : {};
+}
+
+/**
  * Undo XML escaping (and unwrap CDATA) for a text node.
  *
  * `calendar-data` / `address-data` carry an iCalendar or vCard body inside XML,

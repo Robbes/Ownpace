@@ -13,6 +13,7 @@ import type {
   MailKeyword,
   UpsertResult,
 } from "@openmig/shared";
+import { contentHash } from "@openmig/shared";
 
 /**
  * JMAP Mailbox query response type.
@@ -516,8 +517,11 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
       // JMAP Email/get can fetch multiple emails at once
       const getResponse = await this.apiRequest<EmailGetResponse>('Email/get', {
         accountId: this.accountId,
+        // `size` comes free with the metadata fetch (RFC 8621 §4.1.1) and is
+        // what lets verification report totalBytesTarget as a real measurement
+        // instead of null. Still no body: enumeration stays metadata-only.
         ids: ids,
-        properties: ["id", "mailboxIds", "headers"],
+        properties: ["id", "mailboxIds", "headers", "size"],
       });
 
       const emails = (getResponse as { list?: EmailGetResponse['list'] }).list || [];
@@ -549,12 +553,14 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
           continue;
         }
 
-        // Yield the entry
+        // Yield the entry. No contentHash: a headers-only fetch cannot produce
+        // one. `contentHashFor` below reads the blob for sampled items only.
+        const size = (email as { size?: unknown }).size;
         yield {
           naturalKey: messageId,
           targetId: email.id,
           mailboxId: entryMailboxId,
-          // contentHash is optional - we don't have it from headers-only fetch
+          ...(typeof size === 'number' ? { sizeBytes: size } : {}),
         };
 
         totalFetched++;
@@ -568,6 +574,42 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
       // Move to next page
       position += LIMIT;
     }
+  }
+
+  /**
+   * Hash a sampled message as it is stored on the target (§20 checksum leg).
+   *
+   * Mail is one of the two places where this is sound: a JMAP blob is the
+   * message as submitted, so hashing it with the same `contentHash` the sync
+   * path used on the source is a like-for-like comparison. (CalDAV/CardDAV
+   * deliberately do not implement this — servers re-serialize iCalendar and
+   * vCard, so every item would look corrupt.)
+   *
+   * Called only for sampled items, so the two extra round trips are bounded by
+   * the sample size, not the mailbox size. Returns undefined when the blob
+   * cannot be read: the sample is then counted as unavailable, never as a
+   * mismatch — absence of evidence is not evidence of corruption.
+   */
+  async contentHashFor(entry: TargetEntry): Promise<string | undefined> {
+    await this.ensureConnected();
+    if (!this.apiUrl || !this.authHeader || !this.accountId) return undefined;
+
+    const getResponse = await this.apiRequest<EmailGetResponse>('Email/get', {
+      accountId: this.accountId,
+      ids: [entry.targetId],
+      properties: ['id', 'blobId'],
+    });
+    const email = ((getResponse as { list?: Array<{ blobId?: string }> }).list ?? [])[0];
+    const blobId = email?.blobId;
+    if (!blobId) return undefined;
+
+    // Built from the resolved apiUrl for the same reason uploadBlob is: the
+    // session's own downloadUrl is unreliable on Stalwart.
+    const url = `${this.apiUrl}/download/${this.accountId}/${blobId}`;
+    const response = await fetch(url, { headers: { Authorization: this.authHeader } });
+    if (!response.ok) return undefined;
+
+    return contentHash(new Uint8Array(await response.arrayBuffer()));
   }
 
   /**

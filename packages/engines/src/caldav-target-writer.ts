@@ -26,6 +26,7 @@ import {
   extractUid,
   decodeHref,
   unescapeXml,
+  sizeOf,
 } from './dav-multistatus';
 
 /**
@@ -264,6 +265,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
         <D:prop>
           <D:getetag/>
+          <D:getcontentlength/>
           <C:calendar-data>
             <C:comp name="VCALENDAR">
               <C:comp name="VEVENT">
@@ -311,7 +313,17 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
         // mail reindexers. Fail instead.
         throw new Error(`Calendar resource ${item.href} returned no UID; cannot key it for verification.`);
       }
-      yield { naturalKey: uid, targetId: decodeHref(item.href), mailboxId: calendarPath };
+      yield {
+        naturalKey: uid,
+        targetId: decodeHref(item.href),
+        mailboxId: calendarPath,
+        ...sizeOf(item.xml),
+        // No contentHash, deliberately: CalDAV servers re-serialize iCalendar
+        // (property order, re-folded lines, their own PRODID), so a hash of what
+        // comes back would differ from the source hash for EVERY event and
+        // report a healthy migration as 100% corrupt. These samples stay
+        // `checksumUnavailable` — "not measured" rather than a false verdict.
+      };
     }
   }
 
