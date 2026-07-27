@@ -17,7 +17,15 @@ import type { DomainDiscovery, DiscoveryCollection, SyncCursor } from '@openmig/
 /** The read-only listing surface shared by all source connectors, over folder `F` and item `I`. */
 export interface ListingSource<F, I> {
   listFolders(): Promise<ReadonlyArray<F>>;
-  listSince(folder: F, cursor?: SyncCursor): Promise<{ items: ReadonlyArray<I>; nextCursor: SyncCursor }>;
+  listSince(
+    folder: F,
+    cursor?: SyncCursor,
+  ): Promise<{
+    items: ReadonlyArray<I>;
+    nextCursor: SyncCursor;
+    /** Items the source cannot migrate because they have no natural key. */
+    unkeyable?: number;
+  }>;
 }
 
 /** Optional hooks to label collections and read per-item byte sizes. */
@@ -48,11 +56,13 @@ export async function discoverSource<F, I>(
   let items = 0;
   let bytes = 0;
   let anyBytes = false;
+  let unmigratable = 0;
   const perCollection: DiscoveryCollection[] = [];
 
   for (const folder of folders) {
     // Metadata-only: listSince returns item descriptors; bodies come from fetch(), never called here.
-    const { items: folderItems } = await source.listSince(folder);
+    const { items: folderItems, unkeyable } = await source.listSince(folder);
+    const folderUnmigratable = unkeyable ?? 0;
 
     let folderBytes = 0;
     let folderHasBytes = false;
@@ -67,6 +77,7 @@ export async function discoverSource<F, I>(
     }
 
     items += folderItems.length;
+    unmigratable += folderUnmigratable;
     if (folderHasBytes) {
       bytes += folderBytes;
       anyBytes = true;
@@ -75,13 +86,18 @@ export async function discoverSource<F, I>(
       name: nameOf(folder),
       items: folderItems.length,
       ...(folderHasBytes ? { bytes: folderBytes } : {}),
+      ...(folderUnmigratable > 0 ? { unmigratableItems: folderUnmigratable } : {}),
     });
   }
 
   return {
     collections: folders.length,
+    // The MIGRATABLE total — what the customer is agreeing to move. Anything
+    // the source cannot key is reported separately rather than folded in here
+    // or, as before, dropped without trace.
     items,
     ...(anyBytes ? { bytes } : {}),
+    ...(unmigratable > 0 ? { unmigratableItems: unmigratable } : {}),
     perCollection,
   };
 }

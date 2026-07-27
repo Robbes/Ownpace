@@ -58,6 +58,9 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
   });
 
   const domains = discovery.data?.domains ?? [];
+  // Surfaced separately from `items`, which is the MIGRATABLE total. Folding
+  // them together would tell the customer we are moving things we are not.
+  const totalUnmigratable = domains.reduce((sum, d) => sum + (d.unmigratableItems ?? 0), 0);
 
   return (
     <div className="space-y-6">
@@ -83,6 +86,7 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
                 <th className="py-1 pr-4">Collections</th>
                 <th className="py-1 pr-4">Items</th>
                 <th className="py-1 pr-4">Size</th>
+                <th className="py-1 pr-4">Cannot migrate</th>
               </tr>
             </thead>
             <tbody>
@@ -92,10 +96,25 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
                   <td className="py-1 pr-4">{d.collections}</td>
                   <td className="py-1 pr-4">{d.items}</td>
                   <td className="py-1 pr-4">{formatBytes(d.bytes)}</td>
+                  <td className="py-1 pr-4">
+                    {d.unmigratableItems ? (
+                      <span className="text-amber-700">{d.unmigratableItems}</span>
+                    ) : (
+                      <span className="text-gray-400">0</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        )}
+        {totalUnmigratable > 0 && (
+          <p className="mt-2 text-sm text-amber-700" role="note">
+            {totalUnmigratable} item{totalUnmigratable === 1 ? '' : 's'} cannot be migrated because
+            they carry no Message-ID, which is what we use to copy each message exactly once. They
+            are <strong>not</strong> included in the item counts above and will be left on your
+            source.
+          </p>
         )}
       </section>
 

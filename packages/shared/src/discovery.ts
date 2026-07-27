@@ -15,6 +15,15 @@ export interface DomainDiscovery {
   readonly bytes?: number;
   /** Optional per-collection breakdown, in listing order. */
   readonly perCollection?: ReadonlyArray<DiscoveryCollection>;
+  /**
+   * Items the source holds but cannot migrate, because they carry no natural
+   * key (mail with no Message-ID). NOT included in `items`.
+   *
+   * `items` is the migratable total — what the customer is agreeing to move.
+   * This is the rest of the truth: without it, a mailbox holding 40,003
+   * messages presents as 40,000 and the other three vanish with nothing said.
+   */
+  readonly unmigratableItems?: number;
 }
 
 /** One collection's discovery counts. */
@@ -25,6 +34,8 @@ export interface DiscoveryCollection {
   readonly items: number;
   /** Byte total for this collection, when available. */
   readonly bytes?: number;
+  /** Items in this collection with no natural key, hence not migratable. */
+  readonly unmigratableItems?: number;
 }
 
 /** The four sync domains discovery covers. */

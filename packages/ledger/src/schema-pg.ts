@@ -599,6 +599,9 @@ export const migrationDiscovery = pgTable(
     items: integer('items').notNull().default(0),
     bytes: bigint('bytes', { mode: 'number' }),
     perCollection: jsonb('per_collection'),
+    // Nullable on purpose: null = "this run predates the column and did not
+    // look", which is a different claim from 0 = "there were none".
+    unmigratableItems: integer('unmigratable_items'),
     lastError: text('last_error'),
     discoveredAt: timestamp('discovered_at', { withTimezone: true }).notNull().defaultNow(),
   },
