@@ -9,7 +9,7 @@
  * only mappings already 'active' with the in-process croner scheduler
  * (single-flight, so an overrunning pass never overlaps itself). A paused (draft)
  * mapping waits for the operator to green-light it on the confirm page (`GET /`,
- * `POST /mappings/:id/start`). Also serves `GET /healthz`, `GET /status`,
+ * `POST /mappings/:id/start`). Also serves `GET /healthz`, `GET /status`, `GET /verify`,
  * `GET /scope-manifest`, and `GET /discovery` on localhost. Graceful shutdown
  * stops the schedules, lets in-flight passes settle, and closes the server.
  *
@@ -24,7 +24,7 @@ import { runMigrations, createPgDb, PgMigrationStatusStore, PgDiscoveryStore, Ru
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
 import { InProcessScheduler } from '@openmig/scheduler/in-process';
-import { runAllDomains, discoverAllDomains } from '@openmig/worker/orchestration';
+import { runAllDomains, discoverAllDomains, verifyMapping } from '@openmig/worker/orchestration';
 import { SCOPE_MANIFEST } from '@openmig/shared';
 import type { TenantId, MappingId, ScheduleHandle, DiscoveryRecord } from '@openmig/shared';
 import { loadConfigDir, type LoadedMapping } from './config-dir';
@@ -343,6 +343,20 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           inputs.push({ mappingId: m.config.mappingId, statuses });
         }
         return sendJson(res, 200, buildStatusReport(inputs));
+      }
+      // The §20 verification gate. Without this a self-host operator has no way
+      // to run it at all: the managed edition reaches it through the cutover
+      // job, and neither edition's UI does. Read-only — it counts and samples,
+      // it never writes to the target or advances any cutover state.
+      if (req.method === 'GET' && req.url === '/verify') {
+        const reports: Record<string, unknown> = {};
+        for (const m of mappings) {
+          reports[m.config.mappingId] = await verifyMapping({
+            ...m.config,
+            mappingId: m.mailboxMappingId,
+          } as typeof m.config);
+        }
+        return sendJson(res, 200, reports);
       }
       if (req.method === 'GET' && req.url === '/discovery') {
         const out: Record<string, DiscoveryRecord[]> = {};

@@ -246,6 +246,13 @@ jobs:
       - name: Run Restart-Resume Idempotency Gate (0010 T5)
         run: pnpm test:e2e -- --grep "Restart-Resume"
 
+      # The §20 gate against real Stalwart + Nextcloud. The restart-resume gate
+      # above exercises the target WRITERS; it never calls listEntries and never
+      # calls runVerification, so until this step a green e2e said nothing about
+      # the DAV reindexers, checksum sampling, or measured target bytes.
+      - name: Run Verification Gate against the real targets (§20)
+        run: pnpm test:e2e -- --grep "Verification gate against real servers"
+
       - name: Appliance + Stalwart + Nextcloud diagnostics
         if: always()
         run: |

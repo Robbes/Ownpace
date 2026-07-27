@@ -252,6 +252,19 @@ actually left:
      two messages without one collided — the double would have "proven" a deduplication the real
      source never performs. Covered by `generated-message-id.unit.test.ts` (19) and
      `generated-message-id.integration.test.ts` (7, against a real Postgres).
+   - ✅ **Done — the e2e workflow now actually exercises the gate.** It ran only
+     `--grep "Restart-Resume"`, which drives the target WRITERS; it never called `listEntries`
+     and never called `runVerification`. So every green e2e up to and including run #28 said
+     nothing about the DAV reindexers (#142), checksum sampling or measured target bytes (#143)
+     — all of which had only ever met test doubles. A new `GET /verify` on the self-host
+     appliance runs the §20 gate over the data the sync just wrote (shared `verifyMapping()` in
+     the worker orchestration, per hard rule "extract/share it, don't fork it" — and the only
+     way a self-host operator can run the gate at all), and
+     `test/e2e/selfhost-verification.e2e.test.ts` asserts on it as a second workflow step. It is
+     deliberately loud about the two questions only a real server can settle: whether the DAV
+     reindexers can read a real Nextcloud, and whether a JMAP blob round-trips byte-identically
+     — a *systematic* 100% checksum mismatch would mean mail's `contentHashFor` must be
+     withdrawn the way CalDAV/CardDAV's already is.
 2. Next: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 

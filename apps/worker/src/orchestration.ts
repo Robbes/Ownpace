@@ -19,7 +19,18 @@ import type {
   TenantId,
   MappingId,
 } from '@openmig/shared';
-import { runShadowPass, runCalendarSync, runContactSync, runFileSync, discoverSource } from '@openmig/core';
+import {
+  runShadowPass,
+  runCalendarSync,
+  runContactSync,
+  runFileSync,
+  discoverSource,
+  runVerification,
+  createRealVerificationDeps,
+  type VerificationResult,
+} from '@openmig/core';
+import { createLedgerVerificationReader } from '@openmig/ledger';
+import type { TargetReindexer } from '@openmig/shared';
 import { buildDeps, buildDomainDeps } from './build-deps';
 import { discoverDomains, type DomainDiscoveryTask, type DomainDiscoveryOutcome } from './discovery';
 
@@ -166,4 +177,120 @@ export async function discoverAllDomains(
   }));
 
   return discoverDomains(tasks, store, tenantId, mappingId);
+}
+
+/**
+ * Run the §20 verification gate for one mapping, against its real targets.
+ *
+ * Shared by the self-host appliance's `GET /verify` (workplan 0010 T2 —
+ * "extract/share it, don't fork it"), which is the only way a self-host
+ * operator can run the gate at all: the managed edition reaches it through the
+ * cutover job, and neither edition's UI does.
+ *
+ * Reindexers are per-domain, each reading its OWN target. Handing one target to
+ * every domain is how calendar/contact/file rows once came to be compared
+ * against a listing of mailboxes, making every item look missing. A domain
+ * whose target cannot enumerate itself is left out of the map, and
+ * `runVerification` reports it honestly rather than inventing numbers.
+ */
+export async function verifyMapping(config: MappingConfig): Promise<VerificationResult> {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error('DATABASE_URL environment variable is required to run verification');
+  }
+
+  const tenantId = config.tenantId as TenantId;
+  const mappingId = config.mappingId as MappingId;
+
+  const reindexers: Partial<Record<'mail' | 'calendar' | 'contacts' | 'files', TargetReindexer>> = {};
+  const closers: Array<() => Promise<void>> = [];
+
+  const collect = async (
+    key: 'mail' | 'calendar' | 'contacts' | 'files',
+    open: () => Promise<{ target: unknown; close: () => Promise<void> }>,
+  ): Promise<void> => {
+    let opened: { target: unknown; close: () => Promise<void> };
+    try {
+      opened = await open();
+    } catch (err) {
+      console.warn(
+        `[verify] no ${key} target for ${config.mappingId}: ` +
+          `${err instanceof Error ? err.message : String(err)}`,
+      );
+      return;
+    }
+    const candidate = opened.target as { listEntries?: unknown };
+    if (typeof candidate?.listEntries !== 'function') {
+      await opened.close();
+      return;
+    }
+    reindexers[key] = candidate as TargetReindexer;
+    closers.push(() => opened.close());
+  };
+
+  if (config.domains?.mail?.enabled ?? config.source.type === 'imap-oauth2') {
+    await collect('mail', async () => {
+      const d = await buildDeps(config);
+      return { target: d.target, close: d.close };
+    });
+  }
+  if (config.domains?.calendar?.enabled) {
+    await collect('calendar', async () => {
+      const d = buildDomainDeps(config, 'calendar');
+      return { target: d.target, close: d.close };
+    });
+  }
+  if (config.domains?.contacts?.enabled) {
+    await collect('contacts', async () => {
+      const d = buildDomainDeps(config, 'contact');
+      return { target: d.target, close: d.close };
+    });
+  }
+  if (config.domains?.files?.enabled) {
+    await collect('files', async () => {
+      const d = buildDomainDeps(config, 'file');
+      return { target: d.target, close: d.close };
+    });
+  }
+
+  // Owns its own pool (see createLedgerVerificationReader) — closed below.
+  const verificationReader = createLedgerVerificationReader({ connectionString: databaseUrl });
+
+  try {
+    return await runVerification(
+      createRealVerificationDeps({
+        tenantId,
+        mappingId,
+        config: {
+          checksumSamplePercentage: 5,
+          minSampleSize: 10,
+          maxSampleSize: 1000,
+          requiredMatchPercentage: 0.99,
+          maxDiscrepancyPercentage: 0.01,
+          // Only what this mapping actually syncs. A domain switched off here
+          // reports SKIPPED; one that is on but unreadable reports
+          // NOT_VERIFIABLE and blocks — neither is silently passed.
+          verifyMail: config.domains?.mail?.enabled ?? config.source.type === 'imap-oauth2',
+          verifyCalendar: config.domains?.calendar?.enabled ?? false,
+          verifyContacts: config.domains?.contacts?.enabled ?? false,
+          verifyFiles: config.domains?.files?.enabled ?? false,
+        },
+        verificationReader,
+        targetReindexers: reindexers,
+      } as never),
+    );
+  } finally {
+    // Release everything, and never throw from here: a failed pool release must
+    // not replace the verification result (or the real error) the caller came
+    // for. Reported, not swallowed.
+    const settled = await Promise.allSettled([
+      verificationReader.close(),
+      ...closers.map((c) => c()),
+    ]);
+    for (const outcome of settled) {
+      if (outcome.status === 'rejected') {
+        console.warn('[verify] failed to release a connection:', outcome.reason);
+      }
+    }
+  }
 }
