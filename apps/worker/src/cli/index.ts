@@ -199,6 +199,8 @@ async function main() {
     runDataVerification: async () => {
       const runDeps = await buildDepsFromMapping(pool, tenantId, mappingId);
       const targets = await buildTargetReindexers(pool, tenantId, mappingId);
+      // Owns its own pool; closed in the finally below.
+      const verificationReader = createLedgerVerificationReader({ connectionString: dbUrl });
       try {
         return await runVerification(
           createRealVerificationDeps({
@@ -219,13 +221,14 @@ async function main() {
               verifyFiles: true,
             },
             ledger: runDeps.ledger,
-            verificationReader: createLedgerVerificationReader({ connectionString: dbUrl }),
+            verificationReader,
             // One reindexer per domain, each reading its own target.
             targetReindexers: targets.reindexers,
           }),
         );
       } finally {
         await targets.close();
+        await verificationReader.close();
         await runDeps.close();
       }
     },
