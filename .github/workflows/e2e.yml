@@ -4,8 +4,9 @@ name: E2E (self-hosted)
 # Intentionally SEPARATE from CI (ci.yml). Manual-trigger only: needs the
 # self-hosted Spark runner + Docker. Drives the workplan 0010 T5 acceptance gate
 # — the self-host appliance's restart-resume idempotency property — end to end,
-# for THREE domains (issue #114 follow-up extended this from mail-only to also
-# cover calendar/contacts; WebDAV files remains a deferred follow-up):
+# for all FOUR domains (issue #114 follow-up extended this from mail-only to also
+# cover calendar/contacts; a 2026-07-27 follow-up added WebDAV files, closing the
+# last deferred gap):
 #
 #   1. Bring up Stalwart via deploy/selfhost/setup-stalwart.sh — the ONE canonical
 #      two-phase (recovery-mode provisioning, then normal-mode serving) bring-up
@@ -18,16 +19,17 @@ name: E2E (self-hosted)
 #      name instead, with no published ports involved at all.
 #   1b. Bring up Nextcloud (deploy/compose/dev.yml's `nextcloud` service) on the
 #      same openmig_dev-network, then provision TWO accounts on it — e2e-source and
-#      e2e-target (deploy/selfhost/setup-nextcloud-users.sh) — so calendar/contacts
-#      sync is proven ACROSS accounts, the real-world shape, not within one shared
-#      admin account like the source-only DAV integration tests use.
+#      e2e-target (deploy/selfhost/setup-nextcloud-users.sh) — so calendar/contacts/
+#      files sync is proven ACROSS accounts, the real-world shape, not within one
+#      shared admin account like the source-only DAV integration tests use.
 #   2. SEED the source mailbox over IMAPS (the gate is only meaningful against a
 #      non-zero source; v0.16.10 doesn't bind plaintext IMAP in normal mode, so
 #      this — like the rest of the repo — uses TLS, not port 143) AND seed calendar
-#      events + contacts into the e2e-source Nextcloud account (test/e2e/seed-dav-source.mjs).
+#      events + contacts + files into the e2e-source Nextcloud account
+#      (test/e2e/seed-dav-source.mjs).
 #   3. Build + start the self-host appliance (deploy/selfhost/compose.yml) with
 #      a mapping generated from the fixture and the source/target passwords —
-#      mail, calendar, and contacts domains all enabled.
+#      mail, calendar, contacts, and files domains all enabled.
 #   4. Run the Restart-Resume Idempotency Gate e2e for each domain: first pass
 #      syncs N → `docker compose restart app` → second pass must NOT grow itemsSynced.
 #
@@ -86,8 +88,8 @@ jobs:
     runs-on: [self-hosted, linux, arm64]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
-      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
           cache: pnpm
@@ -168,7 +170,7 @@ jobs:
           SEED_COUNT: ${{ github.event.inputs.seed_count || '5' }}
         run: node test/e2e/seed-imap-source.mjs
 
-      - name: Seed calendar events + contacts (N>0, over DAV)
+      - name: Seed calendar events + contacts + files (N>0, over DAV)
         env:
           SEED_DAV_URL: http://127.0.0.1:${{ env.DEV_NEXTCLOUD_PORT }}
           SEED_DAV_SOURCE_USER: ${{ env.NEXTCLOUD_SOURCE_USER }}
@@ -202,6 +204,12 @@ jobs:
             cfg.domains.calendar.target.url = nextcloudDav;
             cfg.domains.contacts.source.url = nextcloudDav;
             cfg.domains.contacts.target.url = nextcloudDav;
+            // Unlike CalDAV/CardDAV, plain WebDAV has no discovery of its own -- the files
+            // domain needs the literal per-account files/{username}/ path, not the bare DAV
+            // root (see apps/worker/src/build-deps.ts, function davEndpoint, which uses
+            // config.url as-is with zero resolution for the self-host file-config path).
+            cfg.domains.files.source.url = nextcloudDav + "/files/" + process.env.NEXTCLOUD_SOURCE_USER + "/";
+            cfg.domains.files.target.url = nextcloudDav + "/files/" + process.env.NEXTCLOUD_TARGET_USER + "/";
             fs.writeFileSync("deploy/selfhost/config/mapping.json", JSON.stringify(cfg, null, 2));
           '
           cat > deploy/selfhost/.env <<ENV
