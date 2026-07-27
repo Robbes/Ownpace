@@ -266,15 +266,38 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
             }
           }
         } catch (fetchErr) {
-          // Skip messages that can't be fetched
-          console.warn('[imap-dav-target] Could not fetch headers for UID', uid, ':', (fetchErr as Error).message);
+          // We cannot read this message's headers, so we cannot rule out that it
+          // IS the message we're looking for. Skipping it and continuing would
+          // let the scan finish "not found" on an incomplete read — and upsertEmail
+          // turns that into an APPEND, i.e. a duplicate. Fail instead.
+          const message = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+          throw new Error(
+            `Could not read headers for UID ${uid} in mailbox ${mailboxId} while looking up ` +
+              `Message-ID ${naturalKey}; refusing to report "not present" from a partial scan ` +
+              `because that would append a duplicate. Cause: ${message}`,
+            { cause: fetchErr },
+          );
         }
       }
 
+      // A complete scan that matched nothing — this really is "not present".
       return undefined;
     } catch (err) {
-      console.error('[imap-dav-target] Error searching for message:', (err as Error).message);
-      return undefined;
+      // Same reasoning as above, for a failure of the search itself (connection
+      // drop, SELECT failure, …). A failed lookup is not a negative result
+      // (hard rule 1; hard rule 9 forbids failures becoming empty results).
+      //
+      // Failing loudly is safe and resumable: the pass aborts, the folder keeps
+      // its old cursor, and the next pass re-scans from the same point.
+      if (err instanceof Error && err.message.startsWith('Could not read headers for UID')) {
+        throw err; // already the specific error above — don't re-wrap
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `Lookup failed for Message-ID ${naturalKey} in mailbox ${mailboxId}; refusing to treat ` +
+          `this as "not present" because that would append a duplicate. Cause: ${message}`,
+        { cause: err },
+      );
     }
   }
 
@@ -424,10 +447,20 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
           mailboxNames = Object.keys(mailboxes);
         }
       } catch (err) {
-        console.warn('[imap-dav-target] Could not get mailbox list:', (err as Error).message);
+        // Falling back to INBOX here would silently reindex a fraction of the
+        // account. The ledger rebuilt from that partial view looks complete, so
+        // the next sync re-creates every message we never enumerated (ADR-0020
+        // recovery turning into mass duplication). Fail instead.
+        const message = err instanceof Error ? err.message : String(err);
+        throw new Error(
+          `Could not enumerate mailboxes for reindex; refusing to continue with a partial ` +
+            `view because the rebuilt ledger would look complete while missing messages. ` +
+            `Cause: ${message}`,
+          { cause: err },
+        );
       }
-      
-      // If getBoxes failed or returned empty, default to INBOX
+
+      // An account with genuinely no mailboxes reported still has an INBOX.
       if (mailboxNames.length === 0) {
         mailboxNames = ['INBOX'];
       }
@@ -490,18 +523,31 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
               mailboxId: boxName,
             };
           } catch (fetchErr) {
-            console.warn('[imap-dav-target] Could not fetch headers for UID', uid, ':', (fetchErr as Error).message);
-            // Yield with UID as fallback
-            yield {
-              naturalKey: String(uid),
-              targetId: String(uid),
-              mailboxId: boxName,
-            };
+            // Falling back to the UID as the natural key is worse than failing:
+            // the ledger row it produces can never match the message's real
+            // Message-ID, so the next sync sees an unknown item and re-appends
+            // it — a duplicate, created by the very recovery meant to prevent
+            // one. The natural key must be the real one or nothing.
+            const message = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+            throw new Error(
+              `Could not read Message-ID for UID ${uid} in mailbox ${boxName} during reindex; ` +
+                `refusing to fall back to the UID as a natural key because the resulting ledger ` +
+                `row would never match and the message would be duplicated. Cause: ${message}`,
+              { cause: fetchErr },
+            );
           }
         }
       } catch (err) {
-        console.error('[imap-dav-target] Error listing entries in', boxName, ':', (err as Error).message);
-        continue;
+        // Skipping the mailbox would omit every message in it from the rebuilt
+        // ledger — and an incomplete ledger makes the next sync re-create them
+        // all. Surface it (hard rule 9) rather than quietly returning less.
+        const message = err instanceof Error ? err.message : String(err);
+        throw new Error(
+          `Failed to list entries in mailbox ${boxName} during reindex; refusing to skip it ` +
+            `because omitted messages would be re-created as duplicates on the next sync. ` +
+            `Cause: ${message}`,
+          { cause: err },
+        );
       }
     }
   }

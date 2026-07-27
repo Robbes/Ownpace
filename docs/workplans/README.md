@@ -71,12 +71,16 @@ actually left:
      `packages/core/src/rollback-orchestrator.ts` (reported success for DNS/notification work it
      did not do), `packages/scheduler/src/trigger-scheduler.ts` (silent no-op, unexported),
      `packages/ledger/src/schema.ts` (empty stub) — −1,721 lines.
-   - **Open:** three swallowed-error sites that can break idempotency —
-     `findByNaturalKey` in both `jmap-target.ts` and `imap-dav-target.ts` turn a failed
-     lookup into "not present", which makes the caller append a **duplicate**; and
-     `listEntries` skips a whole mailbox on error, so an ADR-0020 reindex would silently
-     rebuild an incomplete ledger. The failures are now logged (not silent) but the control
-     flow is unchanged.
+   - ✅ **Done** — five swallowed-error sites that broke idempotency. A failed
+     `findByNaturalKey` (both `jmap-target.ts` and `imap-dav-target.ts`) returned `undefined`,
+     which `upsertEmail` reads as "not present" and APPENDs → **duplicate**. In the ADR-0020
+     reindex path, `listEntries` skipped a whole mailbox on error, fell back to INBOX-only when
+     mailbox enumeration failed, and yielded the **UID** as a natural key when a header read
+     failed — each producing a ledger that looks complete while missing or mis-keying messages,
+     so the next sync re-creates them. All five now fail loudly; failing is safe and resumable
+     (the folder keeps its cursor and is re-scanned next pass). Covered by
+     `packages/connectors/src/lookup-failure.unit.test.ts` (8 tests), verified to fail against
+     the pre-fix code.
 2. Later: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 
