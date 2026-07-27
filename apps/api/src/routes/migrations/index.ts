@@ -115,10 +115,13 @@ const TriggerSyncSchema = z.object({
   forceFullScan: z.boolean().default(false),
 }).passthrough(); // Allow additional fields
 
+// No gracePeriodHours: the cutover task prepares and verifies, then stops at
+// READY_FOR_CUTOVER for operator approval. It does not execute the cutover and
+// does not start a grace period, so accepting a grace-period setting here would
+// be accepting a knob that turns nothing.
 const TriggerCutoverSchema = z.object({
   skipFinalSync: z.boolean().default(false),
   skipVerification: z.boolean().default(false),
-  gracePeriodHours: z.number().default(24),
   pattern: z.string().optional(), // Accept legacy 'pattern' field for tests
 }).passthrough(); // Allow additional fields
 
@@ -768,7 +771,12 @@ router.post(
         success: true,
         runId: run.id,
         triggeredAt: new Date().toISOString(),
-        gracePeriodEnd: new Date(Date.now() + body.gracePeriodHours * 3600000).toISOString(),
+        // What was actually enqueued. This used to return a gracePeriodEnd
+        // computed from the request, which reads as "the cutover is running and
+        // its grace period ends at T" — nothing had run yet, and the task never
+        // executes the cutover or starts a grace period.
+        enqueued: 'cutover-preparation',
+        nextStep: 'On a PASSing verification the mapping becomes READY_FOR_CUTOVER and waits for operator approval.',
       });
     } catch (error) {
       if (error instanceof z.ZodError) {

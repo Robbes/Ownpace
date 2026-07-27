@@ -1,21 +1,37 @@
 /**
- * Cutover Job
+ * Cutover Preparation Job
  *
- * Executes the final cutover process for a migration.
- * This includes:
- * - Final delta sync
- * - Verification checks
- * - DNS/MX record update (if applicable)
- * - Grace period monitoring
+ * Runs the two things that must happen BEFORE a cutover can be approved:
+ * - a final delta sync, so the target is current
+ * - the §20 verification gate, which must PASS
+ *
+ * On success the mapping lands in READY_FOR_CUTOVER and stops there. Approving
+ * and executing the cutover are separate, explicitly-approved operator actions
+ * (`approve` / `execute` in the cutover CLI, both gated on `--yes`) — this job
+ * never performs them. See docs/architecture/solution-architecture.md §11.2 and
+ * AGENTS.md hard rule 2.
+ *
+ * It used to march straight through READY_FOR_CUTOVER → CUTOVER_IN_PROGRESS →
+ * COMPLETED with a comment saying "in real implementation, this would be a
+ * manual step". That is an approval bypass, and the state machine rejects it:
+ * against a real Postgres the second transition throws "Invalid transition from
+ * READY_FOR_CUTOVER to CUTOVER_IN_PROGRESS", so the job could never have
+ * succeeded — it would have run the delta sync and verification, then failed and
+ * marked the cutover FAILED.
  *
  * Trigger: Manual (user-initiated)
  */
 
 import { z } from 'zod';
 import { asTenantId, asMappingId, type TargetReindexer } from '@openmig/shared';
-import { schemaTask } from '@trigger.dev/sdk';
+import { schemaTask, logger } from '@trigger.dev/sdk';
 import { CutoverStore, createLedgerVerificationReader } from '@openmig/ledger';
-import { runShadowPass, runVerification, createRealVerificationDeps } from '@openmig/core';
+import {
+  runShadowPass,
+  runVerification,
+  createRealVerificationDeps,
+  type VerificationResult,
+} from '@openmig/core';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import * as schemaPg from '@openmig/ledger/schema-pg';
@@ -28,7 +44,6 @@ const CutoverJobSchema = z.object({
   options: z.object({
     skipFinalSync: z.boolean().default(false),
     skipVerification: z.boolean().default(false),
-    gracePeriodHours: z.number().default(24),
     dnsDomain: z.string().optional(),
     targetMailServer: z.string().optional(),
   }).prefault({}),
@@ -36,174 +51,199 @@ const CutoverJobSchema = z.object({
 
 type CutoverJobPayload = z.infer<typeof CutoverJobSchema>;
 
+/** What `prepareCutover` reports back. */
+export interface CutoverPreparationResult {
+  /** True when the mapping is now READY_FOR_CUTOVER. */
+  ready: boolean;
+  /** The cutover state after this run. */
+  state: string;
+  finalSync?: { created: number; skipped: number };
+  verification?: Pick<VerificationResult, 'overallStatus' | 'score' | 'totalDiscrepancies'>;
+}
+
+/**
+ * Dependencies for the cutover preparation. Injected rather than constructed so
+ * the job body can be driven against a real ledger in tests without a live
+ * source/target.
+ */
+export interface CutoverPreparationDeps {
+  tenantId: string;
+  mappingId: string;
+  cutoverStore: Pick<CutoverStore, 'initializeCutover' | 'loadCutoverState' | 'transitionState'>;
+  /** Where progress goes. The Trigger.dev task passes the SDK's `logger`. */
+  log: (message: string) => void;
+  /** Final delta sync. Omit (or pass undefined) to skip it. */
+  runFinalSync?: () => Promise<{ created: number; skipped: number }>;
+  /** The §20 verification gate. Omit to skip it. */
+  runGate?: () => Promise<VerificationResult>;
+}
+
+/**
+ * Prepare a cutover: final sync, verification gate, stop at READY_FOR_CUTOVER.
+ *
+ * Throws on a failed gate — the caller marks the cutover FAILED. Never
+ * transitions past READY_FOR_CUTOVER.
+ */
+export async function prepareCutover(
+  deps: CutoverPreparationDeps,
+): Promise<CutoverPreparationResult> {
+  const tenantId = asTenantId(deps.tenantId);
+  const mappingId = asMappingId(deps.mappingId);
+
+  deps.log('Initializing cutover...');
+  await deps.cutoverStore.initializeCutover({
+    tenantId,
+    mappingId,
+    startedBy: 'trigger-job',
+  });
+
+  const result: CutoverPreparationResult = { ready: false, state: 'PREPARING' };
+
+  if (deps.runFinalSync) {
+    deps.log('Running final delta sync...');
+    const delta = await deps.runFinalSync();
+    result.finalSync = delta;
+    deps.log(`Final delta sync: ${delta.created} created, ${delta.skipped} skipped`);
+  } else {
+    deps.log('Final delta sync SKIPPED at the caller\'s request.');
+  }
+
+  if (deps.runGate) {
+    deps.log('Running verification checks...');
+    const verification = await deps.runGate();
+    result.verification = {
+      overallStatus: verification.overallStatus,
+      score: verification.score,
+      totalDiscrepancies: verification.totalDiscrepancies,
+    };
+    deps.log(
+      `Verification ${verification.overallStatus} (score ${verification.score.toFixed(3)}, ` +
+        `${verification.totalItemsSource} source / ${verification.totalItemsTarget} target, ` +
+        `${verification.totalDiscrepancies} discrepancies)`,
+    );
+
+    if (verification.overallStatus === 'FAIL' || !verification.canProceedToCutover) {
+      // Surface the failure verbatim; the caller marks the cutover FAILED.
+      throw new Error(
+        `Cutover verification failed: status=${verification.overallStatus}, ` +
+          `score=${verification.score.toFixed(3)}, discrepancies=${verification.totalDiscrepancies}. ` +
+          verification.recommendations.join('; '),
+      );
+    }
+  } else {
+    // Skipping the gate is a caller decision, but it must never read as a pass.
+    deps.log(
+      'Verification SKIPPED at the caller\'s request — this cutover has NOT been verified.',
+    );
+  }
+
+  const ready = await deps.cutoverStore.transitionState(tenantId, mappingId, 'READY_FOR_CUTOVER', {
+    readyAt: new Date().toISOString(),
+  });
+  result.ready = true;
+  result.state = ready.currentState ?? ready.state;
+
+  // Deliberately the end of the road. Approval and execution are separate
+  // operator actions; this job does not switch DNS and does not complete the
+  // cutover (see the file header).
+  deps.log('Cutover READY_FOR_CUTOVER — awaiting operator approval ("approve --yes", then "execute --yes").');
+
+  return result;
+}
+
 // Register the job with Trigger.dev
 export const runCutover = schemaTask({
   id: 'run-cutover',
-  description: 'Cutover',
+  description: 'Cutover preparation (final sync + verification gate)',
   schema: CutoverJobSchema,
-  run: async (payload: unknown, { ctx }) => {
-    const typedPayload = payload as CutoverJobPayload;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const ctxTyped = ctx as any;
-    const { tenantId, mappingId, options } = typedPayload;
-    
-    console.log('Starting cutover process', {
-      tenantId,
-      mappingId,
-      options,
-    });
+  run: async (payload: unknown) => {
+    const { tenantId, mappingId, options } = payload as CutoverJobPayload;
 
-    // Initialize database
+    console.log('Starting cutover preparation', { tenantId, mappingId, options });
+
     const dbUrl = process.env.DATABASE_URL;
     if (!dbUrl) {
       throw new Error('DATABASE_URL environment variable required');
     }
     const pool = new Pool({ connectionString: dbUrl });
     const db = drizzle(pool, { schema: schemaPg });
-    const cutoverPersistence = new CutoverStore(db);
+    const cutoverStore = new CutoverStore(db);
 
     try {
-      // Step 0: Initialize cutover state
-      console.log('Initializing cutover state');
-      await ctxTyped.logger.log('Initializing cutover...');
-      await cutoverPersistence.initializeCutover({
-        tenantId: asTenantId(tenantId),
-        mappingId: asMappingId(mappingId),
-        targetMailServer: options.targetMailServer || `mail.${options.dnsDomain || 'domain.com'}`,
-        startedBy: 'trigger-job',
-      });
-
-      // Step 1: Final delta sync (if not skipped) — a real mail pass so the
-      // target is current before we verify. Reuses the proven runShadowPass path.
-      if (!options.skipFinalSync) {
-        console.log('Running final delta sync');
-        await ctxTyped.logger.log('Running final delta sync...');
-        const deps = await buildDepsFromMapping(pool, tenantId, mappingId);
-        try {
-          const delta = await runShadowPass(deps);
-          await ctxTyped.logger.log(`Final delta sync: ${delta.created} created, ${delta.skipped} skipped`);
-        } finally {
-          await deps.close(); // release the deps' pool
-        }
-      }
-
-      // Step 2: Verification (if not skipped) — REAL verification against the
-      // ledger (source counts) and the target reindexer (target counts). A FAIL
-      // aborts the cutover; we never fabricate a pass (hard rule 9).
-      if (!options.skipVerification) {
-        console.log('Running verification checks');
-        await ctxTyped.logger.log('Running verification checks...');
-
-        const deps = await buildDepsFromMapping(pool, tenantId, mappingId);
-        try {
-          const verificationReader = createLedgerVerificationReader({ connectionString: dbUrl });
-          const verification = await runVerification(
-            createRealVerificationDeps({
-              tenantId: asTenantId(tenantId),
-              mappingId: asMappingId(mappingId),
-              config: {
-                checksumSamplePercentage: 5,
-                minSampleSize: 10,
-                maxSampleSize: 1000,
-                requiredMatchPercentage: 0.99,
-                maxDiscrepancyPercentage: 0.01,
-                verifyMail: true,
-                verifyCalendar: true,
-                verifyContacts: true,
-                verifyFiles: true,
-              },
-              ledger: deps.ledger,
-              verificationReader,
-              // Concrete JMAP / IMAP-DAV targets implement TargetReindexer (listEntries).
-              targetReindexer: deps.target as unknown as TargetReindexer,
-            }),
-          );
-
-          await ctxTyped.logger.log(
-            `Verification ${verification.overallStatus} (score ${verification.score.toFixed(3)}, ` +
-              `${verification.totalItemsSource} source / ${verification.totalItemsTarget} target, ` +
-              `${verification.totalDiscrepancies} discrepancies)`,
-          );
-
-          if (verification.overallStatus === 'FAIL' || !verification.canProceedToCutover) {
-            // Do NOT proceed to COMPLETED — surface the failure verbatim.
-            throw new Error(
-              `Cutover verification failed: status=${verification.overallStatus}, ` +
-                `score=${verification.score.toFixed(3)}, discrepancies=${verification.totalDiscrepancies}. ` +
-                verification.recommendations.join('; '),
-            );
-          }
-        } finally {
-          // Release the deps' pool (never leak it). NOTE: createLedgerVerificationReader
-          // opens its own pool and the LedgerVerificationReader port has no disposer
-          // yet — a separate follow-up; cutover is an infrequent, manual operation.
-          await deps.close();
-        }
-      }
-
-      // Step 3: Update cutover state to READY_FOR_CUTOVER
-      console.log('Marking cutover as ready');
-      await cutoverPersistence.transitionState(asTenantId(tenantId), asMappingId(mappingId), 'READY_FOR_CUTOVER', {
-        readyAt: new Date().toISOString(),
-      });
-      await ctxTyped.logger.log('Cutover ready for approval');
-
-      // Step 4: Wait for approval (in real implementation, this would be a manual step)
-      console.log('Waiting for approval...');
-      await ctxTyped.logger.log('Cutover ready for manual approval');
-
-      // Step 5: Execute cutover (would be triggered separately after approval)
-      console.log('Executing cutover...');
-      await cutoverPersistence.transitionState(asTenantId(tenantId), asMappingId(mappingId), 'CUTOVER_IN_PROGRESS', {
-        startedAt: new Date().toISOString(),
-      });
-      await ctxTyped.logger.log('Cutover in progress');
-
-      // Step 6: Update DNS records (if domain provided)
-      if (options.dnsDomain && options.targetMailServer) {
-        console.log(`Updating DNS records for ${options.dnsDomain}`);
-        await ctxTyped.logger.log(`Updating DNS MX records for ${options.dnsDomain}...`);
-        // TODO: Implement DNS update using DesecProvider or other provider
-        // const dnsProvider = new DesecProvider({ token: process.env.DESEC_TOKEN! });
-        // await dnsProvider.updateRecords([...]);
-      }
-
-      // Step 7: Mark as completed
-      console.log('Marking cutover as completed');
-      await cutoverPersistence.transitionState(asTenantId(tenantId), asMappingId(mappingId), 'COMPLETED', {
-        completedAt: new Date().toISOString(),
-      });
-      await ctxTyped.logger.log('Cutover completed successfully');
-
-      // Step 8: Start grace period monitoring
-      const gracePeriodEnd = new Date(Date.now() + options.gracePeriodHours * 3600000);
-      console.log(`Starting ${options.gracePeriodHours}h grace period (ends ${gracePeriodEnd})`);
-      await ctxTyped.logger.log(`Grace period started - ends at ${gracePeriodEnd.toISOString()}`);
-      
-      // Schedule grace period end
-      await ctxTyped.schedule({
-        id: `grace-period-${mappingId}`,
-        at: gracePeriodEnd,
-        job: 'run-grace-period-end',
-        payload: { tenantId: asTenantId(tenantId), mappingId: asMappingId(mappingId) },
-      });
-
-      return {
-        success: true,
+      return await prepareCutover({
         tenantId,
         mappingId,
-        gracePeriodEnd,
-      };
+        cutoverStore,
+        // The SDK's `logger`, not `ctx.logger`: Trigger.dev v4's TaskRunContext
+        // carries run metadata only (task/attempt/run/queue/environment/...) and
+        // has no logger, so every `await ctx.logger.log(...)` in this file threw
+        // "Cannot read properties of undefined (reading 'log')" on the FIRST
+        // statement of the job — including the one in the catch block, which
+        // then replaced the real error and skipped the FAILED transition.
+        log: (message) => logger.info(message),
+        runFinalSync: options.skipFinalSync
+          ? undefined
+          : async () => {
+              const deps = await buildDepsFromMapping(pool, tenantId, mappingId);
+              try {
+                const delta = await runShadowPass(deps);
+                return { created: delta.created, skipped: delta.skipped };
+              } finally {
+                await deps.close(); // release the deps' pool
+              }
+            },
+        runGate: options.skipVerification
+          ? undefined
+          : async () => {
+              const deps = await buildDepsFromMapping(pool, tenantId, mappingId);
+              try {
+                const verificationReader = createLedgerVerificationReader({ connectionString: dbUrl });
+                return await runVerification(
+                  createRealVerificationDeps({
+                    tenantId: asTenantId(tenantId),
+                    mappingId: asMappingId(mappingId),
+                    config: {
+                      checksumSamplePercentage: 5,
+                      minSampleSize: 10,
+                      maxSampleSize: 1000,
+                      requiredMatchPercentage: 0.99,
+                      maxDiscrepancyPercentage: 0.01,
+                      verifyMail: true,
+                      verifyCalendar: true,
+                      verifyContacts: true,
+                      verifyFiles: true,
+                    },
+                    ledger: deps.ledger,
+                    verificationReader,
+                    // Concrete JMAP / IMAP-DAV targets implement TargetReindexer.
+                    targetReindexer: deps.target as unknown as TargetReindexer,
+                  }),
+                );
+              } finally {
+                // Release the deps' pool (never leak it). NOTE:
+                // createLedgerVerificationReader opens its own pool and the
+                // LedgerVerificationReader port has no disposer yet — a separate
+                // follow-up; cutover is an infrequent, manual operation.
+                await deps.close();
+              }
+            },
+      });
     } catch (error) {
       const err = error as Error;
-      console.error('Cutover failed', { error: err.message });
-      await ctxTyped.logger.log(`Cutover failed: ${err.message}`);
+      console.error('Cutover preparation failed', { error: err.message });
+      logger.error(`Cutover preparation failed: ${err.message}`);
 
-      // Rollback cutover status
-      await cutoverPersistence.transitionState(asTenantId(tenantId), asMappingId(mappingId), 'FAILED', {
-        failedAt: new Date().toISOString(),
-        failureReason: err.message,
-      });
+      // Record the failure. Best-effort: a mapping with no cutover row (the very
+      // first step failed) has nothing to transition, and that must not mask the
+      // real error.
+      try {
+        await cutoverStore.transitionState(asTenantId(tenantId), asMappingId(mappingId), 'FAILED', {
+          failedAt: new Date().toISOString(),
+          failureReason: err.message,
+        });
+      } catch (transitionErr) {
+        console.error('Could not mark cutover FAILED', { error: transitionErr });
+      }
 
       throw error;
     } finally {

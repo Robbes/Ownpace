@@ -216,10 +216,14 @@ export const mappingApi = {
     return response.data;
   },
 
+  /**
+   * Enqueue cutover PREPARATION: final delta sync + the verification gate. On a
+   * PASS the mapping becomes READY_FOR_CUTOVER and waits for operator approval —
+   * this does not execute the cutover, so there is no grace-period option.
+   */
   triggerCutover: async (mappingId: string, options: {
     skipFinalSync?: boolean;
     skipVerification?: boolean;
-    gracePeriodHours?: number;
   }) => {
     const response = await apiClient.post(`/migrations/${mappingId}/cutover`, options);
     return response.data;

@@ -19,11 +19,16 @@ export function resolveSyncJob(
     : { taskId: 'run-delta-sync', payload: { tenantId, mappingId } };
 }
 
-/** Resolve the cutover task + payload from the request options. */
+/**
+ * Resolve the cutover task + payload from the request options.
+ *
+ * The task prepares and verifies a cutover and stops at READY_FOR_CUTOVER; it
+ * does not execute one, so there is no grace period for it to carry.
+ */
 export function resolveCutoverJob(
   tenantId: string,
   mappingId: string,
-  opts: { skipFinalSync?: boolean; skipVerification?: boolean; gracePeriodHours?: number },
+  opts: { skipFinalSync?: boolean; skipVerification?: boolean },
 ): { taskId: 'run-cutover'; payload: Record<string, unknown> } {
   return {
     taskId: 'run-cutover',
@@ -33,7 +38,6 @@ export function resolveCutoverJob(
       options: {
         skipFinalSync: opts.skipFinalSync === true,
         skipVerification: opts.skipVerification === true,
-        gracePeriodHours: opts.gracePeriodHours ?? 24,
       },
     },
   };

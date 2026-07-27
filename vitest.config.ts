@@ -6,6 +6,17 @@ const rootDir = resolve(__dirname);
 export default defineConfig({
   resolve: {
     alias: {
+      // Subpath exports must come FIRST: a bare '@openmig/core' alias is a
+      // prefix match, so it would rewrite '@openmig/core/cutover-state' to
+      // '<root>/packages/core/src/index.ts/cutover-state'. That is exactly what
+      // happened to CutoverStore.transitionState's dynamic import of
+      // '@openmig/core/cutover-state' — it threw "Cannot find package" under
+      // vitest, and nothing noticed because no test had ever called it.
+      '@openmig/core/cutover-state': resolve(rootDir, 'packages/core/src/cutover-state.ts'),
+      '@openmig/core/secret-store': resolve(rootDir, 'packages/core/src/secret-store.ts'),
+      '@openmig/core/secrets': resolve(rootDir, 'packages/core/src/secrets.ts'),
+      '@openmig/ledger/schema-pg': resolve(rootDir, 'packages/ledger/src/schema-pg.ts'),
+      '@openmig/scheduler/in-process': resolve(rootDir, 'packages/scheduler/src/scheduler.ts'),
       '@openmig/shared': resolve(rootDir, 'packages/shared/src/index.ts'),
       '@openmig/ledger': resolve(rootDir, 'packages/ledger/src/index.ts'),
       '@openmig/core': resolve(rootDir, 'packages/core/src/index.ts'),
