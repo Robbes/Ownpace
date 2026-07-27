@@ -2,21 +2,23 @@
 // generalized to multi-domain 2026-07-22 (issue #114 follow-up).
 //
 // E2E test for restart-resume idempotency (workplan 0010 T5, extended to
-// calendar/contacts by issue #114's follow-up — WebDAV files remains deferred).
+// calendar/contacts by issue #114's follow-up, and to WebDAV files 2026-07-27 —
+// all four domains are now proven by this gate).
 //
 // Black-box test against an ALREADY-RUNNING self-host compose stack: for each
 // ENABLED domain in the mapping, run a pass, restart the app, run again, and assert
 // the ledger item count did NOT grow (zero duplicates) — the §5 "intermittently-on
-// host resumes cleanly" property. Originally proved email/JMAP only; now proves it
-// for calendar (CalDAV) and contacts (CardDAV) too, against a real cross-account
-// Nextcloud pair (e2e-source -> e2e-target), closing the gap #114 explicitly left
-// out of scope ("Restart-resume for the DAV domains... mail-scoped for now").
+// host resumes cleanly" property. Originally proved email/JMAP only; then calendar
+// (CalDAV) and contacts (CardDAV) too, against a real cross-account Nextcloud pair
+// (e2e-source -> e2e-target); now also files (WebDAV) against the same pair, closing
+// the gap #114 explicitly left out of scope ("Restart-resume for the DAV domains...
+// mail-scoped for now") for good.
 //
 // PREREQUISITES (this test does NOT bring the stack up, seed the source, or activate):
 //   1. Seed the sources with KNOWN, NON-ZERO sets of items — the assertion is only
 //      meaningful when the first pass actually creates items:
 //        - Stalwart (mail): test/e2e/seed-imap-source.mjs
-//        - Nextcloud e2e-source account (calendar + contacts): test/e2e/seed-dav-source.mjs
+//        - Nextcloud e2e-source account (calendar + contacts + files): test/e2e/seed-dav-source.mjs
 //   2. Place a mapping in the (git-ignored) config dir and bring the stack up:
 //        cp test/e2e/fixtures/selfhost-restart-resume.mapping.json \
 //           deploy/selfhost/config/mapping.json
@@ -43,12 +45,10 @@ const SELFHOST_BIND = process.env.SELFHOST_BIND || '127.0.0.1';
 const HEALTH_URL = `http://${SELFHOST_BIND}:${SELFHOST_PORT}/healthz`;
 const STATUS_URL = `http://${SELFHOST_BIND}:${SELFHOST_PORT}/status`;
 
-// Domains this gate proves restart-resume for. WebDAV files remains deferred (issue
-// #114 follow-up scope) — its target-write path is proven by the integration test
-// (packages/core/src/dav-sync.integration.test.ts) but not yet this restart-resume
-// property. Comma-separated override via E2E_DOMAINS lets a partial dispatch (e.g.
-// while only Stalwart is up) still exercise a subset.
-const DOMAINS: string[] = (process.env.E2E_DOMAINS || 'email,calendar,contact')
+// Domains this gate proves restart-resume for — all four as of 2026-07-27. Comma-
+// separated override via E2E_DOMAINS lets a partial dispatch (e.g. while only
+// Stalwart is up) still exercise a subset.
+const DOMAINS: string[] = (process.env.E2E_DOMAINS || 'email,calendar,contact,file')
   .split(',')
   .map((d) => d.trim())
   .filter((d) => d.length > 0);

@@ -1,18 +1,19 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 //
-// Seed the SOURCE Nextcloud account's default calendar + address book for the
-// multi-domain self-host restart-resume e2e (workplan issue #114 follow-up: the
-// original 0010 T5 gate only proved the mail/JMAP domain — see
+// Seed the SOURCE Nextcloud account's default calendar + address book + file root
+// for the multi-domain self-host restart-resume e2e (workplan issue #114 follow-up:
+// the original 0010 T5 gate only proved the mail/JMAP domain — see
 // test/e2e/seed-imap-source.mjs for that half). PUTs N known calendar events into
-// the source user's auto-provisioned 'personal' calendar and N known contacts into
-// their auto-provisioned 'contacts' address book, over plain DAV PUT — the same
-// protocol the app's own CalDAVSource/CarddavSource connectors use.
+// the source user's auto-provisioned 'personal' calendar, N known contacts into
+// their auto-provisioned 'contacts' address book, and N known files at the account's
+// file storage root, all over plain DAV PUT — the same protocol the app's own
+// CalDAVSource/CarddavSource/WebdavFileSource connectors use.
 //
 // Config via env (defaults match deploy/selfhost/setup-nextcloud-users.sh):
 //   SEED_DAV_URL           Nextcloud base URL (default http://127.0.0.1:8082)
 //   SEED_DAV_SOURCE_USER   source account userid (default e2e-source)
 //   SEED_DAV_SOURCE_PASSWORD source account password (required)
-//   SEED_COUNT             number of events AND contacts to seed (default 5)
+//   SEED_COUNT             number of events AND contacts AND files to seed (default 5)
 //
 // Idempotent-ish: fixed UIDs, so a re-run against a fresh account produces the same
 // corpus. Exits non-zero on any failure so the workflow stops before the gate runs
@@ -64,6 +65,10 @@ function buildVcard(i) {
   ].join('\r\n');
 }
 
+function buildFile(i) {
+  return `Restart-resume seed file ${i} content.\n`;
+}
+
 async function put(url, body, contentType) {
   const response = await fetch(url, {
     method: 'PUT',
@@ -77,10 +82,13 @@ async function put(url, body, contentType) {
 }
 
 async function main() {
-  console.log(`[seed-dav] seeding ${count} events + ${count} contacts for '${user}' at ${baseUrl}`);
+  console.log(`[seed-dav] seeding ${count} events + ${count} contacts + ${count} files for '${user}' at ${baseUrl}`);
 
   const calendarUrl = `${baseUrl}/remote.php/dav/calendars/${user}/personal`;
   const addressBookUrl = `${baseUrl}/remote.php/dav/addressbooks/users/${user}/contacts`;
+  // Files domain has no discovery of its own (unlike CalDAV/CardDAV) -- seeded directly at the
+  // account's own file storage root, the same convention WebdavFileSource/WebDAVTargetWriter use.
+  const filesUrl = `${baseUrl}/remote.php/dav/files/${user}`;
 
   for (let i = 1; i <= count; i++) {
     const icalendar = buildIcalendar(i);
@@ -94,7 +102,13 @@ async function main() {
     console.log(`[seed-dav] contact ${i}/${count} PUT ok`);
   }
 
-  console.log(`[seed-dav] done — ${count} events in '${user}'/personal, ${count} contacts in '${user}'/contacts`);
+  for (let i = 1; i <= count; i++) {
+    const file = buildFile(i);
+    await put(`${filesUrl}/dav-seed-file-${i}.txt`, file, 'text/plain; charset=utf-8');
+    console.log(`[seed-dav] file ${i}/${count} PUT ok`);
+  }
+
+  console.log(`[seed-dav] done — ${count} events in '${user}'/personal, ${count} contacts in '${user}'/contacts, ${count} files at '${user}''s file root`);
 }
 
 main().catch((err) => {
