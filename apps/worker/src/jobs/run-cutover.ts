@@ -23,7 +23,7 @@
  */
 
 import { z } from 'zod';
-import { asTenantId, asMappingId, type TargetReindexer } from '@openmig/shared';
+import { asTenantId, asMappingId } from '@openmig/shared';
 import { schemaTask, logger } from '@trigger.dev/sdk';
 import { CutoverStore, createLedgerVerificationReader } from '@openmig/ledger';
 import {
@@ -36,6 +36,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import { buildDepsFromMapping } from '../build-deps-from-mapping';
+import { buildTargetReindexers } from '../build-reindexers';
 
 // Job input schema
 const CutoverJobSchema = z.object({
@@ -196,6 +197,7 @@ export const runCutover = schemaTask({
           ? undefined
           : async () => {
               const deps = await buildDepsFromMapping(pool, tenantId, mappingId);
+              const targets = await buildTargetReindexers(pool, tenantId, mappingId);
               try {
                 const verificationReader = createLedgerVerificationReader({ connectionString: dbUrl });
                 return await runVerification(
@@ -215,18 +217,17 @@ export const runCutover = schemaTask({
                     },
                     ledger: deps.ledger,
                     verificationReader,
-                    // The MAIL target only. `deps.target` is the JMAP / IMAP-DAV
-                    // mail writer and the only thing implementing
-                    // TargetReindexer today, so calendar/contacts/files come
-                    // back NOT_VERIFIABLE and block the cutover until DAV
-                    // reindexers exist. This used to be handed to all four
-                    // domains, which compared calendar/contact/file ledger rows
-                    // against a listing of mailboxes and reported every one of
-                    // them missing — a FAIL that looked like total data loss.
-                    targetReindexers: { mail: deps.target as unknown as TargetReindexer },
+                    // One reindexer per domain, each reading its own target.
+                    // A domain with no reindexer is reported NOT_VERIFIABLE
+                    // rather than measured against another domain's listing —
+                    // which is what happened when a single (mail) reindexer was
+                    // handed to all four, making every calendar/contact/file
+                    // item look missing.
+                    targetReindexers: targets.reindexers,
                   }),
                 );
               } finally {
+                await targets.close();
                 // Release the deps' pool (never leak it). NOTE:
                 // createLedgerVerificationReader opens its own pool and the
                 // LedgerVerificationReader port has no disposer yet — a separate

@@ -16,9 +16,10 @@
  */
 
 import { CutoverStore, createLedgerVerificationReader } from '@openmig/ledger';
-import { asTenantId, asMappingId, type TenantId, type MappingId, type TargetReindexer } from '@openmig/shared';
+import { asTenantId, asMappingId, type TenantId, type MappingId } from '@openmig/shared';
 import { runVerification, createRealVerificationDeps } from '@openmig/core';
 import { buildDepsFromMapping } from '../build-deps-from-mapping';
+import { buildTargetReindexers } from '../build-reindexers';
 import * as cutoverCli from './cutover-commands';
 
 /** Parse cutover CLI arguments */
@@ -197,6 +198,7 @@ async function main() {
     // unless `verify` actually asks for it.
     runDataVerification: async () => {
       const runDeps = await buildDepsFromMapping(pool, tenantId, mappingId);
+      const targets = await buildTargetReindexers(pool, tenantId, mappingId);
       try {
         return await runVerification(
           createRealVerificationDeps({
@@ -218,12 +220,12 @@ async function main() {
             },
             ledger: runDeps.ledger,
             verificationReader: createLedgerVerificationReader({ connectionString: dbUrl }),
-            // The concrete JMAP / IMAP-DAV mail targets implement TargetReindexer.
-            // No DAV reindexers exist yet, so those domains report NOT_VERIFIABLE.
-            targetReindexers: { mail: runDeps.target as unknown as TargetReindexer },
+            // One reindexer per domain, each reading its own target.
+            targetReindexers: targets.reindexers,
           }),
         );
       } finally {
+        await targets.close();
         await runDeps.close();
       }
     },

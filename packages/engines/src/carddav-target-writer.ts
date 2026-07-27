@@ -14,9 +14,19 @@ import type {
   Ledger,
   TenantId,
   MappingId,
+  TargetReindexer,
+  TargetEntry,
 } from '@openmig/shared';
 import { contactNaturalKeyHash, contactContentHash } from '@openmig/shared';
 import { collectionSlug } from './dav-collection-path';
+import {
+  parseMultiStatus,
+  firstElementText,
+  hasResourceType,
+  extractUid,
+  decodeHref,
+  unescapeXml,
+} from './dav-multistatus';
 
 /**
  * Configuration for CardDAV target writer
@@ -37,7 +47,7 @@ export interface CardDAVTargetConfig {
 /**
  * CardDAV target writer implementation
  */
-export class CardDAVTargetWriter implements ContactTargetWriter {
+export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer {
   private readonly config: CardDAVTargetConfig;
   private readonly ledger: Ledger;
   private readonly tenantId: TenantId;
@@ -182,6 +192,105 @@ export class CardDAVTargetWriter implements ContactTargetWriter {
     }
 
     return undefined;
+  }
+
+  /**
+   * Stream every contact on this target, keyed the way the ledger keys them.
+   *
+   * `naturalKey` is the vCard UID — exactly what `upsertContact` hashes with
+   * `contactNaturalKeyHash` — and `targetId` is the resource href, matching the
+   * ledger's target id. Without this the contacts domain was NOT_VERIFIABLE and
+   * blocked any cutover that had copied contacts.
+   *
+   * @param mailboxId Restrict to one address book path. Omitted, every address
+   *   book under this account is walked.
+   */
+  async *listEntries(mailboxId?: string): AsyncIterable<TargetEntry> {
+    const books = mailboxId ? [mailboxId] : await this.listAddressBooks();
+
+    for (const bookPath of books) {
+      for await (const entry of this.listContactsIn(bookPath)) {
+        yield entry;
+      }
+    }
+  }
+
+  /** Every address book under `addressbooks/users/<username>/`. */
+  private async listAddressBooks(): Promise<string[]> {
+    const homeSet = this.normalizeAddressBookPath(`addressbooks/users/${this.config.username}`);
+    const response = await this.httpClient.request({
+      method: 'PROPFIND',
+      url: this.buildUrl(homeSet),
+      body: `<?xml version="1.0" encoding="utf-8"?>
+        <D:propfind xmlns:D="DAV:"><D:prop><D:resourcetype/></D:prop></D:propfind>`,
+      headers: {
+        Depth: '1',
+        'Content-Type': 'application/xml',
+        Authorization: this.authHeader(),
+      },
+    });
+
+    if (response.status !== 207) {
+      // An empty list here would read as "the target holds no contacts", which
+      // verification reports as total data loss. Fail loudly (hard rule 9).
+      throw new Error(
+        `PROPFIND on address book home set ${homeSet} failed with status ${response.status}: ${response.body}`,
+      );
+    }
+
+    const homeSetPath = decodeHref(this.buildUrl(homeSet)).replace(/\/+$/, '');
+    return parseMultiStatus(response.body)
+      .filter((r) => hasResourceType(r.xml, 'addressbook'))
+      .map((r) => this.normalizeAddressBookPath(decodeHref(r.href)))
+      .filter((path) => this.buildUrl(path).replace(/\/+$/, '') !== homeSetPath);
+  }
+
+  /** Every vCard in one address book, as ledger-shaped entries. */
+  private async *listContactsIn(bookPath: string): AsyncIterable<TargetEntry> {
+    // Partial retrieval (RFC 6352 §10.4): ask for the UID property rather than
+    // the whole vCard. Enumeration is metadata-only by contract.
+    const query = `<?xml version="1.0" encoding="utf-8"?>
+      <C:addressbook-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:carddav">
+        <D:prop>
+          <D:getetag/>
+          <C:address-data>
+            <C:prop name="UID"/>
+          </C:address-data>
+        </D:prop>
+      </C:addressbook-query>`;
+
+    const response = await this.httpClient.request({
+      method: 'REPORT',
+      url: this.buildUrl(bookPath),
+      body: query,
+      headers: {
+        Depth: '1',
+        'Content-Type': 'application/xml',
+        Authorization: this.authHeader(),
+      },
+    });
+
+    if (response.status !== 207) {
+      throw new Error(
+        `addressbook-query REPORT on ${bookPath} failed with status ${response.status}: ${response.body}`,
+      );
+    }
+
+    for (const item of parseMultiStatus(response.body)) {
+      const data = firstElementText(item.xml, 'address-data');
+      if (data === undefined) continue; // the collection itself, not a vCard
+      const uid = extractUid(unescapeXml(data));
+      if (!uid) {
+        // Falling back to the href would mis-key a contact that is actually
+        // present, making it look missing — the ADR-0020 failure mode.
+        throw new Error(`Contact resource ${item.href} returned no UID; cannot key it for verification.`);
+      }
+      yield { naturalKey: uid, targetId: decodeHref(item.href), mailboxId: bookPath };
+    }
+  }
+
+  private authHeader(): string {
+    return `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`;
   }
 
   // Private helper methods

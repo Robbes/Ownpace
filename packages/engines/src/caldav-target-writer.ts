@@ -14,9 +14,19 @@ import type {
   Ledger,
   TenantId,
   MappingId,
+  TargetReindexer,
+  TargetEntry,
 } from '@openmig/shared';
 import { calendarNaturalKeyHash, calendarContentHash } from '@openmig/shared';
 import { collectionSlug } from './dav-collection-path';
+import {
+  parseMultiStatus,
+  firstElementText,
+  hasResourceType,
+  extractUid,
+  decodeHref,
+  unescapeXml,
+} from './dav-multistatus';
 
 /**
  * Configuration for CalDAV target writer
@@ -39,7 +49,7 @@ export interface CalDAVTargetConfig {
 /**
  * CalDAV target writer implementation
  */
-export class CalDAVTargetWriter implements CalendarTargetWriter {
+export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer {
   private readonly config: CalDAVTargetConfig;
   private readonly ledger: Ledger;
   private readonly tenantId: TenantId;
@@ -186,6 +196,127 @@ export class CalDAVTargetWriter implements CalendarTargetWriter {
     }
 
     return undefined;
+  }
+
+  /**
+   * Stream every event on this target, keyed the way the ledger keys them.
+   *
+   * This is what makes calendar verifiable at all. Until it existed, only the
+   * two mail targets implemented `TargetReindexer`, so `runVerification` had no
+   * way to read a calendar target and reported the whole domain
+   * NOT_VERIFIABLE — blocking any cutover that had actually copied events.
+   *
+   * `naturalKey` is the VEVENT UID, exactly what `upsertCalendarEvent` hashes
+   * with `calendarNaturalKeyHash`. `targetId` is the resource href, matching
+   * what that method records as the ledger's target id.
+   *
+   * @param mailboxId Restrict to one calendar collection path. Omitted, every
+   *   calendar under this account's home set is walked.
+   */
+  async *listEntries(mailboxId?: string): AsyncIterable<TargetEntry> {
+    const calendars = mailboxId ? [mailboxId] : await this.listCalendarCollections();
+
+    for (const calendarPath of calendars) {
+      for await (const entry of this.listEventsIn(calendarPath)) {
+        yield entry;
+      }
+    }
+  }
+
+  /** Every calendar collection under `calendars/<username>/`. */
+  private async listCalendarCollections(): Promise<string[]> {
+    const homeSet = this.normalizeCalendarPath(`calendars/${this.config.username}`);
+    const response = await this.httpClient.request({
+      method: 'PROPFIND',
+      url: this.buildUrl(homeSet),
+      body: `<?xml version="1.0" encoding="utf-8"?>
+        <D:propfind xmlns:D="DAV:"><D:prop><D:resourcetype/></D:prop></D:propfind>`,
+      headers: {
+        Depth: '1',
+        'Content-Type': 'application/xml',
+        Authorization: this.authHeader(),
+      },
+    });
+
+    if (response.status !== 207) {
+      // Failing loudly matters more here than anywhere else: an empty list is
+      // indistinguishable from "the target has no events", which verification
+      // would report as total data loss (hard rule 9).
+      throw new Error(
+        `PROPFIND on calendar home set ${homeSet} failed with status ${response.status}: ${response.body}`,
+      );
+    }
+
+    const homeSetPath = decodeHref(this.buildUrl(homeSet)).replace(/\/+$/, '');
+    return parseMultiStatus(response.body)
+      .filter((r) => hasResourceType(r.xml, 'calendar'))
+      .map((r) => this.normalizeCalendarPath(decodeHref(r.href)))
+      // The home set itself is not a calendar, but some servers still list it.
+      .filter((path) => this.buildUrl(path).replace(/\/+$/, '') !== homeSetPath);
+  }
+
+  /** Every VEVENT resource in one calendar, as ledger-shaped entries. */
+  private async *listEventsIn(calendarPath: string): AsyncIterable<TargetEntry> {
+    // Partial retrieval (RFC 4791 §9.6): ask for the UID rather than the whole
+    // event body. Enumeration is metadata-only by contract and a mailbox-sized
+    // calendar should not be downloaded in full to count it.
+    const query = `<?xml version="1.0" encoding="utf-8"?>
+      <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+        <D:prop>
+          <D:getetag/>
+          <C:calendar-data>
+            <C:comp name="VCALENDAR">
+              <C:comp name="VEVENT">
+                <C:prop name="UID"/>
+              </C:comp>
+            </C:comp>
+          </C:calendar-data>
+        </D:prop>
+        <C:filter>
+          <C:comp-filter name="VCALENDAR">
+            <C:comp-filter name="VEVENT"/>
+          </C:comp-filter>
+        </C:filter>
+      </C:calendar-query>`;
+
+    const response = await this.httpClient.request({
+      method: 'REPORT',
+      url: this.buildUrl(calendarPath),
+      body: query,
+      headers: {
+        Depth: '1',
+        'Content-Type': 'application/xml',
+        Authorization: this.authHeader(),
+      },
+    });
+
+    if (response.status !== 207) {
+      throw new Error(
+        `calendar-query REPORT on ${calendarPath} failed with status ${response.status}: ${response.body}`,
+      );
+    }
+
+    for (const item of parseMultiStatus(response.body)) {
+      const data = firstElementText(item.xml, 'calendar-data');
+      if (data === undefined) {
+        // The collection itself comes back in some servers' Depth:1 responses
+        // with no calendar-data. Skipping it is right; skipping an actual event
+        // would not be, which is why the UID check below throws instead.
+        continue;
+      }
+      const uid = extractUid(unescapeXml(data));
+      if (!uid) {
+        // Yielding the href as a stand-in key would mis-key the item and make a
+        // present event look missing — the ADR-0020 failure mode fixed in the
+        // mail reindexers. Fail instead.
+        throw new Error(`Calendar resource ${item.href} returned no UID; cannot key it for verification.`);
+      }
+      yield { naturalKey: uid, targetId: decodeHref(item.href), mailboxId: calendarPath };
+    }
+  }
+
+  private authHeader(): string {
+    return `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`;
   }
 
   // Private helper methods
