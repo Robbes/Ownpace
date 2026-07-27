@@ -21,7 +21,7 @@
     "@openmig/ledger": "workspace:*",
     "@openmig/scheduler": "workspace:*",
     "@openmig/shared": "workspace:*",
-    "@trigger.dev/sdk": "4.5.4",
+    "@trigger.dev/sdk": "4.5.7",
     "croner": "10.0.1",
     "engine.io": "^6.6.9",
     "socket.io": "^4.8.1",
