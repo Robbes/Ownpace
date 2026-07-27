@@ -60,13 +60,23 @@ actually left:
 
 1. **Audit follow-ups outside the plan numbering** (2026-07-27 doc/code audit; no workplan owns
    these yet):
-   - `run` / `run_event` are **never written** by production code, so the run-history API and the
-     web UI's run list are permanently empty (`runs.integration.test.ts` passes only because it
-     seeds its own rows). Needs a real writer in the worker jobs.
-   - Dead code slated for removal: `packages/core/src/cutover.ts` (`CutoverManagerImpl`, unused),
-     `packages/core/src/rollback-orchestrator.ts` (unused, reports success for DNS/notification
-     work it does not do), `packages/scheduler/src/trigger-scheduler.ts` (silent no-op, unexported),
-     `packages/ledger/src/schema.ts` (empty stub).
+   - ✅ **Done** — `run` / `run_event` were **never written** by production code, so the
+     run-history API and the web UI's run list were permanently empty
+     (`runs.integration.test.ts` passed only because it seeded its own rows). `RunStore`
+     (`packages/ledger/src/run-store.ts`) is the writer, wired into **all three execution
+     paths**: the managed scheduler (`managed-scheduler.ts`, the path that actually runs today),
+     the self-host appliance (`apps/selfhost/src/index.ts`), and the Trigger.dev
+     delta/full-sync jobs. Covered by `run-store.integration.test.ts`.
+   - ✅ **Done** — dead code removed: `packages/core/src/cutover.ts` (`CutoverManagerImpl`),
+     `packages/core/src/rollback-orchestrator.ts` (reported success for DNS/notification work it
+     did not do), `packages/scheduler/src/trigger-scheduler.ts` (silent no-op, unexported),
+     `packages/ledger/src/schema.ts` (empty stub) — −1,721 lines.
+   - **Open:** three swallowed-error sites that can break idempotency —
+     `findByNaturalKey` in both `jmap-target.ts` and `imap-dav-target.ts` turn a failed
+     lookup into "not present", which makes the caller append a **duplicate**; and
+     `listEntries` skips a whole mailbox on error, so an ADR-0020 reindex would silently
+     rebuild an incomplete ledger. The failures are now logged (not silent) but the control
+     flow is unchanged.
 2. Later: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 

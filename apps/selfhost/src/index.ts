@@ -19,7 +19,7 @@
  */
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
-import { runMigrations, createPgDb, PgMigrationStatusStore, PgDiscoveryStore } from '@openmig/ledger';
+import { runMigrations, createPgDb, PgMigrationStatusStore, PgDiscoveryStore, RunStore, withTenant } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -213,8 +213,51 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       };
 
       console.log(`[selfhost] ${m.config.mappingId}: running domains...`);
+
+      // One `run` row per pass so /status and the run history reflect what
+      // actually executed. Opened before the pass so a crash leaves a `running`
+      // row rather than no trace. Bookkeeping is best-effort throughout: it must
+      // never abort the sync it describes.
+      const tenantId = configWithCorrectMappingId.tenantId as TenantId;
+      const mappingId = configWithCorrectMappingId.mappingId as MappingId;
+      let runId: string | null = null;
+      try {
+        runId = await withTenant(db.$pool, tenantId, async (tdb) =>
+          new RunStore(tdb).startRun({ tenantId, mappingId, kind: 'incremental', trigger: 'schedule' }),
+        );
+      } catch (err) {
+        console.error(`[selfhost] ${m.config.mappingId}: failed to open run row:`, err instanceof Error ? err.message : err);
+      }
+
       const results = await runAllDomains(configWithCorrectMappingId, statusStore);
       const created = results.reduce((n, r) => n + r.created, 0);
+
+      if (runId) {
+        const id = runId;
+        const failures = results.filter((r) => r.error);
+        try {
+          await withTenant(db.$pool, tenantId, async (tdb) => {
+            const runs = new RunStore(tdb);
+            for (const r of results) {
+              // Failures carry the real message verbatim (hard rule 9).
+              if (r.error) {
+                await runs.logEvent(tenantId, id, 'error', `${r.domain} sync failed: ${r.error}`, { domain: r.domain });
+              } else {
+                await runs.logEvent(tenantId, id, 'info',
+                  `${r.domain}: ${r.created} created, ${r.skipped} skipped`,
+                  { domain: r.domain, created: r.created, skipped: r.skipped });
+              }
+            }
+            await runs.finishRun(id, failures.length > 0 && failures.length === results.length ? 'failed' : 'succeeded', {
+              itemsProcessed: results.reduce((n, r) => n + r.created + r.skipped, 0),
+              errors: failures.length,
+            });
+          });
+        } catch (err) {
+          console.error(`[selfhost] ${m.config.mappingId}: failed to close run row:`, err instanceof Error ? err.message : err);
+        }
+      }
+
       console.log(`[selfhost] ${m.config.mappingId}: pass complete (${created} created)`);
     } catch (err) {
       // Surface, never swallow (hard rule 9). The scheduler keeps running.

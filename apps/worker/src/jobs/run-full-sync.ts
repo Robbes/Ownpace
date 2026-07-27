@@ -22,6 +22,7 @@ import { Pool } from 'pg';
 import { runShadowPass } from '@openmig/core';
 import type { TenantId, MappingId } from '@openmig/shared';
 import { buildDepsFromMapping } from '../build-deps-from-mapping';
+import { withTenant, RunStore } from '@openmig/ledger';
 
 // Job input schema
 const FullSyncJobSchema = z.object({
@@ -72,6 +73,17 @@ export const runFullSync = schemaTask({
       // Note: This needs to be done within withTenant context
       // For now, we'll let buildDepsFromMapping handle the initial status setup
       
+      // Open the run-ledger row up front so an in-flight run is visible and a
+      // crash leaves a `running` row rather than no trace at all.
+      const runId = await withTenant(pool, tenantId, async (db) =>
+        new RunStore(db).startRun({
+          tenantId,
+          mappingId,
+          kind: 'initial_copy',
+          trigger: 'manual',
+        }),
+      );
+
       // SECURITY: Build deps with tenant scoping (RLS enforced)
       // Note: For full sync, we intentionally pass undefined for cursors
       // to force a complete rescan of all items
@@ -85,6 +97,17 @@ export const runFullSync = schemaTask({
 
         console.log(`Full sync completed: ${result.scanned} scanned, ${result.created} created, ${result.skipped} skipped`);
 
+        await withTenant(pool, tenantId, async (db) => {
+          const runs = new RunStore(db);
+          await runs.logEvent(tenantId, runId, 'info',
+            `full sync: ${result.scanned} scanned, ${result.created} created, ${result.skipped} skipped`,
+            { scanned: result.scanned, created: result.created, skipped: result.skipped });
+          await runs.finishRun(runId, 'succeeded', {
+            itemsProcessed: result.created + result.skipped,
+            errors: 0,
+          });
+        });
+
         return {
           success: true,
           tenantId: typedPayload.tenantId,
@@ -92,7 +115,23 @@ export const runFullSync = schemaTask({
           scanned: result.scanned,
           created: result.created,
           skipped: result.skipped,
+          runId,
         };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        // Record the failure verbatim, then close the run as failed so history
+        // shows it rather than leaving a row stuck in `running`. Both are
+        // best-effort: a logging failure must not replace the real error.
+        try {
+          await withTenant(pool, tenantId, async (db) => {
+            const runs = new RunStore(db);
+            await runs.logEvent(tenantId, runId, 'error', `full sync failed: ${errorMessage}`);
+            await runs.finishRun(runId, 'failed', { itemsProcessed: 0, errors: 1 });
+          });
+        } catch (bookkeepingErr) {
+          console.error('Failed to record run failure:', bookkeepingErr);
+        }
+        throw error;
       } finally {
         // Release the deps' Postgres pool (never leak it across runs).
         await deps.close();

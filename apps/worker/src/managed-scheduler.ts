@@ -44,6 +44,7 @@ import {
   recordComputeForRun,
   recordApiCallForRun,
   runMigrations,
+  RunStore,
 } from '@openmig/ledger';
 import { InProcessScheduler } from '@openmig/scheduler/in-process';
 import { runShadowPass, runCalendarSync, runContactSync, runFileSync } from '@openmig/core';
@@ -109,7 +110,12 @@ async function loadEnabledDomains(pool: Pool, tenantId: string, mappingId: strin
  * live: before this fix, GET /:mappingId's domainStatus came back empty for both demo tenants
  * despite real sync activity in the worker logs -- initDomainStatus was never called anywhere in
  * this file. */
-async function runDomain(pool: Pool, tenantId: TenantId, mappingId: MappingId, domain: Domain): Promise<void> {
+async function runDomain(
+  pool: Pool,
+  tenantId: TenantId,
+  mappingId: MappingId,
+  domain: Domain,
+): Promise<{ created: number; skipped: number }> {
   await withTenant(pool, tenantId, async (db) => {
     const statusStore = new PgMigrationStatusStore(db);
     await statusStore.initDomainStatus(tenantId, mappingId, domain);
@@ -150,6 +156,7 @@ async function runDomain(pool: Pool, tenantId: TenantId, mappingId: MappingId, d
       await new PgMigrationStatusStore(db).markCompleted(tenantId, mappingId, domain);
     });
     console.log(`[managed-scheduler] ${mappingId}/${domain}: ${result.created} created, ${result.skipped} skipped`);
+    return result;
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     try {
@@ -164,6 +171,27 @@ async function runDomain(pool: Pool, tenantId: TenantId, mappingId: MappingId, d
 }
 
 /** Compute + API-call metering for a completed domain run (mirrors run-delta-sync.ts). */
+/**
+ * Append a run event, best-effort. The run log is bookkeeping: a failure to
+ * write it must never abort or fail the sync pass it is describing.
+ */
+async function logRunEvent(
+  pool: Pool,
+  tenantId: TenantId,
+  runId: string,
+  level: 'info' | 'warn' | 'error',
+  message: string,
+  detail?: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await withTenant(pool, tenantId, async (db) => {
+      await new RunStore(db).logEvent(tenantId, runId, level, message, detail);
+    });
+  } catch (err) {
+    console.error('[managed-scheduler] failed to write run event:', err instanceof Error ? err.message : err);
+  }
+}
+
 async function recordMetering(
   pool: Pool,
   tenantId: TenantId,
@@ -217,17 +245,67 @@ function runMapping(pool: Pool, mapping: ActiveMapping) {
     }
 
     const { periodStart, periodEnd } = getCurrentPeriod();
+
+    // One `run` row per pass, so run history reflects what actually executed.
+    // Opened before the first domain so a crashed pass leaves a `running` row
+    // rather than no trace at all. Bookkeeping is best-effort throughout: it
+    // must never abort the sync pass it describes.
+    let runId: string | null = null;
+    try {
+      runId = await withTenant(pool, tenantId as TenantId, async (db) =>
+        new RunStore(db).startRun({
+          tenantId: tenantId as TenantId,
+          mappingId: mappingId as MappingId,
+          kind: 'incremental',
+          trigger: 'schedule',
+        }),
+      );
+    } catch (err) {
+      console.error(`[managed-scheduler] ${mappingId}: failed to open run row:`, err instanceof Error ? err.message : err);
+    }
+
+    let itemsProcessed = 0;
+    let errors = 0;
+
     for (const domain of domains) {
       try {
-        await runDomain(pool, tenantId as TenantId, mappingId as MappingId, domain);
+        const result = await runDomain(pool, tenantId as TenantId, mappingId as MappingId, domain);
+        itemsProcessed += result.created + result.skipped;
         await recordMetering(pool, tenantId as TenantId, mappingId as MappingId, domain, periodStart, periodEnd);
+        if (runId) {
+          await logRunEvent(pool, tenantId as TenantId, runId, 'info',
+            `${domain}: ${result.created} created, ${result.skipped} skipped`,
+            { domain, created: result.created, skipped: result.skipped });
+        }
       } catch (err) {
         // Surfaced (logged + marked failed inside runDomain); never rethrown here —
         // this is a long-running loop serving every tenant, so one tenant's
         // failing domain must not stop the others (hard rule 9: surface, don't crash).
-        console.error(`[managed-scheduler] ${mappingId}/${domain}: sync failed:`, err instanceof Error ? err.message : err);
+        const message = err instanceof Error ? err.message : String(err);
+        errors += 1;
+        console.error(`[managed-scheduler] ${mappingId}/${domain}: sync failed:`, message);
+        if (runId) {
+          await logRunEvent(pool, tenantId as TenantId, runId, 'error', `${domain} sync failed: ${message}`, { domain });
+        }
       }
     }
+
+    if (runId) {
+      const id = runId;
+      try {
+        await withTenant(pool, tenantId as TenantId, async (db) => {
+          // A pass where every domain failed is a failed run; a partial failure
+          // still records its error count so the UI shows it.
+          await new RunStore(db).finishRun(id, errors >= domains.length ? 'failed' : 'succeeded', {
+            itemsProcessed,
+            errors,
+          });
+        });
+      } catch (err) {
+        console.error(`[managed-scheduler] ${mappingId}: failed to close run row:`, err instanceof Error ? err.message : err);
+      }
+    }
+
     console.log(`[managed-scheduler] ${mappingId}: pass complete`);
   };
 }
