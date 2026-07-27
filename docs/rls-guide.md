@@ -146,11 +146,14 @@ SELECT * FROM connection WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11
 
 ## Self-Host Edition
 
-For self-host deployments using SQLite:
+Self-host bundles a small **Postgres** container (ADR-0023 — both editions are Postgres-only; the
+earlier SQLite idea was dropped), so it runs the **same schema and the same RLS policies** as
+managed. There is no second dialect and no separate isolation code path.
 
-- RLS is **not applicable** (SQLite doesn't support it)
-- Tenant isolation is enforced in application code by always filtering by `tenant_id`
-- Single-tenant by design (no multi-tenant support in self-host)
+- RLS applies exactly as above; `app.current_tenant` is still set per operation
+- Single-tenant by design (one appliance, one tenant), but the tenant filter is never skipped
+- Practically this means an RLS bug can't hide in self-host only — the managed cross-tenant tests
+  cover the same policies
 
 ## Security Considerations
 

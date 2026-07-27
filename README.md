@@ -90,16 +90,24 @@ Active development, pre-release. License: Apache-2.0 (see `LICENSE`).
 
 The **migration core** is done and property-tested for idempotency: O365 → JMAP/IMAP-DAV mail,
 plus calendar/contacts/files domains (worker `runAllDomains` orchestration) and the cutover
-machine. The **managed edition** control plane is well underway — tenant isolation is enforced at
-runtime (Postgres RLS with a non-owner role, proven cross-tenant at the SQL and HTTP layers), the
-API persists real data, Trigger.dev jobs run the real mail sync, and usage metering accrues from
-real runs. Still in flight for managed: billing/payment end-to-end, the web UI verified against the
-API, and the operator compose stack. The **self-host edition** (a single-tenant NAS/Pi appliance
-bundling Postgres) is now packaged — a startup migration runner, a real entrypoint, and a
-bundled-Postgres compose stack (`deploy/selfhost/`, see the
-[quickstart](./docs/selfhost-quickstart.md)); the on-a-Docker-host build/verify and the
-restart-resume acceptance gate are the remaining steps. See
-[`docs/workplans/`](./docs/workplans/) for the per-slice Status blocks.
+machine.
+
+The **managed edition** control plane is complete through workplan 0011 T1–T7: tenant isolation
+enforced at runtime (Postgres RLS with a non-owner role, proven cross-tenant at the SQL and HTTP
+layers), real API persistence, Trigger.dev jobs running real syncs across all four domains,
+usage metering from real runs, billing with a Mollie webhook end-to-end, the web UI on the real
+API, and a live-verified `docker compose` operator stack.
+
+The **self-host edition** (a single-tenant NAS/Pi appliance bundling Postgres) is complete through
+workplan 0010 T1–T6, including the restart-resume idempotency gate — a real seeded run showing
+zero item-count growth across a container restart for mail, calendar, contacts and files. See the
+[quickstart](./docs/selfhost-quickstart.md) and `deploy/selfhost/`.
+
+**Known gaps** (tracked in [`docs/workplans/README.md`](./docs/workplans/README.md)): DNS
+**writes** are deliberately out of scope — cutover DNS is verify-only, with a generated manual
+runbook (owner decision, 2026-07-16). Rollback therefore does not restore DNS or notify users; see
+[`docs/rollback-mechanisms.md`](./docs/rollback-mechanisms.md). Run history (`run`/`run_event`) is
+not yet populated. See [`docs/workplans/`](./docs/workplans/) for per-slice Status blocks.
 
 ## Contributing
 See [`CONTRIBUTING.md`](./CONTRIBUTING.md) and [`AGENTS.md`](./AGENTS.md) (guidance for coding agents).

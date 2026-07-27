@@ -12,7 +12,7 @@ React-based web UI for the Open Migration Stack managed edition.
 
 ## Tech Stack
 
-- **React 18** with TypeScript
+- **React 19** with TypeScript
 - **Vite** for fast development and building
 - **React Query** for server state management
 - **Zustand** for client state management

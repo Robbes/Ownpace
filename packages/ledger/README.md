@@ -1,6 +1,8 @@
 # packages/ledger
 
-The **ledger** is the table of record for the migration core: idempotency mapping, sync checkpoints, drift decisions, runs, verification, cutover, and the optional extra-backup config. The **same schema** is used in both editions (managed: PostgreSQL + RLS; self-host: SQLite or a small Postgres). Canonical DDL: `migrations/0001_init.sql`. Rationale: ADR-0005, ADR-0010, ADR-0016.
+The **ledger** is the table of record for the migration core: idempotency mapping, sync checkpoints, drift decisions, runs, verification, cutover, and the optional extra-backup config. The **same schema and the same dialect** are used in both editions — **Postgres everywhere** (managed: Postgres + RLS; self-host: a small bundled Postgres container). Canonical DDL: `migrations/0001_init.sql`. Rationale: ADR-0005, ADR-0016, and **ADR-0023**, which supersedes ADR-0010's SQLite option.
+
+> **No SQLite.** ADR-0023 made both editions Postgres-only; `schema-sqlite.ts` / `sqlite-ledger.ts` were deleted from the tree (commit `6d9ecd4`) and all migrations are Postgres-only. Do not reintroduce a second dialect.
 
 ## Entities (overview)
 
@@ -44,19 +46,8 @@ No secrets in the ledger. `connection.secret_ref` / `backup_target.secret_ref` p
 Every tenant-scoped table has `ON DELETE CASCADE` from `tenant`, so deleting a tenant purges all its data (right to erasure).
 
 ## Multi-tenancy
-- **Managed (Postgres):** RLS on every tenant-scoped table; the app sets `app.current_tenant` per request. Pattern shown in the DDL.
-- **Self-host (SQLite):** single tenant; still always filter by `tenant_id`.
+- **Managed:** RLS on every tenant-scoped table, enforced at runtime through a non-owner `app_user` role; the app sets `app.current_tenant` per request via `withTenantDb`. Pattern shown in the DDL.
+- **Self-host:** single tenant, same schema and same RLS policies; still always filter by `tenant_id`.
 
 ## Access layer & migrations
-SQL is the source of truth here. Recommended TS access layer: **Drizzle ORM** (first-class PostgreSQL **and** SQLite, lightweight, agent-friendly), with migrations via Drizzle Kit or plain SQL files in `migrations/`. Kysely or Prisma are acceptable alternatives.
-
-## SQLite (self-host) substitutions
-| Postgres | SQLite |
-|---|---|
-| `uuid` + `gen_random_uuid()` | `text` UUID generated in app |
-| `jsonb` | `text` (JSON) or JSON1 functions |
-| `timestamptz` + `now()` | `text` (ISO-8601) or integer epoch |
-| `bytea` | `blob` |
-| Row-Level Security | not available — enforce `tenant_id` in queries (single tenant anyway) |
-
-`CHECK` constraints and partial indexes (`... WHERE`) work in both, so the logical schema is identical.
+SQL is the source of truth here. The TS access layer is **Drizzle ORM** (`schema-pg.ts`), with plain SQL migrations in `migrations/` applied on startup behind a Postgres advisory lock (`src/migrate.ts`, ADR-0017). The app refuses to start if the schema is newer than it supports.
