@@ -114,6 +114,41 @@ actually left:
      checksum only → **2/4 fail**; both → **4/4 pass**. `runVerification`'s only production
      caller is `run-cutover.ts` and no live cutover appears to have been run, which is why
      neither bug was ever observed.
+   - ✅ **Done — the cutover path itself had never been executed.** Following the verification
+     work upstream into its only caller turned up five more defects, each measured against a
+     real Postgres before being fixed:
+     1. **`ctx.logger` does not exist.** Trigger.dev v4's `TaskRunContext` carries run metadata
+        only. `run-cutover.ts` and `run-rollback.ts` called `await ctx.logger.log(...)` as their
+        first statement, so both jobs died with `Cannot read properties of undefined (reading
+        'log')` — including inside the catch block, which replaced the real error and skipped
+        the FAILED transition. Both now use the SDK's `logger`.
+     2. **The cutover job bypassed the approval gate.** It went READY_FOR_CUTOVER →
+        CUTOVER_IN_PROGRESS → COMPLETED under a comment reading "in real implementation, this
+        would be a manual step" (hard rule 2). The state machine rejects the first step of that:
+        `Invalid transition from READY_FOR_CUTOVER to CUTOVER_IN_PROGRESS`. The job now stops at
+        READY_FOR_CUTOVER; approval and execution stay with the `--yes`-gated CLI.
+     3. **A tenant could hold exactly one cutover, ever.** `saveCutoverState` inserted
+        `id: status.tenantId` while `cutover_state.id` is the PRIMARY KEY and the upsert arbiter
+        is `(tenant_id, mapping_id)`, so a second mapping hit `duplicate key value violates
+        unique constraint "cutover_state_pkey"`.
+     4. **`initializeCutover` silently revoked approvals.** It unconditionally upserted
+        `PREPARING`, bypassing `transitionState`'s validation — measured: "state before re-init:
+        APPROVED / state after re-init: PREPARING", logged only as "cutover initialized". It is
+        now idempotent: an existing cutover is returned unchanged.
+     5. **Phantom scheduling.** The job scheduled `run-grace-period-end`, a task that exists
+        nowhere in this repo, and the rollback job called `ctx.cancel` (also not a thing) to
+        cancel it. Grace-period monitoring is not implemented; both are gone, and the API no
+        longer returns a `gracePeriodEnd` for a cutover that never ran.
+     Also removed: three `console.log('[transitionState] ...')` debug lines that dumped the full
+     cutover status JSON on every transition (they are visible in the CI integration log). And
+     the vitest aliases now pin every `@openmig/*` subpath export, so
+     `transitionState`'s dynamic import of `@openmig/core/cutover-state` resolves the same way
+     on every Node version — it works under CI's Node 24 but throws "Cannot find package" under
+     Node 22. Covered by `packages/ledger/src/cutover-store.integration.test.ts` (6 tests) and
+     `apps/worker/src/jobs/cutover-preparation.integration.test.ts` (6 tests). The pre-existing
+     `packages/core/src/cutover.integration.test.ts` (6) and `rollback.integration.test.ts` (5)
+     still pass — they exercise the state machine's happy paths, which is why the defects above
+     (second mapping, re-init over APPROVED, the job's own illegal transition) went unnoticed.
 2. Later: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 

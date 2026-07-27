@@ -42,7 +42,7 @@ describe('resolveCutoverJob', () => {
       payload: {
         tenantId: TENANT,
         mappingId: MAPPING,
-        options: { skipFinalSync: false, skipVerification: false, gracePeriodHours: 24 },
+        options: { skipFinalSync: false, skipVerification: false },
       },
     });
   });
@@ -51,8 +51,15 @@ describe('resolveCutoverJob', () => {
     const { payload } = resolveCutoverJob(TENANT, MAPPING, {
       skipFinalSync: true,
       skipVerification: true,
-      gracePeriodHours: 48,
     });
-    expect(payload.options).toEqual({ skipFinalSync: true, skipVerification: true, gracePeriodHours: 48 });
+    expect(payload.options).toEqual({ skipFinalSync: true, skipVerification: true });
+  });
+
+  it('carries no grace-period setting — the task never starts one', () => {
+    // The task prepares and verifies, then stops at READY_FOR_CUTOVER. It used
+    // to accept gracePeriodHours and schedule a `run-grace-period-end` task that
+    // does not exist in this repo.
+    const { payload } = resolveCutoverJob(TENANT, MAPPING, {});
+    expect(payload.options).not.toHaveProperty('gracePeriodHours');
   });
 });

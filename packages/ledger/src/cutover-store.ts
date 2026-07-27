@@ -7,6 +7,7 @@
  * See docs/architecture/solution-architecture.md §11 (shadow & cutover)
  */
 
+import { randomUUID } from 'node:crypto';
 import type { TenantId, MappingId } from '@openmig/shared';
 import { eq, and, asc } from 'drizzle-orm';
 import * as schema from './schema-pg';
@@ -77,7 +78,18 @@ export class CutoverStore implements CutoverStateStore {
   }
 
   /**
-   * Initialize a new cutover and return the status
+   * Initialize a new cutover and return the status.
+   *
+   * Idempotent by design: if a cutover already exists for this mapping it is
+   * returned UNCHANGED. This used to unconditionally upsert `state: PREPARING`,
+   * so re-running the cutover job (or `start-cutover`) on an APPROVED mapping
+   * silently revoked the operator's approval and reset the state machine —
+   * measured against a real Postgres: "state before re-init: APPROVED / state
+   * after re-init: PREPARING". That is a state change nobody asked for, made
+   * without going through `transitionState`'s validation and recorded only as a
+   * CUTOVER_INITIALIZED event, so the audit trail did not show the revocation
+   * either (hard rule 2). Restarting a cutover is an explicit transition, not a
+   * side effect of asking for one.
    */
   async initializeCutover(params: {
     tenantId: TenantId;
@@ -85,6 +97,9 @@ export class CutoverStore implements CutoverStateStore {
     targetMailServer?: string;
     startedBy?: string;
   }): Promise<CutoverStatus> {
+    const existing = await this.loadCutoverState(params.tenantId, params.mappingId);
+    if (existing) return existing;
+
     const now = new Date().toISOString();
     const status: CutoverStatus = {
       tenantId: params.tenantId,
@@ -128,7 +143,12 @@ export class CutoverStore implements CutoverStateStore {
     const now = new Date().toISOString();
     
     await this.getDb().insert(schema.cutoverState).values({
-      id: status.tenantId,
+      // A fresh row id. This used to be `status.tenantId`, but `cutover_state.id`
+      // is the PRIMARY KEY while the upsert arbiter is (tenant_id, mapping_id) —
+      // so the SECOND mapping in a tenant hit "duplicate key value violates
+      // unique constraint cutover_state_pkey" on the insert, before ON CONFLICT
+      // could help. A tenant could have exactly one cutover, ever.
+      id: randomUUID(),
       tenantId: status.tenantId,
       mappingId: status.mappingId,
       state: this.mapStateToDb(status.state),
@@ -319,11 +339,6 @@ export class CutoverStore implements CutoverStateStore {
     // Update state
     const { updateCutoverStatus } = await import('@openmig/core/cutover-state');
     const updated = updateCutoverStatus(current, toState, reason);
-    
-    // Debug logging
-    console.log('[transitionState] toState:', toState);
-    console.log('[transitionState] updated.state:', updated.state);
-    console.log('[transitionState] updated:', JSON.stringify(updated, null, 2));
 
     // Merge metadata into the status if provided
     if (metadata) {

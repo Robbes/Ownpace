@@ -11,7 +11,7 @@
  */
 
 import { z } from 'zod';
-import { schemaTask } from '@trigger.dev/sdk';
+import { schemaTask, logger } from '@trigger.dev/sdk';
 import { CutoverStore } from '@openmig/ledger';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { and, eq } from 'drizzle-orm';
@@ -38,10 +38,8 @@ export const runRollback = schemaTask({
   id: 'run-rollback',
   description: 'Rollback',
   schema: RollbackJobSchema,
-  run: async (payload: unknown, { ctx }) => {
+  run: async (payload: unknown) => {
     const typedPayload = payload as RollbackJobPayload;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const ctxTyped = ctx as any;
     const { tenantId, mappingId, reason, options } = typedPayload;
     
     console.log('Starting rollback process', {
@@ -67,14 +65,18 @@ export const runRollback = schemaTask({
         throw new Error('No cutover state found - nothing to rollback');
       }
       
-      await ctxTyped.logger.log(`Rolling back cutover from state: ${state.currentState || state.state}`);
-      await ctxTyped.logger.log(`Reason: ${reason}`);
+      // `logger` from the SDK, not `ctx.logger`: Trigger.dev v4's TaskRunContext
+      // carries run metadata only and has no logger, so this line used to throw
+      // "Cannot read properties of undefined (reading 'log')" — the first thing
+      // the job did after loading state, on every run.
+      logger.info(`Rolling back cutover from state: ${state.currentState || state.state}`);
+      logger.info(`Reason: ${reason}`);
 
       // Step 1: DNS is DEFERRED by owner decision (verify-only DNS, 2026-07-16 —
       // deSEC provider writes not implemented). Do not claim a restore that did
       // not happen; the operator reverts the MX record manually.
       if (options.restoreDns && options.dnsDomain) {
-        await ctxTyped.logger.log(
+        logger.warn(
           `DNS restore for ${options.dnsDomain} is DEFERRED (verify-only DNS) — revert the MX record manually.`,
         );
       }
@@ -82,7 +84,7 @@ export const runRollback = schemaTask({
       // Step 2: Reactivate the mapping so shadow sync resumes with the original
       // source authoritative again (the real, in-scope rollback action).
       console.log('Reactivating mapping (status → active)');
-      await ctxTyped.logger.log('Reactivating mapping so shadow sync resumes...');
+      logger.info('Reactivating mapping so shadow sync resumes...');
       await db
         .update(schemaPg.mailboxMapping)
         .set({ status: 'active', updatedAt: new Date() })
@@ -100,28 +102,22 @@ export const runRollback = schemaTask({
         rolledBackBy: 'trigger-job',
         rollbackReason: reason,
       });
-      await ctxTyped.logger.log('Cutover marked as rolled back');
+      logger.info('Cutover marked as rolled back');
 
       // Step 4: User notification is not yet implemented — say so, don't fake it.
       if (options.notifyUsers) {
-        await ctxTyped.logger.log('User notification requested but not yet implemented — skipping.');
+        logger.warn('User notification requested but not yet implemented — skipping.');
       }
 
-      // Step 5: Cancel any pending grace-period task. Best-effort: the rollback
-      // is already committed (steps 2-3), so a missing/failed cancel must NOT
-      // flip a successful rollback to FAILED.
-      console.log('Cancelling pending tasks');
-      await ctxTyped.logger.log('Cancelling pending tasks...');
-      try {
-        await ctxTyped.cancel({ id: `grace-period-${mappingId}` });
-        await ctxTyped.logger.log('Pending tasks cancelled');
-      } catch (cancelErr) {
-        const msg = cancelErr instanceof Error ? cancelErr.message : String(cancelErr);
-        await ctxTyped.logger.log(`No pending grace-period task to cancel (or cancel failed): ${msg}`);
-      }
+      // There is deliberately no "cancel the pending grace-period task" step.
+      // It used to call `ctx.cancel({ id: 'grace-period-<mapping>' })` — two
+      // things wrong with that: TaskRunContext has no `cancel`, and the task it
+      // claimed to cancel (`run-grace-period-end`, scheduled by the old cutover
+      // job) does not exist anywhere in this repo. Grace-period monitoring is
+      // not implemented, so there is nothing pending to cancel.
 
       console.log('Rollback completed successfully');
-      await ctxTyped.logger.log('Rollback completed successfully');
+      logger.info('Rollback completed successfully');
 
       return {
         success: true,
@@ -133,7 +129,7 @@ export const runRollback = schemaTask({
     } catch (error) {
       const err = error as Error;
       console.error('Rollback failed', { error: err.message });
-      await ctxTyped.logger.log(`Rollback failed: ${err.message}`);
+      logger.error(`Rollback failed: ${err.message}`);
 
       // Try to log the failure even if rollback failed
       try {
