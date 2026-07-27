@@ -198,8 +198,9 @@ export const runCutover = schemaTask({
           : async () => {
               const deps = await buildDepsFromMapping(pool, tenantId, mappingId);
               const targets = await buildTargetReindexers(pool, tenantId, mappingId);
+              // Declared out here so `finally` can close it: it owns its own pool.
+              const verificationReader = createLedgerVerificationReader({ connectionString: dbUrl });
               try {
-                const verificationReader = createLedgerVerificationReader({ connectionString: dbUrl });
                 return await runVerification(
                   createRealVerificationDeps({
                     tenantId: asTenantId(tenantId),
@@ -228,10 +229,7 @@ export const runCutover = schemaTask({
                 );
               } finally {
                 await targets.close();
-                // Release the deps' pool (never leak it). NOTE:
-                // createLedgerVerificationReader opens its own pool and the
-                // LedgerVerificationReader port has no disposer yet — a separate
-                // follow-up; cutover is an infrequent, manual operation.
+                await verificationReader.close(); // it opens its own pool
                 await deps.close();
               }
             },

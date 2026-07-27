@@ -45,14 +45,29 @@ export interface LedgerVerificationReaderConfig {
   connectionString: string;
 }
 
+/** A reader that owns its connection pool and must be closed. */
+export type DisposableLedgerVerificationReader = LedgerVerificationReader & {
+  /** Release the pool this reader opened. */
+  close(): Promise<void>;
+};
+
 /**
  * Create a LedgerVerificationReader backed by Postgres.
- * The reader is constructed with a concrete pg drizzle instance.
+ *
+ * It opens its OWN pool, so the caller must `close()` it. That used to be
+ * impossible — the returned object had no disposer — and both callers (the
+ * cutover job and the CLI) leaked a pool on every verification run. In the
+ * long-lived worker that is one leaked pool per cutover attempt.
  */
-export function createLedgerVerificationReader(config: LedgerVerificationReaderConfig): LedgerVerificationReader {
+export function createLedgerVerificationReader(
+  config: LedgerVerificationReaderConfig,
+): DisposableLedgerVerificationReader {
   const db = createPgDb(config.connectionString);
   
   return {
+    async close(): Promise<void> {
+      await db.close();
+    },
     async countItems(tenantId, mappingId, domain): Promise<number> {
       const result = await db
         .select({ 
