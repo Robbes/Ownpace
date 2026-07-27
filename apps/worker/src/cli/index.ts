@@ -15,8 +15,10 @@
  *   runbook        Generate the guided DNS migration runbook (Markdown)
  */
 
-import { CutoverStore } from '@openmig/ledger';
-import type { TenantId, MappingId } from '@openmig/shared';
+import { CutoverStore, createLedgerVerificationReader } from '@openmig/ledger';
+import { asTenantId, asMappingId, type TenantId, type MappingId, type TargetReindexer } from '@openmig/shared';
+import { runVerification, createRealVerificationDeps } from '@openmig/core';
+import { buildDepsFromMapping } from '../build-deps-from-mapping';
 import * as cutoverCli from './cutover-commands';
 
 /** Parse cutover CLI arguments */
@@ -191,6 +193,40 @@ async function main() {
     dkimSelector,
     targetIp,
     assumeYes,
+    // The real §20 gate. A closure so nothing connects to the source/target
+    // unless `verify` actually asks for it.
+    runDataVerification: async () => {
+      const runDeps = await buildDepsFromMapping(pool, tenantId, mappingId);
+      try {
+        return await runVerification(
+          createRealVerificationDeps({
+            tenantId: asTenantId(tenantId),
+            mappingId: asMappingId(mappingId),
+            config: {
+              checksumSamplePercentage: 5,
+              minSampleSize: 10,
+              maxSampleSize: 1000,
+              requiredMatchPercentage: 0.99,
+              maxDiscrepancyPercentage: 0.01,
+              // All four are enabled: a domain that cannot be read comes back
+              // NOT_VERIFIABLE and blocks, rather than being quietly switched
+              // off here so the gate looks green.
+              verifyMail: true,
+              verifyCalendar: true,
+              verifyContacts: true,
+              verifyFiles: true,
+            },
+            ledger: runDeps.ledger,
+            verificationReader: createLedgerVerificationReader({ connectionString: dbUrl }),
+            // The concrete JMAP / IMAP-DAV mail targets implement TargetReindexer.
+            // No DAV reindexers exist yet, so those domains report NOT_VERIFIABLE.
+            targetReindexers: { mail: runDeps.target as unknown as TargetReindexer },
+          }),
+        );
+      } finally {
+        await runDeps.close();
+      }
+    },
   };
 
   switch (command) {

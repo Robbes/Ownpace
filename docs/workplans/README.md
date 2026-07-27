@@ -149,7 +149,35 @@ actually left:
      `packages/core/src/cutover.integration.test.ts` (6) and `rollback.integration.test.ts` (5)
      still pass — they exercise the state machine's happy paths, which is why the defects above
      (second mapping, re-init over APPROVED, the job's own illegal transition) went unnoticed.
-2. Later: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
+   - ✅ **Done — the gate now runs from the CLI, and measures only what it can see.** Three
+     related defects:
+     1. **The CLI's `verify` never verified data.** It printed "Data verification requires
+        ledger integration - skipping for now" and pushed `{ check: 'Data Completeness',
+        status: 'PASS' }` into its results table — the mandatory §20 check reporting a pass it
+        had never performed (hard rule 9). It now calls `runVerification`; a gate that FAILs, or
+        that cannot run at all, fails the command.
+     2. **`approve` was unreachable.** It refuses unless the state is READY_FOR_CUTOVER, `verify`
+        wrote no state, and nothing else in the CLI set it. `verify` now advances PREPARING →
+        READY_FOR_CUTOVER on a pass (not a `--yes` action — reaching "ready for approval" is the
+        verification's own outcome; approving and executing still require `--yes`).
+     3. **`VerificationConfig.verifyMail`/`verifyCalendar`/`verifyContacts`/`verifyFiles` were
+        ignored.** `runVerification` destructured the config as `_config` and measured all four
+        domains regardless. Combined with a single `targetReindexer` being applied to every
+        domain — callers pass the MAIL target — the ledger's calendar/contact/file rows were
+        compared against a listing of mailboxes, so every one came back missing and **any
+        multi-domain migration FAILed the gate no matter how complete it was**. Reindexers are
+        now per-domain; a disabled domain reports `SKIPPED` (warns, does not block) and an
+        enabled domain with no reindexer reports `NOT_VERIFIABLE` (blocks), replacing a fallback
+        that returned the LEDGER count as the target count — fabricated parity — while
+        `findMissingOnTarget` simultaneously declared every item missing. Since no DAV reindexer
+        exists yet, calendar/contacts/files are NOT_VERIFIABLE today and block a multi-domain
+        cutover with a clear reason; building those reindexers is the next piece.
+     Covered by `packages/core/src/verification-domain-scope.unit.test.ts` (8 tests) and 8 new
+     `verifyCutover()` tests in `apps/worker/src/cli/cutover-commands.unit.test.ts`.
+2. Next: **CalDAV/CardDAV/WebDAV target reindexers**, so the non-mail domains are verifiable at
+   all; then a size/content hash on `TargetEntry`, which closes both `checksumUnavailable > 0`
+   (§20's checksum leg does not run for mail today) and `totalBytesTarget === null`.
+3. Later: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 
 No plan is blocked or mid-flight.

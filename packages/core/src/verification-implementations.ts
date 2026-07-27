@@ -24,7 +24,20 @@ export interface RealVerificationDeps {
   mappingId: MappingId;
   config: import('./verification').VerificationConfig;
   ledger: import('@openmig/shared').Ledger;
+  /**
+   * The MAIL target's reindexer.
+   *
+   * This used to be applied to every domain. Callers pass the mail target here
+   * (it is what `buildDepsFromMapping` returns as `deps.target`), so with all
+   * four domains enabled the ledger's calendar/contact/file rows were compared
+   * against a listing of MAILBOXES — hashed with the calendar/contact/file
+   * prefix, so nothing could ever match and every item came back missing. Any
+   * multi-domain migration therefore FAILed the gate no matter how complete it
+   * was. Other domains go in `targetReindexers`.
+   */
   targetReindexer?: TargetReindexer;
+  /** Per-domain reindexers. Takes precedence over `targetReindexer` for mail. */
+  targetReindexers?: Partial<Record<'mail' | 'calendar' | 'contacts' | 'files', TargetReindexer>>;
   verificationReader: LedgerVerificationReader;
 }
 
@@ -34,24 +47,34 @@ export interface RealVerificationDeps {
 export function createRealVerificationDeps(
   deps: RealVerificationDeps
 ): VerificationDeps {
-  const { tenantId, mappingId, verificationReader, targetReindexer } = deps;
-  
+  const { tenantId, mappingId, verificationReader } = deps;
+
+  const reindexerFor = (
+    dataType: 'mail' | 'calendar' | 'contacts' | 'files',
+  ): TargetReindexer | undefined =>
+    deps.targetReindexers?.[dataType] ?? (dataType === 'mail' ? deps.targetReindexer : undefined);
+
   return {
     tenantId,
     mappingId,
     config: deps.config,
+    // A domain with no reindexer cannot be measured at all. Saying so lets
+    // runVerification report NOT_VERIFIABLE instead of the old behaviour, where
+    // getTargetCount quietly returned the LEDGER count (perfect parity, never
+    // measured) while findMissingOnTarget declared every item missing.
+    canVerifyTarget: (dataType) => reindexerFor(dataType) !== undefined,
     getSourceCount: (dataType) =>
       getSourceCountFromLedger(verificationReader, tenantId, mappingId, dataType),
     getTargetCount: (dataType) =>
-      getTargetCountFromReindexer(targetReindexer, verificationReader, tenantId, mappingId, dataType),
+      getTargetCountFromReindexer(reindexerFor(dataType), verificationReader, tenantId, mappingId, dataType),
     getSourceSamples: (dataType, count) =>
       getSourceSamplesFromLedger(verificationReader, tenantId, mappingId, dataType, count),
     getTargetSamples: (dataType, count) =>
-      getTargetSamplesFromReindexer(targetReindexer, verificationReader, tenantId, mappingId, dataType, count),
+      getTargetSamplesFromReindexer(reindexerFor(dataType), verificationReader, tenantId, mappingId, dataType, count),
     findMissingOnTarget: (dataType) =>
-      findMissingOnTarget(verificationReader, tenantId, mappingId, dataType, targetReindexer),
+      findMissingOnTarget(verificationReader, tenantId, mappingId, dataType, reindexerFor(dataType)),
     findExtraOnTarget: (dataType) =>
-      findExtraOnTarget(verificationReader, tenantId, mappingId, dataType, targetReindexer),
+      findExtraOnTarget(verificationReader, tenantId, mappingId, dataType, reindexerFor(dataType)),
     getTotalBytesSource: (dataType) =>
       getTotalBytesFromLedger(verificationReader, tenantId, mappingId, dataType),
     // getTotalBytesTarget is deliberately NOT supplied. It previously returned
@@ -87,8 +110,12 @@ async function getTargetCountFromReindexer(
   dataType: 'mail' | 'calendar' | 'contacts' | 'files'
 ): Promise<number> {
   if (!targetReindexer) {
-    // If no reindexer, fall back to ledger count
-    return getSourceCountFromLedger(reader, tenantId, mappingId, dataType);
+    // Never fall back to the ledger count. That returned the SOURCE figure as
+    // the target figure, so a domain nobody could read reported perfect parity.
+    // `canVerifyTarget` short-circuits this case into a NOT_VERIFIABLE result
+    // before we get here, so reaching it means the deps were built by hand and
+    // wrongly.
+    throw new Error(`No target reindexer for ${dataType}: the target count cannot be measured.`);
   }
 
   const domain = mapDataTypeToDomain(dataType) as 'email' | 'calendar' | 'contact' | 'file';
@@ -138,8 +165,9 @@ async function getTargetSamplesFromReindexer(
   count: number
 ): Promise<Array<{ id: string; naturalKeyHash: string; content: Uint8Array | string }>> {
   if (!targetReindexer) {
-    // If no reindexer, fall back to ledger samples
-    return getSourceSamplesFromLedger(reader, tenantId, mappingId, dataType, count);
+    // Returning the ledger's own samples as "target samples" compared the source
+    // against itself — a guaranteed 100% checksum match, measured on nothing.
+    throw new Error(`No target reindexer for ${dataType}: target samples cannot be read.`);
   }
 
   // Collect ALL entries from the reindexer
@@ -172,14 +200,17 @@ async function findMissingOnTarget(
 ): Promise<Array<{ id: string; sourceRef: string }>> {
   const domain = mapDataTypeToDomain(dataType) as 'email' | 'calendar' | 'contact' | 'file';
   
+  // "Cannot read the target" is not the same as "the target is empty". Reporting
+  // every ledger row as missing produced a FAIL that looked like catastrophic
+  // data loss; the domain is simply unverifiable, which runVerification reports
+  // as NOT_VERIFIABLE before reaching here.
+  if (!targetReindexer) {
+    throw new Error(`No target reindexer for ${dataType}: missing items cannot be determined.`);
+  }
+
   // Get all natural key hashes from the ledger
   const ledgerHashes = await reader.getAllNaturalKeyHashes(tenantId, mappingId, domain);
-  
-  // If no target reindexer, all ledger items are "missing" (can't verify)
-  if (!targetReindexer) {
-    return ledgerHashes.map((hash) => ({ id: hash, sourceRef: hash }));
-  }
-  
+
   // Get all natural keys from the target
   const targetKeys = new Set<string>();
   for await (const entry of targetReindexer.listEntries()) {
@@ -207,15 +238,14 @@ async function findExtraOnTarget(
   dataType: 'mail' | 'calendar' | 'contacts' | 'files',
   targetReindexer?: TargetReindexer
 ): Promise<Array<{ id: string; targetRef: string }>> {
+  if (!targetReindexer) {
+    throw new Error(`No target reindexer for ${dataType}: extra items cannot be determined.`);
+  }
+
   const domain = mapDataTypeToDomain(dataType) as 'email' | 'calendar' | 'contact' | 'file';
-  
+
   // Get all natural key hashes from the ledger for this domain
   const ledgerHashes = new Set(await reader.getAllNaturalKeyHashes(tenantId, mappingId, domain));
-  
-  // If no target reindexer, no extra items can be detected
-  if (!targetReindexer) {
-    return [];
-  }
 
   // If ledger has no entries for this domain, there should be no extra items
   // (the target should also have no entries for this domain)

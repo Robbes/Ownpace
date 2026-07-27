@@ -436,10 +436,15 @@ describe('Verification Engine (integration)', () => {
     // Mail should pass (has data and matches target)
     expect(result.mail.status).toBe('PASS');
     
-    // Calendar should be handled gracefully (no data - returns 0 count)
+    // Calendar is handled gracefully: nothing was recorded for it, and there is
+    // no calendar reindexer either. That is SKIPPED, not PASS — this used to
+    // report PASS, which reads as "calendar was verified and was fine" when
+    // nothing was ever looked at. It must not block, though: an empty domain is
+    // not a reason to refuse a cutover.
     expect(result.calendar.sourceCount).toBe(0);
-    // Empty domain should PASS (nothing to verify)
-    expect(result.calendar.status).toBe('PASS');
+    expect(result.calendar.status).toBe('SKIPPED');
+    expect(result.calendar.issues[0]?.message).toMatch(/nothing to verify/);
+    expect(result.canProceedToCutover).toBe(true);
   });
 
   /**

@@ -14,7 +14,12 @@
 
 import type { TenantId, MappingId } from '@openmig/shared';
 import { CutoverStore } from '@openmig/ledger';
-import { verifyAllDns, checkPropagation, generateDnsRunbook } from '@openmig/core';
+import {
+  verifyAllDns,
+  checkPropagation,
+  generateDnsRunbook,
+  type VerificationResult,
+} from '@openmig/core';
 
 /** CLI dependencies */
 export interface CutoverCliDeps {
@@ -23,6 +28,17 @@ export interface CutoverCliDeps {
   cutoverPersistence: CutoverStore;
   dnsDomain: string;
   targetMailServer: string;
+  /**
+   * The §20 data verification gate: ledger counts vs a target reindex, checksum
+   * sampling, missing/extra detection. `verify` calls this — it used to print
+   * "Data verification requires ledger integration - skipping for now" and then
+   * push `status: 'PASS'` into the results table, so the mandatory pre-cutover
+   * data check reported a pass it had never performed (hard rule 9).
+   *
+   * Injected so the CLI stays unit-testable without a live source/target; the
+   * entrypoint wires the real `runVerification`.
+   */
+  runDataVerification?: () => Promise<VerificationResult>;
   /** DKIM selector to check/document (e.g. the "default" in default._domainkey.example.com). */
   dkimSelector?: string;
   /** IP for the autodiscover record, when it differs from targetMailServer. */
@@ -193,10 +209,56 @@ export async function verifyCutover(deps: CutoverCliDeps): Promise<boolean> {
     allPassed = false;
   }
 
-  // Check 2: Data completeness (would need ledger access)
+  // Check 2: Data completeness — the §20 gate. This is the check the whole
+  // cutover exists to make: does the target actually hold what the ledger says
+  // was copied? It must never report a verdict it did not measure.
   CutoverCliOutput.info('Checking data completeness...');
-  CutoverCliOutput.info('Data verification requires ledger integration - skipping for now');
-  results.push({ check: 'Data Completeness', status: 'PASS', message: 'Skipped (manual check required)' });
+  if (!deps.runDataVerification) {
+    // No ledger wiring supplied. That is a broken invocation, not a pass.
+    CutoverCliOutput.error('Data verification is not wired up for this invocation.');
+    results.push({
+      check: 'Data Completeness',
+      status: 'FAIL',
+      message: 'NOT VERIFIED (no ledger access)',
+    });
+    allPassed = false;
+  } else {
+    try {
+      const verification = await deps.runDataVerification();
+      const summary =
+        `${verification.totalItemsSource} source / ${verification.totalItemsTarget} target, ` +
+        `${verification.totalDiscrepancies} discrepancies, score ${verification.score.toFixed(3)}`;
+
+      if (verification.overallStatus === 'FAIL' || !verification.canProceedToCutover) {
+        CutoverCliOutput.error(`Data verification FAILED — ${summary}`);
+        for (const r of verification.recommendations) {
+          CutoverCliOutput.info(`  ${r}`);
+        }
+        results.push({ check: 'Data Completeness', status: 'FAIL', message: summary });
+        allPassed = false;
+      } else {
+        if (verification.overallStatus === 'WARN') {
+          CutoverCliOutput.warning(`Data verification passed with warnings — ${summary}`);
+          for (const r of verification.recommendations) {
+            CutoverCliOutput.info(`  ${r}`);
+          }
+        } else {
+          CutoverCliOutput.success(`Data verification passed — ${summary}`);
+        }
+        results.push({
+          check: 'Data Completeness',
+          status: 'PASS',
+          message: `${verification.overallStatus} (${summary})`,
+        });
+      }
+    } catch (error) {
+      // A gate that could not run has NOT passed (hard rule 9).
+      const err = error as Error;
+      CutoverCliOutput.error(`Data verification could not run: ${err.message}`);
+      results.push({ check: 'Data Completeness', status: 'FAIL', message: `Error: ${err.message}` });
+      allPassed = false;
+    }
+  }
 
   // Check 3: Cutover state
   CutoverCliOutput.info('Checking cutover state...');
@@ -221,13 +283,41 @@ export async function verifyCutover(deps: CutoverCliDeps): Promise<boolean> {
   CutoverCliOutput.section('Verification Summary');
   CutoverCliOutput.table(results.map(r => ({ label: r.check, value: r.message })));
 
-  if (allPassed) {
-    CutoverCliOutput.success('All checks passed. Ready to approve cutover.');
-    return true;
-  } else {
+  if (!allPassed) {
     CutoverCliOutput.warning('Some checks failed. Review errors before proceeding.');
     return false;
   }
+
+  // Everything passed, so record it: move PREPARING → READY_FOR_CUTOVER.
+  //
+  // Without this the CLI flow dead-ends. `approve` refuses unless the state is
+  // READY_FOR_CUTOVER, `verify` never wrote a state at all, and nothing else in
+  // the CLI sets it — so `approve` was unreachable no matter what the operator
+  // did. This is not one of the `--yes`-gated actions: reaching "ready for
+  // approval" is the verification's own outcome and changes nothing
+  // irreversible. Approving and executing still require --yes.
+  try {
+    const state = await deps.cutoverPersistence.loadCutoverState(deps.tenantId, deps.mappingId);
+    const current = state?.currentState ?? state?.state;
+    if (current === 'PREPARING') {
+      const ready = await deps.cutoverPersistence.transitionState(
+        deps.tenantId,
+        deps.mappingId,
+        'READY_FOR_CUTOVER',
+        { readyAt: new Date().toISOString(), verifiedBy: 'cli' },
+      );
+      CutoverCliOutput.success(`All checks passed. State: ${ready.currentState ?? ready.state}`);
+    } else {
+      CutoverCliOutput.success(`All checks passed. State unchanged: ${current}`);
+    }
+  } catch (error) {
+    const err = error as Error;
+    CutoverCliOutput.error(`Checks passed but the state could not be advanced: ${err.message}`);
+    return false;
+  }
+
+  CutoverCliOutput.info('Next step: approve the cutover with "approve --yes".');
+  return true;
 }
 
 /**
@@ -298,7 +388,7 @@ export async function executeCutover(deps: CutoverCliDeps): Promise<void> {
     if (
       !confirmed(deps, 'execute this cutover', [
         `Move mapping ${deps.mappingId} to CUTOVER_IN_PROGRESS.`,
-        `Wait for the ${deps.dnsDomain} MX record to point at ${deps.targetMailServer}, then mark the cutover COMPLETED.`,
+        `Wait for YOU to point the ${deps.dnsDomain} MX record at ${deps.targetMailServer} — this command does not change DNS — then mark the cutover COMPLETED.`,
         'Mail delivery follows DNS — this is the point users notice.',
       ])
     ) {
@@ -313,11 +403,17 @@ export async function executeCutover(deps: CutoverCliDeps): Promise<void> {
       { startedAt: new Date().toISOString() }
     );
 
-    CutoverCliOutput.info('Switching DNS records...');
-    // DNS switching would be done by the worker job
-    CutoverCliOutput.info('DNS switch triggered (see worker logs)');
+    // Nothing here switches DNS, and no worker job does either — DNS provider
+    // writes are deferred (verify-only DNS, owner decision 2026-07-16). This
+    // used to print "DNS switch triggered (see worker logs)", pointing the
+    // operator at logs that would never mention it while the command sat
+    // waiting for a record change nobody had made.
+    CutoverCliOutput.warning(
+      `MANUAL STEP REQUIRED: point the ${deps.dnsDomain} MX record at ${deps.targetMailServer} now.`,
+    );
+    CutoverCliOutput.info('The exact records are in the runbook: "runbook --domain ' + deps.dnsDomain + '"');
 
-    CutoverCliOutput.info('Waiting for DNS propagation...');
+    CutoverCliOutput.info('Waiting for that change to propagate...');
     const propagated = await checkPropagation(
       deps.dnsDomain,
       [
