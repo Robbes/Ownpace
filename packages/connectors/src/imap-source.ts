@@ -326,13 +326,25 @@ export class ImapSource implements SourceConnector {
       const items: MailItem[] = [];
       let maxUidNext = uidNext;
 
+      let unkeyable = 0;
       for (const msg of filteredResults) {
         const attrs = msg.attributes;
 
         // Extract Message-ID from envelope
         const messageId = this.extractMessageId(msg);
         if (!messageId) {
-          // Skip messages without Message-ID - they can't be idempotently tracked
+          // Not migratable: the natural key IS the Message-ID, so a message
+          // without one cannot be tracked idempotently — copying it would
+          // create a duplicate on every subsequent pass.
+          //
+          // What changed is that it is now COUNTED. A bare `continue` made
+          // these invisible everywhere simultaneously: no ledger row, nothing
+          // for the target reindexer to list, and — because discovery counts by
+          // calling this same method — missing from the item total the customer
+          // approves at the confirm screen. Both halves of the verification
+          // gate agreed on nothing and reported PASS, so a mailbox could leave
+          // messages behind and still be certified complete.
+          unkeyable++;
           continue;
         }
 
@@ -364,7 +376,7 @@ export class ImapSource implements SourceConnector {
       const nextCursor: SyncCursor = {
         value: encodeImapCursor(uidValidity, maxUidNext),
       };
-      return { items, nextCursor };
+      return { items, nextCursor, ...(unkeyable > 0 ? { unkeyable } : {}) };
   }
 
   /**

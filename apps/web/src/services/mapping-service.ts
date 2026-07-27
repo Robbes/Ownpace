@@ -128,12 +128,15 @@ export const DiscoveryCollectionSchema = z.object({
   name: z.string(),
   items: z.number(),
   bytes: z.number().optional(),
+  unmigratableItems: z.number().optional(),
 });
 export const DiscoveryRecordSchema = z.object({
   domain: z.enum(['email', 'calendar', 'contact', 'file']),
   collections: z.number(),
   items: z.number(),
   bytes: z.number().optional(),
+  /** Items the source holds but cannot migrate; NOT part of `items`. */
+  unmigratableItems: z.number().optional(),
   perCollection: z.array(DiscoveryCollectionSchema).optional(),
   discoveredAt: z.string(),
   lastError: z.string().optional(),

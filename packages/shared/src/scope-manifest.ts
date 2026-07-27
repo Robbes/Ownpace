@@ -25,7 +25,7 @@ export interface ScopeManifest {
 }
 
 export const SCOPE_MANIFEST: ScopeManifest = {
-  version: '2026-07-21',
+  version: '2026-07-27',
   migrates: [
     { item: 'Email', detail: 'Folders incl. Sent / Drafts / Archive, flags/keywords, timestamps.' },
     { item: 'Calendar', detail: 'Events, recurrence, attendees (ICS).' },
@@ -40,6 +40,13 @@ export const SCOPE_MANIFEST: ScopeManifest = {
     { item: 'Proton calendar/contacts', detail: 'ICS / vCard snapshots only.' },
   ],
   doesNotMigrate: [
+    {
+      item: 'Mail with no Message-ID',
+      detail:
+        'Copying each message exactly once relies on its Message-ID; a message without one ' +
+        'cannot be tracked, so it is left on the source. Discovery reports how many there are ' +
+        'rather than quietly omitting them from the totals.',
+    },
     { item: 'Teams chat & calls', detail: 'Not migrated.' },
     { item: 'Planner', detail: 'Not migrated.' },
     { item: 'Power Automate', detail: 'Not migrated.' },

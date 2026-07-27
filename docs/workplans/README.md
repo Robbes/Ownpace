@@ -214,7 +214,28 @@ actually left:
      make, which would key a ledger row that can never match and duplicate the message on the
      next sync. Covered by `verification-bytes-and-checksums.unit.test.ts` (10) plus 7 more in
      the DAV reindexer suite.
-2. Next: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
+   - ✅ **Done — mail we cannot migrate is now counted and shown, not silently dropped.**
+     `ImapSource.listSince` skips messages with no Message-ID (correctly: the natural key IS the
+     Message-ID, so copying an unkeyable message would duplicate it on every pass) — but it
+     skipped them with a bare `continue`, counting nothing. That made them invisible in three
+     mutually-reinforcing places: no ledger row, nothing for the target reindexer to list, and —
+     because `discoverSource()` counts by calling that same method — **missing from the item
+     total the customer approves at the confirm screen**. Both halves of the verification gate
+     agreed on nothing and reported PASS, so a mailbox could leave messages behind and still be
+     certified complete. `listSince` now returns an `unkeyable` count, `DomainDiscovery` carries
+     `unmigratableItems` (persisted via migration `0015`, nullable so "did not look" stays
+     distinct from "found none"), and both confirm screens show it as a separate column plus a
+     plain-language note. `items` deliberately stays the MIGRATABLE total — folding them in
+     would be the same lie in the other direction. The §11.2 scope manifest gains a matching
+     "does not migrate" entry. Covered by `discovery-unmigratable.unit.test.ts` (6) and a
+     persistence round-trip in `discovery-store.integration.test.ts`. **Owner decision
+     (2026-07-27): report first, then default to writing a generated Message-ID with the count
+     and the behaviour shown in discovery so the customer can opt out** — that second half is
+     the next piece of work.
+2. Next: **generate a Message-ID for mail that lacks one**, so those messages migrate and stay
+   verifiable (the ledger must record the hash of what was WRITTEN, not the source bytes, or
+   #143's checksum sampling flags every one of them). Then: rich Graph extractor (SharePoint),
+   the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 
 No plan is blocked or mid-flight.

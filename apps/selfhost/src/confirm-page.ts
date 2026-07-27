@@ -52,10 +52,17 @@ function countsTable(domains: ReadonlyArray<DiscoveryRecord>): string {
   const rows = domains
     .map(
       (d) =>
-        `<tr><td>${esc(DOMAIN_LABEL[d.domain])}</td><td>${d.collections}</td><td>${d.items}</td><td>${esc(formatBytes(d.bytes))}</td>${d.lastError ? `<td class="err">${esc(d.lastError)}</td>` : '<td></td>'}</tr>`,
+        `<tr><td>${esc(DOMAIN_LABEL[d.domain])}</td><td>${d.collections}</td><td>${d.items}</td><td>${esc(formatBytes(d.bytes))}</td><td>${d.unmigratableItems ?? 0}</td>${d.lastError ? `<td class="err">${esc(d.lastError)}</td>` : '<td></td>'}</tr>`,
     )
     .join('');
-  return `<table><thead><tr><th>Type</th><th>Collections</th><th>Items</th><th>Size</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  const table = `<table><thead><tr><th>Type</th><th>Collections</th><th>Items</th><th>Size</th><th>Cannot migrate</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+
+  // Surfaced separately from `items`, which is the MIGRATABLE total. Folding
+  // the two together would tell the operator we are moving things we are not.
+  const unmigratable = domains.reduce((sum, d) => sum + (d.unmigratableItems ?? 0), 0);
+  if (unmigratable === 0) return table;
+
+  return `${table}<p class="warn">${unmigratable} item${unmigratable === 1 ? '' : 's'} cannot be migrated because they carry no Message-ID, which is what we use to copy each message exactly once. They are <b>not</b> included in the item counts above and will be left on your source.</p>`;
 }
 
 function manifestColumn(title: string, entries: ScopeManifest['migrates']): string {
@@ -87,7 +94,7 @@ export function renderConfirmPage(data: ConfirmPageData): string {
 <title>Open Migration — review &amp; confirm</title>
 <style>
 body{font-family:system-ui,sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem;color:#111}
-h1{font-size:1.4rem} h3{margin-top:1.5rem} .muted{color:#666} .err{color:#b00}
+h1{font-size:1.4rem} h3{margin-top:1.5rem} .muted{color:#666} .err{color:#b00} .warn{color:#8a5a00}
 table{border-collapse:collapse;width:100%;font-size:.9rem} th,td{text-align:left;padding:.25rem .5rem;border-bottom:1px solid #eee}
 button{background:#2563eb;color:#fff;border:0;border-radius:.4rem;padding:.5rem 1.25rem;font-size:1rem;cursor:pointer;margin-top:.75rem}
 .cols{display:flex;gap:1rem;flex-wrap:wrap} .col{flex:1;min-width:200px} .col li{font-size:.8rem;margin:.2rem 0} .active{color:#155}

@@ -31,7 +31,26 @@ export interface SourceConnector {
   listSince(
     folder: MailFolder,
     cursor?: SyncCursor,
-  ): Promise<{ items: ReadonlyArray<MailItem>; nextCursor: SyncCursor }>;
+  ): Promise<{
+    items: ReadonlyArray<MailItem>;
+    nextCursor: SyncCursor;
+    /**
+     * Items in this folder that could NOT be listed because they carry no
+     * natural key — mail with no Message-ID, which cannot be tracked
+     * idempotently and is therefore not migrated.
+     *
+     * They used to be dropped with a bare `continue`. Nothing counted them, so
+     * they were invisible everywhere at once: absent from the ledger, absent
+     * from the target reindexer's listing, and — because discovery counts by
+     * calling this very method — absent from the item total the customer
+     * approves at the confirm screen. Both sides of the verification gate
+     * agreed on nothing and reported PASS.
+     *
+     * Reporting the count is what makes "leave them behind" an honest choice
+     * rather than a silent one. Omitted (or 0) when there were none.
+     */
+    unkeyable?: number;
+  }>;
   /** Fetch the full RFC822 bytes for an item. */
   fetch(item: MailItem): Promise<RawMessage>;
 }
