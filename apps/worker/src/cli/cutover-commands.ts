@@ -27,6 +27,14 @@ export interface CutoverCliDeps {
   dkimSelector?: string;
   /** IP for the autodiscover record, when it differs from targetMailServer. */
   targetIp?: string;
+  /**
+   * Explicit operator approval for a state-changing subcommand (`--yes`).
+   * Workplan 0009 T2 / arch doc §11.2: nothing irreversible happens without it.
+   * A flag rather than an interactive prompt on purpose — the CLI runs in
+   * containers and CI where stdin is not a TTY, and a flag is scriptable and
+   * shows up in shell history and audit logs.
+   */
+  assumeYes?: boolean;
 }
 
 /** CLI output formatter */
@@ -57,6 +65,30 @@ export class CutoverCliOutput {
       console.log(`  ${row.label.padEnd(maxLabelLen)}  ${row.value}`);
     }
   }
+}
+
+/**
+ * Gate a state-changing action behind explicit `--yes` (workplan 0009 T2,
+ * arch doc §11.2, hard rule 2 — nothing irreversible without approval).
+ *
+ * Returns true when the caller may proceed. When approval is missing it prints
+ * exactly what would have happened and returns false; the caller must abort.
+ * Exported for unit testing.
+ */
+export function confirmed(
+  deps: Pick<CutoverCliDeps, 'assumeYes'>,
+  action: string,
+  consequences: string[],
+): boolean {
+  if (deps.assumeYes) return true;
+
+  CutoverCliOutput.warning(`Refusing to ${action} without explicit approval.`);
+  CutoverCliOutput.info('This would:');
+  for (const line of consequences) {
+    console.log(`    - ${line}`);
+  }
+  CutoverCliOutput.info('Re-run the same command with --yes to proceed.');
+  return false;
 }
 
 /**
@@ -218,6 +250,15 @@ export async function approveCutover(deps: CutoverCliDeps): Promise<void> {
       process.exit(1);
     }
 
+    if (
+      !confirmed(deps, 'approve this cutover', [
+        `Mark mapping ${deps.mappingId} APPROVED, clearing it for execution.`,
+        'The next "execute" run may then switch traffic to the target.',
+      ])
+    ) {
+      process.exit(1);
+    }
+
     const newState = await deps.cutoverPersistence.transitionState(
       deps.tenantId,
       deps.mappingId,
@@ -251,6 +292,16 @@ export async function executeCutover(deps: CutoverCliDeps): Promise<void> {
     if (state.currentState !== 'APPROVED') {
       CutoverCliOutput.error(`Invalid state for execution: ${state.currentState}`);
       CutoverCliOutput.info('Cutover must be in APPROVED state');
+      process.exit(1);
+    }
+
+    if (
+      !confirmed(deps, 'execute this cutover', [
+        `Move mapping ${deps.mappingId} to CUTOVER_IN_PROGRESS.`,
+        `Wait for the ${deps.dnsDomain} MX record to point at ${deps.targetMailServer}, then mark the cutover COMPLETED.`,
+        'Mail delivery follows DNS — this is the point users notice.',
+      ])
+    ) {
       process.exit(1);
     }
 
@@ -323,10 +374,16 @@ export async function rollbackCutover(deps: CutoverCliDeps): Promise<void> {
     }
 
     CutoverCliOutput.warning(`Current state: ${state.currentState}`);
-    CutoverCliOutput.info('Confirm rollback? This will restore previous DNS settings.');
-    
-    // In a real CLI, we'd prompt for confirmation
-    // For now, we'll proceed
+
+    if (
+      !confirmed(deps, 'roll this cutover back', [
+        `Mark mapping ${deps.mappingId} ROLLED_BACK in the cutover ledger.`,
+        'Leave DNS untouched — reverting the MX record is a MANUAL step (verify-only DNS).',
+        'Send no user notification — that is not implemented.',
+      ])
+    ) {
+      process.exit(1);
+    }
 
     await deps.cutoverPersistence.transitionState(
       deps.tenantId,
@@ -335,8 +392,13 @@ export async function rollbackCutover(deps: CutoverCliDeps): Promise<void> {
       { rolledBackAt: new Date().toISOString(), rolledBackBy: 'cli' }
     );
 
-    CutoverCliOutput.success('Cutover rolled back successfully');
-    CutoverCliOutput.info('DNS records should be restored to previous state');
+    CutoverCliOutput.success('Cutover marked as rolled back');
+    // Do not imply DNS was restored — it was not. Verify-only DNS (owner
+    // decision 2026-07-16); the operator reverts the MX record by hand.
+    CutoverCliOutput.warning(
+      `MANUAL STEP REQUIRED: revert the ${deps.dnsDomain} MX record to the original mail server.`,
+    );
+    CutoverCliOutput.info('Then re-check it with: verify (or regenerate the runbook with: runbook)');
   } catch (error) {
     const err = error as Error;
     CutoverCliOutput.error(`Rollback failed: ${err.message}`);
