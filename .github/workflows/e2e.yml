@@ -206,10 +206,10 @@ jobs:
             cfg.domains.contacts.target.url = nextcloudDav;
             // Unlike CalDAV/CardDAV, plain WebDAV has no discovery of its own -- the files
             // domain needs the literal per-account files/{username}/ path, not the bare DAV
-            // root (see apps/worker/src/build-deps.ts's davEndpoint(), which uses config.url
-            // as-is with zero resolution for the self-host file-config path).
-            cfg.domains.files.source.url = `${nextcloudDav}/files/${process.env.NEXTCLOUD_SOURCE_USER}/`;
-            cfg.domains.files.target.url = `${nextcloudDav}/files/${process.env.NEXTCLOUD_TARGET_USER}/`;
+            // root (see apps/worker/src/build-deps.ts, function davEndpoint, which uses
+            // config.url as-is with zero resolution for the self-host file-config path).
+            cfg.domains.files.source.url = nextcloudDav + "/files/" + process.env.NEXTCLOUD_SOURCE_USER + "/";
+            cfg.domains.files.target.url = nextcloudDav + "/files/" + process.env.NEXTCLOUD_TARGET_USER + "/";
             fs.writeFileSync("deploy/selfhost/config/mapping.json", JSON.stringify(cfg, null, 2));
           '
           cat > deploy/selfhost/.env <<ENV
