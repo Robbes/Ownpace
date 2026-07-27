@@ -15,7 +15,29 @@ import { PgLedger } from '@openmig/ledger';
 import { runVerification, createRealVerificationDeps } from '@openmig/core';
 import { createLedgerVerificationReader } from '@openmig/ledger';
 import type { TargetReindexer, TargetEntry } from '@openmig/shared';
-import { asTenantId, asMappingId } from '@openmig/shared';
+import { asTenantId, asMappingId, naturalKeyHash } from '@openmig/shared';
+
+/**
+ * Real Message-IDs and their real ledger hashes.
+ *
+ * This test previously seeded `naturalKeyHash: MSG_HASHES[0]!` into the ledger AND
+ * `naturalKey: MSG_IDS[0]!` into the fake reindexer — both sides literally the same
+ * string, so they matched by construction. That hid a production bug for the
+ * entire life of the file: the ledger stores sha256('mid:<id>') while the real
+ * reindexers yield the RAW Message-ID, so the two sets could never intersect and
+ * the gate would have failed every real cutover.
+ *
+ * Both sides are now derived the way production derives them — the ledger side
+ * hashed, the target side raw.
+ */
+const MSG_IDS = [
+  'msg1@example.com',
+  'msg2@example.com',
+  'msg3@example.com',
+  // Only ever added to the target, never to the ledger — the "extra on target" case.
+  'msg4-extra@example.com',
+] as const;
+const MSG_HASHES = MSG_IDS.map((id) => naturalKeyHash(id));
 
 // Connection string from Testcontainers
 const PG_CONNECTION_STRING = process.env.TEST_DATABASE_URL;
@@ -159,7 +181,7 @@ describe('Verification Engine (integration)', () => {
         tenantId: TEST_TENANT_ID,
         mappingId: TEST_MAPPING_ID,
         itemType: 'email' as const,
-        naturalKeyHash: 'hash1',
+        naturalKeyHash: MSG_HASHES[0]!,
         contentHash: 'content1',
         targetId: 'target1',
         createdAt: new Date().toISOString(),
@@ -168,7 +190,7 @@ describe('Verification Engine (integration)', () => {
         tenantId: TEST_TENANT_ID,
         mappingId: TEST_MAPPING_ID,
         itemType: 'email' as const,
-        naturalKeyHash: 'hash2',
+        naturalKeyHash: MSG_HASHES[1]!,
         contentHash: 'content2',
         targetId: 'target2',
         createdAt: new Date().toISOString(),
@@ -177,7 +199,7 @@ describe('Verification Engine (integration)', () => {
         tenantId: TEST_TENANT_ID,
         mappingId: TEST_MAPPING_ID,
         itemType: 'email' as const,
-        naturalKeyHash: 'hash3',
+        naturalKeyHash: MSG_HASHES[2]!,
         contentHash: 'content3',
         targetId: 'target3',
         createdAt: new Date().toISOString(),
@@ -189,9 +211,9 @@ describe('Verification Engine (integration)', () => {
     }
 
     // Mock target with same 3 messages
-    targetReindexer.addEntry({ naturalKey: 'hash1', targetId: 'target1', mailboxId: 'inbox', contentHash: 'content1' });
-    targetReindexer.addEntry({ naturalKey: 'hash2', targetId: 'target2', mailboxId: 'inbox', contentHash: 'content2' });
-    targetReindexer.addEntry({ naturalKey: 'hash3', targetId: 'target3', mailboxId: 'inbox', contentHash: 'content3' });
+    targetReindexer.addEntry({ naturalKey: MSG_IDS[0]!, targetId: 'target1', mailboxId: 'inbox', contentHash: 'content1' });
+    targetReindexer.addEntry({ naturalKey: MSG_IDS[1]!, targetId: 'target2', mailboxId: 'inbox', contentHash: 'content2' });
+    targetReindexer.addEntry({ naturalKey: MSG_IDS[2]!, targetId: 'target3', mailboxId: 'inbox', contentHash: 'content3' });
 
     // Run verification
     const deps = createRealVerificationDeps({
@@ -233,7 +255,7 @@ describe('Verification Engine (integration)', () => {
         tenantId: TEST_TENANT_ID,
         mappingId: TEST_MAPPING_ID,
         itemType: 'email' as const,
-        naturalKeyHash: 'hash1',
+        naturalKeyHash: MSG_HASHES[0]!,
         contentHash: 'content1',
         targetId: 'target1',
         createdAt: new Date().toISOString(),
@@ -242,7 +264,7 @@ describe('Verification Engine (integration)', () => {
         tenantId: TEST_TENANT_ID,
         mappingId: TEST_MAPPING_ID,
         itemType: 'email' as const,
-        naturalKeyHash: 'hash2',
+        naturalKeyHash: MSG_HASHES[1]!,
         contentHash: 'content2',
         targetId: 'target2',
         createdAt: new Date().toISOString(),
@@ -251,7 +273,7 @@ describe('Verification Engine (integration)', () => {
         tenantId: TEST_TENANT_ID,
         mappingId: TEST_MAPPING_ID,
         itemType: 'email' as const,
-        naturalKeyHash: 'hash3',
+        naturalKeyHash: MSG_HASHES[2]!,
         contentHash: 'content3',
         targetId: 'target3',
         createdAt: new Date().toISOString(),
@@ -263,8 +285,8 @@ describe('Verification Engine (integration)', () => {
     }
 
     // Mock target with only 2 messages (one deleted)
-    targetReindexer.addEntry({ naturalKey: 'hash1', targetId: 'target1', mailboxId: 'inbox', contentHash: 'content1' });
-    targetReindexer.addEntry({ naturalKey: 'hash2', targetId: 'target2', mailboxId: 'inbox', contentHash: 'content2' });
+    targetReindexer.addEntry({ naturalKey: MSG_IDS[0]!, targetId: 'target1', mailboxId: 'inbox', contentHash: 'content1' });
+    targetReindexer.addEntry({ naturalKey: MSG_IDS[1]!, targetId: 'target2', mailboxId: 'inbox', contentHash: 'content2' });
     // hash3 is missing
 
     const deps = createRealVerificationDeps({
@@ -311,7 +333,7 @@ describe('Verification Engine (integration)', () => {
         tenantId: TEST_TENANT_ID,
         mappingId: TEST_MAPPING_ID,
         itemType: 'email' as const,
-        naturalKeyHash: 'hash1',
+        naturalKeyHash: MSG_HASHES[0]!,
         contentHash: 'content1',
         targetId: 'target1',
         createdAt: new Date().toISOString(),
@@ -320,7 +342,7 @@ describe('Verification Engine (integration)', () => {
         tenantId: TEST_TENANT_ID,
         mappingId: TEST_MAPPING_ID,
         itemType: 'email' as const,
-        naturalKeyHash: 'hash2',
+        naturalKeyHash: MSG_HASHES[1]!,
         contentHash: 'content2',
         targetId: 'target2',
         createdAt: new Date().toISOString(),
@@ -329,7 +351,7 @@ describe('Verification Engine (integration)', () => {
         tenantId: TEST_TENANT_ID,
         mappingId: TEST_MAPPING_ID,
         itemType: 'email' as const,
-        naturalKeyHash: 'hash3',
+        naturalKeyHash: MSG_HASHES[2]!,
         contentHash: 'content3',
         targetId: 'target3',
         createdAt: new Date().toISOString(),
@@ -341,10 +363,10 @@ describe('Verification Engine (integration)', () => {
     }
 
     // Mock target with 4 messages (one extra)
-    targetReindexer.addEntry({ naturalKey: 'hash1', targetId: 'target1', mailboxId: 'inbox', contentHash: 'content1' });
-    targetReindexer.addEntry({ naturalKey: 'hash2', targetId: 'target2', mailboxId: 'inbox', contentHash: 'content2' });
-    targetReindexer.addEntry({ naturalKey: 'hash3', targetId: 'target3', mailboxId: 'inbox', contentHash: 'content3' });
-    targetReindexer.addEntry({ naturalKey: 'hash4', targetId: 'target4', mailboxId: 'inbox', contentHash: 'content4' });
+    targetReindexer.addEntry({ naturalKey: MSG_IDS[0]!, targetId: 'target1', mailboxId: 'inbox', contentHash: 'content1' });
+    targetReindexer.addEntry({ naturalKey: MSG_IDS[1]!, targetId: 'target2', mailboxId: 'inbox', contentHash: 'content2' });
+    targetReindexer.addEntry({ naturalKey: MSG_IDS[2]!, targetId: 'target3', mailboxId: 'inbox', contentHash: 'content3' });
+    targetReindexer.addEntry({ naturalKey: MSG_IDS[3]!, targetId: 'target4', mailboxId: 'inbox', contentHash: 'content4' });
 
     const deps = createRealVerificationDeps({
       tenantId: TEST_TENANT_ID,
@@ -381,14 +403,14 @@ describe('Verification Engine (integration)', () => {
       tenantId: TEST_TENANT_ID,
       mappingId: TEST_MAPPING_ID,
       itemType: 'email' as const,
-      naturalKeyHash: 'hash1',
+      naturalKeyHash: MSG_HASHES[0]!,
       contentHash: 'content1',
       targetId: 'target1',
       createdAt: new Date().toISOString(),
     });
 
     // Add matching entry to target reindexer
-    targetReindexer.addEntry({ naturalKey: 'hash1', targetId: 'target1', mailboxId: 'inbox', contentHash: 'content1' });
+    targetReindexer.addEntry({ naturalKey: MSG_IDS[0]!, targetId: 'target1', mailboxId: 'inbox', contentHash: 'content1' });
 
     const deps = createRealVerificationDeps({
       tenantId: TEST_TENANT_ID,
@@ -429,7 +451,7 @@ describe('Verification Engine (integration)', () => {
       tenantId: TEST_TENANT_ID,
       mappingId: TEST_MAPPING_ID,
       itemType: 'email' as const,
-      naturalKeyHash: 'hash1',
+      naturalKeyHash: MSG_HASHES[0]!,
       contentHash: 'content1-original',
       targetId: 'target1',
       createdAt: new Date().toISOString(),
@@ -439,15 +461,15 @@ describe('Verification Engine (integration)', () => {
       tenantId: TEST_TENANT_ID,
       mappingId: TEST_MAPPING_ID,
       itemType: 'email' as const,
-      naturalKeyHash: 'hash2',
+      naturalKeyHash: MSG_HASHES[1]!,
       contentHash: 'content2-original',
       targetId: 'target2',
       createdAt: new Date().toISOString(),
     });
 
     // Mock target with modified content
-    targetReindexer.addEntry({ naturalKey: 'hash1', targetId: 'target1', mailboxId: 'inbox', contentHash: 'content1-modified' });
-    targetReindexer.addEntry({ naturalKey: 'hash2', targetId: 'target2', mailboxId: 'inbox', contentHash: 'content2-modified' });
+    targetReindexer.addEntry({ naturalKey: MSG_IDS[0]!, targetId: 'target1', mailboxId: 'inbox', contentHash: 'content1-modified' });
+    targetReindexer.addEntry({ naturalKey: MSG_IDS[1]!, targetId: 'target2', mailboxId: 'inbox', contentHash: 'content2-modified' });
 
     const deps = createRealVerificationDeps({
       tenantId: TEST_TENANT_ID,

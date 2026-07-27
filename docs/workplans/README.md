@@ -90,6 +90,19 @@ actually left:
      path to do so is documented in `verification-implementations.ts`. Covered by
      `packages/core/src/verification-bytes.unit.test.ts` (6 tests). Byte reporting never gated
      the pass/fail verdict, so no verdict changes.
+   - ✅ **Done — highest-severity finding of the audit.** The **verification gate compared
+     ledger hashes against raw target keys**, so the sets could never intersect: every item was
+     reported missing on target, every target entry reported extra, and the mandatory
+     pre-cutover gate would have **FAILed every real cutover**. `item.natural_key_hash` is
+     `sha256('mid:'|'cal:'|'card:'|'file:' + key)`; the reindexers yield the raw Message-ID/UID/
+     path. `verification-implementations.ts` now hashes the target key per domain before
+     comparing (`hashTargetNaturalKey`). It survived because
+     `verification.integration.test.ts` seeded `naturalKeyHash: 'hash1'` into the ledger **and**
+     `naturalKey: 'hash1'` into the fake reindexer — the same literal on both sides, matching by
+     construction; that test now derives both sides the way production does. Proven by
+     `verification-natural-key.unit.test.ts` (5 tests, all 5 fail against the pre-fix code).
+     **Note:** `runVerification`'s only production caller is `run-cutover.ts`, and no live
+     cutover appears to have been run, which is why this was never observed.
 2. Later: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 
