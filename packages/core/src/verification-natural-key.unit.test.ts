@@ -186,9 +186,13 @@ describe('verification natural-key comparison', () => {
         verifyFiles: true,
       },
       verificationReader: ledgerReaderWith(paths.map((p) => fileNaturalKeyHash(p))),
-      targetReindexer: reindexerYielding(
-        paths.map((p, i) => ({ naturalKey: p, targetId: `f${i}`, mailboxId: '/' })),
-      ),
+      // Per-domain: `targetReindexer` (singular) is the MAIL target only, since
+      // that is what every caller actually passes. A file reindexer goes here.
+      targetReindexers: {
+        files: reindexerYielding(
+          paths.map((p, i) => ({ naturalKey: p, targetId: `f${i}`, mailboxId: '/' })),
+        ),
+      },
     } as never);
 
     expect(await deps.findMissingOnTarget('files')).toEqual([]);

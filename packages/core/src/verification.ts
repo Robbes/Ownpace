@@ -12,11 +12,25 @@
 
 import type { TenantId, MappingId } from '@openmig/shared';
 
+/**
+ * Verification status for a single data type.
+ *
+ * `SKIPPED` and `NOT_VERIFIABLE` are deliberately distinct from PASS. A domain
+ * nobody looked at has not passed:
+ *  - SKIPPED — the operator turned this domain off in the config. Their call, so
+ *    it does not block cutover, but it is reported rather than dressed as a pass.
+ *  - NOT_VERIFIABLE — the domain IS enabled but there is no way to read the
+ *    target for it (no reindexer). This blocks cutover. It used to produce
+ *    nonsense instead: `getTargetCount` fell back to the LEDGER count (perfect
+ *    fabricated parity) while `findMissingOnTarget` reported every item missing.
+ */
+export type DataTypeVerificationStatus = 'PASS' | 'WARN' | 'FAIL' | 'SKIPPED' | 'NOT_VERIFIABLE';
+
 /** Verification status for a single data type */
 export interface DataTypeVerification {
   dataType: 'mail' | 'calendar' | 'contacts' | 'files';
-  status: 'PASS' | 'WARN' | 'FAIL';
-  
+  status: DataTypeVerificationStatus;
+
   // Statistics
   sourceCount: number;
   targetCount: number;
@@ -147,6 +161,63 @@ export interface VerificationDeps {
    * source figure — a fabricated match is worse than an admitted gap.
    */
   getTotalBytesTarget?(dataType: 'mail' | 'calendar' | 'contacts' | 'files'): Promise<number>;
+
+  /**
+   * Can this domain's target actually be read? Return false when there is no
+   * reindexer for it, so the domain is reported NOT_VERIFIABLE instead of being
+   * measured against a target nobody can see. Omit to assume every enabled
+   * domain is readable.
+   */
+  canVerifyTarget?(dataType: 'mail' | 'calendar' | 'contacts' | 'files'): boolean;
+}
+
+/** Which domains the config asks to verify. */
+function isDataTypeEnabled(
+  config: VerificationConfig,
+  dataType: 'mail' | 'calendar' | 'contacts' | 'files',
+): boolean {
+  switch (dataType) {
+    case 'mail':
+      return config.verifyMail;
+    case 'calendar':
+      return config.verifyCalendar;
+    case 'contacts':
+      return config.verifyContacts;
+    case 'files':
+      return config.verifyFiles;
+  }
+}
+
+/** A result for a domain that was not measured, with the reason attached. */
+function notMeasured(
+  dataType: 'mail' | 'calendar' | 'contacts' | 'files',
+  status: 'SKIPPED' | 'NOT_VERIFIABLE',
+  message: string,
+  /** What the ledger says was copied, when that is known. */
+  sourceCount = 0,
+): DataTypeVerification {
+  return {
+    dataType,
+    status,
+    sourceCount,
+    targetCount: 0,
+    matchedCount: 0,
+    missingOnTarget: 0,
+    extraOnTarget: 0,
+    checksumSampleSize: 0,
+    checksumMatches: 0,
+    checksumMismatches: 0,
+    checksumUnavailable: 0,
+    totalBytesSource: 0,
+    totalBytesTarget: null,
+    issues: [
+      {
+        id: `${status}_${dataType}`,
+        severity: status === 'NOT_VERIFIABLE' ? 'ERROR' : 'WARNING',
+        message,
+      },
+    ],
+  };
 }
 
 /**
@@ -155,29 +226,58 @@ export interface VerificationDeps {
 export async function runVerification(
   deps: VerificationDeps
 ): Promise<VerificationResult> {
-  const { tenantId, mappingId, config: _config } = deps;
-  
-  // Verify each data type
-  const mail = await verifyDataType({
-    ...deps,
-    dataType: 'mail',
-  });
-  
-  const calendar = await verifyDataType({
-    ...deps,
-    dataType: 'calendar',
-  });
-  
-  const contacts = await verifyDataType({
-    ...deps,
-    dataType: 'contacts',
-  });
-  
-  const files = await verifyDataType({
-    ...deps,
-    dataType: 'files',
-  });
-  
+  const { tenantId, mappingId, config } = deps;
+
+  /**
+   * Verify one domain, or say honestly why it was not verified.
+   *
+   * The `config.verifyMail` / `verifyCalendar` / `verifyContacts` / `verifyFiles`
+   * flags used to be accepted and then ignored — every domain was measured
+   * regardless, and the config parameter was destructured as `_config` to keep
+   * the linter quiet about it. Combined with a single target reindexer being
+   * applied to all four domains, that meant a mail-only cutover measured the
+   * ledger's calendar rows against the MAIL target's listing and reported every
+   * one of them missing.
+   */
+  const verifyDomain = async (
+    dataType: 'mail' | 'calendar' | 'contacts' | 'files',
+  ): Promise<DataTypeVerification> => {
+    if (!isDataTypeEnabled(config, dataType)) {
+      return notMeasured(
+        dataType,
+        'SKIPPED',
+        `${dataType} verification was disabled in the config — this domain was NOT checked.`,
+      );
+    }
+    if (deps.canVerifyTarget && !deps.canVerifyTarget(dataType)) {
+      // No way to read the target for this domain. That only matters if the
+      // ledger says we actually copied something into it — a mail-only
+      // migration has no calendar rows, so there is nothing to check and
+      // nothing to block on.
+      const recorded = await deps.getSourceCount(dataType);
+      if (recorded === 0) {
+        return notMeasured(
+          dataType,
+          'SKIPPED',
+          `No ${dataType} items were recorded for this mapping, so there is nothing to verify.`,
+        );
+      }
+      return notMeasured(
+        dataType,
+        'NOT_VERIFIABLE',
+        `${recorded} ${dataType} item(s) were copied, but the target cannot be read for this ` +
+          `domain (no reindexer). Cutover is blocked: their completeness is unknown.`,
+        recorded,
+      );
+    }
+    return verifyDataType({ ...deps, dataType });
+  };
+
+  const mail = await verifyDomain('mail');
+  const calendar = await verifyDomain('calendar');
+  const contacts = await verifyDomain('contacts');
+  const files = await verifyDomain('files');
+
   // Calculate overall status
   const allVerifications = [mail, calendar, contacts, files];
   const overallStatus = calculateOverallStatus(allVerifications);
@@ -454,9 +554,16 @@ function determineVerificationStatus(
 function calculateOverallStatus(
   verifications: DataTypeVerification[]
 ): 'PASS' | 'WARN' | 'FAIL' {
-  const hasFail = verifications.some(v => v.status === 'FAIL');
+  // NOT_VERIFIABLE is a failure: the domain was asked for and could not be
+  // checked, so the migration's completeness is unknown.
+  //
+  // SKIPPED is neutral. The operator turned that domain off deliberately — a
+  // mail-only migration should not report WARN forever because it did not check
+  // calendars. It is still never silent: the domain carries status SKIPPED, an
+  // issue, and a line in `recommendations`.
+  const hasFail = verifications.some(v => v.status === 'FAIL' || v.status === 'NOT_VERIFIABLE');
   const hasWarn = verifications.some(v => v.status === 'WARN');
-  
+
   if (hasFail) return 'FAIL';
   if (hasWarn) return 'WARN';
   return 'PASS';
@@ -466,9 +573,16 @@ function calculateOverallStatus(
  * Calculate overall verification score
  */
 function calculateVerificationScore(verifications: DataTypeVerification[]): number {
-  if (verifications.length === 0) return 1;
-  
-  const totalScore = verifications.reduce((sum, v) => {
+  // Only domains that were actually measured contribute. A SKIPPED or
+  // NOT_VERIFIABLE domain has all-zero counts, which would otherwise score a
+  // perfect 1.0 and pull the average UP — three unread domains would drown out
+  // one genuinely bad one.
+  const measured = verifications.filter(
+    (v) => v.status !== 'SKIPPED' && v.status !== 'NOT_VERIFIABLE',
+  );
+  if (measured.length === 0) return 1;
+
+  const totalScore = measured.reduce((sum, v) => {
     const matchRatio = v.sourceCount > 0 ? v.matchedCount / v.sourceCount : 1;
     const checksumRatio = 
       (v.checksumMatches + v.checksumMismatches) > 0
@@ -477,7 +591,7 @@ function calculateVerificationScore(verifications: DataTypeVerification[]): numb
     return sum + (matchRatio * 0.7 + checksumRatio * 0.3);
   }, 0);
   
-  return totalScore / verifications.length;
+  return totalScore / measured.length;
 }
 
 /**
@@ -500,6 +614,24 @@ function generateRecommendations(
   }
   
   verifications.forEach(v => {
+    if (v.status === 'NOT_VERIFIABLE') {
+      recommendations.push(
+        `Cannot verify ${v.dataType}: no way to read the target for this domain. ` +
+          `Either supply a reindexer for it or turn ${v.dataType} verification off explicitly.`,
+      );
+    }
+
+    if (v.status === 'SKIPPED') {
+      recommendations.push(`${v.dataType} was not verified: ${v.issues[0]?.message ?? 'skipped'}`);
+    }
+
+    if (v.checksumUnavailable > 0) {
+      recommendations.push(
+        `${v.checksumUnavailable} sampled ${v.dataType} item(s) could not be content-verified ` +
+          `(the target exposes no content hash); only count parity was checked for them.`,
+      );
+    }
+
     if (v.missingOnTarget > 0) {
       recommendations.push(
         `Re-sync ${v.missingOnTarget} missing ${v.dataType} item(s)`

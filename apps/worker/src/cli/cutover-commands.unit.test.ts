@@ -11,7 +11,9 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { asTenantId, asMappingId } from '@openmig/shared';
-import { confirmed, rollbackCutover, type CutoverCliDeps } from './cutover-commands';
+import type { VerificationResult } from '@openmig/core';
+import * as core from '@openmig/core';
+import { confirmed, rollbackCutover, verifyCutover, type CutoverCliDeps } from './cutover-commands';
 
 const TENANT = asTenantId('5e1b0000-e29b-41d4-a716-4466554402a1' as never);
 const MAPPING = asMappingId('5e1b0000-e29b-41d4-a716-4466554402a2' as never);
@@ -123,5 +125,144 @@ describe('rollbackCutover() approval gate', () => {
     expect(output).toContain('example.com');
     // The old wording implied an automatic restore that never happened.
     expect(output).not.toContain('DNS records should be restored');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// verify: the §20 data gate
+//
+// `verifyCutover()` used to print "Data verification requires ledger
+// integration - skipping for now" and then push `{ check: 'Data Completeness',
+// status: 'PASS' }` into the results table — the mandatory pre-cutover data
+// check reporting a pass it had never performed (hard rule 9). Worse, `verify`
+// wrote no state at all, while `approve` refuses unless the state is
+// READY_FOR_CUTOVER and nothing else in the CLI sets it: `approve` was
+// unreachable no matter what the operator did.
+// ---------------------------------------------------------------------------
+
+/** A VerificationResult with the verdict we want and nothing else invented. */
+function verdict(overallStatus: 'PASS' | 'WARN' | 'FAIL'): VerificationResult {
+  const canProceed = overallStatus !== 'FAIL';
+  return {
+    overallStatus,
+    canProceedToCutover: canProceed,
+    score: canProceed ? 1 : 0.4,
+    totalItemsSource: 10,
+    totalItemsTarget: canProceed ? 10 : 4,
+    totalDiscrepancies: canProceed ? 0 : 6,
+    recommendations: canProceed ? [] : ['Re-sync 6 missing mail item(s)'],
+  } as unknown as VerificationResult;
+}
+
+describe('verifyCutover() data gate', () => {
+  let logged: string[];
+
+  beforeEach(() => {
+    logged = [];
+    vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logged.push(args.join(' '));
+    });
+    // DNS is a separate leg; stub it green so these tests isolate the data gate.
+    vi.spyOn(core, 'verifyAllDns').mockResolvedValue({
+      mxVerified: true,
+      spfVerified: true,
+      dkimVerified: true,
+      dmarcVerified: true,
+      autodiscoverVerified: true,
+      errors: [],
+    } as never);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function depsWith(
+    runDataVerification: CutoverCliDeps['runDataVerification'],
+    currentState = 'PREPARING',
+  ) {
+    const store = {
+      loadCutoverState: vi.fn().mockResolvedValue({ currentState, state: currentState }),
+      transitionState: vi.fn().mockResolvedValue({ currentState: 'READY_FOR_CUTOVER' }),
+    };
+    const deps: CutoverCliDeps = {
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      cutoverPersistence: store as unknown as CutoverCliDeps['cutoverPersistence'],
+      dnsDomain: 'example.com',
+      targetMailServer: 'mail.example.com',
+      ...(runDataVerification ? { runDataVerification } : {}),
+    };
+    return { deps, store };
+  }
+
+  it('calls the data gate rather than skipping it', async () => {
+    const gate = vi.fn().mockResolvedValue(verdict('PASS'));
+    const { deps } = depsWith(gate);
+
+    await verifyCutover(deps);
+
+    expect(gate).toHaveBeenCalledTimes(1);
+    // The exact string that used to stand in for running it.
+    expect(logged.join('\n')).not.toContain('skipping for now');
+  });
+
+  it('FAILS overall when the data gate FAILS', async () => {
+    const { deps } = depsWith(vi.fn().mockResolvedValue(verdict('FAIL')));
+
+    expect(await verifyCutover(deps)).toBe(false);
+    expect(logged.join('\n')).toContain('Data verification FAILED');
+  });
+
+  it('FAILS overall when the data gate cannot run at all', async () => {
+    const { deps, store } = depsWith(vi.fn().mockRejectedValue(new Error('ledger unreachable')));
+
+    expect(await verifyCutover(deps)).toBe(false);
+    expect(logged.join('\n')).toContain('ledger unreachable');
+    // A gate that could not run has not passed — and must not advance state.
+    expect(store.transitionState).not.toHaveBeenCalled();
+  });
+
+  it('FAILS when no data gate is wired at all, instead of reporting a pass', async () => {
+    const { deps, store } = depsWith(undefined);
+
+    expect(await verifyCutover(deps)).toBe(false);
+    expect(logged.join('\n')).toContain('NOT VERIFIED');
+    expect(store.transitionState).not.toHaveBeenCalled();
+  });
+
+  it('advances PREPARING -> READY_FOR_CUTOVER on a pass, so approve becomes reachable', async () => {
+    const { deps, store } = depsWith(vi.fn().mockResolvedValue(verdict('PASS')));
+
+    expect(await verifyCutover(deps)).toBe(true);
+    expect(store.transitionState).toHaveBeenCalledWith(
+      TENANT,
+      MAPPING,
+      'READY_FOR_CUTOVER',
+      expect.objectContaining({ verifiedBy: 'cli' }),
+    );
+  });
+
+  it('leaves a non-PREPARING state alone', async () => {
+    const { deps, store } = depsWith(vi.fn().mockResolvedValue(verdict('PASS')), 'APPROVED');
+
+    expect(await verifyCutover(deps)).toBe(true);
+    expect(store.transitionState).not.toHaveBeenCalled();
+  });
+
+  it('does not advance state when the data gate FAILS', async () => {
+    const { deps, store } = depsWith(vi.fn().mockResolvedValue(verdict('FAIL')));
+
+    await verifyCutover(deps);
+
+    expect(store.transitionState).not.toHaveBeenCalled();
+  });
+
+  it('surfaces the gate recommendations so the operator knows what broke', async () => {
+    const { deps } = depsWith(vi.fn().mockResolvedValue(verdict('FAIL')));
+
+    await verifyCutover(deps);
+
+    expect(logged.join('\n')).toContain('Re-sync 6 missing mail item(s)');
   });
 });
