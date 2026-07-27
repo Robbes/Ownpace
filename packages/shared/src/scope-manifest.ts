@@ -35,18 +35,18 @@ export const SCOPE_MANIFEST: ScopeManifest = {
     { item: 'Distribution lists', detail: 'Pattern D — the group definition + member list (no separate store).' },
   ],
   partial: [
+    {
+      item: 'Mail with no Message-ID',
+      detail:
+        'Migrated, but the copy gets a generated Message-ID added — we need one to copy each ' +
+        'message exactly once. The original on the source is never modified, and discovery ' +
+        'reports how many messages this applies to.',
+    },
     { item: 'Permissions', detail: 'Inventoried and guided; only the clean, reversible subset is auto-applied (§14.2).' },
     { item: 'SharePoint extras', detail: 'Metadata/columns, version history and lists are best-effort (§13.1).' },
     { item: 'Proton calendar/contacts', detail: 'ICS / vCard snapshots only.' },
   ],
   doesNotMigrate: [
-    {
-      item: 'Mail with no Message-ID',
-      detail:
-        'Copying each message exactly once relies on its Message-ID; a message without one ' +
-        'cannot be tracked, so it is left on the source. Discovery reports how many there are ' +
-        'rather than quietly omitting them from the totals.',
-    },
     { item: 'Teams chat & calls', detail: 'Not migrated.' },
     { item: 'Planner', detail: 'Not migrated.' },
     { item: 'Power Automate', detail: 'Not migrated.' },

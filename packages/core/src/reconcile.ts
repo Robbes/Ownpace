@@ -1,6 +1,8 @@
 // Copyright 2026 OpenHands Agent (Apache-2.0)
 import {
   contentHash,
+  ensureMessageId,
+  naturalKeyHash,
   mapWithConcurrency as _mapWithConcurrency,
   naturalKeyForItem,
   type RunShadowPass,
@@ -54,11 +56,33 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     listSince: (folder, cursor) => source.listSince(folder, cursor),
     fetchRaw: async (item) => {
       const raw = await source.fetch(item);
-      return { raw, sizeBytes: item.size ?? 0 };
+      // Mail with no Message-ID cannot be keyed, and used to be dropped by the
+      // source entirely: never copied, and invisible to both halves of the
+      // verification gate. Give it one, derived from its own bytes so it is
+      // stable across passes, and WRITE it into the message so the target
+      // reindexer reads back exactly the key the ledger stored.
+      //
+      // Doing it here rather than in the writer is deliberate: the returned
+      // `raw` is what gets upserted AND what `contentHash` below hashes, so the
+      // ledger's content hash describes the bytes actually on the target. Hash
+      // the original instead and §20 checksum sampling flags every one of these
+      // as corrupt.
+      const ensured = ensureMessageId(raw.rfc822);
+      if (!ensured.generated) {
+        return { raw, sizeBytes: item.size ?? 0 };
+      }
+      return {
+        raw: { ...raw, rfc822: ensured.rfc822 } satisfies RawMessage,
+        sizeBytes: ensured.rfc822.byteLength,
+      };
     },
     upsert: async (mailboxId, raw, item) => 
       target.upsertEmail(mailboxId, raw as RawMessage, (item as MailItem).keywords),
-    naturalKey: (item) => naturalKeyForItem(item),
+    // Undefined for a message the source could not key: its natural key is a
+    // hash of its own bytes, which are not available until the fetch.
+    naturalKey: (item) => ((item as MailItem).messageId ? naturalKeyForItem(item) : undefined),
+    naturalKeyFromRaw: (_item, raw) =>
+      naturalKeyHash(ensureMessageId((raw as RawMessage).rfc822).messageId),
     contentHash: (raw) => contentHash((raw as RawMessage).rfc822),
     ensureCollection: (folder) => target.ensureMailbox(folder),
   });

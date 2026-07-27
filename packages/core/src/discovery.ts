@@ -23,7 +23,7 @@ export interface ListingSource<F, I> {
   ): Promise<{
     items: ReadonlyArray<I>;
     nextCursor: SyncCursor;
-    /** Items the source cannot migrate because they have no natural key. */
+    /** Items with no natural key of their own; the sync generates one. */
     unkeyable?: number;
   }>;
 }
@@ -56,13 +56,13 @@ export async function discoverSource<F, I>(
   let items = 0;
   let bytes = 0;
   let anyBytes = false;
-  let unmigratable = 0;
+  let generatedId = 0;
   const perCollection: DiscoveryCollection[] = [];
 
   for (const folder of folders) {
     // Metadata-only: listSince returns item descriptors; bodies come from fetch(), never called here.
     const { items: folderItems, unkeyable } = await source.listSince(folder);
-    const folderUnmigratable = unkeyable ?? 0;
+    const folderGeneratedId = unkeyable ?? 0;
 
     let folderBytes = 0;
     let folderHasBytes = false;
@@ -77,7 +77,7 @@ export async function discoverSource<F, I>(
     }
 
     items += folderItems.length;
-    unmigratable += folderUnmigratable;
+    generatedId += folderGeneratedId;
     if (folderHasBytes) {
       bytes += folderBytes;
       anyBytes = true;
@@ -86,18 +86,18 @@ export async function discoverSource<F, I>(
       name: nameOf(folder),
       items: folderItems.length,
       ...(folderHasBytes ? { bytes: folderBytes } : {}),
-      ...(folderUnmigratable > 0 ? { unmigratableItems: folderUnmigratable } : {}),
+      ...(folderGeneratedId > 0 ? { generatedIdItems: folderGeneratedId } : {}),
     });
   }
 
   return {
     collections: folders.length,
-    // The MIGRATABLE total — what the customer is agreeing to move. Anything
-    // the source cannot key is reported separately rather than folded in here
-    // or, as before, dropped without trace.
+    // Everything we will move, INCLUDING the items that need a generated
+    // Message-ID — those are copied, not left behind, so excluding them would
+    // understate the migration.
     items,
     ...(anyBytes ? { bytes } : {}),
-    ...(unmigratable > 0 ? { unmigratableItems: unmigratable } : {}),
+    ...(generatedId > 0 ? { generatedIdItems: generatedId } : {}),
     perCollection,
   };
 }

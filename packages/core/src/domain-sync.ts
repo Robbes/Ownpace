@@ -47,7 +47,22 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
   /** Upsert item on target */
   readonly upsert: (targetId: string, raw: unknown, ...args: unknown[]) => Promise<UpsertResult>;
   /** Extract natural key from item */
-  readonly naturalKey: (item: Item) => string;
+  /**
+   * The item's natural-key hash, or undefined when it cannot be known from the
+   * listing alone — mail with no Message-ID, whose key has to be derived from
+   * the body. Those items fall through to `naturalKeyFromRaw` after the fetch.
+   */
+  readonly naturalKey: (item: Item) => string | undefined;
+  /**
+   * Derive the natural-key hash once the raw item is in hand. Required if
+   * `naturalKey` can return undefined.
+   *
+   * Costs those items the pre-fetch ledger fast-path — their key IS their
+   * content, so it cannot be known before reading them — but NOT idempotency:
+   * the ledger is checked again with the derived key before anything is
+   * written, so a re-run re-reads the message and still creates nothing.
+   */
+  readonly naturalKeyFromRaw?: (item: Item, raw: unknown) => string;
   /** Compute content hash from raw data */
   readonly contentHash: (raw: unknown) => string;
   /** Ensure target collection exists */
@@ -88,6 +103,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     fetchRaw,
     upsert,
     naturalKey,
+    naturalKeyFromRaw,
     contentHash,
     ensureCollection,
   } = deps;
@@ -106,17 +122,45 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
 
     await mapWithConcurrency(items, concurrency, async (item) => {
       scanned += 1;
-      const naturalKeyHash = naturalKey(item);
+      let naturalKeyHash = naturalKey(item);
 
-      // Ledger fast-path: already migrated -> skip without fetching
-      const known = await ledger.find(tenantId, mappingId, domain, naturalKeyHash);
-      if (known) {
-        skipped += 1;
-        return;
+      // Ledger fast-path: already migrated -> skip without fetching.
+      if (naturalKeyHash !== undefined) {
+        const known = await ledger.find(tenantId, mappingId, domain, naturalKeyHash);
+        if (known) {
+          skipped += 1;
+          return;
+        }
       }
 
       // Fetch raw data
       const { raw, sizeBytes } = await fetchRaw(item);
+
+      if (naturalKeyHash === undefined) {
+        // The key could not be known from the listing, so derive it now. Mail
+        // with no Message-ID is keyed by a hash of its own bytes; that is only
+        // available once the message has been read.
+        if (!naturalKeyFromRaw) {
+          throw new Error(
+            `naturalKey returned undefined for a ${domain} item but no naturalKeyFromRaw was ` +
+              `supplied; refusing to write an item with no idempotency anchor.`,
+          );
+        }
+        naturalKeyHash = naturalKeyFromRaw(item, raw);
+
+        // Second fast-path check, now that we have a key. This is what keeps
+        // these items idempotent: a re-run pays the fetch again (unavoidable —
+        // the key is the content) but must not create a duplicate.
+        const knownAfterFetch = await ledger.find(tenantId, mappingId, domain, naturalKeyHash);
+        if (knownAfterFetch) {
+          skipped += 1;
+          return;
+        }
+      }
+
+      // Hashed AFTER any key derivation, so for a message we rewrote this is
+      // the hash of the bytes we will actually write. The target stores what we
+      // wrote, and §20 checksum sampling compares against it.
       const ch = contentHash(raw);
 
       try {

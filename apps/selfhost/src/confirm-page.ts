@@ -52,17 +52,16 @@ function countsTable(domains: ReadonlyArray<DiscoveryRecord>): string {
   const rows = domains
     .map(
       (d) =>
-        `<tr><td>${esc(DOMAIN_LABEL[d.domain])}</td><td>${d.collections}</td><td>${d.items}</td><td>${esc(formatBytes(d.bytes))}</td><td>${d.unmigratableItems ?? 0}</td>${d.lastError ? `<td class="err">${esc(d.lastError)}</td>` : '<td></td>'}</tr>`,
+        `<tr><td>${esc(DOMAIN_LABEL[d.domain])}</td><td>${d.collections}</td><td>${d.items}</td><td>${esc(formatBytes(d.bytes))}</td><td>${d.generatedIdItems ?? 0}</td>${d.lastError ? `<td class="err">${esc(d.lastError)}</td>` : '<td></td>'}</tr>`,
     )
     .join('');
-  const table = `<table><thead><tr><th>Type</th><th>Collections</th><th>Items</th><th>Size</th><th>Cannot migrate</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  const table = `<table><thead><tr><th>Type</th><th>Collections</th><th>Items</th><th>Size</th><th>Needs an ID</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 
-  // Surfaced separately from `items`, which is the MIGRATABLE total. Folding
-  // the two together would tell the operator we are moving things we are not.
-  const unmigratable = domains.reduce((sum, d) => sum + (d.unmigratableItems ?? 0), 0);
-  if (unmigratable === 0) return table;
+  // A subset of `items`: these ARE migrated. Shown because we modify them.
+  const generatedId = domains.reduce((sum, d) => sum + (d.generatedIdItems ?? 0), 0);
+  if (generatedId === 0) return table;
 
-  return `${table}<p class="warn">${unmigratable} item${unmigratable === 1 ? '' : 's'} cannot be migrated because they carry no Message-ID, which is what we use to copy each message exactly once. They are <b>not</b> included in the item counts above and will be left on your source.</p>`;
+  return `${table}<p class="warn">${generatedId} message${generatedId === 1 ? '' : 's'} arrived without a Message-ID, which is what we use to copy each message exactly once. We will generate one and add it to <b>the copy on the new server</b> — the original is not changed. These messages <b>are</b> included in the counts above and will be migrated.</p>`;
 }
 
 function manifestColumn(title: string, entries: ScopeManifest['migrates']): string {
