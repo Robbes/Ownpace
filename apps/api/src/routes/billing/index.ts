@@ -327,7 +327,7 @@ router.get('/invoices', authenticate, async (req: AuthenticatedRequest, res: Res
 router.get('/invoices/:invoiceId', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const invoiceId = req.params.invoiceId;
-    if (!invoiceId) {
+    if (!invoiceId || Array.isArray(invoiceId)) {
       return res.status(400).json({ error: 'Bad Request', message: 'Invoice ID required' });
     }
     const tenantId = req.tenantId;
@@ -391,7 +391,7 @@ router.get('/invoices/:invoiceId', authenticate, async (req: AuthenticatedReques
 router.post('/invoices/:invoiceId/pay', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const invoiceId = req.params.invoiceId;
-    if (!invoiceId) {
+    if (!invoiceId || Array.isArray(invoiceId)) {
       return res.status(400).json({ error: 'Bad Request', message: 'Invoice ID required' });
     }
     const tenantId = req.tenantId;
@@ -598,7 +598,7 @@ router.patch(
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const paymentMethodId = req.params.paymentMethodId;
-      if (!paymentMethodId) {
+      if (!paymentMethodId || Array.isArray(paymentMethodId)) {
         return res.status(400).json({ error: 'Bad Request', message: 'Payment method ID required' });
       }
       const tenantId = req.tenantId;

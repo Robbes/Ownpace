@@ -160,7 +160,7 @@ router.get(
       const { memberId } = req.params;
       const tenantId = req.tenantId;
       
-      if (!tenantId || !memberId) {
+      if (!tenantId || !memberId || Array.isArray(memberId)) {
         return res.status(400).json({
           error: 'Bad Request',
           message: 'Tenant ID and member ID required',
@@ -223,7 +223,7 @@ router.patch(
       const tenantId = req.tenantId;
       const body = UpdateMemberRoleSchema.parse(req.body);
 
-      if (!tenantId || !memberId) {
+      if (!tenantId || !memberId || Array.isArray(memberId)) {
         return res.status(400).json({
           error: 'Bad Request',
           message: 'Tenant ID and member ID required',
@@ -332,7 +332,7 @@ router.delete(
       const { memberId } = req.params;
       const tenantId = req.tenantId;
       
-      if (!tenantId || !memberId) {
+      if (!tenantId || !memberId || Array.isArray(memberId)) {
         return res.status(400).json({
           error: 'Bad Request',
           message: 'Tenant ID and member ID required',
