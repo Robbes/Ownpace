@@ -212,25 +212,32 @@ export async function checkPropagation(domain: string, expectedRecords: { type: 
   return false;
 }
 
-export async function verifyAllDns(domain: string): Promise<DnsVerificationStatus> {
-  const [mxResult, spfResult, dmarcResult, autodiscoverResult] = await Promise.all([verifyMX(domain), verifySPF(domain), verifyDMARC(domain), verifyAutodiscover(domain)]);
+export async function verifyAllDns(domain: string, dkimSelector: string = 'default'): Promise<DnsVerificationStatus> {
+  const [mxResult, spfResult, dkimResult, dmarcResult, autodiscoverResult] = await Promise.all([
+    verifyMX(domain),
+    verifySPF(domain),
+    verifyDKIM(domain, dkimSelector),
+    verifyDMARC(domain),
+    verifyAutodiscover(domain),
+  ]);
   const errors: string[] = [];
   const warnings: string[] = [];
   if (!mxResult.success) errors.push(...mxResult.warnings); else warnings.push(...mxResult.warnings);
   if (!spfResult.success) errors.push(...spfResult.warnings); else warnings.push(...spfResult.warnings);
+  if (!dkimResult.success) warnings.push(...dkimResult.warnings);
   if (!dmarcResult.success) errors.push(...dmarcResult.warnings); else warnings.push(...dmarcResult.warnings);
   if (!autodiscoverResult.success) warnings.push(...autodiscoverResult.warnings);
   const allVerified = mxResult.success && spfResult.success && dmarcResult.success;
-  return { domain, mxVerified: mxResult.success, spfVerified: spfResult.success, dkimVerified: false, dmarcVerified: dmarcResult.success, autodiscoverVerified: autodiscoverResult.success, allVerified, verifiedAt: allVerified ? new Date().toISOString() : undefined, errors, warnings };
+  return { domain, mxVerified: mxResult.success, spfVerified: spfResult.success, dkimVerified: dkimResult.success, dmarcVerified: dmarcResult.success, autodiscoverVerified: autodiscoverResult.success, allVerified, verifiedAt: allVerified ? new Date().toISOString() : undefined, errors, warnings };
 }
 
-export function generateDnsRunbook(domain: string, targetMailServer: string, targetIp?: string): string {
+export function generateDnsRunbook(domain: string, targetMailServer: string, targetIp?: string, dkimSelector: string = 'default'): string {
   return `# DNS Migration Runbook for ${domain}
 # Generated: ${new Date().toISOString()}
 
 ## Before Cutover
 ### 1. Lower TTLs (24 hours before)
-Change TTL for MX, TXT (SPF/DMARC) records to 300 seconds
+Change TTL for MX, TXT (SPF/DKIM/DMARC) records to 300 seconds
 
 ## During Cutover
 ### 2. Update MX Records
@@ -240,19 +247,24 @@ Change TTL for MX, TXT (SPF/DMARC) records to 300 seconds
 ### 3. Update SPF Record
 - Update TXT record for @: v=spf1 mx include:${targetMailServer} ~all
 
-### 4. Add DMARC Record
+### 4. Add DKIM Record
+- Add TXT record for ${dkimSelector}._domainkey: v=DKIM1; k=rsa; p=<public key from target mail server>
+
+### 5. Add DMARC Record
 - Add TXT record for _dmarc: v=DMARC1; p=quarantine; rua=mailto:dmarc@${domain}
 
-### 5. Update Autodiscover (if applicable)
+### 6. Update Autodiscover (if applicable)
 - Add CNAME or A record for autodiscover: ${targetIp || targetMailServer}
 
 ## After Cutover
-### 6. Verify Propagation
+### 7. Verify Propagation
 - Run: dig MX ${domain}
 - Run: dig TXT ${domain}
+- Run: dig TXT ${dkimSelector}._domainkey.${domain}
 - Run: dig TXT _dmarc.${domain}
+- Run: dig A autodiscover.${domain}
 
-### 7. Restore TTLs
+### 8. Restore TTLs
 After 48 hours, restore original TTL values
 
 ## Rollback Procedure

@@ -12,6 +12,7 @@
  *   execute        Execute the cutover
  *   rollback       Rollback cutover
  *   status         Show cutover status
+ *   runbook        Generate the guided DNS migration runbook (Markdown)
  */
 
 import { CutoverStore } from '@openmig/ledger';
@@ -25,6 +26,8 @@ function parseArgs(): {
   mappingId: string;
   domain: string;
   targetMailServer?: string;
+  dkimSelector?: string;
+  targetIp?: string;
 } {
   const args = process.argv.slice(2);
   let command: string | undefined;
@@ -32,6 +35,8 @@ function parseArgs(): {
   let mappingId: string | undefined;
   let domain: string | undefined;
   let targetMailServer: string | undefined;
+  let dkimSelector: string | undefined;
+  let targetIp: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -45,6 +50,10 @@ function parseArgs(): {
       domain = args[++i];
     } else if (arg === '--target' || arg === '-T') {
       targetMailServer = args[++i];
+    } else if (arg === '--dkim-selector' || arg === '-k') {
+      dkimSelector = args[++i];
+    } else if (arg === '--target-ip' || arg === '-i') {
+      targetIp = args[++i];
     } else if (arg === '--help' || arg === '-h') {
       console.log(`
 Cutover CLI - Manage migration cutover lifecycle
@@ -59,13 +68,16 @@ Commands:
   execute          Execute the cutover (switch DNS, etc.)
   rollback         Rollback cutover to previous state
   status           Show current cutover status
+  runbook          Generate the guided DNS migration runbook (Markdown, no DB required)
 
 Options:
-  --tenant, -t <id>     Tenant ID (required)
-  --mapping, -m <id>    Mapping ID (required)
-  --domain, -d <name>   Domain name for DNS (required)
-  --target, -T <host>   Target mail server (default: mail.<domain>)
-  --help, -h            Show this help message
+  --tenant, -t <id>         Tenant ID (required, except for "runbook")
+  --mapping, -m <id>        Mapping ID (required, except for "runbook")
+  --domain, -d <name>       Domain name for DNS (required)
+  --target, -T <host>       Target mail server (default: mail.<domain>)
+  --dkim-selector, -k <s>   DKIM selector to check/document (default: "default")
+  --target-ip, -i <ip>      IP for the autodiscover record (default: target mail server)
+  --help, -h                Show this help message
 
 Examples:
   # Start a new cutover
@@ -92,25 +104,19 @@ Examples:
   node --loader ts-node/esm apps/worker/src/cli/index.ts status \\
     --tenant tenant123 --mapping mapping456 --domain example.com
 
+  # Generate the DNS runbook (no DB connection needed)
+  node --loader ts-node/esm apps/worker/src/cli/index.ts runbook \\
+    --domain example.com --target mail.example.com > dns-runbook.md
+
 Environment Variables:
-  DATABASE_URL  PostgreSQL connection string (required)
+  DATABASE_URL  PostgreSQL connection string (required for all commands except "runbook")
 `);
       process.exit(0);
     }
   }
 
   if (!command) {
-    console.error('Error: command required (start-cutover, verify, approve, execute, rollback, status)');
-    process.exit(1);
-  }
-
-  if (!tenantId) {
-    console.error('Error: --tenant <id> is required');
-    process.exit(1);
-  }
-
-  if (!mappingId) {
-    console.error('Error: --mapping <id> is required');
+    console.error('Error: command required (start-cutover, verify, approve, execute, rollback, status, runbook)');
     process.exit(1);
   }
 
@@ -119,12 +125,38 @@ Environment Variables:
     process.exit(1);
   }
 
-  return { command, tenantId, mappingId, domain, targetMailServer };
+  // "runbook" is a pure local computation — no tenant/mapping/DB needed.
+  if (command !== 'runbook') {
+    if (!tenantId) {
+      console.error('Error: --tenant <id> is required');
+      process.exit(1);
+    }
+
+    if (!mappingId) {
+      console.error('Error: --mapping <id> is required');
+      process.exit(1);
+    }
+  }
+
+  return { command, tenantId: tenantId ?? '', mappingId: mappingId ?? '', domain, targetMailServer, dkimSelector, targetIp };
 }
 
 /** Main entry point. */
 async function main() {
-  const { command, tenantId, mappingId, domain, targetMailServer } = parseArgs();
+  const { command, tenantId, mappingId, domain, targetMailServer, dkimSelector, targetIp } = parseArgs();
+
+  // "runbook" is a pure local computation — generate and print without touching the DB.
+  if (command === 'runbook') {
+    console.log(
+      cutoverCli.generateRunbook({
+        dnsDomain: domain,
+        targetMailServer: targetMailServer || `mail.${domain}`,
+        targetIp,
+        dkimSelector,
+      }),
+    );
+    return;
+  }
 
   // Initialize database connection
   const dbUrl = process.env.DATABASE_URL;
@@ -136,7 +168,7 @@ async function main() {
   const { drizzle } = await import('drizzle-orm/node-postgres');
   const { Pool } = await import('pg');
   const pool = new Pool({ connectionString: dbUrl });
-  
+
   // Import all schema tables individually and create schema object
   const schemaPg = await import('@openmig/ledger/schema-pg');
   const db = drizzle(pool, { schema: schemaPg });
@@ -149,6 +181,8 @@ async function main() {
     cutoverPersistence,
     dnsDomain: domain,
     targetMailServer: targetMailServer || `mail.${domain}`,
+    dkimSelector,
+    targetIp,
   };
 
   switch (command) {
@@ -179,7 +213,7 @@ async function main() {
     }
     default:
       console.error(`Unknown cutover command: ${command}`);
-      console.error('Use: start-cutover, verify, approve, execute, rollback, status');
+      console.error('Use: start-cutover, verify, approve, execute, rollback, status, runbook');
       process.exit(1);
   }
 }

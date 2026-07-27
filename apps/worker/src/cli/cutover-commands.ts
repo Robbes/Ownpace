@@ -14,7 +14,7 @@
 
 import type { TenantId, MappingId } from '@openmig/shared';
 import { CutoverStore } from '@openmig/ledger';
-import { verifyAllDns, checkPropagation } from '@openmig/core';
+import { verifyAllDns, checkPropagation, generateDnsRunbook } from '@openmig/core';
 
 /** CLI dependencies */
 export interface CutoverCliDeps {
@@ -23,6 +23,10 @@ export interface CutoverCliDeps {
   cutoverPersistence: CutoverStore;
   dnsDomain: string;
   targetMailServer: string;
+  /** DKIM selector to check/document (e.g. the "default" in default._domainkey.example.com). */
+  dkimSelector?: string;
+  /** IP for the autodiscover record, when it differs from targetMailServer. */
+  targetIp?: string;
 }
 
 /** CLI output formatter */
@@ -53,6 +57,18 @@ export class CutoverCliOutput {
       console.log(`  ${row.label.padEnd(maxLabelLen)}  ${row.value}`);
     }
   }
+}
+
+/**
+ * Generate the guided DNS migration runbook for this domain — the §14.2 "guide"
+ * DNS story: the exact records to change, before/after, matching what `verify`
+ * then checks. Pure/local (no DB, no credentials) — returns raw Markdown; the
+ * caller decides whether to print it, write it to a file, or both.
+ */
+export function generateRunbook(
+  params: Pick<CutoverCliDeps, 'dnsDomain' | 'targetMailServer' | 'targetIp' | 'dkimSelector'>,
+): string {
+  return generateDnsRunbook(params.dnsDomain, params.targetMailServer, params.targetIp, params.dkimSelector);
 }
 
 /**
@@ -93,8 +109,8 @@ export async function verifyCutover(deps: CutoverCliDeps): Promise<boolean> {
   // Check 1: DNS records
   CutoverCliOutput.info('Checking DNS records...');
   try {
-    const dnsStatus = await verifyAllDns(deps.dnsDomain);
-    
+    const dnsStatus = await verifyAllDns(deps.dnsDomain, deps.dkimSelector);
+
     if (dnsStatus.mxVerified) {
       CutoverCliOutput.success('MX records verified');
       results.push({ check: 'MX Records', status: 'PASS', message: 'Verified' });
@@ -110,6 +126,15 @@ export async function verifyCutover(deps: CutoverCliDeps): Promise<boolean> {
     } else {
       CutoverCliOutput.warning('SPF record not verified');
       results.push({ check: 'SPF Record', status: 'FAIL', message: dnsStatus.errors[0] || 'Not found' });
+      // Not blocking - just a warning
+    }
+
+    if (dnsStatus.dkimVerified) {
+      CutoverCliOutput.success('DKIM record verified');
+      results.push({ check: 'DKIM Record', status: 'PASS', message: 'Verified' });
+    } else {
+      CutoverCliOutput.warning('DKIM record not configured');
+      results.push({ check: 'DKIM Record', status: 'FAIL', message: 'Not configured' });
       // Not blocking - just a warning
     }
 
