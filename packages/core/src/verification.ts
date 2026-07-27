@@ -29,9 +29,19 @@ export interface DataTypeVerification {
   checksumMatches: number;
   checksumMismatches: number;
   
-  // Bytes transferred
+  // Bytes.
+  //
+  // `totalBytesSource` is the sum of the per-item sizes the ledger recorded when
+  // each item was copied — i.e. what we read from the source.
+  //
+  // `totalBytesTarget` is `null` when the target could not be measured, which is
+  // currently the case for every target: `TargetEntry` (the shape `listEntries`
+  // yields) carries no size, so there is nothing to sum. It used to be filled
+  // with the SOURCE figure, which made every report show perfect byte parity —
+  // a number that looked verified and never was. `null` says "not measured";
+  // only set it from a real target-side measurement.
   totalBytesSource: number;
-  totalBytesTarget: number;
+  totalBytesTarget: number | null;
   
   // Issues
   issues: Array<{
@@ -61,6 +71,12 @@ export interface VerificationResult {
   totalItemsSource: number;
   totalItemsTarget: number;
   totalDiscrepancies: number;
+  /**
+   * Bytes we copied, summed from the ledger's per-item source sizes. This is a
+   * statement about what was read and sent — NOT a target-side measurement, and
+   * not evidence of byte-level parity. Per-domain target bytes live in
+   * `DataTypeVerification.totalBytesTarget` and are `null` while unmeasured.
+   */
   totalBytesTransferred: number;
   
   // Recommendations
@@ -118,7 +134,12 @@ export interface VerificationDeps {
   
   // Bytes tracking
   getTotalBytesSource(dataType: 'mail' | 'calendar' | 'contacts' | 'files'): Promise<number>;
-  getTotalBytesTarget(dataType: 'mail' | 'calendar' | 'contacts' | 'files'): Promise<number>;
+  /**
+   * Optional: total bytes as measured ON THE TARGET. Supply this only if the
+   * target can genuinely report sizes. Omit it rather than substituting the
+   * source figure — a fabricated match is worse than an admitted gap.
+   */
+  getTotalBytesTarget?(dataType: 'mail' | 'calendar' | 'contacts' | 'files'): Promise<number>;
 }
 
 /**
@@ -165,8 +186,11 @@ export async function runVerification(
     (sum, v) => sum + v.missingOnTarget + v.extraOnTarget,
     0
   );
+  // Sum the SOURCE bytes: this is what we actually read and copied. Summing
+  // totalBytesTarget would have meant summing nulls (or, before this was made
+  // honest, re-reporting the source figure under a target-sounding name).
   const totalBytesTransferred = allVerifications.reduce(
-    (sum, v) => sum + v.totalBytesTarget,
+    (sum, v) => sum + v.totalBytesSource,
     0
   );
   
@@ -243,7 +267,10 @@ async function verifyDataType(
   
   // Get bytes
   const totalBytesSource = await deps.getTotalBytesSource(dataType);
-  const totalBytesTarget = await deps.getTotalBytesTarget(dataType);
+  // null when the target cannot report sizes — see DataTypeVerification.
+  const totalBytesTarget = deps.getTotalBytesTarget
+    ? await deps.getTotalBytesTarget(dataType)
+    : null;
   
   // Determine status
   const matchPercentage = sourceCount > 0 ? (matchedCount / sourceCount) : 1;
