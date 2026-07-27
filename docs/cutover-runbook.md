@@ -278,6 +278,6 @@ This will:
 
 ## Related Documentation
 
-- [Architecture Decision Record 0022](./adr/0022-stalwart-integration.md)
+- [ADR-0022 — IMAP dependency security strategy](./adr/0022-imap-dependency-security-strategy.md)
 - [Solution Architecture](./architecture/solution-architecture.md) §11
 - [Stalwart Integration Fix](./stalwart-integration-fix.md)

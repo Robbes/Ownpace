@@ -1,252 +1,92 @@
 # Rollback Mechanisms
 
-This document describes the comprehensive rollback capabilities implemented in OpenMigrate for safe cutover operations.
+How a cutover is reverted, and — just as importantly — **what rollback does not do for you**.
 
-## Overview
+> **Read this before relying on rollback.** DNS restore and user notification are **not
+> automated**. Rollback reactivates the mapping so shadow sync resumes; reverting the MX record
+> is a **manual operator step**. See "What rollback does not do" below.
 
-Rollback is a critical safety feature that allows users to revert a cutover operation if issues are discovered during the grace period or cutover itself. The rollback orchestrator coordinates multiple rollback steps to ensure a complete and consistent reversal.
+## The real rollback path
 
-## Components
+Two entry points, both driving the same persisted cutover state machine
+(`cutover_state` / `cutover_event`, via `CutoverStore` in `packages/ledger/src/cutover-store.ts`):
 
-### Rollback Orchestrator
+| Entry point | Where | Used by |
+|---|---|---|
+| `run-rollback` Trigger.dev task | `apps/worker/src/jobs/run-rollback.ts` | managed edition (API `POST …/cutover` flow) |
+| `rollback` CLI subcommand | `apps/worker/src/cli/cutover-commands.ts` | self-host / operator |
 
-The `RollbackOrchestrator` class (`packages/core/src/rollback-orchestrator.ts`) coordinates the complete rollback process:
+### What `run-rollback` actually does
 
-**Key Features:**
-- **Multi-step rollback**: Executes rollback in a defined sequence
-- **Graceful failure handling**: Continues with other steps even if one fails
-- **Timeout protection**: Prevents rollback from running indefinitely
-- **Comprehensive logging**: All rollback actions are logged for audit trail
-- **Notification support**: Alerts users when rollback is initiated
+1. **Load cutover state** — fails loudly if there is none (`No cutover state found - nothing to rollback`).
+2. **DNS — skipped, and says so.** Logs that DNS restore is deferred and the operator must revert
+   the MX record by hand. It does **not** claim a restore it did not perform.
+3. **Reactivate the mapping** (`status → active`) so shadow sync resumes with the original source
+   authoritative again. *This is the real, in-scope rollback action.*
+4. **Transition cutover state to `ROLLED_BACK`**, recording `rolledBackAt`, `rolledBackBy` and the
+   reason in the append-only event log.
+5. **User notification — skipped, and says so.** Not implemented; logged as such rather than faked.
+6. **Cancel the pending grace-period task** — best-effort. Steps 3–4 are already committed, so a
+   failed cancel must not flip a successful rollback to `FAILED`.
 
-**Rollback Steps:**
-1. **Notify Users** - Sends email notifications about the rollback
-2. **Rollback DNS** - Restores previous DNS records
-3. **Restore Data** - Restores data from backup
-4. **Update State** - Updates cutover state to ROLLED_BACK
-5. **Preserve Logs** - Archives logs for audit purposes
+## What rollback does **not** do
 
-### Rollback Configuration
+These are deliberate gaps, not bugs. Do not plan a cutover assuming otherwise.
 
-```typescript
-interface RollbackConfig {
-  rollbackDns: boolean;        // Rollback DNS records
-  restoreData: boolean;        // Restore data from backup
-  updateState: boolean;        // Update cutover state
-  notifyUsers: boolean;        // Send notifications
-  preserveLogs: boolean;       // Preserve logs for audit
-  timeoutMinutes: number;      // Maximum rollback time
-}
-```
+- **DNS records are not restored.** The owner decision of 2026-07-16 is **verify-only DNS**: the
+  stack reads and verifies DNS but never writes it (workplan 0009 T4 deferred; the deSEC adapter in
+  `packages/core/src/dns-provider-desec.ts` stays an unwired template). **Revert the MX record
+  manually**, then confirm with the verify-only checks — see
+  [`dns-management.md`](./dns-management.md) and the `runbook` CLI subcommand.
+- **Users are not notified.** No email is sent. Notify affected users through your own channel;
+  templates are in [`cutover-communication-templates.md`](./cutover-communication-templates.md).
+- **Data is not restored from a backup.** Rollback is *non-destructive by design* — nothing was
+  deleted on the source during cutover, so there is nothing to restore. The source mailbox is still
+  intact and becomes authoritative again at step 3. Anything written to the **target** after
+  cutover is surfaced as a decision, never auto-copied back (arch doc §11.1).
 
-### Rollback Validation
+## Valid states for rollback
 
-Before executing a rollback, the orchestrator validates that rollback is possible:
+Rollback is accepted from:
 
-**Valid States for Rollback:**
-- `CUTOVER_IN_PROGRESS` - During active cutover
-- `GRACE_PERIOD` - During grace period monitoring
+- `CUTOVER_IN_PROGRESS` — during active cutover
+- `GRACE_PERIOD` — during grace-period monitoring
 
-**Invalid States:**
-- `PREPARING` - Cutover not yet started
-- `READY_FOR_CUTOVER` - Not yet in progress
-- `COMPLETED` - Cutover already completed
-- `ROLLED_BACK` - Already rolled back
-- `FAILED` - Already failed
+and rejected from `PREPARING`, `READY_FOR_CUTOVER`, `COMPLETED`, `ROLLED_BACK`, `FAILED`.
 
 ## Usage
 
-### Basic Rollback
+### CLI (self-host / operator)
 
-```typescript
-import { RollbackOrchestrator } from '@openmig/core';
-
-const orchestrator = new RollbackOrchestrator(deps);
-
-// Validate rollback is possible
-const validation = await orchestrator.validateRollback(tenantId, mappingId);
-if (!validation.canRollback) {
-  console.error('Cannot rollback:', validation.reasons);
-  return;
-}
-
-// Execute rollback
-const result = await orchestrator.executeRollback(
-  tenantId,
-  mappingId,
-  'User requested rollback due to issues'
-);
-
-console.log('Rollback successful:', result.success);
-console.log('Steps completed:', result.completedSteps, '/', result.totalSteps);
+```sh
+node --loader ts-node/esm apps/worker/src/cli/index.ts rollback \
+  --tenant <tenantId> --mapping <mappingId> --domain example.com
 ```
 
-### Custom Configuration
+Then check the resulting state and event trail:
 
-```typescript
-const config: Partial<RollbackConfig> = {
-  rollbackDns: true,
-  restoreData: true,
-  updateState: true,
-  notifyUsers: false,  // Disable notifications
-  preserveLogs: true,
-  timeoutMinutes: 120, // 2 hours
-};
-
-const orchestrator = new RollbackOrchestrator(deps, config);
+```sh
+node --loader ts-node/esm apps/worker/src/cli/index.ts status \
+  --tenant <tenantId> --mapping <mappingId> --domain example.com
 ```
 
-## Rollback Result
+### Managed (Trigger.dev)
 
-The rollback result provides detailed information about the rollback process:
+The `run-rollback` task takes `{ tenantId, mappingId, reason, options }`, where `options` carries
+`restoreDns` / `dnsDomain` / `notifyUsers`. Those flags are honoured only as far as the gaps above
+allow: setting `restoreDns: true` logs the manual-step reminder, it does not perform a restore.
 
-```typescript
-interface RollbackResult {
-  success: boolean;                    // Overall success
-  steps: RollbackStepResult[];         // Individual step results
-  totalSteps: number;                  // Total number of steps
-  completedSteps: number;              // Successfully completed steps
-  failedSteps: string[];               // Failed step names
-  warnings: string[];                  // Warnings during rollback
-  rolledBackAt?: string;               // Timestamp
-}
-```
+## Audit trail
 
-### Step Result
+Every rollback writes to the append-only `cutover_event` log — state transitions, the reason, and
+the timestamps. Read it back with the `status` subcommand or
+`CutoverStore.getEventHistory(tenantId, mappingId, limit)`. Errors are surfaced verbatim
+(hard rule 9), never swallowed into an empty result.
 
-```typescript
-interface RollbackStepResult {
-  step: string;           // Step name
-  success: boolean;       // Step success
-  message: string;        // Step result message
-  details?: object;       // Additional details
-  error?: string;         // Error if failed
-}
-```
+## Related documentation
 
-## Rollback Scenarios
-
-### Scenario 1: Complete Success
-
-All rollback steps complete successfully:
-
-```
-Rollback Result:
-- Success: true
-- Total Steps: 5
-- Completed Steps: 5
-- Failed Steps: []
-- Warnings: []
-```
-
-### Scenario 2: Partial Failure
-
-Some steps fail but others succeed:
-
-```
-Rollback Result:
-- Success: false
-- Total Steps: 5
-- Completed Steps: 4
-- Failed Steps: ['ROLLBACK_DNS']
-- Warnings: ['ROLLBACK_DNS failed: DNS provider unavailable']
-```
-
-The orchestrator continues with remaining steps even when one fails, ensuring maximum recovery.
-
-### Scenario 3: Timeout
-
-Rollback exceeds the configured timeout:
-
-```
-Rollback Result:
-- Success: false
-- Total Steps: 5
-- Completed Steps: 2
-- Failed Steps: ['RESTORE_DATA', 'UPDATE_STATE', 'PRESERVE_LOGS']
-- Warnings: ['Rollback exceeded 60 minutes']
-```
-
-## Dependencies
-
-The rollback orchestrator requires the following dependencies:
-
-```typescript
-interface RollbackOrchestratorDeps {
-  // Cutover state management
-  getCutoverStatus(tenantId, mappingId): Promise<CutoverStatus>
-  updateCutoverStatus(status: CutoverStatus): Promise<void>
-  
-  // DNS management
-  getDnsStatus(tenantId, mappingId): Promise<DnsMigrationStatus>
-  updateDnsStatus(status: DnsMigrationStatus): Promise<void>
-  rollbackDns(tenantId, mappingId, previousRecords): Promise<{success, message}>
-  
-  // Data restoration
-  getBackupMetadata(tenantId, mappingId, backupId): Promise<unknown>
-  restoreData(tenantId, mappingId, backupId): Promise<{success, itemsRestored}>
-  
-  // Event logging
-  logRollbackEvent(tenantId, mappingId, event, details): Promise<void>
-  
-  // Notifications
-  sendNotification(tenantId, recipients, subject, body): Promise<void>
-}
-```
-
-## Safety Considerations
-
-### Non-Destructive by Default
-
-Rollback operations are designed to be safe:
-- Never deletes data permanently
-- Preserves all logs and audit trails
-- Allows manual intervention at each step
-
-### Idempotency
-
-Rollback can be safely retried:
-- Failed steps can be re-executed
-- State transitions are validated
-- No duplicate side effects
-
-### Audit Trail
-
-All rollback actions are logged:
-- Step execution status
-- Errors and warnings
-- Timing information
-- User notifications
-
-## Testing
-
-The rollback orchestrator includes comprehensive unit tests:
-
-**Test Coverage:**
-- State validation (6 tests)
-- Complete rollback execution (6 tests)
-- Configuration handling (2 tests)
-
-**Key Test Scenarios:**
-- Rollback from valid states
-- Rollback rejection from invalid states
-- DNS rollback failure handling
-- Data restoration
-- Timeout handling
-- Partial failure scenarios
-
-## Future Enhancements
-
-Planned improvements:
-1. **Progress tracking**: Real-time rollback progress updates
-2. **Selective rollback**: Choose specific components to rollback
-3. **Rollback preview**: Simulate rollback before execution
-4. **Automated recovery**: Self-healing for common rollback failures
-5. **Rollback scheduling**: Delayed rollback execution
-
-## Related Documentation
-
-- [Cutover State Machine](./cutover.md)
-- [DNS Management](./dns-management.md)
-- [Verification](./verification.md)
-- [Workplan 0004](./workplans/0004-cutover-dns.md)
+- [Cutover runbook](./cutover-runbook.md) — the end-to-end operator procedure
+- [Cutover communication templates](./cutover-communication-templates.md) — EN/NL user comms
+- [DNS management](./dns-management.md) — the manual DNS steps rollback depends on
+- [Workplan 0009](./workplans/0009-cutover-integration.md) — cutover integration, incl. the
+  verify-only DNS decision

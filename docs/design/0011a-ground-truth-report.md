@@ -1,5 +1,14 @@
 # Part A — Ground-Truth Report: Workplan 0011 Status
 
+> ⚠️ **HISTORICAL SNAPSHOT (2026-07-17) — DO NOT READ AS CURRENT STATE.** Nearly every "Pending" /
+> "TODO shell" finding below has since been closed, so this document now reads as the *inverse* of
+> reality. As of 2026-07-27: workplan 0011 **T1–T7 are all done** (real API persistence, Trigger.dev
+> wiring across all four domains, usage metering, billing + Mollie webhook, web UI on the real API,
+> live-verified compose stack), the managed auth path verifies JWTs against JWKS, and the self-host
+> edition is a real, packaged appliance (workplan 0010 T1–T6 done, restart-resume gate closed).
+> For current state read **`docs/workplans/0011-managed-edition-hardening.md`** and
+> **`docs/workplans/README.md`**. Kept only for the reasoning trail that led into T2.
+
 **Date:** 2026-07-17  
 **Purpose:** Establish ground truth before proposing next workplan 0011 task. Part A is report-only; Part B will be a design proposal.
 

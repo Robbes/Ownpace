@@ -7,7 +7,7 @@ REST API for the Open Migration Stack managed edition.
 The API provides endpoints for:
 - **Tenant Management**: Create, update, delete tenants and manage members
 - **Migration Control**: Configure and trigger migrations, monitor progress
-- **Billing**: Track usage, manage payments (coming soon)
+- **Billing**: Usage metering from real runs, invoices, and Mollie-backed payments
 - **Webhooks**: Receive job status updates from Trigger.dev
 
 ## Quick Start

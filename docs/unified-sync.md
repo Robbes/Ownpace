@@ -630,7 +630,7 @@ const result = await runUnifiedSync({
 - [Workplan 0001 - JMAP Mail](./workplans/0001-first-slice-jmap-mail.md)
 - [Workplan 0002 - IMAP/DAV Target](./workplans/0002-imap-dav-target.md)
 - [Workplan 0003 - CalDAV/CardDAV/WebDAV](./workplans/0003-caldav-carddav-webdav.md)
-- [ADR-0020 - Idempotency Pattern](./adr/0020-idempotency-pattern.md)
+- [ADR-0005 — idempotency via ledger, non-destructive](./adr/0005-idempotency-ledger-nondestructive.md)
 
 ---
 
