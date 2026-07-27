@@ -28,6 +28,13 @@ export interface DataTypeVerification {
   checksumSampleSize: number;
   checksumMatches: number;
   checksumMismatches: number;
+  /**
+   * Sampled items whose content could NOT be compared, because the target did
+   * not expose a content hash for them. Not a mismatch and not a match — the
+   * checksum leg simply had no evidence for these. Non-zero here means the
+   * "checksum sampling" half of the §20 gate did not really run.
+   */
+  checksumUnavailable: number;
   
   // Bytes.
   //
@@ -246,17 +253,31 @@ async function verifyDataType(
   
   let checksumMatches = 0;
   let checksumMismatches = 0;
-  
+  // Samples whose content could not be compared at all because the target does
+  // not expose a content hash. NOT a mismatch — see below.
+  let checksumUnavailable = 0;
+
   // Compare samples by matching naturalKeyHash
   for (const sourceSample of sourceSamples) {
     const targetSample = targetSamplesByHash.get(sourceSample.naturalKeyHash);
-    
+
     if (targetSample) {
-      // Found matching natural key hash, compare content
-      if (compareContent(sourceSample.content, targetSample.content)) {
-        checksumMatches++;
+      // `TargetEntry.contentHash` is optional ("if cheaply available from the
+      // listing") and BOTH real mail reindexers omit it — JMAP can't get it from
+      // a headers-only fetch, and the IMAP one doesn't compute it. Treating an
+      // absent hash as a mismatch made checksum sampling report 100% failure on
+      // a perfectly healthy migration, which would FAIL the cutover gate. An
+      // unmeasurable sample is skipped and surfaced, never silently passed and
+      // never counted against the target (workplan 0009 T1: report SKIPPED
+      // rather than inventing a verdict).
+      if (isComparableContent(targetSample.content)) {
+        if (compareContent(sourceSample.content, targetSample.content)) {
+          checksumMatches++;
+        } else {
+          checksumMismatches++;
+        }
       } else {
-        checksumMismatches++;
+        checksumUnavailable++;
       }
     } else {
       // Natural key hash not found on target - this is a missing item
@@ -274,10 +295,13 @@ async function verifyDataType(
   
   // Determine status
   const matchPercentage = sourceCount > 0 ? (matchedCount / sourceCount) : 1;
-  const checksumMatchPercentage = 
-    (checksumMatches + checksumMismatches) > 0 
-      ? checksumMatches / (checksumMatches + checksumMismatches)
-      : 1;
+  // Unavailable samples are excluded from the denominator: a target that cannot
+  // report content hashes yields no checksum evidence either way, so the ratio
+  // is computed over what was actually comparable. With nothing comparable this
+  // is 1 (no contrary evidence) — the counts/missing checks still gate, and
+  // `checksumUnavailable` records that this leg was not exercised.
+  const checksumComparable = checksumMatches + checksumMismatches;
+  const checksumMatchPercentage = checksumComparable > 0 ? checksumMatches / checksumComparable : 1;
   
   const status = determineVerificationStatus(
     matchPercentage,
@@ -291,6 +315,18 @@ async function verifyDataType(
   // Generate issues
   const issues: DataTypeVerification['issues'] = [];
   
+  if (checksumUnavailable > 0) {
+    // Surface, never silently pass (hard rule 9): the operator must know the
+    // checksum half of the gate did not actually run for these items.
+    issues.push({
+      id: `CHECKSUM_UNAVAILABLE_${dataType}`,
+      severity: 'WARNING',
+      message:
+        `${checksumUnavailable} of ${sourceSamples.length} sampled ${dataType} item(s) could not be ` +
+        `content-verified: the target does not expose a content hash. Count parity still applies.`,
+    });
+  }
+
   if (missingOnTarget.length > 0) {
     issues.push({
       id: `MISSING_${dataType}`,
@@ -326,6 +362,7 @@ async function verifyDataType(
     checksumSampleSize: sampleSize,
     checksumMatches,
     checksumMismatches,
+    checksumUnavailable,
     totalBytesSource,
     totalBytesTarget,
     issues,
@@ -348,6 +385,17 @@ function calculateSampleSize(totalCount: number, config: VerificationConfig): nu
 /**
  * Compare two content pieces
  */
+/**
+ * Can this target-side sample content participate in a checksum comparison?
+ *
+ * `TargetEntry.contentHash` is optional, and the reindexers that omit it yield
+ * an empty string here. Comparing a real source hash against '' is not a
+ * mismatch — it is an absence of evidence, and must not be scored as failure.
+ */
+function isComparableContent(content: Uint8Array | string): boolean {
+  return typeof content === 'string' ? content.length > 0 : content.byteLength > 0;
+}
+
 function compareContent(
   a: Uint8Array | string,
   b: Uint8Array | string

@@ -8,6 +8,12 @@
  */
 
 import type { TenantId, MappingId, LedgerVerificationReader, TargetReindexer } from '@openmig/shared';
+import {
+  naturalKeyHash,
+  calendarNaturalKeyHash,
+  contactNaturalKeyHash,
+  fileNaturalKeyHash,
+} from '@openmig/shared';
 import type { VerificationDeps } from './verification';
 
 /**
@@ -92,7 +98,7 @@ async function getTargetCountFromReindexer(
   // Count only entries that exist in the ledger for this domain
   let count = 0;
   for await (const entry of targetReindexer.listEntries()) {
-    if (ledgerHashes.has(entry.naturalKey)) {
+    if (ledgerHashes.has(hashTargetNaturalKey(dataType, entry.naturalKey))) {
       count++;
     }
   }
@@ -128,12 +134,12 @@ async function getTargetSamplesFromReindexer(
   reader: LedgerVerificationReader,
   tenantId: TenantId,
   mappingId: MappingId,
-  _dataType: 'mail' | 'calendar' | 'contacts' | 'files',
+  dataType: 'mail' | 'calendar' | 'contacts' | 'files',
   count: number
 ): Promise<Array<{ id: string; naturalKeyHash: string; content: Uint8Array | string }>> {
   if (!targetReindexer) {
     // If no reindexer, fall back to ledger samples
-    return getSourceSamplesFromLedger(reader, tenantId, mappingId, _dataType, count);
+    return getSourceSamplesFromLedger(reader, tenantId, mappingId, dataType, count);
   }
 
   // Collect ALL entries from the reindexer
@@ -142,7 +148,7 @@ async function getTargetSamplesFromReindexer(
   for await (const entry of targetReindexer.listEntries()) {
     allEntries.push({
       id: entry.targetId,
-      naturalKeyHash: entry.naturalKey,
+      naturalKeyHash: hashTargetNaturalKey(dataType, entry.naturalKey),
       content: entry.contentHash ?? '',
     });
   }
@@ -177,7 +183,7 @@ async function findMissingOnTarget(
   // Get all natural keys from the target
   const targetKeys = new Set<string>();
   for await (const entry of targetReindexer.listEntries()) {
-    targetKeys.add(entry.naturalKey);
+    targetKeys.add(hashTargetNaturalKey(dataType, entry.naturalKey));
   }
   
   // Find ledger items that are missing on target
@@ -220,7 +226,7 @@ async function findExtraOnTarget(
   // Get all natural keys from the target and find extras
   const extra: Array<{ id: string; targetRef: string }> = [];
   for await (const entry of targetReindexer.listEntries()) {
-    if (!ledgerHashes.has(entry.naturalKey)) {
+    if (!ledgerHashes.has(hashTargetNaturalKey(dataType, entry.naturalKey))) {
       extra.push({ id: entry.targetId, targetRef: entry.naturalKey });
     }
   }
@@ -259,6 +265,36 @@ async function getTotalBytesFromLedger(
  * as VerificationDeps.getTotalBytesTarget. Until that exists, the field stays
  * null and the report says "not measured" rather than inventing a match.
  */
+
+/**
+ * Hash a natural key the way the ledger stored it.
+ *
+ * The ledger's `item.natural_key_hash` is a sha256 of a domain-prefixed key
+ * (`mid:` / `cal:` / `card:` / `file:`) — see @openmig/shared's hash.ts, which is
+ * what the sync path writes. The target reindexers, by contrast, yield the RAW
+ * key in `TargetEntry.naturalKey` (a Message-ID, a UID, a path).
+ *
+ * Comparing those two directly — which this file used to do — means comparing a
+ * 64-char hex digest against a Message-ID. The sets can never intersect, so every
+ * ledger row came back "missing on target", every target entry came back "extra",
+ * and the mandatory pre-cutover gate would FAIL on first real use. Anything that
+ * compares a target key against a ledger hash must go through here first.
+ */
+function hashTargetNaturalKey(
+  dataType: 'mail' | 'calendar' | 'contacts' | 'files',
+  rawKey: string,
+): string {
+  switch (dataType) {
+    case 'mail':
+      return naturalKeyHash(rawKey);
+    case 'calendar':
+      return calendarNaturalKeyHash(rawKey);
+    case 'contacts':
+      return contactNaturalKeyHash(rawKey);
+    case 'files':
+      return fileNaturalKeyHash(rawKey);
+  }
+}
 
 /**
  * Map data type to domain string used in the ledger

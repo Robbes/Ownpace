@@ -90,6 +90,30 @@ actually left:
      path to do so is documented in `verification-implementations.ts`. Covered by
      `packages/core/src/verification-bytes.unit.test.ts` (6 tests). Byte reporting never gated
      the pass/fail verdict, so no verdict changes.
+   - ✅ **Done — highest-severity finding of the audit.** The **verification gate compared
+     ledger hashes against raw target keys**, so the sets could never intersect: every item was
+     reported missing on target, every target entry reported extra, and the mandatory
+     pre-cutover gate would have **FAILed every real cutover**. `item.natural_key_hash` is
+     `sha256('mid:'|'cal:'|'card:'|'file:' + key)`; the reindexers yield the raw Message-ID/UID/
+     path. `verification-implementations.ts` now hashes the target key per domain before
+     comparing (`hashTargetNaturalKey`). It survived because
+     `verification.integration.test.ts` seeded `naturalKeyHash: 'hash1'` into the ledger **and**
+     `naturalKey: 'hash1'` into the fake reindexer — the same literal on both sides, matching by
+     construction; that test now derives both sides the way production does. Proven by
+     `verification-natural-key.unit.test.ts` (5 tests, all 5 fail against the pre-fix code).
+   - ✅ **Done — a SECOND gate bug, found by actually running it.** Checksum sampling compared
+     the ledger's real content hash against `TargetEntry.contentHash`, which **both** real mail
+     reindexers omit (JMAP can't get it from a headers-only fetch; IMAP-DAV doesn't compute it).
+     An absent hash scored as a *mismatch*, so checksum sampling reported 100% failure on a
+     healthy migration — enough on its own to FAIL the gate even with the natural-key fix in
+     place. Unmeasurable samples are now counted as `checksumUnavailable`, excluded from the
+     match ratio, and surfaced as a WARNING issue rather than silently passing or failing.
+   - **Both proven against a real Postgres**, not by reading:
+     `verification-real-sync.integration.test.ts` runs `runShadowPass` into a real ledger and
+     verifies the result. Reverting each fix independently: natural-key only → **4/4 fail**;
+     checksum only → **2/4 fail**; both → **4/4 pass**. `runVerification`'s only production
+     caller is `run-cutover.ts` and no live cutover appears to have been run, which is why
+     neither bug was ever observed.
 2. Later: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 
