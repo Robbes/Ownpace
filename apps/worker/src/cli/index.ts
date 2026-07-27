@@ -28,6 +28,7 @@ function parseArgs(): {
   targetMailServer?: string;
   dkimSelector?: string;
   targetIp?: string;
+  assumeYes: boolean;
 } {
   const args = process.argv.slice(2);
   let command: string | undefined;
@@ -37,6 +38,7 @@ function parseArgs(): {
   let targetMailServer: string | undefined;
   let dkimSelector: string | undefined;
   let targetIp: string | undefined;
+  let assumeYes = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -54,6 +56,8 @@ function parseArgs(): {
       dkimSelector = args[++i];
     } else if (arg === '--target-ip' || arg === '-i') {
       targetIp = args[++i];
+    } else if (arg === '--yes' || arg === '-y') {
+      assumeYes = true;
     } else if (arg === '--help' || arg === '-h') {
       console.log(`
 Cutover CLI - Manage migration cutover lifecycle
@@ -77,6 +81,9 @@ Options:
   --target, -T <host>       Target mail server (default: mail.<domain>)
   --dkim-selector, -k <s>   DKIM selector to check/document (default: "default")
   --target-ip, -i <ip>      IP for the autodiscover record (default: target mail server)
+  --yes, -y                 Confirm a state-changing command. REQUIRED by
+                            approve, execute and rollback — without it they
+                            print what they would do and exit non-zero.
   --help, -h                Show this help message
 
 Examples:
@@ -88,17 +95,17 @@ Examples:
   node --loader ts-node/esm apps/worker/src/cli/index.ts verify \\
     --tenant tenant123 --mapping mapping456 --domain example.com
 
-  # Approve cutover
+  # Approve cutover (state-changing -> needs --yes)
   node --loader ts-node/esm apps/worker/src/cli/index.ts approve \\
-    --tenant tenant123 --mapping mapping456 --domain example.com
+    --tenant tenant123 --mapping mapping456 --domain example.com --yes
 
-  # Execute cutover
+  # Execute cutover (state-changing -> needs --yes)
   node --loader ts-node/esm apps/worker/src/cli/index.ts execute \\
-    --tenant tenant123 --mapping mapping456 --domain example.com
+    --tenant tenant123 --mapping mapping456 --domain example.com --yes
 
-  # Rollback cutover
+  # Rollback cutover (state-changing -> needs --yes)
   node --loader ts-node/esm apps/worker/src/cli/index.ts rollback \\
-    --tenant tenant123 --mapping mapping456 --domain example.com
+    --tenant tenant123 --mapping mapping456 --domain example.com --yes
 
   # Show status
   node --loader ts-node/esm apps/worker/src/cli/index.ts status \\
@@ -138,12 +145,12 @@ Environment Variables:
     }
   }
 
-  return { command, tenantId: tenantId ?? '', mappingId: mappingId ?? '', domain, targetMailServer, dkimSelector, targetIp };
+  return { command, tenantId: tenantId ?? '', mappingId: mappingId ?? '', domain, targetMailServer, dkimSelector, targetIp, assumeYes };
 }
 
 /** Main entry point. */
 async function main() {
-  const { command, tenantId, mappingId, domain, targetMailServer, dkimSelector, targetIp } = parseArgs();
+  const { command, tenantId, mappingId, domain, targetMailServer, dkimSelector, targetIp, assumeYes } = parseArgs();
 
   // "runbook" is a pure local computation — generate and print without touching the DB.
   if (command === 'runbook') {
@@ -183,6 +190,7 @@ async function main() {
     targetMailServer: targetMailServer || `mail.${domain}`,
     dkimSelector,
     targetIp,
+    assumeYes,
   };
 
   switch (command) {
