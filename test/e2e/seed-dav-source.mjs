@@ -32,7 +32,11 @@ const authHeader = `Basic ${Buffer.from(`${user}:${password}`).toString('base64'
 
 function buildIcalendar(i) {
   const uid = `dav-seed-event-${i}@dev.local`;
-  const day = String(10 + i).padStart(2, '0');
+  // Date.UTC correctly rolls the day over into later months (e.g. day 32 in January becomes
+  // February 1st) -- a plain `10 + i` string never did, producing an invalid DATE-TIME like
+  // 20260132 once SEED_COUNT pushed i past 21, which SabreDAV rightly rejects with a 415.
+  const date = new Date(Date.UTC(2026, 0, 10 + i));
+  const ymd = `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, '0')}${String(date.getUTCDate()).padStart(2, '0')}`;
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -40,8 +44,8 @@ function buildIcalendar(i) {
     'BEGIN:VEVENT',
     `UID:${uid}`,
     'DTSTAMP:20260101T000000Z',
-    `DTSTART:202601${day}T100000Z`,
-    `DTEND:202601${day}T110000Z`,
+    `DTSTART:${ymd}T100000Z`,
+    `DTEND:${ymd}T110000Z`,
     `SUMMARY:Restart-resume seed event ${i}`,
     'STATUS:CONFIRMED',
     'END:VEVENT',
