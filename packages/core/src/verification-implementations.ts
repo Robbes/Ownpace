@@ -48,8 +48,12 @@ export function createRealVerificationDeps(
       findExtraOnTarget(verificationReader, tenantId, mappingId, dataType, targetReindexer),
     getTotalBytesSource: (dataType) =>
       getTotalBytesFromLedger(verificationReader, tenantId, mappingId, dataType),
-    getTotalBytesTarget: (dataType) =>
-      getTotalBytesFromTarget(verificationReader, tenantId, mappingId, dataType),
+    // getTotalBytesTarget is deliberately NOT supplied. It previously returned
+    // getTotalBytesFromLedger(...) — the SOURCE figure — so every report showed
+    // totalBytesTarget === totalBytesSource and looked like verified byte
+    // parity, when the target had never been asked. Measuring it for real needs
+    // a size on TargetEntry (see the note on getTotalBytesFromTarget below);
+    // until then the result carries null, which honestly means "not measured".
   };
 }
 
@@ -237,19 +241,24 @@ async function getTotalBytesFromLedger(
   return reader.totalSizeBytes(tenantId, mappingId, domain);
 }
 
-/**
- * Get total bytes from the target
+/*
+ * Deliberately absent: a getTotalBytesFromTarget().
+ *
+ * There used to be one, and it returned getTotalBytesFromLedger(...) — the
+ * source total — so every verification report showed source and target bytes
+ * as equal. That reads as "byte-level parity verified" when nothing on the
+ * target was ever measured, which is exactly the kind of fabricated evidence
+ * the verification gate exists to prevent (AGENTS.md: "the verification gate is
+ * the product promise"; hard rule 9).
+ *
+ * Implementing it for real needs a per-item size from the target, which
+ * TargetEntry (what TargetReindexer.listEntries yields) does not currently
+ * carry. Both mail targets could supply one cheaply — JMAP exposes Email `size`
+ * and IMAP has RFC822.SIZE — so the path is: add an optional sizeBytes to
+ * TargetEntry, populate it in the reindexers, sum it here, and pass the result
+ * as VerificationDeps.getTotalBytesTarget. Until that exists, the field stays
+ * null and the report says "not measured" rather than inventing a match.
  */
-async function getTotalBytesFromTarget(
-  reader: LedgerVerificationReader,
-  tenantId: TenantId,
-  mappingId: MappingId,
-  dataType: 'mail' | 'calendar' | 'contacts' | 'files'
-): Promise<number> {
-  // For now, return the same as source - target bytes would need to be
-  // queried from the target system directly
-  return getTotalBytesFromLedger(reader, tenantId, mappingId, dataType);
-}
 
 /**
  * Map data type to domain string used in the ledger

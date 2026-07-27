@@ -81,6 +81,15 @@ actually left:
      (the folder keeps its cursor and is re-scanned next pass). Covered by
      `packages/connectors/src/lookup-failure.unit.test.ts` (8 tests), verified to fail against
      the pre-fix code.
+   - ✅ **Done** — the verification gate reported **fabricated byte parity**.
+     `getTotalBytesFromTarget()` returned the *source* total, so every report showed
+     `totalBytesTarget === totalBytesSource` — reading as "byte-level parity verified" when the
+     target had never been asked. Unmeasured target bytes are now `null` ("not measured"), the
+     summary's `totalBytesTransferred` derives from source bytes (what was actually copied), and
+     the fabricating helper is gone. Measuring it for real needs a size on `TargetEntry`; the
+     path to do so is documented in `verification-implementations.ts`. Covered by
+     `packages/core/src/verification-bytes.unit.test.ts` (6 tests). Byte reporting never gated
+     the pass/fail verdict, so no verdict changes.
 2. Later: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 
