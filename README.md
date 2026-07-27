@@ -106,8 +106,8 @@ zero item-count growth across a container restart for mail, calendar, contacts a
 **Known gaps** (tracked in [`docs/workplans/README.md`](./docs/workplans/README.md)): DNS
 **writes** are deliberately out of scope — cutover DNS is verify-only, with a generated manual
 runbook (owner decision, 2026-07-16). Rollback therefore does not restore DNS or notify users; see
-[`docs/rollback-mechanisms.md`](./docs/rollback-mechanisms.md). Run history (`run`/`run_event`) is
-not yet populated. See [`docs/workplans/`](./docs/workplans/) for per-slice Status blocks.
+[`docs/rollback-mechanisms.md`](./docs/rollback-mechanisms.md). See
+[`docs/workplans/`](./docs/workplans/) for per-slice Status blocks.
 
 ## Contributing
 See [`CONTRIBUTING.md`](./CONTRIBUTING.md) and [`AGENTS.md`](./AGENTS.md) (guidance for coding agents).

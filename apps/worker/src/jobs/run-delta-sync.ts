@@ -13,9 +13,10 @@ import { Pool } from 'pg';
 import { runShadowPass, runCalendarSync, runContactSync, runFileSync } from '@openmig/core';
 import type { TenantId, MappingId } from '@openmig/shared';
 import { buildDepsFromMapping, buildDomainDepsFromMapping } from '../build-deps-from-mapping';
-import { 
-  withTenant, 
+import {
+  withTenant,
   PgMigrationStatusStore,
+  RunStore,
   recordComputeForRun,
   recordApiCallForRun,
 } from '@openmig/ledger';
@@ -78,13 +79,29 @@ export const runDeltaSync = schemaTask({
       domains: typedPayload.domains,
     });
 
-    try {
-      // Perform delta sync for each domain
-      const domains = typedPayload.domains ?? ['email', 'calendar', 'contact', 'file'];
-      const tenantId = typedPayload.tenantId as TenantId;
-      const mappingId = typedPayload.mappingId as MappingId;
-      const { periodStart, periodEnd } = getCurrentPeriod();
+    // Perform delta sync for each domain
+    const domains = typedPayload.domains ?? ['email', 'calendar', 'contact', 'file'];
+    const tenantId = typedPayload.tenantId as TenantId;
+    const mappingId = typedPayload.mappingId as MappingId;
+    const { periodStart, periodEnd } = getCurrentPeriod();
 
+    // Open the run-ledger row up front so an in-flight run is visible in the UI
+    // and a crash leaves a `running` row rather than no trace at all.
+    const runId = await withTenant(pool, tenantId, async (db) =>
+      new RunStore(db).startRun({
+        tenantId,
+        mappingId,
+        kind: 'incremental',
+        trigger: 'schedule',
+        // orchestratorRef (the Trigger.dev run id) is intentionally not set:
+        // the context shape isn't stable across SDK versions here, and a wrong
+        // value is worse than an absent one. Wire it when the v4 task model lands.
+      }),
+    );
+
+    let itemsProcessed = 0;
+
+    try {
       for (const domain of domains) {
         console.log(`Running delta sync for domain: ${domain}`);
 
@@ -96,7 +113,13 @@ export const runDeltaSync = schemaTask({
             const deps = await buildDepsFromMapping(pool, tenantId, mappingId);
             try {
               const result = await runShadowPass(deps);
+              itemsProcessed += result.created + result.skipped;
               console.log(`Mail sync completed: ${result.created} created, ${result.skipped} skipped`);
+              await withTenant(pool, tenantId, async (db) => {
+                await new RunStore(db).logEvent(tenantId, runId, 'info',
+                  `email: ${result.created} created, ${result.skipped} skipped`,
+                  { domain: 'email', created: result.created, skipped: result.skipped });
+              });
             } finally {
               // Release the deps' Postgres pool (never leak it across runs).
               await deps.close();
@@ -124,7 +147,13 @@ export const runDeltaSync = schemaTask({
             await withTenant(pool, tenantId, async (db) => {
               await new PgMigrationStatusStore(db).markCompleted(tenantId, mappingId, domain);
             });
+            itemsProcessed += result.created + result.skipped;
             console.log(`${domain} sync completed: ${result.created} created, ${result.skipped} skipped`);
+            await withTenant(pool, tenantId, async (db) => {
+              await new RunStore(db).logEvent(tenantId, runId, 'info',
+                `${domain}: ${result.created} created, ${result.skipped} skipped`,
+                { domain, created: result.created, skipped: result.skipped });
+            });
           }
 
           // Metering (all domains): record compute + one sync op from the run's
@@ -149,6 +178,17 @@ export const runDeltaSync = schemaTask({
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           console.error(`Domain ${domain} sync failed:`, errorMessage);
+          // Record the failure verbatim in the run log (hard rule 9) before
+          // surfacing it. Best-effort: a logging failure must not replace the
+          // real error with a logging error.
+          try {
+            await withTenant(pool, tenantId, async (db) => {
+              await new RunStore(db).logEvent(tenantId, runId, 'error',
+                `${domain} sync failed: ${errorMessage}`, { domain });
+            });
+          } catch (logErr) {
+            console.error('Failed to write run event:', logErr);
+          }
           // Mark the domain failed (best-effort) before surfacing the error.
           if (domain !== 'email') {
             try {
@@ -166,13 +206,27 @@ export const runDeltaSync = schemaTask({
 
       console.log('Delta sync completed successfully');
 
+      await withTenant(pool, tenantId, async (db) => {
+        await new RunStore(db).finishRun(runId, 'succeeded', { itemsProcessed, errors: 0 });
+      });
+
       return {
         success: true,
         tenantId: typedPayload.tenantId,
         mappingId: typedPayload.mappingId,
+        runId,
       };
-    } finally {
-      // Pool is persistent, don't close it
+    } catch (error) {
+      // Close the run row as failed so history shows the failure instead of a
+      // row stuck in `running` forever. Best-effort — never mask the real error.
+      try {
+        await withTenant(pool, tenantId, async (db) => {
+          await new RunStore(db).finishRun(runId, 'failed', { itemsProcessed, errors: 1 });
+        });
+      } catch (finishErr) {
+        console.error('Failed to close run row as failed:', finishErr);
+      }
+      throw error;
     }
   },
 });
