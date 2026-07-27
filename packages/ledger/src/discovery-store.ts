@@ -30,7 +30,7 @@ export class PgDiscoveryStore implements DiscoveryStore {
   ): Promise<void> {
     const bytes = discovery.bytes ?? null;
     const perCollection = discovery.perCollection ?? null;
-    const unmigratableItems = discovery.unmigratableItems ?? null;
+    const generatedIdItems = discovery.generatedIdItems ?? null;
     await this.db
       .insert(schemaPg.migrationDiscovery)
       .values({
@@ -41,7 +41,7 @@ export class PgDiscoveryStore implements DiscoveryStore {
         items: discovery.items,
         bytes,
         perCollection,
-        unmigratableItems,
+        generatedIdItems,
         lastError: null,
         discoveredAt: sql`now()`,
       })
@@ -56,7 +56,7 @@ export class PgDiscoveryStore implements DiscoveryStore {
           items: discovery.items,
           bytes,
           perCollection,
-          unmigratableItems,
+          generatedIdItems,
           lastError: null,
           discoveredAt: sql`now()`,
         },
@@ -79,7 +79,7 @@ export class PgDiscoveryStore implements DiscoveryStore {
         items: 0,
         bytes: null,
         perCollection: null,
-        unmigratableItems: null,
+        generatedIdItems: null,
         lastError: error,
         discoveredAt: sql`now()`,
       })
@@ -117,8 +117,8 @@ export class PgDiscoveryStore implements DiscoveryStore {
         discoveredAt:
           row.discoveredAt instanceof Date ? row.discoveredAt.toISOString() : String(row.discoveredAt),
         ...(row.bytes != null ? { bytes: Number(row.bytes) } : {}),
-        ...(row.unmigratableItems != null
-          ? { unmigratableItems: Number(row.unmigratableItems) }
+        ...(row.generatedIdItems != null
+          ? { generatedIdItems: Number(row.generatedIdItems) }
           : {}),
         ...(row.perCollection
           ? { perCollection: row.perCollection as DiscoveryRecord['perCollection'] }

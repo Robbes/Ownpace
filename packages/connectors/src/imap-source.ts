@@ -333,19 +333,19 @@ export class ImapSource implements SourceConnector {
         // Extract Message-ID from envelope
         const messageId = this.extractMessageId(msg);
         if (!messageId) {
-          // Not migratable: the natural key IS the Message-ID, so a message
-          // without one cannot be tracked idempotently — copying it would
-          // create a duplicate on every subsequent pass.
+          // No Message-ID, so no natural key from the listing. These used to be
+          // dropped outright — never copied, and invisible to both halves of
+          // the verification gate at once (#145 made them at least countable).
           //
-          // What changed is that it is now COUNTED. A bare `continue` made
-          // these invisible everywhere simultaneously: no ledger row, nothing
-          // for the target reindexer to list, and — because discovery counts by
-          // calling this same method — missing from the item total the customer
-          // approves at the confirm screen. Both halves of the verification
-          // gate agreed on nothing and reported PASS, so a mailbox could leave
-          // messages behind and still be certified complete.
+          // They are now EMITTED with an empty messageId. The sync path fetches
+          // the body, derives a stable id from its bytes, writes it into the
+          // message as a real Message-ID header, and keys the ledger by it — so
+          // the message migrates and the target reindexer can read the same key
+          // back. See `ensureMessageId`.
+          //
+          // Still counted: the customer is told how many of their messages we
+          // had to give an id to, because we modified those messages.
           unkeyable++;
-          continue;
         }
 
         // Extract internal date
@@ -359,7 +359,8 @@ export class ImapSource implements SourceConnector {
         const sourceRef = `${folder.path}:${attrs.uid}`;
 
         items.push({
-          messageId,
+          // Empty when the source had none; the sync derives and writes one.
+          messageId: messageId ?? '',
           folder,
           keywords,
           receivedAt,

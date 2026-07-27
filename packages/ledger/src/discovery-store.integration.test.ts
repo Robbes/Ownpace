@@ -88,28 +88,28 @@ describe('PgDiscoveryStore (0013 T2)', () => {
     expect(rows[0]?.bytes).toBeUndefined();
   });
 
-  it('round-trips the unmigratable count, and clears it when a later pass finds none', async () => {
-    // This is the number that tells a customer their mailbox holds messages we
-    // will not move. Losing it in persistence would put us back to the silent
-    // behaviour it exists to replace.
+  it('round-trips the generated-id count, and clears it when a later pass finds none', async () => {
+    // This is the number that tells a customer how many of their messages we
+    // had to give an ID to. Losing it in persistence would put us back to the
+    // silent behaviour it exists to replace.
     const store = new PgDiscoveryStore(db);
     await store.upsertDiscovery(TENANT_A, MAPPING_A, 'email', {
       collections: 1,
       items: 40,
-      unmigratableItems: 3,
-      perCollection: [{ name: 'INBOX', items: 40, unmigratableItems: 3 }],
+      generatedIdItems: 3,
+      perCollection: [{ name: 'INBOX', items: 40, generatedIdItems: 3 }],
     });
 
     let rows = await store.getDiscovery(TENANT_A, MAPPING_A);
-    expect(rows[0]?.unmigratableItems).toBe(3);
-    expect(rows[0]?.perCollection?.[0]?.unmigratableItems).toBe(3);
-    // Kept out of the approved total, exactly as discoverSource reports it.
+    expect(rows[0]?.generatedIdItems).toBe(3);
+    expect(rows[0]?.perCollection?.[0]?.generatedIdItems).toBe(3);
+    // A subset of the approved total, exactly as discoverSource reports it.
     expect(rows[0]?.items).toBe(40);
 
     await store.upsertDiscovery(TENANT_A, MAPPING_A, 'email', { collections: 1, items: 43 });
     rows = await store.getDiscovery(TENANT_A, MAPPING_A);
     // Undefined, not a stale 3: the new pass found none.
-    expect(rows[0]?.unmigratableItems).toBeUndefined();
+    expect(rows[0]?.generatedIdItems).toBeUndefined();
   });
 
   it('stores multiple domains and returns them ordered by domain', async () => {

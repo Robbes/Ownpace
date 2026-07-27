@@ -13,6 +13,7 @@ import type {
   TargetWriter,
   UpsertResult,
 } from '@openmig/shared';
+import { readMessageId } from '@openmig/shared';
 
 /** Seed shape for {@link MemorySource}. */
 export interface SeedMessage {
@@ -30,6 +31,8 @@ export class MemorySource implements SourceConnector {
   private readonly byFolder = new Map<string, MailItem[]>();
   private readonly raw = new Map<string, Uint8Array>();
   private readonly folders = new Map<string, MailFolder>();
+  /** Stands in for the IMAP UID: unique per message, independent of Message-ID. */
+  private nextSeq = 1;
 
   add(seed: SeedMessage): void {
     const specialUse: MailFolder['specialUse'] =
@@ -44,7 +47,12 @@ export class MemorySource implements SourceConnector {
     };
     this.folders.set(seed.folderPath, folder);
 
-    const sourceRef = `${seed.folderPath}:${seed.messageId}`;
+    // Unique per added message, mirroring the real IMAP source, whose
+    // sourceRef is `${folder.path}:${uid}`. Keying it by messageId instead
+    // collides for messages that arrive WITHOUT one (they all share ''), so the
+    // second would silently overwrite the first's bytes — the double would then
+    // "prove" a deduplication that the real source never performs.
+    const sourceRef = `${seed.folderPath}:${this.nextSeq++}`;
     const item: MailItem = {
       messageId: seed.messageId,
       folder,
@@ -108,11 +116,18 @@ export class MemoryTarget implements TargetWriter, TargetReindexer {
     raw: RawMessage,
     keywords: ReadonlyArray<MailKeyword>,
   ): Promise<UpsertResult> {
-    const k = this.key(mailboxId, raw.item.messageId);
+    // Keyed off the RFC822 BYTES, exactly as the real writers do
+    // (`JmapTargetWriter.extractMessageIdFromRfc822`). Reading
+    // `raw.item.messageId` instead would miss a Message-ID the sync generated
+    // and wrote into the message, so every such message would collide on the
+    // empty string — and this double would "prove" an idempotency the real
+    // targets do not have.
+    const messageId = readMessageId(raw.rfc822) ?? raw.item.messageId;
+    const k = this.key(mailboxId, messageId);
     const existing = this.store.get(k);
     if (existing) return Promise.resolve({ targetId: existing.targetId, created: false });
     const targetId = nextId('email');
-    this.store.set(k, { targetId, mailboxId, messageId: raw.item.messageId, keywords });
+    this.store.set(k, { targetId, mailboxId, messageId, keywords });
     return Promise.resolve({ targetId, created: true });
   }
 

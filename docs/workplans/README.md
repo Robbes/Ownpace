@@ -232,10 +232,27 @@ actually left:
      (2026-07-27): report first, then default to writing a generated Message-ID with the count
      and the behaviour shown in discovery so the customer can opt out** — that second half is
      the next piece of work.
-2. Next: **generate a Message-ID for mail that lacks one**, so those messages migrate and stay
-   verifiable (the ledger must record the hash of what was WRITTEN, not the source bytes, or
-   #143's checksum sampling flags every one of them). Then: rich Graph extractor (SharePoint),
-   the §11.1 drift **decision queue** + policy presets
+   - ✅ **Done — mail with no Message-ID now migrates, and stays verifiable.** Per the owner
+     decision (report first, then default to writing the header). `ensureMessageId()` derives an
+     id from a sha256 of the message's ORIGINAL bytes — stable across passes, unlike an IMAP UID
+     which changes on move and resets with UIDVALIDITY — and writes it into the copy as a real
+     `Message-ID` header, so the target reindexer reads back exactly the key the ledger stored.
+     The source on the far side is never modified. `domain-sync` gained a post-fetch key
+     derivation path (`naturalKeyFromRaw`): these items cannot use the pre-fetch ledger
+     fast-path, because their key IS their content, so the ledger is checked a second time after
+     the fetch — that check is the entire idempotency guarantee for them and is what the
+     integration test exercises. `contentHash` is taken from the bytes we WROTE, so #143's
+     checksum sampling compares like with like instead of flagging every generated-id message as
+     corrupt. Discovery's `unmigratable_items` became `generated_id_items` (migration `0016`) —
+     the count is now a SUBSET of `items` rather than excluded from it, because these messages
+     are migrated; both confirm screens and the §11.2 manifest say so (the manifest entry moved
+     from "does not migrate" to "partial", since we modify the copy). Two test doubles were
+     found lying and fixed: `MemoryTarget` keyed off `raw.item.messageId` instead of the RFC822
+     bytes the real writers parse, and `MemorySource` built `sourceRef` from the Message-ID, so
+     two messages without one collided — the double would have "proven" a deduplication the real
+     source never performs. Covered by `generated-message-id.unit.test.ts` (19) and
+     `generated-message-id.integration.test.ts` (7, against a real Postgres).
+2. Next: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 
 No plan is blocked or mid-flight.

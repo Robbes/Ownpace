@@ -2,10 +2,10 @@
 //
 // Discovery must not quietly shrink the mailbox.
 //
-// `ImapSource.listSince` drops messages with no Message-ID — correctly, since
-// the natural key IS the Message-ID and copying an unkeyable message would
-// duplicate it on every pass. What was wrong is that it dropped them with a
-// bare `continue`, counting nothing.
+// `ImapSource.listSince` used to DROP messages with no Message-ID, with a bare
+// `continue` that counted nothing. They are now emitted, given a generated
+// Message-ID derived from their own bytes, and migrated — but discovery still
+// reports how many there are, because we modify those copies.
 //
 // That made them invisible in three places at once, and the three reinforced
 // each other into a false all-clear:
@@ -16,9 +16,9 @@
 // Both halves of the verification gate agreed on nothing and reported PASS. A
 // mailbox could leave messages behind and still be certified complete.
 //
-// These tests pin the counting, and pin that the count is reported SEPARATELY:
-// `items` stays the migratable total, because that is the number the customer
-// agrees to at the confirm screen.
+// These tests pin the counting, and pin that the count is a SUBSET of `items`:
+// these messages are migrated, so excluding them would understate the
+// migration just as badly as hiding them did.
 
 import { describe, it, expect } from 'vitest';
 import type { SyncCursor } from '@openmig/shared';
@@ -62,19 +62,22 @@ describe('discovery reports what cannot be migrated', () => {
       ]),
     );
 
-    expect(result.unmigratableItems).toBe(3);
+    expect(result.generatedIdItems).toBe(3);
   });
 
-  it('keeps them OUT of the item total the customer approves', async () => {
-    // The load-bearing assertion. `items` is what the confirm screen presents
-    // as "what we will move"; folding in three messages we are not moving would
-    // be the same lie in the other direction.
+  it('counts them WITHIN the item total, because they are migrated', async () => {
+    // The load-bearing assertion, and the one that flipped: these messages are
+    // now copied (with a generated Message-ID), so `items` — what the confirm
+    // screen presents as "what we will move" — must include them. The source
+    // emits them, so `items` already does; this pins that the reported subset
+    // never exceeds the whole.
     const result = await discoverSource(
-      source([{ name: 'INBOX', items: [{ id: 'a' }, { id: 'b' }], unkeyable: 3 }]),
+      source([{ name: 'INBOX', items: [{ id: 'a' }, { id: 'b' }, { id: 'c' }], unkeyable: 3 }]),
     );
 
-    expect(result.items).toBe(2);
-    expect(result.unmigratableItems).toBe(3);
+    expect(result.items).toBe(3);
+    expect(result.generatedIdItems).toBe(3);
+    expect(result.generatedIdItems!).toBeLessThanOrEqual(result.items);
   });
 
   it('breaks the count down per collection, so an operator can find them', async () => {
@@ -86,19 +89,19 @@ describe('discovery reports what cannot be migrated', () => {
     );
 
     const byName = Object.fromEntries(
-      (result.perCollection ?? []).map((c) => [c.name, c.unmigratableItems]),
+      (result.perCollection ?? []).map((c) => [c.name, c.generatedIdItems]),
     );
     expect(byName['INBOX']).toBe(4);
     // Absent rather than 0 — nothing to report for this folder.
     expect(byName['Archive']).toBeUndefined();
   });
 
-  it('omits the field entirely when everything is migratable', async () => {
-    // A clean mailbox must not sprout a "0 cannot migrate" line; the confirm
-    // screen should stay quiet when there is nothing to say.
+  it('omits the field entirely when every message already has an id', async () => {
+    // A clean mailbox must not sprout a "0 need an ID" line; the confirm screen
+    // should stay quiet when there is nothing to say.
     const result = await discoverSource(source([{ name: 'INBOX', items: [{ id: 'a' }] }]));
 
-    expect(result.unmigratableItems).toBeUndefined();
+    expect(result.generatedIdItems).toBeUndefined();
     expect(result.items).toBe(1);
   });
 
@@ -116,17 +119,16 @@ describe('discovery reports what cannot be migrated', () => {
 
     const result = await discoverSource(noField);
     expect(result.items).toBe(2);
-    expect(result.unmigratableItems).toBeUndefined();
+    expect(result.generatedIdItems).toBeUndefined();
   });
 
-  it('still totals bytes for the items it can migrate', async () => {
+  it('still totals bytes across everything it will move', async () => {
     const result = await discoverSource(
       source([{ name: 'INBOX', items: [{ id: 'a', size: 100 }, { id: 'b', size: 50 }], unkeyable: 1 }]),
       { itemBytes: (i) => i.size },
     );
 
-    // Bytes describe the migratable set too — we never read the others.
     expect(result.bytes).toBe(150);
-    expect(result.unmigratableItems).toBe(1);
+    expect(result.generatedIdItems).toBe(1);
   });
 });
