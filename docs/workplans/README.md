@@ -174,9 +174,28 @@ actually left:
         cutover with a clear reason; building those reindexers is the next piece.
      Covered by `packages/core/src/verification-domain-scope.unit.test.ts` (8 tests) and 8 new
      `verifyCutover()` tests in `apps/worker/src/cli/cutover-commands.unit.test.ts`.
-2. Next: **CalDAV/CardDAV/WebDAV target reindexers**, so the non-mail domains are verifiable at
-   all; then a size/content hash on `TargetEntry`, which closes both `checksumUnavailable > 0`
-   (§20's checksum leg does not run for mail today) and `totalBytesTarget === null`.
+   - ✅ **Done — the non-mail domains are verifiable at all.** Only the two mail targets
+     implemented `TargetReindexer`, so calendar/contacts/files came back NOT_VERIFIABLE and
+     blocked any multi-domain cutover. `CalDAVTargetWriter`, `CardDAVTargetWriter` and
+     `WebDAVTargetWriter` now implement `listEntries`, keyed exactly as their own `upsert*`
+     methods key the ledger (VEVENT UID / vCard UID / root-relative path), and
+     `buildTargetReindexers()` assembles the per-domain map for both the cutover job and the
+     CLI. Enumeration is metadata-only: CalDAV/CardDAV use RFC 4791 §9.6 / RFC 6352 §10.4
+     partial retrieval to fetch just the UID, and WebDAV walks with repeated `Depth: 1`
+     PROPFINDs rather than `Depth: infinity` (optional in RFC 4918 §9.1 and disabled by default
+     on Nextcloud, where it answers 403). Every failure throws: an unreadable collection that
+     returned an empty list would be indistinguishable from an empty target, which the gate
+     reports as total data loss. A shared, namespace-prefix-agnostic 207 reader
+     (`dav-multistatus.ts`) replaces per-writer regexes that only matched the literal `D:href`
+     — Nextcloud/SabreDAV emit `d:href`, so those found nothing and called it "not present".
+     Two bugs found while building it: `hrefRelativeTo` had to percent-decode (a target file
+     named "Meeting notes.txt" hashes differently from "Meeting%20notes.txt" and would read as
+     missing), and the WebDAV walk must ignore `config.rootPath` — the writer reads it nowhere
+     else, and starting there would prefix every key out of alignment with the ledger. Covered
+     by `dav-multistatus.unit.test.ts` (17), `dav-reindexers.unit.test.ts` (17) and
+     `dav-factories.unit.test.ts` (3).
+2. Next: a size/content hash on `TargetEntry`, which closes both `checksumUnavailable > 0`
+   (§20's checksum leg does not run today) and `totalBytesTarget === null`.
 3. Later: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 

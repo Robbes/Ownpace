@@ -14,8 +14,11 @@ import type {
   Ledger,
   TenantId,
   MappingId,
+  TargetReindexer,
+  TargetEntry,
 } from '@openmig/shared';
 import { fileNaturalKeyHash, fileContentHash } from '@openmig/shared';
+import { parseMultiStatus, isCollection, hrefRelativeTo } from './dav-multistatus';
 
 /**
  * Configuration for WebDAV target writer
@@ -27,7 +30,15 @@ export interface WebDAVTargetConfig {
   username: string;
   /** Authentication password or token */
   password: string;
-  /** Root path for file storage */
+  /**
+   * Root path for file storage.
+   *
+   * NOTE: nothing in this writer reads it — every path is resolved against
+   * `url` directly, because the natural keys handed to `upsertFile` are already
+   * root-relative to the source connection (see `WebdavFileSource`). Kept for
+   * config compatibility; prefixing paths with it would break key alignment
+   * with the ledger.
+   */
   rootPath?: string;
   /** Use chunked uploads for large files */
   chunkedUploads?: boolean;
@@ -38,7 +49,7 @@ export interface WebDAVTargetConfig {
 /**
  * WebDAV target writer implementation
  */
-export class WebDAVTargetWriter implements FileTargetWriter {
+export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
   private readonly config: WebDAVTargetConfig;
   private readonly ledger: Ledger;
   private readonly tenantId: TenantId;
@@ -176,6 +187,85 @@ export class WebDAVTargetWriter implements FileTargetWriter {
     }
 
     return undefined;
+  }
+
+  /**
+   * Stream every file on this target, keyed the way the ledger keys them.
+   *
+   * `naturalKey` is the root-relative path — the same shape `upsertFile` hashes
+   * with `fileNaturalKeyHash`, which takes it straight from
+   * `WebdavFileSource.toRelativePath`. Both sides therefore agree on
+   * "Documents/report.pdf" with no leading slash, percent-decoded.
+   *
+   * Walks the tree with repeated `Depth: 1` PROPFINDs rather than one
+   * `Depth: infinity`: infinite depth is optional in RFC 4918 §9.1 and is
+   * disabled by default on several servers (Nextcloud among them), where it
+   * answers 403 — which, silently swallowed, would report an empty target.
+   *
+   * @param mailboxId Restrict the walk to one directory. Omitted, it starts at
+   *   the configured root.
+   */
+  async *listEntries(mailboxId?: string): AsyncIterable<TargetEntry> {
+    // Start at the endpoint root, NOT `config.rootPath`. Every other method
+    // here addresses paths directly against `config.url` via `buildUrl` — and
+    // `upsertFile` keys items by the bare `raw.item.path` — so listing from
+    // `rootPath` would yield "<rootPath>/<path>" keys that match nothing the
+    // ledger holds. (`rootPath` is in fact read nowhere else in this class; see
+    // the note on the config field.)
+    const start = this.normalizeRelativePath(mailboxId ?? '');
+    const queue: string[] = [start];
+    const seen = new Set<string>([start]);
+
+    while (queue.length > 0) {
+      const dir = queue.shift()!;
+      for (const entry of await this.propfindChildren(dir)) {
+        if (entry.isDirectory) {
+          if (!seen.has(entry.path)) {
+            seen.add(entry.path);
+            queue.push(entry.path);
+          }
+          continue;
+        }
+        yield { naturalKey: entry.path, targetId: entry.path, mailboxId: dir };
+      }
+    }
+  }
+
+  /** One Depth:1 PROPFIND, as root-relative children (the directory itself excluded). */
+  private async propfindChildren(
+    dir: string,
+  ): Promise<Array<{ path: string; isDirectory: boolean }>> {
+    const response = await this.httpClient.request({
+      method: 'PROPFIND',
+      url: this.buildUrl(dir),
+      body: `<?xml version="1.0" encoding="utf-8"?>
+        <D:propfind xmlns:D="DAV:"><D:prop><D:resourcetype/><D:getcontentlength/></D:prop></D:propfind>`,
+      headers: {
+        Depth: '1',
+        'Content-Type': 'application/xml',
+        Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
+      },
+    });
+
+    if (response.status !== 207) {
+      // Never degrade to an empty listing. A target that cannot be enumerated
+      // looks identical to an empty one, and verification would report that as
+      // total data loss (hard rule 9).
+      throw new Error(
+        `PROPFIND on ${dir || '/'} failed with status ${response.status}: ${response.body}`,
+      );
+    }
+
+    const self = this.normalizeRelativePath(dir);
+    const children: Array<{ path: string; isDirectory: boolean }> = [];
+    for (const item of parseMultiStatus(response.body)) {
+      const relative = hrefRelativeTo(item.href, this.buildUrl(''));
+      if (relative === undefined) continue; // points outside this endpoint
+      const path = this.normalizeRelativePath(relative);
+      if (path === self) continue; // Depth:1 returns the collection itself
+      children.push({ path, isDirectory: isCollection(item.xml) });
+    }
+    return children;
   }
 
   // Private helper methods
