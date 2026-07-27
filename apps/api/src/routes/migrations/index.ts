@@ -337,13 +337,6 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
       return;
     }
 
-    if (!mappingId) {
-      res.status(400).json({
-        error: 'Bad request',
-        message: 'Mapping ID is required',
-      });
-      return;
-    }
 
     const pool = getSharedPool();
 
@@ -498,13 +491,6 @@ router.put(
         return;
       }
 
-      if (!mappingId) {
-        res.status(400).json({
-          error: 'Bad request',
-          message: 'Mapping ID is required',
-        });
-        return;
-      }
 
       const pool = getSharedPool();
 
@@ -598,13 +584,6 @@ router.delete(
         return;
       }
 
-      if (!mappingId) {
-        res.status(400).json({
-          error: 'Bad request',
-          message: 'Mapping ID is required',
-        });
-        return;
-      }
 
       const pool = getSharedPool();
 
@@ -833,13 +812,6 @@ router.get(
         return;
       }
 
-      if (!mappingId) {
-        res.status(400).json({
-          error: 'Bad request',
-          message: 'Mapping ID is required',
-        });
-        return;
-      }
 
       const pool = getSharedPool();
 

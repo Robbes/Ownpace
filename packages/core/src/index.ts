@@ -6,7 +6,6 @@ export * from './reindex';
 export * from './cutover-state';
 export * from './verification';
 export * from './verification-implementations';
-export * from './cutover';
 export * from './dns-manager';
 export * from './dns-verify-only';
 export * from './dns-provider-desec';

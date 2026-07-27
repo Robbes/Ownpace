@@ -181,25 +181,19 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
    * Connect to the JMAP server and discover the session.
    */
   async connect(): Promise<void> {
-    console.log('[DEBUG JMAP] Connecting to JMAP server:', this.config.baseUrl);
     // Use basic auth - JMAP typically uses bearer tokens
     this.authHeader = `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString("base64")}`;
 
     const sessionUrl = `${this.config.baseUrl}${this.config.wellKnownPath || "/.well-known/jmap"}`;
-    console.log('[DEBUG JMAP] Session URL:', sessionUrl);
 
     // Load the session directly
     const session = await JamClient.loadSession(sessionUrl, this.authHeader) as JmapSession;
-    console.log('[DEBUG JMAP] Session primaryAccounts:', JSON.stringify(session.primaryAccounts));
-    console.log('[DEBUG JMAP] Session accounts:', JSON.stringify(session.accounts));
-    console.log('[DEBUG JMAP] Session apiUrl (may be incorrect):', session.apiUrl);
     
     // Use the base URL + /jmap as the API URL
     // Stalwart's JMAP API is typically at /jmap endpoint
     this.apiUrl = this.config.baseUrl.endsWith('/') 
       ? `${this.config.baseUrl}jmap` 
       : `${this.config.baseUrl}/jmap`;
-    console.log('[DEBUG JMAP] Using API URL:', this.apiUrl);
     
     // CRITICAL: Resolve accountId by matching the configured target email against session accounts
     // NEVER take the first account blindly - this caused emails to be written to the wrong account
@@ -209,14 +203,12 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
       // Try to find the account that matches the configured username (full email address)
       for (const [accountId, accountInfo] of Object.entries(session.accounts)) {
         const accountEmail = accountInfo.email || accountInfo.name;
-        console.log('[DEBUG JMAP] Checking account:', accountId, 'email/name:', accountEmail);
         
         // Match by exact email or by name if email is not available
         if (accountEmail === this.config.username || 
             (accountInfo.email === this.config.username) ||
             (accountInfo.name && this.config.username.includes(accountInfo.name + '@'))) {
           resolvedAccountId = accountId;
-          console.log('[DEBUG JMAP] Found matching account:', accountId, 'for username:', this.config.username);
           break;
         }
       }
@@ -225,7 +217,6 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     // If no match found, try primaryAccounts as fallback
     if (!resolvedAccountId && session.primaryAccounts?.['urn:ietf:params:jmap:mail']) {
       resolvedAccountId = session.primaryAccounts['urn:ietf:params:jmap:mail'];
-      console.log('[DEBUG JMAP] Using primary account from primaryAccounts:', resolvedAccountId);
     }
     
     // HARD FAIL if we couldn't resolve an accountId
@@ -242,7 +233,6 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     const resolvedAccountInfo = session.accounts?.[resolvedAccountId];
     if (resolvedAccountInfo) {
       const resolvedEmail = resolvedAccountInfo.email || resolvedAccountInfo.name;
-      console.log('[DEBUG JMAP] Resolved account:', resolvedAccountId, 'with email/name:', resolvedEmail);
       
       // Hard fail if the resolved account doesn't match the configured target
       if (resolvedEmail !== this.config.username && 
@@ -257,7 +247,6 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     }
     
     this.accountId = resolvedAccountId;
-    console.log('[DEBUG JMAP] Using account ID:', this.accountId);
     
     // Create the client with the session
     this.client = new JamClient({
@@ -308,19 +297,11 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
       throw new Error("Not connected to JMAP server");
     }
 
-    // Get the upload URL from the session
-    const session = await JamClient.loadSession(
-      `${this.config.baseUrl}${this.config.wellKnownPath || "/.well-known/jmap"}`,
-      this.authHeader
-    );
-    
-    console.log('[DEBUG JMAP] Session uploadUrl:', session.uploadUrl);
-    
-    // Stalwart often returns incorrect uploadUrl (e.g., https://localhost)
-    // Use the base URL instead and construct the upload endpoint manually
-    // The upload endpoint is typically at {baseUrl}/upload/{accountId}
+    // Stalwart often returns an incorrect uploadUrl (e.g. https://localhost), so we
+    // construct the upload endpoint from the resolved apiUrl instead. The session's
+    // own uploadUrl is therefore never used — don't pay for a loadSession round-trip
+    // per blob just to discard the result.
     const uploadUrl = `${this.apiUrl}/upload/${accountId}`;
-    console.log('[DEBUG JMAP] Using upload URL:', uploadUrl);
 
     const response = await fetch(uploadUrl, {
       method: 'POST',
@@ -333,12 +314,11 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
 
     if (!response.ok) {
       const error = await response.text();
-      console.error('[DEBUG JMAP] Blob upload failed:', error);
+      console.error('[jmap-target] Blob upload failed:', error);
       throw new Error(`Blob upload failed: ${error}`);
     }
 
     const result = await response.json() as { blobId: string };
-    console.log('[DEBUG JMAP] Blob upload response:', JSON.stringify(result));
     return result;
   }
 
@@ -349,7 +329,6 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
   async ensureMailbox(folder: MailFolder): Promise<string> {
     await this.ensureConnected();
 
-    console.log('[DEBUG JMAP] ensureMailbox called with folder:', JSON.stringify(folder));
     
     // Query for existing mailboxes
     const queryResponse = await this.apiRequest<MailboxQueryResponse>('Mailbox/query', {
@@ -357,7 +336,6 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
       filter: { name: folder.name || folder.path },
     });
 
-    console.log('[DEBUG JMAP] Mailbox query response:', JSON.stringify(queryResponse));
 
     // JMAP Mailbox/query returns IDs, we need to get the actual objects
     const ids: string[] = (queryResponse as { ids?: string[] }).ids || [];
@@ -373,11 +351,9 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
       ids: ids,
     });
 
-    console.log('[DEBUG JMAP] Mailbox get response:', JSON.stringify(getResponse));
 
     // JMAP Mailbox/get returns a 'list' property containing the mailbox objects
     const mailboxes = (getResponse as { list?: Mailbox[] }).list || [];
-    console.log('[DEBUG JMAP] Mailboxes found:', mailboxes.length);
 
     // Look for existing mailbox with matching path or role (case-insensitive for name)
     const folderName = folder.name?.toLowerCase() || folder.path?.toLowerCase();
@@ -388,7 +364,6 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
         m.name.toLowerCase() === folderName || 
         (m.path && m.path.toLowerCase() === folderPath),
     );
-    console.log('[DEBUG JMAP] Existing mailbox:', existing);
 
     if (existing) {
       return existing.id;
@@ -415,7 +390,6 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
       },
     });
 
-    console.log('[DEBUG JMAP] Mailbox set response:', JSON.stringify(mailboxSetResponse));
     
     const mailboxResponse = mailboxSetResponse as {
       created?: Record<string, { id: string }>;
@@ -433,18 +407,16 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
           // Extract existingId from the description - format: "existingId: \"a\""
           const match = errors[0].description.match(/existingId:\s*"([^"]+)"/);
           if (match && match[1]) {
-            console.log('[DEBUG JMAP] Mailbox already exists with ID:', match[1]);
             return match[1];
           }
           // Fallback: try to find the ID in the description
           const altMatch = errors[0].description.match(/'([a-z0-9]+)'/i);
           if (altMatch && altMatch[1]) {
-            console.log('[DEBUG JMAP] Mailbox already exists with ID (alt):', altMatch[1]);
             return altMatch[1];
           }
         }
       }
-      console.error('[DEBUG JMAP] Mailbox not created, notCreated:', JSON.stringify(mailboxResponse.notCreated));
+      console.error('[jmap-target] Mailbox not created, notCreated:', JSON.stringify(mailboxResponse.notCreated));
       throw new Error("Failed to create mailbox: " + JSON.stringify(mailboxResponse.notCreated));
     }
 
@@ -463,7 +435,6 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     try {
       // Query emails by Message-ID header
       // JMAP header filter format: [headerName, headerValue]
-      console.log('[DEBUG JMAP] findByNaturalKey looking for Message-ID:', naturalKey);
       
       const response = await this.apiRequest<EmailQueryResponse>('Email/query', {
         accountId: this.accountId,
@@ -473,15 +444,15 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
         properties: ["id"],
       });
 
-      console.log('[DEBUG JMAP] findByNaturalKey response:', JSON.stringify(response));
       
       const ids = (response as { ids?: string[] }).ids || [];
       const found = ids.length > 0 ? ids[0] : undefined;
-      console.log('[DEBUG JMAP] findByNaturalKey found:', found);
       return found;
     } catch (err) {
-      console.log('[DEBUG JMAP] findByNaturalKey error:', err);
-      // Query might not be supported; return undefined
+      // Query might not be supported; return undefined. Surface the reason —
+      // a swallowed failure here reads as "not present" to upsertEmail, which
+      // would then append a duplicate (hard rule 1/9).
+      console.warn('[jmap-target] Email/query failed, treating as not-found:', (err as Error).message);
       return undefined;
     }
   }
@@ -504,7 +475,6 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     let position = 0;
     let totalFetched = 0;
 
-    console.log('[DEBUG JMAP] listEntries starting, mailboxId:', mailboxId);
 
     while (true) {
       // Build the query arguments
@@ -522,16 +492,13 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
         };
       }
 
-      console.log('[DEBUG JMAP] Email/query request:', JSON.stringify(queryArgs));
 
       const response = await this.apiRequest<EmailQueryResponse>('Email/query', queryArgs);
       const ids = (response as { ids?: string[] }).ids || [];
       const total = (response as { total?: number }).total || 0;
 
-      console.log('[DEBUG JMAP] Email/query returned', ids.length, 'IDs, total:', total);
 
       if (ids.length === 0) {
-        console.log('[DEBUG JMAP] listEntries complete, no more emails');
         break;
       }
 
@@ -544,12 +511,6 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
       });
 
       const emails = (getResponse as { list?: EmailGetResponse['list'] }).list || [];
-      console.log('[DEBUG JMAP] Email/get returned', emails.length, 'emails');
-      
-      // Debug: Log first email structure
-      if (emails.length > 0) {
-        console.log('[DEBUG JMAP] First email structure:', JSON.stringify(emails[0], null, 2));
-      }
 
       for (const email of emails) {
         // Extract Message-ID from headers
@@ -567,7 +528,6 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
         
         // If no Message-ID, skip this email (it won't have a natural key)
         if (!messageId) {
-          console.log('[DEBUG JMAP] Skipping email', email.id, 'without Message-ID');
           continue;
         }
 
@@ -576,7 +536,6 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
         const entryMailboxId = mailboxId || Object.keys(email.mailboxIds || {})[0] || '';
 
         if (!entryMailboxId) {
-          console.log('[DEBUG JMAP] Skipping email', email.id, 'without mailbox');
           continue;
         }
 
@@ -593,7 +552,6 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
 
       // Check if we've fetched all emails
       if (totalFetched >= total || ids.length < LIMIT) {
-        console.log('[DEBUG JMAP] listEntries finished, total fetched:', totalFetched);
         break;
       }
 
@@ -626,7 +584,6 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
 
     // Extract Message-ID from raw RFC822
     const messageId = this.extractMessageIdFromRfc822(raw.rfc822);
-    console.log('[DEBUG JMAP] upsertEmail messageId:', messageId);
 
     // Check if email already exists
     if (messageId) {
@@ -635,8 +592,6 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
         // Email already exists - idempotent no-op
         return { targetId: existingId, created: false };
       }
-    } else {
-      console.log('[DEBUG JMAP] No Message-ID found, skipping lookup');
     }
 
     // Parse headers from raw message to get receivedAt date
@@ -665,7 +620,6 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
 
     const blobId = blobUploadResponse.blobId;
 
-    console.log('[DEBUG JMAP] Importing email with mailboxId:', mailboxId);
     
     // Parse the date from headers and convert to ISO 8601 UTC format for JMAP
     let receivedAt: string;
@@ -675,7 +629,6 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     } else {
       receivedAt = new Date().toISOString();
     }
-    console.log('[DEBUG JMAP] receivedAt:', receivedAt);
     
     // Step 2: Import the email from the blob using Email/import
     const importRequest = {
@@ -689,10 +642,8 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
         },
       },
     };
-    console.log('[DEBUG JMAP] Email/import request:', JSON.stringify(importRequest));
     const importResponse = await this.apiRequest<EmailImportResponse>('Email/import', importRequest);
 
-    console.log('[DEBUG JMAP] Email import response:', JSON.stringify(importResponse));
 
     // Check if import was successful
     if (importResponse.notCreated && Object.keys(importResponse.notCreated).length > 0) {
@@ -707,7 +658,6 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     }
 
     const createdId = Object.keys(importResponse.created)[0]!;
-    console.log('[DEBUG JMAP] upsertEmail returning created:', true, 'with targetId:', createdId);
     return { targetId: createdId, created: true };
   }
 
@@ -728,11 +678,8 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
    * Extract Message-ID from raw RFC822 message.
    */
   private extractMessageIdFromRfc822(rfc822: Uint8Array): string | null {
-    console.log('[DEBUG JMAP] extractMessageIdFromRfc822 raw length:', rfc822.length);
     const headers = this.parseRfc822Headers(rfc822);
-    console.log('[DEBUG JMAP] extractMessageIdFromRfc822 headers:', JSON.stringify(headers));
     const messageId = headers["message-id"] || null;
-    console.log('[DEBUG JMAP] extractMessageIdFromRfc822 messageId:', messageId);
     return messageId;
   }
 

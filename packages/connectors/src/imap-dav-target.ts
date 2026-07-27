@@ -106,7 +106,6 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
    * Connect to the IMAP server.
    */
   async connect(): Promise<void> {
-    console.log('[DEBUG IMAP] Connecting to IMAP server:', this.config.host, ':', this.config.port);
     
     const config = {
       imap: {
@@ -123,7 +122,6 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
     };
 
     this.conn = await imap.connect(config);
-    console.log('[DEBUG IMAP] Connected successfully');
   }
 
   /**
@@ -134,7 +132,6 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
       this.conn.end();
       this.conn = null;
       this.connectPromise = null;
-      console.log('[DEBUG IMAP] Disconnected');
     }
   }
 
@@ -151,7 +148,6 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
     if (!mailboxName) {
       throw new Error('Mailbox name or path is required');
     }
-    console.log('[DEBUG IMAP] Ensuring mailbox:', mailboxName);
 
     // Use the underlying node-imap connection to get mailbox list
     type MailboxInfo = { attributes?: string[] };
@@ -164,11 +160,9 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
       // Try to open the mailbox directly - if it exists, we're good
       try {
         await this.conn.openBox(mailboxName);
-        console.log('[DEBUG IMAP] Mailbox exists (opened directly):', mailboxName);
         return mailboxName;
       } catch {
         // Mailbox doesn't exist, create it
-        console.log('[DEBUG IMAP] Creating mailbox:', mailboxName);
         // addMailbox is not in the type definition but exists in the runtime
         await (this.conn as unknown as { addMailbox: (name: string) => Promise<void> }).addMailbox(mailboxName);
         return mailboxName;
@@ -176,26 +170,23 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
     } else {
       const existingBox = mailboxes[mailboxName];
       if (existingBox) {
-        console.log('[DEBUG IMAP] Mailbox already exists:', mailboxName);
         return mailboxName;
       }
 
       // Create the mailbox
-      console.log('[DEBUG IMAP] Creating mailbox:', mailboxName);
       await (this.conn as unknown as { addMailbox: (name: string) => Promise<void> }).addMailbox(mailboxName);
     }
 
     // Set special-use flag if applicable
     if (folder.specialUse && SPECIAL_USE_TO_IMAP[folder.specialUse]) {
       const imapFlag = SPECIAL_USE_TO_IMAP[folder.specialUse]!;
-      console.log('[DEBUG IMAP] Setting special-use flag:', imapFlag, 'on', mailboxName);
       // Note: Not all IMAP servers support setting special-use flags
       // This is best-effort
       try {
         // Set flags on the mailbox itself (not messages)
         await (this.conn as unknown as { setFlags: (name: string, flags: string[], isPermanent: boolean) => Promise<void> }).setFlags(mailboxName, [imapFlag], true);
       } catch (err) {
-        console.warn('[DEBUG IMAP] Could not set special-use flag:', (err as Error).message);
+        console.warn('[imap-dav-target] Could not set special-use flag:', (err as Error).message);
       }
     }
 
@@ -224,7 +215,6 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
       const typedResults = allResults as Array<{ attributes?: { uid: number } }>;
 
       if (!typedResults || typedResults.length === 0) {
-        console.log('[DEBUG IMAP] No messages found in mailbox');
         return undefined;
       }
 
@@ -250,7 +240,6 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
                   headers += chunk.toString('utf8');
                 });
                 stream.once('end', () => {
-                  console.log('[DEBUG IMAP] Raw headers for UID', uid, ':', JSON.stringify(headers));
                   // Parse the Message-ID from the headers string
                   // Try both \r\n and \n as line separators
                   const lines = headers.split(/\r?\n/);
@@ -258,7 +247,6 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
                     const lowerLine = line.toLowerCase();
                     if (lowerLine.startsWith('message-id:')) {
                       messageIdHeader = line.substring('message-id:'.length).trim();
-                      console.log('[DEBUG IMAP] Found Message-ID header:', messageIdHeader);
                       break;
                     }
                   }
@@ -274,20 +262,18 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
             // Normalize the found Message-ID (remove angle brackets and whitespace)
             const foundKey = messageIdHeader.replace(/[<>]/g, '').trim();
             if (foundKey === normalizedKey) {
-              console.log('[DEBUG IMAP] Found existing message by Message-ID:', naturalKey, 'UID:', uid);
               return String(uid);
             }
           }
         } catch (fetchErr) {
           // Skip messages that can't be fetched
-          console.warn('[DEBUG IMAP] Warning: Could not fetch headers for UID', uid, ':', (fetchErr as Error).message);
+          console.warn('[imap-dav-target] Could not fetch headers for UID', uid, ':', (fetchErr as Error).message);
         }
       }
 
-      console.log('[DEBUG IMAP] No existing message found for Message-ID:', naturalKey);
       return undefined;
     } catch (err) {
-      console.error('[DEBUG IMAP] Error searching for message:', (err as Error).message);
+      console.error('[imap-dav-target] Error searching for message:', (err as Error).message);
       return undefined;
     }
   }
@@ -312,12 +298,10 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
       throw new Error('No Message-ID found in raw message');
     }
 
-    console.log('[DEBUG IMAP] upsertEmail for Message-ID:', messageId, 'in mailbox:', mailboxId);
 
     // Check if message already exists
     const existingUid = await this.findByNaturalKey(mailboxId, messageId);
     if (existingUid) {
-      console.log('[DEBUG IMAP] Message already exists, skipping:', messageId);
       return { targetId: existingUid, created: false };
     }
 
@@ -347,7 +331,6 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
     try {
       // Append the message (rfc822 is a Uint8Array)
       await this.conn.append(raw.rfc822, appendOptions);
-      console.log('[DEBUG IMAP] Message appended, searching for UID...');
 
       // Wait a moment for the message to be indexed
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -362,13 +345,11 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
         const firstResult = typedSearchResults[0];
         const newUid = firstResult?.attributes?.uid;
         if (newUid) {
-          console.log('[DEBUG IMAP] Successfully appended message, UID:', newUid);
           return { targetId: String(newUid), created: true };
         }
       }
 
       // If header search fails, try searching ALL and filtering by Message-ID
-      console.log('[DEBUG IMAP] Header search failed, trying ALL search...');
       const allResults = await (this.conn.search as unknown as (criteria: string[]) => Promise<Array<{ attributes?: { uid: number } }>>)(['ALL']);
       
       const typedAllResults = allResults as Array<{ attributes?: { uid: number } }>;
@@ -378,14 +359,13 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
         const lastResult = typedAllResults[typedAllResults.length - 1];
         const latestUid = lastResult?.attributes?.uid;
         if (latestUid) {
-          console.log('[DEBUG IMAP] Found message by ALL search, latest UID:', latestUid);
           return { targetId: String(latestUid), created: true };
         }
       }
 
       throw new Error('Failed to get UID after appending message');
     } catch (err) {
-      console.error('[DEBUG IMAP] Error appending message:', (err as Error).message);
+      console.error('[imap-dav-target] Error appending message:', (err as Error).message);
       throw err;
     }
   }
@@ -444,7 +424,7 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
           mailboxNames = Object.keys(mailboxes);
         }
       } catch (err) {
-        console.warn('[DEBUG IMAP] Warning: Could not get mailbox list:', (err as Error).message);
+        console.warn('[imap-dav-target] Could not get mailbox list:', (err as Error).message);
       }
       
       // If getBoxes failed or returned empty, default to INBOX
@@ -510,7 +490,7 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
               mailboxId: boxName,
             };
           } catch (fetchErr) {
-            console.warn('[DEBUG IMAP] Warning: Could not fetch headers for UID', uid, ':', (fetchErr as Error).message);
+            console.warn('[imap-dav-target] Could not fetch headers for UID', uid, ':', (fetchErr as Error).message);
             // Yield with UID as fallback
             yield {
               naturalKey: String(uid),
@@ -520,7 +500,7 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
           }
         }
       } catch (err) {
-        console.error('[DEBUG IMAP] Error listing entries in', boxName, ':', (err as Error).message);
+        console.error('[imap-dav-target] Error listing entries in', boxName, ':', (err as Error).message);
         continue;
       }
     }
