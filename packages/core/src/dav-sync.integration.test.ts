@@ -443,8 +443,10 @@ describe('Contact domain sync (real CardDAV target) Integration', () => {
 
 const FILE_TENANT_ID = asTenantId('5e0b0300-e29b-41d4-a716-446655440001');
 const FILE_MAPPING_ID = asMappingId('5e0b0300-e29b-41d4-a716-446655440002');
+// Root-relative to the target writer's own configured root (see WebDAVTargetWriter.ensureDirectory
+// and WebdavFileSource.toRelativePath) -- the writer's config.url is itself pre-resolved to the
+// Nextcloud files/{username}/ root below, matching how production wires it via fileEndpointFromCreds.
 const TARGET_FILES_DIR_NAME = 'openmig-e2e-target';
-const TARGET_FILES_PATH = `files/${NEXTCLOUD_USERNAME}/${TARGET_FILES_DIR_NAME}`;
 const FILE_COUNT = 3;
 
 /** Synthetic in-memory file source: isolates the target-write path under test. */
@@ -466,12 +468,16 @@ class StubFileSource implements FileSource {
 function buildStubFiles(count: number): RawFileItem[] {
   const files: RawFileItem[] = [];
   for (let i = 1; i <= count; i++) {
-    const path = `dav-sync-test-file-${i}.txt`;
+    const name = `dav-sync-test-file-${i}.txt`;
+    // Root-relative and self-contained (includes the folder), matching the real
+    // WebdavFileSource contract -- the target writer resolves this directly, with no
+    // separate parentId concatenation.
+    const path = `${TARGET_FILES_DIR_NAME}/${name}`;
     const content = new TextEncoder().encode(`Dav sync test file ${i} content.`);
     files.push({
       item: {
         path,
-        name: path,
+        name,
         isDirectory: false,
         size: content.length,
         modifiedAt: new Date().toISOString(),
@@ -486,7 +492,7 @@ function buildStubFiles(count: number): RawFileItem[] {
 
 async function cleanTargetFilesDir(): Promise<void> {
   const base = NEXTCLOUD_WEBDAV_URL!.replace(/\/$/, '');
-  const dirUrl = `${base}/${TARGET_FILES_PATH}`;
+  const dirUrl = `${base}/files/${NEXTCLOUD_USERNAME}/${TARGET_FILES_DIR_NAME}`;
   try {
     await fetch(dirUrl, { method: 'DELETE', headers: { Authorization: AUTH_HEADER } });
   } catch {
@@ -547,8 +553,12 @@ describe('File domain sync (real WebDAV target) Integration', () => {
     const db = createPgDb(PG_CONNECTION_STRING!);
     ledger = new PgLedger(db);
 
+    // Pre-resolved to the Nextcloud files/{username}/ root, matching how production wires the
+    // file domain via apps/worker/src/dav-endpoint.ts's fileEndpointFromCreds -- plain WebDAV has
+    // no discovery, so a combined Nextcloud connection's config.url isn't itself the file root.
+    const targetFilesBaseUrl = `${NEXTCLOUD_WEBDAV_URL!.replace(/\/$/, '')}/files/${NEXTCLOUD_USERNAME}/`;
     target = new WebDAVTargetWriter(
-      { url: NEXTCLOUD_WEBDAV_URL!, username: NEXTCLOUD_USERNAME, password: NEXTCLOUD_PASSWORD },
+      { url: targetFilesBaseUrl, username: NEXTCLOUD_USERNAME, password: NEXTCLOUD_PASSWORD },
       { ledger, tenantId: FILE_TENANT_ID, mappingId: FILE_MAPPING_ID },
     );
 
@@ -572,7 +582,7 @@ describe('File domain sync (real WebDAV target) Integration', () => {
   });
 
   it('writes N seeded files to a real Nextcloud directory and is idempotent on a second pass', async () => {
-    const folder: FileFolder = { path: TARGET_FILES_PATH, name: TARGET_FILES_DIR_NAME };
+    const folder: FileFolder = { path: TARGET_FILES_DIR_NAME, name: TARGET_FILES_DIR_NAME };
     const files = buildStubFiles(FILE_COUNT);
     const source = new StubFileSource(folder, files);
 

@@ -63,11 +63,21 @@ export class WebDAVTargetWriter implements FileTargetWriter {
 
   /**
    * Ensure a directory exists with the given folder metadata.
-   * Returns the directory ID (path) for use in subsequent operations.
+   * Returns the directory ID (a path relative to this writer's own root) for use in
+   * subsequent operations.
+   *
+   * `folder.path` is root-relative to the *source's* connection (see
+   * `WebdavFileSource.toRelativePath`) -- it is never this writer's own absolute URL, so it can
+   * be resolved directly against this writer's own root via `buildUrl`/`directoryExists`
+   * without any translation. The empty string denotes the sync root itself (the account's file
+   * storage root), which always exists already and needs no PROPFIND/MKCOL round trip.
    */
   async ensureDirectory(folder: FileFolder): Promise<string> {
-    const directoryPath = this.normalizePath(folder.path ?? folder.name ?? 'files');
-    
+    const directoryPath = this.normalizeRelativePath(folder.path);
+    if (directoryPath === '') {
+      return '';
+    }
+
     // Check if directory already exists via PROPFIND
     const exists = await this.directoryExists(directoryPath);
     if (exists) {
@@ -84,10 +94,14 @@ export class WebDAVTargetWriter implements FileTargetWriter {
    * Uses ledger fast-path and target-side existence check to ensure idempotency.
    */
   async upsertFile(
-    parentId: string,
+    _parentId: string,
     raw: RawFileItem,
   ): Promise<UpsertResult> {
-    // Use file path as natural key
+    // The natural key (raw.item.path) is already root-relative and self-contained (see
+    // WebdavFileSource.toRelativePath) -- it includes any containing subfolder itself, so it
+    // resolves directly against this writer's own root. `parentId` (the source-relative
+    // directory path from ensureDirectory) is not needed here: concatenating it with an
+    // already-full relative path would double the prefix.
     const naturalKey = raw.item.path;
     const naturalKeyHash = fileNaturalKeyHash(naturalKey);
 
@@ -101,7 +115,7 @@ export class WebDAVTargetWriter implements FileTargetWriter {
     const contentHashValue = raw.content ? fileContentHash(raw.content) : fileContentHash(new Uint8Array(0));
 
     // Check if file already exists on target
-    const existingId = await this.findFileByNaturalKey(parentId, naturalKey);
+    const existingId = await this.findFileByNaturalKey(_parentId, naturalKey);
     if (existingId) {
       // Record in ledger if not present (adopt existing)
       await this.ledger.recordIfAbsent({
@@ -117,7 +131,7 @@ export class WebDAVTargetWriter implements FileTargetWriter {
     }
 
     // Upload the file to the target
-    const fileId = await this.uploadFile(parentId, raw);
+    const fileId = await this.uploadFile(raw);
 
     // RECORD IN LEDGER
     await this.ledger.recordIfAbsent({
@@ -138,12 +152,12 @@ export class WebDAVTargetWriter implements FileTargetWriter {
    * Returns the file ID if found, undefined otherwise.
    */
   async findFileByNaturalKey(
-    parentId: string,
+    _parentId: string,
     naturalKey: string,
   ): Promise<string | undefined> {
-    // Use WebDAV PROPFIND to check if file exists
-    const filePath = this.buildFilePath(parentId, naturalKey);
-    
+    // naturalKey is already root-relative and self-contained; resolve it directly (see upsertFile).
+    const filePath = this.normalizeRelativePath(naturalKey);
+
     try {
       const response = await this.httpClient.request({
         method: 'PROPFIND',
@@ -166,14 +180,9 @@ export class WebDAVTargetWriter implements FileTargetWriter {
 
   // Private helper methods
 
-  private normalizePath(path: string): string {
-    // Normalize path to ensure consistent format
-    let normalized = path.replace(/\\/g, '/');
-    if (!normalized.startsWith('/')) {
-      normalized = '/' + normalized;
-    }
-    // Remove trailing slashes for files, keep for directories
-    return normalized;
+  /** Normalize a root-relative path: no leading/trailing slashes, forward slashes only. */
+  private normalizeRelativePath(path: string): string {
+    return path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
   }
 
   private async directoryExists(path: string): Promise<boolean> {
@@ -193,7 +202,7 @@ export class WebDAVTargetWriter implements FileTargetWriter {
   }
 
   private async createDirectory(path: string, _folder: FileFolder): Promise<void> {
-    await this.httpClient.request({
+    await this.requestWithRetry({
       method: 'MKCOL',
       url: this.buildUrl(path),
       headers: {
@@ -202,11 +211,40 @@ export class WebDAVTargetWriter implements FileTargetWriter {
     });
   }
 
-  private async uploadFile(parentId: string, raw: RawFileItem): Promise<string> {
-    const filePath = this.buildFilePath(parentId, raw.item.path);
-    
+  /**
+   * Retry a write request a few times on a transient 5xx before giving up. Needed for the
+   * demo/self-host Nextcloud backend, which uses SQLite by default -- a single-writer database
+   * that genuinely returns "SQLSTATE[HY000]: General error: 5 database is locked" under
+   * concurrent domain writes (confirmed live for the sibling CalDAV/CardDAV target writers,
+   * same server). The lock is transient by nature, so a short backoff is the standard mitigation
+   * rather than requiring every demo deployment to run a concurrent-safe database.
+   */
+  private async requestWithRetry(
+    options: HttpRequestOptions,
+    attempts = 3,
+    backoffMs = 250,
+  ): Promise<HttpResponse> {
+    let lastResponse: HttpResponse | undefined;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      const response = await this.httpClient.request(options);
+      if (response.status < 500 || attempt === attempts) {
+        return response;
+      }
+      lastResponse = response;
+      await new Promise((resolve) => setTimeout(resolve, backoffMs * attempt));
+    }
+    // Unreachable in practice (the loop always returns on its last iteration), but keeps
+    // TypeScript happy about a guaranteed return value.
+    return lastResponse as HttpResponse;
+  }
+
+  private async uploadFile(raw: RawFileItem): Promise<string> {
+    // raw.item.path is root-relative and self-contained (see WebdavFileSource.toRelativePath);
+    // resolve it directly instead of re-deriving it from a parent directory id.
+    const filePath = this.normalizeRelativePath(raw.item.path);
+
     // Check if file is large and should use chunked upload
-    const useChunked = this.config.chunkedUploads && 
+    const useChunked = this.config.chunkedUploads &&
                       raw.content && raw.content.length > (this.config.chunkSize || 10 * 1024 * 1024);
 
     if (useChunked && raw.content) {
@@ -215,7 +253,7 @@ export class WebDAVTargetWriter implements FileTargetWriter {
 
     // Simple PUT for small files - only if content exists
     if (raw.content) {
-      await this.httpClient.request({
+      const response = await this.requestWithRetry({
         method: 'PUT',
         url: this.buildUrl(filePath),
         body: raw.content,
@@ -224,6 +262,13 @@ export class WebDAVTargetWriter implements FileTargetWriter {
           Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
         },
       });
+      // RFC 4918 §9.7.1: PUT returns 201 (created) or 204 (existing resource replaced). Without
+      // this check a failed write (e.g. the parent collection doesn't actually exist) was
+      // silently treated as success, and the ledger recorded a false "copied" status that then
+      // permanently blocked retries via its own fast-path (confirmed live).
+      if (response.status !== 201 && response.status !== 204) {
+        throw new Error(`PUT failed for ${filePath} with status ${response.status}: ${response.body}`);
+      }
     }
 
     return filePath;
@@ -243,7 +288,7 @@ export class WebDAVTargetWriter implements FileTargetWriter {
 
       const range = `bytes=${start}-${end - 1}/${content.length}`;
 
-      await this.httpClient.request({
+      const response = await this.requestWithRetry({
         method: 'PUT',
         url: this.buildUrl(filePath),
         body: chunk,
@@ -253,15 +298,12 @@ export class WebDAVTargetWriter implements FileTargetWriter {
           Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
         },
       });
+      if (response.status !== 200 && response.status !== 201 && response.status !== 204) {
+        throw new Error(`Chunked PUT failed for ${filePath} with status ${response.status}: ${response.body}`);
+      }
     }
 
     return filePath;
-  }
-
-  private buildFilePath(parentId: string, fileName: string): string {
-    const parent = parentId.replace(/\/+$/, '');
-    const name = fileName.replace(/^\/+/, '');
-    return `${parent}/${name}`;
   }
 
   private buildUrl(path: string): string {

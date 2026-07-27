@@ -77,9 +77,13 @@ export class WebdavFileSource implements FileSource {
     cursor?: SyncCursor,
   ): Promise<{ items: ReadonlyArray<RawFileItem>; nextCursor: SyncCursor }> {
     const folderPath = this.normalizePath(folder.path);
-    
-    // folder.path comes from server-returned href, use resolveHref (Rule A)
-    const response = await this.performPropfind(folderPath, '1', true);
+
+    // folder.path is root-relative to THIS connection's own root (config.url + rootPath, see
+    // toRelativePath), not to config.url alone -- combine with rootPath before treating it as a
+    // config-derived path (Rule B). buildUrl() by itself only appends to config.url, matching how
+    // listFolders() already passes the full rootPath directly as its own "path" argument.
+    const rootedPath = this.combineWithRootPath(folderPath);
+    const response = await this.performPropfind(rootedPath, '1', false);
     
     // Parse entries and filter for files (not directories)
     const items: RawFileItem[] = [];
@@ -310,9 +314,9 @@ export class WebdavFileSource implements FileSource {
     if (!this.isCollection(entry)) {
       return null;
     }
-    
+
     const folder: WebDAVFolder = {
-      path: entry.href,
+      path: this.toRelativePath(entry.href),
       name: entry.displayName || this.extractNameFromPath(entry.href),
       isDirectory: true,
       description: undefined,
@@ -351,9 +355,13 @@ export class WebdavFileSource implements FileSource {
     // The href may be root-relative (e.g., /remote.php/dav/files/user/file.txt)
     const pathFromHref = new URL(entry.href, 'http://localhost').pathname;
     const name = decodeURIComponent(pathFromHref.split('/').filter(Boolean).pop() ?? '');
-    
+
     const file: WebDAVFile = {
-      path: decodeURIComponent(pathFromHref),  // full decoded path
+      // Root-relative, not the server's absolute href (see toRelativePath): a target writer
+      // syncing a *different* account/server has no way to know or reuse this source's own
+      // absolute prefix (e.g. /remote.php/dav/files/<source-user>/), so the natural key must be
+      // relative to this connection's own configured root to be portable across accounts.
+      path: this.toRelativePath(entry.href),
       name: name,
       isDirectory: false,
       size: entry.getContentLength || 0,
@@ -569,11 +577,63 @@ export class WebdavFileSource implements FileSource {
   private resolveHref(href: string): string {
     const baseUrl = this.config.url;
     const origin = new URL(baseUrl).origin;
-    
+
     // Ensure href starts with / for proper resolution
     const normalizedHref = href.startsWith('/') ? href : '/' + href;
-    
+
     return new URL(normalizedHref, origin).toString();
+  }
+
+  /**
+   * Absolute pathname of this connection's own configured root (config.url + rootPath),
+   * always trailing-slash-terminated so it can be used as a prefix to strip.
+   */
+  private basePathname(): string {
+    const rootUrl = this.buildUrl(this.config.rootPath ?? '');
+    const pathname = new URL(rootUrl).pathname;
+    return pathname.endsWith('/') ? pathname : `${pathname}/`;
+  }
+
+  /**
+   * Turn a server-returned absolute href into a path relative to this connection's own
+   * root. Two different WebDAV accounts (source and target) each have their own absolute
+   * prefix (e.g. Nextcloud's `/remote.php/dav/files/<username>/`) baked into every href they
+   * return; a natural key built from the raw href is only ever valid on the account it came
+   * from. Stripping down to the root-relative remainder makes the key portable, so the target
+   * writer can resolve it against its *own* root instead of reconstructing (and doubling) the
+   * source's absolute path.
+   */
+  private toRelativePath(href: string): string {
+    const pathname = new URL(this.resolveHref(href)).pathname;
+    const base = this.basePathname(); // always trailing-slash-terminated
+    // The root's own self-entry in a depth:1 PROPFIND response can come back WITHOUT a
+    // trailing slash (confirmed live against Nextcloud) even though every other collection
+    // href has one -- comparing pathname directly against `base` then fails the prefix check
+    // (pathname is one character "shorter"), falling through to the generic branch and
+    // returning almost the entire absolute path instead of ''. Check both slash variants of
+    // the root explicitly before falling back to a prefix match for non-root paths.
+    let relative: string;
+    if (pathname === base || pathname === base.slice(0, -1)) {
+      relative = '';
+    } else if (pathname.startsWith(base)) {
+      relative = pathname.slice(base.length);
+    } else {
+      relative = pathname.replace(/^\/+/, '');
+    }
+    return decodeURIComponent(relative).replace(/\/+$/, '');
+  }
+
+  /**
+   * Prefix a root-relative path with this connection's own configured rootPath, producing a
+   * config-derived path suitable for buildUrl (Rule B). Inverse of toRelativePath.
+   */
+  private combineWithRootPath(relativePath: string): string {
+    const root = (this.config.rootPath ?? '').replace(/\/+$/, '');
+    const rel = relativePath.replace(/^\/+/, '');
+    if (rel === '') {
+      return root === '' ? '/' : root;
+    }
+    return root === '' ? `/${rel}` : `${root}/${rel}`;
   }
 
   /**

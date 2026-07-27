@@ -34,7 +34,7 @@ import {
   buildFileSource,
   buildFileTarget,
 } from './dav-factories';
-import { davEndpointFromCreds } from './dav-endpoint';
+import { davEndpointFromCreds, fileEndpointFromCreds } from './dav-endpoint';
 import { PgLedger, PgCursorStore, createPgDb, withTenant } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import { mailboxMapping } from '@openmig/ledger';
@@ -211,13 +211,13 @@ export async function buildDepsFromMapping(
   );
 }
 
-/** Load source + target connection config/credentials for a tenant (RLS-enforced). */
+/** Load source + target connection config/credentials/kind for a tenant (RLS-enforced). */
 async function loadDomainConnections(
   pool: Pool,
   tenantId: string,
 ): Promise<{
-  source: { config: Record<string, unknown>; creds: Record<string, string> };
-  target: { config: Record<string, unknown>; creds: Record<string, string> };
+  source: { config: Record<string, unknown>; creds: Record<string, string>; kind: string };
+  target: { config: Record<string, unknown>; creds: Record<string, string>; kind: string };
 }> {
   return withTenant(pool, tenantId, async (txDb) => {
     const load = async (role: 'source' | 'target') => {
@@ -238,7 +238,7 @@ async function loadDomainConnections(
       } else {
         throw new Error(`${role} connection has no credentials`);
       }
-      return { config, creds };
+      return { config, creds, kind: conn.kind };
     };
     return { source: await load('source'), target: await load('target') };
   });
@@ -306,11 +306,13 @@ export async function buildDomainDepsFromMapping(
         db,
       );
     }
+    const fileSrcEndpoint = fileEndpointFromCreds('source', src.config, src.creds, src.kind);
+    const fileTgtEndpoint = fileEndpointFromCreds('target', tgt.config, tgt.creds, tgt.kind);
     return withClose(
       {
         ...common,
-        source: buildFileSource(srcEndpoint),
-        target: buildFileTarget(tgtEndpoint, targetDeps),
+        source: buildFileSource(fileSrcEndpoint),
+        target: buildFileTarget(fileTgtEndpoint, targetDeps),
       } satisfies FileSyncDeps,
       db,
     );
