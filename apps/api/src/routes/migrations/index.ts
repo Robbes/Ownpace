@@ -323,7 +323,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
 router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const mappingId = req.params.mappingId;
-    if (!mappingId) {
+    if (!mappingId || Array.isArray(mappingId)) {
       res.status(400).json({ error: "mappingId is required" });
       return;
     }
@@ -483,7 +483,7 @@ router.put(
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const mappingId = req.params.mappingId;
-      if (!mappingId) {
+      if (!mappingId || Array.isArray(mappingId)) {
         res.status(400).json({ error: "mappingId is required" });
         return;
       }
@@ -584,7 +584,7 @@ router.delete(
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const mappingId = req.params.mappingId;
-      if (!mappingId) {
+      if (!mappingId || Array.isArray(mappingId)) {
         res.status(400).json({ error: "mappingId is required" });
         return;
       }
@@ -654,7 +654,7 @@ router.post(
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { mappingId } = req.params;
-      if (!mappingId) {
+      if (!mappingId || Array.isArray(mappingId)) {
         res.status(400).json({ error: "mappingId is required" });
         return;
       }
@@ -742,7 +742,7 @@ router.post(
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { mappingId } = req.params;
-      if (!mappingId) {
+      if (!mappingId || Array.isArray(mappingId)) {
         res.status(400).json({ error: "mappingId is required" });
         return;
       }
@@ -819,7 +819,7 @@ router.get(
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const mappingId = req.params.mappingId;
-      if (!mappingId) {
+      if (!mappingId || Array.isArray(mappingId)) {
         res.status(400).json({ error: "mappingId is required" });
         return;
       }
@@ -880,7 +880,7 @@ router.get(
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const mappingId = req.params.mappingId;
-      if (!mappingId) {
+      if (!mappingId || Array.isArray(mappingId)) {
         res.status(400).json({ error: "mappingId is required" });
         return;
       }
@@ -895,7 +895,7 @@ router.get(
         return;
       }
 
-      if (!mappingId || !runId) {
+      if (!mappingId || !runId || Array.isArray(runId)) {
         res.status(400).json({
           error: 'Bad request',
           message: 'Mapping ID and Run ID are required',
@@ -989,7 +989,7 @@ router.post('/:mappingId/discover', authenticate, async (req: AuthenticatedReque
   try {
     const { mappingId } = req.params;
     const tenantId = req.tenantId;
-    if (!mappingId) return void res.status(400).json({ error: 'mappingId is required' });
+    if (!mappingId || Array.isArray(mappingId)) return void res.status(400).json({ error: 'mappingId is required' });
     if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found' });
 
     const body = DiscoverSchema.parse(req.body ?? {});
@@ -1021,7 +1021,7 @@ router.get('/:mappingId/discovery', authenticate, async (req: AuthenticatedReque
   try {
     const { mappingId } = req.params;
     const tenantId = req.tenantId;
-    if (!mappingId) return void res.status(400).json({ error: 'mappingId is required' });
+    if (!mappingId || Array.isArray(mappingId)) return void res.status(400).json({ error: 'mappingId is required' });
     if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found' });
 
     const mapping = await loadMapping(tenantId, mappingId);
@@ -1046,7 +1046,7 @@ router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest,
   try {
     const { mappingId } = req.params;
     const tenantId = req.tenantId;
-    if (!mappingId) return void res.status(400).json({ error: 'mappingId is required' });
+    if (!mappingId || Array.isArray(mappingId)) return void res.status(400).json({ error: 'mappingId is required' });
     if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found' });
 
     const mapping = await loadMapping(tenantId, mappingId);

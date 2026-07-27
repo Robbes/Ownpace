@@ -112,7 +112,15 @@ router.post('/', authenticate, (_req: AuthenticatedRequest, res: Response) => {
 router.get('/:tenantId', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { tenantId } = req.params;
-    
+
+    if (!tenantId || Array.isArray(tenantId)) {
+      res.status(400).json({
+        error: 'Bad request',
+        message: 'Tenant ID is required',
+      });
+      return;
+    }
+
     // Check that the authenticated user has a tenant context
     if (!req.tenantId) {
       res.status(401).json({
@@ -121,13 +129,12 @@ router.get('/:tenantId', authenticate, async (req: AuthenticatedRequest, res: Re
       });
       return;
     }
-    
+
     const pool = getSharedPool();
 
     // Use withTenant to enforce RLS - this proves tenant isolation end-to-end
-    // tenantId from params is guaranteed to be a string (it's a required path parameter)
     const tenants = await withTenantDb(req.tenantId, pool, async (db) => {
-      return await db.select().from(schema.tenant).where(eq(schema.tenant.id, tenantId!));
+      return await db.select().from(schema.tenant).where(eq(schema.tenant.id, tenantId));
     });
 
     if (tenants.length === 0) {
