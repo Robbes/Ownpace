@@ -6,12 +6,16 @@ const rootDir = resolve(__dirname);
 export default defineConfig({
   resolve: {
     alias: {
-      // Subpath exports must come FIRST: a bare '@openmig/core' alias is a
-      // prefix match, so it would rewrite '@openmig/core/cutover-state' to
-      // '<root>/packages/core/src/index.ts/cutover-state'. That is exactly what
-      // happened to CutoverStore.transitionState's dynamic import of
-      // '@openmig/core/cutover-state' — it threw "Cannot find package" under
-      // vitest, and nothing noticed because no test had ever called it.
+      // Subpath exports, listed FIRST because a bare '@openmig/core' alias is a
+      // prefix match and would otherwise rewrite '@openmig/core/cutover-state'
+      // to '<root>/packages/core/src/index.ts/cutover-state'.
+      //
+      // Without these, whether CutoverStore.transitionState's dynamic import of
+      // '@openmig/core/cutover-state' resolves depends on the Node version
+      // running vitest: it works on CI's Node 24 and throws "Cannot find
+      // package '@openmig/core/cutover-state'" on Node 22. Pinning every
+      // subpath makes the suite resolve the same way everywhere instead of
+      // leaning on the runtime's resolver.
       '@openmig/core/cutover-state': resolve(rootDir, 'packages/core/src/cutover-state.ts'),
       '@openmig/core/secret-store': resolve(rootDir, 'packages/core/src/secret-store.ts'),
       '@openmig/core/secrets': resolve(rootDir, 'packages/core/src/secrets.ts'),

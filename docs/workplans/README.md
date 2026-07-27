@@ -139,12 +139,16 @@ actually left:
         nowhere in this repo, and the rollback job called `ctx.cancel` (also not a thing) to
         cancel it. Grace-period monitoring is not implemented; both are gone, and the API no
         longer returns a `gracePeriodEnd` for a cutover that never ran.
-     Also removed: three `console.log('[transitionState] ...')` debug lines dumping full cutover
-     state, and a vitest alias bug where `@openmig/core` prefix-matched
-     `@openmig/core/cutover-state`, so `transitionState`'s dynamic import failed under vitest —
-     invisible because no test had ever called it. Covered by
-     `packages/ledger/src/cutover-store.integration.test.ts` (6 tests) and
-     `apps/worker/src/jobs/cutover-preparation.integration.test.ts` (6 tests).
+     Also removed: three `console.log('[transitionState] ...')` debug lines that dumped the full
+     cutover status JSON on every transition (they are visible in the CI integration log). And
+     the vitest aliases now pin every `@openmig/*` subpath export, so
+     `transitionState`'s dynamic import of `@openmig/core/cutover-state` resolves the same way
+     on every Node version — it works under CI's Node 24 but throws "Cannot find package" under
+     Node 22. Covered by `packages/ledger/src/cutover-store.integration.test.ts` (6 tests) and
+     `apps/worker/src/jobs/cutover-preparation.integration.test.ts` (6 tests). The pre-existing
+     `packages/core/src/cutover.integration.test.ts` (6) and `rollback.integration.test.ts` (5)
+     still pass — they exercise the state machine's happy paths, which is why the defects above
+     (second mapping, re-init over APPROVED, the job's own illegal transition) went unnoticed.
 2. Later: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 
