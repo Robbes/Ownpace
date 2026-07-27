@@ -26,6 +26,7 @@ import {
   extractUid,
   decodeHref,
   unescapeXml,
+  sizeOf,
 } from './dav-multistatus';
 
 /**
@@ -253,6 +254,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       <C:addressbook-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:carddav">
         <D:prop>
           <D:getetag/>
+          <D:getcontentlength/>
           <C:address-data>
             <C:prop name="UID"/>
           </C:address-data>
@@ -285,7 +287,15 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
         // present, making it look missing — the ADR-0020 failure mode.
         throw new Error(`Contact resource ${item.href} returned no UID; cannot key it for verification.`);
       }
-      yield { naturalKey: uid, targetId: decodeHref(item.href), mailboxId: bookPath };
+      yield {
+        naturalKey: uid,
+        targetId: decodeHref(item.href),
+        mailboxId: bookPath,
+        ...sizeOf(item.xml),
+        // No contentHash: see the note in the CalDAV writer — servers
+        // re-serialize vCard too, so hashing what comes back would mark every
+        // contact corrupt.
+      };
     }
   }
 

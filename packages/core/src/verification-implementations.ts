@@ -7,7 +7,13 @@
  * See docs/architecture/solution-architecture.md §20 (verification & rollback)
  */
 
-import type { TenantId, MappingId, LedgerVerificationReader, TargetReindexer } from '@openmig/shared';
+import type {
+  TenantId,
+  MappingId,
+  LedgerVerificationReader,
+  TargetReindexer,
+  TargetEntry,
+} from '@openmig/shared';
 import {
   naturalKeyHash,
   calendarNaturalKeyHash,
@@ -77,12 +83,8 @@ export function createRealVerificationDeps(
       findExtraOnTarget(verificationReader, tenantId, mappingId, dataType, reindexerFor(dataType)),
     getTotalBytesSource: (dataType) =>
       getTotalBytesFromLedger(verificationReader, tenantId, mappingId, dataType),
-    // getTotalBytesTarget is deliberately NOT supplied. It previously returned
-    // getTotalBytesFromLedger(...) — the SOURCE figure — so every report showed
-    // totalBytesTarget === totalBytesSource and looked like verified byte
-    // parity, when the target had never been asked. Measuring it for real needs
-    // a size on TargetEntry (see the note on getTotalBytesFromTarget below);
-    // until then the result carries null, which honestly means "not measured".
+    getTotalBytesTarget: (dataType) =>
+      getTotalBytesFromReindexer(reindexerFor(dataType), verificationReader, tenantId, mappingId, dataType),
   };
 }
 
@@ -171,21 +173,50 @@ async function getTargetSamplesFromReindexer(
   }
 
   // Collect ALL entries from the reindexer
-  const allEntries: Array<{ id: string; naturalKeyHash: string; content: Uint8Array | string }> = [];
-  
+  const allEntries: Array<{
+    id: string;
+    naturalKeyHash: string;
+    content: Uint8Array | string;
+    entry: TargetEntry;
+  }> = [];
+
   for await (const entry of targetReindexer.listEntries()) {
     allEntries.push({
       id: entry.targetId,
       naturalKeyHash: hashTargetNaturalKey(dataType, entry.naturalKey),
       content: entry.contentHash ?? '',
+      entry,
     });
   }
 
   // Sort by naturalKeyHash for deterministic sampling (to match ledger ordering)
   allEntries.sort((a, b) => a.naturalKeyHash.localeCompare(b.naturalKeyHash));
 
-  // Return the first `count` entries
-  return allEntries.slice(0, count);
+  const sampled = allEntries.slice(0, count);
+
+  // Fetch a real content hash for the sampled items only — this is the whole
+  // point of SAMPLING: the enumeration stays metadata-only, and just these few
+  // items are read in full so the checksum leg has something to compare.
+  //
+  // Without it every sample carried '' and was counted as `checksumUnavailable`,
+  // so §20's "checksum sampling" never actually ran. A reindexer that cannot
+  // produce a comparable hash (CalDAV/CardDAV, where the server re-serializes
+  // what it stored) still omits `contentHashFor`, and those samples stay
+  // honestly unavailable rather than being scored as mismatches.
+  if (targetReindexer.contentHashFor) {
+    for (const sample of sampled) {
+      if (isNonEmpty(sample.content)) continue; // the listing already had one
+      const hash = await targetReindexer.contentHashFor(sample.entry);
+      if (hash) sample.content = hash;
+    }
+  }
+
+  return sampled.map(({ id, naturalKeyHash, content }) => ({ id, naturalKeyHash, content }));
+}
+
+/** Is there anything here to compare? Mirrors verification.ts's own check. */
+function isNonEmpty(content: Uint8Array | string): boolean {
+  return typeof content === 'string' ? content.length > 0 : content.byteLength > 0;
 }
 
 /**
@@ -277,23 +308,56 @@ async function getTotalBytesFromLedger(
   return reader.totalSizeBytes(tenantId, mappingId, domain);
 }
 
+/**
+ * Sum the target's own reported sizes for the items this mapping copied.
+ *
+ * Returns null unless EVERY matched entry carries a size. A partial sum reads
+ * as a shortfall against the source total — i.e. as data loss — which is
+ * exactly the kind of confidently-wrong number this field was made null to
+ * avoid in the first place.
+ */
+async function getTotalBytesFromReindexer(
+  targetReindexer: TargetReindexer | undefined,
+  reader: LedgerVerificationReader,
+  tenantId: TenantId,
+  mappingId: MappingId,
+  dataType: 'mail' | 'calendar' | 'contacts' | 'files',
+): Promise<number | null> {
+  if (!targetReindexer) return null;
+
+  const domain = mapDataTypeToDomain(dataType) as 'email' | 'calendar' | 'contact' | 'file';
+  const ledgerHashes = new Set(await reader.getAllNaturalKeyHashes(tenantId, mappingId, domain));
+
+  let total = 0;
+  let measured = 0;
+  let matched = 0;
+  for await (const entry of targetReindexer.listEntries()) {
+    if (!ledgerHashes.has(hashTargetNaturalKey(dataType, entry.naturalKey))) continue;
+    matched++;
+    if (typeof entry.sizeBytes === 'number') {
+      total += entry.sizeBytes;
+      measured++;
+    }
+  }
+
+  if (matched === 0) return 0;
+  return measured === matched ? total : null;
+}
+
 /*
- * Deliberately absent: a getTotalBytesFromTarget().
+ * A note on where target bytes come from.
  *
- * There used to be one, and it returned getTotalBytesFromLedger(...) — the
- * source total — so every verification report showed source and target bytes
- * as equal. That reads as "byte-level parity verified" when nothing on the
- * target was ever measured, which is exactly the kind of fabricated evidence
- * the verification gate exists to prevent (AGENTS.md: "the verification gate is
- * the product promise"; hard rule 9).
+ * There used to be a getTotalBytesFromTarget() here that returned
+ * getTotalBytesFromLedger(...) — the SOURCE total — so every verification
+ * report showed source and target bytes as equal. That reads as "byte-level
+ * parity verified" when nothing on the target was ever measured, exactly the
+ * fabricated evidence the gate exists to prevent (hard rule 9).
  *
- * Implementing it for real needs a per-item size from the target, which
- * TargetEntry (what TargetReindexer.listEntries yields) does not currently
- * carry. Both mail targets could supply one cheaply — JMAP exposes Email `size`
- * and IMAP has RFC822.SIZE — so the path is: add an optional sizeBytes to
- * TargetEntry, populate it in the reindexers, sum it here, and pass the result
- * as VerificationDeps.getTotalBytesTarget. Until that exists, the field stays
- * null and the report says "not measured" rather than inventing a match.
+ * getTotalBytesFromReindexer above measures it for real, from the size each
+ * target reports in its own listing (JMAP `size`, IMAP RFC822.SIZE, DAV
+ * getcontentlength). It returns null unless every matched item carried one,
+ * because a partial sum would look like a shortfall — i.e. like data loss —
+ * rather than like a gap in measurement.
  */
 
 /**

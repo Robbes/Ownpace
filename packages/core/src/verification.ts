@@ -157,10 +157,15 @@ export interface VerificationDeps {
   getTotalBytesSource(dataType: 'mail' | 'calendar' | 'contacts' | 'files'): Promise<number>;
   /**
    * Optional: total bytes as measured ON THE TARGET. Supply this only if the
-   * target can genuinely report sizes. Omit it rather than substituting the
-   * source figure — a fabricated match is worse than an admitted gap.
+   * target can genuinely report sizes. Omit it — or return null — rather than
+   * substituting the source figure; a fabricated match is worse than an
+   * admitted gap.
+   *
+   * Returning null is how an implementation says "I could not measure every
+   * item". A partial sum would read as a shortfall against the source total,
+   * i.e. as data loss.
    */
-  getTotalBytesTarget?(dataType: 'mail' | 'calendar' | 'contacts' | 'files'): Promise<number>;
+  getTotalBytesTarget?(dataType: 'mail' | 'calendar' | 'contacts' | 'files'): Promise<number | null>;
 
   /**
    * Can this domain's target actually be read? Return false when there is no
