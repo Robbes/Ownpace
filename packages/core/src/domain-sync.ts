@@ -27,6 +27,74 @@ import {
  */
 const DEFAULT_CONCURRENCY = 4;
 
+/**
+ * Wall-clock breakdown of one domain pass, enabled with OPENMIG_PHASE_TIMING=1.
+ *
+ * Three rounds of reasoning from run logs produced two confident wrong answers
+ * about where the file domain's time goes (a container-network theory and an
+ * eager-decode theory, both measured and both dead). The logs cannot settle it
+ * because they report only the total.
+ *
+ * A CPU profile would not settle it either: if the time is spent AWAITING a
+ * socket, `--cpu-prof` shows an idle process. What is needed is wall time per
+ * phase, plus one derived number:
+ *
+ *   overlap = (sum of all phases) / (domain wall time)
+ *
+ * With `concurrency: 4`, overlap should approach 4. If it comes back near 1,
+ * the pass is effectively serial no matter what the pool says, and THAT is the
+ * bug — not any individual phase being slow.
+ *
+ * Off by default and one branch when off, so it costs nothing in production.
+ */
+interface PhaseTiming {
+  fetchMs: number;
+  upsertMs: number;
+  ledgerReadMs: number;
+  ledgerWriteMs: number;
+  hashMs: number;
+  startedAt: number;
+}
+
+function startPhaseTiming(): PhaseTiming | undefined {
+  if (process.env.OPENMIG_PHASE_TIMING !== '1') return undefined;
+  return { fetchMs: 0, upsertMs: 0, ledgerReadMs: 0, ledgerWriteMs: 0, hashMs: 0, startedAt: Date.now() };
+}
+
+/** Time `fn` into `bucket` when timing is on; call it untouched when off. */
+async function timed<T>(
+  phases: PhaseTiming | undefined,
+  bucket: 'fetchMs' | 'upsertMs' | 'ledgerReadMs' | 'ledgerWriteMs' | 'hashMs',
+  fn: () => Promise<T>,
+): Promise<T> {
+  if (!phases) return fn();
+  const t0 = performance.now();
+  try {
+    return await fn();
+  } finally {
+    phases[bucket] += performance.now() - t0;
+  }
+}
+
+function reportPhases(phases: PhaseTiming | undefined, domain: string, scanned: number): void {
+  if (!phases) return;
+  const wallMs = Date.now() - phases.startedAt;
+  const busy = phases.fetchMs + phases.upsertMs + phases.ledgerReadMs + phases.ledgerWriteMs + phases.hashMs;
+  const per = (ms: number) => (scanned ? (ms / scanned).toFixed(1) : '0');
+  console.log(
+    `[timing] ${domain}: ${scanned} items in ${(wallMs / 1000).toFixed(1)}s | ` +
+      `source-fetch ${(phases.fetchMs / 1000).toFixed(1)}s (${per(phases.fetchMs)}ms/item) | ` +
+      `target-write ${(phases.upsertMs / 1000).toFixed(1)}s (${per(phases.upsertMs)}ms/item) | ` +
+      `ledger-read ${(phases.ledgerReadMs / 1000).toFixed(1)}s | ` +
+      `ledger-write ${(phases.ledgerWriteMs / 1000).toFixed(1)}s | ` +
+      `hash ${(phases.hashMs / 1000).toFixed(1)}s | ` +
+      // The number that matters most: how much work was actually in flight at
+      // once. Near `concurrency` means the pool is working and some phase is
+      // genuinely slow; near 1 means we are serial and the pool is a lie.
+      `overlap ${(busy / Math.max(wallMs, 1)).toFixed(2)}x`,
+  );
+}
+
 /** Minimal folder interface - all domain folders have at least a path. */
 export interface FolderLike {
   readonly path?: string;
@@ -134,6 +202,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     ensureCollection,
   } = deps;
 
+  const phases = startPhaseTiming();
+
   let scanned = 0;
   let created = 0;
   let skipped = 0;
@@ -157,7 +227,11 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
 
       // Ledger fast-path: already migrated -> skip without fetching.
       if (naturalKeyHash !== undefined) {
-        const known = await ledger.find(tenantId, mappingId, domain, naturalKeyHash);
+        // Captured so the closure keeps the narrowing from the guard above.
+        const key = naturalKeyHash;
+        const known = await timed(phases, 'ledgerReadMs', () =>
+          ledger.find(tenantId, mappingId, domain, key),
+        );
         if (known) {
           skipped += 1;
           return;
@@ -165,7 +239,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       }
 
       // Fetch raw data
-      const { raw, sizeBytes } = await fetchRaw(item);
+      const { raw, sizeBytes } = await timed(phases, 'fetchMs', () => fetchRaw(item));
 
       if (naturalKeyHash === undefined) {
         // The key could not be known from the listing, so derive it now. Mail
@@ -182,7 +256,10 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         // Second fast-path check, now that we have a key. This is what keeps
         // these items idempotent: a re-run pays the fetch again (unavoidable —
         // the key is the content) but must not create a duplicate.
-        const knownAfterFetch = await ledger.find(tenantId, mappingId, domain, naturalKeyHash);
+        const derivedKey = naturalKeyHash;
+        const knownAfterFetch = await timed(phases, 'ledgerReadMs', () =>
+          ledger.find(tenantId, mappingId, domain, derivedKey),
+        );
         if (knownAfterFetch) {
           skipped += 1;
           return;
@@ -192,14 +269,16 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       // Hashed AFTER any key derivation, so for a message we rewrote this is
       // the hash of the bytes we will actually write. The target stores what we
       // wrote, and §20 checksum sampling compares against it.
+      const hashStart = phases ? performance.now() : 0;
       const ch = contentHash(raw);
+      if (phases) phases.hashMs += performance.now() - hashStart;
 
       try {
         // Upsert on target (pass item for domain-specific metadata like keywords)
-        const result = await upsert(collectionId, raw, item);
+        const result = await timed(phases, 'upsertMs', () => upsert(collectionId, raw, item));
 
         // Record in ledger with honest status
-        await ledger.recordIfAbsent({
+        await timed(phases, 'ledgerWriteMs', () => ledger.recordIfAbsent({
           tenantId,
           itemType: domain,
           mappingId,
@@ -209,7 +288,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           createdAt: new Date().toISOString(),
           sizeBytes,
           status: result.created ? 'copied' : result.adopted ? 'adopted' : 'updated',
-        });
+        }));
 
         if (result.created) created += 1;
         else if (result.adopted) {
@@ -257,6 +336,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       );
     }
   }
+
+  reportPhases(phases, domain, scanned);
 
   return { scanned, created, skipped, adopted, failed, drift: 0 };
 }
