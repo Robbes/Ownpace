@@ -293,10 +293,16 @@ testSuite('WebDAV Source Integration Tests', () => {
         expect(item.item.size).toBeDefined();
         expect(item.item.modifiedAt).toBeDefined();
         expect(item.item.etag).toBeDefined();
-        expect(item.content).toBeDefined();
 
-        // Verify content is a Uint8Array
-        expect(item.content).toBeInstanceOf(Uint8Array);
+        // Metadata only. The listing used to GET every file inline, which made
+        // downloads serial regardless of `concurrency`, held a whole folder in
+        // memory, and — since discovery reuses listSince precisely because it
+        // is supposed to be body-free — meant counting a corpus downloaded it.
+        expect(item.content, `${item.item.path} carried bytes from the listing`).toBeUndefined();
+
+        // What makes the bytes reachable later. Without it, fetch() has no
+        // href to GET and the file cannot be migrated at all.
+        expect(item.item.sourceRef).toBeDefined();
       }
 
       // Verify our test files are present
@@ -392,9 +398,16 @@ testSuite('WebDAV Source Integration Tests', () => {
       const testFile = items.find(i => i.item.name === TEST_FILE_1);
       expect(testFile).toBeDefined();
 
-      // Verify content
+      // Listing is METADATA ONLY — the bytes come from fetch(), which is what
+      // the sync loop calls, once per item, inside its bounded concurrency.
+      // This is the only place that exercises that against a real server:
+      // `sourceRef` is Nextcloud's own href and is root-relative, so resolving
+      // it wrong would send every download to nowhere.
+      expect(testFile!.content, 'listSince must not carry bytes').toBeUndefined();
+      const raw = await webdavSource.fetch(testFile!.item);
+
       const decoder = new TextDecoder();
-      const content = decoder.decode(testFile!.content);
+      const content = decoder.decode(raw.content);
       expect(content).toContain('This is the first test file for WebDAV integration tests');
       expect(content).toContain('plain text content');
 
@@ -423,7 +436,7 @@ testSuite('WebDAV Source Integration Tests', () => {
 
       // Verify JSON content can be parsed
       const decoder = new TextDecoder();
-      const content = decoder.decode(jsonFile!.content);
+      const content = decoder.decode((await webdavSource.fetch(jsonFile!.item)).content);
       const jsonData = JSON.parse(content);
       
       expect(jsonData.name).toBe('Test Data');
@@ -478,9 +491,11 @@ testSuite('WebDAV Source Integration Tests', () => {
       expect(sync2.items.length).toBe(1);
       expect(sync2.items[0]!.item.name).toBe(TEST_FILE_1);
 
-      // Verify the modified content
+      // Verify the modified content — fetched now, not during the listing, so
+      // this also proves the item metadata from a DELTA listing still carries a
+      // usable sourceRef.
       const decoder = new TextDecoder();
-      const content = decoder.decode(sync2.items[0]!.content);
+      const content = decoder.decode((await webdavSource.fetch(sync2.items[0]!.item)).content);
       expect(content).toContain('MODIFIED');
       expect(content).toContain('delta sync testing');
 

@@ -463,6 +463,18 @@ class StubFileSource implements FileSource {
   ): Promise<{ items: ReadonlyArray<RawFileItem>; nextCursor: SyncCursor }> {
     return { items: this.files, nextCursor: { value: String(this.files.length) } };
   }
+
+  /**
+   * This stub inlines content in `listSince`, so the sync loop never needs to
+   * call this — but the port requires it, and a stub that throws here would
+   * silently pass while a real source's fetch path went untested. Serve the
+   * same bytes.
+   */
+  async fetch(item: RawFileItem['item']): Promise<RawFileItem> {
+    const found = this.files.find((f) => f.item.path === item.path);
+    if (!found) throw new Error(`StubFileSource has no file at ${item.path}`);
+    return found;
+  }
 }
 
 function buildStubFiles(count: number): RawFileItem[] {

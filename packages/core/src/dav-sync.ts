@@ -169,11 +169,31 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
     concurrency,
     listFolders: () => source.listFolders(),
     listSince: (folder, cursor) => source.listSince(folder, cursor),
+    // The download happens HERE, inside the loop's bounded concurrency —
+    // not during listing.
+    //
+    // This used to read `item.content ?? new Uint8Array(0)`, which is two
+    // defects in one expression. The listing's inline download made every
+    // fetch serial and buffered a whole folder in memory. And the `??` meant
+    // any source that did NOT inline content — the Graph drive source, whose
+    // listSince explicitly sets `content: undefined` and says "use fetch()" —
+    // had EVERY file written as ZERO BYTES, recorded in the ledger with the
+    // hash of the empty string and reported as created. A silent empty copy of
+    // someone's files is the worst failure this code can produce, and both
+    // halves of verification would have agreed it was fine.
     fetchRaw: async (item) => {
-      const content = item.content ?? new Uint8Array(0);
-      return { 
+      const content = item.content ?? (await source.fetch(item.item)).content;
+      if (!content) {
+        // A source that lists a file and then cannot produce its bytes is
+        // broken; writing an empty file in its place is not a recovery.
+        throw new Error(`File source returned no content for ${item.item.path}`);
+      }
+      return {
         raw: { item: item.item, content } as RawFileItem,
-        sizeBytes: item.item?.size ?? content.length 
+        // Prefer the bytes we actually hold over the listing's advertised size
+        // — same reasoning as mail, where a missing `size` silently zeroed the
+        // whole domain's byte total.
+        sizeBytes: content.length || (item.item?.size ?? 0),
       };
     },
     upsert: async (parentId, raw, _item) => 

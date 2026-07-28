@@ -65,6 +65,34 @@ In practice you rarely construct these by hand: the worker builds them from the 
 `buildDomainDepsFromMapping(pool, tenantId, mappingId, domain)`, and the self-host appliance builds
 them from `mapping.json` via `runAllDomains`.
 
+### When file bytes are read
+
+`FileSource.listSince` is **metadata only**; `FileSource.fetch(item)` returns one file's bytes and
+is called by the sync loop, once per item, inside its bounded concurrency.
+
+The WebDAV source used to GET each changed file inline in its PROPFIND loop. That made every
+download serial regardless of `concurrency` — only the uploads were parallel — and held a whole
+folder's bytes in memory before anything was written. It also meant **discovery downloaded the
+entire file corpus just to count it**, since `discoverSource` reuses `listSince` precisely because
+it is supposed to be body-free.
+
+A source that genuinely has the bytes already may still return them from `listSince`; the loop uses
+them and does not re-fetch. What it will not do is substitute an empty file for missing content.
+
+### Which domains run at the same time
+
+`runAllDomains` groups the enabled domains into **lanes** (`planDomainLanes`) and runs the lanes in
+parallel, sequentially within each lane. Two domains share a lane whenever they touch any of the
+same hosts — source or target.
+
+That rule exists because the domains are not independent. Calendar, contacts and files typically
+land on one server, and a Nextcloud running its default SQLite is a single-writer database that
+answers `database is locked` under concurrent writes (which is what `requestWithRetry` in the DAV
+target writers is for). Mail usually lives elsewhere, so it overlaps the DAV work for free.
+
+Domains whose endpoints cannot be resolved to a host share the first lane, so an unrecognised
+config shape stays fully sequential rather than being guessed to be isolated.
+
 ## Idempotency
 
 Same anchor in every domain: a stable **natural key** per item, hashed and stored with a
