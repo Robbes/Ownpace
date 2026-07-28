@@ -515,7 +515,6 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
 
     const LIMIT = 100; // Number of emails to fetch per page
     let position = 0;
-    let totalFetched = 0;
 
 
     while (true) {
@@ -543,7 +542,6 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
 
       const response = await this.apiRequest<EmailQueryResponse>('Email/query', queryArgs);
       const ids = (response as { ids?: string[] }).ids || [];
-      const total = (response as { total?: number }).total || 0;
 
 
       if (ids.length === 0) {
@@ -600,11 +598,26 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
           ...(typeof size === 'number' ? { sizeBytes: size } : {}),
         };
 
-        totalFetched++;
       }
 
-      // Check if we've fetched all emails
-      if (totalFetched >= total || ids.length < LIMIT) {
+      // Paginate on the ID COUNT alone. A short page is the end; a full page
+      // means ask again, and a query past the end returns none (handled above).
+      //
+      // This used to also break on `totalFetched >= total`, where `total` came
+      // from the Email/query response. Two things were wrong with that, and
+      // together they capped every mail target at exactly one page:
+      //
+      //  1. RFC 8621 §4.4 computes `total` only when `calculateTotal: true` is
+      //     requested, and it defaults to false. We never asked, so `total` was
+      //     absent and `?? 0` made it 0 — so `totalFetched >= 0` was true after
+      //     the very first page and the loop always stopped at 100 items. Seen
+      //     live at SEED_COUNT=150: `targetCount: 100` against `sourceCount:
+      //     150`, reporting 50 perfectly healthy messages as MISSING and
+      //     failing the cutover gate on a complete migration.
+      //  2. `totalFetched` counts entries YIELDED, not ids seen — messages with
+      //     no Message-ID or no mailbox are skipped — so even with a real
+      //     `total` it compares two different quantities.
+      if (ids.length < LIMIT) {
         break;
       }
 
