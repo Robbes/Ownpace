@@ -527,6 +527,33 @@ actually left:
      `checksumUnavailable` mail samples were the new honest-absence behaviour working — those
      items fell outside the truncated listing, and are now reported as unmeasured rather than as
      fabricated mismatches.
+   - ✅ **Performance: the DAV domains were latency-bound, and half their requests were
+     avoidable.** Measured from the all-green run #36 (SEED_COUNT=202): calendar moved 203
+     events — **52 KB in total** — in 76 s, i.e. 374 ms an item with essentially no data
+     transfer. Contacts 335 ms/item for 294 KB. The cost was round trips, not bytes: every item
+     did a `calendar-query`/`addressbook-query` REPORT (or, for files, a PROPFIND) to ask "is
+     this already here?", then a PUT. That question is answerable for a whole collection in ONE
+     request, because `listEntries` already enumerates it — the same call §20 verification uses.
+     Each writer now takes a per-collection snapshot (natural key → href, built lazily, shared
+     by concurrent items so they coalesce onto one listing) and consults it instead. WebDAV takes
+     one walk of the root, since it has far fewer directories than files. **Predicted −50% HTTP
+     requests** on calendar/contacts/files.
+     A snapshot plus a later PUT is check-then-act, so the writes now also carry
+     **`If-None-Match: *`** (RFC 4918 §10.4.2 / RFC 9110 §13.1.2): the server refuses to replace
+     rather than us discovering afterwards that we did. `412` is read as "already there →
+     adopt". That makes the non-destructive guarantee (hard rule 2) atomic rather than
+     best-effort, so this is a *safety* improvement that happens to also be faster. Not applied
+     to the chunked-upload path, which PUTs the same href repeatedly with `Content-Range`.
+     A target that cannot be enumerated falls back to the old per-item check, so nothing becomes
+     unmigratable — just slower.
+     Default concurrency **4 → 8** (`DEFAULT_CONCURRENCY`, shared by core and the worker so the
+     editions cannot drift). This is the one change that puts MORE load on a customer's target;
+     it is tunable down per mapping or per domain, and transient 5xx were already retried with
+     backoff.
+     `dav-write-round-trips.unit.test.ts` COUNTS requests rather than trusting the code to look
+     right: 20 items → 1 REPORT + 20 PUTs, adoption still adopts without writing, the
+     precondition is present, 412 is an adoption not an error, and an unlistable collection still
+     migrates. 3 of 6 fail on revert.
 2. Next: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 

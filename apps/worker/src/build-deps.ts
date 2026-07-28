@@ -48,6 +48,14 @@ import {
 import { withClose, type WithClose } from './deps-lifecycle';
 
 /**
+ * Items in flight per collection when the config does not say. Matches
+ * `DEFAULT_CONCURRENCY` in @openmig/core — kept in step deliberately, so the
+ * managed and self-host paths do not quietly disagree about how hard they push
+ * a customer's server. Override with `concurrency` per mapping or per domain.
+ */
+export const DEFAULT_CONCURRENCY = 4;
+
+/**
  * Build the complete dependency bundle for a shadow pass.
  * This wires together all the components needed for the worker to run.
  */
@@ -115,7 +123,7 @@ export function resolveMailConfig(config: MappingConfig): {
   return {
     source: mail?.source ?? config.source,
     target: mail?.target ?? config.target,
-    concurrency: mail?.concurrency ?? config.concurrency ?? 4,
+    concurrency: mail?.concurrency ?? config.concurrency ?? DEFAULT_CONCURRENCY,
   };
 }
 
@@ -412,7 +420,7 @@ export function buildDomainDeps(
       target,
       ledger,
       cursors,
-      concurrency: domainConfig.concurrency ?? config.concurrency ?? 4,
+      concurrency: domainConfig.concurrency ?? config.concurrency ?? DEFAULT_CONCURRENCY,
       ...(config.onCollision ? { onCollision: config.onCollision } : {}),
     },
     db,

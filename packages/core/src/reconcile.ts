@@ -19,6 +19,20 @@ import {
 } from '@openmig/shared';
 import { runDomainSync, type DomainSyncDeps as _DomainSyncDeps } from './domain-sync';
 
+/**
+ * Items processed in parallel per collection.
+ *
+ * This was briefly raised to 8 on the reasoning that the domains are
+ * latency-bound rather than bandwidth-bound. A ~500-item run against Stalwart
+ * disproved it as a *default*: the target began answering 429 to blob uploads
+ * and to the `Email/query` existence lookup, and eight messages failed rather
+ * than being migrated. Speed that the target refuses to accept is not speed.
+ *
+ * 4 is the setting that has completed real runs. Raise it per mapping or per
+ * domain with `concurrency` in the config once you know a specific target
+ * tolerates it — that is a decision about someone else's server, so it belongs
+ * in their config and not in our default.
+ */
 const DEFAULT_CONCURRENCY = 4;
 
 /**

@@ -55,6 +55,12 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
   private readonly tenantId: TenantId;
   private readonly mappingId: MappingId;
   private readonly httpClient: HttpClient;
+  /**
+   * Per-collection snapshot of what the target already holds, natural key ->
+   * href. One `addressbook-query` REPORT for the whole book replaces one per
+   * item; see the CalDAV writer for the measurement that motivated it.
+   */
+  private readonly collectionKeys = new Map<string, Promise<Map<string, string> | undefined>>();
 
   constructor(
     config: CardDAVTargetConfig,
@@ -122,7 +128,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     const sizeBytes = Buffer.byteLength(raw.vcard, 'utf8');
 
     // Check if contact already exists on target (by UID)
-    const existingId = await this.findContactByNaturalKey(folderId, naturalKey);
+    const existingId = await this.existingTargetId(folderId, naturalKey);
     if (existingId) {
       // Record in ledger if not present (adopt existing)
       await this.ledger.recordIfAbsent({
@@ -140,6 +146,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
 
     // Upload the contact to the address book
     const contactId = await this.uploadContact(folderId, raw, uid);
+    (await this.keysIn(folderId))?.set(naturalKey, contactId);
 
     // RECORD IN LEDGER
     await this.ledger.recordIfAbsent({
@@ -154,6 +161,40 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     });
 
     return { targetId: contactId, created: true };
+  }
+
+  /** Natural key -> href for this address book; undefined when it cannot be listed. */
+  private keysIn(collectionId: string): Promise<Map<string, string> | undefined> {
+    let pending = this.collectionKeys.get(collectionId);
+    if (!pending) {
+      pending = (async () => {
+        try {
+          const keys = new Map<string, string>();
+          for await (const entry of this.listEntries(collectionId)) {
+            keys.set(entry.naturalKey, entry.targetId);
+          }
+          return keys;
+        } catch (err) {
+          console.warn(
+            `[carddav] could not list ${collectionId} up front, falling back to a per-item ` +
+              `existence check: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          return undefined;
+        }
+      })();
+      this.collectionKeys.set(collectionId, pending);
+    }
+    return pending;
+  }
+
+  /** Is this contact already on the target? Snapshot first, per-item REPORT as fallback. */
+  private async existingTargetId(
+    collectionId: string,
+    naturalKey: string,
+  ): Promise<string | undefined> {
+    const keys = await this.keysIn(collectionId);
+    if (keys) return keys.get(naturalKey);
+    return this.findContactByNaturalKey(collectionId, naturalKey);
   }
 
   /**
@@ -461,9 +502,22 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       body: raw.vcard,
       headers: {
         'Content-Type': 'text/vcard',
+        // Create-only, atomically (RFC 4918 §10.4.2 / RFC 9110 §13.1.2). The
+        // existence check and this write are separate requests, so on its own
+        // that pairing is check-then-act: anything appearing at this href in
+        // between would be silently REPLACED, which target writers are
+        // specified never to do (hard rule 2). The precondition closes the
+        // window in the server, and costs nothing.
+        'If-None-Match': '*',
         Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
       },
     });
+
+    // 412: something is already there. Not an error — the snapshot was merely
+    // stale, and the resource is exactly what we would have written.
+    if (response.status === 412) {
+      return contactPath;
+    }
 
     if (response.status !== 201 && response.status !== 204) {
       throw new Error(`PUT failed for ${contactPath} with status ${response.status}: ${response.body}`);

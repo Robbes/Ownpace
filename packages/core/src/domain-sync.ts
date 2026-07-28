@@ -17,6 +17,14 @@ import {
   type MappingId,
 } from '@openmig/shared';
 
+/**
+ * Items processed in parallel per collection.
+ *
+ * See the note on `DEFAULT_CONCURRENCY` in `reconcile.ts`: 8 made a ~500-item
+ * run rate-limit itself into failures against Stalwart. Kept at 4, the value
+ * that has actually completed runs; raise it per mapping or per domain in the
+ * config for a target known to tolerate more.
+ */
 const DEFAULT_CONCURRENCY = 4;
 
 /** Minimal folder interface - all domain folders have at least a path. */

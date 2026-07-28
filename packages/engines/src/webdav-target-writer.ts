@@ -55,6 +55,16 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
   private readonly tenantId: TenantId;
   private readonly mappingId: MappingId;
   private readonly httpClient: HttpClient;
+  /**
+   * One snapshot of everything already under the target root, natural key
+   * (root-relative path) -> href.
+   *
+   * The existence check was a PROPFIND PER FILE. `listEntries()` walks the tree
+   * with one PROPFIND per DIRECTORY, and there are far fewer directories than
+   * files — 670 files across a handful of folders in a real run. Built lazily
+   * and shared, so concurrent items coalesce onto one walk.
+   */
+  private rootKeys: Promise<Map<string, string> | undefined> | undefined;
 
   constructor(
     config: WebDAVTargetConfig,
@@ -132,7 +142,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
     const sizeBytes = raw.content?.byteLength ?? 0;
 
     // Check if file already exists on target
-    const existingId = await this.findFileByNaturalKey(_parentId, naturalKey);
+    const existingId = await this.existingTargetId(_parentId, naturalKey);
     if (existingId) {
       // Record in ledger if not present (adopt existing)
       await this.ledger.recordIfAbsent({
@@ -150,6 +160,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
 
     // Upload the file to the target
     const fileId = await this.uploadFile(raw);
+    (await this.keysUnderRoot())?.set(this.normalizeRelativePath(naturalKey), fileId);
 
     // RECORD IN LEDGER
     await this.ledger.recordIfAbsent({
@@ -164,6 +175,42 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
     });
 
     return { targetId: fileId, created: true };
+  }
+
+  /**
+   * Natural key -> href for everything already under the root; undefined when
+   * the target cannot be walked, in which case the caller falls back to the
+   * per-item PROPFIND. A target we cannot enumerate must still be migratable.
+   */
+  private keysUnderRoot(): Promise<Map<string, string> | undefined> {
+    if (!this.rootKeys) {
+      this.rootKeys = (async () => {
+        try {
+          const keys = new Map<string, string>();
+          for await (const entry of this.listEntries()) {
+            keys.set(entry.naturalKey, entry.targetId);
+          }
+          return keys;
+        } catch (err) {
+          console.warn(
+            `[webdav] could not walk the target root up front, falling back to a per-item ` +
+              `existence check: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          return undefined;
+        }
+      })();
+    }
+    return this.rootKeys;
+  }
+
+  /** Is this file already on the target? Snapshot first, per-item PROPFIND as fallback. */
+  private async existingTargetId(
+    parentId: string,
+    naturalKey: string,
+  ): Promise<string | undefined> {
+    const keys = await this.keysUnderRoot();
+    if (keys) return keys.get(this.normalizeRelativePath(naturalKey));
+    return this.findFileByNaturalKey(parentId, naturalKey);
   }
 
   /**
@@ -395,9 +442,22 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
         body: raw.content,
         headers: {
           'Content-Type': raw.item.mimeType || 'application/octet-stream',
+          // Create-only, atomically (RFC 4918 §10.4.2 / RFC 9110 §13.1.2).
+          // The existence check and this write are separate requests, so on its
+          // own that pairing is check-then-act and anything appearing at this
+          // href in between would be silently REPLACED — which file writers are
+          // specified never to do (hard rule 2). NOT applied to the chunked
+          // path below: that PUTs the same href repeatedly with Content-Range,
+          // so a create-only precondition would reject every chunk after the
+          // first.
+          'If-None-Match': '*',
           Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
         },
       });
+      // 412: already there. The snapshot was stale, not the write wrong.
+      if (response.status === 412) {
+        return filePath;
+      }
       // RFC 4918 §9.7.1: PUT returns 201 (created) or 204 (existing resource replaced). Without
       // this check a failed write (e.g. the parent collection doesn't actually exist) was
       // silently treated as success, and the ledger recorded a false "copied" status that then
