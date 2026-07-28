@@ -34,6 +34,66 @@ export interface DiscoverOptions<F, I> {
   readonly folderName?: (folder: F) => string;
   /** Cheap per-item byte size, when the listing carries it (mail/files). Return undefined to skip. */
   readonly itemBytes?: (item: I) => number | undefined;
+  /**
+   * Called with each source item's natural-key hash, when the caller wants to
+   * know which of them the destination already holds.
+   *
+   * A callback rather than a returned set, so the memory cost of retaining one
+   * hash per source item is the CALLER's decision — only worth paying when
+   * there is a target reindexer to compare against. Return undefined for an
+   * item with no key of its own (mail with no Message-ID); the sync mints one
+   * from content that discovery deliberately never reads, so it cannot be
+   * matched against the destination here.
+   */
+  readonly onNaturalKey?: (item: I) => string | undefined;
+}
+
+/** What the destination already holds, and how much of it we will adopt. */
+export interface TargetDiscovery {
+  /** Items already on the destination for this domain. */
+  readonly targetExisting: number;
+  /** Of those, how many share a natural key with a source item. */
+  readonly targetColliding: number;
+}
+
+/** The enumeration surface a target must offer to be counted (a `TargetReindexer`). */
+export interface CountableTarget {
+  listEntries(mailboxId?: string): AsyncIterable<{ naturalKey: string }>;
+}
+
+/**
+ * Count what the destination already holds, and how much of it collides with
+ * the source.
+ *
+ * Read-only, and metadata-only: it walks the same `listEntries` the §20 gate
+ * uses and never fetches an item body.
+ *
+ * A collision means the sync will ADOPT that item — record it as migrated and
+ * leave the destination's copy exactly as it is. That is non-destructive by
+ * design (hard rule 2), but it decides what the customer ends up with, so it
+ * has to be on the confirm screen rather than discovered afterwards in a
+ * verification report.
+ *
+ * @param hashTargetKey turns a target entry's natural key into the same hash
+ *   space the source keys were collected in. The two sides key differently
+ *   (a target yields a raw Message-ID or UID; the ledger stores a domain-prefixed
+ *   hash), and comparing them unhashed is the ADR-0020 failure that made every
+ *   item look missing in #139.
+ */
+export async function discoverTarget(
+  target: CountableTarget,
+  sourceKeyHashes: ReadonlySet<string>,
+  hashTargetKey: (naturalKey: string) => string,
+): Promise<TargetDiscovery> {
+  let targetExisting = 0;
+  let targetColliding = 0;
+
+  for await (const entry of target.listEntries()) {
+    targetExisting += 1;
+    if (sourceKeyHashes.has(hashTargetKey(entry.naturalKey))) targetColliding += 1;
+  }
+
+  return { targetExisting, targetColliding };
 }
 
 /** Best-effort default label from a folder's `name`/`path` fields. */
@@ -66,13 +126,16 @@ export async function discoverSource<F, I>(
 
     let folderBytes = 0;
     let folderHasBytes = false;
-    if (options.itemBytes) {
+    if (options.itemBytes || options.onNaturalKey) {
       for (const item of folderItems) {
-        const b = options.itemBytes(item);
-        if (typeof b === 'number' && Number.isFinite(b)) {
-          folderBytes += b;
-          folderHasBytes = true;
+        if (options.itemBytes) {
+          const b = options.itemBytes(item);
+          if (typeof b === 'number' && Number.isFinite(b)) {
+            folderBytes += b;
+            folderHasBytes = true;
+          }
         }
+        options.onNaturalKey?.(item);
       }
     }
 

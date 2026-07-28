@@ -39,7 +39,7 @@ const DEFAULT_CONCURRENCY = 4;
  * (ADR-0020): absent/lost/malformed just means a full, still-idempotent re-scan.
  */
 export const runShadowPass: RunShadowPass = async (deps) => {
-  const { tenantId, mappingId, source, target, ledger, cursors } = deps;
+  const { tenantId, mappingId, source, target, ledger, cursors, onCollision } = deps;
   const concurrency = deps.concurrency ?? DEFAULT_CONCURRENCY;
 
   // Delegate to generalized runDomainSync with mail-specific injections
@@ -98,6 +98,7 @@ export const runShadowPass: RunShadowPass = async (deps) => {
       naturalKeyHash(ensureMessageId((raw as RawMessage).rfc822).messageId),
     contentHash: (raw) => contentHash((raw as RawMessage).rfc822),
     ensureCollection: (folder) => target.ensureMailbox(folder),
+    ...(onCollision ? { onCollision } : {}),
   });
 
   // Return compatible ReconcileResult (map failed to 0 for backward compatibility)
@@ -128,4 +129,6 @@ export interface ReconcileDeps {
   readonly cursors?: CursorStore;
   /** Max messages processed in parallel per folder (default 4). Bounds throughput and peak memory. */
   readonly concurrency?: number;
+  /** What to do when the destination already holds the message; `'skip'` (adopt) by default. */
+  readonly onCollision?: 'skip' | 'fail';
 }

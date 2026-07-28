@@ -52,16 +52,44 @@ function countsTable(domains: ReadonlyArray<DiscoveryRecord>): string {
   const rows = domains
     .map(
       (d) =>
-        `<tr><td>${esc(DOMAIN_LABEL[d.domain])}</td><td>${d.collections}</td><td>${d.items}</td><td>${esc(formatBytes(d.bytes))}</td><td>${d.generatedIdItems ?? 0}</td>${d.lastError ? `<td class="err">${esc(d.lastError)}</td>` : '<td></td>'}</tr>`,
+        `<tr><td>${esc(DOMAIN_LABEL[d.domain])}</td><td>${d.collections}</td><td>${d.items}</td><td>${esc(formatBytes(d.bytes))}</td><td>${d.generatedIdItems ?? 0}</td><td>${esc(alreadyThere(d))}</td>${d.lastError ? `<td class="err">${esc(d.lastError)}</td>` : '<td></td>'}</tr>`,
     )
     .join('');
-  const table = `<table><thead><tr><th>Type</th><th>Collections</th><th>Items</th><th>Size</th><th>Needs an ID</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  const table = `<table><thead><tr><th>Type</th><th>Collections</th><th>Items</th><th>Size</th><th>Needs an ID</th><th>Already on the destination</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 
   // A subset of `items`: these ARE migrated. Shown because we modify them.
   const generatedId = domains.reduce((sum, d) => sum + (d.generatedIdItems ?? 0), 0);
-  if (generatedId === 0) return table;
+  const colliding = domains.reduce((sum, d) => sum + (d.targetColliding ?? 0), 0);
 
-  return `${table}<p class="warn">${generatedId} message${generatedId === 1 ? '' : 's'} arrived without a Message-ID, which is what we use to copy each message exactly once. We will generate one and add it to <b>the copy on the new server</b> — the original is not changed. These messages <b>are</b> included in the counts above and will be migrated.</p>`;
+  const notes: string[] = [];
+  if (generatedId > 0) {
+    notes.push(
+      `<p class="warn">${generatedId} message${generatedId === 1 ? '' : 's'} arrived without a Message-ID, which is what we use to copy each message exactly once. We will generate one and add it to <b>the copy on the new server</b> — the original is not changed. These messages <b>are</b> included in the counts above and will be migrated.</p>`,
+    );
+  }
+  if (colliding > 0) {
+    // The number that changes what the customer ends up with. Adoption is
+    // non-destructive and is the right default, but it is still a decision
+    // about their data and it used to happen with nobody told.
+    notes.push(
+      `<p class="warn">${colliding} item${colliding === 1 ? '' : 's'} already on the destination match${colliding === 1 ? 'es' : ''} something in your source. We will <b>keep the destination's copy</b> and not overwrite it. Anything else already there is left untouched.</p>`,
+    );
+  }
+
+  return notes.length > 0 ? `${table}${notes.join('')}` : table;
+}
+
+/**
+ * What the destination already holds for this domain, as a short phrase.
+ *
+ * An empty string when we could not enumerate the destination — the counts are
+ * absent, not zero, and printing "0" would tell the customer their destination
+ * is empty when we simply did not look (hard rule 9).
+ */
+function alreadyThere(d: DiscoveryRecord): string {
+  if (d.targetExisting == null) return '—';
+  if (d.targetColliding) return `${d.targetExisting} (${d.targetColliding} kept as-is)`;
+  return String(d.targetExisting);
 }
 
 function manifestColumn(title: string, entries: ScopeManifest['migrates']): string {

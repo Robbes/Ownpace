@@ -60,6 +60,11 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
   const domains = discovery.data?.domains ?? [];
   // A subset of `items`: these ARE migrated. Shown because we modify them.
   const totalGeneratedId = domains.reduce((sum, d) => sum + (d.generatedIdItems ?? 0), 0);
+  // Items the destination already holds under a key that matches something in
+  // the source: we keep the destination's copy. Non-destructive and the right
+  // default, but it decides what the customer ends up with, so it belongs here
+  // rather than in a verification report after the fact.
+  const totalColliding = domains.reduce((sum, d) => sum + (d.targetColliding ?? 0), 0);
 
   return (
     <div className="space-y-6">
@@ -86,6 +91,7 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
                 <th className="py-1 pr-4">Items</th>
                 <th className="py-1 pr-4">Size</th>
                 <th className="py-1 pr-4">Needs an ID</th>
+                <th className="py-1 pr-4">Already on the destination</th>
               </tr>
             </thead>
             <tbody>
@@ -102,6 +108,19 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
                       <span className="text-gray-400">0</span>
                     )}
                   </td>
+                  <td className="py-1 pr-4">
+                    {/* Absent, not zero, when the destination could not be
+                        enumerated — "0" would claim it is empty. */}
+                    {d.targetExisting == null ? (
+                      <span className="text-gray-400">&mdash;</span>
+                    ) : d.targetColliding ? (
+                      <span className="text-amber-700">
+                        {d.targetExisting} ({d.targetColliding} kept as-is)
+                      </span>
+                    ) : (
+                      <span>{d.targetExisting}</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -114,6 +133,14 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
             one and add it to <strong>the copy on your new server</strong> — the original on your
             old server is not changed. These messages <strong>are</strong> included in the counts
             above and will be migrated.
+          </p>
+        )}
+        {totalColliding > 0 && (
+          <p className="mt-2 text-sm text-amber-700" role="note">
+            {totalColliding} item{totalColliding === 1 ? '' : 's'} already on your destination
+            match{totalColliding === 1 ? 'es' : ''} something in your source. We will{' '}
+            <strong>keep the destination&rsquo;s copy</strong> and not overwrite it. Anything else
+            already there is left untouched.
           </p>
         )}
       </section>

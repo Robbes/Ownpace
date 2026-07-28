@@ -26,6 +26,27 @@ export interface DomainDiscovery {
    * verification gate agreed on nothing and reported PASS.
    */
   readonly generatedIdItems?: number;
+  /**
+   * Items the DESTINATION already holds for this domain, before we copy
+   * anything. Omitted when the target could not be enumerated.
+   *
+   * A destination account is very often not empty — the customer may already be
+   * using it, and a freshly provisioned one ships with the provider's own
+   * starter content. Nothing about that was visible before the run: discovery
+   * counted the source only, so the confirm screen described a migration into
+   * what looked like an empty account no matter what was actually there.
+   */
+  readonly targetExisting?: number;
+  /**
+   * How many of `targetExisting` share a natural key with a source item, and
+   * will therefore be **adopted**: recorded as migrated, left exactly as the
+   * destination has them, never overwritten (hard rule 2).
+   *
+   * This is the number that changes what the customer gets, so it is the one
+   * they have to see before they press start. The rest of `targetExisting` is
+   * their own unrelated data and is never touched.
+   */
+  readonly targetColliding?: number;
 }
 
 /** One collection's discovery counts. */

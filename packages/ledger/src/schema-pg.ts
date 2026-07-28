@@ -605,6 +605,10 @@ export const migrationDiscovery = pgTable(
     // Nullable on purpose: null = "this run predates the column and did not
     // look", which is a different claim from 0 = "there were none".
     generatedIdItems: integer('generated_id_items'),
+    // What the DESTINATION already holds. Nullable on purpose: null means "not
+    // enumerated", which is a different claim from 0, "empty". See 0018.
+    targetExisting: integer('target_existing'),
+    targetColliding: integer('target_colliding'),
     lastError: text('last_error'),
     discoveredAt: timestamp('discovered_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -25,11 +25,19 @@ import {
   runContactSync,
   runFileSync,
   discoverSource,
+  discoverTarget,
+  type CountableTarget,
   runVerification,
   createRealVerificationDeps,
   type VerificationResult,
 } from '@openmig/core';
 import { createLedgerVerificationReader } from '@openmig/ledger';
+import {
+  naturalKeyHash,
+  calendarNaturalKeyHash,
+  contactNaturalKeyHash,
+  fileNaturalKeyHash,
+} from '@openmig/shared';
 import type { TargetReindexer } from '@openmig/shared';
 import { buildDeps, buildDomainDeps } from './build-deps';
 import { discoverDomains, type DomainDiscoveryTask, type DomainDiscoveryOutcome } from './discovery';
@@ -158,18 +166,19 @@ export async function discoverAllDomains(
   const hasDomainConfig = config.domains && Object.values(config.domains).some((d) => d?.enabled);
   const runMailOnly = !hasDomainConfig && config.source.type === 'imap-oauth2';
 
-  const enabled: Array<{ domain: DiscoveryDomain; open: () => Promise<{ source: unknown; close: () => Promise<void> }> }> = [];
+  type Opened = { source: unknown; target: unknown; close: () => Promise<void> };
+  const enabled: Array<{ domain: DiscoveryDomain; open: () => Promise<Opened> }> = [];
   if (config.domains?.mail?.enabled || runMailOnly) {
-    enabled.push({ domain: 'email', open: async () => { const d = await buildDeps(config); return { source: d.source, close: d.close }; } });
+    enabled.push({ domain: 'email', open: async () => { const d = await buildDeps(config); return { source: d.source, target: d.target, close: d.close }; } });
   }
   if (config.domains?.calendar?.enabled) {
-    enabled.push({ domain: 'calendar', open: async () => { const d = buildDomainDeps(config, 'calendar'); return { source: d.source, close: d.close }; } });
+    enabled.push({ domain: 'calendar', open: async () => { const d = buildDomainDeps(config, 'calendar'); return { source: d.source, target: d.target, close: d.close }; } });
   }
   if (config.domains?.contacts?.enabled) {
-    enabled.push({ domain: 'contact', open: async () => { const d = buildDomainDeps(config, 'contact'); return { source: d.source, close: d.close }; } });
+    enabled.push({ domain: 'contact', open: async () => { const d = buildDomainDeps(config, 'contact'); return { source: d.source, target: d.target, close: d.close }; } });
   }
   if (config.domains?.files?.enabled) {
-    enabled.push({ domain: 'file', open: async () => { const d = buildDomainDeps(config, 'file'); return { source: d.source, close: d.close }; } });
+    enabled.push({ domain: 'file', open: async () => { const d = buildDomainDeps(config, 'file'); return { source: d.source, target: d.target, close: d.close }; } });
   }
 
   const tasks: DomainDiscoveryTask[] = enabled.map(({ domain, open }) => ({
@@ -177,7 +186,47 @@ export async function discoverAllDomains(
     run: async () => {
       const opened = await open();
       try {
-        return await discoverSource(opened.source as Parameters<typeof discoverSource>[0], { itemBytes });
+        // Only retain source keys when there is a target that can actually be
+        // enumerated — the set costs one hash per source item, and paying that
+        // for a target we cannot read would buy nothing.
+        const reindexer = asCountableTarget(opened.target);
+        const sourceKeys = reindexer ? new Set<string>() : undefined;
+
+        const discovery = await discoverSource(
+          opened.source as Parameters<typeof discoverSource>[0],
+          {
+            itemBytes,
+            ...(sourceKeys
+              ? {
+                  onNaturalKey: (item: unknown) => {
+                    const hash = sourceKeyHash(domain, item);
+                    if (hash) sourceKeys.add(hash);
+                    return hash;
+                  },
+                }
+              : {}),
+          },
+        );
+
+        if (!reindexer || !sourceKeys) return discovery;
+
+        // Best-effort: a destination we cannot enumerate leaves these counts
+        // ABSENT rather than zero. Zero would read as "the destination is
+        // empty", which is a claim, and the wrong one (hard rule 9).
+        try {
+          const { targetExisting, targetColliding } = await discoverTarget(
+            reindexer,
+            sourceKeys,
+            (key) => targetKeyHash(domain, key),
+          );
+          return { ...discovery, targetExisting, targetColliding };
+        } catch (err) {
+          console.warn(
+            `[discovery] could not enumerate the ${domain} destination: ` +
+              `${err instanceof Error ? err.message : String(err)}`,
+          );
+          return discovery;
+        }
       } finally {
         await opened.close();
       }
@@ -185,6 +234,73 @@ export async function discoverAllDomains(
   }));
 
   return discoverDomains(tasks, store, tenantId, mappingId);
+}
+
+/** A target that can enumerate itself, or undefined when it cannot. */
+function asCountableTarget(target: unknown): CountableTarget | undefined {
+  const candidate = target as { listEntries?: unknown };
+  return typeof candidate?.listEntries === 'function' ? (target as CountableTarget) : undefined;
+}
+
+/** Hash a SOURCE listing item's natural key the way the ledger will store it. */
+function sourceKeyHash(domain: DiscoveryDomain, item: unknown): string | undefined {
+  switch (domain) {
+    case 'email': {
+      // Absent for mail with no Message-ID. Those get a key derived from their
+      // own bytes at sync time, and discovery never reads bodies — so they
+      // cannot be matched against the destination here, and are left out rather
+      // than guessed at.
+      const id = (item as { messageId?: string }).messageId;
+      return id ? naturalKeyHash(id) : undefined;
+    }
+    case 'calendar': {
+      const uid = extractIcalUid((item as { icalendar?: string }).icalendar);
+      return uid ? calendarNaturalKeyHash(uid) : undefined;
+    }
+    case 'contact': {
+      const uid = extractVcardUid((item as { vcard?: string }).vcard);
+      return uid ? contactNaturalKeyHash(uid) : undefined;
+    }
+    case 'file': {
+      const path = (item as { item?: { path?: string } }).item?.path;
+      return path ? fileNaturalKeyHash(path) : undefined;
+    }
+  }
+}
+
+/** Hash a TARGET entry's raw natural key into the same space. */
+function targetKeyHash(domain: DiscoveryDomain, rawKey: string): string {
+  switch (domain) {
+    case 'email':
+      return naturalKeyHash(rawKey);
+    case 'calendar':
+      return calendarNaturalKeyHash(rawKey);
+    case 'contact':
+      return contactNaturalKeyHash(rawKey);
+    case 'file':
+      return fileNaturalKeyHash(rawKey);
+  }
+}
+
+/** First `UID:` value in an iCalendar object, unfolded. */
+function extractIcalUid(icalendar?: string): string | undefined {
+  return firstUid(icalendar);
+}
+
+/** First `UID:` value in a vCard, unfolded. */
+function extractVcardUid(vcard?: string): string | undefined {
+  return firstUid(vcard);
+}
+
+function firstUid(text?: string): string | undefined {
+  if (!text) return undefined;
+  // Unfold first (RFC 5545 §3.1 / RFC 6350 §3.2): a long UID may be split
+  // across lines, and reading only the first physical line would truncate it
+  // into a key that matches nothing.
+  const unfolded = text.replace(/\r\n/g, '\n').replace(/\n[ \t]/g, '');
+  const match = /^UID:(.*)$/im.exec(unfolded);
+  const value = match?.[1]?.trim();
+  return value && value.length > 0 ? value : undefined;
 }
 
 /**

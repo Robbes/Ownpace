@@ -43,6 +43,8 @@ export interface CalendarSyncDeps {
   readonly ledger: Ledger;
   readonly cursors?: CursorStore;
   readonly concurrency?: number;
+  /** What to do when the destination already holds the item; `'skip'` (adopt) by default. */
+  readonly onCollision?: 'skip' | 'fail';
 }
 
 /**
@@ -77,6 +79,7 @@ export async function runCalendarSync(deps: CalendarSyncDeps): Promise<DomainSyn
     naturalKey: (item) => calendarNaturalKeyHash(item.item.uid),
     contentHash: (raw) => calendarContentHash((raw as RawCalendarEvent).icalendar),
     ensureCollection: (folder) => target.ensureCalendar(folder),
+    ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
   });
 }
 
@@ -91,6 +94,8 @@ export interface ContactSyncDeps {
   readonly ledger: Ledger;
   readonly cursors?: CursorStore;
   readonly concurrency?: number;
+  /** What to do when the destination already holds the item; `'skip'` (adopt) by default. */
+  readonly onCollision?: 'skip' | 'fail';
 }
 
 /**
@@ -125,6 +130,7 @@ export async function runContactSync(deps: ContactSyncDeps): Promise<DomainSyncR
     naturalKey: (item) => contactNaturalKeyHash(item.item.uid),
     contentHash: (raw) => contactContentHash((raw as RawContact).vcard),
     ensureCollection: (folder) => target.ensureContactFolder(folder),
+    ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
   });
 }
 
@@ -139,6 +145,8 @@ export interface FileSyncDeps {
   readonly ledger: Ledger;
   readonly cursors?: CursorStore;
   readonly concurrency?: number;
+  /** What to do when the destination already holds the item; `'skip'` (adopt) by default. */
+  readonly onCollision?: 'skip' | 'fail';
 }
 
 /**
@@ -173,5 +181,6 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
     naturalKey: (item) => fileNaturalKeyHash(item.item.path),
     contentHash: (raw) => fileContentHash((raw as RawFileItem).content ?? new Uint8Array(0)),
     ensureCollection: (folder) => target.ensureDirectory(folder),
+    ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
   });
 }

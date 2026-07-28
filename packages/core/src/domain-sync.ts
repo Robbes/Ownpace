@@ -65,6 +65,15 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
   readonly naturalKeyFromRaw?: (item: Item, raw: unknown) => string;
   /** Compute content hash from raw data */
   readonly contentHash: (raw: unknown) => string;
+  /**
+   * What to do when the target already holds an item under our natural key.
+   * `'skip'` (default) adopts it; `'fail'` aborts this domain's pass.
+   *
+   * Enforced HERE rather than in each writer: this is the one place that
+   * already learns the outcome of every upsert, so all four domains get the
+   * same behaviour from one implementation instead of five.
+   */
+  readonly onCollision?: 'skip' | 'fail';
   /** Ensure target collection exists */
   readonly ensureCollection: (folder: Folder) => Promise<string>;
 }
@@ -113,6 +122,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     naturalKey,
     naturalKeyFromRaw,
     contentHash,
+    onCollision,
     ensureCollection,
   } = deps;
 
@@ -194,8 +204,18 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         });
 
         if (result.created) created += 1;
-        else if (result.adopted) adopted += 1;
-        else skipped += 1;
+        else if (result.adopted) {
+          adopted += 1;
+          if (onCollision === 'fail') {
+            // Thrown after the ledger row is written, so the item that stopped
+            // the pass is identifiable afterwards rather than merely counted.
+            throw new Error(
+              `Collision on the destination for a ${domain} item, and onCollision is 'fail': ` +
+                'the target already holds an item under this natural key. Re-run with ' +
+                "onCollision: 'skip' to keep the destination's copy.",
+            );
+          }
+        } else skipped += 1;
       } catch (err) {
         // Record failure - DO NOT swallow
         failed += 1;

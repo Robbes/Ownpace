@@ -455,13 +455,33 @@ actually left:
      (`getSourceSamplesFromLedger`), so recording the source hash is correct and is precisely
      what lets §20 catch a divergent adoption as a checksum mismatch. Changing it would have
      removed detection.
-   - ⏭️ **Part 2, not built yet: give the customer the choice before the run.** Discovery is
-     source-only (`discoverSource()`; `DomainDiscovery` has no target-side field), so the
-     confirm screen says nothing about what is already on the destination. The shape that
-     follows 0013's precedent: count `targetExisting` and `targetColliding` per domain at
-     discovery (read-only — the reindexers already do exactly this listing), show both on the
-     confirm screen, and offer a collision policy — `skip` (today's behaviour, the safe
-     default) / `overwrite` / `fail`. Extras stay untouchable, no option offered.
+   - ✅ **Part 2: the customer is told before the run, and can choose.** Discovery was source-only,
+     so the confirm screen described every migration as if the destination were empty. It now
+     also counts the destination: `discoverTarget()` walks the same `listEntries` the §20 gate
+     uses (read-only, metadata-only) and records **`targetExisting`** (everything already there,
+     never touched) and **`targetColliding`** (the subset sharing a natural key, which will be
+     adopted). Both land in `migration_discovery` (migration 0018) and appear on **both** confirm
+     screens — managed's React step and the self-host page — with a plain-language note: *"N
+     items already on your destination match something in your source. We will keep the
+     destination's copy and not overwrite it."*
+     Nullable on purpose: null means "could not enumerate", which is a different claim from 0,
+     "empty" — and the UIs render `—` rather than `0` for it (hard rule 9). The source-key set is
+     only retained when there is a target that can actually be enumerated, so the memory cost is
+     never paid for nothing.
+     **Policy: `onCollision: 'skip' | 'fail'`, default `skip`** — today's behaviour, now an
+     informed default rather than a silent one. Enforced in `runDomainSync`, the one place that
+     already learns every upsert's outcome, so all four domains behave identically from one
+     implementation. **There is deliberately no `overwrite`:** `TargetWriter` is specified "NEVER
+     deletes or overwrites (non-destructive)" (hard rule 2), so source-wins would break a
+     documented invariant of every writer — that needs an ADR and an owner decision, not a config
+     flag. The parser rejects it *by name* with that reason rather than falling through to a
+     generic error.
+     Caught while building: the first cut of the policy plumbing **type-checked end to end while
+     doing nothing** — `onCollision` reached the deps object and was never forwarded to
+     `runDomainSync`, so `fail` silently behaved as `skip`. `ReconcileDeps` and the three DAV
+     deps now carry it and all four runners forward it; the test that proves it drives the real
+     sync loop rather than asserting on the config parse, which would have passed against the
+     broken version.
 2. Next: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 
