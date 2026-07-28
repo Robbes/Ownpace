@@ -550,18 +550,25 @@ function createDefaultHttpClient(): HttpClient {
         body: options.body,
       });
 
-      // Read once as bytes, then decode for the XML callers. Reading
-      // `.text()` alone would leave no way to hash binary file content.
+      // Read once as bytes. Reading `.text()` alone would leave no way to hash
+      // binary file content.
       const bytes = new Uint8Array(await response.arrayBuffer());
-      const body = new TextDecoder().decode(bytes);
       const headers: Record<string, string> = {};
       response.headers.forEach((value, key) => {
         headers[key] = value;
       });
 
+      // Decoded on first read, not on every response — see the same getter in
+      // WebdavFileSource's client. The reindexer's checksum sampling GETs whole
+      // files through here and reads only `bodyBytes`; decoding those to a
+      // string nobody looks at is pure allocation.
+      let text: string | undefined;
       return {
         status: response.status,
-        body,
+        get body(): string {
+          text ??= new TextDecoder().decode(bytes);
+          return text;
+        },
         headers,
         bodyBytes: bytes,
       };

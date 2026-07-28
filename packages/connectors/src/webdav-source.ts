@@ -721,19 +721,34 @@ function createDefaultHttpClient(): HttpClient {
         body: body as string | ArrayBuffer | Uint8Array | Buffer | undefined,
       });
 
-      // Read the bytes once, then decode for the XML callers. Reading `.text()`
-      // alone left no way to get file content back: the decode is lossy for
-      // anything that is not valid UTF-8, and it is not reversible.
+      // Read the bytes once. Reading `.text()` alone left no way to get file
+      // content back: the decode is lossy for anything that is not valid
+      // UTF-8, and it is not reversible.
       const bytes = new Uint8Array(await response.arrayBuffer());
-      const bodyText = new TextDecoder().decode(bytes);
       const headers: Record<string, string> = {};
       response.headers.forEach((value, key) => {
         headers[key] = value;
       });
 
+      // `body` decodes ON FIRST READ, not on every response.
+      //
+      // Most DAV responses are small XML and every caller reads `.body`. File
+      // downloads are the opposite: they are the large ones and NO caller reads
+      // `.body` — `fetchFileContent` uses `bodyBytes`. Decoding eagerly meant
+      // every migrated file was also UTF-8 decoded into a string that was then
+      // thrown away, and binary bytes decode to U+FFFD, which is 2 bytes of
+      // UTF-16 per input byte. A 1 MB image cost an extra ~2 MB string, with
+      // `concurrency` of them alive at once.
+      //
+      // A getter rather than a method so `HttpResponse.body` stays a `string`
+      // and not one call site has to change.
+      let text: string | undefined;
       return {
         status: response.status,
-        body: bodyText,
+        get body(): string {
+          text ??= new TextDecoder().decode(bytes);
+          return text;
+        },
         bodyBytes: bytes,
         headers,
       };
