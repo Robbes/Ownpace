@@ -326,10 +326,24 @@ actually left:
      the run demonstrates is a **wrong ledger hash**, not corrupt target content. The upload half
      of the defect is real in the code but was never exercised, because the only genuinely
      uploaded files are the seeded `.txt` ones.
-   - ⚠️ **Test gap this exposed: the file e2e seeds only text files.** `itemsSynced=89` is mostly
-     adoption of pre-existing skeleton files; binary upload is not covered end to end anywhere,
-     which is precisely why a lossy binary read survived this long. Seeding a binary fixture is
-     the change that would have caught it, and would catch the next one.
+   - ✅ **Closed that gap: the file e2e now seeds binary fixtures.** `itemsSynced=89` was mostly
+     adoption of pre-existing skeleton files, and every genuinely-uploaded file was ASCII text —
+     which survives a UTF-8 round trip unharmed. That is precisely why a lossy binary read
+     survived this long. `seed-dav-source.mjs` now also PUTs, per seeded index, a
+     `dav-seed-binary-N.bin` (deterministic LCG, no randomness: an ASCII header, a NUL, every
+     byte 0x00-0xFF, lone continuation bytes, a truncated multi-byte start, an overlong
+     encoding, a surrogate-range encoding, 0xF5-0xFF, then high-entropy filler) and a
+     `dav-seed-utf8-N.txt` of valid non-ASCII UTF-8 — the latter guarding the opposite mistake,
+     a "fix" that decodes as latin1 or re-encodes text. Verified locally: the binary fixture is
+     byte-identical across builds, differs per index, and **inflates ×1.84 (4,391 → 8,067 bytes)
+     under the old code path**, so it detects the defect by size alone.
+   - ✅ **And a sampling-independent assertion to go with it.** §20 checksum sampling covers 10
+     items of ~139 chosen by natural-key hash, so it cannot be relied on to include a binary, and
+     "the sample happened to pass" is a weaker claim than "binary files migrate intact". The
+     verification e2e now GETs `dav-seed-binary-1.bin` from both servers over plain DAV and
+     asserts the bytes are identical, size first (the failure mode roughly doubles it). It guards
+     against a vacuous pass by first asserting the fixture does *not* survive a UTF-8 round trip,
+     and it lives in its own describe block, so it still runs when `GET /verify` fails.
    - ✅ **`totalBytesSource` was structurally 0 for every domain.** The run reported target bytes
      fine (7,398 / 7,176 / 275,505 / 64,935,162) against a source total of 0, so §20's total-size
      comparison has never been able to measure anything. Cause: the DAV target writers record the
