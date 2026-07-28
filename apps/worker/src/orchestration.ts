@@ -277,7 +277,7 @@ export async function verifyMapping(config: MappingConfig): Promise<Verification
         },
         verificationReader,
         targetReindexers: reindexers,
-      } as never),
+      }),
     );
   } finally {
     // Release everything, and never throw from here: a failed pool release must

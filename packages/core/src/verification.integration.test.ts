@@ -230,7 +230,6 @@ describe('Verification Engine (integration)', () => {
         verifyContacts: true,
         verifyFiles: true,
       },
-      ledger,
       targetReindexer,
       verificationReader: createLedgerVerificationReader({ connectionString: PG_CONNECTION_STRING }),
     });
@@ -303,7 +302,6 @@ describe('Verification Engine (integration)', () => {
         verifyContacts: true,
         verifyFiles: true,
       },
-      ledger,
       targetReindexer,
       verificationReader: createLedgerVerificationReader({ connectionString: PG_CONNECTION_STRING }),
     });
@@ -382,7 +380,6 @@ describe('Verification Engine (integration)', () => {
         verifyContacts: true,
         verifyFiles: true,
       },
-      ledger,
       targetReindexer,
       verificationReader: createLedgerVerificationReader({ connectionString: PG_CONNECTION_STRING }),
     });
@@ -426,7 +423,6 @@ describe('Verification Engine (integration)', () => {
         verifyContacts: true,
         verifyFiles: true,
       },
-      ledger,
       targetReindexer,
       verificationReader: createLedgerVerificationReader({ connectionString: PG_CONNECTION_STRING }),
     });
@@ -490,7 +486,6 @@ describe('Verification Engine (integration)', () => {
         verifyContacts: true,
         verifyFiles: true,
       },
-      ledger,
       targetReindexer,
       verificationReader: createLedgerVerificationReader({ connectionString: PG_CONNECTION_STRING }),
     });

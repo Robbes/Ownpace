@@ -265,6 +265,34 @@ actually left:
      reindexers can read a real Nextcloud, and whether a JMAP blob round-trips byte-identically
      — a *systematic* 100% checksum mismatch would mean mail's `contentHashFor` must be
      withdrawn the way CalDAV/CardDAV's already is.
+   - ✅ **Done — the e2e workflow's test filters never filtered anything.** Run #29 failed the
+     gate above with a bare `GET /verify -> 500`, and the reason was the harness, not the
+     product: `pnpm test:e2e -- --grep "..."` makes pnpm forward a *literal* `--`, and vitest's
+     CLI discards everything after it (`--grep` is not a vitest option either — it is
+     `-t/--testNamePattern`, and passed properly it is a hard CLI error). Both e2e steps
+     therefore ran the **entire** e2e project. The restart-resume suite and the verification
+     suite ran in one process in parallel, so `/verify` was called ~0.4s in — before a single
+     item had synced, while `runAllDomains` was mid-flight against the same targets. Both
+     workflows now select a suite by file path with no `--`. The same defect was silently
+     disabling `pnpm test -- --coverage` in `ci.yml`, so the coverage artifact has always been
+     empty.
+   - ✅ **Done — three real defects found while chasing that 500.** (a) The JMAP client returned
+     a method-level error object *as if it were a result* (RFC 8620 §3.6.2 returns
+     `["error", …]` inside an HTTP 200), so a rejected `Email/query` produced `ids: undefined`,
+     `listEntries` yielded nothing, and verification would report a healthy target as **total
+     data loss** — the worst possible way to fail (hard rule 9). (b) That query sent a
+     `properties` argument, which RFC 8621 §4.4 does not define for `Email/query` (it belongs to
+     `Email/get`); a spec-following server must answer `invalidArguments`. (c) Both DAV sources
+     built the RFC 6764 well-known URI by appending to the configured DAV path, producing
+     `…/remote.php/dav/.well-known/caldav` — a guaranteed 404 on every calendar and contact pass,
+     visible in the run diagnostics, before the fallback PROPFIND. §4 puts those at the origin
+     root. Also removed `RealVerificationDeps.ledger`: a required field nothing read, which every
+     call site silenced with `as never` — the cast that let `verifyMapping` ship unchecked.
+   - ⚠️ **Not yet settled.** The 500's own stack was never captured, because the appliance's
+     error handler logged nothing and the e2e assertion discarded the response body. Both are
+     fixed (stack to the container log, message over the wire — stacks stay server-side per T4
+     secret hygiene), so the *next* self-hosted run diagnoses itself. Whether the fixes above are
+     sufficient can only be established by that run.
 2. Next: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 

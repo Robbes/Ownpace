@@ -29,7 +29,11 @@ export interface RealVerificationDeps {
   tenantId: TenantId;
   mappingId: MappingId;
   config: import('./verification').VerificationConfig;
-  ledger: import('@openmig/shared').Ledger;
+  // No `ledger` here. It was a REQUIRED field that this module never read —
+  // verification goes through `verificationReader` — and every call site
+  // silenced it with `as never`. That cast disabled type checking on the whole
+  // argument, which is how `verifyMapping` came to be written and shipped
+  // without anyone able to see what it was actually passing.
   /**
    * The MAIL target's reindexer.
    *

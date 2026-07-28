@@ -24,7 +24,15 @@
 // kind of thing that must not be discovered during someone's cutover.
 //
 // PREREQUISITES: same running stack as selfhost-restart-resume.e2e.test.ts, and
-// it must have run first so there is synced data to verify.
+// it must have run TO COMPLETION first so there is synced data to verify.
+//
+// That ordering is not advisory. e2e.yml used to filter both suites with
+// `pnpm test:e2e -- --grep "..."`, which filtered nothing at all (pnpm forwards
+// a literal `--`, and vitest discards everything after it), so both files ran
+// in one process in parallel: this suite called `GET /verify` ~0.4s in, before
+// a single item had synced and while runAllDomains was still mid-flight against
+// the same targets. The workflow now selects each suite by file path, one step
+// each, in order.
 
 import { describe, it, expect, beforeAll } from 'vitest';
 
@@ -81,8 +89,13 @@ let report: VerificationReport;
 describe('Verification gate against real servers', () => {
   beforeAll(async () => {
     const response = await fetch(VERIFY_URL);
-    expect(response.ok, `GET /verify failed: ${response.status}`).toBe(true);
-    const byMapping = (await response.json()) as Record<string, VerificationReport>;
+    const raw = await response.text();
+    // Read the body BEFORE asserting. Asserting on `response.ok` alone threw
+    // the diagnosis away: run #29 failed with a bare "500" and the cause —
+    // which the endpoint had put in the body — was never printed, so the run
+    // proved only that something broke.
+    expect(response.ok, `GET /verify failed: ${response.status}\n${raw}`).toBe(true);
+    const byMapping = JSON.parse(raw) as Record<string, VerificationReport>;
 
     const first = Object.values(byMapping)[0];
     expect(first, 'no mapping in the /verify response').toBeTruthy();

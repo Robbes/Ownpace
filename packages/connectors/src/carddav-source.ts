@@ -17,6 +17,7 @@
 import type { ContactSource, ContactFolder, RawContact, SyncCursor } from '@openmig/shared';
 import type { CardDAVSourceConfig, CardDAVSyncToken, CardDAVContactObject, CardDAVHomeSet as _CardDAVHomeSet, CardDAVCollection as _CardDAVCollection } from './carddav-source.types';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types';
+import { wellKnownUrl as buildWellKnownUrl } from './dav-http.types';
 
 /**
  * CardDAV source connector implementation.
@@ -102,7 +103,7 @@ export class CarddavSource implements ContactSource {
   private async discoverAddressBookHomeSet(): Promise<void> {
     // Step 1: Try RFC 6764 well-known URI discovery
     try {
-      const wellKnownUrl = this.buildUrl('.well-known/carddav');
+      const wellKnownUrl = buildWellKnownUrl(this.config.url, 'carddav');
       const response = await this.httpClient.request({
         method: 'GET',
         url: wellKnownUrl,

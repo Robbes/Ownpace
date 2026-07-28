@@ -216,7 +216,6 @@ export const runCutover = schemaTask({
                       verifyContacts: true,
                       verifyFiles: true,
                     },
-                    ledger: deps.ledger,
                     verificationReader,
                     // One reindexer per domain, each reading its own target.
                     // A domain with no reindexer is reported NOT_VERIFIABLE

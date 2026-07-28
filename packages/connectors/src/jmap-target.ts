@@ -287,6 +287,22 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     if (!firstResponse || !Array.isArray(firstResponse) || firstResponse.length < 2) {
       throw new Error('Invalid JMAP response format');
     }
+
+    // A method-level error comes back as ["error", {type, description}, callId]
+    // inside methodResponses, with HTTP 200 (RFC 8620 §3.6.2). Returning
+    // `firstResponse[1]` blindly handed that error object back AS IF it were the
+    // result — so an Email/query that the server rejected produced
+    // `{ ids: undefined }`, listEntries yielded nothing, and verification read
+    // the target as EMPTY. A silently empty target is reported as total data
+    // loss, which is the worst possible way to fail (hard rule 9).
+    if (firstResponse[0] === 'error') {
+      const err = firstResponse[1] as { type?: string; description?: string };
+      throw new Error(
+        `JMAP ${method} failed: ${err?.type ?? 'unknown'}` +
+          (err?.description ? ` - ${err.description}` : ''),
+      );
+    }
+
     return firstResponse[1] as T;
   }
 
@@ -489,9 +505,15 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
 
     while (true) {
       // Build the query arguments
+      // No `properties` here: RFC 8621 §4.4 defines Email/query's arguments as
+      // accountId/filter/sort/position/anchor/anchorOffset/limit/calculateTotal
+      // /collapseThreads — `properties` belongs to Email/get. A spec-following
+      // server MUST answer an unknown argument with `invalidArguments`
+      // (RFC 8620 §3.2), which this code then treated as a result: `ids` came
+      // back undefined, the loop broke immediately, and the target listed as
+      // empty. Email/query returns ids; the properties are fetched below.
       const queryArgs: Record<string, unknown> = {
         accountId: this.accountId,
-        properties: ["id", "mailboxIds"],
         limit: LIMIT,
         position: position,
       };

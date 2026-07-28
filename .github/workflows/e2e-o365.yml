@@ -101,8 +101,13 @@ jobs:
       # pass, sleep-past-expiry token refresh, second pass, idempotency, and the
       # optional soak (gated on SOAKE_TEST_24H). Read-only is enforced inside the
       # test — a write scope in the token claims fails the run.
+      # File filter, and no `--`. `pnpm <script> -- <args>` forwards a literal
+      # `--` that vitest's CLI parser discards along with everything after it,
+      # and `--grep` is not a vitest option regardless (it is
+      # `-t/--testNamePattern`). This therefore ran every e2e file in the repo
+      # rather than the O365 suite. See the same fix in e2e.yml.
       - name: Run O365 real-tenant e2e (incl. token-refresh + idempotency)
-        run: pnpm test:e2e -- --grep "O365 End-to-End Scenario"
+        run: pnpm test:e2e test/e2e/o365-scenario.e2e.test.ts
 
       - name: Upload reports
         if: always()

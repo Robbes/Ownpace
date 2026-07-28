@@ -394,7 +394,20 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       }
       return sendJson(res, 404, { error: 'not found' });
     } catch (err) {
-      return sendJson(res, 500, { error: err instanceof Error ? err.message : 'internal error' });
+      // Log it, with the stack, before answering. A failing request used to
+      // leave NOTHING in the container logs: the message went into the response
+      // body and nowhere else, so the diagnostics artifact — the only thing we
+      // get back from a self-hosted run — showed a healthy-looking appliance
+      // next to a bare 500. Hard rule 9: the cause has to survive somewhere.
+      //
+      // The stack stays server-side. Error messages already cross the wire and
+      // that is enough to act on; stacks carry filesystem layout, and driver
+      // errors can quote a connection string, neither of which belongs in an
+      // HTTP body (workplan 0010 T4, secret hygiene).
+      console.error(`[selfhost] ${req.method} ${req.url} failed:`, err);
+      return sendJson(res, 500, {
+        error: err instanceof Error ? err.message : 'internal error',
+      });
     }
   });
 
