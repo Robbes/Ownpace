@@ -311,12 +311,25 @@ actually left:
      ARE valid UTF-8. Everything else was destroyed on read: each invalid byte sequence became
      U+FFFD, unrecoverably. Measured locally on a 476 KB JPEG: 476,387 bytes in, 863,389 out,
      none of them the original. Every JPEG, PDF, MP4, ODP and DOCX in a file migration went
-     through it. The corrupted bytes were hashed into the ledger *and* uploaded, so the copy
-     agreed with its own record and the sync looked clean — count parity was perfect. Only a
-     reader of the real target could see it, which is what run #31's files sample did: 6 matched
-     and 4 mismatched, and the sampled text files are exactly the ones that round-trip. The
-     source client now reads bytes once and `fetchFileContent` returns them, throwing rather
-     than falling back to the lossy path (hard rule 9). 5 tests, 4 fail on the old behaviour.
+     through it. The source client now reads bytes once and `fetchFileContent` returns them,
+     throwing rather than falling back to the lossy path (hard rule 9). 5 tests, 4 fail on the
+     old behaviour. **The defect and the fix rest on code inspection plus that local
+     measurement, not on the run** — see below for what run #31 does and does not show.
+   - **What run #31 actually proves about it, precisely.** The 10 target GETs in the diagnostics
+     are exactly the 10 checksum samples, and they split by type: 6 × `dav-seed-file-N.txt`
+     (the 6 matches) and 4 binaries — `Gorilla.jpg`, `Nextcloud intro.mp4`, `Gotong royong.odp`,
+     `Pitch deck.odp` (the 4 mismatches). So the text/binary attribution holds. But the sizes
+     rule out the copy being corrupt: a UTF-8-mangled `Gorilla.jpg` would be ~863 KB and the
+     target's is 476,389 bytes, within 2 of the source. All four binaries are **standard
+     Nextcloud skeleton files already present on the target user**, which `findFileByNaturalKey`
+     adopted into the ledger — with the corrupted source hash — instead of uploading. So what
+     the run demonstrates is a **wrong ledger hash**, not corrupt target content. The upload half
+     of the defect is real in the code but was never exercised, because the only genuinely
+     uploaded files are the seeded `.txt` ones.
+   - ⚠️ **Test gap this exposed: the file e2e seeds only text files.** `itemsSynced=89` is mostly
+     adoption of pre-existing skeleton files; binary upload is not covered end to end anywhere,
+     which is precisely why a lossy binary read survived this long. Seeding a binary fixture is
+     the change that would have caught it, and would catch the next one.
    - ✅ **`totalBytesSource` was structurally 0 for every domain.** The run reported target bytes
      fine (7,398 / 7,176 / 275,505 / 64,935,162) against a source total of 0, so §20's total-size
      comparison has never been able to measure anything. Cause: the DAV target writers record the

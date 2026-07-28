@@ -143,11 +143,18 @@ export class WebdavFileSource implements FileSource {
       // only for files that happen to BE valid UTF-8 — plain text. Every other
       // file was destroyed on read: each invalid byte sequence became U+FFFD,
       // and re-encoding cannot recover it. A 476 KB JPEG came back as 863 KB of
-      // replacement characters. The corrupted bytes were then hashed into the
-      // ledger AND uploaded to the target, so the copy was consistent with
-      // itself and the migration looked clean — the §20 gate reading the real
-      // target was the first thing able to see it (contacts and files reported
-      // content mismatches on exactly the binary samples).
+      // replacement characters (measured).
+      //
+      // The corrupted bytes went two places: into the ledger as the item's
+      // content hash, and into the PUT. Nothing in the sync could notice — the
+      // copy agreed with its own record and count parity was perfect. The §20
+      // gate reading the real target was the first thing able to see it, and
+      // did: the four binary samples in the first full run all mismatched while
+      // the six text samples matched. (In that run the four binaries happened
+      // to be pre-existing files the writer ADOPTED rather than uploaded, so
+      // what it caught was the wrong hash rather than a corrupt copy. The
+      // upload path is corrupted just the same; nothing had exercised it,
+      // because the e2e seeds only text files.)
       //
       // Never fall back to `body`. A silent half-working copy of someone's
       // photo library is worse than a failed run (hard rule 9).

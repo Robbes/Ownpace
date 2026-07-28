@@ -10,11 +10,17 @@
  * different, longer, permanently wrong content. Measured on a 476 KB JPEG:
  * 476,387 bytes in, 863,389 out.
  *
- * The corrupted bytes were then hashed into the ledger AND uploaded, so the
- * copy agreed with its own record and the migration looked clean. Nothing in
- * the sync could notice; the §20 gate reading the real target was the first
- * thing that could, and it did — reporting content mismatches on exactly the
- * binary samples.
+ * The corrupted bytes went both into the ledger as the content hash and into
+ * the PUT, so the copy agreed with its own record and the migration looked
+ * clean. Nothing in the sync could notice; the §20 gate reading the real target
+ * was the first thing that could, and it did — every binary sample in the first
+ * full run mismatched while every text sample matched.
+ *
+ * (In that run the binaries sampled were pre-existing files the writer ADOPTED
+ * rather than uploaded, so what it caught was the wrong hash rather than a
+ * corrupt copy. The upload path is corrupted just the same — nothing had ever
+ * exercised it, because the e2e seeds only text files. These tests cover the
+ * read, which is where both consequences originate.)
  *
  * Every case here uses byte sequences that are invalid UTF-8, because that is
  * the whole population of files this broke: images, PDFs, video, Office
