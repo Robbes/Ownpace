@@ -39,7 +39,7 @@ const DEFAULT_CONCURRENCY = 4;
  * (ADR-0020): absent/lost/malformed just means a full, still-idempotent re-scan.
  */
 export const runShadowPass: RunShadowPass = async (deps) => {
-  const { tenantId, mappingId, source, target, ledger, cursors } = deps;
+  const { tenantId, mappingId, source, target, ledger, cursors, onCollision } = deps;
   const concurrency = deps.concurrency ?? DEFAULT_CONCURRENCY;
 
   // Delegate to generalized runDomainSync with mail-specific injections
@@ -68,8 +68,21 @@ export const runShadowPass: RunShadowPass = async (deps) => {
       // the original instead and §20 checksum sampling flags every one of these
       // as corrupt.
       const ensured = ensureMessageId(raw.rfc822);
+      // Size of the bytes we actually fetched and are about to write — NOT
+      // `item.size` from the listing.
+      //
+      // `item.size` is optional on MailItem and depends on the source having
+      // asked for RFC822.SIZE; when it is absent this fell back to 0, and since
+      // it did so for every message the ledger's whole mail total came out 0.
+      // §20 then compared a source total of 0 against a measured target total,
+      // which is not a comparison at all — observed live as
+      // `mail bytes: source=0 target=7695`.
+      //
+      // The fetched bytes are always available here, are what `contentHash`
+      // below hashes, and are what the target receives — so this is both more
+      // robust and more truthful than the listing's advertised size.
       if (!ensured.generated) {
-        return { raw, sizeBytes: item.size ?? 0 };
+        return { raw, sizeBytes: raw.rfc822.byteLength };
       }
       return {
         raw: { ...raw, rfc822: ensured.rfc822 } satisfies RawMessage,
@@ -85,6 +98,7 @@ export const runShadowPass: RunShadowPass = async (deps) => {
       naturalKeyHash(ensureMessageId((raw as RawMessage).rfc822).messageId),
     contentHash: (raw) => contentHash((raw as RawMessage).rfc822),
     ensureCollection: (folder) => target.ensureMailbox(folder),
+    ...(onCollision ? { onCollision } : {}),
   });
 
   // Return compatible ReconcileResult (map failed to 0 for backward compatibility)
@@ -92,6 +106,7 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     scanned: result.scanned,
     created: result.created,
     skipped: result.skipped,
+    adopted: result.adopted,
     drift: result.drift,
   };
 };
@@ -114,4 +129,6 @@ export interface ReconcileDeps {
   readonly cursors?: CursorStore;
   /** Max messages processed in parallel per folder (default 4). Bounds throughput and peak memory. */
   readonly concurrency?: number;
+  /** What to do when the destination already holds the message; `'skip'` (adopt) by default. */
+  readonly onCollision?: 'skip' | 'fail';
 }

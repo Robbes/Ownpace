@@ -25,6 +25,7 @@ import {
   hasResourceType,
   extractUid,
   decodeHref,
+  hrefRelativeTo,
   unescapeXml,
   sizeOf,
 } from './dav-multistatus';
@@ -116,6 +117,9 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
 
     // Compute content hash for change detection
     const contentHashValue = contactContentHash(raw.vcard);
+    // Recorded here, not only by the sync loop: `recordIfAbsent` makes the first
+    // writer win, and that is this one. See webdav-target-writer.ts.
+    const sizeBytes = Buffer.byteLength(raw.vcard, 'utf8');
 
     // Check if contact already exists on target (by UID)
     const existingId = await this.findContactByNaturalKey(folderId, naturalKey);
@@ -129,8 +133,9 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
         contentHash: contentHashValue,
         targetId: existingId,
         createdAt: new Date().toISOString(),
+        sizeBytes,
       });
-      return { targetId: existingId, created: false };
+      return { targetId: existingId, created: false, adopted: true };
     }
 
     // Upload the contact to the address book
@@ -145,6 +150,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       contentHash: contentHashValue,
       targetId: contactId,
       createdAt: new Date().toISOString(),
+      sizeBytes,
     });
 
     return { targetId: contactId, created: true };
@@ -239,11 +245,16 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       );
     }
 
-    const homeSetPath = decodeHref(this.buildUrl(homeSet)).replace(/\/+$/, '');
+    // Hrefs are SERVER-absolute; `buildUrl` concatenates onto the configured
+    // base. Passing them through unconverted doubled the DAV prefix — see the
+    // identical fix and the real 404 it produced in caldav-target-writer.ts.
     return parseMultiStatus(response.body)
       .filter((r) => hasResourceType(r.xml, 'addressbook'))
-      .map((r) => this.normalizeAddressBookPath(decodeHref(r.href)))
-      .filter((path) => this.buildUrl(path).replace(/\/+$/, '') !== homeSetPath);
+      .map((r) => hrefRelativeTo(r.href, this.buildUrl('')))
+      // Outside the base, or the home set itself, which is not an address book.
+      .filter((relative): relative is string => relative !== undefined && relative !== '')
+      .map((relative) => this.normalizeAddressBookPath(relative))
+      .filter((path) => path !== homeSet);
   }
 
   /** Every vCard in one address book, as ledger-shaped entries. */
@@ -292,11 +303,43 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
         targetId: decodeHref(item.href),
         mailboxId: bookPath,
         ...sizeOf(item.xml),
-        // No contentHash: see the note in the CalDAV writer — servers
-        // re-serialize vCard too, so hashing what comes back would mark every
-        // contact corrupt.
+        // No contentHash from the LISTING: it fetches only the UID.
+        // `contentHashFor` below fingerprints sampled items canonically.
       };
     }
+  }
+
+  /**
+   * A canonical content fingerprint for one sampled contact. Mirrors the CalDAV
+   * writer — see its `contentHashFor` and dav-canonical.ts for what a match
+   * does and does not claim.
+   */
+  async contentHashFor(entry: TargetEntry): Promise<string | undefined> {
+    // Server-absolute href; converting it is what stops the DAV prefix doubling.
+    const relative = hrefRelativeTo(entry.targetId, this.buildUrl(''));
+    if (relative === undefined) {
+      console.warn(`[carddav] ${entry.targetId} is outside the configured base; not content-verifying it`);
+      return undefined;
+    }
+
+    let response: HttpResponse;
+    try {
+      response = await this.httpClient.request({
+        method: 'GET',
+        url: this.buildUrl(relative),
+        headers: { Authorization: this.authHeader() },
+      });
+    } catch (err) {
+      console.warn(`[carddav] GET ${entry.targetId} failed: ${err instanceof Error ? err.message : String(err)}`);
+      return undefined;
+    }
+
+    if (response.status !== 200) {
+      console.warn(`[carddav] GET ${entry.targetId} -> ${response.status}; cannot content-verify it`);
+      return undefined;
+    }
+
+    return contactContentHash(response.body);
   }
 
   private authHeader(): string {

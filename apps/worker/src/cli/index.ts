@@ -220,7 +220,6 @@ async function main() {
               verifyContacts: true,
               verifyFiles: true,
             },
-            ledger: runDeps.ledger,
             verificationReader,
             // One reindexer per domain, each reading its own target.
             targetReindexers: targets.reindexers,

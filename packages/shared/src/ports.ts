@@ -112,6 +112,21 @@ export interface UpsertResult {
   readonly targetId: string;
   /** True if a new item was created; false if it already existed (idempotent skip). */
   readonly created: boolean;
+  /**
+   * True when the item was found ALREADY ON THE TARGET under our natural key
+   * and therefore not written — as opposed to skipped because our own ledger
+   * already had it.
+   *
+   * The two are very different facts and were indistinguishable: both return
+   * `created: false`. A first migration into an account the customer is already
+   * using reported exactly the same "0 created, N skipped" as a clean re-run of
+   * a finished one, so nobody could tell that N items had been silently left as
+   * the destination found them.
+   *
+   * Adoption is the right default — non-destructive, hard rule 2 — but it is a
+   * decision about the customer's data and has to be visible before cutover.
+   */
+  readonly adopted?: boolean;
 }
 
 /** A target mailbox store the engine writes to. NEVER deletes or overwrites (non-destructive). */
@@ -264,7 +279,12 @@ export interface LedgerRecord {
   /** Size in bytes of the item (optional for backward compatibility). */
   readonly sizeBytes?: number;
   /** Status of the item sync (copied, updated, skipped, failed, etc.). */
-  readonly status?: 'pending' | 'copied' | 'updated' | 'skipped' | 'failed' | 'deleted_source' | 'tombstoned';
+  /**
+   * `'adopted'` means the item was already on the target under our natural key,
+   * so nothing was written. Kept distinct from `'updated'`: both mean "not
+   * created", but only this one says the destination account was not empty.
+   */
+  readonly status?: 'pending' | 'copied' | 'updated' | 'adopted' | 'skipped' | 'failed' | 'deleted_source' | 'tombstoned';
 }
 
 /** Idempotency ledger. UNIQUE(tenantId, mappingId, itemType, naturalKeyHash). Non-destructive. */
@@ -339,13 +359,23 @@ export interface ReconcileDeps {
   readonly cursors?: CursorStore;
   /** Max messages processed in parallel per folder (default 4). Bounds throughput and peak memory. */
   readonly concurrency?: number;
+  /** What to do when the destination already holds the item; `'skip'` (adopt) by default. */
+  readonly onCollision?: 'skip' | 'fail';
 }
 
 /** Summary of a single shadow pass. */
 export interface ReconcileResult {
   readonly scanned: number;
   readonly created: number;
+  /** Not created because OUR LEDGER already had the message. */
   readonly skipped: number;
+  /**
+   * Not created because the TARGET mailbox already held a message with this
+   * Message-ID. Counted apart from `skipped`: both mean "not created", but only
+   * this one says the destination was not empty. Optional for compatibility
+   * with callers written before it existed.
+   */
+  readonly adopted?: number;
   /** Source items absent on a later pass (potential deletions) — logged, never propagated. */
   readonly drift: number;
 }

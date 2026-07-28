@@ -29,7 +29,11 @@ export interface RealVerificationDeps {
   tenantId: TenantId;
   mappingId: MappingId;
   config: import('./verification').VerificationConfig;
-  ledger: import('@openmig/shared').Ledger;
+  // No `ledger` here. It was a REQUIRED field that this module never read —
+  // verification goes through `verificationReader` — and every call site
+  // silenced it with `as never`. That cast disabled type checking on the whole
+  // argument, which is how `verifyMapping` came to be written and shipped
+  // without anyone able to see what it was actually passing.
   /**
    * The MAIL target's reindexer.
    *
@@ -75,8 +79,8 @@ export function createRealVerificationDeps(
       getTargetCountFromReindexer(reindexerFor(dataType), verificationReader, tenantId, mappingId, dataType),
     getSourceSamples: (dataType, count) =>
       getSourceSamplesFromLedger(verificationReader, tenantId, mappingId, dataType, count),
-    getTargetSamples: (dataType, count) =>
-      getTargetSamplesFromReindexer(reindexerFor(dataType), verificationReader, tenantId, mappingId, dataType, count),
+    getTargetSamples: (dataType, count, naturalKeyHashes) =>
+      getTargetSamplesFromReindexer(reindexerFor(dataType), verificationReader, tenantId, mappingId, dataType, count, naturalKeyHashes),
     findMissingOnTarget: (dataType) =>
       findMissingOnTarget(verificationReader, tenantId, mappingId, dataType, reindexerFor(dataType)),
     findExtraOnTarget: (dataType) =>
@@ -164,7 +168,8 @@ async function getTargetSamplesFromReindexer(
   tenantId: TenantId,
   mappingId: MappingId,
   dataType: 'mail' | 'calendar' | 'contacts' | 'files',
-  count: number
+  count: number,
+  naturalKeyHashes?: ReadonlyArray<string>
 ): Promise<Array<{ id: string; naturalKeyHash: string; content: Uint8Array | string }>> {
   if (!targetReindexer) {
     // Returning the ledger's own samples as "target samples" compared the source
@@ -192,7 +197,17 @@ async function getTargetSamplesFromReindexer(
   // Sort by naturalKeyHash for deterministic sampling (to match ledger ordering)
   allEntries.sort((a, b) => a.naturalKeyHash.localeCompare(b.naturalKeyHash));
 
-  const sampled = allEntries.slice(0, count);
+  // Prefer the items the CALLER asked for. Slicing the target's own first
+  // `count` only lines up with the source slice when the two sets are equal,
+  // and they are not: the target also holds whatever was already on the
+  // destination account. Every such extra that sorted into the first `count`
+  // pushed a real sample out, and the pushed-out item then read as absent —
+  // scored as a content mismatch, ERROR severity, cutover blocked, on a
+  // migration whose `missingOnTarget` was 0.
+  const wanted = naturalKeyHashes && naturalKeyHashes.length > 0 ? new Set(naturalKeyHashes) : undefined;
+  const sampled = wanted
+    ? allEntries.filter((e) => wanted.has(e.naturalKeyHash))
+    : allEntries.slice(0, count);
 
   // Fetch a real content hash for the sampled items only — this is the whole
   // point of SAMPLING: the enumeration stays metadata-only, and just these few

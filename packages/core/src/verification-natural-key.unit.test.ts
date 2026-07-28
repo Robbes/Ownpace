@@ -82,7 +82,7 @@ describe('verification natural-key comparison', () => {
           mailboxId: 'INBOX',
         })),
       ),
-    } as never);
+    });
 
     // Nothing is missing: every ledger row has its message on the target.
     const missing = await deps.findMissingOnTarget('mail');
@@ -108,7 +108,7 @@ describe('verification natural-key comparison', () => {
       targetReindexer: reindexerYielding(
         MESSAGE_IDS.map((id, i) => ({ naturalKey: id, targetId: `t${i}`, mailboxId: 'INBOX' })),
       ),
-    } as never);
+    });
 
     const extra = await deps.findExtraOnTarget('mail');
     expect(extra).toEqual([]);
@@ -133,7 +133,7 @@ describe('verification natural-key comparison', () => {
       targetReindexer: reindexerYielding(
         MESSAGE_IDS.map((id, i) => ({ naturalKey: id, targetId: `t${i}`, mailboxId: 'INBOX' })),
       ),
-    } as never);
+    });
 
     expect(await deps.getTargetCount('mail')).toBe(3);
   });
@@ -162,7 +162,7 @@ describe('verification natural-key comparison', () => {
           mailboxId: 'INBOX',
         })),
       ),
-    } as never);
+    });
 
     const missing = await deps.findMissingOnTarget('mail');
     expect(missing).toHaveLength(1);
@@ -193,7 +193,7 @@ describe('verification natural-key comparison', () => {
           paths.map((p, i) => ({ naturalKey: p, targetId: `f${i}`, mailboxId: '/' })),
         ),
       },
-    } as never);
+    });
 
     expect(await deps.findMissingOnTarget('files')).toEqual([]);
   });

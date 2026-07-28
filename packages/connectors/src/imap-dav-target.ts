@@ -326,7 +326,9 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
     // Check if message already exists
     const existingUid = await this.findByNaturalKey(mailboxId, messageId);
     if (existingUid) {
-      return { targetId: existingUid, created: false };
+      // Already on the target under our natural key: not written, ADOPTED.
+      // Distinct from a ledger fast-path skip — see UpsertResult.adopted.
+      return { targetId: existingUid, created: false, adopted: true };
     }
 
     // Open the mailbox

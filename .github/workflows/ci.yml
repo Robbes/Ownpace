@@ -144,7 +144,13 @@ jobs:
           # Unit tests mock all DAV/HTTP; no unit test reads NEXTCLOUD_* — skip
           # the ~30s Nextcloud container boot the global setup otherwise does.
           SKIP_NEXTCLOUD: 'true'
-        run: pnpm test -- --coverage
+        # No `--`: pnpm forwards it literally, and vitest's CLI parser discards
+        # everything after it. `pnpm test -- --coverage` therefore ran
+        # `vitest run --project unit --project unit-browser -- --coverage`,
+        # which never enabled coverage — so the upload step below has been
+        # publishing an empty artifact. Same defect as the e2e filters in
+        # e2e.yml.
+        run: pnpm test --coverage
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.0

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { calendarFingerprint, contactFingerprint } from './dav-canonical';
 import type { MailItem } from './mail';
 import type { CalendarEvent } from './calendar';
 import type { Contact } from './contact';
@@ -76,16 +77,30 @@ export function contentHash(rfc822: Uint8Array): string {
 
 /**
  * Content hash for calendar events (iCalendar data).
+ *
+ * A CANONICAL fingerprint, not a hash of the bytes. CalDAV servers re-serialize
+ * what they store — refolding lines, reordering properties, adding their own
+ * PRODID/VERSION/X- properties — so a byte hash computed on the source can
+ * never equal one computed back off the target. That is why `contentHashFor`
+ * was withdrawn for this domain (#143) and why §20's content leg stopped
+ * running for it entirely. See dav-canonical.ts for what is compared, what a
+ * match does and does not claim, and why timing properties are excluded.
+ *
+ * Nothing reads `item.content_hash` to make a decision — deduplication is by
+ * `natural_key_hash` — so changing what it contains does not affect the sync.
+ * Fingerprints are version-tagged so a row written by an older build is
+ * reported as unmeasured rather than as corruption.
  */
 export function calendarContentHash(icalendar: string): string {
-  return createHash('sha256').update(icalendar, 'utf8').digest('hex');
+  return calendarFingerprint(icalendar);
 }
 
 /**
- * Content hash for contacts (vCard data).
+ * Content hash for contacts (vCard data). Canonical fingerprint — see
+ * `calendarContentHash`.
  */
 export function contactContentHash(vcard: string): string {
-  return createHash('sha256').update(vcard, 'utf8').digest('hex');
+  return contactFingerprint(vcard);
 }
 
 /**

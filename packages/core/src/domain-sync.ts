@@ -65,6 +65,15 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
   readonly naturalKeyFromRaw?: (item: Item, raw: unknown) => string;
   /** Compute content hash from raw data */
   readonly contentHash: (raw: unknown) => string;
+  /**
+   * What to do when the target already holds an item under our natural key.
+   * `'skip'` (default) adopts it; `'fail'` aborts this domain's pass.
+   *
+   * Enforced HERE rather than in each writer: this is the one place that
+   * already learns the outcome of every upsert, so all four domains get the
+   * same behaviour from one implementation instead of five.
+   */
+  readonly onCollision?: 'skip' | 'fail';
   /** Ensure target collection exists */
   readonly ensureCollection: (folder: Folder) => Promise<string>;
 }
@@ -73,7 +82,15 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
 export interface DomainSyncResult {
   readonly scanned: number;
   readonly created: number;
+  /** Not created because OUR LEDGER already had the item. */
   readonly skipped: number;
+  /**
+   * Not created because the TARGET already had it under our natural key —
+   * i.e. the destination account was not empty and we left those items alone.
+   * Non-destructive by design (hard rule 2), but a fact the operator has to see
+   * before cutover, which is why it is counted apart from `skipped`.
+   */
+  readonly adopted: number;
   readonly failed: number;
   /** Source items absent on a later pass (potential deletions). */
   readonly drift: number;
@@ -105,12 +122,18 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     naturalKey,
     naturalKeyFromRaw,
     contentHash,
+    onCollision,
     ensureCollection,
   } = deps;
 
   let scanned = 0;
   let created = 0;
   let skipped = 0;
+  // Items the target ALREADY had under our natural key, which we therefore did
+  // not write. Counted apart from `skipped` (our own ledger already had them):
+  // both mean "not created", but only one of them means the destination account
+  // was not empty, and that is a fact the operator needs before cutover.
+  let adopted = 0;
   let failed = 0;
 
   const folders = await listFolders();
@@ -177,11 +200,22 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           targetId: result.targetId,
           createdAt: new Date().toISOString(),
           sizeBytes,
-          status: result.created ? 'copied' : 'updated',
+          status: result.created ? 'copied' : result.adopted ? 'adopted' : 'updated',
         });
 
         if (result.created) created += 1;
-        else skipped += 1;
+        else if (result.adopted) {
+          adopted += 1;
+          if (onCollision === 'fail') {
+            // Thrown after the ledger row is written, so the item that stopped
+            // the pass is identifiable afterwards rather than merely counted.
+            throw new Error(
+              `Collision on the destination for a ${domain} item, and onCollision is 'fail': ` +
+                'the target already holds an item under this natural key. Re-run with ' +
+                "onCollision: 'skip' to keep the destination's copy.",
+            );
+          }
+        } else skipped += 1;
       } catch (err) {
         // Record failure - DO NOT swallow
         failed += 1;
@@ -216,5 +250,5 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     }
   }
 
-  return { scanned, created, skipped, failed, drift: 0 };
+  return { scanned, created, skipped, adopted, failed, drift: 0 };
 }

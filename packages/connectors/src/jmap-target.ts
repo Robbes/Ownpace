@@ -142,6 +142,13 @@ interface JmapSession {
   primaryAccounts?: Record<string, string>;
   apiUrl?: string;
   uploadUrl?: string;
+  /**
+   * RFC 8620 §2 URI template for blob download, with `{accountId}`, `{blobId}`,
+   * `{type}` and `{name}` variables. The PATH SHAPE is server-specific and
+   * cannot be guessed — Stalwart's carries a trailing `/{name}` segment that a
+   * hand-built `/download/{accountId}/{blobId}` omits, which 404s.
+   */
+  downloadUrl?: string;
 }
 
 /**
@@ -153,6 +160,8 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
   private accountId: string | null = null;
   private apiUrl: string | null = null;
   private authHeader: string | null = null;
+  /** The session's `downloadUrl` template, if it advertised one. */
+  private downloadUrlTemplate: string | null = null;
   private connectPromise: Promise<void> | null = null;
 
   constructor(config: JmapTargetConfig) {
@@ -192,10 +201,16 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     
     // Use the base URL + /jmap as the API URL
     // Stalwart's JMAP API is typically at /jmap endpoint
-    this.apiUrl = this.config.baseUrl.endsWith('/') 
-      ? `${this.config.baseUrl}jmap` 
+    this.apiUrl = this.config.baseUrl.endsWith('/')
+      ? `${this.config.baseUrl}jmap`
       : `${this.config.baseUrl}/jmap`;
-    
+
+    // Keep the session's download template. Its PATH is server-specific and we
+    // cannot invent it; its HOST is unreliable on Stalwart (same reason
+    // uploadBlob ignores `uploadUrl`), so `blobDownloadUrl` below keeps the
+    // path and re-bases it on the origin we know works.
+    this.downloadUrlTemplate = typeof session.downloadUrl === 'string' ? session.downloadUrl : null;
+
     // CRITICAL: Resolve accountId by matching the configured target email against session accounts
     // NEVER take the first account blindly - this caused emails to be written to the wrong account
     let resolvedAccountId: string | null = null;
@@ -287,6 +302,22 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     if (!firstResponse || !Array.isArray(firstResponse) || firstResponse.length < 2) {
       throw new Error('Invalid JMAP response format');
     }
+
+    // A method-level error comes back as ["error", {type, description}, callId]
+    // inside methodResponses, with HTTP 200 (RFC 8620 §3.6.2). Returning
+    // `firstResponse[1]` blindly handed that error object back AS IF it were the
+    // result — so an Email/query that the server rejected produced
+    // `{ ids: undefined }`, listEntries yielded nothing, and verification read
+    // the target as EMPTY. A silently empty target is reported as total data
+    // loss, which is the worst possible way to fail (hard rule 9).
+    if (firstResponse[0] === 'error') {
+      const err = firstResponse[1] as { type?: string; description?: string };
+      throw new Error(
+        `JMAP ${method} failed: ${err?.type ?? 'unknown'}` +
+          (err?.description ? ` - ${err.description}` : ''),
+      );
+    }
+
     return firstResponse[1] as T;
   }
 
@@ -489,9 +520,15 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
 
     while (true) {
       // Build the query arguments
+      // No `properties` here: RFC 8621 §4.4 defines Email/query's arguments as
+      // accountId/filter/sort/position/anchor/anchorOffset/limit/calculateTotal
+      // /collapseThreads — `properties` belongs to Email/get. A spec-following
+      // server MUST answer an unknown argument with `invalidArguments`
+      // (RFC 8620 §3.2), which this code then treated as a result: `ids` came
+      // back undefined, the loop broke immediately, and the target listed as
+      // empty. Email/query returns ids; the properties are fetched below.
       const queryArgs: Record<string, unknown> = {
         accountId: this.accountId,
-        properties: ["id", "mailboxIds"],
         limit: LIMIT,
         position: position,
       };
@@ -601,15 +638,60 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     });
     const email = ((getResponse as { list?: Array<{ blobId?: string }> }).list ?? [])[0];
     const blobId = email?.blobId;
-    if (!blobId) return undefined;
+    if (!blobId) {
+      console.warn(`[jmap] no blobId for ${entry.targetId}; cannot content-verify it`);
+      return undefined;
+    }
 
-    // Built from the resolved apiUrl for the same reason uploadBlob is: the
-    // session's own downloadUrl is unreliable on Stalwart.
-    const url = `${this.apiUrl}/download/${this.accountId}/${blobId}`;
+    const url = this.blobDownloadUrl(blobId);
     const response = await fetch(url, { headers: { Authorization: this.authHeader } });
-    if (!response.ok) return undefined;
+    if (!response.ok) {
+      // Log it. Returning undefined silently made every mail sample come back
+      // `checksumUnavailable` with no indication why, so §20's content leg was
+      // reported as "not exercised" run after run and nothing said the download
+      // was failing (hard rule 9).
+      console.warn(`[jmap] blob download failed: GET ${url} -> ${response.status}`);
+      return undefined;
+    }
 
     return contentHash(new Uint8Array(await response.arrayBuffer()));
+  }
+
+  /**
+   * Where to GET a blob.
+   *
+   * Prefers the session's RFC 8620 §2 `downloadUrl` template, because the path
+   * shape is the server's to define and cannot be guessed: Stalwart's ends in a
+   * `/{name}` segment, so the hand-built `/download/{accountId}/{blobId}` this
+   * used to send was a 404 every time — which is why all ten mail samples in
+   * the first full verification run came back `checksumUnavailable`.
+   *
+   * The template's HOST is not trusted. Stalwart advertises unreachable hosts
+   * (e.g. `https://localhost`) in its session object, which is why `uploadBlob`
+   * ignores `uploadUrl` and builds from the resolved `apiUrl`. So take the
+   * template's path and query, and re-base them on the origin already proven to
+   * work. Falls back to the old shape when no template is advertised.
+   */
+  private blobDownloadUrl(blobId: string): string {
+    const origin = new URL(this.apiUrl!).origin;
+
+    if (this.downloadUrlTemplate) {
+      const filled = this.downloadUrlTemplate
+        .replace(/{accountId}/g, encodeURIComponent(this.accountId!))
+        .replace(/{blobId}/g, encodeURIComponent(blobId))
+        // `name` is a download filename hint and `type` the requested content
+        // type; both are required by the template but neither affects the bytes.
+        .replace(/{name}/g, 'message.eml')
+        .replace(/{type}/g, encodeURIComponent('application/octet-stream'));
+      // Resolve against the origin: an absolute template keeps its own path and
+      // gets the trusted host, a relative one is rooted correctly.
+      const resolved = new URL(filled, origin);
+      resolved.protocol = new URL(origin).protocol;
+      resolved.host = new URL(origin).host;
+      return resolved.toString();
+    }
+
+    return `${this.apiUrl}/download/${encodeURIComponent(this.accountId!)}/${encodeURIComponent(blobId)}`;
   }
 
   /**
@@ -641,8 +723,9 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     if (messageId) {
       const existingId = await this.findByNaturalKey(mailboxId, messageId);
       if (existingId) {
-        // Email already exists - idempotent no-op
-        return { targetId: existingId, created: false };
+        // Already on the target under our natural key: not written, ADOPTED.
+        // Distinct from a ledger fast-path skip — see UpsertResult.adopted.
+        return { targetId: existingId, created: false, adopted: true };
       }
     }
 

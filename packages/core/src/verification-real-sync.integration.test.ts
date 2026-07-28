@@ -125,10 +125,9 @@ describe('Verification against a real sync (integration)', () => {
       tenantId: asTenantId(TENANT as never),
       mappingId: asMappingId(MAPPING as never),
       config: VERIFY_CONFIG,
-      ledger,
       verificationReader: createLedgerVerificationReader({ connectionString: PG_CONNECTION_STRING! }),
       targetReindexer: target,
-    } as never);
+    });
   }
 
   it('PASSES when the target holds exactly what the sync wrote', async () => {

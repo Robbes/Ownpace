@@ -69,6 +69,66 @@ function buildFile(i) {
   return `Restart-resume seed file ${i} content.\n`;
 }
 
+/**
+ * A deterministic binary blob that is NOT valid UTF-8.
+ *
+ * Everything the file domain seeded before this was plain ASCII text, so the
+ * only files the e2e ever genuinely uploaded round-tripped through a UTF-8
+ * decode unharmed. That is exactly how `WebdavFileSource.fetchFileContent`
+ * came to do `new TextEncoder().encode(await response.text())` — destroying
+ * every non-UTF-8 byte on read — and survive a green multi-domain e2e. The 89
+ * "files" it reported were overwhelmingly Nextcloud skeleton files that already
+ * existed on the target and were adopted, never uploaded.
+ *
+ * Deterministic by construction (a fixed LCG, no randomness), so a re-run
+ * against a fresh account produces byte-identical fixtures and the content
+ * hashes are stable across runs.
+ *
+ * The layout is deliberately adversarial to text handling:
+ *   - an ASCII header, so a human opening it in the target knows what it is;
+ *   - a NUL byte, which truncates C-style string handling;
+ *   - every byte value 0x00-0xFF, so no single-byte encoding can survive it;
+ *   - sequences that are invalid UTF-8 in specifically different ways — lone
+ *     continuation bytes, a truncated multi-byte start, an overlong encoding,
+ *     a surrogate-range encoding, and 0xF5-0xFF which can never appear;
+ *   - high-entropy filler, which is what real image and video payloads are.
+ */
+function buildBinaryFile(i) {
+  const header = Buffer.from(`OPENMIG-BINARY-FIXTURE-${i}\n\0`, 'ascii');
+
+  const allBytes = Buffer.alloc(256);
+  for (let b = 0; b < 256; b++) allBytes[b] = b;
+
+  const utf8Traps = Buffer.from([
+    0x80, 0x81, 0xbf, // lone continuation bytes: never valid on their own
+    0xc3, // multi-byte start with nothing following it
+    0xe0, 0x80, 0xaf, // overlong encoding of '/'
+    0xed, 0xa0, 0x80, // UTF-16 surrogate half, forbidden in UTF-8
+    0xf5, 0xfe, 0xff, // never legal in UTF-8 at all
+  ]);
+
+  // Linear congruential generator (glibc constants), seeded from the index.
+  // Fixed seed => fixed bytes => the fixture is reproducible.
+  let state = (1103515245 * (i + 1) + 12345) >>> 0;
+  const filler = Buffer.alloc(4096);
+  for (let n = 0; n < filler.length; n++) {
+    state = (Math.imul(state, 1103515245) + 12345) >>> 0;
+    filler[n] = (state >>> 16) & 0xff;
+  }
+
+  return Buffer.concat([header, allBytes, utf8Traps, filler]);
+}
+
+/**
+ * Valid UTF-8 that is not ASCII.
+ *
+ * Guards the other direction: a "fix" that read bytes as latin1, or that
+ * re-encoded text, would corrupt this while leaving the ASCII fixtures intact.
+ */
+function buildUtf8File(i) {
+  return `Seed ${i}: naïve café — 日本語 — emoji 🐙 — ĝis la revido\n`;
+}
+
 async function put(url, body, contentType) {
   const response = await fetch(url, {
     method: 'PUT',
@@ -108,7 +168,27 @@ async function main() {
     console.log(`[seed-dav] file ${i}/${count} PUT ok`);
   }
 
-  console.log(`[seed-dav] done — ${count} events in '${user}'/personal, ${count} contacts in '${user}'/contacts, ${count} files at '${user}''s file root`);
+  // Binary and non-ASCII fixtures. These are the only files in the whole corpus
+  // that do not survive a UTF-8 round trip, and the only ones that exist solely
+  // on the source — every Nextcloud skeleton file is already present on the
+  // target account and gets adopted rather than uploaded, so before these the
+  // upload path had no non-ASCII coverage at all.
+  for (let i = 1; i <= count; i++) {
+    const blob = buildBinaryFile(i);
+    await put(`${filesUrl}/dav-seed-binary-${i}.bin`, blob, 'application/octet-stream');
+    console.log(`[seed-dav] binary ${i}/${count} PUT ok (${blob.length} bytes)`);
+  }
+
+  for (let i = 1; i <= count; i++) {
+    const text = buildUtf8File(i);
+    await put(`${filesUrl}/dav-seed-utf8-${i}.txt`, text, 'text/plain; charset=utf-8');
+    console.log(`[seed-dav] utf8 file ${i}/${count} PUT ok`);
+  }
+
+  console.log(
+    `[seed-dav] done — ${count} events in '${user}'/personal, ${count} contacts in '${user}'/contacts, ` +
+      `${count} text + ${count} binary + ${count} non-ASCII files at '${user}''s file root`,
+  );
 }
 
 main().catch((err) => {

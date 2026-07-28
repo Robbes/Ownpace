@@ -93,6 +93,7 @@ export async function buildDeps(config: MappingConfig): Promise<WithClose<Reconc
       ledger,
       cursors,
       concurrency,
+      ...(config.onCollision ? { onCollision: config.onCollision } : {}),
     },
     db,
   );
@@ -412,6 +413,7 @@ export function buildDomainDeps(
       ledger,
       cursors,
       concurrency: domainConfig.concurrency ?? config.concurrency ?? 4,
+      ...(config.onCollision ? { onCollision: config.onCollision } : {}),
     },
     db,
   );

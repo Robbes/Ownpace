@@ -31,6 +31,10 @@ export class PgDiscoveryStore implements DiscoveryStore {
     const bytes = discovery.bytes ?? null;
     const perCollection = discovery.perCollection ?? null;
     const generatedIdItems = discovery.generatedIdItems ?? null;
+    // `?? null`, never `?? 0`: an unreadable destination must not be recorded
+    // as an empty one.
+    const targetExisting = discovery.targetExisting ?? null;
+    const targetColliding = discovery.targetColliding ?? null;
     await this.db
       .insert(schemaPg.migrationDiscovery)
       .values({
@@ -42,6 +46,8 @@ export class PgDiscoveryStore implements DiscoveryStore {
         bytes,
         perCollection,
         generatedIdItems,
+        targetExisting,
+        targetColliding,
         lastError: null,
         discoveredAt: sql`now()`,
       })
@@ -57,6 +63,8 @@ export class PgDiscoveryStore implements DiscoveryStore {
           bytes,
           perCollection,
           generatedIdItems,
+          targetExisting,
+          targetColliding,
           lastError: null,
           discoveredAt: sql`now()`,
         },
@@ -80,6 +88,8 @@ export class PgDiscoveryStore implements DiscoveryStore {
         bytes: null,
         perCollection: null,
         generatedIdItems: null,
+        targetExisting: null,
+        targetColliding: null,
         lastError: error,
         discoveredAt: sql`now()`,
       })
@@ -120,6 +130,8 @@ export class PgDiscoveryStore implements DiscoveryStore {
         ...(row.generatedIdItems != null
           ? { generatedIdItems: Number(row.generatedIdItems) }
           : {}),
+        ...(row.targetExisting != null ? { targetExisting: Number(row.targetExisting) } : {}),
+        ...(row.targetColliding != null ? { targetColliding: Number(row.targetColliding) } : {}),
         ...(row.perCollection
           ? { perCollection: row.perCollection as DiscoveryRecord['perCollection'] }
           : {}),

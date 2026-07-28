@@ -79,7 +79,7 @@ function verify(mail: TargetReindexer) {
       config: CONFIG,
       verificationReader: reader(),
       targetReindexers: { mail },
-    } as never),
+    }),
   );
 }
 

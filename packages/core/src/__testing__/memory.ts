@@ -125,7 +125,11 @@ export class MemoryTarget implements TargetWriter, TargetReindexer {
     const messageId = readMessageId(raw.rfc822) ?? raw.item.messageId;
     const k = this.key(mailboxId, messageId);
     const existing = this.store.get(k);
-    if (existing) return Promise.resolve({ targetId: existing.targetId, created: false });
+    // `adopted: true`, as every real writer reports for this branch. Without it
+    // the double could not tell "the target already had it" from "our ledger
+    // already had it" — the very distinction under test — and would silently
+    // prove that adoptions are counted when they are not.
+    if (existing) return Promise.resolve({ targetId: existing.targetId, created: false, adopted: true });
     const targetId = nextId('email');
     this.store.set(k, { targetId, mailboxId, messageId, keywords });
     return Promise.resolve({ targetId, created: true });

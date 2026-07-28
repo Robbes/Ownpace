@@ -138,11 +138,35 @@ export class WebdavFileSource implements FileSource {
     });
     
     if (response.status === 200 || response.status === 204) {
-      // Convert string body to Uint8Array
-      const encoder = new TextEncoder();
-      return encoder.encode(response.body);
+      // This used to be `new TextEncoder().encode(response.body)`, i.e. a UTF-8
+      // decode of the response followed by a UTF-8 re-encode. That is lossless
+      // only for files that happen to BE valid UTF-8 — plain text. Every other
+      // file was destroyed on read: each invalid byte sequence became U+FFFD,
+      // and re-encoding cannot recover it. A 476 KB JPEG came back as 863 KB of
+      // replacement characters (measured).
+      //
+      // The corrupted bytes went two places: into the ledger as the item's
+      // content hash, and into the PUT. Nothing in the sync could notice — the
+      // copy agreed with its own record and count parity was perfect. The §20
+      // gate reading the real target was the first thing able to see it, and
+      // did: the four binary samples in the first full run all mismatched while
+      // the six text samples matched. (In that run the four binaries happened
+      // to be pre-existing files the writer ADOPTED rather than uploaded, so
+      // what it caught was the wrong hash rather than a corrupt copy. The
+      // upload path is corrupted just the same; nothing had exercised it,
+      // because the e2e seeds only text files.)
+      //
+      // Never fall back to `body`. A silent half-working copy of someone's
+      // photo library is worse than a failed run (hard rule 9).
+      if (!response.bodyBytes) {
+        throw new Error(
+          `HTTP client returned no bodyBytes for ${url}; file content cannot be read ` +
+            'without corrupting non-UTF-8 files.',
+        );
+      }
+      return response.bodyBytes;
     }
-    
+
     throw new Error(`Failed to fetch file content: ${response.status}`);
   }
 
@@ -678,7 +702,11 @@ function createDefaultHttpClient(): HttpClient {
         body: body as string | ArrayBuffer | Uint8Array | Buffer | undefined,
       });
 
-      const bodyText = await response.text();
+      // Read the bytes once, then decode for the XML callers. Reading `.text()`
+      // alone left no way to get file content back: the decode is lossy for
+      // anything that is not valid UTF-8, and it is not reversible.
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      const bodyText = new TextDecoder().decode(bytes);
       const headers: Record<string, string> = {};
       response.headers.forEach((value, key) => {
         headers[key] = value;
@@ -687,6 +715,7 @@ function createDefaultHttpClient(): HttpClient {
       return {
         status: response.status,
         body: bodyText,
+        bodyBytes: bytes,
         headers,
       };
     },

@@ -21,6 +21,8 @@ import {
   contactNaturalKeyHash,
   fileNaturalKeyHash,
   fileContentHash,
+  calendarContentHash,
+  contactContentHash,
   type Ledger,
 } from '@openmig/shared';
 import { CalDAVTargetWriter, type HttpClient as CalHttp } from './caldav-target-writer';
@@ -166,7 +168,33 @@ describe('CalDAVTargetWriter.listEntries', () => {
 
     const reports = calls.filter((c) => c.method === 'REPORT').map((c) => c.url);
     expect(reports).toHaveLength(1);
-    expect(reports[0]).toContain('/calendars/alice/personal/');
+    // EXACT, not `toContain`. A substring check passed while production sent
+    // `…/remote.php/dav/remote.php/dav/calendars/alice/personal/` — the
+    // doubled prefix still contains `/calendars/alice/personal/`, and the
+    // canned route's regex still matched it, so the double agreed with a URL
+    // Nextcloud answers with 404. See the URL-shape test below.
+    expect(reports[0]).toBe(`${CAL_BASE}/calendars/alice/personal/`);
+  });
+
+  it('does not double the DAV prefix when turning a server href into a URL', async () => {
+    // Hrefs in a multistatus are SERVER-absolute (`/remote.php/dav/...`) while
+    // `buildUrl` appends to the configured base, so an unconverted href yields
+    // `https://host/remote.php/dav/remote.php/dav/...`. Against a real
+    // Nextcloud every calendar-query REPORT 404'd with
+    // `Sabre\DAV\Exception\NotFound — File not found: remote.php in 'root'`,
+    // and verification could not read the calendar target at all.
+    const { writer, calls } = calWriter([
+      { match: /^PROPFIND/, body: CAL_HOME_SET },
+      { match: /^REPORT/, body: CAL_EVENTS },
+    ]);
+
+    await collect(writer.listEntries());
+
+    for (const call of calls) {
+      expect(call.url.startsWith(`${CAL_BASE}/`), `not rooted at the base: ${call.url}`).toBe(true);
+      // The base's own path must appear exactly once.
+      expect(call.url.split('/remote.php/dav').length - 1, `doubled prefix: ${call.url}`).toBe(1);
+    }
   });
 
   it('can be scoped to a single calendar without discovering the home set', async () => {
@@ -278,6 +306,23 @@ describe('CardDAVTargetWriter.listEntries', () => {
 
     expect(entries.map((e) => e.naturalKey)).toEqual(['contact-a', 'contact-b']);
     expect(contactNaturalKeyHash(entries[0]!.naturalKey)).toBe(contactNaturalKeyHash('contact-a'));
+  });
+
+  it('does not double the DAV prefix when turning a server href into a URL', async () => {
+    // Identical defect to the CalDAV one above; the calendar domain simply
+    // failed first, so nothing ever reached the address books.
+    const { writer, calls } = cardWriter([
+      { match: /^PROPFIND/, body: CARD_HOME_SET },
+      { match: /^REPORT/, body: CARD_CONTACTS },
+    ]);
+
+    await collect(writer.listEntries());
+
+    const reports = calls.filter((c) => c.method === 'REPORT').map((c) => c.url);
+    expect(reports).toEqual([`${CAL_BASE}/addressbooks/users/alice/contacts/`]);
+    for (const call of calls) {
+      expect(call.url.split('/remote.php/dav').length - 1, `doubled prefix: ${call.url}`).toBe(1);
+    }
   });
 
   it('throws when the address book home set cannot be read', async () => {
@@ -523,17 +568,101 @@ describe('WebDAVTargetWriter.listEntries', () => {
   });
 });
 
-describe('DAV writers that must NOT hash content', () => {
-  it('CalDAV and CardDAV do not implement contentHashFor', () => {
-    // Servers re-serialize iCalendar and vCard (property order, re-folded
-    // lines, their own PRODID), so a hash of what comes back would differ from
-    // the source hash for EVERY item — a healthy migration reported as 100%
-    // corrupt. Those samples stay `checksumUnavailable` instead.
-    const { writer: cal } = calWriter([]);
-    const { writer: card } = cardWriter([]);
+describe('DAV writers hash content canonically', () => {
+  // This used to assert that CalDAV and CardDAV do NOT implement
+  // `contentHashFor` at all (#143). The reasoning was sound — servers
+  // re-serialize iCalendar and vCard, so a hash of the returned BYTES could
+  // never equal the source's, and every item would read as corrupt — but the
+  // consequence was that §20's content leg silently stopped running for two of
+  // four domains: 9 of 10 samples came back `checksumUnavailable` on the first
+  // real run. The fix is a canonical fingerprint (dav-canonical.ts) rather than
+  // no check at all.
 
-    expect((cal as { contentHashFor?: unknown }).contentHashFor).toBeUndefined();
-    expect((card as { contentHashFor?: unknown }).contentHashFor).toBeUndefined();
+  it('CalDAV fetches a sampled event and fingerprints it comparably with the source', async () => {
+    const stored = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//OpenMig//Test//EN',
+      'BEGIN:VEVENT',
+      'UID:event-1@example.com',
+      'DTSTART:20260110T100000Z',
+      'SUMMARY:Planning',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+
+    // What a server hands back: reordered, refolded, its own PRODID, extra X-.
+    const returned = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//SabreDAV//SabreDAV//EN',
+      'X-WR-CALNAME:personal',
+      'BEGIN:VEVENT',
+      'SUMMARY:Plann\r\n ing',
+      'DTSTART:20260110T100000Z',
+      'UID:event-1@example.com',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+
+    const { writer, calls } = calWriter([
+      { match: /^GET/, status: 200, body: returned },
+    ]);
+
+    const hash = await writer.contentHashFor({
+      naturalKey: 'event-1@example.com',
+      targetId: '/remote.php/dav/calendars/alice/personal/event-1.ics',
+      mailboxId: '/calendars/alice/personal/',
+    });
+
+    // The load-bearing property: equal to what the SYNC recorded for the source.
+    expect(hash).toBe(calendarContentHash(stored));
+    // And it must not double the DAV prefix on the way there.
+    expect(calls[0]!.url).toBe(`${CAL_BASE}/calendars/alice/personal/event-1.ics`);
+  });
+
+  it('CardDAV does the same for a sampled contact', async () => {
+    const stored = ['BEGIN:VCARD', 'VERSION:4.0', 'UID:c1', 'FN:Ada Lovelace', 'END:VCARD'].join('\r\n');
+    const returned = ['BEGIN:VCARD', 'VERSION:4.0', 'PRODID:-//SabreDAV//EN', 'FN:Ada Lovelace', 'REV:20260101T000000Z', 'UID:c1', 'END:VCARD'].join('\r\n');
+
+    const { writer } = cardWriter([{ match: /^GET/, status: 200, body: returned }]);
+
+    const hash = await writer.contentHashFor({
+      naturalKey: 'c1',
+      targetId: '/remote.php/dav/addressbooks/users/alice/contacts/c1.vcf',
+      mailboxId: '/addressbooks/users/alice/contacts/',
+    });
+
+    expect(hash).toBe(contactContentHash(stored));
+  });
+
+  it('returns undefined rather than a wrong hash when the resource cannot be read', async () => {
+    // An unreadable sample is `checksumUnavailable` — absence of evidence, not
+    // evidence of corruption.
+    const { writer } = calWriter([{ match: /^GET/, status: 404, body: 'gone' }]);
+
+    const hash = await writer.contentHashFor({
+      naturalKey: 'event-1@example.com',
+      targetId: '/remote.php/dav/calendars/alice/personal/event-1.ics',
+      mailboxId: '/calendars/alice/personal/',
+    });
+
+    expect(hash).toBeUndefined();
+  });
+
+  it('notices a truncated event instead of passing it', async () => {
+    const stored = ['BEGIN:VCALENDAR', 'BEGIN:VEVENT', 'UID:e1', 'SUMMARY:Planning', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+    const truncated = ['BEGIN:VCALENDAR', 'BEGIN:VEVENT', 'UID:e1', 'END:VEVENT'].join('\r\n');
+
+    const { writer } = calWriter([{ match: /^GET/, status: 200, body: truncated }]);
+
+    const hash = await writer.contentHashFor({
+      naturalKey: 'e1',
+      targetId: '/remote.php/dav/calendars/alice/personal/e1.ics',
+      mailboxId: '/calendars/alice/personal/',
+    });
+
+    expect(hash).not.toBe(calendarContentHash(stored));
   });
 
   it('but they do report sizes, so target bytes are still measurable', async () => {

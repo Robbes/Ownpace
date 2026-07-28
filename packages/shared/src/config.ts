@@ -144,6 +144,41 @@ export interface MappingConfig {
   readonly concurrency?: number;
   /** Optional per-domain configuration for multi-domain sync */
   readonly domains?: DomainsConfig;
+  /**
+   * What to do when the DESTINATION already holds an item under our natural key.
+   *
+   *  - `skip` (default) — adopt it: record it as migrated and leave the
+   *    destination's copy exactly as it is. Non-destructive, and what the
+   *    product has always done.
+   *  - `fail` — stop this domain's pass and surface it, for an operator who
+   *    would rather look before anything is recorded as migrated.
+   *
+   * There is deliberately no `overwrite`. `TargetWriter` is specified "NEVER
+   * deletes or overwrites (non-destructive)" — hard rule 2 — so source-wins
+   * would break a documented invariant of every writer, and that needs an ADR
+   * and an owner decision, not a config flag.
+   *
+   * Discovery reports the collision count before the run either way, so `skip`
+   * is an informed default rather than a silent one.
+   */
+  readonly onCollision?: 'skip' | 'fail';
+}
+
+/** Validate `onCollision`, rejecting anything we do not actually implement. */
+function parseOnCollision(v: unknown): 'skip' | 'fail' | undefined {
+  if (v === undefined) return undefined;
+  if (v === 'skip' || v === 'fail') return v;
+  // Named explicitly, because it is the value an operator is most likely to
+  // reach for and its absence is a deliberate architectural position, not an
+  // oversight.
+  if (v === 'overwrite') {
+    throw new ConfigError(
+      "onCollision: 'overwrite' is not supported — target writers are non-destructive by " +
+        "specification (hard rule 2). Use 'skip' to keep the destination's copy, or 'fail' to " +
+        'stop and look.',
+    );
+  }
+  throw new ConfigError("onCollision: expected 'skip' or 'fail'");
 }
 
 function asRecord(v: unknown, path: string): Record<string, unknown> {
@@ -293,6 +328,7 @@ export function parseMappingConfig(input: unknown): MappingConfig {
       ? undefined
       : { cron: reqString(asRecord(root.schedule, 'schedule'), 'cron', 'schedule.cron') };
   const concurrency = root.concurrency === undefined ? undefined : reqInt(root, 'concurrency', 'concurrency');
+  const onCollision = parseOnCollision(root.onCollision);
   const domains = root.domains === undefined ? undefined : parseDomainsConfig(asRecord(root.domains, 'domains'));
 
   return {
@@ -302,6 +338,7 @@ export function parseMappingConfig(input: unknown): MappingConfig {
     target,
     ...(schedule ? { schedule } : {}),
     ...(concurrency !== undefined ? { concurrency } : {}),
+    ...(onCollision !== undefined ? { onCollision } : {}),
     ...(domains !== undefined ? { domains } : {}),
   };
 }

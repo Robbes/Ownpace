@@ -25,6 +25,7 @@ import {
   hasResourceType,
   extractUid,
   decodeHref,
+  hrefRelativeTo,
   unescapeXml,
   sizeOf,
 } from './dav-multistatus';
@@ -120,6 +121,9 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
 
     // Compute content hash for change detection
     const contentHashValue = calendarContentHash(raw.icalendar);
+    // Recorded here, not only by the sync loop: `recordIfAbsent` makes the first
+    // writer win, and that is this one. See webdav-target-writer.ts.
+    const sizeBytes = Buffer.byteLength(raw.icalendar, 'utf8');
 
     // Check if event already exists on target (by UID)
     const existingId = await this.findCalendarByNaturalKey(calendarId, naturalKey);
@@ -133,8 +137,9 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
         contentHash: contentHashValue,
         targetId: existingId,
         createdAt: new Date().toISOString(),
+        sizeBytes,
       });
-      return { targetId: existingId, created: false };
+      return { targetId: existingId, created: false, adopted: true };
     }
 
     // Upload the event to the calendar
@@ -149,6 +154,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       contentHash: contentHashValue,
       targetId: eventId,
       createdAt: new Date().toISOString(),
+      sizeBytes,
     });
 
     return { targetId: eventId, created: true };
@@ -248,12 +254,28 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       );
     }
 
-    const homeSetPath = decodeHref(this.buildUrl(homeSet)).replace(/\/+$/, '');
+    // An href in a multistatus is SERVER-absolute (`/remote.php/dav/calendars/
+    // <user>/personal/`), while `buildUrl` treats its argument as relative to
+    // the configured base and just concatenates. Handing hrefs to it straight
+    // produced `…/remote.php/dav/remote.php/dav/calendars/<user>/personal/`,
+    // and every calendar-query REPORT 404'd:
+    //
+    //   REPORT /remote.php/dav/remote.php/dav/calendars/e2e-target/personal/ 404
+    //   Sabre\DAV\Exception\NotFound — File not found: remote.php in 'root'
+    //
+    // The writes never hit this because they build their own relative paths;
+    // only the reindexer feeds server hrefs back in, so it surfaced the first
+    // time verification ran against a real Nextcloud. `hrefRelativeTo` (#142)
+    // exists for exactly this and is what the WebDAV reindexer already uses.
     return parseMultiStatus(response.body)
       .filter((r) => hasResourceType(r.xml, 'calendar'))
-      .map((r) => this.normalizeCalendarPath(decodeHref(r.href)))
-      // The home set itself is not a calendar, but some servers still list it.
-      .filter((path) => this.buildUrl(path).replace(/\/+$/, '') !== homeSetPath);
+      .map((r) => hrefRelativeTo(r.href, this.buildUrl('')))
+      // An href outside the configured base is not ours to read; dropping it is
+      // right, and `''` is the home set itself — not a calendar, though some
+      // servers list it.
+      .filter((relative): relative is string => relative !== undefined && relative !== '')
+      .map((relative) => this.normalizeCalendarPath(relative))
+      .filter((path) => path !== homeSet);
   }
 
   /** Every VEVENT resource in one calendar, as ledger-shaped entries. */
@@ -318,13 +340,58 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
         targetId: decodeHref(item.href),
         mailboxId: calendarPath,
         ...sizeOf(item.xml),
-        // No contentHash, deliberately: CalDAV servers re-serialize iCalendar
-        // (property order, re-folded lines, their own PRODID), so a hash of what
-        // comes back would differ from the source hash for EVERY event and
-        // report a healthy migration as 100% corrupt. These samples stay
-        // `checksumUnavailable` — "not measured" rather than a false verdict.
+        // No contentHash from the LISTING: it fetches only the UID, and a hash
+        // of the server's re-serialized bytes could never equal the source's.
+        // `contentHashFor` below fetches sampled items in full and fingerprints
+        // them canonically instead.
       };
     }
+  }
+
+  /**
+   * A canonical content fingerprint for one sampled event.
+   *
+   * The listing cannot supply this — it deliberately fetches only the UID — and
+   * a byte hash would be meaningless here anyway: CalDAV servers re-serialize
+   * iCalendar, so the octets are the server's, not ours. `calendarContentHash`
+   * is a canonical fingerprint over opaque text properties (see
+   * dav-canonical.ts for exactly what is compared and what a match claims), so
+   * the same function applied to the source and to what comes back is a
+   * like-for-like comparison.
+   *
+   * Called only for sampled items, so the extra GET is bounded by the sample
+   * size, not the calendar size. Returns undefined — never a wrong hash — when
+   * the resource cannot be read, so the sample is counted as unavailable rather
+   * than as corruption.
+   */
+  async contentHashFor(entry: TargetEntry): Promise<string | undefined> {
+    // `targetId` is the resource href, which is SERVER-absolute. Handing it to
+    // buildUrl unconverted doubles the DAV prefix — the defect that made every
+    // calendar REPORT 404 until hrefRelativeTo was applied to collections.
+    const relative = hrefRelativeTo(entry.targetId, this.buildUrl(''));
+    if (relative === undefined) {
+      console.warn(`[caldav] ${entry.targetId} is outside the configured base; not content-verifying it`);
+      return undefined;
+    }
+
+    let response: HttpResponse;
+    try {
+      response = await this.httpClient.request({
+        method: 'GET',
+        url: this.buildUrl(relative),
+        headers: { Authorization: this.authHeader() },
+      });
+    } catch (err) {
+      console.warn(`[caldav] GET ${entry.targetId} failed: ${err instanceof Error ? err.message : String(err)}`);
+      return undefined;
+    }
+
+    if (response.status !== 200) {
+      console.warn(`[caldav] GET ${entry.targetId} -> ${response.status}; cannot content-verify it`);
+      return undefined;
+    }
+
+    return calendarContentHash(response.body);
   }
 
   private authHeader(): string {

@@ -252,6 +252,259 @@ actually left:
      two messages without one collided — the double would have "proven" a deduplication the real
      source never performs. Covered by `generated-message-id.unit.test.ts` (19) and
      `generated-message-id.integration.test.ts` (7, against a real Postgres).
+   - ✅ **Done — the e2e workflow now actually exercises the gate.** It ran only
+     `--grep "Restart-Resume"`, which drives the target WRITERS; it never called `listEntries`
+     and never called `runVerification`. So every green e2e up to and including run #28 said
+     nothing about the DAV reindexers (#142), checksum sampling or measured target bytes (#143)
+     — all of which had only ever met test doubles. A new `GET /verify` on the self-host
+     appliance runs the §20 gate over the data the sync just wrote (shared `verifyMapping()` in
+     the worker orchestration, per hard rule "extract/share it, don't fork it" — and the only
+     way a self-host operator can run the gate at all), and
+     `test/e2e/selfhost-verification.e2e.test.ts` asserts on it as a second workflow step. It is
+     deliberately loud about the two questions only a real server can settle: whether the DAV
+     reindexers can read a real Nextcloud, and whether a JMAP blob round-trips byte-identically
+     — a *systematic* 100% checksum mismatch would mean mail's `contentHashFor` must be
+     withdrawn the way CalDAV/CardDAV's already is.
+   - ✅ **Done — the e2e workflow's test filters never filtered anything.** Run #29 failed the
+     gate above with a bare `GET /verify -> 500`, and the reason was the harness, not the
+     product: `pnpm test:e2e -- --grep "..."` makes pnpm forward a *literal* `--`, and vitest's
+     CLI discards everything after it (`--grep` is not a vitest option either — it is
+     `-t/--testNamePattern`, and passed properly it is a hard CLI error). Both e2e steps
+     therefore ran the **entire** e2e project. The restart-resume suite and the verification
+     suite ran in one process in parallel, so `/verify` was called ~0.4s in — before a single
+     item had synced, while `runAllDomains` was mid-flight against the same targets. Both
+     workflows now select a suite by file path with no `--`. The same defect was silently
+     disabling `pnpm test -- --coverage` in `ci.yml`, so the coverage artifact has always been
+     empty.
+   - ✅ **Done — three real defects found while chasing that 500.** (a) The JMAP client returned
+     a method-level error object *as if it were a result* (RFC 8620 §3.6.2 returns
+     `["error", …]` inside an HTTP 200), so a rejected `Email/query` produced `ids: undefined`,
+     `listEntries` yielded nothing, and verification would report a healthy target as **total
+     data loss** — the worst possible way to fail (hard rule 9). (b) That query sent a
+     `properties` argument, which RFC 8621 §4.4 does not define for `Email/query` (it belongs to
+     `Email/get`); a spec-following server must answer `invalidArguments`. (c) Both DAV sources
+     built the RFC 6764 well-known URI by appending to the configured DAV path, producing
+     `…/remote.php/dav/.well-known/caldav` — a guaranteed 404 on every calendar and contact pass,
+     visible in the run diagnostics, before the fallback PROPFIND. §4 puts those at the origin
+     root. Also removed `RealVerificationDeps.ledger`: a required field nothing read, which every
+     call site silenced with `as never` — the cast that let `verifyMapping` ship unchecked.
+   - ✅ **Done — the CalDAV/CardDAV reindexers doubled the DAV prefix.** Run #30, with the
+     filters fixed, ran the gate as its own step and reported its own cause: `GET /verify -> 500`
+     carrying `calendar-query REPORT on /remote.php/dav/calendars/e2e-target/personal/ failed
+     with status 404 … Sabre\DAV\Exception\NotFound — File not found: remote.php in 'root'`, and
+     the Nextcloud log showed the request verbatim:
+     `REPORT /remote.php/dav/remote.php/dav/calendars/e2e-target/personal/ 404`. An href in a
+     multistatus is *server-absolute*, while `buildUrl` appends to the configured base — so
+     feeding hrefs back in doubled the prefix. The writes never hit it (they build their own
+     relative paths); only the reindexer feeds server hrefs back, so it could not surface until
+     verification first ran against a real server. `hrefRelativeTo` (#142) exists for exactly
+     this and the WebDAV reindexer already used it; CalDAV and CardDAV now do too. The unit
+     tests had asserted `expect(url).toContain('/calendars/alice/personal/')` — which the
+     *doubled* URL also satisfies, and the canned route's regex matched it too, so the double
+     agreed with a URL Nextcloud answers 404. Tightened to exact URLs plus a no-doubled-prefix
+     check across every request; 3 tests fail on the old behaviour.
+   - ✅ **The gate ran end to end (run #31) — and immediately found binary file corruption.**
+     Count parity is perfect on all four domains (mail 25/25, calendar 26/26, contacts 26/26,
+     files 89/89, `missingOnTarget` 0 everywhere), so every reindexer works. What it caught:
+     **`WebdavFileSource.fetchFileContent` was `new TextEncoder().encode(await response.text())`**
+     — a UTF-8 decode of the file followed by a UTF-8 re-encode. Lossless only for files that
+     ARE valid UTF-8. Everything else was destroyed on read: each invalid byte sequence became
+     U+FFFD, unrecoverably. Measured locally on a 476 KB JPEG: 476,387 bytes in, 863,389 out,
+     none of them the original. Every JPEG, PDF, MP4, ODP and DOCX in a file migration went
+     through it. The source client now reads bytes once and `fetchFileContent` returns them,
+     throwing rather than falling back to the lossy path (hard rule 9). 5 tests, 4 fail on the
+     old behaviour. **The defect and the fix rest on code inspection plus that local
+     measurement, not on the run** — see below for what run #31 does and does not show.
+   - **What run #31 actually proves about it, precisely.** The 10 target GETs in the diagnostics
+     are exactly the 10 checksum samples, and they split by type: 6 × `dav-seed-file-N.txt`
+     (the 6 matches) and 4 binaries — `Gorilla.jpg`, `Nextcloud intro.mp4`, `Gotong royong.odp`,
+     `Pitch deck.odp` (the 4 mismatches). So the text/binary attribution holds. But the sizes
+     rule out the copy being corrupt: a UTF-8-mangled `Gorilla.jpg` would be ~863 KB and the
+     target's is 476,389 bytes, within 2 of the source. All four binaries are **standard
+     Nextcloud skeleton files already present on the target user**, which `findFileByNaturalKey`
+     adopted into the ledger — with the corrupted source hash — instead of uploading. So what
+     the run demonstrates is a **wrong ledger hash**, not corrupt target content. The upload half
+     of the defect is real in the code but was never exercised, because the only genuinely
+     uploaded files are the seeded `.txt` ones.
+   - ✅ **Closed that gap: the file e2e now seeds binary fixtures.** `itemsSynced=89` was mostly
+     adoption of pre-existing skeleton files, and every genuinely-uploaded file was ASCII text —
+     which survives a UTF-8 round trip unharmed. That is precisely why a lossy binary read
+     survived this long. `seed-dav-source.mjs` now also PUTs, per seeded index, a
+     `dav-seed-binary-N.bin` (deterministic LCG, no randomness: an ASCII header, a NUL, every
+     byte 0x00-0xFF, lone continuation bytes, a truncated multi-byte start, an overlong
+     encoding, a surrogate-range encoding, 0xF5-0xFF, then high-entropy filler) and a
+     `dav-seed-utf8-N.txt` of valid non-ASCII UTF-8 — the latter guarding the opposite mistake,
+     a "fix" that decodes as latin1 or re-encodes text. Verified locally: the binary fixture is
+     byte-identical across builds, differs per index, and **inflates ×1.84 (4,391 → 8,067 bytes)
+     under the old code path**, so it detects the defect by size alone.
+   - ✅ **And a sampling-independent assertion to go with it.** §20 checksum sampling covers 10
+     items of ~139 chosen by natural-key hash, so it cannot be relied on to include a binary, and
+     "the sample happened to pass" is a weaker claim than "binary files migrate intact". The
+     verification e2e now GETs `dav-seed-binary-1.bin` from both servers over plain DAV and
+     asserts the bytes are identical, size first (the failure mode roughly doubles it). It guards
+     against a vacuous pass by first asserting the fixture does *not* survive a UTF-8 round trip,
+     and it lives in its own describe block, so it still runs when `GET /verify` fails.
+   - ✅ **`totalBytesSource` was structurally 0 for every domain.** The run reported target bytes
+     fine (7,398 / 7,176 / 275,505 / 64,935,162) against a source total of 0, so §20's total-size
+     comparison has never been able to measure anything. Cause: the DAV target writers record the
+     ledger row themselves, without a size, and `recordIfAbsent` means the sized record the sync
+     loop makes immediately afterwards is a no-op. All three writers now record the size.
+   - ✅ **Run #32: the file domain PASSES, and the remaining FAIL was the gate's own arithmetic.**
+     With the binary fix and the seeded fixtures, files reports **142/142, 10/10 checksums
+     matched, 0 mismatches**, and `totalBytesSource === totalBytesTarget === 65,051,193` exactly;
+     the direct byte assertion confirms `dav-seed-binary-1.bin` arrives at 4,391 bytes on both
+     sides. Calendar and contacts byte totals now match exactly too (7,431 and 275,610). What
+     still FAILed was **three defects in `runVerification` itself**, all triggered by a target
+     that holds pre-existing data:
+     1. **Checksum sampling compared the wrong items.** The source side took the first N ledger
+        rows by natural-key hash; the target side took its own first N. Those sets differ
+        whenever the target holds anything the ledger did not record, and every such extra
+        evicted a real sample from the slice. `getTargetSamples` now takes the source sample's
+        key hashes and returns exactly those.
+     2. **Absence was scored as a content mismatch.** A source sample with no counterpart in the
+        target slice incremented `checksumMismatches` — ERROR severity, cutover blocked. A
+        mismatch is a claim that both sides were read and differed; absence is `missingOnTarget`'s
+        finding, made over the full sets, and it fails the gate on its own. Now counted as
+        `unavailable`. Signature in the data: calendar and contacts each had 3 pre-existing items
+        and each reported exactly 1 "content mismatch"; mail and files, with no extras, reported
+        none — with `missingOnTarget: 0` everywhere.
+     3. **Extras counted toward the failure threshold**, contradicting this same code's own
+        severities (`EXTRA_*` is unconditionally WARNING, `MISSING_*` escalates to ERROR). A
+        missing item is data that did not arrive; an extra item is data the destination already
+        had and cannot indicate a copy failure. `discrepancyPercentage` now counts missing only;
+        extras still force WARN, never silent PASS. Without this, §20 refuses to migrate into any
+        account that is not empty — including a stock Nextcloud user.
+     Covered by `verification-sample-alignment.unit.test.ts` (6 tests, each of the three fixes
+     revert-verified independently), including one that pins the real reindexer-backed
+     implementation with fixtures whose *hashes* sort ahead of the migrated items, plus a guard
+     that fails if they ever stop doing so.
+   - ✅ **The content leg now runs for all four domains, and mail bytes are measured.** Run #32
+     left §20's checksum half resting on files alone — `unavailable` for 10/10 mail and 9/10
+     calendar and contacts — plus `mail bytes: source=0 target=7695`. Four causes, all fixed:
+     1. **Mail's blob download 404'd.** `contentHashFor` hand-built
+        `{apiUrl}/download/{accountId}/{blobId}`, but the path shape is the server's to define
+        and Stalwart's carries a trailing `/{name}` segment. It now uses the session's RFC 8620
+        §2 `downloadUrl` template, re-based on the origin already proven to work (the session's
+        advertised host is unreliable — the same reason `uploadBlob` ignores `uploadUrl`), and
+        **logs** a failed download instead of returning `undefined` in silence, which is why
+        this cost a whole run to find.
+     2. **Mail recorded no size.** `fetchRaw` used `item.size ?? 0`; `MailItem.size` is optional
+        and depends on the source having asked IMAP for RFC822.SIZE, so it fell back to 0 for
+        every message and the domain's whole total came out 0. It now uses the byte length of
+        the message actually fetched and written — always available, and the same bytes
+        `contentHash` hashes.
+     3. **CalDAV/CardDAV content verification was withdrawn entirely (#143).** The reasoning was
+        right — servers re-serialize iCalendar and vCard, so a byte hash computed on the source
+        can never equal one computed off the target — but the consequence was that two of four
+        domains silently stopped being content-checked. Replaced with a **canonical fingerprint**
+        (`packages/shared/src/dav-canonical.ts`): allow-listed opaque-text properties, unfolded,
+        unescaped, trimmed, sorted. Both writers now implement `contentHashFor` by fetching the
+        sampled resource in full. **This is a semantic subset check, not byte fidelity, and says
+        so** — timing properties (`DTSTART`, `RRULE`, …) are excluded on purpose, because a
+        server may legitimately rewrite `DTSTART;TZID=…` as the equivalent UTC instant and
+        comparing those without a timezone database would report healthy events as corrupt,
+        which is the very failure mode being fixed. 18 tests cover both halves: every
+        transformation a real SabreDAV performs must not change the fingerprint, and truncation
+        / a changed summary / a dropped field / a different item must.
+     4. **Upgrade hazard closed.** Fingerprints are version-tagged (`cal1:`, `card1:`) and
+        verification treats a cross-version comparison as *unavailable*, so a ledger row written
+        by an older build is reported as unmeasured rather than as fabricated corruption.
+        (`item.content_hash` is written but never read for a decision — dedup is by
+        `natural_key_hash` — so changing what it holds cannot affect the sync.)
+   - ✅ **Run #33: the §20 gate is green end to end, against real servers, for the first time.**
+     Restart-resume clean (26 / 27 / 27 / 142, identical across the restart), then all 14
+     verification tests pass and `canProceedToCutover: true`. Every domain now measures:
+
+     | domain | count | checksums | bytes source = target |
+     |---|---|---|---|
+     | mail | 26/26 PASS | 10 match, 0 mismatch, **0 unavailable** | 7,695 = 7,695 |
+     | calendar | 27/27 WARN¹ | 10 match, 0 mismatch, **0 unavailable** | 7,431 = 7,431 |
+     | contacts | 27/27 WARN¹ | 10 match, 0 mismatch, **0 unavailable** | 275,610 = 275,610 |
+     | files | 142/142 PASS | 10 match, 0 mismatch, 0 unavailable | 65,051,193 = 65,051,193 |
+
+     ¹ WARN solely from the 3 pre-existing items each on the destination account — Nextcloud's
+     own default calendar and address book content. Reported, not failed on, which is the
+     severity the product itself assigns them.
+
+     **40 of 40 samples compared, 0 mismatches, 0 unavailable, and every domain's source bytes
+     equal its target bytes exactly.** Both direct byte-fidelity assertions pass:
+     `dav-seed-binary-1.bin: source=4391B target=4391B`, and the non-ASCII text fixture likewise.
+     The canonical DAV fingerprint matched on a real SabreDAV round trip — the thing no test
+     double could establish. Overall status WARN, which is the honest verdict for a destination
+     that was not empty.
+   - ✅ **Migrating into a non-empty destination is no longer silent (part 1 of 2).** The gate's
+     WARN raised the question of what happens when the destination account already holds data.
+     There are two distinct populations and they were being treated as one. *Extras* — target
+     items with no counterpart in the ledger — are the customer's own data, must never be
+     touched (hard rule 2), and reporting them is the right depth; that already works.
+     *Collisions* — the target already holds an item under OUR natural key — are adopted: the
+     sync records it and writes nothing. That is the right default, but it is a decision about
+     the customer's data and it was **invisible**: adoption and an ordinary ledger skip both
+     return `created: false` and both landed as `status: 'updated'`, so a first migration into
+     an account someone is already using reported exactly the same "0 created, N skipped" as a
+     clean re-run of a finished one. `UpsertResult.adopted` now distinguishes them in all five
+     writers, `DomainSyncResult.adopted` counts them apart, the worker logs
+     `adopted=` alongside `created=`/`skipped=`, and the ledger records `status: 'adopted'`
+     (migration 0017 — the column has a DB CHECK, so the allowed set had to be widened in both
+     the SQL and the Drizzle schema). `MemoryTarget` was another double that could not model
+     the distinction and would have "proved" counting that did not happen; fixed.
+     `adoption-visibility.integration.test.ts` (5 tests, 4 fail on revert) pins it against a
+     real Postgres, including that a second pass is a SKIP rather than a second adoption.
+     **Note:** an earlier draft of this work also proposed "fixing" the adopted row's content
+     hash. That was wrong — verification reads the ledger as the SOURCE side
+     (`getSourceSamplesFromLedger`), so recording the source hash is correct and is precisely
+     what lets §20 catch a divergent adoption as a checksum mismatch. Changing it would have
+     removed detection.
+   - ✅ **Part 2: the customer is told before the run, and can choose.** Discovery was source-only,
+     so the confirm screen described every migration as if the destination were empty. It now
+     also counts the destination: `discoverTarget()` walks the same `listEntries` the §20 gate
+     uses (read-only, metadata-only) and records **`targetExisting`** (everything already there,
+     never touched) and **`targetColliding`** (the subset sharing a natural key, which will be
+     adopted). Both land in `migration_discovery` (migration 0018) and appear on **both** confirm
+     screens — managed's React step and the self-host page — with a plain-language note: *"N
+     items already on your destination match something in your source. We will keep the
+     destination's copy and not overwrite it."*
+     Nullable on purpose: null means "could not enumerate", which is a different claim from 0,
+     "empty" — and the UIs render `—` rather than `0` for it (hard rule 9). The source-key set is
+     only retained when there is a target that can actually be enumerated, so the memory cost is
+     never paid for nothing.
+     **Policy: `onCollision: 'skip' | 'fail'`, default `skip`** — today's behaviour, now an
+     informed default rather than a silent one. Enforced in `runDomainSync`, the one place that
+     already learns every upsert's outcome, so all four domains behave identically from one
+     implementation. **There is deliberately no `overwrite`:** `TargetWriter` is specified "NEVER
+     deletes or overwrites (non-destructive)" (hard rule 2), so source-wins would break a
+     documented invariant of every writer — that needs an ADR and an owner decision, not a config
+     flag. The parser rejects it *by name* with that reason rather than falling through to a
+     generic error.
+     Caught while building: the first cut of the policy plumbing **type-checked end to end while
+     doing nothing** — `onCollision` reached the deps object and was never forwarded to
+     `runDomainSync`, so `fail` silently behaved as `skip`. `ReconcileDeps` and the three DAV
+     deps now carry it and all four runners forward it; the test that proves it drives the real
+     sync loop rather than asserting on the config parse, which would have passed against the
+     broken version.
+   - ✅ **Run #34 (SEED_COUNT=110) failed, and the restart-resume gate was the thing that was
+     wrong — it could not fail on timeout.** It reported `file second pass: itemsSynced=330 (first
+     was 161)`, which reads as duplicates. It was not. `/status` at the end shows
+     `file: {state: "in_progress", itemsSynced: 336, lastSyncedAt: absent}` — **the file domain
+     never completed a single pass in the whole run**, and there is no
+     `[Worker] file sync complete` line anywhere in the log. Both "passes" were mid-flight
+     snapshots of a ledger still being filled; duplicates are impossible anyway
+     (`UNIQUE(tenant_id, mapping_id, natural_key_hash)`), and `itemsFailed` was 0 throughout.
+     The gate accepted them because its wait loops asserted `expect(status).toBeTruthy()` — and
+     `getDomainStatus` returns the domain object whatever state it is in, so a **timeout was
+     indistinguishable from success**. The message on that assertion ("no completed pass with
+     items") could never fire. So the first-pass test PASSED on a domain it had never observed
+     converge, and the failure surfaced two tests later as a bogus duplicate mismatch. Same class
+     as the rest of this series: an assertion that looks like it checks something and does not.
+     `waitForDomain()` now reports whether the predicate was **ever** met and the callers assert
+     on that, with a message naming what was awaited and the last state seen. Demonstrated
+     against the exact `/status` shape from the run: the old assertion passes on it, the new one
+     fails.
+     The underlying reason for the timeout is scale, not correctness: the fixed 60 × 2 s = 120 s
+     window is nowhere near enough for ~394 files and tens of megabytes (35 MB transferred and
+     still climbing when the gate gave up). The budget is now `max(300 s, SEED_COUNT × 6 s)`,
+     overridable with `E2E_WAIT_MS`, and `SEED_COUNT` is passed through to both test steps —
+     660 s at 110, unchanged 300 s at the default 5.
 2. Next: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 

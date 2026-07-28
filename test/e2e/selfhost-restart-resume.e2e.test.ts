@@ -83,6 +83,56 @@ function getStatus(): StatusPayload {
 }
 
 /** The first mapping's status for a given domain, or null. */
+/**
+ * How long to wait for a domain pass to complete.
+ *
+ * Was a fixed 60 x 2s = 120s. That is nowhere near enough once the seeded
+ * corpus grows: at SEED_COUNT=110 the file domain has ~394 items and tens of
+ * megabytes to move, and had transferred 35 MB and was still going when the
+ * gate gave up on it. Scaled off the seeded count so a bigger run gets a bigger
+ * budget, and overridable outright.
+ */
+const WAIT_MS = Number(
+  process.env.E2E_WAIT_MS ?? Math.max(300000, Number(process.env.SEED_COUNT ?? 5) * 6000),
+);
+
+/**
+ * Poll until `predicate` holds, and SAY whether it ever did.
+ *
+ * The previous loops returned only the last status read, and the caller asserted
+ * `expect(status).toBeTruthy()` — which a status object satisfies whatever state
+ * it is in. So a timeout was indistinguishable from success: in the run that
+ * exposed this, the file domain never reached `completed` even once (`/status`
+ * showed `in_progress` with no `lastSyncedAt` at the end), yet the first-pass
+ * test PASSED and recorded a mid-flight count as if it were a finished pass.
+ * The failure then surfaced as a bogus "duplicates" mismatch two tests later.
+ */
+async function waitForDomain(
+  domain: string,
+  predicate: (s: DomainStatus) => boolean,
+): Promise<{ met: boolean; status: DomainStatus | null }> {
+  const deadline = Date.now() + WAIT_MS;
+  let status: DomainStatus | null = null;
+  while (Date.now() < deadline) {
+    status = getDomainStatus(domain);
+    if (status && predicate(status)) return { met: true, status };
+    await setTimeout(2000);
+  }
+  return { met: false, status };
+}
+
+/** A timeout message that says what we were waiting for and what we last saw. */
+function describeTimeout(domain: string, wanted: string, status: DomainStatus | null): string {
+  if (!status) return `${domain}: no status at all after ${WAIT_MS}ms (waiting for ${wanted})`;
+  return (
+    `${domain}: timed out after ${WAIT_MS}ms waiting for ${wanted}. ` +
+    `Last seen: state=${status.state}, itemsSynced=${status.itemsSynced}, ` +
+    `itemsFailed=${status.itemsFailed}, lastSyncedAt=${status.lastSyncedAt ?? 'never'}. ` +
+    `A domain still 'in_progress' with no lastSyncedAt has not finished a single pass — ` +
+    `raise E2E_WAIT_MS rather than reading the item count as a result.`
+  );
+}
+
 function getDomainStatus(domain: string): DomainStatus | null {
   const status = getStatus();
   const domains = status.mappings?.[0]?.domains;
@@ -107,20 +157,18 @@ describe('Restart-Resume Idempotency Gate (T5)', () => {
   for (const domain of DOMAINS) {
     it(`${domain}: first pass syncs the seeded items`, async () => {
       // Wait for a completed pass that actually synced something.
-      let status: DomainStatus | null = null;
-      for (let i = 0; i < 60; i++) {
-        status = getDomainStatus(domain);
-        if (status && status.state === 'completed' && status.itemsSynced > 0) break;
-        await setTimeout(2000);
-      }
+      const { met, status } = await waitForDomain(
+        domain,
+        (s) => s.state === 'completed' && s.itemsSynced > 0,
+      );
 
-      expect(status, `no completed ${domain} pass with items — is the source seeded?`).toBeTruthy();
+      expect(met, describeTimeout(domain, 'a completed first pass with items', status)).toBe(true);
       expect(status!.itemsSynced).toBeGreaterThan(0);
 
       firstPassSynced[domain] = status!.itemsSynced;
       firstPassLastSyncedAt[domain] = status!.lastSyncedAt;
       console.log(`[e2e] ${domain} first pass: itemsSynced=${status!.itemsSynced}`);
-    }, 180000);
+    }, WAIT_MS + 60000);
   }
 
   it('restarts the app and every domain resumes with zero duplicates', async () => {
@@ -134,21 +182,17 @@ describe('Restart-Resume Idempotency Gate (T5)', () => {
 
     for (const domain of DOMAINS) {
       // Wait for a NEW pass after the restart (lastSyncedAt advances past the first).
-      let status: DomainStatus | null = null;
-      for (let i = 0; i < 60; i++) {
-        status = getDomainStatus(domain);
-        if (
-          status &&
-          status.state === 'completed' &&
-          status.lastSyncedAt &&
-          status.lastSyncedAt !== firstPassLastSyncedAt[domain]
-        ) {
-          break;
-        }
-        await setTimeout(2000);
-      }
+      const { met, status } = await waitForDomain(
+        domain,
+        (s) =>
+          s.state === 'completed' &&
+          !!s.lastSyncedAt &&
+          s.lastSyncedAt !== firstPassLastSyncedAt[domain],
+      );
 
-      expect(status, `no second pass observed for ${domain} after restart`).toBeTruthy();
+      expect(met, describeTimeout(domain, 'a NEW completed pass after the restart', status)).toBe(
+        true,
+      );
 
       // The property: the ledger item count did NOT grow — the second pass created
       // zero duplicates (it re-read the source but every item was already present).
@@ -156,5 +200,5 @@ describe('Restart-Resume Idempotency Gate (T5)', () => {
       expect(status!.itemsSynced).toBe(firstPassSynced[domain]);
       expect(status!.itemsFailed).toBe(0);
     }
-  }, 300000);
+  }, WAIT_MS * 2 + 120000);
 });

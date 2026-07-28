@@ -95,7 +95,7 @@ function deps(overrides: {
     },
     verificationReader: ledgerReader(),
     targetReindexers: overrides.targetReindexers ?? { mail: mailReindexer() },
-  } as never);
+  });
 }
 
 describe('verification domain scope', () => {
@@ -188,7 +188,7 @@ describe('verification domain scope', () => {
       config: { ...BASE_CONFIG, verifyMail: true, verifyCalendar: false, verifyContacts: false, verifyFiles: false },
       verificationReader: ledgerReader(),
       targetReindexers: { mail: reindexer([]) }, // target holds nothing
-    } as never);
+    });
 
     const result = await runVerification(broken);
 
