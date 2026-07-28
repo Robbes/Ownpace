@@ -411,9 +411,27 @@ actually left:
         by an older build is reported as unmeasured rather than as fabricated corruption.
         (`item.content_hash` is written but never read for a decision — dedup is by
         `natural_key_hash` — so changing what it holds cannot affect the sync.)
-   - ⚠️ **Unproven until the next run.** All four are verified by unit and integration tests and
-     by revert-verification, but none has met a real Stalwart or Nextcloud. In particular the
-     JMAP download-URL fix is inferred from the 404 shape, not observed working.
+   - ✅ **Run #33: the §20 gate is green end to end, against real servers, for the first time.**
+     Restart-resume clean (26 / 27 / 27 / 142, identical across the restart), then all 14
+     verification tests pass and `canProceedToCutover: true`. Every domain now measures:
+
+     | domain | count | checksums | bytes source = target |
+     |---|---|---|---|
+     | mail | 26/26 PASS | 10 match, 0 mismatch, **0 unavailable** | 7,695 = 7,695 |
+     | calendar | 27/27 WARN¹ | 10 match, 0 mismatch, **0 unavailable** | 7,431 = 7,431 |
+     | contacts | 27/27 WARN¹ | 10 match, 0 mismatch, **0 unavailable** | 275,610 = 275,610 |
+     | files | 142/142 PASS | 10 match, 0 mismatch, 0 unavailable | 65,051,193 = 65,051,193 |
+
+     ¹ WARN solely from the 3 pre-existing items each on the destination account — Nextcloud's
+     own default calendar and address book content. Reported, not failed on, which is the
+     severity the product itself assigns them.
+
+     **40 of 40 samples compared, 0 mismatches, 0 unavailable, and every domain's source bytes
+     equal its target bytes exactly.** Both direct byte-fidelity assertions pass:
+     `dav-seed-binary-1.bin: source=4391B target=4391B`, and the non-ASCII text fixture likewise.
+     The canonical DAV fingerprint matched on a real SabreDAV round trip — the thing no test
+     double could establish. Overall status WARN, which is the honest verdict for a destination
+     that was not empty.
 2. Next: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 
