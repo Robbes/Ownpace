@@ -57,6 +57,20 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
   private readonly tenantId: TenantId;
   private readonly mappingId: MappingId;
   private readonly httpClient: HttpClient;
+  /**
+   * Per-collection snapshot of what the target already holds, natural key ->
+   * href, built once and reused for every item in that collection.
+   *
+   * The existence check used to be one `calendar-query` REPORT PER ITEM. That
+   * is a network round trip each, and it dominated: a real run moved 203 events
+   * — 52 KB in total — in 76 seconds, 374 ms an item, essentially none of it
+   * data transfer. One REPORT for the whole collection answers the same
+   * question.
+   *
+   * A promise, not a Set, so concurrent items coalesce onto one in-flight
+   * listing instead of racing to build it N times.
+   */
+  private readonly collectionKeys = new Map<string, Promise<Map<string, string> | undefined>>();
 
   constructor(
     config: CalDAVTargetConfig,
@@ -126,7 +140,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     const sizeBytes = Buffer.byteLength(raw.icalendar, 'utf8');
 
     // Check if event already exists on target (by UID)
-    const existingId = await this.findCalendarByNaturalKey(calendarId, naturalKey);
+    const existingId = await this.existingTargetId(calendarId, naturalKey);
     if (existingId) {
       // Record in ledger if not present (adopt existing)
       await this.ledger.recordIfAbsent({
@@ -144,6 +158,9 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
 
     // Upload the event to the calendar
     const eventId = await this.uploadEvent(calendarId, raw, uid);
+    // Keep the snapshot current: a duplicate UID later in the same pass is then
+    // answered from memory instead of being written twice.
+    (await this.keysIn(calendarId))?.set(naturalKey, eventId);
 
     // RECORD IN LEDGER
     await this.ledger.recordIfAbsent({
@@ -158,6 +175,46 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     });
 
     return { targetId: eventId, created: true };
+  }
+
+  /**
+   * Natural key -> href for everything already in this collection.
+   *
+   * Returns undefined when the collection cannot be listed, and the caller then
+   * falls back to the per-item REPORT — a target we cannot enumerate must still
+   * be migratable, just not as quickly.
+   */
+  private keysIn(collectionId: string): Promise<Map<string, string> | undefined> {
+    let pending = this.collectionKeys.get(collectionId);
+    if (!pending) {
+      pending = (async () => {
+        try {
+          const keys = new Map<string, string>();
+          for await (const entry of this.listEntries(collectionId)) {
+            keys.set(entry.naturalKey, entry.targetId);
+          }
+          return keys;
+        } catch (err) {
+          console.warn(
+            `[caldav] could not list ${collectionId} up front, falling back to a per-item ` +
+              `existence check: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          return undefined;
+        }
+      })();
+      this.collectionKeys.set(collectionId, pending);
+    }
+    return pending;
+  }
+
+  /** Is this item already on the target? Snapshot first, per-item REPORT as fallback. */
+  private async existingTargetId(
+    collectionId: string,
+    naturalKey: string,
+  ): Promise<string | undefined> {
+    const keys = await this.keysIn(collectionId);
+    if (keys) return keys.get(naturalKey);
+    return this.findCalendarByNaturalKey(collectionId, naturalKey);
   }
 
   /**
@@ -514,9 +571,22 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       body: raw.icalendar,
       headers: {
         'Content-Type': 'text/calendar',
+        // Create-only, atomically (RFC 4918 §10.4.2 / RFC 9110 §13.1.2). The
+        // existence check above and this write are two separate requests, so on
+        // its own that pairing is check-then-act: anything appearing at this
+        // href in between would be silently REPLACED, which target writers are
+        // specified never to do (hard rule 2). The precondition closes the
+        // window in the server, and costs nothing.
+        'If-None-Match': '*',
         Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
       },
     });
+
+    // 412: something is already there. Not an error — the caller's snapshot was
+    // merely stale, and the resource is exactly what we would have written.
+    if (response.status === 412) {
+      return eventPath;
+    }
 
     if (response.status !== 201 && response.status !== 204) {
       throw new Error(`PUT failed for ${eventPath} with status ${response.status}: ${response.body}`);

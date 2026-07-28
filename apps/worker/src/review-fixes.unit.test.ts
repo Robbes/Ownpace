@@ -8,7 +8,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { MappingConfig, SourceConfig, TargetConfig } from '@openmig/shared';
-import { resolveMailConfig } from './build-deps';
+import { DEFAULT_CONCURRENCY, resolveMailConfig } from './build-deps';
 import { davEndpointFromCreds } from './dav-endpoint';
 
 const topSource: SourceConfig = {
@@ -37,7 +37,12 @@ describe('resolveMailConfig (finding #3)', () => {
     const r = resolveMailConfig(base);
     expect(r.source).toBe(topSource);
     expect(r.target).toBe(topTarget);
-    expect(r.concurrency).toBe(4);
+    // The default, not a magic number: raised 4 -> 8 when the DAV domains were
+    // found to be latency-bound (203 events / 52 KB took 76 s). Asserting the
+    // shared constant rather than a literal keeps this test about the
+    // resolution rule — "no domains.mail means fall back to the default" — and
+    // stops it failing every time the default is retuned.
+    expect(r.concurrency).toBe(DEFAULT_CONCURRENCY);
   });
 
   it('honors domains.mail.source/target/concurrency when present', () => {
