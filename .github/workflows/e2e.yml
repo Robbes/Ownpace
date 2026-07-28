@@ -260,6 +260,12 @@ jobs:
       # the 500 it produced failed this step (run #29). Each step now runs
       # exactly one suite, in order.
       - name: Run Restart-Resume Idempotency Gate (0010 T5)
+        # SEED_COUNT reaches the test so its wait budget scales with the corpus.
+        # A fixed 120s window silently expired on the file domain at
+        # SEED_COUNT=110 — ~394 items and tens of megabytes — and the gate then
+        # compared two mid-flight counts as if they were finished passes.
+        env:
+          SEED_COUNT: ${{ github.event.inputs.seed_count || '5' }}
         run: pnpm test:e2e test/e2e/selfhost-restart-resume.e2e.test.ts
 
       # The §20 gate against real Stalwart + Nextcloud. The restart-resume gate
@@ -268,6 +274,8 @@ jobs:
       # the DAV reindexers, checksum sampling, or measured target bytes.
       # Must run AFTER the gate above: it verifies the data that pass wrote.
       - name: Run Verification Gate against the real targets (§20)
+        env:
+          SEED_COUNT: ${{ github.event.inputs.seed_count || '5' }}
         run: pnpm test:e2e test/e2e/selfhost-verification.e2e.test.ts
 
       - name: Appliance + Stalwart + Nextcloud diagnostics

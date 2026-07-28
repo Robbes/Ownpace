@@ -482,6 +482,29 @@ actually left:
      deps now carry it and all four runners forward it; the test that proves it drives the real
      sync loop rather than asserting on the config parse, which would have passed against the
      broken version.
+   - ✅ **Run #34 (SEED_COUNT=110) failed, and the restart-resume gate was the thing that was
+     wrong — it could not fail on timeout.** It reported `file second pass: itemsSynced=330 (first
+     was 161)`, which reads as duplicates. It was not. `/status` at the end shows
+     `file: {state: "in_progress", itemsSynced: 336, lastSyncedAt: absent}` — **the file domain
+     never completed a single pass in the whole run**, and there is no
+     `[Worker] file sync complete` line anywhere in the log. Both "passes" were mid-flight
+     snapshots of a ledger still being filled; duplicates are impossible anyway
+     (`UNIQUE(tenant_id, mapping_id, natural_key_hash)`), and `itemsFailed` was 0 throughout.
+     The gate accepted them because its wait loops asserted `expect(status).toBeTruthy()` — and
+     `getDomainStatus` returns the domain object whatever state it is in, so a **timeout was
+     indistinguishable from success**. The message on that assertion ("no completed pass with
+     items") could never fire. So the first-pass test PASSED on a domain it had never observed
+     converge, and the failure surfaced two tests later as a bogus duplicate mismatch. Same class
+     as the rest of this series: an assertion that looks like it checks something and does not.
+     `waitForDomain()` now reports whether the predicate was **ever** met and the callers assert
+     on that, with a message naming what was awaited and the last state seen. Demonstrated
+     against the exact `/status` shape from the run: the old assertion passes on it, the new one
+     fails.
+     The underlying reason for the timeout is scale, not correctness: the fixed 60 × 2 s = 120 s
+     window is nowhere near enough for ~394 files and tens of megabytes (35 MB transferred and
+     still climbing when the gate gave up). The budget is now `max(300 s, SEED_COUNT × 6 s)`,
+     overridable with `E2E_WAIT_MS`, and `SEED_COUNT` is passed through to both test steps —
+     660 s at 110, unchanged 300 s at the default 5.
 2. Next: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 
