@@ -19,6 +19,10 @@
 // corpus. Exits non-zero on any failure so the workflow stops before the gate runs
 // against a source that was never actually seeded.
 
+// Imported rather than using the global: this file is linted without browser
+// globals, and the promise form is what the retry below wants anyway.
+import { setTimeout as sleep } from 'node:timers/promises';
+
 const baseUrl = (process.env.SEED_DAV_URL || 'http://127.0.0.1:8082').replace(/\/$/, '');
 const user = process.env.SEED_DAV_SOURCE_USER || 'e2e-source';
 const password = process.env.SEED_DAV_SOURCE_PASSWORD;
@@ -129,15 +133,48 @@ function buildUtf8File(i) {
   return `Seed ${i}: naïve café — 日本語 — emoji 🐙 — ĝis la revido\n`;
 }
 
+/** Attempts per PUT before a seed failure is treated as real. */
+const PUT_ATTEMPTS = 5;
+
+/**
+ * PUT one fixture, retrying while the server is merely busy.
+ *
+ * Nextcloud's default SQLite is a SINGLE-WRITER database. Under concurrent
+ * writes it really does answer
+ *
+ *   500 … SQLSTATE[HY000]: General error: 5 database is locked
+ *
+ * and it is transient by nature — the lock clears as soon as the other write
+ * commits. That is exactly why `requestWithRetry` exists in the DAV target
+ * writers. This script is a write path too and had none, so the first lock
+ * killed the whole seed and with it the run.
+ *
+ * 423 (WebDAV Locked) and 429 are included for the same reason: the server is
+ * telling us to come back, not that the request is wrong. Anything else — 401,
+ * 403, 415, a malformed fixture — is a real failure and is raised immediately;
+ * retrying those would only delay the error by a few seconds.
+ */
 async function put(url, body, contentType) {
-  const response = await fetch(url, {
-    method: 'PUT',
-    headers: { Authorization: authHeader, 'Content-Type': contentType },
-    body,
-  });
-  if (response.status !== 201 && response.status !== 204) {
+  for (let attempt = 1; ; attempt++) {
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: { Authorization: authHeader, 'Content-Type': contentType },
+      body,
+    });
+    if (response.status === 201 || response.status === 204) return;
+
+    const retryable = response.status >= 500 || response.status === 423 || response.status === 429;
     const text = await response.text().catch(() => '');
-    throw new Error(`PUT ${url} -> ${response.status}: ${text.slice(0, 300)}`);
+
+    if (!retryable || attempt === PUT_ATTEMPTS) {
+      throw new Error(
+        `PUT ${url} -> ${response.status} after ${attempt} attempt(s): ${text.slice(0, 300)}`,
+      );
+    }
+
+    // Backoff doubles, with jitter so the writers that collided do not all
+    // retry in the same millisecond and collide again.
+    await sleep(200 * 2 ** (attempt - 1) + Math.random() * 200);
   }
 }
 
@@ -150,10 +187,17 @@ async function put(url, body, contentType) {
  * ordering — each PUT is to its own href — so the only reason it was serial
  * was that it was written with `await` in a loop.
  *
- * Kept modest, and well under what the product itself pushes, so that seeding
- * cannot be what rate-limits the run. Override with SEED_CONCURRENCY.
+ * Matches the product's own `DEFAULT_CONCURRENCY`. The first version of this
+ * used 12 on the reasoning that it was "well under what the product pushes",
+ * which was simply wrong — the product pushes 4 — and it put THREE TIMES the
+ * write pressure on the same single-writer SQLite that `planDomainLanes` exists
+ * to protect. It failed the seed at event 2 of 506 with "database is locked".
+ *
+ * The retry in `put` is what actually makes this safe; the cap just keeps the
+ * collision rate low enough that the retries are rare. Override with
+ * SEED_CONCURRENCY on a backend that can take more (Postgres-backed Nextcloud).
  */
-const SEED_CONCURRENCY = Number(process.env.SEED_CONCURRENCY ?? 12);
+const SEED_CONCURRENCY = Number(process.env.SEED_CONCURRENCY ?? 4);
 
 /**
  * Run `worker` over `1..count` with at most SEED_CONCURRENCY in flight.
