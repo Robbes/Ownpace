@@ -303,11 +303,43 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
         targetId: decodeHref(item.href),
         mailboxId: bookPath,
         ...sizeOf(item.xml),
-        // No contentHash: see the note in the CalDAV writer — servers
-        // re-serialize vCard too, so hashing what comes back would mark every
-        // contact corrupt.
+        // No contentHash from the LISTING: it fetches only the UID.
+        // `contentHashFor` below fingerprints sampled items canonically.
       };
     }
+  }
+
+  /**
+   * A canonical content fingerprint for one sampled contact. Mirrors the CalDAV
+   * writer — see its `contentHashFor` and dav-canonical.ts for what a match
+   * does and does not claim.
+   */
+  async contentHashFor(entry: TargetEntry): Promise<string | undefined> {
+    // Server-absolute href; converting it is what stops the DAV prefix doubling.
+    const relative = hrefRelativeTo(entry.targetId, this.buildUrl(''));
+    if (relative === undefined) {
+      console.warn(`[carddav] ${entry.targetId} is outside the configured base; not content-verifying it`);
+      return undefined;
+    }
+
+    let response: HttpResponse;
+    try {
+      response = await this.httpClient.request({
+        method: 'GET',
+        url: this.buildUrl(relative),
+        headers: { Authorization: this.authHeader() },
+      });
+    } catch (err) {
+      console.warn(`[carddav] GET ${entry.targetId} failed: ${err instanceof Error ? err.message : String(err)}`);
+      return undefined;
+    }
+
+    if (response.status !== 200) {
+      console.warn(`[carddav] GET ${entry.targetId} -> ${response.status}; cannot content-verify it`);
+      return undefined;
+    }
+
+    return contactContentHash(response.body);
   }
 
   private authHeader(): string {

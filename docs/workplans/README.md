@@ -378,12 +378,42 @@ actually left:
      revert-verified independently), including one that pins the real reindexer-backed
      implementation with fixtures whose *hashes* sort ahead of the migrated items, plus a guard
      that fails if they ever stop doing so.
-   - ⚠️ **Still open.** Checksum sampling reports `unavailable` for 10/10 mail and 9/10 calendar
-     and contacts samples: mail's `contentHashFor` never yields a hash in practice, and the DAV
-     ones are deliberately withdrawn (#143 — the server re-serializes what it stored). So the
-     content leg of §20 currently rests on files alone, which is honest but thin. Mail is also
-     the one domain still reporting `totalBytesSource: 0` — only the three DAV writers were
-     fixed; the mail writer records no size.
+   - ✅ **The content leg now runs for all four domains, and mail bytes are measured.** Run #32
+     left §20's checksum half resting on files alone — `unavailable` for 10/10 mail and 9/10
+     calendar and contacts — plus `mail bytes: source=0 target=7695`. Four causes, all fixed:
+     1. **Mail's blob download 404'd.** `contentHashFor` hand-built
+        `{apiUrl}/download/{accountId}/{blobId}`, but the path shape is the server's to define
+        and Stalwart's carries a trailing `/{name}` segment. It now uses the session's RFC 8620
+        §2 `downloadUrl` template, re-based on the origin already proven to work (the session's
+        advertised host is unreliable — the same reason `uploadBlob` ignores `uploadUrl`), and
+        **logs** a failed download instead of returning `undefined` in silence, which is why
+        this cost a whole run to find.
+     2. **Mail recorded no size.** `fetchRaw` used `item.size ?? 0`; `MailItem.size` is optional
+        and depends on the source having asked IMAP for RFC822.SIZE, so it fell back to 0 for
+        every message and the domain's whole total came out 0. It now uses the byte length of
+        the message actually fetched and written — always available, and the same bytes
+        `contentHash` hashes.
+     3. **CalDAV/CardDAV content verification was withdrawn entirely (#143).** The reasoning was
+        right — servers re-serialize iCalendar and vCard, so a byte hash computed on the source
+        can never equal one computed off the target — but the consequence was that two of four
+        domains silently stopped being content-checked. Replaced with a **canonical fingerprint**
+        (`packages/shared/src/dav-canonical.ts`): allow-listed opaque-text properties, unfolded,
+        unescaped, trimmed, sorted. Both writers now implement `contentHashFor` by fetching the
+        sampled resource in full. **This is a semantic subset check, not byte fidelity, and says
+        so** — timing properties (`DTSTART`, `RRULE`, …) are excluded on purpose, because a
+        server may legitimately rewrite `DTSTART;TZID=…` as the equivalent UTC instant and
+        comparing those without a timezone database would report healthy events as corrupt,
+        which is the very failure mode being fixed. 18 tests cover both halves: every
+        transformation a real SabreDAV performs must not change the fingerprint, and truncation
+        / a changed summary / a dropped field / a different item must.
+     4. **Upgrade hazard closed.** Fingerprints are version-tagged (`cal1:`, `card1:`) and
+        verification treats a cross-version comparison as *unavailable*, so a ledger row written
+        by an older build is reported as unmeasured rather than as fabricated corruption.
+        (`item.content_hash` is written but never read for a decision — dedup is by
+        `natural_key_hash` — so changing what it holds cannot affect the sync.)
+   - ⚠️ **Unproven until the next run.** All four are verified by unit and integration tests and
+     by revert-verification, but none has met a real Stalwart or Nextcloud. In particular the
+     JMAP download-URL fix is inferred from the 404 shape, not observed working.
 2. Next: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 

@@ -340,13 +340,58 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
         targetId: decodeHref(item.href),
         mailboxId: calendarPath,
         ...sizeOf(item.xml),
-        // No contentHash, deliberately: CalDAV servers re-serialize iCalendar
-        // (property order, re-folded lines, their own PRODID), so a hash of what
-        // comes back would differ from the source hash for EVERY event and
-        // report a healthy migration as 100% corrupt. These samples stay
-        // `checksumUnavailable` — "not measured" rather than a false verdict.
+        // No contentHash from the LISTING: it fetches only the UID, and a hash
+        // of the server's re-serialized bytes could never equal the source's.
+        // `contentHashFor` below fetches sampled items in full and fingerprints
+        // them canonically instead.
       };
     }
+  }
+
+  /**
+   * A canonical content fingerprint for one sampled event.
+   *
+   * The listing cannot supply this — it deliberately fetches only the UID — and
+   * a byte hash would be meaningless here anyway: CalDAV servers re-serialize
+   * iCalendar, so the octets are the server's, not ours. `calendarContentHash`
+   * is a canonical fingerprint over opaque text properties (see
+   * dav-canonical.ts for exactly what is compared and what a match claims), so
+   * the same function applied to the source and to what comes back is a
+   * like-for-like comparison.
+   *
+   * Called only for sampled items, so the extra GET is bounded by the sample
+   * size, not the calendar size. Returns undefined — never a wrong hash — when
+   * the resource cannot be read, so the sample is counted as unavailable rather
+   * than as corruption.
+   */
+  async contentHashFor(entry: TargetEntry): Promise<string | undefined> {
+    // `targetId` is the resource href, which is SERVER-absolute. Handing it to
+    // buildUrl unconverted doubles the DAV prefix — the defect that made every
+    // calendar REPORT 404 until hrefRelativeTo was applied to collections.
+    const relative = hrefRelativeTo(entry.targetId, this.buildUrl(''));
+    if (relative === undefined) {
+      console.warn(`[caldav] ${entry.targetId} is outside the configured base; not content-verifying it`);
+      return undefined;
+    }
+
+    let response: HttpResponse;
+    try {
+      response = await this.httpClient.request({
+        method: 'GET',
+        url: this.buildUrl(relative),
+        headers: { Authorization: this.authHeader() },
+      });
+    } catch (err) {
+      console.warn(`[caldav] GET ${entry.targetId} failed: ${err instanceof Error ? err.message : String(err)}`);
+      return undefined;
+    }
+
+    if (response.status !== 200) {
+      console.warn(`[caldav] GET ${entry.targetId} -> ${response.status}; cannot content-verify it`);
+      return undefined;
+    }
+
+    return calendarContentHash(response.body);
   }
 
   private authHeader(): string {

@@ -191,6 +191,24 @@ describe('mail with no Message-ID (integration)', () => {
     expect(Number(rows.rows[0]!.size_bytes)).toBeGreaterThan(original.byteLength);
   });
 
+  it('records the real byte size for an ordinary message, not the listing figure', async () => {
+    // `MailItem.size` is optional and depends on the source having asked IMAP
+    // for RFC822.SIZE. This used to fall back to `item.size ?? 0`, and since it
+    // fell back for every message the ledger's whole mail total came out 0 —
+    // §20 then compared a source total of 0 against a measured target total,
+    // observed live as `mail bytes: source=0 target=7695`.
+    //
+    // MemorySource emits no `size`, which is exactly the condition that
+    // produced it.
+    const target = new MemoryTarget();
+    await pass(sourceWith([{ messageId: '<has-one@example.com>', rfc822: WITH_ID_RFC822 }]), target);
+
+    const rows = await db.execute(sql`SELECT size_bytes FROM item WHERE mapping_id = ${MAPPING}`);
+    expect(Number(rows.rows[0]!.size_bytes)).toBe(
+      new TextEncoder().encode(WITH_ID_RFC822).byteLength,
+    );
+  });
+
   it('leaves a message that already has a Message-ID completely alone', async () => {
     // The overwhelmingly common path must stay a verbatim copy.
     const target = new MemoryTarget();

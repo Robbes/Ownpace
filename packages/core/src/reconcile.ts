@@ -68,8 +68,21 @@ export const runShadowPass: RunShadowPass = async (deps) => {
       // the original instead and §20 checksum sampling flags every one of these
       // as corrupt.
       const ensured = ensureMessageId(raw.rfc822);
+      // Size of the bytes we actually fetched and are about to write — NOT
+      // `item.size` from the listing.
+      //
+      // `item.size` is optional on MailItem and depends on the source having
+      // asked for RFC822.SIZE; when it is absent this fell back to 0, and since
+      // it did so for every message the ledger's whole mail total came out 0.
+      // §20 then compared a source total of 0 against a measured target total,
+      // which is not a comparison at all — observed live as
+      // `mail bytes: source=0 target=7695`.
+      //
+      // The fetched bytes are always available here, are what `contentHash`
+      // below hashes, and are what the target receives — so this is both more
+      // robust and more truthful than the listing's advertised size.
       if (!ensured.generated) {
-        return { raw, sizeBytes: item.size ?? 0 };
+        return { raw, sizeBytes: raw.rfc822.byteLength };
       }
       return {
         raw: { ...raw, rfc822: ensured.rfc822 } satisfies RawMessage,

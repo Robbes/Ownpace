@@ -11,6 +11,7 @@
  */
 
 import type { TenantId, MappingId } from '@openmig/shared';
+import { versionOf } from '@openmig/shared';
 
 /**
  * Verification status for a single data type.
@@ -401,7 +402,14 @@ async function verifyDataType(
       // never counted against the target (workplan 0009 T1: report SKIPPED
       // rather than inventing a verdict).
       if (isComparableContent(targetSample.content)) {
-        if (compareContent(sourceSample.content, targetSample.content)) {
+        if (!sameHashAlgorithm(sourceSample.content, targetSample.content)) {
+          // The two sides were produced by different algorithm versions — a row
+          // recorded before a fingerprint change, compared against a freshly
+          // computed one. That comparison says nothing about the data, so it
+          // must not be scored as corruption. Upgrading mid-migration would
+          // otherwise turn every pre-upgrade item into a reported mismatch.
+          checksumUnavailable++;
+        } else if (compareContent(sourceSample.content, targetSample.content)) {
           checksumMatches++;
         } else {
           checksumMismatches++;
@@ -533,6 +541,21 @@ function calculateSampleSize(totalCount: number, config: VerificationConfig): nu
  */
 function isComparableContent(content: Uint8Array | string): boolean {
   return typeof content === 'string' ? content.length > 0 : content.byteLength > 0;
+}
+
+/**
+ * Were these two hashes produced by the same algorithm?
+ *
+ * Canonical DAV fingerprints carry a version tag (`cal1:`, `card1:`); mail and
+ * file hashes are bare sha256 hex and have none. Comparing across versions —
+ * a ledger row written by an older build against a value computed now — is
+ * meaningless, and reporting it as a mismatch would manufacture corruption out
+ * of an upgrade. Bare-vs-bare and tagged-vs-same-tag are comparable; anything
+ * else is not.
+ */
+function sameHashAlgorithm(a: Uint8Array | string, b: Uint8Array | string): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string') return true;
+  return versionOf(a) === versionOf(b);
 }
 
 function compareContent(

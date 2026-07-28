@@ -21,6 +21,8 @@ import {
   contactNaturalKeyHash,
   fileNaturalKeyHash,
   fileContentHash,
+  calendarContentHash,
+  contactContentHash,
   type Ledger,
 } from '@openmig/shared';
 import { CalDAVTargetWriter, type HttpClient as CalHttp } from './caldav-target-writer';
@@ -566,17 +568,101 @@ describe('WebDAVTargetWriter.listEntries', () => {
   });
 });
 
-describe('DAV writers that must NOT hash content', () => {
-  it('CalDAV and CardDAV do not implement contentHashFor', () => {
-    // Servers re-serialize iCalendar and vCard (property order, re-folded
-    // lines, their own PRODID), so a hash of what comes back would differ from
-    // the source hash for EVERY item — a healthy migration reported as 100%
-    // corrupt. Those samples stay `checksumUnavailable` instead.
-    const { writer: cal } = calWriter([]);
-    const { writer: card } = cardWriter([]);
+describe('DAV writers hash content canonically', () => {
+  // This used to assert that CalDAV and CardDAV do NOT implement
+  // `contentHashFor` at all (#143). The reasoning was sound — servers
+  // re-serialize iCalendar and vCard, so a hash of the returned BYTES could
+  // never equal the source's, and every item would read as corrupt — but the
+  // consequence was that §20's content leg silently stopped running for two of
+  // four domains: 9 of 10 samples came back `checksumUnavailable` on the first
+  // real run. The fix is a canonical fingerprint (dav-canonical.ts) rather than
+  // no check at all.
 
-    expect((cal as { contentHashFor?: unknown }).contentHashFor).toBeUndefined();
-    expect((card as { contentHashFor?: unknown }).contentHashFor).toBeUndefined();
+  it('CalDAV fetches a sampled event and fingerprints it comparably with the source', async () => {
+    const stored = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//OpenMig//Test//EN',
+      'BEGIN:VEVENT',
+      'UID:event-1@example.com',
+      'DTSTART:20260110T100000Z',
+      'SUMMARY:Planning',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+
+    // What a server hands back: reordered, refolded, its own PRODID, extra X-.
+    const returned = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//SabreDAV//SabreDAV//EN',
+      'X-WR-CALNAME:personal',
+      'BEGIN:VEVENT',
+      'SUMMARY:Plann\r\n ing',
+      'DTSTART:20260110T100000Z',
+      'UID:event-1@example.com',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+
+    const { writer, calls } = calWriter([
+      { match: /^GET/, status: 200, body: returned },
+    ]);
+
+    const hash = await writer.contentHashFor({
+      naturalKey: 'event-1@example.com',
+      targetId: '/remote.php/dav/calendars/alice/personal/event-1.ics',
+      mailboxId: '/calendars/alice/personal/',
+    });
+
+    // The load-bearing property: equal to what the SYNC recorded for the source.
+    expect(hash).toBe(calendarContentHash(stored));
+    // And it must not double the DAV prefix on the way there.
+    expect(calls[0]!.url).toBe(`${CAL_BASE}/calendars/alice/personal/event-1.ics`);
+  });
+
+  it('CardDAV does the same for a sampled contact', async () => {
+    const stored = ['BEGIN:VCARD', 'VERSION:4.0', 'UID:c1', 'FN:Ada Lovelace', 'END:VCARD'].join('\r\n');
+    const returned = ['BEGIN:VCARD', 'VERSION:4.0', 'PRODID:-//SabreDAV//EN', 'FN:Ada Lovelace', 'REV:20260101T000000Z', 'UID:c1', 'END:VCARD'].join('\r\n');
+
+    const { writer } = cardWriter([{ match: /^GET/, status: 200, body: returned }]);
+
+    const hash = await writer.contentHashFor({
+      naturalKey: 'c1',
+      targetId: '/remote.php/dav/addressbooks/users/alice/contacts/c1.vcf',
+      mailboxId: '/addressbooks/users/alice/contacts/',
+    });
+
+    expect(hash).toBe(contactContentHash(stored));
+  });
+
+  it('returns undefined rather than a wrong hash when the resource cannot be read', async () => {
+    // An unreadable sample is `checksumUnavailable` — absence of evidence, not
+    // evidence of corruption.
+    const { writer } = calWriter([{ match: /^GET/, status: 404, body: 'gone' }]);
+
+    const hash = await writer.contentHashFor({
+      naturalKey: 'event-1@example.com',
+      targetId: '/remote.php/dav/calendars/alice/personal/event-1.ics',
+      mailboxId: '/calendars/alice/personal/',
+    });
+
+    expect(hash).toBeUndefined();
+  });
+
+  it('notices a truncated event instead of passing it', async () => {
+    const stored = ['BEGIN:VCALENDAR', 'BEGIN:VEVENT', 'UID:e1', 'SUMMARY:Planning', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+    const truncated = ['BEGIN:VCALENDAR', 'BEGIN:VEVENT', 'UID:e1', 'END:VEVENT'].join('\r\n');
+
+    const { writer } = calWriter([{ match: /^GET/, status: 200, body: truncated }]);
+
+    const hash = await writer.contentHashFor({
+      naturalKey: 'e1',
+      targetId: '/remote.php/dav/calendars/alice/personal/e1.ics',
+      mailboxId: '/calendars/alice/personal/',
+    });
+
+    expect(hash).not.toBe(calendarContentHash(stored));
   });
 
   it('but they do report sizes, so target bytes are still measurable', async () => {
