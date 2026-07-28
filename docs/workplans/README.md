@@ -349,15 +349,41 @@ actually left:
      comparison has never been able to measure anything. Cause: the DAV target writers record the
      ledger row themselves, without a size, and `recordIfAbsent` means the sized record the sync
      loop makes immediately afterwards is a no-op. All three writers now record the size.
-   - ⚠️ **Open, from the same run.** (a) Checksum sampling came back `unavailable` for 10/10 mail
-     and 10/10 calendar samples, and 9/10 contacts — the mail and DAV `contentHashFor` paths do
-     not produce a hash in practice, so content verification currently rests on files alone.
-     (b) One contacts sample mismatched; with 9 of 10 unavailable that is one data point, not a
-     pattern. (c) The e2e assertion that the target holds nothing outside the ledger was wrong
-     about the environment — a fresh Nextcloud user ships a default calendar and address book
-     with sample content — and now reports extras instead of failing on them, which matches the
-     product's own WARNING severity. Whether the file fix clears the mismatches can only be
-     settled by the next run.
+   - ✅ **Run #32: the file domain PASSES, and the remaining FAIL was the gate's own arithmetic.**
+     With the binary fix and the seeded fixtures, files reports **142/142, 10/10 checksums
+     matched, 0 mismatches**, and `totalBytesSource === totalBytesTarget === 65,051,193` exactly;
+     the direct byte assertion confirms `dav-seed-binary-1.bin` arrives at 4,391 bytes on both
+     sides. Calendar and contacts byte totals now match exactly too (7,431 and 275,610). What
+     still FAILed was **three defects in `runVerification` itself**, all triggered by a target
+     that holds pre-existing data:
+     1. **Checksum sampling compared the wrong items.** The source side took the first N ledger
+        rows by natural-key hash; the target side took its own first N. Those sets differ
+        whenever the target holds anything the ledger did not record, and every such extra
+        evicted a real sample from the slice. `getTargetSamples` now takes the source sample's
+        key hashes and returns exactly those.
+     2. **Absence was scored as a content mismatch.** A source sample with no counterpart in the
+        target slice incremented `checksumMismatches` — ERROR severity, cutover blocked. A
+        mismatch is a claim that both sides were read and differed; absence is `missingOnTarget`'s
+        finding, made over the full sets, and it fails the gate on its own. Now counted as
+        `unavailable`. Signature in the data: calendar and contacts each had 3 pre-existing items
+        and each reported exactly 1 "content mismatch"; mail and files, with no extras, reported
+        none — with `missingOnTarget: 0` everywhere.
+     3. **Extras counted toward the failure threshold**, contradicting this same code's own
+        severities (`EXTRA_*` is unconditionally WARNING, `MISSING_*` escalates to ERROR). A
+        missing item is data that did not arrive; an extra item is data the destination already
+        had and cannot indicate a copy failure. `discrepancyPercentage` now counts missing only;
+        extras still force WARN, never silent PASS. Without this, §20 refuses to migrate into any
+        account that is not empty — including a stock Nextcloud user.
+     Covered by `verification-sample-alignment.unit.test.ts` (6 tests, each of the three fixes
+     revert-verified independently), including one that pins the real reindexer-backed
+     implementation with fixtures whose *hashes* sort ahead of the migrated items, plus a guard
+     that fails if they ever stop doing so.
+   - ⚠️ **Still open.** Checksum sampling reports `unavailable` for 10/10 mail and 9/10 calendar
+     and contacts samples: mail's `contentHashFor` never yields a hash in practice, and the DAV
+     ones are deliberately withdrawn (#143 — the server re-serializes what it stored). So the
+     content leg of §20 currently rests on files alone, which is honest but thin. Mail is also
+     the one domain still reporting `totalBytesSource: 0` — only the three DAV writers were
+     fixed; the mail writer records no size.
 2. Next: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 

@@ -139,9 +139,26 @@ export interface VerificationDeps {
     count: number
   ): Promise<Array<{ id: string; naturalKeyHash: string; content: Uint8Array | string }>>;
   
+  /**
+   * Target-side samples to compare against the source samples.
+   *
+   * `naturalKeyHashes` names the EXACT items wanted — the ones the source side
+   * sampled. Honour it when supplied.
+   *
+   * Taking "the first `count` target items" instead is not equivalent, because
+   * the two populations differ: the target legitimately holds items the ledger
+   * never recorded (pre-existing data on the destination account). Any of those
+   * that sorted into the target's first `count` displaced a real sample, and the
+   * displaced item then looked absent — which the caller scored as a content
+   * mismatch and used to FAIL the cutover gate on a healthy migration. Observed:
+   * calendar and contacts each had 3 pre-existing items and each reported
+   * exactly 1 spurious mismatch, while mail and files, with no extras, reported
+   * none.
+   */
   getTargetSamples(
     dataType: 'mail' | 'calendar' | 'contacts' | 'files',
-    count: number
+    count: number,
+    naturalKeyHashes?: ReadonlyArray<string>
   ): Promise<Array<{ id: string; naturalKeyHash: string; content: Uint8Array | string }>>;
   
   // Discrepancy detection
@@ -348,7 +365,15 @@ async function verifyDataType(
   // Sample-based checksum verification
   const sampleSize = calculateSampleSize(sourceCount, config);
   const sourceSamples = await deps.getSourceSamples(dataType, sampleSize);
-  const targetSamples = await deps.getTargetSamples(dataType, sampleSize);
+  // Ask the target for THESE items, not for its own first `sampleSize`. See
+  // getTargetSamples: the populations differ whenever the target holds anything
+  // the ledger did not record, and taking each side's first N independently
+  // pairs them up wrongly.
+  const targetSamples = await deps.getTargetSamples(
+    dataType,
+    sampleSize,
+    sourceSamples.map((s) => s.naturalKeyHash),
+  );
   
   // Create a map of target samples by naturalKeyHash for efficient lookup
   const targetSamplesByHash = new Map<string, { id: string; content: Uint8Array | string }>();
@@ -385,9 +410,18 @@ async function verifyDataType(
         checksumUnavailable++;
       }
     } else {
-      // Natural key hash not found on target - this is a missing item
-      // Count as a mismatch for checksum purposes
-      checksumMismatches++;
+      // No target counterpart, so there is nothing to compare — unavailable,
+      // not a mismatch.
+      //
+      // A mismatch is a claim about CONTENT: we read both sides and they
+      // differed. Absence is a different finding, and it is already measured
+      // properly by `findMissingOnTarget` over the full sets, which FAILs the
+      // gate on its own. Scoring it here as well both double-counted it and
+      // mislabelled it, and — because the two sample slices used to be drawn
+      // from different populations — it fired on items that were not missing at
+      // all. That produced an ERROR-severity "content mismatch" and a blocked
+      // cutover on a migration with `missingOnTarget: 0`.
+      checksumUnavailable++;
     }
   }
   
@@ -532,9 +566,24 @@ function determineVerificationStatus(
   sourceCount: number
 ): 'PASS' | 'WARN' | 'FAIL' {
   const totalDiscrepancies = missingCount + extraCount;
-  // When sourceCount is 0, discrepancyPercentage is 0 (no items to compare)
-  const discrepancyPercentage = sourceCount > 0 ? totalDiscrepancies / sourceCount : 0;
-  
+  // Only MISSING items count toward the failure threshold.
+  //
+  // This used to be `missingCount + extraCount`, which contradicted the
+  // severities this same function's caller assigns: `MISSING_*` escalates to
+  // ERROR past the threshold, `EXTRA_*` is unconditionally WARNING — and yet a
+  // WARNING-severity finding was driving a FAIL status.
+  //
+  // The semantics differ, and only one of them is about the migration. A
+  // missing item is data that did not arrive: that is what the gate exists to
+  // catch. An extra item is data the DESTINATION already had, and it cannot
+  // indicate that anything failed to copy. Counting it as failure made §20
+  // unusable against any account that is not empty — including a stock
+  // Nextcloud user, which ships a default calendar and address book with sample
+  // content, and any customer migrating into a mailbox they already use.
+  //
+  // Extras still force WARN below, so they are never silently passed.
+  const discrepancyPercentage = sourceCount > 0 ? missingCount / sourceCount : 0;
+
   // FAIL if any critical thresholds are not met
   if (
     matchPercentage < config.requiredMatchPercentage ||
@@ -543,7 +592,7 @@ function determineVerificationStatus(
   ) {
     return 'FAIL';
   }
-  
+
   // WARN if there are any discrepancies (even within tolerance)
   if (totalDiscrepancies > 0) {
     return 'WARN';
