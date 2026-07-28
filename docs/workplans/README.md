@@ -288,11 +288,25 @@ actually left:
      visible in the run diagnostics, before the fallback PROPFIND. §4 puts those at the origin
      root. Also removed `RealVerificationDeps.ledger`: a required field nothing read, which every
      call site silenced with `as never` — the cast that let `verifyMapping` ship unchecked.
-   - ⚠️ **Not yet settled.** The 500's own stack was never captured, because the appliance's
-     error handler logged nothing and the e2e assertion discarded the response body. Both are
-     fixed (stack to the container log, message over the wire — stacks stay server-side per T4
-     secret hygiene), so the *next* self-hosted run diagnoses itself. Whether the fixes above are
-     sufficient can only be established by that run.
+   - ✅ **Done — the CalDAV/CardDAV reindexers doubled the DAV prefix.** Run #30, with the
+     filters fixed, ran the gate as its own step and reported its own cause: `GET /verify -> 500`
+     carrying `calendar-query REPORT on /remote.php/dav/calendars/e2e-target/personal/ failed
+     with status 404 … Sabre\DAV\Exception\NotFound — File not found: remote.php in 'root'`, and
+     the Nextcloud log showed the request verbatim:
+     `REPORT /remote.php/dav/remote.php/dav/calendars/e2e-target/personal/ 404`. An href in a
+     multistatus is *server-absolute*, while `buildUrl` appends to the configured base — so
+     feeding hrefs back in doubled the prefix. The writes never hit it (they build their own
+     relative paths); only the reindexer feeds server hrefs back, so it could not surface until
+     verification first ran against a real server. `hrefRelativeTo` (#142) exists for exactly
+     this and the WebDAV reindexer already used it; CalDAV and CardDAV now do too. The unit
+     tests had asserted `expect(url).toContain('/calendars/alice/personal/')` — which the
+     *doubled* URL also satisfies, and the canned route's regex matched it too, so the double
+     agreed with a URL Nextcloud answers 404. Tightened to exact URLs plus a no-doubled-prefix
+     check across every request; 3 tests fail on the old behaviour.
+   - ⚠️ **Still unproven end to end.** Everything past "the calendar reindexer can read the
+     target" — checksum sampling, `totalBytesTarget`, whether a JMAP blob round-trips
+     byte-identically — has still never run against a real server: the gate has failed before
+     reaching it on both attempts. The next self-hosted run is the first that can answer them.
 2. Next: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 

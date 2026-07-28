@@ -25,6 +25,7 @@ import {
   hasResourceType,
   extractUid,
   decodeHref,
+  hrefRelativeTo,
   unescapeXml,
   sizeOf,
 } from './dav-multistatus';
@@ -248,12 +249,28 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       );
     }
 
-    const homeSetPath = decodeHref(this.buildUrl(homeSet)).replace(/\/+$/, '');
+    // An href in a multistatus is SERVER-absolute (`/remote.php/dav/calendars/
+    // <user>/personal/`), while `buildUrl` treats its argument as relative to
+    // the configured base and just concatenates. Handing hrefs to it straight
+    // produced `…/remote.php/dav/remote.php/dav/calendars/<user>/personal/`,
+    // and every calendar-query REPORT 404'd:
+    //
+    //   REPORT /remote.php/dav/remote.php/dav/calendars/e2e-target/personal/ 404
+    //   Sabre\DAV\Exception\NotFound — File not found: remote.php in 'root'
+    //
+    // The writes never hit this because they build their own relative paths;
+    // only the reindexer feeds server hrefs back in, so it surfaced the first
+    // time verification ran against a real Nextcloud. `hrefRelativeTo` (#142)
+    // exists for exactly this and is what the WebDAV reindexer already uses.
     return parseMultiStatus(response.body)
       .filter((r) => hasResourceType(r.xml, 'calendar'))
-      .map((r) => this.normalizeCalendarPath(decodeHref(r.href)))
-      // The home set itself is not a calendar, but some servers still list it.
-      .filter((path) => this.buildUrl(path).replace(/\/+$/, '') !== homeSetPath);
+      .map((r) => hrefRelativeTo(r.href, this.buildUrl('')))
+      // An href outside the configured base is not ours to read; dropping it is
+      // right, and `''` is the home set itself — not a calendar, though some
+      // servers list it.
+      .filter((relative): relative is string => relative !== undefined && relative !== '')
+      .map((relative) => this.normalizeCalendarPath(relative))
+      .filter((path) => path !== homeSet);
   }
 
   /** Every VEVENT resource in one calendar, as ledger-shaped entries. */

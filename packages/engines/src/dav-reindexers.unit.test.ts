@@ -166,7 +166,33 @@ describe('CalDAVTargetWriter.listEntries', () => {
 
     const reports = calls.filter((c) => c.method === 'REPORT').map((c) => c.url);
     expect(reports).toHaveLength(1);
-    expect(reports[0]).toContain('/calendars/alice/personal/');
+    // EXACT, not `toContain`. A substring check passed while production sent
+    // `…/remote.php/dav/remote.php/dav/calendars/alice/personal/` — the
+    // doubled prefix still contains `/calendars/alice/personal/`, and the
+    // canned route's regex still matched it, so the double agreed with a URL
+    // Nextcloud answers with 404. See the URL-shape test below.
+    expect(reports[0]).toBe(`${CAL_BASE}/calendars/alice/personal/`);
+  });
+
+  it('does not double the DAV prefix when turning a server href into a URL', async () => {
+    // Hrefs in a multistatus are SERVER-absolute (`/remote.php/dav/...`) while
+    // `buildUrl` appends to the configured base, so an unconverted href yields
+    // `https://host/remote.php/dav/remote.php/dav/...`. Against a real
+    // Nextcloud every calendar-query REPORT 404'd with
+    // `Sabre\DAV\Exception\NotFound — File not found: remote.php in 'root'`,
+    // and verification could not read the calendar target at all.
+    const { writer, calls } = calWriter([
+      { match: /^PROPFIND/, body: CAL_HOME_SET },
+      { match: /^REPORT/, body: CAL_EVENTS },
+    ]);
+
+    await collect(writer.listEntries());
+
+    for (const call of calls) {
+      expect(call.url.startsWith(`${CAL_BASE}/`), `not rooted at the base: ${call.url}`).toBe(true);
+      // The base's own path must appear exactly once.
+      expect(call.url.split('/remote.php/dav').length - 1, `doubled prefix: ${call.url}`).toBe(1);
+    }
   });
 
   it('can be scoped to a single calendar without discovering the home set', async () => {
@@ -278,6 +304,23 @@ describe('CardDAVTargetWriter.listEntries', () => {
 
     expect(entries.map((e) => e.naturalKey)).toEqual(['contact-a', 'contact-b']);
     expect(contactNaturalKeyHash(entries[0]!.naturalKey)).toBe(contactNaturalKeyHash('contact-a'));
+  });
+
+  it('does not double the DAV prefix when turning a server href into a URL', async () => {
+    // Identical defect to the CalDAV one above; the calendar domain simply
+    // failed first, so nothing ever reached the address books.
+    const { writer, calls } = cardWriter([
+      { match: /^PROPFIND/, body: CARD_HOME_SET },
+      { match: /^REPORT/, body: CARD_CONTACTS },
+    ]);
+
+    await collect(writer.listEntries());
+
+    const reports = calls.filter((c) => c.method === 'REPORT').map((c) => c.url);
+    expect(reports).toEqual([`${CAL_BASE}/addressbooks/users/alice/contacts/`]);
+    for (const call of calls) {
+      expect(call.url.split('/remote.php/dav').length - 1, `doubled prefix: ${call.url}`).toBe(1);
+    }
   });
 
   it('throws when the address book home set cannot be read', async () => {

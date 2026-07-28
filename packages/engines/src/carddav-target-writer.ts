@@ -25,6 +25,7 @@ import {
   hasResourceType,
   extractUid,
   decodeHref,
+  hrefRelativeTo,
   unescapeXml,
   sizeOf,
 } from './dav-multistatus';
@@ -239,11 +240,16 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       );
     }
 
-    const homeSetPath = decodeHref(this.buildUrl(homeSet)).replace(/\/+$/, '');
+    // Hrefs are SERVER-absolute; `buildUrl` concatenates onto the configured
+    // base. Passing them through unconverted doubled the DAV prefix — see the
+    // identical fix and the real 404 it produced in caldav-target-writer.ts.
     return parseMultiStatus(response.body)
       .filter((r) => hasResourceType(r.xml, 'addressbook'))
-      .map((r) => this.normalizeAddressBookPath(decodeHref(r.href)))
-      .filter((path) => this.buildUrl(path).replace(/\/+$/, '') !== homeSetPath);
+      .map((r) => hrefRelativeTo(r.href, this.buildUrl('')))
+      // Outside the base, or the home set itself, which is not an address book.
+      .filter((relative): relative is string => relative !== undefined && relative !== '')
+      .map((relative) => this.normalizeAddressBookPath(relative))
+      .filter((path) => path !== homeSet);
   }
 
   /** Every vCard in one address book, as ledger-shaped entries. */
