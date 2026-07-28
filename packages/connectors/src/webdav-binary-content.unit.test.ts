@@ -105,3 +105,47 @@ describe('WebdavFileSource.fetchFileContent', () => {
     await expect(source.fetchFileContent('https://x/y.jpg')).rejects.toThrow(/bodyBytes/);
   });
 });
+
+/**
+ * `fetch(item)` is what the sync loop calls now that listing is metadata-only.
+ * Its one piece of real logic is resolving `sourceRef` — the server's own href
+ * from the PROPFIND multistatus, which is usually a ROOT-RELATIVE path, not a
+ * URL. Getting that wrong turns every file download into a request to nowhere.
+ */
+describe('WebdavFileSource.fetch', () => {
+  function urlCapturingClient(bytes: Uint8Array) {
+    const urls: string[] = [];
+    const client: HttpClient = {
+      async request(o): Promise<HttpResponse> {
+        urls.push(o.url);
+        return { status: 200, body: '', bodyBytes: bytes, headers: {} };
+      },
+    };
+    return { client, urls };
+  }
+
+  it('resolves a root-relative href against the server origin', async () => {
+    const { client, urls } = urlCapturingClient(JPEG_HEADER);
+    const source = sourceWith(client);
+
+    const raw = await source.fetch({
+      path: 'photos/x.jpg',
+      isDirectory: false,
+      size: JPEG_HEADER.length,
+      modifiedAt: '2026-01-01T00:00:00Z',
+      sourceRef: '/remote.php/dav/files/alice/photos/x.jpg',
+    } as never);
+
+    expect(urls).toEqual(['https://cloud.example.com/remote.php/dav/files/alice/photos/x.jpg']);
+    expect(Array.from(raw.content!)).toEqual(Array.from(JPEG_HEADER));
+  });
+
+  it('refuses an item it cannot locate instead of returning an empty file', async () => {
+    const { client } = urlCapturingClient(JPEG_HEADER);
+    const source = sourceWith(client);
+
+    await expect(
+      source.fetch({ path: 'photos/x.jpg', isDirectory: false, size: 1, modifiedAt: '' } as never),
+    ).rejects.toThrow(/no sourceRef/);
+  });
+});

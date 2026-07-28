@@ -3,7 +3,7 @@ import type { DomainDiscovery, DiscoveryRecord, DiscoveryDomain } from './discov
 import type { MailFolder, MailItem, RawMessage, MailKeyword } from './mail';
 import type { CalendarFolder, RawCalendarEvent } from './calendar';
 import type { ContactFolder, RawContact } from './contact';
-import type { FileFolder, RawFileItem } from './file';
+import type { FileFolder, FileItem, RawFileItem } from './file';
 
 /** Opaque, source-defined cursor for incremental listing (e.g. UIDVALIDITY+UIDNEXT). */
 export interface SyncCursor {
@@ -93,11 +93,31 @@ export interface FileSource {
   listFolders(): Promise<ReadonlyArray<FileFolder>>;
   /**
    * List files changed since cursor.
+   *
+   * METADATA ONLY. `RawFileItem.content` is expected to be absent here — the
+   * bytes come from {@link FileSource.fetch}, one item at a time, inside the
+   * sync loop's bounded concurrency.
+   *
+   * The WebDAV source used to GET every changed file's content inline in this
+   * loop, serially, before the sync loop had started. Two consequences: the
+   * downloads ignored `concurrency` entirely (only the uploads were parallel),
+   * and a whole folder's bytes sat in memory at once — which is not a limit any
+   * migration of real file storage can live within, and directly contradicts
+   * the documented promise that concurrency "bounds peak memory to ~concurrency
+   * bodies in flight".
    */
   listSince(
     folder: FileFolder,
     cursor?: SyncCursor,
   ): Promise<{ items: ReadonlyArray<RawFileItem>; nextCursor: SyncCursor }>;
+  /**
+   * Fetch one file's bytes. Called once per item by the sync loop.
+   *
+   * Required, not optional: a source that cannot produce content cannot
+   * migrate files, and the loop's only alternative is to write an empty file
+   * and call it a success.
+   */
+  fetch(item: FileItem): Promise<RawFileItem>;
 }
 
 /**

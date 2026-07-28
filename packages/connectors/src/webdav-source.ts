@@ -12,7 +12,7 @@
  * - Support for binary file content
  */
 
-import type { FileSource, FileFolder, RawFileItem, SyncCursor } from '@openmig/shared';
+import type { FileSource, FileFolder, FileItem, RawFileItem, SyncCursor } from '@openmig/shared';
 import type { 
   WebDAVSourceConfig, 
   WebDAVFile, 
@@ -100,16 +100,20 @@ export class WebdavFileSource implements FileSource {
         // Check if file has changed since cursor (using basename as key)
         if (this.hasChanged(file, cursor)) {
           hasChanges = true;
-          // Fetch file content using the full href (sourceRef)
-          const sourceRef = this.resolveHref(entry.href);
-          const content = await this.fetchFileContent(sourceRef);
-          
+          // METADATA ONLY — the bytes come from fetch(), per item, inside the
+          // sync loop's bounded concurrency.
+          //
+          // This used to `await this.fetchFileContent(...)` right here. Being
+          // inside the listing loop, that made every download SERIAL no matter
+          // what `concurrency` was set to (only the uploads were parallel), and
+          // it accumulated the whole folder's bytes in `items` before a single
+          // file had been written. 67 MB of e2e fixtures survives that; a real
+          // file migration does not.
           items.push({
             item: {
               ...file,
               sourceRef: entry.href,  // Keep full href for fetching
             },
-            content,
           });
         }
       }
@@ -122,6 +126,21 @@ export class WebdavFileSource implements FileSource {
     };
     
     return { items, nextCursor };
+  }
+
+  /**
+   * Fetch one file's bytes (implements FileSource.fetch).
+   *
+   * `sourceRef` holds the server's own href from the PROPFIND multistatus,
+   * which may be relative — so it is resolved here rather than being stored
+   * pre-resolved, keeping `sourceRef` exactly what the server said.
+   */
+  async fetch(item: FileItem): Promise<RawFileItem> {
+    if (!item.sourceRef) {
+      throw new Error(`WebDAV file has no sourceRef and cannot be fetched: ${item.path}`);
+    }
+    const content = await this.fetchFileContent(this.resolveHref(item.sourceRef));
+    return { item, content };
   }
 
   /**
