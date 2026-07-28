@@ -505,6 +505,28 @@ actually left:
      still climbing when the gate gave up). The budget is now `max(300 s, SEED_COUNT × 6 s)`,
      overridable with `E2E_WAIT_MS`, and `SEED_COUNT` is passed through to both test steps —
      660 s at 110, unchanged 300 s at the default 5.
+   - ✅ **Run #35 (SEED_COUNT=150): restart-resume passed, and the gate caught a real one —
+     JMAP `listEntries` enumerated only the first 100 messages.** The wait-budget fix worked:
+     all four domains completed (email 150, calendar 151, contact 151, file 514 = 64 skeleton +
+     3×150) and the restart-resume step was green. Then §20 reported mail
+     `sourceCount: 150, targetCount: 100, missingOnTarget: 50` — exactly the JMAP page size.
+     Cause: the pagination loop broke on `totalFetched >= total`, where `total` came from the
+     `Email/query` response. RFC 8621 §4.4 computes `total` **only** when
+     `calculateTotal: true` is requested and it defaults to false; we never asked, so `total` was
+     absent, `?? 0` made it 0, and `totalFetched >= 0` was true the moment the first page had
+     been read. (`totalFetched` was doubly wrong anyway — it counts entries *yielded*, not ids
+     seen, so it could not be compared against a server total even if one had arrived.) Paging
+     now terminates on the id count alone: a short page is the end, a full page asks again, and a
+     query past the end returns none. Every earlier run seeded under 100 messages, which is the
+     only reason this survived — **any real mailbox is bigger than one page, so the §20 gate was
+     unusable outside the fixtures**, reporting healthy mail as data loss and blocking cutover.
+     5 tests over the paging boundaries (150, exact multiples, under a page, empty, 437); 3 fail
+     on revert.
+     Everything else in that run was clean: calendar and contacts 151/151 with 10/10 checksums
+     and exact byte parity, files 514/514 with **25/25** checksums and exact byte parity. The 4
+     `checksumUnavailable` mail samples were the new honest-absence behaviour working — those
+     items fell outside the truncated listing, and are now reported as unmeasured rather than as
+     fabricated mismatches.
 2. Next: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 
