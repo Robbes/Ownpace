@@ -65,6 +65,20 @@ In practice you rarely construct these by hand: the worker builds them from the 
 `buildDomainDepsFromMapping(pool, tenantId, mappingId, domain)`, and the self-host appliance builds
 them from `mapping.json` via `runAllDomains`.
 
+### Which domains run at the same time
+
+`runAllDomains` groups the enabled domains into **lanes** (`planDomainLanes`) and runs the lanes in
+parallel, sequentially within each lane. Two domains share a lane whenever they touch any of the
+same hosts — source or target.
+
+That rule exists because the domains are not independent. Calendar, contacts and files typically
+land on one server, and a Nextcloud running its default SQLite is a single-writer database that
+answers `database is locked` under concurrent writes (which is what `requestWithRetry` in the DAV
+target writers is for). Mail usually lives elsewhere, so it overlaps the DAV work for free.
+
+Domains whose endpoints cannot be resolved to a host share the first lane, so an unrecognised
+config shape stays fully sequential rather than being guessed to be isolated.
+
 ## Idempotency
 
 Same anchor in every domain: a stable **natural key** per item, hashed and stored with a

@@ -111,9 +111,18 @@ describe('JmapTargetWriter.findByNaturalKey — lookup failure', () => {
       } as never, []),
     ).rejects.toThrow(/refusing to treat this as "not present"/);
 
-    // The load-bearing assertions: the lookup was the ONLY JMAP method called,
-    // and no blob was uploaded. Nothing reached the target.
-    expect(apiRequest.mock.calls.map((c) => c[0])).toEqual(['Email/query']);
+    // The load-bearing assertions: NOTHING that writes was called. No import,
+    // no blob upload — the message did not reach the target.
+    //
+    // Stated as "only reads happened" rather than as a literal call list. The
+    // writer now tries to enumerate the account once before falling back to
+    // the per-message lookup, so a failing server sees two Email/query calls
+    // instead of one. That is a change in how many times we ask, not in what
+    // we do with the answer, and pinning the exact list made the test fail for
+    // a behaviour that is still correct.
+    const methods = apiRequest.mock.calls.map((c) => c[0]);
+    expect(methods).toContain('Email/query');
+    expect(methods.filter((m) => m !== 'Email/query')).toEqual([]);
     expect(blobUpload).not.toHaveBeenCalled();
   });
 });

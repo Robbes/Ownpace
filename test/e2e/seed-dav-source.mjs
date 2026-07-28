@@ -141,8 +141,47 @@ async function put(url, body, contentType) {
   }
 }
 
+/**
+ * How many seed PUTs are in flight at once.
+ *
+ * The seeding is TEST SCAFFOLDING, not the product, and it was costing more
+ * than the appliance build: run #38 spent 551 of its 1872 seconds here, one
+ * sequential PUT at a time at ~218 ms each. Nothing about the fixtures needs
+ * ordering — each PUT is to its own href — so the only reason it was serial
+ * was that it was written with `await` in a loop.
+ *
+ * Kept modest, and well under what the product itself pushes, so that seeding
+ * cannot be what rate-limits the run. Override with SEED_CONCURRENCY.
+ */
+const SEED_CONCURRENCY = Number(process.env.SEED_CONCURRENCY ?? 12);
+
+/**
+ * Run `worker` over `1..count` with at most SEED_CONCURRENCY in flight.
+ *
+ * Fails on the FIRST error rather than logging and continuing: a partial seed
+ * makes every later assertion meaningless, and a green run over a corpus that
+ * was never fully written is the worst outcome available.
+ */
+async function seedRange(label, worker) {
+  let next = 1;
+  const runner = async () => {
+    for (;;) {
+      const i = next++;
+      if (i > count) return;
+      await worker(i);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(SEED_CONCURRENCY, count) }, () => runner()),
+  );
+  console.log(`[seed-dav] ${label}: ${count}/${count} PUT ok`);
+}
+
 async function main() {
-  console.log(`[seed-dav] seeding ${count} events + ${count} contacts + ${count} files for '${user}' at ${baseUrl}`);
+  console.log(
+    `[seed-dav] seeding ${count} events + ${count} contacts + ${count} files for '${user}' ` +
+      `at ${baseUrl} (${SEED_CONCURRENCY} in flight)`,
+  );
 
   const calendarUrl = `${baseUrl}/remote.php/dav/calendars/${user}/personal`;
   const addressBookUrl = `${baseUrl}/remote.php/dav/addressbooks/users/${user}/contacts`;
@@ -150,40 +189,38 @@ async function main() {
   // account's own file storage root, the same convention WebdavFileSource/WebDAVTargetWriter use.
   const filesUrl = `${baseUrl}/remote.php/dav/files/${user}`;
 
-  for (let i = 1; i <= count; i++) {
-    const icalendar = buildIcalendar(i);
-    await put(`${calendarUrl}/dav-seed-event-${i}@dev.local.ics`, icalendar, 'text/calendar; charset=utf-8');
-    console.log(`[seed-dav] event ${i}/${count} PUT ok`);
-  }
+  await seedRange('events', (i) =>
+    put(
+      `${calendarUrl}/dav-seed-event-${i}@dev.local.ics`,
+      buildIcalendar(i),
+      'text/calendar; charset=utf-8',
+    ),
+  );
 
-  for (let i = 1; i <= count; i++) {
-    const vcard = buildVcard(i);
-    await put(`${addressBookUrl}/dav-seed-contact-${i}@dev.local.vcf`, vcard, 'text/vcard; charset=utf-8');
-    console.log(`[seed-dav] contact ${i}/${count} PUT ok`);
-  }
+  await seedRange('contacts', (i) =>
+    put(
+      `${addressBookUrl}/dav-seed-contact-${i}@dev.local.vcf`,
+      buildVcard(i),
+      'text/vcard; charset=utf-8',
+    ),
+  );
 
-  for (let i = 1; i <= count; i++) {
-    const file = buildFile(i);
-    await put(`${filesUrl}/dav-seed-file-${i}.txt`, file, 'text/plain; charset=utf-8');
-    console.log(`[seed-dav] file ${i}/${count} PUT ok`);
-  }
+  await seedRange('text files', (i) =>
+    put(`${filesUrl}/dav-seed-file-${i}.txt`, buildFile(i), 'text/plain; charset=utf-8'),
+  );
 
   // Binary and non-ASCII fixtures. These are the only files in the whole corpus
   // that do not survive a UTF-8 round trip, and the only ones that exist solely
   // on the source — every Nextcloud skeleton file is already present on the
   // target account and gets adopted rather than uploaded, so before these the
   // upload path had no non-ASCII coverage at all.
-  for (let i = 1; i <= count; i++) {
-    const blob = buildBinaryFile(i);
-    await put(`${filesUrl}/dav-seed-binary-${i}.bin`, blob, 'application/octet-stream');
-    console.log(`[seed-dav] binary ${i}/${count} PUT ok (${blob.length} bytes)`);
-  }
+  await seedRange('binary files', (i) =>
+    put(`${filesUrl}/dav-seed-binary-${i}.bin`, buildBinaryFile(i), 'application/octet-stream'),
+  );
 
-  for (let i = 1; i <= count; i++) {
-    const text = buildUtf8File(i);
-    await put(`${filesUrl}/dav-seed-utf8-${i}.txt`, text, 'text/plain; charset=utf-8');
-    console.log(`[seed-dav] utf8 file ${i}/${count} PUT ok`);
-  }
+  await seedRange('non-ASCII files', (i) =>
+    put(`${filesUrl}/dav-seed-utf8-${i}.txt`, buildUtf8File(i), 'text/plain; charset=utf-8'),
+  );
 
   console.log(
     `[seed-dav] done — ${count} events in '${user}'/personal, ${count} contacts in '${user}'/contacts, ` +

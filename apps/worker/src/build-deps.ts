@@ -56,6 +56,17 @@ import { withClose, type WithClose } from './deps-lifecycle';
 export const DEFAULT_CONCURRENCY = 4;
 
 /**
+ * Ledger connections per domain pass.
+ *
+ * Domain lanes run in parallel now, so a mapping can hold one of these pools
+ * per lane rather than one at a time. The sync loop only ever has `concurrency`
+ * items in flight and each does one ledger operation at a time, so a handful of
+ * connections is all a pass can use — and capping it keeps several lanes across
+ * several mappings well clear of Postgres's connection limit.
+ */
+const LEDGER_POOL_MAX = DEFAULT_CONCURRENCY + 2;
+
+/**
  * Build the complete dependency bundle for a shadow pass.
  * This wires together all the components needed for the worker to run.
  */
@@ -70,7 +81,7 @@ export async function buildDeps(config: MappingConfig): Promise<WithClose<Reconc
   }
 
   // Create database connection
-  const db = createPgDb(databaseUrl);
+  const db = createPgDb(databaseUrl, LEDGER_POOL_MAX);
 
   // Create ledger
   const ledger = new PgLedger(db);
@@ -364,7 +375,7 @@ export function buildDomainDeps(
   if (!databaseUrl) {
     throw new Error('DATABASE_URL environment variable is required');
   }
-  const db = createPgDb(databaseUrl);
+  const db = createPgDb(databaseUrl, LEDGER_POOL_MAX);
   const ledger = new PgLedger(db);
   const cursors = new PgCursorStore(db);
 

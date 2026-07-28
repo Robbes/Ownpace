@@ -53,13 +53,127 @@ export interface DomainSyncResult {
   error?: string;
 }
 
+export type SyncDomain = 'email' | 'calendar' | 'contact' | 'file';
+
+/**
+ * The hostnames a source or target config talks to, for lane grouping.
+ *
+ * Unrecognised shapes return nothing, which is the safe answer: a domain whose
+ * hosts we cannot name shares a lane with everything, so it runs sequentially
+ * exactly as it always did.
+ */
+function endpointHost(endpoint: unknown): string | undefined {
+  const e = endpoint as { url?: string; baseUrl?: string; host?: string };
+  const raw = e?.url ?? e?.baseUrl;
+  if (raw) {
+    try {
+      return new URL(raw).host;
+    } catch {
+      return undefined;
+    }
+  }
+  return e?.host;
+}
+
+/**
+ * Split domains into lanes that may safely run at the same time.
+ *
+ * Domains ran strictly one after another: email, then calendar, then contacts,
+ * then files. Run #38 spent 939 seconds that way, and for most of it three of
+ * the four servers involved were idle.
+ *
+ * They are not, however, independent of each other. Calendar, contacts and
+ * files typically land on ONE server — a Nextcloud whose default SQLite is a
+ * single-writer database that genuinely returns "database is locked" under
+ * concurrent writes (that is why `requestWithRetry` exists). Running those
+ * three at once is how you turn a slow migration into a failing one, which is
+ * the lesson run #37 already charged us for once.
+ *
+ * So: two domains may overlap only if they touch NO host in common. Domains
+ * sharing any host — source or target — collapse into one lane and stay
+ * sequential within it; lanes run in parallel. On the usual mail-plus-DAV
+ * shape that yields two lanes, and the total is the longer of the two rather
+ * than the sum of everything.
+ *
+ * Order within a lane is preserved, so behaviour with a single lane is
+ * byte-for-byte what it was.
+ */
+export function planDomainLanes(
+  config: MappingConfig,
+  domains: ReadonlyArray<SyncDomain>,
+): SyncDomain[][] {
+  const configFor: Record<SyncDomain, { source?: unknown; target?: unknown } | undefined> = {
+    email: config.domains?.mail,
+    calendar: config.domains?.calendar,
+    contact: config.domains?.contacts,
+    file: config.domains?.files,
+  };
+
+  // host -> index of the lane that already claimed it.
+  const laneOfHost = new Map<string, number>();
+  const lanes: SyncDomain[][] = [];
+
+  for (const domain of domains) {
+    const domainConfig = configFor[domain];
+    const hosts = [
+      endpointHost(domainConfig?.source ?? config.source),
+      endpointHost(domainConfig?.target ?? config.target),
+    ].filter((h): h is string => h !== undefined);
+
+    // A domain we cannot place by host joins the first lane, keeping the old
+    // fully-sequential behaviour rather than guessing it is isolated. When it
+    // is the first domain there is no lane yet, so open one.
+    if (hosts.length === 0 && lanes.length === 0) {
+      lanes.push([]);
+    }
+    const claimed =
+      hosts.length === 0
+        ? [0]
+        : hosts.map((h) => laneOfHost.get(h)).filter((i): i is number => i !== undefined);
+    const unique = [...new Set(claimed)].sort((a, b) => a - b);
+
+    let lane: number;
+    if (unique.length === 0) {
+      lane = lanes.length;
+      lanes.push([]);
+    } else {
+      // Shares hosts with more than one existing lane: merge them, because
+      // running either alongside the other would put concurrent load on a
+      // server that a lane boundary was supposed to protect.
+      lane = unique[0]!;
+      for (const other of unique.slice(1).reverse()) {
+        lanes[lane]!.push(...lanes[other]!);
+        lanes.splice(other, 1);
+        for (const [host, idx] of laneOfHost) {
+          if (idx === other) laneOfHost.set(host, lane);
+          else if (idx > other) laneOfHost.set(host, idx - 1);
+        }
+      }
+    }
+
+    lanes[lane]!.push(domain);
+    for (const host of hosts) laneOfHost.set(host, lane);
+  }
+
+  // Merging appends one lane's domains after another's, which can leave a
+  // merged lane out of the caller's order. Any order within a lane is correct
+  // — they are sequential either way — but a stable one keeps the "running N
+  // lanes" log line readable and the tests deterministic.
+  const rank = new Map(domains.map((d, i) => [d, i]));
+  for (const lane of lanes) {
+    lane.sort((a, b) => rank.get(a)! - rank.get(b)!);
+  }
+
+  return lanes.filter((l) => l.length > 0);
+}
+
 /** Run all enabled domains for one mapping config, with status tracking. */
 export async function runAllDomains(
   config: MappingConfig,
   statusStore: MigrationStatusStore,
 ): Promise<DomainSyncResult[]> {
   const results: DomainSyncResult[] = [];
-  const domains: Array<{ name: 'email' | 'calendar' | 'contact' | 'file'; enabled: boolean }> = [
+  const domains: Array<{ name: SyncDomain; enabled: boolean }> = [
     { name: 'email', enabled: config.domains?.mail?.enabled ?? false },
     { name: 'calendar', enabled: config.domains?.calendar?.enabled ?? false },
     { name: 'contact', enabled: config.domains?.contacts?.enabled ?? false },
@@ -74,19 +188,44 @@ export async function runAllDomains(
     domains[0]!.enabled = true;
   }
 
+  const tenantId = config.tenantId as TenantId;
+  const mappingId = config.mappingId as MappingId;
+
+  // Every domain gets a status row and a decision, enabled or not, before any
+  // work starts — so a caller polling status never sees a domain that simply
+  // is not there yet.
   for (const { name: domain, enabled } of domains) {
-    const tenantId = config.tenantId as TenantId;
-    const mappingId = config.mappingId as MappingId;
-
     await statusStore.initDomainStatus(tenantId, mappingId, domain);
-
     if (!enabled) {
       await statusStore.markSkipped(tenantId, mappingId, domain);
       results.push({ domain, scanned: 0, created: 0, skipped: 0, adopted: 0, failed: 0 });
-      continue;
     }
+  }
 
+  const lanes = planDomainLanes(
+    config,
+    domains.filter((d) => d.enabled).map((d) => d.name),
+  );
+  if (lanes.length > 1) {
+    console.log(
+      `[Worker] running ${lanes.length} domain lanes in parallel: ` +
+        lanes.map((l) => l.join('+')).join(' | '),
+    );
+  }
+
+  const runLane = async (lane: ReadonlyArray<SyncDomain>): Promise<void> => {
+    for (const domain of lane) {
+      await runOneDomain(domain);
+    }
+  };
+
+  async function runOneDomain(domain: SyncDomain): Promise<void> {
     await statusStore.markInProgress(tenantId, mappingId, domain);
+
+    // Collected per domain rather than read back off the end of the shared
+    // array: with lanes in flight at once, `results[results.length - 1]` is no
+    // longer this domain's result.
+    let outcome: DomainSyncResult | undefined;
 
     try {
       // Each builder opens a Postgres pool; always release it after the pass
@@ -95,7 +234,7 @@ export async function runAllDomains(
         const deps = await buildDeps(config);
         try {
           const result = await runShadowPass(deps);
-          results.push({ domain, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted ?? 0, failed: 0 });
+          outcome = { domain, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted ?? 0, failed: 0 };
         } finally {
           await deps.close();
         }
@@ -103,7 +242,7 @@ export async function runAllDomains(
         const deps = buildDomainDeps(config, 'calendar');
         try {
           const result = await runCalendarSync(deps);
-          results.push({ domain, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted, failed: result.failed });
+          outcome = { domain, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted, failed: result.failed };
         } finally {
           await deps.close();
         }
@@ -111,7 +250,7 @@ export async function runAllDomains(
         const deps = buildDomainDeps(config, 'contact');
         try {
           const result = await runContactSync(deps);
-          results.push({ domain, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted, failed: result.failed });
+          outcome = { domain, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted, failed: result.failed };
         } finally {
           await deps.close();
         }
@@ -119,20 +258,20 @@ export async function runAllDomains(
         const deps = buildDomainDeps(config, 'file');
         try {
           const result = await runFileSync(deps);
-          results.push({ domain, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted, failed: result.failed });
+          outcome = { domain, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted, failed: result.failed };
         } finally {
           await deps.close();
         }
       }
 
+      results.push(outcome);
       await statusStore.markCompleted(tenantId, mappingId, domain);
-      const last = results[results.length - 1]!;
       // `adopted` is reported alongside the rest: a pass that created nothing
       // because the destination already held the data reads very differently
       // from one that created nothing because we had already migrated it.
       console.log(
-        `[Worker] ${domain} sync complete: scanned=${last.scanned}, created=${last.created}, ` +
-          `adopted=${last.adopted}, skipped=${last.skipped}`,
+        `[Worker] ${domain} sync complete: scanned=${outcome.scanned}, created=${outcome.created}, ` +
+          `adopted=${outcome.adopted}, skipped=${outcome.skipped}`,
       );
     } catch (err) {
       const error = err as Error;
@@ -142,6 +281,22 @@ export async function runAllDomains(
       // Continue to the next domain — one domain's failure must not block others.
     }
   }
+
+  // A lane that throws must not cancel the others: each lane already swallows
+  // per-domain failures, so a rejection here would be a bug rather than a
+  // migration outcome — but `allSettled` keeps one from hiding the rest.
+  const settled = await Promise.allSettled(lanes.map(runLane));
+  for (const s of settled) {
+    if (s.status === 'rejected') {
+      console.error(`[Worker] domain lane failed unexpectedly: ${String(s.reason)}`);
+    }
+  }
+
+  // Report in the fixed domain order, not in the order lanes happened to
+  // finish. Callers rendered this list as-is, and a summary whose rows move
+  // around between runs is a worse report even though the numbers are right.
+  const order = domains.map((d) => d.name);
+  results.sort((a, b) => order.indexOf(a.domain) - order.indexOf(b.domain));
 
   return results;
 }

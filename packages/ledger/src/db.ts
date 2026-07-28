@@ -87,9 +87,20 @@ export async function withTenant<T>(
 /**
  * Create a Postgres database handle for the ledger.
  * Returns an object with the db and a close method.
+ *
+ * `maxConnections` bounds the pool. It exists because the worker can now hold
+ * SEVERAL of these open at once — one per domain lane running in parallel —
+ * and node-postgres defaults to 10 per pool, so four lanes across a few
+ * mappings could quietly walk into Postgres's connection limit. Callers that
+ * open one pool and keep it (the API) should leave it unset.
  */
-export function createPgDb(connectionString: string): PgDatabase & { $pool: Pool; close: () => Promise<void> } {
-  const pool = new Pool({ connectionString });
+export function createPgDb(
+  connectionString: string,
+  maxConnections?: number,
+): PgDatabase & { $pool: Pool; close: () => Promise<void> } {
+  const pool = new Pool(
+    maxConnections === undefined ? { connectionString } : { connectionString, max: maxConnections },
+  );
   const db = drizzlePg(pool, { schema: schemaPg });
   return Object.assign(db, {
     $pool: pool,

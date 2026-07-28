@@ -27,6 +27,23 @@ const RATE_LIMIT_ATTEMPTS = 5;
 const RATE_LIMIT_BASE_BACKOFF_MS = 1000;
 
 /**
+ * Above this many messages already on the target, stop enumerating it up front
+ * and go back to probing per item.
+ *
+ * The snapshot costs one round trip per 100 messages ALREADY THERE, and saves
+ * one per message written. For the ordinary case — a fresh or near-empty
+ * destination, which is what hard rule 2 assumes — that is one request against
+ * hundreds. For a destination already holding a very large mailbox the trade
+ * inverts, and enumerating half a million messages to write a thousand is
+ * worse than a thousand probes.
+ *
+ * Deliberately generous: at 50k the enumeration is ~500 requests, still cheap
+ * next to any migration big enough to care, and the memory is a few MB of
+ * strings.
+ */
+const SNAPSHOT_MAX_ENTRIES = 50_000;
+
+/**
  * JMAP Mailbox query response type.
  */
 interface MailboxQueryResponse {
@@ -84,7 +101,14 @@ interface EmailImportResponse {
   type: string;
   accountId: string;
   created?: Record<string, { id: string; blobId: string }>;
-  notCreated?: Record<string, { type: string; description: string }>;
+  /**
+   * `existingId` rides along on an `alreadyExists` SetError, naming the message
+   * the server already had. Optional here because it could not be confirmed
+   * against the spec from this environment (rfc-editor.org and
+   * datatracker.ietf.org are both blocked by egress policy) and servers vary —
+   * `upsertEmail` falls back to asking rather than assuming it is present.
+   */
+  notCreated?: Record<string, { type: string; description: string; existingId?: string }>;
 }
 
 /**
@@ -174,6 +198,15 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
   /** The session's `downloadUrl` template, if it advertised one. */
   private downloadUrlTemplate: string | null = null;
   private connectPromise: Promise<void> | null = null;
+  /**
+   * Message-ID -> target email id for what the account already held, built once
+   * and kept current as we write. See `targetKeys()`.
+   *
+   * Held as a PROMISE so concurrent items coalesce onto one enumeration instead
+   * of racing to build it N times. `undefined` inside the promise means "could
+   * not be built" — never "the account is empty".
+   */
+  private keySnapshot: Promise<Map<string, string> | undefined> | null = null;
 
   constructor(config: JmapTargetConfig) {
     this.config = config;
@@ -525,6 +558,63 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
   }
 
   /**
+   * What the target account already holds, keyed the way we key it.
+   *
+   * `upsertEmail` asked the server "is this message already here?" with an
+   * `Email/query` PER MESSAGE. That is the same round trip the DAV writers
+   * stopped paying, and mail is where it hurts most: the query is a header
+   * search across the whole account, so its cost grows with the account. Run
+   * #36 measured 119 ms an item at 202 items; run #38 measured 219 ms at 506.
+   * The work per item was going UP as the migration progressed.
+   *
+   * `listEntries` already enumerates exactly this, 100 at a time, and is the
+   * same call the ledger reindex and §20 verification use — so reusing it (as
+   * opposed to a second enumeration written alongside) is what guarantees the
+   * snapshot's keys are the keys everything else compares against.
+   *
+   * Account-wide, with no mailbox filter, because that is precisely what the
+   * per-item probe did: the natural key is unique per MAPPING, not per folder,
+   * so a message already filed anywhere on the target must be adopted rather
+   * than written a second time (ADR-0020 — even a wiped ledger cannot produce
+   * duplicates).
+   *
+   * Returns `undefined`, not an empty map, when the account cannot be
+   * enumerated. The difference is the whole ballgame: an empty map reads as
+   * "the target holds nothing", which would make us rewrite everything. The
+   * caller falls back to the per-item probe instead — slower, still correct.
+   */
+  private async targetKeys(): Promise<Map<string, string> | undefined> {
+    this.keySnapshot ??= this.buildKeySnapshot();
+    return this.keySnapshot;
+  }
+
+  private async buildKeySnapshot(): Promise<Map<string, string> | undefined> {
+    const keys = new Map<string, string>();
+    try {
+      for await (const entry of this.listEntries()) {
+        keys.set(entry.naturalKey, entry.targetId);
+        if (keys.size > SNAPSHOT_MAX_ENTRIES) {
+          console.warn(
+            `[jmap] target holds more than ${SNAPSHOT_MAX_ENTRIES} messages; ` +
+              `checking each message individually instead of enumerating the account`,
+          );
+          return undefined;
+        }
+      }
+      return keys;
+    } catch (err) {
+      // Say why. A silent fallback here looks identical to a fast target and
+      // would hide a real problem behind nothing but a slower run (hard rule 9).
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[jmap] could not enumerate the target account (${message}); ` +
+          `falling back to a per-message existence check`,
+      );
+      return undefined;
+    }
+  }
+
+  /**
    * Check if an email with the given Message-ID already exists in the mailbox.
    */
   async findByNaturalKey(
@@ -536,16 +626,20 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     try {
       // Query emails by Message-ID header
       // JMAP header filter format: [headerName, headerValue]
-      
+      //
+      // No `properties`: RFC 8621 §4.4 does not define it for Email/query (it
+      // belongs to Email/get), and RFC 8620 §3.2 says a server MUST answer an
+      // unknown argument with `invalidArguments`. This is the same defect that
+      // was fixed in `listEntries` and left here — Stalwart tolerates it, a
+      // stricter server would reject every existence check in the migration.
       const response = await this.apiRequest<EmailQueryResponse>('Email/query', {
         accountId: this.accountId,
         filter: {
           header: ["Message-ID", naturalKey],
         },
-        properties: ["id"],
       });
 
-      
+
       const ids = (response as { ids?: string[] }).ids || [];
       const found = ids.length > 0 ? ids[0] : undefined;
       return found;
@@ -803,9 +897,13 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     // Extract Message-ID from raw RFC822
     const messageId = this.extractMessageIdFromRfc822(raw.rfc822);
 
-    // Check if email already exists
+    // Check if email already exists — against the account snapshot when we
+    // could build one, otherwise by asking about this message specifically.
+    const snapshot = messageId ? await this.targetKeys() : undefined;
     if (messageId) {
-      const existingId = await this.findByNaturalKey(mailboxId, messageId);
+      const existingId = snapshot
+        ? snapshot.get(messageId)
+        : await this.findByNaturalKey(mailboxId, messageId);
       if (existingId) {
         // Already on the target under our natural key: not written, ADOPTED.
         // Distinct from a ledger fast-path skip — see UpsertResult.adopted.
@@ -867,6 +965,30 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     // Check if import was successful
     if (importResponse.notCreated && Object.keys(importResponse.notCreated).length > 0) {
       const error = importResponse.notCreated["0"];
+
+      // `alreadyExists` means the server already holds this message and
+      // declined to make a second copy. That is not a failure — it is the
+      // outcome we wanted, reached by the server rather than by our check.
+      //
+      // It matters more now than it did: the snapshot above is taken once per
+      // pass, so the window between "not in the snapshot" and the import is a
+      // whole pass wide rather than milliseconds. This is the JMAP counterpart
+      // of `If-None-Match: *` on the DAV writes — the server, not our snapshot,
+      // is what actually guarantees hard rule 2 here.
+      //
+      // Adopting requires an ID we can stand behind. Prefer the SetError's own
+      // `existingId`; failing that, ask. Never invent one — a fabricated
+      // targetId in the ledger is worse than a failed item.
+      if (error?.type === 'alreadyExists') {
+        const existingId =
+          error.existingId ??
+          (messageId ? await this.findByNaturalKey(mailboxId, messageId) : undefined);
+        if (existingId) {
+          if (messageId) snapshot?.set(messageId, existingId);
+          return { targetId: existingId, created: false, adopted: true };
+        }
+      }
+
       throw new Error(
         `Failed to import email: ${error?.type} - ${error?.description || 'Unknown error'}`
       );
@@ -877,6 +999,9 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     }
 
     const createdId = Object.keys(importResponse.created)[0]!;
+    // Keep the snapshot true, so a repeat within the same pass costs nothing
+    // and cannot be written twice.
+    if (messageId) snapshot?.set(messageId, createdId);
     return { targetId: createdId, created: true };
   }
 
