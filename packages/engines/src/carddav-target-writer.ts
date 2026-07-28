@@ -135,7 +135,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
         createdAt: new Date().toISOString(),
         sizeBytes,
       });
-      return { targetId: existingId, created: false };
+      return { targetId: existingId, created: false, adopted: true };
     }
 
     // Upload the contact to the address book

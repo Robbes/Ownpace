@@ -105,6 +105,7 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     scanned: result.scanned,
     created: result.created,
     skipped: result.skipped,
+    adopted: result.adopted,
     drift: result.drift,
   };
 };

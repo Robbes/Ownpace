@@ -145,7 +145,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
         createdAt: new Date().toISOString(),
         sizeBytes,
       });
-      return { targetId: existingId, created: false };
+      return { targetId: existingId, created: false, adopted: true };
     }
 
     // Upload the file to the target

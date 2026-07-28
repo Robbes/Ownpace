@@ -39,6 +39,8 @@ export interface DomainSyncResult {
   scanned: number;
   created: number;
   skipped: number;
+  /** Already on the target under our natural key; not written. */
+  adopted: number;
   failed: number;
   error?: string;
 }
@@ -72,7 +74,7 @@ export async function runAllDomains(
 
     if (!enabled) {
       await statusStore.markSkipped(tenantId, mappingId, domain);
-      results.push({ domain, scanned: 0, created: 0, skipped: 0, failed: 0 });
+      results.push({ domain, scanned: 0, created: 0, skipped: 0, adopted: 0, failed: 0 });
       continue;
     }
 
@@ -85,7 +87,7 @@ export async function runAllDomains(
         const deps = await buildDeps(config);
         try {
           const result = await runShadowPass(deps);
-          results.push({ domain, scanned: result.scanned, created: result.created, skipped: result.skipped, failed: 0 });
+          results.push({ domain, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted ?? 0, failed: 0 });
         } finally {
           await deps.close();
         }
@@ -93,7 +95,7 @@ export async function runAllDomains(
         const deps = buildDomainDeps(config, 'calendar');
         try {
           const result = await runCalendarSync(deps);
-          results.push({ domain, scanned: result.scanned, created: result.created, skipped: result.skipped, failed: result.failed });
+          results.push({ domain, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted, failed: result.failed });
         } finally {
           await deps.close();
         }
@@ -101,7 +103,7 @@ export async function runAllDomains(
         const deps = buildDomainDeps(config, 'contact');
         try {
           const result = await runContactSync(deps);
-          results.push({ domain, scanned: result.scanned, created: result.created, skipped: result.skipped, failed: result.failed });
+          results.push({ domain, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted, failed: result.failed });
         } finally {
           await deps.close();
         }
@@ -109,7 +111,7 @@ export async function runAllDomains(
         const deps = buildDomainDeps(config, 'file');
         try {
           const result = await runFileSync(deps);
-          results.push({ domain, scanned: result.scanned, created: result.created, skipped: result.skipped, failed: result.failed });
+          results.push({ domain, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted, failed: result.failed });
         } finally {
           await deps.close();
         }
@@ -117,12 +119,18 @@ export async function runAllDomains(
 
       await statusStore.markCompleted(tenantId, mappingId, domain);
       const last = results[results.length - 1]!;
-      console.log(`[Worker] ${domain} sync complete: scanned=${last.scanned}, created=${last.created}, skipped=${last.skipped}`);
+      // `adopted` is reported alongside the rest: a pass that created nothing
+      // because the destination already held the data reads very differently
+      // from one that created nothing because we had already migrated it.
+      console.log(
+        `[Worker] ${domain} sync complete: scanned=${last.scanned}, created=${last.created}, ` +
+          `adopted=${last.adopted}, skipped=${last.skipped}`,
+      );
     } catch (err) {
       const error = err as Error;
       console.error(`[Worker] ${domain} sync failed: ${error.message}`);
       await statusStore.markFailed(tenantId, mappingId, domain, error.message);
-      results.push({ domain, scanned: 0, created: 0, skipped: 0, failed: 1, error: error.message });
+      results.push({ domain, scanned: 0, created: 0, skipped: 0, adopted: 0, failed: 1, error: error.message });
       // Continue to the next domain — one domain's failure must not block others.
     }
   }

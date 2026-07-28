@@ -723,8 +723,9 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     if (messageId) {
       const existingId = await this.findByNaturalKey(mailboxId, messageId);
       if (existingId) {
-        // Email already exists - idempotent no-op
-        return { targetId: existingId, created: false };
+        // Already on the target under our natural key: not written, ADOPTED.
+        // Distinct from a ledger fast-path skip — see UpsertResult.adopted.
+        return { targetId: existingId, created: false, adopted: true };
       }
     }
 

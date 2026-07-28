@@ -193,6 +193,9 @@ export const item = pgTable(
         'pending',
         'copied',
         'updated',
+        // Already on the target under our natural key; nothing was written.
+        // See migration 0017.
+        'adopted',
         'skipped',
         'failed',
         'deleted_source',

@@ -139,7 +139,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
         createdAt: new Date().toISOString(),
         sizeBytes,
       });
-      return { targetId: existingId, created: false };
+      return { targetId: existingId, created: false, adopted: true };
     }
 
     // Upload the event to the calendar

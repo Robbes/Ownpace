@@ -73,7 +73,15 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
 export interface DomainSyncResult {
   readonly scanned: number;
   readonly created: number;
+  /** Not created because OUR LEDGER already had the item. */
   readonly skipped: number;
+  /**
+   * Not created because the TARGET already had it under our natural key —
+   * i.e. the destination account was not empty and we left those items alone.
+   * Non-destructive by design (hard rule 2), but a fact the operator has to see
+   * before cutover, which is why it is counted apart from `skipped`.
+   */
+  readonly adopted: number;
   readonly failed: number;
   /** Source items absent on a later pass (potential deletions). */
   readonly drift: number;
@@ -111,6 +119,11 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   let scanned = 0;
   let created = 0;
   let skipped = 0;
+  // Items the target ALREADY had under our natural key, which we therefore did
+  // not write. Counted apart from `skipped` (our own ledger already had them):
+  // both mean "not created", but only one of them means the destination account
+  // was not empty, and that is a fact the operator needs before cutover.
+  let adopted = 0;
   let failed = 0;
 
   const folders = await listFolders();
@@ -177,10 +190,11 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           targetId: result.targetId,
           createdAt: new Date().toISOString(),
           sizeBytes,
-          status: result.created ? 'copied' : 'updated',
+          status: result.created ? 'copied' : result.adopted ? 'adopted' : 'updated',
         });
 
         if (result.created) created += 1;
+        else if (result.adopted) adopted += 1;
         else skipped += 1;
       } catch (err) {
         // Record failure - DO NOT swallow
@@ -216,5 +230,5 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     }
   }
 
-  return { scanned, created, skipped, failed, drift: 0 };
+  return { scanned, created, skipped, adopted, failed, drift: 0 };
 }

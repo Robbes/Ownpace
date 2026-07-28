@@ -432,6 +432,36 @@ actually left:
      The canonical DAV fingerprint matched on a real SabreDAV round trip — the thing no test
      double could establish. Overall status WARN, which is the honest verdict for a destination
      that was not empty.
+   - ✅ **Migrating into a non-empty destination is no longer silent (part 1 of 2).** The gate's
+     WARN raised the question of what happens when the destination account already holds data.
+     There are two distinct populations and they were being treated as one. *Extras* — target
+     items with no counterpart in the ledger — are the customer's own data, must never be
+     touched (hard rule 2), and reporting them is the right depth; that already works.
+     *Collisions* — the target already holds an item under OUR natural key — are adopted: the
+     sync records it and writes nothing. That is the right default, but it is a decision about
+     the customer's data and it was **invisible**: adoption and an ordinary ledger skip both
+     return `created: false` and both landed as `status: 'updated'`, so a first migration into
+     an account someone is already using reported exactly the same "0 created, N skipped" as a
+     clean re-run of a finished one. `UpsertResult.adopted` now distinguishes them in all five
+     writers, `DomainSyncResult.adopted` counts them apart, the worker logs
+     `adopted=` alongside `created=`/`skipped=`, and the ledger records `status: 'adopted'`
+     (migration 0017 — the column has a DB CHECK, so the allowed set had to be widened in both
+     the SQL and the Drizzle schema). `MemoryTarget` was another double that could not model
+     the distinction and would have "proved" counting that did not happen; fixed.
+     `adoption-visibility.integration.test.ts` (5 tests, 4 fail on revert) pins it against a
+     real Postgres, including that a second pass is a SKIP rather than a second adoption.
+     **Note:** an earlier draft of this work also proposed "fixing" the adopted row's content
+     hash. That was wrong — verification reads the ledger as the SOURCE side
+     (`getSourceSamplesFromLedger`), so recording the source hash is correct and is precisely
+     what lets §20 catch a divergent adoption as a checksum mismatch. Changing it would have
+     removed detection.
+   - ⏭️ **Part 2, not built yet: give the customer the choice before the run.** Discovery is
+     source-only (`discoverSource()`; `DomainDiscovery` has no target-side field), so the
+     confirm screen says nothing about what is already on the destination. The shape that
+     follows 0013's precedent: count `targetExisting` and `targetColliding` per domain at
+     discovery (read-only — the reindexers already do exactly this listing), show both on the
+     confirm screen, and offer a collision policy — `skip` (today's behaviour, the safe
+     default) / `overwrite` / `fail`. Extras stay untouchable, no option offered.
 2. Next: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 
