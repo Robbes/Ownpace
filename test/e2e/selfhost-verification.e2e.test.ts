@@ -175,10 +175,27 @@ describe('Verification gate against real servers', () => {
     expect(report.totalItemsTarget).toBeGreaterThan(0);
   });
 
-  it('finds nothing on the target that the ledger does not know about', () => {
-    // Extras are not a hard failure — the target may hold pre-existing data —
-    // but on a freshly-provisioned e2e stack there should be none, and any
-    // would mean the sync wrote something it did not record.
-    expect(report.totalDiscrepancies).toBe(0);
+  it('reports anything on the target that the ledger does not know about', () => {
+    // Extras are reported, not failed on, and this used to assert zero.
+    //
+    // That was wrong about the environment: a freshly-provisioned Nextcloud
+    // user is NOT empty. It ships a default `personal` calendar and a default
+    // `contacts` address book with sample content, and the reindexers walk
+    // every collection under the account — so the first real run found 3 extra
+    // calendar items and 3 extra contacts before the sync had done anything
+    // wrong. `missingOnTarget` is what answers "did we copy everything", and
+    // every domain asserts that above.
+    //
+    // The product already treats extras as WARNING rather than ERROR, which is
+    // the correct severity: a target holding pre-existing data is normal, and
+    // §20 must not refuse to migrate into an account someone is already using.
+    for (const key of ['mail', 'calendar', 'contacts', 'files'] as const) {
+      const d = report[key];
+      if (d.extraOnTarget > 0) {
+        console.log(`[e2e] ${key}: ${d.extraOnTarget} item(s) on target not in the ledger`);
+      }
+      // What must hold: nothing the ledger recorded may be missing.
+      expect(d.missingOnTarget, `${key} has items the ledger recorded but the target lacks`).toBe(0);
+    }
   });
 });

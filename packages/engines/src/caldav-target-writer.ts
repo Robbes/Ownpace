@@ -121,6 +121,9 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
 
     // Compute content hash for change detection
     const contentHashValue = calendarContentHash(raw.icalendar);
+    // Recorded here, not only by the sync loop: `recordIfAbsent` makes the first
+    // writer win, and that is this one. See webdav-target-writer.ts.
+    const sizeBytes = Buffer.byteLength(raw.icalendar, 'utf8');
 
     // Check if event already exists on target (by UID)
     const existingId = await this.findCalendarByNaturalKey(calendarId, naturalKey);
@@ -134,6 +137,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
         contentHash: contentHashValue,
         targetId: existingId,
         createdAt: new Date().toISOString(),
+        sizeBytes,
       });
       return { targetId: existingId, created: false };
     }
@@ -150,6 +154,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       contentHash: contentHashValue,
       targetId: eventId,
       createdAt: new Date().toISOString(),
+      sizeBytes,
     });
 
     return { targetId: eventId, created: true };

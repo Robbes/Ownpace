@@ -303,10 +303,34 @@ actually left:
      *doubled* URL also satisfies, and the canned route's regex matched it too, so the double
      agreed with a URL Nextcloud answers 404. Tightened to exact URLs plus a no-doubled-prefix
      check across every request; 3 tests fail on the old behaviour.
-   - ⚠️ **Still unproven end to end.** Everything past "the calendar reindexer can read the
-     target" — checksum sampling, `totalBytesTarget`, whether a JMAP blob round-trips
-     byte-identically — has still never run against a real server: the gate has failed before
-     reaching it on both attempts. The next self-hosted run is the first that can answer them.
+   - ✅ **The gate ran end to end (run #31) — and immediately found binary file corruption.**
+     Count parity is perfect on all four domains (mail 25/25, calendar 26/26, contacts 26/26,
+     files 89/89, `missingOnTarget` 0 everywhere), so every reindexer works. What it caught:
+     **`WebdavFileSource.fetchFileContent` was `new TextEncoder().encode(await response.text())`**
+     — a UTF-8 decode of the file followed by a UTF-8 re-encode. Lossless only for files that
+     ARE valid UTF-8. Everything else was destroyed on read: each invalid byte sequence became
+     U+FFFD, unrecoverably. Measured locally on a 476 KB JPEG: 476,387 bytes in, 863,389 out,
+     none of them the original. Every JPEG, PDF, MP4, ODP and DOCX in a file migration went
+     through it. The corrupted bytes were hashed into the ledger *and* uploaded, so the copy
+     agreed with its own record and the sync looked clean — count parity was perfect. Only a
+     reader of the real target could see it, which is what run #31's files sample did: 6 matched
+     and 4 mismatched, and the sampled text files are exactly the ones that round-trip. The
+     source client now reads bytes once and `fetchFileContent` returns them, throwing rather
+     than falling back to the lossy path (hard rule 9). 5 tests, 4 fail on the old behaviour.
+   - ✅ **`totalBytesSource` was structurally 0 for every domain.** The run reported target bytes
+     fine (7,398 / 7,176 / 275,505 / 64,935,162) against a source total of 0, so §20's total-size
+     comparison has never been able to measure anything. Cause: the DAV target writers record the
+     ledger row themselves, without a size, and `recordIfAbsent` means the sized record the sync
+     loop makes immediately afterwards is a no-op. All three writers now record the size.
+   - ⚠️ **Open, from the same run.** (a) Checksum sampling came back `unavailable` for 10/10 mail
+     and 10/10 calendar samples, and 9/10 contacts — the mail and DAV `contentHashFor` paths do
+     not produce a hash in practice, so content verification currently rests on files alone.
+     (b) One contacts sample mismatched; with 9 of 10 unavailable that is one data point, not a
+     pattern. (c) The e2e assertion that the target holds nothing outside the ledger was wrong
+     about the environment — a fresh Nextcloud user ships a default calendar and address book
+     with sample content — and now reports extras instead of failing on them, which matches the
+     product's own WARNING severity. Whether the file fix clears the mismatches can only be
+     settled by the next run.
 2. Next: rich Graph extractor (SharePoint), the §11.1 drift **decision queue** + policy presets
    (the schema `decision` table already exists, 0013 built its foundation), Proton path.
 

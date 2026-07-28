@@ -17,7 +17,22 @@ export interface HttpRequestOptions {
 /** HTTP response from DAV requests. */
 export interface HttpResponse {
   status: number;
+  /**
+   * The response decoded as UTF-8 text. Correct for the XML every DAV method
+   * returns; NOT correct for file content. See `bodyBytes`.
+   */
   body: string;
+  /**
+   * The response's actual bytes, when the client can provide them.
+   *
+   * File content must be read from here and never from `body`. A UTF-8 decode
+   * replaces every byte sequence that is not valid UTF-8 with U+FFFD, and the
+   * replacement is irreversible — re-encoding does not recover the original.
+   * Measured on a 476 KB JPEG: 476,387 bytes in, 863,389 bytes out, and not one
+   * of them the original. Every JPEG, PDF, MP4 and Office document in a file
+   * migration went through exactly that (see WebdavFileSource.fetchFileContent).
+   */
+  bodyBytes?: Uint8Array;
   headers: Record<string, string>;
 }
 

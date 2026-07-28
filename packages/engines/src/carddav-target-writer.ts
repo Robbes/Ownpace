@@ -117,6 +117,9 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
 
     // Compute content hash for change detection
     const contentHashValue = contactContentHash(raw.vcard);
+    // Recorded here, not only by the sync loop: `recordIfAbsent` makes the first
+    // writer win, and that is this one. See webdav-target-writer.ts.
+    const sizeBytes = Buffer.byteLength(raw.vcard, 'utf8');
 
     // Check if contact already exists on target (by UID)
     const existingId = await this.findContactByNaturalKey(folderId, naturalKey);
@@ -130,6 +133,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
         contentHash: contentHashValue,
         targetId: existingId,
         createdAt: new Date().toISOString(),
+        sizeBytes,
       });
       return { targetId: existingId, created: false };
     }
@@ -146,6 +150,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       contentHash: contentHashValue,
       targetId: contactId,
       createdAt: new Date().toISOString(),
+      sizeBytes,
     });
 
     return { targetId: contactId, created: true };

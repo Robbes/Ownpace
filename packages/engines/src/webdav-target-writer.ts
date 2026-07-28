@@ -124,6 +124,12 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
 
     // Compute content hash for change detection (only for files with content, not directories)
     const contentHashValue = raw.content ? fileContentHash(raw.content) : fileContentHash(new Uint8Array(0));
+    // The byte count goes in the SAME record. `recordIfAbsent` means whichever
+    // layer writes first wins, and this one always does — so the sized record
+    // the sync loop makes afterwards was a no-op and `totalBytesSource` came
+    // back 0 for every domain, leaving §20's total-size comparison structurally
+    // unable to measure anything.
+    const sizeBytes = raw.content?.byteLength ?? 0;
 
     // Check if file already exists on target
     const existingId = await this.findFileByNaturalKey(_parentId, naturalKey);
@@ -137,6 +143,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
         contentHash: contentHashValue,
         targetId: existingId,
         createdAt: new Date().toISOString(),
+        sizeBytes,
       });
       return { targetId: existingId, created: false };
     }
@@ -153,6 +160,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
       contentHash: contentHashValue,
       targetId: fileId,
       createdAt: new Date().toISOString(),
+      sizeBytes,
     });
 
     return { targetId: fileId, created: true };
