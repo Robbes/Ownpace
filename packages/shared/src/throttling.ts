@@ -65,6 +65,33 @@ export interface ThrottleStats {
 }
 
 /**
+ * How long to wait, in ms, given a `Retry-After` header value.
+ *
+ * RFC 9110 §10.2.3 allows either delay-seconds or an HTTP-date, so both are
+ * accepted. An unparseable value falls back to 60s rather than to zero: a
+ * server that answered 429 is asking for a pause, and retrying immediately
+ * because we could not read its header is the one response guaranteed to be
+ * wrong.
+ *
+ * Standalone (and not just a `ThrottleLimiter` method) because connectors that
+ * speak `fetch` directly need it without taking on the limiter's token bucket
+ * and concurrency gate.
+ */
+export function parseRetryAfterMs(headerValue: string): number {
+  const seconds = parseInt(headerValue, 10);
+  if (!isNaN(seconds)) {
+    return seconds * 1000;
+  }
+
+  const date = new Date(headerValue);
+  if (!isNaN(date.getTime())) {
+    return Math.max(0, date.getTime() - Date.now());
+  }
+
+  return 60000;
+}
+
+/**
  * Token bucket implementation for rate limiting
  */
 class TokenBucket {
@@ -210,26 +237,7 @@ export class ThrottleLimiter {
    * Supports both seconds (integer) and HTTP-date format
    */
   parseRetryAfterHeader(headerValue: string): number {
-    // Try to parse as seconds (integer)
-    const seconds = parseInt(headerValue, 10);
-    if (!isNaN(seconds)) {
-      return seconds * 1000;
-    }
-
-    // Try to parse as HTTP-date
-    try {
-      const date = new Date(headerValue);
-      if (!isNaN(date.getTime())) {
-        const now = Date.now();
-        const retryAt = date.getTime();
-        return Math.max(0, retryAt - now);
-      }
-    } catch {
-      // Ignore parsing errors
-    }
-
-    // Default to 60 seconds if parsing fails
-    return 60000;
+    return parseRetryAfterMs(headerValue);
   }
 
   /**

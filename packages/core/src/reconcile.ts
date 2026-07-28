@@ -22,18 +22,18 @@ import { runDomainSync, type DomainSyncDeps as _DomainSyncDeps } from './domain-
 /**
  * Items processed in parallel per collection.
  *
- * Raised from 4. The DAV domains are latency-bound, not bandwidth-bound — a
- * real run moved 203 calendar events totalling 52 KB in 76 seconds — so wall
- * time is set by how many requests are in flight, not by how much data there
- * is. 8 is what an ordinary desktop sync client keeps open and is unremarkable
- * for any DAV or JMAP server.
+ * This was briefly raised to 8 on the reasoning that the domains are
+ * latency-bound rather than bandwidth-bound. A ~500-item run against Stalwart
+ * disproved it as a *default*: the target began answering 429 to blob uploads
+ * and to the `Email/query` existence lookup, and eight messages failed rather
+ * than being migrated. Speed that the target refuses to accept is not speed.
  *
- * This is the one change here that puts MORE load on the customer's target
- * rather than less. Tune it down per mapping or per domain with `concurrency`
- * in the config if a target is small, shared, or rate-limited; transient 5xx
- * are already retried with backoff.
+ * 4 is the setting that has completed real runs. Raise it per mapping or per
+ * domain with `concurrency` in the config once you know a specific target
+ * tolerates it — that is a decision about someone else's server, so it belongs
+ * in their config and not in our default.
  */
-const DEFAULT_CONCURRENCY = 8;
+const DEFAULT_CONCURRENCY = 4;
 
 /**
  * One-way, non-destructive shadow pass for a single mapping — workplan 0001, T4.
@@ -44,7 +44,7 @@ const DEFAULT_CONCURRENCY = 8;
  * (ADR-0020), so even a wiped ledger cannot produce duplicates.
  *
  * Throughput/memory: folders run sequentially; within a folder, items are processed with BOUNDED
- * CONCURRENCY (`deps.concurrency`, default 8). Items in a folder have distinct Message-IDs, so
+ * CONCURRENCY (`deps.concurrency`, default 4). Items in a folder have distinct Message-IDs, so
  * parallelism is race-free, and the cap bounds peak memory to ~`concurrency` bodies in flight.
  *
  * Incremental cursors: when `deps.cursors` is provided, each folder lists only items changed since
@@ -141,7 +141,7 @@ export interface ReconcileDeps {
    * (always correct via the ledger, just more work).
    */
   readonly cursors?: CursorStore;
-  /** Max messages processed in parallel per folder (default 8). Bounds throughput and peak memory. */
+  /** Max messages processed in parallel per folder (default 4). Bounds throughput and peak memory. */
   readonly concurrency?: number;
   /** What to do when the destination already holds the message; `'skip'` (adopt) by default. */
   readonly onCollision?: 'skip' | 'fail';

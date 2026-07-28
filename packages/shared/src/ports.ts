@@ -357,7 +357,7 @@ export interface ReconcileDeps {
    * (always correct via the ledger, just more work).
    */
   readonly cursors?: CursorStore;
-  /** Max messages processed in parallel per folder (default 8). Bounds throughput and peak memory. */
+  /** Max messages processed in parallel per folder (default 4). Bounds throughput and peak memory. */
   readonly concurrency?: number;
   /** What to do when the destination already holds the item; `'skip'` (adopt) by default. */
   readonly onCollision?: 'skip' | 'fail';

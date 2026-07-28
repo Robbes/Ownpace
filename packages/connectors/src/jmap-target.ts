@@ -13,7 +13,18 @@ import type {
   MailKeyword,
   UpsertResult,
 } from "@openmig/shared";
-import { contentHash } from "@openmig/shared";
+import { contentHash, parseRetryAfterMs } from "@openmig/shared";
+
+/**
+ * How many times a rate-limited JMAP request is re-sent before it is allowed to
+ * fail. Five attempts spanning ~1s + Retry-After waits is enough to ride out a
+ * server briefly refusing a burst; beyond that the target is not merely busy
+ * and the operator should hear about it rather than have us wait forever.
+ */
+const RATE_LIMIT_ATTEMPTS = 5;
+
+/** Backoff when the server says "slow down" but does not say for how long. */
+const RATE_LIMIT_BASE_BACKOFF_MS = 1000;
 
 /**
  * JMAP Mailbox query response type.
@@ -272,6 +283,53 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
   }
 
   /**
+   * `fetch`, but a target that answers "too many requests" gets waited out
+   * instead of turning into a failed item.
+   *
+   * Every JMAP call here went straight to `fetch` with no throttle handling at
+   * all. A ~500-message run at concurrency 8 found the consequence: Stalwart
+   * answered 429 to blob uploads and to the `Email/query` existence lookup, and
+   * because the lookup is deliberately not allowed to fall back to "not
+   * present" (that would append a duplicate — hard rule 1), eight messages
+   * failed outright. A 429 is the server asking for a pause, not an error; the
+   * only correct response is to pause.
+   *
+   * Retries the whole request, which is safe for the calls that use it:
+   * `Email/query`, `Email/get` and `Mailbox/*` are reads or are keyed, and a
+   * re-uploaded blob is content-addressed by the server and merely returns the
+   * same `blobId`. 503 is included for the same reason the DAV writers retry
+   * it — a target restarting mid-migration should cost seconds, not items.
+   *
+   * `Retry-After` is honoured when sent (RFC 9110 §10.2.3); otherwise the wait
+   * doubles per attempt with jitter, so a pool of concurrent workers that all
+   * got throttled at once does not resume in lockstep and throttle again.
+   */
+  private async fetchWithRateLimitRetry(url: string, init: RequestInit): Promise<Response> {
+    for (let attempt = 0; ; attempt++) {
+      const response = await fetch(url, init);
+
+      const rateLimited = response.status === 429 || response.status === 503;
+      if (!rateLimited || attempt >= RATE_LIMIT_ATTEMPTS - 1) {
+        return response;
+      }
+
+      const header = response.headers.get('retry-after');
+      const waitMs = header
+        ? parseRetryAfterMs(header)
+        : RATE_LIMIT_BASE_BACKOFF_MS * 2 ** attempt + Math.random() * 500;
+
+      // Drain the body so the connection can be reused for the retry.
+      await response.text().catch(() => undefined);
+
+      console.warn(
+        `[jmap] ${response.status} from ${new URL(url).pathname}; ` +
+          `waiting ${Math.round(waitMs)}ms before retry ${attempt + 2}/${RATE_LIMIT_ATTEMPTS}`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+  }
+
+  /**
    * Make a JMAP API request using the stored apiUrl.
    */
   private async apiRequest<T>(method: string, args: Record<string, unknown>): Promise<T> {
@@ -279,7 +337,7 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
       throw new Error("Not connected to JMAP server");
     }
 
-    const response = await fetch(this.apiUrl, {
+    const response = await this.fetchWithRateLimitRetry(this.apiUrl, {
       method: 'POST',
       headers: {
         'Authorization': this.authHeader,
@@ -293,8 +351,19 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     });
 
     if (!response.ok) {
-      const error = await response.json() as { type?: string; description?: string };
-      throw new Error(`JMAP API error: ${error.type ?? 'unknown'} - ${error.description ?? 'no description'}`);
+      // Read as text first. A gateway, a proxy or a rate limiter answers with
+      // HTML or plain text, and `response.json()` then threw a parse error that
+      // said nothing about the status the server actually returned — the real
+      // failure replaced by a misleading one (hard rule 9).
+      const body = await response.text().catch(() => '');
+      let detail = body.slice(0, 500);
+      try {
+        const parsed = JSON.parse(body) as { type?: string; detail?: string; description?: string };
+        detail = `${parsed.type ?? 'unknown'} - ${parsed.description ?? parsed.detail ?? 'no description'}`;
+      } catch {
+        // Not JSON; the truncated body is the best description available.
+      }
+      throw new Error(`JMAP ${method} failed: HTTP ${response.status} - ${detail}`);
     }
 
     const result = await response.json() as { methodResponses?: Array<unknown[]> };
@@ -335,7 +404,7 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     // per blob just to discard the result.
     const uploadUrl = `${this.apiUrl}/upload/${accountId}`;
 
-    const response = await fetch(uploadUrl, {
+    const response = await this.fetchWithRateLimitRetry(uploadUrl, {
       method: 'POST',
       headers: {
         'Authorization': this.authHeader,
@@ -345,9 +414,9 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error('[jmap-target] Blob upload failed:', error);
-      throw new Error(`Blob upload failed: ${error}`);
+      const error = await response.text().catch(() => '');
+      console.error(`[jmap-target] Blob upload failed: HTTP ${response.status}`, error);
+      throw new Error(`Blob upload failed: HTTP ${response.status} - ${error.slice(0, 500)}`);
     }
 
     const result = await response.json() as { blobId: string };
@@ -657,7 +726,9 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     }
 
     const url = this.blobDownloadUrl(blobId);
-    const response = await fetch(url, { headers: { Authorization: this.authHeader } });
+    const response = await this.fetchWithRateLimitRetry(url, {
+      headers: { Authorization: this.authHeader },
+    });
     if (!response.ok) {
       // Log it. Returning undefined silently made every mail sample come back
       // `checksumUnavailable` with no indication why, so §20's content leg was

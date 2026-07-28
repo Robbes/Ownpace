@@ -20,18 +20,12 @@ import {
 /**
  * Items processed in parallel per collection.
  *
- * Raised from 4. The DAV domains are latency-bound, not bandwidth-bound — a
- * real run moved 203 calendar events totalling 52 KB in 76 seconds — so wall
- * time is set by how many requests are in flight, not by how much data there
- * is. 8 is what an ordinary desktop sync client keeps open and is unremarkable
- * for any DAV or JMAP server.
- *
- * This is the one change here that puts MORE load on the customer's target
- * rather than less. Tune it down per mapping or per domain with `concurrency`
- * in the config if a target is small, shared, or rate-limited; transient 5xx
- * are already retried with backoff.
+ * See the note on `DEFAULT_CONCURRENCY` in `reconcile.ts`: 8 made a ~500-item
+ * run rate-limit itself into failures against Stalwart. Kept at 4, the value
+ * that has actually completed runs; raise it per mapping or per domain in the
+ * config for a target known to tolerate more.
  */
-const DEFAULT_CONCURRENCY = 8;
+const DEFAULT_CONCURRENCY = 4;
 
 /** Minimal folder interface - all domain folders have at least a path. */
 export interface FolderLike {

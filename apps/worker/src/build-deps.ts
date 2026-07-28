@@ -53,7 +53,7 @@ import { withClose, type WithClose } from './deps-lifecycle';
  * managed and self-host paths do not quietly disagree about how hard they push
  * a customer's server. Override with `concurrency` per mapping or per domain.
  */
-export const DEFAULT_CONCURRENCY = 8;
+export const DEFAULT_CONCURRENCY = 4;
 
 /**
  * Build the complete dependency bundle for a shadow pass.
