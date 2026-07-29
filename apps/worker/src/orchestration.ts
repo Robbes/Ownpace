@@ -304,6 +304,16 @@ export async function runAllDomains(
         try {
           const result = await runShadowPass(deps);
           outcome = { domain, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted ?? 0, moved: result.moved ?? 0, failed: 0 };
+          // Said out loud, every pass. Quietly not copying someone's Deleted
+          // Items is the same class of failure as quietly copying it, and this
+          // is the only place the choice becomes visible during a run.
+          if (result.excludedCollections?.length) {
+            log.info(
+              `[Worker] ${domain}: left behind ${result.excludedCollections.join(' and ')} ` +
+                '— configured via excludeSpecialUse (default: trash, junk). Set it to [] to ' +
+                'migrate those folders too.',
+            );
+          }
         } finally {
           await deps.close();
         }

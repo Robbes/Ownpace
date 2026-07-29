@@ -46,6 +46,14 @@ export interface DiscoverOptions<F, I> {
    * matched against the destination here.
    */
   readonly onNaturalKey?: (item: I) => string | undefined;
+  /**
+   * Why this collection will not be migrated, or undefined if it will be.
+   *
+   * Discovery still LISTS an excluded collection and counts it — into
+   * `excludedItems` rather than `items`. The owner is being asked to approve
+   * leaving it behind, and they cannot approve a number nobody produced.
+   */
+  readonly isExcluded?: (folder: F) => string | undefined;
 }
 
 /** What the destination already holds, and how much of it we will adopt. */
@@ -117,9 +125,14 @@ export async function discoverSource<F, I>(
   let bytes = 0;
   let anyBytes = false;
   let generatedId = 0;
+  let excludedItems = 0;
   const perCollection: DiscoveryCollection[] = [];
 
   for (const folder of folders) {
+    // Counted, then set aside. An excluded collection is still LISTED — the
+    // owner is being asked to approve leaving it behind, and they cannot approve
+    // a number nobody produced.
+    const excluded = options.isExcluded?.(folder);
     // Metadata-only: listSince returns item descriptors; bodies come from fetch(), never called here.
     const { items: folderItems, unkeyable } = await source.listSince(folder);
     const folderGeneratedId = unkeyable ?? 0;
@@ -137,6 +150,17 @@ export async function discoverSource<F, I>(
         }
         options.onNaturalKey?.(item);
       }
+    }
+
+    if (excluded !== undefined) {
+      excludedItems += folderItems.length;
+      perCollection.push({
+        name: nameOf(folder),
+        items: folderItems.length,
+        ...(folderHasBytes ? { bytes: folderBytes } : {}),
+        excluded,
+      });
+      continue;
     }
 
     items += folderItems.length;
@@ -161,6 +185,7 @@ export async function discoverSource<F, I>(
     items,
     ...(anyBytes ? { bytes } : {}),
     ...(generatedId > 0 ? { generatedIdItems: generatedId } : {}),
+    ...(excludedItems > 0 ? { excludedItems } : {}),
     perCollection,
   };
 }

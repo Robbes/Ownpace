@@ -16,6 +16,8 @@ import {
   type MailItem,
   type MailFolder,
   type RawMessage,
+  type SpecialUse,
+  DEFAULT_EXCLUDE_SPECIAL_USE,
 } from '@openmig/shared';
 import { runDomainSync, type DomainSyncDeps as _DomainSyncDeps } from './domain-sync';
 
@@ -55,6 +57,9 @@ const DEFAULT_CONCURRENCY = 4;
 export const runShadowPass: RunShadowPass = async (deps) => {
   const { tenantId, mappingId, source, target, ledger, cursors, onCollision } = deps;
   const concurrency = deps.concurrency ?? DEFAULT_CONCURRENCY;
+  const excluded = deps.excludeSpecialUse ?? DEFAULT_EXCLUDE_SPECIAL_USE;
+  /** Which special-use roles were actually present and skipped, for the report. */
+  const excludedCollections: SpecialUse[] = [];
 
   // Delegate to generalized runDomainSync with mail-specific injections
   const result = await runDomainSync<SourceConnector, TargetWriter, MailItem, MailFolder>({
@@ -66,7 +71,23 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     ledger,
     cursors,
     concurrency,
-    listFolders: () => source.listFolders(),
+    // FOLDERS THE OWNER ASKED US TO LEAVE BEHIND never reach the loop.
+    //
+    // Filtered here rather than inside the loop because a skipped folder is not
+    // a skipped ITEM: nothing about it should touch the ledger, the cursor
+    // store, or any of the pass counters. It is out of scope, and out of scope
+    // should look like it was never listed.
+    //
+    // Reported, not silent — see `excludedCollections` below. Quietly not
+    // copying someone's Deleted Items is the same failure as quietly copying it.
+    listFolders: async () => {
+      const all = await source.listFolders();
+      const keep = all.filter((f) => !excluded.includes(f.specialUse));
+      for (const f of all) {
+        if (excluded.includes(f.specialUse)) excludedCollections.push(f.specialUse);
+      }
+      return keep;
+    },
     listSince: (folder, cursor) => source.listSince(folder, cursor),
     fetchRaw: async (item) => {
       const raw = await source.fetch(item);
@@ -123,6 +144,7 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     adopted: result.adopted,
     moved: result.moved,
     drift: result.drift,
+    ...(excludedCollections.length > 0 ? { excludedCollections } : {}),
   };
 };
 
@@ -146,4 +168,11 @@ export interface ReconcileDeps {
   readonly concurrency?: number;
   /** What to do when the destination already holds the message; `'skip'` (adopt) by default. */
   readonly onCollision?: 'skip' | 'fail';
+  /**
+   * Mail folders to leave behind, by RFC 6154 special-use role.
+   *
+   * Absent means `DEFAULT_EXCLUDE_SPECIAL_USE` — trash and junk. Pass `[]` to
+   * migrate everything. See `MappingConfig.excludeSpecialUse`.
+   */
+  readonly excludeSpecialUse?: ReadonlyArray<SpecialUse>;
 }

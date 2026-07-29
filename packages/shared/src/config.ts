@@ -8,6 +8,7 @@ export class ConfigError extends Error {
 
 // Import ThrottleConfig from throttling module for type reference
 import type { ThrottleConfig } from './throttling';
+import type { SpecialUse } from './mail';
 
 export type SourceAuth =
   | { readonly kind: 'xoauth2'; readonly tokenFromEnv: string }
@@ -162,6 +163,77 @@ export interface MappingConfig {
    * is an informed default rather than a silent one.
    */
   readonly onCollision?: 'skip' | 'fail';
+  /**
+   * Mail folders to leave behind, by their RFC 6154 special-use role.
+   *
+   * Defaults to `['trash', 'junk']`, and that default is the fix for something
+   * nobody had decided: nothing filtered on special-use at all, so a migration
+   * copied the owner's Deleted Items and Junk into their new mailbox alongside
+   * everything else. Almost nobody wants that — they threw those away — and it
+   * had never been asked.
+   *
+   * Set it to `[]` to migrate everything, which is a legitimate answer for
+   * anyone who treats Deleted Items as an archive. Discovery reports what would
+   * be skipped and how many items are in it either way, so the default is
+   * informed rather than silent.
+   *
+   * There is a second reason to leave the trash behind, and it is the more
+   * interesting one. An item sitting in Deleted Items is EXPLICIT evidence that
+   * the owner deleted it — far better evidence than the absence-counting the
+   * deletions queue has to fall back on. Once the trash is out of scope as
+   * content, it becomes available as a signal.
+   *
+   * Mail only for now. Calendar and contacts have no trash in the collection
+   * listing, and a Nextcloud file trashbin lives at its own endpoint we do not
+   * read.
+   */
+  readonly excludeSpecialUse?: ReadonlyArray<SpecialUse>;
+}
+
+/**
+ * What `excludeSpecialUse` means when the config does not say.
+ *
+ * Trash and Junk. Inbox, Sent, Drafts and Archive are all things the owner
+ * chose to keep; these two are the ones they chose to discard, and copying them
+ * into a fresh mailbox is a surprise rather than a service.
+ */
+export const DEFAULT_EXCLUDE_SPECIAL_USE: ReadonlyArray<SpecialUse> = ['trash', 'junk'];
+
+/** Every value `excludeSpecialUse` accepts. */
+const SPECIAL_USE_VALUES: ReadonlyArray<SpecialUse> = [
+  'inbox',
+  'sent',
+  'drafts',
+  'archive',
+  'junk',
+  'trash',
+  'normal',
+];
+
+/**
+ * Validate `excludeSpecialUse`, rejecting roles that do not exist.
+ *
+ * Loudly, because a typo here silently migrates the thing the owner asked to
+ * leave behind — the failure mode is "we copied your deleted mail after you
+ * told us not to", which is exactly the kind of quiet wrong answer a config
+ * parser exists to prevent.
+ */
+export function parseExcludeSpecialUse(v: unknown): ReadonlyArray<SpecialUse> | undefined {
+  if (v === undefined) return undefined;
+  if (!Array.isArray(v)) {
+    throw new ConfigError('excludeSpecialUse must be an array of special-use role names');
+  }
+  const out: SpecialUse[] = [];
+  for (const entry of v) {
+    if (typeof entry !== 'string' || !SPECIAL_USE_VALUES.includes(entry as SpecialUse)) {
+      throw new ConfigError(
+        `excludeSpecialUse: '${String(entry)}' is not a special-use role. ` +
+          `Expected one of: ${SPECIAL_USE_VALUES.join(', ')}.`,
+      );
+    }
+    out.push(entry as SpecialUse);
+  }
+  return out;
 }
 
 /** Validate `onCollision`, rejecting anything we do not actually implement. */
@@ -329,6 +401,7 @@ export function parseMappingConfig(input: unknown): MappingConfig {
       : { cron: reqString(asRecord(root.schedule, 'schedule'), 'cron', 'schedule.cron') };
   const concurrency = root.concurrency === undefined ? undefined : reqInt(root, 'concurrency', 'concurrency');
   const onCollision = parseOnCollision(root.onCollision);
+  const excludeSpecialUse = parseExcludeSpecialUse(root.excludeSpecialUse);
   const domains = root.domains === undefined ? undefined : parseDomainsConfig(asRecord(root.domains, 'domains'));
 
   return {
@@ -339,6 +412,7 @@ export function parseMappingConfig(input: unknown): MappingConfig {
     ...(schedule ? { schedule } : {}),
     ...(concurrency !== undefined ? { concurrency } : {}),
     ...(onCollision !== undefined ? { onCollision } : {}),
+    ...(excludeSpecialUse !== undefined ? { excludeSpecialUse } : {}),
     ...(domains !== undefined ? { domains } : {}),
   };
 }
