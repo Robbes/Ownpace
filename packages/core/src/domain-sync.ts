@@ -271,6 +271,22 @@ export function classifyKnownItem(
 }
 
 /**
+ * True when the owner has already looked at THIS move and chosen to leave it.
+ *
+ * Per destination, not per item. Re-reporting a move somebody closed would make
+ * the queue impossible to empty, and a queue that never empties is one people
+ * stop reading — which is how a real divergence goes unnoticed among a hundred
+ * already-decided ones. But a move somewhere NEW is a new arrangement, and
+ * consent to the old one says nothing about it.
+ */
+function decided(
+  row: { readonly movedToCollection?: string; readonly moveAcknowledgedAt?: string },
+  to: string,
+): boolean {
+  return row.movedToCollection === to && row.moveAcknowledgedAt !== undefined;
+}
+
+/**
  * Dependency bundle for a domain sync operation.
  * Domain-specific functions are injected to keep the loop generic.
  */
@@ -530,7 +546,22 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // Hoisted: this is the source collection PATH (as opposed to `collectionId`,
     // the target's handle for it), and it is now needed three times — for the
     // cursor, for the ledger row, and for move detection.
-    const collectionPath = folder.path ?? folder.name ?? '';
+    //
+    // '/' rather than '' for the ROOT, and that substitution is load-bearing.
+    // A WebDAV connection's own root really does report `path: ''`
+    // (`WebdavFileSource.toRelativePath` returns the empty string for the
+    // collection that IS the base), and '' is exactly the value the ledger
+    // reads as "collection never recorded". Left as-is, every file sitting
+    // directly in the user's file root — the commonest layout there is — was
+    // recorded as having no collection, and so could never be reported as
+    // moved: `classifyKnownItem` skips it and `placedItems` filters it out.
+    // The feature was silently inert for the majority of files.
+    //
+    // Changing it re-keys the ROOT folder's cursor once, costing that one
+    // folder a single full re-list. Cursors are non-authoritative (ADR-0020),
+    // the re-list is idempotent, and no other folder is affected — a far
+    // cheaper price than two subtly different names for the same collection.
+    const collectionPath = folder.path ? folder.path : folder.name ? folder.name : '/';
     const prev = cursors ? await cursors.get(tenantId, mappingId, collectionPath) : undefined;
     const { items, nextCursor } = await listSince(folder, prev);
     const seenHere = seenByCollection.get(collectionPath) ?? new Set<string>();
@@ -605,14 +636,32 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
             // collection, because that is still where the target copy actually
             // is. Updating it would make the divergence disappear from the
             // report while the target stayed exactly as wrong as before.
-            moved += 1;
-            moves.push({
-              domain,
-              naturalKeyHash: key,
-              from: known.collection ?? '',
-              to: collectionPath,
-            });
+            //
+            // WRITTEN DOWN, not merely counted. The first version of this only
+            // returned the move in the pass result, so an operator who was not
+            // reading the container output at that moment never learned — and
+            // had no way to say "dealt with, stop telling me".
+            if (!decided(known, collectionPath)) {
+              await timed(phases, 'ledgerWriteMs', () =>
+                ledger.recordMove(tenantId, mappingId, domain, key, collectionPath),
+              );
+              moved += 1;
+              moves.push({
+                domain,
+                naturalKeyHash: key,
+                from: known.collection ?? '',
+                to: collectionPath,
+              });
+            }
             return;
+          }
+          // Not moved — so any move we recorded earlier is over, and its queue
+          // entry has to go with it. An entry that outlived its cause has
+          // people acting on a layout that was already put back.
+          if (known.movedToCollection !== undefined) {
+            await timed(phases, 'ledgerWriteMs', () =>
+              ledger.clearMove(tenantId, mappingId, domain, key),
+            );
           }
           if (action === 'skip') {
             skipped += 1;
@@ -1031,7 +1080,14 @@ async function detectPathKeyedMoves(args: {
     // A collection the pass never scanned has an empty seen-set, so everything
     // the ledger holds under it counts as gone — which is exactly right for a
     // folder that was renamed or removed on the source.
-    if (seenByCollection.get(row.collection)?.has(row.naturalKeyHash)) continue;
+    if (seenByCollection.get(row.collection)?.has(row.naturalKeyHash)) {
+      // Still where we copied it from. Any move recorded earlier is over, so
+      // the queue entry goes too — someone moved the file back.
+      if (row.movedToCollection !== undefined) {
+        await ledger.clearMove(tenantId, mappingId, domain, row.naturalKeyHash);
+      }
+      continue;
+    }
 
     // Gone from the source. Whether it moved or was deleted depends on whether
     // its content turned up elsewhere.
@@ -1043,15 +1099,37 @@ async function detectPathKeyedMoves(args: {
     const at = candidates?.findIndex((c) => c.collection !== row.collection) ?? -1;
     if (candidates && at >= 0) {
       const [match] = candidates.splice(at, 1);
-      moves.push({
-        domain,
-        naturalKeyHash: row.naturalKeyHash,
-        from: row.collection,
-        to: match!.collection,
-      });
-    } else {
-      drift += 1;
+      const to = match!.collection;
+      // Consume the arrival either way — it explains this disappearance whether
+      // or not anyone has decided about it yet. Leaving it in the pool would let
+      // the same new file account for a second, unrelated deletion.
+      if (decided(row, to)) continue;
+      await ledger.recordMove(tenantId, mappingId, domain, row.naturalKeyHash, to);
+      moves.push({ domain, naturalKeyHash: row.naturalKeyHash, from: row.collection, to });
+      continue;
     }
+
+    // Gone, with no arrival THIS pass — but we already know where it went.
+    //
+    // The arrival only exists on the pass that first saw the move: by the next
+    // one the file at the new path is an ordinary known item, so nothing is
+    // created and there is nothing left to correlate against. Without this the
+    // move became permanent drift — reported once as a move and then, forever
+    // after, as a deletion of a file that is plainly still there. Correlation
+    // is how a move is DISCOVERED; the recorded move is how it is remembered.
+    if (row.movedToCollection !== undefined) {
+      if (row.moveAcknowledgedAt === undefined) {
+        moves.push({
+          domain,
+          naturalKeyHash: row.naturalKeyHash,
+          from: row.collection,
+          to: row.movedToCollection,
+        });
+      }
+      continue;
+    }
+
+    drift += 1;
   }
 
   return { moves, drift };

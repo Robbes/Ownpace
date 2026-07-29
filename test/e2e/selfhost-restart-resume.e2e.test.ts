@@ -71,6 +71,7 @@ const BASE_URL = `http://${SELFHOST_BIND}:${SELFHOST_PORT}`;
 const HEALTH_URL = `${BASE_URL}/healthz`;
 const STATUS_URL = `${BASE_URL}/status`;
 const FAILURES_URL = `${BASE_URL}/failures`;
+const MOVES_URL = `${BASE_URL}/moves`;
 
 /**
  * The fixture the workflow plants to prove one bad item does not stop a domain:
@@ -90,6 +91,34 @@ const POISON_HASH = fileNaturalKeyHash(POISON_PATH);
 /** The domain the fixture lands in, and how many failures it should produce. */
 const POISON_DOMAIN = 'file';
 const EXPECTED_FAILURES = 1;
+
+/**
+ * The calendar natural key, inlined for the same reason as the file one above.
+ *
+ * `cal:<uid lowercased>` — iCalendar UIDs are case-insensitive per RFC 5545, and
+ * the ledger normalises before hashing.
+ */
+function calendarNaturalKeyHash(uid: string): string {
+  return createHash('sha256').update(`cal:${uid.toLowerCase()}`).digest('hex');
+}
+
+/**
+ * The event the gate relocates on the SOURCE mid-run, and the calendar it goes to.
+ *
+ * A calendar EVENT rather than a file, and the reason matters. A moved file is
+ * keyed by its path, so the pass copies it again under the new path and — nothing
+ * ever being deleted from a target — the target ends up legitimately holding
+ * both. The §20 verification gate that runs after this one asserts
+ * `targetCount === sourceCount` and would rightly fail. An event keeps its UID
+ * across a move, so the pass writes nothing at all: the divergence is reported
+ * and the corpus the next gate verifies is exactly as it was.
+ *
+ * The file half of the same feature is covered by unit tests, which can assert
+ * the duplicate honestly without a downstream gate to answer to.
+ */
+const MOVED_UID = 'dav-seed-event-1@dev.local';
+const MOVED_DEST_CALENDAR = 'openmig-e2e-moved';
+const MOVED_HASH = calendarNaturalKeyHash(MOVED_UID);
 
 // Domains this gate proves restart-resume for — all four as of 2026-07-27. Comma-
 // separated override via E2E_DOMAINS lets a partial dispatch (e.g. while only
@@ -226,6 +255,30 @@ function getFailures(): { mappingId: string; entries: FailureEntry[] } {
   const mappingId = Object.keys(body)[0]!;
   const q = body[mappingId]!;
   return { mappingId, entries: [...q.needsDecision, ...q.retrying] };
+}
+
+/**
+ * The move queue for the first mapping.
+ *
+ * Separate from `/failures` because it answers a different question: those
+ * items could not be copied, these copied fine and the owner has since moved
+ * them on the source.
+ */
+function getMoves(): {
+  mappingId: string;
+  open: Array<{ naturalKeyHash: string; from: string; to: string }>;
+  acknowledged: Array<{ naturalKeyHash: string; from: string; to: string }>;
+} {
+  const body = JSON.parse(execSync(`curl -sf ${MOVES_URL}`, { encoding: 'utf8' })) as Record<
+    string,
+    {
+      open: Array<{ naturalKeyHash: string; from: string; to: string }>;
+      acknowledged: Array<{ naturalKeyHash: string; from: string; to: string }>;
+    }
+  >;
+  const mappingId = Object.keys(body)[0]!;
+  const q = body[mappingId]!;
+  return { mappingId, open: q.open, acknowledged: q.acknowledged };
 }
 
 function getDomainStatus(domain: string): DomainStatus | null {
@@ -616,4 +669,87 @@ describe('Restart-Resume Idempotency Gate (T5)', () => {
     ).trim();
     expect(repeat, 'an already-resolved item must not be resolvable twice').toBe('404');
   }, 120000);
+
+  /**
+   * An item the owner MOVES on the source after it has been migrated.
+   *
+   * Everything above this adds items. This one relocates a file that is already
+   * on the target, which §11.1 calls a topology change: the source is
+   * authoritative for an item's content, the owner for where it lives. The
+   * migration must notice, report it, and act on neither copy.
+   *
+   * Last on purpose. A move mints a new natural key, so the file domain gains an
+   * item — harmless here, and quietly wrong for any earlier test that pins an
+   * exact count.
+   */
+  it('reports an event the owner moved on the source, and lets them close it', async () => {
+    const before = getDomainStatus('calendar');
+    expect(before, 'the calendar domain must have run before this').not.toBeNull();
+    const syncedBefore = before!.itemsSynced;
+
+    execSync(`node test/e2e/move-dav-source.mjs`, {
+      stdio: 'inherit',
+      env: { ...process.env, MOVE_EVENT_UID: MOVED_UID, MOVE_DEST_CALENDAR: MOVED_DEST_CALENDAR },
+    });
+
+    // Polled rather than read once after a completed pass: the pass that
+    // finishes first may have STARTED before the MOVE landed, in which case it
+    // legitimately saw nothing. What is being waited for is the queue entry,
+    // so wait for that.
+    const deadline = Date.now() + WAIT_MS;
+    let open: Array<{ naturalKeyHash: string; from: string; to: string }> = [];
+    let mappingId = '';
+    while (Date.now() < deadline) {
+      const q = getMoves();
+      mappingId = q.mappingId;
+      open = q.open;
+      if (open.some((m) => m.naturalKeyHash === MOVED_HASH)) break;
+      await setTimeout(2000);
+    }
+
+    const entry = open.find((m) => m.naturalKeyHash === MOVED_HASH);
+    expect(
+      entry,
+      `timed out after ${WAIT_MS}ms waiting for ${MOVED_UID} to be reported as moved. ` +
+        `Open moves seen: ${JSON.stringify(open)}. A domain that reports none at all usually ` +
+        `means the source collection was never recorded on the ledger row.`,
+    ).toBeDefined();
+
+    // Named, not merely counted. "12 items moved" that cannot say where is not
+    // something an operator can act on.
+    expect(entry!.from).toContain('personal');
+    expect(entry!.to).toContain(MOVED_DEST_CALENDAR);
+    console.log(`[e2e] move reported: ${MOVED_UID} ${entry!.from} -> ${entry!.to}`);
+
+    // NOTHING WAS WRITTEN. Copying it into the new collection would duplicate
+    // it; removing the old copy is the delete half of a move, which hard rule 2
+    // forbids outright. So the target keeps exactly the events it had — which is
+    // also what lets the §20 gate after this one still see count parity.
+    const afterStatus = getDomainStatus('calendar')!;
+    expect(
+      afterStatus.itemsSynced,
+      'a move must not add an item to the target',
+    ).toBe(syncedBefore);
+
+    // And it is not a failure: a move must not enter that queue or stop anything.
+    expect(getFailures().entries.map((f) => f.naturalKeyHash)).not.toContain(MOVED_HASH);
+
+    // DECISION. The owner is happy with the target as it stands.
+    const keep = `${BASE_URL}/mappings/${encodeURIComponent(mappingId)}/moves/${MOVED_HASH}/keep`;
+    const body = execSync(`curl -sf -X POST ${keep}`, { encoding: 'utf8' });
+    console.log(`[e2e] keep -> ${body.trim()}`);
+    expect(body).toContain('"action":"keep"');
+
+    // Quiet, not forgotten: out of the open queue, still in the record. A queue
+    // nobody can quiet is one people stop reading.
+    const after = getMoves();
+    expect(after.open.map((m) => m.naturalKeyHash)).not.toContain(MOVED_HASH);
+    expect(after.acknowledged.map((m) => m.naturalKeyHash)).toContain(MOVED_HASH);
+
+    // And it stays decided rather than silently reopening.
+    const repeatKeep = execSync(`curl -s -o /dev/null -w '%{http_code}' -X POST ${keep}`, {
+      encoding: 'utf8',
+    }).trim();
+    expect(repeatKeep, 'an already-acknowledged move must not be resolvable twice').toBe('404');
+  }, WAIT_MS + 120000);
 });

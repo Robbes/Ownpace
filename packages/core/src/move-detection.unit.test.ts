@@ -235,6 +235,105 @@ describe('a stable-key item moved between source collections', () => {
     expect((await w.run(ledger)).moved).toBe(1);
   });
 
+  it('is written down, so it survives the pass that noticed it', async () => {
+    // The report used to live only in the pass result: counted, logged, gone.
+    // An operator who was not reading the container output at that moment never
+    // learned, and there was no way to come back to it.
+    const ledger = new MemoryLedger();
+    const w = world('calendar');
+    w.folders.set('Work', [{ key: 'uid-1', body: 'V', version: 'e1' }]);
+    await w.run(ledger);
+
+    w.folders.set('Work', []);
+    w.folders.set('Personal', [{ key: 'uid-1', body: 'V', version: 'e1' }]);
+    await w.run(ledger);
+
+    expect(await ledger.listMoves(TENANT, MAPPING)).toEqual([
+      { domain: 'calendar', naturalKeyHash: 'uid-1', from: 'Work', to: 'Personal' },
+    ]);
+  });
+
+  it('stops reporting once the owner has decided, and stays in the record', async () => {
+    // A queue nobody can quiet is one people stop reading — which is how a real
+    // divergence goes unnoticed among a hundred already-decided ones.
+    const ledger = new MemoryLedger();
+    const w = world('calendar');
+    w.folders.set('Work', [{ key: 'uid-1', body: 'V', version: 'e1' }]);
+    await w.run(ledger);
+    w.folders.set('Work', []);
+    w.folders.set('Personal', [{ key: 'uid-1', body: 'V', version: 'e1' }]);
+    expect((await w.run(ledger)).moved).toBe(1);
+
+    expect(await ledger.resolveMove(TENANT, MAPPING, 'uid-1', 'keep')).toBe(true);
+
+    const after = await w.run(ledger);
+    expect(after.moved).toBe(0);
+    expect(after.moves).toEqual([]);
+    // Quiet, not forgotten: the decision is the audit trail (§11.2), and the
+    // divergence itself is still real.
+    const recorded = await ledger.listMoves(TENANT, MAPPING);
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0]!.acknowledgedAt).toBeDefined();
+  });
+
+  it('asks again when the same item moves somewhere NEW', async () => {
+    // Agreeing to one arrangement is not agreeing to every later one.
+    const ledger = new MemoryLedger();
+    const w = world('calendar');
+    w.folders.set('Work', [{ key: 'uid-1', body: 'V', version: 'e1' }]);
+    w.folders.set('Personal', []);
+    w.folders.set('Archive', []);
+    await w.run(ledger);
+
+    w.folders.set('Work', []);
+    w.folders.set('Personal', [{ key: 'uid-1', body: 'V', version: 'e1' }]);
+    await w.run(ledger);
+    await ledger.resolveMove(TENANT, MAPPING, 'uid-1', 'keep');
+
+    w.folders.set('Personal', []);
+    w.folders.set('Archive', [{ key: 'uid-1', body: 'V', version: 'e1' }]);
+    const third = await w.run(ledger);
+    expect(third.moved).toBe(1);
+    expect(third.moves[0]).toMatchObject({ from: 'Work', to: 'Archive' });
+  });
+
+  it('forgets the move when the item is put back', async () => {
+    // An entry that outlived its cause has people acting on a layout that has
+    // already been restored.
+    const ledger = new MemoryLedger();
+    const w = world('calendar');
+    w.folders.set('Work', [{ key: 'uid-1', body: 'V', version: 'e1' }]);
+    w.folders.set('Personal', []);
+    await w.run(ledger);
+
+    w.folders.set('Work', []);
+    w.folders.set('Personal', [{ key: 'uid-1', body: 'V', version: 'e1' }]);
+    expect((await w.run(ledger)).moved).toBe(1);
+
+    w.folders.set('Work', [{ key: 'uid-1', body: 'V', version: 'e1' }]);
+    w.folders.set('Personal', []);
+    const third = await w.run(ledger);
+    expect(third.moved).toBe(0);
+    expect(await ledger.listMoves(TENANT, MAPPING)).toEqual([]);
+  });
+
+  it('will not acknowledge a move that is not open', async () => {
+    const ledger = new MemoryLedger();
+    const w = world('calendar');
+    w.folders.set('Work', [{ key: 'uid-1', body: 'V', version: 'e1' }]);
+    await w.run(ledger);
+    // Never moved: there is nothing to decide about, and saying "done" would
+    // report a decision that did not happen.
+    expect(await ledger.resolveMove(TENANT, MAPPING, 'uid-1', 'keep')).toBe(false);
+
+    w.folders.set('Work', []);
+    w.folders.set('Personal', [{ key: 'uid-1', body: 'V', version: 'e1' }]);
+    await w.run(ledger);
+    expect(await ledger.resolveMove(TENANT, MAPPING, 'uid-1', 'keep')).toBe(true);
+    // Twice is not a second decision.
+    expect(await ledger.resolveMove(TENANT, MAPPING, 'uid-1', 'keep')).toBe(false);
+  });
+
   it('says nothing about an item that has not moved', async () => {
     const ledger = new MemoryLedger();
     const w = world('calendar');
@@ -275,6 +374,32 @@ describe('a file moved between source folders', () => {
     expect(second.created).toBe(1);
     expect([...w.target.keys()].sort()).toEqual(['t/a:a/report.pdf', 't/b:b/report.pdf']);
     expect(second.drift).toBe(0);
+  });
+
+  it('is written down and can be closed, on its own separate code path', async () => {
+    // The file half is detected after the fact, against a different row from
+    // the one the loop was looking at, so it persists and resolves through its
+    // own code — worth proving rather than assuming from the calendar case.
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    w.folders.set('a', [{ key: 'a/report.pdf', body: 'PDF', version: 'e1' }]);
+    w.folders.set('b', []);
+    await w.run(ledger);
+
+    w.folders.set('a', []);
+    w.folders.set('b', [{ key: 'b/report.pdf', body: 'PDF', version: 'e1' }]);
+    expect((await w.run(ledger)).moved).toBe(1);
+
+    expect(await ledger.listMoves(TENANT, MAPPING, 'file')).toEqual([
+      { domain: 'file', naturalKeyHash: 'a/report.pdf', from: 'a', to: 'b' },
+    ]);
+
+    expect(await ledger.resolveMove(TENANT, MAPPING, 'a/report.pdf', 'keep')).toBe(true);
+    const third = await w.run(ledger);
+    expect(third.moved).toBe(0);
+    // And it must NOT quietly become drift instead — the disappearance is
+    // explained, someone decided, and there is nothing left to report.
+    expect(third.drift).toBe(0);
   });
 
   it('calls a disappearance with no matching arrival drift, not a move', async () => {
@@ -434,6 +559,31 @@ describe('a file moved between source folders', () => {
     expect(result.failed).toBe(0);
     expect(result.moved).toBe(0);
     expect(result.drift).toBe(0);
+  });
+
+  it('detects a move out of the ROOT collection, whose path is legitimately empty', async () => {
+    // A WebDAV connection's own root reports `path: ''`, and '' is the value
+    // the ledger reads as "collection never recorded". Left alone, every file
+    // sitting directly in the user's file root — the commonest layout there is,
+    // and the one the e2e seeds — was recorded as having no collection and
+    // could never be reported as moved. The whole feature was inert for the
+    // majority of files, and nothing said so.
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    w.folders.set('', [{ key: 'report.pdf', body: 'PDF', version: 'e1' }]);
+    w.folders.set('archive', []);
+
+    const first = await w.run(ledger);
+    expect(first.created).toBe(1);
+    const row = await ledger.find(TENANT, MAPPING, 'file', 'report.pdf');
+    expect(row?.collection, 'the root needs a name of its own, not the empty string').toBe('/');
+
+    w.folders.set('', []);
+    w.folders.set('archive', [{ key: 'archive/report.pdf', body: 'PDF', version: 'e1' }]);
+
+    const second = await w.run(ledger);
+    expect(second.moved).toBe(1);
+    expect(second.moves[0]).toMatchObject({ from: '/', to: 'archive' });
   });
 
   it('stays silent on a cursor-limited pass, which cannot tell absence from unlisted', async () => {
