@@ -212,6 +212,52 @@ the credential or the target is the problem, not the items.
 
 See `docs/selfhost-quickstart.md` §7 for the full walkthrough.
 
+## What the end user may do while a migration is running
+
+Shadow migration exists so nobody has to stop working. The two sides are not
+symmetrical, though, and the difference is worth telling people up front.
+
+### In the OLD system: anything
+
+| They do | What the migration does |
+|---|---|
+| Create items | Picks them up on the next pass. |
+| Edit items | Rewrites the target copy — unless the target copy is theirs, see below. |
+| Delete items | **Nothing.** Deletions are never propagated (§11.1), so the new system quietly becomes a fuller archive than the shrinking old one. |
+| Move items, rename folders | Detects and reports it; changes nothing. See the section above. |
+
+### In the NEW system: browse freely, create freely, don't edit or delete ours
+
+| They do | What happens |
+|---|---|
+| Create new items | Untouched by the migration. Verification lists them as `extraOnTarget`, a WARNING that does not block cutover. |
+| **Edit an item the migration put there** | The rewrite is REFUSED and the item becomes theirs for good — see below. |
+| **Delete an item the migration put there** | It does **not** come back. The ledger has it as copied, so the pass skips it forever. Verification reports it under `missingOnTarget`, which is an ERROR past the discrepancy threshold. |
+| Move an item within the target | Nothing breaks. For files, verification counts the old path as missing and the new one as extra — noisy, not destructive. |
+| Delete a target folder | Recreated empty on the next pass; everything that was in it stays gone, and shows up as `missingOnTarget`. |
+
+**Edits are protected, deletions are not.** Every ledger row records the ETag the
+target gave us when we wrote the item. Before any rewrite the pass checks the
+target still reports it; if it does not, somebody has edited that copy, so
+nothing is written, the item is marked `adopted` — the owner's, not ours — and
+it is never a candidate for overwrite again. The pass reports it as
+`conflicted`, and every later source change to it as `changedButAdopted`.
+
+Two limits worth knowing:
+
+- Rows written before this existed carry no target ETag, and neither do items on
+  a server that returns none from a PUT. Those keep the old behaviour: a source
+  change overwrites the target copy. The protection begins the first time an
+  item is written after upgrading.
+- A conflicted item stops receiving source updates permanently. That is the
+  conservative answer — we cannot merge two edits — but it means the source and
+  target versions of that item diverge from then on, which is exactly what the
+  `changedButAdopted` count is telling you.
+
+**Deletions on the target are not repaired**, deliberately: putting an item back
+that somebody deleted on purpose would be its own kind of destructive. It is
+reported instead, and the §20 gate will not pass a cutover with items missing.
+
 ## Items someone moved on the source
 
 Different problem, different queue. These items copied fine; the owner has since

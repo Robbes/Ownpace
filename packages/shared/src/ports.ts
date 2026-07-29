@@ -180,6 +180,30 @@ export interface UpsertResult {
    */
   readonly adopted?: boolean;
   /**
+   * The target's own version marker for what we just wrote — a DAV ETag.
+   *
+   * Persisted so a LATER pass can tell whether the copy is still the one we
+   * made. Absent when the server returns none, which costs that item its
+   * overwrite protection and nothing else.
+   */
+  readonly targetVersion?: string;
+  /**
+   * The rewrite was REFUSED because the target copy is no longer the one we
+   * wrote. Nothing was written.
+   *
+   * Set only on the overwrite path, and only when the caller supplied an
+   * `expectedTargetVersion` that the target no longer reports. Somebody has
+   * edited our copy in the new system — which shadow migration positively
+   * invites, since the whole point is that the owner can start using it — and
+   * hard rule 2 puts those bytes out of reach.
+   *
+   * Not an error, and deliberately not thrown: a conflict is a fact about
+   * ownership, not a failure to migrate. Throwing would spend one of the item's
+   * five attempts and count towards the systemic-failure tripwire, both of
+   * which describe something else entirely.
+   */
+  readonly conflicted?: boolean;
+  /**
    * True when an item WE had already copied was rewritten because the source
    * version changed — the shadow-sync update path (§11.1, "the source is
    * authoritative for content").
@@ -227,6 +251,25 @@ export interface UpsertOptions {
    * afterwards is discarded.
    */
   readonly collection?: string;
+  /**
+   * Refuse the overwrite unless the target still reports this version.
+   *
+   * The ETag the server gave us when we wrote this item. Supplied only on the
+   * rewrite path, and only when we have one; a writer that finds the target
+   * reporting something else must write NOTHING and return
+   * `conflicted: true`.
+   *
+   * This is what keeps hard rule 2 honest over time. Ownership was being judged
+   * from `status === 'copied'`, which records that we wrote the bytes once —
+   * not that they are still ours. An owner who edits a migrated item in the new
+   * system silently loses that edit the next time the source changes.
+   *
+   * Absent means no check, which is the behaviour every row written before
+   * migration 0023 gets, and any server that returns no ETag on PUT. Failing
+   * closed instead would refuse every source change until each row had been
+   * rewritten once — a protection that presents as an outage.
+   */
+  readonly expectedTargetVersion?: string;
 }
 
 /** A target mailbox store the engine writes to. NEVER deletes or overwrites (non-destructive). */
@@ -428,6 +471,22 @@ export interface LedgerRecord {
    * first upgrade.
    */
   readonly collection?: string;
+  /**
+   * The TARGET's own version marker (an ETag) for our copy, as we last wrote it.
+   *
+   * The mirror of `sourceVersion`: that one says what the source looked like
+   * when we read it, this one says what the target looked like when we left it.
+   * Compared before any rewrite — if the target reports something else, the
+   * copy has been edited in the new system and is no longer ours to replace.
+   *
+   * An ETag rather than a hash of the bytes on purpose: CalDAV and CardDAV
+   * servers may normalise what they store, so a re-read can differ from what we
+   * sent for reasons that have nothing to do with anyone editing it. The ETag
+   * is minted after any normalisation.
+   *
+   * Absent means "not known", and never blocks a write. See migration 0023.
+   */
+  readonly targetVersion?: string;
   /**
    * Where the SOURCE lists this item now, when that is no longer `collection`.
    *

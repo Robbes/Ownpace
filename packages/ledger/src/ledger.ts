@@ -75,6 +75,7 @@ export class PgLedger implements Ledger {
         status: record.status ?? 'copied',
         targetRef: JSON.stringify({ id: record.targetId }),
         sourceVersion: record.sourceVersion ?? null,
+        targetVersion: record.targetVersion ?? null,
         firstSeenAt: sql`now()`,
         updatedAt: sql`now()`,
       })
@@ -118,6 +119,11 @@ export class PgLedger implements Ledger {
         status: record.status ?? 'updated',
         targetRef: JSON.stringify({ id: record.targetId }),
         sourceVersion: record.sourceVersion ?? null,
+        // Conditional for the same reason `collection` is below: a caller may
+        // legitimately have nothing to say (a server that returns no ETag on
+        // PUT), and blanking what we already knew would quietly retire the
+        // item's overwrite protection.
+        ...(record.targetVersion !== undefined ? { targetVersion: record.targetVersion } : {}),
         // Conditional, unlike `sourceVersion` above, because the column is NOT
         // NULL: the fallback is `''`, which the ledger reads as "never
         // recorded". Writing that whenever a caller happened not to supply one
@@ -214,6 +220,9 @@ export class PgLedger implements Ledger {
         status: 'failed',
         targetRef: JSON.stringify({ id: record.targetId }),
         sourceVersion: record.sourceVersion ?? null,
+        // No `target_version`, deliberately, and for the same reason this path
+        // leaves content_hash alone on an existing row: a failed attempt wrote
+        // nothing, so there is no version of ours on the target to remember.
         attemptCount: 1,
         lastError: error,
         firstSeenAt: sql`now()`,
@@ -512,6 +521,13 @@ export class PgLedger implements Ledger {
       // ETag". The sync loop treats only the former as unknown.
       ...(row.sourceVersion !== null && row.sourceVersion !== undefined
         ? { sourceVersion: row.sourceVersion }
+        : {}),
+      // Same treatment, and it matters more here: an absent target version
+      // means "we cannot tell whether this copy is still ours", which the
+      // writers read as "do not block the write". Mapping NULL to '' would
+      // instead assert an ETag no server ever sent.
+      ...(row.targetVersion !== null && row.targetVersion !== undefined
+        ? { targetVersion: row.targetVersion }
         : {}),
       ...(row.collection ? { collection: row.collection } : {}),
       ...(row.movedToCollection ? { movedToCollection: row.movedToCollection } : {}),

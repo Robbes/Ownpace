@@ -21,6 +21,7 @@ import type {
 import { fileNaturalKeyHash, fileContentHash, isOnTarget } from '@openmig/shared';
 import { parseMultiStatus, isCollection, hrefRelativeTo, sizeOf } from './dav-multistatus';
 import { requestWithDavRetry } from './dav-retry';
+import { readEtag, ownershipOf } from './dav-target-version';
 import { log } from '@openmig/shared';
 
 /**
@@ -146,9 +147,17 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
     // A WebDAV PUT to the same href replaces the body, so the path — the
     // natural key — is unchanged and nothing is deleted.
     if (options?.overwrite) {
-      const fileId = await this.uploadFile(raw, true);
-      (await this.keysUnderRoot())?.set(this.normalizeRelativePath(naturalKey), fileId);
-      return { targetId: fileId, created: false, updated: true };
+      const written = await this.uploadFile(raw, true, options.expectedTargetVersion);
+      if (written.conflicted) {
+        return { targetId: written.path, created: false, conflicted: true };
+      }
+      (await this.keysUnderRoot())?.set(this.normalizeRelativePath(naturalKey), written.path);
+      return {
+        targetId: written.path,
+        created: false,
+        updated: true,
+        ...(written.etag !== undefined ? { targetVersion: written.etag } : {}),
+      };
     }
 
     // LEDGER FAST-PATH: Check if already migrated
@@ -241,7 +250,8 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
     }
 
     // Upload the file to the target
-    const fileId = await this.uploadFile(raw);
+    const written = await this.uploadFile(raw);
+    const fileId = written.path;
     (await this.keysUnderRoot())?.set(this.normalizeRelativePath(naturalKey), fileId);
 
     // RECORD IN LEDGER
@@ -265,9 +275,15 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
       // would be thrown away. Without it every row keeps the `''` it has
       // carried since 0001 and a move stays undetectable.
       ...(options?.collection !== undefined ? { collection: options.collection } : {}),
+      // NOT from the loop: only this writer saw the server's answer to the PUT.
+      ...(written.etag !== undefined ? { targetVersion: written.etag } : {}),
     });
 
-    return { targetId: fileId, created: true };
+    return {
+      targetId: fileId,
+      created: true,
+      ...(written.etag !== undefined ? { targetVersion: written.etag } : {}),
+    };
   }
 
   /**
@@ -519,17 +535,49 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
     return requestWithDavRetry(() => this.httpClient.request(options));
   }
 
-  private async uploadFile(raw: RawFileItem, overwrite = false): Promise<string> {
+  /** See the same method in caldav-target-writer.ts. */
+  private async currentEtag(path: string): Promise<string | undefined> {
+    const response = await this.requestWithRetry({
+      method: 'HEAD',
+      url: this.buildUrl(path),
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
+      },
+    });
+    if (response.status < 200 || response.status >= 300) return undefined;
+    return readEtag(response);
+  }
+
+  private async uploadFile(
+    raw: RawFileItem,
+    overwrite = false,
+    expectedTargetVersion?: string,
+  ): Promise<{ path: string; etag?: string; conflicted?: boolean }> {
     // raw.item.path is root-relative and self-contained (see WebdavFileSource.toRelativePath);
     // resolve it directly instead of re-deriving it from a parent directory id.
     const filePath = this.normalizeRelativePath(raw.item.path);
+
+    // Ownership, re-checked at the last possible moment. See the same guard in
+    // caldav-target-writer.ts. It sits ahead of the chunked branch too: a large
+    // file the owner has edited in the new system is no more ours to replace
+    // than a small one.
+    if (overwrite && expectedTargetVersion !== undefined) {
+      const verdict = ownershipOf(expectedTargetVersion, await this.currentEtag(filePath));
+      if (verdict === 'changed') {
+        return { path: filePath, conflicted: true };
+      }
+    }
 
     // Check if file is large and should use chunked upload
     const useChunked = this.config.chunkedUploads &&
                       raw.content && raw.content.length > (this.config.chunkSize || 10 * 1024 * 1024);
 
     if (useChunked && raw.content) {
-      return await this.uploadFileChunked(filePath, raw.content);
+      // No ETag from this path: the last chunk's response describes a chunk,
+      // not the assembled file. The item simply has no overwrite protection
+      // until something rewrites it in one piece, which is honest — inventing a
+      // version here would be worse than admitting we do not have one.
+      return { path: await this.uploadFileChunked(filePath, raw.content) };
     }
 
     // Simple PUT for small files - only if content exists
@@ -571,7 +619,8 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
               'The file was NOT replaced.',
           );
         }
-        return filePath;
+        // Something was already there, so its version is not ours to claim.
+        return { path: filePath };
       }
       // RFC 4918 §9.7.1: PUT returns 201 (created) or 204 (existing resource replaced). Without
       // this check a failed write (e.g. the parent collection doesn't actually exist) was
@@ -580,9 +629,13 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
       if (response.status !== 201 && response.status !== 204) {
         throw new Error(`PUT failed for ${filePath} with status ${response.status}: ${response.body}`);
       }
+      return {
+        path: filePath,
+        ...(readEtag(response) !== undefined ? { etag: readEtag(response) } : {}),
+      };
     }
 
-    return filePath;
+    return { path: filePath };
   }
 
   private async uploadFileChunked(

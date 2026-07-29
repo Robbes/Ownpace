@@ -31,6 +31,7 @@ import {
   sizeOf,
 } from './dav-multistatus';
 import { requestWithDavRetry } from './dav-retry';
+import { readEtag, ownershipOf } from './dav-target-version';
 import { log } from '@openmig/shared';
 
 /**
@@ -123,9 +124,23 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     // branch in caldav-target-writer.ts for why this precedes the fast-path
     // and why it can never touch an item the destination already held.
     if (options?.overwrite) {
-      const contactId = await this.uploadContact(folderId, raw, uid, true);
-      (await this.keysIn(folderId))?.set(naturalKey, contactId);
-      return { targetId: contactId, created: false, updated: true };
+      const written = await this.uploadContact(
+        folderId,
+        raw,
+        uid,
+        true,
+        options.expectedTargetVersion,
+      );
+      if (written.conflicted) {
+        return { targetId: written.path, created: false, conflicted: true };
+      }
+      (await this.keysIn(folderId))?.set(naturalKey, written.path);
+      return {
+        targetId: written.path,
+        created: false,
+        updated: true,
+        ...(written.etag !== undefined ? { targetVersion: written.etag } : {}),
+      };
     }
 
     // LEDGER FAST-PATH: Check if already migrated
@@ -186,7 +201,8 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     }
 
     // Upload the contact to the address book
-    const contactId = await this.uploadContact(folderId, raw, uid);
+    const written = await this.uploadContact(folderId, raw, uid);
+    const contactId = written.path;
     (await this.keysIn(folderId))?.set(naturalKey, contactId);
 
     // RECORD IN LEDGER
@@ -210,9 +226,15 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       // would be thrown away. Without it every row keeps the `''` it has
       // carried since 0001 and a move stays undetectable.
       ...(options?.collection !== undefined ? { collection: options.collection } : {}),
+      // NOT from the loop: only this writer saw the server's answer to the PUT.
+      ...(written.etag !== undefined ? { targetVersion: written.etag } : {}),
     });
 
-    return { targetId: contactId, created: true };
+    return {
+      targetId: contactId,
+      created: true,
+      ...(written.etag !== undefined ? { targetVersion: written.etag } : {}),
+    };
   }
 
   /** Natural key -> href for this address book; undefined when it cannot be listed. */
@@ -529,15 +551,39 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     return parts[1]?.trim() ?? '';
   }
 
+  /** See the same method in caldav-target-writer.ts. */
+  private async currentEtag(path: string): Promise<string | undefined> {
+    const response = await this.requestWithRetry({
+      method: 'HEAD',
+      url: this.buildUrl(path),
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
+      },
+    });
+    if (response.status < 200 || response.status >= 300) return undefined;
+    return readEtag(response);
+  }
+
   private async uploadContact(
     folderId: string,
     raw: RawContact,
     uid: string,
     overwrite = false,
-  ): Promise<string> {
+    expectedTargetVersion?: string,
+  ): Promise<{ path: string; etag?: string; conflicted?: boolean }> {
     // Generate contact filename from UID
     const filename = `${uid}.vcf`;
     const contactPath = `${folderId}${filename}`;
+
+    // Ownership, re-checked at the last possible moment. See the same guard in
+    // caldav-target-writer.ts: the ledger's status records that we WROTE these
+    // bytes, not that they are still the bytes we wrote.
+    if (overwrite && expectedTargetVersion !== undefined) {
+      const verdict = ownershipOf(expectedTargetVersion, await this.currentEtag(contactPath));
+      if (verdict === 'changed') {
+        return { path: contactPath, conflicted: true };
+      }
+    }
 
     const response = await this.requestWithRetry({
       method: 'PUT',
@@ -566,14 +612,18 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
             'The item was NOT replaced.',
         );
       }
-      return contactPath;
+      // Something was already there, so its version is not ours to claim.
+      return { path: contactPath };
     }
 
     if (response.status !== 201 && response.status !== 204) {
       throw new Error(`PUT failed for ${contactPath} with status ${response.status}: ${response.body}`);
     }
 
-    return contactPath;
+    return {
+      path: contactPath,
+      ...(readEtag(response) !== undefined ? { etag: readEtag(response) } : {}),
+    };
   }
 
   private parseMultiStatusResponse(

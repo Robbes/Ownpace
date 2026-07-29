@@ -93,6 +93,14 @@ function harness(opts: {
   version: string | undefined;
   body: string;
   onUpsert?: (options?: UpsertOptions) => void;
+  /**
+   * Make the target REFUSE the rewrite, as a real writer does when the copy it
+   * finds is not the one it wrote. Nothing is written — which is the whole
+   * point, so the double must not write either.
+   */
+  refuseOverwrite?: boolean;
+  /** What the writer reports the target version to be after a successful write. */
+  targetVersion?: string;
 }) {
   const upserts: Array<{ body: string; overwrite: boolean }> = [];
   const item = { key: 'k1', version: opts.version, body: opts.body };
@@ -128,9 +136,22 @@ function harness(opts: {
               ...(options?.sourceVersion !== undefined
                 ? { sourceVersion: options.sourceVersion }
                 : {}),
+              // The real writers record this themselves — only they see the
+              // server's answer to the PUT — and `recordIfAbsent` makes the
+              // first writer win. A double that left it to the loop would prove
+              // a protection the product does not have.
+              ...(opts.targetVersion !== undefined ? { targetVersion: opts.targetVersion } : {}),
             });
           }
-          return { targetId: 't1', created: !options?.overwrite, updated: options?.overwrite };
+          if (options?.overwrite && opts.refuseOverwrite) {
+            return { targetId: 't1', created: false, conflicted: true };
+          }
+          return {
+            targetId: 't1',
+            created: !options?.overwrite,
+            updated: options?.overwrite,
+            ...(opts.targetVersion !== undefined ? { targetVersion: opts.targetVersion } : {}),
+          };
         },
         naturalKey: (i) => i.key,
         sourceVersion: (i) => i.version,
@@ -183,6 +204,56 @@ describe('runDomainSync update propagation', () => {
     expect(r4.skipped).toBe(1);
     expect(r4.updated).toBe(0);
     expect(settled.upserts).toHaveLength(0);
+  });
+
+  it('does not overwrite a copy the owner has edited on the target', async () => {
+    // The one path in this product that can destroy someone's work. Shadow
+    // migration invites the owner into the new system before cutover; if they
+    // correct an item there, a later source change must not silently replace
+    // their correction.
+    const ledger = new MemoryLedger();
+    const first = harness({ version: 'etag-1', body: 'v1', targetVersion: 'tv-1' });
+    await first.run(ledger);
+    expect(
+      (await ledger.find(TENANT, MAPPING, 'calendar', 'k1'))?.targetVersion,
+      'the writer records it — only the writer saw the PUT response',
+    ).toBe('tv-1');
+
+    // The source moves on, and the target says our copy is not the one we left.
+    const edited = harness({ version: 'etag-2', body: 'v2', refuseOverwrite: true });
+    const r = await edited.run(ledger);
+
+    expect(r.conflicted).toBe(1);
+    expect(r.updated).toBe(0);
+
+    const after = await ledger.find(TENANT, MAPPING, 'calendar', 'k1');
+    // ADOPTED, which is not a consolation prize but the exact truth: those bytes
+    // are the customer's now, and adopted items are never rewritten however far
+    // the source moves.
+    expect(after?.status).toBe('adopted');
+    // The source version is deliberately NOT advanced. Recording it would claim
+    // the change had been applied, which is the opposite of what happened, and
+    // would hide a real divergence from the operator.
+    expect(after?.sourceVersion).toBe('etag-1');
+    // And the hash still describes what we actually put there, not the bytes we
+    // were refused — §20 compares the target against this.
+    expect(after?.contentHash).toBe('h:v1');
+  });
+
+  it('never tries to rewrite that item again, and says so every pass', async () => {
+    const ledger = new MemoryLedger();
+    await harness({ version: 'etag-1', body: 'v1', targetVersion: 'tv-1' }).run(ledger);
+    await harness({ version: 'etag-2', body: 'v2', refuseOverwrite: true }).run(ledger);
+
+    // A later pass must not fetch or write. `leave-adopted` returns before the
+    // fetch, so the cost of a conflicted item is one ledger read forever —
+    // and the divergence stays visible rather than going quiet.
+    const later = harness({ version: 'etag-3', body: 'v3' });
+    const r = await later.run(ledger);
+    expect(later.upserts, 'an adopted item is not ours to touch').toHaveLength(0);
+    expect(r.changedButAdopted).toBe(1);
+    expect(r.updated).toBe(0);
+    expect(r.conflicted).toBe(0);
   });
 
   it('backfills the version of a pre-0020 row without touching the target', async () => {
