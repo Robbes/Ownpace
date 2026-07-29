@@ -36,8 +36,32 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { execSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { setTimeout } from 'node:timers/promises';
-import { fileNaturalKeyHash } from '@openmig/shared';
+
+/**
+ * The file domain's natural-key hash, duplicated from
+ * `packages/shared/src/hash.ts` rather than imported.
+ *
+ * This file lives at the REPO ROOT, not inside a workspace package, and the
+ * root has no dependency on `@openmig/shared` — so pnpm creates no
+ * `node_modules/@openmig` link for it and the import dies on the runner with
+ * `ERR_MODULE_NOT_FOUND`. Every other test that imports the package sits
+ * inside a package that declares it and resolves through that symlink; the
+ * root-level `resolve.alias` in vitest.config.ts did not cover this case.
+ *
+ * Four lines of sha256 is the right price for keeping this suite a black box:
+ * everything else here talks to the appliance over curl and imports nothing
+ * but vitest and node builtins, which is what makes it a test OF the deployed
+ * artifact rather than of the source tree.
+ *
+ * If the real definition ever changes, this fails loudly rather than quietly —
+ * the computed hash simply will not be in the failure queue, and the assertion
+ * says exactly that.
+ */
+function fileNaturalKeyHash(path: string): string {
+  return createHash('sha256').update(`file:${path}`).digest('hex');
+}
 
 const COMPOSE_FILE = 'deploy/selfhost/compose.yml';
 const SELFHOST_PORT = process.env.SELFHOST_PORT || '8081';
