@@ -738,5 +738,65 @@ describe('File domain sync (real WebDAV target) Integration', () => {
     expect(afterNames).toContain(added[0]!.item.name);
     expect(afterNames.length).toBe(FILE_COUNT + 1);
   });
+
+  /**
+   * `listKeys` must describe the same files, in the same words, as `listSince`.
+   *
+   * Move detection compares the ledger's natural keys against the keys this
+   * returns, and both sides are `fileNaturalKeyHash(path)`. If the two listings
+   * spelled a path differently — absolute href versus root-relative, encoded
+   * versus decoded — the sets would never intersect and EVERY file in the
+   * collection would read as vanished. The pass would then report a healthy
+   * corpus as mass deletion, which is the most alarming thing this product
+   * could say and it would be entirely wrong.
+   *
+   * Only a real server settles it: the difference lives in how Nextcloud writes
+   * its hrefs, not in anything a stub would reproduce.
+   */
+  it('lists exactly the keys listSince reports, so a full listing and a cursor one agree', async () => {
+    const folder: FileFolder = { path: TARGET_FILES_DIR_NAME, name: TARGET_FILES_DIR_NAME };
+    const files = buildStubFiles(3);
+
+    // A WRITER OF ITS OWN, not the describe-level one.
+    //
+    // `WebDAVTargetWriter` memoises one listing of the target root and never
+    // invalidates it, because in production a writer lives exactly one pass.
+    // The shared instance is holding a snapshot taken by the previous test —
+    // and `beforeEach` has since deleted that directory from the server. Every
+    // file here then "already exists", so the writer adopts instead of writing
+    // and nothing lands: the first run of this test compared two empty
+    // listings and called them equal.
+    const freshTarget = new WebDAVTargetWriter(
+      {
+        url: `${NEXTCLOUD_WEBDAV_URL!.replace(/\/$/, '')}/files/${NEXTCLOUD_USERNAME}/`,
+        username: NEXTCLOUD_USERNAME,
+        password: NEXTCLOUD_PASSWORD,
+      },
+      { ledger, tenantId: FILE_TENANT_ID, mappingId: FILE_MAPPING_ID },
+    );
+
+    const seeded = await runFileSync({
+      tenantId: FILE_TENANT_ID,
+      mappingId: FILE_MAPPING_ID,
+      source: new StubFileSource(folder, files),
+      target: freshTarget,
+      ledger,
+    });
+    // Asserted, not assumed. Comparing two listings of an empty directory
+    // proves nothing, and that is exactly how this test first passed locally
+    // and failed to mean anything in CI.
+    expect(seeded.created).toBe(3);
+
+    const folders = await readBackSource.listFolders();
+    const landed = folders.find((f) => f.name === TARGET_FILES_DIR_NAME);
+    expect(landed).toBeDefined();
+
+    const { items } = await readBackSource.listSince(landed!);
+    const fromListing = items.map((i) => i.item.path).sort();
+    const fromKeys = [...(await readBackSource.listKeys!(landed!))].sort();
+
+    expect(fromKeys).toEqual(fromListing);
+    expect(fromKeys.length).toBe(3);
+  });
 });
 }

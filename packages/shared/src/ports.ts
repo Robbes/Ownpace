@@ -128,6 +128,28 @@ export interface FileSource {
    * and call it a success.
    */
   fetch(item: FileItem): Promise<RawFileItem>;
+  /**
+   * Every file path currently in this collection, ignoring any cursor.
+   *
+   * Optional, and it exists for exactly one purpose: telling a file that MOVED
+   * from one that was deleted. Files are keyed by path, so a move mints a new
+   * natural key and the only trace of the old one is its absence — which
+   * `listSince` cannot show, because with a cursor it returns just what changed
+   * and everything untouched looks equally absent.
+   *
+   * Without this, move detection for files only ever ran on a cursor-less pass,
+   * which in production means the first one and nothing after it — a detector
+   * that could not fire when it mattered.
+   *
+   * Must be CHEAP: paths only, no content, no per-item round trips. For WebDAV
+   * it is the same PROPFIND `listSince` already issues, without the change
+   * filter. A source that cannot answer cheaply should not implement it; the
+   * loop then reports moves only on a full scan, exactly as before.
+   *
+   * Paths must be identical in form to `FileItem.path`, since the loop hashes
+   * both into the same natural key.
+   */
+  listKeys?(folder: FileFolder): Promise<ReadonlyArray<string>>;
 }
 
 /**
@@ -197,6 +219,14 @@ export interface UpsertOptions {
    * Undefined for a source with no version — the mail shape.
    */
   readonly sourceVersion?: string;
+  /**
+   * The source collection to persist on whatever ledger row this write creates.
+   *
+   * Passed down for the same reason as `sourceVersion`: the writers record
+   * first and `recordIfAbsent` no-ops on conflict, so anything the loop records
+   * afterwards is discarded.
+   */
+  readonly collection?: string;
 }
 
 /** A target mailbox store the engine writes to. NEVER deletes or overwrites (non-destructive). */
@@ -385,6 +415,20 @@ export interface LedgerRecord {
     | 'deleted_source'
     | 'tombstoned';
   /**
+   * The SOURCE collection this item lived in when we copied it.
+   *
+   * The column has existed since 0001 and nothing ever wrote it — every row
+   * carried `''`. So the ledger could say WHAT had been migrated and never
+   * WHERE it came from, which makes a move undetectable: for a stable-key
+   * domain the item simply reappears under a different folder and the ledger
+   * has nothing to compare against.
+   *
+   * Empty string means "not recorded" — every row written before this — and is
+   * never treated as a move. Guessing would turn a whole corpus into moves on
+   * first upgrade.
+   */
+  readonly collection?: string;
+  /**
    * How many times this item has been attempted and failed.
    *
    * Reset to 0 by an operator RETRY. Once it reaches `MAX_ITEM_ATTEMPTS` the
@@ -463,6 +507,34 @@ export interface Ledger {
    * indistinguishable from one that failed once).
    */
   recordFailure(record: LedgerRecord, error: string): Promise<LedgerRecord>;
+  /**
+   * Everything the ledger says is ON THE TARGET for one domain, with the source
+   * collection each item came from.
+   *
+   * Used to notice items that have DISAPPEARED from the source since the last
+   * pass, and to correlate a disappearance with an identical item appearing
+   * elsewhere — which is what a move looks like in a path-keyed domain, where
+   * the natural key itself changes and nothing else can connect the two.
+   *
+   * Whole-domain rather than per-collection on purpose. A source folder that
+   * was RENAMED is not in the folder listing at all, so a per-collection query
+   * driven by what the pass scanned would never look at its rows and the
+   * largest kind of reorganisation there is would go unreported.
+   *
+   * Two exclusions, both load-bearing:
+   *
+   *   - rows that are not on the target (`failed`, `left_behind`) — nothing was
+   *     placed for them, so their absence from a listing means nothing;
+   *   - rows with no recorded collection, i.e. everything written before the
+   *     column was populated. Those cannot say where they came from, and
+   *     including them would report an entire legacy corpus as vanished on the
+   *     first full scan after upgrading.
+   */
+  placedItems(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: 'email' | 'calendar' | 'contact' | 'file',
+  ): Promise<Array<{ naturalKeyHash: string; contentHash: string; collection: string }>>;
   /** Unresolved failures for a domain, newest attempt first. */
   listFailures(
     tenantId: TenantId,
@@ -546,6 +618,32 @@ export interface ItemFailure {
 }
 
 /**
+ * An item the SOURCE now shows in a different collection from the one we
+ * copied it into.
+ *
+ * Named a "move" because that is what causes it in practice, but the loop
+ * cannot prove it within a single pass: a user who COPIED an event into a
+ * second calendar produces exactly the same observation. It therefore does
+ * neither thing on the target — §11.1 makes the owner authoritative for
+ * topology and lifecycle, and hard rule 2 forbids the delete half of a move
+ * outright.
+ *
+ * `from` and `to` are folder paths, which §17 counts as personal data. They
+ * belong on the operator's own status surface — the same place `lastError`
+ * already goes — and must NEVER become a metric label; the count is the only
+ * part of this that is safe to export to a metrics store.
+ */
+export interface ItemMove {
+  readonly domain: 'email' | 'calendar' | 'contact' | 'file';
+  /** Same anchor, and for the same §17 reason, as `ItemFailure.naturalKeyHash`. */
+  readonly naturalKeyHash: string;
+  /** The source collection recorded on the ledger row when we copied it. */
+  readonly from: string;
+  /** The source collection it is listed in now. */
+  readonly to: string;
+}
+
+/**
  * Persists per-domain pre-sync discovery counts (workplan 0013 T2). One row per
  * (tenant, mapping, domain); re-discovery overwrites. Tenant-scoped by RLS.
  */
@@ -617,6 +715,15 @@ export interface ReconcileResult {
    * with callers written before it existed.
    */
   readonly adopted?: number;
+  /**
+   * Messages the source now lists in a different folder from the one they were
+   * copied into. Nothing was written and nothing was deleted — see `ItemMove`.
+   *
+   * For mail this is as likely to be a COPY as a move: the same Message-ID
+   * genuinely lives in two folders on plenty of servers, and the pass cannot
+   * distinguish the two. Which is exactly why it reports rather than acts.
+   */
+  readonly moved?: number;
   /** Source items absent on a later pass (potential deletions) — logged, never propagated. */
   readonly drift: number;
 }

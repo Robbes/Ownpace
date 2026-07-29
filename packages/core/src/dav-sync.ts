@@ -203,6 +203,17 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
     upsert: async (parentId, raw, _item, options) =>
       target.upsertFile(parentId, raw as RawFileItem, options),
     naturalKey: (item) => fileNaturalKeyHash(item.item.path),
+    // Only when the source can answer it cheaply. Without it the loop can spot
+    // a moved file only on a cursor-less pass, which in production is the first
+    // one and none after — a detector that cannot fire when it matters. Hashed
+    // here so the loop compares like with like: `naturalKey` above hashes the
+    // same `path` through the same function.
+    ...(source.listKeys
+      ? {
+          listCollectionKeys: async (folder: FileFolder) =>
+            (await source.listKeys!(folder)).map(fileNaturalKeyHash),
+        }
+      : {}),
     sourceVersion: (item) => item.item.etag,
     contentHash: (raw) => fileContentHash((raw as RawFileItem).content ?? new Uint8Array(0)),
     ensureCollection: (folder) => target.ensureDirectory(folder),

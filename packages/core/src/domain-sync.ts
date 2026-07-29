@@ -14,6 +14,7 @@ import {
   type Ledger,
   type LedgerRecord,
   type ItemFailure,
+  type ItemMove,
   type CursorStore,
   type UpsertResult,
   type UpsertOptions,
@@ -175,6 +176,11 @@ export type KnownItemAction =
   | 'rewrite'
   /** The source changed but the target copy is the CUSTOMER'S: leave it. */
   | 'leave-adopted'
+  /**
+   * The source lists it in a different collection from the one we copied it
+   * into. Neither copied nor deleted — reported, and left for the owner.
+   */
+  | 'moved'
   /** A previous attempt failed and it is still worth trying again. */
   | 'retry-failed'
   /** Attempts are exhausted; it is waiting on an owner decision. */
@@ -213,10 +219,23 @@ export type KnownItemAction =
  * Ahead of all of those sit the states where the item was never copied at all
  * — `failed` and `left_behind` — because for those the version question does
  * not arise. See the top of the function.
+ *
+ * Between the two groups sits the TOPOLOGY question: the source may still hold
+ * this exact item, unchanged, but somewhere else. That is `'moved'`, and it
+ * outranks every version rule below it because §11.1 splits authority — the
+ * source owns an item's CONTENT, the owner owns its PLACE — and a rewrite
+ * would answer the content question while silently ignoring the other one.
  */
 export function classifyKnownItem(
-  known: Pick<LedgerRecord, 'sourceVersion' | 'status' | 'attemptCount'>,
+  known: Pick<LedgerRecord, 'sourceVersion' | 'status' | 'attemptCount' | 'collection'>,
   sourceVersion: string | undefined,
+  /**
+   * The source collection the item is listed in NOW.
+   *
+   * Optional so the many call sites that predate move detection keep their
+   * exact behaviour: with nothing to compare against there is no move.
+   */
+  collection?: string,
 ): KnownItemAction {
   // FAILURE STATES FIRST. A row is not proof the item was migrated — it is only
   // proof we have seen the item, and these three states mean we have NOT copied
@@ -227,6 +246,21 @@ export function classifyKnownItem(
   if (known.status === 'left_behind') return 'left-behind';
   if (known.status === 'failed') {
     return (known.attemptCount ?? 0) >= MAX_ITEM_ATTEMPTS ? 'needs-decision' : 'retry-failed';
+  }
+
+  // TOPOLOGY BEFORE CONTENT. Both collections must be non-empty to compare:
+  // every ledger row written before this change carries `''`, because nothing
+  // ever populated the column, and reading that as "the empty-named folder"
+  // would declare an entire migrated corpus moved on the first pass after
+  // upgrading. Absent information is not evidence of change.
+  if (
+    collection !== undefined &&
+    collection !== '' &&
+    known.collection !== undefined &&
+    known.collection !== '' &&
+    known.collection !== collection
+  ) {
+    return 'moved';
   }
 
   if (sourceVersion === undefined) return 'skip';
@@ -287,6 +321,18 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    * the body. Those items fall through to `naturalKeyFromRaw` after the fetch.
    */
   readonly naturalKey: (item: Item) => string | undefined;
+  /**
+   * Every natural-key hash currently in a collection, ignoring any cursor.
+   *
+   * Supplied only by domains whose source can answer it cheaply (files, from
+   * the PROPFIND `listSince` already makes). It is what lets a path-keyed
+   * domain notice an item has DISAPPEARED — and therefore tell a move from a
+   * deletion — on an ordinary incremental pass rather than only on a full scan.
+   *
+   * Absent, the loop falls back to what the pass itself listed, which is
+   * complete only when there was no cursor.
+   */
+  readonly listCollectionKeys?: (folder: Folder) => Promise<ReadonlyArray<string>>;
   /**
    * Derive the natural-key hash once the raw item is in hand. Required if
    * `naturalKey` can return undefined.
@@ -363,7 +409,21 @@ export interface DomainSyncResult {
    * target a retry or an accept.
    */
   readonly failures: ReadonlyArray<ItemFailure>;
-  /** Source items absent on a later pass (potential deletions). */
+  /**
+   * Items the source now lists in a different collection from the one we
+   * copied them into. Nothing was written and nothing was deleted.
+   */
+  readonly moved: number;
+  /** Which ones, and where from and to, for the operator. See `ItemMove`. */
+  readonly moves: ReadonlyArray<ItemMove>;
+  /**
+   * Source items absent on a later pass (potential deletions).
+   *
+   * Populated only for the FILE domain, and only when every collection's key
+   * set is known to be complete — see `detectPathKeyedMoves` for why both
+   * conditions are load-bearing. Anywhere else this is 0, which is a "not
+   * measured", not a "none found".
+   */
   readonly drift: number;
   /**
    * Where this pass's wall time went. Always present — the caller persists it
@@ -401,6 +461,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     onCollision,
     ensureCollection,
     sourceVersion,
+    listCollectionKeys,
   } = deps;
 
   const phases = startPhaseTiming();
@@ -435,18 +496,73 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   // Changed on the source, but the target copy is the customer's own — left
   // alone by hard rule 2, and counted so that is a fact rather than a silence.
   let changedButAdopted = 0;
+  let moved = 0;
+  const moves: ItemMove[] = [];
+  let drift = 0;
+
+  /**
+   * Every natural key this pass actually SAW, per source collection.
+   *
+   * The input to path-keyed move detection: for files the natural key is the
+   * path, so a move produces a brand-new key and the only trace of the old one
+   * is its ABSENCE from the listing. Recorded for every item regardless of
+   * outcome — skipped and failed items are still present on the source, and
+   * counting them as gone would read a healthy corpus as mass deletion.
+   */
+  const seenByCollection = new Map<string, Set<string>>();
+  /** Items created THIS pass — the other half of the correlation. */
+  const createdThisPass: Array<{ naturalKeyHash: string; contentHash: string; collection: string }> = [];
+  /**
+   * True only while the key set of EVERY folder so far is known to be complete.
+   *
+   * A cursor-limited listing reports just what changed, so nearly every key the
+   * ledger holds would be "absent" and the detector would call an entire
+   * mailbox moved. Completeness comes from one of two things: the folder was
+   * listed from the beginning (no cursor), or the source answered
+   * `listCollectionKeys` for it.
+   */
+  let fullyEnumerated = true;
 
   const folders = await listFolders();
-  
+
   for (const folder of folders) {
     const collectionId = await ensureCollection(folder);
-    const prev = cursors ? await cursors.get(tenantId, mappingId, folder.path ?? folder.name ?? '') : undefined;
+    // Hoisted: this is the source collection PATH (as opposed to `collectionId`,
+    // the target's handle for it), and it is now needed three times — for the
+    // cursor, for the ledger row, and for move detection.
+    const collectionPath = folder.path ?? folder.name ?? '';
+    const prev = cursors ? await cursors.get(tenantId, mappingId, collectionPath) : undefined;
     const { items, nextCursor } = await listSince(folder, prev);
+    const seenHere = seenByCollection.get(collectionPath) ?? new Set<string>();
+    seenByCollection.set(collectionPath, seenHere);
+
+    // Seed the seen-set with everything the collection holds, so a
+    // cursor-limited pass still knows what is THERE and not only what changed.
+    if (listCollectionKeys) {
+      try {
+        for (const k of await listCollectionKeys(folder)) seenHere.add(k);
+      } catch (err) {
+        // Degrade the DETECTOR, not the pass. This listing moves no data — it
+        // only decides whether we can distinguish a move from a deletion — and
+        // failing an entire migration because a diagnostic PROPFIND hiccuped
+        // would trade a real copy for a report. Said out loud, not swallowed:
+        // the pass then knows its key set is incomplete and reports nothing
+        // rather than reporting the collection as vanished.
+        fullyEnumerated = false;
+        log.warn(
+          `[sync] ${domain}: could not enumerate a collection's keys, so moved and deleted ` +
+            `items will not be reported this pass: ${(err as Error)?.message ?? String(err)}`,
+        );
+      }
+    } else if (prev !== undefined) {
+      fullyEnumerated = false;
+    }
 
     await mapWithConcurrency(items, concurrency, async (item) => {
       scanned += 1;
       let naturalKeyHash = naturalKey(item);
       const version = sourceVersion?.(item);
+      if (naturalKeyHash !== undefined) seenHere.add(naturalKeyHash);
 
       // Set when this item is a REWRITE of a copy we already made, not a new
       // item. It carries the existing row, whose createdAt and identity the
@@ -478,7 +594,26 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           ledger.find(tenantId, mappingId, domain, key),
         );
         if (known) {
-          const action = classifyKnownItem(known, version);
+          const action = classifyKnownItem(known, version, collectionPath);
+          if (action === 'moved') {
+            // The source shows this item somewhere else. Do NOTHING to the
+            // target: writing it into the new collection would leave the old
+            // copy behind as a duplicate, and removing the old copy is the
+            // delete half of a move, which hard rule 2 forbids outright.
+            //
+            // The ledger row is deliberately left pointing at the OLD
+            // collection, because that is still where the target copy actually
+            // is. Updating it would make the divergence disappear from the
+            // report while the target stayed exactly as wrong as before.
+            moved += 1;
+            moves.push({
+              domain,
+              naturalKeyHash: key,
+              from: known.collection ?? '',
+              to: collectionPath,
+            });
+            return;
+          }
           if (action === 'skip') {
             skipped += 1;
             return;
@@ -562,6 +697,11 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           // has a different natural key and arrives as a new item rather than
           // a changed one.
           const derivedKey = naturalKeyHash;
+          // Now that there IS a key, the item counts as seen. It was skipped by
+          // the record at the top of the loop because the key did not exist
+          // yet, and an item missing from that set reads as gone from the
+          // source.
+          seenHere.add(derivedKey);
           const knownAfterFetch = await timed(phases, 'ledgerReadMs', () =>
             ledger.find(tenantId, mappingId, domain, derivedKey),
           );
@@ -586,6 +726,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           upsert(collectionId, raw, item, {
             ...(rewriteOf ? { overwrite: true } : {}),
             ...(version !== undefined ? { sourceVersion: version } : {}),
+            collection: collectionPath,
           }),
         );
 
@@ -600,6 +741,10 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           sizeBytes,
           status: result.created ? 'copied' : result.adopted ? 'adopted' : 'updated',
           ...(version !== undefined ? { sourceVersion: version } : {}),
+          // WHERE it came from, not just what it was. Until this was recorded
+          // the ledger could not tell an item that had never moved from one
+          // that had, so a move was indistinguishable from a steady state.
+          collection: collectionPath,
         };
 
         // An item the ledger already knows MUST go through recordUpdate.
@@ -615,7 +760,17 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
 
         consecutiveFailures = 0;
         if (rewriteOf) updated += 1;
-        else if (result.created) created += 1;
+        else if (result.created) {
+          created += 1;
+          // The "arrived" half of a path-keyed move. Only genuinely NEW items
+          // qualify: an adopted or rewritten item was already accounted for
+          // under this key, so it cannot be the destination of one.
+          createdThisPass.push({
+            naturalKeyHash,
+            contentHash: ch,
+            collection: collectionPath,
+          });
+        }
         else if (result.adopted) {
           adopted += 1;
           if (onCollision === 'fail') {
@@ -745,16 +900,40 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // full re-list that puts the item back in front of the loop.
     const retryablePending = failures.some((f) => !f.needsDecision);
     if (cursors && !retryablePending) {
-      await cursors.set(
-        tenantId,
-        mappingId,
-        (folder as { path?: string; name?: string }).path ?? (folder as { name?: string }).name ?? '',
-        nextCursor
-      );
+      await cursors.set(tenantId, mappingId, collectionPath, nextCursor);
     }
   }
 
+  // The path-keyed half, which can only run once every folder has been listed.
+  if (domain === 'file' && fullyEnumerated) {
+    const found = await detectPathKeyedMoves({
+      tenantId,
+      mappingId,
+      domain,
+      ledger,
+      seenByCollection,
+      createdThisPass,
+    });
+    moved += found.moves.length;
+    moves.push(...found.moves);
+    drift += found.drift;
+  }
+
   reportPhases(phases, domain, scanned);
+  if (moved > 0) {
+    // Hash prefixes and counts only. The paths themselves travel in `moves`,
+    // which goes to the operator's own status surface; a container log is
+    // read, shipped and retained by a different set of people (§17).
+    log.warn(
+      `[sync] ${domain}: ${moved} item(s) are in a different source collection than the one ` +
+        'they were copied into. Nothing was written and nothing was deleted — the owner ' +
+        'decides where items live (§11.1). First: ' +
+        moves
+          .slice(0, 5)
+          .map((m) => m.naturalKeyHash.slice(0, 12))
+          .join(', '),
+    );
+  }
 
   return {
     scanned,
@@ -767,7 +946,113 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     needsDecision,
     leftBehind,
     failures,
-    drift: 0,
+    moved,
+    moves,
+    drift,
     metrics: summarise(phases, scanned),
   };
+}
+
+/**
+ * Find moves in a domain whose natural key IS the item's location.
+ *
+ * For files the natural key is the path, so moving a file changes its key. The
+ * ledger fast-path therefore MISSES, the loop treats it as a brand-new item and
+ * copies it — and because nothing is ever deleted from the target (hard rule
+ * 2), the old copy stays put. One drag in the source file manager silently
+ * becomes two files on the target, and every later pass keeps them both.
+ *
+ * Nothing about the new item says where it came from, so it has to be inferred,
+ * and it takes both halves to do it honestly:
+ *
+ *   - the old key is GONE from the collection the ledger recorded it in, and
+ *   - an item with the SAME CONTENT appeared somewhere else in the same pass.
+ *
+ * Either half alone is a different event. A disappearance with no match is a
+ * deletion on the source — reported as `drift`, never acted on, per §11.1. An
+ * appearance with no disappearance is just a new file.
+ *
+ * TWO CONDITIONS ARE LOAD-BEARING, and both are enforced by the caller:
+ *
+ * 1. **Complete key sets only.** A cursor-limited listing returns what changed,
+ *    so almost every key the ledger holds would look absent and a routine
+ *    incremental pass would report the entire corpus as moved or deleted. The
+ *    caller therefore runs this only when every collection was either listed
+ *    from the beginning or enumerated via `listCollectionKeys`. That second
+ *    route is what makes the detector useful at all: production always
+ *    configures cursors, so a full-scan-only gate would fire on the first pass
+ *    and never again — for the one domain where a move duplicates data.
+ * 2. **File domain only.** Everywhere else the natural key survives a move, so
+ *    the direct comparison in `classifyKnownItem` already catches it — and
+ *    content-correlating mail would be actively wrong, since identical
+ *    messages in two folders are ordinary rather than evidence of anything.
+ *
+ * The ledger is read for the WHOLE DOMAIN rather than per scanned collection,
+ * which is what makes a renamed folder visible. A rename removes the old folder
+ * from the source listing entirely, so a query driven by the collections this
+ * pass happened to scan would never look at its rows — and every file under it
+ * would be silently re-copied under the new folder while the report stayed
+ * empty. Reading everything costs one query and holds two short strings per
+ * migrated item; the per-collection version read the same rows in more
+ * round trips and still missed that case.
+ *
+ * This runs AFTER the copy, which is not a lucky ordering — it is the only one
+ * available. The disappearance is only knowable once every folder has been
+ * listed, and by then the new copy exists. So the first pass after a move still
+ * produces the duplicate; what changes is that the operator is told, instead of
+ * finding it themselves months later.
+ */
+async function detectPathKeyedMoves(args: {
+  tenantId: TenantId;
+  mappingId: MappingId;
+  domain: 'email' | 'calendar' | 'contact' | 'file';
+  ledger: Ledger;
+  seenByCollection: ReadonlyMap<string, ReadonlySet<string>>;
+  createdThisPass: ReadonlyArray<{ naturalKeyHash: string; contentHash: string; collection: string }>;
+}): Promise<{ moves: ItemMove[]; drift: number }> {
+  const { tenantId, mappingId, domain, ledger, seenByCollection, createdThisPass } = args;
+
+  // Content hash -> the new items carrying it, consumed as they are matched.
+  // Consuming matters: three identical files deleted and one created is one
+  // move and two deletions, not three moves.
+  const arrivals = new Map<string, Array<{ naturalKeyHash: string; collection: string }>>();
+  for (const c of createdThisPass) {
+    if (!c.contentHash) continue;
+    const list = arrivals.get(c.contentHash) ?? [];
+    list.push({ naturalKeyHash: c.naturalKeyHash, collection: c.collection });
+    arrivals.set(c.contentHash, list);
+  }
+
+  const moves: ItemMove[] = [];
+  let drift = 0;
+
+  const placed = await ledger.placedItems(tenantId, mappingId, domain);
+  for (const row of placed) {
+    // A collection the pass never scanned has an empty seen-set, so everything
+    // the ledger holds under it counts as gone — which is exactly right for a
+    // folder that was renamed or removed on the source.
+    if (seenByCollection.get(row.collection)?.has(row.naturalKeyHash)) continue;
+
+    // Gone from the source. Whether it moved or was deleted depends on whether
+    // its content turned up elsewhere.
+    //
+    // A row with no content hash cannot be correlated at all, and matching it
+    // against every other blank would pair unrelated files. Counted as drift,
+    // which is the weaker and therefore safer claim.
+    const candidates = row.contentHash ? arrivals.get(row.contentHash) : undefined;
+    const at = candidates?.findIndex((c) => c.collection !== row.collection) ?? -1;
+    if (candidates && at >= 0) {
+      const [match] = candidates.splice(at, 1);
+      moves.push({
+        domain,
+        naturalKeyHash: row.naturalKeyHash,
+        from: row.collection,
+        to: match!.collection,
+      });
+    } else {
+      drift += 1;
+    }
+  }
+
+  return { moves, drift };
 }

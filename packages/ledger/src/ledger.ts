@@ -8,7 +8,7 @@ import {
   type MappingId,
 } from '@openmig/shared';
 import type { PgDatabase } from './db';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, ne, desc, sql } from 'drizzle-orm';
 import * as schemaPg from './schema-pg';
 
 /**
@@ -65,7 +65,7 @@ export class PgLedger implements Ledger {
         tenantId: record.tenantId,
         mappingId: record.mappingId,
         domain: record.itemType,
-        collection: '', // Default for now
+        collection: record.collection ?? '',
         naturalKey: '', // Will be set by caller if needed
         naturalKeyHash: record.naturalKeyHash,
         contentHash: record.contentHash,
@@ -116,6 +116,13 @@ export class PgLedger implements Ledger {
         status: record.status ?? 'updated',
         targetRef: JSON.stringify({ id: record.targetId }),
         sourceVersion: record.sourceVersion ?? null,
+        // Conditional, unlike `sourceVersion` above, because the column is NOT
+        // NULL: the fallback is `''`, which the ledger reads as "never
+        // recorded". Writing that whenever a caller happened not to supply one
+        // would erase a collection we already knew and make the item's next
+        // move undetectable. A caller that knows says so; one that does not
+        // leaves the row alone.
+        ...(record.collection !== undefined ? { collection: record.collection } : {}),
         lastSyncedAt: sql`now()`,
         updatedAt: sql`now()`,
       })
@@ -197,7 +204,7 @@ export class PgLedger implements Ledger {
         tenantId: record.tenantId,
         mappingId: record.mappingId,
         domain: record.itemType,
-        collection: '',
+        collection: record.collection ?? '',
         naturalKey: '',
         naturalKeyHash: record.naturalKeyHash,
         contentHash: record.contentHash,
@@ -225,6 +232,42 @@ export class PgLedger implements Ledger {
       );
     }
     return this.mapRowToRecord(raced[0]!);
+  }
+
+  async placedItems(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: 'email' | 'calendar' | 'contact' | 'file',
+  ): Promise<Array<{ naturalKeyHash: string; contentHash: string; collection: string }>> {
+    const rows = await this.db
+      .select({
+        naturalKeyHash: schemaPg.item.naturalKeyHash,
+        contentHash: schemaPg.item.contentHash,
+        collection: schemaPg.item.collection,
+      })
+      .from(schemaPg.item)
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          eq(schemaPg.item.domain, domain),
+          // Only items we actually placed. A `failed` row is not on the target,
+          // so its absence from a later listing says nothing about a move.
+          ne(schemaPg.item.status, 'failed'),
+          ne(schemaPg.item.status, 'left_behind'),
+          // `''` is "collection never recorded", which is every row written
+          // before the column was populated. Such a row cannot say where the
+          // item came from, so it can neither move nor go missing as far as
+          // this query is concerned — and including it would report a whole
+          // legacy corpus as vanished on the first full scan after upgrading.
+          ne(schemaPg.item.collection, ''),
+        ),
+      );
+    return rows.map((r) => ({
+      naturalKeyHash: r.naturalKeyHash,
+      contentHash: r.contentHash ?? '',
+      collection: r.collection,
+    }));
   }
 
   async listFailures(
@@ -318,6 +361,7 @@ export class PgLedger implements Ledger {
       ...(row.sourceVersion !== null && row.sourceVersion !== undefined
         ? { sourceVersion: row.sourceVersion }
         : {}),
+      ...(row.collection ? { collection: row.collection } : {}),
       attemptCount: row.attemptCount,
       ...(row.lastError !== null && row.lastError !== undefined
         ? { lastError: row.lastError }

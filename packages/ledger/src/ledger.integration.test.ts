@@ -438,6 +438,102 @@ describe('PgLedger (integration)', () => {
       expect(await ledger.listFailures(TEST_TENANT_ID, TEST_MAPPING_ID)).toHaveLength(2);
     });
   });
+
+  /**
+   * The source collection on a row, and the query that reads it back.
+   *
+   * Against real Postgres because the last two ledger changes both passed
+   * typecheck and the in-memory fake and then failed here: `ON CONFLICT DO
+   * UPDATE` named a constraint Drizzle does not model, and a status default
+   * silently overrode what the caller meant. `collection` has exactly that
+   * shape — a NOT NULL column with a default that has swallowed every write
+   * since migration 0001 — so the only convincing test is one that reads the
+   * row back out of the database.
+   */
+  describe('source collection', () => {
+    const at = (naturalKeyHash: string, collection: string, contentHash: string): LedgerRecord => ({
+      tenantId: TEST_TENANT_ID,
+      itemType: 'file',
+      mappingId: TEST_MAPPING_ID,
+      naturalKeyHash,
+      contentHash,
+      targetId: `t-${naturalKeyHash}`,
+      createdAt: new Date().toISOString(),
+      sizeBytes: 10,
+      status: 'copied',
+      collection,
+    });
+
+    it('persists what the caller passed instead of the column default', async () => {
+      await ledger.recordIfAbsent(at('c-1', 'Documents/2026', 'h1'));
+      const found = await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'c-1');
+      expect(found?.collection).toBe('Documents/2026');
+    });
+
+    it('reports a row with no collection as unrecorded, not as the empty folder', async () => {
+      // Every row written before this change is in that state. The distinction
+      // is what keeps the first pass after an upgrade from declaring an entire
+      // migrated corpus moved.
+      await ledger.recordIfAbsent({ ...at('c-2', '', 'h2') });
+      const found = await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'c-2');
+      expect(found?.collection).toBeUndefined();
+    });
+
+    it('carries the collection through an update', async () => {
+      await ledger.recordIfAbsent(at('c-3', 'Old', 'h3'));
+      await ledger.recordUpdate(at('c-3', 'New', 'h3b'));
+      const found = await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'c-3');
+      expect(found?.collection).toBe('New');
+    });
+
+    it('lists every placed item with the collection and hash move detection needs', async () => {
+      await ledger.recordIfAbsent(at('c-4', 'Photos', 'h4'));
+      await ledger.recordIfAbsent(at('c-5', 'Photos', 'h5'));
+      await ledger.recordIfAbsent(at('c-6', 'Invoices', 'h6'));
+
+      const placed = await ledger.placedItems(TEST_TENANT_ID, TEST_MAPPING_ID, 'file');
+      expect(placed.map((r) => r.naturalKeyHash).sort()).toEqual(['c-4', 'c-5', 'c-6']);
+      const four = placed.find((r) => r.naturalKeyHash === 'c-4');
+      expect(four?.contentHash).toBe('h4');
+      // Whole-domain, not per-collection, precisely so a folder the source no
+      // longer lists at all — a rename — still has its rows examined.
+      expect(four?.collection).toBe('Photos');
+      expect(placed.find((r) => r.naturalKeyHash === 'c-6')?.collection).toBe('Invoices');
+    });
+
+    it('omits rows for items that are not actually on the target', async () => {
+      // A `failed` or `left_behind` row means nothing was placed. Returning
+      // them would make their absence from a later listing look like a move,
+      // which would report a file that never migrated as having been relocated.
+      await ledger.recordIfAbsent(at('c-7', 'Photos', 'h7'));
+      await ledger.recordFailure(at('c-8', 'Photos', 'h8'), 'source 500');
+      await ledger.recordFailure(at('c-9', 'Photos', 'h9'), 'source 500');
+      await ledger.resolveFailure(TEST_TENANT_ID, TEST_MAPPING_ID, 'c-9', 'accept');
+
+      const placed = await ledger.placedItems(TEST_TENANT_ID, TEST_MAPPING_ID, 'file');
+      expect(placed.map((r) => r.naturalKeyHash)).toEqual(['c-7']);
+    });
+
+    it('omits rows that never recorded a collection', async () => {
+      // Every row written before the column was populated. They cannot say
+      // where the item came from, and including them would report an entire
+      // legacy corpus as vanished on the first full scan after upgrading.
+      await ledger.recordIfAbsent(at('c-legacy', '', 'h-legacy'));
+      await ledger.recordIfAbsent(at('c-current', 'Photos', 'h-current'));
+
+      const placed = await ledger.placedItems(TEST_TENANT_ID, TEST_MAPPING_ID, 'file');
+      expect(placed.map((r) => r.naturalKeyHash)).toEqual(['c-current']);
+    });
+
+    it('does not cross domains, mappings or tenants', async () => {
+      await ledger.recordIfAbsent(at('c-10', 'Shared', 'h10'));
+      await ledger.recordIfAbsent({ ...at('c-11', 'Shared', 'h11'), itemType: 'calendar' });
+
+      const files = await ledger.placedItems(TEST_TENANT_ID, TEST_MAPPING_ID, 'file');
+      expect(files.map((r) => r.naturalKeyHash)).toEqual(['c-10']);
+      expect(await ledger.placedItems(TEST_TENANT_2_ID, TEST_MAPPING_2_ID, 'file')).toEqual([]);
+    });
+  });
 });
 
 describe('PgCursorStore (integration)', () => {

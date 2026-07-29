@@ -129,6 +129,33 @@ export class WebdavFileSource implements FileSource {
   }
 
   /**
+   * Every file path in this folder, ignoring the cursor (implements
+   * `FileSource.listKeys`).
+   *
+   * The SAME PROPFIND `listSince` issues, without the change filter — so it
+   * costs one extra request per folder and nothing per file. That is the whole
+   * point: `listSince` under a cursor returns only what changed, which cannot
+   * distinguish "this file is gone" from "this file did not change", and the
+   * sync loop needs the difference to tell a MOVE from a deletion.
+   *
+   * Paths come from `parseFileFromEntry`, exactly as in `listSince`, so the two
+   * produce byte-identical strings. Deriving them any other way here would give
+   * the loop a key set that never intersects the one it is comparing against,
+   * and every file in the collection would read as vanished.
+   */
+  async listKeys(folder: FileFolder): Promise<ReadonlyArray<string>> {
+    const rootedPath = this.combineWithRootPath(this.normalizePath(folder.path));
+    const response = await this.performPropfind(rootedPath, '1', false);
+    const paths: string[] = [];
+    for (const entry of response.responses) {
+      if (this.isCollection(entry)) continue;
+      const file = this.parseFileFromEntry(entry);
+      if (file) paths.push(file.path);
+    }
+    return paths;
+  }
+
+  /**
    * Fetch one file's bytes (implements FileSource.fetch).
    *
    * `sourceRef` holds the server's own href from the PROPFIND multistatus,
