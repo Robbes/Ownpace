@@ -434,7 +434,18 @@ export class PgLedger implements Ledger {
         ),
       )
       // Open ones first: those are the ones somebody still has to look at.
-      .orderBy(schemaPg.item.moveAcknowledgedAt);
+      //
+      // NULLS FIRST spelled out, because Postgres does the opposite by default
+      // — ASC means NULLS LAST — so a bare ORDER BY put every already-decided
+      // move at the top of the queue and buried the ones needing attention
+      // underneath. The in-memory fake sorted the way the comment claimed, so
+      // only the real database disagreed, which is how this was found.
+      //
+      // Then by natural key, so a list an operator is working through does not
+      // reshuffle between reads.
+      .orderBy(
+        sql`${schemaPg.item.moveAcknowledgedAt} ASC NULLS FIRST, ${schemaPg.item.naturalKeyHash} ASC`,
+      );
 
     return rows.map((r) => ({
       domain: r.domain as ItemMove['domain'],
