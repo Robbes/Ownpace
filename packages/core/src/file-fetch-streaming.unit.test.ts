@@ -46,6 +46,12 @@ const emptyLedger = {
   // Per-item isolation records failures rather than throwing them; a stub
   // without this made the loop fail with "recordFailure is not a function",
   // which looks like the item's own error and is not.
+  // An empty ledger has placed nothing, so move detection has nothing to
+  // correlate against. Present because `runDomainSync` really does call it on a
+  // full file-domain scan — the same lesson as `recordFailure` just below: a
+  // stub missing a method the loop uses fails the whole pass with a TypeError
+  // that reads like the item's own error.
+  placedItems: async () => [],
   recordFailure: async (r: unknown, error: string) => ({
     ...(r as Record<string, unknown>),
     attemptCount: 1,

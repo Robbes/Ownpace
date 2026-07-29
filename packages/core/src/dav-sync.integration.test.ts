@@ -738,5 +738,42 @@ describe('File domain sync (real WebDAV target) Integration', () => {
     expect(afterNames).toContain(added[0]!.item.name);
     expect(afterNames.length).toBe(FILE_COUNT + 1);
   });
+
+  /**
+   * `listKeys` must describe the same files, in the same words, as `listSince`.
+   *
+   * Move detection compares the ledger's natural keys against the keys this
+   * returns, and both sides are `fileNaturalKeyHash(path)`. If the two listings
+   * spelled a path differently — absolute href versus root-relative, encoded
+   * versus decoded — the sets would never intersect and EVERY file in the
+   * collection would read as vanished. The pass would then report a healthy
+   * corpus as mass deletion, which is the most alarming thing this product
+   * could say and it would be entirely wrong.
+   *
+   * Only a real server settles it: the difference lives in how Nextcloud writes
+   * its hrefs, not in anything a stub would reproduce.
+   */
+  it('lists exactly the keys listSince reports, so a full listing and a cursor one agree', async () => {
+    const folder: FileFolder = { path: TARGET_FILES_DIR_NAME, name: TARGET_FILES_DIR_NAME };
+    const files = buildStubFiles(3);
+    await runFileSync({
+      tenantId: FILE_TENANT_ID,
+      mappingId: FILE_MAPPING_ID,
+      source: new StubFileSource(folder, files),
+      target,
+      ledger,
+    });
+
+    const folders = await readBackSource.listFolders();
+    const landed = folders.find((f) => f.name === TARGET_FILES_DIR_NAME);
+    expect(landed).toBeDefined();
+
+    const { items } = await readBackSource.listSince(landed!);
+    const fromListing = items.map((i) => i.item.path).sort();
+    const fromKeys = [...(await readBackSource.listKeys!(landed!))].sort();
+
+    expect(fromKeys).toEqual(fromListing);
+    expect(fromKeys.length).toBe(3);
+  });
 });
 }

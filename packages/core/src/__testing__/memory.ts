@@ -195,8 +195,19 @@ export class MemoryLedger implements Ledger {
     }
     // createdAt is a fact about the ORIGINAL copy and must survive the update;
     // Postgres keeps it because first_seen_at is simply not in the SET clause.
+    //
+    // `collection` survives for a different reason: PgLedger sets it only when
+    // the caller supplied one, because the column is NOT NULL and blanking it
+    // would erase a collection we already knew and make the item's next move
+    // undetectable. A fake that dropped it would hide exactly that.
     const existing = this.rows.get(k)!;
-    const merged: LedgerRecord = { ...record, createdAt: existing.createdAt };
+    const merged: LedgerRecord = {
+      ...record,
+      createdAt: existing.createdAt,
+      ...(record.collection === undefined && existing.collection !== undefined
+        ? { collection: existing.collection }
+        : {}),
+    };
     this.rows.set(k, merged);
     return Promise.resolve(merged);
   }
@@ -229,6 +240,34 @@ export class MemoryLedger implements Ledger {
       : { ...record, status: 'failed', attemptCount: 1, lastError: error };
     this.rows.set(k, merged);
     return Promise.resolve(merged);
+  }
+
+  /**
+   * Mirrors `PgLedger.placedItems`, INCLUDING both exclusions.
+   *
+   * A fake that returned `failed` or `left_behind` rows would report an item as
+   * "was here last pass" when nothing was ever placed for it, and the move
+   * detector would read its disappearance as a move. One that returned rows
+   * with no recorded collection would report every pre-upgrade row as vanished.
+   */
+  placedItems(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    domain: LedgerRecord['itemType'],
+  ): Promise<Array<{ naturalKeyHash: string; contentHash: string; collection: string }>> {
+    const out: Array<{ naturalKeyHash: string; contentHash: string; collection: string }> = [];
+    for (const r of this.rows.values()) {
+      if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
+      if (r.itemType !== domain) continue;
+      if (r.status === 'failed' || r.status === 'left_behind') continue;
+      if (!r.collection) continue;
+      out.push({
+        naturalKeyHash: r.naturalKeyHash,
+        contentHash: r.contentHash ?? '',
+        collection: r.collection,
+      });
+    }
+    return Promise.resolve(out);
   }
 
   listFailures(

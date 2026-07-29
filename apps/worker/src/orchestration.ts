@@ -106,6 +106,12 @@ export interface DomainSyncResult {
   needsDecision?: number;
   /** Items the owner accepted leaving behind. */
   leftBehind?: number;
+  /**
+   * Items the source now shows in a different collection from the one they were
+   * copied into. Never acted on — §11.1 gives the owner authority over where
+   * things live. A count only: the folder paths stay on the status surface.
+   */
+  moved?: number;
   error?: string;
   /** Where this pass's wall time went; absent for a domain that did not run. */
   metrics?: PassMetrics;
@@ -292,7 +298,7 @@ export async function runAllDomains(
         const deps = await buildDeps(config);
         try {
           const result = await runShadowPass(deps);
-          outcome = { domain, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted ?? 0, failed: 0 };
+          outcome = { domain, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted ?? 0, moved: result.moved ?? 0, failed: 0 };
         } finally {
           await deps.close();
         }
@@ -311,6 +317,7 @@ export async function runAllDomains(
             failed: result.failed,
             needsDecision: result.needsDecision,
             leftBehind: result.leftBehind,
+            moved: result.moved,
           };
         } finally {
           await deps.close();
@@ -330,6 +337,7 @@ export async function runAllDomains(
             failed: result.failed,
             needsDecision: result.needsDecision,
             leftBehind: result.leftBehind,
+            moved: result.moved,
           };
         } finally {
           await deps.close();
@@ -349,6 +357,7 @@ export async function runAllDomains(
             failed: result.failed,
             needsDecision: result.needsDecision,
             leftBehind: result.leftBehind,
+            moved: result.moved,
           };
         } finally {
           await deps.close();
@@ -390,6 +399,17 @@ export async function runAllDomains(
           `[Worker] ${domain}: ${outcome.changedButAdopted} item(s) changed on the source but ` +
             'were left as the destination already had them (adopted, never written by us). ' +
             'Non-destructive by hard rule 2; the owner decides whether to replace them.',
+        );
+      }
+      if (outcome.moved) {
+        log.warn(
+          `[Worker] ${domain}: ${outcome.moved} item(s) are now in a different source ` +
+            'collection than the one they were copied into — someone reorganised the source ' +
+            'after the migration started. Nothing was moved, copied or deleted on the target: ' +
+            'the delete half of a move is forbidden outright (hard rule 2) and §11.1 leaves ' +
+            'topology to the owner. For files the old copy is still there under its old path, ' +
+            'so the target now holds both. Reorganise the target by hand, or leave it and cut ' +
+            'over knowing the layout differs.',
         );
       }
     } catch (err) {

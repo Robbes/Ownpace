@@ -34,6 +34,7 @@ import { runCalendarSync, runContactSync, runFileSync } from './dav-sync';
 import {
   asTenantId,
   asMappingId,
+  calendarNaturalKeyHash,
   type TenantId,
   type MappingId,
   type CalendarSource,
@@ -748,6 +749,144 @@ describe('File update propagation (real WebDAV target) Integration', () => {
     expect(second.changedButAdopted).toBe(1);
 
     expect(await readTargetFile('theirs.txt')).toBe('THEIR FILE — do not touch');
+  }, 120000);
+});
+
+// ====================== Moved between source collections ======================
+
+/**
+ * An item the owner relocates on the SOURCE, against a real CalDAV server.
+ *
+ * `move-detection.unit.test.ts` proves the rule. It cannot prove the thing that
+ * has now gone wrong twice: the three DAV writers record the ledger row
+ * THEMSELVES, and `recordIfAbsent` no-ops on conflict, so anything the sync
+ * loop records afterwards is thrown away. `sourceVersion` was lost that way for
+ * a whole release while every unit test stayed green, and the collection
+ * reaches the row by the identical path.
+ *
+ * So this test asserts the two things only a real ledger and a real server can
+ * settle: the collection is genuinely ON the row, and the target is genuinely
+ * untouched afterwards — one event, still in the calendar it was first copied
+ * into, with nothing created in the new one.
+ */
+const MOVE_TENANT = asTenantId('6c0b0100-e29b-41d4-a716-446655440021');
+const MOVE_MAPPING = asMappingId('6c0b0100-e29b-41d4-a716-446655440022');
+const MOVE_A = 'openmig-move-from';
+const MOVE_B = 'openmig-move-to';
+const folderA: CalendarFolder = { path: `source/${MOVE_A}`, name: MOVE_A };
+const folderB: CalendarFolder = { path: `source/${MOVE_B}`, name: MOVE_B };
+/** Where `ensureCalendar` re-homes each source folder under the target account. */
+const targetPathFor = (name: string) => `calendars/${NEXTCLOUD_USERNAME}/${name}`;
+
+/** A source with two calendars, so an event can be listed in either. */
+class StubTwoCalendarSource implements CalendarSource {
+  constructor(private readonly byFolder: ReadonlyMap<string, ReadonlyArray<RawCalendarEvent>>) {}
+  async listFolders(): Promise<ReadonlyArray<CalendarFolder>> {
+    return [folderA, folderB];
+  }
+  async listSince(
+    folder: CalendarFolder,
+    _cursor?: SyncCursor,
+  ): Promise<{ items: ReadonlyArray<RawCalendarEvent>; nextCursor: SyncCursor }> {
+    const items = this.byFolder.get(folder.path) ?? [];
+    return { items, nextCursor: { value: String(items.length) } };
+  }
+}
+
+describe('An item moved between source collections (real CalDAV target) Integration', () => {
+  let ledger: PgLedger;
+  let target: CalDAVTargetWriter;
+
+  beforeAll(() => {
+    ledger = new PgLedger(createPgDb(PG_CONNECTION_STRING!));
+  }, 60000);
+
+  // Per test, for the same reason as the describes above: each writer memoises
+  // one listing of the target collection and is never invalidated.
+  beforeEach(async () => {
+    target = new CalDAVTargetWriter(
+      { url: NEXTCLOUD_WEBDAV_URL!, username: NEXTCLOUD_USERNAME, password: NEXTCLOUD_PASSWORD },
+      { ledger, tenantId: MOVE_TENANT, mappingId: MOVE_MAPPING },
+    );
+    await remove(`${BASE}/${targetPathFor(MOVE_A)}/`);
+    await remove(`${BASE}/${targetPathFor(MOVE_B)}/`);
+    await seedMappingRows({
+      tenantId: MOVE_TENANT,
+      mappingId: MOVE_MAPPING,
+      idPrefix: '6c0b0100-e29b-41d4-a716-44665545',
+      kind: 'caldav',
+      sourceName: 'stub-move-calendar',
+      targetName: MOVE_A,
+    });
+  });
+
+  afterAll(async () => {
+    await remove(`${BASE}/${targetPathFor(MOVE_A)}/`);
+    await remove(`${BASE}/${targetPathFor(MOVE_B)}/`);
+  });
+
+  it('is reported, and neither copied into the new collection nor removed from the old', async () => {
+    const uid = 'moved-event@dev.local';
+    const event = calendarEvent(uid, 'Quarterly review', 'etag-1');
+
+    const first = await runCalendarSync({
+      tenantId: MOVE_TENANT,
+      mappingId: MOVE_MAPPING,
+      source: new StubTwoCalendarSource(new Map([[folderA.path, [event]], [folderB.path, []]])),
+      target,
+      ledger,
+      concurrency: 1,
+    });
+    expect(first.created).toBe(1);
+    expect(first.moved).toBe(0);
+
+    // The row the WRITER inserted has to carry the collection. If it does not,
+    // the move below is invisible and this whole feature is decoration.
+    const row = await ledger.find(MOVE_TENANT, MOVE_MAPPING, 'calendar', calendarNaturalKeyHash(uid));
+    expect(row?.collection, 'the writer must persist the source collection').toBe(folderA.path);
+
+    // The owner drags the event to the other calendar. Same UID, same bytes,
+    // same ETag — only its home changed.
+    const second = await runCalendarSync({
+      tenantId: MOVE_TENANT,
+      mappingId: MOVE_MAPPING,
+      source: new StubTwoCalendarSource(new Map([[folderA.path, []], [folderB.path, [event]]])),
+      target,
+      ledger,
+      concurrency: 1,
+    });
+
+    expect(second.moved).toBe(1);
+    expect(second.moves[0]).toMatchObject({ from: folderA.path, to: folderB.path });
+    expect(second.created).toBe(0);
+    expect(second.updated).toBe(0);
+    expect(second.failed).toBe(0);
+
+    // What the SERVER holds, which is the only claim that matters. Writing it
+    // into the new calendar would duplicate; removing it from the old is the
+    // delete half of a move, which hard rule 2 forbids outright. So: one event,
+    // exactly where it started.
+    const fromHref = `${BASE}/${targetPathFor(MOVE_A)}/`;
+    const stillThere = await fetch(fromHref, {
+      method: 'PROPFIND',
+      headers: { Authorization: AUTH_HEADER, Depth: '1', 'Content-Type': 'application/xml' },
+    });
+    const body = await stillThere.text();
+    expect(body).toContain('.ics');
+
+    const toHref = `${BASE}/${targetPathFor(MOVE_B)}/`;
+    const arrived = await fetch(toHref, {
+      method: 'PROPFIND',
+      headers: { Authorization: AUTH_HEADER, Depth: '1', 'Content-Type': 'application/xml' },
+    });
+    // The collection itself is created (the loop ensures one per source folder
+    // before it looks at any item); what must NOT be there is the event.
+    expect(await arrived.text()).not.toContain('.ics');
+
+    // And the ledger still points at where the copy actually is, so the
+    // divergence keeps being reported instead of quietly resolving itself.
+    const after = await ledger.find(MOVE_TENANT, MOVE_MAPPING, 'calendar', calendarNaturalKeyHash(uid));
+    expect(after?.collection).toBe(folderA.path);
   }, 120000);
 });
 }

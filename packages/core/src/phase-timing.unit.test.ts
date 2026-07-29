@@ -23,6 +23,10 @@ const MAPPING = asMappingId('9a110000-e29b-41d4-a716-446655449902' as never);
 const emptyLedger = {
   find: async () => undefined,
   recordIfAbsent: async () => undefined,
+  // An empty ledger has placed nothing. `runDomainSync` calls this on a full
+  // file-domain scan to look for moves, and a stub without it fails the pass
+  // with a TypeError that reads like a source error.
+  placedItems: async () => [],
 } as unknown as Ledger;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

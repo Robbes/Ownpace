@@ -175,6 +175,12 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
         ...(options?.sourceVersion !== undefined
           ? { sourceVersion: options.sourceVersion }
           : {}),
+        // Same reason as `sourceVersion`: the loop knows which source
+        // collection the item came from, this writer wins the
+        // `recordIfAbsent` race, so a collection recorded only by the loop
+        // would be thrown away. Without it every row keeps the `''` it has
+        // carried since 0001 and a move stays undetectable.
+        ...(options?.collection !== undefined ? { collection: options.collection } : {}),
       });
       return { targetId: existingId, created: false, adopted: true };
     }
@@ -198,6 +204,12 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       ...(options?.sourceVersion !== undefined
         ? { sourceVersion: options.sourceVersion }
         : {}),
+      // Same reason as `sourceVersion`: the loop knows which source
+      // collection the item came from, this writer wins the
+      // `recordIfAbsent` race, so a collection recorded only by the loop
+      // would be thrown away. Without it every row keeps the `''` it has
+      // carried since 0001 and a move stays undetectable.
+      ...(options?.collection !== undefined ? { collection: options.collection } : {}),
     });
 
     return { targetId: contactId, created: true };

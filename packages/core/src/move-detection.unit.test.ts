@@ -1,0 +1,458 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+
+/**
+ * What happens when someone reorganises the SOURCE after the migration has
+ * started — drags a file into another folder, files a message, moves an event
+ * to a second calendar.
+ *
+ * Until this existed, the answer depended on how the domain is keyed, and both
+ * answers were wrong in a way nobody could see:
+ *
+ *   - **Stable-key domains** (calendar, contacts, mail) key on a UID or a
+ *     Message-ID, which survives the move. The ledger fast-path HIT, the loop
+ *     counted a skip, and the item stayed in whatever target collection it was
+ *     first copied into. Source and target diverged permanently and the pass
+ *     reported a clean `skipped`.
+ *
+ *   - **The file domain** keys on the PATH (`file:<path>`), so a move changes
+ *     the natural key. The fast-path MISSED, the loop copied the file again
+ *     under its new path, and — since nothing is ever deleted from a target
+ *     (hard rule 2) — the old copy stayed exactly where it was. One drag
+ *     produced two files, and every later pass kept both.
+ *
+ * Neither is fixed by writing harder. §11.1 splits authority: the source owns
+ * an item's CONTENT, the owner owns its TOPOLOGY and lifecycle. So the pass
+ * detects the divergence, reports it, and touches nothing.
+ *
+ * The foundation under all of it is that a ledger row now records WHICH SOURCE
+ * COLLECTION the item came from. The column has existed since migration 0001
+ * and nothing ever wrote it, so every row carried `''` — the ledger could say
+ * what had been migrated and never where it came from, which is precisely the
+ * fact a move consists of.
+ */
+
+import { describe, it, expect } from 'vitest';
+import { classifyKnownItem, runDomainSync } from './domain-sync';
+import { MemoryLedger, MemoryCursorStore } from './__testing__/memory';
+import { asTenantId, asMappingId, type UpsertResult } from '@openmig/shared';
+
+const TENANT = asTenantId('7c220000-e29b-41d4-a716-4466554401aa');
+const MAPPING = asMappingId('7c220000-e29b-41d4-a716-4466554401bb');
+
+describe('classifyKnownItem: topology', () => {
+  it('reports a move when the source lists the item in a different collection', () => {
+    expect(
+      classifyKnownItem(
+        { status: 'copied', collection: 'Work', sourceVersion: 'etag-1' },
+        'etag-1',
+        'Personal',
+      ),
+    ).toBe('moved');
+  });
+
+  it('outranks the version rules: a move that also changed content is still a move', () => {
+    // Rewriting would answer the CONTENT question (§11.1: the source is
+    // authoritative) while silently ignoring the topology one, leaving the
+    // rewritten bytes in the old collection and calling that success.
+    expect(
+      classifyKnownItem(
+        { status: 'copied', collection: 'Work', sourceVersion: 'etag-1' },
+        'etag-2',
+        'Personal',
+      ),
+    ).toBe('moved');
+  });
+
+  it('does NOT read an unrecorded collection as a move', () => {
+    // Every row written before this change carries `''` because nothing ever
+    // populated the column. Treating that as "the empty-named folder" would
+    // declare a whole migrated corpus moved on the first pass after upgrading
+    // — thousands of warnings describing nothing that happened.
+    expect(
+      classifyKnownItem({ status: 'copied', collection: '', sourceVersion: 'e' }, 'e', 'Personal'),
+    ).toBe('skip');
+    expect(classifyKnownItem({ status: 'copied', sourceVersion: 'e' }, 'e', 'Personal')).toBe(
+      'skip',
+    );
+  });
+
+  it('does not guess when the caller cannot say where the item is now', () => {
+    // The parameter is optional so call sites written before move detection
+    // keep their exact behaviour rather than acquiring a new one silently.
+    expect(
+      classifyKnownItem({ status: 'copied', collection: 'Work', sourceVersion: 'e' }, 'e'),
+    ).toBe('skip');
+  });
+
+  it('keeps the failure states ahead of it', () => {
+    // An item that failed in Work and now sits in Personal has never been
+    // copied anywhere. Retrying it puts it on the target under the collection
+    // it is actually in; calling it a move would park real data forever on the
+    // strength of a folder name.
+    expect(
+      classifyKnownItem(
+        { status: 'failed', attemptCount: 1, collection: 'Work', sourceVersion: 'e' },
+        'e',
+        'Personal',
+      ),
+    ).toBe('retry-failed');
+    expect(
+      classifyKnownItem({ status: 'left_behind', collection: 'Work', sourceVersion: 'e' }, 'e', 'P'),
+    ).toBe('left-behind');
+  });
+});
+
+/** One source item. `key` is the natural key — for files, that IS the path. */
+interface Item {
+  readonly key: string;
+  readonly body: string;
+  readonly version?: string;
+}
+
+/**
+ * A source whose folders can be rearranged between passes, wired to a target
+ * that records its own ledger rows.
+ *
+ * The fake writer records the row ITSELF, exactly as all three real DAV writers
+ * do ("`recordIfAbsent` makes the first writer win, and that is this one").
+ * That awkwardness is the point: a harness where only the loop records would
+ * pass while the collection never reached a single row in production — the
+ * same shape of bug that let `sourceVersion` be silently dropped for a whole
+ * release.
+ */
+function world(domain: 'calendar' | 'file', opts?: { listKeys?: boolean }) {
+  const folders = new Map<string, Item[]>();
+  /** Everything actually on the target, keyed by where it landed. */
+  const target = new Map<string, string>();
+  /** How many times the source was asked to enumerate a collection. */
+  let keyListings = 0;
+
+  const run = (ledger: MemoryLedger, cursors?: MemoryCursorStore) =>
+    runDomainSync<unknown, unknown, Item, { path: string }>({
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      domain,
+      source: {},
+      target: {},
+      ledger,
+      ...(cursors ? { cursors } : {}),
+      listFolders: async () => [...folders.keys()].map((path) => ({ path })),
+      listSince: async (folder, cursor) => {
+        const items = folders.get(folder.path) ?? [];
+        // Same contract as MemorySource: the cursor is a "seen this many"
+        // offset, and its absence means a full listing.
+        const start = cursor ? Math.max(0, Number(cursor.value) || 0) : 0;
+        return { items: items.slice(start), nextCursor: { value: String(items.length) } };
+      },
+      fetchRaw: async (i) => ({ raw: i.body, sizeBytes: i.body.length }),
+      upsert: async (collectionId, raw, i, options): Promise<UpsertResult> => {
+        const at = `${collectionId}:${i.key}`;
+        const existed = target.has(at);
+        target.set(at, raw as string);
+        if (options?.overwrite) return { targetId: at, created: false, updated: true };
+        if (existed) return { targetId: at, created: false, adopted: true };
+        await ledger.recordIfAbsent({
+          tenantId: TENANT,
+          mappingId: MAPPING,
+          itemType: domain,
+          naturalKeyHash: i.key,
+          contentHash: `h:${raw as string}`,
+          targetId: at,
+          createdAt: new Date().toISOString(),
+          sizeBytes: (raw as string).length,
+          status: 'copied',
+          ...(options?.sourceVersion !== undefined ? { sourceVersion: options.sourceVersion } : {}),
+          // The line under test. Without it the loop's own record is discarded
+          // by `recordIfAbsent` and every row keeps the `''` it has carried
+          // since 0001.
+          ...(options?.collection !== undefined ? { collection: options.collection } : {}),
+        });
+        return { targetId: at, created: true };
+      },
+      sourceVersion: (i) => i.version,
+      // The cheap whole-collection listing a real WebDAV source answers from
+      // the PROPFIND it already makes. Without it the loop can only tell what
+      // a cursor-limited pass listed, which is what changed — never what is
+      // there.
+      ...(opts?.listKeys
+        ? {
+            listCollectionKeys: async (folder: { path: string }) => {
+              keyListings += 1;
+              return (folders.get(folder.path) ?? []).map((i) => i.key);
+            },
+          }
+        : {}),
+      naturalKey: (i) => i.key,
+      contentHash: (raw) => `h:${raw as string}`,
+      ensureCollection: async (folder) => `t/${folder.path}`,
+    });
+
+  return { folders, target, run, keyListings: () => keyListings };
+}
+
+describe('a stable-key item moved between source collections', () => {
+  it('is reported, and nothing on the target is written or removed', async () => {
+    const ledger = new MemoryLedger();
+    const w = world('calendar');
+    w.folders.set('Work', [{ key: 'uid-1', body: 'BEGIN:VEVENT', version: 'etag-1' }]);
+    w.folders.set('Personal', []);
+
+    const first = await w.run(ledger);
+    expect(first.created).toBe(1);
+    expect(first.moved).toBe(0);
+    expect([...w.target.keys()]).toEqual(['t/Work:uid-1']);
+
+    // The owner drags the event into the other calendar. Same UID, same bytes.
+    w.folders.set('Work', []);
+    w.folders.set('Personal', [{ key: 'uid-1', body: 'BEGIN:VEVENT', version: 'etag-1' }]);
+
+    const second = await w.run(ledger);
+    expect(second.moved).toBe(1);
+    expect(second.moves).toEqual([
+      { domain: 'calendar', naturalKeyHash: 'uid-1', from: 'Work', to: 'Personal' },
+    ]);
+    // Untouched: no second copy in Personal, and the original still in Work.
+    // Writing it into Personal without removing the Work copy would duplicate;
+    // removing the Work copy is the delete half of a move, which hard rule 2
+    // forbids outright. So neither, and the operator is told.
+    expect(second.created).toBe(0);
+    expect(second.updated).toBe(0);
+    expect([...w.target.keys()]).toEqual(['t/Work:uid-1']);
+  });
+
+  it('keeps reporting it while the divergence lasts', async () => {
+    // The ledger row deliberately still points at the OLD collection, because
+    // that is where the target copy actually is. Updating it would make the
+    // divergence vanish from the report while the target stayed just as wrong.
+    const ledger = new MemoryLedger();
+    const w = world('calendar');
+    w.folders.set('Work', [{ key: 'uid-1', body: 'V', version: 'e1' }]);
+    await w.run(ledger);
+
+    w.folders.set('Work', []);
+    w.folders.set('Personal', [{ key: 'uid-1', body: 'V', version: 'e1' }]);
+    expect((await w.run(ledger)).moved).toBe(1);
+    expect((await w.run(ledger)).moved).toBe(1);
+  });
+
+  it('says nothing about an item that has not moved', async () => {
+    const ledger = new MemoryLedger();
+    const w = world('calendar');
+    w.folders.set('Work', [{ key: 'uid-1', body: 'V', version: 'e1' }]);
+    await w.run(ledger);
+    const second = await w.run(ledger);
+    expect(second.moved).toBe(0);
+    expect(second.skipped).toBe(1);
+  });
+});
+
+describe('a file moved between source folders', () => {
+  it('is correlated by content across the whole scan and reported', async () => {
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    w.folders.set('a', [{ key: 'a/report.pdf', body: 'PDF-BYTES', version: 'e1' }]);
+    w.folders.set('b', []);
+
+    const first = await w.run(ledger);
+    expect(first.created).toBe(1);
+    expect(first.moved).toBe(0);
+    expect(first.drift).toBe(0);
+
+    // The drag. The path is the natural key, so this is a brand-new item as
+    // far as the ledger fast-path can tell.
+    w.folders.set('a', []);
+    w.folders.set('b', [{ key: 'b/report.pdf', body: 'PDF-BYTES', version: 'e1' }]);
+
+    const second = await w.run(ledger);
+    expect(second.moved).toBe(1);
+    expect(second.moves).toEqual([
+      { domain: 'file', naturalKeyHash: 'a/report.pdf', from: 'a', to: 'b' },
+    ]);
+    // Honest about the cost of detecting it after the fact: the disappearance
+    // is only knowable once every folder has been listed, and by then the copy
+    // exists. The target really does hold both, which is why the operator is
+    // told rather than left to find it months later.
+    expect(second.created).toBe(1);
+    expect([...w.target.keys()].sort()).toEqual(['t/a:a/report.pdf', 't/b:b/report.pdf']);
+    expect(second.drift).toBe(0);
+  });
+
+  it('calls a disappearance with no matching arrival drift, not a move', async () => {
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    w.folders.set('a', [{ key: 'a/gone.txt', body: 'BYTES', version: 'e1' }]);
+    w.folders.set('b', []);
+    await w.run(ledger);
+
+    // Deleted on the source. §11.1: deletions are NEVER auto-propagated, so
+    // the target copy stays and the fact is reported instead.
+    w.folders.set('a', []);
+
+    const second = await w.run(ledger);
+    expect(second.drift).toBe(1);
+    expect(second.moved).toBe(0);
+    expect([...w.target.keys()]).toEqual(['t/a:a/gone.txt']);
+  });
+
+  it('does not let one arrival explain several disappearances', async () => {
+    // Three identical files removed and one added is one move and two
+    // deletions. Matching the arrival against all three would report three
+    // moves and no deletions — the opposite of what happened.
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    w.folders.set('a', [
+      { key: 'a/1.txt', body: 'SAME', version: 'e1' },
+      { key: 'a/2.txt', body: 'SAME', version: 'e1' },
+      { key: 'a/3.txt', body: 'SAME', version: 'e1' },
+    ]);
+    w.folders.set('b', []);
+    await w.run(ledger);
+
+    w.folders.set('a', []);
+    w.folders.set('b', [{ key: 'b/1.txt', body: 'SAME', version: 'e1' }]);
+
+    const second = await w.run(ledger);
+    expect(second.moved).toBe(1);
+    expect(second.drift).toBe(2);
+  });
+
+  it('sees a whole folder renamed, which the source no longer lists at all', async () => {
+    // The case that made this read the ledger for the whole domain rather than
+    // for the collections the pass happened to scan. A renamed folder is simply
+    // absent from `listFolders`, so a per-collection query would never look at
+    // its rows: every file under it would be re-copied under the new folder
+    // while the report stayed empty — the largest reorganisation there is,
+    // invisible.
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    w.folders.set('Q1', [
+      { key: 'Q1/a.txt', body: 'AAA', version: 'e1' },
+      { key: 'Q1/b.txt', body: 'BBB', version: 'e1' },
+    ]);
+    const first = await w.run(ledger);
+    expect(first.created).toBe(2);
+
+    // The owner renames Q1 to Quarter-1. Same files, same bytes, new paths —
+    // and the old folder does not exist any more.
+    w.folders.delete('Q1');
+    w.folders.set('Quarter-1', [
+      { key: 'Quarter-1/a.txt', body: 'AAA', version: 'e1' },
+      { key: 'Quarter-1/b.txt', body: 'BBB', version: 'e1' },
+    ]);
+
+    const second = await w.run(ledger);
+    expect(second.moved).toBe(2);
+    expect(second.moves.map((m) => `${m.from}->${m.to}`)).toEqual([
+      'Q1->Quarter-1',
+      'Q1->Quarter-1',
+    ]);
+    expect(second.drift).toBe(0);
+  });
+
+  it('does not report rows that never recorded a collection as vanished', async () => {
+    // The first full scan after upgrading meets a ledger full of rows written
+    // before the column was populated. They cannot say where they came from, so
+    // they take no part in this — otherwise upgrading would report a healthy
+    // migrated corpus as mass deletion.
+    const ledger = new MemoryLedger();
+    await ledger.recordIfAbsent({
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      itemType: 'file',
+      naturalKeyHash: 'legacy/old.txt',
+      contentHash: 'h:LEGACY',
+      targetId: 't/legacy',
+      createdAt: new Date().toISOString(),
+      sizeBytes: 6,
+      status: 'copied',
+    });
+
+    const w = world('file');
+    w.folders.set('a', []);
+    const pass = await w.run(ledger);
+    expect(pass.drift).toBe(0);
+    expect(pass.moved).toBe(0);
+  });
+
+  it('is found on an ORDINARY incremental pass when the source can list its keys', async () => {
+    // The difference between a feature and a decoration. Production always
+    // configures cursors, so gating detection on "no cursor" meant it could
+    // fire on the very first pass and never again — for the one domain where
+    // a move actually duplicates data.
+    //
+    // `listCollectionKeys` closes it: one extra listing per folder, paths only,
+    // which a real WebDAV source answers from the PROPFIND it already makes.
+    const ledger = new MemoryLedger();
+    const cursors = new MemoryCursorStore();
+    const w = world('file', { listKeys: true });
+    w.folders.set('a', [{ key: 'a/report.pdf', body: 'PDF-BYTES', version: 'e1' }]);
+    w.folders.set('b', []);
+    await w.run(ledger, cursors);
+    expect(w.keyListings()).toBeGreaterThan(0);
+
+    w.folders.set('a', []);
+    w.folders.set('b', [{ key: 'b/report.pdf', body: 'PDF-BYTES', version: 'e1' }]);
+
+    const second = await w.run(ledger, cursors);
+    expect(second.moved).toBe(1);
+    expect(second.moves[0]).toMatchObject({ from: 'a', to: 'b' });
+  });
+
+  it('reports nothing when the key listing fails, rather than failing the pass', async () => {
+    // This listing moves no data — it only decides whether a move can be told
+    // from a deletion. Failing the whole migration because a diagnostic
+    // PROPFIND hiccuped would trade a real copy for a report; reporting the
+    // collection as vanished would be worse still.
+    const ledger = new MemoryLedger();
+    const cursors = new MemoryCursorStore();
+    const w = world('file');
+    w.folders.set('a', [{ key: 'a/x.txt', body: 'BYTES', version: 'e1' }]);
+    await w.run(ledger, cursors);
+
+    const broken = world('file', { listKeys: true });
+    broken.folders.set('a', []);
+    const result = await runDomainSync<unknown, unknown, Item, { path: string }>({
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      domain: 'file',
+      source: {},
+      target: {},
+      ledger,
+      cursors,
+      listFolders: async () => [{ path: 'a' }],
+      listSince: async () => ({ items: [], nextCursor: { value: '0' } }),
+      listCollectionKeys: async () => {
+        throw new Error('PROPFIND 503');
+      },
+      fetchRaw: async () => ({ raw: '', sizeBytes: 0 }),
+      upsert: async () => ({ targetId: 'x', created: true }),
+      naturalKey: (i) => i.key,
+      contentHash: () => 'h',
+      ensureCollection: async () => 't/a',
+    });
+
+    expect(result.failed).toBe(0);
+    expect(result.moved).toBe(0);
+    expect(result.drift).toBe(0);
+  });
+
+  it('stays silent on a cursor-limited pass, which cannot tell absence from unlisted', async () => {
+    // THE dangerous false positive. An incremental listing returns only what
+    // changed, so nearly every key the ledger holds looks absent — a routine
+    // pass over an untouched corpus would report the whole thing as moved or
+    // deleted, and the operator would be handed a five-figure warning about
+    // nothing.
+    const ledger = new MemoryLedger();
+    const cursors = new MemoryCursorStore();
+    const w = world('file');
+    w.folders.set('a', [{ key: 'a/report.pdf', body: 'PDF-BYTES', version: 'e1' }]);
+    w.folders.set('b', []);
+    await w.run(ledger, cursors);
+
+    // The cursor now says "one item seen in a", so the next listing of `a`
+    // returns nothing at all — indistinguishable from the file being gone.
+    const second = await w.run(ledger, cursors);
+    expect(second.moved).toBe(0);
+    expect(second.drift).toBe(0);
+  });
+});
