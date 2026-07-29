@@ -30,6 +30,29 @@ export interface CursorStore {
   clear(tenantId: TenantId, mappingId: MappingId): Promise<void>;
 }
 
+/**
+ * The cursor key for the read-only scan of a collection the pass does NOT copy.
+ *
+ * A separate namespace from the collection's own content cursor, and the
+ * separation is load-bearing rather than tidy. The bin scan advances a cursor
+ * through a folder whose items are deliberately not being migrated; if it shared
+ * the content cursor and the owner later brought that folder INTO scope
+ * (`excludeSpecialUse: []`), the next pass would find the cursor already advanced
+ * past every message in it. Those messages would never be copied and no ledger
+ * row would exist to show it — a silent partial migration produced by a
+ * bookkeeping collision.
+ *
+ * U+0001 (SOH) delimits the prefix because it cannot occur in either kind of path
+ * a real collection has: RFC 3501 excludes C0 controls from IMAP mailbox names, and
+ * a WebDAV path percent-encodes them. So a real collection can never produce this
+ * key, which is what makes the collision impossible rather than unlikely. NUL
+ * would have been the obvious choice and is not usable — Postgres rejects it in
+ * `text`.
+ */
+export function discardedScanCursorKey(collectionPath: string): string {
+  return `\u0001discarded\u0001${collectionPath}`;
+}
+
 /** A source mailbox the engine reads from. READ-ONLY. */
 export interface SourceConnector {
   /** Enumerate folders with special-use detection (RFC 6154). */
@@ -561,6 +584,13 @@ export interface LedgerRecord {
    * `absentPasses`, not a stronger degree of it: see {@link DeletionEvidence}.
    */
   readonly deletionReportedAt?: string;
+  /**
+   * When a copy of this item was first found in the owner's bin on the source.
+   *
+   * Absent means we have not seen it there — including for every domain whose
+   * source has no bin we can read. See {@link DeletionEvidence}.
+   */
+  readonly deletionTrashedAt?: string;
   /** When the owner decided to keep the target's copy of a vanished item. */
   readonly deletionAcknowledgedAt?: string;
   readonly movedToCollection?: string;
@@ -823,6 +853,26 @@ export interface Ledger {
     naturalKeyHash: string,
   ): Promise<boolean>;
   /**
+   * A copy of this item is sitting in the owner's bin on the source.
+   *
+   * The third kind of evidence, and the only one mail has. An item in a `\Trash`
+   * collection is the source system's own record that the person deleted it —
+   * positive evidence, so like a removal report it needs no corroboration, but a
+   * DIFFERENT claim: the object still exists, and the owner may empty the bin or
+   * restore it.
+   *
+   * Its own column for the same reason as `recordReportedDeletion`: a stronger
+   * signal arriving later must not overwrite when an earlier one was learned.
+   * Keeps the first sighting, and returns false when there is no row under that
+   * key — most of what is in a bin was never migrated.
+   */
+  recordTrashedDeletion(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: 'email' | 'calendar' | 'contact' | 'file',
+    naturalKeyHash: string,
+  ): Promise<boolean>;
+  /**
    * The item is back. Reset the count, any report, and any decision about it.
    *
    * CONSECUTIVE is the property being maintained: an item that vanishes, comes
@@ -830,10 +880,11 @@ export interface Ledger {
    * row. Without the reset a flaky folder would accumulate its way to
    * "confirmed deleted" over a month of unrelated hiccups.
    *
-   * The REPORT is cleared too. A UID can be deleted and re-created — a calendar
-   * invitation declined and re-sent, a contact restored from a phone — and an
-   * item that is demonstrably present again must not keep carrying a claim that
-   * the source considers it gone.
+   * The REPORT and the BIN SIGHTING are cleared too. A UID can be deleted and
+   * re-created — a calendar invitation declined and re-sent, a contact restored
+   * from a phone — and a message can be dragged out of Deleted Items back into
+   * the inbox. An item that is demonstrably present again must not keep carrying
+   * a claim that the source considers it gone.
    */
   clearAbsent(
     tenantId: TenantId,
@@ -967,16 +1018,27 @@ export interface ItemMove {
  *   incremental CalDAV/CardDAV poll with a `<response>` carrying the object's
  *   href and a 404 status. There is nothing to infer and nothing to corroborate;
  *   waiting for it to repeat would not make it more true, only later.
+ * - `'trashed'` — the owner PUT IT IN THE BIN. The item is still on the source,
+ *   sitting in a collection whose RFC 6154 role is `\Trash`, which is the source
+ *   system's own way of recording "the person deleted this". Positive evidence,
+ *   like `reported`: we are looking at the item, not failing to find it, so it
+ *   needs no corroboration either. This is the ONLY deletion evidence mail has —
+ *   IMAP offers no removal report in the shape `'reported'` needs, and a mailbox
+ *   cannot be enumerated cheaply enough for `'inferred'` to be affordable.
  * - `'inferred'` — we stopped seeing it. Absence has a dozen innocent causes
  *   that all present identically, so it takes `DELETION_CONFIRMATIONS`
  *   consecutive complete scans before a person is told, and even then it is a
- *   suspicion. This is the only evidence available for mail and files: IMAP has
- *   no removal report in the shape this uses and WebDAV has no sync-collection.
+ *   suspicion.
  *
- * Only `'reported'` may ever gate a destructive action. Deleting a customer's
+ * Ranked `reported` > `trashed` > `inferred` when more than one applies: "the
+ * source no longer has it at all" supersedes "the owner binned it", and both
+ * supersede "we did not see it". Each is recorded with its own date, so a later
+ * stronger signal never overwrites when an earlier one was learned.
+ *
+ * Only the first two may ever gate a destructive action. Deleting a customer's
  * data because a listing was throttled is the worst thing this product could do.
  */
-export type DeletionEvidence = 'reported' | 'inferred';
+export type DeletionEvidence = 'reported' | 'trashed' | 'inferred';
 
 /**
  * An item the SOURCE no longer has, which the target still holds.
@@ -1008,16 +1070,19 @@ export interface ItemDeletion {
   /**
    * Whether this is worth putting in front of a person yet.
    *
-   * A reported deletion is confirmed on sight. An inferred one is confirmed once
-   * `absentPasses` reaches `DELETION_CONFIRMATIONS`; below that the item is
-   * watched, not reported, because a queue filled with absences that may simply
-   * be a folder having a bad afternoon is a queue people stop reading.
+   * A reported or trashed deletion is confirmed on sight — both are positive
+   * observations. An inferred one is confirmed once `absentPasses` reaches
+   * `DELETION_CONFIRMATIONS`; below that the item is watched, not reported,
+   * because a queue filled with absences that may simply be a folder having a bad
+   * afternoon is a queue people stop reading.
    */
   readonly confirmed: boolean;
   /** How we know. See {@link DeletionEvidence}. */
   readonly evidence: DeletionEvidence;
   /** When the source first told us, for a reported deletion. */
   readonly reportedAt?: string;
+  /** When we first found a copy of it in the owner's bin. */
+  readonly trashedAt?: string;
   /** When the owner decided to keep the target's copy anyway. */
   readonly acknowledgedAt?: string;
 }
@@ -1154,6 +1219,15 @@ export interface ReconcileResult {
   readonly moved?: number;
   /** Source items absent on a later pass (potential deletions) — logged, never propagated. */
   readonly drift: number;
+  /**
+   * Items the owner deleted on the source, which the target still holds.
+   *
+   * For mail these come from the owner's BIN — an item in a `\Trash` collection is
+   * the source system's own record that the person deleted it, and it is the only
+   * deletion evidence this domain has. Nothing is removed from the target; see
+   * `ItemDeletion` and §11.1. Absent when the pass found none.
+   */
+  readonly deletions?: ReadonlyArray<ItemDeletion>;
   /**
    * Special-use mail folders that were present on the source and deliberately
    * NOT migrated — trash and junk by default.

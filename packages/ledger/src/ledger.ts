@@ -622,6 +622,47 @@ export class PgLedger implements Ledger {
     return existing.length > 0;
   }
 
+  async recordTrashedDeletion(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: 'email' | 'calendar' | 'contact' | 'file',
+    naturalKeyHash: string,
+  ): Promise<boolean> {
+    const rows = await this.db
+      .update(schemaPg.item)
+      .set({ deletionTrashedAt: sql`now()`, updatedAt: sql`now()` })
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          eq(schemaPg.item.domain, domain),
+          eq(schemaPg.item.naturalKeyHash, naturalKeyHash),
+          // FIRST sighting only. An item stays in the bin until the owner empties
+          // it, so every later pass sees it again; moving the date forward each
+          // time would erase when the deletion actually happened.
+          isNull(schemaPg.item.deletionTrashedAt),
+        ),
+      )
+      .returning({ naturalKeyHash: schemaPg.item.naturalKeyHash });
+    if (rows.length > 0) return true;
+
+    // No row, or already recorded — two different answers, and the caller needs
+    // them apart. Most of what sits in a bin was never migrated at all.
+    const existing = await this.db
+      .select({ trashedAt: schemaPg.item.deletionTrashedAt })
+      .from(schemaPg.item)
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          eq(schemaPg.item.domain, domain),
+          eq(schemaPg.item.naturalKeyHash, naturalKeyHash),
+        ),
+      )
+      .limit(1);
+    return existing.length > 0;
+  }
+
   async clearAbsent(
     tenantId: TenantId,
     mappingId: MappingId,
@@ -638,6 +679,10 @@ export class PgLedger implements Ledger {
         // is gone. That claim is the strongest evidence in the system, so a
         // stale one is the most dangerous thing to leave lying around.
         deletionReportedAt: null,
+        // And the bin sighting. A message dragged out of Deleted Items back into
+        // the inbox is demonstrably not deleted; keeping the claim would tell an
+        // owner they threw away something they are looking at.
+        deletionTrashedAt: null,
         // The decision goes with the count. There is no longer anything to have
         // agreed to, and a stale acknowledgement would silently suppress the
         // report the NEXT time this item disappears.
@@ -653,13 +698,14 @@ export class PgLedger implements Ledger {
           // Only rows with something to clear. On a healthy corpus this is none
           // of them, and the partial index makes the no-op free rather than an
           // UPDATE per item per pass. The report has to be part of the test:
-          // scoped to `absent_passes > 0` alone, a reported deletion — which
-          // typically has a count of ZERO, because nothing had to go missing for
-          // the source to name it — could never be cleared when the item
+          // scoped to `absent_passes > 0` alone, a reported or trashed deletion —
+          // both of which typically have a count of ZERO, because nothing had to
+          // go missing for us to know — could never be cleared when the item
           // returned.
           or(
             gt(schemaPg.item.absentPasses, 0),
             isNotNull(schemaPg.item.deletionReportedAt),
+            isNotNull(schemaPg.item.deletionTrashedAt),
             isNotNull(schemaPg.item.deletionAcknowledgedAt),
           ),
         ),
@@ -678,6 +724,7 @@ export class PgLedger implements Ledger {
         collection: schemaPg.item.collection,
         absentPasses: schemaPg.item.absentPasses,
         deletionReportedAt: schemaPg.item.deletionReportedAt,
+        deletionTrashedAt: schemaPg.item.deletionTrashedAt,
         deletionAcknowledgedAt: schemaPg.item.deletionAcknowledgedAt,
       })
       .from(schemaPg.item)
@@ -685,29 +732,32 @@ export class PgLedger implements Ledger {
         and(
           eq(schemaPg.item.tenantId, tenantId),
           eq(schemaPg.item.mappingId, mappingId),
-          // Either kind of evidence puts a row in this queue. A reported
-          // deletion usually has an absent count of ZERO — the source named the
-          // object, so nothing had to go missing for us to know — so a filter on
-          // the count alone would have hidden precisely the deletions we are
-          // most sure about.
-          or(gt(schemaPg.item.absentPasses, 0), isNotNull(schemaPg.item.deletionReportedAt)),
+          // ANY kind of evidence puts a row in this queue. A reported or trashed
+          // deletion usually has an absent count of ZERO — we were looking at the
+          // item, or the source named it, so nothing had to go missing for us to
+          // know — so a filter on the count alone would have hidden precisely the
+          // deletions we are most sure about.
+          or(
+            gt(schemaPg.item.absentPasses, 0),
+            isNotNull(schemaPg.item.deletionReportedAt),
+            isNotNull(schemaPg.item.deletionTrashedAt),
+          ),
           ...(domain ? [eq(schemaPg.item.domain, domain)] : []),
         ),
       )
-      // Open first, then the ones the source itself reported, then the ones
-      // missing longest.
+      // Open first, then the ones the source itself reported, then the ones found
+      // in the owner's bin, then the ones missing longest.
       //
-      // NULLS FIRST is spelled out twice for two different reasons. On
-      // `deletion_acknowledged_at` it means "still needs a decision first":
-      // Postgres reads ASC as NULLS LAST, which would bury everything open under
-      // everything already decided (0022 shipped that bug and only the real
-      // database noticed). On `deletion_reported_at` the opposite is wanted —
-      // reported deletions are the certain ones and belong at the top — so that
-      // key is DESC, whose default is NULLS FIRST, and it too is spelled out
-      // rather than left to a default nobody reading this can be expected to
-      // recall.
+      // NULLS handling is spelled out on every key, and it is not the same on all
+      // of them. On `deletion_acknowledged_at` NULLS FIRST means "still needs a
+      // decision first": Postgres reads ASC as NULLS LAST, which would bury
+      // everything open under everything already decided (0022 shipped that bug
+      // and only the real database noticed). On the two evidence dates the
+      // opposite is wanted — a row that HAS the evidence belongs above one that
+      // does not — so those are DESC NULLS LAST. Left to defaults, DESC would put
+      // NULLs first and invert both.
       .orderBy(
-        sql`${schemaPg.item.deletionAcknowledgedAt} ASC NULLS FIRST, ${schemaPg.item.deletionReportedAt} DESC NULLS LAST, ${schemaPg.item.absentPasses} DESC, ${schemaPg.item.naturalKeyHash} ASC`,
+        sql`${schemaPg.item.deletionAcknowledgedAt} ASC NULLS FIRST, ${schemaPg.item.deletionReportedAt} DESC NULLS LAST, ${schemaPg.item.deletionTrashedAt} DESC NULLS LAST, ${schemaPg.item.absentPasses} DESC, ${schemaPg.item.naturalKeyHash} ASC`,
       );
 
     return rows.map((r) => {
@@ -716,17 +766,34 @@ export class PgLedger implements Ledger {
           ? r.deletionReportedAt.toISOString()
           : String(r.deletionReportedAt)
         : undefined;
+      const trashedAt = r.deletionTrashedAt
+        ? r.deletionTrashedAt instanceof Date
+          ? r.deletionTrashedAt.toISOString()
+          : String(r.deletionTrashedAt)
+        : undefined;
       return {
         domain: r.domain as ItemDeletion['domain'],
         naturalKeyHash: r.naturalKeyHash,
         collection: r.collection,
         absentPasses: r.absentPasses,
-        // Reported means confirmed on sight. Nothing about a second pass would
-        // make the source's own 404 more true, and making an owner wait for one
-        // only delays a report they could already act on.
-        confirmed: reportedAt !== undefined || r.absentPasses >= DELETION_CONFIRMATIONS,
-        evidence: reportedAt !== undefined ? ('reported' as const) : ('inferred' as const),
+        // Reported and trashed both mean confirmed on sight: each is a POSITIVE
+        // observation. Nothing about a second pass would make the source's own
+        // 404 truer, or make the item less binned — it would only delay a report
+        // the owner could already act on.
+        confirmed:
+          reportedAt !== undefined ||
+          trashedAt !== undefined ||
+          r.absentPasses >= DELETION_CONFIRMATIONS,
+        // Ranked, not combined: "gone entirely" supersedes "in the bin", and both
+        // supersede "we did not see it".
+        evidence:
+          reportedAt !== undefined
+            ? ('reported' as const)
+            : trashedAt !== undefined
+              ? ('trashed' as const)
+              : ('inferred' as const),
         ...(reportedAt ? { reportedAt } : {}),
+        ...(trashedAt ? { trashedAt } : {}),
         ...(r.deletionAcknowledgedAt
           ? {
               acknowledgedAt:
@@ -762,12 +829,13 @@ export class PgLedger implements Ledger {
           // being watched, not reported, so there is nothing for anyone to have
           // decided about yet — and letting it be closed early would retire the
           // very check that makes the claim trustworthy. A deletion the source
-          // itself reported needs no such check, and refusing to let an owner
-          // close it would leave the most certain entries as the only ones
-          // stuck in the queue.
+          // itself reported, or that is sitting in the owner's bin, needs no such
+          // check — and refusing to let an owner close those would leave the most
+          // certain entries as the only ones stuck in the queue.
           or(
             gte(schemaPg.item.absentPasses, DELETION_CONFIRMATIONS),
             isNotNull(schemaPg.item.deletionReportedAt),
+            isNotNull(schemaPg.item.deletionTrashedAt),
           ),
           isNull(schemaPg.item.deletionAcknowledgedAt),
         ),
@@ -826,6 +894,14 @@ export class PgLedger implements Ledger {
               row.deletionReportedAt instanceof Date
                 ? row.deletionReportedAt.toISOString()
                 : String(row.deletionReportedAt),
+          }
+        : {}),
+      ...(row.deletionTrashedAt
+        ? {
+            deletionTrashedAt:
+              row.deletionTrashedAt instanceof Date
+                ? row.deletionTrashedAt.toISOString()
+                : String(row.deletionTrashedAt),
           }
         : {}),
       ...(row.deletionAcknowledgedAt

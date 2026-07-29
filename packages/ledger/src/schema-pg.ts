@@ -238,6 +238,13 @@ export const item = pgTable(
     // from `absent_passes` above, not a stronger degree of it: this needs no
     // corroboration, absence always does. See migration 0026.
     deletionReportedAt: timestamp('deletion_reported_at', { withTimezone: true }),
+    // When a copy of this item was first found in the owner's BIN on the source —
+    // a collection whose RFC 6154 role is `\Trash`. The source system's own
+    // record that the person deleted it, and the only deletion evidence mail has.
+    // A different claim from `deletion_reported_at` above, which says the object
+    // is gone: this one says the owner binned it and it is still there. See
+    // migration 0027.
+    deletionTrashedAt: timestamp('deletion_trashed_at', { withTimezone: true }),
     // When the owner decided to keep the target's copy of an item the source no
     // longer has. NULL = still open.
     deletionAcknowledgedAt: timestamp('deletion_acknowledged_at', { withTimezone: true }),

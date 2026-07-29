@@ -27,6 +27,15 @@ export interface SeedMessage {
   readonly messageId: string;
   readonly rfc822: string;
   readonly keywords?: ReadonlyArray<MailKeyword>;
+  /**
+   * RFC 6154 role, when the folder's NAME does not imply one.
+   *
+   * `add` guesses inbox and sent from the path and calls everything else
+   * `normal`, which is wrong for the one role that now carries meaning: a folder
+   * called `Trash` is the owner's bin, and the deletion signal depends on knowing
+   * that. A real IMAP source reads it from the LIST flags, never from the name.
+   */
+  readonly specialUse?: MailFolder['specialUse'];
 }
 
 let idCounter = 0;
@@ -42,15 +51,19 @@ export class MemorySource implements SourceConnector {
 
   add(seed: SeedMessage): void {
     const specialUse: MailFolder['specialUse'] =
-      seed.folderPath.toUpperCase() === 'INBOX'
+      seed.specialUse ??
+      (seed.folderPath.toUpperCase() === 'INBOX'
         ? 'inbox'
         : seed.folderPath.toLowerCase() === 'sent'
           ? 'sent'
-          : 'normal';
-    const folder: MailFolder = this.folders.get(seed.folderPath) ?? {
-      path: seed.folderPath,
-      specialUse,
-    };
+          : 'normal');
+    const folder: MailFolder =
+      // An explicit role always wins, including over a folder already recorded
+      // with a guessed one — otherwise the first `add` for a path would fix its
+      // role forever and seeding order would decide whether the bin is a bin.
+      seed.specialUse !== undefined
+        ? { path: seed.folderPath, specialUse }
+        : (this.folders.get(seed.folderPath) ?? { path: seed.folderPath, specialUse });
     this.folders.set(seed.folderPath, folder);
 
     // Unique per added message, mirroring the real IMAP source, whose
@@ -70,6 +83,36 @@ export class MemorySource implements SourceConnector {
     list.push(item);
     this.byFolder.set(seed.folderPath, list);
     this.raw.set(sourceRef, new TextEncoder().encode(seed.rfc822));
+  }
+
+  /**
+   * What an IMAP client does when the owner deletes a message: it MOVES.
+   *
+   * The message keeps its Message-ID — so the natural key, and therefore the
+   * ledger row, is the same one — leaves the folder it was in, and arrives in the
+   * destination with a NEW UID, which is why the sourceRef is reissued. Getting
+   * that wrong in the fake would prove a deletion signal that depended on the
+   * source handing back an identifier it does not.
+   *
+   * Returns false when the message is not in `from`, so a test cannot silently
+   * assert on a move that never happened.
+   */
+  move(messageId: string, from: string, to: string): boolean {
+    const source = this.byFolder.get(from) ?? [];
+    const at = source.findIndex((i) => i.messageId === messageId);
+    if (at < 0) return false;
+    const [item] = source.splice(at, 1);
+    const bytes = this.raw.get(item!.sourceRef);
+    const destination = this.folders.get(to);
+    if (!destination) throw new Error(`MemorySource.move: no folder ${to}; seed it first`);
+
+    const sourceRef = `${to}:${this.nextSeq++}`;
+    this.byFolder.set(to, [
+      ...(this.byFolder.get(to) ?? []),
+      { ...item!, folder: destination, sourceRef },
+    ]);
+    if (bytes) this.raw.set(sourceRef, bytes);
+    return true;
   }
 
   listFolders(): Promise<ReadonlyArray<MailFolder>> {
@@ -504,6 +547,23 @@ export class MemoryLedger implements Ledger {
     return Promise.resolve(true);
   }
 
+  /** Mirrors `PgLedger.recordTrashedDeletion`, first sighting and all. */
+  recordTrashedDeletion(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    domain: LedgerRecord['itemType'],
+    naturalKeyHash: string,
+  ): Promise<boolean> {
+    const k = this.key({ tenantId, mappingId, itemType: domain, naturalKeyHash });
+    const existing = this.rows.get(k);
+    if (!existing) return Promise.resolve(false);
+    // An item stays in the bin until the owner empties it, so every later pass
+    // sees it again; the first sighting is when the deletion happened.
+    if (existing.deletionTrashedAt !== undefined) return Promise.resolve(true);
+    this.rows.set(k, { ...existing, deletionTrashedAt: new Date().toISOString() });
+    return Promise.resolve(true);
+  }
+
   /**
    * Mirrors `PgLedger.clearAbsent`, INCLUDING dropping the report and the
    * decision.
@@ -527,6 +587,7 @@ export class MemoryLedger implements Ledger {
     if (
       !existing.absentPasses &&
       existing.deletionReportedAt === undefined &&
+      existing.deletionTrashedAt === undefined &&
       existing.deletionAcknowledgedAt === undefined
     ) {
       return Promise.resolve();
@@ -535,6 +596,7 @@ export class MemoryLedger implements Ledger {
       ...existing,
       absentPasses: 0,
       deletionReportedAt: undefined,
+      deletionTrashedAt: undefined,
       deletionAcknowledgedAt: undefined,
     });
     return Promise.resolve();
@@ -549,10 +611,16 @@ export class MemoryLedger implements Ledger {
     for (const r of this.rows.values()) {
       if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
       if (domain && r.itemType !== domain) continue;
-      // Either kind of evidence, as in Postgres. A reported deletion normally
-      // has a count of zero, so a count-only filter would hide exactly the
-      // entries we are most sure about.
-      if (!r.absentPasses && r.deletionReportedAt === undefined) continue;
+      // ANY kind of evidence, as in Postgres. A reported or trashed deletion
+      // normally has a count of zero, so a count-only filter would hide exactly
+      // the entries we are most sure about.
+      if (
+        !r.absentPasses &&
+        r.deletionReportedAt === undefined &&
+        r.deletionTrashedAt === undefined
+      ) {
+        continue;
+      }
       out.push({
         domain: r.itemType,
         naturalKeyHash: r.naturalKeyHash,
@@ -560,23 +628,32 @@ export class MemoryLedger implements Ledger {
         absentPasses: r.absentPasses ?? 0,
         confirmed:
           r.deletionReportedAt !== undefined ||
+          r.deletionTrashedAt !== undefined ||
           (r.absentPasses ?? 0) >= DELETION_CONFIRMATIONS,
-        evidence: r.deletionReportedAt !== undefined ? 'reported' : 'inferred',
+        evidence:
+          r.deletionReportedAt !== undefined
+            ? 'reported'
+            : r.deletionTrashedAt !== undefined
+              ? 'trashed'
+              : 'inferred',
         ...(r.deletionReportedAt ? { reportedAt: r.deletionReportedAt } : {}),
+        ...(r.deletionTrashedAt ? { trashedAt: r.deletionTrashedAt } : {}),
         ...(r.deletionAcknowledgedAt ? { acknowledgedAt: r.deletionAcknowledgedAt } : {}),
       });
     }
-    // Open first, then reported (newest report first), then missing longest,
-    // then by key — PgLedger's ORDER BY exactly, tie-breaks included. The
-    // reported key sorts DESC with unreported rows LAST, which is what
-    // `DESC NULLS LAST` does there; getting this wrong in the fake is how a
-    // sort bug has twice reached a real database undetected.
+    // Open first, then reported, then trashed, then missing longest, then by key
+    // — PgLedger's ORDER BY exactly, tie-breaks included. Both evidence keys sort
+    // DESC with rows LACKING the evidence last, which is what `DESC NULLS LAST`
+    // does there; getting this wrong in the fake is how a sort bug has twice
+    // reached a real database undetected.
     return Promise.resolve(
       out.sort(
         (a, b) =>
           Number(a.acknowledgedAt !== undefined) - Number(b.acknowledgedAt !== undefined) ||
           Number(a.reportedAt === undefined) - Number(b.reportedAt === undefined) ||
           (b.reportedAt ?? '').localeCompare(a.reportedAt ?? '') ||
+          Number(a.trashedAt === undefined) - Number(b.trashedAt === undefined) ||
+          (b.trashedAt ?? '').localeCompare(a.trashedAt ?? '') ||
           b.absentPasses - a.absentPasses ||
           a.naturalKeyHash.localeCompare(b.naturalKeyHash),
       ),
@@ -593,11 +670,13 @@ export class MemoryLedger implements Ledger {
     for (const [k, r] of this.rows) {
       if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
       if (r.naturalKeyHash !== naturalKeyHash) continue;
-      // CONFIRMED and open only, as in Postgres — where "confirmed" is either
-      // enough consecutive absences OR the source having said so outright.
+      // CONFIRMED and open only, as in Postgres — where "confirmed" is enough
+      // consecutive absences, OR the source having said so outright, OR the item
+      // sitting in the owner's bin.
       if (
         (r.absentPasses ?? 0) < DELETION_CONFIRMATIONS &&
-        r.deletionReportedAt === undefined
+        r.deletionReportedAt === undefined &&
+        r.deletionTrashedAt === undefined
       ) {
         continue;
       }

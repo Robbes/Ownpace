@@ -386,6 +386,24 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    */
   readonly listCollectionKeys?: (folder: Folder) => Promise<ReadonlyArray<string>>;
   /**
+   * Natural-key hashes of items sitting in the owner's BIN on the source.
+   *
+   * The collections this reads are out of scope as CONTENT — trash and junk are
+   * excluded by default — and that is exactly what makes them available as a
+   * SIGNAL. An item in a `\Trash` collection (RFC 6154) is the source system's own
+   * record that the person deleted it: positive evidence, needing no
+   * corroboration, and the only deletion evidence the mail domain has.
+   *
+   * Keys only — no bodies, and nothing is copied. The caller decides which roles
+   * count: trash does, junk does NOT, because a message in Junk was very likely
+   * put there by a filter rather than by a person, and the whole value of this
+   * signal is that it is unambiguous owner intent.
+   *
+   * Absent means the domain has no readable bin, which is a "not measured" and
+   * never a "nothing was deleted".
+   */
+  readonly listDiscardedKeys?: () => Promise<ReadonlyArray<string>>;
+  /**
    * Derive the natural-key hash once the raw item is in hand. Required if
    * `naturalKey` can return undefined.
    *
@@ -530,6 +548,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     sourceVersion,
     sourceRef,
     listCollectionKeys,
+    listDiscardedKeys,
   } = deps;
 
   const phases = startPhaseTiming();
@@ -704,14 +723,25 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           // evidence strong enough to ever act on.
           //
           // A UID really does come back — a declined invitation re-sent, a
-          // contact restored from a phone, a calendar re-subscribed — and it
-          // comes back with the same natural key. Cleared BEFORE the branching
+          // contact restored from a phone, a calendar re-subscribed, a message
+          // dragged out of Deleted Items — and it comes back with the same
+          // natural key. This is also what corrects the one false positive the
+          // bin scan can produce: a message that exists in BOTH the bin and a
+          // live folder is reported as deleted when the live copy was not listed
+          // this pass (a cursor-limited listing shows only what changed), and any
+          // later pass that does list it clears the claim here.
+          //
+          // Cleared BEFORE the branching
           // below, because the `moved` and `left-behind` branches both return
           // early and an item can be moved and previously-missing at once.
           //
           // Guarded, so a healthy corpus pays nothing: on rows that never went
           // missing this is a comparison, not a write.
-          if (known.absentPasses || known.deletionReportedAt !== undefined) {
+          if (
+            known.absentPasses ||
+            known.deletionReportedAt !== undefined ||
+            known.deletionTrashedAt !== undefined
+          ) {
             await timed(phases, 'ledgerWriteMs', () =>
               ledger.clearAbsent(tenantId, mappingId, domain, key),
             );
@@ -1108,6 +1138,35 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     deletions.push(...reported);
   }
 
+  // What the owner threw away. Read from collections this pass deliberately did
+  // NOT copy — which is what makes them readable as a signal at all.
+  if (listDiscardedKeys) {
+    let discarded: ReadonlyArray<string> | undefined;
+    try {
+      discarded = await listDiscardedKeys();
+    } catch (err) {
+      // Degrade the DETECTOR, not the pass. This listing moves no data; failing
+      // a whole migration because a scan of Deleted Items hiccuped would trade a
+      // real copy for a report. Said out loud rather than swallowed (hard rule 9).
+      log.warn(
+        `[sync] ${domain}: could not read the owner's discarded items, so deletions will not ` +
+          `be reported from them this pass: ${(err as Error)?.message ?? String(err)}`,
+      );
+    }
+    if (discarded && discarded.length > 0) {
+      deletions.push(
+        ...(await resolveDiscardedItems({
+          tenantId,
+          mappingId,
+          domain,
+          ledger,
+          discarded,
+          seenByCollection,
+        })),
+      );
+    }
+  }
+
   // The path-keyed half, which can only run once every folder has been listed.
   if (domain === 'file' && fullyEnumerated) {
     const found = await detectPathKeyedMoves({
@@ -1125,18 +1184,22 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   }
 
   reportPhases(phases, domain, scanned);
-  const reportedCount = deletions.filter((d) => d.evidence === 'reported').length;
-  if (reportedCount > 0) {
+  // The two POSITIVE kinds of evidence, logged together: both mean "the owner
+  // deleted this", and neither had to be inferred from absence.
+  const certain = deletions.filter((d) => d.evidence !== 'inferred');
+  if (certain.length > 0) {
+    const reported = certain.filter((d) => d.evidence === 'reported').length;
+    const trashed = certain.length - reported;
     // Said out loud because this is the strongest claim the pass can make, and
     // nothing acts on it: the target keeps its copy until a person decides
     // (§11.1 — deletions are never auto-propagated). Hash prefixes and counts
     // only; the collections travel in `deletions`, which goes to the operator's
     // own status surface rather than a container log (§17).
     log.warn(
-      `[sync] ${domain}: the source reported ${reportedCount} item(s) as deleted. Nothing was ` +
+      `[sync] ${domain}: ${certain.length} item(s) were deleted on the source ` +
+        `(${reported} reported by the server, ${trashed} found in the owner's bin). Nothing was ` +
         'removed from the target — the owner decides whether their copy goes too. First: ' +
-        deletions
-          .filter((d) => d.evidence === 'reported')
+        certain
           .slice(0, 5)
           .map((d) => d.naturalKeyHash.slice(0, 12))
           .join(', '),
@@ -1262,6 +1325,75 @@ async function resolveReportedRemovals(args: {
       absentPasses: row.absentPasses ?? 0,
       confirmed: true,
       evidence: 'reported',
+    });
+  }
+
+  return out;
+}
+
+/**
+ * Record the items we copied that are now sitting in the owner's bin.
+ *
+ * The only deletion evidence the MAIL domain has, and the reason the trash
+ * exclusion in `excludeSpecialUse` is more than tidiness. IMAP offers no removal
+ * report in the shape `sync-collection` gives, and a mailbox cannot be enumerated
+ * cheaply enough to run absence-counting on every pass — so before this, a
+ * message the owner deleted in the old system produced nothing at all. The target
+ * kept its copy, and no surface anywhere said so.
+ *
+ * An item in a `\Trash` collection is a POSITIVE observation: we are looking at
+ * it, not failing to find it. That is what makes it believable on sight, and what
+ * makes it a different claim from a removal report — the object still exists, the
+ * owner may empty the bin, and they may drag the item back out.
+ *
+ * The same four refusals as `resolveReportedRemovals`, for the same reasons: a
+ * key we never copied (most of what is in a bin), an item not on the target, an
+ * item this pass saw alive under its natural key, and one the owner has already
+ * decided about.
+ *
+ * ONE RESIDUAL FALSE POSITIVE, stated rather than hidden. A message can exist in
+ * both the bin and a live folder — the same Message-ID in two mailboxes is
+ * ordinary on plenty of servers — and on a cursor-limited pass the live copy is
+ * not listed, so the seen-check cannot catch it. The report is then wrong, though
+ * nothing is removed either way, and it corrects itself: the next pass that lists
+ * that message for any reason clears the claim. The alternative was to require a
+ * complete key set for the whole mailbox, which in production would mean the
+ * signal fired on the first pass and never again — a detector that cannot fire
+ * when it matters, which is worse than one that occasionally over-reports.
+ */
+async function resolveDiscardedItems(args: {
+  tenantId: TenantId;
+  mappingId: MappingId;
+  domain: 'email' | 'calendar' | 'contact' | 'file';
+  ledger: Ledger;
+  discarded: ReadonlyArray<string>;
+  seenByCollection: ReadonlyMap<string, ReadonlySet<string>>;
+}): Promise<ItemDeletion[]> {
+  const { tenantId, mappingId, domain, ledger, discarded, seenByCollection } = args;
+
+  const seenAnywhere = new Set<string>();
+  for (const keys of seenByCollection.values()) for (const k of keys) seenAnywhere.add(k);
+
+  const out: ItemDeletion[] = [];
+  for (const key of new Set(discarded)) {
+    if (seenAnywhere.has(key)) continue;
+    const row = await ledger.find(tenantId, mappingId, domain, key);
+    if (!row) continue;
+    if (!isOnTarget(row.status)) continue;
+
+    const recorded = await ledger.recordTrashedDeletion(tenantId, mappingId, domain, key);
+    if (!recorded) continue;
+    if (row.deletionAcknowledgedAt !== undefined) continue;
+
+    out.push({
+      domain,
+      naturalKeyHash: key,
+      // Where the target's copy is, which is where it was copied FROM — not the
+      // bin it is in now. `evidence` is what says it is in a bin.
+      collection: row.collection ?? '',
+      absentPasses: row.absentPasses ?? 0,
+      confirmed: true,
+      evidence: 'trashed',
     });
   }
 

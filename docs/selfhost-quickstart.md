@@ -284,13 +284,21 @@ How quickly it shows up depends on how we found out, which each entry states as
 
 - **`reported`** — for calendar events and contacts, the old server tells us
   outright which objects it removed, so the entry appears on the next pass.
-- **`inferred`** — for files there is no such report, so we go by the item having
-  vanished from **two consecutive** complete scans. One absence is not evidence: a
-  throttled listing or a connector having a bad ten minutes looks exactly the
-  same. If it reappears the count starts again from zero.
+- **`trashed`** — for mail, we find the message sitting in Deleted Items. Also on
+  the next pass: the old system's own filing is the evidence, and there is nothing
+  to wait for.
+- **`inferred`** — for files there is neither, so we go by the item having vanished
+  from **two consecutive** complete scans. One absence is not evidence: a throttled
+  listing or a connector having a bad ten minutes looks exactly the same. If it
+  reappears the count starts again from zero.
 
-Deleted mail is not reported yet at all — that is a "not measured", not a
-"nothing was deleted".
+Two things about the mail one. It works *because* Deleted Items is left behind
+(§5) — if you set `excludeSpecialUse: []` so the bin is migrated too, it stops
+being read as a signal. And Junk is never treated as a deletion: a message in there
+was probably put there by a spam filter, not by a person.
+
+Files in the Nextcloud trashbin are not read yet — that endpoint is separate from
+the file listing. For those, deletion is still inferred from absence.
 
 "Keep" — the new system holds on to its copy — is the usual and expected answer.
 A migration target that is a slightly fuller archive than the shrinking source is

@@ -223,7 +223,7 @@ symmetrical, though, and the difference is worth telling people up front.
 |---|---|
 | Create items | Picks them up on the next pass. |
 | Edit items | Rewrites the target copy — unless the target copy is theirs, see below. |
-| Delete items | Nothing is removed from the target. It is **reported** at `GET /deletions` — at once for a calendar event or contact, because the source names what it removed; after several consecutive complete scans for a file, because there the deletion has to be inferred from absence. You decide. See below. |
+| Delete items | Nothing is removed from the target. It is **reported** at `GET /deletions` — at once for mail (we find it in Deleted Items) and for a calendar event or contact (the source names what it removed); after several consecutive complete scans for a file, where the deletion has to be inferred from absence. You decide. See below. |
 | Move items, rename folders | Detects and reports it; changes nothing. See the section above. |
 
 ### In the NEW system: browse freely, create freely, don't edit or delete ours
@@ -278,7 +278,12 @@ an item is gone, and they are different in kind, not in degree.
 | `evidence` | What it means | Confirmed |
 |---|---|---|
 | `reported` | The source **said so**. A CalDAV/CardDAV server answers an incremental poll with the objects it has removed (RFC 6578 `sync-collection`), naming each one. | At once |
+| `trashed` | The owner **put it in the bin**, and it is still sitting there. We are looking at the item in a folder whose RFC 6154 role is `\Trash`, which is the old system's own record that the person deleted it. | At once |
 | `inferred` | We **stopped seeing it**. Nobody told us anything. | After two consecutive complete scans |
+
+The first two are **positive** observations — we are looking at something — which is
+why neither needs to repeat. `inferred` is the absence of an observation, which is
+a much weaker thing.
 
 For an inferred deletion `absentPasses` is the number that matters. We never
 observe the deletion — only an absence, and an absence has innocent explanations
@@ -288,14 +293,16 @@ item is *watched* until it has been missing from **two consecutive complete
 scans**, and only then reported. If it reappears the count resets to zero,
 because a run of absences only means something if it is unbroken.
 
-For a reported deletion `absentPasses` is normally **0**, and that is not a
-contradiction: nothing had to go missing for us to know. Waiting for it to repeat
-would not make the server's own answer truer, only later.
+For a reported or trashed deletion `absentPasses` is normally **0**, and that is
+not a contradiction: nothing had to go missing for us to know. Waiting for it to
+repeat would not make the server's own answer truer, or the item less binned —
+only later.
 
-An item that comes back clears everything — the count, the report, and any
-decision. A UID really can be deleted and re-created (a declined invitation
-re-sent, a contact restored from a phone), and a stale claim that the source
-considers an item gone is the last thing that should survive the item's return.
+An item that comes back clears everything — the count, the report, the bin
+sighting, and any decision. An item really can be deleted and restored (a declined
+invitation re-sent, a contact restored from a phone, a message dragged back out of
+Deleted Items), and a stale claim that the owner threw something away is the last
+thing that should survive the item's return.
 
 Two answers, the same for both kinds:
 
@@ -311,15 +318,47 @@ Coverage today, by domain:
 | Domain | Evidence available |
 |---|---|
 | calendar, contacts | `reported` — the CalDAV/CardDAV `sync-collection` REPORT names removed objects on every incremental poll |
-| files | `inferred` — a WebDAV collection can be enumerated cheaply and completely, so absence can be established |
-| mail | none yet. A deletion in this domain is simply not reported — a "not measured", not a "none found" |
+| mail | `trashed` — the owner's Deleted Items is scanned for messages we copied. This is IMAP's only signal: it has no removal report, and a mailbox cannot be enumerated cheaply enough to count absences every pass |
+| files | `inferred` — a WebDAV collection can be enumerated cheaply and completely, so absence can be established. The file trashbin sits on its own endpoint and is not read yet |
 
-One limit on the reported path: matching a removal report back to an item needs
-the source's own href on the ledger row, which is recorded when the item is
-copied. Items copied before that existed have no href recorded, so a removal
-report cannot be matched to them and they fall back to the inferred path. A UID
-that is deleted and re-created moves to a new href, and its row keeps the old
-one — likewise a fall back to the weaker signal, not a wrong answer.
+Two limits worth knowing.
+
+Matching a removal report back to an item needs the source's own href on the
+ledger row, which is recorded when the item is copied. Items copied before that
+existed have no href recorded, so a removal report cannot be matched to them and
+they fall back to the inferred path. A UID that is deleted and re-created moves to
+a new href, and its row keeps the old one — likewise a fall back to the weaker
+signal, not a wrong answer.
+
+The bin scan reports a message that exists in **both** the bin and a live folder,
+if the live copy was not listed on that pass — a cursor-limited listing shows only
+what changed. The same Message-ID in two folders is ordinary on plenty of servers,
+so this does happen. Nothing is removed either way, and it corrects itself: the
+next pass that lists that message for any reason clears the claim. The alternative
+was to require a complete listing of the whole mailbox before believing anything,
+which in production would mean the signal fired on the first pass and never again.
+
+Scanning the bin depends on it being **out of scope**. If you set
+`excludeSpecialUse: []` so that Deleted Items is migrated as content, it stops
+being read as a signal — an item cannot be copied and interpreted as a deletion at
+the same time. Junk is never read as a deletion either way: a message in there was
+very likely put there by a filter rather than by a person.
+
+### Proving it against your own server
+
+The bin is located by its RFC 6154 `\Trash` flag, never by its name — servers
+variously call it Trash, Deleted Items, Deleted Messages or `[Gmail]/Trash`. If
+your server presents no `\Trash`-flagged mailbox, mail deletions cannot be
+detected, and that is worth knowing before you rely on it.
+
+```sh
+# Deletes one already-migrated message the way a mail client does, and prints
+# which mailbox it found the flag on. Exits non-zero if there is no bin.
+node test/e2e/trash-imap-source.mjs
+curl -s http://127.0.0.1:8080/deletions | jq
+```
+
+`test/e2e/move-dav-source.mjs` does the equivalent for a relocated calendar event.
 
 ## Items someone moved on the source
 

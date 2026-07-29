@@ -18,6 +18,7 @@ import {
   type RawMessage,
   type SpecialUse,
   DEFAULT_EXCLUDE_SPECIAL_USE,
+  discardedScanCursorKey,
 } from '@openmig/shared';
 import { runDomainSync, type DomainSyncDeps as _DomainSyncDeps } from './domain-sync';
 
@@ -60,6 +61,15 @@ export const runShadowPass: RunShadowPass = async (deps) => {
   const excluded = deps.excludeSpecialUse ?? DEFAULT_EXCLUDE_SPECIAL_USE;
   /** Which special-use roles were actually present and skipped, for the report. */
   const excludedCollections: SpecialUse[] = [];
+  /**
+   * The owner's BIN folders, captured while filtering them out of the copy.
+   *
+   * Populated by `listFolders` below, and read by `listDiscardedKeys` after it —
+   * which is safe because the loop always lists folders first. Empty when the
+   * mailbox has no trash folder, or when the owner brought trash INTO scope: an
+   * item being migrated as content cannot also be read as a deletion.
+   */
+  let bins: ReadonlyArray<MailFolder> = [];
 
   // Delegate to generalized runDomainSync with mail-specific injections
   const result = await runDomainSync<SourceConnector, TargetWriter, MailItem, MailFolder>({
@@ -86,9 +96,52 @@ export const runShadowPass: RunShadowPass = async (deps) => {
       for (const f of all) {
         if (excluded.includes(f.specialUse)) excludedCollections.push(f.specialUse);
       }
+      // TRASH ONLY, not every excluded role. A message in Junk was very likely
+      // put there by a spam filter rather than by a person, and the entire value
+      // of this signal is that it is unambiguous owner intent; reading Junk as
+      // "deleted" would report the owner's own mail as thrown away on the
+      // strength of somebody else's classifier. Junk stays out of scope as
+      // content and says nothing about lifecycle.
+      bins = all.filter((f) => f.specialUse === 'trash' && excluded.includes(f.specialUse));
       return keep;
     },
     listSince: (folder, cursor) => source.listSince(folder, cursor),
+    // WHAT THE OWNER THREW AWAY — the mail domain's only deletion signal.
+    //
+    // IMAP has no removal report of the kind CalDAV's `sync-collection` gives,
+    // and a mailbox cannot be enumerated cheaply enough to run absence-counting
+    // every pass. So until this existed, a message the owner deleted in the old
+    // system produced NOTHING: the target kept its copy in silence.
+    //
+    // The bin is read with its OWN cursor namespace, and that is load-bearing.
+    // Sharing the folder's content cursor would mean that an owner who later
+    // brought trash into scope (`excludeSpecialUse: []`) found the cursor already
+    // advanced past every message in it — so those messages would never be
+    // copied, and the ledger would have no row to show it. Cursors are
+    // non-authoritative (ADR-0020), so the worst this namespace can cost is a
+    // full re-list, which is idempotent; sharing one could cost real data.
+    // Always supplied, and it answers `[]` when there is no bin to read: a
+    // mailbox with no trash folder, or an owner who brought trash into scope, so
+    // that its contents are being migrated rather than interpreted.
+    listDiscardedKeys: async () => {
+      const keys: string[] = [];
+      for (const bin of bins) {
+        const scanKey = discardedScanCursorKey(bin.path);
+        const prev = cursors ? await cursors.get(tenantId, mappingId, scanKey) : undefined;
+        const { items, nextCursor } = await source.listSince(bin, prev);
+        for (const item of items) {
+          // A message with no Message-ID cannot be matched to anything we copied,
+          // so there is nothing to report. Nothing is lost by skipping it: those
+          // items are counted as `unkeyable` wherever they are listed in scope.
+          if (item.messageId) keys.push(naturalKeyForItem(item));
+        }
+        // Advanced only after the whole bin was listed, for the same reason the
+        // content cursors are: recording progress through a partial listing would
+        // retire messages nobody had looked at.
+        if (cursors) await cursors.set(tenantId, mappingId, scanKey, nextCursor);
+      }
+      return keys;
+    },
     fetchRaw: async (item) => {
       const raw = await source.fetch(item);
       // Mail with no Message-ID cannot be keyed, and used to be dropped by the
@@ -144,6 +197,12 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     adopted: result.adopted,
     moved: result.moved,
     drift: result.drift,
+    // Passed through rather than dropped. The ledger is where these persist and
+    // `/deletions` reads them from there — but a caller that logs a pass summary
+    // should not have to query the database to learn that the owner deleted 40
+    // messages, and every count this result omitted has eventually turned out to
+    // be a fact somebody needed.
+    ...(result.deletions.length > 0 ? { deletions: result.deletions } : {}),
     ...(excludedCollections.length > 0 ? { excludedCollections } : {}),
   };
 };
