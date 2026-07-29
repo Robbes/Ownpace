@@ -64,14 +64,15 @@ export class PgLedger implements Ledger {
   /**
    * The row a source href belongs to.
    *
-   * `source_ref ->> 'href'` rather than a whole-object match: the column is
-   * jsonb so a future connector can remember more than one thing about an item
-   * (a Graph id, an IMAP UIDVALIDITY pair) without another migration, and the
-   * expression index in 0025 matches this exact extraction.
+   * A plain column and a plain equality test. The first version of this read a
+   * field out of the existing `source_ref` jsonb with `->> 'href'`, and came
+   * back empty against a real database while typecheck and the in-memory fake
+   * were both happy — a lookup key does not deserve that much cleverness.
    *
-   * A blank href never matches. `{}` on a row means "not recorded" — every row
-   * written before 0025 — and treating that as "the item whose href is the empty
-   * string" would attach a removal report to an arbitrary old row.
+   * A blank href never matches, and neither does NULL. "Not recorded" is every
+   * row written before 0025; treating it as "the item whose href is the empty
+   * string" would attach a removal report to an arbitrary old row and report the
+   * wrong item as deleted.
    */
   async findBySourceRef(
     tenantId: TenantId,
@@ -88,7 +89,7 @@ export class PgLedger implements Ledger {
           eq(schemaPg.item.tenantId, tenantId),
           eq(schemaPg.item.mappingId, mappingId),
           eq(schemaPg.item.domain, domain),
-          sql`${schemaPg.item.sourceRef} ->> 'href' = ${sourceRef}`,
+          eq(schemaPg.item.sourceRefHref, sourceRef),
         ),
       )
       .limit(1);
@@ -114,10 +115,8 @@ export class PgLedger implements Ledger {
         sourceVersion: record.sourceVersion ?? null,
         targetVersion: record.targetVersion ?? null,
         // The source's own handle, so a later removal report can be matched back
-        // to this item. `{}` when the source has none — the column is NOT NULL.
-        ...(record.sourceRef !== undefined
-          ? { sourceRef: JSON.stringify({ href: record.sourceRef }) }
-          : {}),
+        // to this item. NULL when the source has none.
+        sourceRefHref: record.sourceRef ?? null,
         firstSeenAt: sql`now()`,
         updatedAt: sql`now()`,
       })
@@ -173,12 +172,10 @@ export class PgLedger implements Ledger {
         // move undetectable. A caller that knows says so; one that does not
         // leaves the row alone.
         ...(record.collection !== undefined ? { collection: record.collection } : {}),
-        // Conditional for the same reason: the column is NOT NULL with a `{}`
-        // default that means "not recorded", so blanking it whenever a caller
-        // had nothing to say would retire the item's removal-report link.
-        ...(record.sourceRef !== undefined
-          ? { sourceRef: JSON.stringify({ href: record.sourceRef }) }
-          : {}),
+        // Conditional for the same reason as `collection`: a caller with nothing
+        // to say must not blank what we already knew, which would retire the
+        // item's removal-report link.
+        ...(record.sourceRef !== undefined ? { sourceRefHref: record.sourceRef } : {}),
         lastSyncedAt: sql`now()`,
         updatedAt: sql`now()`,
       })
@@ -719,11 +716,9 @@ export class PgLedger implements Ledger {
         ? { targetVersion: row.targetVersion }
         : {}),
       ...(row.collection ? { collection: row.collection } : {}),
-      // Left off entirely when the jsonb has no href, so "not recorded" stays
+      // Left off entirely when there is none, so "not recorded" stays
       // distinguishable from "recorded as empty".
-      ...((row.sourceRef as { href?: string } | null)?.href
-        ? { sourceRef: (row.sourceRef as { href: string }).href }
-        : {}),
+      ...(row.sourceRefHref ? { sourceRef: row.sourceRefHref } : {}),
       ...(row.movedToCollection ? { movedToCollection: row.movedToCollection } : {}),
       ...(row.moveAcknowledgedAt
         ? {
