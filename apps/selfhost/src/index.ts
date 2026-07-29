@@ -482,12 +482,15 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       //     incremental poll with the objects it has removed (RFC 6578), and
       //     those arrive confirmed on sight. Nothing about a second pass would
       //     make the server's own 404 truer.
+      //   - 'trashed' — the owner PUT IT IN THE BIN, and it is still sitting
+      //     there. Also confirmed on sight: we are looking at the item in a
+      //     folder whose role is `\Trash`, which is the old system's own record
+      //     that the person deleted it. This is the only evidence mail has.
       //   - 'inferred' — we STOPPED SEEING IT. An absence seen once has innocent
       //     explanations — a folder briefly missing from discovery, a throttled
       //     listing, a connector having a bad ten minutes — so the item is
       //     watched until it has vanished from several CONSECUTIVE complete scans
-      //     before anyone is asked about it. This is the only evidence available
-      //     for mail and files.
+      //     before anyone is asked about it. This is all the file domain has.
       if (req.method === 'GET' && req.url === '/deletions') {
         const out: Record<string, unknown> = {};
         for (const m of mappings) {
@@ -501,9 +504,10 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             watching: all.filter((d) => !d.confirmed && !d.acknowledgedAt),
             acknowledged: all.filter((d) => d.acknowledgedAt),
             whatThisMeans:
-              'The item is on the target and the source no longer has it. Nothing has been ' +
-              'removed from either side. Read `evidence` to see how we know: "reported" means ' +
-              'the source itself told us the object was deleted, which is believed at once; ' +
+              'The item is on the target and the owner has deleted it on the source. Nothing ' +
+              'has been removed from either side. Read `evidence` to see how we know: ' +
+              '"reported" means the source itself told us the object was gone; "trashed" means ' +
+              'we found it sitting in the owner\'s Deleted Items; both are believed at once. ' +
               `"inferred" means it stopped appearing in ${DELETION_CONFIRMATIONS} or more ` +
               'consecutive complete scans, which is a strong suspicion rather than a fact.',
             howToResolve: {
@@ -518,7 +522,8 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
               doNothing:
                 'An item that reappears on the source drops off this list by itself: its ' +
                 'count resets — a run of absences has to be consecutive to mean anything — and ' +
-                'so does any report, because a UID can be deleted and re-created.',
+                'so does any report or bin sighting, because an item can be deleted and ' +
+                'restored, or dragged back out of Deleted Items.',
             },
           };
         }

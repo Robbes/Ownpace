@@ -875,6 +875,104 @@ describe('PgLedger (integration)', () => {
       expect(queue[2]!.acknowledgedAt).toBeDefined();
     });
 
+    it('believes a trashed deletion at once, and labels it as trashed', async () => {
+      // The mail domain's only signal. An item in a `\Trash` collection is the
+      // source system's own record that the person deleted it — a positive
+      // observation, so believable on sight, and with an absent count of zero
+      // because nothing had to go missing for us to know.
+      await ledger.recordIfAbsent(at('t-1', 'INBOX', 'ht1'));
+      expect(
+        await ledger.recordTrashedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 't-1'),
+      ).toBe(true);
+
+      const queue = await ledger.listDeletions(TEST_TENANT_ID, TEST_MAPPING_ID, 'file');
+      expect(queue).toHaveLength(1);
+      expect(queue[0]).toMatchObject({
+        naturalKeyHash: 't-1',
+        absentPasses: 0,
+        confirmed: true,
+        evidence: 'trashed',
+      });
+      expect(queue[0]!.trashedAt).toBeDefined();
+      // Closable at once, like a reported one: a queue whose most certain entries
+      // are the only ones nobody can clear is worse than no queue.
+      expect(await ledger.resolveDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 't-1', 'keep')).toBe(
+        true,
+      );
+    });
+
+    it('keeps the FIRST sighting while the item sits in the bin', async () => {
+      // It stays there until the owner empties it, so every later pass sees it
+      // again. The first sighting is when the deletion happened.
+      await ledger.recordIfAbsent(at('t-2', 'INBOX', 'ht2'));
+      await ledger.recordTrashedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 't-2');
+      const first = (await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 't-2'))
+        ?.deletionTrashedAt;
+
+      expect(
+        await ledger.recordTrashedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 't-2'),
+      ).toBe(true);
+      expect(
+        (await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 't-2'))?.deletionTrashedAt,
+      ).toBe(first);
+    });
+
+    it('drops the bin sighting when the item comes back', async () => {
+      // A message dragged out of Deleted Items is demonstrably not deleted, and
+      // `clearAbsent` has to reach a row whose absent count is ZERO to say so.
+      await ledger.recordIfAbsent(at('t-3', 'INBOX', 'ht3'));
+      await ledger.recordTrashedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 't-3');
+      await ledger.clearAbsent(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 't-3');
+
+      expect(await ledger.listDeletions(TEST_TENANT_ID, TEST_MAPPING_ID, 'file')).toEqual([]);
+      expect(
+        (await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 't-3'))?.deletionTrashedAt,
+      ).toBeUndefined();
+    });
+
+    it('ranks reported above trashed above merely absent', async () => {
+      // Three ORDER BY keys, and the null handling is NOT the same on all of them:
+      // `acknowledged ASC NULLS FIRST` (open first) against two evidence dates at
+      // `DESC NULLS LAST` (has-the-evidence first). Left to defaults, DESC puts
+      // NULLs first and inverts both — the 0022 bug, twice over.
+      await ledger.recordIfAbsent(at('t-4', 'INBOX', 'ht4'));
+      await ledger.recordIfAbsent(at('t-5', 'INBOX', 'ht5'));
+      await ledger.recordIfAbsent(at('t-6', 'INBOX', 'ht6'));
+      await ledger.recordTrashedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 't-4');
+      await ledger.recordReportedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 't-5');
+      await ledger.recordAbsent(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 't-6');
+      await ledger.recordAbsent(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 't-6');
+
+      const queue = await ledger.listDeletions(TEST_TENANT_ID, TEST_MAPPING_ID, 'file');
+      expect(queue.map((d) => d.naturalKeyHash)).toEqual(['t-5', 't-4', 't-6']);
+      expect(queue.map((d) => d.evidence)).toEqual(['reported', 'trashed', 'inferred']);
+    });
+
+    it('reports the stronger evidence when an item is both binned and gone', async () => {
+      // The owner deleted it and then emptied the bin. Both dates are kept —
+      // neither overwrites the other, because each records when a different thing
+      // was learned — and the queue states the stronger claim.
+      await ledger.recordIfAbsent(at('t-7', 'INBOX', 'ht7'));
+      await ledger.recordTrashedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 't-7');
+      await ledger.recordReportedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 't-7');
+
+      const row = await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 't-7');
+      expect(row?.deletionTrashedAt).toBeDefined();
+      expect(row?.deletionReportedAt).toBeDefined();
+
+      const queue = await ledger.listDeletions(TEST_TENANT_ID, TEST_MAPPING_ID, 'file');
+      expect(queue).toHaveLength(1);
+      expect(queue[0]!.evidence).toBe('reported');
+      expect(queue[0]!.trashedAt).toBeDefined();
+    });
+
+    it('reports nothing for a key we never copied', async () => {
+      // Most of what sits in a bin was never migrated.
+      expect(
+        await ledger.recordTrashedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 't-none'),
+      ).toBe(false);
+    });
+
     it('will not let one tenant report a deletion on another\'s row', async () => {
       await ledger.recordIfAbsent({ ...at('r-8', 'personal', 'hr8'), itemType: 'calendar' });
       expect(
