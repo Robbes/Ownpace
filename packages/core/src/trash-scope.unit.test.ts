@@ -182,3 +182,36 @@ describe('discovery counts what will be left behind', () => {
     expect(discovery.excludedItems).toBeUndefined();
   });
 });
+
+/**
+ * The source's own handle has to reach the ledger row.
+ *
+ * Recorded by the WRITER, not the loop, because `recordIfAbsent` makes the first
+ * writer win — the same race that silently dropped `sourceVersion` for a whole
+ * release and `collection` for longer. Without the href on the row, an RFC 6578
+ * removal report has nothing to match against and authoritative deletion
+ * detection cannot exist.
+ */
+describe('the source href reaches the ledger row', () => {
+  it('is on the row the writer inserted', async () => {
+    const ledger = new MemoryLedger();
+    const source = new MemorySource();
+    source.add({ folderPath: 'INBOX', messageId: '<a@dev.local>', rfc822: 'Subject: a\r\n\r\nb' });
+
+    await runShadowPass({
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      source,
+      target: new MemoryTarget(),
+      ledger,
+    });
+
+    // Mail has no per-item href of its own in this shape, so the loop passes
+    // nothing and the row records nothing — which is the honest answer, and the
+    // one that keeps those items on the absence-counting path instead of
+    // pretending they can be matched against a removal report.
+    const rows = await ledger.placedItems(TENANT, MAPPING, 'email');
+    expect(rows).toHaveLength(1);
+    expect(await ledger.findBySourceRef(TENANT, MAPPING, 'email', '')).toBeUndefined();
+  });
+});

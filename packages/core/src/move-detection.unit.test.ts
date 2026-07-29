@@ -166,6 +166,8 @@ function world(domain: 'calendar' | 'file', opts?: { listKeys?: boolean }) {
           // by `recordIfAbsent` and every row keeps the `''` it has carried
           // since 0001.
           ...(options?.collection !== undefined ? { collection: options.collection } : {}),
+          // The real writers persist this too — same `recordIfAbsent` race.
+          ...(options?.sourceRef !== undefined ? { sourceRef: options.sourceRef } : {}),
         });
         return { targetId: at, created: true };
       },

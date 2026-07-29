@@ -695,6 +695,71 @@ describe('PgLedger (integration)', () => {
       ).toBe(false);
     });
 
+    it('records the source href and finds the row by it', async () => {
+      // The bridge a removal report walks across. RFC 6578 `sync-collection`
+      // reports a deleted object as its href and nothing else — no body, so no
+      // UID, so no natural key — and this lookup is the only way back.
+      await ledger.recordIfAbsent({
+        ...at('s-1', 'personal', 'hs1'),
+        itemType: 'calendar',
+        sourceRef: '/calendars/alice/personal/evt-1.ics',
+      });
+
+      const found = await ledger.findBySourceRef(
+        TEST_TENANT_ID,
+        TEST_MAPPING_ID,
+        'calendar',
+        '/calendars/alice/personal/evt-1.ics',
+      );
+      expect(found?.naturalKeyHash).toBe('s-1');
+      // And it round-trips on the row itself, not just through the lookup.
+      expect(
+        (await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 's-1'))?.sourceRef,
+      ).toBe('/calendars/alice/personal/evt-1.ics');
+    });
+
+    it('never matches a row that recorded no href', async () => {
+      // Every row written before migration 0025 carries `{}`. Matching the empty
+      // string against those would attach a removal report to whichever old row
+      // came first — the wrong item, reported as deleted.
+      await ledger.recordIfAbsent({ ...at('s-2', 'personal', 'hs2'), itemType: 'calendar' });
+
+      expect(
+        await ledger.findBySourceRef(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', ''),
+      ).toBeUndefined();
+      expect(
+        (await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 's-2'))?.sourceRef,
+      ).toBeUndefined();
+    });
+
+    it('keeps the href through an update, and does not blank it', async () => {
+      // Conditional in the SET clause, like `collection`: the column is NOT NULL
+      // with a `{}` default meaning "not recorded", so a caller with nothing to
+      // say must not retire the item's removal-report link.
+      await ledger.recordIfAbsent({
+        ...at('s-3', 'personal', 'hs3'),
+        itemType: 'calendar',
+        sourceRef: '/calendars/alice/personal/evt-3.ics',
+      });
+      await ledger.recordUpdate({ ...at('s-3', 'personal', 'hs3b'), itemType: 'calendar' });
+
+      expect(
+        (await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 's-3'))?.sourceRef,
+      ).toBe('/calendars/alice/personal/evt-3.ics');
+    });
+
+    it('does not match an href across domains or tenants', async () => {
+      const href = '/shared/collision.ics';
+      await ledger.recordIfAbsent({ ...at('s-4', 'personal', 'hs4'), itemType: 'calendar', sourceRef: href });
+
+      expect(
+        await ledger.findBySourceRef(TEST_TENANT_ID, TEST_MAPPING_ID, 'contact', href),
+      ).toBeUndefined();
+      expect(
+        await ledger.findBySourceRef(TEST_TENANT_2_ID, TEST_MAPPING_2_ID, 'calendar', href),
+      ).toBeUndefined();
+    });
+
     it('does not cross domains, mappings or tenants', async () => {
       await ledger.recordIfAbsent(at('c-10', 'Shared', 'h10'));
       await ledger.recordIfAbsent({ ...at('c-11', 'Shared', 'h11'), itemType: 'calendar' });

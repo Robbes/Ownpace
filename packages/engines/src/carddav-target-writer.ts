@@ -196,6 +196,10 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
         // would be thrown away. Without it every row keeps the `''` it has
         // carried since 0001 and a move stays undetectable.
         ...(options?.collection !== undefined ? { collection: options.collection } : {}),
+        // Same race, same reason as `collection` above: the writer wins
+        // `recordIfAbsent`, so the source's own handle is recorded here or
+        // not at all. Without it a removal report has no way back to the item.
+        ...(options?.sourceRef !== undefined ? { sourceRef: options.sourceRef } : {}),
       });
       return { targetId: existingId, created: false, adopted: true };
     }
@@ -226,6 +230,10 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       // would be thrown away. Without it every row keeps the `''` it has
       // carried since 0001 and a move stays undetectable.
       ...(options?.collection !== undefined ? { collection: options.collection } : {}),
+      // Same race, same reason as `collection` above: the writer wins
+      // `recordIfAbsent`, so the source's own handle is recorded here or
+      // not at all. Without it a removal report has no way back to the item.
+      ...(options?.sourceRef !== undefined ? { sourceRef: options.sourceRef } : {}),
       // NOT from the loop: only this writer saw the server's answer to the PUT.
       ...(written.etag !== undefined ? { targetVersion: written.etag } : {}),
     });
