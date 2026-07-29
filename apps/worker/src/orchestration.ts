@@ -41,6 +41,7 @@ import {
 import type { TargetReindexer } from '@openmig/shared';
 import { buildDeps, buildDomainDeps } from './build-deps';
 import { discoverDomains, type DomainDiscoveryTask, type DomainDiscoveryOutcome } from './discovery';
+import { log } from '@openmig/shared';
 
 export interface DomainSyncResult {
   domain: 'email' | 'calendar' | 'contact' | 'file';
@@ -207,7 +208,7 @@ export async function runAllDomains(
     domains.filter((d) => d.enabled).map((d) => d.name),
   );
   if (lanes.length > 1) {
-    console.log(
+    log.info(
       `[Worker] running ${lanes.length} domain lanes in parallel: ` +
         lanes.map((l) => l.join('+')).join(' | '),
     );
@@ -269,13 +270,13 @@ export async function runAllDomains(
       // `adopted` is reported alongside the rest: a pass that created nothing
       // because the destination already held the data reads very differently
       // from one that created nothing because we had already migrated it.
-      console.log(
+      log.info(
         `[Worker] ${domain} sync complete: scanned=${outcome.scanned}, created=${outcome.created}, ` +
           `adopted=${outcome.adopted}, skipped=${outcome.skipped}`,
       );
     } catch (err) {
       const error = err as Error;
-      console.error(`[Worker] ${domain} sync failed: ${error.message}`);
+      log.error(`[Worker] ${domain} sync failed: ${error.message}`);
       await statusStore.markFailed(tenantId, mappingId, domain, error.message);
       results.push({ domain, scanned: 0, created: 0, skipped: 0, adopted: 0, failed: 1, error: error.message });
       // Continue to the next domain — one domain's failure must not block others.
@@ -288,7 +289,7 @@ export async function runAllDomains(
   const settled = await Promise.allSettled(lanes.map(runLane));
   for (const s of settled) {
     if (s.status === 'rejected') {
-      console.error(`[Worker] domain lane failed unexpectedly: ${String(s.reason)}`);
+      log.error(`[Worker] domain lane failed unexpectedly: ${String(s.reason)}`);
     }
   }
 
@@ -376,7 +377,7 @@ export async function discoverAllDomains(
           );
           return { ...discovery, targetExisting, targetColliding };
         } catch (err) {
-          console.warn(
+          log.warn(
             `[discovery] could not enumerate the ${domain} destination: ` +
               `${err instanceof Error ? err.message : String(err)}`,
           );
@@ -492,7 +493,7 @@ export async function verifyMapping(config: MappingConfig): Promise<Verification
     try {
       opened = await open();
     } catch (err) {
-      console.warn(
+      log.warn(
         `[verify] no ${key} target for ${config.mappingId}: ` +
           `${err instanceof Error ? err.message : String(err)}`,
       );
@@ -568,7 +569,7 @@ export async function verifyMapping(config: MappingConfig): Promise<Verification
     ]);
     for (const outcome of settled) {
       if (outcome.status === 'rejected') {
-        console.warn('[verify] failed to release a connection:', outcome.reason);
+        log.warn('[verify] failed to release a connection:', outcome.reason);
       }
     }
   }

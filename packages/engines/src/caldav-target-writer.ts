@@ -30,6 +30,7 @@ import {
   sizeOf,
 } from './dav-multistatus';
 import { requestWithDavRetry } from './dav-retry';
+import { log } from '@openmig/shared';
 
 /**
  * Configuration for CalDAV target writer
@@ -196,7 +197,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
           }
           return keys;
         } catch (err) {
-          console.warn(
+          log.warn(
             `[caldav] could not list ${collectionId} up front, falling back to a per-item ` +
               `existence check: ${err instanceof Error ? err.message : String(err)}`,
           );
@@ -428,7 +429,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     // calendar REPORT 404 until hrefRelativeTo was applied to collections.
     const relative = hrefRelativeTo(entry.targetId, this.buildUrl(''));
     if (relative === undefined) {
-      console.warn(`[caldav] ${entry.targetId} is outside the configured base; not content-verifying it`);
+      log.warn(`[caldav] ${entry.targetId} is outside the configured base; not content-verifying it`);
       return undefined;
     }
 
@@ -440,12 +441,12 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
         headers: { Authorization: this.authHeader() },
       });
     } catch (err) {
-      console.warn(`[caldav] GET ${entry.targetId} failed: ${err instanceof Error ? err.message : String(err)}`);
+      log.warn(`[caldav] GET ${entry.targetId} failed: ${err instanceof Error ? err.message : String(err)}`);
       return undefined;
     }
 
     if (response.status !== 200) {
-      console.warn(`[caldav] GET ${entry.targetId} -> ${response.status}; cannot content-verify it`);
+      log.warn(`[caldav] GET ${entry.targetId} -> ${response.status}; cannot content-verify it`);
       return undefined;
     }
 

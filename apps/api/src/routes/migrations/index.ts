@@ -17,6 +17,7 @@ import { SecretStore } from '@openmig/core/secret-store';
 import { getTriggerClient } from '@openmig/scheduler';
 import type { DiscoveryDomain, TenantId, MappingId } from '@openmig/shared';
 import { resolveSyncJob, resolveCutoverJob } from './job-resolution';
+import { log } from '@openmig/shared';
 
 /** Take the first row of a RETURNING result or fail loudly (no silent nulls). */
 function firstOrThrow<T>(rows: T[], what: string): T {
@@ -168,7 +169,7 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
       })),
     });
   } catch (error) {
-    console.error('Error listing mappings:', error);
+    log.error('Error listing mappings:', error);
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to list mappings',
@@ -309,7 +310,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         details: error.issues,
       });
     } else {
-      console.error('Error creating mapping:', error);
+      log.error('Error creating mapping:', error);
       res.status(500).json({
         error: 'Internal server error',
         message: 'Failed to create mapping',
@@ -460,7 +461,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
       updatedAt: mapping.updatedAt,
     });
   } catch (error) {
-    console.error('Error getting mapping:', error);
+    log.error('Error getting mapping:', error);
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to get mapping',
@@ -552,7 +553,7 @@ router.put(
           details: error.issues,
         });
       } else {
-        console.error('Error updating mapping:', error);
+        log.error('Error updating mapping:', error);
         res.status(500).json({
           error: 'Internal server error',
           message: 'Failed to update mapping',
@@ -616,7 +617,7 @@ router.delete(
         message: 'Mapping deleted successfully',
       });
     } catch (error) {
-      console.error('Error deleting mapping:', error);
+      log.error('Error deleting mapping:', error);
       res.status(500).json({
         error: 'Internal server error',
         message: 'Failed to delete mapping',
@@ -703,7 +704,7 @@ router.post(
           details: error.issues,
         });
       } else {
-        console.error('Error triggering sync:', error);
+        log.error('Error triggering sync:', error);
         res.status(500).json({
           error: 'Internal server error',
           message: 'Failed to trigger sync',
@@ -785,7 +786,7 @@ router.post(
           details: error.issues,
         });
       } else {
-        console.error('Error triggering cutover:', error);
+        log.error('Error triggering cutover:', error);
         res.status(500).json({
           error: 'Internal server error',
           message: 'Failed to trigger cutover',
@@ -840,7 +841,7 @@ router.get(
 
       res.json({ runs: runs.map(toApiRun) });
     } catch (error) {
-      console.error('Error listing runs:', error);
+      log.error('Error listing runs:', error);
       res.status(500).json({
         error: 'Internal server error',
         message: 'Failed to list runs',
@@ -934,7 +935,7 @@ router.get(
         })),
       });
     } catch (error) {
-      console.error('Error getting run:', error);
+      log.error('Error getting run:', error);
       res.status(500).json({
         error: 'Internal server error',
         message: 'Failed to get run',
@@ -987,7 +988,7 @@ router.post('/:mappingId/discover', authenticate, async (req: AuthenticatedReque
     if (error instanceof z.ZodError) {
       res.status(400).json({ error: 'Validation error', details: error.issues });
     } else {
-      console.error('Error triggering discovery:', error);
+      log.error('Error triggering discovery:', error);
       res.status(500).json({ error: 'Internal server error', message: 'Failed to trigger discovery' });
     }
   }
@@ -1012,7 +1013,7 @@ router.get('/:mappingId/discovery', authenticate, async (req: AuthenticatedReque
     );
     res.json({ mappingId, discovered: domains.length > 0, domains });
   } catch (error) {
-    console.error('Error reading discovery:', error);
+    log.error('Error reading discovery:', error);
     res.status(500).json({ error: 'Internal server error', message: 'Failed to read discovery' });
   }
 });
@@ -1045,7 +1046,7 @@ router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest,
     }
     res.json({ id: mappingId, status: 'active' });
   } catch (error) {
-    console.error('Error starting mapping:', error);
+    log.error('Error starting mapping:', error);
     res.status(500).json({ error: 'Internal server error', message: 'Failed to start mapping' });
   }
 });

@@ -13,6 +13,7 @@ import type { AuthenticatedRequest } from '../../types/api';
 import membersRoutes from './members';
 import { eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
+import { log } from '@openmig/shared';
 
 const router = Router();
 
@@ -78,7 +79,7 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
       })),
     });
   } catch (error) {
-    console.error('Error listing tenants:', error);
+    log.error('Error listing tenants:', error);
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to list tenants',
@@ -162,7 +163,7 @@ router.get('/:tenantId', authenticate, async (req: AuthenticatedRequest, res: Re
       createdAt: tenant.createdAt,
     });
   } catch (error) {
-    console.error('Error getting tenant:', error);
+    log.error('Error getting tenant:', error);
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to get tenant',
@@ -233,7 +234,7 @@ router.put(
           details: error.issues,
         });
       } else {
-        console.error('Error updating tenant:', error);
+        log.error('Error updating tenant:', error);
         res.status(500).json({
           error: 'Internal server error',
           message: 'Failed to update tenant',
@@ -286,7 +287,7 @@ router.delete(
         message: 'Tenant deleted successfully',
       });
     } catch (error) {
-      console.error('Error deleting tenant:', error);
+      log.error('Error deleting tenant:', error);
       res.status(500).json({
         error: 'Internal server error',
         message: 'Failed to delete tenant',

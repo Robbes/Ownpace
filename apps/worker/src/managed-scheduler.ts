@@ -50,6 +50,7 @@ import { InProcessScheduler } from '@openmig/scheduler/in-process';
 import { runShadowPass, runCalendarSync, runContactSync, runFileSync } from '@openmig/core';
 import type { TenantId, MappingId, ScheduleHandle } from '@openmig/shared';
 import { buildDepsFromMapping, buildDomainDepsFromMapping } from './build-deps-from-mapping';
+import { log } from '@openmig/shared';
 
 const DEFAULT_SCHEDULE = '*/15 * * * *'; // every 15 minutes if a mapping omits one
 const DEFAULT_POLL_INTERVAL_MS = 60_000; // re-check mailbox_mapping.status every minute
@@ -155,7 +156,7 @@ async function runDomain(
     await withTenant(pool, tenantId, async (db) => {
       await new PgMigrationStatusStore(db).markCompleted(tenantId, mappingId, domain);
     });
-    console.log(`[managed-scheduler] ${mappingId}/${domain}: ${result.created} created, ${result.skipped} skipped`);
+    log.info(`[managed-scheduler] ${mappingId}/${domain}: ${result.created} created, ${result.skipped} skipped`);
     return result;
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -164,7 +165,7 @@ async function runDomain(
         await new PgMigrationStatusStore(db).markFailed(tenantId, mappingId, domain, message);
       });
     } catch (statusErr) {
-      console.error(`[managed-scheduler] ${mappingId}/${domain}: failed to mark status failed:`, statusErr);
+      log.error(`[managed-scheduler] ${mappingId}/${domain}: failed to mark status failed:`, statusErr);
     }
     throw err;
   }
@@ -188,7 +189,7 @@ async function logRunEvent(
       await new RunStore(db).logEvent(tenantId, runId, level, message, detail);
     });
   } catch (err) {
-    console.error('[managed-scheduler] failed to write run event:', err instanceof Error ? err.message : err);
+    log.error('[managed-scheduler] failed to write run event:', err instanceof Error ? err.message : err);
   }
 }
 
@@ -227,20 +228,20 @@ async function recordMetering(
 function runMapping(pool: Pool, mapping: ActiveMapping) {
   return async () => {
     const { id: mappingId, tenantId } = mapping;
-    console.log(`[managed-scheduler] ${mappingId}: starting pass...`);
+    log.info(`[managed-scheduler] ${mappingId}: starting pass...`);
 
     let domains: Domain[];
     try {
       domains = await loadEnabledDomains(pool, tenantId, mappingId);
     } catch (err) {
-      console.error(
+      log.error(
         `[managed-scheduler] ${mappingId}: failed to load scope selection:`,
         err instanceof Error ? err.message : err,
       );
       return;
     }
     if (domains.length === 0) {
-      console.log(`[managed-scheduler] ${mappingId}: no domains selected, skipping`);
+      log.info(`[managed-scheduler] ${mappingId}: no domains selected, skipping`);
       return;
     }
 
@@ -261,7 +262,7 @@ function runMapping(pool: Pool, mapping: ActiveMapping) {
         }),
       );
     } catch (err) {
-      console.error(`[managed-scheduler] ${mappingId}: failed to open run row:`, err instanceof Error ? err.message : err);
+      log.error(`[managed-scheduler] ${mappingId}: failed to open run row:`, err instanceof Error ? err.message : err);
     }
 
     let itemsProcessed = 0;
@@ -283,7 +284,7 @@ function runMapping(pool: Pool, mapping: ActiveMapping) {
         // failing domain must not stop the others (hard rule 9: surface, don't crash).
         const message = err instanceof Error ? err.message : String(err);
         errors += 1;
-        console.error(`[managed-scheduler] ${mappingId}/${domain}: sync failed:`, message);
+        log.error(`[managed-scheduler] ${mappingId}/${domain}: sync failed:`, message);
         if (runId) {
           await logRunEvent(pool, tenantId as TenantId, runId, 'error', `${domain} sync failed: ${message}`, { domain });
         }
@@ -302,11 +303,11 @@ function runMapping(pool: Pool, mapping: ActiveMapping) {
           });
         });
       } catch (err) {
-        console.error(`[managed-scheduler] ${mappingId}: failed to close run row:`, err instanceof Error ? err.message : err);
+        log.error(`[managed-scheduler] ${mappingId}: failed to close run row:`, err instanceof Error ? err.message : err);
       }
     }
 
-    console.log(`[managed-scheduler] ${mappingId}: pass complete`);
+    log.info(`[managed-scheduler] ${mappingId}: pass complete`);
   };
 }
 
@@ -327,7 +328,7 @@ async function reconcileSchedules(
     if (!activeById.has(mappingId)) {
       handle.stop();
       scheduled.delete(mappingId);
-      console.log(`[managed-scheduler] ${mappingId}: no longer active, unscheduled`);
+      log.info(`[managed-scheduler] ${mappingId}: no longer active, unscheduled`);
     }
   }
 
@@ -336,7 +337,7 @@ async function reconcileSchedules(
     const cron = mapping.schedule ?? DEFAULT_SCHEDULE;
     const handle = scheduler.schedule(mapping.id, cron, runMapping(pool, mapping));
     scheduled.set(mapping.id, handle);
-    console.log(`[managed-scheduler] ${mapping.id}: scheduled (${cron})`);
+    log.info(`[managed-scheduler] ${mapping.id}: scheduled (${cron})`);
   }
 }
 
@@ -375,7 +376,7 @@ export async function start(options: ManagedSchedulerOptions = {}): Promise<Mana
   await reconcileSchedules(pool, scheduler, scheduled);
   const pollTimer = setInterval(() => {
     reconcileSchedules(pool, scheduler, scheduled).catch((err) => {
-      console.error('[managed-scheduler] reconcile failed:', err instanceof Error ? err.message : err);
+      log.error('[managed-scheduler] reconcile failed:', err instanceof Error ? err.message : err);
     });
   }, pollIntervalMs);
 
@@ -390,7 +391,7 @@ export async function start(options: ManagedSchedulerOptions = {}): Promise<Mana
   });
   await new Promise<void>((resolve) => server.listen(port, host, resolve));
   const boundPort = (server.address() as { port: number }).port;
-  console.log(`[managed-scheduler] listening on http://${host}:${boundPort}, polling every ${pollIntervalMs}ms`);
+  log.info(`[managed-scheduler] listening on http://${host}:${boundPort}, polling every ${pollIntervalMs}ms`);
 
   return {
     port: boundPort,
@@ -409,14 +410,14 @@ if (invokedPath && import.meta.url === `file://${invokedPath}`) {
   start()
     .then((handle) => {
       const graceful = () => {
-        console.log('[managed-scheduler] shutting down…');
+        log.info('[managed-scheduler] shutting down…');
         handle.stop().then(() => process.exit(0)).catch(() => process.exit(1));
       };
       process.on('SIGTERM', graceful);
       process.on('SIGINT', graceful);
     })
     .catch((err) => {
-      console.error('[managed-scheduler] failed to start:', err);
+      log.error('[managed-scheduler] failed to start:', err);
       process.exit(1);
     });
 }

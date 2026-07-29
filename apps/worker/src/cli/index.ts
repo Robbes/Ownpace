@@ -21,6 +21,7 @@ import { runVerification, createRealVerificationDeps } from '@openmig/core';
 import { buildDepsFromMapping } from '../build-deps-from-mapping';
 import { buildTargetReindexers } from '../build-reindexers';
 import * as cutoverCli from './cutover-commands';
+import { log } from '@openmig/shared';
 
 /** Parse cutover CLI arguments */
 function parseArgs(): {
@@ -62,7 +63,7 @@ function parseArgs(): {
     } else if (arg === '--yes' || arg === '-y') {
       assumeYes = true;
     } else if (arg === '--help' || arg === '-h') {
-      console.log(`
+      log.info(`
 Cutover CLI - Manage migration cutover lifecycle
 
 Usage:
@@ -126,24 +127,24 @@ Environment Variables:
   }
 
   if (!command) {
-    console.error('Error: command required (start-cutover, verify, approve, execute, rollback, status, runbook)');
+    log.error('Error: command required (start-cutover, verify, approve, execute, rollback, status, runbook)');
     process.exit(1);
   }
 
   if (!domain) {
-    console.error('Error: --domain <name> is required');
+    log.error('Error: --domain <name> is required');
     process.exit(1);
   }
 
   // "runbook" is a pure local computation — no tenant/mapping/DB needed.
   if (command !== 'runbook') {
     if (!tenantId) {
-      console.error('Error: --tenant <id> is required');
+      log.error('Error: --tenant <id> is required');
       process.exit(1);
     }
 
     if (!mappingId) {
-      console.error('Error: --mapping <id> is required');
+      log.error('Error: --mapping <id> is required');
       process.exit(1);
     }
   }
@@ -157,7 +158,7 @@ async function main() {
 
   // "runbook" is a pure local computation — generate and print without touching the DB.
   if (command === 'runbook') {
-    console.log(
+    log.info(
       cutoverCli.generateRunbook({
         dnsDomain: domain,
         targetMailServer: targetMailServer || `mail.${domain}`,
@@ -171,7 +172,7 @@ async function main() {
   // Initialize database connection
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) {
-    console.error('Error: DATABASE_URL environment variable required');
+    log.error('Error: DATABASE_URL environment variable required');
     process.exit(1);
   }
 
@@ -260,13 +261,13 @@ async function main() {
       break;
     }
     default:
-      console.error(`Unknown cutover command: ${command}`);
-      console.error('Use: start-cutover, verify, approve, execute, rollback, status, runbook');
+      log.error(`Unknown cutover command: ${command}`);
+      log.error('Use: start-cutover, verify, approve, execute, rollback, status, runbook');
       process.exit(1);
   }
 }
 
 main().catch((err) => {
-  console.error('[Cutover CLI] Fatal error:', err);
+  log.error('[Cutover CLI] Fatal error:', err);
   process.exit(1);
 });

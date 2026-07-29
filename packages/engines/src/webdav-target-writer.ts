@@ -20,6 +20,7 @@ import type {
 import { fileNaturalKeyHash, fileContentHash } from '@openmig/shared';
 import { parseMultiStatus, isCollection, hrefRelativeTo, sizeOf } from './dav-multistatus';
 import { requestWithDavRetry } from './dav-retry';
+import { log } from '@openmig/shared';
 
 /**
  * Configuration for WebDAV target writer
@@ -193,7 +194,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
           }
           return keys;
         } catch (err) {
-          console.warn(
+          log.warn(
             `[webdav] could not walk the target root up front, falling back to a per-item ` +
               `existence check: ${err instanceof Error ? err.message : String(err)}`,
           );

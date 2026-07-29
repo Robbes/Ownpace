@@ -18,6 +18,7 @@ import { and, eq } from 'drizzle-orm';
 import { Pool } from 'pg';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import { asTenantId, asMappingId } from '@openmig/shared';
+import { log } from '@openmig/shared';
 
 // Job input schema
 const RollbackJobSchema = z.object({
@@ -42,7 +43,7 @@ export const runRollback = schemaTask({
     const typedPayload = payload as RollbackJobPayload;
     const { tenantId, mappingId, reason, options } = typedPayload;
     
-    console.log('Starting rollback process', {
+    log.info('Starting rollback process', {
       tenantId,
       mappingId,
       reason,
@@ -83,7 +84,7 @@ export const runRollback = schemaTask({
 
       // Step 2: Reactivate the mapping so shadow sync resumes with the original
       // source authoritative again (the real, in-scope rollback action).
-      console.log('Reactivating mapping (status → active)');
+      log.info('Reactivating mapping (status → active)');
       logger.info('Reactivating mapping so shadow sync resumes...');
       await db
         .update(schemaPg.mailboxMapping)
@@ -96,7 +97,7 @@ export const runRollback = schemaTask({
         );
 
       // Step 3: Update cutover status to ROLLED_BACK
-      console.log('Marking cutover as rolled back');
+      log.info('Marking cutover as rolled back');
       await cutoverPersistence.transitionState(asTenantId(tenantId), asMappingId(mappingId), 'ROLLED_BACK', {
         rolledBackAt: new Date().toISOString(),
         rolledBackBy: 'trigger-job',
@@ -116,7 +117,7 @@ export const runRollback = schemaTask({
       // job) does not exist anywhere in this repo. Grace-period monitoring is
       // not implemented, so there is nothing pending to cancel.
 
-      console.log('Rollback completed successfully');
+      log.info('Rollback completed successfully');
       logger.info('Rollback completed successfully');
 
       return {
@@ -128,7 +129,7 @@ export const runRollback = schemaTask({
       };
     } catch (error) {
       const err = error as Error;
-      console.error('Rollback failed', { error: err.message });
+      log.error('Rollback failed', { error: err.message });
       logger.error(`Rollback failed: ${err.message}`);
 
       // Try to log the failure even if rollback failed
@@ -138,7 +139,7 @@ export const runRollback = schemaTask({
           failureReason: `Rollback failed: ${err.message}`,
         });
       } catch (rollbackError) {
-        console.error('Failed to update cutover status after rollback failure', { error: rollbackError });
+        log.error('Failed to update cutover status after rollback failure', { error: rollbackError });
       }
 
       throw error;

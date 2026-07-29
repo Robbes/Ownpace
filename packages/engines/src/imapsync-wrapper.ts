@@ -6,6 +6,7 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { tmpdir } from 'os';
+import { log } from '@openmig/shared';
 
 // Inline types to avoid dependency issues
 interface ImapOAuth2Source {
@@ -106,7 +107,7 @@ export async function runImapsyncBulk(config: ImapSyncConfig): Promise<BulkSyncR
     const cmd = buildImapsyncCommand(config, sourcePassFile, targetPassFile);
     
     if (config.verbose) {
-      console.log('[imapsync] Running bulk sync:', cmd);
+      log.info('[imapsync] Running bulk sync:', cmd);
     }
     
     // Execute imapsync with timeout
@@ -137,7 +138,7 @@ export async function runImapsyncBulk(config: ImapSyncConfig): Promise<BulkSyncR
     const errorMessage = error instanceof Error ? error.message : String(error);
     
     if (config.verbose) {
-      console.error('[imapsync] Bulk sync failed:', errorMessage);
+      log.error('[imapsync] Bulk sync failed:', errorMessage);
     }
     
     return {

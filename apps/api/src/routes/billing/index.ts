@@ -19,6 +19,7 @@ import { getMollieService } from '../../services/mollie/index';
 import { eq, and, desc } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { getUsageMetricsForPeriod } from '@openmig/ledger';
+import { log } from '@openmig/shared';
 
 const router = Router();
 
@@ -81,7 +82,7 @@ router.get('/usage', authenticate, async (req: AuthenticatedRequest, res: Respon
       period: periodStart.slice(0, 7),
     });
   } catch (error) {
-    console.error('Error getting usage:', error);
+    log.error('Error getting usage:', error);
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to get usage metrics',
@@ -175,7 +176,7 @@ router.get('/usage/history', authenticate, async (req: AuthenticatedRequest, res
       usage: usageHistory,
     });
   } catch (error) {
-    console.error('Error getting usage history:', error);
+    log.error('Error getting usage history:', error);
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to get usage history',
@@ -222,7 +223,7 @@ router.post('/estimate', authenticate, async (req: AuthenticatedRequest, res: Re
         details: error.issues,
       });
     } else {
-      console.error('Error estimating cost:', error);
+      log.error('Error estimating cost:', error);
       res.status(500).json({
         error: 'Internal server error',
         message: 'Failed to estimate cost',
@@ -264,7 +265,7 @@ router.post('/invoices/generate', authenticate, async (req: AuthenticatedRequest
 
     res.status(201).json({ invoice });
   } catch (error) {
-    console.error('Error generating invoice:', error);
+    log.error('Error generating invoice:', error);
     res.status(500).json({ error: 'Internal server error', message: 'Failed to generate invoice' });
   }
 });
@@ -311,7 +312,7 @@ router.get('/invoices', authenticate, async (req: AuthenticatedRequest, res: Res
       invoices,
     });
   } catch (error) {
-    console.error('Error listing invoices:', error);
+    log.error('Error listing invoices:', error);
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to list invoices',
@@ -375,7 +376,7 @@ router.get('/invoices/:invoiceId', authenticate, async (req: AuthenticatedReques
 
     res.json({ invoice: invoices[0] });
   } catch (error) {
-    console.error('Error getting invoice:', error);
+    log.error('Error getting invoice:', error);
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to get invoice',
@@ -473,7 +474,7 @@ router.post('/invoices/:invoiceId/pay', authenticate, async (req: AuthenticatedR
       status: payment.status,
     });
   } catch (error: unknown) {
-    console.error('Error creating payment:', error);
+    log.error('Error creating payment:', error);
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     
@@ -526,7 +527,7 @@ router.get('/payment-methods', authenticate, async (req: AuthenticatedRequest, r
       paymentMethods,
     });
   } catch (error) {
-    console.error('Error listing payment methods:', error);
+    log.error('Error listing payment methods:', error);
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to list payment methods',
@@ -578,7 +579,7 @@ router.post('/payment-methods', authenticate, async (req: AuthenticatedRequest, 
         details: error.issues,
       });
     } else {
-      console.error('Error creating payment method:', error);
+      log.error('Error creating payment method:', error);
       res.status(500).json({
         error: 'Internal server error',
         message: 'Failed to create payment method',
@@ -638,7 +639,7 @@ router.patch(
         paymentMethod,
       });
     } catch (error) {
-      console.error('Error setting default payment method:', error);
+      log.error('Error setting default payment method:', error);
       res.status(500).json({
         error: 'Internal server error',
         message: 'Failed to set default payment method',

@@ -22,6 +22,7 @@ import {
   grantsOwnerWithoutPermission,
   isSelfRemoval,
 } from './member-guards';
+import { log } from '@openmig/shared';
 
 const router = Router();
 
@@ -83,7 +84,7 @@ router.get(
 
       res.json({ members });
     } catch (error) {
-      console.error('Error listing members:', error);
+      log.error('Error listing members:', error);
       res.status(500).json({
         error: 'Internal server error',
         message: 'Failed to list members',
@@ -137,7 +138,7 @@ router.post(
           details: error.issues,
         });
       } else {
-        console.error('Error inviting member:', error);
+        log.error('Error inviting member:', error);
         res.status(500).json({
           error: 'Internal server error',
           message: 'Failed to invite member',
@@ -199,7 +200,7 @@ router.get(
 
       res.json(members[0]);
     } catch (error) {
-      console.error('Error getting member:', error);
+      log.error('Error getting member:', error);
       res.status(500).json({
         error: 'Internal server error',
         message: 'Failed to get member',
@@ -308,7 +309,7 @@ router.patch(
           details: error.issues,
         });
       } else {
-        console.error('Error updating member:', error);
+        log.error('Error updating member:', error);
         res.status(500).json({
           error: 'Internal server error',
           message: 'Failed to update member',
@@ -406,7 +407,7 @@ router.delete(
 
       res.status(204).send();
     } catch (error) {
-      console.error('Error removing member:', error);
+      log.error('Error removing member:', error);
       res.status(500).json({
         error: 'Internal server error',
         message: 'Failed to remove member',

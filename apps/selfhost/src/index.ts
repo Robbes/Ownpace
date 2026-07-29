@@ -31,6 +31,7 @@ import { loadConfigDir, type LoadedMapping } from './config-dir';
 import { buildStatusReport, type MappingStatusInput } from './status';
 import { renderConfirmPage, type MappingConfirmView } from './confirm-page';
 import { startTransition } from './lifecycle';
+import { log } from '@openmig/shared';
 
 const DEFAULT_CONFIG_DIR = '/data/config';
 const DEFAULT_SCHEDULE = '*/15 * * * *'; // every 15 minutes if a mapping omits one
@@ -55,7 +56,7 @@ async function ensureMappingRecords(
   sourceUser: string,
   targetUser: string,
 ) {
-  console.log(`[selfhost] ensuring mapping records for ${mailboxMappingId}...`);
+  log.debug(`[selfhost] ensuring mapping records for ${mailboxMappingId}...`);
   
     // 1. Ensure connection records exist (source and target)
     const sourceConnectionId = uuidFromString(`${tenantId}:source:imap`);
@@ -68,7 +69,7 @@ async function ensureMappingRecords(
        ON CONFLICT (id) DO NOTHING`,
       [sourceConnectionId, tenantId, 'source', 'imap', 'Source IMAP', JSON.stringify({ type: 'imap', host: 'stalwart', port: 143, security: 'none' }), 'connected']
     );
-    console.log(`[selfhost] ensured source connection ${sourceConnectionId}`);
+    log.debug(`[selfhost] ensured source connection ${sourceConnectionId}`);
 
     // Insert target connection (ignore if exists)
     await client.query(
@@ -77,7 +78,7 @@ async function ensureMappingRecords(
        ON CONFLICT (id) DO NOTHING`,
       [targetConnectionId, tenantId, 'target', 'jmap', 'Target JMAP', JSON.stringify({ type: 'jmap', host: 'stalwart', port: 8080, security: 'none' }), 'connected']
     );
-    console.log(`[selfhost] ensured target connection ${targetConnectionId}`);
+    log.debug(`[selfhost] ensured target connection ${targetConnectionId}`);
 
     // 2. Ensure mailbox records exist (source and target)
     const sourceMailboxId = uuidFromString(`${tenantId}:mailbox:source:${sourceUser}`);
@@ -90,7 +91,7 @@ async function ensureMappingRecords(
        ON CONFLICT (id) DO NOTHING`,
       [sourceMailboxId, tenantId, sourceConnectionId, sourceUser, 'user', sourceUser, sourceUser, 'active']
     );
-    console.log(`[selfhost] ensured source mailbox ${sourceMailboxId}`);
+    log.debug(`[selfhost] ensured source mailbox ${sourceMailboxId}`);
 
     // Insert target mailbox (ignore if exists)
     await client.query(
@@ -99,7 +100,7 @@ async function ensureMappingRecords(
        ON CONFLICT (id) DO NOTHING`,
       [targetMailboxId, tenantId, targetConnectionId, targetUser, 'user', targetUser, targetUser, 'active']
     );
-    console.log(`[selfhost] ensured target mailbox ${targetMailboxId}`);
+    log.debug(`[selfhost] ensured target mailbox ${targetMailboxId}`);
 
     // 3. Ensure mailbox_mapping record exists (ignore if exists)
     await client.query(
@@ -109,7 +110,7 @@ async function ensureMappingRecords(
       // 0013 T7: created PAUSED (draft) — only scheduled after the operator confirms at GET /.
       [mailboxMappingId, tenantId, sourceMailboxId, targetMailboxId, 'mirror', 'paused']
     );
-    console.log(`[selfhost] ensured mailbox_mapping ${mailboxMappingId}`);
+    log.debug(`[selfhost] ensured mailbox_mapping ${mailboxMappingId}`);
 }
 
 export interface SelfhostOptions {
@@ -135,12 +136,12 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   const host = options.host ?? process.env.HOST ?? '127.0.0.1';
 
   // 1. Self-migrate under the advisory lock (refuses to start if DB is newer).
-  console.log('[selfhost] applying migrations…');
+  log.info('[selfhost] applying migrations…');
   await runMigrations({ connectionString: databaseUrl });
 
   // 2. Load and validate the mapping configs.
   const mappings = loadConfigDir(configDir);
-  console.log(`[selfhost] loaded ${mappings.length} mapping(s) from ${configDir}`);
+  log.info(`[selfhost] loaded ${mappings.length} mapping(s) from ${configDir}`);
 
   // 3. Wire the status store + scheduler.
   const db = createPgDb(databaseUrl);
@@ -203,7 +204,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
 
   const runMapping = (m: LoadedMapping) => async () => {
     try {
-      console.log(`[selfhost] ${m.config.mappingId}: starting pass...`);
+      log.info(`[selfhost] ${m.config.mappingId}: starting pass...`);
       await ensureRecordsFor(m);
 
       // Use the mailbox_mapping ID (not the config mappingId) for migration_status
@@ -212,7 +213,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         mappingId: m.mailboxMappingId,
       };
 
-      console.log(`[selfhost] ${m.config.mappingId}: running domains...`);
+      log.info(`[selfhost] ${m.config.mappingId}: running domains...`);
 
       // One `run` row per pass so /status and the run history reflect what
       // actually executed. Opened before the pass so a crash leaves a `running`
@@ -226,7 +227,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           new RunStore(tdb).startRun({ tenantId, mappingId, kind: 'incremental', trigger: 'schedule' }),
         );
       } catch (err) {
-        console.error(`[selfhost] ${m.config.mappingId}: failed to open run row:`, err instanceof Error ? err.message : err);
+        log.error(`[selfhost] ${m.config.mappingId}: failed to open run row:`, err instanceof Error ? err.message : err);
       }
 
       const results = await runAllDomains(configWithCorrectMappingId, statusStore);
@@ -254,14 +255,14 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             });
           });
         } catch (err) {
-          console.error(`[selfhost] ${m.config.mappingId}: failed to close run row:`, err instanceof Error ? err.message : err);
+          log.error(`[selfhost] ${m.config.mappingId}: failed to close run row:`, err instanceof Error ? err.message : err);
         }
       }
 
-      console.log(`[selfhost] ${m.config.mappingId}: pass complete (${created} created)`);
+      log.info(`[selfhost] ${m.config.mappingId}: pass complete (${created} created)`);
     } catch (err) {
       // Surface, never swallow (hard rule 9). The scheduler keeps running.
-      console.error(`[selfhost] ${m.config.mappingId}: pass failed:`, err instanceof Error ? err.message : err);
+      log.error(`[selfhost] ${m.config.mappingId}: pass failed:`, err instanceof Error ? err.message : err);
     }
   };
 
@@ -272,7 +273,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     const cron = m.config.schedule?.cron ?? DEFAULT_SCHEDULE;
     handles.push(scheduler.schedule(m.config.mappingId, cron, runMapping(m)));
     scheduled.add(m.config.mappingId);
-    console.log(`[selfhost] scheduled ${m.config.mappingId} (${cron})`);
+    log.info(`[selfhost] scheduled ${m.config.mappingId} (${cron})`);
   };
 
   // Startup: ensure records, fire read-only discovery in the background, and schedule
@@ -289,7 +290,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       m.config.tenantId as TenantId,
       m.mailboxMappingId as MappingId,
     ).catch((err) => {
-      console.error(
+      log.error(
         `[selfhost] ${m.config.mappingId}: discovery failed:`,
         err instanceof Error ? err.message : err,
       );
@@ -299,7 +300,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     if (status === 'active') {
       scheduleMapping(m);
     } else {
-      console.log(`[selfhost] ${m.config.mappingId} is '${status}' — awaiting confirm at /`);
+      log.info(`[selfhost] ${m.config.mappingId} is '${status}' — awaiting confirm at /`);
     }
   }
 
@@ -384,7 +385,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           await withTenantContext(m.config.tenantId as string, async (client) => {
             await client.query(`UPDATE mailbox_mapping SET status = 'active' WHERE id = $1`, [m.mailboxMappingId]);
           });
-          console.log(`[selfhost] ${m.config.mappingId}: activated by operator`);
+          log.info(`[selfhost] ${m.config.mappingId}: activated by operator`);
         }
         scheduleMapping(m);
         // Redirect back to the confirm page (Post/Redirect/Get).
@@ -404,7 +405,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // that is enough to act on; stacks carry filesystem layout, and driver
       // errors can quote a connection string, neither of which belongs in an
       // HTTP body (workplan 0010 T4, secret hygiene).
-      console.error(`[selfhost] ${req.method} ${req.url} failed:`, err);
+      log.error(`[selfhost] ${req.method} ${req.url} failed:`, err);
       return sendJson(res, 500, {
         error: err instanceof Error ? err.message : 'internal error',
       });
@@ -413,7 +414,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
 
   await new Promise<void>((resolve) => server.listen(port, host, resolve));
   const boundPort = (server.address() as { port: number }).port;
-  console.log(`[selfhost] status server on http://${host}:${boundPort}`);
+  log.info(`[selfhost] status server on http://${host}:${boundPort}`);
 
   return {
     port: boundPort,
@@ -453,14 +454,14 @@ if (invokedPath && import.meta.url === `file://${invokedPath}`) {
   start()
     .then((handle) => {
       const graceful = () => {
-        console.log('[selfhost] shutting down…');
+        log.info('[selfhost] shutting down…');
         handle.stop().then(() => process.exit(0)).catch(() => process.exit(1));
       };
       process.on('SIGTERM', graceful);
       process.on('SIGINT', graceful);
     })
     .catch((err) => {
-      console.error('[selfhost] failed to start:', err);
+      log.error('[selfhost] failed to start:', err);
       process.exit(1);
     });
 }

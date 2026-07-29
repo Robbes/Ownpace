@@ -14,6 +14,7 @@ import type {
   UpsertResult,
 } from "@openmig/shared";
 import { contentHash } from "@openmig/shared";
+import { log } from '@openmig/shared';
 
 /**
  * Configuration for IMAP target connection.
@@ -187,7 +188,7 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
         // Set flags on the mailbox itself (not messages)
         await (this.conn as unknown as { setFlags: (name: string, flags: string[], isPermanent: boolean) => Promise<void> }).setFlags(mailboxName, [imapFlag], true);
       } catch (err) {
-        console.warn('[imap-dav-target] Could not set special-use flag:', (err as Error).message);
+        log.warn('[imap-dav-target] Could not set special-use flag:', (err as Error).message);
       }
     }
 
@@ -391,7 +392,7 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
 
       throw new Error('Failed to get UID after appending message');
     } catch (err) {
-      console.error('[imap-dav-target] Error appending message:', (err as Error).message);
+      log.error('[imap-dav-target] Error appending message:', (err as Error).message);
       throw err;
     }
   }

@@ -30,6 +30,7 @@ import {
   sizeOf,
 } from './dav-multistatus';
 import { requestWithDavRetry } from './dav-retry';
+import { log } from '@openmig/shared';
 
 /**
  * Configuration for CardDAV target writer
@@ -176,7 +177,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
           }
           return keys;
         } catch (err) {
-          console.warn(
+          log.warn(
             `[carddav] could not list ${collectionId} up front, falling back to a per-item ` +
               `existence check: ${err instanceof Error ? err.message : String(err)}`,
           );
@@ -360,7 +361,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     // Server-absolute href; converting it is what stops the DAV prefix doubling.
     const relative = hrefRelativeTo(entry.targetId, this.buildUrl(''));
     if (relative === undefined) {
-      console.warn(`[carddav] ${entry.targetId} is outside the configured base; not content-verifying it`);
+      log.warn(`[carddav] ${entry.targetId} is outside the configured base; not content-verifying it`);
       return undefined;
     }
 
@@ -372,12 +373,12 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
         headers: { Authorization: this.authHeader() },
       });
     } catch (err) {
-      console.warn(`[carddav] GET ${entry.targetId} failed: ${err instanceof Error ? err.message : String(err)}`);
+      log.warn(`[carddav] GET ${entry.targetId} failed: ${err instanceof Error ? err.message : String(err)}`);
       return undefined;
     }
 
     if (response.status !== 200) {
-      console.warn(`[carddav] GET ${entry.targetId} -> ${response.status}; cannot content-verify it`);
+      log.warn(`[carddav] GET ${entry.targetId} -> ${response.status}; cannot content-verify it`);
       return undefined;
     }
 

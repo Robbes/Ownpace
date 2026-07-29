@@ -19,6 +19,7 @@ import { and, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { getMollieService, type MolliePayment } from '../../services/mollie/index';
 import { getDbPool, withTenantDb } from '../../middleware/auth';
+import { log } from '@openmig/shared';
 
 const router = Router();
 
@@ -56,7 +57,7 @@ router.post('/mollie', async (req: Request, res: Response) => {
     const invoiceId = payment.metadata?.invoiceId;
     if (typeof tenantId !== 'string' || typeof invoiceId !== 'string') {
       // Nothing we can correlate — ack so Mollie stops retrying, but record it.
-      console.warn(`Mollie webhook ${paymentId}: missing tenantId/invoiceId metadata`);
+      log.warn(`Mollie webhook ${paymentId}: missing tenantId/invoiceId metadata`);
       res.status(200).json({ received: true });
       return;
     }
@@ -82,7 +83,7 @@ router.post('/mollie', async (req: Request, res: Response) => {
 
       const invoice = rows[0];
       if (!invoice) {
-        console.warn(`Mollie webhook ${paymentId}: no matching invoice ${invoiceId}`);
+        log.warn(`Mollie webhook ${paymentId}: no matching invoice ${invoiceId}`);
         return;
       }
 
@@ -105,7 +106,7 @@ router.post('/mollie', async (req: Request, res: Response) => {
 
     res.status(200).json({ received: true });
   } catch (error) {
-    console.error('Error processing Mollie webhook:', error);
+    log.error('Error processing Mollie webhook:', error);
     res.status(500).json({ error: 'Webhook processing failed' });
   }
 });

@@ -18,3 +18,4 @@ export * from './cursor';
 export * from './concurrency';
 export * from './config';
 export * from './throttling';
+export * from './logger';

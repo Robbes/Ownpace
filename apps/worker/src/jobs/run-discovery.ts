@@ -22,6 +22,7 @@ import type {
 import { withTenant, PgDiscoveryStore } from '@openmig/ledger';
 import { buildDomainDepsFromMapping } from '../build-deps-from-mapping';
 import { discoverDomains, type DomainDiscoveryTask } from '../discovery';
+import { log } from '@openmig/shared';
 
 const DiscoveryJobSchema = z.object({
   tenantId: z.string().uuid(),
@@ -124,13 +125,13 @@ export const runDiscovery = schemaTask({
     const mappingId = typed.mappingId as MappingId;
     const domains: DiscoveryDomain[] = typed.domains ?? ['email', 'calendar', 'contact', 'file'];
 
-    console.log('Starting discovery', { tenantId, mappingId, domains });
+    log.info('Starting discovery', { tenantId, mappingId, domains });
 
     const store = tenantScopedStore(pool);
     const tasks = domains.map((domain) => buildTask(pool, tenantId, mappingId, domain));
     const outcomes = await discoverDomains(tasks, store, tenantId, mappingId);
 
-    console.log('Discovery complete', { outcomes });
+    log.info('Discovery complete', { outcomes });
     return { outcomes };
   },
 });

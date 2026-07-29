@@ -16,6 +16,7 @@ import {
   type TenantId,
   type MappingId,
 } from '@openmig/shared';
+import { log, isLevelEnabled } from '@openmig/shared';
 
 /**
  * Items processed in parallel per collection.
@@ -28,7 +29,7 @@ import {
 const DEFAULT_CONCURRENCY = 4;
 
 /**
- * Wall-clock breakdown of one domain pass, enabled with OPENMIG_PHASE_TIMING=1.
+ * Wall-clock breakdown of one domain pass, emitted at LOG_LEVEL=debug.
  *
  * Three rounds of reasoning from run logs produced two confident wrong answers
  * about where the file domain's time goes (a container-network theory and an
@@ -45,7 +46,10 @@ const DEFAULT_CONCURRENCY = 4;
  * the pass is effectively serial no matter what the pool says, and THAT is the
  * bug — not any individual phase being slow.
  *
- * Off by default and one branch when off, so it costs nothing in production.
+ * Costs one level check per domain pass when debug is off, so a production run
+ * pays nothing. This used to be its own OPENMIG_PHASE_TIMING env var — a
+ * bespoke switch invented because there was no level to hang it on. Now there
+ * is one, and a second mechanism for "show me more" is worse than none.
  */
 interface PhaseTiming {
   fetchMs: number;
@@ -57,7 +61,7 @@ interface PhaseTiming {
 }
 
 function startPhaseTiming(): PhaseTiming | undefined {
-  if (process.env.OPENMIG_PHASE_TIMING !== '1') return undefined;
+  if (!isLevelEnabled('debug')) return undefined;
   return { fetchMs: 0, upsertMs: 0, ledgerReadMs: 0, ledgerWriteMs: 0, hashMs: 0, startedAt: Date.now() };
 }
 
@@ -81,7 +85,7 @@ function reportPhases(phases: PhaseTiming | undefined, domain: string, scanned: 
   const wallMs = Date.now() - phases.startedAt;
   const busy = phases.fetchMs + phases.upsertMs + phases.ledgerReadMs + phases.ledgerWriteMs + phases.hashMs;
   const per = (ms: number) => (scanned ? (ms / scanned).toFixed(1) : '0');
-  console.log(
+  log.debug(
     `[timing] ${domain}: ${scanned} items in ${(wallMs / 1000).toFixed(1)}s | ` +
       `source-fetch ${(phases.fetchMs / 1000).toFixed(1)}s (${per(phases.fetchMs)}ms/item) | ` +
       `target-write ${(phases.upsertMs / 1000).toFixed(1)}s (${per(phases.upsertMs)}ms/item) | ` +

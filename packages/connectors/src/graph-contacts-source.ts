@@ -24,6 +24,7 @@ import type { TokenProvider } from '@openmig/shared';
 import type { GraphContactsSourceConfig, GraphContactFolder, GraphContact, GraphContactsDeltaCursor, VCardFieldMapping, GraphContactWithPhoto } from './graph-contacts-source.types';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types';
 import type { ThrottleLimiter } from '@openmig/shared';
+import { log } from '@openmig/shared';
 
 /**
  * Graph contacts source connector implementation.
@@ -182,7 +183,7 @@ export class GraphContactsSource implements ContactSource {
         items.push(item);
       } catch (error) {
         // Skip contacts that fail to process
-        console.warn(`Failed to process contact ${contact.id}:`, error);
+        log.warn(`Failed to process contact ${contact.id}:`, error);
       }
     }
 

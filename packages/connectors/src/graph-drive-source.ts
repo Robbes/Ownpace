@@ -17,6 +17,7 @@
 import type { FileSource, FileFolder, RawFileItem, SyncCursor, ThrottleLimiter, FileItem } from '@openmig/shared';
 import type { GraphDriveSourceConfig, GraphDriveItem, GraphDriveDeltaResponse, GraphDriveDeltaCursor, ParsedPath, NormalizePathOptions } from './graph-drive-source.types';
 import type { HttpClient as _HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types';
+import { log } from '@openmig/shared';
 
 /**
  * Graph Drive source connector implementation.
@@ -187,7 +188,7 @@ export class GraphDriveSource implements FileSource {
         fileItems.push(fileItem);
       } catch (error) {
         // Skip files that fail to process
-        console.warn(`Failed to process file ${item.id}:`, error);
+        log.warn(`Failed to process file ${item.id}:`, error);
       }
     }
 

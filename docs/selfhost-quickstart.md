@@ -60,6 +60,13 @@ Edit `deploy/selfhost/.env`:
   `SELFHOST_PORT` (default `8080`), `SELFHOST_IMAGE` (pin to a `stable` tag or a
   digest for production — see **Upgrades** below).
 
+- **`LOG_LEVEL`** — `error` | `warn` | `info` (default) | `debug`. Raise it to
+  `debug` when a migration is slower than you expect: the appliance then prints
+  a per-domain breakdown of where the wall time went (source reads, target
+  writes, ledger) and an `overlap` figure showing how much work was genuinely
+  in flight at once. An overlap near 1 with a concurrency of 4 means the pass is
+  running serially, which is a configuration problem rather than a slow server.
+
 `.env` is git-ignored; never commit a filled-in copy.
 
 ## 3. Add a mapping
