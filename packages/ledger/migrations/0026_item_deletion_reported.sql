@@ -1,0 +1,42 @@
+-- Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+--
+-- When the SOURCE said an item was gone, as opposed to when we noticed it was
+-- missing.
+--
+-- Migration 0024 added `absent_passes`, which counts consecutive complete scans
+-- that failed to find an item. That is INFERRED evidence, and deliberately weak:
+-- absence has a dozen innocent causes that all look identical — a folder briefly
+-- missing from discovery, a throttled listing, a connector having a bad ten
+-- minutes — so it takes two consecutive passes before anyone is told, and it can
+-- never be trusted enough to act on.
+--
+-- RFC 6578 `sync-collection` is different in kind. It reports a removed object
+-- as a `<response>` carrying its href and a 404 status: the server stating
+-- outright that the object is gone. There is nothing to infer and nothing to
+-- corroborate — waiting two passes to believe it would not make it more true,
+-- only later. Both CalDAV and CardDAV have been issuing that REPORT since the
+-- connectors were written and discarding this part of every answer.
+--
+-- So the two kinds of evidence are stored separately rather than collapsed into
+-- the counter. A reported deletion is confirmed on sight; an inferred one still
+-- has to repeat. That distinction is not cosmetic: it is the gate for any future
+-- ability to ACT on a deletion, which must never be driven by absence alone.
+--
+-- NULL means "the source has not told us anything", which is every row today and
+-- every row for mail and files forever — IMAP has no removal report in the shape
+-- this uses, and WebDAV has no sync-collection at all. Those stay on
+-- absence-counting, which is the honest answer rather than a guess.
+--
+-- The timestamp is the FIRST report, not the latest: it is the moment we learned,
+-- and re-stamping it every pass would lose the only date an audit cares about.
+-- Cleared by `clearAbsent` along with the count, because an item that comes back
+-- (a UID re-created after being deleted) must not carry a stale claim that the
+-- source considers it gone.
+
+ALTER TABLE item ADD COLUMN IF NOT EXISTS deletion_reported_at timestamptz;
+
+-- No index of its own. Every read of this column is already inside a query
+-- filtered by (tenant_id, mapping_id, domain) — `ix_item_absent` and
+-- `ix_item_source_ref` both lead with those three — and the deletions queue has
+-- to scan the same rows anyway to compare `absent_passes`. A fourth partial index
+-- on the same table would cost every insert and buy nothing measurable.

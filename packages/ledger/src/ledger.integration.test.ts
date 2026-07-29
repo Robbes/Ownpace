@@ -760,6 +760,137 @@ describe('PgLedger (integration)', () => {
       ).toBeUndefined();
     });
 
+    it('believes a reported deletion at once, and labels it as reported', async () => {
+      // The distinction the whole deletion feature turns on. Absence has to
+      // repeat before anyone is told; a `sync-collection` 404 is the source
+      // saying so outright, and a second pass would not make it truer.
+      await ledger.recordIfAbsent({ ...at('r-1', 'personal', 'hr1'), itemType: 'calendar' });
+      expect(
+        await ledger.recordReportedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'r-1'),
+      ).toBe(true);
+
+      const queue = await ledger.listDeletions(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar');
+      expect(queue).toHaveLength(1);
+      // absent_passes is still 0 — nothing had to go missing for us to know —
+      // which is exactly why a queue filtered on the count alone would have
+      // hidden the deletions we are most certain about.
+      expect(queue[0]).toMatchObject({
+        naturalKeyHash: 'r-1',
+        absentPasses: 0,
+        confirmed: true,
+        evidence: 'reported',
+      });
+      expect(queue[0]!.reportedAt).toBeDefined();
+      expect(
+        (await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'r-1'))
+          ?.deletionReportedAt,
+      ).toBeDefined();
+    });
+
+    it('keeps the FIRST report when a server repeats itself', async () => {
+      // A server may report a removal on every poll until its sync token moves
+      // past it. Re-stamping would lose the only date an audit cares about: when
+      // we learned.
+      await ledger.recordIfAbsent({ ...at('r-2', 'personal', 'hr2'), itemType: 'calendar' });
+      await ledger.recordReportedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'r-2');
+      const first = (await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'r-2'))
+        ?.deletionReportedAt;
+
+      // Still true — the item is still reported deleted — but the date stands.
+      expect(
+        await ledger.recordReportedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'r-2'),
+      ).toBe(true);
+      expect(
+        (await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'r-2'))
+          ?.deletionReportedAt,
+      ).toBe(first);
+    });
+
+    it('reports nothing for an href we never copied', async () => {
+      // No row means the object was created and deleted between two of our
+      // passes, or was never in scope. `false` is what tells the caller to stay
+      // quiet rather than invent a queue entry.
+      expect(
+        await ledger.recordReportedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'r-none'),
+      ).toBe(false);
+      expect(await ledger.listDeletions(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar')).toEqual([]);
+    });
+
+    it('lets an owner close a reported deletion with no absences at all', async () => {
+      // `resolveDeletion` used to require DELETION_CONFIRMATIONS absences. A
+      // reported deletion typically has ZERO, so the most certain entries would
+      // have been the only ones nobody could clear.
+      await ledger.recordIfAbsent({ ...at('r-3', 'personal', 'hr3'), itemType: 'calendar' });
+      await ledger.recordReportedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'r-3');
+
+      expect(await ledger.resolveDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'r-3', 'keep')).toBe(
+        true,
+      );
+      // Twice is not a second decision.
+      expect(await ledger.resolveDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'r-3', 'keep')).toBe(
+        false,
+      );
+    });
+
+    it('drops the report when the item comes back', async () => {
+      // A UID can be deleted and re-created — a declined invitation re-sent, a
+      // contact restored from a phone. `clearAbsent` gates on "has something to
+      // clear", and a reported deletion has a count of ZERO: gated on the count
+      // alone it could never be cleared, and the item would keep carrying the
+      // source's claim that it is gone. That claim is the one piece of evidence
+      // strong enough to ever act on, so a stale one is the worst kind to leave.
+      await ledger.recordIfAbsent({ ...at('r-4', 'personal', 'hr4'), itemType: 'calendar' });
+      await ledger.recordReportedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'r-4');
+      expect(await ledger.listDeletions(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar')).toHaveLength(
+        1,
+      );
+
+      await ledger.clearAbsent(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'r-4');
+
+      expect(await ledger.listDeletions(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar')).toEqual([]);
+      expect(
+        (await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'r-4'))
+          ?.deletionReportedAt,
+      ).toBeUndefined();
+    });
+
+    it('sorts open before decided, and reported before merely absent', async () => {
+      // Two ORDER BY keys with OPPOSITE null handling in one statement, which is
+      // exactly the shape that shipped a bug in 0022 and again in the moves
+      // queue: `deletion_acknowledged_at ASC NULLS FIRST` (open first) and
+      // `deletion_reported_at DESC NULLS LAST` (certain first).
+      await ledger.recordIfAbsent({ ...at('r-5', 'personal', 'hr5'), itemType: 'calendar' });
+      await ledger.recordIfAbsent({ ...at('r-6', 'personal', 'hr6'), itemType: 'calendar' });
+      await ledger.recordIfAbsent({ ...at('r-7', 'personal', 'hr7'), itemType: 'calendar' });
+      // r-5: reported, open. r-6: absent twice, open. r-7: reported and decided.
+      await ledger.recordReportedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'r-5');
+      await ledger.recordAbsent(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'r-6');
+      await ledger.recordAbsent(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'r-6');
+      await ledger.recordReportedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'r-7');
+      await ledger.resolveDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'r-7', 'keep');
+
+      const queue = await ledger.listDeletions(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar');
+      expect(queue.map((d) => d.naturalKeyHash)).toEqual(['r-5', 'r-6', 'r-7']);
+      expect(queue.map((d) => d.evidence)).toEqual(['reported', 'inferred', 'reported']);
+      expect(queue[2]!.acknowledgedAt).toBeDefined();
+    });
+
+    it('will not let one tenant report a deletion on another\'s row', async () => {
+      await ledger.recordIfAbsent({ ...at('r-8', 'personal', 'hr8'), itemType: 'calendar' });
+      expect(
+        await ledger.recordReportedDeletion(
+          TEST_TENANT_2_ID,
+          TEST_MAPPING_2_ID,
+          'calendar',
+          'r-8',
+        ),
+      ).toBe(false);
+      expect(
+        (await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'r-8'))
+          ?.deletionReportedAt,
+      ).toBeUndefined();
+    });
+
     it('does not cross domains, mappings or tenants', async () => {
       await ledger.recordIfAbsent(at('c-10', 'Shared', 'h10'));
       await ledger.recordIfAbsent({ ...at('c-11', 'Shared', 'h11'), itemType: 'calendar' });

@@ -13,7 +13,7 @@ import {
   type MappingId,
 } from '@openmig/shared';
 import type { PgDatabase } from './db';
-import { eq, and, ne, gt, gte, isNull, isNotNull, desc, sql } from 'drizzle-orm';
+import { eq, and, ne, gt, gte, isNull, isNotNull, or, desc, sql } from 'drizzle-orm';
 import * as schemaPg from './schema-pg';
 
 /**
@@ -580,6 +580,48 @@ export class PgLedger implements Ledger {
     return rows[0]?.absentPasses ?? 0;
   }
 
+  async recordReportedDeletion(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: 'email' | 'calendar' | 'contact' | 'file',
+    naturalKeyHash: string,
+  ): Promise<boolean> {
+    const rows = await this.db
+      .update(schemaPg.item)
+      .set({ deletionReportedAt: sql`now()`, updatedAt: sql`now()` })
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          eq(schemaPg.item.domain, domain),
+          eq(schemaPg.item.naturalKeyHash, naturalKeyHash),
+          // FIRST report only. A server may repeat a removal on every poll until
+          // the sync token moves past it, and moving the timestamp forward each
+          // time would erase the one date that matters: when we learned.
+          isNull(schemaPg.item.deletionReportedAt),
+        ),
+      )
+      .returning({ naturalKeyHash: schemaPg.item.naturalKeyHash });
+    if (rows.length > 0) return true;
+
+    // Either there is no such row, or it is already reported. Those are
+    // different answers and the caller needs to tell them apart: the second is
+    // still a deletion to report, the first is an object we never copied.
+    const existing = await this.db
+      .select({ reportedAt: schemaPg.item.deletionReportedAt })
+      .from(schemaPg.item)
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          eq(schemaPg.item.domain, domain),
+          eq(schemaPg.item.naturalKeyHash, naturalKeyHash),
+        ),
+      )
+      .limit(1);
+    return existing.length > 0;
+  }
+
   async clearAbsent(
     tenantId: TenantId,
     mappingId: MappingId,
@@ -590,6 +632,12 @@ export class PgLedger implements Ledger {
       .update(schemaPg.item)
       .set({
         absentPasses: 0,
+        // The report goes too. A UID can be deleted and re-created — a declined
+        // invitation re-sent, a contact restored from a phone — and an item that
+        // is demonstrably back must not keep carrying the source's claim that it
+        // is gone. That claim is the strongest evidence in the system, so a
+        // stale one is the most dangerous thing to leave lying around.
+        deletionReportedAt: null,
         // The decision goes with the count. There is no longer anything to have
         // agreed to, and a stale acknowledgement would silently suppress the
         // report the NEXT time this item disappears.
@@ -602,10 +650,18 @@ export class PgLedger implements Ledger {
           eq(schemaPg.item.mappingId, mappingId),
           eq(schemaPg.item.domain, domain),
           eq(schemaPg.item.naturalKeyHash, naturalKeyHash),
-          // Only rows that actually have a count. On a healthy corpus this is
-          // none of them, and the partial index makes the no-op free rather
-          // than an UPDATE per item per pass.
-          gt(schemaPg.item.absentPasses, 0),
+          // Only rows with something to clear. On a healthy corpus this is none
+          // of them, and the partial index makes the no-op free rather than an
+          // UPDATE per item per pass. The report has to be part of the test:
+          // scoped to `absent_passes > 0` alone, a reported deletion — which
+          // typically has a count of ZERO, because nothing had to go missing for
+          // the source to name it — could never be cleared when the item
+          // returned.
+          or(
+            gt(schemaPg.item.absentPasses, 0),
+            isNotNull(schemaPg.item.deletionReportedAt),
+            isNotNull(schemaPg.item.deletionAcknowledgedAt),
+          ),
         ),
       );
   }
@@ -621,6 +677,7 @@ export class PgLedger implements Ledger {
         naturalKeyHash: schemaPg.item.naturalKeyHash,
         collection: schemaPg.item.collection,
         absentPasses: schemaPg.item.absentPasses,
+        deletionReportedAt: schemaPg.item.deletionReportedAt,
         deletionAcknowledgedAt: schemaPg.item.deletionAcknowledgedAt,
       })
       .from(schemaPg.item)
@@ -628,33 +685,58 @@ export class PgLedger implements Ledger {
         and(
           eq(schemaPg.item.tenantId, tenantId),
           eq(schemaPg.item.mappingId, mappingId),
-          gt(schemaPg.item.absentPasses, 0),
+          // Either kind of evidence puts a row in this queue. A reported
+          // deletion usually has an absent count of ZERO — the source named the
+          // object, so nothing had to go missing for us to know — so a filter on
+          // the count alone would have hidden precisely the deletions we are
+          // most sure about.
+          or(gt(schemaPg.item.absentPasses, 0), isNotNull(schemaPg.item.deletionReportedAt)),
           ...(domain ? [eq(schemaPg.item.domain, domain)] : []),
         ),
       )
-      // Open first, then the ones missing longest — NULLS FIRST spelled out
-      // because Postgres reads ASC as NULLS LAST, which would bury everything
-      // still needing a decision under everything already decided (0022 shipped
-      // that bug and only the real database noticed).
+      // Open first, then the ones the source itself reported, then the ones
+      // missing longest.
+      //
+      // NULLS FIRST is spelled out twice for two different reasons. On
+      // `deletion_acknowledged_at` it means "still needs a decision first":
+      // Postgres reads ASC as NULLS LAST, which would bury everything open under
+      // everything already decided (0022 shipped that bug and only the real
+      // database noticed). On `deletion_reported_at` the opposite is wanted —
+      // reported deletions are the certain ones and belong at the top — so that
+      // key is DESC, whose default is NULLS FIRST, and it too is spelled out
+      // rather than left to a default nobody reading this can be expected to
+      // recall.
       .orderBy(
-        sql`${schemaPg.item.deletionAcknowledgedAt} ASC NULLS FIRST, ${schemaPg.item.absentPasses} DESC, ${schemaPg.item.naturalKeyHash} ASC`,
+        sql`${schemaPg.item.deletionAcknowledgedAt} ASC NULLS FIRST, ${schemaPg.item.deletionReportedAt} DESC NULLS LAST, ${schemaPg.item.absentPasses} DESC, ${schemaPg.item.naturalKeyHash} ASC`,
       );
 
-    return rows.map((r) => ({
-      domain: r.domain as ItemDeletion['domain'],
-      naturalKeyHash: r.naturalKeyHash,
-      collection: r.collection,
-      absentPasses: r.absentPasses,
-      confirmed: r.absentPasses >= DELETION_CONFIRMATIONS,
-      ...(r.deletionAcknowledgedAt
-        ? {
-            acknowledgedAt:
-              r.deletionAcknowledgedAt instanceof Date
-                ? r.deletionAcknowledgedAt.toISOString()
-                : String(r.deletionAcknowledgedAt),
-          }
-        : {}),
-    }));
+    return rows.map((r) => {
+      const reportedAt = r.deletionReportedAt
+        ? r.deletionReportedAt instanceof Date
+          ? r.deletionReportedAt.toISOString()
+          : String(r.deletionReportedAt)
+        : undefined;
+      return {
+        domain: r.domain as ItemDeletion['domain'],
+        naturalKeyHash: r.naturalKeyHash,
+        collection: r.collection,
+        absentPasses: r.absentPasses,
+        // Reported means confirmed on sight. Nothing about a second pass would
+        // make the source's own 404 more true, and making an owner wait for one
+        // only delays a report they could already act on.
+        confirmed: reportedAt !== undefined || r.absentPasses >= DELETION_CONFIRMATIONS,
+        evidence: reportedAt !== undefined ? ('reported' as const) : ('inferred' as const),
+        ...(reportedAt ? { reportedAt } : {}),
+        ...(r.deletionAcknowledgedAt
+          ? {
+              acknowledgedAt:
+                r.deletionAcknowledgedAt instanceof Date
+                  ? r.deletionAcknowledgedAt.toISOString()
+                  : String(r.deletionAcknowledgedAt),
+            }
+          : {}),
+      };
+    });
   }
 
   async resolveDeletion(
@@ -676,11 +758,17 @@ export class PgLedger implements Ledger {
           eq(schemaPg.item.tenantId, tenantId),
           eq(schemaPg.item.mappingId, mappingId),
           eq(schemaPg.item.naturalKeyHash, naturalKeyHash),
-          // CONFIRMED only. An absence seen once is being watched, not
-          // reported, so there is nothing for anyone to have decided about yet
-          // — and letting it be closed early would retire the very check that
-          // makes the claim trustworthy.
-          gte(schemaPg.item.absentPasses, DELETION_CONFIRMATIONS),
+          // CONFIRMED only, by either kind of evidence. An absence seen once is
+          // being watched, not reported, so there is nothing for anyone to have
+          // decided about yet — and letting it be closed early would retire the
+          // very check that makes the claim trustworthy. A deletion the source
+          // itself reported needs no such check, and refusing to let an owner
+          // close it would leave the most certain entries as the only ones
+          // stuck in the queue.
+          or(
+            gte(schemaPg.item.absentPasses, DELETION_CONFIRMATIONS),
+            isNotNull(schemaPg.item.deletionReportedAt),
+          ),
           isNull(schemaPg.item.deletionAcknowledgedAt),
         ),
       )
@@ -732,6 +820,14 @@ export class PgLedger implements Ledger {
       // attemptCount. `find` was the only reader left without it, which made
       // the row look like it had never gone missing however many times it had.
       absentPasses: row.absentPasses,
+      ...(row.deletionReportedAt
+        ? {
+            deletionReportedAt:
+              row.deletionReportedAt instanceof Date
+                ? row.deletionReportedAt.toISOString()
+                : String(row.deletionReportedAt),
+          }
+        : {}),
       ...(row.deletionAcknowledgedAt
         ? {
             deletionAcknowledgedAt:

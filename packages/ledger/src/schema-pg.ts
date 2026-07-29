@@ -231,6 +231,13 @@ export const item = pgTable(
     // source. Reset to 0 the moment it reappears. A single absent listing is
     // not evidence of deletion — see migration 0024.
     absentPasses: integer('absent_passes').notNull().default(0),
+    // When the SOURCE first told us this item was gone — an RFC 6578
+    // `sync-collection` removal report. NULL = it has told us nothing, which is
+    // the case for mail and files always (neither has such a report) and for
+    // every DAV item the server has not mentioned. Evidence of a different KIND
+    // from `absent_passes` above, not a stronger degree of it: this needs no
+    // corroboration, absence always does. See migration 0026.
+    deletionReportedAt: timestamp('deletion_reported_at', { withTimezone: true }),
     // When the owner decided to keep the target's copy of an item the source no
     // longer has. NULL = still open.
     deletionAcknowledgedAt: timestamp('deletion_acknowledged_at', { withTimezone: true }),

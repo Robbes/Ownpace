@@ -475,11 +475,19 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // deletions are never auto-propagated and hard rule 2 forbids the tool
       // deleting on its own; neither says the owner may not decide.
       //
-      // `confirmed` is the number to read. An absence seen once has innocent
-      // explanations — a folder briefly missing from discovery, a throttled
-      // listing, a connector having a bad ten minutes — so an item is watched
-      // until it has vanished from several CONSECUTIVE complete scans before
-      // anyone is asked about it.
+      // `evidence` is the field to read first, because the two kinds are
+      // different in kind and not in degree:
+      //
+      //   - 'reported' — the source SAID SO. A CalDAV/CardDAV server answers an
+      //     incremental poll with the objects it has removed (RFC 6578), and
+      //     those arrive confirmed on sight. Nothing about a second pass would
+      //     make the server's own 404 truer.
+      //   - 'inferred' — we STOPPED SEEING IT. An absence seen once has innocent
+      //     explanations — a folder briefly missing from discovery, a throttled
+      //     listing, a connector having a bad ten minutes — so the item is
+      //     watched until it has vanished from several CONSECUTIVE complete scans
+      //     before anyone is asked about it. This is the only evidence available
+      //     for mail and files.
       if (req.method === 'GET' && req.url === '/deletions') {
         const out: Record<string, unknown> = {};
         for (const m of mappings) {
@@ -493,9 +501,11 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             watching: all.filter((d) => !d.confirmed && !d.acknowledgedAt),
             acknowledged: all.filter((d) => d.acknowledgedAt),
             whatThisMeans:
-              'The item is on the target. The source has stopped listing it, for ' +
-              `${DELETION_CONFIRMATIONS} or more consecutive complete scans. Nothing has been ` +
-              'removed from either side.',
+              'The item is on the target and the source no longer has it. Nothing has been ' +
+              'removed from either side. Read `evidence` to see how we know: "reported" means ' +
+              'the source itself told us the object was deleted, which is believed at once; ' +
+              `"inferred" means it stopped appearing in ${DELETION_CONFIRMATIONS} or more ` +
+              'consecutive complete scans, which is a strong suspicion rather than a fact.',
             howToResolve: {
               keep:
                 `POST /mappings/{mappingId}/deletions/{naturalKeyHash}/keep — you are happy ` +
@@ -506,8 +516,9 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
                 'To remove it from the target, delete it there yourself, then keep. This tool ' +
                 'never deletes on a target (hard rule 2).',
               doNothing:
-                'An item that reappears on the source drops off this list by itself, and its ' +
-                'count resets — a run of absences has to be consecutive to mean anything.',
+                'An item that reappears on the source drops off this list by itself: its ' +
+                'count resets — a run of absences has to be consecutive to mean anything — and ' +
+                'so does any report, because a UID can be deleted and re-created.',
             },
           };
         }
@@ -530,14 +541,15 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           hash,
           'keep',
         );
-        // False means there is no CONFIRMED, open absence under that key — it
-        // came back, it is still only being watched, or someone already decided.
+        // False means nothing under that key is CONFIRMED and open — it came
+        // back, it is still only being watched, or someone already decided.
         if (!applied) {
           return sendJson(res, 404, {
             error: 'no confirmed, open disappearance under that natural key',
             hint:
-              'It may have reappeared on the source, already been acknowledged, or not yet ' +
-              `been missing for ${DELETION_CONFIRMATIONS} consecutive scans.`,
+              'It may have reappeared on the source, already been acknowledged, or — for an ' +
+              'inferred deletion — not yet been missing for ' +
+              `${DELETION_CONFIRMATIONS} consecutive scans.`,
           });
         }
 

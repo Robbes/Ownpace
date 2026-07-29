@@ -223,7 +223,7 @@ symmetrical, though, and the difference is worth telling people up front.
 |---|---|
 | Create items | Picks them up on the next pass. |
 | Edit items | Rewrites the target copy — unless the target copy is theirs, see below. |
-| Delete items | Nothing is removed from the target. It is **reported** at `GET /deletions` once it has vanished from several consecutive complete scans, and you decide. See below. |
+| Delete items | Nothing is removed from the target. It is **reported** at `GET /deletions` — at once for a calendar event or contact, because the source names what it removed; after several consecutive complete scans for a file, because there the deletion has to be inferred from absence. You decide. See below. |
 | Move items, rename folders | Detects and reports it; changes nothing. See the section above. |
 
 ### In the NEW system: browse freely, create freely, don't edit or delete ours
@@ -269,18 +269,35 @@ decide, so the disappearance goes in a queue.
 
 | Where | What it tells you |
 |---|---|
-| `GET /deletions` | `confirmed`, `watching` and `acknowledged`, each with the collection it vanished from and `absentPasses` |
+| `GET /deletions` | `confirmed`, `watching` and `acknowledged`, each with the collection it vanished from, its `evidence`, and `absentPasses` |
 | worker log | one warning per domain per pass, with a count |
 
-**`absentPasses` is the number to read.** We never observe a deletion — only an
-absence, and an absence has innocent explanations that all look identical: a
-folder briefly missing from discovery, a throttled listing, a permissions blip,
-a source connector having a bad ten minutes. An item is therefore *watched*
-until it has been missing from **two consecutive complete scans**, and only then
-reported. If it reappears the count resets to zero, because a run of absences
-only means something if it is unbroken.
+**`evidence` is the field to read first.** There are two ways we come to believe
+an item is gone, and they are different in kind, not in degree.
 
-Two answers:
+| `evidence` | What it means | Confirmed |
+|---|---|---|
+| `reported` | The source **said so**. A CalDAV/CardDAV server answers an incremental poll with the objects it has removed (RFC 6578 `sync-collection`), naming each one. | At once |
+| `inferred` | We **stopped seeing it**. Nobody told us anything. | After two consecutive complete scans |
+
+For an inferred deletion `absentPasses` is the number that matters. We never
+observe the deletion — only an absence, and an absence has innocent explanations
+that all look identical: a folder briefly missing from discovery, a throttled
+listing, a permissions blip, a source connector having a bad ten minutes. So the
+item is *watched* until it has been missing from **two consecutive complete
+scans**, and only then reported. If it reappears the count resets to zero,
+because a run of absences only means something if it is unbroken.
+
+For a reported deletion `absentPasses` is normally **0**, and that is not a
+contradiction: nothing had to go missing for us to know. Waiting for it to repeat
+would not make the server's own answer truer, only later.
+
+An item that comes back clears everything — the count, the report, and any
+decision. A UID really can be deleted and re-created (a declined invitation
+re-sent, a contact restored from a phone), and a stale claim that the source
+considers an item gone is the last thing that should survive the item's return.
+
+Two answers, the same for both kinds:
 
 - **keep** (`POST /mappings/{id}/deletions/{hash}/keep`) — you are happy for the
   new system to keep its copy. This is the usual answer, and it is what the
@@ -289,12 +306,20 @@ Two answers:
 - **remove it yourself** — delete it in the target system, then `keep`. This
   tool will not do it for you.
 
-Coverage today is the **file** domain, which is the one where absence can be
-established: a WebDAV collection can be enumerated cheaply and completely.
-Calendar and contacts will follow through the CalDAV/CardDAV `sync-collection`
-REPORT, which reports removals explicitly rather than by inference; mail needs
-its own mechanism. Until then, a deletion in those domains is simply not
-reported — a "not measured", not a "none found".
+Coverage today, by domain:
+
+| Domain | Evidence available |
+|---|---|
+| calendar, contacts | `reported` — the CalDAV/CardDAV `sync-collection` REPORT names removed objects on every incremental poll |
+| files | `inferred` — a WebDAV collection can be enumerated cheaply and completely, so absence can be established |
+| mail | none yet. A deletion in this domain is simply not reported — a "not measured", not a "none found" |
+
+One limit on the reported path: matching a removal report back to an item needs
+the source's own href on the ledger row, which is recorded when the item is
+copied. Items copied before that existed have no href recorded, so a removal
+report cannot be matched to them and they fall back to the inferred path. A UID
+that is deleted and re-created moves to a new href, and its row keeps the old
+one — likewise a fall back to the weaker signal, not a wrong answer.
 
 ## Items someone moved on the source
 

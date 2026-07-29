@@ -485,11 +485,35 @@ export class MemoryLedger implements Ledger {
   }
 
   /**
-   * Mirrors `PgLedger.clearAbsent`, INCLUDING dropping the decision.
+   * Mirrors `PgLedger.recordReportedDeletion`, INCLUDING keeping the first
+   * report and telling "no such row" apart from "already reported".
+   */
+  recordReportedDeletion(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    domain: LedgerRecord['itemType'],
+    naturalKeyHash: string,
+  ): Promise<boolean> {
+    const k = this.key({ tenantId, mappingId, itemType: domain, naturalKeyHash });
+    const existing = this.rows.get(k);
+    if (!existing) return Promise.resolve(false);
+    // First report wins: that is when we learned, and a server repeating the
+    // removal on later polls must not move the date forward.
+    if (existing.deletionReportedAt !== undefined) return Promise.resolve(true);
+    this.rows.set(k, { ...existing, deletionReportedAt: new Date().toISOString() });
+    return Promise.resolve(true);
+  }
+
+  /**
+   * Mirrors `PgLedger.clearAbsent`, INCLUDING dropping the report and the
+   * decision.
    *
    * A fake that reset only the count would leave a stale acknowledgement in
    * place, which silently suppresses the report the NEXT time the item goes
-   * missing — the one case where the queue most needs to speak up.
+   * missing — the one case where the queue most needs to speak up. And gating on
+   * the count ALONE would never clear a reported deletion, whose count is
+   * normally zero: the item would come back and still carry the source's claim
+   * that it is gone.
    */
   clearAbsent(
     tenantId: LedgerRecord['tenantId'],
@@ -499,8 +523,20 @@ export class MemoryLedger implements Ledger {
   ): Promise<void> {
     const k = this.key({ tenantId, mappingId, itemType: domain, naturalKeyHash });
     const existing = this.rows.get(k);
-    if (!existing || !existing.absentPasses) return Promise.resolve();
-    this.rows.set(k, { ...existing, absentPasses: 0, deletionAcknowledgedAt: undefined });
+    if (!existing) return Promise.resolve();
+    if (
+      !existing.absentPasses &&
+      existing.deletionReportedAt === undefined &&
+      existing.deletionAcknowledgedAt === undefined
+    ) {
+      return Promise.resolve();
+    }
+    this.rows.set(k, {
+      ...existing,
+      absentPasses: 0,
+      deletionReportedAt: undefined,
+      deletionAcknowledgedAt: undefined,
+    });
     return Promise.resolve();
   }
 
@@ -513,22 +549,34 @@ export class MemoryLedger implements Ledger {
     for (const r of this.rows.values()) {
       if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
       if (domain && r.itemType !== domain) continue;
-      if (!r.absentPasses) continue;
+      // Either kind of evidence, as in Postgres. A reported deletion normally
+      // has a count of zero, so a count-only filter would hide exactly the
+      // entries we are most sure about.
+      if (!r.absentPasses && r.deletionReportedAt === undefined) continue;
       out.push({
         domain: r.itemType,
         naturalKeyHash: r.naturalKeyHash,
         collection: r.collection ?? '',
-        absentPasses: r.absentPasses,
-        confirmed: r.absentPasses >= DELETION_CONFIRMATIONS,
+        absentPasses: r.absentPasses ?? 0,
+        confirmed:
+          r.deletionReportedAt !== undefined ||
+          (r.absentPasses ?? 0) >= DELETION_CONFIRMATIONS,
+        evidence: r.deletionReportedAt !== undefined ? 'reported' : 'inferred',
+        ...(r.deletionReportedAt ? { reportedAt: r.deletionReportedAt } : {}),
         ...(r.deletionAcknowledgedAt ? { acknowledgedAt: r.deletionAcknowledgedAt } : {}),
       });
     }
-    // Open first, then missing longest, then by key — PgLedger's ORDER BY
-    // exactly, tie-break included.
+    // Open first, then reported (newest report first), then missing longest,
+    // then by key — PgLedger's ORDER BY exactly, tie-breaks included. The
+    // reported key sorts DESC with unreported rows LAST, which is what
+    // `DESC NULLS LAST` does there; getting this wrong in the fake is how a
+    // sort bug has twice reached a real database undetected.
     return Promise.resolve(
       out.sort(
         (a, b) =>
           Number(a.acknowledgedAt !== undefined) - Number(b.acknowledgedAt !== undefined) ||
+          Number(a.reportedAt === undefined) - Number(b.reportedAt === undefined) ||
+          (b.reportedAt ?? '').localeCompare(a.reportedAt ?? '') ||
           b.absentPasses - a.absentPasses ||
           a.naturalKeyHash.localeCompare(b.naturalKeyHash),
       ),
@@ -545,8 +593,14 @@ export class MemoryLedger implements Ledger {
     for (const [k, r] of this.rows) {
       if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
       if (r.naturalKeyHash !== naturalKeyHash) continue;
-      // CONFIRMED and open only, as in Postgres.
-      if ((r.absentPasses ?? 0) < DELETION_CONFIRMATIONS) continue;
+      // CONFIRMED and open only, as in Postgres — where "confirmed" is either
+      // enough consecutive absences OR the source having said so outright.
+      if (
+        (r.absentPasses ?? 0) < DELETION_CONFIRMATIONS &&
+        r.deletionReportedAt === undefined
+      ) {
+        continue;
+      }
       if (r.deletionAcknowledgedAt) continue;
       this.rows.set(k, { ...r, deletionAcknowledgedAt: new Date().toISOString() });
       return Promise.resolve(true);
