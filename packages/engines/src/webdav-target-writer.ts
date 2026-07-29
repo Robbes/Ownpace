@@ -18,7 +18,7 @@ import type {
   TargetReindexer,
   TargetEntry,
 } from '@openmig/shared';
-import { fileNaturalKeyHash, fileContentHash } from '@openmig/shared';
+import { fileNaturalKeyHash, fileContentHash, isOnTarget } from '@openmig/shared';
 import { parseMultiStatus, isCollection, hrefRelativeTo, sizeOf } from './dav-multistatus';
 import { requestWithDavRetry } from './dav-retry';
 import { log } from '@openmig/shared';
@@ -153,7 +153,13 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
 
     // LEDGER FAST-PATH: Check if already migrated
     const known = await this.ledger.find(this.tenantId, this.mappingId, 'file', naturalKeyHash);
-    if (known) {
+    // `isOnTarget`, not merely "a row exists". A `failed` row means we tried and
+    // did not copy it; short-circuiting on one told the sync loop the retry had
+    // succeeded, and the loop then recorded the row as 'updated' — clearing the
+    // failure, counting the item as synced, and never writing anything. The
+    // E2E caught it: the planted unmigratable item failed on the first pass,
+    // was silently "migrated" on the second, and vanished from the queue.
+    if (known && isOnTarget(known.status)) {
       return { targetId: known.targetId, created: false };
     }
 

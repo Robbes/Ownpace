@@ -75,8 +75,11 @@ const FAILURES_URL = `${BASE_URL}/failures`;
 /**
  * The fixture the workflow plants to prove one bad item does not stop a domain:
  * a FILE on the source at a path where the target already holds a DIRECTORY.
- * Nextcloud refuses to replace a collection with a body, so this one item fails
- * on the write, every pass, for a reason no retry can fix.
+ * The WebDAV writer refuses that write outright — one option destroys a
+ * collection the customer already had, the other adopts it and records an item
+ * that was never copied — so this item fails every pass, for a reason no retry
+ * can fix. (Nextcloud itself is happy to do it, which is how the first version
+ * of this fixture passed straight through.)
  *
  * Its natural key is its root-relative path, so the hash is computable here —
  * which lets the assertions name the exact item rather than accepting whatever
@@ -330,11 +333,22 @@ describe('Restart-Resume Idempotency Gate (T5)', () => {
       // And only meaningful for a pass that actually wrote something. If the
       // best pass we found did no writing, we never observed a migrating pass
       // — which is a broken measurement, not a passing one.
+      // The floor exists to exclude a pass that WROTE NOTHING — a steady-state
+      // pass where every item hits the ledger fast-path reports 0.0s, and its
+      // overlap is meaningless. It is not a demand that the target be slow.
+      //
+      // It was 1s, sized for the 200-500 item corpora these runs used to have.
+      // At seed_count 100 the mail domain's best pass wrote for 0.5s (JMAP is
+      // fast and the corpus was small) and the gate failed for a reason that
+      // had nothing to do with concurrency. 0.1s still separates "did real
+      // work" from "did nothing" by an order of magnitude.
       expect(
         report!.writeSecs,
         `no migrating pass observed for ${domain}: the best [timing] line reports ` +
-          `${report!.writeSecs}s of target writes, so overlap says nothing about concurrency`,
-      ).toBeGreaterThan(1);
+          `${report!.writeSecs}s of target writes, so overlap says nothing about ` +
+          `concurrency. If this is a very small dispatch, raise seed_count — the ` +
+          `overlap reading needs a corpus bigger than the concurrency width to mean much.`,
+      ).toBeGreaterThan(0.1);
       expect(
         report!.overlap,
         `${domain} ran with overlap ${report!.overlap}x over ${report!.items} items — ` +
