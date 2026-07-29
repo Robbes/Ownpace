@@ -505,6 +505,22 @@ export type FailureAction = 'retry' | 'accept';
  */
 export const MAX_ITEM_ATTEMPTS = 5;
 
+/**
+ * Does this ledger status mean the item IS on the target?
+ *
+ * A row is not proof of a successful copy, and every layer that has assumed
+ * otherwise has produced a silent false success. `failed` means we tried and
+ * did not; `left_behind` means the owner decided we never will. Both are rows,
+ * and neither is a copy.
+ *
+ * `undefined` counts as migrated: rows predating the status column, and the
+ * Postgres default is 'copied' anyway. Being generous there preserves old
+ * behaviour; being generous about `failed` loses data.
+ */
+export function isOnTarget(status: LedgerRecord['status']): boolean {
+  return status !== 'failed' && status !== 'left_behind';
+}
+
 /** One item that would not migrate, and what can be done about it. */
 export interface ItemFailure {
   readonly domain: 'email' | 'calendar' | 'contact' | 'file';

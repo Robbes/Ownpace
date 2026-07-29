@@ -27,6 +27,7 @@ import {
   asTenantId,
   asMappingId,
   MAX_ITEM_ATTEMPTS,
+  isOnTarget,
   setLogLevel,
   resetLogLevel,
   type UpsertResult,
@@ -255,6 +256,72 @@ describe('per-item failure isolation', () => {
     });
 
     expect(setCursor).toHaveBeenCalledOnce();
+  });
+});
+
+describe('a retry that the writer refuses', () => {
+  /**
+   * The E2E's real sequence, reproduced.
+   *
+   * Pass 1 failed the planted item correctly. Pass 2 classified it
+   * `retry-failed`, re-fetched it — and the WRITER's own ledger fast-path then
+   * saw the `failed` row, said "already there", and did nothing. The loop read
+   * that as neither created nor adopted, counted a SKIP, and `recordUpdate`
+   * wrote the row as 'updated': the failure vanished from the queue, the item
+   * counted toward itemsSynced, and nothing was ever written to the target.
+   *
+   * Every layer here had already learned that a row is not proof of a copy —
+   * the loop's `classifyKnownItem` answers the failure states first — but the
+   * three writers keep their own duplicate fast-path, and that one had not.
+   */
+  it('does not let a writer turn a failed item into a silent success', async () => {
+    const ledger = new MemoryLedger();
+
+    // Pass 1: the write is refused.
+    const first = pass(ledger, [{ key: 'k', body: 'B' }], new Set(['k']), 'target refused');
+    expect((await first.run()).failed).toBe(1);
+
+    // Pass 2: a writer that short-circuits on ANY existing row, as all three
+    // did — it reports "already there" and writes nothing.
+    let wrote = 0;
+    const result = await runDomainSync<unknown, unknown, Item, { path: string }>({
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      domain: 'file',
+      source: {},
+      target: {},
+      ledger,
+      listFolders: async () => [{ path: 'f1' }],
+      listSince: async () => ({ items: [{ key: 'k', body: 'B' }], nextCursor: { value: '1' } }),
+      fetchRaw: async (i) => ({ raw: i.body, sizeBytes: 1 }),
+      upsert: async (): Promise<UpsertResult> => {
+        const known = await ledger.find(TENANT, MAPPING, 'file', 'k');
+        // THE BUG: `if (known)`. The fix is `if (known && isOnTarget(...))`.
+        if (known && isOnTarget(known.status)) return { targetId: 't', created: false };
+        wrote += 1;
+        return { targetId: 't', created: true };
+      },
+      naturalKey: (i) => i.key,
+      contentHash: () => 'h',
+      ensureCollection: async () => 'f1',
+    });
+
+    expect(wrote, 'the retry must actually reach the target').toBe(1);
+    expect(result.created).toBe(1);
+    expect(result.skipped).toBe(0);
+
+    // And the row now reflects a real copy rather than a laundered failure.
+    const row = await ledger.find(TENANT, MAPPING, 'file', 'k');
+    expect(row?.status).toBe('copied');
+    expect(await ledger.listFailures(TENANT, MAPPING)).toHaveLength(0);
+  });
+
+  it('isOnTarget refuses exactly the two states that mean "not copied"', () => {
+    expect(isOnTarget('failed')).toBe(false);
+    expect(isOnTarget('left_behind')).toBe(false);
+    for (const s of ['copied', 'updated', 'adopted', 'skipped', undefined] as const) {
+      expect(isOnTarget(s), `${s} means the item IS on the target`).toBe(true);
+    }
   });
 });
 

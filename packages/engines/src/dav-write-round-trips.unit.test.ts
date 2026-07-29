@@ -24,6 +24,7 @@ import { describe, it, expect } from 'vitest';
 import { asTenantId, asMappingId, type Ledger } from '@openmig/shared';
 import { CalDAVTargetWriter, type HttpClient } from './caldav-target-writer';
 import { CardDAVTargetWriter } from './carddav-target-writer';
+import { WebDAVTargetWriter } from './webdav-target-writer';
 
 const TENANT = asTenantId('6b420000-e29b-41d4-a716-4466554461a1' as never);
 const MAPPING = asMappingId('6b420000-e29b-41d4-a716-4466554461a2' as never);
@@ -106,6 +107,81 @@ function event(uid: string) {
  * rewrite that never happened. Green unit suite, green everything, wrong data
  * on the target. CI's real Nextcloud is what caught it.
  */
+/**
+ * A directory where a file has to go.
+ *
+ * Found by the E2E, and not the way it was meant to be: the fixture planted a
+ * source file at a path where the target already held a directory, expecting
+ * the write to fail. Instead the pass reported `created` — the item sailed
+ * through. Both existence checks answer "is something at this path" and
+ * neither asks "is it a FILE": the snapshot holds only files so a directory
+ * reads as ABSENT, and the per-item fallback returns the path on any 207 so a
+ * directory reads as an EXISTING FILE.
+ *
+ * Two different wrong answers, both bad. One PUTs over a directory the customer
+ * already had; the other adopts it and records an item whose bytes were never
+ * written. The writer cannot resolve this on its own, so it fails the item and
+ * lets the owner decide.
+ */
+describe('WebDAV file/directory collision', () => {
+  const dirName = 'reports';
+
+  /** A target holding a DIRECTORY at `reports`, and nothing else. */
+  function serverWithDirectory() {
+    const calls: Call[] = [];
+    const client = {
+      async request(o: { method: string; url: string; headers?: Record<string, string>; body?: unknown }) {
+        calls.push({ method: o.method, url: o.url, headers: o.headers, body: o.body });
+        if (o.method === 'PROPFIND') {
+          const self = new URL(o.url).pathname;
+          const collection = (href: string) =>
+            `<d:response><d:href>${href}</d:href><d:propstat><d:prop>` +
+            `<d:resourcetype><d:collection/></d:resourcetype>` +
+            `</d:prop></d:propstat></d:response>`;
+          // The root lists itself plus one child collection; the child lists
+          // only itself (it is empty). Depth:1 always includes the collection
+          // being asked about, which is why the walk skips `self`.
+          const isRoot = !self.replace(/\/$/, '').endsWith(dirName);
+          // The child href must carry the SAME endpoint prefix as the request,
+          // or `hrefRelativeTo` correctly discards it as pointing outside this
+          // endpoint — which is what a hand-written '/files/alice/...' did.
+          const child = `${self.replace(/\/$/, '')}/${dirName}`;
+          const body =
+            `<?xml version="1.0"?><d:multistatus xmlns:d="DAV:">` +
+            collection(self) +
+            (isRoot ? collection(child) : '') +
+            `</d:multistatus>`;
+          return { status: 207, body, headers: {} };
+        }
+        return { status: 201, body: '', headers: {} };
+      },
+    } as unknown as HttpClient;
+
+    const writer = new WebDAVTargetWriter(
+      { url: `${BASE}/files/alice/`, username: 'alice', password: 'pw' },
+      { ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: client },
+    );
+    return { writer, calls };
+  }
+
+  it('fails the item instead of writing over the directory or adopting it', async () => {
+    const { writer, calls } = serverWithDirectory();
+
+    await expect(
+      writer.upsertFile(
+        '',
+        { item: { path: dirName, name: dirName, isDirectory: false, size: 1, modifiedAt: '', sourceRef: '' }, content: new Uint8Array([1]) } as never,
+      ),
+    ).rejects.toThrow(/already holds a DIRECTORY/);
+
+    // The two wrong outcomes, ruled out explicitly.
+    expect(
+      calls.filter((c) => c.method === 'PUT'),
+      'writing would destroy a directory the destination already had',
+    ).toHaveLength(0);
+  });
+});
+
 describe('CalDAV overwrite', () => {
   const collection = '/calendars/alice/personal/';
 
