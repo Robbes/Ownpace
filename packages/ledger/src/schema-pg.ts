@@ -215,6 +215,12 @@ export const item = pgTable(
     // NULL = not known: rows written before migration 0020, and any source
     // that offers no version. See migration 0020.
     sourceVersion: text('source_version'),
+    // The TARGET's own version marker (an ETag) for the copy AS WE LAST WROTE
+    // IT. Compared before any rewrite: if the target no longer reports this,
+    // someone has edited our copy and it is not ours to replace any more.
+    // NULL = not known (rows predating 0023, or a server that returns no ETag
+    // on PUT) and never blocks a write. See migration 0023.
+    targetVersion: text('target_version'),
     // Where the SOURCE lists this item now, when that is no longer the
     // collection we copied it from. NULL = not moved. `collection` above keeps
     // pointing at where the TARGET's copy actually is, so the two together say

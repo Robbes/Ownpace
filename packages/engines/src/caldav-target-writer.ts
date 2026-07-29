@@ -31,6 +31,7 @@ import {
   sizeOf,
 } from './dav-multistatus';
 import { requestWithDavRetry } from './dav-retry';
+import { readEtag, ownershipOf } from './dav-target-version';
 import { log } from '@openmig/shared';
 
 /**
@@ -142,9 +143,27 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     // A CalDAV PUT to the same href replaces the object, so no delete is
     // involved and the UID — the natural key — does not move.
     if (options?.overwrite) {
-      const eventId = await this.uploadEvent(calendarId, raw, uid, true);
-      (await this.keysIn(calendarId))?.set(naturalKey, eventId);
-      return { targetId: eventId, created: false, updated: true };
+      const written = await this.uploadEvent(
+        calendarId,
+        raw,
+        uid,
+        true,
+        options.expectedTargetVersion,
+      );
+      if (written.conflicted) {
+        // Nothing was written. Reported, not thrown: this is a fact about
+        // ownership, not a failure to migrate, and throwing would spend one of
+        // the item's five attempts and count towards the systemic-failure
+        // tripwire — both of which describe something else.
+        return { targetId: written.path, created: false, conflicted: true };
+      }
+      (await this.keysIn(calendarId))?.set(naturalKey, written.path);
+      return {
+        targetId: written.path,
+        created: false,
+        updated: true,
+        ...(written.etag !== undefined ? { targetVersion: written.etag } : {}),
+      };
     }
 
     // LEDGER FAST-PATH: Check if already migrated
@@ -205,7 +224,8 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     }
 
     // Upload the event to the calendar
-    const eventId = await this.uploadEvent(calendarId, raw, uid);
+    const written = await this.uploadEvent(calendarId, raw, uid);
+    const eventId = written.path;
     // Keep the snapshot current: a duplicate UID later in the same pass is then
     // answered from memory instead of being written twice.
     (await this.keysIn(calendarId))?.set(naturalKey, eventId);
@@ -231,9 +251,16 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       // would be thrown away. Without it every row keeps the `''` it has
       // carried since 0001 and a move stays undetectable.
       ...(options?.collection !== undefined ? { collection: options.collection } : {}),
+      // NOT from the loop: only this writer saw the server's answer to the
+      // PUT. Same race, opposite direction — recorded here or not at all.
+      ...(written.etag !== undefined ? { targetVersion: written.etag } : {}),
     });
 
-    return { targetId: eventId, created: true };
+    return {
+      targetId: eventId,
+      created: true,
+      ...(written.etag !== undefined ? { targetVersion: written.etag } : {}),
+    };
   }
 
   /**
@@ -605,15 +632,49 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     return parts[1]?.trim() ?? '';
   }
 
+  /**
+   * The ETag the target currently reports for an object, or undefined.
+   *
+   * A HEAD rather than a GET: the question is "is this still the object we
+   * wrote", and the bytes are not needed to answer it. One extra request, only
+   * on the rewrite path, which fires only when the source has actually changed.
+   */
+  private async currentEtag(path: string): Promise<string | undefined> {
+    const response = await this.requestWithRetry({
+      method: 'HEAD',
+      url: this.buildUrl(path),
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
+      },
+    });
+    if (response.status < 200 || response.status >= 300) return undefined;
+    return readEtag(response);
+  }
+
   private async uploadEvent(
     calendarId: string,
     raw: RawCalendarEvent,
     uid: string,
     overwrite = false,
-  ): Promise<string> {
+    expectedTargetVersion?: string,
+  ): Promise<{ path: string; etag?: string; conflicted?: boolean }> {
     // Generate event filename from UID
     const filename = `${uid}.ics`;
     const eventPath = `${calendarId}${filename}`;
+
+    // OWNERSHIP, re-checked at the last possible moment.
+    //
+    // `classifyKnownItem` decided this item is ours to replace from the ledger's
+    // status — which records that we WROTE these bytes, not that they are still
+    // the bytes we wrote. Shadow migration invites the owner into the new system
+    // before cutover; if they corrected this event there, overwriting it now
+    // destroys their work silently and counts it as a success.
+    if (overwrite && expectedTargetVersion !== undefined) {
+      const verdict = ownershipOf(expectedTargetVersion, await this.currentEtag(eventPath));
+      if (verdict === 'changed') {
+        return { path: eventPath, conflicted: true };
+      }
+    }
 
     const response = await this.requestWithRetry({
       method: 'PUT',
@@ -655,14 +716,18 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
             'copy the target does not hold.',
         );
       }
-      return eventPath;
+      // Something was already there, so its version is not ours to claim.
+      return { path: eventPath };
     }
 
     if (response.status !== 201 && response.status !== 204) {
       throw new Error(`PUT failed for ${eventPath} with status ${response.status}: ${response.body}`);
     }
 
-    return eventPath;
+    // What the server says this object is now. Recorded so a later pass can
+    // tell whether the copy is still the one we made; absent is fine and simply
+    // costs this item its overwrite protection.
+    return { path: eventPath, ...(readEtag(response) !== undefined ? { etag: readEtag(response) } : {}) };
   }
 
   private parseMultiStatusResponse(

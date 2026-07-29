@@ -394,6 +394,16 @@ export interface DomainSyncResult {
    */
   readonly updated: number;
   /**
+   * Rewrites the target REFUSED because our copy had been edited there.
+   *
+   * Distinct from `changedButAdopted`, which is an item we never wrote at all.
+   * These we did write — and someone has since changed them in the new system,
+   * which shadow migration positively invites. The pass leaves their version
+   * alone and marks the item adopted, so it is never a candidate for overwrite
+   * again.
+   */
+  readonly conflicted: number;
+  /**
    * Items that changed on the source but were left alone because the target
    * copy is the CUSTOMER'S, not ours (status `adopted`).
    *
@@ -513,6 +523,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   // alone by hard rule 2, and counted so that is a fact rather than a silence.
   let changedButAdopted = 0;
   let moved = 0;
+  // Rewrites REFUSED because somebody edited our copy in the new system.
+  let conflicted = 0;
   const moves: ItemMove[] = [];
   let drift = 0;
 
@@ -774,10 +786,45 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         const result = await timed(phases, 'upsertMs', () =>
           upsert(collectionId, raw, item, {
             ...(rewriteOf ? { overwrite: true } : {}),
+            // Only on a rewrite, and only when we know what we left there. The
+            // writer refuses if the target reports anything else.
+            ...(rewriteOf?.targetVersion !== undefined
+              ? { expectedTargetVersion: rewriteOf.targetVersion }
+              : {}),
             ...(version !== undefined ? { sourceVersion: version } : {}),
             collection: collectionPath,
           }),
         );
+
+        // THE TARGET COPY IS NOT OURS ANY MORE.
+        //
+        // Nothing was written. Mark the item `adopted`, which is not a
+        // consolation prize but the exact truth: those bytes are the
+        // customer's, and `classifyKnownItem` already refuses to rewrite an
+        // adopted item however far the source moves. From here the divergence
+        // is reported every pass as `changedButAdopted`, and cheaply — that
+        // branch returns before any fetch.
+        //
+        // `sourceVersion` is deliberately NOT advanced. Recording it would say
+        // the source change had been applied, which is the opposite of what
+        // happened, and would hide a real divergence from the operator.
+        if (result.conflicted) {
+          conflicted += 1;
+          await timed(phases, 'ledgerWriteMs', () =>
+            ledger.recordUpdate({
+              ...rewriteOf!,
+              status: 'adopted',
+              targetId: result.targetId,
+            }),
+          );
+          log.warn(
+            `[sync] ${domain}: item ${naturalKeyHash.slice(0, 12)} changed on the source, but ` +
+              'the copy on the target has been edited since we wrote it. Left alone — those ' +
+              'bytes are the owner\'s now (hard rule 2), and this item will not be overwritten ' +
+              'again.',
+          );
+          return;
+        }
 
         const row: LedgerRecord = {
           tenantId,
@@ -790,6 +837,10 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           sizeBytes,
           status: result.created ? 'copied' : result.adopted ? 'adopted' : 'updated',
           ...(version !== undefined ? { sourceVersion: version } : {}),
+          // What the TARGET says our copy is now, so the next rewrite can tell
+          // whether it is still ours. Absent when the server offered no ETag,
+          // which costs this item its overwrite protection and nothing else.
+          ...(result.targetVersion !== undefined ? { targetVersion: result.targetVersion } : {}),
           // WHERE it came from, not just what it was. Until this was recorded
           // the ledger could not tell an item that had never moved from one
           // that had, so a move was indistinguishable from a steady state.
@@ -992,6 +1043,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     failed,
     updated,
     changedButAdopted,
+    conflicted,
     needsDecision,
     leftBehind,
     failures,

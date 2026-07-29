@@ -228,6 +228,38 @@ accurate.
 > credential, a target that is down, a full disk. Fix that and the next pass
 > picks up where it left off.
 
+## 8. Keep working while it runs — what is safe, and what is not
+
+The whole point of shadow sync is that nobody has to down tools. The two sides
+are not symmetrical, though, and it is worth telling whoever uses these accounts.
+
+**In the OLD system, do anything.** New mail, edited events, deleted files,
+reorganised folders — all handled. Deletions are never copied across, so the new
+system ends up a slightly fuller archive than the old one. Items you move are
+noticed and reported (`GET /moves`), never acted on.
+
+**In the NEW system, before cutover:**
+
+| Safe | Why |
+|---|---|
+| Browsing and reading anything | Nothing here writes to the source. |
+| Creating brand-new items | The migration never touches them. Verification lists them as `extraOnTarget`, a warning that does not block cutover. |
+
+| Avoid | What happens if you do |
+|---|---|
+| Editing an item the migration copied | The migration will not overwrite your edit — it checks the target's ETag first and backs off. But that item then stops receiving further updates from the old system, so the two versions diverge from that point. |
+| Deleting an item the migration copied | It does **not** come back, and it counts as missing at the verification gate — which will block cutover until you decide about it. |
+
+The edit protection is real but it has an edge: items copied by an older build,
+and items on a server that returns no ETag, carry no recorded version and are
+still overwritten by a later source change. The protection starts the first time
+an item is written after upgrading.
+
+```sh
+# Items whose target copy was edited, so a source change was NOT applied:
+docker compose -f compose.yml logs app | grep 'changed on the source, but'
+```
+
 ## Backup (do this before every upgrade)
 
 The Postgres volume is the appliance's state (the ledger + cursors). Back it up

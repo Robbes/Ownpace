@@ -112,6 +112,11 @@ export interface DomainSyncResult {
    * things live. A count only: the folder paths stay on the status surface.
    */
   moved?: number;
+  /**
+   * Rewrites the target refused because our copy had been edited there. The
+   * source change was NOT applied and the item is now treated as the owner's.
+   */
+  conflicted?: number;
   error?: string;
   /** Where this pass's wall time went; absent for a domain that did not run. */
   metrics?: PassMetrics;
@@ -318,6 +323,7 @@ export async function runAllDomains(
             needsDecision: result.needsDecision,
             leftBehind: result.leftBehind,
             moved: result.moved,
+            conflicted: result.conflicted,
           };
         } finally {
           await deps.close();
@@ -338,6 +344,7 @@ export async function runAllDomains(
             needsDecision: result.needsDecision,
             leftBehind: result.leftBehind,
             moved: result.moved,
+            conflicted: result.conflicted,
           };
         } finally {
           await deps.close();
@@ -358,6 +365,7 @@ export async function runAllDomains(
             needsDecision: result.needsDecision,
             leftBehind: result.leftBehind,
             moved: result.moved,
+            conflicted: result.conflicted,
           };
         } finally {
           await deps.close();
@@ -399,6 +407,14 @@ export async function runAllDomains(
           `[Worker] ${domain}: ${outcome.changedButAdopted} item(s) changed on the source but ` +
             'were left as the destination already had them (adopted, never written by us). ' +
             'Non-destructive by hard rule 2; the owner decides whether to replace them.',
+        );
+      }
+      if (outcome.conflicted) {
+        log.warn(
+          `[Worker] ${domain}: ${outcome.conflicted} item(s) changed on the source, but the ` +
+            'copies on the target had been edited since we wrote them — someone is already ' +
+            'working in the new system. Their versions were left untouched (hard rule 2) and ' +
+            'those items will not be overwritten again. The source change was NOT applied.',
         );
       }
       if (outcome.moved) {

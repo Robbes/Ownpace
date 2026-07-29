@@ -335,6 +335,99 @@ describe('Calendar update propagation (real CalDAV target) Integration', () => {
   }, 120000);
 
   /**
+   * The owner edits our copy in the NEW system, then the source changes.
+   *
+   * The only path in the product that can destroy someone's work, and it cannot
+   * be settled by a double: the whole mechanism rests on Nextcloud returning a
+   * usable ETag from the PUT and reporting a DIFFERENT one after somebody else
+   * writes. A stub can be made to do either.
+   *
+   * It also settles the design choice. Comparing the bytes would have been
+   * simpler and wrong: CalDAV servers may normalise what they store, so a
+   * re-read can differ from what we sent with nobody having touched it — which
+   * would call every rewrite a conflict and freeze the corpus. The ETag is
+   * minted after any normalisation.
+   */
+  it('refuses to overwrite an event that was edited on the target', async () => {
+    const uid = 'edited-on-target@dev.local';
+
+    const first = await runCalendarSync({
+      tenantId: CAL_TENANT,
+      mappingId: CAL_MAPPING,
+      source: new StubCalendarSource(folder, [calendarEvent(uid, 'As migrated', 'etag-1')]),
+      target,
+      ledger,
+      concurrency: 1,
+    });
+    expect(first.created).toBe(1);
+
+    // The version has to be ON the row, or there is nothing to compare against
+    // later and the protection silently does not exist.
+    const row = await ledger.find(CAL_TENANT, CAL_MAPPING, 'calendar', calendarNaturalKeyHash(uid));
+    expect(
+      row?.targetVersion,
+      'Nextcloud must return an ETag from the PUT, and the writer must record it',
+    ).toBeTruthy();
+
+    // The owner corrects the event in the new system, straight to the server,
+    // exactly as their own client would.
+    const href = `${CAL_PATH}/${uid}.ics`;
+    const put = await fetch(`${BASE}/${href}`, {
+      method: 'PUT',
+      headers: { Authorization: AUTH_HEADER, 'Content-Type': 'text/calendar; charset=utf-8' },
+      body: icalendar(uid, 'Corrected by the owner'),
+    });
+    expect(put.status, 'the owner edit must land').toBeLessThan(300);
+
+    // Now the source changes too. Before this, that combination silently
+    // replaced their correction and counted `updated: 1`.
+    const second = await runCalendarSync({
+      tenantId: CAL_TENANT,
+      mappingId: CAL_MAPPING,
+      source: new StubCalendarSource(folder, [
+        calendarEvent(uid, 'Rescheduled at source', 'etag-2'),
+      ]),
+      // A fresh writer, as every test in this file does: each one memoises a
+      // snapshot of the collection and is never invalidated.
+      target: new CalDAVTargetWriter(
+        { url: NEXTCLOUD_WEBDAV_URL!, username: NEXTCLOUD_USERNAME, password: NEXTCLOUD_PASSWORD },
+        { ledger, tenantId: CAL_TENANT, mappingId: CAL_MAPPING },
+      ),
+      ledger,
+      concurrency: 1,
+    });
+
+    expect(second.conflicted).toBe(1);
+    expect(second.updated, 'nothing may be rewritten').toBe(0);
+    expect(second.failed, 'a conflict is not a failure').toBe(0);
+
+    // THE CLAIM THAT MATTERS: the server still holds what the owner wrote.
+    const stored = await readTargetHref(href);
+    expect(stored).toContain('Corrected by the owner');
+    expect(stored).not.toContain('Rescheduled at source');
+
+    // And it is theirs for good now — adopted items are never rewritten, so a
+    // further source change is reported rather than applied.
+    const after = await ledger.find(CAL_TENANT, CAL_MAPPING, 'calendar', calendarNaturalKeyHash(uid));
+    expect(after?.status).toBe('adopted');
+
+    const third2 = await runCalendarSync({
+      tenantId: CAL_TENANT,
+      mappingId: CAL_MAPPING,
+      source: new StubCalendarSource(folder, [calendarEvent(uid, 'Moved again', 'etag-3')]),
+      target: new CalDAVTargetWriter(
+        { url: NEXTCLOUD_WEBDAV_URL!, username: NEXTCLOUD_USERNAME, password: NEXTCLOUD_PASSWORD },
+        { ledger, tenantId: CAL_TENANT, mappingId: CAL_MAPPING },
+      ),
+      ledger,
+      concurrency: 1,
+    });
+    expect(third2.changedButAdopted).toBe(1);
+    expect(third2.updated).toBe(0);
+    expect(await readTargetHref(href)).toContain('Corrected by the owner');
+  }, 120000);
+
+  /**
    * Hard rule 2, end to end against a real server.
    *
    * The destination already holds this item and we never wrote it — what "the
