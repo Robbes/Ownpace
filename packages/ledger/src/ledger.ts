@@ -6,11 +6,14 @@ import {
   type FailureAction,
   type ItemMove,
   type MoveAction,
+  type ItemDeletion,
+  type DeletionAction,
+  DELETION_CONFIRMATIONS,
   type TenantId,
   type MappingId,
 } from '@openmig/shared';
 import type { PgDatabase } from './db';
-import { eq, and, ne, isNull, isNotNull, desc, sql } from 'drizzle-orm';
+import { eq, and, ne, gt, gte, isNull, isNotNull, desc, sql } from 'drizzle-orm';
 import * as schemaPg from './schema-pg';
 
 /**
@@ -257,6 +260,8 @@ export class PgLedger implements Ledger {
         collection: schemaPg.item.collection,
         movedToCollection: schemaPg.item.movedToCollection,
         moveAcknowledgedAt: schemaPg.item.moveAcknowledgedAt,
+        absentPasses: schemaPg.item.absentPasses,
+        deletionAcknowledgedAt: schemaPg.item.deletionAcknowledgedAt,
       })
       .from(schemaPg.item)
       .where(
@@ -287,6 +292,15 @@ export class PgLedger implements Ledger {
               r.moveAcknowledgedAt instanceof Date
                 ? r.moveAcknowledgedAt.toISOString()
                 : String(r.moveAcknowledgedAt),
+          }
+        : {}),
+      absentPasses: r.absentPasses,
+      ...(r.deletionAcknowledgedAt
+        ? {
+            deletionAcknowledgedAt:
+              r.deletionAcknowledgedAt instanceof Date
+                ? r.deletionAcknowledgedAt.toISOString()
+                : String(r.deletionAcknowledgedAt),
           }
         : {}),
     }));
@@ -503,6 +517,136 @@ export class PgLedger implements Ledger {
     return rows.length > 0;
   }
 
+  async recordAbsent(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: 'email' | 'calendar' | 'contact' | 'file',
+    naturalKeyHash: string,
+  ): Promise<number> {
+    const rows = await this.db
+      .update(schemaPg.item)
+      .set({ absentPasses: sql`${schemaPg.item.absentPasses} + 1`, updatedAt: sql`now()` })
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          eq(schemaPg.item.domain, domain),
+          eq(schemaPg.item.naturalKeyHash, naturalKeyHash),
+        ),
+      )
+      .returning({ absentPasses: schemaPg.item.absentPasses });
+    return rows[0]?.absentPasses ?? 0;
+  }
+
+  async clearAbsent(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: 'email' | 'calendar' | 'contact' | 'file',
+    naturalKeyHash: string,
+  ): Promise<void> {
+    await this.db
+      .update(schemaPg.item)
+      .set({
+        absentPasses: 0,
+        // The decision goes with the count. There is no longer anything to have
+        // agreed to, and a stale acknowledgement would silently suppress the
+        // report the NEXT time this item disappears.
+        deletionAcknowledgedAt: null,
+        updatedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          eq(schemaPg.item.domain, domain),
+          eq(schemaPg.item.naturalKeyHash, naturalKeyHash),
+          // Only rows that actually have a count. On a healthy corpus this is
+          // none of them, and the partial index makes the no-op free rather
+          // than an UPDATE per item per pass.
+          gt(schemaPg.item.absentPasses, 0),
+        ),
+      );
+  }
+
+  async listDeletions(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain?: 'email' | 'calendar' | 'contact' | 'file',
+  ): Promise<ItemDeletion[]> {
+    const rows = await this.db
+      .select({
+        domain: schemaPg.item.domain,
+        naturalKeyHash: schemaPg.item.naturalKeyHash,
+        collection: schemaPg.item.collection,
+        absentPasses: schemaPg.item.absentPasses,
+        deletionAcknowledgedAt: schemaPg.item.deletionAcknowledgedAt,
+      })
+      .from(schemaPg.item)
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          gt(schemaPg.item.absentPasses, 0),
+          ...(domain ? [eq(schemaPg.item.domain, domain)] : []),
+        ),
+      )
+      // Open first, then the ones missing longest — NULLS FIRST spelled out
+      // because Postgres reads ASC as NULLS LAST, which would bury everything
+      // still needing a decision under everything already decided (0022 shipped
+      // that bug and only the real database noticed).
+      .orderBy(
+        sql`${schemaPg.item.deletionAcknowledgedAt} ASC NULLS FIRST, ${schemaPg.item.absentPasses} DESC, ${schemaPg.item.naturalKeyHash} ASC`,
+      );
+
+    return rows.map((r) => ({
+      domain: r.domain as ItemDeletion['domain'],
+      naturalKeyHash: r.naturalKeyHash,
+      collection: r.collection,
+      absentPasses: r.absentPasses,
+      confirmed: r.absentPasses >= DELETION_CONFIRMATIONS,
+      ...(r.deletionAcknowledgedAt
+        ? {
+            acknowledgedAt:
+              r.deletionAcknowledgedAt instanceof Date
+                ? r.deletionAcknowledgedAt.toISOString()
+                : String(r.deletionAcknowledgedAt),
+          }
+        : {}),
+    }));
+  }
+
+  async resolveDeletion(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    naturalKeyHash: string,
+    action: DeletionAction,
+  ): Promise<boolean> {
+    // Only 'keep' exists, and it is inert on both sides: it records that a
+    // person looked. Removing the target's copy is the first destructive thing
+    // this product would do and needs its own path.
+    if (action !== 'keep') return false;
+
+    const rows = await this.db
+      .update(schemaPg.item)
+      .set({ deletionAcknowledgedAt: sql`now()`, updatedAt: sql`now()` })
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          eq(schemaPg.item.naturalKeyHash, naturalKeyHash),
+          // CONFIRMED only. An absence seen once is being watched, not
+          // reported, so there is nothing for anyone to have decided about yet
+          // — and letting it be closed early would retire the very check that
+          // makes the claim trustworthy.
+          gte(schemaPg.item.absentPasses, DELETION_CONFIRMATIONS),
+          isNull(schemaPg.item.deletionAcknowledgedAt),
+        ),
+      )
+      .returning();
+
+    return rows.length > 0;
+  }
+
   private mapRowToRecord(row: typeof schemaPg.item.$inferSelect): LedgerRecord {
     return {
       tenantId: row.tenantId as TenantId,
@@ -537,6 +681,18 @@ export class PgLedger implements Ledger {
               row.moveAcknowledgedAt instanceof Date
                 ? row.moveAcknowledgedAt.toISOString()
                 : String(row.moveAcknowledgedAt),
+          }
+        : {}),
+      // NOT NULL with a default, so mapped unconditionally — same as
+      // attemptCount. `find` was the only reader left without it, which made
+      // the row look like it had never gone missing however many times it had.
+      absentPasses: row.absentPasses,
+      ...(row.deletionAcknowledgedAt
+        ? {
+            deletionAcknowledgedAt:
+              row.deletionAcknowledgedAt instanceof Date
+                ? row.deletionAcknowledgedAt.toISOString()
+                : String(row.deletionAcknowledgedAt),
           }
         : {}),
       attemptCount: row.attemptCount,

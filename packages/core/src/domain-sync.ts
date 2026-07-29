@@ -15,6 +15,8 @@ import {
   type LedgerRecord,
   type ItemFailure,
   type ItemMove,
+  type ItemDeletion,
+  DELETION_CONFIRMATIONS,
   type CursorStore,
   type UpsertResult,
   type UpsertOptions,
@@ -443,6 +445,11 @@ export interface DomainSyncResult {
   /** Which ones, and where from and to, for the operator. See `ItemMove`. */
   readonly moves: ReadonlyArray<ItemMove>;
   /**
+   * Items the source has stopped showing, for long enough to be worth saying
+   * out loud. Nothing is removed from the target — see `ItemDeletion`.
+   */
+  readonly deletions: ReadonlyArray<ItemDeletion>;
+  /**
    * Source items absent on a later pass (potential deletions).
    *
    * Populated only for the FILE domain, and only when every collection's key
@@ -526,6 +533,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   // Rewrites REFUSED because somebody edited our copy in the new system.
   let conflicted = 0;
   const moves: ItemMove[] = [];
+  const deletions: ItemDeletion[] = [];
   let drift = 0;
 
   /**
@@ -1016,6 +1024,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     });
     moved += found.moves.length;
     moves.push(...found.moves);
+    deletions.push(...found.deletions);
     drift += found.drift;
   }
 
@@ -1049,6 +1058,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     failures,
     moved,
     moves,
+    deletions,
     drift,
     metrics: summarise(phases, scanned),
   };
@@ -1110,7 +1120,7 @@ async function detectPathKeyedMoves(args: {
   ledger: Ledger;
   seenByCollection: ReadonlyMap<string, ReadonlySet<string>>;
   createdThisPass: ReadonlyArray<{ naturalKeyHash: string; contentHash: string; collection: string }>;
-}): Promise<{ moves: ItemMove[]; drift: number }> {
+}): Promise<{ moves: ItemMove[]; deletions: ItemDeletion[]; drift: number }> {
   const { tenantId, mappingId, domain, ledger, seenByCollection, createdThisPass } = args;
 
   // Content hash -> the new items carrying it, consumed as they are matched.
@@ -1125,6 +1135,7 @@ async function detectPathKeyedMoves(args: {
   }
 
   const moves: ItemMove[] = [];
+  const deletions: ItemDeletion[] = [];
   let drift = 0;
 
   const placed = await ledger.placedItems(tenantId, mappingId, domain);
@@ -1137,6 +1148,13 @@ async function detectPathKeyedMoves(args: {
       // the queue entry goes too — someone moved the file back.
       if (row.movedToCollection !== undefined) {
         await ledger.clearMove(tenantId, mappingId, domain, row.naturalKeyHash);
+      }
+      // Same for a run of absences: it is back, so the run is broken. This is
+      // what keeps the count CONSECUTIVE — without it a flaky collection would
+      // accumulate its way to "confirmed deleted" over a month of unrelated
+      // hiccups, none of them adjacent.
+      if (row.absentPasses) {
+        await ledger.clearAbsent(tenantId, mappingId, domain, row.naturalKeyHash);
       }
       continue;
     }
@@ -1181,8 +1199,24 @@ async function detectPathKeyedMoves(args: {
       continue;
     }
 
+    // GONE, and nothing explains it as a move. Counted rather than concluded:
+    // we never observe a deletion, only an absence, and absence has innocent
+    // causes that all look identical — a folder briefly missing from discovery,
+    // a throttled listing, a connector having a bad ten minutes. The count is
+    // what separates "the source no longer has this" from "the source had a bad
+    // afternoon", and nothing is reported to a person until it repeats.
     drift += 1;
+    const seen = await ledger.recordAbsent(tenantId, mappingId, domain, row.naturalKeyHash);
+    if (seen >= DELETION_CONFIRMATIONS && !row.deletionAcknowledgedAt) {
+      deletions.push({
+        domain,
+        naturalKeyHash: row.naturalKeyHash,
+        collection: row.collection,
+        absentPasses: seen,
+        confirmed: true,
+      });
+    }
   }
 
-  return { moves, drift };
+  return { moves, deletions, drift };
 }

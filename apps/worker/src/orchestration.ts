@@ -117,6 +117,11 @@ export interface DomainSyncResult {
    * source change was NOT applied and the item is now treated as the owner's.
    */
   conflicted?: number;
+  /**
+   * Items the source has stopped showing for long enough to be worth saying out
+   * loud. Nothing was removed from the target — §11.1, hard rule 2.
+   */
+  deletions?: number;
   error?: string;
   /** Where this pass's wall time went; absent for a domain that did not run. */
   metrics?: PassMetrics;
@@ -324,6 +329,7 @@ export async function runAllDomains(
             leftBehind: result.leftBehind,
             moved: result.moved,
             conflicted: result.conflicted,
+            deletions: result.deletions.length,
           };
         } finally {
           await deps.close();
@@ -345,6 +351,7 @@ export async function runAllDomains(
             leftBehind: result.leftBehind,
             moved: result.moved,
             conflicted: result.conflicted,
+            deletions: result.deletions.length,
           };
         } finally {
           await deps.close();
@@ -366,6 +373,7 @@ export async function runAllDomains(
             leftBehind: result.leftBehind,
             moved: result.moved,
             conflicted: result.conflicted,
+            deletions: result.deletions.length,
           };
         } finally {
           await deps.close();
@@ -407,6 +415,15 @@ export async function runAllDomains(
           `[Worker] ${domain}: ${outcome.changedButAdopted} item(s) changed on the source but ` +
             'were left as the destination already had them (adopted, never written by us). ' +
             'Non-destructive by hard rule 2; the owner decides whether to replace them.',
+        );
+      }
+      if (outcome.deletions) {
+        log.warn(
+          `[Worker] ${domain}: ${outcome.deletions} item(s) have gone from the source but are ` +
+            'still on the target — someone deleted them in the old system after they were ' +
+            'copied. Nothing was removed here: §11.1 leaves lifecycle to the owner, and this ' +
+            'tool never deletes on a target. Review them at GET /deletions and either accept ' +
+            'the new system keeping its copy, or remove it there yourself.',
         );
       }
       if (outcome.conflicted) {

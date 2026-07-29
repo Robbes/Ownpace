@@ -494,6 +494,15 @@ export interface LedgerRecord {
    * has since put it there" — `collection` deliberately keeps describing where
    * the target's copy actually is, because that is the only place it is.
    */
+  /**
+   * Consecutive complete scans that failed to find this item on the source.
+   *
+   * 0 or absent means "present, or never checked". See migration 0024 for why
+   * this is a count and not a flag.
+   */
+  readonly absentPasses?: number;
+  /** When the owner decided to keep the target's copy of a vanished item. */
+  readonly deletionAcknowledgedAt?: string;
   readonly movedToCollection?: string;
   /**
    * When the owner saw the move and chose to leave the target alone (§11.2).
@@ -618,6 +627,10 @@ export interface Ledger {
       movedToCollection?: string;
       /** Set once the owner has decided about that move. */
       moveAcknowledgedAt?: string;
+      /** Consecutive complete scans that have failed to find it. */
+      absentPasses?: number;
+      /** Set once the owner has decided about its disappearance. */
+      deletionAcknowledgedAt?: string;
     }>
   >;
   /** Unresolved failures for a domain, newest attempt first. */
@@ -693,6 +706,54 @@ export interface Ledger {
     mappingId: MappingId,
     naturalKeyHash: string,
     action: MoveAction,
+  ): Promise<boolean>;
+  /**
+   * Note that a complete scan did not find this item, and return how many
+   * consecutive scans that now makes.
+   *
+   * Counting is the whole safety argument. We never observe a deletion, only an
+   * absence, and absence has innocent causes that all look identical — so the
+   * count is what separates "the source no longer has this" from "the source
+   * had a bad afternoon".
+   */
+  recordAbsent(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: 'email' | 'calendar' | 'contact' | 'file',
+    naturalKeyHash: string,
+  ): Promise<number>;
+  /**
+   * The item is back. Reset the count and any decision about it.
+   *
+   * CONSECUTIVE is the property being maintained: an item that vanishes, comes
+   * back and vanishes again has been missing once, twice — never twice in a
+   * row. Without the reset a flaky folder would accumulate its way to
+   * "confirmed deleted" over a month of unrelated hiccups.
+   */
+  clearAbsent(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: 'email' | 'calendar' | 'contact' | 'file',
+    naturalKeyHash: string,
+  ): Promise<void>;
+  /** Items the source has stopped showing — confirmed ones first. */
+  listDeletions(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain?: 'email' | 'calendar' | 'contact' | 'file',
+  ): Promise<ItemDeletion[]>;
+  /**
+   * Apply an owner decision to one vanished item.
+   *
+   * Returns false when there is no open, CONFIRMED absence under that key — it
+   * came back, or someone already decided. Saying "not found" beats reporting a
+   * decision that did not happen.
+   */
+  resolveDeletion(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    naturalKeyHash: string,
+    action: DeletionAction,
   ): Promise<boolean>;
 }
 
@@ -790,6 +851,64 @@ export interface ItemMove {
    */
   readonly acknowledgedAt?: string;
 }
+
+/**
+ * An item the SOURCE no longer has, which the target still holds.
+ *
+ * "No longer has" is inferred from repeated ABSENCE, never from a deletion
+ * event — we do not get told. `absentPasses` is how many consecutive complete
+ * scans failed to find it, and it is the honest measure of how much to believe
+ * the claim: one absent listing has a dozen innocent causes, several in a row
+ * has far fewer.
+ *
+ * `collection` is a folder path, which §17 counts as personal data. It belongs
+ * on the operator's own status surface — the same place `lastError` and
+ * `ItemMove.from` already go — and must never become a metric label.
+ */
+export interface ItemDeletion {
+  readonly domain: 'email' | 'calendar' | 'contact' | 'file';
+  /** Same anchor, same §17 reason, as `ItemFailure.naturalKeyHash`. */
+  readonly naturalKeyHash: string;
+  /** Where we copied it from, which is also where it stopped appearing. */
+  readonly collection: string;
+  /** Consecutive complete scans that failed to find it. */
+  readonly absentPasses: number;
+  /**
+   * True once `absentPasses` has reached `DELETION_CONFIRMATIONS`.
+   *
+   * Below that the item is watched, not reported: the queue exists to be acted
+   * on, and filling it with absences that may simply be a folder having a bad
+   * afternoon is how a queue stops being read.
+   */
+  readonly confirmed: boolean;
+  /** When the owner decided to keep the target's copy anyway. */
+  readonly acknowledgedAt?: string;
+}
+
+/**
+ * Consecutive complete scans an item must be missing from before its
+ * disappearance is put in front of a person.
+ *
+ * Two, not one, because one absent listing is not evidence: a folder briefly
+ * missing from discovery, a throttled listing, a permissions blip and a source
+ * connector having a bad ten minutes all present exactly the same way. Two, not
+ * ten, because the cost of waiting is only latency on a report — nothing is
+ * acted on either way — and an owner who deleted something last week should not
+ * have to wait a fortnight to be told the target still has it.
+ */
+export const DELETION_CONFIRMATIONS = 2;
+
+/** What an owner can decide about a vanished item. See `Ledger.resolveDeletion`. */
+export type DeletionAction =
+  /**
+   * Keep the target's copy and stop reporting this one.
+   *
+   * The only action there is for now, and it changes nothing on either side.
+   * Removing the target's copy is the first destructive operation this product
+   * would perform, and it needs its own path, its own confirmation and its own
+   * review — see the runbook.
+   */
+  'keep';
 
 /** What an owner can decide about a move. See `Ledger.resolveMove`. */
 export type MoveAction =

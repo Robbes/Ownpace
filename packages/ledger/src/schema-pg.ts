@@ -221,6 +221,13 @@ export const item = pgTable(
     // NULL = not known (rows predating 0023, or a server that returns no ETag
     // on PUT) and never blocks a write. See migration 0023.
     targetVersion: text('target_version'),
+    // How many CONSECUTIVE complete scans have failed to find this item on the
+    // source. Reset to 0 the moment it reappears. A single absent listing is
+    // not evidence of deletion — see migration 0024.
+    absentPasses: integer('absent_passes').notNull().default(0),
+    // When the owner decided to keep the target's copy of an item the source no
+    // longer has. NULL = still open.
+    deletionAcknowledgedAt: timestamp('deletion_acknowledged_at', { withTimezone: true }),
     // Where the SOURCE lists this item now, when that is no longer the
     // collection we copied it from. NULL = not moved. `collection` above keeps
     // pointing at where the TARGET's copy actually is, so the two together say
@@ -250,6 +257,8 @@ export const item = pgTable(
     // Drizzle cannot express here; declared so the column is indexed in the
     // model too. See 0022.
     index('ix_item_moved').on(t.tenantId, t.mappingId, t.domain),
+    // Partial in the migration (WHERE absent_passes > 0). See 0024.
+    index('ix_item_absent').on(t.tenantId, t.mappingId, t.domain),
   ],
 );
 
