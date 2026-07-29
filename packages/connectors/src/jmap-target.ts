@@ -14,6 +14,7 @@ import type {
   UpsertResult,
 } from "@openmig/shared";
 import { contentHash, parseRetryAfterMs } from "@openmig/shared";
+import { log } from '@openmig/shared';
 
 /**
  * How many times a rate-limited JMAP request is re-sent before it is allowed to
@@ -354,7 +355,7 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
       // Drain the body so the connection can be reused for the retry.
       await response.text().catch(() => undefined);
 
-      console.warn(
+      log.warn(
         `[jmap] ${response.status} from ${new URL(url).pathname}; ` +
           `waiting ${Math.round(waitMs)}ms before retry ${attempt + 2}/${RATE_LIMIT_ATTEMPTS}`,
       );
@@ -448,7 +449,7 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
 
     if (!response.ok) {
       const error = await response.text().catch(() => '');
-      console.error(`[jmap-target] Blob upload failed: HTTP ${response.status}`, error);
+      log.error(`[jmap-target] Blob upload failed: HTTP ${response.status}`, error);
       throw new Error(`Blob upload failed: HTTP ${response.status} - ${error.slice(0, 500)}`);
     }
 
@@ -550,7 +551,7 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
           }
         }
       }
-      console.error('[jmap-target] Mailbox not created, notCreated:', JSON.stringify(mailboxResponse.notCreated));
+      log.error('[jmap-target] Mailbox not created, notCreated:', JSON.stringify(mailboxResponse.notCreated));
       throw new Error("Failed to create mailbox: " + JSON.stringify(mailboxResponse.notCreated));
     }
 
@@ -594,7 +595,7 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
       for await (const entry of this.listEntries()) {
         keys.set(entry.naturalKey, entry.targetId);
         if (keys.size > SNAPSHOT_MAX_ENTRIES) {
-          console.warn(
+          log.warn(
             `[jmap] target holds more than ${SNAPSHOT_MAX_ENTRIES} messages; ` +
               `checking each message individually instead of enumerating the account`,
           );
@@ -606,7 +607,7 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
       // Say why. A silent fallback here looks identical to a fast target and
       // would hide a real problem behind nothing but a slower run (hard rule 9).
       const message = err instanceof Error ? err.message : String(err);
-      console.warn(
+      log.warn(
         `[jmap] could not enumerate the target account (${message}); ` +
           `falling back to a per-message existence check`,
       );
@@ -815,7 +816,7 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     const email = ((getResponse as { list?: Array<{ blobId?: string }> }).list ?? [])[0];
     const blobId = email?.blobId;
     if (!blobId) {
-      console.warn(`[jmap] no blobId for ${entry.targetId}; cannot content-verify it`);
+      log.warn(`[jmap] no blobId for ${entry.targetId}; cannot content-verify it`);
       return undefined;
     }
 
@@ -828,7 +829,7 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
       // `checksumUnavailable` with no indication why, so §20's content leg was
       // reported as "not exercised" run after run and nothing said the download
       // was failing (hard rule 9).
-      console.warn(`[jmap] blob download failed: GET ${url} -> ${response.status}`);
+      log.warn(`[jmap] blob download failed: GET ${url} -> ${response.status}`);
       return undefined;
     }
 

@@ -41,6 +41,37 @@ import {
 import type { TargetReindexer } from '@openmig/shared';
 import { buildDeps, buildDomainDeps } from './build-deps';
 import { discoverDomains, type DomainDiscoveryTask, type DomainDiscoveryOutcome } from './discovery';
+import { log, metrics as registry, type PassMetrics } from '@openmig/shared';
+
+/**
+ * Feed one completed pass into the Prometheus registry (§19 dashboards).
+ *
+ * Labels are tenant/mapping ids and the fixed domain name ONLY. §17 treats
+ * addresses and folder names as personal data, and a metrics store has
+ * different retention and access than the ledger — `assertOpaqueLabel` in
+ * metrics.ts refuses anything that looks like either.
+ */
+function recordPassMetrics(
+  tenantId: string,
+  mappingId: string,
+  domain: SyncDomain,
+  outcome: DomainSyncResult,
+): void {
+  const labels = { tenant: tenantId, mapping: mappingId, domain };
+  registry.itemsMigrated.inc({ ...labels, outcome: 'created' }, outcome.created);
+  registry.itemsMigrated.inc({ ...labels, outcome: 'adopted' }, outcome.adopted);
+  registry.itemsMigrated.inc({ ...labels, outcome: 'skipped' }, outcome.skipped);
+  registry.itemsFailed.inc(labels, outcome.failed);
+
+  const m: PassMetrics | undefined = outcome.metrics;
+  if (!m) return;
+  registry.passDuration.observe(labels, m.wallMs / 1000);
+  registry.passOverlap.set(labels, Number(m.overlap.toFixed(3)));
+  if (m.items > 0) {
+    registry.itemDuration.observe({ ...labels, phase: 'source_fetch' }, m.sourceFetchMs / m.items / 1000);
+    registry.itemDuration.observe({ ...labels, phase: 'target_write' }, m.targetWriteMs / m.items / 1000);
+  }
+}
 
 export interface DomainSyncResult {
   domain: 'email' | 'calendar' | 'contact' | 'file';
@@ -51,6 +82,8 @@ export interface DomainSyncResult {
   adopted: number;
   failed: number;
   error?: string;
+  /** Where this pass's wall time went; absent for a domain that did not run. */
+  metrics?: PassMetrics;
 }
 
 export type SyncDomain = 'email' | 'calendar' | 'contact' | 'file';
@@ -207,7 +240,7 @@ export async function runAllDomains(
     domains.filter((d) => d.enabled).map((d) => d.name),
   );
   if (lanes.length > 1) {
-    console.log(
+    log.info(
       `[Worker] running ${lanes.length} domain lanes in parallel: ` +
         lanes.map((l) => l.join('+')).join(' | '),
     );
@@ -265,17 +298,18 @@ export async function runAllDomains(
       }
 
       results.push(outcome);
-      await statusStore.markCompleted(tenantId, mappingId, domain);
+      await statusStore.markCompleted(tenantId, mappingId, domain, outcome.metrics);
+      recordPassMetrics(tenantId, mappingId, domain, outcome);
       // `adopted` is reported alongside the rest: a pass that created nothing
       // because the destination already held the data reads very differently
       // from one that created nothing because we had already migrated it.
-      console.log(
+      log.info(
         `[Worker] ${domain} sync complete: scanned=${outcome.scanned}, created=${outcome.created}, ` +
           `adopted=${outcome.adopted}, skipped=${outcome.skipped}`,
       );
     } catch (err) {
       const error = err as Error;
-      console.error(`[Worker] ${domain} sync failed: ${error.message}`);
+      log.error(`[Worker] ${domain} sync failed: ${error.message}`);
       await statusStore.markFailed(tenantId, mappingId, domain, error.message);
       results.push({ domain, scanned: 0, created: 0, skipped: 0, adopted: 0, failed: 1, error: error.message });
       // Continue to the next domain — one domain's failure must not block others.
@@ -288,7 +322,7 @@ export async function runAllDomains(
   const settled = await Promise.allSettled(lanes.map(runLane));
   for (const s of settled) {
     if (s.status === 'rejected') {
-      console.error(`[Worker] domain lane failed unexpectedly: ${String(s.reason)}`);
+      log.error(`[Worker] domain lane failed unexpectedly: ${String(s.reason)}`);
     }
   }
 
@@ -376,7 +410,7 @@ export async function discoverAllDomains(
           );
           return { ...discovery, targetExisting, targetColliding };
         } catch (err) {
-          console.warn(
+          log.warn(
             `[discovery] could not enumerate the ${domain} destination: ` +
               `${err instanceof Error ? err.message : String(err)}`,
           );
@@ -492,7 +526,7 @@ export async function verifyMapping(config: MappingConfig): Promise<Verification
     try {
       opened = await open();
     } catch (err) {
-      console.warn(
+      log.warn(
         `[verify] no ${key} target for ${config.mappingId}: ` +
           `${err instanceof Error ? err.message : String(err)}`,
       );
@@ -568,7 +602,7 @@ export async function verifyMapping(config: MappingConfig): Promise<Verification
     ]);
     for (const outcome of settled) {
       if (outcome.status === 'rejected') {
-        console.warn('[verify] failed to release a connection:', outcome.reason);
+        log.warn('[verify] failed to release a connection:', outcome.reason);
       }
     }
   }

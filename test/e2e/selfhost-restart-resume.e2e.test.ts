@@ -171,6 +171,87 @@ describe('Restart-Resume Idempotency Gate (T5)', () => {
     }, WAIT_MS + 60000);
   }
 
+  /**
+   * Every domain must actually run items in parallel.
+   *
+   * The e2e fixture pinned `concurrency: 1` on the three DAV domains, so they
+   * migrated strictly one item at a time while mail ran four. That survived
+   * FOUR consecutive green runs and three wrong diagnoses from me — count
+   * parity, checksums and byte totals were all perfect, because serial is
+   * slow, not incorrect. Nothing in the gate could see it.
+   *
+   * The phase-timing report exposes `overlap` = (sum of per-phase wall time) /
+   * (domain wall time). At `concurrency: 4` a healthy pass reads ~4; the
+   * regression read 1.0. So assert on it, and the same mistake cannot cost
+   * four runs again.
+   *
+   * Threshold 2.5, not 4: leaves room for scheduling noise and for a domain
+   * whose last few items drain below full width, while still being nowhere
+   * near the 1.0 that means "serial".
+   */
+  it('every domain actually runs items concurrently', () => {
+    const logs = execSync(`docker compose -f ${COMPOSE_FILE} logs app --no-color --tail 4000`, {
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+    });
+
+    // Select, per domain, the pass that actually MIGRATED — the one with the
+    // most time spent writing to the target.
+    //
+    // The log holds several passes per domain by the time this runs: trivial
+    // zero-item ones from before the source was ready, and steady-state ones
+    // where every item hits the ledger fast-path and no writing happens at all.
+    // Both are real and both report a meaningless overlap, because there is
+    // nothing to overlap. Selecting on item count does not separate them — a
+    // skip-only pass scans exactly as many items as the pass that copied them.
+    const seen = new Map<string, { items: number; overlap: number; writeSecs: number }>();
+    for (const line of logs.split('\n')) {
+      if (!line.includes('[timing]')) continue;
+      const head = /\[timing\] (\w+): (\d+) items in/.exec(line);
+      const write = /target-write ([\d.]+)s/.exec(line);
+      const over = /overlap ([\d.]+)x/.exec(line);
+      if (!head || !write || !over) continue;
+      const domain = head[1]!;
+      const parsed = {
+        items: Number(head[2]),
+        writeSecs: Number(write[1]),
+        overlap: Number(over[1]),
+      };
+      const prev = seen.get(domain);
+      if (!prev || parsed.writeSecs > prev.writeSecs) seen.set(domain, parsed);
+    }
+
+    // A missing report is a FAILED assertion, never a skipped one. Every
+    // false-green in this project's history came from a check that quietly
+    // measured nothing — if LOG_LEVEL=debug ever stops reaching the appliance,
+    // this test must say so rather than pass vacuously.
+    expect(
+      seen.size,
+      'no [timing] lines in the appliance log — is LOG_LEVEL=debug still in deploy/selfhost/.env?',
+    ).toBeGreaterThan(0);
+
+    for (const domain of DOMAINS) {
+      const report = seen.get(domain);
+      expect(report, `no [timing] report for the ${domain} domain`).toBeDefined();
+      // Only meaningful once there are more items than the pool is wide.
+      if (report!.items < 20) continue;
+      // And only meaningful for a pass that actually wrote something. If the
+      // best pass we found did no writing, we never observed a migrating pass
+      // — which is a broken measurement, not a passing one.
+      expect(
+        report!.writeSecs,
+        `no migrating pass observed for ${domain}: the best [timing] line reports ` +
+          `${report!.writeSecs}s of target writes, so overlap says nothing about concurrency`,
+      ).toBeGreaterThan(1);
+      expect(
+        report!.overlap,
+        `${domain} ran with overlap ${report!.overlap}x over ${report!.items} items — ` +
+          `at concurrency 4 that is effectively SERIAL. Check for a "concurrency" ` +
+          `override in the mapping fixture, which is exactly what caused this before.`,
+      ).toBeGreaterThan(2.5);
+    }
+  }, 60000);
+
   it('restarts the app and every domain resumes with zero duplicates', async () => {
     for (const domain of DOMAINS) {
       expect(firstPassSynced[domain], `${domain} first-pass test must run first and observe items`).toBeGreaterThan(0);

@@ -17,6 +17,7 @@
 import type { Pool } from 'pg';
 import type { TargetReindexer } from '@openmig/shared';
 import { buildDomainDepsFromMapping } from './build-deps-from-mapping';
+import { log } from '@openmig/shared';
 
 /** Domains the verification gate knows about. */
 export type VerificationDomain = 'mail' | 'calendar' | 'contacts' | 'files';
@@ -59,7 +60,7 @@ export async function buildTargetReindexers(
     try {
       deps = await build();
     } catch (err) {
-      console.warn(
+      log.warn(
         `[verification] no ${domain} target for mapping ${mappingId}: ` +
           `${err instanceof Error ? err.message : String(err)}`,
       );

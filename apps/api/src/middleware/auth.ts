@@ -13,6 +13,7 @@ import { jwtVerify, createRemoteJWKSet, decodeJwt } from 'jose';
 import type { AuthenticatedRequest } from '../types/api';
 import { Pool } from 'pg';
 import { withTenant as ledgerWithTenant, type PgDatabase } from '@openmig/ledger';
+import { log } from '@openmig/shared';
 
 export interface JwtPayload {
   sub: string;
@@ -186,7 +187,7 @@ async function verifyToken(token: string): Promise<JwtPayload> {
   if (process.env.NODE_ENV === 'production') {
     throw new AuthNotConfiguredError();
   }
-  console.warn('JWT verification disabled - development mode');
+  log.warn('JWT verification disabled - development mode');
   const decoded = decodeJwt(token) as unknown as JwtPayload;
   if (!decoded || typeof decoded !== 'object') {
     throw new Error('Invalid token format');
@@ -265,14 +266,14 @@ export async function authenticate(
           message: error.message,
         });
       } else {
-        console.error('Authentication error:', error);
+        log.error('Authentication error:', error);
         res.status(500).json({
           error: 'Internal server error',
           message: 'Token verification failed',
         });
       }
     } else {
-      console.error('Authentication error:', error);
+      log.error('Authentication error:', error);
       res.status(500).json({
         error: 'Internal server error',
         message: 'Token verification failed',

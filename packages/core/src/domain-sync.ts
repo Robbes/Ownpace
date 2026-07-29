@@ -16,6 +16,9 @@ import {
   type TenantId,
   type MappingId,
 } from '@openmig/shared';
+import { log, isLevelEnabled, type PassMetrics } from '@openmig/shared';
+
+export type { PassMetrics };
 
 /**
  * Items processed in parallel per collection.
@@ -28,7 +31,17 @@ import {
 const DEFAULT_CONCURRENCY = 4;
 
 /**
- * Wall-clock breakdown of one domain pass, enabled with OPENMIG_PHASE_TIMING=1.
+ * Wall-clock breakdown of one domain pass.
+ *
+ * ALWAYS COLLECTED, printed only at LOG_LEVEL=debug. It was collected only at
+ * debug when it was purely a diagnostic; telemetry changed that — §19 wants
+ * throughput on a dashboard, and a number that exists only when someone has
+ * already suspected a problem is not a dashboard, it is a debugger.
+ *
+ * The cost of collecting is two `performance.now()` calls per phase per item:
+ * tens of nanoseconds against per-item work measured in hundreds of
+ * MILLIseconds. Measured on a real corpus that is ~16 microseconds across 1582
+ * files. Gating it was over-cautious.
  *
  * Three rounds of reasoning from run logs produced two confident wrong answers
  * about where the file domain's time goes (a container-network theory and an
@@ -45,7 +58,10 @@ const DEFAULT_CONCURRENCY = 4;
  * the pass is effectively serial no matter what the pool says, and THAT is the
  * bug — not any individual phase being slow.
  *
- * Off by default and one branch when off, so it costs nothing in production.
+ * Costs one level check per domain pass when debug is off, so a production run
+ * pays nothing. This used to be its own OPENMIG_PHASE_TIMING env var — a
+ * bespoke switch invented because there was no level to hang it on. Now there
+ * is one, and a second mechanism for "show me more" is worse than none.
  */
 interface PhaseTiming {
   fetchMs: number;
@@ -56,18 +72,16 @@ interface PhaseTiming {
   startedAt: number;
 }
 
-function startPhaseTiming(): PhaseTiming | undefined {
-  if (process.env.OPENMIG_PHASE_TIMING !== '1') return undefined;
+function startPhaseTiming(): PhaseTiming {
   return { fetchMs: 0, upsertMs: 0, ledgerReadMs: 0, ledgerWriteMs: 0, hashMs: 0, startedAt: Date.now() };
 }
 
 /** Time `fn` into `bucket` when timing is on; call it untouched when off. */
 async function timed<T>(
-  phases: PhaseTiming | undefined,
+  phases: PhaseTiming,
   bucket: 'fetchMs' | 'upsertMs' | 'ledgerReadMs' | 'ledgerWriteMs' | 'hashMs',
   fn: () => Promise<T>,
 ): Promise<T> {
-  if (!phases) return fn();
   const t0 = performance.now();
   try {
     return await fn();
@@ -76,12 +90,27 @@ async function timed<T>(
   }
 }
 
-function reportPhases(phases: PhaseTiming | undefined, domain: string, scanned: number): void {
-  if (!phases) return;
+function summarise(phases: PhaseTiming, scanned: number): PassMetrics {
+  const wallMs = Math.max(Date.now() - phases.startedAt, 1);
+  const busy =
+    phases.fetchMs + phases.upsertMs + phases.ledgerReadMs + phases.ledgerWriteMs + phases.hashMs;
+  return {
+    items: scanned,
+    wallMs,
+    sourceFetchMs: phases.fetchMs,
+    targetWriteMs: phases.upsertMs,
+    ledgerMs: phases.ledgerReadMs + phases.ledgerWriteMs,
+    hashMs: phases.hashMs,
+    overlap: busy / wallMs,
+  };
+}
+
+function reportPhases(phases: PhaseTiming, domain: string, scanned: number): void {
+  if (!isLevelEnabled('debug')) return;
   const wallMs = Date.now() - phases.startedAt;
   const busy = phases.fetchMs + phases.upsertMs + phases.ledgerReadMs + phases.ledgerWriteMs + phases.hashMs;
   const per = (ms: number) => (scanned ? (ms / scanned).toFixed(1) : '0');
-  console.log(
+  log.debug(
     `[timing] ${domain}: ${scanned} items in ${(wallMs / 1000).toFixed(1)}s | ` +
       `source-fetch ${(phases.fetchMs / 1000).toFixed(1)}s (${per(phases.fetchMs)}ms/item) | ` +
       `target-write ${(phases.upsertMs / 1000).toFixed(1)}s (${per(phases.upsertMs)}ms/item) | ` +
@@ -170,6 +199,11 @@ export interface DomainSyncResult {
   readonly failed: number;
   /** Source items absent on a later pass (potential deletions). */
   readonly drift: number;
+  /**
+   * Where this pass's wall time went. Always present — the caller persists it
+   * for §19's dashboards and feeds it to the metrics registry.
+   */
+  readonly metrics?: PassMetrics;
 }
 
 /**
@@ -339,5 +373,5 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
 
   reportPhases(phases, domain, scanned);
 
-  return { scanned, created, skipped, adopted, failed, drift: 0 };
+  return { scanned, created, skipped, adopted, failed, drift: 0, metrics: summarise(phases, scanned) };
 }

@@ -218,12 +218,13 @@ jobs:
           TARGET_JMAP_PASSWORD=${TARGET_JMAP_PASSWORD}
           SOURCE_DAV_PASSWORD=${SOURCE_DAV_PASSWORD}
           TARGET_DAV_PASSWORD=${TARGET_DAV_PASSWORD}
-          # Per-phase wall-clock breakdown per domain (see domain-sync.ts).
-          # On in the e2e because this is the only place a real multi-domain
-          # pass runs against real servers, and the run logs alone carry just a
-          # total — which is how two confident wrong diagnoses of the file
-          # domain's time got as far as being measured before dying.
-          OPENMIG_PHASE_TIMING=1
+          # debug turns on the per-phase [timing] breakdown per domain, which
+          # the restart-resume gate asserts on (see "every domain actually runs
+          # items concurrently"). On here because this is the only place a real
+          # multi-domain pass runs against real servers, and the run logs alone
+          # carry just a total — which is how two confident wrong diagnoses of
+          # the file domain's time got as far as being measured before dying.
+          LOG_LEVEL=debug
           ENV
 
       - name: Build + start the self-host appliance

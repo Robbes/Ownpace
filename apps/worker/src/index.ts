@@ -23,6 +23,7 @@ import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import { runAllDomains } from './orchestration';
 import { PgLedger as _PgLedger, PgMigrationStatusStore, createPgDb } from '@openmig/ledger';
+import { log } from '@openmig/shared';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -39,7 +40,7 @@ function parseArgs(): { configPath: string; once: boolean } {
     } else if (args[i] === '--once') {
       once = true;
     } else if (args[i] === '--help' || args[i] === '-h') {
-      console.log(`
+      log.info(`
 Worker CLI - Run shadow migration for a mapping with multi-domain support
 
 Usage:
@@ -66,7 +67,7 @@ Environment Variables:
   }
 
   if (!configPath) {
-    console.error('Error: --config <path> is required');
+    log.error('Error: --config <path> is required');
     process.exit(1);
   }
 
@@ -85,10 +86,10 @@ function loadConfig(configPath: string): MappingConfig {
 /** Main entry point. */
 async function main() {
   const { configPath, once } = parseArgs();
-  console.log(`[Worker] Loading config from ${configPath}`);
+  log.info(`[Worker] Loading config from ${configPath}`);
 
   const config = loadConfig(configPath);
-  console.log(`[Worker] Mapping ${config.mappingId} for tenant ${config.tenantId}`);
+  log.info(`[Worker] Mapping ${config.mappingId} for tenant ${config.tenantId}`);
 
   // Create database connection and status store
   const databaseUrl = process.env.DATABASE_URL;
@@ -103,27 +104,27 @@ async function main() {
 
   if (once) {
     // Run once mode
-    console.log('[Worker] Running all enabled domains...');
+    log.info('[Worker] Running all enabled domains...');
     const results = await runAllDomains(config, statusStore);
     
     const totalScanned = results.reduce((sum, r) => sum + r.scanned, 0);
     const totalCreated = results.reduce((sum, r) => sum + r.created, 0);
     const totalFailed = results.reduce((sum, r) => sum + r.failed, 0);
     
-    console.log(`[Worker] Complete: scanned=${totalScanned}, created=${totalCreated}, failed=${totalFailed}`);
+    log.info(`[Worker] Complete: scanned=${totalScanned}, created=${totalCreated}, failed=${totalFailed}`);
     process.exit(totalFailed > 0 ? 1 : 0);
   } else {
     // Scheduled mode
     if (!config.schedule) {
-      console.error('[Worker] Error: --once required or schedule.cron must be set in config');
+      log.error('[Worker] Error: --once required or schedule.cron must be set in config');
       process.exit(1);
     }
 
-    console.log(`[Worker] Starting scheduled mode with cron: ${config.schedule.cron}`);
+    log.info(`[Worker] Starting scheduled mode with cron: ${config.schedule.cron}`);
     const scheduler = new InProcessScheduler();
 
     scheduler.schedule(config.mappingId, config.schedule.cron, async () => {
-      console.log('[Worker] Running scheduled sync...');
+      log.info('[Worker] Running scheduled sync...');
       try {
         const results = await runAllDomains(config, statusStore);
         
@@ -131,25 +132,25 @@ async function main() {
         const totalCreated = results.reduce((sum, r) => sum + r.created, 0);
         const totalFailed = results.reduce((sum, r) => sum + r.failed, 0);
         
-        console.log(`[Worker] Schedule complete: scanned=${totalScanned}, created=${totalCreated}, failed=${totalFailed}`);
+        log.info(`[Worker] Schedule complete: scanned=${totalScanned}, created=${totalCreated}, failed=${totalFailed}`);
       } catch (err) {
         const error = err as Error;
-        console.error(`[Worker] Schedule failed: ${error.message}`);
+        log.error(`[Worker] Schedule failed: ${error.message}`);
         // Don't exit - keep the scheduler running
       }
     });
 
-    console.log('[Worker] Scheduler started. Press Ctrl+C to stop.');
+    log.info('[Worker] Scheduler started. Press Ctrl+C to stop.');
     // Keep the process alive
     process.on('SIGINT', () => {
-      console.log('\n[Worker] Shutting down...');
+      log.info('\n[Worker] Shutting down...');
       process.exit(0);
     });
   }
 }
 
 main().catch((err) => {
-  console.error('[Worker] Fatal error:', err);
+  log.error('[Worker] Fatal error:', err);
   process.exit(1);
 });
 

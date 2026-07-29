@@ -20,6 +20,7 @@ import {
   generateDnsRunbook,
   type VerificationResult,
 } from '@openmig/core';
+import { log } from '@openmig/shared';
 
 /** CLI dependencies */
 export interface CutoverCliDeps {
@@ -56,29 +57,29 @@ export interface CutoverCliDeps {
 /** CLI output formatter */
 export class CutoverCliOutput {
   static info(message: string): void {
-    console.log(`\x1b[36mℹ\x1b[0m ${message}`);
+    log.info(`\x1b[36mℹ\x1b[0m ${message}`);
   }
 
   static success(message: string): void {
-    console.log(`\x1b[32m✓\x1b[0m ${message}`);
+    log.info(`\x1b[32m✓\x1b[0m ${message}`);
   }
 
   static warning(message: string): void {
-    console.log(`\x1b[33m⚠\x1b[0m ${message}`);
+    log.info(`\x1b[33m⚠\x1b[0m ${message}`);
   }
 
   static error(message: string): void {
-    console.log(`\x1b[31m✗\x1b[0m ${message}`);
+    log.info(`\x1b[31m✗\x1b[0m ${message}`);
   }
 
   static section(title: string): void {
-    console.log(`\n\x1b[1m${title}\x1b[0m`);
+    log.info(`\n\x1b[1m${title}\x1b[0m`);
   }
 
   static table(rows: Array<{ label: string; value: string }>): void {
     const maxLabelLen = Math.max(...rows.map(r => r.label.length));
     for (const row of rows) {
-      console.log(`  ${row.label.padEnd(maxLabelLen)}  ${row.value}`);
+      log.info(`  ${row.label.padEnd(maxLabelLen)}  ${row.value}`);
     }
   }
 }
@@ -101,7 +102,7 @@ export function confirmed(
   CutoverCliOutput.warning(`Refusing to ${action} without explicit approval.`);
   CutoverCliOutput.info('This would:');
   for (const line of consequences) {
-    console.log(`    - ${line}`);
+    log.info(`    - ${line}`);
   }
   CutoverCliOutput.info('Re-run the same command with --yes to proceed.');
   return false;
@@ -547,7 +548,7 @@ export async function showStatus(deps: CutoverCliDeps): Promise<void> {
     if (events.length > 0) {
       CutoverCliOutput.section('Recent Events');
       for (const event of events) {
-        console.log(`  ${event.timestamp} - ${event.eventType}: ${event.description || 'No description'}`);
+        log.info(`  ${event.timestamp} - ${event.eventType}: ${event.description || 'No description'}`);
       }
     }
   } catch (error) {

@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { asTenantId, asMappingId, type Ledger } from '@openmig/shared';
+import { asTenantId, asMappingId, setLogLevel, resetLogLevel, type Ledger } from '@openmig/shared';
 import { runDomainSync } from './domain-sync';
 
 const TENANT = asTenantId('9a110000-e29b-41d4-a716-446655449901' as never);
@@ -72,18 +72,19 @@ async function runWithTiming(opts: {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  delete process.env.OPENMIG_PHASE_TIMING;
+  resetLogLevel();
 });
 
 describe('phase timing', () => {
   it('reports nothing at all unless explicitly enabled', async () => {
-    // It must cost nothing and say nothing in a normal run.
+    // It must cost nothing and say nothing at the default level.
+    setLogLevel('info');
     const line = await runWithTiming({ count: 4, fetchMs: 1, upsertMs: 1, concurrency: 2 });
     expect(line).toBe('');
   });
 
   it('attributes time to the phase that actually spent it', async () => {
-    process.env.OPENMIG_PHASE_TIMING = '1';
+    setLogLevel('debug');
     // Writes cost 4x what reads cost, so the report must say so.
     const line = await runWithTiming({ count: 8, fetchMs: 5, upsertMs: 20, concurrency: 2 });
 
@@ -95,7 +96,7 @@ describe('phase timing', () => {
   });
 
   it('reports overlap near 1 when the pass is effectively serial', async () => {
-    process.env.OPENMIG_PHASE_TIMING = '1';
+    setLogLevel('debug');
     // concurrency 1: busy time and wall time are the same thing.
     const line = await runWithTiming({ count: 6, fetchMs: 10, upsertMs: 10, concurrency: 1 });
 
@@ -105,7 +106,7 @@ describe('phase timing', () => {
   });
 
   it('reports overlap near the concurrency when work really is in flight', async () => {
-    process.env.OPENMIG_PHASE_TIMING = '1';
+    setLogLevel('debug');
     // This is the load-bearing case. If a real run comes back near 1.0 with
     // concurrency 4, the pool is not delivering — and that reading is only
     // trustworthy because this test shows a healthy pool reads near 4.
@@ -117,7 +118,7 @@ describe('phase timing', () => {
   });
 
   it('names the domain and the item count', async () => {
-    process.env.OPENMIG_PHASE_TIMING = '1';
+    setLogLevel('debug');
     const line = await runWithTiming({ count: 5, fetchMs: 1, upsertMs: 1, concurrency: 2 });
 
     expect(line).toContain('[timing] file:');

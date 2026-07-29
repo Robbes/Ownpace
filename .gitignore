@@ -48,3 +48,10 @@ yarn.lock
 # shipped as a committed default (the appliance auto-loads every *.json here).
 # Only the *.example template is tracked. Test fixtures live under test/e2e/.
 deploy/selfhost/config/*.json
+
+# Scratch vitest configs, generated to run a subset of the suite against a local
+# Postgres outside the Testcontainers global setup. They hard-code a local
+# database and omit the migration step, so one leaking into the repo would be
+# actively misleading. `/vitest.config.ts` and `/vitest.global-setup.ts` are the
+# real, tracked ones and do NOT match this pattern.
+/vitest.*.config.ts

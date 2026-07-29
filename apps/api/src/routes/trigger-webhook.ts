@@ -8,6 +8,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import crypto from 'crypto';
+import { log } from '@openmig/shared';
 
 const router = Router();
 
@@ -76,7 +77,7 @@ router.post(
       
       // Update run status in database
       // This would use the ledger to track job execution
-      console.log('Received webhook:', {
+      log.info('Received webhook:', {
         jobId: webhook.job.id,
         runId: webhook.run.id,
         status: webhook.run.status,
@@ -94,7 +95,7 @@ router.post(
       
       // Log errors if job failed
       if (webhook.run.status === 'failed' && webhook.run.error) {
-        console.error(`Job ${webhook.job.id} failed:`, webhook.run.error);
+        log.error(`Job ${webhook.job.id} failed:`, webhook.run.error);
         
         // TODO: Log to run_event table
         // await db.insert(runEvent).values({
@@ -107,7 +108,7 @@ router.post(
       
       res.json({ received: true });
     } catch (error) {
-      console.error('Error processing webhook:', error);
+      log.error('Error processing webhook:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   }

@@ -23,6 +23,7 @@ import { runShadowPass } from '@openmig/core';
 import type { TenantId, MappingId } from '@openmig/shared';
 import { buildDepsFromMapping } from '../build-deps-from-mapping';
 import { withTenant, RunStore } from '@openmig/ledger';
+import { log } from '@openmig/shared';
 
 // Job input schema
 const FullSyncJobSchema = z.object({
@@ -59,7 +60,7 @@ export const runFullSync = schemaTask({
       throw new Error('tenantId is required in job payload');
     }
 
-    console.log('Starting full sync', {
+    log.info('Starting full sync', {
       tenantId: typedPayload.tenantId,
       mappingId: typedPayload.mappingId,
       options: typedPayload.options,
@@ -95,7 +96,7 @@ export const runFullSync = schemaTask({
           cursors: undefined, // Force full scan by not using cursors
         });
 
-        console.log(`Full sync completed: ${result.scanned} scanned, ${result.created} created, ${result.skipped} skipped`);
+        log.info(`Full sync completed: ${result.scanned} scanned, ${result.created} created, ${result.skipped} skipped`);
 
         await withTenant(pool, tenantId, async (db) => {
           const runs = new RunStore(db);
@@ -129,7 +130,7 @@ export const runFullSync = schemaTask({
             await runs.finishRun(runId, 'failed', { itemsProcessed: 0, errors: 1 });
           });
         } catch (bookkeepingErr) {
-          console.error('Failed to record run failure:', bookkeepingErr);
+          log.error('Failed to record run failure:', bookkeepingErr);
         }
         throw error;
       } finally {
@@ -138,7 +139,7 @@ export const runFullSync = schemaTask({
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('Full sync failed:', errorMessage);
+      log.error('Full sync failed:', errorMessage);
       throw error;
     }
   },

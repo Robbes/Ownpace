@@ -575,6 +575,11 @@ export const migrationStatus = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     lastError: text('last_error'),
+    /**
+     * Where the last completed pass spent its wall time (see PassMetrics).
+     * Counts and durations only — never folder names or addresses.
+     */
+    lastPassMetrics: jsonb('last_pass_metrics'),
   },
   (t) => [
     uniqueIndex('uk_migration_status_tenant_mapping_domain').on(

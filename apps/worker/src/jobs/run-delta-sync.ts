@@ -20,6 +20,7 @@ import {
   recordComputeForRun,
   recordApiCallForRun,
 } from '@openmig/ledger';
+import { log } from '@openmig/shared';
 
 // Job input schema
 const DeltaSyncJobSchema = z.object({
@@ -73,7 +74,7 @@ export const runDeltaSync = schemaTask({
       throw new Error('tenantId is required in job payload');
     }
 
-    console.log('Starting delta sync', {
+    log.info('Starting delta sync', {
       tenantId: typedPayload.tenantId,
       mappingId: typedPayload.mappingId,
       domains: typedPayload.domains,
@@ -103,7 +104,7 @@ export const runDeltaSync = schemaTask({
 
     try {
       for (const domain of domains) {
-        console.log(`Running delta sync for domain: ${domain}`);
+        log.info(`Running delta sync for domain: ${domain}`);
 
         try {
           if (domain === 'email') {
@@ -114,7 +115,7 @@ export const runDeltaSync = schemaTask({
             try {
               const result = await runShadowPass(deps);
               itemsProcessed += result.created + result.skipped;
-              console.log(`Mail sync completed: ${result.created} created, ${result.skipped} skipped`);
+              log.info(`Mail sync completed: ${result.created} created, ${result.skipped} skipped`);
               await withTenant(pool, tenantId, async (db) => {
                 await new RunStore(db).logEvent(tenantId, runId, 'info',
                   `email: ${result.created} created, ${result.skipped} skipped`,
@@ -148,7 +149,7 @@ export const runDeltaSync = schemaTask({
               await new PgMigrationStatusStore(db).markCompleted(tenantId, mappingId, domain);
             });
             itemsProcessed += result.created + result.skipped;
-            console.log(`${domain} sync completed: ${result.created} created, ${result.skipped} skipped`);
+            log.info(`${domain} sync completed: ${result.created} created, ${result.skipped} skipped`);
             await withTenant(pool, tenantId, async (db) => {
               await new RunStore(db).logEvent(tenantId, runId, 'info',
                 `${domain}: ${result.created} created, ${result.skipped} skipped`,
@@ -177,7 +178,7 @@ export const runDeltaSync = schemaTask({
           });
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          console.error(`Domain ${domain} sync failed:`, errorMessage);
+          log.error(`Domain ${domain} sync failed:`, errorMessage);
           // Record the failure verbatim in the run log (hard rule 9) before
           // surfacing it. Best-effort: a logging failure must not replace the
           // real error with a logging error.
@@ -187,7 +188,7 @@ export const runDeltaSync = schemaTask({
                 `${domain} sync failed: ${errorMessage}`, { domain });
             });
           } catch (logErr) {
-            console.error('Failed to write run event:', logErr);
+            log.error('Failed to write run event:', logErr);
           }
           // Mark the domain failed (best-effort) before surfacing the error.
           if (domain !== 'email') {
@@ -196,7 +197,7 @@ export const runDeltaSync = schemaTask({
                 await new PgMigrationStatusStore(db).markFailed(tenantId, mappingId, domain, errorMessage);
               });
             } catch (statusErr) {
-              console.error('Failed to mark domain status failed:', statusErr);
+              log.error('Failed to mark domain status failed:', statusErr);
             }
           }
           // Re-throw so Trigger.dev records the failure (hard rule 9 — no masking).
@@ -204,7 +205,7 @@ export const runDeltaSync = schemaTask({
         }
       }
 
-      console.log('Delta sync completed successfully');
+      log.info('Delta sync completed successfully');
 
       await withTenant(pool, tenantId, async (db) => {
         await new RunStore(db).finishRun(runId, 'succeeded', { itemsProcessed, errors: 0 });
@@ -224,7 +225,7 @@ export const runDeltaSync = schemaTask({
           await new RunStore(db).finishRun(runId, 'failed', { itemsProcessed, errors: 1 });
         });
       } catch (finishErr) {
-        console.error('Failed to close run row as failed:', finishErr);
+        log.error('Failed to close run row as failed:', finishErr);
       }
       throw error;
     }

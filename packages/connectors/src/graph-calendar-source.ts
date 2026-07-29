@@ -19,6 +19,7 @@ import type { TokenProvider } from '@openmig/shared';
 import type { GraphCalendarSourceConfig, GraphCalendar, GraphEvent, GraphDeltaCursor, ParsedIcalComponent } from './graph-calendar-source.types';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types';
 import type { ThrottleLimiter } from '@openmig/shared';
+import { log } from '@openmig/shared';
 
 /**
  * Graph Calendar source connector implementation.
@@ -174,7 +175,7 @@ export class GraphCalendarSource implements CalendarSource {
         items.push(item);
       } catch (error) {
         // Skip events that fail to parse
-        console.warn(`Failed to process event ${event.id}:`, error);
+        log.warn(`Failed to process event ${event.id}:`, error);
       }
     }
 

@@ -7,6 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { tmpdir } from 'os';
 import { createHash } from 'crypto';
+import { log } from '@openmig/shared';
 
 /**
  * CalDAV sync configuration.
@@ -201,6 +202,6 @@ export function cleanupCalDAVConfig(configPath: string): void {
     }
   } catch (error) {
     // Ignore cleanup errors
-    console.warn('[CalDAV] Warning: Could not clean up temporary files:', error);
+    log.warn('[CalDAV] Warning: Could not clean up temporary files:', error);
   }
 }

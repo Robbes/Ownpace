@@ -60,6 +60,7 @@ import {
   scopeSelection,
 } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
+import { log } from '@openmig/shared';
 
 /** One demo tenant's fixed identifiers (deterministic → idempotent re-runs). */
 interface DemoTenant {
@@ -286,19 +287,19 @@ async function main(): Promise<void> {
   for (const t of DEMO_TENANTS) {
     const token = await seedTenant(connectionString, jwtSecret, t);
     tokens.push({ tenant: t.name, email: t.owner.email, token });
-    console.log(`seeded: ${t.name} (${t.tenantId})`);
+    log.info(`seeded: ${t.name} (${t.tenantId})`);
   }
 
-  console.log('\nDemo owner tokens (Authorization: Bearer <token>) — expire in 7 days:\n');
+  log.info('\nDemo owner tokens (Authorization: Bearer <token>) — expire in 7 days:\n');
   for (const { tenant: name, email, token } of tokens) {
-    console.log(`# ${name} — ${email}`);
-    console.log(token);
-    console.log('');
+    log.info(`# ${name} — ${email}`);
+    log.info(token);
+    log.info('');
   }
-  console.log('Seed complete. Re-running is a no-op (idempotent).');
+  log.info('Seed complete. Re-running is a no-op (idempotent).');
 }
 
 main().catch((err) => {
-  console.error('Seed failed:', err instanceof Error ? err.message : err);
+  log.error('Seed failed:', err instanceof Error ? err.message : err);
   process.exitCode = 1;
 });

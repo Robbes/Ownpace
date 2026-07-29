@@ -23,6 +23,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { Pool, type PoolClient } from 'pg';
+import { log as appLog } from '@openmig/shared';
 
 /** Dedicated advisory-lock key for schema migrations (distinct from app locks). */
 const MIGRATION_ADVISORY_LOCK_KEY = 727_0010;
@@ -63,7 +64,7 @@ export function listMigrationVersions(migrationsDir = defaultMigrationsDir()): s
 export async function runMigrations(options: RunMigrationsOptions): Promise<RunMigrationsResult> {
   const { connectionString } = options;
   const migrationsDir = options.migrationsDir ?? defaultMigrationsDir();
-  const log = options.logger ?? ((m: string) => console.log(m));
+  const log = options.logger ?? ((m: string) => appLog.info(m));
 
   const versions = listMigrationVersions(migrationsDir);
   if (versions.length === 0) {

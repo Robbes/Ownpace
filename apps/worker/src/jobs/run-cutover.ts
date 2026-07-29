@@ -37,6 +37,7 @@ import { Pool } from 'pg';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import { buildDepsFromMapping } from '../build-deps-from-mapping';
 import { buildTargetReindexers } from '../build-reindexers';
+import { log as appLog } from '@openmig/shared';
 
 // Job input schema
 const CutoverJobSchema = z.object({
@@ -160,7 +161,7 @@ export const runCutover = schemaTask({
   run: async (payload: unknown) => {
     const { tenantId, mappingId, options } = payload as CutoverJobPayload;
 
-    console.log('Starting cutover preparation', { tenantId, mappingId, options });
+    appLog.info('Starting cutover preparation', { tenantId, mappingId, options });
 
     const dbUrl = process.env.DATABASE_URL;
     if (!dbUrl) {
@@ -235,7 +236,7 @@ export const runCutover = schemaTask({
       });
     } catch (error) {
       const err = error as Error;
-      console.error('Cutover preparation failed', { error: err.message });
+      appLog.error('Cutover preparation failed', { error: err.message });
       logger.error(`Cutover preparation failed: ${err.message}`);
 
       // Record the failure. Best-effort: a mapping with no cutover row (the very
@@ -247,7 +248,7 @@ export const runCutover = schemaTask({
           failureReason: err.message,
         });
       } catch (transitionErr) {
-        console.error('Could not mark cutover FAILED', { error: transitionErr });
+        appLog.error('Could not mark cutover FAILED', { error: transitionErr });
       }
 
       throw error;

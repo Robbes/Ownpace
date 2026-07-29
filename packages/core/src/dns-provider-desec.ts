@@ -8,6 +8,7 @@
  */
 
 import type { DnsProvider, DnsRecord } from './dns-manager';
+import { log } from '@openmig/shared';
 
 /** deSEC API types */
 interface DesecRRset {
@@ -90,9 +91,9 @@ export class DesecProvider implements DnsProvider {
    */
   async updateRecords(records: DnsRecord[]): Promise<void> {
     if (this.config.dryRun) {
-      console.log('[DRY RUN] Would update DNS records:');
+      log.info('[DRY RUN] Would update DNS records:');
       records.forEach(r => {
-        console.log(`  ${r.type} ${r.name} ${r.value} TTL=${r.ttl}${r.priority ? ` Priority=${r.priority}` : ''}`);
+        log.info(`  ${r.type} ${r.name} ${r.value} TTL=${r.ttl}${r.priority ? ` Priority=${r.priority}` : ''}`);
       });
       return;
     }
@@ -171,9 +172,9 @@ export class DesecProvider implements DnsProvider {
    */
   async restoreState(domain: string, rrsets: DesecRRset[]): Promise<void> {
     if (this.config.dryRun) {
-      console.log('[DRY RUN] Would restore DNS state to:');
+      log.info('[DRY RUN] Would restore DNS state to:');
       rrsets.forEach(rrset => {
-        console.log(`  ${rrset.type} ${rrset.name}: ${rrset.records.join(', ')}`);
+        log.info(`  ${rrset.type} ${rrset.name}: ${rrset.records.join(', ')}`);
       });
       return;
     }

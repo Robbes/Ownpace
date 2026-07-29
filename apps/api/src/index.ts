@@ -22,6 +22,7 @@ import mappingRoutes from './routes/migrations/index';
 import billingRoutes from './routes/billing/index';
 import billingWebhookRoutes from './routes/billing/webhooks';
 import scopeManifestRoutes from './routes/scope-manifest';
+import { log } from '@openmig/shared';
 
 // Re-export for backwards compatibility
 export type { AuthenticatedRequest, JwtPayload };
@@ -58,7 +59,7 @@ app.use('/api/billing/webhooks', billingWebhookRoutes);
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
-  console.error('API Error:', err);
+  log.error('API Error:', err);
   res.status(500).json({
     error: 'Internal server error',
     message: process.env.NODE_ENV === 'development' ? err.message : undefined,
@@ -76,12 +77,12 @@ if (process.env.NODE_ENV !== 'test') {
   runMigrations({ connectionString: databaseUrl })
     .then(() => {
       app.listen(PORT, () => {
-        console.log(`API server running on port ${PORT}`);
-        console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+        log.info(`API server running on port ${PORT}`);
+        log.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
       });
     })
     .catch((err) => {
-      console.error('API failed to start: migrations failed:', err);
+      log.error('API failed to start: migrations failed:', err);
       process.exit(1);
     });
 }

@@ -6,6 +6,7 @@ import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 
 import * as schemaPg from './schema-pg';
+import { log } from '@openmig/shared';
 
 export type PgDatabase = ReturnType<typeof drizzlePg<typeof schemaPg>>;
 
@@ -70,7 +71,7 @@ export async function withTenant<T>(
     } catch (rollbackError) {
       // Log rollback error but don't mask the original error. Mark the client
       // for destruction so a broken/aborted connection is never reused.
-      console.error('Rollback failed after error:', rollbackError);
+      log.error('Rollback failed after error:', rollbackError);
       releaseError = rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError));
     }
 

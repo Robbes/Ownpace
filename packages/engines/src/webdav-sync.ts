@@ -7,6 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { tmpdir } from 'os';
 import { createHash } from 'crypto';
+import { log } from '@openmig/shared';
 
 /**
  * WebDAV sync configuration.
@@ -247,6 +248,6 @@ export function cleanupWebDAVConfig(configPath: string): void {
     }
   } catch (error) {
     // Ignore cleanup errors
-    console.warn('[WebDAV] Warning: Could not clean up temporary files:', error);
+    log.warn('[WebDAV] Warning: Could not clean up temporary files:', error);
   }
 }

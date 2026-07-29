@@ -7,6 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { tmpdir } from 'os';
 import { createHash } from 'crypto';
+import { log } from '@openmig/shared';
 
 /**
  * CardDAV sync configuration.
@@ -199,6 +200,6 @@ export function cleanupCardDAVConfig(configPath: string): void {
     }
   } catch (error) {
     // Ignore cleanup errors
-    console.warn('[CardDAV] Warning: Could not clean up temporary files:', error);
+    log.warn('[CardDAV] Warning: Could not clean up temporary files:', error);
   }
 }
