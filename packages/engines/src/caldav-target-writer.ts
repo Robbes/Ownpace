@@ -142,7 +142,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     // A CalDAV PUT to the same href replaces the object, so no delete is
     // involved and the UID — the natural key — does not move.
     if (options?.overwrite) {
-      const eventId = await this.uploadEvent(calendarId, raw, uid);
+      const eventId = await this.uploadEvent(calendarId, raw, uid, true);
       (await this.keysIn(calendarId))?.set(naturalKey, eventId);
       return { targetId: eventId, created: false, updated: true };
     }
@@ -591,6 +591,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     calendarId: string,
     raw: RawCalendarEvent,
     uid: string,
+    overwrite = false,
   ): Promise<string> {
     // Generate event filename from UID
     const filename = `${uid}.ics`;
@@ -602,20 +603,40 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       body: raw.icalendar,
       headers: {
         'Content-Type': 'text/calendar',
-        // Create-only, atomically (RFC 4918 §10.4.2 / RFC 9110 §13.1.2). The
-        // existence check above and this write are two separate requests, so on
-        // its own that pairing is check-then-act: anything appearing at this
-        // href in between would be silently REPLACED, which target writers are
-        // specified never to do (hard rule 2). The precondition closes the
-        // window in the server, and costs nothing.
-        'If-None-Match': '*',
+        // Create-only, atomically, UNLESS this is a deliberate rewrite.
+        //
+        // The precondition is what makes hard rule 2 hold at the protocol
+        // level: the existence check and this write are separate requests, so
+        // on its own that pairing is check-then-act, and anything appearing at
+        // this href in between would be silently REPLACED. 412 then means
+        // "someone got there first", which is not an error — the resource is
+        // what we would have written.
+        //
+        // On the update path replacing IS the intent, and the ownership
+        // decision was already made upstream against the ledger
+        // (`classifyKnownItem`: only an item we copied ourselves, never one the
+        // destination already had). Sending the precondition anyway made the
+        // server refuse with 412, which this method reports as success — so the
+        // rewrite silently did nothing while the pass counted `updated: 1`.
+        ...(overwrite ? {} : { 'If-None-Match': '*' }),
         Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
       },
     });
 
     // 412: something is already there. Not an error — the caller's snapshot was
     // merely stale, and the resource is exactly what we would have written.
+    //
+    // Unreachable on the overwrite path, which sends no precondition. If a
+    // server returns it anyway, that is a refusal to replace and must not be
+    // reported as a successful rewrite.
     if (response.status === 412) {
+      if (overwrite) {
+        throw new Error(
+          `PUT for ${eventPath} was refused with 412 on a deliberate rewrite. ` +
+            'The item was NOT replaced; reporting it as updated would record a ' +
+            'copy the target does not hold.',
+        );
+      }
       return eventPath;
     }
 

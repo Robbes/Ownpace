@@ -203,10 +203,6 @@ describe('Calendar update propagation (real CalDAV target) Integration', () => {
 
   beforeAll(() => {
     ledger = new PgLedger(createPgDb(PG_CONNECTION_STRING!));
-    target = new CalDAVTargetWriter(
-      { url: NEXTCLOUD_WEBDAV_URL!, username: NEXTCLOUD_USERNAME, password: NEXTCLOUD_PASSWORD },
-      { ledger, tenantId: CAL_TENANT, mappingId: CAL_MAPPING },
-    );
     readBack = new CalDAVSource({
       url: `${NEXTCLOUD_WEBDAV_URL}/`,
       username: NEXTCLOUD_USERNAME,
@@ -215,7 +211,23 @@ describe('Calendar update propagation (real CalDAV target) Integration', () => {
     process.env.NEXTCLOUD_PASSWORD = NEXTCLOUD_PASSWORD;
   }, 60000);
 
+  // Writers are constructed PER TEST, not once for the describe.
+  //
+  // Each DAV writer memoises a snapshot of what the target collection already
+  // holds (`collectionKeys` / `rootKeys`) — one listing reused for every item,
+  // which is what made these writers fast. It is never invalidated, because in
+  // production a writer lives exactly one pass.
+  //
+  // A writer shared across tests breaks that assumption: `beforeEach` deletes
+  // the collection on the server, and the next test's existence check is then
+  // answered from a snapshot of a collection that no longer exists. The
+  // adoption test seeds an item directly onto the target and the writer could
+  // not see it, so it created instead of adopting — reported as `adopted: 0`.
   beforeEach(async () => {
+    target = new CalDAVTargetWriter(
+      { url: NEXTCLOUD_WEBDAV_URL!, username: NEXTCLOUD_USERNAME, password: NEXTCLOUD_PASSWORD },
+      { ledger, tenantId: CAL_TENANT, mappingId: CAL_MAPPING },
+    );
     await remove(`${BASE}/${CAL_PATH}/`);
     await seedMappingRows({
       tenantId: CAL_TENANT,
@@ -405,10 +417,6 @@ describe('Contact update propagation (real CardDAV target) Integration', () => {
 
   beforeAll(() => {
     ledger = new PgLedger(createPgDb(PG_CONNECTION_STRING!));
-    target = new CardDAVTargetWriter(
-      { url: NEXTCLOUD_WEBDAV_URL!, username: NEXTCLOUD_USERNAME, password: NEXTCLOUD_PASSWORD },
-      { ledger, tenantId: CON_TENANT, mappingId: CON_MAPPING },
-    );
     readBack = new CarddavSource({
       url: `${NEXTCLOUD_WEBDAV_URL}/`,
       username: NEXTCLOUD_USERNAME,
@@ -417,7 +425,12 @@ describe('Contact update propagation (real CardDAV target) Integration', () => {
     process.env.NEXTCLOUD_PASSWORD = NEXTCLOUD_PASSWORD;
   }, 60000);
 
+  // Fresh writer per test — see the CalDAV describe for why.
   beforeEach(async () => {
+    target = new CardDAVTargetWriter(
+      { url: NEXTCLOUD_WEBDAV_URL!, username: NEXTCLOUD_USERNAME, password: NEXTCLOUD_PASSWORD },
+      { ledger, tenantId: CON_TENANT, mappingId: CON_MAPPING },
+    );
     await remove(`${BASE}/${CON_PATH}/`);
     await seedMappingRows({
       tenantId: CON_TENANT,
@@ -601,6 +614,10 @@ describe('File update propagation (real WebDAV target) Integration', () => {
 
   beforeAll(() => {
     ledger = new PgLedger(createPgDb(PG_CONNECTION_STRING!));
+  }, 60000);
+
+  // Fresh writer per test — see the CalDAV describe for why.
+  beforeEach(async () => {
     target = new WebDAVTargetWriter(
       {
         url: `${BASE}/files/${NEXTCLOUD_USERNAME}/`,
@@ -609,9 +626,6 @@ describe('File update propagation (real WebDAV target) Integration', () => {
       },
       { ledger, tenantId: FILE_TENANT, mappingId: FILE_MAPPING },
     );
-  }, 60000);
-
-  beforeEach(async () => {
     await remove(`${BASE}/files/${NEXTCLOUD_USERNAME}/${FILE_DIR}`);
     await seedMappingRows({
       tenantId: FILE_TENANT,

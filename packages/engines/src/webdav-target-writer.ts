@@ -137,7 +137,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
     // A WebDAV PUT to the same href replaces the body, so the path — the
     // natural key — is unchanged and nothing is deleted.
     if (options?.overwrite) {
-      const fileId = await this.uploadFile(raw);
+      const fileId = await this.uploadFile(raw, true);
       (await this.keysUnderRoot())?.set(this.normalizeRelativePath(naturalKey), fileId);
       return { targetId: fileId, created: false, updated: true };
     }
@@ -448,7 +448,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
     return requestWithDavRetry(() => this.httpClient.request(options));
   }
 
-  private async uploadFile(raw: RawFileItem): Promise<string> {
+  private async uploadFile(raw: RawFileItem, overwrite = false): Promise<string> {
     // raw.item.path is root-relative and self-contained (see WebdavFileSource.toRelativePath);
     // resolve it directly instead of re-deriving it from a parent directory id.
     const filePath = this.normalizeRelativePath(raw.item.path);
@@ -469,7 +469,9 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
         body: raw.content,
         headers: {
           'Content-Type': raw.item.mimeType || 'application/octet-stream',
-          // Create-only, atomically (RFC 4918 §10.4.2 / RFC 9110 §13.1.2).
+          // Create-only, atomically (RFC 4918 §10.4.2 / RFC 9110 §13.1.2),
+          // UNLESS this is a deliberate rewrite.
+          //
           // The existence check and this write are separate requests, so on its
           // own that pairing is check-then-act and anything appearing at this
           // href in between would be silently REPLACED — which file writers are
@@ -477,12 +479,27 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
           // path below: that PUTs the same href repeatedly with Content-Range,
           // so a create-only precondition would reject every chunk after the
           // first.
-          'If-None-Match': '*',
+          //
+          // On the update path replacing IS the intent, and the ownership
+          // decision was made upstream against the ledger. Sending the
+          // precondition anyway made the server answer 412, which the branch
+          // below reports as success — the rewrite silently did nothing while
+          // the pass counted `updated: 1`.
+          ...(overwrite ? {} : { 'If-None-Match': '*' }),
           Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
         },
       });
       // 412: already there. The snapshot was stale, not the write wrong.
+      // Unreachable on the overwrite path, which sends no precondition; if a
+      // server returns it anyway that is a refusal to replace, and reporting it
+      // as a successful rewrite would record a copy the target does not hold.
       if (response.status === 412) {
+        if (overwrite) {
+          throw new Error(
+            `PUT for ${filePath} was refused with 412 on a deliberate rewrite. ` +
+              'The file was NOT replaced.',
+          );
+        }
         return filePath;
       }
       // RFC 4918 §9.7.1: PUT returns 201 (created) or 204 (existing resource replaced). Without
