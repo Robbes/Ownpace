@@ -440,8 +440,14 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
 
       try {
         // Upsert on target (pass item for domain-specific metadata like keywords)
+        // The version travels WITH the write. The writers record the ledger
+        // row themselves and win the race (`recordIfAbsent` no-ops on
+        // conflict), so a version recorded only here never reached the row.
         const result = await timed(phases, 'upsertMs', () =>
-          upsert(collectionId, raw, item, rewriteOf ? { overwrite: true } : undefined),
+          upsert(collectionId, raw, item, {
+            ...(rewriteOf ? { overwrite: true } : {}),
+            ...(version !== undefined ? { sourceVersion: version } : {}),
+          }),
         );
 
         const row: LedgerRecord = {

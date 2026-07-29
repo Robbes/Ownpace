@@ -170,6 +170,22 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
         targetId: existingId,
         createdAt: new Date().toISOString(),
         sizeBytes,
+        // ADOPTED, explicitly. Omitting it let PgLedger apply its 'copied'
+        // default, so every item this writer adopted was recorded as one we
+        // had written — and the loop's own `recordIfAbsent`, which does pass
+        // 'adopted', no-ops on the row this one already inserted.
+        //
+        // That was merely a reporting gap until update propagation: the
+        // rewrite rule keys off exactly this status to decide whether the
+        // bytes on the target are ours to replace. Mislabelled, the
+        // customer's own data becomes eligible for overwrite, which hard
+        // rule 2 forbids outright.
+        status: 'adopted',
+        // Carried from the sync loop, not derived here: the loop owns the
+        // comparison and this writer merely persists what it was told.
+        ...(options?.sourceVersion !== undefined
+          ? { sourceVersion: options.sourceVersion }
+          : {}),
       });
       return { targetId: existingId, created: false, adopted: true };
     }
@@ -188,6 +204,11 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
       targetId: fileId,
       createdAt: new Date().toISOString(),
       sizeBytes,
+      // Carried from the sync loop, not derived here: the loop owns the
+      // comparison and this writer merely persists what it was told.
+      ...(options?.sourceVersion !== undefined
+        ? { sourceVersion: options.sourceVersion }
+        : {}),
     });
 
     return { targetId: fileId, created: true };

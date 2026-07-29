@@ -70,7 +70,25 @@ describe('classifyKnownItem', () => {
   });
 });
 
-/** A minimal domain wired onto the memory ledger, one folder, one item. */
+/**
+ * A minimal domain wired onto the memory ledger, one folder, one item.
+ *
+ * The fake `upsert` RECORDS THE LEDGER ROW ITSELF, before returning, because
+ * that is what the three real DAV writers do — each says so in a comment:
+ * "`recordIfAbsent` makes the first writer win, and that is this one."
+ *
+ * The first version of this harness did not, and that omission hid a real bug
+ * through a green unit suite: the sync loop's own `recordIfAbsent` no-ops on
+ * the row the writer already inserted, so a source version recorded only by
+ * the loop was silently dropped, every row landed with `sourceVersion`
+ * undefined, and the next pass read that as "not known" and backfilled instead
+ * of rewriting. Update propagation worked exactly one pass late, and only
+ * against a real ledger — CI's Nextcloud integration run is what caught it.
+ *
+ * So the fake models the awkward part of production rather than the
+ * convenient part. A fake that is more forgiving than the real thing is not a
+ * test.
+ */
 function harness(opts: {
   version: string | undefined;
   body: string;
@@ -91,9 +109,27 @@ function harness(opts: {
         listFolders: async () => [{ path: 'c1' }],
         listSince: async () => ({ items: [item], nextCursor: { value: '1' } }),
         fetchRaw: async (i) => ({ raw: i.body, sizeBytes: i.body.length }),
-        upsert: async (_collection, raw, _i, options): Promise<UpsertResult> => {
+        upsert: async (_collection, raw, i, options): Promise<UpsertResult> => {
           opts.onUpsert?.(options);
           upserts.push({ body: raw as string, overwrite: options?.overwrite === true });
+          if (!options?.overwrite) {
+            // The writer wins this row — including its source version, which
+            // it only knows because the loop handed it over in `options`.
+            await ledger.recordIfAbsent({
+              tenantId: TENANT,
+              mappingId: MAPPING,
+              itemType: 'calendar',
+              naturalKeyHash: i.key,
+              contentHash: `h:${raw as string}`,
+              targetId: 't1',
+              createdAt: new Date().toISOString(),
+              sizeBytes: (raw as string).length,
+              status: 'copied',
+              ...(options?.sourceVersion !== undefined
+                ? { sourceVersion: options.sourceVersion }
+                : {}),
+            });
+          }
           return { targetId: 't1', created: !options?.overwrite, updated: options?.overwrite };
         },
         naturalKey: (i) => i.key,
@@ -112,6 +148,14 @@ describe('runDomainSync update propagation', () => {
     const r1 = await first.run(ledger);
     expect(r1.created).toBe(1);
     expect(r1.updated).toBe(0);
+
+    // The version must be ON the row after the FIRST pass. If it is not, the
+    // next pass reads "not known" and backfills instead of rewriting, and the
+    // whole feature silently runs one pass behind the source.
+    expect(
+      (await ledger.find(TENANT, MAPPING, 'calendar', 'k1'))?.sourceVersion,
+      'the writer records first — the version has to reach the row it writes',
+    ).toBe('etag-1');
 
     // Same version again: no fetch, no write.
     const same = harness({ version: 'etag-1', body: 'v1' });

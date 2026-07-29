@@ -299,6 +299,63 @@ describe('Calendar update propagation (real CalDAV target) Integration', () => {
     expect(third.updated).toBe(0);
     expect(third.skipped).toBe(2);
   }, 120000);
+
+  /**
+   * Hard rule 2, end to end against a real server.
+   *
+   * The destination already holds this item and we never wrote it — what "the
+   * customer was already using this account" looks like. The source then moves
+   * on. Their copy must survive untouched, however far the source has gone.
+   *
+   * Only reachable with a real target: adoption is decided by the writer's
+   * own existence check against the server, and the `adopted` status it then
+   * records is exactly what the rewrite rule reads. A writer that omitted that
+   * status (they all did) made the customer's data look like ours.
+   */
+  it('never rewrites an event the destination already had, however far the source moves', async () => {
+    const uid = 'adopted-event@dev.local';
+
+    // Put THEIR copy on the target directly, with no ledger row.
+    await fetch(`${BASE}/${CAL_PATH}/`, { method: 'MKCALENDAR', headers: { Authorization: AUTH_HEADER } });
+    const theirs = icalendar(uid, 'THEIR VERSION — do not touch');
+    const put = await fetch(`${BASE}/${CAL_PATH}/${uid}.ics`, {
+      method: 'PUT',
+      headers: { Authorization: AUTH_HEADER, 'Content-Type': 'text/calendar; charset=utf-8' },
+      body: theirs,
+    });
+    expect([201, 204]).toContain(put.status);
+
+    const first = await runCalendarSync({
+      tenantId: CAL_TENANT,
+      mappingId: CAL_MAPPING,
+      source: new StubCalendarSource(folder, [calendarEvent(uid, 'Our version', 'etag-1')]),
+      target,
+      ledger,
+      concurrency: 1,
+    });
+    expect(first.adopted, 'the destination already held it').toBe(1);
+    expect(first.created).toBe(0);
+
+    // The source now changes. This is the case that must NOT write.
+    const second = await runCalendarSync({
+      tenantId: CAL_TENANT,
+      mappingId: CAL_MAPPING,
+      source: new StubCalendarSource(folder, [calendarEvent(uid, 'Our NEWER version', 'etag-2')]),
+      target,
+      ledger,
+      concurrency: 1,
+    });
+    expect(second.updated, 'hard rule 2: their copy is not ours to replace').toBe(0);
+    expect(second.changedButAdopted, 'and the divergence must be reported, not silent').toBe(1);
+
+    // Read the server: still THEIR text.
+    const folders = await readBack.listFolders();
+    const landed = folders.find((f) => f.name === CAL_COLLECTION || f.path.includes(CAL_COLLECTION));
+    const { items } = await readBack.listSince(landed!);
+    const found = items.find((i) => i.item.uid.toLowerCase() === uid.toLowerCase());
+    expect(found?.icalendar).toContain('THEIR VERSION');
+    expect(found?.icalendar).not.toContain('Our NEWER version');
+  }, 120000);
 });
 
 // ============================== Contacts (CardDAV) ==============================
@@ -419,6 +476,68 @@ describe('Contact update propagation (real CardDAV target) Integration', () => {
     const a = items.find((i) => i.item.uid.toLowerCase() === uidA.toLowerCase());
     expect(a?.vcard).toContain('Renamed Person A');
     expect(a?.vcard).not.toContain('Original Person A');
+  }, 120000);
+
+  /**
+   * Hard rule 2, end to end against a real server.
+   *
+   * The destination already holds this item and we never wrote it — what "the
+   * customer was already using this account" looks like. The source then moves
+   * on. Their copy must survive untouched, however far the source has gone.
+   *
+   * Only reachable with a real target: adoption is decided by the writer's
+   * own existence check against the server, and the `adopted` status it then
+   * records is exactly what the rewrite rule reads. A writer that omitted that
+   * status (they all did) made the customer's data look like ours.
+   */
+  it('never rewrites a contact the destination already had, however far the source moves', async () => {
+    const uid = 'adopted-contact@dev.local';
+
+    await fetch(`${BASE}/${CON_PATH}/`, {
+      method: 'MKCOL',
+      headers: { Authorization: AUTH_HEADER, 'Content-Type': 'application/xml; charset=utf-8' },
+      body:
+        '<?xml version="1.0" encoding="utf-8" ?>' +
+        '<D:mkcol xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:carddav">' +
+        '<D:set><D:prop><D:resourcetype><D:collection/><C:addressbook/></D:resourcetype>' +
+        '</D:prop></D:set></D:mkcol>',
+    });
+    const theirs = ['BEGIN:VCARD', 'VERSION:4.0', `UID:${uid}`, 'FN:THEIR PERSON', 'END:VCARD'].join('\r\n');
+    const put = await fetch(`${BASE}/${CON_PATH}/${uid}.vcf`, {
+      method: 'PUT',
+      headers: { Authorization: AUTH_HEADER, 'Content-Type': 'text/vcard; charset=utf-8' },
+      body: theirs,
+    });
+    expect([201, 204]).toContain(put.status);
+
+    const first = await runContactSync({
+      tenantId: CON_TENANT,
+      mappingId: CON_MAPPING,
+      source: new StubContactSource(folder, [contact(uid, 'Our Person', 'etag-1')]),
+      target,
+      ledger,
+      concurrency: 1,
+    });
+    expect(first.adopted).toBe(1);
+    expect(first.created).toBe(0);
+
+    const second = await runContactSync({
+      tenantId: CON_TENANT,
+      mappingId: CON_MAPPING,
+      source: new StubContactSource(folder, [contact(uid, 'Our NEWER Person', 'etag-2')]),
+      target,
+      ledger,
+      concurrency: 1,
+    });
+    expect(second.updated, 'hard rule 2: their copy is not ours to replace').toBe(0);
+    expect(second.changedButAdopted).toBe(1);
+
+    const folders = await readBack.listFolders();
+    const landed = folders.find((f) => f.name === CON_COLLECTION || f.path.includes(CON_COLLECTION));
+    const { items } = await readBack.listSince(landed!);
+    const found = items.find((i) => i.item.uid.toLowerCase() === uid.toLowerCase());
+    expect(found?.vcard).toContain('THEIR PERSON');
+    expect(found?.vcard).not.toContain('Our NEWER Person');
   }, 120000);
 });
 
@@ -551,6 +670,55 @@ describe('File update propagation (real WebDAV target) Integration', () => {
       )}`,
     );
     expect(rows.rows.length).toBe(1);
+  }, 120000);
+
+  /**
+   * Hard rule 2, end to end against a real server.
+   *
+   * The destination already holds this item and we never wrote it — what "the
+   * customer was already using this account" looks like. The source then moves
+   * on. Their copy must survive untouched, however far the source has gone.
+   *
+   * Only reachable with a real target: adoption is decided by the writer's
+   * own existence check against the server, and the `adopted` status it then
+   * records is exactly what the rewrite rule reads. A writer that omitted that
+   * status (they all did) made the customer's data look like ours.
+   */
+  it('never rewrites a file the destination already had, however far the source moves', async () => {
+    await fetch(`${BASE}/files/${NEXTCLOUD_USERNAME}/${FILE_DIR}`, {
+      method: 'MKCOL',
+      headers: { Authorization: AUTH_HEADER },
+    });
+    const put = await fetch(`${BASE}/files/${NEXTCLOUD_USERNAME}/${FILE_DIR}/theirs.txt`, {
+      method: 'PUT',
+      headers: { Authorization: AUTH_HEADER, 'Content-Type': 'text/plain; charset=utf-8' },
+      body: 'THEIR FILE — do not touch',
+    });
+    expect([201, 204]).toContain(put.status);
+
+    const first = await runFileSync({
+      tenantId: FILE_TENANT,
+      mappingId: FILE_MAPPING,
+      source: new StubFileSource(folder, [fileItem('theirs.txt', 'our body', 'etag-1')]),
+      target,
+      ledger,
+      concurrency: 1,
+    });
+    expect(first.adopted).toBe(1);
+    expect(first.created).toBe(0);
+
+    const second = await runFileSync({
+      tenantId: FILE_TENANT,
+      mappingId: FILE_MAPPING,
+      source: new StubFileSource(folder, [fileItem('theirs.txt', 'our NEWER body', 'etag-2')]),
+      target,
+      ledger,
+      concurrency: 1,
+    });
+    expect(second.updated, 'hard rule 2: their copy is not ours to replace').toBe(0);
+    expect(second.changedButAdopted).toBe(1);
+
+    expect(await readTargetFile('theirs.txt')).toBe('THEIR FILE — do not touch');
   }, 120000);
 });
 }

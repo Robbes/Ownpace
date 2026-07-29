@@ -171,6 +171,22 @@ export interface UpsertOptions {
    * changed. Nothing the customer already had on the target is ever eligible.
    */
   readonly overwrite?: boolean;
+  /**
+   * The source version (ETag) to persist on whatever ledger row this write
+   * creates.
+   *
+   * Passed down rather than left to the sync loop because the WRITERS record
+   * first and `recordIfAbsent` is a no-op on conflict — the comment in each
+   * DAV writer says so outright ("`recordIfAbsent` makes the first writer win,
+   * and that is this one"). So a version the loop wrote afterwards was
+   * silently discarded, every row landed with `source_version` NULL, and the
+   * next pass read that as "not known" and backfilled instead of rewriting.
+   * The whole feature was one pass late, and only against a real ledger: an
+   * in-memory fake that does not record from the writer never sees it.
+   *
+   * Undefined for a source with no version — the mail shape.
+   */
+  readonly sourceVersion?: string;
 }
 
 /** A target mailbox store the engine writes to. NEVER deletes or overwrites (non-destructive). */
