@@ -139,6 +139,27 @@ async function remove(url: string): Promise<void> {
   }
 }
 
+/**
+ * The bytes the server actually holds at one href.
+ *
+ * Used instead of collection discovery for the adoption read-backs. Discovery
+ * asks a broader question than these tests do, and it answered wrong for a
+ * reason that has nothing to do with the property under test: the adoption
+ * fixtures create their collection with a bare MKCALENDAR, which leaves it
+ * with no displayname, and `listFolders()` does not surface it — so `find()`
+ * returned undefined and a `!` turned that into a crash inside the connector.
+ *
+ * The rewrite tests still go through discovery on purpose, because there the
+ * collection is the writer's own (created with a displayname) and enumerating
+ * it also proves the object count did not grow. Here the question is narrower
+ * and deserves the narrower instrument: what is stored at this exact href.
+ */
+async function readTargetHref(href: string): Promise<string> {
+  const response = await fetch(`${BASE}/${href}`, { headers: { Authorization: AUTH_HEADER } });
+  if (!response.ok) throw new Error(`GET ${href} -> ${response.status}`);
+  return response.text();
+}
+
 // ============================== Calendar (CalDAV) ==============================
 
 const CAL_TENANT = asTenantId('6c0b0100-e29b-41d4-a716-446655440001');
@@ -360,13 +381,10 @@ describe('Calendar update propagation (real CalDAV target) Integration', () => {
     expect(second.updated, 'hard rule 2: their copy is not ours to replace').toBe(0);
     expect(second.changedButAdopted, 'and the divergence must be reported, not silent').toBe(1);
 
-    // Read the server: still THEIR text.
-    const folders = await readBack.listFolders();
-    const landed = folders.find((f) => f.name === CAL_COLLECTION || f.path.includes(CAL_COLLECTION));
-    const { items } = await readBack.listSince(landed!);
-    const found = items.find((i) => i.item.uid.toLowerCase() === uid.toLowerCase());
-    expect(found?.icalendar).toContain('THEIR VERSION');
-    expect(found?.icalendar).not.toContain('Our NEWER version');
+    // Read the server at the exact href: still THEIR text.
+    const stored = await readTargetHref(`${CAL_PATH}/${uid}.ics`);
+    expect(stored).toContain('THEIR VERSION');
+    expect(stored).not.toContain('Our NEWER version');
   }, 120000);
 });
 
@@ -545,12 +563,9 @@ describe('Contact update propagation (real CardDAV target) Integration', () => {
     expect(second.updated, 'hard rule 2: their copy is not ours to replace').toBe(0);
     expect(second.changedButAdopted).toBe(1);
 
-    const folders = await readBack.listFolders();
-    const landed = folders.find((f) => f.name === CON_COLLECTION || f.path.includes(CON_COLLECTION));
-    const { items } = await readBack.listSince(landed!);
-    const found = items.find((i) => i.item.uid.toLowerCase() === uid.toLowerCase());
-    expect(found?.vcard).toContain('THEIR PERSON');
-    expect(found?.vcard).not.toContain('Our NEWER Person');
+    const stored = await readTargetHref(`${CON_PATH}/${uid}.vcf`);
+    expect(stored).toContain('THEIR PERSON');
+    expect(stored).not.toContain('Our NEWER Person');
   }, 120000);
 });
 
