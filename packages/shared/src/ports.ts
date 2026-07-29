@@ -171,7 +171,27 @@ export interface FileSource {
   listSince(
     folder: FileFolder,
     cursor?: SyncCursor,
-  ): Promise<{ items: ReadonlyArray<RawFileItem>; nextCursor: SyncCursor }>;
+  ): Promise<{
+    items: ReadonlyArray<RawFileItem>;
+    nextCursor: SyncCursor;
+    /**
+     * Source refs the service REPORTED as deleted on this poll.
+     *
+     * OneDrive/SharePoint answer a delta query with the items that changed and the
+     * ones that were deleted, the latter carrying a `deleted` facet. That is the
+     * Graph equivalent of a CalDAV `sync-collection` 404 — the service stating
+     * outright that an item is gone — and it was being read and discarded.
+     *
+     * Refs, not paths: a deleted delta entry is not guaranteed to carry usable path
+     * metadata, while its `id` always is present and never changes. Matched back
+     * through `Ledger.findBySourceRef`, which is why the file domain records the
+     * source's own handle rather than re-recording the path.
+     *
+     * Absent means none were reported, which is NOT "nothing was deleted": WebDAV
+     * has no delta query at all and never populates this.
+     */
+    removed?: ReadonlyArray<string>;
+  }>;
   /**
    * Fetch one file's bytes. Called once per item by the sync loop.
    *
@@ -202,6 +222,24 @@ export interface FileSource {
    * both into the same natural key.
    */
   listKeys?(folder: FileFolder): Promise<ReadonlyArray<string>>;
+  /**
+   * Root-relative paths of files sitting in the owner's BIN on the source.
+   *
+   * Optional, because a bin is not a WebDAV concept: RFC 4918 has none, and this
+   * is Nextcloud's own `/remote.php/dav/trashbin/…` extension. A source that
+   * cannot answer leaves the file domain on absence-counting, which is a weaker
+   * signal but an honest one.
+   *
+   * Whole-account rather than per-folder: a bin is one collection holding
+   * everything the owner deleted, wherever it came from, and each entry carries
+   * the ORIGINAL path rather than living at it.
+   *
+   * Paths must be identical in form to `FileItem.path`, since the loop hashes both
+   * into the same natural key. That agreement is the entire feature: a path that
+   * differs by a leading slash or a `rootPath` prefix hashes to something no row
+   * has, and the result is not an error but SILENCE.
+   */
+  listTrashedPaths?(): Promise<ReadonlyArray<string>>;
 }
 
 /**

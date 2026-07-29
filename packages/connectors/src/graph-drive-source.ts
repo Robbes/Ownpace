@@ -91,7 +91,11 @@ export class GraphDriveSource implements FileSource {
   async listSince(
     folder: FileFolder,
     cursor?: SyncCursor,
-  ): Promise<{ items: ReadonlyArray<RawFileItem>; nextCursor: SyncCursor }> {
+  ): Promise<{
+    items: ReadonlyArray<RawFileItem>;
+    nextCursor: SyncCursor;
+    removed?: ReadonlyArray<string>;
+  }> {
     // Parse cursor to get delta link
     let deltaLink: string | undefined;
     
@@ -123,6 +127,22 @@ export class GraphDriveSource implements FileSource {
     const url = deltaLink ?? baseUrl;
 
     const items: GraphDriveItem[] = [];
+    /**
+     * Item IDs Graph reported as DELETED on this poll.
+     *
+     * The delta query's own removal report, and the OneDrive equivalent of a
+     * CalDAV `sync-collection` 404: the service states outright that an item is
+     * gone, rather than us inferring it from an absence with a dozen innocent
+     * causes. It was being read and thrown away below — `if (item.deleted)
+     * continue`, under a comment saying deletions "should be handled separately"
+     * with nothing anywhere handling them.
+     *
+     * IDs, not paths. A deleted delta entry is not guaranteed to carry usable
+     * path metadata — `name` and `parentReference` may be partial — but `id` is
+     * always present and never changes, which is why it is what the ledger row
+     * records as the item's source ref.
+     */
+    const removed: string[] = [];
     let lastDeltaLink: string | undefined;
     let nextLink: string | undefined;
 
@@ -142,18 +162,21 @@ export class GraphDriveSource implements FileSource {
 
       const data = JSON.parse(response.body) as GraphDriveDeltaResponse;
       
-      // Filter out deleted items and process changes
       for (const item of data.value) {
-        // Skip deleted items - they should be handled separately
+        // DELETED, and now carried up instead of discarded. Folders included: a
+        // deleted folder's children each get their own delta entry, but a folder
+        // whose id we recorded is an item too, and dropping it here would make
+        // that one silently unreportable.
         if (item.deleted) {
+          if (item.id) removed.push(item.id);
           continue;
         }
-        
+
         // Skip folders in the items list - we only want files
         if (item.folder) {
           continue;
         }
-        
+
         items.push(item);
       }
       
@@ -200,7 +223,14 @@ export class GraphDriveSource implements FileSource {
       }),
     };
 
-    return { items: fileItems, nextCursor };
+    // Omitted rather than sent as `[]` when Graph reported nothing, so "the
+    // service reported no deletions" and "this poll cannot report deletions" are
+    // not spelled the same way. A full `children` listing is the second case.
+    return {
+      items: fileItems,
+      nextCursor,
+      ...(removed.length > 0 ? { removed } : {}),
+    };
   }
 
   /**

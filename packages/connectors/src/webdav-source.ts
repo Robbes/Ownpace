@@ -21,6 +21,12 @@ import type {
   PropfindResponse,
 } from './webdav-source.types';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types';
+import {
+  TRASHBIN_PROPFIND_BODY,
+  nextcloudTrashbinUrl,
+  parseTrashbinOriginalLocations,
+  trashbinPathToKeyPath,
+} from './webdav-trashbin';
 
 /**
  * WebDAV source connector implementation.
@@ -151,6 +157,56 @@ export class WebdavFileSource implements FileSource {
       if (this.isCollection(entry)) continue;
       const file = this.parseFileFromEntry(entry);
       if (file) paths.push(file.path);
+    }
+    return paths;
+  }
+
+  /**
+   * Root-relative paths of files in the owner's BIN (implements
+   * `FileSource.listTrashedPaths`).
+   *
+   * Nextcloud's trashbin, which is not part of WebDAV at all — RFC 4918 has no
+   * concept of a bin — so it is derived from the files endpoint and probed rather
+   * than assumed. A plain WebDAV server reports nothing and the file domain stays
+   * on absence-counting, which is the honest answer rather than a guess.
+   *
+   * Failure to READ a bin that should exist is different from there being none,
+   * and only the second is silent: a 404/405/501 means the server does not serve
+   * this collection, while any other error is thrown for the sync loop to log.
+   */
+  async listTrashedPaths(): Promise<ReadonlyArray<string>> {
+    const url = nextcloudTrashbinUrl(this.config.url);
+    if (!url) return [];
+
+    const response = await this.httpClient.request({
+      method: 'PROPFIND',
+      url,
+      body: TRASHBIN_PROPFIND_BODY,
+      headers: {
+        'Content-Type': 'application/xml',
+        Depth: '1',
+        Authorization: this.getAuthorizationHeader(),
+      },
+    });
+
+    // No bin here. Not an error, and not worth a warning every pass: plenty of
+    // WebDAV servers live at a Nextcloud-shaped URL without serving a trashbin,
+    // and a bin that has never had anything in it can 404 too.
+    if (response.status === 404 || response.status === 405 || response.status === 501) {
+      return [];
+    }
+    if (response.status !== 207) {
+      throw new Error(`trashbin PROPFIND failed with status ${response.status}: ${response.body}`);
+    }
+
+    const paths: string[] = [];
+    for (const location of parseTrashbinOriginalLocations(response.body)) {
+      // Normalised HERE and nowhere else, so there is one definition of the form
+      // these paths must take. The sync loop hashes them into the same natural key
+      // as `FileItem.path`, and a mismatch would report nothing at all rather than
+      // failing — silence being the failure nobody notices.
+      const path = trashbinPathToKeyPath(location, this.config.rootPath);
+      if (path) paths.push(path);
     }
     return paths;
   }

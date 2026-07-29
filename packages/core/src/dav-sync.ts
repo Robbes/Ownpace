@@ -220,11 +220,30 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
             (await source.listKeys!(folder)).map(fileNaturalKeyHash),
         }
       : {}),
+    // What the owner threw away, when the source can tell us. Hashed here for the
+    // same reason as `listCollectionKeys` above: the loop compares natural keys, so
+    // both sides of every comparison go through this one function rather than two
+    // that have to agree by coincidence.
+    ...(source.listTrashedPaths
+      ? {
+          listDiscardedKeys: async () =>
+            (await source.listTrashedPaths!()).map(fileNaturalKeyHash),
+        }
+      : {}),
     sourceVersion: (item) => item.item.etag,
-    // The file's own root-relative path. WebDAV has no sync-collection, so this
-    // is not (yet) a removal-report anchor — recorded for symmetry, and because
-    // the natural key is derived from the same path, so the two must agree.
-    sourceRef: (item) => item.item.path,
+    // The SOURCE'S OWN handle for the file, which is not the same thing in every
+    // file source — and that is the point.
+    //
+    // For WebDAV it is the server's href from the PROPFIND; for OneDrive it is the
+    // Graph item id. The second is what makes Graph's delta deletions usable: a
+    // deleted delta entry carries the id and no reliable path, so `sourceRef` is
+    // the only way back from "item X is gone" to the row we wrote for it.
+    //
+    // This used to record `item.path`, which was the natural key over again —
+    // true, but redundant, and useless as a removal anchor for the one source that
+    // has removals. Falls back to the path for any source with no handle of its
+    // own, so a blank is never recorded as if it meant something.
+    sourceRef: (item) => item.item.sourceRef || item.item.path,
     contentHash: (raw) => fileContentHash((raw as RawFileItem).content ?? new Uint8Array(0)),
     ensureCollection: (folder) => target.ensureDirectory(folder),
     ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
