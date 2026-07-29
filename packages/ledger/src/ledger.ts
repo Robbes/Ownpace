@@ -4,11 +4,13 @@ import {
   type LedgerRecord,
   type ItemFailure,
   type FailureAction,
+  type ItemMove,
+  type MoveAction,
   type TenantId,
   type MappingId,
 } from '@openmig/shared';
 import type { PgDatabase } from './db';
-import { eq, and, ne, desc, sql } from 'drizzle-orm';
+import { eq, and, ne, isNull, isNotNull, desc, sql } from 'drizzle-orm';
 import * as schemaPg from './schema-pg';
 
 /**
@@ -244,6 +246,8 @@ export class PgLedger implements Ledger {
         naturalKeyHash: schemaPg.item.naturalKeyHash,
         contentHash: schemaPg.item.contentHash,
         collection: schemaPg.item.collection,
+        movedToCollection: schemaPg.item.movedToCollection,
+        moveAcknowledgedAt: schemaPg.item.moveAcknowledgedAt,
       })
       .from(schemaPg.item)
       .where(
@@ -267,6 +271,15 @@ export class PgLedger implements Ledger {
       naturalKeyHash: r.naturalKeyHash,
       contentHash: r.contentHash ?? '',
       collection: r.collection,
+      ...(r.movedToCollection ? { movedToCollection: r.movedToCollection } : {}),
+      ...(r.moveAcknowledgedAt
+        ? {
+            moveAcknowledgedAt:
+              r.moveAcknowledgedAt instanceof Date
+                ? r.moveAcknowledgedAt.toISOString()
+                : String(r.moveAcknowledgedAt),
+          }
+        : {}),
     }));
   }
 
@@ -342,6 +355,134 @@ export class PgLedger implements Ledger {
     return rows.length > 0;
   }
 
+  async recordMove(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: 'email' | 'calendar' | 'contact' | 'file',
+    naturalKeyHash: string,
+    toCollection: string,
+  ): Promise<void> {
+    await this.db
+      .update(schemaPg.item)
+      .set({
+        movedToCollection: toCollection,
+        // Cleared only when the DESTINATION changed. A pass re-observing a move
+        // somebody has already closed must not reopen it — that would make the
+        // queue impossible to empty, and a queue that never empties is one
+        // people stop reading. But a move to somewhere NEW is a new
+        // arrangement, and consent to the old one says nothing about it.
+        moveAcknowledgedAt: sql`CASE WHEN ${schemaPg.item.movedToCollection} IS DISTINCT FROM ${toCollection}
+          THEN NULL ELSE ${schemaPg.item.moveAcknowledgedAt} END`,
+        updatedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          eq(schemaPg.item.domain, domain),
+          eq(schemaPg.item.naturalKeyHash, naturalKeyHash),
+        ),
+      );
+  }
+
+  async clearMove(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: 'email' | 'calendar' | 'contact' | 'file',
+    naturalKeyHash: string,
+  ): Promise<void> {
+    await this.db
+      .update(schemaPg.item)
+      .set({
+        movedToCollection: null,
+        // Goes with it. There is no longer anything to have agreed to, and a
+        // stale acknowledgement would quietly suppress the NEXT move to the
+        // same place.
+        moveAcknowledgedAt: null,
+        updatedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          eq(schemaPg.item.domain, domain),
+          eq(schemaPg.item.naturalKeyHash, naturalKeyHash),
+        ),
+      );
+  }
+
+  async listMoves(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain?: 'email' | 'calendar' | 'contact' | 'file',
+  ): Promise<ItemMove[]> {
+    const rows = await this.db
+      .select({
+        domain: schemaPg.item.domain,
+        naturalKeyHash: schemaPg.item.naturalKeyHash,
+        collection: schemaPg.item.collection,
+        movedToCollection: schemaPg.item.movedToCollection,
+        moveAcknowledgedAt: schemaPg.item.moveAcknowledgedAt,
+      })
+      .from(schemaPg.item)
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          isNotNull(schemaPg.item.movedToCollection),
+          ...(domain ? [eq(schemaPg.item.domain, domain)] : []),
+        ),
+      )
+      // Open ones first: those are the ones somebody still has to look at.
+      .orderBy(schemaPg.item.moveAcknowledgedAt);
+
+    return rows.map((r) => ({
+      domain: r.domain as ItemMove['domain'],
+      naturalKeyHash: r.naturalKeyHash,
+      from: r.collection,
+      to: r.movedToCollection ?? '',
+      ...(r.moveAcknowledgedAt
+        ? {
+            acknowledgedAt:
+              r.moveAcknowledgedAt instanceof Date
+                ? r.moveAcknowledgedAt.toISOString()
+                : String(r.moveAcknowledgedAt),
+          }
+        : {}),
+    }));
+  }
+
+  async resolveMove(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    naturalKeyHash: string,
+    action: MoveAction,
+  ): Promise<boolean> {
+    // Only 'keep' exists, and it is deliberately inert on both sides: it
+    // records that a person looked. Making the target match the source means
+    // removing the copy from where it currently sits, which hard rule 2
+    // forbids outright without its own explicitly destructive path.
+    if (action !== 'keep') return false;
+
+    const rows = await this.db
+      .update(schemaPg.item)
+      .set({ moveAcknowledgedAt: sql`now()`, updatedAt: sql`now()` })
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          eq(schemaPg.item.naturalKeyHash, naturalKeyHash),
+          isNotNull(schemaPg.item.movedToCollection),
+          // OPEN only. Re-stamping an already-decided move would report a
+          // decision that did not happen and move its audit date forward.
+          isNull(schemaPg.item.moveAcknowledgedAt),
+        ),
+      )
+      .returning();
+
+    return rows.length > 0;
+  }
+
   private mapRowToRecord(row: typeof schemaPg.item.$inferSelect): LedgerRecord {
     return {
       tenantId: row.tenantId as TenantId,
@@ -362,6 +503,15 @@ export class PgLedger implements Ledger {
         ? { sourceVersion: row.sourceVersion }
         : {}),
       ...(row.collection ? { collection: row.collection } : {}),
+      ...(row.movedToCollection ? { movedToCollection: row.movedToCollection } : {}),
+      ...(row.moveAcknowledgedAt
+        ? {
+            moveAcknowledgedAt:
+              row.moveAcknowledgedAt instanceof Date
+                ? row.moveAcknowledgedAt.toISOString()
+                : String(row.moveAcknowledgedAt),
+          }
+        : {}),
       attemptCount: row.attemptCount,
       ...(row.lastError !== null && row.lastError !== undefined
         ? { lastError: row.lastError }

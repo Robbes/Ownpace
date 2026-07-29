@@ -418,6 +418,90 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         }
         return sendJson(res, 200, out);
       }
+      // The move queue: items the owner relocated on the SOURCE after the
+      // migration started, which the target has not followed. The other half of
+      // §11.2's decision queue — /failures is "could not be copied", this is
+      // "copied, but the source has since put it somewhere else".
+      //
+      // Nothing here has been acted on. §11.1 leaves topology to the owner, and
+      // making the target match would mean removing the copy from where it
+      // currently sits — the delete half of a move, which hard rule 2 forbids
+      // outright. So the queue is insight plus one decision: leave it.
+      //
+      // `from`/`to` ARE folder paths, unlike everything keyed by hash above.
+      // They have to be: "12 items moved" that cannot say where is not a queue
+      // anyone can act on. §17 keeps paths out of METRIC labels, which is a
+      // different store with different retention; this is the operator's own
+      // status surface, the same place `lastError` already goes.
+      if (req.method === 'GET' && req.url === '/moves') {
+        const out: Record<string, unknown> = {};
+        for (const m of mappings) {
+          const all = await ledger.listMoves(
+            m.config.tenantId as TenantId,
+            m.mailboxMappingId as MappingId,
+          );
+          out[m.config.mappingId] = {
+            // Split, as with failures: one still wants a person, the other has
+            // already had one.
+            open: all.filter((mv) => !mv.acknowledgedAt),
+            acknowledged: all.filter((mv) => mv.acknowledgedAt),
+            whatThisMeans:
+              'The item is on the target under "from". The source now lists it under "to". ' +
+              'Nothing was written, copied or deleted on either side.',
+            howToResolve: {
+              keep:
+                `POST /mappings/{mappingId}/moves/{naturalKeyHash}/keep — the target's layout ` +
+                `is fine as it is; stop reporting this one. Reversible only in the sense that ` +
+                `moving the item somewhere else again reopens it.`,
+              byHand:
+                'To make the target match, move the item there yourself in the target system, ' +
+                'then keep. Applying a move automatically would have to delete the copy that ' +
+                'is there now, which this tool never does on its own (hard rule 2).',
+              doNothing:
+                'A move that is put back on the source disappears from this list by itself on ' +
+                'the next pass.',
+            },
+          };
+        }
+        return sendJson(res, 200, out);
+      }
+      const moveMatch =
+        req.method === 'POST' && req.url
+          ? /^\/mappings\/([^/]+)\/moves\/([^/]+)\/(keep)$/.exec(req.url)
+          : null;
+      if (moveMatch) {
+        await drain(req);
+        const id = decodeURIComponent(moveMatch[1]!);
+        const hash = decodeURIComponent(moveMatch[2]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+
+        const applied = await ledger.resolveMove(
+          m.config.tenantId as TenantId,
+          m.mailboxMappingId as MappingId,
+          hash,
+          'keep',
+        );
+        // False means no OPEN move under that key — it was moved back on the
+        // source, or someone already decided. Saying "not found" beats
+        // reporting a decision that did not happen.
+        if (!applied) {
+          return sendJson(res, 404, {
+            error: 'no open move under that natural key',
+            hint: 'It may have been moved back on the source, or already been acknowledged.',
+          });
+        }
+
+        log.info(`[selfhost] ${m.config.mappingId}: operator chose 'keep' for moved item ${hash.slice(0, 12)}`);
+        return sendJson(res, 200, {
+          status: 'ok',
+          action: 'keep',
+          naturalKeyHash: hash,
+          effect:
+            'Acknowledged. Nothing changed on the source or the target; this move stops being ' +
+            'reported unless the item moves somewhere else again.',
+        });
+      }
       const failureMatch =
         req.method === 'POST' && req.url
           ? /^\/mappings\/([^/]+)\/failures\/([^/]+)\/(retry|accept)$/.exec(req.url)

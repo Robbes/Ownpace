@@ -525,6 +525,98 @@ describe('PgLedger (integration)', () => {
       expect(placed.map((r) => r.naturalKeyHash)).toEqual(['c-current']);
     });
 
+    it('records where the source moved an item to, without touching where we put it', async () => {
+      await ledger.recordIfAbsent(at('m-1', 'Q1', 'h1'));
+      await ledger.recordMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-1', 'Quarter-1');
+
+      const row = await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-1');
+      // `collection` still says where the TARGET's copy is, because that is the
+      // only place it is. Overwriting it would make the ledger describe a
+      // target that does not exist.
+      expect(row?.collection).toBe('Q1');
+      expect(row?.movedToCollection).toBe('Quarter-1');
+      expect(row?.moveAcknowledgedAt).toBeUndefined();
+    });
+
+    it('keeps a decision standing when a later pass sees the same move again', async () => {
+      // The queue has to be emptyable. Reopening on every pass would make it
+      // permanent noise, and a queue that never empties is one people stop
+      // reading — which is how a real divergence goes unnoticed.
+      await ledger.recordIfAbsent(at('m-2', 'Q1', 'h2'));
+      await ledger.recordMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-2', 'Quarter-1');
+      expect(await ledger.resolveMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'm-2', 'keep')).toBe(true);
+
+      await ledger.recordMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-2', 'Quarter-1');
+      const row = await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-2');
+      expect(row?.moveAcknowledgedAt).toBeDefined();
+    });
+
+    it('asks again when the destination changes', async () => {
+      // Agreeing to one arrangement is not agreeing to every later one. This is
+      // the CASE ... IS DISTINCT FROM in recordMove, which no in-memory fake
+      // can vouch for.
+      await ledger.recordIfAbsent(at('m-3', 'Q1', 'h3'));
+      await ledger.recordMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-3', 'Quarter-1');
+      await ledger.resolveMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'm-3', 'keep');
+
+      await ledger.recordMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-3', 'Archive');
+      const row = await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-3');
+      expect(row?.movedToCollection).toBe('Archive');
+      expect(row?.moveAcknowledgedAt).toBeUndefined();
+    });
+
+    it('forgets the move, decision and all, when the item is put back', async () => {
+      await ledger.recordIfAbsent(at('m-4', 'Q1', 'h4'));
+      await ledger.recordMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-4', 'Quarter-1');
+      await ledger.resolveMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'm-4', 'keep');
+
+      await ledger.clearMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-4');
+      const row = await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-4');
+      expect(row?.movedToCollection).toBeUndefined();
+      // The acknowledgement goes with it: a stale one would quietly suppress
+      // the NEXT move to the same place.
+      expect(row?.moveAcknowledgedAt).toBeUndefined();
+      expect(await ledger.listMoves(TEST_TENANT_ID, TEST_MAPPING_ID, 'file')).toEqual([]);
+    });
+
+    it('lists open moves ahead of decided ones, and only moved rows at all', async () => {
+      await ledger.recordIfAbsent(at('m-5', 'Q1', 'h5'));
+      await ledger.recordIfAbsent(at('m-6', 'Q1', 'h6'));
+      await ledger.recordIfAbsent(at('m-7', 'Q1', 'h7'));
+      await ledger.recordMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-5', 'Quarter-1');
+      await ledger.recordMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-6', 'Quarter-1');
+      await ledger.resolveMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'm-5', 'keep');
+
+      const moves = await ledger.listMoves(TEST_TENANT_ID, TEST_MAPPING_ID, 'file');
+      // m-7 never moved and must not appear at all.
+      expect(moves.map((mv) => mv.naturalKeyHash)).toEqual(['m-6', 'm-5']);
+      expect(moves[0]).toMatchObject({ from: 'Q1', to: 'Quarter-1' });
+      expect(moves[0]!.acknowledgedAt).toBeUndefined();
+      expect(moves[1]!.acknowledgedAt).toBeDefined();
+    });
+
+    it('will not acknowledge a move that is not open', async () => {
+      await ledger.recordIfAbsent(at('m-8', 'Q1', 'h8'));
+      // Never moved.
+      expect(await ledger.resolveMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'm-8', 'keep')).toBe(false);
+
+      await ledger.recordMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-8', 'Quarter-1');
+      expect(await ledger.resolveMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'm-8', 'keep')).toBe(true);
+      // Twice is not a second decision, and must not move the audit date on.
+      expect(await ledger.resolveMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'm-8', 'keep')).toBe(false);
+    });
+
+    it('will not let one tenant decide about another\'s move', async () => {
+      await ledger.recordIfAbsent(at('m-9', 'Q1', 'h9'));
+      await ledger.recordMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-9', 'Quarter-1');
+      expect(await ledger.resolveMove(TEST_TENANT_2_ID, TEST_MAPPING_2_ID, 'm-9', 'keep')).toBe(
+        false,
+      );
+      expect(
+        (await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-9'))?.moveAcknowledgedAt,
+      ).toBeUndefined();
+    });
+
     it('does not cross domains, mappings or tenants', async () => {
       await ledger.recordIfAbsent(at('c-10', 'Shared', 'h10'));
       await ledger.recordIfAbsent({ ...at('c-11', 'Shared', 'h11'), itemType: 'calendar' });

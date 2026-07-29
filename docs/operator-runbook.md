@@ -212,6 +212,36 @@ the credential or the target is the problem, not the items.
 
 See `docs/selfhost-quickstart.md` §7 for the full walkthrough.
 
+## Items someone moved on the source
+
+Different problem, different queue. These items copied fine; the owner has since
+reorganised the source, so the item is on the target under one folder and the
+source lists it under another.
+
+Nothing has been done about it. §11.1 leaves topology to the owner, and making
+the target match would mean deleting the copy that is there now — which this
+tool never does on its own (hard rule 2).
+
+| Where | What it tells you |
+|---|---|
+| `GET /moves` | `open` and `acknowledged`, each with `from` and `to` |
+| worker log | one warning per domain per pass, with a count |
+
+Two answers, per item:
+
+- **keep** (`POST /mappings/{id}/moves/{hash}/keep`) — the target's layout is
+  fine; stop reporting this one. If you want the target to match, move the item
+  yourself in the target system first, then keep.
+- **nothing** — a move that is undone on the source drops off the list by itself
+  on the next pass. Moving the same item somewhere *else* reopens it, because
+  agreeing to one arrangement is not agreeing to the next.
+
+Two limits worth knowing. For **files** the item is keyed by its path, so the
+pass that first sees the move has already copied the file to its new path — the
+target then holds both, and the old one is what `from` points at. For **mail**, a
+message that genuinely lives in two folders looks exactly like one that moved;
+the pass cannot tell them apart, which is why it reports rather than acts.
+
 ## Health & troubleshooting
 
 - **API/worker won't connect / RLS errors on every query:** confirm `APP_DATABASE_URL` is set and

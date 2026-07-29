@@ -2,9 +2,11 @@ import type {
   CursorStore,
   FailureAction,
   ItemFailure,
+  ItemMove,
   Ledger,
   LedgerRecord,
   MailFolder,
+  MoveAction,
   MailItem,
   MailKeyword,
   RawMessage,
@@ -254,8 +256,22 @@ export class MemoryLedger implements Ledger {
     tenantId: LedgerRecord['tenantId'],
     mappingId: LedgerRecord['mappingId'],
     domain: LedgerRecord['itemType'],
-  ): Promise<Array<{ naturalKeyHash: string; contentHash: string; collection: string }>> {
-    const out: Array<{ naturalKeyHash: string; contentHash: string; collection: string }> = [];
+  ): Promise<
+    Array<{
+      naturalKeyHash: string;
+      contentHash: string;
+      collection: string;
+      movedToCollection?: string;
+      moveAcknowledgedAt?: string;
+    }>
+  > {
+    const out: Array<{
+      naturalKeyHash: string;
+      contentHash: string;
+      collection: string;
+      movedToCollection?: string;
+      moveAcknowledgedAt?: string;
+    }> = [];
     for (const r of this.rows.values()) {
       if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
       if (r.itemType !== domain) continue;
@@ -265,9 +281,104 @@ export class MemoryLedger implements Ledger {
         naturalKeyHash: r.naturalKeyHash,
         contentHash: r.contentHash ?? '',
         collection: r.collection,
+        ...(r.movedToCollection ? { movedToCollection: r.movedToCollection } : {}),
+        ...(r.moveAcknowledgedAt ? { moveAcknowledgedAt: r.moveAcknowledgedAt } : {}),
       });
     }
     return Promise.resolve(out);
+  }
+
+  /**
+   * Mirrors `PgLedger.recordMove`, INCLUDING the conditional clear.
+   *
+   * The condition is the whole behaviour: re-observing a move somebody has
+   * already closed must leave the decision standing, or the queue can never be
+   * emptied — while a move somewhere NEW must reopen it, because agreeing to
+   * one arrangement is not agreeing to every later one. A fake that always
+   * cleared, or never did, would prove the opposite of whichever is true.
+   */
+  recordMove(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    domain: LedgerRecord['itemType'],
+    naturalKeyHash: string,
+    toCollection: string,
+  ): Promise<void> {
+    const k = this.key({ tenantId, mappingId, itemType: domain, naturalKeyHash });
+    const existing = this.rows.get(k);
+    if (!existing) return Promise.resolve();
+    const destinationChanged = existing.movedToCollection !== toCollection;
+    this.rows.set(k, {
+      ...existing,
+      movedToCollection: toCollection,
+      ...(destinationChanged
+        ? { moveAcknowledgedAt: undefined }
+        : existing.moveAcknowledgedAt !== undefined
+          ? { moveAcknowledgedAt: existing.moveAcknowledgedAt }
+          : {}),
+    });
+    return Promise.resolve();
+  }
+
+  clearMove(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    domain: LedgerRecord['itemType'],
+    naturalKeyHash: string,
+  ): Promise<void> {
+    const k = this.key({ tenantId, mappingId, itemType: domain, naturalKeyHash });
+    const existing = this.rows.get(k);
+    if (!existing) return Promise.resolve();
+    this.rows.set(k, {
+      ...existing,
+      movedToCollection: undefined,
+      moveAcknowledgedAt: undefined,
+    });
+    return Promise.resolve();
+  }
+
+  listMoves(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    domain?: LedgerRecord['itemType'],
+  ): Promise<ItemMove[]> {
+    const out: ItemMove[] = [];
+    for (const r of this.rows.values()) {
+      if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
+      if (domain && r.itemType !== domain) continue;
+      if (!r.movedToCollection) continue;
+      out.push({
+        domain: r.itemType,
+        naturalKeyHash: r.naturalKeyHash,
+        from: r.collection ?? '',
+        to: r.movedToCollection,
+        ...(r.moveAcknowledgedAt ? { acknowledgedAt: r.moveAcknowledgedAt } : {}),
+      });
+    }
+    // Open first, matching PgLedger's ORDER BY: those are the ones somebody
+    // still has to look at.
+    return Promise.resolve(
+      out.sort((a, b) => Number(a.acknowledgedAt !== undefined) - Number(b.acknowledgedAt !== undefined)),
+    );
+  }
+
+  resolveMove(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    naturalKeyHash: string,
+    action: MoveAction,
+  ): Promise<boolean> {
+    if (action !== 'keep') return Promise.resolve(false);
+    for (const [k, r] of this.rows) {
+      if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
+      if (r.naturalKeyHash !== naturalKeyHash) continue;
+      // OPEN only, as in Postgres: re-stamping a decided move would report a
+      // decision that did not happen.
+      if (!r.movedToCollection || r.moveAcknowledgedAt) continue;
+      this.rows.set(k, { ...r, moveAcknowledgedAt: new Date().toISOString() });
+      return Promise.resolve(true);
+    }
+    return Promise.resolve(false);
   }
 
   listFailures(

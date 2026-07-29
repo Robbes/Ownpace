@@ -429,6 +429,22 @@ export interface LedgerRecord {
    */
   readonly collection?: string;
   /**
+   * Where the SOURCE lists this item now, when that is no longer `collection`.
+   *
+   * Absent means "not moved". Together the two say "we put it here, the source
+   * has since put it there" — `collection` deliberately keeps describing where
+   * the target's copy actually is, because that is the only place it is.
+   */
+  readonly movedToCollection?: string;
+  /**
+   * When the owner saw the move and chose to leave the target alone (§11.2).
+   *
+   * Absent while the move is still open. Cleared automatically if the item
+   * moves AGAIN somewhere else — a decision about one arrangement is not
+   * consent to every later one.
+   */
+  readonly moveAcknowledgedAt?: string;
+  /**
    * How many times this item has been attempted and failed.
    *
    * Reset to 0 by an operator RETRY. Once it reaches `MAX_ITEM_ATTEMPTS` the
@@ -534,7 +550,17 @@ export interface Ledger {
     tenantId: TenantId,
     mappingId: MappingId,
     domain: 'email' | 'calendar' | 'contact' | 'file',
-  ): Promise<Array<{ naturalKeyHash: string; contentHash: string; collection: string }>>;
+  ): Promise<
+    Array<{
+      naturalKeyHash: string;
+      contentHash: string;
+      collection: string;
+      /** A move already recorded against this row, if any. See `recordMove`. */
+      movedToCollection?: string;
+      /** Set once the owner has decided about that move. */
+      moveAcknowledgedAt?: string;
+    }>
+  >;
   /** Unresolved failures for a domain, newest attempt first. */
   listFailures(
     tenantId: TenantId,
@@ -554,6 +580,60 @@ export interface Ledger {
     mappingId: MappingId,
     naturalKeyHash: string,
     action: FailureAction,
+  ): Promise<boolean>;
+  /**
+   * Record that the source now lists an already-copied item somewhere else.
+   *
+   * Nothing on the target changes — this is the durable half of the report.
+   * Without it a pass counted the divergence, logged it and forgot it, so an
+   * operator who was not reading the container output at that moment never
+   * learned, and had no way to say "dealt with, stop telling me".
+   *
+   * Clears any previous acknowledgement when the DESTINATION has changed:
+   * agreeing to one arrangement is not agreeing to every later one. Re-running
+   * it with the same destination leaves the decision standing, so an ordinary
+   * pass does not reopen something a person already closed.
+   */
+  recordMove(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: 'email' | 'calendar' | 'contact' | 'file',
+    naturalKeyHash: string,
+    toCollection: string,
+  ): Promise<void>;
+  /**
+   * Forget a recorded move, because the source lists the item where we copied
+   * it from again.
+   *
+   * The divergence is gone, so the queue entry has to go with it — including
+   * the acknowledgement, since there is no longer anything to have agreed to.
+   * An entry that outlived its cause would have people acting on a layout that
+   * had already been put back.
+   */
+  clearMove(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: 'email' | 'calendar' | 'contact' | 'file',
+    naturalKeyHash: string,
+  ): Promise<void>;
+  /** Recorded moves for a mapping — open ones first, then acknowledged. */
+  listMoves(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain?: 'email' | 'calendar' | 'contact' | 'file',
+  ): Promise<ItemMove[]>;
+  /**
+   * Apply an owner decision to one moved item.
+   *
+   * Returns false when there is no OPEN move under that key — it moved back, or
+   * someone already decided. Saying "not found" beats reporting a decision that
+   * did not happen.
+   */
+  resolveMove(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    naturalKeyHash: string,
+    action: MoveAction,
   ): Promise<boolean>;
 }
 
@@ -641,7 +721,29 @@ export interface ItemMove {
   readonly from: string;
   /** The source collection it is listed in now. */
   readonly to: string;
+  /**
+   * When the owner saw this move and chose to leave the target's layout alone.
+   *
+   * Absent while it is still open. A pass reports only OPEN moves, so
+   * acknowledging one genuinely quiets it — and a queue nobody can quiet is one
+   * people stop reading, which is how a real divergence goes unnoticed among
+   * ones somebody already decided about.
+   */
+  readonly acknowledgedAt?: string;
 }
+
+/** What an owner can decide about a move. See `Ledger.resolveMove`. */
+export type MoveAction =
+  /**
+   * Leave the target as it is and stop reporting this arrangement.
+   *
+   * The only action there is for now, and it changes nothing on either side —
+   * it records that a person looked. Making the target match the source means
+   * removing the copy from where it currently sits, which is the delete half of
+   * a move and forbidden outright by hard rule 2; that needs its own explicitly
+   * destructive path, with its own confirmation, and does not exist yet.
+   */
+  'keep';
 
 /**
  * Persists per-domain pre-sync discovery counts (workplan 0013 T2). One row per

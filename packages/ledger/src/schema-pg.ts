@@ -215,6 +215,16 @@ export const item = pgTable(
     // NULL = not known: rows written before migration 0020, and any source
     // that offers no version. See migration 0020.
     sourceVersion: text('source_version'),
+    // Where the SOURCE lists this item now, when that is no longer the
+    // collection we copied it from. NULL = not moved. `collection` above keeps
+    // pointing at where the TARGET's copy actually is, so the two together say
+    // "we put it here, the source has since put it there". See migration 0022.
+    movedToCollection: text('moved_to_collection'),
+    // When the owner saw the move and chose to leave the target's layout
+    // alone. NULL = still waiting on a decision. Cleared if the item moves
+    // again somewhere else: a decision about one layout is not consent to
+    // every future one.
+    moveAcknowledgedAt: timestamp('move_acknowledged_at', { withTimezone: true }),
     attemptCount: integer('attempt_count').notNull().default(0),
     lastError: text('last_error'),
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
@@ -230,6 +240,10 @@ export const item = pgTable(
     index('ix_item_status').on(t.tenantId, t.mappingId, t.status),
     index('ix_item_collection').on(t.tenantId, t.mappingId, t.domain, t.collection),
     index('ix_item_content').on(t.contentHash),
+    // Partial in the migration (WHERE moved_to_collection IS NOT NULL), which
+    // Drizzle cannot express here; declared so the column is indexed in the
+    // model too. See 0022.
+    index('ix_item_moved').on(t.tenantId, t.mappingId, t.domain),
   ],
 );
 
