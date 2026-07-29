@@ -41,7 +41,7 @@ import {
 import type { TargetReindexer } from '@openmig/shared';
 import { buildDeps, buildDomainDeps } from './build-deps';
 import { discoverDomains, type DomainDiscoveryTask, type DomainDiscoveryOutcome } from './discovery';
-import { log, metrics as registry, type PassMetrics } from '@openmig/shared';
+import { log, metrics as registry, MAX_ITEM_ATTEMPTS, type PassMetrics } from '@openmig/shared';
 
 /**
  * Feed one completed pass into the Prometheus registry (§19 dashboards).
@@ -66,6 +66,11 @@ function recordPassMetrics(
   // countable on its own in §19's dashboards.
   registry.itemsMigrated.inc({ ...labels, outcome: 'updated' }, outcome.updated ?? 0);
   registry.itemsFailed.inc(labels, outcome.failed);
+  // Parked failures are a GAUGE, not a counter: the question is "how many are
+  // waiting for me right now", and it goes down when someone acts. Counted
+  // per domain only — never per item, since the natural key of a file is a
+  // path and §17 keeps those out of a metrics store.
+  registry.itemsNeedingDecision.set(labels, outcome.needsDecision ?? 0);
 
   const m: PassMetrics | undefined = outcome.metrics;
   if (!m) return;
@@ -97,6 +102,10 @@ export interface DomainSyncResult {
    */
   changedButAdopted?: number;
   failed: number;
+  /** Failures that have run out of automatic retries and need an owner decision. */
+  needsDecision?: number;
+  /** Items the owner accepted leaving behind. */
+  leftBehind?: number;
   error?: string;
   /** Where this pass's wall time went; absent for a domain that did not run. */
   metrics?: PassMetrics;
@@ -300,6 +309,8 @@ export async function runAllDomains(
             updated: result.updated,
             changedButAdopted: result.changedButAdopted,
             failed: result.failed,
+            needsDecision: result.needsDecision,
+            leftBehind: result.leftBehind,
           };
         } finally {
           await deps.close();
@@ -317,6 +328,8 @@ export async function runAllDomains(
             updated: result.updated,
             changedButAdopted: result.changedButAdopted,
             failed: result.failed,
+            needsDecision: result.needsDecision,
+            leftBehind: result.leftBehind,
           };
         } finally {
           await deps.close();
@@ -334,6 +347,8 @@ export async function runAllDomains(
             updated: result.updated,
             changedButAdopted: result.changedButAdopted,
             failed: result.failed,
+            needsDecision: result.needsDecision,
+            leftBehind: result.leftBehind,
           };
         } finally {
           await deps.close();
@@ -353,6 +368,23 @@ export async function runAllDomains(
       // Only when there is something to say. These are items the source
       // changed and we deliberately did NOT change on the target, which is a
       // decision about the customer's own data (§11.2) — never a silence.
+      // The decision queue (§11.2). Loud, because these are the items that will
+      // NOT be at the target when the owner cuts over unless someone acts.
+      if (outcome.needsDecision) {
+        log.warn(
+          `[Worker] ${domain}: ${outcome.needsDecision} item(s) have failed ` +
+            `${MAX_ITEM_ATTEMPTS} times and are no longer being retried. Review them at ` +
+            'GET /failures, then either retry (once the cause is fixed) or accept ' +
+            'leaving them behind. Until then they count as missing on the target and ' +
+            'the §20 verification gate will say so.',
+        );
+      }
+      if (outcome.leftBehind) {
+        log.info(
+          `[Worker] ${domain}: ${outcome.leftBehind} item(s) skipped — previously accepted ` +
+            'as left behind by the owner.',
+        );
+      }
       if (outcome.changedButAdopted) {
         log.warn(
           `[Worker] ${domain}: ${outcome.changedButAdopted} item(s) changed on the source but ` +

@@ -159,8 +159,74 @@ curl -s http://127.0.0.1:8080/status | jq
 You get per-mapping, per-domain state derived from the ledger: `state`
 (pending/in_progress/completed/failed/skipped), `itemsSynced`, `itemsFailed`,
 `bytesTransferred`, `lastSyncedAt`, and `lastError` **verbatim** when a domain
-failed (nothing is masked). `/status` only ever surfaces those fields — it never
-echoes your config or credentials.
+failed (nothing is masked). Each domain also carries `itemsRetrying` and
+`itemsNeedingDecision` — see the next section. `/status` only ever surfaces
+those fields — it never echoes your config or credentials.
+
+## 7. Items that would not migrate
+
+A single item can fail for reasons that have nothing to do with the rest of the
+migration: a corrupt file, a message the source will not hand over, a calendar
+object the target rejects. **One such item does not stop its domain.** The pass
+records it, steps over it, and carries on; everything else keeps moving.
+
+Each failed item is retried automatically on the next few passes. Most failures
+are transient and resolve themselves. After **5 attempts** an item stops being
+retried and waits for you.
+
+```sh
+curl -s http://127.0.0.1:8080/failures | jq
+```
+
+You get two lists per mapping:
+
+- **`retrying`** — still being attempted on every pass. **No action needed.**
+- **`needsDecision`** — out of automatic attempts. These will **not** be on the
+  target when you cut over unless you act.
+
+Each entry carries `attempts`, `lastAttemptAt`, the server's error **verbatim**
+in `lastError`, and a `naturalKeyHash` that identifies the item. (The hash, not
+the file path or address — that identifier is enough to act on and keeps
+personal data out of a response you might paste into a ticket.)
+
+### What to do about one
+
+Read `lastError` first; it is the whole reason the queue exists. Then choose:
+
+**Retry** — you have fixed the cause (freed disk space, restored a permission,
+raised a quota):
+
+```sh
+curl -X POST http://127.0.0.1:8080/mappings/<mappingId>/failures/<naturalKeyHash>/retry
+```
+
+Attempts reset to zero and the item is tried again on the next scheduled pass.
+This also clears the mapping's sync cursors, so the next pass re-lists in full
+and the item is certain to be seen again. That costs one slower pass and
+nothing else — re-listing is idempotent, never a re-copy.
+
+**Accept (leave behind)** — the item cannot be migrated and you want to proceed
+without it:
+
+```sh
+curl -X POST http://127.0.0.1:8080/mappings/<mappingId>/failures/<naturalKeyHash>/accept
+```
+
+Permanent. The item stops being retried, and stops counting as missing at the
+verification gate — so it no longer blocks cutover. The ledger keeps the row and
+the error as the record of what you decided and why. Nothing is deleted from
+the source.
+
+**Do nothing** — fine for anything under `retrying`, and fine for
+`needsDecision` too if you are not ready. The items simply stay in the queue,
+and `GET /verify` keeps reporting them as missing on the target, which is
+accurate.
+
+> **A whole domain can still stop.** If 25 items fail in a row, the pass stops
+> with a clear error instead of failing every remaining item the same way. That
+> pattern means the problem is the connection, not the items — an expired
+> credential, a target that is down, a full disk. Fix that and the next pass
+> picks up where it left off.
 
 ## Backup (do this before every upgrade)
 

@@ -8,7 +8,7 @@
 import type { TenantId, MappingId } from '@openmig/shared';
 import { createPgDb } from './db';
 import * as schema from './schema-pg';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, ne } from 'drizzle-orm';
 
 /**
  * Port for reading verification data from the ledger.
@@ -78,7 +78,13 @@ export function createLedgerVerificationReader(
           and(
             eq(schema.item.tenantId, tenantId),
             eq(schema.item.mappingId, mappingId),
-            eq(schema.item.domain, domain)
+            eq(schema.item.domain, domain),
+            // Excluded: the owner explicitly accepted migrating without these
+            // (§11.2). Counting them as source items would report them missing
+            // on the target forever and block a cutover they already approved.
+            // Everything else — 'failed' included — still counts, because a
+            // failed item IS missing and the operator must see that.
+            ne(schema.item.status, 'left_behind')
           )
         );
       return result[0]?.count ?? 0;
@@ -94,7 +100,13 @@ export function createLedgerVerificationReader(
           and(
             eq(schema.item.tenantId, tenantId),
             eq(schema.item.mappingId, mappingId),
-            eq(schema.item.domain, domain)
+            eq(schema.item.domain, domain),
+            // Excluded: the owner explicitly accepted migrating without these
+            // (§11.2). Counting them as source items would report them missing
+            // on the target forever and block a cutover they already approved.
+            // Everything else — 'failed' included — still counts, because a
+            // failed item IS missing and the operator must see that.
+            ne(schema.item.status, 'left_behind')
           )
         );
       return result[0]?.total ?? 0;
@@ -112,7 +124,13 @@ export function createLedgerVerificationReader(
           and(
             eq(schema.item.tenantId, tenantId),
             eq(schema.item.mappingId, mappingId),
-            eq(schema.item.domain, domain)
+            eq(schema.item.domain, domain),
+            // Excluded: the owner explicitly accepted migrating without these
+            // (§11.2). Counting them as source items would report them missing
+            // on the target forever and block a cutover they already approved.
+            // Everything else — 'failed' included — still counts, because a
+            // failed item IS missing and the operator must see that.
+            ne(schema.item.status, 'left_behind')
           )
         )
         .orderBy(schema.item.naturalKeyHash)
@@ -135,7 +153,13 @@ export function createLedgerVerificationReader(
           and(
             eq(schema.item.tenantId, tenantId),
             eq(schema.item.mappingId, mappingId),
-            eq(schema.item.domain, domain)
+            eq(schema.item.domain, domain),
+            // Excluded: the owner explicitly accepted migrating without these
+            // (§11.2). Counting them as source items would report them missing
+            // on the target forever and block a cutover they already approved.
+            // Everything else — 'failed' included — still counts, because a
+            // failed item IS missing and the operator must see that.
+            ne(schema.item.status, 'left_behind')
           )
         );
       

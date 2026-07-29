@@ -1,5 +1,7 @@
 import type {
   CursorStore,
+  FailureAction,
+  ItemFailure,
   Ledger,
   LedgerRecord,
   MailFolder,
@@ -13,7 +15,7 @@ import type {
   TargetWriter,
   UpsertResult,
 } from '@openmig/shared';
-import { readMessageId } from '@openmig/shared';
+import { readMessageId, MAX_ITEM_ATTEMPTS } from '@openmig/shared';
 
 /** Seed shape for {@link MemorySource}. */
 export interface SeedMessage {
@@ -199,6 +201,75 @@ export class MemoryLedger implements Ledger {
     return Promise.resolve(merged);
   }
 
+  /**
+   * Insert-or-update on failure, matching `PgLedger.recordFailure`.
+   *
+   * The attempt COUNT is the point: a fake that no-opped on the second failure
+   * would let the loop's "park after N attempts" logic look correct while
+   * never parking anything.
+   */
+  recordFailure(record: LedgerRecord, error: string): Promise<LedgerRecord> {
+    const k = this.key(record);
+    const existing = this.rows.get(k);
+    // Mirrors PgLedger's ON CONFLICT set EXACTLY: on an existing row only the
+    // status, the attempt count and the error change.
+    //
+    // Everything else still describes what is actually on the target, and a
+    // failed attempt put nothing there. Overwriting `contentHash` with the
+    // hash of bytes we failed to write would make §20's checksum sampling
+    // compare the target against content it does not hold; overwriting
+    // `sourceVersion` would tell the next pass the update had landed.
+    const merged: LedgerRecord = existing
+      ? {
+          ...existing,
+          status: 'failed',
+          attemptCount: (existing.attemptCount ?? 0) + 1,
+          lastError: error,
+        }
+      : { ...record, status: 'failed', attemptCount: 1, lastError: error };
+    this.rows.set(k, merged);
+    return Promise.resolve(merged);
+  }
+
+  listFailures(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    domain?: LedgerRecord['itemType'],
+  ): Promise<ItemFailure[]> {
+    const out: ItemFailure[] = [];
+    for (const r of this.rows.values()) {
+      if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
+      if (r.status !== 'failed') continue;
+      if (domain && r.itemType !== domain) continue;
+      out.push({
+        domain: r.itemType,
+        naturalKeyHash: r.naturalKeyHash,
+        attempts: r.attemptCount ?? 0,
+        lastError: r.lastError ?? '(no error recorded)',
+        needsDecision: (r.attemptCount ?? 0) >= MAX_ITEM_ATTEMPTS,
+      });
+    }
+    return Promise.resolve(out);
+  }
+
+  resolveFailure(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    naturalKeyHash: string,
+    action: FailureAction,
+  ): Promise<boolean> {
+    for (const [k, r] of this.rows) {
+      if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
+      if (r.naturalKeyHash !== naturalKeyHash || r.status !== 'failed') continue;
+      this.rows.set(
+        k,
+        action === 'accept' ? { ...r, status: 'left_behind' } : { ...r, attemptCount: 0 },
+      );
+      return Promise.resolve(true);
+    }
+    return Promise.resolve(false);
+  }
+
   /** Test helper: number of rows. */
   size(): number {
     return this.rows.size;
@@ -236,8 +307,20 @@ export class MemoryCursorStore implements CursorStore {
     return Promise.resolve();
   }
 
-  /** Test helper: simulate a lost cursor store. */
-  clear(): void {
-    this.m.clear();
+  /**
+   * Drop cursors. Scoped to a mapping when told which — the operator RETRY
+   * path — and everything when not, which is the older test helper for
+   * simulating a lost cursor store.
+   */
+  clear(tenantId?: string, mappingId?: string): Promise<void> {
+    if (tenantId === undefined || mappingId === undefined) {
+      this.m.clear();
+      return Promise.resolve();
+    }
+    const prefix = `${tenantId}\u0000${mappingId}\u0000`;
+    for (const k of [...this.m.keys()]) {
+      if (k.startsWith(prefix)) this.m.delete(k);
+    }
+    return Promise.resolve();
   }
 }

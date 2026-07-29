@@ -43,6 +43,14 @@ const MAPPING = asMappingId('7f110000-e29b-41d4-a716-446655446602' as never);
 const emptyLedger = {
   find: async () => undefined,
   recordIfAbsent: async () => undefined,
+  // Per-item isolation records failures rather than throwing them; a stub
+  // without this made the loop fail with "recordFailure is not a function",
+  // which looks like the item's own error and is not.
+  recordFailure: async (r: unknown, error: string) => ({
+    ...(r as Record<string, unknown>),
+    attemptCount: 1,
+    lastError: error,
+  }),
 } as unknown as Ledger;
 
 const FOLDER: FileFolder = { path: 'docs', name: 'docs' };
@@ -188,23 +196,27 @@ describe('file content fetching', () => {
     };
     const { target, written } = recordingTarget(() => {});
 
-    // Aborts the pass rather than counting the item and moving on. That is the
-    // established contract for a SOURCE-side failure across every domain (the
-    // same shape as mail's refusal to treat a failed lookup as "not present"):
-    // the folder keeps its old cursor and the next pass re-scans from the same
-    // point. Nothing is recorded as migrated that was not.
-    await expect(
-      runFileSync({
-        tenantId: TENANT,
-        mappingId: MAPPING,
-        source,
-        target,
-        ledger: emptyLedger,
-        concurrency: 1,
-      } as never),
-    ).rejects.toThrow(/no content for docs\/file-0\.bin/);
+    // The item is FAILED, not substituted and not fatal.
+    //
+    // This used to assert that the whole pass rejected. Per-item isolation
+    // changed the blast radius, not the guarantee: what must never happen is
+    // an empty file being written and recorded as migrated, and that is what
+    // is asserted below. The pass now carries on so one unreadable file cannot
+    // hold up the other 1500, and the item is recorded with its verbatim error
+    // for the operator's queue.
+    const result = await runFileSync({
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      source,
+      target,
+      ledger: emptyLedger,
+      concurrency: 1,
+    } as never);
 
-    expect(written).toHaveLength(0);
+    expect(written, 'an empty file is data loss, not a recovery').toHaveLength(0);
+    expect(result.failed).toBe(1);
+    expect(result.created).toBe(0);
+    expect(result.failures[0]!.lastError).toMatch(/no content for docs\/file-0\.bin/);
   });
 
   it('still honours a source that does inline content, without re-fetching', async () => {

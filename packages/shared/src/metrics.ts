@@ -202,6 +202,12 @@ export const metrics = {
     'Work in flight during the last pass: sum of phase time over wall time. ' +
       'Approaches the configured concurrency when healthy; 1 means the pass ran serially.',
   ),
+  itemsNeedingDecision: new Gauge(
+    'openmigrate_items_needing_decision',
+    'Items that exhausted their automatic retries and are waiting on an owner ' +
+      'decision (retry, or accept leaving them behind). Non-zero means a cutover ' +
+      'would leave data behind.',
+  ),
   throttleEvents: new Counter(
     'openmigrate_throttle_events_total',
     'Times a target asked us to slow down (429/503/423), by domain.',

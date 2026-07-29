@@ -37,13 +37,32 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { execSync } from 'node:child_process';
 import { setTimeout } from 'node:timers/promises';
+import { fileNaturalKeyHash } from '@openmig/shared';
 
 const COMPOSE_FILE = 'deploy/selfhost/compose.yml';
 const SELFHOST_PORT = process.env.SELFHOST_PORT || '8081';
 const SELFHOST_BIND = process.env.SELFHOST_BIND || '127.0.0.1';
 
-const HEALTH_URL = `http://${SELFHOST_BIND}:${SELFHOST_PORT}/healthz`;
-const STATUS_URL = `http://${SELFHOST_BIND}:${SELFHOST_PORT}/status`;
+const BASE_URL = `http://${SELFHOST_BIND}:${SELFHOST_PORT}`;
+const HEALTH_URL = `${BASE_URL}/healthz`;
+const STATUS_URL = `${BASE_URL}/status`;
+const FAILURES_URL = `${BASE_URL}/failures`;
+
+/**
+ * The fixture the workflow plants to prove one bad item does not stop a domain:
+ * a FILE on the source at a path where the target already holds a DIRECTORY.
+ * Nextcloud refuses to replace a collection with a body, so this one item fails
+ * on the write, every pass, for a reason no retry can fix.
+ *
+ * Its natural key is its root-relative path, so the hash is computable here —
+ * which lets the assertions name the exact item rather than accepting whatever
+ * happens to have failed.
+ */
+const POISON_PATH = 'openmig-e2e-poison.txt';
+const POISON_HASH = fileNaturalKeyHash(POISON_PATH);
+/** The domain the fixture lands in, and how many failures it should produce. */
+const POISON_DOMAIN = 'file';
+const EXPECTED_FAILURES = 1;
 
 // Domains this gate proves restart-resume for — all four as of 2026-07-27. Comma-
 // separated override via E2E_DOMAINS lets a partial dispatch (e.g. while only
@@ -161,6 +180,25 @@ function describeTimeout(domain: string, wanted: string, status: DomainStatus | 
     `A domain still 'in_progress' with no lastSyncedAt has not finished a single pass — ` +
     `raise E2E_WAIT_MS rather than reading the item count as a result.`
   );
+}
+
+interface FailureEntry {
+  domain: string;
+  naturalKeyHash: string;
+  attempts: number;
+  lastError: string;
+  needsDecision: boolean;
+}
+
+/** Every unresolved failure for the first mapping, both buckets flattened. */
+function getFailures(): { mappingId: string; entries: FailureEntry[] } {
+  const body = JSON.parse(execSync(`curl -sf ${FAILURES_URL}`, { encoding: 'utf8' })) as Record<
+    string,
+    { needsDecision: FailureEntry[]; retrying: FailureEntry[] }
+  >;
+  const mappingId = Object.keys(body)[0]!;
+  const q = body[mappingId]!;
+  return { mappingId, entries: [...q.needsDecision, ...q.retrying] };
 }
 
 function getDomainStatus(domain: string): DomainStatus | null {
@@ -400,7 +438,98 @@ describe('Restart-Resume Idempotency Gate (T5)', () => {
       // zero duplicates (it re-read the source but every item was already present).
       console.log(`[e2e] ${domain} second pass: itemsSynced=${status!.itemsSynced} (first was ${firstPassSynced[domain]})`);
       expect(status!.itemsSynced).toBe(firstPassSynced[domain]);
-      expect(status!.itemsFailed).toBe(0);
+      // Exactly the failures the workflow PLANTED, and no others. Asserting a
+      // flat zero here would now be asserting that the poison fixture had not
+      // been seeded — the opposite of what this run is meant to prove.
+      expect(
+        status!.itemsFailed,
+        `${domain}: unexpected failures beyond the planted fixture`,
+      ).toBe(domain === POISON_DOMAIN ? EXPECTED_FAILURES : 0);
     }
   }, WAIT_MS * 2 + 120000);
+
+  /**
+   * One item that cannot migrate must not stop its domain — and the owner must
+   * be able to do something about it.
+   *
+   * This used to be impossible to observe here, because it did not happen: the
+   * sync loop rethrew on any item error and `mapWithConcurrency` is fail-fast,
+   * so a single unreadable item aborted the folder and therefore the whole
+   * pass, with the cursor unpersisted. The next pass redid the work and stopped
+   * in the same place. A corrupt file could hold a migration at zero
+   * indefinitely.
+   *
+   * The workflow plants exactly one such item (see "Seed an item that cannot
+   * migrate"): a file on the source at a path where the target already holds a
+   * directory. No retry can fix that, which is the point — it is the shape of
+   * failure that has to be survivable rather than merely retried.
+   *
+   * Runs LAST on purpose. It ends by ACCEPTING the item, which is what lets the
+   * §20 verification gate in the next workflow step come back clean: an
+   * accepted item is knowingly excluded rather than missing. That ordering is
+   * the whole feature in one line — a migration that would otherwise be blocked
+   * forever by one file becomes a cutover the owner consciously approved.
+   */
+  it('isolates an item that cannot migrate, and lets the owner resolve it', async () => {
+    // 1. INSIGHT. The queue names the item, how often it has been tried, and
+    //    what the server actually said.
+    const { mappingId, entries } = getFailures();
+    console.log(
+      `[e2e] failure queue: ${entries
+        .map((e) => `${e.domain}/${e.naturalKeyHash.slice(0, 12)} x${e.attempts} ` +
+          `(${e.needsDecision ? 'needs decision' : 'retrying'}): ${e.lastError.slice(0, 120)}`)
+        .join(' | ') || '(empty)'}`,
+    );
+
+    // Exactly the planted fixture — named by its own natural key, not "whatever
+    // happened to fail". An empty queue here means the fixture was never seeded,
+    // which would make everything below vacuous.
+    expect(
+      entries.map((e) => e.naturalKeyHash),
+      'the planted unmigratable item is missing from the failure queue',
+    ).toContain(POISON_HASH);
+    expect(entries, 'no failures beyond the planted fixture were expected').toHaveLength(
+      EXPECTED_FAILURES,
+    );
+
+    const poison = entries.find((e) => e.naturalKeyHash === POISON_HASH)!;
+    expect(poison.domain).toBe(POISON_DOMAIN);
+    expect(poison.attempts).toBeGreaterThanOrEqual(1);
+    // Verbatim, not a placeholder — this is what the operator decides on.
+    expect(poison.lastError.length, 'a failure with no reason is not actionable').toBeGreaterThan(0);
+
+    // 2. ISOLATION. The rest of the domain migrated anyway. This is the
+    //    assertion the old behaviour could never satisfy: before per-item
+    //    isolation, one poisoned item meant itemsSynced stayed at 0.
+    const fileStatus = getDomainStatus(POISON_DOMAIN)!;
+    expect(
+      fileStatus.itemsSynced,
+      'one unmigratable item must not stop the rest of its domain',
+    ).toBeGreaterThan(SEEDED_COUNT);
+    expect(fileStatus.state).toBe('completed');
+    console.log(
+      `[e2e] ${POISON_DOMAIN}: ${fileStatus.itemsSynced} items migrated alongside ` +
+        `${fileStatus.itemsFailed} that could not`,
+    );
+
+    // 3. DECISION. The item cannot be fixed, so accept it and move on.
+    const accept = `${BASE_URL}/mappings/${encodeURIComponent(mappingId)}/failures/${POISON_HASH}/accept`;
+    const body = execSync(`curl -sf -X POST ${accept}`, { encoding: 'utf8' });
+    console.log(`[e2e] accept -> ${body.trim()}`);
+    expect(body).toContain('"action":"accept"');
+
+    // The queue empties, and the domain stops reporting a failure — the item is
+    // now knowingly left behind rather than outstanding.
+    const after = getFailures();
+    expect(after.entries.map((e) => e.naturalKeyHash)).not.toContain(POISON_HASH);
+    expect(getDomainStatus(POISON_DOMAIN)!.itemsFailed).toBe(0);
+
+    // And it stays decided: a second attempt on the same item has nothing to
+    // act on, rather than silently reopening it.
+    const repeat = execSync(
+      `curl -s -o /dev/null -w '%{http_code}' -X POST ${accept}`,
+      { encoding: 'utf8' },
+    ).trim();
+    expect(repeat, 'an already-resolved item must not be resolvable twice').toBe('404');
+  }, 120000);
 });

@@ -68,7 +68,18 @@ describe('self-host /status secret hygiene (T4)', () => {
     expect(domain.itemsSynced).toBe(42);
     // The formatter exposes no unexpected keys on a domain report.
     expect(Object.keys(domain).sort()).toEqual(
-      ['bytesTransferred', 'domain', 'itemsFailed', 'itemsSynced', 'lastSyncedAt', 'state'].sort(),
+      [
+        'bytesTransferred',
+        'domain',
+        'itemsFailed',
+        // Counts of items in the failure queue. Numbers only — never the
+        // natural keys, which for the file domain are paths (§17).
+        'itemsNeedingDecision',
+        'itemsRetrying',
+        'itemsSynced',
+        'lastSyncedAt',
+        'state',
+      ].sort(),
     );
   });
 

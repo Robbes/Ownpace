@@ -198,6 +198,11 @@ export const item = pgTable(
         'adopted',
         'skipped',
         'failed',
+        // The owner saw a parked failure and chose to migrate without the
+        // item. Terminal: never retried, never reported as an open problem,
+        // and excluded from verification's "missing on target". See migration
+        // 0021.
+        'left_behind',
         'deleted_source',
         'tombstoned',
       ],
