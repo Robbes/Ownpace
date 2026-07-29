@@ -223,7 +223,7 @@ symmetrical, though, and the difference is worth telling people up front.
 |---|---|
 | Create items | Picks them up on the next pass. |
 | Edit items | Rewrites the target copy — unless the target copy is theirs, see below. |
-| Delete items | **Nothing.** Deletions are never propagated (§11.1), so the new system quietly becomes a fuller archive than the shrinking old one. |
+| Delete items | Nothing is removed from the target. It is **reported** at `GET /deletions` once it has vanished from several consecutive complete scans, and you decide. See below. |
 | Move items, rename folders | Detects and reports it; changes nothing. See the section above. |
 
 ### In the NEW system: browse freely, create freely, don't edit or delete ours
@@ -257,6 +257,44 @@ Two limits worth knowing:
 **Deletions on the target are not repaired**, deliberately: putting an item back
 that somebody deleted on purpose would be its own kind of destructive. It is
 reported instead, and the §20 gate will not pass a cutover with items missing.
+
+## Items the source no longer has
+
+The owner deleted something in the old system after it had been copied. The new
+system still has it.
+
+Nothing is removed here. §11.1 leaves lifecycle to the owner and hard rule 2
+forbids this tool deleting on a target — but neither says the owner may not
+decide, so the disappearance goes in a queue.
+
+| Where | What it tells you |
+|---|---|
+| `GET /deletions` | `confirmed`, `watching` and `acknowledged`, each with the collection it vanished from and `absentPasses` |
+| worker log | one warning per domain per pass, with a count |
+
+**`absentPasses` is the number to read.** We never observe a deletion — only an
+absence, and an absence has innocent explanations that all look identical: a
+folder briefly missing from discovery, a throttled listing, a permissions blip,
+a source connector having a bad ten minutes. An item is therefore *watched*
+until it has been missing from **two consecutive complete scans**, and only then
+reported. If it reappears the count resets to zero, because a run of absences
+only means something if it is unbroken.
+
+Two answers:
+
+- **keep** (`POST /mappings/{id}/deletions/{hash}/keep`) — you are happy for the
+  new system to keep its copy. This is the usual answer, and it is what the
+  architecture expects: the target becoming a fuller archive than the shrinking
+  source is a feature, not a fault.
+- **remove it yourself** — delete it in the target system, then `keep`. This
+  tool will not do it for you.
+
+Coverage today is the **file** domain, which is the one where absence can be
+established: a WebDAV collection can be enumerated cheaply and completely.
+Calendar and contacts will follow through the CalDAV/CardDAV `sync-collection`
+REPORT, which reports removals explicitly rather than by inference; mail needs
+its own mechanism. Until then, a deletion in those domains is simply not
+reported — a "not measured", not a "none found".
 
 ## Items someone moved on the source
 

@@ -586,6 +586,109 @@ describe('a file moved between source folders', () => {
     expect(second.moves[0]).toMatchObject({ from: '/', to: 'archive' });
   });
 
+  it('does not call one absence a deletion', async () => {
+    // We never observe a deletion, only an absence — and absence has innocent
+    // causes that all look identical: a folder briefly missing from discovery,
+    // a throttled listing, a connector having a bad ten minutes. Believing the
+    // first one is how a source with a bad afternoon becomes a queue full of
+    // deletions somebody might act on.
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    w.folders.set('a', [{ key: 'a/gone.txt', body: 'BYTES', version: 'e1' }]);
+    await w.run(ledger);
+
+    w.folders.set('a', []);
+    const second = await w.run(ledger);
+    expect(second.drift, 'the absence is observed').toBe(1);
+    expect(second.deletions, 'but not yet reported to anyone').toEqual([]);
+
+    // Twice in a row is the threshold.
+    const third = await w.run(ledger);
+    expect(third.deletions).toHaveLength(1);
+    expect(third.deletions[0]).toMatchObject({
+      domain: 'file',
+      naturalKeyHash: 'a/gone.txt',
+      collection: 'a',
+      confirmed: true,
+    });
+  });
+
+  it('resets the count when the item comes back, so the run must be CONSECUTIVE', async () => {
+    // Without the reset a flaky collection accumulates its way to "confirmed
+    // deleted" over a month of unrelated hiccups, none of them adjacent.
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    const file = { key: 'a/flaky.txt', body: 'BYTES', version: 'e1' };
+    w.folders.set('a', [file]);
+    await w.run(ledger);
+
+    w.folders.set('a', []);
+    await w.run(ledger);
+
+    // It reappears — a listing hiccup, not a deletion.
+    w.folders.set('a', [file]);
+    await w.run(ledger);
+    expect(await ledger.listDeletions(TENANT, MAPPING)).toEqual([]);
+
+    // Gone again: this is absence number one of a NEW run, not number two.
+    w.folders.set('a', []);
+    const after = await w.run(ledger);
+    expect(after.deletions, 'the earlier absence must not count towards this run').toEqual([]);
+  });
+
+  it('stops reporting once the owner has decided, and stays in the record', async () => {
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    w.folders.set('a', [{ key: 'a/gone.txt', body: 'BYTES', version: 'e1' }]);
+    await w.run(ledger);
+    w.folders.set('a', []);
+    await w.run(ledger);
+    await w.run(ledger);
+
+    expect(await ledger.resolveDeletion(TENANT, MAPPING, 'a/gone.txt', 'keep')).toBe(true);
+
+    const after = await w.run(ledger);
+    expect(after.deletions).toEqual([]);
+    // Quiet, not forgotten — §11.2 wants the decision on the record.
+    const recorded = await ledger.listDeletions(TENANT, MAPPING);
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0]!.acknowledgedAt).toBeDefined();
+  });
+
+  it('will not let anyone decide about an absence that is only being watched', async () => {
+    // Closing it early would retire the very check that makes the claim
+    // trustworthy.
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    w.folders.set('a', [{ key: 'a/gone.txt', body: 'BYTES', version: 'e1' }]);
+    await w.run(ledger);
+    w.folders.set('a', []);
+    await w.run(ledger);
+
+    expect(await ledger.resolveDeletion(TENANT, MAPPING, 'a/gone.txt', 'keep')).toBe(false);
+  });
+
+  it('never reports a MOVED item as deleted', async () => {
+    // The disappearance is explained. Reporting it in both queues would have
+    // the owner deciding twice about one event, with the deletions queue
+    // implying data loss that did not happen.
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    w.folders.set('a', [{ key: 'a/report.pdf', body: 'PDF', version: 'e1' }]);
+    w.folders.set('b', []);
+    await w.run(ledger);
+
+    w.folders.set('a', []);
+    w.folders.set('b', [{ key: 'b/report.pdf', body: 'PDF', version: 'e1' }]);
+    const second = await w.run(ledger);
+    const third = await w.run(ledger);
+
+    expect(second.moved).toBe(1);
+    expect(second.deletions).toEqual([]);
+    expect(third.deletions, 'still a move on the pass after, not a deletion').toEqual([]);
+    expect(await ledger.listDeletions(TENANT, MAPPING)).toEqual([]);
+  });
+
   it('stays silent on a cursor-limited pass, which cannot tell absence from unlisted', async () => {
     // THE dangerous false positive. An incremental listing returns only what
     // changed, so nearly every key the ledger holds looks absent — a routine

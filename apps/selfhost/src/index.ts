@@ -25,7 +25,7 @@ import { runMigrations, createPgDb, PgMigrationStatusStore, PgDiscoveryStore, Pg
 // hard rule 5.
 import { InProcessScheduler } from '@openmig/scheduler/in-process';
 import { runAllDomains, discoverAllDomains, verifyMapping } from '@openmig/worker/orchestration';
-import { SCOPE_MANIFEST, MAX_ITEM_ATTEMPTS } from '@openmig/shared';
+import { SCOPE_MANIFEST, MAX_ITEM_ATTEMPTS, DELETION_CONFIRMATIONS } from '@openmig/shared';
 import type { TenantId, MappingId, ScheduleHandle, DiscoveryRecord, FailureAction } from '@openmig/shared';
 import { loadConfigDir, type LoadedMapping } from './config-dir';
 import { buildStatusReport, type MappingStatusInput } from './status';
@@ -464,6 +464,94 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           };
         }
         return sendJson(res, 200, out);
+      }
+      // The deletions queue: items the SOURCE no longer has, which the target
+      // still holds. The third arm of §11.2's decision queue — /failures is
+      // "could not be copied", /moves is "the source put it somewhere else",
+      // this is "the source no longer has it at all".
+      //
+      // NOTHING HERE HAS BEEN REMOVED, and nothing will be without a separate,
+      // explicitly destructive action that does not exist yet. §11.1 says
+      // deletions are never auto-propagated and hard rule 2 forbids the tool
+      // deleting on its own; neither says the owner may not decide.
+      //
+      // `confirmed` is the number to read. An absence seen once has innocent
+      // explanations — a folder briefly missing from discovery, a throttled
+      // listing, a connector having a bad ten minutes — so an item is watched
+      // until it has vanished from several CONSECUTIVE complete scans before
+      // anyone is asked about it.
+      if (req.method === 'GET' && req.url === '/deletions') {
+        const out: Record<string, unknown> = {};
+        for (const m of mappings) {
+          const all = await ledger.listDeletions(
+            m.config.tenantId as TenantId,
+            m.mailboxMappingId as MappingId,
+          );
+          out[m.config.mappingId] = {
+            confirmed: all.filter((d) => d.confirmed && !d.acknowledgedAt),
+            // Not yet worth acting on, shown so the queue is not a black box.
+            watching: all.filter((d) => !d.confirmed && !d.acknowledgedAt),
+            acknowledged: all.filter((d) => d.acknowledgedAt),
+            whatThisMeans:
+              'The item is on the target. The source has stopped listing it, for ' +
+              `${DELETION_CONFIRMATIONS} or more consecutive complete scans. Nothing has been ` +
+              'removed from either side.',
+            howToResolve: {
+              keep:
+                `POST /mappings/{mappingId}/deletions/{naturalKeyHash}/keep — you are happy ` +
+                `for the new system to keep its copy; stop reporting this one. This is the ` +
+                `usual answer: the target becoming a fuller archive than the shrinking source ` +
+                `is a feature, not a fault.`,
+              byHand:
+                'To remove it from the target, delete it there yourself, then keep. This tool ' +
+                'never deletes on a target (hard rule 2).',
+              doNothing:
+                'An item that reappears on the source drops off this list by itself, and its ' +
+                'count resets — a run of absences has to be consecutive to mean anything.',
+            },
+          };
+        }
+        return sendJson(res, 200, out);
+      }
+      const deletionMatch =
+        req.method === 'POST' && req.url
+          ? /^\/mappings\/([^/]+)\/deletions\/([^/]+)\/(keep)$/.exec(req.url)
+          : null;
+      if (deletionMatch) {
+        await drain(req);
+        const id = decodeURIComponent(deletionMatch[1]!);
+        const hash = decodeURIComponent(deletionMatch[2]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+
+        const applied = await ledger.resolveDeletion(
+          m.config.tenantId as TenantId,
+          m.mailboxMappingId as MappingId,
+          hash,
+          'keep',
+        );
+        // False means there is no CONFIRMED, open absence under that key — it
+        // came back, it is still only being watched, or someone already decided.
+        if (!applied) {
+          return sendJson(res, 404, {
+            error: 'no confirmed, open disappearance under that natural key',
+            hint:
+              'It may have reappeared on the source, already been acknowledged, or not yet ' +
+              `been missing for ${DELETION_CONFIRMATIONS} consecutive scans.`,
+          });
+        }
+
+        log.info(
+          `[selfhost] ${m.config.mappingId}: operator chose 'keep' for vanished item ${hash.slice(0, 12)}`,
+        );
+        return sendJson(res, 200, {
+          status: 'ok',
+          action: 'keep',
+          naturalKeyHash: hash,
+          effect:
+            "Acknowledged. The target keeps its copy and this stops being reported unless the " +
+            'item reappears on the source and vanishes again.',
+        });
       }
       const moveMatch =
         req.method === 'POST' && req.url

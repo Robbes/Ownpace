@@ -234,9 +234,24 @@ The whole point of shadow sync is that nobody has to down tools. The two sides
 are not symmetrical, though, and it is worth telling whoever uses these accounts.
 
 **In the OLD system, do anything.** New mail, edited events, deleted files,
-reorganised folders — all handled. Deletions are never copied across, so the new
-system ends up a slightly fuller archive than the old one. Items you move are
-noticed and reported (`GET /moves`), never acted on.
+reorganised folders — all handled.
+
+Nothing you delete in the old system is deleted in the new one. Instead it is
+reported at `GET /deletions` once it has been missing from two consecutive
+complete scans, and you say what you want:
+
+```sh
+curl -s http://127.0.0.1:8080/deletions | jq
+curl -X POST http://127.0.0.1:8080/mappings/<mappingId>/deletions/<naturalKeyHash>/keep
+```
+
+"Keep" — the new system holds on to its copy — is the usual and expected answer.
+A migration target that is a slightly fuller archive than the shrinking source is
+working as designed. If you genuinely want something gone, delete it in the new
+system yourself; this tool never deletes on a target.
+
+Items you *move* are noticed and reported the same way (`GET /moves`), never
+acted on.
 
 **In the NEW system, before cutover:**
 

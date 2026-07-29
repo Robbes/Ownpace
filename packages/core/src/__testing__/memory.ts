@@ -3,6 +3,8 @@ import type {
   FailureAction,
   ItemFailure,
   ItemMove,
+  ItemDeletion,
+  DeletionAction,
   Ledger,
   LedgerRecord,
   MailFolder,
@@ -17,7 +19,7 @@ import type {
   TargetWriter,
   UpsertResult,
 } from '@openmig/shared';
-import { readMessageId, MAX_ITEM_ATTEMPTS } from '@openmig/shared';
+import { readMessageId, MAX_ITEM_ATTEMPTS, DELETION_CONFIRMATIONS } from '@openmig/shared';
 
 /** Seed shape for {@link MemorySource}. */
 export interface SeedMessage {
@@ -263,6 +265,8 @@ export class MemoryLedger implements Ledger {
       collection: string;
       movedToCollection?: string;
       moveAcknowledgedAt?: string;
+      absentPasses?: number;
+      deletionAcknowledgedAt?: string;
     }>
   > {
     const out: Array<{
@@ -271,6 +275,8 @@ export class MemoryLedger implements Ledger {
       collection: string;
       movedToCollection?: string;
       moveAcknowledgedAt?: string;
+      absentPasses?: number;
+      deletionAcknowledgedAt?: string;
     }> = [];
     for (const r of this.rows.values()) {
       if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
@@ -283,6 +289,10 @@ export class MemoryLedger implements Ledger {
         collection: r.collection,
         ...(r.movedToCollection ? { movedToCollection: r.movedToCollection } : {}),
         ...(r.moveAcknowledgedAt ? { moveAcknowledgedAt: r.moveAcknowledgedAt } : {}),
+        ...(r.absentPasses ? { absentPasses: r.absentPasses } : {}),
+        ...(r.deletionAcknowledgedAt
+          ? { deletionAcknowledgedAt: r.deletionAcknowledgedAt }
+          : {}),
       });
     }
     return Promise.resolve(out);
@@ -421,6 +431,90 @@ export class MemoryLedger implements Ledger {
         k,
         action === 'accept' ? { ...r, status: 'left_behind' } : { ...r, attemptCount: 0 },
       );
+      return Promise.resolve(true);
+    }
+    return Promise.resolve(false);
+  }
+
+  recordAbsent(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    domain: LedgerRecord['itemType'],
+    naturalKeyHash: string,
+  ): Promise<number> {
+    const k = this.key({ tenantId, mappingId, itemType: domain, naturalKeyHash });
+    const existing = this.rows.get(k);
+    if (!existing) return Promise.resolve(0);
+    const absentPasses = (existing.absentPasses ?? 0) + 1;
+    this.rows.set(k, { ...existing, absentPasses });
+    return Promise.resolve(absentPasses);
+  }
+
+  /**
+   * Mirrors `PgLedger.clearAbsent`, INCLUDING dropping the decision.
+   *
+   * A fake that reset only the count would leave a stale acknowledgement in
+   * place, which silently suppresses the report the NEXT time the item goes
+   * missing — the one case where the queue most needs to speak up.
+   */
+  clearAbsent(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    domain: LedgerRecord['itemType'],
+    naturalKeyHash: string,
+  ): Promise<void> {
+    const k = this.key({ tenantId, mappingId, itemType: domain, naturalKeyHash });
+    const existing = this.rows.get(k);
+    if (!existing || !existing.absentPasses) return Promise.resolve();
+    this.rows.set(k, { ...existing, absentPasses: 0, deletionAcknowledgedAt: undefined });
+    return Promise.resolve();
+  }
+
+  listDeletions(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    domain?: LedgerRecord['itemType'],
+  ): Promise<ItemDeletion[]> {
+    const out: ItemDeletion[] = [];
+    for (const r of this.rows.values()) {
+      if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
+      if (domain && r.itemType !== domain) continue;
+      if (!r.absentPasses) continue;
+      out.push({
+        domain: r.itemType,
+        naturalKeyHash: r.naturalKeyHash,
+        collection: r.collection ?? '',
+        absentPasses: r.absentPasses,
+        confirmed: r.absentPasses >= DELETION_CONFIRMATIONS,
+        ...(r.deletionAcknowledgedAt ? { acknowledgedAt: r.deletionAcknowledgedAt } : {}),
+      });
+    }
+    // Open first, then missing longest, then by key — PgLedger's ORDER BY
+    // exactly, tie-break included.
+    return Promise.resolve(
+      out.sort(
+        (a, b) =>
+          Number(a.acknowledgedAt !== undefined) - Number(b.acknowledgedAt !== undefined) ||
+          b.absentPasses - a.absentPasses ||
+          a.naturalKeyHash.localeCompare(b.naturalKeyHash),
+      ),
+    );
+  }
+
+  resolveDeletion(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    naturalKeyHash: string,
+    action: DeletionAction,
+  ): Promise<boolean> {
+    if (action !== 'keep') return Promise.resolve(false);
+    for (const [k, r] of this.rows) {
+      if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
+      if (r.naturalKeyHash !== naturalKeyHash) continue;
+      // CONFIRMED and open only, as in Postgres.
+      if ((r.absentPasses ?? 0) < DELETION_CONFIRMATIONS) continue;
+      if (r.deletionAcknowledgedAt) continue;
+      this.rows.set(k, { ...r, deletionAcknowledgedAt: new Date().toISOString() });
       return Promise.resolve(true);
     }
     return Promise.resolve(false);

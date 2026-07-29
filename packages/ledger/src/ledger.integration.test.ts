@@ -617,6 +617,84 @@ describe('PgLedger (integration)', () => {
       ).toBeUndefined();
     });
 
+    it('counts consecutive absences and confirms only past the threshold', async () => {
+      await ledger.recordIfAbsent(at('d-1', 'Q1', 'hd1'));
+      expect(await ledger.recordAbsent(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'd-1')).toBe(1);
+
+      let queue = await ledger.listDeletions(TEST_TENANT_ID, TEST_MAPPING_ID, 'file');
+      expect(queue[0]).toMatchObject({ absentPasses: 1, confirmed: false, collection: 'Q1' });
+
+      expect(await ledger.recordAbsent(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'd-1')).toBe(2);
+      queue = await ledger.listDeletions(TEST_TENANT_ID, TEST_MAPPING_ID, 'file');
+      expect(queue[0]).toMatchObject({ absentPasses: 2, confirmed: true });
+    });
+
+    it('resets the run — and any decision — when the item reappears', async () => {
+      await ledger.recordIfAbsent(at('d-2', 'Q1', 'hd2'));
+      await ledger.recordAbsent(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'd-2');
+      await ledger.recordAbsent(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'd-2');
+      await ledger.resolveDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'd-2', 'keep');
+
+      await ledger.clearAbsent(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'd-2');
+
+      expect(await ledger.listDeletions(TEST_TENANT_ID, TEST_MAPPING_ID, 'file')).toEqual([]);
+      // The acknowledgement goes with the count: a stale one would silently
+      // suppress the report the NEXT time this item vanishes.
+      const row = await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'd-2');
+      expect(row?.absentPasses).toBe(0);
+      expect(row?.deletionAcknowledgedAt).toBeUndefined();
+      // And the run starts again from one, not from three.
+      expect(await ledger.recordAbsent(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'd-2')).toBe(1);
+    });
+
+    it('will not let anyone decide about an absence that is only being watched', async () => {
+      await ledger.recordIfAbsent(at('d-3', 'Q1', 'hd3'));
+      await ledger.recordAbsent(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'd-3');
+      // One absence: watched, not confirmed. Closing it early would retire the
+      // check that makes the claim trustworthy.
+      expect(await ledger.resolveDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'd-3', 'keep')).toBe(
+        false,
+      );
+
+      await ledger.recordAbsent(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'd-3');
+      expect(await ledger.resolveDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'd-3', 'keep')).toBe(
+        true,
+      );
+      // Twice is not a second decision.
+      expect(await ledger.resolveDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'd-3', 'keep')).toBe(
+        false,
+      );
+    });
+
+    it('lists open disappearances ahead of decided ones, longest-missing first', async () => {
+      await ledger.recordIfAbsent(at('d-4', 'Q1', 'hd4'));
+      await ledger.recordIfAbsent(at('d-5', 'Q1', 'hd5'));
+      await ledger.recordIfAbsent(at('d-6', 'Q1', 'hd6'));
+      for (const k of ['d-4', 'd-5']) {
+        await ledger.recordAbsent(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', k);
+        await ledger.recordAbsent(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', k);
+      }
+      await ledger.recordAbsent(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'd-5');
+      await ledger.resolveDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'd-4', 'keep');
+
+      const queue = await ledger.listDeletions(TEST_TENANT_ID, TEST_MAPPING_ID, 'file');
+      // d-6 never vanished and must not appear at all. d-5 is open, so it comes
+      // before the decided d-4 — NULLS FIRST spelled out, because Postgres reads
+      // ASC as NULLS LAST and 0022 shipped exactly that bug.
+      expect(queue.map((d) => d.naturalKeyHash)).toEqual(['d-5', 'd-4']);
+      expect(queue[0]!.acknowledgedAt).toBeUndefined();
+      expect(queue[1]!.acknowledgedAt).toBeDefined();
+    });
+
+    it('will not let one tenant decide about another\'s disappearance', async () => {
+      await ledger.recordIfAbsent(at('d-7', 'Q1', 'hd7'));
+      await ledger.recordAbsent(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'd-7');
+      await ledger.recordAbsent(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'd-7');
+      expect(
+        await ledger.resolveDeletion(TEST_TENANT_2_ID, TEST_MAPPING_2_ID, 'd-7', 'keep'),
+      ).toBe(false);
+    });
+
     it('does not cross domains, mappings or tenants', async () => {
       await ledger.recordIfAbsent(at('c-10', 'Shared', 'h10'));
       await ledger.recordIfAbsent({ ...at('c-11', 'Shared', 'h11'), itemType: 'calendar' });
