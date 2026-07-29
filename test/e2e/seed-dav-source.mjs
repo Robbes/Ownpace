@@ -27,6 +27,15 @@ const baseUrl = (process.env.SEED_DAV_URL || 'http://127.0.0.1:8082').replace(/\
 const user = process.env.SEED_DAV_SOURCE_USER || 'e2e-source';
 const password = process.env.SEED_DAV_SOURCE_PASSWORD;
 const count = Number(process.env.SEED_COUNT || '5');
+/**
+ * Number the fixtures from `SEED_OFFSET + 1` instead of 1.
+ *
+ * The UIDs and filenames here are deliberately stable (`dav-seed-event-N`), so
+ * re-running against an already-seeded account adds nothing — every natural key
+ * is already known. Correct, and useless for testing whether NEW items get
+ * picked up during shadow sync. The offset is how the e2e drips new ones in.
+ */
+const offset = Number(process.env.SEED_OFFSET || '0');
 
 if (!password) {
   console.error('[seed-dav] SEED_DAV_SOURCE_PASSWORD is required');
@@ -210,15 +219,18 @@ async function seedRange(label, worker) {
   let next = 1;
   const runner = async () => {
     for (;;) {
-      const i = next++;
-      if (i > count) return;
-      await worker(i);
+      const n = next++;
+      if (n > count) return;
+      await worker(offset + n);
     }
   };
   await Promise.all(
     Array.from({ length: Math.min(SEED_CONCURRENCY, count) }, () => runner()),
   );
-  console.log(`[seed-dav] ${label}: ${count}/${count} PUT ok`);
+  console.log(
+    `[seed-dav] ${label}: ${count}/${count} PUT ok` +
+      (offset ? ` (numbered ${offset + 1}..${offset + count})` : ''),
+  );
 }
 
 async function main() {
