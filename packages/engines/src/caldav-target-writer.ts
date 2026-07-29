@@ -29,6 +29,7 @@ import {
   unescapeXml,
   sizeOf,
 } from './dav-multistatus';
+import { requestWithDavRetry } from './dav-retry';
 
 /**
  * Configuration for CalDAV target writer
@@ -530,21 +531,11 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
    */
   private async requestWithRetry(
     options: HttpRequestOptions,
-    attempts = 3,
-    backoffMs = 250,
   ): Promise<HttpResponse> {
-    let lastResponse: HttpResponse | undefined;
-    for (let attempt = 1; attempt <= attempts; attempt++) {
-      const response = await this.httpClient.request(options);
-      if (response.status < 500 || attempt === attempts) {
-        return response;
-      }
-      lastResponse = response;
-      await new Promise((resolve) => setTimeout(resolve, backoffMs * attempt));
-    }
-    // Unreachable in practice (the loop always returns on its last iteration), but keeps
-    // TypeScript happy about a guaranteed return value.
-    return lastResponse as HttpResponse;
+    // Shared with the other DAV writers and with the seed script's proven
+    // parameters — see dav-retry.ts for why 5 attempts with jitter, and why
+    // 423/429 count as transient alongside 5xx.
+    return requestWithDavRetry(() => this.httpClient.request(options));
   }
 
   private extractUidFromIcalendar(icalendar: string): string {
