@@ -27,6 +27,17 @@ export interface DomainDiscovery {
    */
   readonly generatedIdItems?: number;
   /**
+   * Items in collections that will be SKIPPED, and are therefore not part of
+   * `items`.
+   *
+   * Counted apart rather than folded in, because they are two different
+   * promises: `items` is what will be on the target, this is what deliberately
+   * will not. Nobody wants their new mailbox pre-loaded with mail they threw
+   * away — but that is a choice the owner makes at the confirm screen, and it
+   * can only be a choice if the number is in front of them.
+   */
+  readonly excludedItems?: number;
+  /**
    * Items the DESTINATION already holds for this domain, before we copy
    * anything. Omitted when the target could not be enumerated.
    *
@@ -59,6 +70,15 @@ export interface DiscoveryCollection {
   readonly bytes?: number;
   /** Items in this collection that will be given a generated Message-ID. */
   readonly generatedIdItems?: number;
+  /**
+   * Why this collection will NOT be migrated, when it will not be.
+   *
+   * Present with a human-readable reason — "Deleted Items", "Junk" — rather than
+   * a boolean, because the confirm screen has to say WHY. "We are leaving 1,240
+   * items behind" is alarming; "we are leaving 1,240 items in Deleted Items and
+   * Junk behind, tell us if you want them" is a decision.
+   */
+  readonly excluded?: string;
 }
 
 /** The four sync domains discovery covers. */

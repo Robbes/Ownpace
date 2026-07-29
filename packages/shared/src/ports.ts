@@ -1,6 +1,6 @@
 import type { TenantId, MappingId } from './ids';
 import type { DomainDiscovery, DiscoveryRecord, DiscoveryDomain } from './discovery';
-import type { MailFolder, MailItem, RawMessage, MailKeyword } from './mail';
+import type { MailFolder, MailItem, RawMessage, MailKeyword, SpecialUse } from './mail';
 import type { CalendarFolder, RawCalendarEvent } from './calendar';
 import type { ContactFolder, RawContact } from './contact';
 import type { FileFolder, FileItem, RawFileItem } from './file';
@@ -980,6 +980,17 @@ export interface ReconcileDeps {
   readonly concurrency?: number;
   /** What to do when the destination already holds the item; `'skip'` (adopt) by default. */
   readonly onCollision?: 'skip' | 'fail';
+  /**
+   * Mail folders to leave behind, by RFC 6154 special-use role.
+   *
+   * Absent means trash and junk (`DEFAULT_EXCLUDE_SPECIAL_USE`). Pass `[]` to
+   * migrate everything. See `MappingConfig.excludeSpecialUse` for why the
+   * default is what it is — and for the second reason to leave the trash behind:
+   * an item sitting in Deleted Items is explicit evidence the owner deleted it,
+   * which is far better than the absence-counting the deletions queue otherwise
+   * has to rely on.
+   */
+  readonly excludeSpecialUse?: ReadonlyArray<SpecialUse>;
 }
 
 /** Summary of a single shadow pass. */
@@ -1006,6 +1017,14 @@ export interface ReconcileResult {
   readonly moved?: number;
   /** Source items absent on a later pass (potential deletions) — logged, never propagated. */
   readonly drift: number;
+  /**
+   * Special-use mail folders that were present on the source and deliberately
+   * NOT migrated — trash and junk by default.
+   *
+   * Reported because quietly not copying someone's Deleted Items is the same
+   * class of failure as quietly copying it. Absent when nothing was skipped.
+   */
+  readonly excludedCollections?: ReadonlyArray<'inbox' | 'sent' | 'drafts' | 'archive' | 'junk' | 'trash' | 'normal'>;
 }
 
 /**

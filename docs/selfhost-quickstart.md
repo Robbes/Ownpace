@@ -126,6 +126,41 @@ drives/files — never fetching content) and stores the counts.
 
 ## 5. Review & confirm
 
+**One question worth answering before you start: should your Deleted Items and
+Junk come along?**
+
+By default they do **not**. Almost nobody wants a fresh mailbox pre-loaded with
+mail they threw away, and until this was asked the tool copied it anyway — not
+as a decision, just as what listing every folder did.
+
+The confirm screen shows what will be left behind and how many items are in it,
+so it is a choice rather than a surprise. If you keep Deleted Items as an
+archive, say so in the mapping:
+
+```yaml
+# Migrate everything, trash and junk included:
+excludeSpecialUse: []
+
+# Or just drop the spam, keep deleted mail:
+excludeSpecialUse: ['junk']
+```
+
+Accepted roles are the RFC 6154 ones: `inbox`, `sent`, `drafts`, `archive`,
+`junk`, `trash`, `normal`. A name that is not one of those is rejected at
+startup rather than silently ignored — a typo here would migrate exactly the
+thing you asked to leave behind.
+
+There is a second reason to leave the trash out, which matters later. Something
+sitting in Deleted Items is *proof* the owner deleted it. That is much better
+evidence than "it stopped appearing", which is all the deletions queue
+(§8 below) otherwise has to work from. Keeping the trash out of scope as content
+is what makes it usable as a signal.
+
+Mail only for now: calendars and address books have no trash in their listing,
+and the Nextcloud file trashbin lives at an endpoint the tool does not read.
+
+
+
 Open `http://127.0.0.1:8080/` in a browser (or over the LAN if you set
 `SELFHOST_BIND=0.0.0.0`). For each configured mapping you'll see the discovery
 counts as they land, next to the scope manifest — what migrates, what's

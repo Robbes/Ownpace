@@ -113,6 +113,12 @@ export async function buildDeps(config: MappingConfig): Promise<WithClose<Reconc
       cursors,
       concurrency,
       ...(config.onCollision ? { onCollision: config.onCollision } : {}),
+      // Absent leaves the default (trash + junk) in place, which is what almost
+      // every owner wants. An explicit [] means "migrate everything", which is
+      // legitimate for anyone who treats Deleted Items as an archive.
+      ...(config.excludeSpecialUse !== undefined
+        ? { excludeSpecialUse: config.excludeSpecialUse }
+        : {}),
     },
     db,
   );
@@ -433,6 +439,12 @@ export function buildDomainDeps(
       cursors,
       concurrency: domainConfig.concurrency ?? config.concurrency ?? DEFAULT_CONCURRENCY,
       ...(config.onCollision ? { onCollision: config.onCollision } : {}),
+      // Absent leaves the default (trash + junk) in place, which is what almost
+      // every owner wants. An explicit [] means "migrate everything", which is
+      // legitimate for anyone who treats Deleted Items as an archive.
+      ...(config.excludeSpecialUse !== undefined
+        ? { excludeSpecialUse: config.excludeSpecialUse }
+        : {}),
     },
     db,
   );
