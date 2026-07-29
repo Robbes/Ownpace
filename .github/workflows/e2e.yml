@@ -30,6 +30,11 @@ name: E2E (self-hosted)
 #   3. Build + start the self-host appliance (deploy/selfhost/compose.yml) with
 #      a mapping generated from the fixture and the source/target passwords —
 #      mail, calendar, contacts, and files domains all enabled.
+#   3b. PLANT one item that cannot migrate — a file on the source at a path where
+#      the target already holds a directory. Per-item failure isolation means the
+#      rest of the domain must migrate anyway; the gate then reads the failure
+#      queue, checks the reason is verbatim, and ACCEPTS the item so the §20
+#      verification gate that follows comes back clean.
 #   4. Run the Restart-Resume Idempotency Gate e2e for each domain: first pass
 #      syncs N → `docker compose restart app` → second pass must NOT grow itemsSynced.
 #
@@ -177,6 +182,40 @@ jobs:
           SEED_DAV_SOURCE_PASSWORD: ${{ env.SOURCE_DAV_PASSWORD }}
           SEED_COUNT: ${{ github.event.inputs.seed_count || '5' }}
         run: node test/e2e/seed-dav-source.mjs
+
+      # A fixture that CANNOT migrate, to prove one bad item does not stop its
+      # domain — and that the operator can then resolve it.
+      #
+      # The trick is a name collision the servers enforce for us: a FILE on the
+      # source at a path where the target already holds a DIRECTORY. The WebDAV
+      # writer's snapshot skips collections, so it does not adopt the directory;
+      # it attempts the PUT, and Nextcloud refuses to replace a collection with
+      # a body (405, which is not a transient status, so it fails immediately
+      # rather than burning retries).
+      #
+      # Chosen over the alternatives on purpose: a per-user quota would fail
+      # EVERY item and trip the systemic-failure guard, and a malformed fixture
+      # would just be rejected at seed time by the same server that has to store
+      # it. This one fails exactly one item, deterministically, on the write
+      # path, and is a genuinely realistic conflict.
+      - name: Seed an item that cannot migrate (per-item failure isolation)
+        run: |
+          set -euo pipefail
+          NC="http://127.0.0.1:${DEV_NEXTCLOUD_PORT}/remote.php/dav/files"
+          POISON="openmig-e2e-poison.txt"
+
+          # 1. A perfectly ordinary file on the SOURCE.
+          src_code="$(curl -s -o /dev/null -w '%{http_code}' -u "${NEXTCLOUD_SOURCE_USER}:${SOURCE_DAV_PASSWORD}" \
+            -X PUT --data-binary 'This file cannot be written to the target.' \
+            "${NC}/${NEXTCLOUD_SOURCE_USER}/${POISON}")"
+          echo "PUT source/${POISON} -> ${src_code}"
+          case "$src_code" in 201|204) ;; *) echo "could not seed the poison file"; exit 1;; esac
+
+          # 2. A DIRECTORY of the same name on the TARGET.
+          dst_code="$(curl -s -o /dev/null -w '%{http_code}' -u "${NEXTCLOUD_TARGET_USER}:${TARGET_DAV_PASSWORD}" \
+            -X MKCOL "${NC}/${NEXTCLOUD_TARGET_USER}/${POISON}")"
+          echo "MKCOL target/${POISON} -> ${dst_code}"
+          case "$dst_code" in 201|405) ;; *) echo "could not create the blocking directory"; exit 1;; esac
 
       - name: Prepare appliance config + secrets
         run: |
