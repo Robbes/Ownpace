@@ -268,14 +268,23 @@ describe('runDomainSync update propagation', () => {
       ensureCollection: async () => 'c1',
     });
 
-    await expect(boom).rejects.toThrow('target refused the write');
+    // Per-item isolation: the pass carries on and the item is recorded as
+    // failed. It used to reject; what matters here never changed.
+    const result = await boom;
+    expect(result.failed).toBe(1);
+    expect(result.updated).toBe(0);
+    expect(result.failures[0]!.lastError).toContain('target refused the write');
 
     // Still etag-1. Recording etag-2 here would tell the next pass the update
     // had landed, and the source edit would be lost until the item changed
-    // again.
+    // again — which is exactly why `recordFailure` does not store the version
+    // it failed on.
     const after = await ledger.find(TENANT, MAPPING, 'calendar', 'k1');
     expect(after?.sourceVersion).toBe('etag-1');
     expect(after?.contentHash).toBe('h:v1');
+    // And it is retryable rather than parked, after one attempt.
+    expect(after?.status).toBe('failed');
+    expect(after?.attemptCount).toBe(1);
   });
 
   it('is unchanged for a source that reports no version', async () => {

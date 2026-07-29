@@ -184,6 +184,34 @@ Erasure = **revoke access, then purge data + ledger + logs** for that tenant.
 > A dedicated, audited purge endpoint/job is the correct home for steps 1–3; until it exists,
 > perform them deliberately as the DB owner and record what was purged.
 
+## Items that would not migrate
+
+One unmigratable item does not stop its domain: the pass records it, steps over
+it and carries on. Failures are retried automatically for 5 attempts, then park
+and wait for a person.
+
+| Where | What it tells you |
+|---|---|
+| `GET /status` | `itemsRetrying` and `itemsNeedingDecision` per domain |
+| `GET /failures` | the queue itself, with `attempts` and the verbatim `lastError` |
+| `openmigrate_items_needing_decision` | Prometheus gauge; non-zero means a cutover would leave data behind |
+
+Three answers, per item:
+
+- **retry** (`POST /mappings/{id}/failures/{hash}/retry`) — the cause is fixed;
+  attempts reset and the mapping's cursors are cleared so the item is certainly
+  re-listed.
+- **accept** (`POST /mappings/{id}/failures/{hash}/accept`) — migrate without
+  it. Permanent, and it stops counting as missing at the §20 gate, so it no
+  longer blocks cutover. The row and its error remain as the audit trail.
+- **nothing** — items under `retrying` need no action; parked items stay
+  visible and keep the verification gate honest.
+
+A pass that hits **25 consecutive** failures stops instead: that pattern means
+the credential or the target is the problem, not the items.
+
+See `docs/selfhost-quickstart.md` §7 for the full walkthrough.
+
 ## Health & troubleshooting
 
 - **API/worker won't connect / RLS errors on every query:** confirm `APP_DATABASE_URL` is set and

@@ -18,6 +18,16 @@ export interface SyncCursor {
 export interface CursorStore {
   get(tenantId: TenantId, mappingId: MappingId, folderPath: string): Promise<SyncCursor | undefined>;
   set(tenantId: TenantId, mappingId: MappingId, folderPath: string, cursor: SyncCursor): Promise<void>;
+  /**
+   * Forget every cursor for a mapping, forcing the next pass to list in full.
+   *
+   * Exists for the operator RETRY action. A parked item does not hold the
+   * cursor back, so by the time someone decides to retry it the source may no
+   * longer be listing it as changed — and a retry that cannot re-read the item
+   * is not a retry. Cursors are non-authoritative (ADR-0020), so dropping them
+   * costs one full, still-idempotent re-scan and nothing else.
+   */
+  clear(tenantId: TenantId, mappingId: MappingId): Promise<void>;
 }
 
 /** A source mailbox the engine reads from. READ-ONLY. */
@@ -359,7 +369,41 @@ export interface LedgerRecord {
    * so nothing was written. Kept distinct from `'updated'`: both mean "not
    * created", but only this one says the destination account was not empty.
    */
-  readonly status?: 'pending' | 'copied' | 'updated' | 'adopted' | 'skipped' | 'failed' | 'deleted_source' | 'tombstoned';
+  readonly status?:
+    | 'pending'
+    | 'copied'
+    | 'updated'
+    | 'adopted'
+    | 'skipped'
+    | 'failed'
+    /**
+     * The owner saw a parked failure and chose to migrate without this item.
+     * Terminal: never retried, and verification counts it as knowingly
+     * excluded rather than missing. See migration 0021.
+     */
+    | 'left_behind'
+    | 'deleted_source'
+    | 'tombstoned';
+  /**
+   * How many times this item has been attempted and failed.
+   *
+   * Reset to 0 by an operator RETRY. Once it reaches `MAX_ITEM_ATTEMPTS` the
+   * item stops being retried automatically and waits for a decision — see
+   * `ItemFailure`.
+   */
+  readonly attemptCount?: number;
+  /**
+   * The last error, verbatim.
+   *
+   * The whole point of the failure queue: an operator cannot choose between
+   * retrying and accepting without knowing what the server actually said. Hard
+   * rule 9 — never mask errors — and per-item isolation only respects it if
+   * the error survives somewhere durable.
+   *
+   * Server-side only in the sense that it is never a metric LABEL (§17); it is
+   * ledger data and is exposed on the operator's own status surface.
+   */
+  readonly lastError?: string;
   /**
    * The SOURCE's own version marker for the item as we last copied it — a DAV
    * ETag, and nothing else today.
@@ -408,6 +452,81 @@ export interface Ledger {
    * never touched here (hard rule 1); only the facts about the copy are.
    */
   recordUpdate(record: LedgerRecord): Promise<LedgerRecord>;
+  /**
+   * Record that an item could not be migrated: bump `attempt_count`, store the
+   * verbatim error, and set status `failed`.
+   *
+   * Inserts when the item has never been recorded and updates when it has, so
+   * a second failure of the same item counts as a second attempt rather than a
+   * silent no-op (which is what `recordIfAbsent` would have done — leaving
+   * `attempt_count` at 1 forever and making a permanently broken item
+   * indistinguishable from one that failed once).
+   */
+  recordFailure(record: LedgerRecord, error: string): Promise<LedgerRecord>;
+  /** Unresolved failures for a domain, newest attempt first. */
+  listFailures(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain?: 'email' | 'calendar' | 'contact' | 'file',
+  ): Promise<ItemFailure[]>;
+  /**
+   * Apply an owner decision to one failed item.
+   *
+   * `'retry'` resets `attempt_count` so the next pass tries again; `'accept'`
+   * moves it to `left_behind` for good. Returns false when there is no failed
+   * row under that key — an already-resolved item must not silently look like
+   * a successful decision.
+   */
+  resolveFailure(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    naturalKeyHash: string,
+    action: FailureAction,
+  ): Promise<boolean>;
+}
+
+/** What an owner can do about an item that would not migrate (§11.2). */
+export type FailureAction = 'retry' | 'accept';
+
+/**
+ * Attempts before an item stops being retried automatically and waits for a
+ * person.
+ *
+ * Not 1: the great majority of item failures are transient (a locked SQLite
+ * target, a 503, a dropped connection), and the DAV/JMAP writers already
+ * retry those WITHIN a pass. Reaching this cap means the item survived that
+ * and failed on several separate passes, which is the signal that it is the
+ * item, not the weather.
+ *
+ * Not unbounded either: an item that can never be read costs a fetch attempt
+ * every pass forever, and — worse — keeps looking like something that might
+ * still fix itself. Parking it is what turns it into a question someone can
+ * answer.
+ */
+export const MAX_ITEM_ATTEMPTS = 5;
+
+/** One item that would not migrate, and what can be done about it. */
+export interface ItemFailure {
+  readonly domain: 'email' | 'calendar' | 'contact' | 'file';
+  /**
+   * The idempotency anchor, and the handle for `resolveFailure`.
+   *
+   * Opaque on purpose. The natural key itself is a Message-ID, an iCal UID or
+   * a FILE PATH, and §17 treats the last of those as personal data; the hash
+   * identifies the item for the two actions without putting a path into a
+   * response that may be logged or forwarded.
+   */
+  readonly naturalKeyHash: string;
+  readonly collection?: string;
+  readonly attempts: number;
+  /** Verbatim, so the operator can tell a 507 from a 403 from a parse error. */
+  readonly lastError: string;
+  readonly lastAttemptAt?: string;
+  /**
+   * False while the item is still being retried automatically; true once
+   * attempts have run out and it is waiting on a decision.
+   */
+  readonly needsDecision: boolean;
 }
 
 /**

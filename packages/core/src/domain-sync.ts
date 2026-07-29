@@ -10,8 +10,10 @@
 
 import {
   mapWithConcurrency,
+  MAX_ITEM_ATTEMPTS,
   type Ledger,
   type LedgerRecord,
+  type ItemFailure,
   type CursorStore,
   type UpsertResult,
   type UpsertOptions,
@@ -31,6 +33,21 @@ export type { PassMetrics };
  * config for a target known to tolerate more.
  */
 const DEFAULT_CONCURRENCY = 4;
+
+/**
+ * Consecutive item failures that stop the pass.
+ *
+ * Per-item isolation must not become "grind through 50 000 items with an
+ * expired token". A systemic fault fails everything identically, so a run of
+ * failures with no success between them is the cheapest available signal that
+ * the problem is the connection, not the items — and stopping keeps the
+ * failure queue readable and the ledger clean.
+ *
+ * 25 is comfortably above any plausible cluster of genuinely bad items in a
+ * healthy corpus, and small enough that a dead target costs seconds rather
+ * than the whole pass.
+ */
+const ABORT_AFTER_CONSECUTIVE_FAILURES = 25;
 
 /**
  * Wall-clock breakdown of one domain pass.
@@ -126,6 +143,22 @@ function reportPhases(phases: PhaseTiming, domain: string, scanned: number): voi
   );
 }
 
+/**
+ * A stop the loop asked for, as opposed to an item that failed.
+ *
+ * Per-item isolation catches everything a single item can throw, which would
+ * otherwise also swallow the two deliberate aborts: the `onCollision: 'fail'`
+ * policy, and the systemic-failure tripwire. Both mean "end this pass", and
+ * both would silently become a failure counter without a way to tell them
+ * apart from a bad item.
+ */
+export class PassAbortError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'PassAbortError';
+  }
+}
+
 /** Minimal folder interface - all domain folders have at least a path. */
 export interface FolderLike {
   readonly path?: string;
@@ -141,7 +174,13 @@ export type KnownItemAction =
   /** The source changed and we own the target copy: rewrite it. */
   | 'rewrite'
   /** The source changed but the target copy is the CUSTOMER'S: leave it. */
-  | 'leave-adopted';
+  | 'leave-adopted'
+  /** A previous attempt failed and it is still worth trying again. */
+  | 'retry-failed'
+  /** Attempts are exhausted; it is waiting on an owner decision. */
+  | 'needs-decision'
+  /** The owner decided to migrate without it. Terminal. */
+  | 'left-behind';
 
 /**
  * Decide what a later pass owes an item the ledger already knows.
@@ -170,11 +209,26 @@ export type KnownItemAction =
  * 5. **Versions differ, and we copied it → rewrite.** The only case that
  *    overwrites anything, and it only ever overwrites bytes this tool put
  *    there itself.
+ *
+ * Ahead of all of those sit the states where the item was never copied at all
+ * — `failed` and `left_behind` — because for those the version question does
+ * not arise. See the top of the function.
  */
 export function classifyKnownItem(
-  known: Pick<LedgerRecord, 'sourceVersion' | 'status'>,
+  known: Pick<LedgerRecord, 'sourceVersion' | 'status' | 'attemptCount'>,
   sourceVersion: string | undefined,
 ): KnownItemAction {
+  // FAILURE STATES FIRST. A row is not proof the item was migrated — it is only
+  // proof we have seen the item, and these three states mean we have NOT copied
+  // it. Treating them as "already done" is what made a failed item permanently
+  // invisible: it was recorded `failed`, and every later pass found the row on
+  // the fast-path and skipped it, so the item was never retried and never
+  // reported. Silent data loss with a green count next to it.
+  if (known.status === 'left_behind') return 'left-behind';
+  if (known.status === 'failed') {
+    return (known.attemptCount ?? 0) >= MAX_ITEM_ATTEMPTS ? 'needs-decision' : 'retry-failed';
+  }
+
   if (sourceVersion === undefined) return 'skip';
   if (known.sourceVersion === undefined) return 'record-version';
   if (known.sourceVersion === sourceVersion) return 'skip';
@@ -271,7 +325,6 @@ export interface DomainSyncResult {
    * before cutover, which is why it is counted apart from `skipped`.
    */
   readonly adopted: number;
-  readonly failed: number;
   /**
    * Items rewritten because the source version changed after we copied them —
    * the shadow-sync update path (§11.1, "the source is authoritative for
@@ -287,6 +340,29 @@ export interface DomainSyncResult {
    * decides about their own data.
    */
   readonly changedButAdopted: number;
+  /**
+   * Items that failed THIS pass and will be retried on the next one.
+   *
+   * A pass no longer aborts on the first of these: one unreadable item used to
+   * take its whole domain down with it, so a single corrupt file could stall a
+   * migration indefinitely while everything else sat ready to move.
+   */
+  readonly failed: number;
+  /**
+   * Items that have exhausted `MAX_ITEM_ATTEMPTS` and are waiting on an owner
+   * decision — retry, or accept and migrate without them (§11.2).
+   */
+  readonly needsDecision: number;
+  /** Items the owner has accepted leaving behind. Skipped, never retried. */
+  readonly leftBehind: number;
+  /**
+   * What failed and why, for the operator-facing queue.
+   *
+   * Carries the natural-key HASH, not the natural key: a file's natural key is
+   * its path, and §17 treats that as personal data. The hash is enough to
+   * target a retry or an accept.
+   */
+  readonly failures: ReadonlyArray<ItemFailure>;
   /** Source items absent on a later pass (potential deletions). */
   readonly drift: number;
   /**
@@ -340,6 +416,22 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   let failed = 0;
   // Rewritten because the source moved on after we copied them (§11.1).
   let updated = 0;
+  let needsDecision = 0;
+  let leftBehind = 0;
+  const failures: ItemFailure[] = [];
+  /**
+   * Consecutive failures, reset by any success.
+   *
+   * Per-item isolation is right for a bad ITEM and wrong for a bad WORLD. An
+   * expired credential, a target that is down, a full disk: those fail every
+   * item identically, and grinding through 50 000 of them produces 50 000
+   * identical ledger rows, 50 000 wasted round trips, and a failure queue no
+   * person can read. This is the tripwire that says "this is not the items".
+   *
+   * Approximate under concurrency — up to `concurrency` results can interleave
+   * — and deliberately so: it is a smoke alarm, not a measurement.
+   */
+  let consecutiveFailures = 0;
   // Changed on the source, but the target copy is the customer's own — left
   // alone by hard rule 2, and counted so that is a fact rather than a silence.
   let changedButAdopted = 0;
@@ -360,6 +452,17 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       // item. It carries the existing row, whose createdAt and identity the
       // update must preserve.
       let rewriteOf: LedgerRecord | undefined;
+      /**
+       * True when the ledger ALREADY has a row for this item, so a successful
+       * write has to UPDATE it rather than insert.
+       *
+       * `recordIfAbsent` no-ops on conflict. Without this, an item that failed
+       * and then succeeded on a later pass kept `status: 'failed'` forever: it
+       * would sit in the operator's queue after it had been migrated, and be
+       * retried on every subsequent pass — a permanent phantom failure over
+       * data that is safely on the target.
+       */
+      let hasExistingRow = false;
 
       // Ledger fast-path: already migrated -> usually skip without fetching.
       //
@@ -394,51 +497,87 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
             changedButAdopted += 1;
             return;
           }
-          rewriteOf = known;
+          if (action === 'left-behind') {
+            // The owner already decided. Nothing to do, and nothing to report
+            // as a problem — but counted, so "we are not copying 12 items" is
+            // never invisible.
+            leftBehind += 1;
+            return;
+          }
+          if (action === 'needs-decision') {
+            // Out of automatic attempts. Do NOT fetch it again: that is the
+            // whole point of parking, and re-reading a file that has failed
+            // five times costs a real download every pass.
+            needsDecision += 1;
+            failures.push({
+              domain,
+              naturalKeyHash: key,
+              attempts: known.attemptCount ?? MAX_ITEM_ATTEMPTS,
+              lastError: known.lastError ?? '(no error recorded)',
+              needsDecision: true,
+            });
+            return;
+          }
+          // 'retry-failed' falls through to the normal fetch-and-write path.
+          // 'rewrite' does too, but carries the row so the write knows to
+          // overwrite the target. Either way the ledger row already exists.
+          hasExistingRow = true;
+          if (action === 'rewrite') rewriteOf = known;
         }
       }
 
-      // Fetch raw data
-      const { raw, sizeBytes } = await timed(phases, 'fetchMs', () => fetchRaw(item));
-
-      if (naturalKeyHash === undefined) {
-        // The key could not be known from the listing, so derive it now. Mail
-        // with no Message-ID is keyed by a hash of its own bytes; that is only
-        // available once the message has been read.
-        if (!naturalKeyFromRaw) {
-          throw new Error(
-            `naturalKey returned undefined for a ${domain} item but no naturalKeyFromRaw was ` +
-              `supplied; refusing to write an item with no idempotency anchor.`,
-          );
-        }
-        naturalKeyHash = naturalKeyFromRaw(item, raw);
-
-        // Second fast-path check, now that we have a key. This is what keeps
-        // these items idempotent: a re-run pays the fetch again (unavoidable —
-        // the key is the content) but must not create a duplicate.
-        //
-        // No update-propagation branch here, and none is needed: for these
-        // items the key IS the content, so an item that changed necessarily
-        // has a different natural key and arrives as a new item rather than a
-        // changed one.
-        const derivedKey = naturalKeyHash;
-        const knownAfterFetch = await timed(phases, 'ledgerReadMs', () =>
-          ledger.find(tenantId, mappingId, domain, derivedKey),
-        );
-        if (knownAfterFetch) {
-          skipped += 1;
-          return;
-        }
-      }
-
-      // Hashed AFTER any key derivation, so for a message we rewrote this is
-      // the hash of the bytes we will actually write. The target stores what we
-      // wrote, and §20 checksum sampling compares against it.
-      const hashStart = phases ? performance.now() : 0;
-      const ch = contentHash(raw);
-      if (phases) phases.hashMs += performance.now() - hashStart;
-
+      // Everything from the fetch onward is inside the per-item boundary.
+      //
+      // The try used to start at the upsert, which left the most likely failure
+      // of all outside it: `fetchRaw` is where an unreadable source item, a
+      // 507, or a dropped connection actually surfaces. Isolating only the
+      // WRITE would have meant a corrupt file still aborted the whole pass —
+      // the exact bug this is meant to fix.
+      //
+      // `ch` is declared here so the catch can record whatever hash we managed
+      // to compute; on a fetch failure there is none, which is honest.
+      let ch = '';
       try {
+        // Fetch raw data
+        const { raw, sizeBytes } = await timed(phases, 'fetchMs', () => fetchRaw(item));
+
+        if (naturalKeyHash === undefined) {
+          // The key could not be known from the listing, so derive it now.
+          // Mail with no Message-ID is keyed by a hash of its own bytes; that
+          // is only available once the message has been read.
+          if (!naturalKeyFromRaw) {
+            throw new Error(
+              `naturalKey returned undefined for a ${domain} item but no naturalKeyFromRaw was ` +
+                `supplied; refusing to write an item with no idempotency anchor.`,
+            );
+          }
+          naturalKeyHash = naturalKeyFromRaw(item, raw);
+
+          // Second fast-path check, now that we have a key. This is what keeps
+          // these items idempotent: a re-run pays the fetch again (unavoidable
+          // — the key is the content) but must not create a duplicate.
+          //
+          // No update-propagation branch here, and none is needed: for these
+          // items the key IS the content, so an item that changed necessarily
+          // has a different natural key and arrives as a new item rather than
+          // a changed one.
+          const derivedKey = naturalKeyHash;
+          const knownAfterFetch = await timed(phases, 'ledgerReadMs', () =>
+            ledger.find(tenantId, mappingId, domain, derivedKey),
+          );
+          if (knownAfterFetch) {
+            skipped += 1;
+            return;
+          }
+        }
+
+        // Hashed AFTER any key derivation, so for a message we rewrote this is
+        // the hash of the bytes we will actually write. The target stores what
+        // we wrote, and §20 checksum sampling compares against it.
+        const hashStart = phases ? performance.now() : 0;
+        ch = contentHash(raw);
+        if (phases) phases.hashMs += performance.now() - hashStart;
+
         // Upsert on target (pass item for domain-specific metadata like keywords)
         // The version travels WITH the write. The writers record the ledger
         // row themselves and win the race (`recordIfAbsent` no-ops on
@@ -463,14 +602,18 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           ...(version !== undefined ? { sourceVersion: version } : {}),
         };
 
-        // A rewrite MUST go through recordUpdate: `recordIfAbsent` is a no-op
-        // on conflict, so the row would keep the old content hash and the old
-        // source version — and the next pass would see the same difference and
-        // rewrite the item again, forever.
+        // An item the ledger already knows MUST go through recordUpdate.
+        // `recordIfAbsent` is a no-op on conflict, which would leave the old
+        // state in place — the old content hash and source version for a
+        // rewrite, and `status: 'failed'` for an item that has just been
+        // retried successfully. Both make the next pass repeat the same work
+        // forever, and the second also keeps a migrated item sitting in the
+        // operator's failure queue.
         await timed(phases, 'ledgerWriteMs', () =>
-          rewriteOf ? ledger.recordUpdate(row) : ledger.recordIfAbsent(row),
+          hasExistingRow ? ledger.recordUpdate(row) : ledger.recordIfAbsent(row),
         );
 
+        consecutiveFailures = 0;
         if (rewriteOf) updated += 1;
         else if (result.created) created += 1;
         else if (result.adopted) {
@@ -478,7 +621,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           if (onCollision === 'fail') {
             // Thrown after the ledger row is written, so the item that stopped
             // the pass is identifiable afterwards rather than merely counted.
-            throw new Error(
+            throw new PassAbortError(
               `Collision on the destination for a ${domain} item, and onCollision is 'fail': ` +
                 'the target already holds an item under this natural key. Re-run with ' +
                 "onCollision: 'skip' to keep the destination's copy.",
@@ -486,36 +629,122 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           }
         } else skipped += 1;
       } catch (err) {
-        // Record failure - DO NOT swallow
-        failed += 1;
-        const error = err as Error;
-        
-        // Record failed item in ledger.
+        // ONE ITEM FAILED. The pass carries on.
         //
-        // `recordIfAbsent` on purpose, including on the rewrite path: when the
-        // rewrite is what failed, the row already exists and this is a no-op,
-        // so the OLD source version survives. That is what makes a failed
-        // rewrite retryable — recording the new version here would tell the
-        // next pass the update had landed.
-        await ledger.recordIfAbsent({
-          tenantId,
-          itemType: domain,
-          mappingId,
-          naturalKeyHash,
-          contentHash: ch,
-          targetId: '',
-          createdAt: new Date().toISOString(),
-          sizeBytes: 0,
-          status: 'failed',
+        // This used to rethrow, which `mapWithConcurrency` turns into a
+        // fail-fast abort of the whole folder and therefore the whole domain
+        // pass — with the cursor unpersisted, so the next pass redid all of it
+        // and stopped at the same item. One permanently unreadable file could
+        // hold an entire migration at zero indefinitely, and the operator's
+        // only signal was a stack trace in a container log.
+        //
+        // This is NOT masking the error (hard rule 9). The error is recorded
+        // verbatim on the item's own ledger row, counted, logged, returned in
+        // `failures`, and surfaced for a decision. Masking would be catching
+        // and continuing SILENTLY; what changes here is only the blast radius.
+        // A deliberate stop is not an item failure. `onCollision: 'fail'` asks
+        // for the pass to end, and swallowing it here would turn an explicit
+        // policy into a counter nobody set.
+        if (err instanceof PassAbortError) throw err;
+
+        failed += 1;
+        consecutiveFailures += 1;
+        const error = err as Error;
+        const reason = error?.message ?? String(err);
+
+        // No natural key means the fetch failed before one could be derived
+        // (mail with no Message-ID, keyed by its own bytes). There is no
+        // idempotency anchor, so there is no row to write and nothing for a
+        // retry or accept to target — but it must still be counted and said
+        // out loud rather than vanishing.
+        if (naturalKeyHash === undefined) {
+          log.warn(
+            `[sync] ${domain}: an item failed before its natural key could be derived, so it ` +
+              `cannot be tracked or retried individually: ${reason}`,
+          );
+          if (consecutiveFailures >= ABORT_AFTER_CONSECUTIVE_FAILURES) {
+            throw new PassAbortError(
+              `${domain}: ${consecutiveFailures} items failed in a row. Last error: ${reason}`,
+              { cause: err },
+            );
+          }
+          return;
+        }
+        // Captured so the closure below keeps the narrowing from the guard.
+        const failedKey = naturalKeyHash;
+
+        // `recordFailure`, not `recordIfAbsent`: the attempt COUNT is what
+        // eventually stops the retrying and hands the item to a person, and
+        // `recordIfAbsent` no-ops on an existing row — so a permanently broken
+        // item would have stayed at one attempt forever. It also deliberately
+        // does not store the source version, so a failed rewrite is retried
+        // rather than recorded as landed.
+        const row = await timed(phases, 'ledgerWriteMs', () =>
+          ledger.recordFailure(
+            {
+              tenantId,
+              itemType: domain,
+              mappingId,
+              naturalKeyHash: failedKey,
+              contentHash: ch,
+              targetId: '',
+              createdAt: new Date().toISOString(),
+              sizeBytes: 0,
+              status: 'failed',
+            },
+            reason,
+          ),
+        );
+
+        const attempts = row.attemptCount ?? 1;
+        const parked = attempts >= MAX_ITEM_ATTEMPTS;
+        if (parked) needsDecision += 1;
+        failures.push({
+          domain,
+          naturalKeyHash: failedKey,
+          attempts,
+          lastError: reason,
+          needsDecision: parked,
         });
 
-        // Re-throw to surface the error
-        throw error;
+        // Logged as well as recorded: the ledger is where it persists, the log
+        // is where an operator watching a run finds out at the time.
+        log.warn(
+          `[sync] ${domain}: item ${failedKey.slice(0, 12)} failed ` +
+            `(attempt ${attempts}/${MAX_ITEM_ATTEMPTS}): ${reason}` +
+            (parked ? ' — no further automatic retries; awaiting a decision' : ''),
+        );
+
+        // The bad-WORLD tripwire. Beyond this, "keep going" stops being
+        // resilience and becomes a way to turn one broken credential into tens
+        // of thousands of identical ledger rows.
+        if (consecutiveFailures >= ABORT_AFTER_CONSECUTIVE_FAILURES) {
+          throw new PassAbortError(
+            `${domain}: ${consecutiveFailures} items failed in a row, so this is not an ` +
+              `item-level problem — the pass is stopping instead of failing every remaining ` +
+              `item the same way. Last error: ${reason}`,
+            // The original is the diagnosis; this wrapper only says how many
+            // times it happened.
+            { cause: err },
+          );
+        }
       }
     });
 
-    // Persist cursor only after folder fully succeeded
-    if (cursors) {
+    // Persist the cursor only when nothing in this folder is still awaiting a
+    // RETRY.
+    //
+    // An incremental cursor means "do not show me these items again". Advancing
+    // it past an item that failed and is still retryable would retire the item
+    // silently: the next pass would not list it, so the retry the ledger is
+    // waiting for could never happen.
+    //
+    // Parked items (attempts exhausted) do NOT hold the cursor back — they are
+    // not being retried automatically, so re-listing them buys nothing. An
+    // operator RETRY therefore also clears the mapping's cursors, forcing the
+    // full re-list that puts the item back in front of the loop.
+    const retryablePending = failures.some((f) => !f.needsDecision);
+    if (cursors && !retryablePending) {
       await cursors.set(
         tenantId,
         mappingId,
@@ -535,6 +764,9 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     failed,
     updated,
     changedButAdopted,
+    needsDecision,
+    leftBehind,
+    failures,
     drift: 0,
     metrics: summarise(phases, scanned),
   };

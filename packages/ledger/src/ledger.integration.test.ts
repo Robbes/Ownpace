@@ -7,7 +7,7 @@ import { createPgDb } from './db';
 import { PgLedger } from './ledger';
 import { PgCursorStore } from './cursor-store';
 import type { LedgerRecord } from '@openmig/shared';
-import { asTenantId, asMappingId } from '@openmig/shared';
+import { asTenantId, asMappingId, MAX_ITEM_ATTEMPTS } from '@openmig/shared';
 import type { PgDatabase } from './db';
 
 // Connection string from Testcontainers (set by vitest.global-setup.ts)
@@ -306,6 +306,35 @@ describe('PgLedger (integration)', () => {
       expect(found?.contentHash).toBe('content-v1');
     });
 
+    it('preserves what is actually on the target when an attempt fails', async () => {
+      // A failed attempt wrote nothing. Overwriting `content_hash` with the
+      // hash of bytes that never landed would make §20's checksum sampling
+      // compare the target against content it does not hold, and overwriting
+      // `source_version` would tell the next pass the update had succeeded.
+      await ledger.recordIfAbsent(
+        base({ naturalKeyHash: 'hash-failed-rewrite', contentHash: 'on-target-v1' }),
+      );
+      await ledger.recordFailure(
+        base({
+          naturalKeyHash: 'hash-failed-rewrite',
+          contentHash: 'never-landed-v2',
+          sourceVersion: 'etag-2',
+        }),
+        'target refused the write',
+      );
+
+      const found = await ledger.find(
+        TEST_TENANT_ID,
+        TEST_MAPPING_ID,
+        'calendar',
+        'hash-failed-rewrite',
+      );
+      expect(found?.contentHash).toBe('on-target-v1');
+      expect(found?.sourceVersion).toBe('etag-1');
+      expect(found?.status).toBe('failed');
+      expect(found?.lastError).toBe('target refused the write');
+    });
+
     it('round-trips an absent source version as absent, not as an empty string', async () => {
       // "Never recorded" and "the server sent an empty ETag" mean different
       // things to `classifyKnownItem`: the first is a backfill, the second is
@@ -316,6 +345,97 @@ describe('PgLedger (integration)', () => {
       const found = await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'hash-no-version');
       expect(found).toBeDefined();
       expect(found?.sourceVersion).toBeUndefined();
+    });
+  });
+
+  /**
+   * The failure queue: per-item isolation only helps if the failures are
+   * durable, countable, and answerable.
+   */
+  describe('failure queue', () => {
+    const failing = (hash: string): LedgerRecord => ({
+      tenantId: TEST_TENANT_ID,
+      itemType: 'file',
+      mappingId: TEST_MAPPING_ID,
+      naturalKeyHash: hash,
+      contentHash: '',
+      targetId: '',
+      createdAt: new Date().toISOString(),
+    });
+
+    it('counts attempts across passes instead of no-opping', async () => {
+      // `recordIfAbsent` would leave this at one attempt forever, making a
+      // permanently broken item indistinguishable from one that failed once.
+      await ledger.recordFailure(failing('f-attempts'), 'boom 1');
+      await ledger.recordFailure(failing('f-attempts'), 'boom 2');
+      const third = await ledger.recordFailure(failing('f-attempts'), 'boom 3');
+
+      expect(third.attemptCount).toBe(3);
+      expect(third.lastError).toBe('boom 3');
+    });
+
+    it('parks an item once attempts run out', async () => {
+      for (let i = 0; i < MAX_ITEM_ATTEMPTS; i++) {
+        await ledger.recordFailure(failing('f-parked'), 'permanently unreadable');
+      }
+      const [parked] = await ledger.listFailures(TEST_TENANT_ID, TEST_MAPPING_ID, 'file');
+      expect(parked?.needsDecision).toBe(true);
+      expect(parked?.attempts).toBe(MAX_ITEM_ATTEMPTS);
+      expect(parked?.lastError).toBe('permanently unreadable');
+    });
+
+    it('retry makes it eligible again without pretending it succeeded', async () => {
+      for (let i = 0; i < MAX_ITEM_ATTEMPTS; i++) {
+        await ledger.recordFailure(failing('f-retry'), 'disk full');
+      }
+      expect(await ledger.resolveFailure(TEST_TENANT_ID, TEST_MAPPING_ID, 'f-retry', 'retry')).toBe(
+        true,
+      );
+
+      const found = await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'f-retry');
+      expect(found?.attemptCount).toBe(0);
+      // Still failed — it has become eligible, not successful.
+      expect(found?.status).toBe('failed');
+      // And the reason survives, because an audit trail without the reason is
+      // not an audit trail.
+      expect(found?.lastError).toBe('disk full');
+    });
+
+    it('accept takes it out of the queue for good', async () => {
+      await ledger.recordFailure(failing('f-accept'), 'source 404s forever');
+      expect(
+        await ledger.resolveFailure(TEST_TENANT_ID, TEST_MAPPING_ID, 'f-accept', 'accept'),
+      ).toBe(true);
+
+      const found = await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'f-accept');
+      expect(found?.status).toBe('left_behind');
+      const queue = await ledger.listFailures(TEST_TENANT_ID, TEST_MAPPING_ID, 'file');
+      expect(queue.map((f) => f.naturalKeyHash)).not.toContain('f-accept');
+
+      // Terminal: a second decision has nothing to act on.
+      expect(
+        await ledger.resolveFailure(TEST_TENANT_ID, TEST_MAPPING_ID, 'f-accept', 'retry'),
+      ).toBe(false);
+    });
+
+    it('will not resolve across tenants', async () => {
+      await ledger.recordFailure(failing('f-scoped'), 'boom');
+      expect(
+        await ledger.resolveFailure(TEST_TENANT_2_ID, TEST_MAPPING_2_ID, 'f-scoped', 'accept'),
+      ).toBe(false);
+      expect(
+        (await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'f-scoped'))?.status,
+      ).toBe('failed');
+    });
+
+    it('filters the queue by domain', async () => {
+      await ledger.recordFailure(failing('f-file'), 'boom');
+      await ledger.recordFailure({ ...failing('f-cal'), itemType: 'calendar' }, 'boom');
+
+      const files = await ledger.listFailures(TEST_TENANT_ID, TEST_MAPPING_ID, 'file');
+      expect(files.map((f) => f.naturalKeyHash)).toContain('f-file');
+      expect(files.map((f) => f.naturalKeyHash)).not.toContain('f-cal');
+      expect(await ledger.listFailures(TEST_TENANT_ID, TEST_MAPPING_ID)).toHaveLength(2);
     });
   });
 });

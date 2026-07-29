@@ -7,11 +7,13 @@
  * without a database.
  */
 
-import type { MigrationStatus, PassMetrics } from '@openmig/shared';
+import type { ItemFailure, MigrationStatus, PassMetrics } from '@openmig/shared';
 
 export interface MappingStatusInput {
   readonly mappingId: string;
   readonly statuses: readonly MigrationStatus[];
+  /** Unresolved item failures for this mapping, from the ledger. */
+  readonly failures?: readonly ItemFailure[];
 }
 
 export interface DomainStatusReport {
@@ -31,6 +33,19 @@ export interface DomainStatusReport {
    * because zero durations read as "instant" rather than "unknown".
    */
   readonly lastPass?: PassMetrics;
+  /**
+   * Items still being retried automatically. No action required — they are
+   * attempted again on every pass.
+   */
+  readonly itemsRetrying: number;
+  /**
+   * Items that have run out of retries and are waiting on an owner decision.
+   *
+   * Non-zero means a cutover now would leave data behind, so it is on the
+   * status payload rather than only on `/failures`: this is the number someone
+   * polling a migration has to see without being told to look elsewhere.
+   */
+  readonly itemsNeedingDecision: number;
 }
 
 export interface StatusReport {
@@ -44,18 +59,23 @@ export interface StatusReport {
 export function buildStatusReport(inputs: readonly MappingStatusInput[]): StatusReport {
   return {
     status: 'ok',
-    mappings: inputs.map(({ mappingId, statuses }) => ({
+    mappings: inputs.map(({ mappingId, statuses, failures = [] }) => ({
       mappingId,
-      domains: statuses.map((s) => ({
-        domain: s.domain,
-        state: s.state,
-        itemsSynced: s.itemsSynced,
-        itemsFailed: s.itemsFailed,
-        bytesTransferred: s.bytesTransferred,
-        ...(s.completedAt ? { lastSyncedAt: s.completedAt } : {}),
-        ...(s.lastError ? { lastError: s.lastError } : {}),
-        ...(s.lastPassMetrics ? { lastPass: s.lastPassMetrics } : {}),
-      })),
+      domains: statuses.map((s) => {
+        const mine = failures.filter((f) => f.domain === s.domain);
+        return {
+          domain: s.domain,
+          state: s.state,
+          itemsSynced: s.itemsSynced,
+          itemsFailed: s.itemsFailed,
+          bytesTransferred: s.bytesTransferred,
+          itemsRetrying: mine.filter((f) => !f.needsDecision).length,
+          itemsNeedingDecision: mine.filter((f) => f.needsDecision).length,
+          ...(s.completedAt ? { lastSyncedAt: s.completedAt } : {}),
+          ...(s.lastError ? { lastError: s.lastError } : {}),
+          ...(s.lastPassMetrics ? { lastPass: s.lastPassMetrics } : {}),
+        };
+      }),
     })),
   };
 }

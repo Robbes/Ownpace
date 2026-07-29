@@ -38,6 +38,21 @@ export class PgCursorStore implements CursorStore {
     return { value: result[0]!.cursorValue };
   }
 
+  /**
+   * Drop every cursor for a mapping so the next pass lists in full.
+   *
+   * Cursors are non-authoritative (ADR-0020): losing one forces a re-scan that
+   * is still idempotent, never a re-copy. That is what makes this safe to
+   * offer as an operator action.
+   */
+  async clear(tenantId: TenantId, mappingId: MappingId): Promise<void> {
+    await this.db
+      .delete(schemaPg.cursor)
+      .where(
+        and(eq(schemaPg.cursor.tenantId, tenantId), eq(schemaPg.cursor.mappingId, mappingId)),
+      );
+  }
+
   async set(
     tenantId: TenantId,
     mappingId: MappingId,

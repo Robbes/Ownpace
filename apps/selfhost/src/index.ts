@@ -19,14 +19,14 @@
  */
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
-import { runMigrations, createPgDb, PgMigrationStatusStore, PgDiscoveryStore, RunStore, withTenant } from '@openmig/ledger';
+import { runMigrations, createPgDb, PgMigrationStatusStore, PgDiscoveryStore, PgLedger, PgCursorStore, RunStore, withTenant } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
 import { InProcessScheduler } from '@openmig/scheduler/in-process';
 import { runAllDomains, discoverAllDomains, verifyMapping } from '@openmig/worker/orchestration';
-import { SCOPE_MANIFEST } from '@openmig/shared';
-import type { TenantId, MappingId, ScheduleHandle, DiscoveryRecord } from '@openmig/shared';
+import { SCOPE_MANIFEST, MAX_ITEM_ATTEMPTS } from '@openmig/shared';
+import type { TenantId, MappingId, ScheduleHandle, DiscoveryRecord, FailureAction } from '@openmig/shared';
 import { loadConfigDir, type LoadedMapping } from './config-dir';
 import { buildStatusReport, type MappingStatusInput } from './status';
 import { renderConfirmPage, type MappingConfirmView } from './confirm-page';
@@ -148,6 +148,9 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   const db = createPgDb(databaseUrl);
   const statusStore = new PgMigrationStatusStore(db);
   const discoveryStore = new PgDiscoveryStore(db);
+  // The failure queue's two reads and two writes (§11.2's "actions required").
+  const ledger = new PgLedger(db);
+  const cursorStore = new PgCursorStore(db);
   const scheduler = new InProcessScheduler();
   const handles: ScheduleHandle[] = [];
   // config mappingIds currently scheduled (only 'active' mappings run — 0013 T7).
@@ -352,7 +355,14 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             m.config.tenantId as TenantId,
             m.mailboxMappingId as MappingId,
           );
-          inputs.push({ mappingId: m.config.mappingId, statuses });
+          // Counted here rather than left to /failures, because /status is what
+          // anyone watching a migration actually polls. A run with items stuck
+          // in the queue must not look identical to one with none.
+          const failures = await ledger.listFailures(
+            m.config.tenantId as TenantId,
+            m.mailboxMappingId as MappingId,
+          );
+          inputs.push({ mappingId: m.config.mappingId, statuses, failures });
         }
         return sendJson(res, 200, buildStatusReport(inputs));
       }
@@ -369,6 +379,91 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           } as typeof m.config);
         }
         return sendJson(res, 200, reports);
+      }
+      // The failure queue: what could not be migrated, why, and how many times
+      // we tried. This is the INSIGHT half of §11.2's decision queue — the
+      // actions are the two POSTs below.
+      //
+      // Deliberately keyed by natural-key HASH rather than the natural key. A
+      // file's natural key is its path, which §17 treats as personal data, and
+      // this body may be piped into a ticket or a chat. The hash is all the
+      // two actions need.
+      if (req.method === 'GET' && req.url === '/failures') {
+        const out: Record<string, unknown> = {};
+        for (const m of mappings) {
+          const failures = await ledger.listFailures(
+            m.config.tenantId as TenantId,
+            m.mailboxMappingId as MappingId,
+          );
+          out[m.config.mappingId] = {
+            // Split rather than left for the reader to filter: they are
+            // different situations. One is still being worked on; the other is
+            // waiting on a person and will otherwise never move.
+            needsDecision: failures.filter((f) => f.needsDecision),
+            retrying: failures.filter((f) => !f.needsDecision),
+            howToResolve: {
+              retry:
+                `POST /mappings/{mappingId}/failures/{naturalKeyHash}/retry — the cause is ` +
+                `fixed; try again on the next pass. Also clears this mapping's cursors so the ` +
+                `item is certain to be listed again.`,
+              accept:
+                `POST /mappings/{mappingId}/failures/{naturalKeyHash}/accept — migrate ` +
+                `without it. Permanent: the item stops being retried and stops counting as ` +
+                `missing at the verification gate.`,
+              doNothing:
+                `Items under "retrying" need no action — they are attempted again on every ` +
+                `pass until ${MAX_ITEM_ATTEMPTS} attempts, then move to "needsDecision".`,
+            },
+          };
+        }
+        return sendJson(res, 200, out);
+      }
+      const failureMatch =
+        req.method === 'POST' && req.url
+          ? /^\/mappings\/([^/]+)\/failures\/([^/]+)\/(retry|accept)$/.exec(req.url)
+          : null;
+      if (failureMatch) {
+        await drain(req);
+        const id = decodeURIComponent(failureMatch[1]!);
+        const hash = decodeURIComponent(failureMatch[2]!);
+        const action = failureMatch[3] as FailureAction;
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+
+        const applied = await ledger.resolveFailure(
+          m.config.tenantId as TenantId,
+          m.mailboxMappingId as MappingId,
+          hash,
+          action,
+        );
+        // False means there is no FAILED row under that key — it succeeded in
+        // the meantime, or someone already decided. Saying "not found" beats
+        // reporting a decision that did not happen.
+        if (!applied) {
+          return sendJson(res, 404, {
+            error: 'no unresolved failure under that natural key',
+            hint: 'It may have succeeded on a later pass, or already been retried or accepted.',
+          });
+        }
+
+        if (action === 'retry') {
+          // A parked item does not hold the cursor back, so by now the source
+          // may not be listing it as changed. Cursors are non-authoritative
+          // (ADR-0020): dropping them costs one full, still-idempotent re-scan
+          // and guarantees the item is put back in front of the loop.
+          await cursorStore.clear(m.config.tenantId as TenantId, m.mailboxMappingId as MappingId);
+        }
+
+        log.info(`[selfhost] ${m.config.mappingId}: operator chose '${action}' for item ${hash.slice(0, 12)}`);
+        return sendJson(res, 200, {
+          status: 'ok',
+          action,
+          naturalKeyHash: hash,
+          effect:
+            action === 'retry'
+              ? 'Attempts reset and cursors cleared; the next scheduled pass will try again.'
+              : 'Left behind for good: no further retries, and excluded from the verification gate.',
+        });
       }
       if (req.method === 'GET' && req.url === '/discovery') {
         const out: Record<string, DiscoveryRecord[]> = {};
