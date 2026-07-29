@@ -7,7 +7,7 @@
  * without a database.
  */
 
-import type { MigrationStatus } from '@openmig/shared';
+import type { MigrationStatus, PassMetrics } from '@openmig/shared';
 
 export interface MappingStatusInput {
   readonly mappingId: string;
@@ -22,6 +22,15 @@ export interface DomainStatusReport {
   readonly bytesTransferred: number;
   readonly lastSyncedAt?: string;
   readonly lastError?: string;
+  /**
+   * Where the last completed pass spent its time — §19's "throughput" column.
+   *
+   * `/status` carried counts only, so it could say WHAT had moved but never
+   * HOW FAST, which is the question an operator watching a long migration
+   * actually has. Absent until a pass completes; never invented as zeros,
+   * because zero durations read as "instant" rather than "unknown".
+   */
+  readonly lastPass?: PassMetrics;
 }
 
 export interface StatusReport {
@@ -45,6 +54,7 @@ export function buildStatusReport(inputs: readonly MappingStatusInput[]): Status
         bytesTransferred: s.bytesTransferred,
         ...(s.completedAt ? { lastSyncedAt: s.completedAt } : {}),
         ...(s.lastError ? { lastError: s.lastError } : {}),
+        ...(s.lastPassMetrics ? { lastPass: s.lastPassMetrics } : {}),
       })),
     })),
   };

@@ -69,6 +69,25 @@ Edit `deploy/selfhost/.env`:
 
 `.env` is git-ignored; never commit a filled-in copy.
 
+### Metrics
+
+The appliance serves Prometheus metrics at **`GET /metrics`** on the same port as
+`/status` — items migrated and failed, bytes transferred, pass duration, per-item
+latency by phase, and `openmigrate_pass_overlap_ratio` (how much work was in
+flight; near 1 means the pass ran serially). Point a scrape at it, or read it
+with `curl`:
+
+```bash
+curl -s http://127.0.0.1:${SELFHOST_PORT:-8081}/metrics
+```
+
+`/status` also carries a `lastPass` block per domain with the same timings, if
+you would rather read JSON than set up a scraper.
+
+Metric labels are **tenant, mapping and domain identifiers only** — never
+addresses or folder names. Job metadata is personal data, and a metrics store
+has different retention and access than the migration ledger.
+
 ## 3. Add a mapping
 
 Every `*.json` under `deploy/selfhost/config/` is loaded and scheduled on

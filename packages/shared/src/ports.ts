@@ -559,6 +559,8 @@ export interface MigrationStatus {
   readonly updatedAt: string;
   readonly completedAt?: string;
   readonly lastError?: string;
+  /** Where the last completed pass spent its wall time. Absent until one has. */
+  readonly lastPassMetrics?: PassMetrics;
 }
 
 /**
@@ -566,6 +568,28 @@ export interface MigrationStatus {
  * State is maintained (pending/in_progress/completed/failed/skipped),
  * while item counts are DERIVED from the item ledger records.
  */
+/**
+ * Where one domain pass spent its wall time.
+ *
+ * Counts and durations only — NEVER folder names or addresses. §17 treats job
+ * metadata as personal data, and this is persisted for dashboards and exported
+ * as metrics, both of which have different retention than the ledger.
+ */
+export interface PassMetrics {
+  readonly items: number;
+  readonly wallMs: number;
+  readonly sourceFetchMs: number;
+  readonly targetWriteMs: number;
+  readonly ledgerMs: number;
+  readonly hashMs: number;
+  /**
+   * Sum of phase time over wall time — how much work was actually in flight.
+   * Approaches the configured concurrency when healthy; 1 means the pass ran
+   * serially, which is a configuration problem rather than a slow server.
+   */
+  readonly overlap: number;
+}
+
 export interface MigrationStatusStore {
   /**
    * Initialize domain status as 'pending' (idempotent).
@@ -581,7 +605,13 @@ export interface MigrationStatusStore {
   /**
    * Mark a domain sync as completed successfully.
    */
-  markCompleted(tenantId: TenantId, mappingId: MappingId, domain: 'email' | 'calendar' | 'contact' | 'file'): Promise<void>;
+  markCompleted(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: 'email' | 'calendar' | 'contact' | 'file',
+    /** Where this pass's time went, for §19's throughput dashboard. */
+    metrics?: PassMetrics,
+  ): Promise<void>;
 
   /**
    * Mark a domain sync as failed with an error.

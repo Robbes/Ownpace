@@ -3,6 +3,7 @@ import {
   type MigrationStatus,
   type TenantId,
   type MappingId,
+  type PassMetrics,
 } from '@openmig/shared';
 import type { PgDatabase } from './db';
 import { eq, and, sql } from 'drizzle-orm';
@@ -71,6 +72,7 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
     tenantId: TenantId,
     mappingId: MappingId,
     domain: 'email' | 'calendar' | 'contact' | 'file',
+    metrics?: PassMetrics,
   ): Promise<void> {
     await this.db
       .update(schemaPg.migrationStatus)
@@ -78,6 +80,10 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
         state: 'completed',
         completedAt: sql`now()`,
         updatedAt: sql`now()`,
+        // Only when the caller measured a pass. Writing nulls over a previous
+        // pass's numbers would blank the dashboard on any path that completes
+        // without measuring.
+        ...(metrics ? { lastPassMetrics: metrics } : {}),
       })
       .where(
         and(
@@ -167,6 +173,7 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
         schemaPg.migrationStatus.updatedAt,
         schemaPg.migrationStatus.completedAt,
         schemaPg.migrationStatus.lastError,
+        schemaPg.migrationStatus.lastPassMetrics,
       )
       .orderBy(schemaPg.migrationStatus.domain);
 
@@ -184,6 +191,9 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
       itemsSynced: Number(row.itemsSynced),
       itemsFailed: Number(row.itemsFailed),
       bytesTransferred: Number(row.bytesTransferred ?? 0),
+      ...(row.status.lastPassMetrics
+        ? { lastPassMetrics: row.status.lastPassMetrics as PassMetrics }
+        : {}),
       startedAt: row.status.startedAt instanceof Date
         ? row.status.startedAt.toISOString()
         : row.status.startedAt,

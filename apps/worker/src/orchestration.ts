@@ -41,7 +41,37 @@ import {
 import type { TargetReindexer } from '@openmig/shared';
 import { buildDeps, buildDomainDeps } from './build-deps';
 import { discoverDomains, type DomainDiscoveryTask, type DomainDiscoveryOutcome } from './discovery';
-import { log } from '@openmig/shared';
+import { log, metrics as registry, type PassMetrics } from '@openmig/shared';
+
+/**
+ * Feed one completed pass into the Prometheus registry (§19 dashboards).
+ *
+ * Labels are tenant/mapping ids and the fixed domain name ONLY. §17 treats
+ * addresses and folder names as personal data, and a metrics store has
+ * different retention and access than the ledger — `assertOpaqueLabel` in
+ * metrics.ts refuses anything that looks like either.
+ */
+function recordPassMetrics(
+  tenantId: string,
+  mappingId: string,
+  domain: SyncDomain,
+  outcome: DomainSyncResult,
+): void {
+  const labels = { tenant: tenantId, mapping: mappingId, domain };
+  registry.itemsMigrated.inc({ ...labels, outcome: 'created' }, outcome.created);
+  registry.itemsMigrated.inc({ ...labels, outcome: 'adopted' }, outcome.adopted);
+  registry.itemsMigrated.inc({ ...labels, outcome: 'skipped' }, outcome.skipped);
+  registry.itemsFailed.inc(labels, outcome.failed);
+
+  const m: PassMetrics | undefined = outcome.metrics;
+  if (!m) return;
+  registry.passDuration.observe(labels, m.wallMs / 1000);
+  registry.passOverlap.set(labels, Number(m.overlap.toFixed(3)));
+  if (m.items > 0) {
+    registry.itemDuration.observe({ ...labels, phase: 'source_fetch' }, m.sourceFetchMs / m.items / 1000);
+    registry.itemDuration.observe({ ...labels, phase: 'target_write' }, m.targetWriteMs / m.items / 1000);
+  }
+}
 
 export interface DomainSyncResult {
   domain: 'email' | 'calendar' | 'contact' | 'file';
@@ -52,6 +82,8 @@ export interface DomainSyncResult {
   adopted: number;
   failed: number;
   error?: string;
+  /** Where this pass's wall time went; absent for a domain that did not run. */
+  metrics?: PassMetrics;
 }
 
 export type SyncDomain = 'email' | 'calendar' | 'contact' | 'file';
@@ -266,7 +298,8 @@ export async function runAllDomains(
       }
 
       results.push(outcome);
-      await statusStore.markCompleted(tenantId, mappingId, domain);
+      await statusStore.markCompleted(tenantId, mappingId, domain, outcome.metrics);
+      recordPassMetrics(tenantId, mappingId, domain, outcome);
       // `adopted` is reported alongside the rest: a pass that created nothing
       // because the destination already held the data reads very differently
       // from one that created nothing because we had already migrated it.

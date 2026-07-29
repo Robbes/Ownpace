@@ -32,6 +32,7 @@ import { buildStatusReport, type MappingStatusInput } from './status';
 import { renderConfirmPage, type MappingConfirmView } from './confirm-page';
 import { startTransition } from './lifecycle';
 import { log } from '@openmig/shared';
+import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
 
 const DEFAULT_CONFIG_DIR = '/data/config';
 const DEFAULT_SCHEDULE = '*/15 * * * *'; // every 15 minutes if a mapping omits one
@@ -330,6 +331,16 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       }
       if (req.method === 'GET' && req.url === '/healthz') {
         return sendJson(res, 200, { status: 'ok' });
+      }
+      // Prometheus scrape target (§18 names Grafana/LGTM; §19 wants per-tenant
+      // dashboards). Plain text, not JSON, and deliberately unauthenticated in
+      // the same way /healthz is: the appliance binds to localhost by default
+      // (SELFHOST_BIND), and the body carries counts and durations only — no
+      // addresses, no folder names (§17).
+      if (req.method === 'GET' && req.url === '/metrics') {
+        res.writeHead(200, { 'content-type': METRICS_CONTENT_TYPE });
+        res.end(renderMetrics());
+        return;
       }
       if (req.method === 'GET' && req.url === '/scope-manifest') {
         return sendJson(res, 200, SCOPE_MANIFEST);
