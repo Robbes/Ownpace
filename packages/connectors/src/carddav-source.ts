@@ -18,6 +18,7 @@ import type { ContactSource, ContactFolder, RawContact, SyncCursor } from '@open
 import type { CardDAVSourceConfig, CardDAVSyncToken, CardDAVContactObject, CardDAVHomeSet as _CardDAVHomeSet, CardDAVCollection as _CardDAVCollection } from './carddav-source.types';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types';
 import { wellKnownUrl as buildWellKnownUrl } from './dav-http.types';
+import { parseRemovedHrefs } from './dav-removals';
 
 /**
  * CardDAV source connector implementation.
@@ -61,7 +62,11 @@ export class CarddavSource implements ContactSource {
   async listSince(
     folder: ContactFolder,
     cursor?: SyncCursor,
-  ): Promise<{ items: ReadonlyArray<RawContact>; nextCursor: SyncCursor }> {
+  ): Promise<{
+    items: ReadonlyArray<RawContact>;
+    nextCursor: SyncCursor;
+    removed?: ReadonlyArray<string>;
+  }> {
     if (!this.addressBookHomeSet) {
       await this.discoverAddressBookHomeSet();
     }
@@ -90,7 +95,16 @@ export class CarddavSource implements ContactSource {
       value: result.syncToken ? this.encodeSyncToken(result.syncToken) : (result.ctag ? this.encodeCTag(result.ctag, collectionPath) : ''),
     };
 
-    return { items, nextCursor };
+    // The cards the server said are GONE. Same href strings as
+    // `RawContact.item.sourcePath` (`obj.href`) by construction — see the longer
+    // note in `CalDAVSource.listSince` for why neither side may normalise them.
+    // Empty from the addressbook-query fallback, which reports what matches
+    // rather than what was removed.
+    return {
+      items,
+      nextCursor,
+      ...(result.removed.length > 0 ? { removed: result.removed } : {}),
+    };
   }
 
   // Private helper methods
@@ -267,7 +281,12 @@ export class CarddavSource implements ContactSource {
   private async syncCollection(
     collectionPath: string,
     cursor?: SyncCursor,
-  ): Promise<{ objects: CardDAVContactObject[]; syncToken?: string; ctag?: string }> {
+  ): Promise<{
+    objects: CardDAVContactObject[];
+    syncToken?: string;
+    ctag?: string;
+    removed: string[];
+  }> {
     // Build sync-collection REPORT
     let syncToken: string | undefined;
     let ctag: string | undefined;
@@ -313,7 +332,12 @@ export class CarddavSource implements ContactSource {
     // non-authoritative — a lost/absent cursor just forces a full, still-idempotent
     // re-scan via the ledger's natural-key fast-path.
     const { objects } = await this.addressbookQueryAll(collectionPath);
-    return { objects, syncToken: undefined, ctag: undefined };
+    // No removal reports from this path, and `[]` here says exactly that.
+    // addressbook-query answers "everything that matches", so a deleted card is
+    // simply not in the response — the absence-counting path, not this one. A
+    // collection on this fallback therefore never produces a REPORTED deletion,
+    // which is the honest answer: the server never told us anything was gone.
+    return { objects, syncToken: undefined, ctag: undefined, removed: [] };
   }
 
   /**
@@ -495,7 +519,13 @@ export class CarddavSource implements ContactSource {
   /**
    * Parse sync-collection REPORT response.
    */
-  private parseSyncCollectionResponse(body: string): { objects: CardDAVContactObject[]; syncToken?: string; ctag?: string } {
+  private parseSyncCollectionResponse(body: string): {
+    objects: CardDAVContactObject[];
+    syncToken?: string;
+    ctag?: string;
+    /** Hrefs the server reported as gone (RFC 6578). See `dav-removals.ts`. */
+    removed: string[];
+  } {
     const objects: CardDAVContactObject[] = [];
     let syncToken: string | undefined;
     let ctag: string | undefined;
@@ -546,7 +576,11 @@ export class CarddavSource implements ContactSource {
       }
     }
 
-    return { objects, syncToken, ctag };
+    // RFC 6578 removal reports. Both sources have been issuing a
+    // `sync-collection` REPORT and dropping these on the floor, which meant the
+    // strongest deletion signal available anywhere in the product arrived on
+    // every incremental pass and was discarded.
+    return { objects, syncToken, ctag, removed: parseRemovedHrefs(body) };
   }
 
   /**

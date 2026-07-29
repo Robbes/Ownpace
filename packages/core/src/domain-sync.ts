@@ -17,6 +17,7 @@ import {
   type ItemMove,
   type ItemDeletion,
   DELETION_CONFIRMATIONS,
+  isOnTarget,
   type CursorStore,
   type UpsertResult,
   type UpsertOptions,
@@ -304,7 +305,29 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
   /** List folders on the source */
   readonly listFolders: () => Promise<ReadonlyArray<Folder>>;
   /** List items in a folder since a cursor */
-  readonly listSince: (folder: Folder, cursor?: { readonly value: string }) => Promise<{ items: ReadonlyArray<Item>; nextCursor: { readonly value: string } }>;
+  readonly listSince: (
+    folder: Folder,
+    cursor?: { readonly value: string },
+  ) => Promise<{
+    items: ReadonlyArray<Item>;
+    nextCursor: { readonly value: string };
+    /**
+     * Source refs the server REPORTED as removed on this poll.
+     *
+     * The one deletion signal in this product that is not an inference. RFC 6578
+     * `sync-collection` answers an incremental CalDAV/CardDAV poll with the
+     * changed objects and the removed ones, the latter as an href plus a 404 —
+     * and both connectors have been issuing that REPORT and discarding this half
+     * of the answer since they were written.
+     *
+     * Matched back to items through `Ledger.findBySourceRef`, because a removed
+     * object has no body left to read a UID out of. Empty or absent means the
+     * server reported none, which is NOT the same as "nothing was deleted": a
+     * full listing has no removals to report, and a source that does not speak
+     * sync-collection never fills this in at all.
+     */
+    removed?: ReadonlyArray<string>;
+  }>;
   /** Fetch raw data for an item */
   readonly fetchRaw: (item: Item) => Promise<{ raw: unknown; sizeBytes: number }>;
   /**
@@ -547,6 +570,15 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   const moves: ItemMove[] = [];
   const deletions: ItemDeletion[] = [];
   let drift = 0;
+  /**
+   * Source refs the server said are gone, gathered across every folder.
+   *
+   * Resolved after the whole pass rather than per folder — see the note where
+   * they are collected. Refs (DAV hrefs), because a removed object has no body
+   * left and therefore no UID: the natural key has to be recovered from the
+   * ledger row that recorded the href at copy time.
+   */
+  const reportedRemovals: string[] = [];
 
   /**
    * Every natural key this pass actually SAW, per source collection.
@@ -595,9 +627,17 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // cheaper price than two subtly different names for the same collection.
     const collectionPath = folder.path ? folder.path : folder.name ? folder.name : '/';
     const prev = cursors ? await cursors.get(tenantId, mappingId, collectionPath) : undefined;
-    const { items, nextCursor } = await listSince(folder, prev);
+    const { items, nextCursor, removed } = await listSince(folder, prev);
     const seenHere = seenByCollection.get(collectionPath) ?? new Set<string>();
     seenByCollection.set(collectionPath, seenHere);
+
+    // Set aside, NOT acted on here. Resolving a removal report needs to know
+    // whether the same item turned up anywhere else in this pass — a UID moved
+    // between two calendars is reported as a removal from the first and an
+    // arrival in the second — and that is only knowable once every folder has
+    // been listed. Acting per folder would report a move as a deletion whenever
+    // the destination happened to be listed later.
+    for (const href of removed ?? []) reportedRemovals.push(href);
 
     // Seed the seen-set with everything the collection holds, so a
     // cursor-limited pass still knows what is THERE and not only what changed.
@@ -657,6 +697,25 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           ledger.find(tenantId, mappingId, domain, key),
         );
         if (known) {
+          // THE ITEM IS HERE. Whatever else is true about it, any claim that it
+          // had disappeared is now false, and that claim is the most dangerous
+          // thing in the ledger to leave stale: `deletionReportedAt` is the
+          // source's own word that an item is gone, which is the one piece of
+          // evidence strong enough to ever act on.
+          //
+          // A UID really does come back — a declined invitation re-sent, a
+          // contact restored from a phone, a calendar re-subscribed — and it
+          // comes back with the same natural key. Cleared BEFORE the branching
+          // below, because the `moved` and `left-behind` branches both return
+          // early and an item can be moved and previously-missing at once.
+          //
+          // Guarded, so a healthy corpus pays nothing: on rows that never went
+          // missing this is a comparison, not a write.
+          if (known.absentPasses || known.deletionReportedAt !== undefined) {
+            await timed(phases, 'ledgerWriteMs', () =>
+              ledger.clearAbsent(tenantId, mappingId, domain, key),
+            );
+          }
           const action = classifyKnownItem(known, version, collectionPath);
           if (action === 'moved') {
             // The source shows this item somewhere else. Do NOTHING to the
@@ -1027,6 +1086,28 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     }
   }
 
+  // What the SOURCE said outright, which likewise can only be resolved once
+  // every folder has been listed — a UID moved between two collections is a
+  // removal from one and an arrival in the other.
+  //
+  // Deliberately NOT gated on `fullyEnumerated`. That gate exists because
+  // absence-based detection needs a complete key set to mean anything; a removal
+  // report needs nothing of the kind. The server named the object. An incomplete
+  // listing cannot make that untrue, and refusing to believe it on an
+  // incremental pass would discard the signal on every pass that has a cursor —
+  // which in production is all of them but the first.
+  if (reportedRemovals.length > 0) {
+    const reported = await resolveReportedRemovals({
+      tenantId,
+      mappingId,
+      domain,
+      ledger,
+      removals: reportedRemovals,
+      seenByCollection,
+    });
+    deletions.push(...reported);
+  }
+
   // The path-keyed half, which can only run once every folder has been listed.
   if (domain === 'file' && fullyEnumerated) {
     const found = await detectPathKeyedMoves({
@@ -1044,6 +1125,23 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   }
 
   reportPhases(phases, domain, scanned);
+  const reportedCount = deletions.filter((d) => d.evidence === 'reported').length;
+  if (reportedCount > 0) {
+    // Said out loud because this is the strongest claim the pass can make, and
+    // nothing acts on it: the target keeps its copy until a person decides
+    // (§11.1 — deletions are never auto-propagated). Hash prefixes and counts
+    // only; the collections travel in `deletions`, which goes to the operator's
+    // own status surface rather than a container log (§17).
+    log.warn(
+      `[sync] ${domain}: the source reported ${reportedCount} item(s) as deleted. Nothing was ` +
+        'removed from the target — the owner decides whether their copy goes too. First: ' +
+        deletions
+          .filter((d) => d.evidence === 'reported')
+          .slice(0, 5)
+          .map((d) => d.naturalKeyHash.slice(0, 12))
+          .join(', '),
+    );
+  }
   if (moved > 0) {
     // Hash prefixes and counts only. The paths themselves travel in `moves`,
     // which goes to the operator's own status surface; a container log is
@@ -1077,6 +1175,97 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     drift,
     metrics: summarise(phases, scanned),
   };
+}
+
+/**
+ * Turn the server's own removal reports into deletions on the ledger.
+ *
+ * The only place in this product where a deletion is KNOWN rather than suspected.
+ * Everywhere else an item is presumed gone because it stopped appearing, which
+ * has innocent causes that all look identical; here the source answered an
+ * incremental poll with "that object is 404" (RFC 6578). No corroboration is
+ * required and none would help — a second pass cannot make the server's own
+ * answer truer.
+ *
+ * The href is all that arrives. A removed object has no body, so no UID, so no
+ * natural key — which is the entire reason the href is recorded on the ledger row
+ * at copy time (migration 0025). `findBySourceRef` is the way back.
+ *
+ * FOUR THINGS ARE REFUSED, and each of them is a way this could report a live
+ * item as deleted:
+ *
+ * 1. **An href we never copied.** No ledger row means the object was created and
+ *    deleted between two of our passes, or was never in scope. There is nothing
+ *    on the target to reconcile and nothing to tell anyone.
+ * 2. **An item that is not on the target.** A `failed` or `left_behind` row is
+ *    not a copy (see `isOnTarget`), so the source deleting the original changes
+ *    nothing about our side.
+ * 3. **An item this pass SAW under its natural key.** The decisive one. A UID
+ *    moved between two collections is reported as a removal from the old href and
+ *    an arrival at a new one; a UID deleted and re-created likewise. In both
+ *    cases the item is plainly alive, and reporting it deleted because one of its
+ *    hrefs died would be exactly wrong. This is why the whole thing waits until
+ *    every folder has been listed.
+ * 4. **An item the owner has already decided about.** Recorded, not re-reported:
+ *    a queue that cannot be emptied stops being read.
+ */
+async function resolveReportedRemovals(args: {
+  tenantId: TenantId;
+  mappingId: MappingId;
+  domain: 'email' | 'calendar' | 'contact' | 'file';
+  ledger: Ledger;
+  removals: ReadonlyArray<string>;
+  seenByCollection: ReadonlyMap<string, ReadonlySet<string>>;
+}): Promise<ItemDeletion[]> {
+  const { tenantId, mappingId, domain, ledger, removals, seenByCollection } = args;
+
+  // Every key the pass saw ANYWHERE, which is what makes a move distinguishable
+  // from a deletion. Per-collection is the wrong grain here: the point is that
+  // the item still exists, not where.
+  const seenAnywhere = new Set<string>();
+  for (const keys of seenByCollection.values()) for (const k of keys) seenAnywhere.add(k);
+
+  const out: ItemDeletion[] = [];
+  // Two hrefs can lead to one row (a server repeating itself, a collection listed
+  // twice), and one item must not become two queue entries.
+  const done = new Set<string>();
+
+  for (const href of new Set(removals)) {
+    const row = await ledger.findBySourceRef(tenantId, mappingId, domain, href);
+    if (!row) continue;
+    if (!isOnTarget(row.status)) continue;
+    if (seenAnywhere.has(row.naturalKeyHash)) continue;
+    if (done.has(row.naturalKeyHash)) continue;
+    done.add(row.naturalKeyHash);
+
+    // Written down before anything is returned. The pass result is read by
+    // whoever happens to be watching; the ledger is what an owner can still act
+    // on next week.
+    const recorded = await ledger.recordReportedDeletion(
+      tenantId,
+      mappingId,
+      domain,
+      row.naturalKeyHash,
+    );
+    // The row went away underneath us (a concurrent reset, a wiped mapping).
+    // Reporting a deletion whose row no longer exists would give an operator a
+    // decision they cannot make — `resolveDeletion` would find nothing.
+    if (!recorded) continue;
+    if (row.deletionAcknowledgedAt !== undefined) continue;
+
+    out.push({
+      domain,
+      naturalKeyHash: row.naturalKeyHash,
+      collection: row.collection ?? '',
+      // Whatever absence-counting had reached, which for a reported deletion is
+      // normally 0 and says nothing. `evidence` is the field that matters.
+      absentPasses: row.absentPasses ?? 0,
+      confirmed: true,
+      evidence: 'reported',
+    });
+  }
+
+  return out;
 }
 
 /**
@@ -1229,6 +1418,10 @@ async function detectPathKeyedMoves(args: {
         collection: row.collection,
         absentPasses: seen,
         confirmed: true,
+        // INFERRED, and the weaker claim of the two on purpose. Nobody told us
+        // this was deleted; we stopped seeing it, twice. That is enough to put in
+        // front of a person and must never be enough to act on.
+        evidence: 'inferred',
       });
     }
   }

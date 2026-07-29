@@ -77,7 +77,31 @@ export interface CalendarSource {
   listSince(
     folder: CalendarFolder,
     cursor?: SyncCursor,
-  ): Promise<{ items: ReadonlyArray<RawCalendarEvent>; nextCursor: SyncCursor }>;
+  ): Promise<{
+    items: ReadonlyArray<RawCalendarEvent>;
+    nextCursor: SyncCursor;
+    /**
+     * Source hrefs the server reported as REMOVED on this poll (RFC 6578).
+     *
+     * `sync-collection` answers an incremental poll with the changed objects AND
+     * the deleted ones — the latter as a `<response>` carrying just an href and a
+     * 404 status. That is the source stating outright that an object is gone,
+     * which is a stronger claim than anything else in this product has access to;
+     * everywhere else deletion has to be inferred from repeated absence. See
+     * {@link DeletionEvidence}.
+     *
+     * Hrefs, not natural keys, and unavoidably so: a removed object has no body
+     * left, so there is no UID to key it by. The loop matches them back to items
+     * via `Ledger.findBySourceRef`, which is why the href is recorded at copy
+     * time.
+     *
+     * Absent (or empty) means the server reported no removals. Absent must not be
+     * read as "nothing was deleted" — a full listing has no removals to report
+     * either, and a source that does not speak sync-collection never populates
+     * this at all.
+     */
+    removed?: ReadonlyArray<string>;
+  }>;
 }
 
 /**
@@ -92,7 +116,12 @@ export interface ContactSource {
   listSince(
     folder: ContactFolder,
     cursor?: SyncCursor,
-  ): Promise<{ items: ReadonlyArray<RawContact>; nextCursor: SyncCursor }>;
+  ): Promise<{
+    items: ReadonlyArray<RawContact>;
+    nextCursor: SyncCursor;
+    /** Hrefs the server reported as removed. See `CalendarSource.listSince`. */
+    removed?: ReadonlyArray<string>;
+  }>;
 }
 
 /**
@@ -524,6 +553,14 @@ export interface LedgerRecord {
    * this is a count and not a flag.
    */
   readonly absentPasses?: number;
+  /**
+   * When the SOURCE first reported this item as removed (RFC 6578).
+   *
+   * Absent means it has told us nothing — which is always the case for mail and
+   * files, neither of which has such a report. Evidence of a different KIND from
+   * `absentPasses`, not a stronger degree of it: see {@link DeletionEvidence}.
+   */
+  readonly deletionReportedAt?: string;
   /** When the owner decided to keep the target's copy of a vanished item. */
   readonly deletionAcknowledgedAt?: string;
   readonly movedToCollection?: string;
@@ -763,12 +800,40 @@ export interface Ledger {
     naturalKeyHash: string,
   ): Promise<number>;
   /**
-   * The item is back. Reset the count and any decision about it.
+   * The SOURCE has told us this item is gone.
+   *
+   * Not a stronger version of `recordAbsent` — a different kind of statement.
+   * That one counts times we failed to see something; this one records that the
+   * server named the object and said 404 (RFC 6578). Stored separately so the
+   * two can never be confused by anything downstream, and so `absentPasses`
+   * keeps meaning exactly what it says.
+   *
+   * Keeps the FIRST report: that is the moment we learned, and re-stamping it
+   * every pass would lose the only date an audit cares about. Idempotent, so a
+   * server that keeps repeating a removal across passes costs one no-op update.
+   *
+   * Returns false when there is no row under that key — an object the source
+   * removed that we never copied is not a deletion we have anything to say
+   * about.
+   */
+  recordReportedDeletion(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: 'email' | 'calendar' | 'contact' | 'file',
+    naturalKeyHash: string,
+  ): Promise<boolean>;
+  /**
+   * The item is back. Reset the count, any report, and any decision about it.
    *
    * CONSECUTIVE is the property being maintained: an item that vanishes, comes
    * back and vanishes again has been missing once, twice — never twice in a
    * row. Without the reset a flaky folder would accumulate its way to
    * "confirmed deleted" over a month of unrelated hiccups.
+   *
+   * The REPORT is cleared too. A UID can be deleted and re-created — a calendar
+   * invitation declined and re-sent, a contact restored from a phone — and an
+   * item that is demonstrably present again must not keep carrying a claim that
+   * the source considers it gone.
    */
   clearAbsent(
     tenantId: TenantId,
@@ -785,9 +850,9 @@ export interface Ledger {
   /**
    * Apply an owner decision to one vanished item.
    *
-   * Returns false when there is no open, CONFIRMED absence under that key — it
-   * came back, or someone already decided. Saying "not found" beats reporting a
-   * decision that did not happen.
+   * Returns false when nothing under that key is CONFIRMED and still open — it
+   * came back, or someone already decided, or the absence has been seen only
+   * once. Saying "not found" beats reporting a decision that did not happen.
    */
   resolveDeletion(
     tenantId: TenantId,
@@ -893,13 +958,34 @@ export interface ItemMove {
 }
 
 /**
+ * How we came to believe an item is gone from the source.
+ *
+ * The distinction is the whole safety argument for ever ACTING on a deletion,
+ * and the two are different in kind rather than in degree:
+ *
+ * - `'reported'` — the source said so. RFC 6578 `sync-collection` answers an
+ *   incremental CalDAV/CardDAV poll with a `<response>` carrying the object's
+ *   href and a 404 status. There is nothing to infer and nothing to corroborate;
+ *   waiting for it to repeat would not make it more true, only later.
+ * - `'inferred'` — we stopped seeing it. Absence has a dozen innocent causes
+ *   that all present identically, so it takes `DELETION_CONFIRMATIONS`
+ *   consecutive complete scans before a person is told, and even then it is a
+ *   suspicion. This is the only evidence available for mail and files: IMAP has
+ *   no removal report in the shape this uses and WebDAV has no sync-collection.
+ *
+ * Only `'reported'` may ever gate a destructive action. Deleting a customer's
+ * data because a listing was throttled is the worst thing this product could do.
+ */
+export type DeletionEvidence = 'reported' | 'inferred';
+
+/**
  * An item the SOURCE no longer has, which the target still holds.
  *
- * "No longer has" is inferred from repeated ABSENCE, never from a deletion
- * event — we do not get told. `absentPasses` is how many consecutive complete
- * scans failed to find it, and it is the honest measure of how much to believe
- * the claim: one absent listing has a dozen innocent causes, several in a row
- * has far fewer.
+ * `evidence` says how we know, and it matters more than any other field here —
+ * see {@link DeletionEvidence}. For an inferred deletion `absentPasses` is the
+ * honest measure of how much to believe the claim; for a reported one it is
+ * usually 0 and means nothing, because the source told us outright rather than
+ * us noticing.
  *
  * `collection` is a folder path, which §17 counts as personal data. It belongs
  * on the operator's own status surface — the same place `lastError` and
@@ -911,16 +997,27 @@ export interface ItemDeletion {
   readonly naturalKeyHash: string;
   /** Where we copied it from, which is also where it stopped appearing. */
   readonly collection: string;
-  /** Consecutive complete scans that failed to find it. */
+  /**
+   * Consecutive complete scans that failed to find it.
+   *
+   * 0 is normal for a REPORTED deletion: the source named the object, so nothing
+   * had to go missing for us to know. Read it together with `evidence`, never
+   * alone.
+   */
   readonly absentPasses: number;
   /**
-   * True once `absentPasses` has reached `DELETION_CONFIRMATIONS`.
+   * Whether this is worth putting in front of a person yet.
    *
-   * Below that the item is watched, not reported: the queue exists to be acted
-   * on, and filling it with absences that may simply be a folder having a bad
-   * afternoon is how a queue stops being read.
+   * A reported deletion is confirmed on sight. An inferred one is confirmed once
+   * `absentPasses` reaches `DELETION_CONFIRMATIONS`; below that the item is
+   * watched, not reported, because a queue filled with absences that may simply
+   * be a folder having a bad afternoon is a queue people stop reading.
    */
   readonly confirmed: boolean;
+  /** How we know. See {@link DeletionEvidence}. */
+  readonly evidence: DeletionEvidence;
+  /** When the source first told us, for a reported deletion. */
+  readonly reportedAt?: string;
   /** When the owner decided to keep the target's copy anyway. */
   readonly acknowledgedAt?: string;
 }

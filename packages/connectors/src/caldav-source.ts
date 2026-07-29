@@ -15,6 +15,7 @@ import type { CalendarSource, CalendarFolder, SyncCursor, RawCalendarEvent } fro
 import type { CalDAVSourceConfig, CalDAVSyncToken, CalDAVCalendarObject } from './caldav-source.types';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types';
 import { wellKnownUrl as buildWellKnownUrl } from './dav-http.types';
+import { parseRemovedHrefs } from './dav-removals';
 
 /**
  * CalDAV source connector implementation.
@@ -58,7 +59,11 @@ export class CalDAVSource implements CalendarSource {
   async listSince(
     folder: CalendarFolder,
     cursor?: SyncCursor,
-  ): Promise<{ items: ReadonlyArray<RawCalendarEvent>; nextCursor: SyncCursor }> {
+  ): Promise<{
+    items: ReadonlyArray<RawCalendarEvent>;
+    nextCursor: SyncCursor;
+    removed?: ReadonlyArray<string>;
+  }> {
     if (!this.calendarHomeSet) {
       await this.discoverCalendarHomeSet();
     }
@@ -87,7 +92,24 @@ export class CalDAVSource implements CalendarSource {
       value: result.syncToken ? this.encodeSyncToken(result.syncToken) : (result.ctag ? this.encodeCTag(result.ctag, collectionPath) : ''),
     };
 
-    return { items, nextCursor };
+    // The objects the server said are GONE, carried up instead of dropped.
+    //
+    // These hrefs are the SAME strings as `RawCalendarEvent.item.sourcePath`
+    // above (`obj.href`): both are the verbatim text of a `<d:href>` in a
+    // multistatus body from this server, read by the same trimming. That
+    // agreement is what lets the sync loop find the ledger row a removal refers
+    // to, and it is why neither side normalises, unescapes or resolves the href
+    // — any transformation applied to one and not the other would silently break
+    // the match, and a match that silently fails reports nothing at all.
+    //
+    // Omitted rather than sent as `[]` when there are none, so "the server
+    // reported no removals" and "this poll could not report removals" are not
+    // spelled the same way.
+    return {
+      items,
+      nextCursor,
+      ...(result.removed.length > 0 ? { removed: result.removed } : {}),
+    };
   }
 
   // Private helper methods
@@ -264,7 +286,12 @@ export class CalDAVSource implements CalendarSource {
   private async syncCollection(
     collectionPath: string,
     cursor?: SyncCursor,
-  ): Promise<{ objects: CalDAVCalendarObject[]; syncToken?: string; ctag?: string }> {
+  ): Promise<{
+    objects: CalDAVCalendarObject[];
+    syncToken?: string;
+    ctag?: string;
+    removed: string[];
+  }> {
     // Build sync-collection REPORT
     let syncToken: string | undefined;
     let ctag: string | undefined;
@@ -460,7 +487,13 @@ export class CalDAVSource implements CalendarSource {
   /**
    * Parse sync-collection REPORT response.
    */
-  private parseSyncCollectionResponse(body: string): { objects: CalDAVCalendarObject[]; syncToken?: string; ctag?: string } {
+  private parseSyncCollectionResponse(body: string): {
+    objects: CalDAVCalendarObject[];
+    syncToken?: string;
+    ctag?: string;
+    /** Hrefs the server reported as gone (RFC 6578). See `dav-removals.ts`. */
+    removed: string[];
+  } {
     const objects: CalDAVCalendarObject[] = [];
     let syncToken: string | undefined;
     let ctag: string | undefined;
@@ -511,7 +544,11 @@ export class CalDAVSource implements CalendarSource {
       });
     }
 
-    return { objects, syncToken, ctag };
+    // RFC 6578 removal reports. Both sources have been issuing a
+    // `sync-collection` REPORT and dropping these on the floor, which meant the
+    // strongest deletion signal available anywhere in the product arrived on
+    // every incremental pass and was discarded.
+    return { objects, syncToken, ctag, removed: parseRemovedHrefs(body) };
   }
 
   /**

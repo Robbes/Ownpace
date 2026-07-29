@@ -272,13 +272,25 @@ are not symmetrical, though, and it is worth telling whoever uses these accounts
 reorganised folders — all handled.
 
 Nothing you delete in the old system is deleted in the new one. Instead it is
-reported at `GET /deletions` once it has been missing from two consecutive
-complete scans, and you say what you want:
+reported at `GET /deletions`, and you say what you want:
 
 ```sh
 curl -s http://127.0.0.1:8080/deletions | jq
 curl -X POST http://127.0.0.1:8080/mappings/<mappingId>/deletions/<naturalKeyHash>/keep
 ```
+
+How quickly it shows up depends on how we found out, which each entry states as
+`evidence`:
+
+- **`reported`** — for calendar events and contacts, the old server tells us
+  outright which objects it removed, so the entry appears on the next pass.
+- **`inferred`** — for files there is no such report, so we go by the item having
+  vanished from **two consecutive** complete scans. One absence is not evidence: a
+  throttled listing or a connector having a bad ten minutes looks exactly the
+  same. If it reappears the count starts again from zero.
+
+Deleted mail is not reported yet at all — that is a "not measured", not a
+"nothing was deleted".
 
 "Keep" — the new system holds on to its copy — is the usual and expected answer.
 A migration target that is a slightly fuller archive than the shrinking source is
