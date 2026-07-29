@@ -221,6 +221,12 @@ export const item = pgTable(
     // NULL = not known (rows predating 0023, or a server that returns no ETag
     // on PUT) and never blocks a write. See migration 0023.
     targetVersion: text('target_version'),
+    // The SOURCE's own handle for this item — a DAV href. The bridge from an
+    // RFC 6578 removal report (which carries only the href) back to the item it
+    // used to be. NULL = not recorded. Its own column rather than a field inside
+    // `source_ref`, which stays the untouched grab-bag it has always been; see
+    // migration 0025 for why a jsonb path expression was the wrong tool.
+    sourceRefHref: text('source_ref_href'),
     // How many CONSECUTIVE complete scans have failed to find this item on the
     // source. Reset to 0 the moment it reappears. A single absent listing is
     // not evidence of deletion — see migration 0024.
@@ -259,6 +265,8 @@ export const item = pgTable(
     index('ix_item_moved').on(t.tenantId, t.mappingId, t.domain),
     // Partial in the migration (WHERE absent_passes > 0). See 0024.
     index('ix_item_absent').on(t.tenantId, t.mappingId, t.domain),
+    // Partial in the migration (WHERE source_ref_href IS NOT NULL). See 0025.
+    index('ix_item_source_ref').on(t.tenantId, t.mappingId, t.domain, t.sourceRefHref),
   ],
 );
 

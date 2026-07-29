@@ -61,6 +61,41 @@ export class PgLedger implements Ledger {
     return this.mapRowToRecord(row);
   }
 
+  /**
+   * The row a source href belongs to.
+   *
+   * A plain column and a plain equality test. The first version of this read a
+   * field out of the existing `source_ref` jsonb with `->> 'href'`, and came
+   * back empty against a real database while typecheck and the in-memory fake
+   * were both happy — a lookup key does not deserve that much cleverness.
+   *
+   * A blank href never matches, and neither does NULL. "Not recorded" is every
+   * row written before 0025; treating it as "the item whose href is the empty
+   * string" would attach a removal report to an arbitrary old row and report the
+   * wrong item as deleted.
+   */
+  async findBySourceRef(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: 'email' | 'calendar' | 'contact' | 'file',
+    sourceRef: string,
+  ): Promise<LedgerRecord | undefined> {
+    if (sourceRef === '') return undefined;
+    const result = await this.db
+      .select()
+      .from(schemaPg.item)
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          eq(schemaPg.item.domain, domain),
+          eq(schemaPg.item.sourceRefHref, sourceRef),
+        ),
+      )
+      .limit(1);
+    return result.length === 0 ? undefined : this.mapRowToRecord(result[0]!);
+  }
+
   async recordIfAbsent(record: LedgerRecord): Promise<LedgerRecord> {
     // Try to insert; if conflict, return existing row
     const inserted = await this.db
@@ -79,6 +114,9 @@ export class PgLedger implements Ledger {
         targetRef: JSON.stringify({ id: record.targetId }),
         sourceVersion: record.sourceVersion ?? null,
         targetVersion: record.targetVersion ?? null,
+        // The source's own handle, so a later removal report can be matched back
+        // to this item. NULL when the source has none.
+        sourceRefHref: record.sourceRef ?? null,
         firstSeenAt: sql`now()`,
         updatedAt: sql`now()`,
       })
@@ -134,6 +172,10 @@ export class PgLedger implements Ledger {
         // move undetectable. A caller that knows says so; one that does not
         // leaves the row alone.
         ...(record.collection !== undefined ? { collection: record.collection } : {}),
+        // Conditional for the same reason as `collection`: a caller with nothing
+        // to say must not blank what we already knew, which would retire the
+        // item's removal-report link.
+        ...(record.sourceRef !== undefined ? { sourceRefHref: record.sourceRef } : {}),
         lastSyncedAt: sql`now()`,
         updatedAt: sql`now()`,
       })
@@ -674,6 +716,9 @@ export class PgLedger implements Ledger {
         ? { targetVersion: row.targetVersion }
         : {}),
       ...(row.collection ? { collection: row.collection } : {}),
+      // Left off entirely when there is none, so "not recorded" stays
+      // distinguishable from "recorded as empty".
+      ...(row.sourceRefHref ? { sourceRef: row.sourceRefHref } : {}),
       ...(row.movedToCollection ? { movedToCollection: row.movedToCollection } : {}),
       ...(row.moveAcknowledgedAt
         ? {

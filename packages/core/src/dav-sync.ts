@@ -80,6 +80,10 @@ export async function runCalendarSync(deps: CalendarSyncDeps): Promise<DomainSyn
     // The CalDAV ETag, when the server sent one. Undefined keeps the old
     // skip-anything-seen behaviour rather than guessing at change.
     sourceVersion: (item) => item.item.etag,
+    // The DAV href — exactly what an RFC 6578 `sync-collection` 404 reports,
+    // and the only way back from a removal report to this item once its body
+    // is gone.
+    sourceRef: (item) => item.item.sourcePath,
     contentHash: (raw) => calendarContentHash((raw as RawCalendarEvent).icalendar),
     ensureCollection: (folder) => target.ensureCalendar(folder),
     ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
@@ -132,6 +136,8 @@ export async function runContactSync(deps: ContactSyncDeps): Promise<DomainSyncR
       target.upsertContact(folderId, raw as RawContact, options),
     naturalKey: (item) => contactNaturalKeyHash(item.item.uid),
     sourceVersion: (item) => item.item.etag,
+    // The DAV href, for the same reason as calendar above.
+    sourceRef: (item) => item.item.sourcePath,
     contentHash: (raw) => contactContentHash((raw as RawContact).vcard),
     ensureCollection: (folder) => target.ensureContactFolder(folder),
     ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
@@ -215,6 +221,10 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
         }
       : {}),
     sourceVersion: (item) => item.item.etag,
+    // The file's own root-relative path. WebDAV has no sync-collection, so this
+    // is not (yet) a removal-report anchor — recorded for symmetry, and because
+    // the natural key is derived from the same path, so the two must agree.
+    sourceRef: (item) => item.item.path,
     contentHash: (raw) => fileContentHash((raw as RawFileItem).content ?? new Uint8Array(0)),
     ensureCollection: (folder) => target.ensureDirectory(folder),
     ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),

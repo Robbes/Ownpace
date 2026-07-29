@@ -181,6 +181,29 @@ export class MemoryLedger implements Ledger {
     return Promise.resolve({ absentPasses: 0, ...row });
   }
 
+  /**
+   * Mirrors `PgLedger.findBySourceRef`, INCLUDING refusing a blank href.
+   *
+   * A fake that matched `''` would pair a removal report with whichever
+   * pre-0025 row came first — which is exactly the wrong item, reported as
+   * deleted.
+   */
+  findBySourceRef(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    domain: LedgerRecord['itemType'],
+    sourceRef: string,
+  ): Promise<LedgerRecord | undefined> {
+    if (sourceRef === '') return Promise.resolve(undefined);
+    for (const r of this.rows.values()) {
+      if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
+      if (r.itemType !== domain) continue;
+      if (r.sourceRef !== sourceRef) continue;
+      return Promise.resolve(r);
+    }
+    return Promise.resolve(undefined);
+  }
+
   recordIfAbsent(record: LedgerRecord): Promise<LedgerRecord> {
     const k = this.key(record);
     const existing = this.rows.get(k);
@@ -216,6 +239,11 @@ export class MemoryLedger implements Ledger {
       createdAt: existing.createdAt,
       ...(record.collection === undefined && existing.collection !== undefined
         ? { collection: existing.collection }
+        : {}),
+      // Same conditional survival as `collection`, and for the same reason: a
+      // caller with nothing to say must not erase the removal-report link.
+      ...(record.sourceRef === undefined && existing.sourceRef !== undefined
+        ? { sourceRef: existing.sourceRef }
         : {}),
     };
     this.rows.set(k, merged);

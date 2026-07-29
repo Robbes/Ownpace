@@ -270,6 +270,14 @@ export interface UpsertOptions {
    * rewritten once — a protection that presents as an outage.
    */
   readonly expectedTargetVersion?: string;
+  /**
+   * The source's own handle for this item, to persist on the ledger row.
+   *
+   * Passed down for the same reason as `sourceVersion` and `collection`: the
+   * writers record first and `recordIfAbsent` no-ops on conflict, so anything
+   * the loop records afterwards is discarded.
+   */
+  readonly sourceRef?: string;
 }
 
 /** A target mailbox store the engine writes to. NEVER deletes or overwrites (non-destructive). */
@@ -487,6 +495,21 @@ export interface LedgerRecord {
    * Absent means "not known", and never blocks a write. See migration 0023.
    */
   readonly targetVersion?: string;
+  /**
+   * The SOURCE's own handle for this item — a DAV href.
+   *
+   * The bridge from a removal report back to an item. CalDAV and CardDAV speak
+   * RFC 6578 `sync-collection`, which reports a deleted object as its HREF with
+   * a 404 status; a removed object has no body left, so the href is all there
+   * is. Our natural key for those domains is the UID, which lives inside that
+   * body — without the href recorded at copy time, "this href is gone" cannot be
+   * turned into "this item is gone" and the report is unusable.
+   *
+   * Absent means not recorded: every row written before migration 0025, and any
+   * source with no stable per-item handle. Those items cannot be matched against
+   * a removal report and fall back to the absence-counting in 0024.
+   */
+  readonly sourceRef?: string;
   /**
    * Where the SOURCE lists this item now, when that is no longer `collection`.
    *
@@ -707,6 +730,23 @@ export interface Ledger {
     naturalKeyHash: string,
     action: MoveAction,
   ): Promise<boolean>;
+  /**
+   * The row a source href belongs to, or undefined.
+   *
+   * The lookup a removal report needs. A `sync-collection` 404 gives an href and
+   * nothing else — no body, so no UID, so no natural key — and this is the only
+   * way back to the item it used to be.
+   *
+   * Never matches a row with no recorded href: `{}` is "not recorded", not "the
+   * item whose href is empty", and treating them alike would attach a removal
+   * report to an arbitrary pre-0025 row.
+   */
+  findBySourceRef(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: 'email' | 'calendar' | 'contact' | 'file',
+    sourceRef: string,
+  ): Promise<LedgerRecord | undefined>;
   /**
    * Note that a complete scan did not find this item, and return how many
    * consecutive scans that now makes.

@@ -332,6 +332,17 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    * to notice a change WITHOUT re-reading every item on every pass.
    */
   readonly sourceVersion?: (item: Item) => string | undefined;
+  /**
+   * The source's OWN handle for the item — a DAV href.
+   *
+   * Recorded so a later removal report can be matched back to the item it used
+   * to be. RFC 6578 `sync-collection` reports a deleted object as its href with
+   * a 404 status, and a deleted object has no body left to read a UID out of.
+   *
+   * Optional, and its absence simply means those items cannot be matched against
+   * a removal report — they fall back to absence-counting.
+   */
+  readonly sourceRef?: (item: Item) => string | undefined;
   /** Extract natural key from item */
   /**
    * The item's natural-key hash, or undefined when it cannot be known from the
@@ -494,6 +505,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     onCollision,
     ensureCollection,
     sourceVersion,
+    sourceRef,
     listCollectionKeys,
   } = deps;
 
@@ -801,6 +813,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
               : {}),
             ...(version !== undefined ? { sourceVersion: version } : {}),
             collection: collectionPath,
+            ...(sourceRef?.(item) !== undefined ? { sourceRef: sourceRef(item) } : {}),
           }),
         );
 
@@ -849,6 +862,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           // whether it is still ours. Absent when the server offered no ETag,
           // which costs this item its overwrite protection and nothing else.
           ...(result.targetVersion !== undefined ? { targetVersion: result.targetVersion } : {}),
+          // The source's own handle, so a removal report can find this row.
+          ...(sourceRef?.(item) !== undefined ? { sourceRef: sourceRef(item) } : {}),
           // WHERE it came from, not just what it was. Until this was recorded
           // the ledger could not tell an item that had never moved from one
           // that had, so a move was indistinguishable from a steady state.
