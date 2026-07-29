@@ -172,7 +172,13 @@ export class MemoryLedger implements Ledger {
     itemType: LedgerRecord['itemType'],
     naturalKeyHash: string,
   ): Promise<LedgerRecord | undefined> {
-    return Promise.resolve(this.rows.get(this.key({ tenantId, mappingId, itemType, naturalKeyHash })));
+    const row = this.rows.get(this.key({ tenantId, mappingId, itemType, naturalKeyHash }));
+    if (!row) return Promise.resolve(undefined);
+    // `absent_passes` is NOT NULL DEFAULT 0 in Postgres, so a row always has a
+    // number here — never undefined. A fake that answered undefined would let a
+    // caller write `row.absentPasses === undefined` and mean "never checked",
+    // which is a distinction the real column cannot make.
+    return Promise.resolve({ absentPasses: 0, ...row });
   }
 
   recordIfAbsent(record: LedgerRecord): Promise<LedgerRecord> {

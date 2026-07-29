@@ -683,6 +683,18 @@ export class PgLedger implements Ledger {
                 : String(row.moveAcknowledgedAt),
           }
         : {}),
+      // NOT NULL with a default, so mapped unconditionally — same as
+      // attemptCount. `find` was the only reader left without it, which made
+      // the row look like it had never gone missing however many times it had.
+      absentPasses: row.absentPasses,
+      ...(row.deletionAcknowledgedAt
+        ? {
+            deletionAcknowledgedAt:
+              row.deletionAcknowledgedAt instanceof Date
+                ? row.deletionAcknowledgedAt.toISOString()
+                : String(row.deletionAcknowledgedAt),
+          }
+        : {}),
       attemptCount: row.attemptCount,
       ...(row.lastError !== null && row.lastError !== undefined
         ? { lastError: row.lastError }
