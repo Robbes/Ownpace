@@ -84,9 +84,50 @@ async function runMigration(postgresUrl: string): Promise<void> {
   }
 }
 
-export default async function () {
+/**
+ * Projects that need no container at all.
+ *
+ * `unit` and `unit-browser` touch no database, no IMAP server and no DAV server —
+ * that is what makes them unit tests. Nothing in either reads
+ * `TEST_DATABASE_URL`.
+ */
+const CONTAINER_FREE_PROJECTS = new Set(['unit', 'unit-browser']);
+
+/**
+ * Does this run actually need containers?
+ *
+ * A unit-only run was starting Postgres anyway, which meant every unit CI run
+ * pulled `testcontainers/ryuk` and `postgres` from Docker Hub before it could
+ * execute a single assertion — and failed outright when Docker Hub had a bad
+ * minute. That has now happened twice on runs whose tests were all green, and the
+ * symptom is deeply unhelpful: a global-setup failure makes Vitest report "No test
+ * files found, exiting with code 1", so the log blames the test selection while the
+ * real cause is a registry timeout further down.
+ *
+ * FAILS SAFE, deliberately. The `--project` filter accepts globs and negation
+ * (`--project=!e2e`), and misreading one of those as "no containers needed" would
+ * break integration tests in a way that looks like a product bug. So containers are
+ * skipped only when EVERY selected project is known to be container-free; anything
+ * unrecognised, negated or absent keeps the old behaviour of starting them.
+ */
+export function runNeedsContainers(ctx?: unknown): boolean {
+  const selected = (ctx as { config?: { project?: unknown } } | undefined)?.config?.project;
+  if (!Array.isArray(selected) || selected.length === 0) return true;
+  return !selected.every((p) => typeof p === 'string' && CONTAINER_FREE_PROJECTS.has(p));
+}
+
+export default async function (ctx?: unknown) {
+  if (!runNeedsContainers(ctx)) {
+    console.log(
+      '[Vitest Global Setup] Unit projects only — no containers started. ' +
+        'Nothing in them reads TEST_DATABASE_URL, and starting Postgres anyway made ' +
+        'every unit run depend on Docker Hub being reachable.',
+    );
+    return;
+  }
+
   console.log('[Vitest Global Setup] Starting Testcontainers environment...');
-  
+
   // Detect which test project is running via environment variable
   // CI workflows should set SKIP_STALWART=true for unit tests
   const skipStalwart = process.env.SKIP_STALWART === 'true';
