@@ -11,6 +11,7 @@ import type {
   ContactFolder,
   RawContact,
   UpsertResult,
+  UpsertOptions,
   Ledger,
   TenantId,
   MappingId,
@@ -111,11 +112,21 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
   async upsertContact(
     folderId: string,
     raw: RawContact,
+    options?: UpsertOptions,
   ): Promise<UpsertResult> {
     // Extract UID from vCard data
     const uid = this.extractUidFromVcard(raw.vcard);
     const naturalKey = uid;
     const naturalKeyHash = contactNaturalKeyHash(naturalKey);
+
+    // UPDATE PATH: the source card changed after we copied it. See the same
+    // branch in caldav-target-writer.ts for why this precedes the fast-path
+    // and why it can never touch an item the destination already held.
+    if (options?.overwrite) {
+      const contactId = await this.uploadContact(folderId, raw, uid);
+      (await this.keysIn(folderId))?.set(naturalKey, contactId);
+      return { targetId: contactId, created: false, updated: true };
+    }
 
     // LEDGER FAST-PATH: Check if already migrated
     const known = await this.ledger.find(this.tenantId, this.mappingId, 'contact', naturalKeyHash);

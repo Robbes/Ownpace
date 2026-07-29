@@ -147,6 +147,30 @@ export interface UpsertResult {
    * decision about the customer's data and has to be visible before cutover.
    */
   readonly adopted?: boolean;
+  /**
+   * True when an item WE had already copied was rewritten because the source
+   * version changed — the shadow-sync update path (§11.1, "the source is
+   * authoritative for content").
+   *
+   * Distinct from `created` and from `adopted`, and the distinction is the
+   * whole safety argument: this only ever overwrites bytes this tool put there
+   * itself. An item the destination already held is `adopted`, never rewritten.
+   */
+  readonly updated?: boolean;
+}
+
+/** Per-call instructions for a target write. */
+export interface UpsertOptions {
+  /**
+   * Rewrite the target item even though the ledger already has it.
+   *
+   * Off by default, and the default is the rule: hard rule 2 is
+   * "never auto-delete/overwrite on the target". The exception this flag opens
+   * is narrow and is decided by `runDomainSync`, not by the writers — it is set
+   * only for an item this tool itself copied, whose source version has since
+   * changed. Nothing the customer already had on the target is ever eligible.
+   */
+  readonly overwrite?: boolean;
 }
 
 /** A target mailbox store the engine writes to. NEVER deletes or overwrites (non-destructive). */
@@ -182,10 +206,15 @@ export interface CalendarTargetWriter {
   ensureCalendar(folder: CalendarFolder): Promise<string>;
   /**
    * Idempotently write a calendar event.
+   *
+   * With `options.overwrite`, rewrite one this writer already holds — the
+   * shadow-sync update path. Only `runDomainSync` sets it, and only for an
+   * item it copied itself whose source version has since changed.
    */
   upsertCalendarEvent(
     calendarId: string,
     raw: RawCalendarEvent,
+    options?: UpsertOptions,
   ): Promise<UpsertResult>;
   /**
    * Existence check for create-if-absent.
@@ -201,10 +230,15 @@ export interface ContactTargetWriter {
   ensureContactFolder(folder: ContactFolder): Promise<string>;
   /**
    * Idempotently write a contact.
+   *
+   * With `options.overwrite`, rewrite one this writer already holds — the
+   * shadow-sync update path. Only `runDomainSync` sets it, and only for an
+   * item it copied itself whose source version has since changed.
    */
   upsertContact(
     folderId: string,
     raw: RawContact,
+    options?: UpsertOptions,
   ): Promise<UpsertResult>;
   /**
    * Existence check for create-if-absent.
@@ -220,10 +254,15 @@ export interface FileTargetWriter {
   ensureDirectory(folder: FileFolder): Promise<string>;
   /**
    * Idempotently write a file.
+   *
+   * With `options.overwrite`, rewrite one this writer already holds — the
+   * shadow-sync update path. Only `runDomainSync` sets it, and only for an
+   * item it copied itself whose source version has since changed.
    */
   upsertFile(
     parentId: string,
     raw: RawFileItem,
+    options?: UpsertOptions,
   ): Promise<UpsertResult>;
   /**
    * Existence check for create-if-absent.
@@ -305,6 +344,25 @@ export interface LedgerRecord {
    * created", but only this one says the destination account was not empty.
    */
   readonly status?: 'pending' | 'copied' | 'updated' | 'adopted' | 'skipped' | 'failed' | 'deleted_source' | 'tombstoned';
+  /**
+   * The SOURCE's own version marker for the item as we last copied it — a DAV
+   * ETag, and nothing else today.
+   *
+   * This is what makes a weeks-long shadow sync current rather than a one-shot
+   * copy. §11.1: "the source is authoritative for content." Without a version
+   * to compare, the ledger can only answer "have I seen this natural key",
+   * which is true forever once an item is copied — so an event rescheduled in
+   * week two would still be the week-one version at cutover.
+   *
+   * Deliberately opaque: the sync loop compares it for EQUALITY and never
+   * parses or orders it. An ETag is an opaque validator per RFC 9110 §8.8.3,
+   * and a server is free to change its shape.
+   *
+   * Undefined means "not known", which is the honest state for a row written
+   * before this column existed and for any source that offers no version.
+   * Neither is treated as changed — see `runDomainSync`.
+   */
+  readonly sourceVersion?: string;
 }
 
 /** Idempotency ledger. UNIQUE(tenantId, mappingId, itemType, naturalKeyHash). Non-destructive. */
@@ -322,6 +380,18 @@ export interface Ledger {
    * otherwise insert and return the new row.
    */
   recordIfAbsent(record: LedgerRecord): Promise<LedgerRecord>;
+  /**
+   * Overwrite the mutable state of an EXISTING row: content hash, target id,
+   * size, status and source version. Never inserts — a natural key with no row
+   * is a caller bug, not a row to create, and this throws rather than quietly
+   * creating one behind `recordIfAbsent`'s back.
+   *
+   * Exists because `recordIfAbsent` is a no-op on conflict, which is exactly
+   * right for idempotency and exactly wrong for the one case where the source
+   * item legitimately changed. The natural key — the idempotency anchor — is
+   * never touched here (hard rule 1); only the facts about the copy are.
+   */
+  recordUpdate(record: LedgerRecord): Promise<LedgerRecord>;
 }
 
 /**

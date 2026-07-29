@@ -216,6 +216,108 @@ describe('PgLedger (integration)', () => {
     );
     expect(found2).toBeUndefined();
   });
+
+  /**
+   * `recordUpdate` — the shadow-sync update path (migration 0020).
+   *
+   * `recordIfAbsent` is a no-op on conflict, which is exactly right for
+   * idempotency and exactly wrong for an item the source legitimately changed.
+   * This is the only ledger method that overwrites, so its contract is worth
+   * pinning against real Postgres rather than a fake.
+   */
+  describe('recordUpdate', () => {
+    const base = (overrides: Partial<LedgerRecord> = {}): LedgerRecord => ({
+      tenantId: TEST_TENANT_ID,
+      itemType: 'calendar',
+      mappingId: TEST_MAPPING_ID,
+      naturalKeyHash: 'hash-update-1',
+      contentHash: 'content-v1',
+      targetId: 'target-v1',
+      createdAt: new Date().toISOString(),
+      sizeBytes: 10,
+      status: 'copied',
+      sourceVersion: 'etag-1',
+      ...overrides,
+    });
+
+    it('overwrites content, target, size, status and source version in place', async () => {
+      await ledger.recordIfAbsent(base());
+
+      await ledger.recordUpdate(
+        base({
+          contentHash: 'content-v2',
+          targetId: 'target-v2',
+          sizeBytes: 99,
+          status: 'updated',
+          sourceVersion: 'etag-2',
+        }),
+      );
+
+      const found = await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'hash-update-1');
+      expect(found?.contentHash).toBe('content-v2');
+      expect(found?.targetId).toBe('target-v2');
+      expect(found?.sizeBytes).toBe(99);
+      expect(found?.status).toBe('updated');
+      expect(found?.sourceVersion).toBe('etag-2');
+    });
+
+    it('keeps createdAt, which is a fact about the original copy', async () => {
+      const inserted = await ledger.recordIfAbsent(base({ naturalKeyHash: 'hash-update-2' }));
+      await ledger.recordUpdate(
+        base({ naturalKeyHash: 'hash-update-2', contentHash: 'content-v2', sourceVersion: 'e2' }),
+      );
+
+      const found = await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'hash-update-2');
+      expect(found?.createdAt).toBe(inserted.createdAt);
+    });
+
+    it('creates nothing when there is no row — it throws instead', async () => {
+      // A caller that decided an item CHANGED must already have recorded
+      // copying it. Silently inserting here would hide that bug and, worse,
+      // would make `recordUpdate` a second write path that bypasses the
+      // idempotency contract.
+      await expect(ledger.recordUpdate(base({ naturalKeyHash: 'hash-never-recorded' }))).rejects.toThrow(
+        /no calendar row/,
+      );
+      expect(
+        await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'hash-never-recorded'),
+      ).toBeUndefined();
+    });
+
+    it('will not reach across tenants', async () => {
+      await ledger.recordIfAbsent(base({ naturalKeyHash: 'hash-tenant-scoped' }));
+      await expect(
+        ledger.recordUpdate(
+          base({
+            naturalKeyHash: 'hash-tenant-scoped',
+            tenantId: TEST_TENANT_2_ID,
+            mappingId: TEST_MAPPING_2_ID,
+          }),
+        ),
+      ).rejects.toThrow(/no calendar row/);
+
+      // Tenant 1's row is untouched.
+      const found = await ledger.find(
+        TEST_TENANT_ID,
+        TEST_MAPPING_ID,
+        'calendar',
+        'hash-tenant-scoped',
+      );
+      expect(found?.contentHash).toBe('content-v1');
+    });
+
+    it('round-trips an absent source version as absent, not as an empty string', async () => {
+      // "Never recorded" and "the server sent an empty ETag" mean different
+      // things to `classifyKnownItem`: the first is a backfill, the second is
+      // a real value. NULL must not come back as ''.
+      await ledger.recordIfAbsent(
+        base({ naturalKeyHash: 'hash-no-version', sourceVersion: undefined }),
+      );
+      const found = await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'hash-no-version');
+      expect(found).toBeDefined();
+      expect(found?.sourceVersion).toBeUndefined();
+    });
+  });
 });
 
 describe('PgCursorStore (integration)', () => {

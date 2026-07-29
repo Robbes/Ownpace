@@ -204,6 +204,12 @@ export const item = pgTable(
     })
       .notNull()
       .default('pending'),
+    // The source's own version marker (a DAV ETag) for the item AS WE LAST
+    // COPIED IT. Compared for equality on a later pass so an item edited on
+    // the source during shadow gets re-copied rather than skipped forever.
+    // NULL = not known: rows written before migration 0020, and any source
+    // that offers no version. See migration 0020.
+    sourceVersion: text('source_version'),
     attemptCount: integer('attempt_count').notNull().default(0),
     lastError: text('last_error'),
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),

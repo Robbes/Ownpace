@@ -69,6 +69,7 @@ export class PgLedger implements Ledger {
         sizeBytes: record.sizeBytes !== undefined ? BigInt(record.sizeBytes) : null,
         status: record.status ?? 'copied',
         targetRef: JSON.stringify({ id: record.targetId }),
+        sourceVersion: record.sourceVersion ?? null,
         firstSeenAt: sql`now()`,
         updatedAt: sql`now()`,
       })
@@ -89,6 +90,53 @@ export class PgLedger implements Ledger {
     return this.mapRowToRecord(inserted[0]!);
   }
 
+  /**
+   * Overwrite an existing row's mutable state. Never inserts.
+   *
+   * The natural key is the WHERE clause, never a SET: it is the idempotency
+   * anchor (hard rule 1), and a call that changed it would silently create a
+   * second identity for the same item. Everything updated here is a fact about
+   * the copy — where it landed, what it hashed to, how big it was, and which
+   * source version it came from.
+   *
+   * A missing row throws instead of falling back to an insert. `recordIfAbsent`
+   * is the only path that may create, and an update that quietly created would
+   * hide a real bug: it would mean the caller decided an item had CHANGED
+   * without ever having recorded copying it.
+   */
+  async recordUpdate(record: LedgerRecord): Promise<LedgerRecord> {
+    const updated = await this.db
+      .update(schemaPg.item)
+      .set({
+        contentHash: record.contentHash,
+        sizeBytes: record.sizeBytes !== undefined ? BigInt(record.sizeBytes) : null,
+        status: record.status ?? 'updated',
+        targetRef: JSON.stringify({ id: record.targetId }),
+        sourceVersion: record.sourceVersion ?? null,
+        lastSyncedAt: sql`now()`,
+        updatedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, record.tenantId),
+          eq(schemaPg.item.mappingId, record.mappingId),
+          eq(schemaPg.item.naturalKeyHash, record.naturalKeyHash),
+          eq(schemaPg.item.domain, record.itemType),
+        ),
+      )
+      .returning();
+
+    if (updated.length === 0) {
+      throw new Error(
+        `recordUpdate found no ${record.itemType} row for naturalKeyHash ` +
+          `${record.naturalKeyHash}. This method never inserts — a caller that ` +
+          'decided an item changed must already have recorded copying it.',
+      );
+    }
+
+    return this.mapRowToRecord(updated[0]!);
+  }
+
   private mapRowToRecord(row: typeof schemaPg.item.$inferSelect): LedgerRecord {
     return {
       tenantId: row.tenantId as TenantId,
@@ -102,6 +150,12 @@ export class PgLedger implements Ledger {
         : (row.firstSeenAt ?? ''),
       sizeBytes: row.sizeBytes !== null && row.sizeBytes !== undefined ? Number(row.sizeBytes) : undefined,
       status: row.status as LedgerRecord['status'],
+      // Left off the record entirely when NULL rather than mapped to '', so
+      // "never recorded" stays distinguishable from "the server sent an empty
+      // ETag". The sync loop treats only the former as unknown.
+      ...(row.sourceVersion !== null && row.sourceVersion !== undefined
+        ? { sourceVersion: row.sourceVersion }
+        : {}),
     };
   }
 }

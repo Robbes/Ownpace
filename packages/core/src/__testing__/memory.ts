@@ -177,6 +177,28 @@ export class MemoryLedger implements Ledger {
     return Promise.resolve(record);
   }
 
+  /**
+   * Overwrite an existing row. Throws when there is none — same contract as
+   * `PgLedger.recordUpdate`, deliberately: a fake that silently inserted would
+   * let a caller bug pass here and fail only against Postgres.
+   */
+  recordUpdate(record: LedgerRecord): Promise<LedgerRecord> {
+    const k = this.key(record);
+    if (!this.rows.has(k)) {
+      return Promise.reject(
+        new Error(
+          `recordUpdate found no ${record.itemType} row for naturalKeyHash ${record.naturalKeyHash}`,
+        ),
+      );
+    }
+    // createdAt is a fact about the ORIGINAL copy and must survive the update;
+    // Postgres keeps it because first_seen_at is simply not in the SET clause.
+    const existing = this.rows.get(k)!;
+    const merged: LedgerRecord = { ...record, createdAt: existing.createdAt };
+    this.rows.set(k, merged);
+    return Promise.resolve(merged);
+  }
+
   /** Test helper: number of rows. */
   size(): number {
     return this.rows.size;

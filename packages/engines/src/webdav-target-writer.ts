@@ -11,6 +11,7 @@ import type {
   FileFolder,
   RawFileItem,
   UpsertResult,
+  UpsertOptions,
   Ledger,
   TenantId,
   MappingId,
@@ -119,6 +120,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
   async upsertFile(
     _parentId: string,
     raw: RawFileItem,
+    options?: UpsertOptions,
   ): Promise<UpsertResult> {
     // The natural key (raw.item.path) is already root-relative and self-contained (see
     // WebdavFileSource.toRelativePath) -- it includes any containing subfolder itself, so it
@@ -127,6 +129,18 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
     // already-full relative path would double the prefix.
     const naturalKey = raw.item.path;
     const naturalKeyHash = fileNaturalKeyHash(naturalKey);
+
+    // UPDATE PATH: the source file changed after we copied it. See the same
+    // branch in caldav-target-writer.ts for why this precedes the fast-path
+    // and why it can never touch a file the destination already held.
+    //
+    // A WebDAV PUT to the same href replaces the body, so the path — the
+    // natural key — is unchanged and nothing is deleted.
+    if (options?.overwrite) {
+      const fileId = await this.uploadFile(raw);
+      (await this.keysUnderRoot())?.set(this.normalizeRelativePath(naturalKey), fileId);
+      return { targetId: fileId, created: false, updated: true };
+    }
 
     // LEDGER FAST-PATH: Check if already migrated
     const known = await this.ledger.find(this.tenantId, this.mappingId, 'file', naturalKeyHash);

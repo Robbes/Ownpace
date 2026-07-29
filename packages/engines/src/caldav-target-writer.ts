@@ -11,6 +11,7 @@ import type {
   CalendarFolder,
   RawCalendarEvent,
   UpsertResult,
+  UpsertOptions,
   Ledger,
   TenantId,
   MappingId,
@@ -123,11 +124,28 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
   async upsertCalendarEvent(
     calendarId: string,
     raw: RawCalendarEvent,
+    options?: UpsertOptions,
   ): Promise<UpsertResult> {
     // Extract UID from iCalendar data
     const uid = this.extractUidFromIcalendar(raw.icalendar);
     const naturalKey = uid;
     const naturalKeyHash = calendarNaturalKeyHash(naturalKey);
+
+    // UPDATE PATH: the source event changed after we copied it, so rewrite it.
+    //
+    // Deliberately ahead of the ledger fast-path, which is precisely what this
+    // is overriding. `runDomainSync` is the only caller that sets `overwrite`,
+    // and it does so only for an item this tool copied itself — never for one
+    // the destination already held (hard rule 2). The ledger row is left to
+    // the sync loop's `recordUpdate`, which owns the new source version.
+    //
+    // A CalDAV PUT to the same href replaces the object, so no delete is
+    // involved and the UID — the natural key — does not move.
+    if (options?.overwrite) {
+      const eventId = await this.uploadEvent(calendarId, raw, uid);
+      (await this.keysIn(calendarId))?.set(naturalKey, eventId);
+      return { targetId: eventId, created: false, updated: true };
+    }
 
     // LEDGER FAST-PATH: Check if already migrated
     const known = await this.ledger.find(this.tenantId, this.mappingId, 'calendar', naturalKeyHash);

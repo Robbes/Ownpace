@@ -102,6 +102,13 @@ export interface Contact {
   readonly photo?: ContactPhoto;
   /** Categories/tags. */
   readonly categories?: ReadonlyArray<string>;
+  /**
+   * The address book's DAV ETag for this card, when the server sent one.
+   *
+   * The change signal for shadow sync — see `CalendarEvent.etag`. Opaque:
+   * compared for equality only.
+   */
+  readonly etag?: string;
   /** Source address book collection. */
   readonly sourcePath: string;
   /** Raw vCard data. */
