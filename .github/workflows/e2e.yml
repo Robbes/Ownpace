@@ -215,7 +215,21 @@ jobs:
           dst_code="$(curl -s -o /dev/null -w '%{http_code}' -u "${NEXTCLOUD_TARGET_USER}:${TARGET_DAV_PASSWORD}" \
             -X MKCOL "${NC}/${NEXTCLOUD_TARGET_USER}/${POISON}")"
           echo "MKCOL target/${POISON} -> ${dst_code}"
-          case "$dst_code" in 201|405) ;; *) echo "could not create the blocking directory"; exit 1;; esac
+          # 201 only. 405 was accepted here before and is exactly how this can
+          # silently no-op: it means nothing was created, the run then migrates
+          # the file cleanly, and the gate fails much later with "the planted
+          # item is missing from the failure queue".
+          case "$dst_code" in 201) ;; *) echo "could not create the blocking directory"; exit 1;; esac
+
+          # 3. VERIFY the fixture is what we think it is. A test fixture that
+          #    can quietly not exist is worse than no fixture: the run burns
+          #    twenty minutes and then fails for a reason that looks like a
+          #    product bug.
+          rt="$(curl -s -u "${NEXTCLOUD_TARGET_USER}:${TARGET_DAV_PASSWORD}" \
+            -X PROPFIND -H 'Depth: 0' "${NC}/${NEXTCLOUD_TARGET_USER}/${POISON}")"
+          echo "$rt" | grep -qi '<[a-z]*:collection' \
+            || { echo "target/${POISON} is not a collection — fixture is not in place"; exit 1; }
+          echo "verified: target/${POISON} is a collection, source/${POISON} is a file"
 
       - name: Prepare appliance config + secrets
         run: |

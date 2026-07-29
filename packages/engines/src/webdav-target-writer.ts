@@ -68,6 +68,15 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
    * and shared, so concurrent items coalesce onto one walk.
    */
   private rootKeys: Promise<Map<string, string> | undefined> | undefined;
+  /**
+   * Root-relative paths on the target that are COLLECTIONS.
+   *
+   * Filled in by `listEntries` as it walks, so it costs nothing extra — that
+   * walk already descends into every directory, it simply did not keep them.
+   * They matter because a directory sitting where a file has to go is a
+   * conflict this writer must not paper over; see `upsertFile`.
+   */
+  private readonly rootDirs = new Set<string>();
 
   constructor(
     config: WebDAVTargetConfig,
@@ -156,6 +165,35 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
     // back 0 for every domain, leaving §20's total-size comparison structurally
     // unable to measure anything.
     const sizeBytes = raw.content?.byteLength ?? 0;
+
+    // A COLLECTION where this file has to go is a conflict, not a hit.
+    //
+    // Both existence checks answer "is something at this path" and neither
+    // asked "is it a FILE": the snapshot only ever holds files, so a directory
+    // reads as absent and we would PUT straight over it; the per-item fallback
+    // returns the path on any 207, so a directory reads as an existing file and
+    // the item is ADOPTED — recorded as migrated with its content never
+    // written. One risks destroying a directory the customer already had; the
+    // other is a silent false success. Neither is acceptable, and there is no
+    // third answer this writer can give on its own.
+    //
+    // So it fails the item, verbatim, and the operator decides: rename the
+    // source file and retry, or accept leaving it behind. Exactly the shape
+    // per-item failure isolation exists for.
+    //
+    // The snapshot has to be awaited FIRST: `rootDirs` is filled in by that
+    // walk, so consulting it beforehand always reads an empty set. (It did, and
+    // the unit test below caught it.) The call is memoised, so this costs
+    // nothing — `existingTargetId` awaits the very same promise.
+    await this.keysUnderRoot();
+    if (this.rootDirs.has(this.normalizeRelativePath(naturalKey))) {
+      throw new Error(
+        `Cannot write ${naturalKey}: the target already holds a DIRECTORY at that path. ` +
+          'Writing the file would destroy it, and adopting the directory would record an ' +
+          'item that was never copied. Rename the source file and retry, or accept leaving ' +
+          'it behind.',
+      );
+    }
 
     // Check if file already exists on target
     const existingId = await this.existingTargetId(_parentId, naturalKey);
@@ -272,9 +310,21 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
       });
 
       if (response.status === 207 || response.status === 200) {
+        // A 207 says something is there, not that it is a FILE. Returning the
+        // path for a collection made the caller adopt it — an item recorded as
+        // migrated whose bytes were never written.
+        const [item] = parseMultiStatus(response.body as string);
+        if (item && isCollection(item.xml)) {
+          throw new Error(
+            `Cannot write ${filePath}: the target already holds a DIRECTORY at that path.`,
+          );
+        }
         return filePath;
       }
-    } catch {
+    } catch (err) {
+      // A conflict is a real answer and must not be swallowed by the
+      // "doesn't exist" catch below — that is how it became invisible.
+      if (err instanceof Error && err.message.startsWith('Cannot write ')) throw err;
       // File doesn't exist
     }
 
@@ -312,6 +362,9 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
       const dir = queue.shift()!;
       for (const entry of await this.propfindChildren(dir)) {
         if (entry.isDirectory) {
+          // Remembered, not just traversed. `upsertFile` needs to know a path
+          // is a collection before it PUTs over it.
+          this.rootDirs.add(this.normalizeRelativePath(entry.path));
           if (!seen.has(entry.path)) {
             seen.add(entry.path);
             queue.push(entry.path);
