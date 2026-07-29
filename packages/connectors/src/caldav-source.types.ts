@@ -43,6 +43,15 @@ export interface CalDAVCalendarObject {
   readonly icalendar: string;
   /** The sync token for this object (if available) */
   readonly syncToken?: string;
+  /**
+   * This object's own DAV ETag, from its `<D:getetag>` in the REPORT response.
+   *
+   * Per-object, unlike the collection-level ctag the same element was
+   * previously scraped for. It is the shadow-sync change signal: stored in the
+   * ledger and compared on a later pass so an event edited on the source is
+   * re-copied rather than skipped forever.
+   */
+  readonly etag?: string;
 }
 
 /**

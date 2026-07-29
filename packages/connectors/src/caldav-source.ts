@@ -323,6 +323,10 @@ export class CalDAVSource implements CalendarSource {
       <D:sync-collection xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
         <D:prop>
           <D:resourcetype/>
+          <!-- Per-object ETag: the shadow-sync change signal. Without asking
+               for it here the response carries none and every event looks
+               unchanged forever. -->
+          <D:getetag/>
           <C:calendar-data>
             ${ctagElement}
           </C:calendar-data>
@@ -493,10 +497,17 @@ export class CalDAVSource implements CalendarSource {
 
       const icalendar = this.parseCalendarData(calendarDataMatch[1]);
 
+      // This object's OWN etag, scoped to its <response> — not the
+      // collection-level scrape above, which takes whichever getetag appears
+      // first in the whole body and would hand every object the same value.
+      const etagMatch = responseXml.match(/<[A-Za-z]+:getetag[^>]*>([^<]+)<\/[A-Za-z]+:getetag>/i);
+      const etag = etagMatch?.[1]?.trim();
+
       objects.push({
         href,
         icalendar,
         syncToken,
+        ...(etag ? { etag } : {}),
       });
     }
 
@@ -566,6 +577,9 @@ export class CalDAVSource implements CalendarSource {
           end: this.extractEnd(obj.icalendar),
           description: this.extractDescription(obj.icalendar),
           location: this.extractLocation(obj.icalendar),
+          // Carried through so the sync loop can tell a changed event from one
+          // it has already copied. Absent when the server sent no getetag.
+          ...(obj.etag ? { etag: obj.etag } : {}),
           sourcePath: obj.href,
           icalendar: obj.icalendar,
         },

@@ -76,6 +76,19 @@ export interface CalendarEvent {
   readonly lastModified?: string;
   /** Created (ISO 8601). */
   readonly created?: string;
+  /**
+   * The collection's DAV ETag for this object, when the server sent one.
+   *
+   * The change signal for shadow sync: the ledger stores it and a later pass
+   * compares it, so an event edited on the source after the initial copy is
+   * re-copied instead of skipped forever. Preferred over `lastModified` —
+   * that comes from the iCalendar LAST-MODIFIED property, which is written by
+   * the client and is not guaranteed to move when the object does, whereas the
+   * ETag is the server's own validator for the resource (RFC 4918 §8.6).
+   *
+   * Opaque: compared for equality only, never parsed or ordered.
+   */
+  readonly etag?: string;
   /** Source folder/calendar collection. */
   readonly sourcePath: string;
   /** Raw iCalendar data (RFC 5545). */

@@ -11,8 +11,10 @@
 import {
   mapWithConcurrency,
   type Ledger,
+  type LedgerRecord,
   type CursorStore,
   type UpsertResult,
+  type UpsertOptions,
   type TenantId,
   type MappingId,
 } from '@openmig/shared';
@@ -130,6 +132,56 @@ export interface FolderLike {
   readonly name?: string;
 }
 
+/** What to do about an item the ledger already has. See `classifyKnownItem`. */
+export type KnownItemAction =
+  /** Nothing to do — the copy is current, or we cannot tell that it isn't. */
+  | 'skip'
+  /** Unchanged, but the ledger had no version yet; store one for next time. */
+  | 'record-version'
+  /** The source changed and we own the target copy: rewrite it. */
+  | 'rewrite'
+  /** The source changed but the target copy is the CUSTOMER'S: leave it. */
+  | 'leave-adopted';
+
+/**
+ * Decide what a later pass owes an item the ledger already knows.
+ *
+ * Split out and exported because this is the whole safety argument for update
+ * propagation, and it is worth being able to test directly rather than through
+ * a live DAV server. Hard rule 2 says never auto-overwrite on the target; §11.1
+ * says the source is authoritative for content. Both are true, and the line
+ * between them runs exactly here.
+ *
+ * The rules, in the order they are applied:
+ *
+ * 1. **No source version → skip.** A source that reports no version (mail:
+ *    messages are immutable, so there is nothing to report) gets exactly the
+ *    behaviour it had before this existed. Never guess at change.
+ * 2. **No recorded version → record it, do not rewrite.** Every row written
+ *    before migration 0020 is in this state. Rewriting them would re-copy an
+ *    entire corpus on first upgrade to prove nothing; instead the version is
+ *    recorded so the NEXT change is caught.
+ * 3. **Versions equal → skip.** The common case, and the one that keeps a
+ *    steady-state pass cheap: no fetch, no write.
+ * 4. **Versions differ, and the item was ADOPTED → leave it.** Adopted means
+ *    the destination already held this item and we never wrote it. Those bytes
+ *    are the customer's, not ours, and hard rule 2 is absolute about them. The
+ *    caller counts these so they are visible rather than silent.
+ * 5. **Versions differ, and we copied it → rewrite.** The only case that
+ *    overwrites anything, and it only ever overwrites bytes this tool put
+ *    there itself.
+ */
+export function classifyKnownItem(
+  known: Pick<LedgerRecord, 'sourceVersion' | 'status'>,
+  sourceVersion: string | undefined,
+): KnownItemAction {
+  if (sourceVersion === undefined) return 'skip';
+  if (known.sourceVersion === undefined) return 'record-version';
+  if (known.sourceVersion === sourceVersion) return 'skip';
+  if (known.status === 'adopted') return 'leave-adopted';
+  return 'rewrite';
+}
+
 /**
  * Dependency bundle for a domain sync operation.
  * Domain-specific functions are injected to keep the loop generic.
@@ -149,8 +201,31 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
   readonly listSince: (folder: Folder, cursor?: { readonly value: string }) => Promise<{ items: ReadonlyArray<Item>; nextCursor: { readonly value: string } }>;
   /** Fetch raw data for an item */
   readonly fetchRaw: (item: Item) => Promise<{ raw: unknown; sizeBytes: number }>;
-  /** Upsert item on target */
-  readonly upsert: (targetId: string, raw: unknown, ...args: unknown[]) => Promise<UpsertResult>;
+  /**
+   * Upsert item on target.
+   *
+   * `options.overwrite` is set ONLY on the update path, and the writers must
+   * treat it as the sole licence to rewrite an item they already hold — see
+   * `classifyKnownItem` for who is eligible.
+   */
+  readonly upsert: (
+    targetId: string,
+    raw: unknown,
+    item: Item,
+    options?: UpsertOptions,
+  ) => Promise<UpsertResult>;
+  /**
+   * The source's own version marker for the item, from the LISTING — an ETag.
+   *
+   * Optional, and its absence is meaningful: a source that cannot report a
+   * version (mail — messages are immutable) keeps the pre-update-propagation
+   * behaviour exactly, skipping anything the ledger has seen.
+   *
+   * Must be readable from the listing alone. A version that required fetching
+   * the item would defeat the fast-path this exists to preserve: the point is
+   * to notice a change WITHOUT re-reading every item on every pass.
+   */
+  readonly sourceVersion?: (item: Item) => string | undefined;
   /** Extract natural key from item */
   /**
    * The item's natural-key hash, or undefined when it cannot be known from the
@@ -197,6 +272,21 @@ export interface DomainSyncResult {
    */
   readonly adopted: number;
   readonly failed: number;
+  /**
+   * Items rewritten because the source version changed after we copied them —
+   * the shadow-sync update path (§11.1, "the source is authoritative for
+   * content"). Every one of these overwrote bytes this tool wrote itself.
+   */
+  readonly updated: number;
+  /**
+   * Items that changed on the source but were left alone because the target
+   * copy is the CUSTOMER'S, not ours (status `adopted`).
+   *
+   * Counted rather than silently skipped: it is a real divergence between
+   * source and target that no other number reveals, and §11.2 says the owner
+   * decides about their own data.
+   */
+  readonly changedButAdopted: number;
   /** Source items absent on a later pass (potential deletions). */
   readonly drift: number;
   /**
@@ -234,6 +324,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     contentHash,
     onCollision,
     ensureCollection,
+    sourceVersion,
   } = deps;
 
   const phases = startPhaseTiming();
@@ -247,6 +338,11 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   // was not empty, and that is a fact the operator needs before cutover.
   let adopted = 0;
   let failed = 0;
+  // Rewritten because the source moved on after we copied them (§11.1).
+  let updated = 0;
+  // Changed on the source, but the target copy is the customer's own — left
+  // alone by hard rule 2, and counted so that is a fact rather than a silence.
+  let changedButAdopted = 0;
 
   const folders = await listFolders();
   
@@ -258,8 +354,20 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     await mapWithConcurrency(items, concurrency, async (item) => {
       scanned += 1;
       let naturalKeyHash = naturalKey(item);
+      const version = sourceVersion?.(item);
 
-      // Ledger fast-path: already migrated -> skip without fetching.
+      // Set when this item is a REWRITE of a copy we already made, not a new
+      // item. It carries the existing row, whose createdAt and identity the
+      // update must preserve.
+      let rewriteOf: LedgerRecord | undefined;
+
+      // Ledger fast-path: already migrated -> usually skip without fetching.
+      //
+      // "Usually", since update propagation: an item whose source version has
+      // moved on is fetched and rewritten rather than skipped. That is the one
+      // and only case in this loop that overwrites anything on the target, and
+      // `classifyKnownItem` is where the decision lives — including the rule
+      // that an ADOPTED item (the customer's own copy) is never rewritten.
       if (naturalKeyHash !== undefined) {
         // Captured so the closure keeps the narrowing from the guard above.
         const key = naturalKeyHash;
@@ -267,8 +375,26 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           ledger.find(tenantId, mappingId, domain, key),
         );
         if (known) {
-          skipped += 1;
-          return;
+          const action = classifyKnownItem(known, version);
+          if (action === 'skip') {
+            skipped += 1;
+            return;
+          }
+          if (action === 'record-version') {
+            // Unchanged as far as we can tell, but the row predates the
+            // version column. Store it — one small UPDATE, no fetch and no
+            // target write — so the next genuine edit is detectable.
+            await timed(phases, 'ledgerWriteMs', () =>
+              ledger.recordUpdate({ ...known, sourceVersion: version }),
+            );
+            skipped += 1;
+            return;
+          }
+          if (action === 'leave-adopted') {
+            changedButAdopted += 1;
+            return;
+          }
+          rewriteOf = known;
         }
       }
 
@@ -290,6 +416,11 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         // Second fast-path check, now that we have a key. This is what keeps
         // these items idempotent: a re-run pays the fetch again (unavoidable —
         // the key is the content) but must not create a duplicate.
+        //
+        // No update-propagation branch here, and none is needed: for these
+        // items the key IS the content, so an item that changed necessarily
+        // has a different natural key and arrives as a new item rather than a
+        // changed one.
         const derivedKey = naturalKeyHash;
         const knownAfterFetch = await timed(phases, 'ledgerReadMs', () =>
           ledger.find(tenantId, mappingId, domain, derivedKey),
@@ -309,10 +440,17 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
 
       try {
         // Upsert on target (pass item for domain-specific metadata like keywords)
-        const result = await timed(phases, 'upsertMs', () => upsert(collectionId, raw, item));
+        // The version travels WITH the write. The writers record the ledger
+        // row themselves and win the race (`recordIfAbsent` no-ops on
+        // conflict), so a version recorded only here never reached the row.
+        const result = await timed(phases, 'upsertMs', () =>
+          upsert(collectionId, raw, item, {
+            ...(rewriteOf ? { overwrite: true } : {}),
+            ...(version !== undefined ? { sourceVersion: version } : {}),
+          }),
+        );
 
-        // Record in ledger with honest status
-        await timed(phases, 'ledgerWriteMs', () => ledger.recordIfAbsent({
+        const row: LedgerRecord = {
           tenantId,
           itemType: domain,
           mappingId,
@@ -322,9 +460,19 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           createdAt: new Date().toISOString(),
           sizeBytes,
           status: result.created ? 'copied' : result.adopted ? 'adopted' : 'updated',
-        }));
+          ...(version !== undefined ? { sourceVersion: version } : {}),
+        };
 
-        if (result.created) created += 1;
+        // A rewrite MUST go through recordUpdate: `recordIfAbsent` is a no-op
+        // on conflict, so the row would keep the old content hash and the old
+        // source version — and the next pass would see the same difference and
+        // rewrite the item again, forever.
+        await timed(phases, 'ledgerWriteMs', () =>
+          rewriteOf ? ledger.recordUpdate(row) : ledger.recordIfAbsent(row),
+        );
+
+        if (rewriteOf) updated += 1;
+        else if (result.created) created += 1;
         else if (result.adopted) {
           adopted += 1;
           if (onCollision === 'fail') {
@@ -342,7 +490,13 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         failed += 1;
         const error = err as Error;
         
-        // Record failed item in ledger
+        // Record failed item in ledger.
+        //
+        // `recordIfAbsent` on purpose, including on the rewrite path: when the
+        // rewrite is what failed, the row already exists and this is a no-op,
+        // so the OLD source version survives. That is what makes a failed
+        // rewrite retryable — recording the new version here would tell the
+        // next pass the update had landed.
         await ledger.recordIfAbsent({
           tenantId,
           itemType: domain,
@@ -373,5 +527,15 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
 
   reportPhases(phases, domain, scanned);
 
-  return { scanned, created, skipped, adopted, failed, drift: 0, metrics: summarise(phases, scanned) };
+  return {
+    scanned,
+    created,
+    skipped,
+    adopted,
+    failed,
+    updated,
+    changedButAdopted,
+    drift: 0,
+    metrics: summarise(phases, scanned),
+  };
 }

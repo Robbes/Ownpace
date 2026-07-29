@@ -11,6 +11,7 @@ import type {
   ContactFolder,
   RawContact,
   UpsertResult,
+  UpsertOptions,
   Ledger,
   TenantId,
   MappingId,
@@ -111,11 +112,21 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
   async upsertContact(
     folderId: string,
     raw: RawContact,
+    options?: UpsertOptions,
   ): Promise<UpsertResult> {
     // Extract UID from vCard data
     const uid = this.extractUidFromVcard(raw.vcard);
     const naturalKey = uid;
     const naturalKeyHash = contactNaturalKeyHash(naturalKey);
+
+    // UPDATE PATH: the source card changed after we copied it. See the same
+    // branch in caldav-target-writer.ts for why this precedes the fast-path
+    // and why it can never touch an item the destination already held.
+    if (options?.overwrite) {
+      const contactId = await this.uploadContact(folderId, raw, uid, true);
+      (await this.keysIn(folderId))?.set(naturalKey, contactId);
+      return { targetId: contactId, created: false, updated: true };
+    }
 
     // LEDGER FAST-PATH: Check if already migrated
     const known = await this.ledger.find(this.tenantId, this.mappingId, 'contact', naturalKeyHash);
@@ -142,6 +153,22 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
         targetId: existingId,
         createdAt: new Date().toISOString(),
         sizeBytes,
+        // ADOPTED, explicitly. Omitting it let PgLedger apply its 'copied'
+        // default, so every item this writer adopted was recorded as one we
+        // had written — and the loop's own `recordIfAbsent`, which does pass
+        // 'adopted', no-ops on the row this one already inserted.
+        //
+        // That was merely a reporting gap until update propagation: the
+        // rewrite rule keys off exactly this status to decide whether the
+        // bytes on the target are ours to replace. Mislabelled, the
+        // customer's own data becomes eligible for overwrite, which hard
+        // rule 2 forbids outright.
+        status: 'adopted',
+        // Carried from the sync loop, not derived here: the loop owns the
+        // comparison and this writer merely persists what it was told.
+        ...(options?.sourceVersion !== undefined
+          ? { sourceVersion: options.sourceVersion }
+          : {}),
       });
       return { targetId: existingId, created: false, adopted: true };
     }
@@ -160,6 +187,11 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       targetId: contactId,
       createdAt: new Date().toISOString(),
       sizeBytes,
+      // Carried from the sync loop, not derived here: the loop owns the
+      // comparison and this writer merely persists what it was told.
+      ...(options?.sourceVersion !== undefined
+        ? { sourceVersion: options.sourceVersion }
+        : {}),
     });
 
     return { targetId: contactId, created: true };
@@ -483,6 +515,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     folderId: string,
     raw: RawContact,
     uid: string,
+    overwrite = false,
   ): Promise<string> {
     // Generate contact filename from UID
     const filename = `${uid}.vcf`;
@@ -494,20 +527,27 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       body: raw.vcard,
       headers: {
         'Content-Type': 'text/vcard',
-        // Create-only, atomically (RFC 4918 §10.4.2 / RFC 9110 §13.1.2). The
-        // existence check and this write are separate requests, so on its own
-        // that pairing is check-then-act: anything appearing at this href in
-        // between would be silently REPLACED, which target writers are
-        // specified never to do (hard rule 2). The precondition closes the
-        // window in the server, and costs nothing.
-        'If-None-Match': '*',
+        // Create-only, atomically, UNLESS this is a deliberate rewrite. See
+        // the same header in caldav-target-writer.ts: sending the precondition
+        // on the update path made the server refuse with 412, which this
+        // method reports as success — a rewrite that silently did nothing
+        // while the pass counted it as updated.
+        ...(overwrite ? {} : { 'If-None-Match': '*' }),
         Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
       },
     });
 
     // 412: something is already there. Not an error — the snapshot was merely
-    // stale, and the resource is exactly what we would have written.
+    // stale, and the resource is exactly what we would have written. On the
+    // overwrite path it means the server refused to replace, which must not be
+    // reported as a successful rewrite.
     if (response.status === 412) {
+      if (overwrite) {
+        throw new Error(
+          `PUT for ${contactPath} was refused with 412 on a deliberate rewrite. ` +
+            'The item was NOT replaced.',
+        );
+      }
       return contactPath;
     }
 

@@ -1,0 +1,31 @@
+-- Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+--
+-- `item.source_version`: the SOURCE's own version marker for the item as we
+-- last copied it. A DAV ETag today, and nothing else.
+--
+-- Why this column exists at all. The product is a shadow sync — the customer
+-- keeps using the old system for weeks and cuts over when they choose — but
+-- the ledger could only answer one question: "have I seen this natural key?"
+-- That is true forever once an item has been copied, so the sync loop's
+-- fast-path skipped every item it had ever seen, unconditionally. An event
+-- rescheduled in week two, a contact whose number changed, a document edited
+-- after the initial copy: all still the week-one version at cutover, silently.
+--
+-- §11.1 is explicit that "the source is authoritative for content", so this is
+-- a gap, not a design choice. `content_hash` cannot close it on its own —
+-- computing it requires FETCHING the item, and fetching every item on every
+-- pass is exactly the cost the fast-path exists to avoid (the file domain
+-- moves ~66 MB per full pass in e2e). An ETag arrives free in the PROPFIND
+-- that already lists the collection.
+--
+-- Opaque by contract: compared for EQUALITY only, never parsed or ordered. An
+-- ETag is an opaque validator (RFC 9110 §8.8.3) and servers change its shape.
+--
+-- NULL is meaningful and is the honest default. Every row that predates this
+-- column has no recorded version, and neither does any source that offers
+-- none. Neither case is treated as "changed" — backfilling by re-copying the
+-- whole corpus would be both wrong and expensive. The sync loop instead
+-- records the version the first time it sees one, so the NEXT change is
+-- detected.
+
+ALTER TABLE item ADD COLUMN IF NOT EXISTS source_version text;

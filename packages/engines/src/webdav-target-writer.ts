@@ -11,6 +11,7 @@ import type {
   FileFolder,
   RawFileItem,
   UpsertResult,
+  UpsertOptions,
   Ledger,
   TenantId,
   MappingId,
@@ -119,6 +120,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
   async upsertFile(
     _parentId: string,
     raw: RawFileItem,
+    options?: UpsertOptions,
   ): Promise<UpsertResult> {
     // The natural key (raw.item.path) is already root-relative and self-contained (see
     // WebdavFileSource.toRelativePath) -- it includes any containing subfolder itself, so it
@@ -127,6 +129,18 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
     // already-full relative path would double the prefix.
     const naturalKey = raw.item.path;
     const naturalKeyHash = fileNaturalKeyHash(naturalKey);
+
+    // UPDATE PATH: the source file changed after we copied it. See the same
+    // branch in caldav-target-writer.ts for why this precedes the fast-path
+    // and why it can never touch a file the destination already held.
+    //
+    // A WebDAV PUT to the same href replaces the body, so the path — the
+    // natural key — is unchanged and nothing is deleted.
+    if (options?.overwrite) {
+      const fileId = await this.uploadFile(raw, true);
+      (await this.keysUnderRoot())?.set(this.normalizeRelativePath(naturalKey), fileId);
+      return { targetId: fileId, created: false, updated: true };
+    }
 
     // LEDGER FAST-PATH: Check if already migrated
     const known = await this.ledger.find(this.tenantId, this.mappingId, 'file', naturalKeyHash);
@@ -156,6 +170,22 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
         targetId: existingId,
         createdAt: new Date().toISOString(),
         sizeBytes,
+        // ADOPTED, explicitly. Omitting it let PgLedger apply its 'copied'
+        // default, so every item this writer adopted was recorded as one we
+        // had written — and the loop's own `recordIfAbsent`, which does pass
+        // 'adopted', no-ops on the row this one already inserted.
+        //
+        // That was merely a reporting gap until update propagation: the
+        // rewrite rule keys off exactly this status to decide whether the
+        // bytes on the target are ours to replace. Mislabelled, the
+        // customer's own data becomes eligible for overwrite, which hard
+        // rule 2 forbids outright.
+        status: 'adopted',
+        // Carried from the sync loop, not derived here: the loop owns the
+        // comparison and this writer merely persists what it was told.
+        ...(options?.sourceVersion !== undefined
+          ? { sourceVersion: options.sourceVersion }
+          : {}),
       });
       return { targetId: existingId, created: false, adopted: true };
     }
@@ -174,6 +204,11 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
       targetId: fileId,
       createdAt: new Date().toISOString(),
       sizeBytes,
+      // Carried from the sync loop, not derived here: the loop owns the
+      // comparison and this writer merely persists what it was told.
+      ...(options?.sourceVersion !== undefined
+        ? { sourceVersion: options.sourceVersion }
+        : {}),
     });
 
     return { targetId: fileId, created: true };
@@ -413,7 +448,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
     return requestWithDavRetry(() => this.httpClient.request(options));
   }
 
-  private async uploadFile(raw: RawFileItem): Promise<string> {
+  private async uploadFile(raw: RawFileItem, overwrite = false): Promise<string> {
     // raw.item.path is root-relative and self-contained (see WebdavFileSource.toRelativePath);
     // resolve it directly instead of re-deriving it from a parent directory id.
     const filePath = this.normalizeRelativePath(raw.item.path);
@@ -434,7 +469,9 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
         body: raw.content,
         headers: {
           'Content-Type': raw.item.mimeType || 'application/octet-stream',
-          // Create-only, atomically (RFC 4918 §10.4.2 / RFC 9110 §13.1.2).
+          // Create-only, atomically (RFC 4918 §10.4.2 / RFC 9110 §13.1.2),
+          // UNLESS this is a deliberate rewrite.
+          //
           // The existence check and this write are separate requests, so on its
           // own that pairing is check-then-act and anything appearing at this
           // href in between would be silently REPLACED — which file writers are
@@ -442,12 +479,27 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
           // path below: that PUTs the same href repeatedly with Content-Range,
           // so a create-only precondition would reject every chunk after the
           // first.
-          'If-None-Match': '*',
+          //
+          // On the update path replacing IS the intent, and the ownership
+          // decision was made upstream against the ledger. Sending the
+          // precondition anyway made the server answer 412, which the branch
+          // below reports as success — the rewrite silently did nothing while
+          // the pass counted `updated: 1`.
+          ...(overwrite ? {} : { 'If-None-Match': '*' }),
           Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
         },
       });
       // 412: already there. The snapshot was stale, not the write wrong.
+      // Unreachable on the overwrite path, which sends no precondition; if a
+      // server returns it anyway that is a refusal to replace, and reporting it
+      // as a successful rewrite would record a copy the target does not hold.
       if (response.status === 412) {
+        if (overwrite) {
+          throw new Error(
+            `PUT for ${filePath} was refused with 412 on a deliberate rewrite. ` +
+              'The file was NOT replaced.',
+          );
+        }
         return filePath;
       }
       // RFC 4918 §9.7.1: PUT returns 201 (created) or 204 (existing resource replaced). Without

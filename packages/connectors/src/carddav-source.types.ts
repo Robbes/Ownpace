@@ -44,6 +44,14 @@ export interface CardDAVContactObject {
   readonly vcard: string;
   /** The sync token for this object (if available) */
   readonly syncToken?: string;
+  /**
+   * This card's own DAV ETag, from its `<D:getetag>` in the REPORT response.
+   *
+   * Per-object, unlike the collection-level ctag the same element was
+   * previously scraped for. The shadow-sync change signal — see
+   * `CalDAVCalendarObject.etag`.
+   */
+  readonly etag?: string;
 }
 
 /**

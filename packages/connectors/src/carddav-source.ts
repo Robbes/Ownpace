@@ -370,6 +370,10 @@ export class CarddavSource implements ContactSource {
       <D:sync-collection xmlns:D="DAV:" xmlns:A="urn:ietf:params:xml:ns:carddav">
         <D:prop>
           <D:resourcetype/>
+          <!-- Per-object ETag: the shadow-sync change signal. Without asking
+               for it here the response carries none and every card looks
+               unchanged forever. -->
+          <D:getetag/>
           <A:address-data>
             ${vcardVersionElement}
           </A:address-data>
@@ -526,10 +530,18 @@ export class CarddavSource implements ContactSource {
       const vcardMatch = responseContent.match(/<[A-Za-z]+:address-data[^>]*>([\s\S]*?)<\/[A-Za-z]+:address-data>/i);
       if (vcardMatch && vcardMatch[1]) {
         const vcardData = this.decodeXmlEntities(vcardMatch[1].trim());
+        // This card's OWN etag, scoped to its <response> — not the
+        // collection-level scrape above, which takes whichever getetag comes
+        // first in the body and would give every card the same value.
+        const etagMatch = responseContent.match(
+          /<[A-Za-z]+:getetag[^>]*>([^<]+)<\/[A-Za-z]+:getetag>/i,
+        );
+        const etag = etagMatch?.[1]?.trim();
         objects.push({
           href,
           vcard: vcardData,
           syncToken,
+          ...(etag ? { etag } : {}),
         });
       }
     }
@@ -568,6 +580,9 @@ export class CarddavSource implements ContactSource {
           note: this.extractNote(obj.vcard),
           birthday: this.extractBirthday(obj.vcard),
           categories: this.extractCategories(obj.vcard),
+          // Carried through so the sync loop can tell a changed card from one
+          // it has already copied. Absent when the server sent no getetag.
+          ...(obj.etag ? { etag: obj.etag } : {}),
           sourcePath: obj.href,
           vcard: obj.vcard,
           version: this.extractVCardVersion(obj.vcard),

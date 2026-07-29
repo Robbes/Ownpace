@@ -74,9 +74,12 @@ export async function runCalendarSync(deps: CalendarSyncDeps): Promise<DomainSyn
         sizeBytes: Buffer.from(item.icalendar, 'utf8').length 
       };
     },
-    upsert: async (calendarId, raw, _item) => 
-      target.upsertCalendarEvent(calendarId, raw as RawCalendarEvent),
+    upsert: async (calendarId, raw, _item, options) =>
+      target.upsertCalendarEvent(calendarId, raw as RawCalendarEvent, options),
     naturalKey: (item) => calendarNaturalKeyHash(item.item.uid),
+    // The CalDAV ETag, when the server sent one. Undefined keeps the old
+    // skip-anything-seen behaviour rather than guessing at change.
+    sourceVersion: (item) => item.item.etag,
     contentHash: (raw) => calendarContentHash((raw as RawCalendarEvent).icalendar),
     ensureCollection: (folder) => target.ensureCalendar(folder),
     ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
@@ -125,9 +128,10 @@ export async function runContactSync(deps: ContactSyncDeps): Promise<DomainSyncR
         sizeBytes: Buffer.from(raw, 'utf8').length 
       };
     },
-    upsert: async (folderId, raw, _item) => 
-      target.upsertContact(folderId, raw as RawContact),
+    upsert: async (folderId, raw, _item, options) =>
+      target.upsertContact(folderId, raw as RawContact, options),
     naturalKey: (item) => contactNaturalKeyHash(item.item.uid),
+    sourceVersion: (item) => item.item.etag,
     contentHash: (raw) => contactContentHash((raw as RawContact).vcard),
     ensureCollection: (folder) => target.ensureContactFolder(folder),
     ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
@@ -196,9 +200,10 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
         sizeBytes: content.length || (item.item?.size ?? 0),
       };
     },
-    upsert: async (parentId, raw, _item) => 
-      target.upsertFile(parentId, raw as RawFileItem),
+    upsert: async (parentId, raw, _item, options) =>
+      target.upsertFile(parentId, raw as RawFileItem, options),
     naturalKey: (item) => fileNaturalKeyHash(item.item.path),
+    sourceVersion: (item) => item.item.etag,
     contentHash: (raw) => fileContentHash((raw as RawFileItem).content ?? new Uint8Array(0)),
     ensureCollection: (folder) => target.ensureDirectory(folder),
     ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),

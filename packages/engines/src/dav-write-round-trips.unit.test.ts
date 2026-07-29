@@ -39,6 +39,7 @@ interface Call {
   method: string;
   url: string;
   headers?: Record<string, string>;
+  body?: unknown;
 }
 
 /** A CalDAV collection holding `existing` UIDs, counting every request. */
@@ -48,7 +49,7 @@ function calServer(existing: string[]) {
 
   const client = {
     async request(o: { method: string; url: string; headers?: Record<string, string>; body?: unknown }) {
-      calls.push({ method: o.method, url: o.url, headers: o.headers });
+      calls.push({ method: o.method, url: o.url, headers: o.headers, body: o.body });
 
       if (o.method === 'REPORT') {
         const responses = [...present]
@@ -90,6 +91,71 @@ function calServer(existing: string[]) {
 function event(uid: string) {
   return { icalendar: `BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:${uid}\r\nSUMMARY:s\r\nEND:VEVENT\r\nEND:VCALENDAR` };
 }
+
+/**
+ * The create-only precondition, and the one case that must not send it.
+ *
+ * `If-None-Match: *` is what makes hard rule 2 hold in the server rather than
+ * merely in our code: the existence check and the PUT are separate requests, so
+ * without it anything appearing at that href in between would be silently
+ * replaced. A 412 back means "someone got there first", which is not an error.
+ *
+ * Update propagation adds the one case where replacing IS the intent — and the
+ * first version of it reused the same helper, so the server refused with 412,
+ * the writer reported that as success, and the pass counted `updated: 1` for a
+ * rewrite that never happened. Green unit suite, green everything, wrong data
+ * on the target. CI's real Nextcloud is what caught it.
+ */
+describe('CalDAV overwrite', () => {
+  const collection = '/calendars/alice/personal/';
+
+  it('sends no create-only precondition when rewriting, and replaces the body', async () => {
+    const { writer, calls } = calServer(['e1']);
+
+    const result = await writer.upsertCalendarEvent(
+      collection,
+      { icalendar: 'BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:e1\r\nSUMMARY:NEW\r\nEND:VEVENT\r\nEND:VCALENDAR' } as never,
+      { overwrite: true },
+    );
+
+    expect(result.updated).toBe(true);
+    expect(result.created).toBe(false);
+
+    const put = calls.find((c) => c.method === 'PUT');
+    expect(put, 'a rewrite must actually write').toBeDefined();
+    expect(
+      put!.headers?.['If-None-Match'],
+      'the create-only precondition makes the server refuse the very write we intend',
+    ).toBeUndefined();
+    expect(String(put!.body)).toContain('SUMMARY:NEW');
+  });
+
+  it('still sends the precondition on an ordinary create', async () => {
+    const { writer, calls } = calServer([]);
+    await writer.upsertCalendarEvent(collection, event('e9') as never);
+    const put = calls.find((c) => c.method === 'PUT');
+    expect(put!.headers?.['If-None-Match']).toBe('*');
+  });
+
+  it('refuses to report a rewrite the server rejected', async () => {
+    // A server that answers 412 even with no precondition has NOT replaced the
+    // item. Returning success here would record a copy the target does not
+    // hold — the same false-green shape as the original bug, one layer down.
+    const client = {
+      async request() {
+        return { status: 412, body: '', headers: {} };
+      },
+    } as unknown as HttpClient;
+    const writer = new CalDAVTargetWriter(
+      { url: BASE, username: 'alice', password: 'pw' },
+      { ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: client },
+    );
+
+    await expect(
+      writer.upsertCalendarEvent(collection, event('e1') as never, { overwrite: true }),
+    ).rejects.toThrow(/refused with 412/);
+  });
+});
 
 describe('CalDAV write cost', () => {
   it('asks the collection once, not once per item', async () => {

@@ -61,6 +61,10 @@ function recordPassMetrics(
   registry.itemsMigrated.inc({ ...labels, outcome: 'created' }, outcome.created);
   registry.itemsMigrated.inc({ ...labels, outcome: 'adopted' }, outcome.adopted);
   registry.itemsMigrated.inc({ ...labels, outcome: 'skipped' }, outcome.skipped);
+  // Its own outcome label rather than folded into 'created': a rewrite is the
+  // only thing this tool does that overwrites anything, so it has to be
+  // countable on its own in §19's dashboards.
+  registry.itemsMigrated.inc({ ...labels, outcome: 'updated' }, outcome.updated ?? 0);
   registry.itemsFailed.inc(labels, outcome.failed);
 
   const m: PassMetrics | undefined = outcome.metrics;
@@ -80,6 +84,18 @@ export interface DomainSyncResult {
   skipped: number;
   /** Already on the target under our natural key; not written. */
   adopted: number;
+  /**
+   * Rewritten because the source version moved on after we copied them — the
+   * shadow-sync update path (§11.1). Absent for mail, whose messages are
+   * immutable and which therefore has nothing to update.
+   */
+  updated?: number;
+  /**
+   * Changed on the source but left alone because the target copy is the
+   * CUSTOMER'S (adopted), not ours. A real source/target divergence, and the
+   * only place it is visible.
+   */
+  changedButAdopted?: number;
   failed: number;
   error?: string;
   /** Where this pass's wall time went; absent for a domain that did not run. */
@@ -275,7 +291,16 @@ export async function runAllDomains(
         const deps = buildDomainDeps(config, 'calendar');
         try {
           const result = await runCalendarSync(deps);
-          outcome = { domain, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted, failed: result.failed };
+          outcome = {
+            domain,
+            scanned: result.scanned,
+            created: result.created,
+            skipped: result.skipped,
+            adopted: result.adopted,
+            updated: result.updated,
+            changedButAdopted: result.changedButAdopted,
+            failed: result.failed,
+          };
         } finally {
           await deps.close();
         }
@@ -283,7 +308,16 @@ export async function runAllDomains(
         const deps = buildDomainDeps(config, 'contact');
         try {
           const result = await runContactSync(deps);
-          outcome = { domain, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted, failed: result.failed };
+          outcome = {
+            domain,
+            scanned: result.scanned,
+            created: result.created,
+            skipped: result.skipped,
+            adopted: result.adopted,
+            updated: result.updated,
+            changedButAdopted: result.changedButAdopted,
+            failed: result.failed,
+          };
         } finally {
           await deps.close();
         }
@@ -291,7 +325,16 @@ export async function runAllDomains(
         const deps = buildDomainDeps(config, 'file');
         try {
           const result = await runFileSync(deps);
-          outcome = { domain, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted, failed: result.failed };
+          outcome = {
+            domain,
+            scanned: result.scanned,
+            created: result.created,
+            skipped: result.skipped,
+            adopted: result.adopted,
+            updated: result.updated,
+            changedButAdopted: result.changedButAdopted,
+            failed: result.failed,
+          };
         } finally {
           await deps.close();
         }
@@ -305,8 +348,18 @@ export async function runAllDomains(
       // from one that created nothing because we had already migrated it.
       log.info(
         `[Worker] ${domain} sync complete: scanned=${outcome.scanned}, created=${outcome.created}, ` +
-          `adopted=${outcome.adopted}, skipped=${outcome.skipped}`,
+          `updated=${outcome.updated ?? 0}, adopted=${outcome.adopted}, skipped=${outcome.skipped}`,
       );
+      // Only when there is something to say. These are items the source
+      // changed and we deliberately did NOT change on the target, which is a
+      // decision about the customer's own data (§11.2) — never a silence.
+      if (outcome.changedButAdopted) {
+        log.warn(
+          `[Worker] ${domain}: ${outcome.changedButAdopted} item(s) changed on the source but ` +
+            'were left as the destination already had them (adopted, never written by us). ' +
+            'Non-destructive by hard rule 2; the owner decides whether to replace them.',
+        );
+      }
     } catch (err) {
       const error = err as Error;
       log.error(`[Worker] ${domain} sync failed: ${error.message}`);
