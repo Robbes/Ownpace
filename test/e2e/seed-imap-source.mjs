@@ -26,6 +26,19 @@ const tls = (process.env.SEED_IMAP_TLS || 'false') === 'true';
 const user = process.env.SEED_IMAP_USER || 'source@dev.local';
 const password = process.env.SEED_IMAP_PASSWORD || 'source_password';
 const count = Number(process.env.SEED_COUNT || '5');
+/**
+ * Number the messages from `SEED_OFFSET + 1` instead of 1.
+ *
+ * Natural keys here are `<seed-N@dev.local>`, deliberately stable so a re-seed
+ * of a fresh mailbox reproduces the same corpus. That also means re-running the
+ * script adds NOTHING to an already-seeded account — every key is already in
+ * the ledger, which is the correct idempotent behaviour and useless for testing
+ * whether new mail is picked up.
+ *
+ * The offset is how the e2e drips genuinely new items into a source that is
+ * already being shadow-synced.
+ */
+const offset = Number(process.env.SEED_OFFSET || '0');
 
 function buildMessage(i) {
   // Stable, valid RFC 822 message. Fixed Message-ID + Date so repeated seeds of a
@@ -58,16 +71,20 @@ async function main() {
 
   try {
     await connection.openBox('INBOX');
-    for (let i = 1; i <= count; i++) {
+    for (let n = 1; n <= count; n++) {
+      const i = offset + n;
       const msg = buildMessage(i);
       await new Promise((resolve, reject) => {
         connection.imap.append(msg, { mailbox: 'INBOX', flags: ['\\Seen'] }, (err) =>
           err ? reject(err) : resolve(),
         );
       });
-      console.log(`[seed] appended message ${i}/${count}`);
+      console.log(`[seed] appended message ${n}/${count} (seed-${i})`);
     }
-    console.log(`[seed] done — ${count} messages in ${user} INBOX`);
+    console.log(
+      `[seed] done — ${count} messages in ${user} INBOX` +
+        (offset ? ` (numbered ${offset + 1}..${offset + count})` : ''),
+    );
   } finally {
     connection.end();
   }

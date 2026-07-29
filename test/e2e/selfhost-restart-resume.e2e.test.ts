@@ -97,6 +97,36 @@ const WAIT_MS = Number(
 );
 
 /**
+ * How many items the sources were seeded with before the stack came up.
+ *
+ * Mirrors the seed scripts' own default, and is the OFFSET the drip numbers
+ * from: their natural keys are stable, so `SEED_OFFSET=SEEDED_COUNT` is what
+ * makes the dripped fixtures genuinely new rather than a no-op re-PUT.
+ */
+const SEEDED_COUNT = Number(process.env.SEED_COUNT ?? 5);
+
+/**
+ * How many fixtures to drip in mid-run.
+ *
+ * Small on purpose. The property under test is "new items keep arriving", which
+ * one item would prove; a handful guards against an off-by-one that a single
+ * item would satisfy by accident, without adding minutes to a gate that already
+ * waits on four domains.
+ */
+const DRIP_COUNT = Number(process.env.E2E_DRIP_COUNT ?? 3);
+
+/**
+ * Items a drip of DRIP_COUNT adds to a given domain's ledger.
+ *
+ * Not uniform: `seed-dav-source.mjs` writes THREE files per index — a text, a
+ * binary and a non-ASCII one — because the file domain needs fixtures that do
+ * not survive a UTF-8 round trip. Calendar, contacts and mail write one each.
+ */
+function expectedDrip(domain: string): number {
+  return domain === 'file' ? DRIP_COUNT * 3 : DRIP_COUNT;
+}
+
+/**
  * Poll until `predicate` holds, and SAY whether it ever did.
  *
  * The previous loops returned only the last status read, and the caller asserted
@@ -251,6 +281,97 @@ describe('Restart-Resume Idempotency Gate (T5)', () => {
       ).toBeGreaterThan(2.5);
     }
   }, 60000);
+
+  /**
+   * The product is a SHADOW SYNC, not a one-shot copy.
+   *
+   * The intent is that a customer keeps using the old system for weeks while
+   * the new one is kept current, and cuts over when THEY choose. That means
+   * items created on the source after the initial copy must keep arriving.
+   *
+   * Nothing tested that. This gate asserts `itemsSynced` did not GROW after a
+   * restart — the opposite property — so it would pass unchanged if the product
+   * stopped picking up new items entirely: a `listSince` that always returned
+   * nothing, or a cursor stuck at "done", satisfies "no duplicates" perfectly.
+   * Mail had one delta test at the integration level; calendar, contacts and
+   * files had none at any level.
+   *
+   * So: drip genuinely new items into every source mid-flight and assert they
+   * arrive. `SEED_OFFSET` is what makes them new — the seed scripts use stable
+   * natural keys, so re-running them without it adds nothing at all (correctly,
+   * and uselessly for this).
+   *
+   * Runs BEFORE the restart test on purpose: the restart assertions capture
+   * their own baseline, so the counts they compare are the post-drip ones.
+   */
+  it('keeps picking up items created on the source after the initial copy', async () => {
+    for (const domain of DOMAINS) {
+      expect(
+        firstPassSynced[domain],
+        `${domain} first-pass test must run first and observe items`,
+      ).toBeGreaterThan(0);
+    }
+
+    const before: Record<string, number> = { ...firstPassSynced };
+    const beforeSyncedAt: Record<string, string | undefined> = { ...firstPassLastSyncedAt };
+
+    execSync(`node test/e2e/seed-imap-source.mjs`, {
+      stdio: 'inherit',
+      env: { ...process.env, SEED_COUNT: String(DRIP_COUNT), SEED_OFFSET: String(SEEDED_COUNT) },
+    });
+    execSync(`node test/e2e/seed-dav-source.mjs`, {
+      stdio: 'inherit',
+      env: { ...process.env, SEED_COUNT: String(DRIP_COUNT), SEED_OFFSET: String(SEEDED_COUNT) },
+    });
+
+    for (const domain of DOMAINS) {
+      // Wait for a pass that COMPLETED after the drip carrying the WHOLE drip.
+      //
+      // Waiting on `lastSyncedAt` alone would settle on the first pass to finish
+      // after seeding, which may have started before the new items landed and
+      // legitimately found nothing. Waiting on "grew at all" is not enough
+      // either: the scheduler fires every minute, so a pass can be mid-flight
+      // while the seeds are still being PUT and finish having seen two of three
+      // — real, correct, and not yet the thing being asserted. So the predicate
+      // waits for the full expected total and the assertion below pins it to
+      // EXACTLY that, which is what catches an overshoot (duplicates).
+      const want = before[domain]! + expectedDrip(domain);
+      const { met, status } = await waitForDomain(
+        domain,
+        (s) =>
+          s.state === 'completed' &&
+          !!s.lastSyncedAt &&
+          s.lastSyncedAt !== beforeSyncedAt[domain] &&
+          s.itemsSynced >= want,
+      );
+
+      expect(
+        met,
+        describeTimeout(
+          domain,
+          `a completed pass having picked up the ${expectedDrip(domain)} newly seeded items ` +
+            `(was ${before[domain]})`,
+          status,
+        ),
+      ).toBe(true);
+
+      // Exactly the new items — not a re-copy of the whole corpus, and not a
+      // partial pick-up. Both would be silent today.
+      expect(
+        status!.itemsSynced,
+        `${domain}: expected the drip to add exactly ${expectedDrip(domain)} items`,
+      ).toBe(want);
+      expect(status!.itemsFailed, `${domain}: drip pass had failures`).toBe(0);
+
+      // Later tests compare against the corpus as it now stands.
+      firstPassSynced[domain] = status!.itemsSynced;
+      firstPassLastSyncedAt[domain] = status!.lastSyncedAt;
+      console.log(
+        `[e2e] ${domain} drip: ${before[domain]} -> ${status!.itemsSynced} ` +
+          `(+${expectedDrip(domain)})`,
+      );
+    }
+  }, WAIT_MS + 120000);
 
   it('restarts the app and every domain resumes with zero duplicates', async () => {
     for (const domain of DOMAINS) {

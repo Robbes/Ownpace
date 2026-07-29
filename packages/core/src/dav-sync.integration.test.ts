@@ -94,17 +94,28 @@ class StubCalendarSource implements CalendarSource {
   }
 }
 
-function buildStubEvents(count: number): RawCalendarEvent[] {
+/**
+ * `count` events numbered from `offset + 1`.
+ *
+ * The offset exists for the delta pass: UIDs are the natural key, so an event
+ * built with an index the ledger has already seen is by design not a new item.
+ */
+function buildStubEvents(count: number, offset = 0): RawCalendarEvent[] {
   const events: RawCalendarEvent[] = [];
-  for (let i = 1; i <= count; i++) {
+  for (let n = 1; n <= count; n++) {
+    const i = offset + n;
     const uid = `dav-sync-test-${i}@dev.local`;
-    const icalendar = buildIcalendar(uid, `Dav Sync Test Event ${i}`, `2024011${i}T100000Z`);
+    // Padded rather than the old `2024011${i}`, which produced the invalid date
+    // 202401110 the moment an index reached 10 — reachable now that the delta
+    // pass numbers past the initial corpus.
+    const day = String(10 + i).padStart(2, '0');
+    const icalendar = buildIcalendar(uid, `Dav Sync Test Event ${i}`, `202401${day}T100000Z`);
     events.push({
       item: {
         uid,
         type: 'event',
         summary: `Dav Sync Test Event ${i}`,
-        start: `2024-01-1${i}T10:00:00Z`,
+        start: `2024-01-${day}T10:00:00Z`,
         sourcePath: 'stub-calendar',
         icalendar,
       },
@@ -200,7 +211,7 @@ describe('Calendar domain sync (real CalDAV target) Integration', () => {
     await cleanDatabaseState();
   });
 
-  it('writes N seeded events to a real Nextcloud calendar and is idempotent on a second pass', async () => {
+  it('writes N seeded events, is idempotent on a second pass, and picks up one added later', async () => {
     const folder: CalendarFolder = { path: TARGET_CALENDAR_PATH, name: 'openmig-e2e-target' };
     const events = buildStubEvents(EVENT_COUNT);
     const source = new StubCalendarSource(folder, events);
@@ -248,6 +259,43 @@ describe('Calendar domain sync (real CalDAV target) Integration', () => {
     expect(result2.created).toBe(0);
     expect(result2.skipped).toBe(EVENT_COUNT);
     expect(result2.failed).toBe(0);
+
+    // Third pass: the SHADOW-SYNC property.
+    //
+    // The product is not a one-shot copy — the customer keeps using the source
+    // for weeks while the target is kept current, and cuts over when they
+    // choose. So an item created on the source AFTER the initial copy must
+    // still arrive. Passes 1 and 2 above cannot see that: a sync that had
+    // stopped taking new work entirely — a cursor stuck at "done", a listSince
+    // that always returned nothing — passes both of them perfectly, because
+    // "created 0 on the second pass" is exactly what it would report.
+    //
+    // Mail had this covered at the ledger level; calendar, contacts and files
+    // had it at no level at all.
+    const added = buildStubEvents(1, EVENT_COUNT);
+    const grownSource = new StubCalendarSource(folder, [...events, ...added]);
+
+    const result3 = await runCalendarSync({
+      tenantId: CALENDAR_TENANT_ID,
+      mappingId: CALENDAR_MAPPING_ID,
+      source: grownSource,
+      target,
+      ledger,
+      concurrency: 1,
+    });
+
+    expect(result3.scanned).toBe(EVENT_COUNT + 1);
+    // Exactly one: the new event created, every previously-migrated one skipped.
+    // A number above 1 would mean the ledger re-copied settled items.
+    expect(result3.created).toBe(1);
+    expect(result3.skipped).toBe(EVENT_COUNT);
+    expect(result3.failed).toBe(0);
+
+    // And it is really on the server, not merely counted.
+    const after = await readBackSource.listSince(landedFolder!);
+    const afterUids = after.items.map((i) => i.item.uid.toLowerCase());
+    expect(afterUids).toContain(added[0]!.item.uid.toLowerCase());
+    expect(afterUids.length).toBe(EVENT_COUNT + 1);
   });
 });
 
@@ -282,9 +330,11 @@ class StubContactSource implements ContactSource {
   }
 }
 
-function buildStubContacts(count: number): RawContact[] {
+/** `count` contacts numbered from `offset + 1` — see `buildStubEvents`. */
+function buildStubContacts(count: number, offset = 0): RawContact[] {
   const contacts: RawContact[] = [];
-  for (let i = 1; i <= count; i++) {
+  for (let n = 1; n <= count; n++) {
+    const i = offset + n;
     const uid = `dav-sync-contact-${i}@dev.local`;
     const fn = `Dav Sync Test Contact ${i}`;
     const vcard = buildVcard(uid, fn);
@@ -389,7 +439,7 @@ describe('Contact domain sync (real CardDAV target) Integration', () => {
     await cleanContactDatabaseState();
   });
 
-  it('writes N seeded contacts to a real Nextcloud address book and is idempotent on a second pass', async () => {
+  it('writes N seeded contacts, is idempotent on a second pass, and picks up one added later', async () => {
     const folder: ContactFolder = { path: TARGET_ADDRESSBOOK_PATH, name: 'openmig-e2e-target' };
     const contacts = buildStubContacts(CONTACT_COUNT);
     const source = new StubContactSource(folder, contacts);
@@ -436,6 +486,31 @@ describe('Contact domain sync (real CardDAV target) Integration', () => {
     expect(result2.created).toBe(0);
     expect(result2.skipped).toBe(CONTACT_COUNT);
     expect(result2.failed).toBe(0);
+
+    // Third pass: shadow sync — a contact added to the source after the initial
+    // copy must still arrive. See the calendar test for why passes 1 and 2 are
+    // blind to a sync that has stopped taking new work.
+    const added = buildStubContacts(1, CONTACT_COUNT);
+    const grownSource = new StubContactSource(folder, [...contacts, ...added]);
+
+    const result3 = await runContactSync({
+      tenantId: CONTACT_TENANT_ID,
+      mappingId: CONTACT_MAPPING_ID,
+      source: grownSource,
+      target,
+      ledger,
+      concurrency: 1,
+    });
+
+    expect(result3.scanned).toBe(CONTACT_COUNT + 1);
+    expect(result3.created).toBe(1);
+    expect(result3.skipped).toBe(CONTACT_COUNT);
+    expect(result3.failed).toBe(0);
+
+    const after = await readBackSource.listSince(landedFolder!);
+    const afterUids = after.items.map((i) => i.item.uid.toLowerCase());
+    expect(afterUids).toContain(added[0]!.item.uid.toLowerCase());
+    expect(afterUids.length).toBe(CONTACT_COUNT + 1);
   });
 });
 
@@ -477,9 +552,11 @@ class StubFileSource implements FileSource {
   }
 }
 
-function buildStubFiles(count: number): RawFileItem[] {
+/** `count` files numbered from `offset + 1` — see `buildStubEvents`. */
+function buildStubFiles(count: number, offset = 0): RawFileItem[] {
   const files: RawFileItem[] = [];
-  for (let i = 1; i <= count; i++) {
+  for (let n = 1; n <= count; n++) {
+    const i = offset + n;
     const name = `dav-sync-test-file-${i}.txt`;
     // Root-relative and self-contained (includes the folder), matching the real
     // WebdavFileSource contract -- the target writer resolves this directly, with no
@@ -593,7 +670,7 @@ describe('File domain sync (real WebDAV target) Integration', () => {
     await cleanFileDatabaseState();
   });
 
-  it('writes N seeded files to a real Nextcloud directory and is idempotent on a second pass', async () => {
+  it('writes N seeded files, is idempotent on a second pass, and picks up one added later', async () => {
     const folder: FileFolder = { path: TARGET_FILES_DIR_NAME, name: TARGET_FILES_DIR_NAME };
     const files = buildStubFiles(FILE_COUNT);
     const source = new StubFileSource(folder, files);
@@ -636,6 +713,30 @@ describe('File domain sync (real WebDAV target) Integration', () => {
     expect(result2.created).toBe(0);
     expect(result2.skipped).toBe(FILE_COUNT);
     expect(result2.failed).toBe(0);
+
+    // Third pass: shadow sync — a file added to the source after the initial
+    // copy must still arrive. See the calendar test for why passes 1 and 2 are
+    // blind to a sync that has stopped taking new work.
+    const added = buildStubFiles(1, FILE_COUNT);
+    const grownSource = new StubFileSource(folder, [...files, ...added]);
+
+    const result3 = await runFileSync({
+      tenantId: FILE_TENANT_ID,
+      mappingId: FILE_MAPPING_ID,
+      source: grownSource,
+      target,
+      ledger,
+    });
+
+    expect(result3.scanned).toBe(FILE_COUNT + 1);
+    expect(result3.created).toBe(1);
+    expect(result3.skipped).toBe(FILE_COUNT);
+    expect(result3.failed).toBe(0);
+
+    const after = await readBackSource.listSince(landedFolder!);
+    const afterNames = after.items.map((i) => i.item.name);
+    expect(afterNames).toContain(added[0]!.item.name);
+    expect(afterNames.length).toBe(FILE_COUNT + 1);
   });
 });
 }

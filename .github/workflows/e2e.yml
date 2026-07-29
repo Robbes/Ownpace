@@ -271,8 +271,22 @@ jobs:
         # A fixed 120s window silently expired on the file domain at
         # SEED_COUNT=110 — ~394 items and tens of megabytes — and the gate then
         # compared two mid-flight counts as if they were finished passes.
+        #
+        # The SEED_* credentials are here because the gate now DRIPS new fixtures
+        # into both sources mid-run (the shadow-sync test) by shelling out to the
+        # same two seed scripts the steps above ran. It reuses SEED_COUNT as the
+        # offset to number them past the existing corpus, so they carry natural
+        # keys the ledger has never seen.
         env:
           SEED_COUNT: ${{ github.event.inputs.seed_count || '5' }}
+          SEED_IMAP_HOST: 127.0.0.1
+          SEED_IMAP_PORT: ${{ env.STALWART_IMAPS_PORT }}
+          SEED_IMAP_TLS: 'true'
+          SEED_IMAP_USER: source@dev.local
+          SEED_IMAP_PASSWORD: ${{ env.SOURCE_IMAP_PASSWORD }}
+          SEED_DAV_URL: http://127.0.0.1:${{ env.DEV_NEXTCLOUD_PORT }}
+          SEED_DAV_SOURCE_USER: ${{ env.NEXTCLOUD_SOURCE_USER }}
+          SEED_DAV_SOURCE_PASSWORD: ${{ env.SOURCE_DAV_PASSWORD }}
         run: pnpm test:e2e test/e2e/selfhost-restart-resume.e2e.test.ts
 
       # The §20 gate against real Stalwart + Nextcloud. The restart-resume gate
