@@ -45,8 +45,7 @@
         "url": "http://host.docker.internal:8082/remote.php/dav",
         "user": "e2e-target",
         "auth": { "kind": "login", "passwordFromEnv": "TARGET_DAV_PASSWORD" }
-      },
-      "concurrency": 1
+      }
     },
     "contacts": {
       "enabled": true,
@@ -61,8 +60,7 @@
         "url": "http://host.docker.internal:8082/remote.php/dav",
         "user": "e2e-target",
         "auth": { "kind": "login", "passwordFromEnv": "TARGET_DAV_PASSWORD" }
-      },
-      "concurrency": 1
+      }
     },
     "files": {
       "enabled": true,
@@ -77,8 +75,7 @@
         "url": "http://host.docker.internal:8082/remote.php/dav/files/e2e-target/",
         "user": "e2e-target",
         "auth": { "kind": "login", "passwordFromEnv": "TARGET_DAV_PASSWORD" }
-      },
-      "concurrency": 1
+      }
     }
   }
 }
