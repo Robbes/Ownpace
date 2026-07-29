@@ -756,13 +756,36 @@ describe('File domain sync (real WebDAV target) Integration', () => {
   it('lists exactly the keys listSince reports, so a full listing and a cursor one agree', async () => {
     const folder: FileFolder = { path: TARGET_FILES_DIR_NAME, name: TARGET_FILES_DIR_NAME };
     const files = buildStubFiles(3);
-    await runFileSync({
+
+    // A WRITER OF ITS OWN, not the describe-level one.
+    //
+    // `WebDAVTargetWriter` memoises one listing of the target root and never
+    // invalidates it, because in production a writer lives exactly one pass.
+    // The shared instance is holding a snapshot taken by the previous test —
+    // and `beforeEach` has since deleted that directory from the server. Every
+    // file here then "already exists", so the writer adopts instead of writing
+    // and nothing lands: the first run of this test compared two empty
+    // listings and called them equal.
+    const freshTarget = new WebDAVTargetWriter(
+      {
+        url: `${NEXTCLOUD_WEBDAV_URL!.replace(/\/$/, '')}/files/${NEXTCLOUD_USERNAME}/`,
+        username: NEXTCLOUD_USERNAME,
+        password: NEXTCLOUD_PASSWORD,
+      },
+      { ledger, tenantId: FILE_TENANT_ID, mappingId: FILE_MAPPING_ID },
+    );
+
+    const seeded = await runFileSync({
       tenantId: FILE_TENANT_ID,
       mappingId: FILE_MAPPING_ID,
       source: new StubFileSource(folder, files),
-      target,
+      target: freshTarget,
       ledger,
     });
+    // Asserted, not assumed. Comparing two listings of an empty directory
+    // proves nothing, and that is exactly how this test first passed locally
+    // and failed to mean anything in CI.
+    expect(seeded.created).toBe(3);
 
     const folders = await readBackSource.listFolders();
     const landed = folders.find((f) => f.name === TARGET_FILES_DIR_NAME);
