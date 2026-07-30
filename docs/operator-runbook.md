@@ -458,10 +458,23 @@ node test/e2e/trash-imap-source.mjs
 # mismatch makes the feature report nothing rather than fail.
 node test/e2e/trash-dav-file-source.mjs
 
+# Calendar: deletes one already-migrated event on the source, the way a client's
+# "Delete event" does — a plain DELETE. No bin to read here; `reported` evidence
+# comes straight from the next sync-collection REPORT.
+node test/e2e/trash-caldav-source.mjs
+
 curl -s http://127.0.0.1:8080/deletions | jq
 ```
 
 `test/e2e/move-dav-source.mjs` does the equivalent for a relocated calendar event.
+
+The self-host e2e workflow (`.github/workflows/e2e.yml`, manual dispatch only) runs
+all three of the above automatically, against a real Nextcloud and a real Stalwart,
+as its Apply-Deletion Gate: delete → confirm `GET /deletions` → `apply` → verify
+directly against the target server that the copy is actually gone or actually
+binned → confirm a second `apply` is refused (`already_applied`) → confirm the
+tombstone survives one more sync pass without resurrecting anything. See ADR-0024
+and `test/e2e/selfhost-apply-deletion.e2e.test.ts`.
 
 ## Items someone moved on the source
 

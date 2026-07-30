@@ -37,7 +37,13 @@ name: E2E (self-hosted)
 #      verification gate that follows comes back clean.
 #   4. Run the Restart-Resume Idempotency Gate e2e for each domain: first pass
 #      syncs N → `docker compose restart app` → second pass must NOT grow itemsSynced.
+#   5. Run the Apply-Deletion Gate (ADR-0024): delete one already-migrated item per
+#      domain on the SOURCE, `apply` the removal through the real appliance, and
+#      verify directly against the real target server (never just the appliance's
+#      own response) that it is actually gone or actually binned — including that a
+#      second `apply` is refused and that the tombstone survives a further pass.
 #
+
 # Ports: this runner is shared with other work (other manual dispatches, agent
 # sessions, etc. on the same box), so every host port this workflow needs is
 # picked fresh at runtime (see "Pick free host ports" below) instead of assuming
@@ -263,6 +269,11 @@ jobs:
             // config.url as-is with zero resolution for the self-host file-config path).
             cfg.domains.files.source.url = nextcloudDav + "/files/" + process.env.NEXTCLOUD_SOURCE_USER + "/";
             cfg.domains.files.target.url = nextcloudDav + "/files/" + process.env.NEXTCLOUD_TARGET_USER + "/";
+            // Off by default (a destructive capability must be opted into, never
+            // opted out of — see ADR-0024). This is the one fixture that turns it
+            // on, so the Apply-Deletion Gate below can prove `apply` end to end
+            // against real servers; every other e2e run leaves it unset.
+            cfg.allowApplyDeletions = true;
             fs.writeFileSync("deploy/selfhost/config/mapping.json", JSON.stringify(cfg, null, 2));
           '
           cat > deploy/selfhost/.env <<ENV
@@ -351,6 +362,22 @@ jobs:
         env:
           SEED_COUNT: ${{ github.event.inputs.seed_count || '5' }}
         run: pnpm test:e2e test/e2e/selfhost-verification.e2e.test.ts
+
+      # `apply` (ADR-0024) — the one destructive operation in the product — against
+      # REAL Nextcloud + Stalwart for the first time. Everything proving it before
+      # this ran against MemoryLedger and fake target writers; this deletes one
+      # already-migrated item per domain (file, mail, calendar) on the SOURCE,
+      # applies the removal through the real appliance, and verifies directly
+      # against the real target server — not just the appliance's own response —
+      # that the copy is actually gone or actually binned. Must run AFTER the two
+      # gates above: it needs already-synced items to delete, and deletes items the
+      # verification gate above already counted (which is why this runs last).
+      - name: Run Apply-Deletion Gate against the real targets (ADR-0024)
+        env:
+          SEED_DAV_URL: http://127.0.0.1:${{ env.DEV_NEXTCLOUD_PORT }}
+          SEED_DAV_SOURCE_USER: ${{ env.NEXTCLOUD_SOURCE_USER }}
+          SEED_DAV_SOURCE_PASSWORD: ${{ env.SOURCE_DAV_PASSWORD }}
+        run: pnpm test:e2e test/e2e/selfhost-apply-deletion.e2e.test.ts
 
       - name: Appliance + Stalwart + Nextcloud diagnostics
         if: always()
