@@ -52,6 +52,8 @@ import type {
   FailuresQueue,
   MovesQueue,
   DeletionsQueue,
+  FinishAccepted,
+  VerificationResult,
 } from '@openmig/shared';
 import { loadConfigDir, type LoadedMapping } from './config-dir';
 import { buildStatusReport, type MappingStatusInput } from './status';
@@ -460,7 +462,12 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             m.config.tenantId as TenantId,
             m.mailboxMappingId as MappingId,
           );
-          inputs.push({ mappingId: m.config.mappingId, statuses, failures });
+          inputs.push({
+            mappingId: m.config.mappingId,
+            migrationStatus: await mappingStatus(m),
+            statuses,
+            failures,
+          });
         }
         return sendJson(res, 200, buildStatusReport(inputs));
       }
@@ -469,7 +476,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // job, and neither edition's UI does. Read-only — it counts and samples,
       // it never writes to the target or advances any cutover state.
       if (req.method === 'GET' && req.url === '/verify') {
-        const reports: Record<string, unknown> = {};
+        const reports: Record<string, VerificationResult> = {};
         for (const m of mappings) {
           reports[m.config.mappingId] = await verifyMapping({
             ...m.config,
@@ -849,12 +856,13 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           return sendJson(res, 409, { error: transition.refuse, hint: transition.hint });
         }
         if (transition.finish === false) {
-          return sendJson(res, 200, {
+          const already: FinishAccepted = {
             status: 'ok',
             action: 'finish',
             alreadyDone: true,
             effect: 'This migration was already finished; nothing changed.',
-          });
+          };
+          return sendJson(res, 200, already);
         }
 
         await withTenantContext(m.config.tenantId as string, async (client) => {
@@ -868,7 +876,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             (unresolved > 0 ? ` (forced over ${unresolved} unresolved failure(s))` : ''),
         );
 
-        return sendJson(res, 200, {
+        const finished: FinishAccepted = {
           status: 'ok',
           action: 'finish',
           mappingId: m.config.mappingId,
@@ -880,7 +888,8 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           ifYouNeedToResume:
             'Remove the mapping from the config directory to retire it for good, or set its ' +
             "mailbox_mapping.status back to 'active' and restart the appliance to resume.",
-        });
+        };
+        return sendJson(res, 200, finished);
       }
 
       // Run a pass NOW, and answer when it has finished.

@@ -193,8 +193,9 @@ Erasure = **revoke access, then purge data + ledger + logs** for that tenant.
 > text, because both are rendered from one shared contract.
 >
 > The `curl` recipes here stay correct and remain the reference: they are what
-> the screens call, and what a script should use. Two things are still
-> endpoint-only: **`verify` and `finish`**.
+> the screens call, and what a script should use. `verify` and `finish` have
+> screens too — see "Finishing a migration" below, where the finish screen walks
+> the cutover sequence in order rather than offering a bare button.
 >
 > If `/ui` reports that the UI has not been built, the appliance is running from
 > a source checkout rather than the image; build it with
@@ -553,6 +554,15 @@ A shadow sync runs indefinitely by design: it keeps the new system current while
 people still use the old one. At some point the old system stops being the one
 that matters, and the sync should stop with it — otherwise the appliance goes on
 polling a source nobody uses and reporting drift nobody will act on.
+
+> **This sequence is now also a screen** (`/ui/finish`, ADR-0026), which walks
+> the same five steps and will not offer the finish button until step 4 has been
+> confirmed. Step 4 is the one the appliance cannot check for itself, and the
+> reason the order matters at all: **while a mapping is active, items still
+> arriving on the old system are being copied across, and finishing stops that.**
+> Finish before delivery has moved and everything that arrives afterwards is
+> never copied — with nothing reporting it, because the appliance has stopped
+> watching. The steps below the button the tool checks; that one it has to ask.
 
 The order that works:
 

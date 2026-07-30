@@ -13,7 +13,11 @@ import type {
   DecisionRefused,
   DeletionsResponse,
   FailuresResponse,
+  FinishAccepted,
+  FinishRefused,
   MovesResponse,
+  StatusReport,
+  VerifyResponse,
 } from '@openmig/shared';
 import { operatingBaseUrl } from './edition';
 
@@ -108,4 +112,70 @@ export function retryFailure(mappingId: string, hash: string): Promise<DecisionA
 /** Migrate without a failed item, permanently. */
 export function acceptFailure(mappingId: string, hash: string): Promise<DecisionAccepted> {
   return decide(`/mappings/${enc(mappingId)}/failures/${enc(hash)}/accept`);
+}
+
+export async function fetchStatus(): Promise<StatusReport> {
+  return (await client.get<StatusReport>('/status')).data;
+}
+
+/**
+ * Run one pass now and answer when it finishes.
+ *
+ * Single-flight per mapping on the server, so this can never start a second
+ * concurrent pass — but with a sharp edge worth knowing: the pass you get back
+ * may have STARTED BEFORE you asked. A caller that needs "a pass that saw my
+ * change" has to re-check and ask again rather than trusting one call.
+ */
+export async function runPass(mappingId: string): Promise<unknown> {
+  return (await client.post(`/mappings/${enc(mappingId)}/run`, undefined, {
+    timeout: 15 * 60 * 1000,
+  })).data;
+}
+
+/**
+ * Run the §20 verification gate.
+ *
+ * **This is expensive and does real work**: it counts and samples the TARGET
+ * for every enabled domain, so it is a request that goes out over the network
+ * rather than a status read. Never call it on mount, never poll it — a UI puts
+ * it behind a button the operator presses.
+ *
+ * The long timeout is the point: the default 30s is a fine ceiling for a status
+ * read and far too short for a real mailbox.
+ */
+export async function runVerification(): Promise<VerifyResponse> {
+  return (await client.get<VerifyResponse>('/verify', { timeout: 15 * 60 * 1000 })).data;
+}
+
+/** A refusal to finish, kept distinct from a transport failure — see `DecisionRefusedError`. */
+export class FinishRefusedError extends Error {
+  constructor(
+    readonly refusal: FinishRefused,
+    readonly httpStatus: number,
+  ) {
+    super(refusal.error);
+    this.name = 'FinishRefusedError';
+  }
+}
+
+/**
+ * End a migration: stop syncing, stop reporting.
+ *
+ * Nothing changes on either side — this is a statement about what the tool does
+ * next. `force` proceeds over items still awaiting a decision in the failure
+ * queue, and exists so that choice is explicit and on the record rather than
+ * something the operator discovers afterwards.
+ */
+export async function finishMigration(
+  mappingId: string,
+  force = false,
+): Promise<FinishAccepted> {
+  const path = `/mappings/${enc(mappingId)}/finish${force ? '?force=true' : ''}`;
+  try {
+    return (await client.post<FinishAccepted>(path)).data;
+  } catch (err) {
+    const res = (err as { response?: { status: number; data?: FinishRefused } }).response;
+    if (res?.data?.error) throw new FinishRefusedError(res.data, res.status);
+    throw err;
+  }
 }

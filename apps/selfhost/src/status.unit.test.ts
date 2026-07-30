@@ -25,6 +25,7 @@ describe('buildStatusReport', () => {
     const report = buildStatusReport([
       {
         mappingId: 'inbox',
+        migrationStatus: 'active',
         statuses: [
           status({ domain: 'email', state: 'completed', itemsSynced: 42, bytesTransferred: 1000, completedAt: '2026-07-20T00:02:00Z' }),
           status({ domain: 'calendar', state: 'in_progress' }),
@@ -43,19 +44,23 @@ describe('buildStatusReport', () => {
       lastSyncedAt: '2026-07-20T00:02:00Z',
     });
     expect(report.mappings[0]!.domains[1]).toMatchObject({ domain: 'calendar', state: 'in_progress' });
+    // Whether the migration is still running at all. Without it, a finished
+    // migration and a stalled one look identical here: both show their last
+    // completed pass and nothing since.
+    expect(report.mappings[0]!.migrationStatus).toBe('active');
     // JSON-serializable end to end.
     expect(() => JSON.stringify(report)).not.toThrow();
   });
 
   it('surfaces the last error verbatim (SAD §11.2)', () => {
     const report = buildStatusReport([
-      { mappingId: 'm', statuses: [status({ state: 'failed', lastError: 'connector auth failed: 401' })] },
+      { mappingId: 'm', migrationStatus: 'active', statuses: [status({ state: 'failed', lastError: 'connector auth failed: 401' })] },
     ]);
     expect(report.mappings[0]!.domains[0]!.lastError).toBe('connector auth failed: 401');
   });
 
   it('omits lastError/lastSyncedAt when absent', () => {
-    const report = buildStatusReport([{ mappingId: 'm', statuses: [status({ state: 'pending' })] }]);
+    const report = buildStatusReport([{ mappingId: 'm', migrationStatus: 'paused', statuses: [status({ state: 'pending' })] }]);
     const d = report.mappings[0]!.domains[0]!;
     expect(d.lastError).toBeUndefined();
     expect(d.lastSyncedAt).toBeUndefined();

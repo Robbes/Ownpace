@@ -12,7 +12,9 @@ import {
   Server,
   Trash2,
   MoveRight,
-  AlertTriangle
+  AlertTriangle,
+  ClipboardCheck,
+  Flag
 } from 'lucide-react';
 import { useAuthStore } from '../stores/auth-store';
 import { isSelfHost } from '../services/edition';
@@ -35,6 +37,10 @@ const Layout: React.FC = () => {
     { name: 'Deletions', href: '/deletions', icon: Trash2 },
     { name: 'Moves', href: '/moves', icon: MoveRight },
     { name: 'Failures', href: '/failures', icon: AlertTriangle },
+    // The §20 gate, then the end of the migration. Last, and in that order,
+    // because that is the order the runbook's cutover sequence uses.
+    { name: 'Check', href: '/verify', icon: ClipboardCheck },
+    { name: 'Finish', href: '/finish', icon: Flag },
     ...(selfHost ? [] : [{ name: 'Tenants', href: '/tenants', icon: Building2 }]),
     ...(selfHost ? [] : [{ name: 'Billing', href: '/billing', icon: CreditCard }]),
     { name: 'Operator', href: '/operator', icon: Server },
