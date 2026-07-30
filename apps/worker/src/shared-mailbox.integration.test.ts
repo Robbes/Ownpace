@@ -378,12 +378,18 @@ describe('Shared Mailbox Integration (Pattern-S, B-T5)', () => {
       concurrency: 2,
     });
 
-    // First run should create all INBOX messages (2 messages)
-    // Note: Due to Stalwart IMAP behavior, getBoxes() returns undefined,
-    // so listFolders() only returns INBOX. Sent folder messages are not
-    // scanned in this pass but would be included if folder listing worked.
-    expect(result1.scanned).toBe(2);
-    expect(result1.created).toBe(2);
+    // First run should create every seeded message: 2 in INBOX, 2 in Sent Items.
+    // (Previously asserted 2 here, on the belief that `getBoxes()` returned
+    // undefined against this Stalwart account and `listFolders()` therefore only
+    // ever saw INBOX. That was a real bug in `ImapSource.listFolders()` itself —
+    // it called the raw callback-only node-imap `getBoxes(namespace, cb)` with
+    // zero arguments and cast the result to a promise, so it always awaited
+    // `undefined` regardless of the server. Fixed by calling `imap-simple`'s own
+    // already-promisified `getBoxes()` instead — the same method the "should
+    // mirror Sent folder correctly" test below has always used directly, and
+    // always gotten a real answer from.)
+    expect(result1.scanned).toBe(4);
+    expect(result1.created).toBe(4);
     expect(result1.skipped).toBe(0);
 
     // Second run should create 0 (idempotent)
@@ -404,9 +410,8 @@ describe('Shared Mailbox Integration (Pattern-S, B-T5)', () => {
   }, 120000);
 
   it('should mirror Sent folder correctly', async () => {
-    // Verify that Sent folder exists in the source
-    // Note: Due to Stalwart IMAP behavior, getBoxes() returns undefined,
-    // so we verify the folder exists by checking the seeded account directly
+    // Verify that Sent folder exists in the source, directly over IMAP,
+    // independent of the appliance's own `listFolders()`.
     const imap = await import('imap-simple');
     const config: ImapSimpleOptions = {
       imap: {
@@ -437,7 +442,8 @@ describe('Shared Mailbox Integration (Pattern-S, B-T5)', () => {
       conn.end();
     }
     
-    // Run shadow pass - it will process available folders (currently just INBOX)
+    // Run shadow pass - INBOX and Sent Items are both already fully synced by
+    // the previous test's two passes, so this is just an idempotency check.
     const result = await runShadowPass({
       tenantId: SHARED_TENANT_ID,
       mappingId: SHARED_MAPPING_ID,
