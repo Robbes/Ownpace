@@ -474,7 +474,9 @@ as its Apply-Deletion Gate: delete → confirm `GET /deletions` → `apply` → 
 directly against the target server that the copy is actually gone or actually
 binned → confirm a second `apply` is refused (`already_applied`) → confirm the
 tombstone survives one more sync pass without resurrecting anything. See ADR-0024
-and `test/e2e/selfhost-apply-deletion.e2e.test.ts`.
+and `test/e2e/selfhost-apply-deletion-{file,mail,calendar}.e2e.test.ts` (one file per
+domain, run together so vitest's own file-level parallelism runs the three domains
+concurrently instead of back to back — see `test/e2e/apply-deletion-lib.ts`'s header).
 
 ## Items someone moved on the source
 

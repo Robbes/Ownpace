@@ -372,12 +372,27 @@ jobs:
       # that the copy is actually gone or actually binned. Must run AFTER the two
       # gates above: it needs already-synced items to delete, and deletes items the
       # verification gate above already counted (which is why this runs last).
+      #
+      # THREE FILES, one command. Each domain waits through a real cron-driven
+      # sync pass (up to E2E_WAIT_MS, default 200s) more than once; run as three
+      # `describe` blocks in one file that cost ~400s end to end (the sum of all
+      # three). They are independent — different natural keys, different
+      # protocols, different appliance sync lanes — so there is no reason for
+      # one to wait on another. Naming all three files in one `pnpm test:e2e`
+      # invocation lets vitest's normal per-file thread pool run them
+      # concurrently, cutting wall time to roughly the slowest domain rather
+      # than the sum of all three. (`describe.concurrent` inside a single file
+      # was tried first and rejected — see apply-deletion-lib.ts's header.)
       - name: Run Apply-Deletion Gate against the real targets (ADR-0024)
         env:
           SEED_DAV_URL: http://127.0.0.1:${{ env.DEV_NEXTCLOUD_PORT }}
           SEED_DAV_SOURCE_USER: ${{ env.NEXTCLOUD_SOURCE_USER }}
           SEED_DAV_SOURCE_PASSWORD: ${{ env.SOURCE_DAV_PASSWORD }}
-        run: pnpm test:e2e test/e2e/selfhost-apply-deletion.e2e.test.ts
+        run: >
+          pnpm test:e2e
+          test/e2e/selfhost-apply-deletion-file.e2e.test.ts
+          test/e2e/selfhost-apply-deletion-mail.e2e.test.ts
+          test/e2e/selfhost-apply-deletion-calendar.e2e.test.ts
 
       - name: Appliance + Stalwart + Nextcloud diagnostics
         if: always()
