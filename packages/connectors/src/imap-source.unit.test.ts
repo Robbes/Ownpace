@@ -1,7 +1,8 @@
 // Copyright 2026 OpenHands Agent (Apache-2.0)
 // Unit tests for IMAP source connector.
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import type { ImapSimple } from "imap-simple";
 import {
   ImapSource,
   type ImapSourceConfig,
@@ -98,6 +99,48 @@ describe("ImapSource", () => {
     it("returns nothing for an absent tree rather than throwing", () => {
       expect(foldersFromImapMailboxTree(undefined)).toEqual([]);
       expect(foldersFromImapMailboxTree(null)).toEqual([]);
+    });
+  });
+
+  describe("ImapSource.listFolders", () => {
+    // Regression test for the OTHER half of run #64's bug, past the `attribs`
+    // fix: `listFolders()` called the raw node-imap `getBoxes(namespace, cb)`
+    // with zero arguments and cast the result to a promise-returning function.
+    // That method is callback-only — called with nothing, `cb` stays
+    // `undefined`, and node-imap enqueues LIST with no callback at all. The
+    // `await` on that call was `await`ing `undefined` (a no-op), so `list` was
+    // ALWAYS falsy and `listFolders()` ALWAYS fell back to a hardcoded
+    // `[INBOX]`, regardless of what `attribs` said or what
+    // `foldersFromImapMailboxTree` would have done with them — a unit test of
+    // that pure function alone, as added alongside the first fix, could not
+    // have caught this: it never exercises the call site. This test does, by
+    // faking only the connection `imap-simple` hands back.
+    function fakeConnection(tree: Record<string, RawImapMailbox>): ImapSimple {
+      return {
+        getBoxes: () => Promise.resolve(tree),
+        openBox: () => Promise.resolve("INBOX"),
+        end: () => undefined,
+      } as unknown as ImapSimple;
+    }
+
+    it("actually sees a Trash-flagged folder from a real getBoxes() response", async () => {
+      const source = new ImapSource({
+        host: "imap.example.com",
+        port: 993,
+        tls: true,
+        auth: { user: "test@example.com", password: "secret" },
+      });
+      vi.spyOn(source, "connect").mockResolvedValue(
+        fakeConnection({
+          INBOX: { attribs: ["\\HasNoChildren"] },
+          "Deleted Items": { attribs: ["\\Trash", "\\HasNoChildren"] },
+        }),
+      );
+
+      const folders = await source.listFolders();
+
+      expect(folders.map((f) => f.path)).toContain("Deleted Items");
+      expect(folders.find((f) => f.path === "Deleted Items")?.specialUse).toBe("trash");
     });
   });
 

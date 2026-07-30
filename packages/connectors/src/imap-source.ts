@@ -193,11 +193,7 @@ export class ImapSource implements SourceConnector {
   async listFolders(): Promise<ReadonlyArray<MailFolder>> {
     const conn = await this.connect();
     try {
-      // Use the underlying node-imap connection to get mailbox list
-      // Note: getBoxes is callback-based in the type definitions, but returns a Promise in practice
-      const list = await (
-        conn.imap.getBoxes as () => Promise<Record<string, RawImapMailbox>>
-      )();
+      const list = await this.getBoxesSafely(conn);
 
       // Handle case where getBoxes returns undefined - this can happen with some IMAP servers
       // that don't include INBOX in the LIST response or use a different response format.
@@ -230,9 +226,7 @@ export class ImapSource implements SourceConnector {
         await this.tokenProvider.refresh();
         const conn = await this.connect();
         try {
-          const list = await (
-            conn.imap.getBoxes as () => Promise<Record<string, RawImapMailbox>>
-          )();
+          const list = await this.getBoxesSafely(conn);
 
           if (!list) {
             throw new Error(
@@ -251,6 +245,26 @@ export class ImapSource implements SourceConnector {
     } finally {
       conn.end();
     }
+  }
+
+  /**
+   * The mailbox tree, via `imap-simple`'s own promise-returning `getBoxes()`.
+   *
+   * NOT `conn.imap.getBoxes` (the raw node-imap method) called with zero
+   * arguments and cast to a promise-returning function — that method's real
+   * signature is `getBoxes(namespace, cb)`; called with nothing, `namespace`
+   * stays undefined, is not a function, so `cb` stays undefined too, and
+   * node-imap enqueues the LIST command with no callback at all. `await`ing the
+   * result of that call was `await`ing `undefined` (a no-op — `await` on a
+   * non-promise just resolves to it immediately), so `listFolders()` silently
+   * treated EVERY account as if `getBoxes()` had failed, falling back to
+   * `[INBOX]` and never seeing any other folder — Trash included — regardless
+   * of what `mapImapSpecialUse` did with the attributes it was never given.
+   * `imap-simple`'s `getBoxes()` wraps the same underlying call with an actual
+   * callback and is what every e2e script here has used successfully all along.
+   */
+  private async getBoxesSafely(conn: ImapSimple): Promise<Record<string, RawImapMailbox> | undefined> {
+    return conn.getBoxes() as Promise<Record<string, RawImapMailbox> | undefined>;
   }
 
   /**
