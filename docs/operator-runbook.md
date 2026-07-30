@@ -184,6 +184,15 @@ Erasure = **revoke access, then purge data + ledger + logs** for that tenant.
 > A dedicated, audited purge endpoint/job is the correct home for steps 1–3; until it exists,
 > perform them deliberately as the DB owner and record what was purged.
 
+> **The three decision queues now have a UI as well as these endpoints**
+> ([ADR-0026](adr/0026-one-operating-ui-one-contract.md)). Everything documented
+> below by its HTTP route — `/failures`, `/moves`, `/deletions` and their
+> decisions — is also a screen in the web app, showing the same fields and the
+> same guidance text, because both are rendered from one shared contract. The
+> `curl` recipes here stay correct and remain the reference: they are what the
+> screens call, and what a script should use. Two things are still endpoint-only
+> at the time of writing: `verify` and `finish`.
+
 ## Items that would not migrate
 
 One unmigratable item does not stop its domain: the pass records it, steps over

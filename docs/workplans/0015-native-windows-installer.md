@@ -6,9 +6,10 @@
 |---|---|---|
 | T0 PGlite feasibility spike | ✅ **Done — PASS, 15/15** | `scripts/spike-pglite-windows.mjs`, run against the REAL `packages/ledger/migrations/0001_baseline.sql` (2580 lines, unmodified). Results in "The spike" below. |
 | T1 driver seam (`pg.Pool` → PGlite) | ⬜ Not started | |
-| T2 packaging shell decision + build | ⬜ Not started | Blocked on the UI (see "What this actually depends on"). |
+| T2 packaging shell decision + build | ⬜ Not started | **Unblocked in part** — the UI prerequisite is now started, not absent (see below). |
 | T3 installer, upgrade, uninstall | ⬜ Not started | |
 | T4 code signing | ⬜ Not started | Needs a purchasing decision, not a technical one. |
+| **UI prerequisite** — operating contract + decision-queue screens | 🟡 **In progress** | [ADR-0026](../adr/0026-one-operating-ui-one-contract.md). Contract in `packages/shared/src/operating-contract.ts`, served by `apps/selfhost`; deletions/moves/failures screens in `apps/web` (9 tests, apply-gate mutation-verified). Remaining: `verify` and `finish` screens, serving the bundle from the appliance, and the managed edition implementing the contract. |
 
 > Read [ADR-0019](../adr/0019-packaging-runtime-targets.md) (packaging; and its
 > 2026-07-30 update note) and [ADR-0023](../adr/0023-persistence-postgres-only.md)
@@ -92,16 +93,46 @@ appliance whose entire operating surface is `curl http://localhost:8081/deletion
 is useless to someone who will not open a terminal — which is the whole point of
 this workplan.
 
-Today the self-host UI is **one page** (`apps/selfhost/src/confirm-page.ts`, 135
-lines): discovery counts, the §11.2 scope manifest, and a "Start migration"
-button. Everything after starting — status, the three decision queues (failures,
-deletions, moves), `verify`, `apply`, `finish` — is JSON over HTTP with no UI in
-either edition. The managed React app does not cover them either
-(`grep -ril "failures|deletions|moves|verify|apply" apps/web/src` → no matches),
-and three of its nine pages are 14-line placeholders.
+When this was written, the self-host UI was **one page**
+(`apps/selfhost/src/confirm-page.ts`, 135 lines): discovery counts, the §11.2
+scope manifest, and a "Start migration" button. Everything after starting —
+status, the three decision queues (failures, deletions, moves), `verify`,
+`apply`, `finish` — was JSON over HTTP with no UI in either edition.
 
-So the order is: **UI → installer**, and the UI-architecture decision (one React
-app served by both editions, agreed 2026-07-30) comes before either.
+So the order is: **UI → installer**, and the UI-architecture decision comes
+before either.
+
+### Status of that prerequisite (2026-07-30, later the same day)
+
+The decision is recorded as **[ADR-0026](../adr/0026-one-operating-ui-one-contract.md)**:
+one React app, served by both editions, against a contract *extracted* from the
+endpoints self-host already serves rather than designed fresh.
+
+Done:
+
+- The operating contract in `packages/shared/src/operating-contract.ts` — queue
+  shapes, `/status`, decision outcomes, and the operator-facing prose, which is
+  part of the contract rather than the UI's to paraphrase.
+- `apps/selfhost` serves all three queues through it (the shapes were
+  `Record<string, unknown>`; response bodies are unchanged, so the e2e gates
+  keep their meaning).
+- Deletions, moves and failures screens in `apps/web`, with keep/apply/retry/
+  accept. The `apply` gate is imported from shared, not re-derived, and its
+  test is verified against a mutated source.
+
+Not done, and still between here and T2:
+
+- **`verify` and `finish` screens.** `finish` is the end of the shadow sync and
+  `verify` is the §20 gate; neither has a UI in either edition.
+- **Serving the bundle from the appliance.** `apps/selfhost` does not yet serve
+  `apps/web`'s build output, so on the appliance the screens exist but are not
+  reachable. This is what actually closes "no terminal".
+- **The managed edition implementing the contract.** It still has no deletions,
+  moves, failures, verify or finish endpoints.
+
+Note that the last of these is not on the installer's critical path — the
+appliance is what gets installed — but leaving it undone is what makes "one
+app, both editions" a claim rather than a fact.
 
 ## Remaining decisions
 
