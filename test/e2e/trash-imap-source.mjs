@@ -20,6 +20,15 @@
 // server rather than something to work around by creating a folder (a folder we
 // created would not carry the flag, so the app would not treat it as a bin either).
 //
+// THE MESSAGE IS FOUND BY `SEARCH ALL` + a client-side header match, never by
+// `SEARCH HEADER MESSAGE-ID`. The latter looked reasonable and failed against a real
+// Stalwart on a 500+ message mailbox (run #63 of the self-host e2e): the message had
+// definitely been APPENDed and definitely migrated (the appliance's own logs showed
+// it created with zero failures), yet the HEADER search came back empty. `SEARCH
+// ALL` and a `HEADER.FIELDS (MESSAGE-ID)` fetch are baseline IMAP4rev1 operations no
+// compliant server can get wrong; a HEADER *search* criterion is a much less
+// exercised code path and evidently not one to depend on here.
+//
 // Config via env (same names as seed-imap-source.mjs):
 //   SEED_IMAP_HOST      (default 127.0.0.1)
 //   SEED_IMAP_PORT      (default 143)
@@ -60,6 +69,36 @@ function findTrash(mailboxes) {
   );
 }
 
+/** Trim + strip one surrounding pair of angle brackets, so `<foo>` and `foo` compare equal. */
+function normalizeMessageId(id) {
+  return id.trim().replace(/^<(.*)>$/, '$1').trim();
+}
+
+/**
+ * Find a message's UID in the CURRENTLY OPEN mailbox by its Message-ID header.
+ *
+ * `SEARCH ALL` + a client-side header match, not `SEARCH HEADER MESSAGE-ID`. Both
+ * should find the same message, but only the former is something every IMAP4rev1
+ * server is guaranteed to implement correctly: `ALL` and a `HEADER.FIELDS (...)`
+ * fetch are used constantly and by everything, while a HEADER *search* criterion
+ * is a much less exercised code path. It looked fine here until it silently
+ * returned zero hits for a message that definitely existed, on a real Stalwart.
+ */
+async function findUidByMessageId(connection, messageId) {
+  const wanted = normalizeMessageId(messageId);
+  const messages = await connection.search(['ALL'], {
+    bodies: ['HEADER.FIELDS (MESSAGE-ID)'],
+    struct: false,
+  });
+  for (const message of messages) {
+    const headerPart = message.parts.find((p) => String(p.which).toUpperCase().startsWith('HEADER'));
+    const values = headerPart?.body?.['message-id'];
+    const value = Array.isArray(values) ? values[0] : values;
+    if (value && normalizeMessageId(value) === wanted) return message.attributes.uid;
+  }
+  return undefined;
+}
+
 async function main() {
   const connection = await imaps.connect({
     imap: { user, password, host, port, tls, authTimeout: 10000, tlsOptions: { rejectUnauthorized: false } },
@@ -81,21 +120,15 @@ async function main() {
     // Already there? Then a previous run did this, and re-doing it is neither
     // possible nor necessary.
     await connection.openBox(trash.path);
-    const already = await connection.search([['HEADER', 'MESSAGE-ID', messageId]], {
-      bodies: ['HEADER'],
-      struct: false,
-    });
-    if (already.length > 0) {
+    const alreadyUid = await findUidByMessageId(connection, messageId);
+    if (alreadyUid !== undefined) {
       console.log(`[trash-imap] ${messageId} is already in ${trash.path}; nothing to do`);
       return;
     }
 
     await connection.openBox('INBOX');
-    const found = await connection.search([['HEADER', 'MESSAGE-ID', messageId]], {
-      bodies: ['HEADER'],
-      struct: false,
-    });
-    if (found.length === 0) {
+    const uid = await findUidByMessageId(connection, messageId);
+    if (uid === undefined) {
       console.error(
         `[trash-imap] ${messageId} is not in INBOX, so there is nothing that has been ` +
           'migrated for the owner to delete. Seed the source first.',
@@ -103,7 +136,6 @@ async function main() {
       process.exit(1);
     }
 
-    const uid = found[0].attributes.uid;
     try {
       // RFC 6851 MOVE, which is what a modern client uses.
       await connection.moveMessage(String(uid), trash.path);
