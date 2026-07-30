@@ -58,15 +58,79 @@ export function isSelfHost(): boolean {
  * gap ADR-0026 exists to close.
  */
 export function operatingBaseUrl(): string {
-  return env().VITE_OPERATING_URL ?? '';
+  if (env().VITE_OPERATING_URL !== undefined) return env().VITE_OPERATING_URL!;
+  // Managed serves the operating surface under the same authenticated API as
+  // everything else; the appliance answers at its own root.
+  return isSelfHost() ? '' : '/api';
+}
+
+/**
+ * Path to one of the decision queues.
+ *
+ * **The two editions share the SHAPES but not the URLs**, and pretending
+ * otherwise would be the one place ADR-0026's "one contract" claim quietly
+ * stopped being true:
+ *
+ *  - The appliance answers `/deletions` for **every** mapping in its config
+ *    directory. There are a handful, and its operator wants all of them.
+ *  - A managed tenant can have many, so its queues are scoped to one mapping:
+ *    `/api/migrations/{id}/deletions`. Returning every mapping's queue in one
+ *    response would be a slow, unbounded answer to a question nobody asked.
+ *
+ * Both return the contract's `ByMapping<T>`, so a screen iterating the response
+ * works unchanged against either — managed simply always has one key. The
+ * difference is confined to this function on purpose.
+ */
+export function queuePath(queue: 'deletions' | 'moves' | 'failures', mappingId?: string): string {
+  return queuePathFor(edition(), queue, mappingId);
+}
+
+/**
+ * The path logic, as a pure function of the edition.
+ *
+ * Split out because the flag itself is baked in at BUILD time (see `edition()`
+ * — that is deliberate, since a value the page could talk itself out of is not
+ * a boundary), which also means a test cannot stub it. Keeping the decision
+ * pure lets both branches be exercised without weakening the thing that makes
+ * the flag a boundary.
+ */
+export function queuePathFor(
+  ed: Edition,
+  queue: 'deletions' | 'moves' | 'failures',
+  mappingId?: string,
+): string {
+  if (ed === 'selfhost') return `/${queue}`;
+  if (!mappingId) {
+    // Not a defaulting decision to make: without a mapping there is nothing to
+    // ask about, and guessing one would show somebody another migration's queue.
+    throw new Error(`The managed edition needs a mappingId to read the ${queue} queue.`);
+  }
+  return `/migrations/${encodeURIComponent(mappingId)}/${queue}`;
+}
+
+/** Path prefix for the decisions and `finish`, which are per-mapping in both editions. */
+export function mappingPath(mappingId: string): string {
+  return mappingPathFor(edition(), mappingId);
+}
+
+/** As `mappingPath`, as a pure function of the edition. See `queuePathFor`. */
+export function mappingPathFor(ed: Edition, mappingId: string): string {
+  return ed === 'selfhost'
+    ? `/mappings/${encodeURIComponent(mappingId)}`
+    : `/migrations/${encodeURIComponent(mappingId)}`;
+}
+
+/** As `operatingBaseUrl`, as a pure function of the edition. See `queuePathFor`. */
+export function operatingBaseUrlFor(ed: Edition): string {
+  return ed === 'selfhost' ? '' : '/api';
 }
 
 /**
  * Where the router is mounted.
  *
  * The appliance serves this bundle under `/ui`, because its JSON operating
- * endpoints already own `/deletions`, `/moves` and `/failures` at the root and
- * the router's own paths would collide with them. Managed serves it at `/`.
+ * endpoints already own `/deletions`, `/moves` and `/failures` and the router's
+ * own paths would collide with them. Managed serves it at `/`.
  *
  * Read from Vite's `BASE_URL` — the value baked in from the `--base` the bundle
  * was built with — rather than from a second flag, so the router's mount point

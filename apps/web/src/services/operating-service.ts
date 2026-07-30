@@ -19,7 +19,7 @@ import type {
   StatusReport,
   VerifyResponse,
 } from '@openmig/shared';
-import { operatingBaseUrl } from './edition';
+import { mappingPath, operatingBaseUrl, queuePath } from './edition';
 
 const client: AxiosInstance = axios.create({
   baseURL: operatingBaseUrl(),
@@ -36,16 +36,18 @@ client.interceptors.request.use((config) => {
   return config;
 });
 
-export async function fetchDeletions(): Promise<DeletionsResponse> {
-  return (await client.get<DeletionsResponse>('/deletions')).data;
+// `mappingId` is required by the managed edition and ignored by the appliance —
+// see `queuePath()` for why the two differ, and why the difference stops there.
+export async function fetchDeletions(mappingId?: string): Promise<DeletionsResponse> {
+  return (await client.get<DeletionsResponse>(queuePath('deletions', mappingId))).data;
 }
 
-export async function fetchMoves(): Promise<MovesResponse> {
-  return (await client.get<MovesResponse>('/moves')).data;
+export async function fetchMoves(mappingId?: string): Promise<MovesResponse> {
+  return (await client.get<MovesResponse>(queuePath('moves', mappingId))).data;
 }
 
-export async function fetchFailures(): Promise<FailuresResponse> {
-  return (await client.get<FailuresResponse>('/failures')).data;
+export async function fetchFailures(mappingId?: string): Promise<FailuresResponse> {
+  return (await client.get<FailuresResponse>(queuePath('failures', mappingId))).data;
 }
 
 /**
@@ -81,11 +83,9 @@ async function decide(path: string): Promise<DecisionAccepted> {
   }
 }
 
-const enc = encodeURIComponent;
-
 /** Keep the target's copy of a vanished item, and stop reporting it. */
 export function keepDeletion(mappingId: string, hash: string): Promise<DecisionAccepted> {
-  return decide(`/mappings/${enc(mappingId)}/deletions/${enc(hash)}/keep`);
+  return decide(`${mappingPath(mappingId)}/deletions/${encodeURIComponent(hash)}/keep`);
 }
 
 /**
@@ -96,22 +96,22 @@ export function keepDeletion(mappingId: string, hash: string): Promise<DecisionA
  * the UI SHOWS, `applyDeletion` decides what actually happens.
  */
 export function applyDeletion(mappingId: string, hash: string): Promise<DecisionAccepted> {
-  return decide(`/mappings/${enc(mappingId)}/deletions/${enc(hash)}/apply`);
+  return decide(`${mappingPath(mappingId)}/deletions/${encodeURIComponent(hash)}/apply`);
 }
 
 /** Accept the target's layout for a moved item, and stop reporting it. */
 export function keepMove(mappingId: string, hash: string): Promise<DecisionAccepted> {
-  return decide(`/mappings/${enc(mappingId)}/moves/${enc(hash)}/keep`);
+  return decide(`${mappingPath(mappingId)}/moves/${encodeURIComponent(hash)}/keep`);
 }
 
 /** Try a failed item again on the next pass (also clears the mapping's cursors). */
 export function retryFailure(mappingId: string, hash: string): Promise<DecisionAccepted> {
-  return decide(`/mappings/${enc(mappingId)}/failures/${enc(hash)}/retry`);
+  return decide(`${mappingPath(mappingId)}/failures/${encodeURIComponent(hash)}/retry`);
 }
 
 /** Migrate without a failed item, permanently. */
 export function acceptFailure(mappingId: string, hash: string): Promise<DecisionAccepted> {
-  return decide(`/mappings/${enc(mappingId)}/failures/${enc(hash)}/accept`);
+  return decide(`${mappingPath(mappingId)}/failures/${encodeURIComponent(hash)}/accept`);
 }
 
 export async function fetchStatus(): Promise<StatusReport> {
@@ -127,7 +127,7 @@ export async function fetchStatus(): Promise<StatusReport> {
  * change" has to re-check and ask again rather than trusting one call.
  */
 export async function runPass(mappingId: string): Promise<unknown> {
-  return (await client.post(`/mappings/${enc(mappingId)}/run`, undefined, {
+  return (await client.post(`${mappingPath(mappingId)}/run`, undefined, {
     timeout: 15 * 60 * 1000,
   })).data;
 }
@@ -170,7 +170,7 @@ export async function finishMigration(
   mappingId: string,
   force = false,
 ): Promise<FinishAccepted> {
-  const path = `/mappings/${enc(mappingId)}/finish${force ? '?force=true' : ''}`;
+  const path = `${mappingPath(mappingId)}/finish${force ? '?force=true' : ''}`;
   try {
     return (await client.post<FinishAccepted>(path)).data;
   } catch (err) {

@@ -131,6 +131,45 @@ codebase while writing it up, and it is the strongest available evidence for the
 decision: a client that redeclares the server's contract will drift, and without
 a gate nobody will notice.
 
+## Update — 2026-07-30: the managed edition implements it, and one refinement
+
+The managed API now serves the three queues, the `keep`/`retry`/`accept`
+decisions and `finish`, from the same `@openmig/shared` shapes and the same
+prose. Two things this surfaced are worth recording, because both qualify the
+decision above rather than merely implementing it.
+
+**The editions share the shapes but NOT the URLs.** The appliance answers
+`/deletions` for every mapping in its config directory — there are a handful,
+and its operator wants all of them. A managed tenant can have many, so its
+queues are scoped: `/api/migrations/{id}/deletions`. Returning every mapping's
+queue in one response would be a slow, unbounded answer to a question nobody
+asked.
+
+Both still return the contract's `ByMapping<T>`, so a screen iterating the
+response works unchanged against either — managed simply always has one key.
+The difference is confined to one function in the client
+(`services/edition.ts`), and asking managed for a queue without naming a mapping
+**throws rather than defaulting**: "all of them" would be the unbounded query,
+and picking one would show somebody another migration's data.
+
+**`apply` and `verify` are deliberately not in the managed API.** Both touch the
+target — one removes a message, the other counts and samples every domain — and
+in that edition target I/O belongs to the worker behind Trigger.dev (ADR-0004),
+not to a request thread holding connector credentials for minutes. A synchronous
+version bolted into the API would make the two editions differ in exactly the
+operation that destroys data. They need a job and an async result shape, which is
+a deliberate piece of work rather than a line in a route file; until then the
+managed edition has no `apply` and no `verify` screen, which is an honest gap
+rather than a broken button.
+
+`startTransition`/`finishTransition` moved to `@openmig/shared` at the same time.
+They are pure decisions — most importantly that finishing is refused while items
+await a decision — and an edition that quietly allowed what the other refused
+would be a different product wearing the same UI. They decide; each edition
+still acts for itself, which genuinely differs: self-host unschedules an
+in-process croner job, managed lets its poller stop seeing a row that is no
+longer `active`.
+
 ## Alternatives considered
 
 - **Design a fresh shared API contract first, then build against it.** Rejected:

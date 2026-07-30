@@ -67,10 +67,22 @@ const App: React.FC = () => {
             <Route path="mappings" element={<Mappings />} />
             <Route path="mappings/new" element={<CreateMapping />} />
             <Route path="mappings/:id" element={<MappingDetail />} />
-            {/* The §11.2 decision queues — the operating surface (ADR-0026). */}
+            {/*
+              The §11.2 decision queues — the operating surface (ADR-0026).
+
+              Two mount points on purpose, because the two editions scope them
+              differently (see `queuePath()`). The appliance answers for every
+              configured mapping, so its screens live at the top level. A managed
+              tenant can have many mappings, so its queues are per-mapping and
+              hang off the mapping they belong to. The SCREENS are identical —
+              only the URL they read from differs.
+            */}
             <Route path="deletions" element={<Deletions />} />
             <Route path="moves" element={<Moves />} />
             <Route path="failures" element={<Failures />} />
+            <Route path="mappings/:mappingId/deletions" element={<Deletions />} />
+            <Route path="mappings/:mappingId/moves" element={<Moves />} />
+            <Route path="mappings/:mappingId/failures" element={<Failures />} />
             {/* The §20 gate and the end of the shadow sync. */}
             <Route path="verify" element={<Verify />} />
             <Route path="finish" element={<Finish />} />

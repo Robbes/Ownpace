@@ -84,9 +84,17 @@ const Finish: React.FC = () => {
   const status = useQuery({ queryKey: ['status'], queryFn: fetchStatus, refetchOnWindowFocus: true });
   // The queue counts, so step 2 is checked rather than asserted. Cheap DB reads,
   // unlike /verify — which is why that one stays behind its own button.
-  const failures = useQuery({ queryKey: ['failures'], queryFn: fetchFailures });
-  const moves = useQuery({ queryKey: ['moves'], queryFn: fetchMoves });
-  const deletions = useQuery({ queryKey: ['deletions'], queryFn: fetchDeletions });
+  //
+  // Called with no mapping, i.e. "every configured mapping". This screen and
+  // Verify are APPLIANCE screens today: both start from `/status` and `/verify`,
+  // which answer for the whole appliance and which the managed edition does not
+  // serve (its equivalents are per-mapping, and its cutover runs through the
+  // cutover job rather than a screen). Wired as arrow functions rather than
+  // passed directly because react-query would otherwise hand the fetcher its
+  // own context object as the first argument.
+  const failures = useQuery({ queryKey: ['failures'], queryFn: () => fetchFailures() });
+  const moves = useQuery({ queryKey: ['moves'], queryFn: () => fetchMoves() });
+  const deletions = useQuery({ queryKey: ['deletions'], queryFn: () => fetchDeletions() });
 
   const finish = (mappingId: string, force: boolean) => {
     setOutcomes((o) => ({ ...o, [mappingId]: { state: 'pending' } }));

@@ -13,6 +13,7 @@
  */
 
 import React from 'react';
+import { useParams } from 'react-router';
 import type { FailuresQueue, ItemFailure } from '@openmig/shared';
 import { QueueScreen, type ItemOutcome } from '../components/queues/QueueScreen';
 import {
@@ -58,12 +59,17 @@ const Row: React.FC<{
   </ItemRow>
 );
 
-const Failures: React.FC = () => (
+const Failures: React.FC = () => {
+  // Undefined on the appliance, which answers for every configured mapping;
+  // required by the managed edition, which scopes each queue to one. See
+  // `queuePath()` — the shapes are shared, the URLs are not.
+  const { mappingId } = useParams<{ mappingId: string }>();
+  return (
   <QueueScreen<FailuresQueue>
     title="Could not be copied"
     intro="Items that did not make it across, what went wrong, and how many times we tried."
     queryKey="failures"
-    fetcher={fetchFailures}
+    fetcher={() => fetchFailures(mappingId)}
     renderMapping={(mappingId, queue, act, outcomes) => (
       <>
         <QueueSection
@@ -130,6 +136,7 @@ const Failures: React.FC = () => (
       </>
     )}
   />
-);
+  );
+};
 
 export default Failures;
