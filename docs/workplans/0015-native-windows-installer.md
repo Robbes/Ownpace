@@ -159,9 +159,12 @@ cheaper than it looked when this workplan was written, and reversible.
 
 - **T1 driver seam — the interface exists; the PGlite side does not.**
   `withTenant()` now takes a `LedgerDriver` (`packages/ledger/src/driver.ts`)
-  and `pgDriver(pool)` implements it. What remains is the PGlite implementation
-  and `runMigrations()`, which still takes a `connectionString` and opens its
-  own `Pool`.
+  and `pgDriver(pool)` implements it. `runMigrations()` goes through it as well
+  and accepts a driver INSTEAD of a connection string — which matters more than
+  it looks: **PGlite is a file, not a server**, so there is no connection string
+  to give it, and a `connectionString`-only signature would have kept the
+  appliance tied to a running Postgres long after every query became portable.
+  What remains is the PGlite driver itself.
 
   **The single-connection point is a correctness requirement, not a performance
   one, and it is the thing to get right.** `pg.Pool` hands out N independent

@@ -57,7 +57,7 @@ function singleConnectionDriver(journal: Journal) {
       return {
         query: async (text: string, params?: readonly unknown[]) => {
           journal.push(params?.length ? `${text} :: ${String(params[0])}` : text);
-          return undefined;
+          return { rows: [] };
         },
         db: {} as PgDatabase,
         release: (err?: Error) => {
