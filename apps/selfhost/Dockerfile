@@ -5,8 +5,9 @@
 # Single-tenant bundle for a NAS / mini-PC / Pi. On startup the entrypoint
 # (apps/selfhost/src/index.ts) applies the ledger migrations under an advisory
 # lock (T1), loads the mapping configs from /data/config, schedules them with
-# the in-process croner scheduler, and serves /healthz + /status. It talks to
-# the bundled Postgres from deploy/selfhost/compose.yml.
+# the in-process croner scheduler, and serves /healthz + /status plus the
+# operating UI at /ui (ADR-0026). It talks to the bundled Postgres from
+# deploy/selfhost/compose.yml.
 #
 # The @openmig/* packages ship TypeScript source (package.json "main"/"exports"
 # point at src/*.ts — there is no JS build), so the app runs under tsx rather
@@ -31,6 +32,12 @@ WORKDIR /app
 FROM base AS build
 COPY . .
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+# The operating UI (ADR-0026). This is the one thing in the image that IS
+# compiled — the @openmig/* packages ship TypeScript and run under tsx, but a
+# browser cannot. Built with `--base=/ui/` and VITE_EDITION=selfhost, which the
+# `build:selfhost` script sets, so the bundle matches the mount the appliance
+# serves it from and knows it has no login to offer.
+RUN pnpm --filter @openmig/web build:selfhost
 
 # ---- runtime: non-root, health-checked ----
 FROM base AS runtime
@@ -40,6 +47,10 @@ ENV CONFIG_DIR=/data/config
 ENV PORT=8081
 # Bind on all interfaces inside the container; publish is controlled by compose.
 ENV HOST=0.0.0.0
+# Where the entrypoint looks for the built UI. Set explicitly rather than left
+# to the module-relative default so a change to the image layout fails loudly
+# at /ui (which says how to build it) instead of silently serving nothing.
+ENV SELFHOST_UI_DIR=/app/apps/web/dist-selfhost
 COPY --from=build /app /app
 # Copy default config into the image (can be overridden by mounted volume).
 COPY deploy/selfhost/config /app/config

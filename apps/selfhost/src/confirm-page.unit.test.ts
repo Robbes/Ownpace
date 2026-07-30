@@ -60,6 +60,33 @@ describe('renderConfirmPage', () => {
     expect(html).toContain('No mappings configured.');
   });
 
+  it('offers the way through to the operating UI once something has started', () => {
+    // Before this, the confirm page was where an operator landed AND where they
+    // stopped: everything after "Start migration" was reachable only by knowing
+    // to curl an endpoint (ADR-0026).
+    const view: MappingConfirmView = {
+      mappingId: 'acme',
+      status: 'active',
+      domains: [{ domain: 'email', collections: 1, items: 1, discoveredAt: '2026-07-21T00:00:00Z' }],
+    };
+    const html = renderConfirmPage({ mappings: [view], manifest: MANIFEST });
+    expect(html).toContain('href="/ui/deletions"');
+    expect(html).toContain('Open the migration console');
+  });
+
+  it('does not offer it while every mapping is still paused', () => {
+    // A paused mapping has copied nothing, so it cannot have diverged: the link
+    // would lead to three empty lists and teach the operator the queues are
+    // useless.
+    const view: MappingConfirmView = {
+      mappingId: 'acme',
+      status: 'paused',
+      domains: [{ domain: 'email', collections: 1, items: 1, discoveredAt: '2026-07-21T00:00:00Z' }],
+    };
+    const html = renderConfirmPage({ mappings: [view], manifest: MANIFEST });
+    expect(html).not.toContain('Open the migration console');
+  });
+
   it('escapes untrusted mapping ids / error text', () => {
     const view: MappingConfirmView = {
       mappingId: '<script>alert(1)</script>',

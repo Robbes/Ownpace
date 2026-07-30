@@ -16,7 +16,7 @@ import Login from './pages/Login';
 import Deletions from './pages/Deletions';
 import Moves from './pages/Moves';
 import Failures from './pages/Failures';
-import { isSelfHost } from './services/edition';
+import { isSelfHost, uiBasename } from './services/edition';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -48,7 +48,8 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      {/* Mounted wherever this bundle was built for — see `uiBasename()`. */}
+      <BrowserRouter basename={uiBasename()}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route

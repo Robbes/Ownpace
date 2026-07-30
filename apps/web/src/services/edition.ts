@@ -23,6 +23,8 @@ type ViteEnv = {
   readonly VITE_EDITION?: string;
   readonly VITE_API_URL?: string;
   readonly VITE_OPERATING_URL?: string;
+  /** Vite's own value for the `--base` this bundle was built with. */
+  readonly BASE_URL?: string;
 };
 
 function env(): ViteEnv {
@@ -57,4 +59,19 @@ export function isSelfHost(): boolean {
  */
 export function operatingBaseUrl(): string {
   return env().VITE_OPERATING_URL ?? '';
+}
+
+/**
+ * Where the router is mounted.
+ *
+ * The appliance serves this bundle under `/ui`, because its JSON operating
+ * endpoints already own `/deletions`, `/moves` and `/failures` at the root and
+ * the router's own paths would collide with them. Managed serves it at `/`.
+ *
+ * Read from Vite's `BASE_URL` — the value baked in from the `--base` the bundle
+ * was built with — rather than from a second flag, so the router's mount point
+ * and the asset URLs cannot disagree with each other.
+ */
+export function uiBasename(): string {
+  return env().BASE_URL ?? '/';
 }

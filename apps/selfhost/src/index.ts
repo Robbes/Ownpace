@@ -10,7 +10,9 @@
  * (single-flight, so an overrunning pass never overlaps itself). A paused (draft)
  * mapping waits for the operator to green-light it on the confirm page (`GET /`,
  * `POST /mappings/:id/start`). Also serves `GET /healthz`, `GET /status`, `GET /verify`,
- * `GET /scope-manifest`, and `GET /discovery` on localhost. Graceful shutdown
+ * `GET /scope-manifest`, and `GET /discovery` on localhost, plus the React operating UI
+ * under `GET /ui` (ADR-0026 — mounted on a prefix because the JSON routes already own
+ * /deletions, /moves and /failures, which are also screen names). Graceful shutdown
  * stops the schedules, lets in-flight passes settle, and closes the server.
  *
  * Single-tenant, no managed dependencies: this file (and its transitive imports)
@@ -19,6 +21,7 @@
  */
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
+import { fileURLToPath } from 'node:url';
 import { runMigrations, createPgDb, PgMigrationStatusStore, PgDiscoveryStore, PgLedger, PgCursorStore, RunStore, withTenant } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
@@ -54,6 +57,7 @@ import { loadConfigDir, type LoadedMapping } from './config-dir';
 import { buildStatusReport, type MappingStatusInput } from './status';
 import { renderConfirmPage, type MappingConfirmView } from './confirm-page';
 import { startTransition, finishTransition } from './lifecycle';
+import { serveUi } from './static-ui';
 import { log } from '@openmig/shared';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
 
@@ -142,6 +146,15 @@ export interface SelfhostOptions {
   readonly configDir?: string;
   readonly port?: number;
   readonly host?: string;
+  /**
+   * Where the built operating UI lives (ADR-0026).
+   *
+   * Defaults to `apps/web/dist-selfhost` resolved from this module, which is
+   * where `pnpm --filter @openmig/web build:selfhost` puts it and where the
+   * image copies it. Absent is not fatal: the appliance serves its JSON either
+   * way and `/ui` explains how to build it.
+   */
+  readonly uiDir?: string;
 }
 
 export interface SelfhostHandle {
@@ -158,6 +171,13 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   const configDir = options.configDir ?? process.env.CONFIG_DIR ?? DEFAULT_CONFIG_DIR;
   const port = options.port ?? Number(process.env.PORT ?? 8080);
   const host = options.host ?? process.env.HOST ?? '127.0.0.1';
+  // Resolved from this module rather than from cwd: the appliance is started by
+  // an installer, a service manager or `docker run`, none of which promise a
+  // working directory.
+  const uiDir =
+    options.uiDir ??
+    process.env.SELFHOST_UI_DIR ??
+    fileURLToPath(new URL('../../web/dist-selfhost', import.meta.url));
 
   // 1. Self-migrate under the advisory lock (refuses to start if DB is newer).
   log.info('[selfhost] applying migrations…');
@@ -397,6 +417,12 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   // 4. Local status/health + confirm server.
   const server = createServer(async (req, res) => {
     try {
+      // The operating UI (ADR-0026), under /ui so it cannot collide with the
+      // JSON routes below — several of which share a name with one of its
+      // screens. Returns false for anything outside the mount, so this can
+      // never shadow an endpoint by accident.
+      if (await serveUi(req, res, { rootDir: uiDir })) return;
+
       if (req.method === 'GET' && (req.url === '/' || req.url === '')) {
         const views = await buildViews();
         const html = renderConfirmPage({ mappings: views, manifest: SCOPE_MANIFEST });
