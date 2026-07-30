@@ -1,5 +1,15 @@
 # IMAP/DAV Bulk Sync with imapsync
 
+> ⚠️ **Withdrawn 2026-07-30. The code this describes no longer exists.**
+> `packages/engines/src/imapsync-wrapper.ts` was written, unit-tested, and
+> imported by nothing — the incremental ledger path is the only path, and it
+> converges on its own. It has been deleted, along with the vdirsyncer and
+> rclone wrappers, because keeping unused shell-outs around said this product
+> needs Perl, Python and external binaries to migrate anything. It does not: the
+> whole sync path is pure JavaScript (ADR-0019's update note explains why that
+> matters for packaging). Kept as a record of the approach and why it was
+> dropped; recoverable from git if it is ever wanted back.
+
 ## Overview
 
 The `imapsync` bulk sync feature provides an optional performance optimization for large mailboxes by using the `imapsync` command-line tool to perform an initial bulk copy before the incremental, ledger-based sync takes over.

@@ -11,7 +11,8 @@ For managed day-2 operations (start/stop, seed, backup, tenant offboarding, what
 ## Windows 11 & desktop tray (ADR-0019)
 - **Today:** the self-host container runs on **Windows 11 via Docker Desktop + WSL2** (web UI in a browser) — no extra code. Recommended Windows path.
 - **Planned (optional):** a **Tauri** system-tray app (tray icon, start-on-login, background service) wrapping the Node service + web UI — chosen over Electron for footprint/arm64. Not MVP.
-- The **JMAP-first mail path is binary-free** (most portable); IMAP/DAV/files paths (imapsync especially) may need WSL2 or a bundled runtime on native Windows. Prefer JS-native engines where fidelity is equal.
+- **The whole sync path is binary-free**, not just the JMAP one. All four domains run on pure-JS libraries (`imap-simple`/`node-imap`, `webdav`, `ical.js`, `undici`); the imapsync/vdirsyncer/rclone wrappers ADR-0019 kept as an option were never wired in and have been deleted. No Perl, no Python, no external binaries.
+- What a **native** Windows build would still have to answer for is therefore **Postgres**, not imapsync: ADR-0023 makes both editions Postgres-only, so a no-container Windows install needs a Postgres to point at (bundled, installed, or remote). Under Docker Desktop today that is simply another container.
 
 ## Dev / e2e stack
 `deploy/compose/dev.yml` — Postgres (ledger) + **Stalwart** (reference target: JMAP **and** IMAP/SMTP/CalDAV/CardDAV/WebDAV) + Nextcloud (secondary DAV/files target). Light by design. **Trigger.dev is added later** from the official templates (github.com/triggerdotdev/docker); the first slice needs only Postgres + Stalwart.

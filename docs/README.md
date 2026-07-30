@@ -20,15 +20,16 @@ All project documentation lives here.
 - **`performance.md`** — performance levers and guardrails (do not optimize speculatively).
 
 Operational how-tos already live at the docs root: connector guides (`dav-sync.md` — CalDAV,
-CardDAV and WebDAV in one, `imapsync-bulk-sync.md`), `o365-setup.md`, `dns-management.md`,
+CardDAV and WebDAV in one), `o365-setup.md`, `dns-management.md`,
 `rls-guide.md`, `rollback-mechanisms.md`, and the cutover procedures (`cutover-runbook.md`,
 `cutover-communication-templates.md`). A dedicated `guides/` / `runbooks/` split can come later if
 the root grows unwieldy; don't add empty placeholder directories.
 
 Historical notes are banner-marked in place rather than deleted (workplan/ADR policy): e.g.
 `unified-sync.md` (⚠️ superseded by `design/domain-sync.md`), `dav-integration-status.md`
-(📄 resolved in 0007), and `caldav-sync.md` / `carddav-sync.md` / `webdav-sync.md`
-(⚠️ merged into `dav-sync.md`, 2026-07-27).
+(📄 resolved in 0007), `caldav-sync.md` / `carddav-sync.md` / `webdav-sync.md`
+(⚠️ merged into `dav-sync.md`, 2026-07-27), and `imapsync-bulk-sync.md`
+(⚠️ withdrawn 2026-07-30 — the wrapper it documents was unused and is deleted).
 
 ## Root Markdown allowlist
 To keep the repo root clean, only these `.md` files are allowed there:

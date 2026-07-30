@@ -54,13 +54,12 @@ Pattern-S mapping, and scheduler are unchanged; only an `ImapDavMailTarget` impl
   LOGIN), `ensureMailbox` (create + set special-use where the server supports it), `upsertEmail` via
   `APPEND`, ledger-gated for idempotency; preserve flags + `INTERNALDATE`.
   *Acceptance:* write N messages to a target IMAP account on Stalwart; re-run creates 0; Sent + flags preserved. ✅ COMPLETE
-- **U2 — imapsync bulk path (optional).** Wrap imapsync for the initial bulk copy; reconcile + ledger
-  still own idempotency and the incremental delta.
-  *Acceptance:* bulk copy followed by an incremental pass converges with no duplicates. ✅ COMPLETE
-  - Implementation: `packages/engines/src/imapsync-wrapper.ts`
-  - Unit tests: `packages/engines/src/imapsync-wrapper.unit.test.ts` (5 tests passing)
-  - Documentation: `docs/imapsync-bulk-sync.md`
-  - Note: imapsync is an optional performance optimization; the incremental path works independently
+- **U2 — imapsync bulk path (optional).** ❌ **REMOVED 2026-07-30.** A wrapper was written
+  (`packages/engines/src/imapsync-wrapper.ts`) and unit-tested, but nothing ever imported it: the
+  incremental path is the only path, and it converges without help. Kept as an unused export it
+  said this product needs Perl and imapsync installed to migrate mail, which is false and is the
+  first thing anyone asks when packaging it (ADR-0019). Deleted, along with the vdirsyncer and
+  rclone wrappers for the same reason. Recoverable from git if the approach is ever wanted back.
 - **U3 — Target selection wiring.** Mapping config selects `jmap` vs `imapdav`; the reconcile loop is
   unchanged. Parametrize the 0001 idempotency/delta property tests over **both** target types.
   *Acceptance:* the same mapping runs against both target types from config; the property tests are green for both. ✅ COMPLETE

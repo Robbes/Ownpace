@@ -4,6 +4,26 @@
 - **Date:** 2026-06-21
 - **Refines:** ADR-0007 (engine reuse); relates to ADR-0003 (two editions, one core) and ADR-0018 (JMAP-first).
 
+## Update 2026-07-30: decision 3 went all the way — there are no shell-out engines left
+
+Decision 3 said "prefer JS-native where fidelity is equal, keep the shell-out
+engines available". In practice **every** domain ended up JS-native and the
+wrappers were never wired into anything: `runShadowPass` → `runDomainSync` drives
+the connectors and target writers directly for all four domains, and the
+`imapsync-wrapper` / `caldav-sync` (vdirsyncer) / `carddav-sync` (vdirsyncer) /
+`webdav-sync` (rclone) modules in `@openmig/engines` were exported but imported by
+nothing. They have now been deleted, so the runtime dependency list below is not
+"preferred" — it is exhaustive:
+
+**No Perl, no Python, no external binaries.** The sync path is Node plus pure-JS
+libraries (`imap-simple`/`node-imap`, `webdav`, `ical.js`, `undici`). The one
+native dependency left in the self-host edition is **Postgres** (ADR-0023), which
+is what a native-Windows packaging story has to answer for — not imapsync.
+
+Everything below stands as written; the paragraphs that hedge about imapsync
+friction on Windows are now historical context for why decision 3 was made, not a
+live constraint.
+
 ## Context
 The self-host edition is container/Linux-first (Docker Compose, NAS/Pi/Spark, Helm, Home Assistant add-on). Users may want to run it on **Windows 11**, possibly as a background **system-tray** app. The core is Node/TypeScript and therefore cross-platform, and the JMAP-first mail path (ADR-0018) is pure Node (a JS JMAP writer + a JS IMAP source). The shell-out engines we reuse (ADR-0007) vary in Windows-friendliness: **rclone** has native Windows builds, **vdirsyncer** installs via Python, but **imapsync** (Perl) is awkward on native Windows.
 
