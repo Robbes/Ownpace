@@ -16,6 +16,8 @@ import type {
   FinishAccepted,
   FinishRefused,
   MovesResponse,
+  DiscoveryRecord,
+  ScopeManifest,
   StatusReport,
   VerifyResponse,
 } from '@openmig/shared';
@@ -116,6 +118,32 @@ export function acceptFailure(mappingId: string, hash: string): Promise<Decision
 
 export async function fetchStatus(): Promise<StatusReport> {
   return (await client.get<StatusReport>('/status')).data;
+}
+
+/**
+ * The appliance's discovery counts, for every configured mapping.
+ *
+ * Appliance-only, like `/status`: the managed edition answers per mapping
+ * (`/api/migrations/{id}/discovery`) through `mapping-service.ts`, because a
+ * tenant's confirm step is about the ONE mapping they just created rather than
+ * everything they have.
+ */
+export async function fetchAllDiscovery(): Promise<Readonly<Record<string, DiscoveryRecord[]>>> {
+  return (await client.get<Record<string, DiscoveryRecord[]>>('/discovery')).data;
+}
+
+export async function fetchScopeManifest(): Promise<ScopeManifest> {
+  return (await client.get<ScopeManifest>('/scope-manifest')).data;
+}
+
+/**
+ * The green light: activate a paused (draft) mapping so it starts syncing.
+ *
+ * Idempotent for one already active; refused once a migration has moved on to
+ * cutover or done.
+ */
+export async function startMigration(mappingId: string): Promise<unknown> {
+  return (await client.post(`${mappingPath(mappingId)}/start`)).data;
 }
 
 /**

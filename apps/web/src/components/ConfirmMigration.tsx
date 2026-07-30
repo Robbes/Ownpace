@@ -1,27 +1,10 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 
 import React from 'react';
+import DiscoveryCounts from './confirm/DiscoveryCounts';
+import ScopeManifestPanel from './confirm/ScopeManifestPanel';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { mappingApi, scopeManifestApi, type DiscoveryRecord } from '../services/mapping-service';
-
-const DOMAIN_LABEL: Record<DiscoveryRecord['domain'], string> = {
-  email: 'Email',
-  calendar: 'Calendar',
-  contact: 'Contacts',
-  file: 'Files',
-};
-
-function formatBytes(bytes?: number): string {
-  if (bytes === undefined) return '—';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let n = bytes;
-  let u = 0;
-  while (n >= 1024 && u < units.length - 1) {
-    n /= 1024;
-    u += 1;
-  }
-  return `${n.toFixed(u === 0 ? 0 : 1)} ${units[u]}`;
-}
+import { mappingApi, scopeManifestApi } from '../services/mapping-service';
 
 export interface ConfirmMigrationProps {
   readonly mappingId: string;
@@ -58,13 +41,6 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
   });
 
   const domains = discovery.data?.domains ?? [];
-  // A subset of `items`: these ARE migrated. Shown because we modify them.
-  const totalGeneratedId = domains.reduce((sum, d) => sum + (d.generatedIdItems ?? 0), 0);
-  // Items the destination already holds under a key that matches something in
-  // the source: we keep the destination's copy. Non-destructive and the right
-  // default, but it decides what the customer ends up with, so it belongs here
-  // rather than in a verification report after the fact.
-  const totalColliding = domains.reduce((sum, d) => sum + (d.targetColliding ?? 0), 0);
 
   return (
     <div className="space-y-6">
@@ -75,84 +51,14 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
         </p>
       </div>
 
-      {/* Discovery counts */}
+      {/* Discovery counts — shared with the appliance's confirm screen. */}
       <section aria-label="discovery-counts">
         <h3 className="text-sm font-medium text-gray-700 mb-2">What we found in your source</h3>
-        {!discovery.data?.discovered ? (
-          <p className="text-sm text-gray-500" role="status">
-            Scanning your source (read-only)…
-          </p>
-        ) : (
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="text-left text-gray-500">
-                <th className="py-1 pr-4">Type</th>
-                <th className="py-1 pr-4">Collections</th>
-                <th className="py-1 pr-4">Items</th>
-                <th className="py-1 pr-4">Size</th>
-                <th className="py-1 pr-4">Needs an ID</th>
-                <th className="py-1 pr-4">Already on the destination</th>
-              </tr>
-            </thead>
-            <tbody>
-              {domains.map((d) => (
-                <tr key={d.domain} className="border-t border-gray-100">
-                  <td className="py-1 pr-4 font-medium text-gray-900">{DOMAIN_LABEL[d.domain]}</td>
-                  <td className="py-1 pr-4">{d.collections}</td>
-                  <td className="py-1 pr-4">{d.items}</td>
-                  <td className="py-1 pr-4">{formatBytes(d.bytes)}</td>
-                  <td className="py-1 pr-4">
-                    {d.generatedIdItems ? (
-                      <span className="text-amber-700">{d.generatedIdItems}</span>
-                    ) : (
-                      <span className="text-gray-400">0</span>
-                    )}
-                  </td>
-                  <td className="py-1 pr-4">
-                    {/* Absent, not zero, when the destination could not be
-                        enumerated — "0" would claim it is empty. */}
-                    {d.targetExisting == null ? (
-                      <span className="text-gray-400">&mdash;</span>
-                    ) : d.targetColliding ? (
-                      <span className="text-amber-700">
-                        {d.targetExisting} ({d.targetColliding} kept as-is)
-                      </span>
-                    ) : (
-                      <span>{d.targetExisting}</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        {totalGeneratedId > 0 && (
-          <p className="mt-2 text-sm text-amber-700" role="note">
-            {totalGeneratedId} message{totalGeneratedId === 1 ? '' : 's'} arrived without a
-            Message-ID, which is what we use to copy each message exactly once. We will generate
-            one and add it to <strong>the copy on your new server</strong> — the original on your
-            old server is not changed. These messages <strong>are</strong> included in the counts
-            above and will be migrated.
-          </p>
-        )}
-        {totalColliding > 0 && (
-          <p className="mt-2 text-sm text-amber-700" role="note">
-            {totalColliding} item{totalColliding === 1 ? '' : 's'} already on your destination
-            match{totalColliding === 1 ? 'es' : ''} something in your source. We will{' '}
-            <strong>keep the destination&rsquo;s copy</strong> and not overwrite it. Anything else
-            already there is left untouched.
-          </p>
-        )}
+        <DiscoveryCounts domains={domains} scanning={!discovery.data?.discovered} />
       </section>
 
       {/* Scope manifest (§11.2) */}
-      {manifest.data && (
-        <section aria-label="scope-manifest" className="grid gap-4 md:grid-cols-3">
-          <ManifestColumn title="Migrates" tone="text-green-700" entries={manifest.data.migrates} />
-          <ManifestColumn title="Partial" tone="text-amber-700" entries={manifest.data.partial} />
-          <ManifestColumn title="Does not migrate" tone="text-gray-500" entries={manifest.data.doesNotMigrate} />
-        </section>
-      )}
+      {manifest.data && <ScopeManifestPanel manifest={manifest.data} />}
 
       {startMutation.isError && (
         <p className="text-sm text-red-600" role="alert">
@@ -170,29 +76,6 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
           {startMutation.isPending ? 'Starting…' : 'Start migration'}
         </button>
       </div>
-    </div>
-  );
-}
-
-function ManifestColumn({
-  title,
-  tone,
-  entries,
-}: {
-  title: string;
-  tone: string;
-  entries: ReadonlyArray<{ item: string; detail: string }>;
-}): React.ReactElement {
-  return (
-    <div>
-      <h4 className={`text-sm font-semibold ${tone} mb-1`}>{title}</h4>
-      <ul className="space-y-1">
-        {entries.map((e) => (
-          <li key={e.item} className="text-xs text-gray-700">
-            <span className="font-medium">{e.item}</span> — {e.detail}
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }
