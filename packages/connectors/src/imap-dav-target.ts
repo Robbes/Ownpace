@@ -7,14 +7,17 @@ import imap, { ImapSimple } from "imap-simple";
 import type {
   TargetWriter,
   TargetReindexer,
+  TargetRemover,
   TargetEntry,
   MailFolder,
   RawMessage,
   MailKeyword,
+  RemovalResult,
   UpsertResult,
 } from "@openmig/shared";
 import { contentHash } from "@openmig/shared";
 import { log } from '@openmig/shared';
+import { foldersFromImapMailboxTree, type RawImapMailbox } from "./imap-source";
 
 /**
  * Configuration for IMAP target connection.
@@ -49,18 +52,11 @@ interface _FetchResult {
   };
 }
 
-/**
- * Map our SpecialUse to IMAP special-use flags.
- */
-const SPECIAL_USE_TO_IMAP: Record<string, string | undefined> = {
-  inbox: "\\Inbox",
-  sent: "\\Sent",
-  drafts: "\\Drafts",
-  archive: "\\Archive",
-  junk: "\\Junk",
-  trash: "\\Trash",
-  normal: undefined,
-};
+/** The part of node-imap's `Box` (the SELECT result) this file relies on. */
+interface ImapBox {
+  /** RFC 3501 §2.3.1.1. Changes iff every UID in the mailbox has been re-issued. */
+  readonly uidvalidity: number;
+}
 
 /**
  * Map our MailKeyword to IMAP flags.
@@ -76,7 +72,7 @@ const KEYWORD_TO_FLAG: Record<MailKeyword, string> = {
  * IMAP/DAV mail target writer implementation.
  * Uses IMAP APPEND for writing messages with idempotency via Message-ID search.
  */
-export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
+export class ImapDavMailTarget implements TargetWriter, TargetReindexer, TargetRemover {
   private readonly config: ImapDavTargetConfig;
   private conn: ImapSimple | null = null;
   private connectPromise: Promise<void> | null = null;
@@ -138,6 +134,33 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
   }
 
   /**
+   * The account's mailboxes, flattened to `MailFolder[]` with RFC 6154 special
+   * use resolved.
+   *
+   * Via `imap-simple`'s own promise-returning `getBoxes()`, NOT `conn.imap.getBoxes`
+   * (the raw node-imap method) called with zero arguments and cast to a
+   * promise-returning function. That method is CALLBACK-ONLY: called with no
+   * callback it returns `undefined`, and `await undefined` is `undefined` — so
+   * every caller here saw an empty account and never an error. `ensureMailbox`
+   * took that as "the mailbox does not exist" and `listEntries` fell through to
+   * its `['INBOX']` fallback, which is precisely the partial view its own
+   * comment refuses to continue on. The `catch` never fired because nothing
+   * threw. Same bug, same fix, as `ImapSource.getBoxesSafely`.
+   *
+   * Flattened through the shared `foldersFromImapMailboxTree` so nested
+   * mailboxes come back as fully-qualified paths (what `openBox` wants) and
+   * special use is read from `attribs` — the field node-imap actually
+   * populates.
+   */
+  private async listMailboxes(): Promise<MailFolder[]> {
+    if (!this.conn) throw new Error('Not connected to IMAP server');
+    const tree = (await this.conn.getBoxes()) as
+      | Record<string, RawImapMailbox>
+      | undefined;
+    return foldersFromImapMailboxTree(tree);
+  }
+
+  /**
    * Ensure a mailbox exists for the given folder/role; return its name (IMAP uses names as IDs).
    */
   async ensureMailbox(folder: MailFolder): Promise<string> {
@@ -151,47 +174,27 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
       throw new Error('Mailbox name or path is required');
     }
 
-    // Use the underlying node-imap connection to get mailbox list
-    type MailboxInfo = { attributes?: string[] };
-    const mailboxes = await (
-      (this.conn.imap.getBoxes as () => Promise<Record<string, MailboxInfo>>)()
-    );
-
-    // Handle case where getBoxes returns undefined
-    if (!mailboxes) {
-      // Try to open the mailbox directly - if it exists, we're good
-      try {
-        await this.conn.openBox(mailboxName);
-        return mailboxName;
-      } catch {
-        // Mailbox doesn't exist, create it
-        // addMailbox is not in the type definition but exists in the runtime
-        await (this.conn as unknown as { addMailbox: (name: string) => Promise<void> }).addMailbox(mailboxName);
-        return mailboxName;
-      }
-    } else {
-      const existingBox = mailboxes[mailboxName];
-      if (existingBox) {
-        return mailboxName;
-      }
-
-      // Create the mailbox
-      await (this.conn as unknown as { addMailbox: (name: string) => Promise<void> }).addMailbox(mailboxName);
+    const existing = await this.listMailboxes();
+    if (existing.some((f) => f.path === mailboxName)) {
+      return mailboxName;
     }
 
-    // Set special-use flag if applicable
-    if (folder.specialUse && SPECIAL_USE_TO_IMAP[folder.specialUse]) {
-      const imapFlag = SPECIAL_USE_TO_IMAP[folder.specialUse]!;
-      // Note: Not all IMAP servers support setting special-use flags
-      // This is best-effort
-      try {
-        // Set flags on the mailbox itself (not messages)
-        await (this.conn as unknown as { setFlags: (name: string, flags: string[], isPermanent: boolean) => Promise<void> }).setFlags(mailboxName, [imapFlag], true);
-      } catch (err) {
-        log.warn('[imap-dav-target] Could not set special-use flag:', (err as Error).message);
-      }
-    }
+    // `addBox`, which is what imap-simple actually exposes. The previous cast
+    // called `addMailbox`, a method that exists on nothing: creating a mailbox
+    // threw `addMailbox is not a function`, so this target could only ever
+    // write into folders the account already had.
+    await this.conn.addBox(mailboxName);
 
+    // NO special-use flag is set here, deliberately. RFC 6154 assigns special
+    // use at CREATE time (`CREATE "x" (USE (\Trash))`) or by server policy;
+    // there is no IMAP command to attach one afterwards, and node-imap's
+    // `addBox` cannot send the USE parameter. The code that used to sit here
+    // called a `setFlags(name, flags, true)` that exists on neither imap-simple
+    // nor node-imap, so it threw a TypeError into a catch that logged "could
+    // not set special-use flag" — a warning about a real limitation, produced
+    // by a call that was never going to work. The limitation is real; the call
+    // was noise. Nothing downstream depends on it: the bin is found by reading
+    // the flags the SERVER assigned (see `findBin`).
     return mailboxName;
   }
 
@@ -329,11 +332,17 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
     if (existingUid) {
       // Already on the target under our natural key: not written, ADOPTED.
       // Distinct from a ledger fast-path skip — see UpsertResult.adopted.
-      return { targetId: existingUid, created: false, adopted: true };
+      return {
+        targetId: existingUid,
+        created: false,
+        adopted: true,
+        targetVersion: await this.uidValidityOf(mailboxId),
+      };
     }
 
     // Open the mailbox
-    await this.conn.openBox(mailboxId);
+    const box = await this.selectBox(mailboxId);
+    const targetVersion = String(box.uidvalidity);
 
     // Prepare flags
     const flags: string[] = [];
@@ -372,29 +381,81 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
         const firstResult = typedSearchResults[0];
         const newUid = firstResult?.attributes?.uid;
         if (newUid) {
-          return { targetId: String(newUid), created: true };
+          return { targetId: String(newUid), created: true, targetVersion };
         }
       }
 
-      // If header search fails, try searching ALL and filtering by Message-ID
-      const allResults = await (this.conn.search as unknown as (criteria: string[]) => Promise<Array<{ attributes?: { uid: number } }>>)(['ALL']);
-      
-      const typedAllResults = allResults as Array<{ attributes?: { uid: number } }>;
-
-      if (typedAllResults && typedAllResults.length > 0) {
-        // Get the highest UID (most recent message)
-        const lastResult = typedAllResults[typedAllResults.length - 1];
-        const latestUid = lastResult?.attributes?.uid;
-        if (latestUid) {
-          return { targetId: String(latestUid), created: true };
-        }
+      // Header search unsupported or unindexed: re-scan the mailbox and match
+      // the Message-ID ourselves.
+      //
+      // This used to take "the highest UID in the mailbox" as the one just
+      // appended. That is a GUESS — a concurrent delivery, or any message the
+      // account already held with a higher UID, makes it the wrong message —
+      // and the ledger row it produced pointed our natural key at somebody
+      // else's mail. Harmless while nothing acted on `targetId`; now that
+      // `removeItem` does, it would have removed the wrong message on an
+      // `apply`. `findByNaturalKey` does a complete scan and throws rather than
+      // guessing, which is the only acceptable behaviour for an id that a
+      // destructive operation will later be pointed at.
+      const rescanned = await this.findByNaturalKey(mailboxId, messageId);
+      if (rescanned) {
+        return { targetId: rescanned, created: true, targetVersion };
       }
 
-      throw new Error('Failed to get UID after appending message');
+      throw new Error(
+        `Appended the message to ${mailboxId} but could not find it again by Message-ID ` +
+          `${messageId}, so there is no id to record for it. Refusing to guess a UID: the ` +
+          `recorded id is what a later removal would act on.`,
+      );
     } catch (err) {
       log.error('[imap-dav-target] Error appending message:', (err as Error).message);
       throw err;
     }
+  }
+
+  /**
+   * SELECT a mailbox read-write and return the server's own description of it.
+   *
+   * Not `conn.openBox()`, whose @types declare `Promise<string>` — the runtime
+   * resolves node-imap's `Box`, but code that relies on a typing being wrong is
+   * one dependency bump away from breaking silently. Going through
+   * `conn.imap.openBox` states the shape we need and asks for read-write
+   * explicitly, which is what `removeItem` requires.
+   */
+  private async selectBox(name: string): Promise<ImapBox> {
+    if (!this.conn) throw new Error('Not connected to IMAP server');
+    const conn = this.conn;
+    return new Promise<ImapBox>((resolve, reject) => {
+      (
+        conn.imap.openBox as unknown as (
+          name: string,
+          readOnly: boolean,
+          cb: (err: Error | null, box: ImapBox) => void,
+        ) => void
+      )(name, false, (err, box) => (err ? reject(err) : resolve(box)));
+    });
+  }
+
+  /**
+   * A mailbox's UIDVALIDITY, as a string, for the ledger's `targetVersion`.
+   *
+   * WHAT "the version of our copy" MEANS ON IMAP. Every other writer records an
+   * ETag over the object's own bytes, but an IMAP message cannot be edited in
+   * place at all: RFC 3501 has no command for it, and a client that "edits" one
+   * appends a new message and deletes the old, which produces a new UID. So the
+   * thing that can invalidate our handle is not the message changing — it is
+   * the MAILBOX being recreated, which resets UIDVALIDITY and re-issues every
+   * UID to a different message.
+   *
+   * Recording it turns `expectedTargetVersion` into exactly the right check for
+   * this target: "the UID I am about to remove is still being counted from the
+   * same origin it was when I wrote it". Without it, an account whose mailbox
+   * was rebuilt would have `apply` remove whatever message now happens to hold
+   * that number.
+   */
+  private async uidValidityOf(mailbox: string): Promise<string> {
+    const box = await this.selectBox(mailbox);
+    return String(box.uidvalidity);
   }
 
   /**
@@ -435,21 +496,15 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
     }
 
     // Determine which mailboxes to list
-    let mailboxNames: string[] = [];
-    
+    let mailboxNames: string[];
+
     if (mailboxId) {
       // If a specific mailbox is requested, just use that
       mailboxNames = [mailboxId];
     } else {
       // Try to get all mailboxes
       try {
-        const mailboxes = await (
-          (this.conn.imap.getBoxes as () => Promise<Record<string, { attributes?: string[] } | undefined>>)()
-        );
-        
-        if (mailboxes) {
-          mailboxNames = Object.keys(mailboxes);
-        }
+        mailboxNames = (await this.listMailboxes()).map((f) => f.path);
       } catch (err) {
         // Falling back to INBOX here would silently reindex a fraction of the
         // account. The ledger rebuilt from that partial view looks complete, so
@@ -579,6 +634,181 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer {
       }
     }
   }
+  /**
+   * The account's bin, by RFC 6154 FLAG rather than by name.
+   *
+   * Never by name. Stalwart calls it "Deleted Items", Exchange "Deleted Items",
+   * Gmail "[Gmail]/Bin" or "[Gmail]/Trash" depending on the account's locale,
+   * and a Dutch account gets "Prullenbak". A `/trash/i` match finds none of
+   * those, and the failure mode is silent: no bin found means the message is
+   * expunged outright instead of binned, turning a recoverable removal into an
+   * unrecoverable one.
+   *
+   * Undefined when the server advertises no `\Trash` mailbox at all, which is
+   * the honest answer — `removeItem` then reports `deleted` rather than
+   * pretending the copy is recoverable.
+   */
+  private async findBin(): Promise<string | undefined> {
+    const folders = await this.listMailboxes();
+    return folders.find((f) => f.specialUse === 'trash')?.path;
+  }
+
+  /**
+   * Is `uid` still present in the currently-selected mailbox?
+   *
+   * `conn.imap.search`, which answers with the UID list itself, rather than
+   * `conn.search`, which follows every hit with a FETCH to build message
+   * objects. Nothing here needs the message — only whether it is there.
+   */
+  private async uidExists(uid: number): Promise<boolean> {
+    if (!this.conn) throw new Error('Not connected to IMAP server');
+    const conn = this.conn;
+    const uids = await new Promise<number[]>((resolve, reject) => {
+      conn.imap.search([['UID', String(uid)]], (err, found) =>
+        err ? reject(err) : resolve(found),
+      );
+    });
+    return uids.includes(uid);
+  }
+
+  /**
+   * Remove the copy of one message the owner deleted on the source (ADR-0024).
+   *
+   * THE ONE DESTRUCTIVE PATH in this writer, reached only through
+   * `applyDeletion`'s seven gates and one explicit owner decision at a time.
+   * Everything here exists because an IMAP UID is a far weaker handle than the
+   * JMAP id or DAV href the other writers remove by:
+   *
+   * - It is **mailbox-scoped**, so `collection` is required. Absent or empty —
+   *   every ledger row written before the collection column was populated — is
+   *   refused, not guessed. Guessing INBOX would remove message number N from
+   *   the inbox because number N in some other folder was deleted on the
+   *   source.
+   * - It is **only valid under one UIDVALIDITY**. `expectedTargetVersion` is
+   *   that value (see `uidValidityOf`); if the mailbox has been recreated since
+   *   we wrote, every UID we hold now names a different message and the whole
+   *   handle is void.
+   *
+   * Binning is preferred over expunging wherever the account has a `\Trash`
+   * mailbox, because a removal the owner can undo for their server's retention
+   * window is a materially different promise from one they cannot. `kind` says
+   * which they got rather than assuming.
+   */
+  async removeItem(
+    targetId: string,
+    options?: { readonly expectedTargetVersion?: string; readonly collection?: string },
+  ): Promise<RemovalResult> {
+    await this.ensureConnected();
+    if (!this.conn) {
+      throw new Error('Not connected to IMAP server');
+    }
+
+    const mailbox = options?.collection;
+    if (!mailbox) {
+      throw new Error(
+        `Cannot remove IMAP message ${targetId}: no mailbox was supplied. An IMAP UID only ` +
+          `identifies a message within one mailbox, so without it there is nothing safe to act ` +
+          `on — removing the same UID from a guessed mailbox would delete a different message. ` +
+          `Remove this item in the target system yourself, then choose \`keep\`.`,
+      );
+    }
+
+    const uid = Number(targetId);
+    if (!Number.isInteger(uid) || uid <= 0) {
+      throw new Error(
+        `Cannot remove IMAP message: "${targetId}" is not a UID. Nothing was changed.`,
+      );
+    }
+
+    const box = await this.selectBox(mailbox);
+
+    // GATE 5 for this target. A changed UIDVALIDITY means the mailbox was
+    // recreated and every UID re-issued: the message this row points at is not
+    // the message we wrote, and may be anyone's. Thrown rather than reported as
+    // `conflicted`, because `conflicted` tells the operator "somebody edited
+    // your copy" — a specific, and here false, explanation. This is a stale
+    // handle, and saying so is the only honest answer (hard rule 9).
+    const expected = options?.expectedTargetVersion;
+    if (expected !== undefined && expected !== String(box.uidvalidity)) {
+      throw new Error(
+        `Refusing to remove UID ${uid} from ${mailbox}: the mailbox reports UIDVALIDITY ` +
+          `${box.uidvalidity} but this item was written under ${expected}. The mailbox has been ` +
+          `recreated since, so every UID now names a different message and this one cannot be ` +
+          `identified. Nothing was changed. Remove the item in the target system yourself, then ` +
+          `choose \`keep\`.`,
+      );
+    }
+
+    if (!(await this.uidExists(uid))) {
+      // Already gone — somebody removed it in the new system by hand. Reported
+      // as "no removal" rather than claimed as a success: the ledger row is
+      // then left saying the item is on the target, which §20 verification
+      // surfaces as `missingOnTarget`. Loud and correctable beats a tombstone
+      // recorded for something this never touched.
+      log.warn(
+        `[imap-dav-target] UID ${uid} is no longer in ${mailbox}; nothing to remove. ` +
+          `Verification will report the item as missing on the target until reconciled.`,
+      );
+      return {};
+    }
+
+    const bin = await this.findBin();
+
+    if (bin && bin !== mailbox) {
+      await this.conn.moveMessage([String(uid)], bin);
+      await this.verifyGone(mailbox, uid, `move to ${bin}`);
+      return { kind: 'binned' };
+    }
+
+    // No bin, or the copy is already in it — expunge.
+    //
+    // UID EXPUNGE (RFC 4315), never the bare EXPUNGE. A bare EXPUNGE removes
+    // EVERY message in the mailbox that carries `\Deleted`, including ones
+    // another client flagged and has not committed — this would destroy data
+    // nobody in this product ever looked at, which hard rule 2 forbids
+    // outright. `imap-simple.deleteMessage` does exactly that, which is why
+    // this goes to node-imap directly. A server without UIDPLUS gets a refusal
+    // instead of a broader deletion than was asked for.
+    const conn = this.conn;
+    if (!conn.imap.serverSupports('UIDPLUS')) {
+      throw new Error(
+        `Refusing to remove UID ${uid} from ${mailbox}: the server has no ${bin ? '' : '`\\Trash` ' }` +
+          `mailbox to move it to and does not support UIDPLUS, so the only way to delete it ` +
+          `would be a bare EXPUNGE — which also removes every other message in the mailbox ` +
+          `that anyone has flagged \\Deleted. Nothing was changed. Remove the item in the ` +
+          `target system yourself, then choose \`keep\`.`,
+      );
+    }
+
+    await conn.addFlags([uid], '\\Deleted');
+    await new Promise<void>((resolve, reject) => {
+      conn.imap.expunge([uid], (err) => (err ? reject(err) : resolve()));
+    });
+    await this.verifyGone(mailbox, uid, 'expunge');
+    return { kind: 'deleted' };
+  }
+
+  /**
+   * Confirm the message really left the mailbox.
+   *
+   * A read-back, for the reason the JMAP writer grew one: a server can accept a
+   * MOVE or an EXPUNGE, answer OK, and leave the message where it was. Without
+   * this the ledger records a tombstone for a copy that is still sitting on the
+   * target, and nothing in the system ever looks again — the row now says the
+   * item was removed, so verification does not expect it either. That is
+   * silent, permanent, and exactly the class of bug this codebase pays for
+   * read-backs to avoid.
+   */
+  private async verifyGone(mailbox: string, uid: number, what: string): Promise<void> {
+    await this.selectBox(mailbox);
+    if (await this.uidExists(uid)) {
+      throw new Error(
+        `The ${what} of UID ${uid} in ${mailbox} was accepted but the message is still there. ` +
+          `Refusing to record it as removed.`,
+      );
+    }
+  }
+
   /**
    * Hash a sampled message as it is stored on the target (§20 checksum leg).
    *

@@ -56,6 +56,21 @@ The stack solves this with three core properties plus one ambition:
 **Non-functional:** idempotency & resumability as the correctness guarantee (crucial for intermittent self-host hosts); low-maintenance (managed-first + IaC/GitOps + auto-updates); scalable (thousands of tenants in cheap delta shadow); secure & GDPR-compliant (EU/CH residency, data minimisation, encryption, audit log, right to erasure); throttle-tolerant (respects O365 Graph/IMAP and target limits); accessible bilingual UI (§23).
 
 ## 6. Architecture principles
+
+> **Update 2026-07-30 — "reuse engines" did not survive contact with the build.**
+> This document still names **imapsync**, **vdirsyncer** and **rclone** throughout
+> as the transfer engines, in principle 1 and in the §7/§8/§9/§10/§13/§22 tables.
+> They are not used. Wrappers for all three were written, exported from
+> `@openmig/engines`, and imported by nothing; the real path is
+> `runShadowPass` → `runDomainSync` over the connectors and target writers, in
+> **pure TypeScript for all four domains**, and the wrappers were deleted on
+> 2026-07-30 (see ADR-0019's update note). Read every "-> imapsync",
+> "-> vdirsyncer" and "-> rclone" below as "-> our own connector for that
+> protocol". Nothing about the *protocols* changed, so the architecture is
+> intact; the named binaries are historical. The practical consequence is the
+> point: **no Perl, no Python, no external binaries**, and the only native
+> dependency in the self-host edition is Postgres (ADR-0023).
+
 1. **Normalise to standards; reuse engines.** Adapters turn each source/target into a standard protocol (IMAP, CalDAV, CardDAV, WebDAV). Proven engines (imapsync, vdirsyncer, rclone) do the inherently idempotent transfer.
 2. **Idempotency lives in the engines + a ledger**, not the orchestrator — so the orchestrator is swappable and the self-host edition can use a much lighter scheduler.
 3. **Non-destructive by default.** A one-way mirror never touches the source; rollback before cutover is simply keeping O365.
@@ -134,7 +149,7 @@ Underlying capability matrix:
 | **Email** | IMAP + OAuth2 (XOAUTH2) or Graph | IMAP/SMTP -> imapsync | no mail host (client only) | Easy Switch import; continuous only via Bridge (paid, heavy) |
 | **Calendar** | **Graph** | CalDAV -> vdirsyncer | CalDAV -> vdirsyncer | Easy Switch import; no CalDAV |
 | **Contacts** | **Graph** | CardDAV -> vdirsyncer | CardDAV -> vdirsyncer | Easy Switch import; no CardDAV |
-| **Files** | OneDrive/SharePoint via Graph -> rclone | n/a | WebDAV -> rclone | weak/no sync API |
+| **Files** | OneDrive/SharePoint via Graph | n/a | WebDAV | official SDK + CLI since 2026, but no WebDAV and no headless auth — see §9.4 |
 | **Office** | n/a | n/a | Collabora/OnlyOffice | Proton Docs (limited) |
 
 Three choice clusters (recommended targets are managed EU/CH; **self-hosted targets, incl. self-hosted email, are permitted but user-operated** — we migrate into them, we don't host them, ADR-0011):
@@ -158,6 +173,15 @@ The bespoke collaboration apps in these suites (Matrix chat, no-code databases, 
 
 ### 9.4 Proton positioning
 Proton's E2E/zero-access encryption is exactly what blocks openness — no CalDAV/CardDAV, mail only via Bridge, and no Exchange-style shared mailboxes/delegation (only aliases to individual accounts). Keep Proton as an **optional** family/individual destination via one-time Easy Switch import + forwarding (deferred past MVP), never as a continuous-shadow target; Bridge interop only in the self-host/local edition. Default remains cluster B.
+
+**Proton Drive as a files target — reassessed 2026-07-30.** The 2025 line "weak/no sync API" is out of date, but the conclusion has not changed, and the reason has moved. Proton now ships an official **Drive SDK** (`github.com/ProtonDriveApps/sdk`, MIT, with a TypeScript client) and an official **Drive CLI** (released 9 June 2026, Windows/macOS/Linux, `--json` output). The SDK's surface — folder listing, upload, download, move, rename, trash, event-based change polling — maps cleanly onto our `FileTargetWriter` + `TargetReindexer` + `TargetRemover` ports, with trash giving an honest `binned` removal kind. So the *file operations* are no longer the problem. Four things still are, in order of severity:
+
+1. **There is still no WebDAV**, so this cannot be a `webdav` target with a different URL. It is a new connector, not a configuration. (WebDAV remains one of the most-requested Proton Drive features and is not on the published roadmap.)
+2. **Authentication is browser-interactive and has no headless path.** The official CLI signs in via a browser and caches the session in the OS secret store; there are no app passwords, no API keys and no long-lived tokens — nothing equivalent to the IMAP app passwords every other target here accepts. This product is a **headless worker on a schedule**, so this is not an inconvenience, it is a contradiction. A session that must be re-established interactively cannot back an unattended continuous shadow sync.
+3. **The SDK is pre-GA.** Proton states it is "not yet ready for third-party production use" with interface changes expected until general availability, targeted **end of 2026 / early 2027**. It also deliberately excludes login and session management — precisely the part that blocks us — leaving that to other Proton libraries.
+4. **E2E encryption means key custody.** Every other target here receives bytes over TLS and encrypts server-side; Proton requires the client to encrypt with the user's own keys, so the worker would have to hold that key material. Defensible in the **self-host** edition, where it never leaves the owner's hardware — the same reasoning that already confines Bridge there — and not defensible in the **managed** edition. §20 verification is affected too: with no server-side content hash to compare against, checksum sampling would mean download-and-decrypt.
+
+**Position ([ADR-0025](../adr/0025-proton-drive-target-deferred.md); plan in [workplan 0014](../workplans/0014-proton-drive-target.md)):** revisit when the SDK reaches GA *and* Proton offers a non-interactive credential. Until the second of those exists, a Proton Drive target could be written but could not be run the way this product runs. If it is built before then, it belongs in the self-host edition only, and honestly labelled as operator-attended rather than scheduled. The reverse-engineered route (rclone's `protondrive` backend over `henrybear327/Proton-API-Bridge`) is explicitly **not** the answer for a migration tool: it is Beta, built by observing browser traffic because Proton publishes no API docs, self-declares incompatibility with some accounts, and hard rule 1 does not survive a target that might silently behave differently per account.
 
 ## 10. Data domains & idempotency
 | Domain | Natural key | Change detection | Engine |

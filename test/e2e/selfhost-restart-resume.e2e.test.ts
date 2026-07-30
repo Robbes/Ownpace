@@ -215,15 +215,52 @@ function expectedDrip(domain: string): number {
 async function waitForDomain(
   domain: string,
   predicate: (s: DomainStatus) => boolean,
+  options: { drive?: boolean } = {},
 ): Promise<{ met: boolean; status: DomainStatus | null }> {
+  const drive = options.drive ?? true;
   const deadline = Date.now() + WAIT_MS;
   let status: DomainStatus | null = null;
   while (Date.now() < deadline) {
     status = getDomainStatus(domain);
     if (status && predicate(status)) return { met: true, status };
-    await setTimeout(2000);
+    if (drive) runPassNow();
+    await setTimeout(drive ? 1000 : 2000);
   }
   return { met: false, status };
+}
+
+/**
+ * Ask the appliance to sync NOW instead of waiting for its cron.
+ *
+ * The fixture's schedule is `* * * * *`, so every "wait for the next completed
+ * pass" in this file was up to 60 SECONDS of sleeping — twelve such waits, and
+ * roughly 166 seconds of this gate's 364 was spent watching a clock. A pass in
+ * steady state takes a second or two, so driving them converges far faster.
+ *
+ * `POST /mappings/{id}/run` is single-flight per mapping (`scheduler.runOnce`),
+ * so this can never start a second concurrent pass; if the cron is already
+ * mid-pass this joins it. Best-effort on purpose: the pass may 409 because the
+ * mapping is not active yet, or fail outright while the app is mid-restart, and
+ * neither is this helper's business to decide about — the surrounding predicate
+ * is still the thing that says whether the wait was satisfied, and the timeout
+ * is still the thing that fails the test.
+ *
+ * What this does NOT do is stand in for the scheduler. "The scheduler re-arms
+ * itself after a restart" is half of what a gate called Restart-Resume is for,
+ * so the restart test below waits for exactly one UNDRIVEN pass to prove it and
+ * drives the rest.
+ */
+function runPassNow(): void {
+  try {
+    const mappingId = getStatus().mappings?.[0]?.mappingId;
+    if (!mappingId) return;
+    execSync(
+      `curl -s -o /dev/null -X POST ${BASE_URL}/mappings/${encodeURIComponent(mappingId)}/run`,
+      { encoding: 'utf8', stdio: 'pipe' },
+    );
+  } catch {
+    // See above: a refused or failed pass is not this helper's decision.
+  }
 }
 
 /** A timeout message that says what we were waiting for and what we last saw. */
@@ -537,6 +574,29 @@ describe('Restart-Resume Idempotency Gate (T5)', () => {
     await setTimeout(5000);
     await waitForHealth();
 
+    // THE SCHEDULER RE-ARMED ITSELF. Half of what "Restart-Resume" means, and
+    // the half that driving passes by hand would quietly stop testing: an
+    // appliance that came back up but never re-scheduled anything would still
+    // pass every assertion below if every pass in them were one we asked for.
+    //
+    // One undriven wait, on one domain, is enough to prove it — the scheduler
+    // is per-mapping, not per-domain, so a pass firing on its own for any
+    // domain is the same fact. The remaining waits are driven, which is what
+    // keeps this from being four cron waits instead of one.
+    const first = DOMAINS[0]!;
+    const armed = await waitForDomain(
+      first,
+      (s) =>
+        s.state === 'completed' &&
+        !!s.lastSyncedAt &&
+        s.lastSyncedAt !== firstPassLastSyncedAt[first],
+      { drive: false },
+    );
+    expect(
+      armed.met,
+      describeTimeout(first, 'an UNPROMPTED pass after the restart (did the cron re-arm?)', armed.status),
+    ).toBe(true);
+
     for (const domain of DOMAINS) {
       // Wait for a NEW pass after the restart (lastSyncedAt advances past the first).
       const { met, status } = await waitForDomain(
@@ -704,7 +764,8 @@ describe('Restart-Resume Idempotency Gate (T5)', () => {
       mappingId = q.mappingId;
       open = q.open;
       if (open.some((m) => m.naturalKeyHash === MOVED_HASH)) break;
-      await setTimeout(2000);
+      runPassNow();
+      await setTimeout(1000);
     }
 
     const entry = open.find((m) => m.naturalKeyHash === MOVED_HASH);
