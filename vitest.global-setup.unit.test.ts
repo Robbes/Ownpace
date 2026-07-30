@@ -36,11 +36,20 @@ describe('runNeedsContainers', () => {
     expect(runNeedsContainers(withProjects(['unit-browser']))).toBe(false);
   });
 
+  it('skips them for e2e, which needs real servers but not these ones', () => {
+    // Every *.e2e.test.ts is a black-box test of an already-running appliance
+    // that brings its own Postgres up in deploy/selfhost/compose.yml. The
+    // Testcontainers one was booted, migrated and never read — three times per
+    // workflow run. If an e2e test ever DOES need the shared Postgres, remove
+    // 'e2e' from CONTAINER_FREE_PROJECTS rather than reaching for it here.
+    expect(runNeedsContainers(withProjects(['e2e']))).toBe(false);
+  });
+
   it('starts them for anything that talks to a real server', () => {
     expect(runNeedsContainers(withProjects(['integration']))).toBe(true);
-    expect(runNeedsContainers(withProjects(['e2e']))).toBe(true);
     // A mixed selection needs them: one project that does is enough.
     expect(runNeedsContainers(withProjects(['unit', 'integration']))).toBe(true);
+    expect(runNeedsContainers(withProjects(['e2e', 'integration']))).toBe(true);
   });
 
   it('starts them when no project was selected at all', () => {
