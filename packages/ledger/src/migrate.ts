@@ -22,15 +22,33 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { Pool, type PoolClient } from 'pg';
+import { Pool } from 'pg';
 import { log as appLog } from '@openmig/shared';
+import { pgDriver } from './db';
+import type { LedgerConnection, LedgerDriver } from './driver';
 
 /** Dedicated advisory-lock key for schema migrations (distinct from app locks). */
 const MIGRATION_ADVISORY_LOCK_KEY = 727_0010;
 
 export interface RunMigrationsOptions {
-  /** Owner/superuser connection string (migrations create roles + RLS). */
-  connectionString: string;
+  /**
+   * Owner/superuser connection string (migrations create roles + RLS).
+   *
+   * Optional only because `driver` is the alternative — exactly one of the two
+   * is required.
+   */
+  connectionString?: string;
+  /**
+   * Run against an already-built driver instead of opening a pool (workplan
+   * 0015 T1).
+   *
+   * The point of the seam here: PGlite is a FILE, not a server, so there is no
+   * connection string to give — a `connectionString`-only signature is the one
+   * thing that would keep the appliance tied to a running Postgres even after
+   * every query became portable. A caller that passes a driver owns its
+   * lifetime; this function will not close it.
+   */
+  driver?: LedgerDriver;
   /** Override the migrations directory (defaults to this package's migrations/). */
   migrationsDir?: string;
   /** Optional logger; defaults to console.log. */
@@ -62,7 +80,10 @@ export function listMigrationVersions(migrationsDir = defaultMigrationsDir()): s
  * Apply all pending migrations. Safe to call on every startup.
  */
 export async function runMigrations(options: RunMigrationsOptions): Promise<RunMigrationsResult> {
-  const { connectionString } = options;
+  const { connectionString, driver: suppliedDriver } = options;
+  if (!connectionString && !suppliedDriver) {
+    throw new Error('runMigrations requires either a connectionString or a driver');
+  }
   const migrationsDir = options.migrationsDir ?? defaultMigrationsDir();
   const log = options.logger ?? ((m: string) => appLog.info(m));
 
@@ -72,8 +93,12 @@ export async function runMigrations(options: RunMigrationsOptions): Promise<RunM
   }
   const highestKnown = versions[versions.length - 1]!;
 
-  const pool = new Pool({ connectionString });
-  const client = await pool.connect();
+  // A supplied driver is the caller's to close; one we opened is ours. Getting
+  // this backwards would either leak a pool or close a driver still in use by
+  // the process that handed it over.
+  const ownsDriver = suppliedDriver === undefined;
+  const driver = suppliedDriver ?? pgDriver(new Pool({ connectionString }));
+  const client = await driver.acquire();
   try {
     // Serialize concurrent migrators. The loser blocks here until the winner
     // releases the lock, then finds every migration already applied.
@@ -127,13 +152,13 @@ export async function runMigrations(options: RunMigrationsOptions): Promise<RunM
     }
   } finally {
     client.release();
-    await pool.end();
+    if (ownsDriver) await driver.end();
   }
 }
 
 /** Apply a single migration file + record it, atomically. */
 async function applyOne(
-  client: PoolClient,
+  client: LedgerConnection,
   migrationsDir: string,
   version: string,
   log: (m: string) => void,

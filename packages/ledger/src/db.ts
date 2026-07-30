@@ -30,7 +30,11 @@ export function pgDriver(pool: Pool): LedgerDriver {
     async acquire(): Promise<LedgerConnection> {
       const client = await pool.connect();
       return {
-        query: (text, params) => client.query(text, params as unknown[] | undefined),
+        query: <R>(text: string, params?: readonly unknown[]) =>
+          client.query<R extends Record<string, unknown> ? R : never>(
+            text,
+            params as unknown[] | undefined,
+          ),
         db: drizzlePg(client, { schema: schemaPg }) as unknown as PgDatabase,
         release: (err?: Error) => client.release(err),
       };

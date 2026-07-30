@@ -57,9 +57,33 @@ import type { PgDatabase } from './db-types';
  * `set_config` that arms RLS; it needs to send those, to get a drizzle handle
  * bound to the SAME connection, and to give it back.
  */
+/**
+ * What a statement gives back.
+ *
+ * Only `rows`, because only `rows` is portable. `pg` returns `rowCount`,
+ * `fields`, `command` and `oid`; PGlite returns `fields` and `affectedRows`.
+ * Putting anything but the intersection here would be inviting a caller to
+ * depend on something one of the two drivers does not have — which would show
+ * up only when the driver is switched, and the whole point of the seam is that
+ * switching drivers is not supposed to be a discovery exercise.
+ */
+export interface LedgerQueryResult<R = Record<string, unknown>> {
+  readonly rows: R[];
+}
+
 export interface LedgerConnection {
-  /** Send a statement on this connection. Parameters are bound, never interpolated. */
-  query(text: string, params?: readonly unknown[]): Promise<unknown>;
+  /**
+   * Send a statement on this connection. Parameters are bound, never
+   * interpolated.
+   *
+   * Returns rows rather than `unknown`: the migration runner reads
+   * `schema_migrations` through this seam, and a caller forced to cast the
+   * result would be casting away the one thing both drivers agree on.
+   */
+  query<R = Record<string, unknown>>(
+    text: string,
+    params?: readonly unknown[],
+  ): Promise<LedgerQueryResult<R>>;
   /**
    * A drizzle handle bound to THIS connection.
    *
