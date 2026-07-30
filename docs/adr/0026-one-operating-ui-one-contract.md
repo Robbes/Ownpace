@@ -113,13 +113,15 @@ working reference implementation and an e2e gate. That work is not done here.
 rationale is superseded for the operating UI. Hard rule 5 forbids a
 *managed-only* dependency in `apps/selfhost`; a React bundle served by both
 editions is not one. The confirm page itself stays as it is — it works, it is
-unit-tested, and rewriting it buys nothing.
+unit-tested, and rewriting it buys nothing. *(Superseded 2026-07-30: it was
+folded in and deleted — see the second update note. The reasoning above held
+until the duplication it left behind was shown to have already drifted.)*
 
 **Two UI idioms exist during the transition** (the server-rendered confirm page,
 and the React operating screens). Accepted rather than resolved now: folding
 confirm into the React app is a follow-up, and doing it in the same change would
 have coupled a UI-architecture decision to a rewrite of the one screen that
-already works.
+already works. *(Done 2026-07-30 — see the second update note below.)*
 
 **A gap this closed on the way.** `apps/web` was not typechecked by anything —
 the root tsconfig includes `apps/*/src/**/*.ts` and never `.tsx`, so its pages
@@ -169,6 +171,38 @@ would be a different product wearing the same UI. They decide; each edition
 still acts for itself, which genuinely differs: self-host unschedules an
 in-process croner job, managed lets its poller stop seeing a row that is no
 longer `active`.
+
+## Update — 2026-07-30: the confirm page is folded in, and the transition is over
+
+`apps/selfhost/src/confirm-page.ts` is deleted. `GET /` now redirects to
+`/ui/confirm`, and the appliance runs **one** UI technology instead of two.
+
+The duplication was not hypothetical. The discovery counts table, the scope
+manifest columns, and the two warnings that tell a customer what we will change
+(generated Message-IDs written onto *their copy*; matching items on the
+destination *adopted rather than overwritten*) existed twice — once as
+hand-rolled HTML, once as JSX — and had already drifted: the React copy was
+typed against a stale local `DiscoveryRecord` that silently dropped the adoption
+count, which is precisely the number a customer is supposed to see before
+pressing start. Both now render `DiscoveryCounts` and `ScopeManifestPanel`.
+
+Two containers remain, and that is deliberate rather than unfinished. They are
+different flows over the same pieces: the appliance's operator holds a config
+directory and wants **every** configured mapping listed on a landing screen,
+while a managed customer is confirming the **one** mapping they just created, as
+a step in a wizard. Forcing one component to be both would make it worse at both.
+
+**One capability was given up.** The appliance previously had a usable screen
+with no build step. It now requires `pnpm --filter @openmig/web build:selfhost`,
+which the image runs — but a source checkout that skips it gets the "not built"
+message at `/ui` rather than a working page. That is the honest cost of removing
+the second idiom, and the message names the command rather than leaving somebody
+to guess.
+
+`POST /mappings/:id/start` changed with it: it answered `303 See Other` back to
+the old HTML form (Post/Redirect/Get), and now answers JSON, because a redirect
+is silently *followed* by the `fetch` the React screen uses. It reports
+`activated` so a first click and an idempotent second one are distinguishable.
 
 ## Alternatives considered
 

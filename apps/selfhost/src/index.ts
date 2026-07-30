@@ -8,8 +8,9 @@
  * a read-only, body-free pre-sync discovery pass (workplan 0013 T7) → schedule
  * only mappings already 'active' with the in-process croner scheduler
  * (single-flight, so an overrunning pass never overlaps itself). A paused (draft)
- * mapping waits for the operator to green-light it on the confirm page (`GET /`,
- * `POST /mappings/:id/start`). Also serves `GET /healthz`, `GET /status`, `GET /verify`,
+ * mapping waits for the operator to green-light it on the React confirm screen
+ * (`GET /` redirects to it; `POST /mappings/:id/start`). Also serves `GET /healthz`,
+ * `GET /status`, `GET /verify`,
  * `GET /scope-manifest`, and `GET /discovery` on localhost, plus the React operating UI
  * under `GET /ui` (ADR-0026 — mounted on a prefix because the JSON routes already own
  * /deletions, /moves and /failures, which are also screen names). Graceful shutdown
@@ -57,9 +58,8 @@ import type {
 } from '@openmig/shared';
 import { loadConfigDir, type LoadedMapping } from './config-dir';
 import { buildStatusReport, type MappingStatusInput } from './status';
-import { renderConfirmPage, type MappingConfirmView } from './confirm-page';
 import { startTransition, finishTransition } from './lifecycle';
-import { serveUi } from './static-ui';
+import { serveUi, UI_MOUNT } from './static-ui';
 import { log } from '@openmig/shared';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
 
@@ -137,7 +137,7 @@ async function ensureMappingRecords(
       `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, mode, status)
        VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (id) DO NOTHING`,
-      // 0013 T7: created PAUSED (draft) — only scheduled after the operator confirms at GET /.
+      // 0013 T7: created PAUSED (draft) — only scheduled after the operator confirms in the UI.
       [mailboxMappingId, tenantId, sourceMailboxId, targetMailboxId, 'mirror', 'paused']
     );
     log.debug(`[selfhost] ensured mailbox_mapping ${mailboxMappingId}`);
@@ -402,20 +402,6 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     }
   }
 
-  // Build the per-mapping confirm views (status + discovery counts) for the page/JSON routes.
-  const buildViews = async (): Promise<MappingConfirmView[]> => {
-    const views: MappingConfirmView[] = [];
-    for (const m of mappings) {
-      const status = await mappingStatus(m);
-      const domains = await discoveryStore.getDiscovery(
-        m.config.tenantId as TenantId,
-        m.mailboxMappingId as MappingId,
-      );
-      views.push({ mappingId: m.config.mappingId, status, domains });
-    }
-    return views;
-  };
-
   // 4. Local status/health + confirm server.
   const server = createServer(async (req, res) => {
     try {
@@ -425,11 +411,16 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // never shadow an endpoint by accident.
       if (await serveUi(req, res, { rootDir: uiDir })) return;
 
+      // The appliance's landing page is the React confirm screen (ADR-0026).
+      //
+      // This used to render `confirm-page.ts` — 135 lines of hand-rolled HTML
+      // that were the appliance's only UI. Folding it into the React app is the
+      // last piece of that ADR: the counts table and the scope manifest existed
+      // TWICE, in two languages, and had already drifted. One redirect is what
+      // is left of it.
       if (req.method === 'GET' && (req.url === '/' || req.url === '')) {
-        const views = await buildViews();
-        const html = renderConfirmPage({ mappings: views, manifest: SCOPE_MANIFEST });
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-        res.end(html);
+        res.writeHead(302, { location: `${UI_MOUNT}/confirm` });
+        res.end();
         return;
       }
       if (req.method === 'GET' && req.url === '/healthz') {
@@ -815,10 +806,21 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           log.info(`[selfhost] ${m.config.mappingId}: activated by operator`);
         }
         scheduleMapping(m);
-        // Redirect back to the confirm page (Post/Redirect/Get).
-        res.writeHead(303, { location: '/' });
-        res.end();
-        return;
+        // JSON, not the Post/Redirect/Get it used to answer with. That 303 was
+        // for the hand-rolled HTML form on the old confirm page; the React
+        // screen that replaced it (ADR-0026) calls this with fetch, and a
+        // redirect there is silently followed to a page nobody asked for.
+        // `activated` distinguishes a first click from an idempotent second one.
+        return sendJson(res, 200, {
+          status: 'ok',
+          action: 'start',
+          mappingId: m.config.mappingId,
+          activated: transition.activate,
+          effect: transition.activate
+            ? 'The migration is running. It syncs on its schedule from now on, and will report ' +
+              'anything that needs a decision.'
+            : 'This migration was already running; nothing changed.',
+        });
       }
 
       // Finish the migration: stop syncing, stop reporting, change nothing.

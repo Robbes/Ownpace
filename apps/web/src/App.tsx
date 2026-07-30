@@ -18,6 +18,7 @@ import Moves from './pages/Moves';
 import Failures from './pages/Failures';
 import Verify from './pages/Verify';
 import Finish from './pages/Finish';
+import Confirm from './pages/Confirm';
 import { isSelfHost, uiBasename } from './services/edition';
 
 const queryClient = new QueryClient({
@@ -62,7 +63,18 @@ const App: React.FC = () => {
               </ProtectedRoute>
             }
           >
-            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route
+              index
+              element={<Navigate to={isSelfHost() ? '/confirm' : '/dashboard'} replace />}
+            />
+            {/*
+              Review & confirm. The appliance's landing screen (ADR-0026): it
+              replaced the hand-rolled HTML page that used to be its only UI, so
+              the appliance now runs one UI technology instead of two. Managed
+              reaches the same idea through the create-mapping wizard, which is
+              a different flow over the same presentational pieces.
+            */}
+            <Route path="confirm" element={<Confirm />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="mappings" element={<Mappings />} />
             <Route path="mappings/new" element={<CreateMapping />} />

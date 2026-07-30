@@ -14,6 +14,7 @@ import {
   MoveRight,
   AlertTriangle,
   ClipboardCheck,
+  ListChecks,
   Flag
 } from 'lucide-react';
 import { useAuthStore } from '../stores/auth-store';
@@ -30,8 +31,12 @@ const Layout: React.FC = () => {
   const selfHost = isSelfHost();
 
   const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Mappings', href: '/mappings', icon: FolderGit2 },
+    ...(selfHost
+      ? []
+      : [
+          { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+          { name: 'Mappings', href: '/mappings', icon: FolderGit2 },
+        ]),
     // The §11.2 decision queues, and then the §20 gate and the end of the
     // migration — in the order the runbook's cutover sequence uses.
     //
@@ -43,10 +48,11 @@ const Layout: React.FC = () => {
     // managed cutover runs through the cutover job.
     ...(selfHost
       ? [
+          { name: 'Review', href: '/confirm', icon: ClipboardCheck },
           { name: 'Deletions', href: '/deletions', icon: Trash2 },
           { name: 'Moves', href: '/moves', icon: MoveRight },
           { name: 'Failures', href: '/failures', icon: AlertTriangle },
-          { name: 'Check', href: '/verify', icon: ClipboardCheck },
+          { name: 'Check', href: '/verify', icon: ListChecks },
           { name: 'Finish', href: '/finish', icon: Flag },
         ]
       : []),
