@@ -1,6 +1,6 @@
 # packages/ledger
 
-The **ledger** is the table of record for the migration core: idempotency mapping, sync checkpoints, drift decisions, runs, verification, cutover, and the optional extra-backup config. The **same schema and the same dialect** are used in both editions — **Postgres everywhere** (managed: Postgres + RLS; self-host: a small bundled Postgres container). Canonical DDL: `migrations/0001_init.sql`. Rationale: ADR-0005, ADR-0016, and **ADR-0023**, which supersedes ADR-0010's SQLite option.
+The **ledger** is the table of record for the migration core: idempotency mapping, sync checkpoints, drift decisions, runs, verification, cutover, and the optional extra-backup config. The **same schema and the same dialect** are used in both editions — **Postgres everywhere** (managed: Postgres + RLS; self-host: a small bundled Postgres container). Canonical DDL: `migrations/0001_baseline.sql` (generated — see `scripts/squash-migrations.sh`). Rationale: ADR-0005, ADR-0016, and **ADR-0023**, which supersedes ADR-0010's SQLite option.
 
 > **No SQLite.** ADR-0023 made both editions Postgres-only; `schema-sqlite.ts` / `sqlite-ledger.ts` were deleted from the tree (commit `6d9ecd4`) and all migrations are Postgres-only. Do not reintroduce a second dialect.
 

@@ -1,4 +1,4 @@
-// Drizzle schema for PostgreSQL — matches the canonical DDL in migrations/0001_init.sql.
+// Drizzle schema for PostgreSQL — matches the canonical DDL in migrations/0001_baseline.sql.
 // See ADR-0016 (ledger schema v1).
 
 import {
@@ -45,7 +45,7 @@ export const connection = pgTable(
         'webdav',
         'selfhosted_mail',
         // JMAP is the primary target protocol (Stalwart / La Suite / mosa.cloud).
-        // The DB CHECK (0001_init.sql) already allows it; keep the TS enum in sync.
+        // The DB CHECK (0001_baseline.sql) already allows it; keep the TS enum in sync.
         'jmap',
       ],
     }).notNull(),

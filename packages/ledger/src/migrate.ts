@@ -96,7 +96,12 @@ export async function runMigrations(options: RunMigrationsOptions): Promise<RunM
       if (highestApplied && highestApplied > highestKnown) {
         throw new Error(
           `Database schema version ${highestApplied} is newer than this build understands ` +
-            `(highest known: ${highestKnown}). Refusing to start — upgrade the application.`,
+            `(highest known: ${highestKnown}). Refusing to start rather than guess.\n` +
+            'Either this build is older than the database (upgrade the application), or the ' +
+            'migration chain was SQUASHED and this database still records the pre-squash ' +
+            'filenames — see scripts/squash-migrations.sh. A squash only ever happens ' +
+            'pre-release, and the fix for it is to drop and recreate the database; the ledger ' +
+            'is a rebuildable cache (ADR-0020), so nothing irreplaceable lives here.',
         );
       }
 

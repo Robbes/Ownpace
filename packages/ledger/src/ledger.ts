@@ -19,7 +19,7 @@ import * as schemaPg from './schema-pg';
 /**
  * SQL-backed idempotency ledger for PostgreSQL — workplan 0001, T0.
  * Backed by PostgreSQL via Drizzle; see
- * `packages/ledger/migrations/0001_init.sql` and schema-pg.ts.
+ * `packages/ledger/migrations/0001_baseline.sql` and schema-pg.ts.
  * Idempotency anchor: UNIQUE(tenant_id, mapping_id, natural_key_hash). Non-destructive.
  *
  * The ledger is a fast CACHE + audit log of a fact that ALSO lives on the target (the natural
