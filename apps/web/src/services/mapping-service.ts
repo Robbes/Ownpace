@@ -1,5 +1,6 @@
 import apiClient from './api';
 import { z } from 'zod';
+import type { DiscoveryRecord } from '@openmig/shared';
 
 // Schema definitions
 export const TenantSchema = z.object({
@@ -124,11 +125,31 @@ export const memberApi = {
 
 // Mapping API
 // --- 0013 discovery / confirm ---
+/**
+ * Runtime validation for the discovery payload.
+ *
+ * The zod schemas stay — this is a trust boundary and checking what arrived is
+ * worth doing — but the TYPE is `@openmig/shared`'s and is no longer inferred
+ * from the schema. Inferring it made this file a second, independent
+ * declaration of a contract the server already owns, and it drifted: the shared
+ * type gained `targetExisting`/`targetColliding` (the "already on the
+ * destination" counts) and `excluded`, this copy did not, and because
+ * `z.object` STRIPS unknown keys, the fields the server sent were being dropped
+ * here at runtime as well as missing from the type. The stripped ones included
+ * the adoption count — the number that changes what the customer ends up with,
+ * and the one thing they have to see before pressing start.
+ *
+ * Keeping the type from shared means a field added there is available to the UI
+ * immediately; the schema below still has to list it to survive parsing, and
+ * that is the check this comment exists to make someone remember.
+ */
 export const DiscoveryCollectionSchema = z.object({
   name: z.string(),
   items: z.number(),
   bytes: z.number().optional(),
   generatedIdItems: z.number().optional(),
+  /** Why this collection will NOT be migrated, when it will not be. */
+  excluded: z.string().optional(),
 });
 export const DiscoveryRecordSchema = z.object({
   domain: z.enum(['email', 'calendar', 'contact', 'file']),
@@ -137,6 +158,9 @@ export const DiscoveryRecordSchema = z.object({
   bytes: z.number().optional(),
   /** Items the source holds but cannot migrate; NOT part of `items`. */
   generatedIdItems: z.number().optional(),
+  /** What the destination already holds, and how much of it we will adopt. */
+  targetExisting: z.number().optional(),
+  targetColliding: z.number().optional(),
   perCollection: z.array(DiscoveryCollectionSchema).optional(),
   discoveredAt: z.string(),
   lastError: z.string().optional(),
@@ -146,7 +170,7 @@ export const DiscoveryResponseSchema = z.object({
   discovered: z.boolean(),
   domains: z.array(DiscoveryRecordSchema),
 });
-export type DiscoveryRecord = z.infer<typeof DiscoveryRecordSchema>;
+export type { DiscoveryRecord };
 export type DiscoveryResponse = z.infer<typeof DiscoveryResponseSchema>;
 
 export const ScopeManifestEntrySchema = z.object({ item: z.string(), detail: z.string() });

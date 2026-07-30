@@ -81,27 +81,36 @@ export interface QueueEnvelope {
   readonly reportingClosed?: string;
 }
 
-/** Guidance shown with the failure queue. One entry per thing a person can do. */
-export interface FailureGuidance {
+/**
+ * Guidance shown with a queue. One entry per thing a person can do.
+ *
+ * Declared as type ALIASES rather than interfaces on purpose: TypeScript gives
+ * an alias of an all-string object an implicit index signature and an interface
+ * none, so only the alias form is assignable to `Record<string, string>`. A UI
+ * renders these by iterating them — it shows every option the server sent
+ * rather than naming the ones it knows about, so an option added here appears
+ * without the UI being changed, instead of being silently dropped.
+ */
+export type FailureGuidance = {
   readonly retry: string;
   readonly accept: string;
   readonly doNothing: string;
-}
+};
 
 /** Guidance shown with the move queue. */
-export interface MoveGuidance {
+export type MoveGuidance = {
   readonly keep: string;
   readonly byHand: string;
   readonly doNothing: string;
-}
+};
 
 /** Guidance shown with the deletion queue. `apply` is the destructive one. */
-export interface DeletionGuidance {
+export type DeletionGuidance = {
   readonly keep: string;
   readonly apply: string;
   readonly byHand: string;
   readonly doNothing: string;
-}
+};
 
 /**
  * Items that could not be migrated.
