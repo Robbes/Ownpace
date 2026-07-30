@@ -1085,16 +1085,38 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
 
     const trashId = await this.trashMailboxId();
     if (trashId) {
-      // `mailboxIds` REPLACED rather than patched: a message in Inbox and Archive
-      // that is only added to Trash is still in both of the others, so the target
-      // would go on showing it and the owner's decision would appear not to have
-      // worked.
+      // `mailboxIds` PATCHED per-key (`mailboxIds/<id>`: true|null), never sent
+      // as one plain replacement value. RFC 8620 §5.3 says a plain property name
+      // in an update replaces the whole value, and that is what this code used
+      // to send — one call, trash id only. Against a real Stalwart it came back
+      // `updated` with no error, and the message stayed in its original mailbox
+      // anyway: proven against the self-host e2e's Apply-Deletion Gate three
+      // times running, including a further sync pass a minute later, which
+      // rules out this being a caching lag rather than the update simply not
+      // taking effect. The PatchObject form (RFC 8621 §4.3, one key per mailbox)
+      // is the form every JMAP client actually relies on to move a message
+      // between mailboxes, and the only one this server has been observed to
+      // honour — so every mailbox the message currently sits in is read first
+      // and explicitly cleared, alongside setting the trash id, rather than
+      // trusting a single whole-map assignment to replace them.
+      const current = await this.apiRequest<EmailGetResponse>('Email/get', {
+        accountId: this.accountId,
+        ids: [targetId],
+        properties: ['mailboxIds'],
+      });
+      const existing = current.list?.[0]?.mailboxIds ?? {};
+
+      const patch: Record<string, boolean | null> = { [`mailboxIds/${trashId}`]: true };
+      for (const mailboxId of Object.keys(existing)) {
+        if (mailboxId !== trashId) patch[`mailboxIds/${mailboxId}`] = null;
+      }
+
       interface EmailSetUpdateResponse {
         notUpdated?: Record<string, { type: string; description?: string }>;
       }
       const response = await this.apiRequest<EmailSetUpdateResponse>('Email/set', {
         accountId: this.accountId,
-        update: { [targetId]: { mailboxIds: { [trashId]: true } } },
+        update: { [targetId]: patch },
       });
       // The response is HTTP 200 either way (RFC 8620 §3.6.2) — a per-item
       // failure comes back in `notUpdated`, not as a transport error, and the

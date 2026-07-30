@@ -73,6 +73,11 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/** `Email/get` handler reporting the given current mailboxIds for every id asked about. */
+function emailGetHandler(mailboxIds: Record<string, boolean>) {
+  return () => ({ accountId: 'a1', list: [{ id: 'whatever', mailboxIds }], notFound: [] });
+}
+
 describe('JmapTargetWriter.removeItem', () => {
   it('moves the message to the trash mailbox when the account has one', async () => {
     const calls = mockJmap({
@@ -83,6 +88,7 @@ describe('JmapTargetWriter.removeItem', () => {
           { id: 'mb-trash', name: 'Deleted Items', role: 'trash' },
         ],
       }),
+      'Email/get': emailGetHandler({ 'mb-inbox': true }),
       'Email/set': (args) => ({
         accountId: 'a1',
         updated: args.update as Record<string, unknown>,
@@ -94,21 +100,29 @@ describe('JmapTargetWriter.removeItem', () => {
 
     expect(result).toEqual({ kind: 'binned' });
     const setCall = calls.find((c) => c.method === 'Email/set');
-    expect(setCall?.args.update).toEqual({ 'email-1': { mailboxIds: { 'mb-trash': true } } });
+    // Patched, not sent as one plain replacement value — see the comment on
+    // removeItem() for why a whole-map assignment does not reliably work.
+    expect(setCall?.args.update).toEqual({
+      'email-1': { 'mailboxIds/mb-trash': true, 'mailboxIds/mb-inbox': null },
+    });
     // Never a destroy when a trash mailbox exists.
     expect(calls.some((c) => c.method === 'Email/set' && 'destroy' in c.args)).toBe(false);
   });
 
-  it('REPLACES mailboxIds rather than adding to them', async () => {
+  it('clears every OTHER mailbox the message currently sits in, not just one', async () => {
     // A message can be filed under more than one mailbox on plenty of servers.
     // Adding trash as one more membership would leave it still visible in
     // Inbox/Archive, and the target would go on showing an item the owner just
-    // asked to have removed.
+    // asked to have removed. Sending the trash id alone as a plain `mailboxIds`
+    // value was the previous approach; proven against a real Stalwart (the
+    // self-host e2e's Apply-Deletion Gate) to report success while leaving the
+    // message in its original mailbox anyway — see removeItem()'s comment.
     const calls = mockJmap({
       'Mailbox/get': () => ({
         accountId: 'a1',
         list: [{ id: 'mb-trash', name: 'Trash', role: 'trash' }],
       }),
+      'Email/get': emailGetHandler({ 'mb-inbox': true, 'mb-archive': true }),
       'Email/set': (args) => ({ accountId: 'a1', updated: args.update as Record<string, unknown> }),
     });
 
@@ -116,9 +130,12 @@ describe('JmapTargetWriter.removeItem', () => {
     await writer.removeItem('email-2');
 
     const setCall = calls.find((c) => c.method === 'Email/set')!;
-    const update = setCall.args.update as Record<string, { mailboxIds: Record<string, boolean> }>;
-    // Exactly one mailbox in the replacement set, and it is trash.
-    expect(Object.keys(update['email-2']!.mailboxIds)).toEqual(['mb-trash']);
+    const patch = setCall.args.update as Record<string, Record<string, boolean | null>>;
+    expect(patch['email-2']).toEqual({
+      'mailboxIds/mb-trash': true,
+      'mailboxIds/mb-inbox': null,
+      'mailboxIds/mb-archive': null,
+    });
   });
 
   it('finds trash by ROLE, not by name — a server may call it anything', async () => {
@@ -127,6 +144,7 @@ describe('JmapTargetWriter.removeItem', () => {
         accountId: 'a1',
         list: [{ id: 'mb-x', name: 'Papierkorb', role: 'trash' }],
       }),
+      'Email/get': emailGetHandler({}),
       'Email/set': (args) => ({ accountId: 'a1', updated: args.update as Record<string, unknown> }),
     });
 
@@ -135,7 +153,7 @@ describe('JmapTargetWriter.removeItem', () => {
 
     expect(result).toEqual({ kind: 'binned' });
     const setCall = calls.find((c) => c.method === 'Email/set')!;
-    expect(setCall.args.update).toEqual({ 'email-3': { mailboxIds: { 'mb-x': true } } });
+    expect(setCall.args.update).toEqual({ 'email-3': { 'mailboxIds/mb-x': true } });
   });
 
   it('destroys the message outright when there is no trash-role mailbox', async () => {
@@ -154,6 +172,8 @@ describe('JmapTargetWriter.removeItem', () => {
     const setCall = calls.find((c) => c.method === 'Email/set')!;
     expect(setCall.args.destroy).toEqual(['email-4']);
     expect('update' in setCall.args).toBe(false);
+    // No trash mailbox — the destroy path never needs current mailboxIds.
+    expect(calls.some((c) => c.method === 'Email/get')).toBe(false);
   });
 
   it('throws when the server reports the move as notUpdated, rather than claiming success', async () => {
@@ -168,6 +188,7 @@ describe('JmapTargetWriter.removeItem', () => {
         accountId: 'a1',
         list: [{ id: 'mb-trash', name: 'Trash', role: 'trash' }],
       }),
+      'Email/get': emailGetHandler({ 'mb-inbox': true }),
       'Email/set': () => ({
         accountId: 'a1',
         notUpdated: { 'email-6': { type: 'invalidProperties', description: 'mailboxIds not settable' } },
@@ -200,6 +221,7 @@ describe('JmapTargetWriter.removeItem', () => {
     // everything and checking `role` client-side is the reliable path.
     const calls = mockJmap({
       'Mailbox/get': () => ({ accountId: 'a1', list: [{ id: 'mb-trash', role: 'trash' }] }),
+      'Email/get': emailGetHandler({}),
       'Email/set': (args) => ({ accountId: 'a1', updated: args.update as Record<string, unknown> }),
     });
 
