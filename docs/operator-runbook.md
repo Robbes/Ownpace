@@ -185,13 +185,21 @@ Erasure = **revoke access, then purge data + ledger + logs** for that tenant.
 > perform them deliberately as the DB owner and record what was purged.
 
 > **The three decision queues now have a UI as well as these endpoints**
-> ([ADR-0026](adr/0026-one-operating-ui-one-contract.md)). Everything documented
-> below by its HTTP route — `/failures`, `/moves`, `/deletions` and their
-> decisions — is also a screen in the web app, showing the same fields and the
-> same guidance text, because both are rendered from one shared contract. The
-> `curl` recipes here stay correct and remain the reference: they are what the
-> screens call, and what a script should use. Two things are still endpoint-only
-> at the time of writing: `verify` and `finish`.
+> ([ADR-0026](adr/0026-one-operating-ui-one-contract.md)). The appliance serves
+> it at **`http://127.0.0.1:8081/ui`** — note the `/ui` prefix, which exists
+> because `/deletions`, `/moves` and `/failures` are already JSON endpoints on
+> that same port and are also screen names. Everything documented below by its
+> HTTP route is also a screen, showing the same fields and the same guidance
+> text, because both are rendered from one shared contract.
+>
+> The `curl` recipes here stay correct and remain the reference: they are what
+> the screens call, and what a script should use. Two things are still
+> endpoint-only: **`verify` and `finish`**.
+>
+> If `/ui` reports that the UI has not been built, the appliance is running from
+> a source checkout rather than the image; build it with
+> `pnpm --filter @openmig/web build:selfhost`. The JSON endpoints work either
+> way.
 
 ## Items that would not migrate
 

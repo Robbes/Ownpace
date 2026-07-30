@@ -9,7 +9,7 @@
 | T2 packaging shell decision + build | ⬜ Not started | **Unblocked in part** — the UI prerequisite is now started, not absent (see below). |
 | T3 installer, upgrade, uninstall | ⬜ Not started | |
 | T4 code signing | ⬜ Not started | Needs a purchasing decision, not a technical one. |
-| **UI prerequisite** — operating contract + decision-queue screens | 🟡 **In progress** | [ADR-0026](../adr/0026-one-operating-ui-one-contract.md). Contract in `packages/shared/src/operating-contract.ts`, served by `apps/selfhost`; deletions/moves/failures screens in `apps/web` (9 tests, apply-gate mutation-verified). Remaining: `verify` and `finish` screens, serving the bundle from the appliance, and the managed edition implementing the contract. |
+| **UI prerequisite** — operating contract + decision-queue screens | 🟡 **In progress** | [ADR-0026](../adr/0026-one-operating-ui-one-contract.md). Contract in `packages/shared/src/operating-contract.ts`, served by `apps/selfhost`; deletions/moves/failures screens in `apps/web` (9 tests, apply-gate mutation-verified); **served from the appliance at `/ui`** (17 tests, traversal-probed over a raw socket against the real bundle). Remaining: `verify` and `finish` screens, and the managed edition implementing the contract. |
 
 > Read [ADR-0019](../adr/0019-packaging-runtime-targets.md) (packaging; and its
 > 2026-07-30 update note) and [ADR-0023](../adr/0023-persistence-postgres-only.md)
@@ -119,20 +119,36 @@ Done:
 - Deletions, moves and failures screens in `apps/web`, with keep/apply/retry/
   accept. The `apply` gate is imported from shared, not re-derived, and its
   test is verified against a mutated source.
+- **The appliance serves the bundle at `/ui`** (`apps/selfhost/src/static-ui.ts`),
+  built by `pnpm --filter @openmig/web build:selfhost` and carried in the image.
+  The prefix is load-bearing: this server already answers `/deletions`,
+  `/moves` and `/failures` with JSON, which are also screen names, so a
+  root-mounted SPA would have to arbitrate by `Accept` header. The confirm page
+  links through once a mapping has started.
+
+**That means "no terminal" is now true for the decision queues**, which was T2's
+actual blocker.
 
 Not done, and still between here and T2:
 
 - **`verify` and `finish` screens.** `finish` is the end of the shadow sync and
-  `verify` is the §20 gate; neither has a UI in either edition.
-- **Serving the bundle from the appliance.** `apps/selfhost` does not yet serve
-  `apps/web`'s build output, so on the appliance the screens exist but are not
-  reachable. This is what actually closes "no terminal".
+  `verify` is the §20 gate; neither has a UI in either edition, so both are
+  still `curl`-only. `finish` is the more urgent of the two — it is how a
+  migration ENDS, and an appliance a user cannot stop is not finished software.
 - **The managed edition implementing the contract.** It still has no deletions,
   moves, failures, verify or finish endpoints.
 
-Note that the last of these is not on the installer's critical path — the
-appliance is what gets installed — but leaving it undone is what makes "one
-app, both editions" a claim rather than a fact.
+The second is not on the installer's critical path — the appliance is what gets
+installed — but leaving it undone is what makes "one app, both editions" a claim
+rather than a fact.
+
+### A note for whoever picks up T2
+
+The UI is React served over HTTP, which means the Tauri-versus-Node-SEA question
+in "Remaining decisions" is now a question about the SHELL only: both options
+render the same bundle, and neither needs the UI rebuilt. Tauri's WebView2 would
+point at the local server exactly as a browser does. That makes the decision
+cheaper than it looked when this workplan was written, and reversible.
 
 ## Remaining decisions
 
