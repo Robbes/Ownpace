@@ -5,7 +5,7 @@
 | Task | Status | Evidence |
 |---|---|---|
 | T0 PGlite feasibility spike | ✅ **Done — PASS, 15/15** | `scripts/spike-pglite-windows.mjs`, run against the REAL `packages/ledger/migrations/0001_baseline.sql` (2580 lines, unmodified). Results in "The spike" below. |
-| T1 driver seam (`pg.Pool` → PGlite) | ⬜ Not started | |
+| T1 driver seam (`pg.Pool` → PGlite) | 🟡 **Seam built; PGlite not adopted** | `packages/ledger/src/driver.ts` — `LedgerDriver`/`LedgerConnection`, with `pgDriver(pool)` as the only implementation. `withTenant()` goes through it and takes a driver **or** a pool, so the 45 existing call sites were untouched. Single-connection behaviour is unit-tested against a fake driver with PGlite's constraint (5 tests, serialisation mutation-verified). Adoption is still one whole-workspace change — see the drizzle-resolution finding below. |
 | T2 packaging shell decision + build | ⬜ Not started | **Unblocked in part** — the UI prerequisite is now started, not absent (see below). |
 | T3 installer, upgrade, uninstall | ⬜ Not started | |
 | T4 code signing | ⬜ Not started | Needs a purchasing decision, not a technical one. |
@@ -157,11 +157,23 @@ cheaper than it looked when this workplan was written, and reversible.
 
 ## Remaining decisions
 
-- **T1 driver seam.** `withTenant(pool, tenantId, fn)` takes a `pg.Pool` and calls
-  `pool.connect()`; PGlite has no pool and is single-connection. Needs a narrow
-  interface both can satisfy. Drizzle already ships `drizzle-orm/pglite`, and the
-  schema is shared, so this is a connection-layer change and not a query rewrite.
-  `runMigrations()` takes a `connectionString` and will need the same seam.
+- **T1 driver seam — the interface exists; the PGlite side does not.**
+  `withTenant()` now takes a `LedgerDriver` (`packages/ledger/src/driver.ts`)
+  and `pgDriver(pool)` implements it. What remains is the PGlite implementation
+  and `runMigrations()`, which still takes a `connectionString` and opens its
+  own `Pool`.
+
+  **The single-connection point is a correctness requirement, not a performance
+  one, and it is the thing to get right.** `pg.Pool` hands out N independent
+  connections; PGlite has exactly one. Two concurrent `withTenant` calls on one
+  connection would produce `BEGIN` inside `BEGIN`, one `COMMIT` ending both, and
+  `app.current_tenant` set by one tenant while the other is mid-query — that is
+  cross-tenant exposure caused by concurrency alone, with every RLS policy still
+  correctly written and every integration test still green. So a PGlite driver
+  MUST serialise `acquire()`, and the seam is shaped to let it: `acquire()` may
+  wait, and `withTenant` is ignorant of which kind it holds. That property is
+  already unit-tested against a fake single-connection driver, and the test was
+  verified to fail when the serialisation is removed.
 - **T2 packaging shell.** **Tauri** (ADR-0019's existing plan: Rust toolchain,
   WebView2 which ships with Windows 11, tray icon, start-on-login, emits a real
   MSI) versus **Node SEA + Inno Setup/WiX** (no Rust, far simpler, but the UX is
@@ -188,6 +200,13 @@ cheaper than it looked when this workplan was written, and reversible.
    serialises DB access. The measurement above says the ledger is not the
    bottleneck (network I/O dominates by orders of magnitude), but that should be
    re-measured against a real corpus rather than 5,000 synthetic inserts.
+
+   Half of this is now answered: the seam makes serialisation expressible and
+   CORRECT (see T1 above), so the remaining question is purely how much
+   throughput it costs, not whether it is safe. Note the shape of the risk —
+   serialising is the safe failure (slow), while not serialising is the unsafe
+   one (cross-tenant), so a PGlite driver should serialise first and be measured
+   second.
 3. **Does anything else in the stack assume a server?** `pg_dump`-based backup
    guidance in the runbook, the `DATABASE_URL` shape in config, and the
    compose-based self-host path all assume a reachable server. The container path
