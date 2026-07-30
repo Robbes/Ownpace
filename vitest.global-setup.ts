@@ -90,8 +90,17 @@ async function runMigration(postgresUrl: string): Promise<void> {
  * `unit` and `unit-browser` touch no database, no IMAP server and no DAV server —
  * that is what makes them unit tests. Nothing in either reads
  * `TEST_DATABASE_URL`.
+ *
+ * `e2e` is here for the opposite reason: it needs REAL servers, but not THESE
+ * ones. Every `*.e2e.test.ts` is a black-box test of an already-running
+ * appliance — it talks to it over HTTP and to Nextcloud/Stalwart directly, and
+ * the appliance brings its own Postgres up in `deploy/selfhost/compose.yml`. The
+ * Testcontainers Postgres was pure overhead: booted, migrated and never read
+ * (verified — no file matching the project references `TEST_DATABASE_URL`,
+ * `PgLedger` or `createPgDb`), three times per workflow run, and each boot put a
+ * Docker Hub pull between the runner and the first assertion.
  */
-const CONTAINER_FREE_PROJECTS = new Set(['unit', 'unit-browser']);
+const CONTAINER_FREE_PROJECTS = new Set(['unit', 'unit-browser', 'e2e']);
 
 /**
  * Does this run actually need containers?
