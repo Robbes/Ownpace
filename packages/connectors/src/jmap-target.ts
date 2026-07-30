@@ -1089,17 +1089,43 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
       // that is only added to Trash is still in both of the others, so the target
       // would go on showing it and the owner's decision would appear not to have
       // worked.
-      await this.apiRequest('Email/set', {
+      interface EmailSetUpdateResponse {
+        notUpdated?: Record<string, { type: string; description?: string }>;
+      }
+      const response = await this.apiRequest<EmailSetUpdateResponse>('Email/set', {
         accountId: this.accountId,
         update: { [targetId]: { mailboxIds: { [trashId]: true } } },
       });
+      // The response is HTTP 200 either way (RFC 8620 §3.6.2) — a per-item
+      // failure comes back in `notUpdated`, not as a transport error, and the
+      // previous code never looked. That let a message the server refused to
+      // move stay sitting in its original mailbox while `apply` reported
+      // success and the ledger recorded it as tombstoned (hard rule 9: never
+      // mask errors).
+      const failure = response.notUpdated?.[targetId];
+      if (failure) {
+        throw new Error(
+          `JMAP Email/set could not move ${targetId} to the trash mailbox: ${failure.type}` +
+            (failure.description ? ` - ${failure.description}` : ''),
+        );
+      }
       return { kind: 'binned' };
     }
 
-    await this.apiRequest('Email/set', {
+    interface EmailSetDestroyResponse {
+      notDestroyed?: Record<string, { type: string; description?: string }>;
+    }
+    const response = await this.apiRequest<EmailSetDestroyResponse>('Email/set', {
       accountId: this.accountId,
       destroy: [targetId],
     });
+    const failure = response.notDestroyed?.[targetId];
+    if (failure) {
+      throw new Error(
+        `JMAP Email/set could not destroy ${targetId}: ${failure.type}` +
+          (failure.description ? ` - ${failure.description}` : ''),
+      );
+    }
     return { kind: 'deleted' };
   }
 

@@ -156,6 +156,44 @@ describe('JmapTargetWriter.removeItem', () => {
     expect('update' in setCall.args).toBe(false);
   });
 
+  it('throws when the server reports the move as notUpdated, rather than claiming success', async () => {
+    // Regression test: `Email/set` answers HTTP 200 either way (RFC 8620
+    // §3.6.2) — a per-item failure comes back in `notUpdated`, not as a
+    // transport error. The self-host e2e's Apply-Deletion Gate found this
+    // against a real Stalwart: `apply` reported success and the ledger
+    // tombstoned the row, but the message was still sitting in its original
+    // mailbox — removeItem never looked at `notUpdated` at all.
+    mockJmap({
+      'Mailbox/get': () => ({
+        accountId: 'a1',
+        list: [{ id: 'mb-trash', name: 'Trash', role: 'trash' }],
+      }),
+      'Email/set': () => ({
+        accountId: 'a1',
+        notUpdated: { 'email-6': { type: 'invalidProperties', description: 'mailboxIds not settable' } },
+      }),
+    });
+
+    const writer = new JmapTargetWriter(CONFIG as never);
+    await expect(writer.removeItem('email-6')).rejects.toThrow(/invalidProperties/);
+  });
+
+  it('throws when the server reports the destroy as notDestroyed, rather than claiming success', async () => {
+    mockJmap({
+      'Mailbox/get': () => ({
+        accountId: 'a1',
+        list: [{ id: 'mb-inbox', name: 'Inbox', role: 'inbox' }],
+      }),
+      'Email/set': () => ({
+        accountId: 'a1',
+        notDestroyed: { 'email-7': { type: 'notFound' } },
+      }),
+    });
+
+    const writer = new JmapTargetWriter(CONFIG as never);
+    await expect(writer.removeItem('email-7')).rejects.toThrow(/notFound/);
+  });
+
   it('asks Mailbox/get for every mailbox (ids: null) rather than filtering by name', async () => {
     // A `Mailbox/query` filter on `role` is not universally supported, and
     // filtering by name would depend on the server's language. Requesting
