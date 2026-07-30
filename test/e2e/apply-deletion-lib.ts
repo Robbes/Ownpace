@@ -247,8 +247,14 @@ export async function readTargetTrashbin(): Promise<string[]> {
 // imap-message-locations.mjs, which is where `imap-simple` is imported.
 // ---------------------------------------------------------------------------
 
+/** One mailbox holding the message, with its RFC 6154 LIST attributes. */
+export interface MailboxLocation {
+  readonly path: string;
+  readonly attribs: ReadonlyArray<string>;
+}
+
 /** Every mailbox in the TARGET account that currently holds a copy of `messageId`. */
-export function messageLocations(messageId: string): string[] {
+export function messageLocations(messageId: string): MailboxLocation[] {
   const raw = execSync('node test/e2e/imap-message-locations.mjs', {
     encoding: 'utf8',
     env: {
@@ -261,5 +267,27 @@ export function messageLocations(messageId: string): string[] {
       MESSAGE_ID: messageId,
     },
   });
-  return JSON.parse(raw) as string[];
+  return JSON.parse(raw) as MailboxLocation[];
+}
+
+/**
+ * Whether a mailbox is the account's bin, BY FLAG — never by name.
+ *
+ * Servers disagree entirely about the name: Stalwart's `\Trash` mailbox is called
+ * "Deleted Items", others say Trash, Deleted Messages or [Gmail]/Trash. Matching
+ * the name is how a correct removal gets reported as a failure, which is exactly
+ * what happened before this existed. `\Deleted` is accepted alongside `\Trash`,
+ * the same pair `mapImapSpecialUse` treats as a bin in the product.
+ */
+export function isBin(mailbox: MailboxLocation): boolean {
+  return mailbox.attribs.some((a) => {
+    const lower = String(a).toLowerCase();
+    return lower === '\\trash' || lower === '\\deleted';
+  });
+}
+
+/** Human-readable location list for assertion messages, flags included. */
+export function describeLocations(locations: ReadonlyArray<MailboxLocation>): string {
+  if (locations.length === 0) return 'nowhere';
+  return locations.map((m) => `${m.path} [${m.attribs.join(' ') || 'no flags'}]`).join(', ');
 }

@@ -1,7 +1,16 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 //
 // Print, as JSON on stdout, every mailbox in an IMAP account that currently holds a
-// message with the given Message-ID.
+// message with the given Message-ID — each as `{ path, attribs }`.
+//
+// THE ATTRIBS ARE THE POINT, not decoration. A caller must be able to ask "is this
+// the bin?" by RFC 6154 FLAG rather than by name: Stalwart calls its
+// `\Trash`-flagged mailbox "Deleted Items", and other servers say Trash, Deleted
+// Messages or [Gmail]/Trash. An earlier version of this script returned bare path
+// strings, and the e2e that consumed it matched /trash/i against them — so a
+// correct removal into "Deleted Items" was reported as a failure. That is the same
+// name-vs-flag trap trash-imap-source.mjs warns about at length, reintroduced one
+// file over.
 //
 // A standalone script rather than something imported directly, so that
 // selfhost-apply-deletion.e2e.test.ts stays free of anything but vitest and node
@@ -83,7 +92,9 @@ async function main() {
     const found = [];
     for (const mailbox of mailboxes) {
       await connection.openBox(mailbox.path);
-      if (await mailboxHasMessage(connection, wanted)) found.push(mailbox.path);
+      if (await mailboxHasMessage(connection, wanted)) {
+        found.push({ path: mailbox.path, attribs: mailbox.attribs ?? [] });
+      }
     }
     process.stdout.write(JSON.stringify(found));
   } finally {

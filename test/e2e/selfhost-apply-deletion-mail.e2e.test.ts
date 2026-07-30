@@ -47,6 +47,8 @@ import {
   getDomainStatus,
   waitForNextPass,
   messageLocations,
+  isBin,
+  describeLocations,
 } from './apply-deletion-lib';
 
 describe('apply — mail domain (JMAP/Stalwart)', () => {
@@ -80,11 +82,15 @@ describe('apply — mail domain (JMAP/Stalwart)', () => {
   );
 
   it('apply removes the target copy, verified directly over IMAP against the real account', async () => {
+    // "Live" and "binned" are decided BY FLAG throughout — see `isBin`. Matching
+    // the mailbox NAME is what made an earlier version of this test fail a
+    // perfectly correct removal, because Stalwart's `\Trash` mailbox is called
+    // "Deleted Items" and the assertion was looking for /trash/i.
     const before = messageLocations(MESSAGE_ID);
     expect(
-      before.some((path) => /inbox/i.test(path)),
-      `message must still be visible on the target before apply (found in: ${before.join(', ') || 'nowhere'})`,
-    ).toBe(true);
+      before.filter((m) => !isBin(m)).length,
+      `message must still be live on the target before apply (found in: ${describeLocations(before)})`,
+    ).toBeGreaterThan(0);
 
     const { status, body } = await applyDeletion(mappingId, MESSAGE_HASH);
     expect(status, JSON.stringify(body)).toBe(200);
@@ -92,10 +98,15 @@ describe('apply — mail domain (JMAP/Stalwart)', () => {
     expect(['binned', 'deleted']).toContain(body.kind);
 
     const after = messageLocations(MESSAGE_ID);
+
+    // The property that actually matters, and it is stronger than "gone from
+    // INBOX": after a removal the message must sit in NO live mailbox at all.
+    // Leaving a copy in Archive while Inbox was cleared would satisfy the old
+    // assertion and still leave the item visible in the new system.
     expect(
-      after.some((path) => /inbox/i.test(path)),
-      `message must be gone from its original mailbox, still found in: ${after.join(', ')}`,
-    ).toBe(false);
+      after.filter((m) => !isBin(m)).map((m) => m.path),
+      `message must be gone from every live mailbox, still found in: ${describeLocations(after)}`,
+    ).toEqual([]);
 
     // Verified against what actually happened rather than assumed: whether the
     // Stalwart target account provisions a \Trash-role mailbox is a property of
@@ -103,11 +114,16 @@ describe('apply — mail domain (JMAP/Stalwart)', () => {
     // runtime from exactly that — see ADR-0024.
     if (body.kind === 'binned') {
       expect(
-        after.some((path) => /trash/i.test(path)),
-        `kind=binned but the message is not in any mailbox matching /trash/: ${after.join(', ') || 'nowhere'}`,
+        after.some((m) => isBin(m)),
+        `kind=binned promises the message is recoverable from the account's own bin, but it ` +
+          `is in no \\Trash-flagged mailbox: ${describeLocations(after)}`,
       ).toBe(true);
     } else {
-      expect(after, 'kind=deleted must mean the message is gone from every mailbox, not just its original one').toHaveLength(0);
+      expect(
+        after,
+        `kind=deleted promises no recovery path, so the message must be gone from every ` +
+          `mailbox including the bin: ${describeLocations(after)}`,
+      ).toHaveLength(0);
     }
   }, 30000);
 
@@ -124,9 +140,10 @@ describe('apply — mail domain (JMAP/Stalwart)', () => {
 
       const after = messageLocations(MESSAGE_ID);
       expect(
-        after.some((path) => /inbox/i.test(path)),
-        `apply must not be silently undone by the next pass, but found in: ${after.join(', ')}`,
-      ).toBe(false);
+        after.filter((m) => !isBin(m)).map((m) => m.path),
+        `apply must not be silently undone by the next pass, but the message is live again in: ` +
+          describeLocations(after),
+      ).toEqual([]);
 
       const q = await getDeletions();
       expect(q.confirmed.map((d) => d.naturalKeyHash)).not.toContain(MESSAGE_HASH);
