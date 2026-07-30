@@ -16,6 +16,8 @@ import Login from './pages/Login';
 import Deletions from './pages/Deletions';
 import Moves from './pages/Moves';
 import Failures from './pages/Failures';
+import Verify from './pages/Verify';
+import Finish from './pages/Finish';
 import { isSelfHost, uiBasename } from './services/edition';
 
 const queryClient = new QueryClient({
@@ -69,6 +71,9 @@ const App: React.FC = () => {
             <Route path="deletions" element={<Deletions />} />
             <Route path="moves" element={<Moves />} />
             <Route path="failures" element={<Failures />} />
+            {/* The §20 gate and the end of the shadow sync. */}
+            <Route path="verify" element={<Verify />} />
+            <Route path="finish" element={<Finish />} />
             <Route path="tenants" element={<Tenants />} />
             <Route path="billing" element={<Billing />} />
             <Route path="operator" element={<OperatorDashboard />} />

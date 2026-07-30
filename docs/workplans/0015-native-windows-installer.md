@@ -9,7 +9,7 @@
 | T2 packaging shell decision + build | ⬜ Not started | **Unblocked in part** — the UI prerequisite is now started, not absent (see below). |
 | T3 installer, upgrade, uninstall | ⬜ Not started | |
 | T4 code signing | ⬜ Not started | Needs a purchasing decision, not a technical one. |
-| **UI prerequisite** — operating contract + decision-queue screens | 🟡 **In progress** | [ADR-0026](../adr/0026-one-operating-ui-one-contract.md). Contract in `packages/shared/src/operating-contract.ts`, served by `apps/selfhost`; deletions/moves/failures screens in `apps/web` (9 tests, apply-gate mutation-verified); **served from the appliance at `/ui`** (17 tests, traversal-probed over a raw socket against the real bundle). Remaining: `verify` and `finish` screens, and the managed edition implementing the contract. |
+| **UI prerequisite** — operating contract + decision-queue screens | 🟡 **In progress** | [ADR-0026](../adr/0026-one-operating-ui-one-contract.md). Contract in `packages/shared/src/operating-contract.ts`, served by `apps/selfhost`; deletions/moves/failures screens in `apps/web` (9 tests, apply-gate mutation-verified); **served from the appliance at `/ui`** (17 tests, traversal-probed over a raw socket against the real bundle). **Verify and finish screens done** — finish is the runbook's five-step cutover checklist, gated on the operator confirming delivery has moved (mutation-verified). Remaining: the managed edition implementing the contract. |
 
 > Read [ADR-0019](../adr/0019-packaging-runtime-targets.md) (packaging; and its
 > 2026-07-30 update note) and [ADR-0023](../adr/0023-persistence-postgres-only.md)
@@ -129,18 +129,23 @@ Done:
 **That means "no terminal" is now true for the decision queues**, which was T2's
 actual blocker.
 
+- **The §20 check and the end of the migration.** `verify` is behind an explicit
+  button, never run on mount and never polled: it counts and samples the TARGET,
+  so it is real network work rather than a status read. `finish` is **the
+  runbook's five-step cutover sequence as a screen**, not a button — because
+  while a mapping is active, items still arriving on the old system are being
+  copied across, and finishing stops that. Finish before mail delivery has
+  moved and everything arriving afterwards is never copied, with nothing
+  reporting it. Steps 1–3 the appliance checks for itself; step 4 (MX/DNS) is
+  outside the tool, so it is the one thing the operator is asked to attest to,
+  and the finish button stays disabled until they do.
+
 Not done, and still between here and T2:
 
-- **`verify` and `finish` screens.** `finish` is the end of the shadow sync and
-  `verify` is the §20 gate; neither has a UI in either edition, so both are
-  still `curl`-only. `finish` is the more urgent of the two — it is how a
-  migration ENDS, and an appliance a user cannot stop is not finished software.
 - **The managed edition implementing the contract.** It still has no deletions,
-  moves, failures, verify or finish endpoints.
-
-The second is not on the installer's critical path — the appliance is what gets
-installed — but leaving it undone is what makes "one app, both editions" a claim
-rather than a fact.
+  moves, failures, verify or finish endpoints. Not on the installer's critical
+  path — the appliance is what gets installed — but leaving it undone is what
+  makes "one app, both editions" a claim rather than a fact.
 
 ### A note for whoever picks up T2
 

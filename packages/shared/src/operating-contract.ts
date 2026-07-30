@@ -43,6 +43,7 @@ import {
   type MigrationStatus,
   type PassMetrics,
 } from './ports';
+import type { VerificationResult } from './verification-report';
 
 /**
  * Where a mapping is in its life, as the operating surface reports it.
@@ -200,6 +201,16 @@ export interface StatusReport {
   readonly status: 'ok';
   readonly mappings: ReadonlyArray<{
     readonly mappingId: string;
+    /**
+     * Whether this migration is still running.
+     *
+     * On the status payload because `/status` is what anyone watching a
+     * migration polls, and "is this thing still syncing?" is the first question
+     * they have. Without it the per-domain states are ambiguous in the one case
+     * that matters: a finished migration and a stalled one both show their last
+     * completed pass and nothing since.
+     */
+    readonly migrationStatus: MappingLifecycle;
     readonly domains: readonly DomainStatusReport[];
   }>;
 }
@@ -245,6 +256,62 @@ export type DecisionOutcome = DecisionAccepted | DecisionRefused;
 /** Narrowing helper, so consumers do not each invent their own `'status' in x`. */
 export function decisionSucceeded(outcome: DecisionOutcome): outcome is DecisionAccepted {
   return (outcome as DecisionAccepted).status === 'ok';
+}
+
+/**
+ * The §20 verification gate's answer, per mapping.
+ *
+ * **Running this costs something.** It counts and samples the TARGET, so it is
+ * a request that goes out over the network for every enabled domain — not a
+ * status read. A UI must therefore make it an explicit action rather than
+ * something that happens because somebody opened a page, and must not poll it.
+ */
+export type VerifyResponse = ByMapping<VerificationResult>;
+
+/**
+ * A migration that has been ended.
+ *
+ * Finishing stops the shadow sync: the mapping is no longer scheduled, so
+ * copying stops and so does drift, deletion and move reporting. It changes
+ * NOTHING on either side — it is a statement about what the tool does next, not
+ * an action on anyone's data — which is why this is not a `DecisionOutcome`
+ * even though it looks like one.
+ */
+export interface FinishAccepted {
+  readonly status: 'ok';
+  readonly action: 'finish';
+  readonly mappingId?: string;
+  /** True when the migration was already finished; nothing was done. */
+  readonly alreadyDone?: boolean;
+  /**
+   * Items that could not be migrated and were knowingly left behind.
+   *
+   * Present only when the operator forced past the failure queue. On the record
+   * deliberately: this is the number that says what the customer did not get.
+   */
+  readonly leftUnmigrated?: number;
+  readonly effect: string;
+  readonly ifYouNeedToResume?: string;
+}
+
+/**
+ * A refusal to finish.
+ *
+ * The one thing that blocks finishing is UNRESOLVED FAILURES — items that could
+ * not be copied and are no longer being retried. Finishing over them silently
+ * converts "we are still working on this" into "this is what you got", which is
+ * the quiet data loss §11.2's decision queue exists to prevent. The operator can
+ * still proceed with `?force=true`, but has to say so.
+ */
+export interface FinishRefused {
+  readonly error: string;
+  readonly hint?: string;
+}
+
+export type FinishOutcome = FinishAccepted | FinishRefused;
+
+export function finishSucceeded(outcome: FinishOutcome): outcome is FinishAccepted {
+  return (outcome as FinishAccepted).status === 'ok';
 }
 
 /**

@@ -13,13 +13,15 @@
  * the types live.
  */
 
-import type { ItemFailure, MigrationStatus } from '@openmig/shared';
+import type { ItemFailure, MigrationStatus, MappingLifecycle } from '@openmig/shared';
 import type { DomainStatusReport, StatusReport } from '@openmig/shared';
 
 export type { DomainStatusReport, StatusReport };
 
 export interface MappingStatusInput {
   readonly mappingId: string;
+  /** Where the mapping is in its life — see `StatusReport`. */
+  readonly migrationStatus: MappingLifecycle;
   readonly statuses: readonly MigrationStatus[];
   /** Unresolved item failures for this mapping, from the ledger. */
   readonly failures?: readonly ItemFailure[];
@@ -28,8 +30,9 @@ export interface MappingStatusInput {
 export function buildStatusReport(inputs: readonly MappingStatusInput[]): StatusReport {
   return {
     status: 'ok',
-    mappings: inputs.map(({ mappingId, statuses, failures = [] }) => ({
+    mappings: inputs.map(({ mappingId, migrationStatus, statuses, failures = [] }) => ({
       mappingId,
+      migrationStatus,
       domains: statuses.map((s) => {
         const mine = failures.filter((f) => f.domain === s.domain);
         return {

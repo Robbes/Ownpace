@@ -57,7 +57,7 @@ function statusWithHiddenSecret(): MigrationStatus {
 describe('self-host /status secret hygiene (T4)', () => {
   it('serializes only whitelisted fields — never config or credentials', () => {
     const report = buildStatusReport([
-      { mappingId: 'm1', statuses: [statusWithHiddenSecret()] },
+      { mappingId: 'm1', migrationStatus: 'active', statuses: [statusWithHiddenSecret()] },
     ]);
     const json = JSON.stringify(report);
 
@@ -86,7 +86,7 @@ describe('self-host /status secret hygiene (T4)', () => {
   it('passes a benign lastError through verbatim (§11.2) without inventing content', () => {
     const base = statusWithHiddenSecret();
     const withError: MigrationStatus = { ...base, state: 'failed', lastError: 'ECONNREFUSED contacting target' };
-    const report = buildStatusReport([{ mappingId: 'm1', statuses: [withError] }]);
+    const report = buildStatusReport([{ mappingId: 'm1', migrationStatus: 'active', statuses: [withError] }]);
     const domain = report.mappings[0]!.domains[0]!;
     expect(domain.lastError).toBe('ECONNREFUSED contacting target');
     expect(JSON.stringify(report)).not.toContain(SECRET);
