@@ -32,15 +32,24 @@ const Layout: React.FC = () => {
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Mappings', href: '/mappings', icon: FolderGit2 },
-    // The §11.2 decision queues. Above the managed-only entries because on the
-    // appliance they are the whole reason somebody opens this UI at all.
-    { name: 'Deletions', href: '/deletions', icon: Trash2 },
-    { name: 'Moves', href: '/moves', icon: MoveRight },
-    { name: 'Failures', href: '/failures', icon: AlertTriangle },
-    // The §20 gate, then the end of the migration. Last, and in that order,
-    // because that is the order the runbook's cutover sequence uses.
-    { name: 'Check', href: '/verify', icon: ClipboardCheck },
-    { name: 'Finish', href: '/finish', icon: Flag },
+    // The §11.2 decision queues, and then the §20 gate and the end of the
+    // migration — in the order the runbook's cutover sequence uses.
+    //
+    // Self-host only in the NAV, not in the app: the appliance answers these for
+    // every configured mapping, so a top-level entry makes sense there. A
+    // managed tenant reaches the same screens per-mapping (see App.tsx), because
+    // "every deletion across every migration you have" is not a page anyone
+    // asked for. Verify and Finish have no managed equivalent at all yet —
+    // managed cutover runs through the cutover job.
+    ...(selfHost
+      ? [
+          { name: 'Deletions', href: '/deletions', icon: Trash2 },
+          { name: 'Moves', href: '/moves', icon: MoveRight },
+          { name: 'Failures', href: '/failures', icon: AlertTriangle },
+          { name: 'Check', href: '/verify', icon: ClipboardCheck },
+          { name: 'Finish', href: '/finish', icon: Flag },
+        ]
+      : []),
     ...(selfHost ? [] : [{ name: 'Tenants', href: '/tenants', icon: Building2 }]),
     ...(selfHost ? [] : [{ name: 'Billing', href: '/billing', icon: CreditCard }]),
     { name: 'Operator', href: '/operator', icon: Server },

@@ -5,11 +5,11 @@
 | Task | Status | Evidence |
 |---|---|---|
 | T0 PGlite feasibility spike | ✅ **Done — PASS, 15/15** | `scripts/spike-pglite-windows.mjs`, run against the REAL `packages/ledger/migrations/0001_baseline.sql` (2580 lines, unmodified). Results in "The spike" below. |
-| T1 driver seam (`pg.Pool` → PGlite) | 🟡 **Seam built; PGlite not adopted** | `packages/ledger/src/driver.ts` — `LedgerDriver`/`LedgerConnection`, with `pgDriver(pool)` as the only implementation. `withTenant()` goes through it and takes a driver **or** a pool, so the 45 existing call sites were untouched. Single-connection behaviour is unit-tested against a fake driver with PGlite's constraint (5 tests, serialisation mutation-verified). Adoption is still one whole-workspace change — see the drizzle-resolution finding below. |
+| T1 driver seam (`pg.Pool` → PGlite) | 🟡 **Seam done; adoption parked in [0016](./0016-pglite-adoption.md)** | `packages/ledger/src/driver.ts` — `LedgerDriver`/`LedgerConnection`, with `pgDriver(pool)` as the only implementation. `withTenant()` goes through it and takes a driver **or** a pool, so the 45 existing call sites were untouched. Single-connection behaviour is unit-tested against a fake driver with PGlite's constraint (5 tests, serialisation mutation-verified). Adoption is still one whole-workspace change — see the drizzle-resolution finding below. |
 | T2 packaging shell decision + build | ⬜ Not started | **Unblocked in part** — the UI prerequisite is now started, not absent (see below). |
 | T3 installer, upgrade, uninstall | ⬜ Not started | |
 | T4 code signing | ⬜ Not started | Needs a purchasing decision, not a technical one. |
-| **UI prerequisite** — operating contract + decision-queue screens | 🟡 **In progress** | [ADR-0026](../adr/0026-one-operating-ui-one-contract.md). Contract in `packages/shared/src/operating-contract.ts`, served by `apps/selfhost`; deletions/moves/failures screens in `apps/web` (9 tests, apply-gate mutation-verified); **served from the appliance at `/ui`** (17 tests, traversal-probed over a raw socket against the real bundle). **Verify and finish screens done** — finish is the runbook's five-step cutover checklist, gated on the operator confirming delivery has moved (mutation-verified). Remaining: the managed edition implementing the contract. |
+| **UI prerequisite** — operating contract + decision-queue screens | 🟡 **In progress** | [ADR-0026](../adr/0026-one-operating-ui-one-contract.md). Contract in `packages/shared/src/operating-contract.ts`, served by `apps/selfhost`; deletions/moves/failures screens in `apps/web` (9 tests, apply-gate mutation-verified); **served from the appliance at `/ui`** (17 tests, traversal-probed over a raw socket against the real bundle). **Verify and finish screens done** — finish is the runbook's five-step cutover checklist, gated on the operator confirming delivery has moved (mutation-verified). **Managed edition implements it** — the three queues, keep/retry/accept and finish, from the same shapes and prose (`apps/api/.../operating-routes.ts`; 4 route tests, Express-5 registration mutation-verified). `apply`/`verify` stay worker-side by design — see the ADR's 2026-07-30 update note. |
 
 > Read [ADR-0019](../adr/0019-packaging-runtime-targets.md) (packaging; and its
 > 2026-07-30 update note) and [ADR-0023](../adr/0023-persistence-postgres-only.md)
@@ -164,7 +164,11 @@ cheaper than it looked when this workplan was written, and reversible.
   it looks: **PGlite is a file, not a server**, so there is no connection string
   to give it, and a `connectionString`-only signature would have kept the
   appliance tied to a running Postgres long after every query became portable.
-  What remains is the PGlite driver itself.
+  What remains is the PGlite driver itself, which is **parked as its own
+  workplan — [0016](./0016-pglite-adoption.md)** — because it is *blocked*
+  rather than merely unscheduled, and that is easy to lose track of. Neither T0
+  nor T1 delivers anything to a user on its own: the appliance still requires a
+  Postgres server until 0016 lands.
 
   **The single-connection point is a correctness requirement, not a performance
   one, and it is the thing to get right.** `pg.Pool` hands out N independent

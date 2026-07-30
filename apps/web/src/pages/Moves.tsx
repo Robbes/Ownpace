@@ -11,6 +11,7 @@
  */
 
 import React from 'react';
+import { useParams } from 'react-router';
 import { ArrowRight } from 'lucide-react';
 import type { ItemMove, MovesQueue } from '@openmig/shared';
 import { QueueScreen, type ItemOutcome } from '../components/queues/QueueScreen';
@@ -60,12 +61,17 @@ const Row: React.FC<{
   </ItemRow>
 );
 
-const Moves: React.FC = () => (
+const Moves: React.FC = () => {
+  // Undefined on the appliance, which answers for every configured mapping;
+  // required by the managed edition, which scopes each queue to one. See
+  // `queuePath()` — the shapes are shared, the URLs are not.
+  const { mappingId } = useParams<{ mappingId: string }>();
+  return (
   <QueueScreen<MovesQueue>
     title="Moved on the old system"
     intro="Items the owner has filed somewhere else where they came from. The new system still has them where we put them, and nothing has been changed on either side."
     queryKey="moves"
-    fetcher={fetchMoves}
+    fetcher={() => fetchMoves(mappingId)}
     renderMapping={(mappingId, queue, act, outcomes) => (
       <>
         <QueueSection
@@ -106,6 +112,7 @@ const Moves: React.FC = () => (
       </>
     )}
   />
-);
+  );
+};
 
 export default Moves;

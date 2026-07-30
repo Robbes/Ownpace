@@ -16,6 +16,7 @@
  */
 
 import React from 'react';
+import { useParams } from 'react-router';
 import type { DeletionsQueue, ItemDeletion } from '@openmig/shared';
 import { mayOfferApply } from '@openmig/shared';
 import { QueueScreen, type ItemOutcome } from '../components/queues/QueueScreen';
@@ -57,12 +58,17 @@ const Row: React.FC<{
   </ItemRow>
 );
 
-const Deletions: React.FC = () => (
+const Deletions: React.FC = () => {
+  // Undefined on the appliance, which answers for every configured mapping;
+  // required by the managed edition, which scopes each queue to one. See
+  // `queuePath()` — the shapes are shared, the URLs are not.
+  const { mappingId } = useParams<{ mappingId: string }>();
+  return (
   <QueueScreen<DeletionsQueue>
     title="Deleted on the old system"
     intro="Items the owner has deleted where they came from, which the new system still has. Nothing has been removed from either side."
     queryKey="deletions"
-    fetcher={fetchDeletions}
+    fetcher={() => fetchDeletions(mappingId)}
     renderMapping={(mappingId, queue, act, outcomes) => (
       <>
         <QueueSection
@@ -141,6 +147,7 @@ const Deletions: React.FC = () => (
       </>
     )}
   />
-);
+  );
+};
 
 export default Deletions;

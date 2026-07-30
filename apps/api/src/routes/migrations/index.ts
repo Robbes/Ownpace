@@ -17,6 +17,10 @@ import { SecretStore } from '@openmig/core/secret-store';
 import { getTriggerClient } from '@openmig/scheduler';
 import type { DiscoveryDomain, TenantId, MappingId } from '@openmig/shared';
 import { resolveSyncJob, resolveCutoverJob } from './job-resolution';
+// The §11.2 decision queues and the decisions on them (ADR-0026). Mounted on
+// this same router so they sit under /api/migrations/:mappingId/... alongside
+// discovery and start, which is where the appliance's equivalents live too.
+import operatingRoutes from './operating-routes';
 import { log } from '@openmig/shared';
 
 /** Take the first row of a RETURNING result or fail loudly (no silent nulls). */
@@ -69,6 +73,8 @@ function toApiRun(r: LedgerRun): {
 }
 
 const router = Router();
+
+router.use('/', operatingRoutes);
 
 // Global pool - created once and reused
 let _dbPool: ReturnType<typeof getDbPool> | null = null;
