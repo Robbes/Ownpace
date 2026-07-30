@@ -211,6 +211,14 @@ describe('Calendar domain sync (real CalDAV target) Integration', () => {
     await cleanDatabaseState();
   });
 
+  // Explicit timeout on every `it` below, not just the `beforeAll`/`afterAll`
+  // hooks: vitest.config.ts's inline `test.projects` entries do not inherit the
+  // root `test.testTimeout` (each project only gets what it declares itself),
+  // so these silently fell back to vitest's own 5000ms default and timed out in
+  // CI once enough other integration files were doing real DAV I/O against the
+  // same shared Testcontainers Nextcloud to push real network round-trips past
+  // it. Fixed at the project level in vitest.config.ts too; kept explicit here
+  // as well rather than trusting inheritance a second time.
   it('writes N seeded events, is idempotent on a second pass, and picks up one added later', async () => {
     const folder: CalendarFolder = { path: TARGET_CALENDAR_PATH, name: 'openmig-e2e-target' };
     const events = buildStubEvents(EVENT_COUNT);
@@ -296,7 +304,7 @@ describe('Calendar domain sync (real CalDAV target) Integration', () => {
     const afterUids = after.items.map((i) => i.item.uid.toLowerCase());
     expect(afterUids).toContain(added[0]!.item.uid.toLowerCase());
     expect(afterUids.length).toBe(EVENT_COUNT + 1);
-  });
+  }, 60000);
 });
 
 // ============================= Contacts (CardDAV) =============================
@@ -511,7 +519,7 @@ describe('Contact domain sync (real CardDAV target) Integration', () => {
     const afterUids = after.items.map((i) => i.item.uid.toLowerCase());
     expect(afterUids).toContain(added[0]!.item.uid.toLowerCase());
     expect(afterUids.length).toBe(CONTACT_COUNT + 1);
-  });
+  }, 60000);
 });
 
 // =============================== Files (WebDAV) ================================
@@ -737,7 +745,7 @@ describe('File domain sync (real WebDAV target) Integration', () => {
     const afterNames = after.items.map((i) => i.item.name);
     expect(afterNames).toContain(added[0]!.item.name);
     expect(afterNames.length).toBe(FILE_COUNT + 1);
-  });
+  }, 60000);
 
   /**
    * `listKeys` must describe the same files, in the same words, as `listSince`.
@@ -797,6 +805,6 @@ describe('File domain sync (real WebDAV target) Integration', () => {
 
     expect(fromKeys).toEqual(fromListing);
     expect(fromKeys.length).toBe(3);
-  });
+  }, 60000);
 });
 }
