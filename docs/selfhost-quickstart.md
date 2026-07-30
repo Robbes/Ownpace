@@ -284,21 +284,27 @@ How quickly it shows up depends on how we found out, which each entry states as
 
 - **`reported`** — for calendar events and contacts, the old server tells us
   outright which objects it removed, so the entry appears on the next pass.
-- **`trashed`** — for mail, we find the message sitting in Deleted Items. Also on
-  the next pass: the old system's own filing is the evidence, and there is nothing
-  to wait for.
-- **`inferred`** — for files there is neither, so we go by the item having vanished
-  from **two consecutive** complete scans. One absence is not evidence: a throttled
-  listing or a connector having a bad ten minutes looks exactly the same. If it
-  reappears the count starts again from zero.
+- **`trashed`** — for mail, we find the message sitting in Deleted Items; for
+  Nextcloud files, we find it in the account's trashbin, which records where each
+  file came from. Also on the next pass: the old system's own filing is the
+  evidence, and there is nothing to wait for.
+- **`inferred`** — for a plain WebDAV server there is neither, so we go by the item
+  having vanished from **two consecutive** complete scans. One absence is not
+  evidence: a throttled listing or a connector having a bad ten minutes looks
+  exactly the same. If it reappears the count starts again from zero.
+
+Migrating from OneDrive or SharePoint gets `reported` for files too: the Graph delta
+query names what was deleted, the same way CalDAV does.
 
 Two things about the mail one. It works *because* Deleted Items is left behind
 (§5) — if you set `excludeSpecialUse: []` so the bin is migrated too, it stops
 being read as a signal. And Junk is never treated as a deletion: a message in there
 was probably put there by a spam filter, not by a person.
 
-Files in the Nextcloud trashbin are not read yet — that endpoint is separate from
-the file listing. For those, deletion is still inferred from absence.
+One about the file one: Nextcloud puts a deleted **folder** in the bin as a single
+entry, so the files that were inside it are not named individually. They are still
+caught, two passes later, as `inferred` — they have vanished from a complete
+listing.
 
 "Keep" — the new system holds on to its copy — is the usual and expected answer.
 A migration target that is a slightly fuller archive than the shrinking source is

@@ -1184,9 +1184,35 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   }
 
   reportPhases(phases, domain, scanned);
+
+  // ONE ENTRY PER ITEM, keeping the strongest evidence.
+  //
+  // A deleted file is found twice on the same pass by design: it is in the owner's
+  // bin (positive evidence, reported at once) AND missing from the collection
+  // listing (absence-counting, reported once it repeats). Both are true and both
+  // are worth recording on the row, but a queue that shows the same file twice —
+  // once as `trashed` and once as `inferred` — reads as two problems.
+  const strongest = new Map<string, ItemDeletion>();
+  const rank = { reported: 3, trashed: 2, inferred: 1 } as const;
+  for (const d of deletions) {
+    const held = strongest.get(d.naturalKeyHash);
+    if (!held) {
+      strongest.set(d.naturalKeyHash, d);
+      continue;
+    }
+    // Strongest evidence wins, but the COUNT is the highest anyone saw. The two
+    // detectors read the row at different moments — the bin scan takes its snapshot
+    // before absence-counting has incremented on this pass — so keeping the winner's
+    // number verbatim would report a count one behind the row it came from.
+    const winner = rank[d.evidence] > rank[held.evidence] ? d : held;
+    const absentPasses = Math.max(d.absentPasses, held.absentPasses);
+    strongest.set(d.naturalKeyHash, absentPasses === winner.absentPasses ? winner : { ...winner, absentPasses });
+  }
+  const reportedDeletions = [...strongest.values()];
+
   // The two POSITIVE kinds of evidence, logged together: both mean "the owner
   // deleted this", and neither had to be inferred from absence.
-  const certain = deletions.filter((d) => d.evidence !== 'inferred');
+  const certain = reportedDeletions.filter((d) => d.evidence !== 'inferred');
   if (certain.length > 0) {
     const reported = certain.filter((d) => d.evidence === 'reported').length;
     const trashed = certain.length - reported;
@@ -1234,7 +1260,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     failures,
     moved,
     moves,
-    deletions,
+    deletions: reportedDeletions,
     drift,
     metrics: summarise(phases, scanned),
   };

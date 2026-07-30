@@ -319,7 +319,9 @@ Coverage today, by domain:
 |---|---|
 | calendar, contacts | `reported` — the CalDAV/CardDAV `sync-collection` REPORT names removed objects on every incremental poll |
 | mail | `trashed` — the owner's Deleted Items is scanned for messages we copied. This is IMAP's only signal: it has no removal report, and a mailbox cannot be enumerated cheaply enough to count absences every pass |
-| files | `inferred` — a WebDAV collection can be enumerated cheaply and completely, so absence can be established. The file trashbin sits on its own endpoint and is not read yet |
+| files, OneDrive/SharePoint | `reported` — a Graph delta query answers with the items that changed *and* the ones deleted, each carrying a `deleted` facet |
+| files, Nextcloud | `trashed` — the account's trashbin is read, and every entry in it carries the original path of the file |
+| files, plain WebDAV | `inferred` — no bin and no delta query, but a collection can be enumerated cheaply and completely, so absence can be established |
 
 Two limits worth knowing.
 
@@ -338,11 +340,19 @@ next pass that lists that message for any reason clears the claim. The alternati
 was to require a complete listing of the whole mailbox before believing anything,
 which in production would mean the signal fired on the first pass and never again.
 
-Scanning the bin depends on it being **out of scope**. If you set
+Scanning the mail bin depends on it being **out of scope**. If you set
 `excludeSpecialUse: []` so that Deleted Items is migrated as content, it stops
 being read as a signal — an item cannot be copied and interpreted as a deletion at
 the same time. Junk is never read as a deletion either way: a message in there was
 very likely put there by a filter rather than by a person.
+
+Two limits on the **file** bin. A bin is not part of WebDAV — RFC 4918 has no such
+concept — so it is Nextcloud's own endpoint, derived from the files URL and probed;
+a server that does not serve one reports nothing and stays on absence-counting. And
+Nextcloud trashes a **folder** as a single entry, so the files that were inside it
+are not individually reported. They are still caught, one step slower, by absence:
+they have vanished from a complete listing, so they become `inferred` deletions
+after two passes.
 
 ### Proving it against your own server
 
@@ -355,6 +365,13 @@ detected, and that is worth knowing before you rely on it.
 # Deletes one already-migrated message the way a mail client does, and prints
 # which mailbox it found the flag on. Exits non-zero if there is no bin.
 node test/e2e/trash-imap-source.mjs
+
+# Files: deletes two already-migrated files — one plain, one with a space and a
+# non-ASCII character — then ASSERTS that the trashbin reports paths in the form
+# the natural keys are built from. Exits non-zero on a mismatch, because that
+# mismatch makes the feature report nothing rather than fail.
+node test/e2e/trash-dav-file-source.mjs
+
 curl -s http://127.0.0.1:8080/deletions | jq
 ```
 
