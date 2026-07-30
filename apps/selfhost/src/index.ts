@@ -30,7 +30,7 @@ import type { TenantId, MappingId, ScheduleHandle, DiscoveryRecord, FailureActio
 import { loadConfigDir, type LoadedMapping } from './config-dir';
 import { buildStatusReport, type MappingStatusInput } from './status';
 import { renderConfirmPage, type MappingConfirmView } from './confirm-page';
-import { startTransition } from './lifecycle';
+import { startTransition, finishTransition } from './lifecycle';
 import { log } from '@openmig/shared';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
 
@@ -154,7 +154,10 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   const scheduler = new InProcessScheduler();
   const handles: ScheduleHandle[] = [];
   // config mappingIds currently scheduled (only 'active' mappings run — 0013 T7).
-  const scheduled = new Set<string>();
+  /** jobId -> its live schedule handle, so ONE mapping can be unscheduled.
+   * `handles` stays the shutdown list; ScheduleHandle exposes only stop(), so a
+   * separate map is the only way to find the right one. */
+  const scheduled = new Map<string, ScheduleHandle>();
 
   // Helper to run a function with tenant context set for RLS
   const withTenantContext = async <T>(
@@ -206,8 +209,36 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       return row?.status ?? 'paused';
     });
 
+  /** Stop scheduling a mapping, so a finished migration stops syncing at once. */
+  const unscheduleMapping = (m: LoadedMapping) => {
+    const handle = scheduled.get(m.config.mappingId);
+    if (!handle) return;
+    handle.stop();
+    scheduled.delete(m.config.mappingId);
+    // Left in `handles` on purpose: that array is the shutdown list, and croner's
+    // stop() is idempotent, so a second stop at shutdown costs nothing.
+    log.info(`[selfhost] unscheduled ${m.config.mappingId}`);
+  };
+
   const runMapping = (m: LoadedMapping) => async () => {
     try {
+      // Re-read the status EVERY pass, not just at startup.
+      //
+      // Startup decided what to schedule, but a mapping can be finished (or
+      // paused) while the process keeps running — by the finish endpoint below,
+      // or by an operator touching the database directly. Without this check a
+      // mapping marked done went on syncing until the next restart, which makes
+      // "finished" mean nothing until someone reboots the appliance.
+      const currentStatus = await mappingStatus(m);
+      if (currentStatus !== 'active') {
+        log.info(
+          `[selfhost] ${m.config.mappingId} is '${currentStatus}', not 'active' — skipping this ` +
+            'pass and unscheduling.',
+        );
+        unscheduleMapping(m);
+        return;
+      }
+
       log.info(`[selfhost] ${m.config.mappingId}: starting pass...`);
       await ensureRecordsFor(m);
 
@@ -275,8 +306,9 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   const scheduleMapping = (m: LoadedMapping) => {
     if (scheduled.has(m.config.mappingId)) return;
     const cron = m.config.schedule?.cron ?? DEFAULT_SCHEDULE;
-    handles.push(scheduler.schedule(m.config.mappingId, cron, runMapping(m)));
-    scheduled.add(m.config.mappingId);
+    const handle = scheduler.schedule(m.config.mappingId, cron, runMapping(m));
+    handles.push(handle);
+    scheduled.set(m.config.mappingId, handle);
     log.info(`[selfhost] scheduled ${m.config.mappingId} (${cron})`);
   };
 
@@ -391,11 +423,22 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       if (req.method === 'GET' && req.url === '/failures') {
         const out: Record<string, unknown> = {};
         for (const m of mappings) {
+          const mStatus = await mappingStatus(m);
           const failures = await ledger.listFailures(
             m.config.tenantId as TenantId,
             m.mailboxMappingId as MappingId,
           );
           out[m.config.mappingId] = {
+            // A finished migration keeps its history but stops nagging: the queues
+            // below are what WAS outstanding when it ended, not work still to do.
+            migrationStatus: mStatus,
+            ...(mStatus === 'done'
+              ? {
+                  reportingClosed:
+                    'This migration is finished, so nothing here is still being watched. ' +
+                    'Anything listed was outstanding when it ended and is kept as a record.',
+                }
+              : {}),
             // Split rather than left for the reader to filter: they are
             // different situations. One is still being worked on; the other is
             // waiting on a person and will otherwise never move.
@@ -436,11 +479,22 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       if (req.method === 'GET' && req.url === '/moves') {
         const out: Record<string, unknown> = {};
         for (const m of mappings) {
+          const mStatus = await mappingStatus(m);
           const all = await ledger.listMoves(
             m.config.tenantId as TenantId,
             m.mailboxMappingId as MappingId,
           );
           out[m.config.mappingId] = {
+            // A finished migration keeps its history but stops nagging: the queues
+            // below are what WAS outstanding when it ended, not work still to do.
+            migrationStatus: mStatus,
+            ...(mStatus === 'done'
+              ? {
+                  reportingClosed:
+                    'This migration is finished, so nothing here is still being watched. ' +
+                    'Anything listed was outstanding when it ended and is kept as a record.',
+                }
+              : {}),
             // Split, as with failures: one still wants a person, the other has
             // already had one.
             open: all.filter((mv) => !mv.acknowledgedAt),
@@ -496,11 +550,22 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       if (req.method === 'GET' && req.url === '/deletions') {
         const out: Record<string, unknown> = {};
         for (const m of mappings) {
+          const mStatus = await mappingStatus(m);
           const all = await ledger.listDeletions(
             m.config.tenantId as TenantId,
             m.mailboxMappingId as MappingId,
           );
           out[m.config.mappingId] = {
+            // A finished migration keeps its history but stops nagging: the queues
+            // below are what WAS outstanding when it ended, not work still to do.
+            migrationStatus: mStatus,
+            ...(mStatus === 'done'
+              ? {
+                  reportingClosed:
+                    'This migration is finished, so nothing here is still being watched. ' +
+                    'Anything listed was outstanding when it ended and is kept as a record.',
+                }
+              : {}),
             confirmed: all.filter((d) => d.confirmed && !d.acknowledgedAt),
             // Not yet worth acting on, shown so the queue is not a black box.
             watching: all.filter((d) => !d.confirmed && !d.acknowledgedAt),
@@ -755,6 +820,75 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         res.writeHead(303, { location: '/' });
         res.end();
         return;
+      }
+
+      // Finish the migration: stop syncing, stop reporting, change nothing.
+      //
+      // The end of the shadow sync, and the last step of the cutover flow. The
+      // mapping goes to 'done' and is unscheduled, so the source stops being
+      // watched — no more copying, and no more drift/deletion/move reporting.
+      // Everything already on the target stays exactly as it is: this changes
+      // what the tool does NEXT, never what it has written.
+      //
+      // Refused while items are still awaiting a decision in the failure queue,
+      // because finishing over those quietly turns "still working on it" into
+      // "this is what you got". `?force=true` overrides, and the refusal carries
+      // the count so that choice is an informed one.
+      const finishMatch =
+        req.method === 'POST' && req.url
+          ? /^\/mappings\/([^/]+)\/finish(?:\?(.*))?$/.exec(req.url)
+          : null;
+      if (finishMatch) {
+        await drain(req);
+        const id = decodeURIComponent(finishMatch[1]!);
+        const force = new URLSearchParams(finishMatch[2] ?? '').get('force') === 'true';
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+
+        const status = await mappingStatus(m);
+        const failures = await ledger.listFailures(
+          m.config.tenantId as TenantId,
+          m.mailboxMappingId as MappingId,
+        );
+        const unresolved = failures.filter((f) => f.needsDecision).length;
+        const transition = finishTransition(status, unresolved, force);
+
+        if ('refuse' in transition) {
+          return sendJson(res, 409, { error: transition.refuse, hint: transition.hint });
+        }
+        if (transition.finish === false) {
+          return sendJson(res, 200, {
+            status: 'ok',
+            action: 'finish',
+            alreadyDone: true,
+            effect: 'This migration was already finished; nothing changed.',
+          });
+        }
+
+        await withTenantContext(m.config.tenantId as string, async (client) => {
+          await client.query(`UPDATE mailbox_mapping SET status = 'done' WHERE id = $1`, [
+            m.mailboxMappingId,
+          ]);
+        });
+        unscheduleMapping(m);
+        log.warn(
+          `[selfhost] ${m.config.mappingId}: FINISHED by operator — no longer syncing` +
+            (unresolved > 0 ? ` (forced over ${unresolved} unresolved failure(s))` : ''),
+        );
+
+        return sendJson(res, 200, {
+          status: 'ok',
+          action: 'finish',
+          mappingId: m.config.mappingId,
+          ...(unresolved > 0 ? { leftUnmigrated: unresolved } : {}),
+          effect:
+            'The migration is finished. This mapping no longer syncs, and drift, deletions and ' +
+            'moves are no longer reported for it. Nothing was added to or removed from the ' +
+            'target — what is there now is what stays.',
+          ifYouNeedToResume:
+            'Remove the mapping from the config directory to retire it for good, or set its ' +
+            "mailbox_mapping.status back to 'active' and restart the appliance to resume.",
+        });
       }
 
       // Run a pass NOW, and answer when it has finished.

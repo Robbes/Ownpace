@@ -508,6 +508,69 @@ target then holds both, and the old one is what `from` points at. For **mail**, 
 message that genuinely lives in two folders looks exactly like one that moved;
 the pass cannot tell them apart, which is why it reports rather than acts.
 
+## Finishing a migration — cutover and cleanup
+
+A shadow sync runs indefinitely by design: it keeps the new system current while
+people still use the old one. At some point the old system stops being the one
+that matters, and the sync should stop with it — otherwise the appliance goes on
+polling a source nobody uses and reporting drift nobody will act on.
+
+The order that works:
+
+```sh
+# 1. Prove the copy is complete. §20 checks counts, checksums and bytes per
+#    domain and tells you whether it is safe to proceed.
+curl -s http://127.0.0.1:8080/verify | jq '.[].canProceedToCutover'
+
+# 2. Clear the decision queues. Anything here is a real question:
+#    /failures = could not be copied, /moves and /deletions = the owner changed
+#    something. Nothing outstanding should be a surprise at this point.
+curl -s http://127.0.0.1:8080/failures  | jq
+curl -s http://127.0.0.1:8080/moves     | jq
+curl -s http://127.0.0.1:8080/deletions | jq
+
+# 3. Run one last pass, so the target reflects the source as of right now.
+curl -sX POST http://127.0.0.1:8080/mappings/<mappingId>/run
+
+# 4. Move mail delivery to the new system (MX/DNS, client reconfiguration —
+#    outside this tool; `openmig runbook` generates the DNS steps).
+
+# 5. Finish. The mapping stops syncing and stops reporting.
+curl -sX POST http://127.0.0.1:8080/mappings/<mappingId>/finish
+```
+
+**What `finish` does and does not do.** It sets the mapping to `done` and
+unschedules it: no more copying, and no more drift, deletion or move reporting.
+It changes **nothing** on either system — everything already on the target stays
+exactly as it is. It is a statement about what the tool does next, not an action
+on anyone's data.
+
+**It refuses while items are still awaiting a decision** in the failure queue,
+because finishing over those quietly turns "we are still working on this" into
+"this is what you got". Resolve them first (retry, or accept to leave them
+behind), or say so explicitly:
+
+```sh
+curl -sX POST 'http://127.0.0.1:8080/mappings/<mappingId>/finish?force=true'
+```
+
+The response then reports `leftUnmigrated`, so the choice is on the record.
+
+Finishing is idempotent — a second call says `alreadyDone` rather than pretending
+to do work. Afterwards the decision queues still return what was outstanding when
+the migration ended, marked `reportingClosed`: kept as a record, no longer a list
+of things to do. To resume, set `mailbox_mapping.status` back to `active` and
+restart the appliance; to retire the mapping for good, remove it from the config
+directory.
+
+**A note on the pass in step 3.** `POST /mappings/{id}/run` runs a pass and
+answers when it has finished — useful any time, not just at cutover (after fixing
+a credential, say). Runs are single-flight per mapping, so it can never start a
+second concurrent pass; if one is already running, your call joins it and returns
+when that one ends. That also means the pass you get back may have started before
+you asked, so if you need one that definitely saw a specific change, check the
+result and run it again if not.
+
 ## Health & troubleshooting
 
 - **API/worker won't connect / RLS errors on every query:** confirm `APP_DATABASE_URL` is set and
