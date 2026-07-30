@@ -64,12 +64,30 @@ export default defineConfig({
         test: {
           name: 'integration',
           include: ['**/*.integration.test.ts'],
+          // Inline `projects` entries do NOT inherit the root `test.testTimeout`
+          // above — each project only gets what it declares itself (globalSetup
+          // and other non-`test.*` config still cascade; per-test runtime options
+          // apparently do not). dav-sync.integration.test.ts's calendar/file cases
+          // have no explicit per-`it` timeout and silently fell back to vitest's
+          // own built-in 5000ms default, timing out in CI once enough other
+          // integration files were running real DAV I/O against the same shared
+          // Testcontainers Nextcloud to push them past it. Repeated here rather
+          // than trusting inheritance a second time.
+          testTimeout: 360000,
         },
       },
       {
         test: {
           name: 'e2e',
           include: ['**/*.e2e.test.ts'],
+          // Same inheritance gap as 'integration' above. Every current e2e `it`
+          // already passes its own explicit millisecond timeout (some waiting on
+          // real cron-driven appliance passes — see PASS_WAIT_MS in
+          // test/e2e/apply-deletion-lib.ts, up to 200s), so nothing here is
+          // known to rely on this fallback today; set for the same reason as
+          // 'integration' so a future e2e test that omits one fails loud with
+          // minutes of real headroom rather than vitest's built-in 5s default.
+          testTimeout: 360000,
         },
       },
     ],

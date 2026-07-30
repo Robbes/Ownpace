@@ -24,7 +24,7 @@ import { runMigrations, createPgDb, PgMigrationStatusStore, PgDiscoveryStore, Pg
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
 import { InProcessScheduler } from '@openmig/scheduler/in-process';
-import { runAllDomains, discoverAllDomains, verifyMapping } from '@openmig/worker/orchestration';
+import { runAllDomains, discoverAllDomains, verifyMapping, applyMappingDeletion } from '@openmig/worker/orchestration';
 import { SCOPE_MANIFEST, MAX_ITEM_ATTEMPTS, DELETION_CONFIRMATIONS } from '@openmig/shared';
 import type { TenantId, MappingId, ScheduleHandle, DiscoveryRecord, FailureAction } from '@openmig/shared';
 import { loadConfigDir, type LoadedMapping } from './config-dir';
@@ -470,10 +470,12 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // "could not be copied", /moves is "the source put it somewhere else",
       // this is "the source no longer has it at all".
       //
-      // NOTHING HERE HAS BEEN REMOVED, and nothing will be without a separate,
-      // explicitly destructive action that does not exist yet. §11.1 says
-      // deletions are never auto-propagated and hard rule 2 forbids the tool
-      // deleting on its own; neither says the owner may not decide.
+      // NOTHING HERE HAS BEEN REMOVED BY DEFAULT. §11.1 says deletions are
+      // never auto-propagated and hard rule 2 forbids the tool deleting on its
+      // own; neither says the owner may not decide, and `apply` below is that
+      // decision made explicit, one item at a time, gated on this mapping
+      // having `allowApplyDeletions: true` and on the evidence being positive
+      // (never on an absence, however many passes it has repeated).
       //
       // `evidence` is the field to read first, because the two kinds are
       // different in kind and not in degree:
@@ -516,9 +518,19 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
                 `for the new system to keep its copy; stop reporting this one. This is the ` +
                 `usual answer: the target becoming a fuller archive than the shrinking source ` +
                 `is a feature, not a fault.`,
+              apply:
+                `POST /mappings/{mappingId}/deletions/{naturalKeyHash}/apply — remove the ` +
+                `target's copy too, following the source. THE ONLY DESTRUCTIVE ACTION IN THIS ` +
+                `PRODUCT: refused unless this mapping has \`allowApplyDeletions: true\` in its ` +
+                `config, refused for "inferred" evidence (an absence is never enough, however ` +
+                `many passes it repeats), refused for an item somebody has since edited on the ` +
+                `target, and refused altogether while an unusual share of the domain looks ` +
+                `pending deletion at once (the mass-deletion breaker). See the runbook before ` +
+                `using this.`,
               byHand:
-                'To remove it from the target, delete it there yourself, then keep. This tool ' +
-                'never deletes on a target (hard rule 2).',
+                'To remove it from the target yourself instead, delete it there, then keep. ' +
+                'This tool never deletes on a target without the explicit apply action above ' +
+                '(hard rule 2).',
               doNothing:
                 'An item that reappears on the source drops off this list by itself: its ' +
                 'count resets — a run of absences has to be consecutive to mean anything — and ' +
@@ -568,6 +580,62 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           effect:
             "Acknowledged. The target keeps its copy and this stops being reported unless the " +
             'item reappears on the source and vanishes again.',
+        });
+      }
+      // THE ONE DESTRUCTIVE ROUTE IN THIS API. Everything above it in this file
+      // — /failures, /moves, /deletions and their `keep` actions — changes
+      // nothing on either side. This removes the target's copy, on an explicit
+      // per-item decision, gated by `applyDeletion` in @openmig/core: off unless
+      // the mapping opts in (`allowApplyDeletions`), refused for anything but
+      // POSITIVE deletion evidence, refused for an item the target owner has
+      // since edited, and refused altogether behind the mass-deletion circuit
+      // breaker. See the runbook before wiring this into anything automated —
+      // it is designed to be used one confirmed item at a time.
+      const applyDeletionMatch =
+        req.method === 'POST' && req.url
+          ? /^\/mappings\/([^/]+)\/deletions\/([^/]+)\/(apply)$/.exec(req.url)
+          : null;
+      if (applyDeletionMatch) {
+        await drain(req);
+        const id = decodeURIComponent(applyDeletionMatch[1]!);
+        const hash = decodeURIComponent(applyDeletionMatch[2]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+
+        const configWithCorrectMappingId = { ...m.config, mappingId: m.mailboxMappingId };
+        const outcome = await applyMappingDeletion(configWithCorrectMappingId, hash);
+
+        if (!outcome.ok) {
+          // Every refusal reason is written to be read verbatim by an operator —
+          // see the comment on `ApplyDeletionOutcome` in apply-deletion.ts. 404
+          // for "there is nothing here to act on" (not_found, not_confirmed,
+          // already_applied); 403 for "this exists but you may not remove it"
+          // (everything else — not enabled, weak evidence, not ours, edited,
+          // mass-deletion breaker, target incapable).
+          const status =
+            outcome.code === 'not_found' ||
+            outcome.code === 'not_confirmed' ||
+            outcome.code === 'already_applied'
+              ? 404
+              : 403;
+          return sendJson(res, status, { error: outcome.code, reason: outcome.reason });
+        }
+
+        log.warn(
+          `[selfhost] ${m.config.mappingId}: operator applied removal of item ` +
+            `${hash.slice(0, 12)} (${outcome.kind}) — the target's copy is gone.`,
+        );
+        return sendJson(res, 200, {
+          status: 'ok',
+          action: 'apply',
+          naturalKeyHash: hash,
+          kind: outcome.kind,
+          effect:
+            outcome.kind === 'binned'
+              ? "Removed from the target. The target's own bin still has it for whatever " +
+                'retention window that server keeps — this tool cannot restore it, but the ' +
+                'server might still be able to.'
+              : 'Removed from the target with no recovery path from here.',
         });
       }
       const moveMatch =

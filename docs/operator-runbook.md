@@ -304,24 +304,110 @@ invitation re-sent, a contact restored from a phone, a message dragged back out 
 Deleted Items), and a stale claim that the owner threw something away is the last
 thing that should survive the item's return.
 
-Two answers, the same for both kinds:
+Three answers, the same set for both kinds of positive evidence:
 
 - **keep** (`POST /mappings/{id}/deletions/{hash}/keep`) — you are happy for the
   new system to keep its copy. This is the usual answer, and it is what the
   architecture expects: the target becoming a fuller archive than the shrinking
   source is a feature, not a fault.
+- **apply** (`POST /mappings/{id}/deletions/{hash}/apply`) — remove the
+  target's copy too, following the source. See below: this is the one
+  destructive action anywhere in this product, and it is off by default.
 - **remove it yourself** — delete it in the target system, then `keep`. This
-  tool will not do it for you.
+  tool will never do it for you unless you explicitly call `apply`.
+
+### Removing it on the target too — `apply`
+
+**This is the only operation in the whole product that deletes anything.**
+Everything documented above it — failures, moves, the deletions queue itself —
+only ever reports. `apply` takes the target's copy away, on an explicit,
+per-item decision an operator makes by calling the endpoint. Nothing about it is
+automatic, batched, or triggered by a schedule.
+
+It has to be turned on per mapping first:
+
+```json
+{
+  "tenantId": "...",
+  "mappingId": "...",
+  "source": { "...": "..." },
+  "target": { "...": "..." },
+  "allowApplyDeletions": true
+}
+```
+
+Defaults to `false`. A capability that destroys data must be opted into, never
+opted out of — a mapping nobody configured for this cannot delete anything,
+however the endpoint is called.
+
+Even switched on, every single call still has to pass **all** of the following
+before anything is removed:
+
+1. **Positive evidence only.** `reported` or `trashed` — never `inferred`,
+   however many passes an absence has repeated. Absence has innocent causes
+   that all look identical, and acting on it is the one thing this feature
+   must never do.
+2. **This tool wrote it.** Only a `copied` or `updated` item is ours to
+   remove. An `adopted` item was on the target before this migration ever ran,
+   and hard rule 2 forbids touching it.
+3. **Nobody has edited it on the target since.** Checked at the moment of
+   removal, against the same ETag the shadow-sync overwrite protection already
+   uses. An item you (or anyone else) has changed in the new system is yours
+   now, and `apply` leaves it alone and reports `edited_on_target`.
+4. **This does not look like a mass-deletion event.** If more than a fifth of
+   a domain's migrated items (and there are at least 20 of them) are sitting in
+   the deletions queue at once, every `apply` call for that domain is refused
+   with `mass_deletion_suspected` until that clears. That pattern is far more
+   likely to be a source outage, a restored account, or a connector reading the
+   wrong place than an owner deleting a fifth of their own data between two
+   passes — and once the evidence looks that wrong in bulk, no single item in
+   the queue is trustworthy either, including the one you are looking at.
+5. **The target actually supports removal.** Not every writer does yet — see
+   the table below.
+
+A call that is refused always says why, in a `reason` you can read as-is —
+`not_enabled`, `target_cannot_remove`, `weak_evidence`, `not_ours`,
+`edited_on_target`, `mass_deletion_suspected`, `already_applied` are the
+distinct codes.
+
+**What "removed" means depends on the target.** The response's `kind` tells you
+which you got:
+
+| `kind` | What happened |
+|---|---|
+| `binned` | Moved to the target's own bin/trash. You (or the account owner) can still get it back for whatever retention window that server keeps — this tool cannot restore it, but the server might. |
+| `deleted` | Gone, with no recovery path from here. |
+
+Mail is moved to the account's own `\Trash`-role mailbox when it has one
+(`binned`), destroyed outright only when it does not (`deleted`). Nextcloud
+files are DELETEd, which Nextcloud's own server puts in its trashbin
+(`binned`); a plain WebDAV server has no such bin, so the same DELETE is
+`deleted`. Calendar and contact removals always report `deleted` — some
+Nextcloud versions do keep a deleted calendar object for a while, but which
+versions do is not something this tool can tell from the outside, and
+understating recoverability is the direction it is safe to be wrong in.
+
+**A row is never deleted, even after `apply` succeeds.** It is marked
+`tombstoned` instead, with the date recorded — the record that the item
+existed, was migrated, and was removed on that date by that decision. If the
+source somehow lists the same key again afterwards (an owner can legitimately
+`apply` a removal for an item the source still has, if the evidence was
+`trashed` rather than `reported`), the pass does **not** re-create it — doing
+so would silently undo the decision you just made, and this tool has no way to
+tell "changed my mind" from "this was an erasure request and putting it back is
+a compliance failure". It is reported instead (`reappearedAfterRemoval` in the
+pass result, and a warning in the worker log) and the tombstone stands.
 
 Coverage today, by domain:
 
-| Domain | Evidence available |
-|---|---|
-| calendar, contacts | `reported` — the CalDAV/CardDAV `sync-collection` REPORT names removed objects on every incremental poll |
-| mail | `trashed` — the owner's Deleted Items is scanned for messages we copied. This is IMAP's only signal: it has no removal report, and a mailbox cannot be enumerated cheaply enough to count absences every pass |
-| files, OneDrive/SharePoint | `reported` — a Graph delta query answers with the items that changed *and* the ones deleted, each carrying a `deleted` facet |
-| files, Nextcloud | `trashed` — the account's trashbin is read, and every entry in it carries the original path of the file |
-| files, plain WebDAV | `inferred` — no bin and no delta query, but a collection can be enumerated cheaply and completely, so absence can be established |
+| Domain | Evidence available | `apply` (removal) supported? |
+|---|---|---|
+| calendar, contacts | `reported` — the CalDAV/CardDAV `sync-collection` REPORT names removed objects on every incremental poll | Yes — CalDAV/CardDAV writers |
+| mail, JMAP target | `trashed` — the owner's Deleted Items is scanned for messages we copied. This is IMAP's only signal: it has no removal report, and a mailbox cannot be enumerated cheaply enough to count absences every pass | Yes — moves to the account's own trash mailbox where it has one |
+| mail, IMAP/DAV target | same as above | **No.** `apply` refuses with `target_cannot_remove`; use `keep` and remove it yourself in the target if you want it gone |
+| files, OneDrive/SharePoint | `reported` — a Graph delta query answers with the items that changed *and* the ones deleted, each carrying a `deleted` facet | Not yet — the Graph target writer does not implement removal |
+| files, Nextcloud | `trashed` — the account's trashbin is read, and every entry in it carries the original path of the file | Yes — WebDAV writer, DELETEs into Nextcloud's own trashbin |
+| files, plain WebDAV | `inferred` — no bin and no delta query, but a collection can be enumerated cheaply and completely, so absence can be established | Yes, mechanically — but `inferred` evidence is never enough to pass gate 1 above, so `apply` will always refuse here regardless |
 
 Two limits worth knowing.
 
@@ -372,10 +458,25 @@ node test/e2e/trash-imap-source.mjs
 # mismatch makes the feature report nothing rather than fail.
 node test/e2e/trash-dav-file-source.mjs
 
+# Calendar: deletes one already-migrated event on the source, the way a client's
+# "Delete event" does — a plain DELETE. No bin to read here; `reported` evidence
+# comes straight from the next sync-collection REPORT.
+node test/e2e/trash-caldav-source.mjs
+
 curl -s http://127.0.0.1:8080/deletions | jq
 ```
 
 `test/e2e/move-dav-source.mjs` does the equivalent for a relocated calendar event.
+
+The self-host e2e workflow (`.github/workflows/e2e.yml`, manual dispatch only) runs
+all three of the above automatically, against a real Nextcloud and a real Stalwart,
+as its Apply-Deletion Gate: delete → confirm `GET /deletions` → `apply` → verify
+directly against the target server that the copy is actually gone or actually
+binned → confirm a second `apply` is refused (`already_applied`) → confirm the
+tombstone survives one more sync pass without resurrecting anything. See ADR-0024
+and `test/e2e/selfhost-apply-deletion-{file,mail,calendar}.e2e.test.ts` (one file per
+domain, run together so vitest's own file-level parallelism runs the three domains
+concurrently instead of back to back — see `test/e2e/apply-deletion-lib.ts`'s header).
 
 ## Items someone moved on the source
 

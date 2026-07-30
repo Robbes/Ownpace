@@ -687,6 +687,41 @@ export class MemoryLedger implements Ledger {
     return Promise.resolve(false);
   }
 
+  /**
+   * Mirrors `PgLedger.applyDeletion`, INCLUDING every one of its four gates —
+   * positive evidence, not already applied, and status `copied`/`updated` only.
+   * The whole point of this write is that it destroys the record of an item
+   * being on the target, so a fake that skipped a gate would let a test believe
+   * a check exists that a real database does not actually enforce.
+   */
+  applyDeletion(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    domain: LedgerRecord['itemType'],
+    naturalKeyHash: string,
+  ): Promise<boolean> {
+    for (const [k, r] of this.rows) {
+      if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
+      if (r.itemType !== domain) continue;
+      if (r.naturalKeyHash !== naturalKeyHash) continue;
+      // Positive evidence only — never an absence, however often repeated.
+      if (r.deletionReportedAt === undefined && r.deletionTrashedAt === undefined) continue;
+      // Still open.
+      if (r.deletionAppliedAt !== undefined) continue;
+      // Only an item WE wrote.
+      if (r.status !== 'copied' && r.status !== 'updated') continue;
+
+      this.rows.set(k, {
+        ...r,
+        status: 'tombstoned',
+        deletionAppliedAt: new Date().toISOString(),
+        deletionAcknowledgedAt: new Date().toISOString(),
+      });
+      return Promise.resolve(true);
+    }
+    return Promise.resolve(false);
+  }
+
   /** Test helper: number of rows. */
   size(): number {
     return this.rows.size;

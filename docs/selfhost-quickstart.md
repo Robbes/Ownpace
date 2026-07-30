@@ -271,8 +271,8 @@ are not symmetrical, though, and it is worth telling whoever uses these accounts
 **In the OLD system, do anything.** New mail, edited events, deleted files,
 reorganised folders — all handled.
 
-Nothing you delete in the old system is deleted in the new one. Instead it is
-reported at `GET /deletions`, and you say what you want:
+Nothing you delete in the old system is deleted in the new one **by default**.
+Instead it is reported at `GET /deletions`, and you say what you want:
 
 ```sh
 curl -s http://127.0.0.1:8080/deletions | jq
@@ -309,7 +309,17 @@ listing.
 "Keep" — the new system holds on to its copy — is the usual and expected answer.
 A migration target that is a slightly fuller archive than the shrinking source is
 working as designed. If you genuinely want something gone, delete it in the new
-system yourself; this tool never deletes on a target.
+system yourself — or, for `reported`/`trashed` evidence, ask this tool to do it:
+
+```sh
+curl -X POST http://127.0.0.1:8080/mappings/<mappingId>/deletions/<naturalKeyHash>/apply
+```
+
+This is the ONE call in the whole appliance that deletes anything, so it is off
+by default. Add `"allowApplyDeletions": true` to the mapping's config to turn it
+on, and read the full write-up — the gates it checks, what "removed" means per
+target, and why a reappearing tombstoned item is never quietly re-copied — in
+the operator runbook before using it.
 
 Items you *move* are noticed and reported the same way (`GET /moves`), never
 acted on.

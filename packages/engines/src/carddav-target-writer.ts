@@ -17,6 +17,7 @@ import type {
   MappingId,
   TargetReindexer,
   TargetEntry,
+  RemovalResult,
 } from '@openmig/shared';
 import { contactNaturalKeyHash, contactContentHash, isOnTarget } from '@openmig/shared';
 import { collectionSlug } from './dav-collection-path';
@@ -32,6 +33,7 @@ import {
 } from './dav-multistatus';
 import { requestWithDavRetry } from './dav-retry';
 import { readEtag, ownershipOf } from './dav-target-version';
+import { removeDavResource } from './dav-remove';
 import { log } from '@openmig/shared';
 
 /**
@@ -658,6 +660,29 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&apos;');
+  }
+
+  /**
+   * Remove a card this writer wrote (implements `TargetRemover`).
+   *
+   * Reached solely through an explicit owner decision in `applyDeletion` — see that
+   * function for the gates. Reports `deleted` for the same reason as the calendar
+   * writer: whether an address book keeps a deleted card is version-dependent, and
+   * understating recoverability is the safe direction to be wrong in.
+   */
+  async removeItem(
+    targetId: string,
+    options?: { readonly expectedTargetVersion?: string },
+  ): Promise<RemovalResult> {
+    return removeDavResource({
+      url: this.buildUrl(targetId),
+      authorization: this.authHeader(),
+      request: (opts) => this.httpClient.request(opts),
+      kind: 'deleted',
+      ...(options?.expectedTargetVersion !== undefined
+        ? { expectedTargetVersion: options.expectedTargetVersion }
+        : {}),
+    });
   }
 
   private buildUrl(path: string): string {

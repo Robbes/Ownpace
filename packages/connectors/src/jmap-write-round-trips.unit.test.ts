@@ -183,6 +183,33 @@ describe('JMAP write cost', () => {
     expect(methods.filter((m) => m === 'Email/import')).toHaveLength(1);
   });
 
+  it('records the SERVER\'s id for a newly imported message, not our creation id', async () => {
+    // `Email/import` answers with `created` keyed by the CREATION ID the request
+    // chose (this writer always sends `"0"`), and the server's real id is `.id`
+    // on the value (RFC 8620 §5.3). Reading the KEY instead recorded the literal
+    // string "0" as `targetId` for every mail item ever migrated.
+    //
+    // It hid for a long time because nothing fed a mail row's targetId back into
+    // a JMAP call: verification re-derives ids from `Email/query`, and the adopt
+    // path takes its id from `Email/get`. Only `removeItem` (ADR-0024) ever used
+    // it, and it failed against a real Stalwart with `Email/set ... notFound`
+    // for an id named "0". Nothing here asserted the created path's targetId at
+    // all — and the "same message twice" test below passed while both of its
+    // sides were equally wrong, which is how a broken id stayed invisible.
+    const { methods } = jmapServer([]);
+    const writer = new JmapTargetWriter(CONFIG as never);
+
+    const result = await writer.upsertEmail('m1', message('fresh') as never, []);
+
+    expect(result.created).toBe(true);
+    // A server-assigned id (the mock mints `E<n>`), never the `"0"` creation
+    // key. Matched by shape rather than an exact number because the mock shares
+    // one counter between blob ids and email ids.
+    expect(result.targetId).toMatch(/^E\d+$/);
+    expect(result.targetId).not.toBe('0');
+    expect(methods.filter((m) => m === 'Email/import')).toHaveLength(1);
+  });
+
   it('falls back to the per-message check when the account cannot be enumerated', async () => {
     // A target we cannot list must still migrate — just not as fast. And
     // crucially it must not be READ AS EMPTY: an unenumerable account that

@@ -17,6 +17,7 @@ import type {
   MappingId,
   TargetReindexer,
   TargetEntry,
+  RemovalResult,
 } from '@openmig/shared';
 import { calendarNaturalKeyHash, calendarContentHash, isOnTarget } from '@openmig/shared';
 import { collectionSlug } from './dav-collection-path';
@@ -32,6 +33,7 @@ import {
 } from './dav-multistatus';
 import { requestWithDavRetry } from './dav-retry';
 import { readEtag, ownershipOf } from './dav-target-version';
+import { removeDavResource } from './dav-remove';
 import { log } from '@openmig/shared';
 
 /**
@@ -763,6 +765,33 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&apos;');
+  }
+
+  /**
+   * Remove an event this writer wrote (implements `TargetRemover`).
+   *
+   * Reached solely through an explicit owner decision in `applyDeletion` — see that
+   * function for the gates.
+   *
+   * Always reports `deleted`, even on a server that in fact keeps deleted calendar
+   * objects for a while: which servers do is version-dependent and this code cannot
+   * tell which version it is talking to. Understating recoverability is the safe
+   * direction to be wrong in — the reverse promises a recovery path that may not
+   * exist.
+   */
+  async removeItem(
+    targetId: string,
+    options?: { readonly expectedTargetVersion?: string },
+  ): Promise<RemovalResult> {
+    return removeDavResource({
+      url: this.buildUrl(targetId),
+      authorization: this.authHeader(),
+      request: (opts) => this.httpClient.request(opts),
+      kind: 'deleted',
+      ...(options?.expectedTargetVersion !== undefined
+        ? { expectedTargetVersion: options.expectedTargetVersion }
+        : {}),
+    });
   }
 
   private buildUrl(path: string): string {

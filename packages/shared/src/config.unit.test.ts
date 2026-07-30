@@ -63,6 +63,30 @@ describe('parseMappingConfig', () => {
     expect(() => parseMappingConfig([])).toThrow(/root/);
     expect(() => parseMappingConfig(null)).toThrow(ConfigError);
   });
+
+  describe('allowApplyDeletions', () => {
+    it('defaults to undefined — off unless a mapping opts in', () => {
+      // The one destructive capability in the product must never turn on by
+      // omission. Absent here is what makes `applyDeletion`'s gate 1 refuse by
+      // default rather than by a config author remembering to say `false`.
+      expect(parseMappingConfig(example).allowApplyDeletions).toBeUndefined();
+    });
+
+    it('accepts an explicit true or false', () => {
+      expect(parseMappingConfig({ ...example, allowApplyDeletions: true }).allowApplyDeletions).toBe(true);
+      expect(parseMappingConfig({ ...example, allowApplyDeletions: false }).allowApplyDeletions).toBe(false);
+    });
+
+    it('rejects anything that is not literally a boolean', () => {
+      // A typo here ("true" as a string, 1 as a number) must be loud: silently
+      // treating it as falsy would be a config author's REASONABLE belief that
+      // they turned this on, quietly not turning it on at all.
+      expect(() => parseMappingConfig({ ...example, allowApplyDeletions: 'true' })).toThrow(
+        /allowApplyDeletions/,
+      );
+      expect(() => parseMappingConfig({ ...example, allowApplyDeletions: 1 })).toThrow(ConfigError);
+    });
+  });
 });
 
 describe('parseMappingConfigJson', () => {

@@ -468,6 +468,66 @@ export interface FileTargetWriter {
 }
 
 
+/**
+ * How final a removal on the target turned out to be.
+ *
+ * Reported rather than assumed, because it differs per target and an operator
+ * deciding whether to press the button needs to know which one they are getting.
+ *
+ * - `'binned'` — the copy went to the target's own bin and the owner can still
+ *   get it back for whatever window that server keeps. A Nextcloud files DELETE
+ *   does this; so does moving a message into the target's `\Trash` mailbox.
+ * - `'deleted'` — gone, with no recovery path from our side.
+ */
+export type RemovalKind = 'binned' | 'deleted';
+
+/** Outcome of removing one item's copy from the target. */
+export interface RemovalResult {
+  /** How final it was. Absent when nothing was removed. */
+  readonly kind?: RemovalKind;
+  /**
+   * The copy has been EDITED on the target since we wrote it, so nothing was
+   * removed.
+   *
+   * The same contract as `UpsertResult.conflicted`, and for the same reason: an
+   * item the owner has changed in the new system is theirs, and hard rule 2 is
+   * absolute about it. Refusing here rather than in the caller keeps the check
+   * where the ETag is, which is the only place it can be done without a race.
+   */
+  readonly conflicted?: boolean;
+}
+
+/**
+ * A target writer that can remove a copy it wrote.
+ *
+ * OPTIONAL, and deliberately a separate interface rather than a method on the
+ * four target ports. Removal is the one destructive capability in this product,
+ * so a writer has to opt in by implementing it, and a writer that has not
+ * implemented it makes `applyDeletion` REFUSE with that reason rather than
+ * silently doing nothing. Bolting it onto `TargetWriter` would have made every
+ * test double and every future writer destructive-capable by default.
+ */
+export interface TargetRemover {
+  /**
+   * Remove the copy identified by `targetId`, binning it where the target has a
+   * bin and deleting it outright where it does not.
+   *
+   * `expectedTargetVersion` is the ETag we recorded when we wrote the item. When
+   * supplied, the writer must remove NOTHING and answer `conflicted: true` if
+   * the target reports anything else — the mirror of the overwrite protection on
+   * `UpsertOptions`.
+   */
+  removeItem(
+    targetId: string,
+    options?: { readonly expectedTargetVersion?: string },
+  ): Promise<RemovalResult>;
+}
+
+/** Does this object implement {@link TargetRemover}? */
+export function canRemove(target: unknown): target is TargetRemover {
+  return typeof (target as TargetRemover | undefined)?.removeItem === 'function';
+}
+
 /** One existing item discovered on the target during reindex/adoption (ADR-0020). */
 export interface TargetEntry {
   /** Natural key as stored on the target (e.g. Message-ID). */
@@ -554,6 +614,23 @@ export interface LedgerRecord {
      */
     | 'left_behind'
     | 'deleted_source'
+    /**
+     * The owner decided a source deletion should follow through, and this
+     * tool removed the target's copy. Terminal, and the ONLY status that
+     * records something this product destroyed.
+     *
+     * The row is deliberately kept: it is the record that the item existed,
+     * was migrated, and was then removed on a specific date by a specific
+     * decision. Deleting the row instead would leave no trace of any of it.
+     *
+     * The name and the CHECK constraint have existed since migration 0001 and
+     * nothing ever wrote this value — the fifth vacant slot in this schema,
+     * after `collection`, `target_version`, `absent_passes` and `source_ref`.
+     * It is used rather than replaced because it is exactly right, and because
+     * `isOnTarget` had to learn about it either way: read as "on the target",
+     * a tombstoned row makes §20 verification expect bytes that were removed
+     * on purpose.
+     */
     | 'tombstoned';
   /**
    * The SOURCE collection this item lived in when we copied it.
@@ -631,6 +708,15 @@ export interface LedgerRecord {
   readonly deletionTrashedAt?: string;
   /** When the owner decided to keep the target's copy of a vanished item. */
   readonly deletionAcknowledgedAt?: string;
+  /**
+   * When this tool REMOVED the target's copy, following the owner's decision.
+   *
+   * The audit trail for the only destructive thing this product does. Present
+   * only alongside `status: 'tombstoned'`, and what distinguishes an applied
+   * decision from a `keep` — both close the queue entry, and only one of them
+   * took something away.
+   */
+  readonly deletionAppliedAt?: string;
   readonly movedToCollection?: string;
   /**
    * When the owner saw the move and chose to leave the target alone (§11.2).
@@ -949,6 +1035,26 @@ export interface Ledger {
     naturalKeyHash: string,
     action: DeletionAction,
   ): Promise<boolean>;
+  /**
+   * Record that the target's copy has been REMOVED, after it actually has been.
+   *
+   * Called only by `applyDeletion`, only once the target has confirmed the
+   * removal, and never speculatively. The ordering is deliberate: if this write
+   * fails after a successful removal, the row still claims the item is on the
+   * target and §20 reports it missing — loud, and correctable. Recording first
+   * and failing to remove would leave the row saying an item is gone while the
+   * copy sits there, which nothing would ever notice.
+   *
+   * Sets `status = 'tombstoned'` — see the note on that value — plus the applied
+   * date, and closes the queue entry. Returns false when the row was no longer
+   * eligible, so a caller cannot report a removal the ledger did not accept.
+   */
+  applyDeletion(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: 'email' | 'calendar' | 'contact' | 'file',
+    naturalKeyHash: string,
+  ): Promise<boolean>;
 }
 
 /** What an owner can do about an item that would not migrate (§11.2). */
@@ -984,7 +1090,12 @@ export const MAX_ITEM_ATTEMPTS = 5;
  * behaviour; being generous about `failed` loses data.
  */
 export function isOnTarget(status: LedgerRecord['status']): boolean {
-  return status !== 'failed' && status !== 'left_behind';
+  // `tombstoned` is the one status this product creates by destroying something:
+  // the owner decided a source deletion should follow through and the copy was
+  // removed. The row survives as the record of that, so it MUST NOT read as "on
+  // the target" — §20 would expect bytes that were removed on purpose and report
+  // them as missing, turning a completed decision into a verification failure.
+  return status !== 'failed' && status !== 'left_behind' && status !== 'tombstoned';
 }
 
 /** One item that would not migrate, and what can be done about it. */
@@ -1143,12 +1254,26 @@ export type DeletionAction =
   /**
    * Keep the target's copy and stop reporting this one.
    *
-   * The only action there is for now, and it changes nothing on either side.
-   * Removing the target's copy is the first destructive operation this product
-   * would perform, and it needs its own path, its own confirmation and its own
-   * review — see the runbook.
+   * Changes nothing on either side, and remains the usual answer: a target that
+   * is a fuller archive than the shrinking source is a feature, not a fault.
    */
-  'keep';
+  | 'keep'
+  /**
+   * Follow the deletion through — remove the target's copy too.
+   *
+   * THE ONLY DESTRUCTIVE ACTION IN THIS PRODUCT. Hard rule 2 forbids this tool
+   * deleting on a target *of its own accord*; it does not forbid an owner
+   * deciding about their own data, which §11.2 explicitly reserves to them. The
+   * distinction is the entire design: nothing here is ever automatic, batched,
+   * or inferred.
+   *
+   * Every gate is enforced in `applyDeletion` rather than here, because most of
+   * them need the target: see that function for the list and the reasoning. The
+   * two that matter most are that only POSITIVE evidence qualifies — never an
+   * absence, however often repeated — and that a copy the owner has edited in
+   * the new system is refused outright.
+   */
+  | 'apply';
 
 /** What an owner can decide about a move. See `Ledger.resolveMove`. */
 export type MoveAction =
@@ -1274,6 +1399,12 @@ export interface ReconcileResult {
    * class of failure as quietly copying it. Absent when nothing was skipped.
    */
   readonly excludedCollections?: ReadonlyArray<'inbox' | 'sent' | 'drafts' | 'archive' | 'junk' | 'trash' | 'normal'>;
+  /**
+   * The source lists a message again after this tool REMOVED the target's copy
+   * on an explicit owner decision (`applyDeletion`). NOT re-created — see the
+   * long comment on the same field in `DomainSyncResult`. Absent when none.
+   */
+  readonly reappearedAfterRemoval?: number;
 }
 
 /**

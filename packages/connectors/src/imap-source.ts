@@ -80,7 +80,7 @@ function mapImapFlagsToKeywords(flags: string[]): MailKeyword[] {
 /**
  * Map IMAP special-use attributes to our SpecialUse type.
  */
-function mapImapSpecialUse(attributes: string[]): SpecialUse {
+export function mapImapSpecialUse(attributes: string[]): SpecialUse {
   for (const attr of attributes) {
     const lower = attr.toLowerCase();
     if (lower === "\\inbox") return "inbox";
@@ -91,6 +91,57 @@ function mapImapSpecialUse(attributes: string[]): SpecialUse {
     if (lower === "\\trash" || lower === "\\deleted") return "trash";
   }
   return "normal";
+}
+
+/** The shape node-imap's `getBoxes()` actually returns, per its own type declarations. */
+export interface RawImapMailbox {
+  attribs?: string[];
+  delimiter?: string;
+  children?: Record<string, RawImapMailbox> | null;
+}
+
+/**
+ * Flatten node-imap's `getBoxes()` tree into our `MailFolder[]`.
+ *
+ * Extracted as a pure function so this can be unit-tested against the REAL
+ * node-imap shape without a live connection — `listFolders()` below had never
+ * been exercised by anything but a real IMAP server, and it read
+ * `mailbox.attributes` where node-imap's own `Folder` type (and everything that
+ * populates it) calls the field `attribs`. `mailbox.attributes` is therefore
+ * always `undefined`, `mapImapSpecialUse` always received `[]`, and every
+ * folder — including Trash — resolved to `specialUse: 'normal'`. That silently
+ * broke both `excludeSpecialUse` (Trash/Junk were never excluded from content
+ * sync) and the mail deletion signal (`resolveDiscardedItems` never found a
+ * bin to scan), and nothing caught it because no test ever supplied a
+ * `getBoxes()`-shaped fixture — only the pure `mapImapSpecialUse(string[])`
+ * function was reachable without a real server.
+ *
+ * Also recurses into `children`, which the previous flat `Object.entries(list)`
+ * loop did not: a server that nests folders under a namespace (common outside
+ * a flat layout like this repo's dev Stalwart) would have its special-use
+ * folders missed entirely. Builds each nested path as `parent<delimiter>child`,
+ * matching what `conn.openBox()` expects for a fully-qualified mailbox name.
+ */
+export function foldersFromImapMailboxTree(
+  tree: Record<string, RawImapMailbox> | null | undefined,
+  prefix = "",
+  parentDelimiter = "/",
+): MailFolder[] {
+  const folders: MailFolder[] = [];
+  for (const [name, mailbox] of Object.entries(tree ?? {})) {
+    const path = prefix ? `${prefix}${parentDelimiter}${name}` : name;
+    folders.push({
+      path,
+      name,
+      specialUse: mapImapSpecialUse(mailbox.attribs ?? []),
+    });
+    if (mailbox.children) {
+      folders.push(
+        ...foldersFromImapMailboxTree(mailbox.children, path, mailbox.delimiter ?? parentDelimiter),
+      );
+    }
+  }
+  return folders;
 }
 
 /**
@@ -142,21 +193,16 @@ export class ImapSource implements SourceConnector {
   async listFolders(): Promise<ReadonlyArray<MailFolder>> {
     const conn = await this.connect();
     try {
-      // Use the underlying node-imap connection to get mailbox list
-      // Note: getBoxes is callback-based in the type definitions, but returns a Promise in practice
-      type MailboxInfo = { attributes?: string[] };
-      const list = await (
-        conn.imap.getBoxes as () => Promise<Record<string, MailboxInfo>>
-      )();
+      const list = await this.getBoxesSafely(conn);
 
       // Handle case where getBoxes returns undefined - this can happen with some IMAP servers
       // that don't include INBOX in the LIST response or use a different response format.
       // In this case, we'll try to open INBOX directly and include it in the folder list.
       if (!list) {
-        
+
         try {
           await conn.openBox('INBOX');
-          
+
           // Return INBOX as the only folder
           return [{
             path: 'INBOX',
@@ -172,18 +218,7 @@ export class ImapSource implements SourceConnector {
         }
       }
 
-      const folders: MailFolder[] = [];
-
-      for (const [path, mailbox] of Object.entries(list)) {
-        const specialUse = mapImapSpecialUse(mailbox.attributes || []);
-        folders.push({
-          path,
-          name: path.split("/").pop(),
-          specialUse,
-        });
-      }
-
-      return folders;
+      return foldersFromImapMailboxTree(list);
     } catch (error) {
       // Check if this is an authentication error and we have a token provider
       if (this.isAuthError(error) && this.tokenProvider) {
@@ -191,10 +226,7 @@ export class ImapSource implements SourceConnector {
         await this.tokenProvider.refresh();
         const conn = await this.connect();
         try {
-          type MailboxInfo = { attributes?: string[] };
-          const list = await (
-            conn.imap.getBoxes as () => Promise<Record<string, MailboxInfo>>
-          )();
+          const list = await this.getBoxesSafely(conn);
 
           if (!list) {
             throw new Error(
@@ -204,16 +236,7 @@ export class ImapSource implements SourceConnector {
             );
           }
 
-          const folders: MailFolder[] = [];
-          for (const [path, mailbox] of Object.entries(list)) {
-            const specialUse = mapImapSpecialUse(mailbox.attributes || []);
-            folders.push({
-              path,
-              name: path.split("/").pop(),
-              specialUse,
-            });
-          }
-          return folders;
+          return foldersFromImapMailboxTree(list);
         } finally {
           conn.end();
         }
@@ -222,6 +245,26 @@ export class ImapSource implements SourceConnector {
     } finally {
       conn.end();
     }
+  }
+
+  /**
+   * The mailbox tree, via `imap-simple`'s own promise-returning `getBoxes()`.
+   *
+   * NOT `conn.imap.getBoxes` (the raw node-imap method) called with zero
+   * arguments and cast to a promise-returning function — that method's real
+   * signature is `getBoxes(namespace, cb)`; called with nothing, `namespace`
+   * stays undefined, is not a function, so `cb` stays undefined too, and
+   * node-imap enqueues the LIST command with no callback at all. `await`ing the
+   * result of that call was `await`ing `undefined` (a no-op — `await` on a
+   * non-promise just resolves to it immediately), so `listFolders()` silently
+   * treated EVERY account as if `getBoxes()` had failed, falling back to
+   * `[INBOX]` and never seeing any other folder — Trash included — regardless
+   * of what `mapImapSpecialUse` did with the attributes it was never given.
+   * `imap-simple`'s `getBoxes()` wraps the same underlying call with an actual
+   * callback and is what every e2e script here has used successfully all along.
+   */
+  private async getBoxesSafely(conn: ImapSimple): Promise<Record<string, RawImapMailbox> | undefined> {
+    return conn.getBoxes() as Promise<Record<string, RawImapMailbox> | undefined>;
   }
 
   /**

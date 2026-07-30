@@ -989,6 +989,119 @@ describe('PgLedger (integration)', () => {
       ).toBeUndefined();
     });
 
+    describe('applyDeletion — the one destructive write', () => {
+      it('tombstones a reported deletion and closes the queue entry', async () => {
+        await ledger.recordIfAbsent({ ...at('ap-1', 'personal', 'hap1'), itemType: 'calendar' });
+        await ledger.recordReportedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'ap-1');
+
+        expect(
+          await ledger.applyDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'ap-1'),
+        ).toBe(true);
+
+        const row = await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'ap-1');
+        expect(row?.status).toBe('tombstoned');
+        expect(row?.deletionAppliedAt).toBeDefined();
+        // Closes the queue entry the same way `keep` does — an applied decision
+        // must not still read as open.
+        expect(row?.deletionAcknowledgedAt).toBeDefined();
+      });
+
+      it('tombstones a trashed deletion just as readily', async () => {
+        await ledger.recordIfAbsent({ ...at('ap-2', 'Trash', 'hap2'), itemType: 'file' });
+        await ledger.recordTrashedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'ap-2');
+
+        expect(
+          await ledger.applyDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'ap-2'),
+        ).toBe(true);
+
+        expect(
+          (await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'ap-2'))?.status,
+        ).toBe('tombstoned');
+      });
+
+      it('refuses INFERRED evidence, however many passes it has repeated', async () => {
+        // The whole safety argument, enforced again in SQL rather than trusted to
+        // whichever caller happens to check first.
+        await ledger.recordIfAbsent(at('ap-3', 'Q1', 'hap3'));
+        await ledger.recordAbsent(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'ap-3');
+        await ledger.recordAbsent(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'ap-3');
+        await ledger.recordAbsent(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'ap-3');
+
+        expect(
+          await ledger.applyDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'ap-3'),
+        ).toBe(false);
+        expect(
+          (await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'ap-3'))?.status,
+        ).toBe('copied');
+      });
+
+      it('refuses an item with no deletion evidence at all', async () => {
+        await ledger.recordIfAbsent(at('ap-4', 'Q1', 'hap4'));
+        expect(
+          await ledger.applyDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'ap-4'),
+        ).toBe(false);
+      });
+
+      it('refuses adopted bytes — those were never ours to remove', async () => {
+        await ledger.recordIfAbsent({
+          ...at('ap-5', 'personal', 'hap5'),
+          itemType: 'calendar',
+          status: 'adopted',
+        });
+        await ledger.recordReportedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'ap-5');
+
+        expect(
+          await ledger.applyDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'ap-5'),
+        ).toBe(false);
+        expect(
+          (await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'ap-5'))?.status,
+        ).toBe('adopted');
+      });
+
+      it('accepts an item this tool rewrote (updated), not only the original copy', async () => {
+        await ledger.recordIfAbsent({
+          ...at('ap-6', 'personal', 'hap6'),
+          itemType: 'calendar',
+          status: 'updated',
+        });
+        await ledger.recordReportedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'ap-6');
+
+        expect(
+          await ledger.applyDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'ap-6'),
+        ).toBe(true);
+      });
+
+      it('refuses a second apply on an already-tombstoned row', async () => {
+        await ledger.recordIfAbsent({ ...at('ap-7', 'personal', 'hap7'), itemType: 'calendar' });
+        await ledger.recordReportedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'ap-7');
+        expect(
+          await ledger.applyDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'ap-7'),
+        ).toBe(true);
+        // Twice is not a second removal, and must not move the audit date on.
+        expect(
+          await ledger.applyDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'ap-7'),
+        ).toBe(false);
+      });
+
+      it('will not let one tenant apply a deletion on another\'s row', async () => {
+        await ledger.recordIfAbsent({ ...at('ap-8', 'personal', 'hap8'), itemType: 'calendar' });
+        await ledger.recordReportedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'ap-8');
+
+        expect(
+          await ledger.applyDeletion(TEST_TENANT_2_ID, TEST_MAPPING_2_ID, 'calendar', 'ap-8'),
+        ).toBe(false);
+        expect(
+          (await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'ap-8'))?.status,
+        ).toBe('copied');
+      });
+
+      it('reports false for a natural key that was never migrated', async () => {
+        expect(
+          await ledger.applyDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'calendar', 'ap-missing'),
+        ).toBe(false);
+      });
+    });
+
     it('does not cross domains, mappings or tenants', async () => {
       await ledger.recordIfAbsent(at('c-10', 'Shared', 'h10'));
       await ledger.recordIfAbsent({ ...at('c-11', 'Shared', 'h11'), itemType: 'calendar' });

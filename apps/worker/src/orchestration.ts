@@ -18,6 +18,7 @@ import type {
   DiscoveryDomain,
   TenantId,
   MappingId,
+  Ledger,
 } from '@openmig/shared';
 import {
   runShadowPass,
@@ -30,6 +31,8 @@ import {
   runVerification,
   createRealVerificationDeps,
   type VerificationResult,
+  applyDeletion,
+  type ApplyDeletionOutcome,
 } from '@openmig/core';
 import { createLedgerVerificationReader } from '@openmig/ledger';
 import {
@@ -754,4 +757,117 @@ export async function verifyMapping(config: MappingConfig): Promise<Verification
       }
     }
   }
+}
+
+/**
+ * Which domains this mapping actually runs.
+ *
+ * The same rule `runAllDomains`/`verifyMapping` already use, factored out
+ * because `applyMappingDeletion` below needs it too and a THIRD copy of the
+ * backward-compatibility fallback ("no domains block, but the top-level source
+ * is IMAP → mail-only") is exactly how the two existing copies could drift
+ * apart unnoticed.
+ */
+function enabledSyncDomains(config: MappingConfig): SyncDomain[] {
+  const hasDomainConfig = config.domains && Object.values(config.domains).some((d) => d?.enabled);
+  const mailEnabled =
+    config.domains?.mail?.enabled ?? (!hasDomainConfig && config.source.type === 'imap-oauth2');
+
+  const domains: SyncDomain[] = [];
+  if (mailEnabled) domains.push('email');
+  if (config.domains?.calendar?.enabled) domains.push('calendar');
+  if (config.domains?.contacts?.enabled) domains.push('contact');
+  if (config.domains?.files?.enabled) domains.push('file');
+  return domains;
+}
+
+/** One domain's `{ target, ledger, close }`, mail included, via a single call shape. */
+async function openSyncDomainDeps(
+  config: MappingConfig,
+  domain: SyncDomain,
+): Promise<{ target: unknown; ledger: Ledger; close: () => Promise<void> }> {
+  // Branched explicitly rather than passing `domain` straight through: each
+  // overload of `buildDomainDeps` accepts exactly one literal, and the union
+  // this function narrows down to is not itself one of those literals as far
+  // as the overload resolution is concerned.
+  switch (domain) {
+    case 'email': {
+      const d = await buildDeps(config);
+      return { target: d.target, ledger: d.ledger, close: d.close };
+    }
+    case 'calendar': {
+      const d = buildDomainDeps(config, 'calendar');
+      return { target: d.target, ledger: d.ledger, close: d.close };
+    }
+    case 'contact': {
+      const d = buildDomainDeps(config, 'contact');
+      return { target: d.target, ledger: d.ledger, close: d.close };
+    }
+    case 'file': {
+      const d = buildDomainDeps(config, 'file');
+      return { target: d.target, ledger: d.ledger, close: d.close };
+    }
+  }
+}
+
+/**
+ * Apply one owner decision to remove an item's copy from its domain's target.
+ *
+ * The one entry point the appliance/API needs for the destructive path — see
+ * `applyDeletion` in `@openmig/core` for the seven gates a removal has to pass.
+ * This function's own job is narrower: find which of the mapping's ENABLED
+ * domains actually holds a row under `naturalKeyHash`, open that domain's real
+ * target writer, and hand both to core's `applyDeletion`.
+ *
+ * Domains are tried one at a time, each with an interior `ledger.find` before
+ * anything destructive is attempted, so a hash that belongs to (say) a
+ * calendar event never produces a misleading "the mail target cannot remove
+ * items" refusal — the mail domain is simply skipped because it has no row
+ * under that key.
+ */
+export async function applyMappingDeletion(
+  config: MappingConfig,
+  naturalKeyHash: string,
+): Promise<ApplyDeletionOutcome> {
+  const tenantId = config.tenantId as TenantId;
+  const mappingId = config.mappingId as MappingId;
+  const domains = enabledSyncDomains(config);
+
+  if (domains.length === 0) {
+    return {
+      ok: false,
+      code: 'not_found',
+      reason: 'This mapping has no enabled domains, so there is nothing to look up.',
+    };
+  }
+
+  for (const domain of domains) {
+    const deps = await openSyncDomainDeps(config, domain);
+    try {
+      const row = await deps.ledger.find(tenantId, mappingId, domain, naturalKeyHash);
+      // Not this domain's item — move on without touching anything or
+      // reporting a reason that would only make sense for the wrong domain.
+      if (!row) continue;
+
+      return await applyDeletion(
+        {
+          tenantId,
+          mappingId,
+          domain,
+          ledger: deps.ledger,
+          target: deps.target,
+          allowApplyDeletions: config.allowApplyDeletions,
+        },
+        naturalKeyHash,
+      );
+    } finally {
+      await deps.close();
+    }
+  }
+
+  return {
+    ok: false,
+    code: 'not_found',
+    reason: 'No migrated item under that natural key in any of this mapping\'s enabled domains.',
+  };
 }

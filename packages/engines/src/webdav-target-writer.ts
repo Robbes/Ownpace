@@ -17,11 +17,13 @@ import type {
   MappingId,
   TargetReindexer,
   TargetEntry,
+  RemovalResult,
 } from '@openmig/shared';
 import { fileNaturalKeyHash, fileContentHash, isOnTarget } from '@openmig/shared';
 import { parseMultiStatus, isCollection, hrefRelativeTo, sizeOf } from './dav-multistatus';
 import { requestWithDavRetry } from './dav-retry';
 import { readEtag, ownershipOf } from './dav-target-version';
+import { removeDavResource } from './dav-remove';
 import { log } from '@openmig/shared';
 
 /**
@@ -676,6 +678,32 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
     }
 
     return filePath;
+  }
+
+  /**
+   * Remove a file this writer wrote (implements `TargetRemover`).
+   *
+   * The only destructive operation any writer has, reached solely through an
+   * explicit owner decision in `applyDeletion` — see that function for the gates.
+   *
+   * Reports `binned` against a Nextcloud files endpoint, where a DELETE goes to the
+   * account's trashbin and the owner can still get the file back, and `deleted`
+   * against a plain WebDAV server, where it does not. That distinction is the whole
+   * reason the kind is reported rather than assumed.
+   */
+  async removeItem(
+    targetId: string,
+    options?: { readonly expectedTargetVersion?: string },
+  ): Promise<RemovalResult> {
+    const path = this.normalizeRelativePath(targetId);
+    return removeDavResource({
+      url: this.buildUrl(path),
+      authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
+      request: (opts) => this.httpClient.request(opts),
+      ...(options?.expectedTargetVersion !== undefined
+        ? { expectedTargetVersion: options.expectedTargetVersion }
+        : {}),
+    });
   }
 
   private buildUrl(path: string): string {

@@ -12,6 +12,7 @@ import type {
   RawMessage,
   MailKeyword,
   UpsertResult,
+  RemovalResult,
 } from "@openmig/shared";
 import { contentHash, parseRetryAfterMs } from "@openmig/shared";
 import { log } from '@openmig/shared';
@@ -999,7 +1000,19 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
       throw new Error("Failed to create email: no created ID in response");
     }
 
-    const createdId = Object.keys(importResponse.created)[0]!;
+    // `importResponse.created` is keyed by OUR OWN local creation id (the "0"
+    // in the `emails: { "0": {...} }` request above) — that key is never a
+    // real email id, only the server-assigned `.id` on the VALUE is. Reading
+    // `Object.keys(...)[0]` returned the literal string "0" as `targetId` for
+    // every mail item ever migrated, silently: nothing downstream fed that id
+    // back into a further JMAP call until `removeItem()` (ADR-0024) did,
+    // which sent Stalwart `Email/set` updates for an id named "0" and got
+    // `notFound` back — the self-host e2e's Apply-Deletion Gate is what
+    // finally surfaced this, five rounds of a differently-wrong fix in.
+    const createdId = importResponse.created["0"]?.id;
+    if (!createdId) {
+      throw new Error('Failed to create email: created response is missing the server-assigned id');
+    }
     // Keep the snapshot true, so a repeat within the same pass costs nothing
     // and cannot be written twice.
     if (messageId) snapshot?.set(messageId, createdId);
@@ -1057,6 +1070,140 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     }
 
     return headers;
+  }
+
+  /**
+   * Remove a message this writer wrote (implements `TargetRemover`).
+   *
+   * The only destructive operation this writer has, reached solely through an
+   * explicit owner decision in core's `applyDeletion` — see that function for the
+   * seven gates in front of it.
+   *
+   * MOVES TO THE TRASH MAILBOX where the account has one, which is what makes the
+   * outcome `binned`: the owner can still get the message back for as long as their
+   * server keeps it, and the target genuinely stops showing it. Only when there is
+   * no `trash`-role mailbox does this destroy the message outright. That ordering is
+   * the point — a recoverable removal and an unrecoverable one are different
+   * promises, and the caller is told which it got.
+   *
+   * `expectedTargetVersion` is accepted for interface symmetry and not used: JMAP
+   * gives no per-message ETag, so `upsertEmail` records none and there is nothing to
+   * compare. Mail is also the domain where it matters least — a message is immutable
+   * apart from its flags and mailbox membership, so "the owner edited our copy" is
+   * not a state this domain really reaches.
+   */
+  async removeItem(targetId: string): Promise<RemovalResult> {
+    await this.ensureConnected();
+
+    const trashId = await this.trashMailboxId();
+    if (trashId) {
+      // `mailboxIds` PATCHED per-key (`mailboxIds/<id>`: true|null) rather than
+      // assigned as one whole-map value.
+      //
+      // A NOTE ON WHY, because the history here is misleading. Earlier versions
+      // of this comment blamed the server: several e2e runs showed `Email/set`
+      // answering `updated` while the message stayed in its original mailbox,
+      // and that was read as "this server does not honour whole-value
+      // replacement". It was not. Every one of those runs was sending the
+      // literal id `"0"` — see the created-id bug fixed in `upsertEmail` above —
+      // so the server was simply being asked about a message that does not
+      // exist. Whole-value assignment (RFC 8620 §5.3) would very likely work
+      // fine now.
+      //
+      // The patch form is kept anyway, on its own merits rather than as a
+      // workaround: it states each mailbox membership explicitly, so a message
+      // filed under several mailboxes has every one of them cleared by name
+      // instead of relying on one replacement to sweep them away. That is
+      // easier to verify against the read-back below, and it is the form
+      // (RFC 8621 §4.3) mail clients use to move messages between mailboxes.
+      const current = await this.apiRequest<EmailGetResponse>('Email/get', {
+        accountId: this.accountId,
+        ids: [targetId],
+        properties: ['mailboxIds'],
+      });
+      const existing = current.list?.[0]?.mailboxIds ?? {};
+
+      const patch: Record<string, boolean | null> = { [`mailboxIds/${trashId}`]: true };
+      for (const mailboxId of Object.keys(existing)) {
+        if (mailboxId !== trashId) patch[`mailboxIds/${mailboxId}`] = null;
+      }
+
+      interface EmailSetUpdateResponse {
+        notUpdated?: Record<string, { type: string; description?: string }>;
+      }
+      const response = await this.apiRequest<EmailSetUpdateResponse>('Email/set', {
+        accountId: this.accountId,
+        update: { [targetId]: patch },
+      });
+      // The response is HTTP 200 either way (RFC 8620 §3.6.2) — a per-item
+      // failure comes back in `notUpdated`, not as a transport error, and the
+      // previous code never looked. That let a message the server refused to
+      // move stay sitting in its original mailbox while `apply` reported
+      // success and the ledger recorded it as tombstoned (hard rule 9: never
+      // mask errors).
+      const failure = response.notUpdated?.[targetId];
+      if (failure) {
+        throw new Error(
+          `JMAP Email/set could not move ${targetId} to the trash mailbox: ${failure.type}` +
+            (failure.description ? ` - ${failure.description}` : ''),
+        );
+      }
+
+      // READ BACK rather than trust the response at face value: fetch the
+      // mailboxIds the server now actually reports, and refuse unless they are
+      // EXACTLY the trash mailbox alone.
+      //
+      // Worth keeping even though the `"0"` id bug that motivated it is fixed.
+      // `apply` is the one operation in this product that destroys something,
+      // and the ledger tombstones the row on its say-so — so "the server said
+      // it worked" is not a good enough basis for that write. This check is
+      // also what finally produced a usable diagnosis: it turns a silent false
+      // success into an error naming the mailboxes still attached (hard rule 9).
+      const after = await this.apiRequest<EmailGetResponse>('Email/get', {
+        accountId: this.accountId,
+        ids: [targetId],
+        properties: ['mailboxIds'],
+      });
+      const resultingMailboxIds = after.list?.[0]?.mailboxIds ?? {};
+      const resultingIds = Object.keys(resultingMailboxIds).filter((id) => resultingMailboxIds[id]);
+      if (resultingIds.length !== 1 || resultingIds[0] !== trashId) {
+        throw new Error(
+          `JMAP Email/set reported success moving ${targetId} to the trash mailbox (${trashId}), ` +
+            `but Email/get now reports mailboxIds ${JSON.stringify(resultingMailboxIds)} — the move ` +
+            'did not actually take effect the way the server claimed.',
+        );
+      }
+      return { kind: 'binned' };
+    }
+
+    interface EmailSetDestroyResponse {
+      notDestroyed?: Record<string, { type: string; description?: string }>;
+    }
+    const response = await this.apiRequest<EmailSetDestroyResponse>('Email/set', {
+      accountId: this.accountId,
+      destroy: [targetId],
+    });
+    const failure = response.notDestroyed?.[targetId];
+    if (failure) {
+      throw new Error(
+        `JMAP Email/set could not destroy ${targetId}: ${failure.type}` +
+          (failure.description ? ` - ${failure.description}` : ''),
+      );
+    }
+    return { kind: 'deleted' };
+  }
+
+  /** The account's trash mailbox, by RFC 8621 role rather than by name. */
+  private async trashMailboxId(): Promise<string | undefined> {
+    // `ids: null` asks for every mailbox, which is the reliable way to read roles:
+    // filtering by name would depend on the server's language, and a `Mailbox/query`
+    // filter on `role` is not universally supported.
+    const response = await this.apiRequest<{ list?: Array<{ id: string; role?: string }> }>(
+      'Mailbox/get',
+      { accountId: this.accountId, ids: null },
+    );
+    const mailboxes = (response as { list?: Array<{ id: string; role?: string }> }).list ?? [];
+    return mailboxes.find((m) => m.role?.toLowerCase() === 'trash')?.id;
   }
 
   /**
