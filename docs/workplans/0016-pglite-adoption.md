@@ -4,12 +4,12 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| P0 Reproduce the drizzle double-resolution failure | ⬜ Not started | The blocker. Must be understood before anything else is attempted. |
-| P1 Resolve it (pin/alias/override, or accept the workspace churn) | ⬜ Not started | Blocks everything below. |
-| P2 `pgliteDriver()` implementing `LedgerDriver` | ⬜ Not started | The seam already exists — see below. |
-| P3 Run the RLS integration suite against PGlite | ⬜ Not started | The point of the whole exercise. |
-| P4 Decide + document the two-backend testing story | ⬜ Not started | Open question 1 in [0015](./0015-native-windows-installer.md). |
-| P5 Re-measure concurrency against a real corpus | ⬜ Not started | Open question 2 in [0015](./0015-native-windows-installer.md). |
+| P0 Reproduce the drizzle double-resolution failure | ✅ **Done — and it is NOT a real blocker** | Reproduced exactly (2 instances, `SQL<unknown>` errors), then found the cause: `pnpm add` relinks partially. A full `pnpm install` converges every importer, and a CLEAN `--frozen-lockfile` install yields **one** instance. See below. |
+| P1 Resolve it | ✅ **Done — nothing to resolve** | No overrides, no `.npmrc` change, no atomic workspace change. `@electric-sql/pglite` is a normal dependency of `packages/ledger`. |
+| P2 `pgliteDriver()` implementing `LedgerDriver` | ✅ **Done** | `packages/ledger/src/pglite-driver.ts`. Serialises `acquire()`, resets rather than destroys on a failed rollback, loads the `pgcrypto` contrib, re-asserts `row_security` per acquire. |
+| P3 Run RLS against PGlite | ✅ **Done — RLS genuinely ENFORCES** | `pglite-driver.unit.test.ts`: the real 2580-line baseline applies unmodified; tenant A sees only A's row, B only B's, cross-tenant INSERT refused — all under `SET LOCAL ROLE app_user`. **Mutation-verified**: removing the role switch fails all three, because a superuser bypasses RLS. 11 tests, ~6 s, **no Docker**. |
+| P4 Decide + document the two-backend testing story | 🟡 **Partly** | RLS is now testable against PGlite with no container at all, in the unit project. Whether managed stays on server Postgres is still open. |
+| P5 Re-measure concurrency against a real corpus | ⬜ Not started | Unchanged — still wants a real mailbox, not 5,000 synthetic inserts. |
 
 > **This workplan exists so T1 is not left half-done indefinitely.** Workplan
 > 0015 T0 proved PGlite runs our real schema; 0015 T1 built the seam. Neither
@@ -38,66 +38,92 @@
 So P2 is genuinely small: implement two methods. Everything hard is either
 already done or is P1.
 
-## P0/P1 — the blocker, stated precisely
+## P0/P1 — the blocker was not what it looked like
 
-Installing `@electric-sql/pglite` into the workspace makes pnpm resolve a
-**second copy of `drizzle-orm`**. Drizzle declares pglite as an *optional peer
-dependency*, so adding it changes drizzle's store key; the workspace then ends
-up with two drizzle instances, and typechecks two structurally-identical but
-nominally-distinct `SQL<unknown>` types against each other. It fails outright —
-this is a build break, not a warning.
+**Resolved, and it never needed a workaround.** Recorded in full because the
+wrong conclusion was load-bearing: it is what made adoption look like a
+whole-workspace change and parked this plan.
 
-Discovered during the T0 spike, which is why that script resolves PGlite from an
-explicit `PGLITE_DIR` via `pnpm dlx` rather than depending on it.
+What the T0 spike observed was real. Installing `@electric-sql/pglite`
+*does* produce two `drizzle-orm` instances, and the workspace *does* then fail
+to typecheck with `SQL<unknown>` mismatches — reproduced here exactly.
 
-Things to try, cheapest first:
+What it is not is a resolution conflict. `pnpm add` relinks incrementally: it
+gave `packages/ledger` and the root the new pglite-flavoured instance and left
+`apps/worker` pointing at the old one, so two importers disagreed about which
+drizzle they meant. The lockfile was already consistent. A plain `pnpm install`
+converges every importer, and a **clean** `--frozen-lockfile` install — which
+is what CI and any new checkout does — produces exactly **one** instance:
 
-1. **`pnpm.overrides` / `resolutions`** pinning `drizzle-orm` to one version for
-   the whole workspace. Most likely to just work.
-2. **`dedupe-peer-dependents`** / `public-hoist-pattern` in `.npmrc`, so the two
-   resolutions collapse.
-3. **Accept the churn**: make the switch atomic across every package in one
-   commit, which is what the T0 note assumed. Least attractive — a whole-workspace
-   change that cannot be bisected is a bad shape for a change that touches the
-   RLS gate.
+```
+node_modules/.pnpm: 1x drizzle-orm@0.45.2(@electric-sql/pglite@0.5.4)(...)
+.               -> drizzle-orm@0.45.2_@electric-sql+pglite@0.5.4_...
+packages/ledger -> drizzle-orm@0.45.2_@electric-sql+pglite@0.5.4_...
+apps/worker     -> drizzle-orm@0.45.2_@electric-sql+pglite@0.5.4_...
+```
 
-Whatever works, **record WHY in this file**, because the next person to add a
-package with an optional peer on drizzle will hit the same wall.
+So: no `pnpm.overrides`, no `.npmrc` dedupe, no atomic whole-workspace commit.
+`@electric-sql/pglite` is an ordinary dependency of `packages/ledger`.
 
-## P2 — `pgliteDriver()`
+**The lesson worth keeping**: a mid-session `pnpm add` leaves the tree in a
+state no fresh install reproduces. Re-run `pnpm install` before concluding a
+dependency is incompatible.
 
-Two methods, and one of them is the whole safety argument:
+## P2 — `pgliteDriver()` — done
 
-- **`acquire()` MUST serialise.** PGlite has exactly one connection. Two
-  concurrent `withTenant` calls on it produce `BEGIN` inside `BEGIN`, one
-  `COMMIT` ending both, and `app.current_tenant` set by one tenant while another
-  is mid-query — cross-tenant exposure caused by concurrency alone, with every
-  RLS policy still correctly written. The seam already permits `acquire()` to
-  wait; the driver has to actually do it.
-- **`release(err)` cannot destroy the connection**, because there is only one.
-  Where `pg` discards a client whose ROLLBACK failed, this driver must *reset*
-  it — at minimum re-issuing `ROLLBACK` and clearing `app.current_tenant`, and
-  failing loudly if it cannot. A connection left in an aborted transaction still
-  carrying a tenant id is the exact state the pool path refuses to reuse.
-- **`row_security` must be set explicitly on every session** (0015 T0, finding
-  1). PGlite defaults it *off* where a real server defaults it *on*. Off, a
-  query that would be filtered *errors* rather than silently returning every
-  tenant's rows — loud, which is the right direction to be wrong in — but it
-  must be set and **asserted in a test**, because "fixing" that error by
-  disabling RLS would be catastrophic and silent.
-- **`pgcrypto` needs the contrib import** (`@electric-sql/pglite/contrib/pgcrypto`)
-  or `CREATE EXTENSION pgcrypto` fails. Nothing in the schema calls a pgcrypto
-  function — it is a `pg_dump` artefact — so load the contrib rather than editing
-  the baseline, keeping it byte-identical to what real Postgres gets so the
-  squash equivalence proof stays valid.
+`packages/ledger/src/pglite-driver.ts`. Four things it must do, each a finding:
 
-## P3 — the test that matters
+- **`acquire()` serialises.** PGlite has one connection; two concurrent
+  `withTenant` calls on it would produce `BEGIN` inside `BEGIN`, one `COMMIT`
+  ending both, and `app.current_tenant` set by one tenant while another is
+  mid-query. Cross-tenant exposure from concurrency alone, with every policy
+  still correct.
+- **`release(err)` resets rather than destroys**, because there is no second
+  connection to switch to. `ROLLBACK; RESET ROLE;` and clear the tenant.
+- **`row_security` is re-asserted on EVERY acquire — and the reason is not what
+  0015 T0 recorded.** That spike concluded PGlite defaults the setting *off*
+  where a server defaults it *on*. Measured here, a fresh PGlite 0.5.4 reports
+  **`on`**. What turns it off is **our own migration**: `0001_baseline.sql` is a
+  `pg_dump`, and line 43 of its preamble is `SET row_security = off;`.
 
-Run the existing RLS integration suite against PGlite. "96 policies created" is
-not the same claim as "96 policies doing anything": Postgres bypasses RLS for
-superusers and owners, and an in-process WASM database runs as exactly that.
-The spike tested enforcement specifically, under `SET ROLE app_user`, and the
-integration suite must do the same or it proves nothing.
+  Harmless on a pool — session-scoped, dies with the client that migrated. On a
+  single persistent connection the appliance migrates at startup and then serves
+  every request on that same session, so one line of dump preamble would disable
+  row security for the life of the process. Setting it once at open is not
+  enough, because migrations run after that.
+
+  **This is not a PGlite quirk.** Any driver reusing one long-lived connection
+  across migrate-then-serve inherits it.
+- **`pgcrypto` via the contrib import.** The baseline stays byte-identical to
+  what real Postgres gets, so the squash equivalence proof stays valid.
+
+A fifth thing the seam was missing, found only by running the real chain through
+the real driver: **`LedgerConnection.exec()`**. Postgres has two wire protocols
+and `query()` with parameters uses the EXTENDED one, which accepts a single
+statement — a migration file full of them fails with *"cannot insert multiple
+commands into a prepared statement"*. `pg` hides this by dropping to the simple
+protocol when there are no parameters; PGlite exposes the two separately. The
+seam now has both, and `applyOne` uses `exec` for the migration body.
+
+## P3 — done, and it enforces
+
+`pglite-driver.unit.test.ts`, 11 tests, ~6 s, **no Docker and no container**:
+
+- the real 2580-line `0001_baseline.sql` applies unmodified — 26+ tables, 90+
+  policies, `app_user`, `pgcrypto`, `gen_random_uuid()`;
+- migrations are idempotent on a second run;
+- **RLS enforces**: tenant A sees only A's row, B only B's, and a cross-tenant
+  INSERT is refused — each under `SET LOCAL ROLE app_user`;
+- the single connection serialises, and recovers from a failed transaction.
+
+**Mutation-verified**: deleting the `SET LOCAL ROLE app_user` line fails all
+three RLS tests, because PGlite runs as a superuser and superusers bypass RLS
+unconditionally. Without that line the suite would pass against a database that
+leaks every tenant's rows — which is exactly why "96 policies created" was never
+the claim worth testing.
+
+Worth noting for P4: this suite lives in the **unit** project. RLS enforcement
+previously could not be tested without a Postgres container.
 
 ## P4 — two backends, or one?
 

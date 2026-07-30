@@ -59,6 +59,9 @@ function singleConnectionDriver(journal: Journal) {
           journal.push(params?.length ? `${text} :: ${String(params[0])}` : text);
           return { rows: [] };
         },
+        exec: async (sql: string) => {
+          journal.push(sql);
+        },
         db: {} as PgDatabase,
         release: (err?: Error) => {
           if (err) destroyed = true;

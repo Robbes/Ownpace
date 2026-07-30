@@ -11,11 +11,12 @@
     "./usage-metering": "./src/usage-metering.ts"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.5.4",
     "@openmig/core": "workspace:*",
     "@openmig/shared": "workspace:*",
+    "@types/pg": "catalog:",
     "drizzle-orm": "catalog:",
-    "pg": "catalog:",
-    "@types/pg": "catalog:"
+    "pg": "catalog:"
   },
   "devDependencies": {
     "@types/imap-simple": "^4.2.10",

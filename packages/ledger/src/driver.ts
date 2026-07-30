@@ -85,6 +85,23 @@ export interface LedgerConnection {
     params?: readonly unknown[],
   ): Promise<LedgerQueryResult<R>>;
   /**
+   * Run a SCRIPT: one or more statements, no parameters, no rows back.
+   *
+   * Separate from `query()` because Postgres has two wire protocols and they
+   * differ in exactly this. `query()` with parameters uses the EXTENDED
+   * protocol, which accepts **one** statement — a migration file full of them
+   * fails with "cannot insert multiple commands into a prepared statement".
+   * `pg` hides this by falling back to the simple protocol when there are no
+   * parameters; PGlite does not, and exposes the two as `query()` and `exec()`.
+   *
+   * Found by running the real migration chain through the real PGlite driver,
+   * which is the sort of thing a spike against the raw library cannot surface.
+   *
+   * Never interpolate user input into a script: with no parameters there is
+   * nothing binding it. Callers here pass migration files read from disk.
+   */
+  exec(sql: string): Promise<void>;
+  /**
    * A drizzle handle bound to THIS connection.
    *
    * Bound to the connection rather than the driver on purpose: a handle that

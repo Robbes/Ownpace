@@ -167,7 +167,9 @@ async function applyOne(
   log(`[migrate] applying ${version}`);
   await client.query('BEGIN');
   try {
-    await client.query(sql);
+    // exec, not query: a migration file is many statements, and the extended
+    // protocol accepts one. See `LedgerConnection.exec`.
+    await client.exec(sql);
     await client.query('INSERT INTO schema_migrations (version) VALUES ($1)', [version]);
     await client.query('COMMIT');
   } catch (err) {

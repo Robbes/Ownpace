@@ -49,6 +49,11 @@ function fakeDriver() {
       statements.push(params?.length ? `${text.split('\n')[0]} :: ${String(params[0])}` : text.split('\n')[0]!);
       return { rows: [] as R[] };
     },
+    // The migration BODY goes through exec (many statements, no params);
+    // schema_migrations bookkeeping goes through query. See LedgerConnection.
+    exec: async (sql: string) => {
+      statements.push(`EXEC ${sql.split('\n')[0]!.slice(0, 40)}`);
+    },
     db: {} as PgDatabase,
     release: released,
   };
