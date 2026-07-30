@@ -73,9 +73,20 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** `Email/get` handler reporting the given current mailboxIds for every id asked about. */
-function emailGetHandler(mailboxIds: Record<string, boolean>) {
-  return () => ({ accountId: 'a1', list: [{ id: 'whatever', mailboxIds }], notFound: [] });
+/**
+ * `Email/get` handler returning a DIFFERENT mailboxIds state on each successive
+ * call — removeItem() now calls Email/get twice (once to read what to clear,
+ * once to verify the move actually took effect), so a single fixed response
+ * cannot represent "before" and "after" at once. Repeats the last state given
+ * once the list is exhausted.
+ */
+function emailGetSequence(...states: Array<Record<string, boolean>>) {
+  let call = 0;
+  return () => {
+    const state = states[Math.min(call, states.length - 1)]!;
+    call += 1;
+    return { accountId: 'a1', list: [{ id: 'whatever', mailboxIds: state }], notFound: [] };
+  };
 }
 
 describe('JmapTargetWriter.removeItem', () => {
@@ -88,7 +99,8 @@ describe('JmapTargetWriter.removeItem', () => {
           { id: 'mb-trash', name: 'Deleted Items', role: 'trash' },
         ],
       }),
-      'Email/get': emailGetHandler({ 'mb-inbox': true }),
+      // Before: only Inbox. After the move actually takes effect: only Trash.
+      'Email/get': emailGetSequence({ 'mb-inbox': true }, { 'mb-trash': true }),
       'Email/set': (args) => ({
         accountId: 'a1',
         updated: args.update as Record<string, unknown>,
@@ -122,7 +134,7 @@ describe('JmapTargetWriter.removeItem', () => {
         accountId: 'a1',
         list: [{ id: 'mb-trash', name: 'Trash', role: 'trash' }],
       }),
-      'Email/get': emailGetHandler({ 'mb-inbox': true, 'mb-archive': true }),
+      'Email/get': emailGetSequence({ 'mb-inbox': true, 'mb-archive': true }, { 'mb-trash': true }),
       'Email/set': (args) => ({ accountId: 'a1', updated: args.update as Record<string, unknown> }),
     });
 
@@ -144,7 +156,7 @@ describe('JmapTargetWriter.removeItem', () => {
         accountId: 'a1',
         list: [{ id: 'mb-x', name: 'Papierkorb', role: 'trash' }],
       }),
-      'Email/get': emailGetHandler({}),
+      'Email/get': emailGetSequence({}, { 'mb-x': true }),
       'Email/set': (args) => ({ accountId: 'a1', updated: args.update as Record<string, unknown> }),
     });
 
@@ -188,7 +200,7 @@ describe('JmapTargetWriter.removeItem', () => {
         accountId: 'a1',
         list: [{ id: 'mb-trash', name: 'Trash', role: 'trash' }],
       }),
-      'Email/get': emailGetHandler({ 'mb-inbox': true }),
+      'Email/get': emailGetSequence({ 'mb-inbox': true }),
       'Email/set': () => ({
         accountId: 'a1',
         notUpdated: { 'email-6': { type: 'invalidProperties', description: 'mailboxIds not settable' } },
@@ -215,13 +227,34 @@ describe('JmapTargetWriter.removeItem', () => {
     await expect(writer.removeItem('email-7')).rejects.toThrow(/notFound/);
   });
 
+  it('throws when Email/set claims success but the message is still in its old mailbox', async () => {
+    // The bug this test exists for: run after run against a real Stalwart,
+    // Email/set answered `updated` with no error for this exact patch, yet the
+    // message stayed in its original mailbox — both immediately and after a
+    // further sync pass a minute later, ruling out a caching lag. Trusting
+    // `updated` alone would tombstone the ledger row for an item that was
+    // never actually removed. The read-back is what has to catch that.
+    mockJmap({
+      'Mailbox/get': () => ({
+        accountId: 'a1',
+        list: [{ id: 'mb-trash', name: 'Trash', role: 'trash' }],
+      }),
+      // The server reports success, but the read-back shows Inbox untouched.
+      'Email/get': emailGetSequence({ 'mb-inbox': true }, { 'mb-inbox': true, 'mb-trash': true }),
+      'Email/set': (args) => ({ accountId: 'a1', updated: args.update as Record<string, unknown> }),
+    });
+
+    const writer = new JmapTargetWriter(CONFIG as never);
+    await expect(writer.removeItem('email-8')).rejects.toThrow(/did not actually take effect/);
+  });
+
   it('asks Mailbox/get for every mailbox (ids: null) rather than filtering by name', async () => {
     // A `Mailbox/query` filter on `role` is not universally supported, and
     // filtering by name would depend on the server's language. Requesting
     // everything and checking `role` client-side is the reliable path.
     const calls = mockJmap({
       'Mailbox/get': () => ({ accountId: 'a1', list: [{ id: 'mb-trash', role: 'trash' }] }),
-      'Email/get': emailGetHandler({}),
+      'Email/get': emailGetSequence({}, { 'mb-trash': true }),
       'Email/set': (args) => ({ accountId: 'a1', updated: args.update as Record<string, unknown> }),
     });
 

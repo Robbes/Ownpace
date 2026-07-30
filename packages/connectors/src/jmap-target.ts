@@ -1131,6 +1131,30 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
             (failure.description ? ` - ${failure.description}` : ''),
         );
       }
+
+      // READ BACK rather than trust `updated` at face value. Both the plain
+      // whole-value form and this PatchObject form have come back `updated`
+      // against a real Stalwart while the message stayed in its original
+      // mailbox (confirmed repeatedly, including after a further sync pass a
+      // minute later — not a caching lag). Whatever the server's response
+      // claims, this fetches the mailboxIds it now actually reports and
+      // refuses if they are not EXACTLY the trash mailbox alone — surfacing
+      // precisely which mailboxes are still attached, rather than letting a
+      // false "success" get tombstoned in the ledger (hard rule 9).
+      const after = await this.apiRequest<EmailGetResponse>('Email/get', {
+        accountId: this.accountId,
+        ids: [targetId],
+        properties: ['mailboxIds'],
+      });
+      const resultingMailboxIds = after.list?.[0]?.mailboxIds ?? {};
+      const resultingIds = Object.keys(resultingMailboxIds).filter((id) => resultingMailboxIds[id]);
+      if (resultingIds.length !== 1 || resultingIds[0] !== trashId) {
+        throw new Error(
+          `JMAP Email/set reported success moving ${targetId} to the trash mailbox (${trashId}), ` +
+            `but Email/get now reports mailboxIds ${JSON.stringify(resultingMailboxIds)} — the move ` +
+            'did not actually take effect the way the server claimed.',
+        );
+      }
       return { kind: 'binned' };
     }
 
