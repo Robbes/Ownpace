@@ -51,13 +51,23 @@ function baseRow(overrides: Partial<LedgerRecord> = {}): LedgerRecord {
  * refused" is exactly what several gates below exist to keep visible.
  */
 function fakeRemover(answer: RemovalResult | (() => RemovalResult)) {
-  const calls: Array<{ targetId: string; expectedTargetVersion?: string }> = [];
+  const calls: Array<{ targetId: string; expectedTargetVersion?: string; collection?: string }> =
+    [];
   return {
     calls,
-    removeItem: vi.fn(async (targetId: string, options?: { expectedTargetVersion?: string }) => {
-      calls.push({ targetId, ...(options?.expectedTargetVersion !== undefined ? { expectedTargetVersion: options.expectedTargetVersion } : {}) });
-      return typeof answer === 'function' ? answer() : answer;
-    }),
+    removeItem: vi.fn(
+      async (
+        targetId: string,
+        options?: { expectedTargetVersion?: string; collection?: string },
+      ) => {
+        calls.push({
+          targetId,
+          ...(options?.expectedTargetVersion !== undefined ? { expectedTargetVersion: options.expectedTargetVersion } : {}),
+          ...(options?.collection !== undefined ? { collection: options.collection } : {}),
+        });
+        return typeof answer === 'function' ? answer() : answer;
+      },
+    ),
   };
 }
 
@@ -268,7 +278,28 @@ describe('gate 5: an edit on the target refuses the removal', () => {
       'nk-1',
     );
 
-    expect(target.calls).toEqual([{ targetId: 'target-path-1', expectedTargetVersion: 'etag-recorded' }]);
+    expect(target.calls).toEqual([
+      { targetId: 'target-path-1', expectedTargetVersion: 'etag-recorded', collection: 'Personal' },
+    ]);
+  });
+
+  it('passes the recorded collection through, because not every target id is globally unique', async () => {
+    // A JMAP Email id and a DAV href identify an object on their own; an IMAP
+    // UID does not — the same number names a different message in the next
+    // mailbox. Without this, `ImapDavMailTarget.removeItem` has nothing to open
+    // and refuses; with the wrong one it would remove somebody else's message.
+    const ledger = new MemoryLedger();
+    await ledger.recordIfAbsent(
+      baseRow({ collection: 'Archive/2024', deletionReportedAt: new Date().toISOString() }),
+    );
+    const target = fakeRemover({ kind: 'binned' });
+
+    await applyDeletion(
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      'nk-1',
+    );
+
+    expect(target.calls).toEqual([{ targetId: 'target-path-1', collection: 'Archive/2024' }]);
   });
 
   it('omits expectedTargetVersion when the row never recorded one', async () => {
@@ -281,7 +312,7 @@ describe('gate 5: an edit on the target refuses the removal', () => {
       'nk-1',
     );
 
-    expect(target.calls).toEqual([{ targetId: 'target-path-1' }]);
+    expect(target.calls).toEqual([{ targetId: 'target-path-1', collection: 'Personal' }]);
   });
 });
 

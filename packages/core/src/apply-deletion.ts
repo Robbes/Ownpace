@@ -219,8 +219,12 @@ export async function applyDeletion(
   // GATE 5 happens INSIDE the removal, where the ETag is: the writer refuses if
   // the target no longer reports the version we recorded. Doing it here would
   // leave a window between reading the version and acting on it.
+  // `collection` goes down with it because an IMAP UID is only meaningful
+  // inside the mailbox it was issued in — see `TargetRemover.removeItem`. Every
+  // other writer's id stands on its own and ignores it.
   const removal = await target.removeItem(row.targetId, {
     ...(row.targetVersion !== undefined ? { expectedTargetVersion: row.targetVersion } : {}),
+    ...(row.collection !== undefined ? { collection: row.collection } : {}),
   });
 
   if (removal.conflicted) {

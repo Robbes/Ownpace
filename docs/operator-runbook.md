@@ -404,10 +404,22 @@ Coverage today, by domain:
 |---|---|---|
 | calendar, contacts | `reported` — the CalDAV/CardDAV `sync-collection` REPORT names removed objects on every incremental poll | Yes — CalDAV/CardDAV writers |
 | mail, JMAP target | `trashed` — the owner's Deleted Items is scanned for messages we copied. This is IMAP's only signal: it has no removal report, and a mailbox cannot be enumerated cheaply enough to count absences every pass | Yes — moves to the account's own trash mailbox where it has one |
-| mail, IMAP/DAV target | same as above | **No.** `apply` refuses with `target_cannot_remove`; use `keep` and remove it yourself in the target if you want it gone |
+| mail, IMAP/DAV target | same as above | Yes — moves the message into the mailbox the server flags `\Trash` (RFC 6154), whatever it is named; expunges only where the account has no such mailbox. See the note below |
 | files, OneDrive/SharePoint | `reported` — a Graph delta query answers with the items that changed *and* the ones deleted, each carrying a `deleted` facet | Not yet — the Graph target writer does not implement removal |
 | files, Nextcloud | `trashed` — the account's trashbin is read, and every entry in it carries the original path of the file | Yes — WebDAV writer, DELETEs into Nextcloud's own trashbin |
 | files, plain WebDAV | `inferred` — no bin and no delta query, but a collection can be enumerated cheaply and completely, so absence can be established | Yes, mechanically — but `inferred` evidence is never enough to pass gate 1 above, so `apply` will always refuse here regardless |
+
+**The IMAP/DAV mail target needs a collection on the row.** Every other target's
+id identifies an object on its own — a JMAP Email id, a DAV href — but an IMAP
+UID only means something inside one mailbox, and the same number names a
+different message in the next one. `apply` therefore passes the collection
+recorded on the ledger row down to the writer, and the writer **refuses** if it
+is missing rather than guessing INBOX. Rows written before the collection column
+was populated have none, so `apply` will refuse for them; `keep` them and remove
+those in the target yourself. The writer also refuses if the mailbox's
+UIDVALIDITY no longer matches what was recorded when the message was written —
+that means the mailbox has been recreated and every UID in it now names a
+different message.
 
 Two limits worth knowing.
 

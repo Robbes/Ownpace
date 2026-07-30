@@ -512,14 +512,26 @@ export interface TargetRemover {
    * Remove the copy identified by `targetId`, binning it where the target has a
    * bin and deleting it outright where it does not.
    *
-   * `expectedTargetVersion` is the ETag we recorded when we wrote the item. When
-   * supplied, the writer must remove NOTHING and answer `conflicted: true` if
-   * the target reports anything else — the mirror of the overwrite protection on
-   * `UpsertOptions`.
+   * `expectedTargetVersion` is the version marker we recorded when we wrote the
+   * item. When supplied, the writer must remove NOTHING and answer
+   * `conflicted: true` if the target reports anything else — the mirror of the
+   * overwrite protection on `UpsertOptions`.
+   *
+   * `collection` is the collection recorded on the ledger row, passed because
+   * NOT EVERY TARGET ID IS GLOBALLY UNIQUE. A JMAP Email id and a DAV href both
+   * identify an object on their own, so those writers ignore this. An IMAP UID
+   * does not: it is only meaningful inside one mailbox, and the same number
+   * names a different message in the next one. A writer whose ids are
+   * collection-scoped MUST refuse rather than guess when this is absent or
+   * empty — guessing on the one destructive operation in the product means
+   * removing a message nobody asked about.
    */
   removeItem(
     targetId: string,
-    options?: { readonly expectedTargetVersion?: string },
+    options?: {
+      readonly expectedTargetVersion?: string;
+      readonly collection?: string;
+    },
   ): Promise<RemovalResult>;
 }
 

@@ -142,12 +142,16 @@ async function cleanTargetMailboxes(): Promise<void> {
   try {
     conn = await imap.connect(config);
     
-    // Get all mailboxes using the underlying node-imap connection
-    const mailboxes = await (conn as { imap: { getBoxes: () => Promise<Record<string, unknown>> } }).imap.getBoxes();
-    
-    // Handle case where getBoxes returns undefined
+    // `imap-simple`'s promise-returning getBoxes, NOT `conn.imap.getBoxes` with
+    // zero arguments — that one is callback-only and returns undefined, so this
+    // cleanup silently fell back to `['INBOX']` and left every other mailbox
+    // untouched between tests. Harmless while nothing wrote outside INBOX; the
+    // removal tests below put messages in the bin, and a bin that survives into
+    // the next test makes its assertions meaningless.
+    const mailboxes = await (conn as { getBoxes: () => Promise<Record<string, unknown>> }).getBoxes();
+
     const mailboxNames = mailboxes ? Object.keys(mailboxes) : ['INBOX'];
-    
+
     // Delete all messages from each mailbox
     for (const boxName of mailboxNames) {
       try {
@@ -608,6 +612,126 @@ Test message for reindex.
 
       await target.disconnect();
     });
+  });
+
+  /**
+   * `removeItem` against the real server (ADR-0024).
+   *
+   * The one destructive path in this writer, so it is verified against a real
+   * IMAP server rather than a fake: the two things that can go wrong here —
+   * finding the bin, and moving a message into it — are both things a mock
+   * would happily agree to. Stalwart names its bin "Deleted Items", which is
+   * exactly the case that defeats finding it by name, so a real run is also the
+   * only one that proves the flag lookup is what is doing the work.
+   */
+  describe('removeItem (ADR-0024)', () => {
+    function newTarget() {
+      return new ImapDavMailTarget({
+        host: STALWART_IMAP_HOST!,
+        port: STALWART_IMAP_PORT,
+        tls: true,
+        username: TARGET_ACCOUNT,
+        password: TARGET_PASSWORD,
+        rejectUnauthorized: false,
+      });
+    }
+
+    function message(messageId: string): RawMessage {
+      return {
+        item: {
+          messageId: `<${messageId}>`,
+          folder: { path: 'INBOX', name: 'INBOX', specialUse: 'inbox' },
+          keywords: ['$seen'],
+          receivedAt: new Date().toISOString(),
+          sourceRef: `INBOX:${messageId}`,
+        },
+        rfc822: Buffer.from(
+          `From: ${SOURCE_ACCOUNT}\r\n` +
+            `To: ${TARGET_ACCOUNT}\r\n` +
+            `Subject: Apply-deletion test\r\n` +
+            `Message-ID: <${messageId}>\r\n` +
+            `Date: ${new Date().toUTCString()}\r\n` +
+            `Content-Type: text/plain; charset=utf-8\r\n\r\n` +
+            `Test message.\r\n`,
+        ),
+      } as RawMessage;
+    }
+
+    /** Every mailbox the account has, and the Message-IDs in each. */
+    async function accountContents(): Promise<Record<string, string[]>> {
+      const reader = newTarget();
+      const contents: Record<string, string[]> = {};
+      for await (const entry of reader.listEntries()) {
+        (contents[entry.mailboxId] ??= []).push(entry.naturalKey);
+      }
+      await reader.disconnect();
+      return contents;
+    }
+
+    it('bins the message in the server\'s own \\Trash mailbox', async () => {
+      const target = newTarget();
+      await target.ensureMailbox({ path: 'INBOX', name: 'INBOX', specialUse: 'inbox' });
+
+      const doomed = await target.upsertEmail('INBOX', message('apply-doomed@dev.local'), ['$seen']);
+      const spared = await target.upsertEmail('INBOX', message('apply-spared@dev.local'), ['$seen']);
+      expect(doomed.created).toBe(true);
+      // The UIDVALIDITY the writer records, which is what makes the staleness
+      // check on removal possible at all.
+      expect(doomed.targetVersion).toMatch(/^\d+$/);
+
+      const result = await target.removeItem(doomed.targetId, {
+        collection: 'INBOX',
+        expectedTargetVersion: doomed.targetVersion,
+      });
+
+      // Stalwart advertises a `\Trash` mailbox, so the owner gets a removal
+      // they can still undo. Asserted as `binned` rather than "either is fine":
+      // which one they got is the whole point of reporting a kind.
+      expect(result).toEqual({ kind: 'binned' });
+      await target.disconnect();
+
+      const contents = await accountContents();
+      // Gone from INBOX...
+      expect(contents.INBOX ?? []).not.toContain('apply-doomed@dev.local');
+      // ...and present in SOME mailbox that is not INBOX — read back through an
+      // independent listing rather than trusting the move's return value.
+      const elsewhere = Object.entries(contents)
+        .filter(([box]) => box !== 'INBOX')
+        .flatMap(([, keys]) => keys);
+      expect(elsewhere).toContain('apply-doomed@dev.local');
+      // The neighbouring message is untouched — removal is one item at a time.
+      expect(contents.INBOX ?? []).toContain('apply-spared@dev.local');
+      expect(spared.created).toBe(true);
+    }, 60000);
+
+    it('refuses, and removes nothing, when the recorded UIDVALIDITY no longer matches', async () => {
+      const target = newTarget();
+      await target.ensureMailbox({ path: 'INBOX', name: 'INBOX', specialUse: 'inbox' });
+      const written = await target.upsertEmail('INBOX', message('apply-stale@dev.local'), ['$seen']);
+
+      await expect(
+        target.removeItem(written.targetId, {
+          collection: 'INBOX',
+          expectedTargetVersion: '1',
+        }),
+      ).rejects.toThrow(/UIDVALIDITY/);
+      await target.disconnect();
+
+      const contents = await accountContents();
+      expect(contents.INBOX ?? []).toContain('apply-stale@dev.local');
+    }, 60000);
+
+    it('refuses without a mailbox rather than guessing one', async () => {
+      const target = newTarget();
+      await target.ensureMailbox({ path: 'INBOX', name: 'INBOX', specialUse: 'inbox' });
+      const written = await target.upsertEmail('INBOX', message('apply-nobox@dev.local'), ['$seen']);
+
+      await expect(target.removeItem(written.targetId)).rejects.toThrow(/no mailbox was supplied/i);
+      await target.disconnect();
+
+      const contents = await accountContents();
+      expect(contents.INBOX ?? []).toContain('apply-nobox@dev.local');
+    }, 60000);
   });
 
   describe('Idempotency property', () => {
