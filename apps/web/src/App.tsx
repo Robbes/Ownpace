@@ -13,6 +13,10 @@ import Billing from './pages/Billing';
 import OperatorDashboard from './pages/OperatorDashboard';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
+import Deletions from './pages/Deletions';
+import Moves from './pages/Moves';
+import Failures from './pages/Failures';
+import { isSelfHost, uiBasename } from './services/edition';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,18 +31,25 @@ const queryClient = new QueryClient({
 // Protected route component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  
-  if (!isAuthenticated) {
+
+  // The self-host appliance has no accounts to authenticate against: it is
+  // single-user, bound to localhost, and its HTTP surface has been
+  // unauthenticated since workplan 0010. Sending its operator to a login form
+  // that nothing can satisfy would make the UI unusable there. See
+  // `services/edition.ts` — the flag defaults to `managed`, so a misconfigured
+  // build keeps the login rather than losing it.
+  if (!isAuthenticated && !isSelfHost()) {
     return <Navigate to="/login" replace />;
   }
-  
+
   return <>{children}</>;
 };
 
 const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      {/* Mounted wherever this bundle was built for — see `uiBasename()`. */}
+      <BrowserRouter basename={uiBasename()}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route
@@ -54,6 +65,10 @@ const App: React.FC = () => {
             <Route path="mappings" element={<Mappings />} />
             <Route path="mappings/new" element={<CreateMapping />} />
             <Route path="mappings/:id" element={<MappingDetail />} />
+            {/* The §11.2 decision queues — the operating surface (ADR-0026). */}
+            <Route path="deletions" element={<Deletions />} />
+            <Route path="moves" element={<Moves />} />
+            <Route path="failures" element={<Failures />} />
             <Route path="tenants" element={<Tenants />} />
             <Route path="billing" element={<Billing />} />
             <Route path="operator" element={<OperatorDashboard />} />

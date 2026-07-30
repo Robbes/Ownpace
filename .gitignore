@@ -4,6 +4,9 @@ node_modules/
 
 # Build outputs
 dist/
+# The self-host UI bundle (apps/web `build:selfhost`), built into the appliance
+# image rather than committed — see ADR-0026.
+dist-selfhost/
 build/
 *.tsbuildinfo
 

@@ -9,20 +9,34 @@ import {
   Menu,
   X,
   CreditCard,
-  Server
+  Server,
+  Trash2,
+  MoveRight,
+  AlertTriangle
 } from 'lucide-react';
 import { useAuthStore } from '../stores/auth-store';
+import { isSelfHost } from '../services/edition';
 
 const Layout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const location = useLocation();
   const { user, logout } = useAuthStore();
 
+  // Tenants and Billing are managed-edition concepts: the appliance is
+  // single-tenant and is not billed for (ADR-0026). Hidden rather than shown
+  // broken, since neither has an endpoint to talk to there.
+  const selfHost = isSelfHost();
+
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Mappings', href: '/mappings', icon: FolderGit2 },
-    { name: 'Tenants', href: '/tenants', icon: Building2 },
-    { name: 'Billing', href: '/billing', icon: CreditCard },
+    // The §11.2 decision queues. Above the managed-only entries because on the
+    // appliance they are the whole reason somebody opens this UI at all.
+    { name: 'Deletions', href: '/deletions', icon: Trash2 },
+    { name: 'Moves', href: '/moves', icon: MoveRight },
+    { name: 'Failures', href: '/failures', icon: AlertTriangle },
+    ...(selfHost ? [] : [{ name: 'Tenants', href: '/tenants', icon: Building2 }]),
+    ...(selfHost ? [] : [{ name: 'Billing', href: '/billing', icon: CreditCard }]),
     { name: 'Operator', href: '/operator', icon: Server },
     { name: 'Settings', href: '/settings', icon: Settings },
   ];

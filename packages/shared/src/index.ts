@@ -10,6 +10,7 @@ export * from './hash';
 export * from './dav-canonical';
 export * from './generated-message-id';
 export * from './ports';
+export * from './operating-contract';
 export * from './discovery';
 export * from './scope-manifest';
 export * from './keywords';

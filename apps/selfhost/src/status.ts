@@ -5,55 +5,24 @@
  * per-mapping migration_status rows into a JSON-serializable report. Errors are
  * surfaced verbatim (SAD §11.2 — never mask). Kept pure so it is unit-testable
  * without a database.
+ *
+ * The report SHAPES moved to `@openmig/shared` under ADR-0026 so the UI and the
+ * managed edition compile against the same contract; this file keeps the
+ * builder, which is self-host's own. Re-exported below so existing importers
+ * (and the managed edition, when it implements `/status`) need not care where
+ * the types live.
  */
 
-import type { ItemFailure, MigrationStatus, PassMetrics } from '@openmig/shared';
+import type { ItemFailure, MigrationStatus } from '@openmig/shared';
+import type { DomainStatusReport, StatusReport } from '@openmig/shared';
+
+export type { DomainStatusReport, StatusReport };
 
 export interface MappingStatusInput {
   readonly mappingId: string;
   readonly statuses: readonly MigrationStatus[];
   /** Unresolved item failures for this mapping, from the ledger. */
   readonly failures?: readonly ItemFailure[];
-}
-
-export interface DomainStatusReport {
-  readonly domain: MigrationStatus['domain'];
-  readonly state: MigrationStatus['state'];
-  readonly itemsSynced: number;
-  readonly itemsFailed: number;
-  readonly bytesTransferred: number;
-  readonly lastSyncedAt?: string;
-  readonly lastError?: string;
-  /**
-   * Where the last completed pass spent its time — §19's "throughput" column.
-   *
-   * `/status` carried counts only, so it could say WHAT had moved but never
-   * HOW FAST, which is the question an operator watching a long migration
-   * actually has. Absent until a pass completes; never invented as zeros,
-   * because zero durations read as "instant" rather than "unknown".
-   */
-  readonly lastPass?: PassMetrics;
-  /**
-   * Items still being retried automatically. No action required — they are
-   * attempted again on every pass.
-   */
-  readonly itemsRetrying: number;
-  /**
-   * Items that have run out of retries and are waiting on an owner decision.
-   *
-   * Non-zero means a cutover now would leave data behind, so it is on the
-   * status payload rather than only on `/failures`: this is the number someone
-   * polling a migration has to see without being told to look elsewhere.
-   */
-  readonly itemsNeedingDecision: number;
-}
-
-export interface StatusReport {
-  readonly status: 'ok';
-  readonly mappings: ReadonlyArray<{
-    readonly mappingId: string;
-    readonly domains: readonly DomainStatusReport[];
-  }>;
 }
 
 export function buildStatusReport(inputs: readonly MappingStatusInput[]): StatusReport {

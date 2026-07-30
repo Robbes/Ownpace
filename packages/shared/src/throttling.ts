@@ -158,7 +158,6 @@ export class ThrottleLimiter {
   private readonly _config: ThrottleConfig;
   private readonly stats: ThrottleStats;
   private activeRequests: number;
-  private readonly retryDelays: Map<string, number>; // Track retry delays per key
 
   constructor(config: Partial<ThrottleConfig> = {}) {
     this._config = { ...DEFAULT_THROTTLE_CONFIG, ...config };
@@ -170,7 +169,6 @@ export class ThrottleLimiter {
       exceededMaxRetries: 0,
     };
     this.activeRequests = 0;
-    this.retryDelays = new Map();
   }
 
   /**
@@ -244,7 +242,12 @@ export class ThrottleLimiter {
    * Handle a 429 or 503 response
    * Returns the wait time in ms
    */
-  handleRateLimited(responseStatus: number, retryAfterHeader?: string): number {
+  // `_responseStatus` is accepted and deliberately unread: 429 and 503 are
+  // handled identically today (honour Retry-After, else back off), and every
+  // call site already has the status to hand, so keeping it in the signature
+  // documents what the argument is and leaves room to distinguish them without
+  // touching four connectors. Underscored so the unused-symbol check stays on.
+  handleRateLimited(_responseStatus: number, retryAfterHeader?: string): number {
     this.stats.throttleEvents++;
     
     if (retryAfterHeader) {
@@ -425,8 +428,12 @@ export function createThrottleLimiterFromMapping(
 export async function executeWithConcurrencyAndThrottling<T, R>(
   items: ReadonlyArray<T>,
   throttleLimiter: ThrottleLimiter,
-  tenantId: string,
-  provider: string,
+  // Accepted for call-site symmetry with the per-tenant budgets in hard rule 4,
+  // but not used to key anything here: this helper shares one limiter across the
+  // batch it is given. Underscored rather than removed so the signature keeps
+  // saying which tenant a batch belongs to.
+  _tenantId: string,
+  _provider: string,
   worker: (item: T, index: number) => Promise<R>,
 ): Promise<R[]> {
   const results: R[] = [];

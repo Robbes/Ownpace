@@ -8,6 +8,9 @@
  */
 
 import type { DiscoveryRecord, ScopeManifest, DiscoveryDomain } from '@openmig/shared';
+// One source for where the UI is mounted, so this link and the server that
+// answers it cannot disagree.
+import { UI_MOUNT } from './static-ui';
 
 export interface MappingConfirmView {
   readonly mappingId: string;
@@ -105,6 +108,21 @@ function mappingSection(m: MappingConfirmView): string {
   return `<section class="mapping"><h3>${esc(m.mappingId)}</h3>${countsTable(m.domains)}${startForm}</section>`;
 }
 
+/**
+ * The way through to the operating UI (ADR-0026).
+ *
+ * This page is where an operator lands, and until now it was also where they
+ * stopped: everything after "Start migration" — the three decision queues, and
+ * the one destructive action among them — was reachable only by knowing to curl
+ * an endpoint. Shown only once something has actually started, because a paused
+ * mapping has copied nothing and so cannot have diverged; before that the link
+ * would lead to three empty lists.
+ */
+function operatingLink(mappings: ReadonlyArray<MappingConfirmView>): string {
+  if (!mappings.some((m) => m.status !== 'paused')) return '';
+  return `<section class="mapping"><h3>While it runs</h3><p class="muted">Items that could not be copied, and things the owner has since deleted or moved on the old system, are listed for you to decide about. Nothing is ever removed from the new system without you asking.</p><p><a class="btn" href="${UI_MOUNT}/deletions">Open the migration console</a></p></section>`;
+}
+
 /** Render the whole confirm page as an HTML document string. */
 export function renderConfirmPage(data: ConfirmPageData): string {
   const mappings = data.mappings.map(mappingSection).join('');
@@ -125,11 +143,13 @@ h1{font-size:1.4rem} h3{margin-top:1.5rem} .muted{color:#666} .err{color:#b00} .
 table{border-collapse:collapse;width:100%;font-size:.9rem} th,td{text-align:left;padding:.25rem .5rem;border-bottom:1px solid #eee}
 button{background:#2563eb;color:#fff;border:0;border-radius:.4rem;padding:.5rem 1.25rem;font-size:1rem;cursor:pointer;margin-top:.75rem}
 .cols{display:flex;gap:1rem;flex-wrap:wrap} .col{flex:1;min-width:200px} .col li{font-size:.8rem;margin:.2rem 0} .active{color:#155}
+a.btn{display:inline-block;background:#2563eb;color:#fff;border-radius:.4rem;padding:.5rem 1.25rem;text-decoration:none}
 </style></head>
 <body>
 <h1>Review &amp; confirm your migration</h1>
 <p class="muted">Nothing has been copied yet. Review what will migrate, then start it.</p>
 ${mappings || '<p class="muted">No mappings configured.</p>'}
+${operatingLink(data.mappings)}
 ${manifest}
 </body></html>`;
 }

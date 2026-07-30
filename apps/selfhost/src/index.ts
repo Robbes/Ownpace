@@ -10,7 +10,9 @@
  * (single-flight, so an overrunning pass never overlaps itself). A paused (draft)
  * mapping waits for the operator to green-light it on the confirm page (`GET /`,
  * `POST /mappings/:id/start`). Also serves `GET /healthz`, `GET /status`, `GET /verify`,
- * `GET /scope-manifest`, and `GET /discovery` on localhost. Graceful shutdown
+ * `GET /scope-manifest`, and `GET /discovery` on localhost, plus the React operating UI
+ * under `GET /ui` (ADR-0026 — mounted on a prefix because the JSON routes already own
+ * /deletions, /moves and /failures, which are also screen names). Graceful shutdown
  * stops the schedules, lets in-flight passes settle, and closes the server.
  *
  * Single-tenant, no managed dependencies: this file (and its transitive imports)
@@ -19,18 +21,43 @@
  */
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
+import { fileURLToPath } from 'node:url';
 import { runMigrations, createPgDb, PgMigrationStatusStore, PgDiscoveryStore, PgLedger, PgCursorStore, RunStore, withTenant } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
 import { InProcessScheduler } from '@openmig/scheduler/in-process';
 import { runAllDomains, discoverAllDomains, verifyMapping, applyMappingDeletion } from '@openmig/worker/orchestration';
-import { SCOPE_MANIFEST, MAX_ITEM_ATTEMPTS, DELETION_CONFIRMATIONS } from '@openmig/shared';
-import type { TenantId, MappingId, ScheduleHandle, DiscoveryRecord, FailureAction } from '@openmig/shared';
+import { SCOPE_MANIFEST, DELETION_CONFIRMATIONS } from '@openmig/shared';
+// The operating contract (ADR-0026): the queue shapes and the operator-facing
+// prose that goes with them, shared with the UI and the managed edition so the
+// three cannot drift apart in the explanations that stop somebody destroying
+// data by accident.
+import {
+  MAPPING_LIFECYCLES,
+  REPORTING_CLOSED,
+  FAILURE_GUIDANCE,
+  MOVES_MEANING,
+  MOVE_GUIDANCE,
+  DELETIONS_MEANING,
+  DELETION_GUIDANCE,
+} from '@openmig/shared';
+import type {
+  TenantId,
+  MappingId,
+  ScheduleHandle,
+  DiscoveryRecord,
+  FailureAction,
+  MappingLifecycle,
+  FailuresQueue,
+  MovesQueue,
+  DeletionsQueue,
+} from '@openmig/shared';
 import { loadConfigDir, type LoadedMapping } from './config-dir';
 import { buildStatusReport, type MappingStatusInput } from './status';
 import { renderConfirmPage, type MappingConfirmView } from './confirm-page';
 import { startTransition, finishTransition } from './lifecycle';
+import { serveUi } from './static-ui';
 import { log } from '@openmig/shared';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
 
@@ -119,6 +146,15 @@ export interface SelfhostOptions {
   readonly configDir?: string;
   readonly port?: number;
   readonly host?: string;
+  /**
+   * Where the built operating UI lives (ADR-0026).
+   *
+   * Defaults to `apps/web/dist-selfhost` resolved from this module, which is
+   * where `pnpm --filter @openmig/web build:selfhost` puts it and where the
+   * image copies it. Absent is not fatal: the appliance serves its JSON either
+   * way and `/ui` explains how to build it.
+   */
+  readonly uiDir?: string;
 }
 
 export interface SelfhostHandle {
@@ -135,6 +171,13 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   const configDir = options.configDir ?? process.env.CONFIG_DIR ?? DEFAULT_CONFIG_DIR;
   const port = options.port ?? Number(process.env.PORT ?? 8080);
   const host = options.host ?? process.env.HOST ?? '127.0.0.1';
+  // Resolved from this module rather than from cwd: the appliance is started by
+  // an installer, a service manager or `docker run`, none of which promise a
+  // working directory.
+  const uiDir =
+    options.uiDir ??
+    process.env.SELFHOST_UI_DIR ??
+    fileURLToPath(new URL('../../web/dist-selfhost', import.meta.url));
 
   // 1. Self-migrate under the advisory lock (refuses to start if DB is newer).
   log.info('[selfhost] applying migrations…');
@@ -198,15 +241,32 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     });
   };
 
-  // Read the current mailbox_mapping status ('paused' | 'active' | 'cutover' | 'done').
-  const mappingStatus = async (m: LoadedMapping): Promise<string> =>
+  // Read the current mailbox_mapping status.
+  //
+  // Narrowed to `MappingLifecycle` rather than returned as a bare string,
+  // because the operating contract (ADR-0026) branches on it: a UI hides the
+  // decision queues for 'paused' and closes reporting for 'done'. The database
+  // already guarantees the four values — `mailbox_mapping_status_check` in the
+  // baseline — so anything else means that constraint was bypassed, and hard
+  // rule 9 says surface that rather than quietly coerce it to a status that
+  // happens to type-check. A MISSING row is a different thing and keeps its
+  // documented 'paused' default: the mapping is configured but not yet started.
+  const mappingStatus = async (m: LoadedMapping): Promise<MappingLifecycle> =>
     withTenantContext(m.config.tenantId as string, async (client) => {
       const { rows } = await client.query(
         `SELECT status FROM mailbox_mapping WHERE id = $1`,
         [m.mailboxMappingId],
       );
       const row = rows[0] as { status?: string } | undefined;
-      return row?.status ?? 'paused';
+      if (row?.status === undefined) return 'paused';
+      if (!MAPPING_LIFECYCLES.includes(row.status as MappingLifecycle)) {
+        throw new Error(
+          `[selfhost] ${m.config.mappingId}: mailbox_mapping.status is '${row.status}', which is ` +
+            `not one of ${MAPPING_LIFECYCLES.join(', ')}. The database CHECK constraint should ` +
+            `make this impossible; refusing to guess what the migration's state is.`,
+        );
+      }
+      return row.status as MappingLifecycle;
     });
 
   /** Stop scheduling a mapping, so a finished migration stops syncing at once. */
@@ -357,6 +417,12 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   // 4. Local status/health + confirm server.
   const server = createServer(async (req, res) => {
     try {
+      // The operating UI (ADR-0026), under /ui so it cannot collide with the
+      // JSON routes below — several of which share a name with one of its
+      // screens. Returns false for anything outside the mount, so this can
+      // never shadow an endpoint by accident.
+      if (await serveUi(req, res, { rootDir: uiDir })) return;
+
       if (req.method === 'GET' && (req.url === '/' || req.url === '')) {
         const views = await buildViews();
         const html = renderConfirmPage({ mappings: views, manifest: SCOPE_MANIFEST });
@@ -421,7 +487,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // this body may be piped into a ticket or a chat. The hash is all the
       // two actions need.
       if (req.method === 'GET' && req.url === '/failures') {
-        const out: Record<string, unknown> = {};
+        const out: Record<string, FailuresQueue> = {};
         for (const m of mappings) {
           const mStatus = await mappingStatus(m);
           const failures = await ledger.listFailures(
@@ -432,31 +498,13 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             // A finished migration keeps its history but stops nagging: the queues
             // below are what WAS outstanding when it ended, not work still to do.
             migrationStatus: mStatus,
-            ...(mStatus === 'done'
-              ? {
-                  reportingClosed:
-                    'This migration is finished, so nothing here is still being watched. ' +
-                    'Anything listed was outstanding when it ended and is kept as a record.',
-                }
-              : {}),
+            ...(mStatus === 'done' ? { reportingClosed: REPORTING_CLOSED } : {}),
             // Split rather than left for the reader to filter: they are
             // different situations. One is still being worked on; the other is
             // waiting on a person and will otherwise never move.
             needsDecision: failures.filter((f) => f.needsDecision),
             retrying: failures.filter((f) => !f.needsDecision),
-            howToResolve: {
-              retry:
-                `POST /mappings/{mappingId}/failures/{naturalKeyHash}/retry — the cause is ` +
-                `fixed; try again on the next pass. Also clears this mapping's cursors so the ` +
-                `item is certain to be listed again.`,
-              accept:
-                `POST /mappings/{mappingId}/failures/{naturalKeyHash}/accept — migrate ` +
-                `without it. Permanent: the item stops being retried and stops counting as ` +
-                `missing at the verification gate.`,
-              doNothing:
-                `Items under "retrying" need no action — they are attempted again on every ` +
-                `pass until ${MAX_ITEM_ATTEMPTS} attempts, then move to "needsDecision".`,
-            },
+            howToResolve: FAILURE_GUIDANCE,
           };
         }
         return sendJson(res, 200, out);
@@ -477,7 +525,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // different store with different retention; this is the operator's own
       // status surface, the same place `lastError` already goes.
       if (req.method === 'GET' && req.url === '/moves') {
-        const out: Record<string, unknown> = {};
+        const out: Record<string, MovesQueue> = {};
         for (const m of mappings) {
           const mStatus = await mappingStatus(m);
           const all = await ledger.listMoves(
@@ -488,33 +536,13 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             // A finished migration keeps its history but stops nagging: the queues
             // below are what WAS outstanding when it ended, not work still to do.
             migrationStatus: mStatus,
-            ...(mStatus === 'done'
-              ? {
-                  reportingClosed:
-                    'This migration is finished, so nothing here is still being watched. ' +
-                    'Anything listed was outstanding when it ended and is kept as a record.',
-                }
-              : {}),
+            ...(mStatus === 'done' ? { reportingClosed: REPORTING_CLOSED } : {}),
             // Split, as with failures: one still wants a person, the other has
             // already had one.
             open: all.filter((mv) => !mv.acknowledgedAt),
             acknowledged: all.filter((mv) => mv.acknowledgedAt),
-            whatThisMeans:
-              'The item is on the target under "from". The source now lists it under "to". ' +
-              'Nothing was written, copied or deleted on either side.',
-            howToResolve: {
-              keep:
-                `POST /mappings/{mappingId}/moves/{naturalKeyHash}/keep — the target's layout ` +
-                `is fine as it is; stop reporting this one. Reversible only in the sense that ` +
-                `moving the item somewhere else again reopens it.`,
-              byHand:
-                'To make the target match, move the item there yourself in the target system, ' +
-                'then keep. Applying a move automatically would have to delete the copy that ' +
-                'is there now, which this tool never does on its own (hard rule 2).',
-              doNothing:
-                'A move that is put back on the source disappears from this list by itself on ' +
-                'the next pass.',
-            },
+            whatThisMeans: MOVES_MEANING,
+            howToResolve: MOVE_GUIDANCE,
           };
         }
         return sendJson(res, 200, out);
@@ -548,7 +576,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       //     watched until it has vanished from several CONSECUTIVE complete scans
       //     before anyone is asked about it. This is all the file domain has.
       if (req.method === 'GET' && req.url === '/deletions') {
-        const out: Record<string, unknown> = {};
+        const out: Record<string, DeletionsQueue> = {};
         for (const m of mappings) {
           const mStatus = await mappingStatus(m);
           const all = await ledger.listDeletions(
@@ -559,49 +587,13 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             // A finished migration keeps its history but stops nagging: the queues
             // below are what WAS outstanding when it ended, not work still to do.
             migrationStatus: mStatus,
-            ...(mStatus === 'done'
-              ? {
-                  reportingClosed:
-                    'This migration is finished, so nothing here is still being watched. ' +
-                    'Anything listed was outstanding when it ended and is kept as a record.',
-                }
-              : {}),
+            ...(mStatus === 'done' ? { reportingClosed: REPORTING_CLOSED } : {}),
             confirmed: all.filter((d) => d.confirmed && !d.acknowledgedAt),
             // Not yet worth acting on, shown so the queue is not a black box.
             watching: all.filter((d) => !d.confirmed && !d.acknowledgedAt),
             acknowledged: all.filter((d) => d.acknowledgedAt),
-            whatThisMeans:
-              'The item is on the target and the owner has deleted it on the source. Nothing ' +
-              'has been removed from either side. Read `evidence` to see how we know: ' +
-              '"reported" means the source itself told us the object was gone; "trashed" means ' +
-              'we found it sitting in the owner\'s Deleted Items; both are believed at once. ' +
-              `"inferred" means it stopped appearing in ${DELETION_CONFIRMATIONS} or more ` +
-              'consecutive complete scans, which is a strong suspicion rather than a fact.',
-            howToResolve: {
-              keep:
-                `POST /mappings/{mappingId}/deletions/{naturalKeyHash}/keep — you are happy ` +
-                `for the new system to keep its copy; stop reporting this one. This is the ` +
-                `usual answer: the target becoming a fuller archive than the shrinking source ` +
-                `is a feature, not a fault.`,
-              apply:
-                `POST /mappings/{mappingId}/deletions/{naturalKeyHash}/apply — remove the ` +
-                `target's copy too, following the source. THE ONLY DESTRUCTIVE ACTION IN THIS ` +
-                `PRODUCT: refused unless this mapping has \`allowApplyDeletions: true\` in its ` +
-                `config, refused for "inferred" evidence (an absence is never enough, however ` +
-                `many passes it repeats), refused for an item somebody has since edited on the ` +
-                `target, and refused altogether while an unusual share of the domain looks ` +
-                `pending deletion at once (the mass-deletion breaker). See the runbook before ` +
-                `using this.`,
-              byHand:
-                'To remove it from the target yourself instead, delete it there, then keep. ' +
-                'This tool never deletes on a target without the explicit apply action above ' +
-                '(hard rule 2).',
-              doNothing:
-                'An item that reappears on the source drops off this list by itself: its ' +
-                'count resets — a run of absences has to be consecutive to mean anything — and ' +
-                'so does any report or bin sighting, because an item can be deleted and ' +
-                'restored, or dragged back out of Deleted Items.',
-            },
+            whatThisMeans: DELETIONS_MEANING,
+            howToResolve: DELETION_GUIDANCE,
           };
         }
         return sendJson(res, 200, out);
