@@ -4,6 +4,9 @@ export const packageName = '@openmig/ledger';
 export * from './ledger';
 export * from './cursor-store';
 export * from './db';
+// The connection seam (workplan 0015 T1) — what a PGlite driver would implement.
+export * from './driver';
+export * from './db-types';
 export * from './schema-pg';
 export * from './cutover-store';
 export * from './verification-queries';
