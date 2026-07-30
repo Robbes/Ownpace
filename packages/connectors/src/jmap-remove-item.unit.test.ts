@@ -125,10 +125,9 @@ describe('JmapTargetWriter.removeItem', () => {
     // A message can be filed under more than one mailbox on plenty of servers.
     // Adding trash as one more membership would leave it still visible in
     // Inbox/Archive, and the target would go on showing an item the owner just
-    // asked to have removed. Sending the trash id alone as a plain `mailboxIds`
-    // value was the previous approach; proven against a real Stalwart (the
-    // self-host e2e's Apply-Deletion Gate) to report success while leaving the
-    // message in its original mailbox anyway — see removeItem()'s comment.
+    // asked to have removed. Each membership is therefore cleared BY NAME
+    // rather than swept away by one whole-map assignment — see removeItem()'s
+    // comment for why the patch form is preferred on its own merits.
     const calls = mockJmap({
       'Mailbox/get': () => ({
         accountId: 'a1',
@@ -228,12 +227,13 @@ describe('JmapTargetWriter.removeItem', () => {
   });
 
   it('throws when Email/set claims success but the message is still in its old mailbox', async () => {
-    // The bug this test exists for: run after run against a real Stalwart,
-    // Email/set answered `updated` with no error for this exact patch, yet the
-    // message stayed in its original mailbox — both immediately and after a
-    // further sync pass a minute later, ruling out a caching lag. Trusting
-    // `updated` alone would tombstone the ledger row for an item that was
-    // never actually removed. The read-back is what has to catch that.
+    // `apply` is the one operation in this product that destroys something, and
+    // the ledger tombstones the row on its say-so — so "the server said it
+    // worked" is not a good enough basis for that write. Several e2e runs did
+    // report success while the message stayed put (the cause turned out to be
+    // the `"0"` created-id bug in `upsertEmail`, not the server), and this
+    // read-back is what turned that from a silent false success into a
+    // diagnosis. Kept as a standing guard, not just as a regression test.
     mockJmap({
       'Mailbox/get': () => ({
         accountId: 'a1',

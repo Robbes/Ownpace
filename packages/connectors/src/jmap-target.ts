@@ -1000,7 +1000,19 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
       throw new Error("Failed to create email: no created ID in response");
     }
 
-    const createdId = Object.keys(importResponse.created)[0]!;
+    // `importResponse.created` is keyed by OUR OWN local creation id (the "0"
+    // in the `emails: { "0": {...} }` request above) — that key is never a
+    // real email id, only the server-assigned `.id` on the VALUE is. Reading
+    // `Object.keys(...)[0]` returned the literal string "0" as `targetId` for
+    // every mail item ever migrated, silently: nothing downstream fed that id
+    // back into a further JMAP call until `removeItem()` (ADR-0024) did,
+    // which sent Stalwart `Email/set` updates for an id named "0" and got
+    // `notFound` back — the self-host e2e's Apply-Deletion Gate is what
+    // finally surfaced this, five rounds of a differently-wrong fix in.
+    const createdId = importResponse.created["0"]?.id;
+    if (!createdId) {
+      throw new Error('Failed to create email: created response is missing the server-assigned id');
+    }
     // Keep the snapshot true, so a repeat within the same pass costs nothing
     // and cannot be written twice.
     if (messageId) snapshot?.set(messageId, createdId);
@@ -1085,20 +1097,25 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
 
     const trashId = await this.trashMailboxId();
     if (trashId) {
-      // `mailboxIds` PATCHED per-key (`mailboxIds/<id>`: true|null), never sent
-      // as one plain replacement value. RFC 8620 §5.3 says a plain property name
-      // in an update replaces the whole value, and that is what this code used
-      // to send — one call, trash id only. Against a real Stalwart it came back
-      // `updated` with no error, and the message stayed in its original mailbox
-      // anyway: proven against the self-host e2e's Apply-Deletion Gate three
-      // times running, including a further sync pass a minute later, which
-      // rules out this being a caching lag rather than the update simply not
-      // taking effect. The PatchObject form (RFC 8621 §4.3, one key per mailbox)
-      // is the form every JMAP client actually relies on to move a message
-      // between mailboxes, and the only one this server has been observed to
-      // honour — so every mailbox the message currently sits in is read first
-      // and explicitly cleared, alongside setting the trash id, rather than
-      // trusting a single whole-map assignment to replace them.
+      // `mailboxIds` PATCHED per-key (`mailboxIds/<id>`: true|null) rather than
+      // assigned as one whole-map value.
+      //
+      // A NOTE ON WHY, because the history here is misleading. Earlier versions
+      // of this comment blamed the server: several e2e runs showed `Email/set`
+      // answering `updated` while the message stayed in its original mailbox,
+      // and that was read as "this server does not honour whole-value
+      // replacement". It was not. Every one of those runs was sending the
+      // literal id `"0"` — see the created-id bug fixed in `upsertEmail` above —
+      // so the server was simply being asked about a message that does not
+      // exist. Whole-value assignment (RFC 8620 §5.3) would very likely work
+      // fine now.
+      //
+      // The patch form is kept anyway, on its own merits rather than as a
+      // workaround: it states each mailbox membership explicitly, so a message
+      // filed under several mailboxes has every one of them cleared by name
+      // instead of relying on one replacement to sweep them away. That is
+      // easier to verify against the read-back below, and it is the form
+      // (RFC 8621 §4.3) mail clients use to move messages between mailboxes.
       const current = await this.apiRequest<EmailGetResponse>('Email/get', {
         accountId: this.accountId,
         ids: [targetId],
@@ -1132,15 +1149,16 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
         );
       }
 
-      // READ BACK rather than trust `updated` at face value. Both the plain
-      // whole-value form and this PatchObject form have come back `updated`
-      // against a real Stalwart while the message stayed in its original
-      // mailbox (confirmed repeatedly, including after a further sync pass a
-      // minute later — not a caching lag). Whatever the server's response
-      // claims, this fetches the mailboxIds it now actually reports and
-      // refuses if they are not EXACTLY the trash mailbox alone — surfacing
-      // precisely which mailboxes are still attached, rather than letting a
-      // false "success" get tombstoned in the ledger (hard rule 9).
+      // READ BACK rather than trust the response at face value: fetch the
+      // mailboxIds the server now actually reports, and refuse unless they are
+      // EXACTLY the trash mailbox alone.
+      //
+      // Worth keeping even though the `"0"` id bug that motivated it is fixed.
+      // `apply` is the one operation in this product that destroys something,
+      // and the ledger tombstones the row on its say-so — so "the server said
+      // it worked" is not a good enough basis for that write. This check is
+      // also what finally produced a usable diagnosis: it turns a silent false
+      // success into an error naming the mailboxes still attached (hard rule 9).
       const after = await this.apiRequest<EmailGetResponse>('Email/get', {
         accountId: this.accountId,
         ids: [targetId],
