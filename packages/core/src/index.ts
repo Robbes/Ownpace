@@ -12,3 +12,4 @@ export * from './dns-provider-desec';
 export * from './domain-sync';
 export * from './dav-sync';
 export * from './discovery';
+export * from './apply-deletion';

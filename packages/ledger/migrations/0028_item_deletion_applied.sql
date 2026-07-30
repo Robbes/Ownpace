@@ -1,0 +1,41 @@
+-- Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+--
+-- When this tool REMOVED an item's copy from the target.
+--
+-- The audit trail for the only destructive operation in the product. Everything
+-- before this migration reports and never acts: §11.1 says deletions are never
+-- auto-propagated, hard rule 2 forbids this tool deleting on a target of its own
+-- accord. Neither says the OWNER may not decide about their own data, which §11.2
+-- explicitly reserves to them — so `apply` exists, and every part of it is
+-- deliberate rather than automatic.
+--
+-- WHY A DATE AND NOT A FLAG. `deletion_acknowledged_at` already records that a
+-- decision was made, and both answers close the queue entry — but only one of
+-- them took something away. Without a separate date there is no way to ask "what
+-- did we delete, and when", which is the first question anyone will ask after a
+-- mistake and the one an audit needs years later.
+--
+-- NO NEW STATUS. `item.status` has allowed 'tombstoned' since migration 0001 and
+-- nothing has ever written it: the fifth vacant slot in this schema after
+-- `collection` (0022), `target_version` (0023), `absent_passes` (0024) and
+-- `source_ref` (0025). The name is exactly right — the row stays behind as the
+-- headstone for an item that was migrated and then removed — so it is used rather
+-- than replaced. `isOnTarget()` had to learn about it either way: read as "on the
+-- target", a tombstoned row makes §20 verification expect bytes that were removed
+-- on purpose, turning a completed decision into a verification failure.
+--
+-- THE ROW IS KEPT, deliberately. Deleting it would erase the fact that the item
+-- ever existed, was migrated, and was removed on a specific date by a specific
+-- decision — and would also let the next pass re-copy the item from a source that
+-- still has it, silently undoing the owner's choice.
+--
+-- NULL means we have removed nothing, which is every row today and the
+-- overwhelming majority of rows forever: `keep` is the expected answer, since a
+-- target that is a fuller archive than the shrinking source is a feature.
+
+ALTER TABLE item ADD COLUMN IF NOT EXISTS deletion_applied_at timestamptz;
+
+-- No index. Every read is inside a query already filtered by
+-- (tenant_id, mapping_id[, domain]), and this column is written once per item at
+-- most — by hand, one decision at a time. An index would cost every insert to
+-- speed up a query nobody runs in a loop.

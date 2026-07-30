@@ -12,6 +12,7 @@ import type {
   RawMessage,
   MailKeyword,
   UpsertResult,
+  RemovalResult,
 } from "@openmig/shared";
 import { contentHash, parseRetryAfterMs } from "@openmig/shared";
 import { log } from '@openmig/shared';
@@ -1057,6 +1058,62 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     }
 
     return headers;
+  }
+
+  /**
+   * Remove a message this writer wrote (implements `TargetRemover`).
+   *
+   * The only destructive operation this writer has, reached solely through an
+   * explicit owner decision in core's `applyDeletion` — see that function for the
+   * seven gates in front of it.
+   *
+   * MOVES TO THE TRASH MAILBOX where the account has one, which is what makes the
+   * outcome `binned`: the owner can still get the message back for as long as their
+   * server keeps it, and the target genuinely stops showing it. Only when there is
+   * no `trash`-role mailbox does this destroy the message outright. That ordering is
+   * the point — a recoverable removal and an unrecoverable one are different
+   * promises, and the caller is told which it got.
+   *
+   * `expectedTargetVersion` is accepted for interface symmetry and not used: JMAP
+   * gives no per-message ETag, so `upsertEmail` records none and there is nothing to
+   * compare. Mail is also the domain where it matters least — a message is immutable
+   * apart from its flags and mailbox membership, so "the owner edited our copy" is
+   * not a state this domain really reaches.
+   */
+  async removeItem(targetId: string): Promise<RemovalResult> {
+    await this.ensureConnected();
+
+    const trashId = await this.trashMailboxId();
+    if (trashId) {
+      // `mailboxIds` REPLACED rather than patched: a message in Inbox and Archive
+      // that is only added to Trash is still in both of the others, so the target
+      // would go on showing it and the owner's decision would appear not to have
+      // worked.
+      await this.apiRequest('Email/set', {
+        accountId: this.accountId,
+        update: { [targetId]: { mailboxIds: { [trashId]: true } } },
+      });
+      return { kind: 'binned' };
+    }
+
+    await this.apiRequest('Email/set', {
+      accountId: this.accountId,
+      destroy: [targetId],
+    });
+    return { kind: 'deleted' };
+  }
+
+  /** The account's trash mailbox, by RFC 8621 role rather than by name. */
+  private async trashMailboxId(): Promise<string | undefined> {
+    // `ids: null` asks for every mailbox, which is the reliable way to read roles:
+    // filtering by name would depend on the server's language, and a `Mailbox/query`
+    // filter on `role` is not universally supported.
+    const response = await this.apiRequest<{ list?: Array<{ id: string; role?: string }> }>(
+      'Mailbox/get',
+      { accountId: this.accountId, ids: null },
+    );
+    const mailboxes = (response as { list?: Array<{ id: string; role?: string }> }).list ?? [];
+    return mailboxes.find((m) => m.role?.toLowerCase() === 'trash')?.id;
   }
 
   /**

@@ -248,6 +248,12 @@ export const item = pgTable(
     // When the owner decided to keep the target's copy of an item the source no
     // longer has. NULL = still open.
     deletionAcknowledgedAt: timestamp('deletion_acknowledged_at', { withTimezone: true }),
+    // When this tool REMOVED the target's copy, following the owner's decision.
+    // The audit trail for the only destructive operation in the product, and what
+    // distinguishes an applied decision from a `keep` — both close the queue
+    // entry, only one took something away. Always alongside `status:
+    // 'tombstoned'`. See migration 0028.
+    deletionAppliedAt: timestamp('deletion_applied_at', { withTimezone: true }),
     // Where the SOURCE lists this item now, when that is no longer the
     // collection we copied it from. NULL = not moved. `collection` above keeps
     // pointing at where the TARGET's copy actually is, so the two together say

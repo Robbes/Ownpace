@@ -189,7 +189,12 @@ export type KnownItemAction =
   /** Attempts are exhausted; it is waiting on an owner decision. */
   | 'needs-decision'
   /** The owner decided to migrate without it. Terminal. */
-  | 'left-behind';
+  | 'left-behind'
+  /**
+   * We REMOVED this item's copy from the target, on the owner's decision, and
+   * the source is listing it again. Terminal, and reported.
+   */
+  | 'tombstoned';
 
 /**
  * Decide what a later pass owes an item the ledger already knows.
@@ -247,6 +252,20 @@ export function classifyKnownItem(
   // the fast-path and skipped it, so the item was never retried and never
   // reported. Silent data loss with a green count next to it.
   if (known.status === 'left_behind') return 'left-behind';
+  // REMOVED ON PURPOSE, and the source is showing it again.
+  //
+  // Not re-copied, deliberately. Re-creating it would be the natural reading of
+  // "the source is authoritative for content" — and it would silently
+  // re-materialise data somebody deliberately had deleted. If that deletion was an
+  // erasure request, restoring it is a compliance failure, and this code cannot
+  // tell an erasure request from a change of mind. So the item is left alone and
+  // the reappearance is reported, which is the one outcome that cannot be wrong in
+  // a way nobody can undo.
+  //
+  // Ahead of every version rule because a tombstoned row has no meaningful version
+  // question: there are no bytes on the target to compare against. Left to fall
+  // through, it matched "versions equal → skip" and became invisible forever.
+  if (known.status === 'tombstoned') return 'tombstoned';
   if (known.status === 'failed') {
     return (known.attemptCount ?? 0) >= MAX_ITEM_ATTEMPTS ? 'needs-decision' : 'retry-failed';
   }
@@ -511,6 +530,20 @@ export interface DomainSyncResult {
    */
   readonly drift: number;
   /**
+   * The source lists this key again after this tool REMOVED the target's copy
+   * on an explicit owner decision (`applyDeletion`).
+   *
+   * NOT re-created, and that is the point of counting it rather than acting on
+   * it. Re-copying it would be the ordinary reading of "the source is
+   * authoritative for content" (§11.1) — but it would also silently undo a
+   * destructive decision an owner made on purpose, and this code has no way to
+   * tell "the owner changed their mind" from "this was an erasure request and
+   * restoring it is a compliance failure". So the tombstoned row is left
+   * exactly as it is, and the reappearance is surfaced here instead of
+   * vanishing into a routine `skip`.
+   */
+  readonly reappearedAfterRemoval: number;
+  /**
    * Where this pass's wall time went. Always present — the caller persists it
    * for §19's dashboards and feeds it to the metrics registry.
    */
@@ -566,6 +599,9 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   let updated = 0;
   let needsDecision = 0;
   let leftBehind = 0;
+  // The source lists a key again after `apply` removed the target's copy for
+  // it. Never re-created — see `DomainSyncResult.reappearedAfterRemoval`.
+  let reappearedAfterRemoval = 0;
   const failures: ItemFailure[] = [];
   /**
    * Consecutive failures, reset by any success.
@@ -807,6 +843,23 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
             // as a problem — but counted, so "we are not copying 12 items" is
             // never invisible.
             leftBehind += 1;
+            return;
+          }
+          if (action === 'tombstoned') {
+            // The owner explicitly removed this item's copy (`apply`), and the
+            // source is listing the key again. NOT re-created — see the long
+            // comment on `classifyKnownItem` and on
+            // `DomainSyncResult.reappearedAfterRemoval` for why: this code
+            // cannot tell "the owner changed their mind" from "this was an
+            // erasure request and putting it back is a compliance failure", so
+            // the only safe answer is to leave the tombstone standing and say
+            // so out loud rather than silently undo a destructive decision.
+            reappearedAfterRemoval += 1;
+            log.warn(
+              `[sync] ${domain}: item ${key.slice(0, 12)} was explicitly removed from the target ` +
+                '(apply) and the source is listing it again. NOT re-created — an operator decided ' +
+                'this item should go, and the row is left as tombstoned.',
+            );
             return;
           }
           if (action === 'needs-decision') {
@@ -1257,6 +1310,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     conflicted,
     needsDecision,
     leftBehind,
+    reappearedAfterRemoval,
     failures,
     moved,
     moves,

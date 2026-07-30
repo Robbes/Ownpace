@@ -204,6 +204,9 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     // be a fact somebody needed.
     ...(result.deletions.length > 0 ? { deletions: result.deletions } : {}),
     ...(excludedCollections.length > 0 ? { excludedCollections } : {}),
+    ...(result.reappearedAfterRemoval > 0
+      ? { reappearedAfterRemoval: result.reappearedAfterRemoval }
+      : {}),
   };
 };
 

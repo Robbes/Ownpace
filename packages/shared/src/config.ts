@@ -188,6 +188,19 @@ export interface MappingConfig {
    * read.
    */
   readonly excludeSpecialUse?: ReadonlyArray<SpecialUse>;
+  /**
+   * Allow this mapping to REMOVE an item's copy on the target, once an operator
+   * has confirmed the source deleted it.
+   *
+   * Defaults to `false`. This is the one destructive capability in the product —
+   * see `applyDeletion` in `@openmig/core` for the seven gates in front of every
+   * individual removal — and a capability that destroys data must be opted into
+   * per mapping rather than on by default. Turning it on does not remove
+   * anything by itself: it only allows the `apply` action on an individual,
+   * already-confirmed deletion queue entry to go through instead of being
+   * refused outright.
+   */
+  readonly allowApplyDeletions?: boolean;
 }
 
 /**
@@ -403,6 +416,10 @@ export function parseMappingConfig(input: unknown): MappingConfig {
   const onCollision = parseOnCollision(root.onCollision);
   const excludeSpecialUse = parseExcludeSpecialUse(root.excludeSpecialUse);
   const domains = root.domains === undefined ? undefined : parseDomainsConfig(asRecord(root.domains, 'domains'));
+  const allowApplyDeletions =
+    root.allowApplyDeletions === undefined
+      ? undefined
+      : reqBoolean(root, 'allowApplyDeletions', 'allowApplyDeletions');
 
   return {
     tenantId,
@@ -414,6 +431,7 @@ export function parseMappingConfig(input: unknown): MappingConfig {
     ...(onCollision !== undefined ? { onCollision } : {}),
     ...(excludeSpecialUse !== undefined ? { excludeSpecialUse } : {}),
     ...(domains !== undefined ? { domains } : {}),
+    ...(allowApplyDeletions !== undefined ? { allowApplyDeletions } : {}),
   };
 }
 

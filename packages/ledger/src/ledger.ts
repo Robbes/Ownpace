@@ -812,9 +812,12 @@ export class PgLedger implements Ledger {
     naturalKeyHash: string,
     action: DeletionAction,
   ): Promise<boolean> {
-    // Only 'keep' exists, and it is inert on both sides: it records that a
-    // person looked. Removing the target's copy is the first destructive thing
-    // this product would do and needs its own path.
+    // 'keep' only, and it is inert on both sides: it records that a person
+    // looked. 'apply' deliberately does NOT resolve here — it has to remove the
+    // copy from the target before any row is touched, so it goes through
+    // `applyDeletion` (via core's `applyDeletion`, which holds the rest of the
+    // gates). Returning false for it keeps this method incapable of closing a
+    // destructive decision that was never carried out.
     if (action !== 'keep') return false;
 
     const rows = await this.db
@@ -841,6 +844,55 @@ export class PgLedger implements Ledger {
         ),
       )
       .returning();
+
+    return rows.length > 0;
+  }
+
+  async applyDeletion(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: 'email' | 'calendar' | 'contact' | 'file',
+    naturalKeyHash: string,
+  ): Promise<boolean> {
+    const rows = await this.db
+      .update(schemaPg.item)
+      .set({
+        // The headstone. See migration 0028 for why this value and not a new one.
+        status: 'tombstoned',
+        deletionAppliedAt: sql`now()`,
+        // Closes the queue entry too: the decision has been made AND carried out,
+        // and an entry that stayed open would invite a second removal of
+        // something already gone.
+        deletionAcknowledgedAt: sql`now()`,
+        updatedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          eq(schemaPg.item.domain, domain),
+          eq(schemaPg.item.naturalKeyHash, naturalKeyHash),
+          // POSITIVE EVIDENCE ONLY, enforced here as well as in `applyDeletion`
+          // in core. Duplicated on purpose: this is the write that destroys the
+          // record of an item being on the target, and a future caller that
+          // forgets a check must not be able to reach it. Absence — however
+          // often repeated — is never enough.
+          or(
+            isNotNull(schemaPg.item.deletionReportedAt),
+            isNotNull(schemaPg.item.deletionTrashedAt),
+          ),
+          // Still open. A second apply on an already-tombstoned row would move
+          // the audit date forward and report a removal that did not happen.
+          isNull(schemaPg.item.deletionAppliedAt),
+          // Only an item WE wrote. `copied` and `updated` are both ours — the
+          // second is one we rewrote when the source changed. `adopted` bytes are
+          // the customer's own and hard rule 2 is absolute about them;
+          // `failed`/`left_behind` were never copied at all, so there is nothing
+          // on the target to remove; `tombstoned` is already gone.
+          or(eq(schemaPg.item.status, 'copied'), eq(schemaPg.item.status, 'updated')),
+        ),
+      )
+      .returning({ naturalKeyHash: schemaPg.item.naturalKeyHash });
 
     return rows.length > 0;
   }
@@ -902,6 +954,14 @@ export class PgLedger implements Ledger {
               row.deletionTrashedAt instanceof Date
                 ? row.deletionTrashedAt.toISOString()
                 : String(row.deletionTrashedAt),
+          }
+        : {}),
+      ...(row.deletionAppliedAt
+        ? {
+            deletionAppliedAt:
+              row.deletionAppliedAt instanceof Date
+                ? row.deletionAppliedAt.toISOString()
+                : String(row.deletionAppliedAt),
           }
         : {}),
       ...(row.deletionAcknowledgedAt
