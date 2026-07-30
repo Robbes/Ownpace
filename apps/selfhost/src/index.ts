@@ -756,6 +756,57 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         res.end();
         return;
       }
+
+      // Run a pass NOW, and answer when it has finished.
+      //
+      // "Sync now" is a thing operators ask for on its own — after fixing a
+      // credential, after resolving a failure, or simply to see the effect of a
+      // change without waiting for the cron to come round. It is also what makes
+      // the e2e suite bearable: the fixture's schedule is `* * * * *`, so every
+      // "wait for the next pass" in a test was up to 60 SECONDS of sleeping, and
+      // the two slowest gates are mostly made of those waits.
+      //
+      // `scheduler.runOnce` is single-flight per mapping id, so this can never
+      // start a second concurrent pass: if the cron is already mid-pass, this
+      // call joins that one and returns when it finishes. That also means the
+      // pass you get back may have STARTED BEFORE your request — a caller that
+      // needs a pass which observed a specific change must re-check and, if
+      // necessary, ask again. The e2e helpers do exactly that rather than
+      // assuming one call is enough.
+      const runNowMatch =
+        req.method === 'POST' && req.url ? /^\/mappings\/([^/]+)\/run$/.exec(req.url) : null;
+      if (runNowMatch) {
+        await drain(req);
+        const id = decodeURIComponent(runNowMatch[1]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+
+        // Only an ACTIVE mapping syncs. Refusing here rather than running anyway
+        // keeps one rule about when data moves: a paused mapping is awaiting the
+        // operator's green light, and a finished one is finished.
+        const status = await mappingStatus(m);
+        if (status !== 'active') {
+          return sendJson(res, 409, {
+            error: `mapping is '${status}', not 'active'`,
+            hint:
+              status === 'paused'
+                ? 'Confirm the migration first (POST /mappings/{id}/start).'
+                : 'A mapping in cutover or done no longer syncs.',
+          });
+        }
+
+        const startedAt = Date.now();
+        await scheduler.runOnce(m.config.mappingId, runMapping(m));
+        return sendJson(res, 200, {
+          status: 'ok',
+          action: 'run',
+          mappingId: m.config.mappingId,
+          tookMs: Date.now() - startedAt,
+          note:
+            'A pass has completed. Because runs are single-flight per mapping, this may have ' +
+            'been a pass already in progress when you asked — read /status to see what it did.',
+        });
+      }
       return sendJson(res, 404, { error: 'not found' });
     } catch (err) {
       // Log it, with the stack, before answering. A failing request used to

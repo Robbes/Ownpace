@@ -109,26 +109,93 @@ export async function getDeletions(): Promise<{ mappingId: string } & DeletionsF
   return { mappingId, ...body[mappingId]! };
 }
 
-/** Poll until `hash` shows up CONFIRMED (never `watching`, which an operator cannot act on). */
+/**
+ * Ask the appliance to run a pass NOW, and return when it has finished.
+ *
+ * Replaces sleeping until the `* * * * *` cron comes round, which cost these
+ * tests up to 60s per wait and made the two slowest gates mostly sleep. Runs are
+ * single-flight per mapping, so this may join a pass that started BEFORE the
+ * call — which is why every caller below re-checks its condition and asks again
+ * rather than trusting one pass to have seen a just-made change.
+ */
+export async function runPassNow(mappingId: string): Promise<void> {
+  const response = await fetch(`${BASE_URL}/mappings/${encodeURIComponent(mappingId)}/run`, {
+    method: 'POST',
+  });
+  if (!response.ok) {
+    throw new Error(`POST /mappings/${mappingId}/run -> ${response.status}: ${await response.text()}`);
+  }
+}
+
+/**
+ * Drive passes until `check` is satisfied, or the deadline passes.
+ *
+ * The shape every wait in these gates actually wants: make a change on the
+ * source, then keep asking the appliance to sync until it notices. A pass in
+ * steady state takes a second or two, so this converges far faster than waiting
+ * on the cron — and it is also more honest about what is being tested, which is
+ * that a sync pass detects the change, not that a scheduler fires.
+ */
+async function driveUntil<T>(
+  mappingId: string,
+  check: () => Promise<T | undefined>,
+  maxMs: number,
+): Promise<T> {
+  const deadline = Date.now() + maxMs;
+  // Check first: the change may already have been picked up by a scheduled pass.
+  const early = await check();
+  if (early !== undefined) return early;
+
+  let lastError: unknown;
+  while (Date.now() < deadline) {
+    try {
+      await runPassNow(mappingId);
+    } catch (err) {
+      // A pass that fails is worth retrying briefly — the appliance may be
+      // mid-restart — but the last error is reported if we run out of time.
+      lastError = err;
+      await sleep(2000);
+    }
+    const got = await check();
+    if (got !== undefined) return got;
+    await sleep(1000);
+  }
+  throw new Error(
+    `condition not met after driving passes for ${maxMs}ms` +
+      (lastError ? `; last pass error: ${lastError instanceof Error ? lastError.message : String(lastError)}` : ''),
+  );
+}
+
+/** Drive passes until `hash` shows up CONFIRMED (never `watching`, which an operator cannot act on). */
 export async function waitForConfirmedDeletion(
   hash: string,
   maxMs: number,
 ): Promise<{ mappingId: string; entry: DeletionEntry }> {
-  const deadline = Date.now() + maxMs;
+  // The mapping id is only known from /deletions itself, so read it once first.
+  const initial = await getDeletions();
+  const mappingId = initial.mappingId;
   let lastWatching: DeletionEntry | undefined;
-  while (Date.now() < deadline) {
-    const q = await getDeletions();
-    const entry = q.confirmed.find((d) => d.naturalKeyHash === hash);
-    if (entry) return { mappingId: q.mappingId, entry };
-    lastWatching = q.watching.find((d) => d.naturalKeyHash === hash) ?? lastWatching;
-    await sleep(3000);
+
+  try {
+    return await driveUntil(
+      mappingId,
+      async () => {
+        const q = await getDeletions();
+        const entry = q.confirmed.find((d) => d.naturalKeyHash === hash);
+        if (entry) return { mappingId: q.mappingId, entry };
+        lastWatching = q.watching.find((d) => d.naturalKeyHash === hash) ?? lastWatching;
+        return undefined;
+      },
+      maxMs,
+    );
+  } catch {
+    throw new Error(
+      `timed out after ${maxMs}ms driving passes for ${hash.slice(0, 12)} to become a CONFIRMED deletion` +
+        (lastWatching
+          ? ` (seen only as watching: evidence=${lastWatching.evidence}, absentPasses=${lastWatching.absentPasses})`
+          : ' (never seen in /deletions at all — did the trash/delete script actually run against the source?)'),
+    );
   }
-  throw new Error(
-    `timed out after ${maxMs}ms waiting for ${hash.slice(0, 12)} to become a CONFIRMED deletion` +
-      (lastWatching
-        ? ` (seen only as watching: evidence=${lastWatching.evidence}, absentPasses=${lastWatching.absentPasses})`
-        : ' (never seen in /deletions at all — did the trash/delete script actually run against the source?)'),
-  );
 }
 
 export async function applyDeletion(
@@ -167,22 +234,39 @@ export async function getDomainStatus(domain: string): Promise<DomainStatus | nu
   return status.mappings?.[0]?.domains?.find((d) => d.domain === domain) ?? null;
 }
 
-/** Wait for a pass that COMPLETES strictly after `after` — proof the pass ran post-apply. */
+/**
+ * Drive a pass that COMPLETES strictly after `after` — proof a pass ran post-apply.
+ *
+ * `after` is the domain's `lastSyncedAt` from before the action under test, so
+ * requiring a DIFFERENT value is what makes this "a pass that could have seen
+ * it" rather than "any pass". The single-flight caveat is handled by the loop:
+ * if the first run joins an older in-flight pass, `lastSyncedAt` will not have
+ * moved past `after` and another is requested.
+ */
 export async function waitForNextPass(
   domain: string,
   after: string | undefined,
   maxMs: number,
 ): Promise<DomainStatus> {
-  const deadline = Date.now() + maxMs;
+  const { mappingId } = await getDeletions();
   let last: DomainStatus | null = null;
+  const deadline = Date.now() + maxMs;
+
   while (Date.now() < deadline) {
     last = await getDomainStatus(domain);
-    if (last && last.state === 'completed' && last.lastSyncedAt && last.lastSyncedAt !== after) return last;
-    await sleep(3000);
+    if (last && last.state === 'completed' && last.lastSyncedAt && last.lastSyncedAt !== after) {
+      return last;
+    }
+    try {
+      await runPassNow(mappingId);
+    } catch {
+      await sleep(2000);
+    }
   }
   throw new Error(
-    `${domain}: timed out after ${maxMs}ms waiting for a sync pass after ${after ?? '(never synced)'}. ` +
-      `Last seen: state=${last?.state}, lastSyncedAt=${last?.lastSyncedAt ?? 'never'}.`,
+    `${domain}: timed out after ${maxMs}ms driving passes for one completing after ` +
+      `${after ?? '(never synced)'}. Last seen: state=${last?.state}, ` +
+      `lastSyncedAt=${last?.lastSyncedAt ?? 'never'}.`,
   );
 }
 
