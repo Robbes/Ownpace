@@ -231,6 +231,53 @@ describe('the staged payload, running', () => {
   }, 180_000);
 });
 
+describe('the Postgres path survived bundling too', () => {
+  /**
+   * The payload supports both backends — an operator who already runs Postgres
+   * points `DATABASE_URL` at it (hard rule 5), and the container image ships
+   * this same payload with `SELFHOST_PERSISTENCE=postgres`. So `pg` is bundled,
+   * and `pg` is the library whose CommonJS `require('events')` became esbuild's
+   * throwing `__require` in the first place.
+   *
+   * There is no Postgres here to connect to, and that is fine: what has to be
+   * proved is that the bundled driver LOADS and gets far enough to attempt a
+   * connection. A module-level failure and a refused connection look nothing
+   * alike, and only one of them means the bundle is broken.
+   */
+  it('loads the bundled pg driver and fails on the network, not on the module', async () => {
+    const probe = join(payload, 'pg-probe.mjs');
+    writeFileSync(
+      probe,
+      `import { start } from './appliance.mjs';\n` +
+        `try {\n` +
+        `  await start({ persistence: 'postgres',\n` +
+        `    databaseUrl: 'postgresql://u:p@127.0.0.1:1/nope',\n` +
+        `    configDir: ${JSON.stringify(join(payload, 'data/config'))},\n` +
+        `    migrationsDir: ${JSON.stringify(join(payload, 'migrations'))},\n` +
+        `    port: 0, host: '127.0.0.1' });\n` +
+        `  console.log('UNEXPECTED_SUCCESS');\n` +
+        `} catch (err) { console.log('ERR:' + (err && err.message)); }\n`,
+    );
+
+    let out: string;
+    try {
+      out = execFileSync(process.execPath, [probe], {
+        cwd: payload,
+        env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '' },
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    } catch (err) {
+      out = String((err as { stdout?: string }).stdout ?? '') + String(err);
+    }
+
+    // A refused connection to 127.0.0.1:1 is the CORRECT outcome.
+    expect(out).toMatch(/ECONNREFUSED|ECONNRESET|connect|timeout/i);
+    // And the specific way bundling breaks this must not appear.
+    expect(out).not.toMatch(/Dynamic require|Cannot find module|is not a function/i);
+  }, 120_000);
+});
+
 describe('staging refuses to produce a broken payload', () => {
   it('fails loudly when the operating UI has not been built', () => {
     // Not a warning. A payload without the UI installs fine and then serves the

@@ -415,6 +415,44 @@ jobs:
           test/e2e/selfhost-apply-deletion-mail.e2e.test.ts
           test/e2e/selfhost-apply-deletion-calendar.e2e.test.ts
 
+      # Finishing UNSCHEDULES the mapping, so every gate above needs to have run
+      # already. Hence its own step, last, and its own `pnpm test:e2e` call —
+      # vitest gives no ordering guarantee across files in one invocation.
+      #
+      # The refusal is the half worth proving: §11.2 says a migration must not
+      # be quietly closed over items still awaiting a decision. The original
+      # poison file was accepted by the restart-resume gate, so plant a second
+      # one and let a pass fail it, or the refusal would pass vacuously (the
+      # gate fails loudly rather than skipping if it never appears).
+      - name: Plant a second unmigratable item, so finish has something to refuse over
+        run: |
+          set -euo pipefail
+          NC="http://127.0.0.1:${DEV_NEXTCLOUD_PORT}/remote.php/dav/files"
+          POISON="openmig-e2e-poison-2.txt"
+
+          src_code="$(curl -s -o /dev/null -w '%{http_code}' -u "${NEXTCLOUD_SOURCE_USER}:${SOURCE_DAV_PASSWORD}" \
+            -X PUT --data-binary 'This file cannot be written to the target either.' \
+            "${NC}/${NEXTCLOUD_SOURCE_USER}/${POISON}")"
+          echo "PUT source/${POISON} -> ${src_code}"
+          case "$src_code" in 201|204) ;; *) echo "could not seed the second poison file"; exit 1;; esac
+
+          dst_code="$(curl -s -o /dev/null -w '%{http_code}' -u "${NEXTCLOUD_TARGET_USER}:${TARGET_DAV_PASSWORD}" \
+            -X MKCOL "${NC}/${NEXTCLOUD_TARGET_USER}/${POISON}")"
+          echo "MKCOL target/${POISON} -> ${dst_code}"
+          case "$dst_code" in 201|405) ;; *) echo "could not seed the target directory"; exit 1;; esac
+
+          # Drive a pass now rather than waiting on the cron, so the failure is
+          # in the queue by the time the gate looks.
+          # `/run` is synchronous — it answers when the pass has finished — so
+          # this returns with the failure already in the queue. Best-effort with
+          # a ceiling: the gate polls and fails loudly if nothing shows up, so a
+          # slow or refused pass must not hang the job here.
+          curl -s -o /dev/null --max-time 300 -X POST \
+            "http://127.0.0.1:${SELFHOST_PORT}/mappings/11111111-1111-4111-8111-111111111111/run" || true
+
+      - name: Run Finish Gate (§11.2 — the end of a migration)
+        run: pnpm test:e2e test/e2e/selfhost-finish.e2e.test.ts
+
       - name: Appliance + Stalwart + Nextcloud diagnostics
         if: always()
         run: |

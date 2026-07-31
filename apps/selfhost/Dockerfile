@@ -2,18 +2,32 @@
 #
 # Self-host appliance image (workplan 0010 T3).
 #
-# Single-tenant bundle for a NAS / mini-PC / Pi. On startup the entrypoint
-# (apps/selfhost/src/index.ts) applies the ledger migrations under an advisory
-# lock (T1), loads the mapping configs from /data/config, schedules them with
-# the in-process croner scheduler, and serves /healthz + /status plus the
-# operating UI at /ui (ADR-0026). It talks to the bundled Postgres from
-# deploy/selfhost/compose.yml.
+# Single-tenant bundle for a NAS / mini-PC / Pi. On startup it applies the
+# ledger migrations under an advisory lock (T1), loads the mapping configs from
+# /data/config, schedules them with the in-process croner scheduler, and serves
+# /healthz + /status plus the operating UI at /ui (ADR-0026). It talks to the
+# bundled Postgres from deploy/selfhost/compose.yml.
 #
-# The @openmig/* packages ship TypeScript source (package.json "main"/"exports"
-# point at src/*.ts — there is no JS build), so the app runs under tsx rather
-# than tsc→node. Copying the whole /app between stages preserves pnpm's
-# node_modules symlink layout and keeps packages/ledger/migrations available at
-# runtime (runMigrations resolves them relative to its own module URL).
+# ## The runtime stage runs the PAYLOAD, not the source tree
+#
+# `scripts/package-appliance.mjs` stages the directory a Windows installer
+# copies (workplan 0015 T3). This image now ships that exact directory and runs
+# `node start.mjs` out of it, where it used to `pnpm exec tsx src/index.ts` over
+# the whole workspace.
+#
+# That is the point, not an optimisation. Before it, the container and the
+# installer were two different programs we hoped agreed: the e2e gates proved
+# the source tree under tsx, and the only thing that had ever run the bundle was
+# a unit test — on Linux, with a stub UI, against no real server. Bundling is
+# exactly where the interesting failures live (three of them in T3 alone: `pg`'s
+# CommonJS `require` becoming esbuild's throwing `__require`, PGlite's WASM
+# lookup following `import.meta.url` into the bundle, and `runMigrations`
+# walking a package layout that bundling had collapsed) and NONE of that class
+# is visible in a file listing. Running the payload here points all 35 existing
+# e2e tests at the artefact that ships.
+#
+# It is also smaller and simpler: no pnpm at runtime, no corepack download on
+# every container start, no workspace `node_modules`, no `tsx`.
 #
 # HARD RULE 5: this image must never pull in managed-only code (Trigger.dev,
 # billing, RLS-app-user). The entrypoint imports @openmig/scheduler/in-process
@@ -38,6 +52,10 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 # `build:selfhost` script sets, so the bundle matches the mount the appliance
 # serves it from and knows it has no login to offer.
 RUN pnpm --filter @openmig/web build:selfhost
+# Stage the SHIPPED artefact (workplan 0015 T3). The image now runs this, not
+# the source tree — see the runtime stage for why that is the point rather than
+# an optimisation.
+RUN node scripts/package-appliance.mjs --out /payload
 
 # ---- runtime: non-root, health-checked ----
 FROM base AS runtime
@@ -47,11 +65,20 @@ ENV CONFIG_DIR=/data/config
 ENV PORT=8081
 # Bind on all interfaces inside the container; publish is controlled by compose.
 ENV HOST=0.0.0.0
-# Where the entrypoint looks for the built UI. Set explicitly rather than left
-# to the module-relative default so a change to the image layout fails loudly
-# at /ui (which says how to build it) instead of silently serving nothing.
-ENV SELFHOST_UI_DIR=/app/apps/web/dist-selfhost
-COPY --from=build /app /app
+# The image's persistence posture, declared rather than inherited.
+#
+# `start.mjs` in the payload defaults to PGlite, which is right for the Windows
+# installer it was built for — there is no server to point at. A container is a
+# different deployment: `compose.yml` ships a `postgres` service and always has.
+# Saying so here keeps `docker run` on this image behaving as it always did, and
+# leaves `compose.pglite.yml` free to override it.
+ENV SELFHOST_PERSISTENCE=postgres
+# `/app` IS the payload — the same directory `pnpm package:appliance` produces
+# for an installer to copy. It carries its own `ui/` and `migrations/`, which
+# `start.mjs` resolves relative to itself, so no *_DIR variable is needed for
+# either and none is set: a stale override is the failure mode that would put
+# `/ui` back to "here is how to build it" while everything else looked fine.
+COPY --from=build /payload /app
 # Copy default config into the image (can be overridden by mounted volume).
 COPY deploy/selfhost/config /app/config
 # Non-root runtime user; owns /app and the /data mount points.
@@ -77,4 +104,5 @@ EXPOSE 8080
 # compose env-file. The status server answers /healthz once migrations applied.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||8080)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-CMD ["pnpm", "--filter", "@openmig/selfhost", "exec", "tsx", "src/index.ts"]
+WORKDIR /app
+CMD ["node", "start.mjs"]
