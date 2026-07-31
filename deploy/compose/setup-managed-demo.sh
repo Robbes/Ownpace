@@ -18,6 +18,8 @@ set -euo pipefail
 #   2. ./deploy/compose/setup-managed-demo.sh
 #   3. pnpm --filter @openmig/api seed:managed   (reads the fixed demo creds below)
 #   4. docker compose -f deploy/compose/managed.yml up -d --build (rest of the stack)
+#   5. ./deploy/compose/deploy-tasks.sh          (Trigger.dev tasks — needed for
+#      verify/apply's job loop; one-time dashboard steps in that script's header)
 #
 # Idempotent: both underlying scripts are safe to re-run.
 #
