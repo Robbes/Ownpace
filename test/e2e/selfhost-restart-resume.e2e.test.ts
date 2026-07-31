@@ -63,7 +63,24 @@ function fileNaturalKeyHash(path: string): string {
   return createHash('sha256').update(`file:${path}`).digest('hex');
 }
 
-const COMPOSE_FILE = 'deploy/selfhost/compose.yml';
+/**
+ * The compose files this gate drives, as one `-f a -f b` fragment.
+ *
+ * `SELFHOST_COMPOSE_OVERRIDE` lets the SAME gate run against the PGlite
+ * appliance (`deploy/selfhost/compose.pglite.yml`), which has no Postgres
+ * container at all. That matters here more than anywhere else: "survives a
+ * restart" is this gate's whole subject, and on PGlite the database is a
+ * directory inside the app's own container rather than a separate service, so
+ * restart-durability is a genuinely different claim.
+ *
+ *   SELFHOST_COMPOSE_OVERRIDE=deploy/selfhost/compose.pglite.yml pnpm test:e2e
+ */
+const COMPOSE_FILES = [
+  'deploy/selfhost/compose.yml',
+  ...(process.env.SELFHOST_COMPOSE_OVERRIDE ? [process.env.SELFHOST_COMPOSE_OVERRIDE] : []),
+]
+  .map((f) => `-f ${f}`)
+  .join(' ');
 const SELFHOST_PORT = process.env.SELFHOST_PORT || '8081';
 const SELFHOST_BIND = process.env.SELFHOST_BIND || '127.0.0.1';
 
@@ -375,7 +392,7 @@ describe('Restart-Resume Idempotency Gate (T5)', () => {
    * near the 1.0 that means "serial".
    */
   it('every domain actually runs items concurrently', () => {
-    const logs = execSync(`docker compose -f ${COMPOSE_FILE} logs app --no-color --tail 4000`, {
+    const logs = execSync(`docker compose ${COMPOSE_FILES} logs app --no-color --tail 4000`, {
       encoding: 'utf8',
       maxBuffer: 64 * 1024 * 1024,
     });
@@ -570,7 +587,7 @@ describe('Restart-Resume Idempotency Gate (T5)', () => {
       expect(firstPassSynced[domain], `${domain} first-pass test must run first and observe items`).toBeGreaterThan(0);
     }
 
-    execSync(`docker compose -f ${COMPOSE_FILE} restart app`, { stdio: 'inherit' });
+    execSync(`docker compose ${COMPOSE_FILES} restart app`, { stdio: 'inherit' });
     await setTimeout(5000);
     await waitForHealth();
 

@@ -1,0 +1,45 @@
+# Self-host appliance with NO Postgres server (workplans 0015 T1 / 0016).
+#
+# An override for `compose.yml`. PGlite is Postgres compiled to WASM running
+# in-process, so this drops the `postgres` service entirely: no second
+# container, no port, no `initdb`, no `DATABASE_URL`, and no major-version
+# upgrade to perform on somebody's machine. Same SQL, same migrations, same
+# schema, same RLS policies (ADR-0023) — the *server* goes away, not Postgres.
+#
+# This is the shape a native installer ships. It exists here so the same thing
+# can be exercised with the tools that already exist, before there is an MSI.
+#
+#   docker compose -f deploy/selfhost/compose.yml \
+#                  -f deploy/selfhost/compose.pglite.yml up -d
+#
+# Everything else — config directory, port, bind address, secrets in `.env` —
+# is unchanged, so the e2e gates point at the same URL either way.
+#
+# NOTE: the `postgres` service is disabled with `profiles`, not deleted. Compose
+# merges overrides rather than replacing them, so a service defined in the base
+# file cannot be removed by an override; putting it in a profile that is never
+# activated is the supported way to leave it out of `up`.
+
+services:
+  postgres:
+    profiles: ['never']
+
+  app:
+    environment:
+      # The switch. Without it the appliance takes the server path and demands
+      # a DATABASE_URL.
+      SELFHOST_PERSISTENCE: pglite
+      # Deliberately NOT set: DATABASE_URL. PGlite is a directory, not an
+      # address. Compose merges maps key-by-key, so the base file's value is
+      # still present in the environment — the appliance ignores it on this
+      # path, and leaving it visible is less surprising than appearing to unset
+      # something an override cannot actually remove.
+      SELFHOST_PGLITE_DIR: /data/state/pglite
+      CONFIG_DIR: /data/config
+      HOST: 0.0.0.0
+      PORT: ${SELFHOST_PORT:-8081}
+    # The database now lives in the app's own state volume, which is what makes
+    # "survives a restart" a property of one container rather than two.
+    volumes:
+      - appdata:/data/state
+    depends_on: !reset []
