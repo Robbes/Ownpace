@@ -21,6 +21,18 @@
   logs show `[migrate] applying 0001…0004` → `applied 4 migration(s); now at
   0004_managed_apply.sql`, and the restart gate later reports `schema up to
   date`. Migrations 0002–0004 had never run in a real container before this.
+- **Live managed smoke (Spark, 2026-07-31).** Fresh stack (volume reset per the
+  migrator's own remedy — the old volume was pre-squash), migrations 0001–0004
+  on a real managed database, both seeded mappings showing
+  `allow_apply_deletions` FALSE by default. `POST /verify/start` over real auth
+  and RLS answered 502 and the run landed `failed` **3 ms later** with the
+  enqueue reason attached; five polls of `/verify/report` all served that
+  terminal state — never `running`, exactly the never-left-running property T3
+  promised. The enqueue error itself pins down the deploy follow-up's first
+  job: the SDK asks for `TRIGGER_SECRET_KEY`, while `managed.yml` supplies
+  `TRIGGER_API_KEY`/`TRIGGER_API_URL` and `trigger-client.ts` reads
+  `TRIGGER_DEV_ACCESS_TOKEN`/`TRIGGER_DEV_BASE_URL` — three disagreeing env
+  namings that the task-deployment follow-up owns reconciling.
 - **The managed compose stack could not have booted the new chain from a fresh
   volume**: `managed.yml` still mounted the migration files into
   `docker-entrypoint-initdb.d`, so initdb applied them with no
