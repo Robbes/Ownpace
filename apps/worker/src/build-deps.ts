@@ -35,7 +35,7 @@ import {
 import { JmapTargetWriter } from '@openmig/connectors';
 import { PgLedger } from '@openmig/ledger';
 import { PgCursorStore } from '@openmig/ledger';
-import { createPgDb } from '@openmig/ledger';
+import { createPgDb, type PgDatabase } from '@openmig/ledger';
 import {
   type DavEndpoint,
   buildCalendarSource,
@@ -67,11 +67,54 @@ export const DEFAULT_CONCURRENCY = 4;
 const LEDGER_POOL_MAX = DEFAULT_CONCURRENCY + 2;
 
 /**
- * Build the complete dependency bundle for a shadow pass.
- * This wires together all the components needed for the worker to run.
+ * A ledger the CALLER already owns, for a process that has one.
+ *
+ * The builders below default to opening their own `pg.Pool` from
+ * `DATABASE_URL`, which is right for the managed worker: it is stateless, a
+ * pass is a job, and the pool dies with it.
+ *
+ * It is wrong for the self-host appliance on PGlite, and wrong in a way that
+ * looked like it worked. PGlite is Postgres compiled to WASM running
+ * **in-process** — there is no address to connect to and no second connection
+ * to open — so a builder that reaches for `DATABASE_URL` is not talking to the
+ * appliance's database at all. On the container path it silently opened a
+ * SECOND pool to the same server and behaved; with the Postgres service gone it
+ * failed on the first ledger query of every domain with
+ * `getaddrinfo ENOTFOUND postgres`, which is how this was found.
+ *
+ * Pass this and the builder uses the handle instead of opening one — and its
+ * `close()` becomes a no-op, because the caller owns the lifetime. Closing an
+ * injected handle after a pass would take the appliance's whole database down
+ * with it.
  */
-export async function buildDeps(config: MappingConfig): Promise<WithClose<ReconcileDeps>> {
-  // Extract database connection from environment
+export interface LedgerOptions {
+  /** A drizzle handle bound to the caller's database. Not closed by the builder. */
+  readonly ledgerDb?: PgDatabase;
+}
+
+/**
+ * The ledger + cursor store a pass runs against, plus whatever needs closing.
+ *
+ * One place, so the two builders cannot drift on the part that decides which
+ * database the work lands in.
+ */
+function openLedger(options: LedgerOptions | undefined): {
+  db: PgDatabase;
+  ledger: PgLedger;
+  cursors: PgCursorStore;
+  closable: { close: () => Promise<void> };
+} {
+  const provided = options?.ledgerDb;
+  if (provided) {
+    return {
+      db: provided,
+      ledger: new PgLedger(provided),
+      cursors: new PgCursorStore(provided),
+      // The caller's, not ours. See LedgerOptions.
+      closable: { close: async () => {} },
+    };
+  }
+
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     throw new Error(
@@ -79,15 +122,33 @@ export async function buildDeps(config: MappingConfig): Promise<WithClose<Reconc
       'Example: postgres://user:password@localhost:5432/openmig'
     );
   }
+  // Fail rather than connect to whatever DATABASE_URL happens to name. On the
+  // PGlite appliance that variable is still set — compose merges maps key by
+  // key, so an override cannot remove what the base file declares — and reading
+  // it means a pass writes its ledger somewhere other than the database the
+  // appliance migrated and serves. Silent divergence beats a crash only until
+  // somebody looks at the data.
+  if (process.env.SELFHOST_PERSISTENCE === 'pglite') {
+    throw new Error(
+      'The appliance is running on PGlite, so a pass cannot open its own ' +
+      'Postgres pool — it must be given the appliance\'s ledger handle ' +
+      '(`ledgerDb`). This is a wiring bug, not a configuration one.',
+    );
+  }
 
-  // Create database connection
   const db = createPgDb(databaseUrl, LEDGER_POOL_MAX);
+  return { db, ledger: new PgLedger(db), cursors: new PgCursorStore(db), closable: db };
+}
 
-  // Create ledger
-  const ledger = new PgLedger(db);
-
-  // Create cursor store
-  const cursors = new PgCursorStore(db);
+/**
+ * Build the complete dependency bundle for a shadow pass.
+ * This wires together all the components needed for the worker to run.
+ */
+export async function buildDeps(
+  config: MappingConfig,
+  options?: LedgerOptions,
+): Promise<WithClose<ReconcileDeps>> {
+  const { ledger, cursors, closable } = openLedger(options);
 
   // Build throttle limiter from domain configuration
   const throttleLimiter = buildThrottleLimiter(config);
@@ -120,7 +181,7 @@ export async function buildDeps(config: MappingConfig): Promise<WithClose<Reconc
         ? { excludeSpecialUse: config.excludeSpecialUse }
         : {}),
     },
-    db,
+    closable,
   );
 }
 
@@ -331,7 +392,8 @@ function buildTargetWriter(targetConfig: MappingConfig['target']): TargetWriter 
  */
 export function buildDomainDeps(
   config: MappingConfig,
-  domain: 'calendar'
+  domain: 'calendar',
+  options?: LedgerOptions,
 ): WithClose<{
   tenantId: TenantId;
   mappingId: MappingId;
@@ -343,7 +405,8 @@ export function buildDomainDeps(
 }>;
 export function buildDomainDeps(
   config: MappingConfig,
-  domain: 'contact'
+  domain: 'contact',
+  options?: LedgerOptions,
 ): WithClose<{
   tenantId: TenantId;
   mappingId: MappingId;
@@ -355,7 +418,8 @@ export function buildDomainDeps(
 }>;
 export function buildDomainDeps(
   config: MappingConfig,
-  domain: 'file'
+  domain: 'file',
+  options?: LedgerOptions,
 ): WithClose<{
   tenantId: TenantId;
   mappingId: MappingId;
@@ -367,7 +431,8 @@ export function buildDomainDeps(
 }>;
 export function buildDomainDeps(
   config: MappingConfig,
-  domain: 'calendar' | 'contact' | 'file'
+  domain: 'calendar' | 'contact' | 'file',
+  options?: LedgerOptions,
 ): WithClose<{
   tenantId: TenantId;
   mappingId: MappingId;
@@ -377,13 +442,7 @@ export function buildDomainDeps(
   cursors?: CursorStore;
   concurrency?: number;
 }> {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    throw new Error('DATABASE_URL environment variable is required');
-  }
-  const db = createPgDb(databaseUrl, LEDGER_POOL_MAX);
-  const ledger = new PgLedger(db);
-  const cursors = new PgCursorStore(db);
+  const { ledger, cursors, closable } = openLedger(options);
 
   // Get domain config
   let domainConfig;
@@ -446,7 +505,7 @@ export function buildDomainDeps(
         ? { excludeSpecialUse: config.excludeSpecialUse }
         : {}),
     },
-    db,
+    closable,
   );
 }
 

@@ -271,6 +271,18 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   // The failure queue's two reads and two writes (§11.2's "actions required").
   const ledger = new PgLedger(db);
   const cursorStore = new PgCursorStore(db);
+  /**
+   * The appliance's own ledger, handed to every worker entry point it calls.
+   *
+   * Without it those builders open their OWN `pg.Pool` from `DATABASE_URL`,
+   * which is right for the managed worker and wrong here twice over. On the
+   * container path it quietly opened a second pool to the same server and
+   * looked fine. On PGlite there is no server to open a pool TO — it runs
+   * in-process — so every ledger query of every domain died with
+   * `getaddrinfo ENOTFOUND postgres`, and `SELFHOST_PERSISTENCE=pglite` turned
+   * out to have wired only the half of the appliance that reads.
+   */
+  const ledgerOptions = { ledgerDb: db };
   const scheduler = new InProcessScheduler();
   const handles: ScheduleHandle[] = [];
   // config mappingIds currently scheduled (only 'active' mappings run — 0013 T7).
@@ -404,7 +416,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         log.error(`[selfhost] ${m.config.mappingId}: failed to open run row:`, err instanceof Error ? err.message : err);
       }
 
-      const results = await runAllDomains(configWithCorrectMappingId, statusStore);
+      const results = await runAllDomains(configWithCorrectMappingId, statusStore, ledgerOptions);
       const created = results.reduce((n, r) => n + r.created, 0);
 
       if (runId) {
@@ -464,6 +476,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       discoveryStore,
       m.config.tenantId as TenantId,
       m.mailboxMappingId as MappingId,
+      ledgerOptions,
     ).catch((err) => {
       log.error(
         `[selfhost] ${m.config.mappingId}: discovery failed:`,
@@ -546,10 +559,10 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       if (req.method === 'GET' && req.url === '/verify') {
         const reports: Record<string, VerificationResult> = {};
         for (const m of mappings) {
-          reports[m.config.mappingId] = await verifyMapping({
-            ...m.config,
-            mappingId: m.mailboxMappingId,
-          } as typeof m.config);
+          reports[m.config.mappingId] = await verifyMapping(
+            { ...m.config, mappingId: m.mailboxMappingId } as typeof m.config,
+            ledgerOptions,
+          );
         }
         return sendJson(res, 200, reports);
       }
@@ -735,7 +748,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
 
         const configWithCorrectMappingId = { ...m.config, mappingId: m.mailboxMappingId };
-        const outcome = await applyMappingDeletion(configWithCorrectMappingId, hash);
+        const outcome = await applyMappingDeletion(configWithCorrectMappingId, hash, ledgerOptions);
 
         if (!outcome.ok) {
           // Every refusal reason is written to be read verbatim by an operator —
@@ -1076,6 +1089,33 @@ async function shutdown(
   await db.close();
 }
 
+/**
+ * A hint to print next to a startup failure we know the shape of.
+ *
+ * Only one so far, and it cost a full e2e cycle to diagnose from the raw error:
+ * `EACCES … mkdir '/data/state/pglite'`. That message names the path and the
+ * syscall and is still not enough, because the cause is not in the container at
+ * all — Docker seeds a fresh named volume with the ownership of the image
+ * directory it covers, so a volume created by an image that never made
+ * `/data/state` comes up owned by root, and the appliance runs as uid 10001.
+ *
+ * Returns the hint rather than replacing the error, and the caller logs both:
+ * a guess that turned out to be wrong must not be the only thing an operator
+ * sees (hard rule 9). Anything unrecognised gets nothing, deliberately — a hint
+ * for every error is a hint for none.
+ */
+export function startupHint(err: unknown): string | undefined {
+  const e = err as { code?: string; path?: string } | null;
+  if (e?.code !== 'EACCES' || !e.path) return undefined;
+  return (
+    `The appliance runs as uid 10001 and cannot write to ${e.path}. ` +
+    'In Docker, that usually means the volume mounted there is owned by root — ' +
+    'which happens when it was created by an image that did not itself create ' +
+    'the directory. Recreate the volume (`docker compose down -v`) on a current ' +
+    'image, or chown it to 10001:10001.'
+  );
+}
+
 // CLI entrypoint (skipped when imported by tests).
 const invokedPath = process.argv[1];
 if (invokedPath && import.meta.url === `file://${invokedPath}`) {
@@ -1090,6 +1130,8 @@ if (invokedPath && import.meta.url === `file://${invokedPath}`) {
     })
     .catch((err) => {
       log.error('[selfhost] failed to start:', err);
+      const hint = startupHint(err);
+      if (hint) log.error(`[selfhost] ${hint}`);
       process.exit(1);
     });
 }

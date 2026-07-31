@@ -8,9 +8,9 @@
 | P1 Resolve it | ✅ **Done — nothing to resolve** | No overrides, no `.npmrc` change, no atomic workspace change. `@electric-sql/pglite` is a normal dependency of `packages/ledger`. |
 | P2 `pgliteDriver()` implementing `LedgerDriver` | ✅ **Done** | `packages/ledger/src/pglite-driver.ts`. Serialises `acquire()`, resets rather than destroys on a failed rollback, loads the `pgcrypto` contrib, re-asserts `row_security` per acquire. |
 | P3 Run RLS against PGlite | ✅ **Done — RLS genuinely ENFORCES** | `pglite-driver.unit.test.ts`: the real 2580-line baseline applies unmodified; tenant A sees only A's row, B only B's, cross-tenant INSERT refused — all under `SET LOCAL ROLE app_user`. **Mutation-verified**: removing the role switch fails all three, because a superuser bypasses RLS. 11 tests, ~6 s, **no Docker**. |
-| **P6 Wire the appliance to it** | ✅ **Done** | `SELFHOST_PERSISTENCE=pglite` — `apps/selfhost` starts, migrates itself and serves the operating surface with **no `DATABASE_URL`**. The Postgres path is untouched and still the default (hard rule 5). 4 startup tests. |
+| **P6 Wire the appliance to it** | ✅ **Done — but it was only HALF done until the e2e said so** | `SELFHOST_PERSISTENCE=pglite` — `apps/selfhost` starts, migrates itself and serves the operating surface with **no `DATABASE_URL`** (4 startup tests). **That was the reading half.** The SYNC half went on opening its own `pg.Pool` from `DATABASE_URL` inside `buildDeps`, so no pass ever touched the appliance's database — invisible on the container path (a second pool to the same server), fatal on PGlite (`getaddrinfo ENOTFOUND postgres`). Fixed by threading the appliance's handle through all four worker entry points; `buildDeps` now REFUSES to open its own pool when `SELFHOST_PERSISTENCE=pglite`. 5 wiring tests, mutation-verified. See "P6 — the half that was missing". |
 | P4 Decide + document the two-backend testing story | ✅ **Done — and it found a real hole** | Two backends ship. Asking the question surfaced that **RLS was inert on BOTH of the appliance's paths**: it connects as the owner (container) or as `postgres` (PGlite), and Postgres exempts owners and superusers from row security — so 96 policies were created, granted, tested and bypassed, while every RLS test stayed green by opening its own `app_user` pool the appliance never uses. Fixed with `LedgerDriver.role` (`SET LOCAL ROLE` inside `withTenant`'s transaction), and now proved through the production wiring on both backends: `rls-in-force.unit.test.ts` (PGlite, no Docker) and `rls-in-force.integration.test.ts` (real Postgres, on a superuser connection). Mutation-verified. |
-| **P7 e2e on the PGlite backend** | 🟡 **Runnable, not yet run** | `deploy/selfhost/compose.pglite.yml` (validated with `docker compose config`: only `app` starts, no `depends_on`, `SELFHOST_PERSISTENCE=pglite`), and the Restart-Resume gate takes `SELFHOST_COMPOSE_OVERRIDE`. **Needs a runner with Docker** — not executed here. |
+| **P7 e2e on the PGlite backend** | ✅ **Done — GREEN, 35 tests, three gates** | Dispatched with `persistence: pglite` (`compose.pglite.yml`, no Postgres container at all): **Restart-Resume 9**, **Verification 14**, **Apply-Deletion 12**. All four domains sync, survive `docker compose restart app` with zero duplicates (email 59→59, calendar 60→60, contact 60→60, file 177→177), the planted unmigratable item is isolated and accepted, a source-side move is reported and closed, byte-identical binary and non-ASCII fidelity holds, and `apply` removes the target copy — verified against the real Stalwart/Nextcloud, not against the appliance's own answer — with no resurrection on the next pass. **It took two runs and found two real bugs on the way**: `/data/state` was never created in the image, so Docker seeded the `appdata` volume root-owned and PGlite could not `mkdir` (`EACCES`); and then the sync path turned out never to have been on the seam at all (see P6). Neither was findable without this run. |
 | P5 Concurrency, measured | ✅ **Done — serialisation costs nothing measurable** | `scripts/bench-pglite-concurrency.mjs` (`pnpm bench:pglite`), real hot path through real `withTenant`. Flat 3.6–3.9 ms/item across widths 1→16; width 8 vs 1 across three runs: **+6.8%, −0.0%, −6.2%** — noise. **Two corrections to the T0 numbers below.** Still not a real mailbox. |
 
 > **This workplan exists so T1 is not left half-done indefinitely.** Workplan
@@ -126,6 +126,87 @@ the claim worth testing.
 
 Worth noting for P4: this suite lives in the **unit** project. RLS enforcement
 previously could not be tested without a Postgres container.
+
+## P6 — the half that was missing
+
+**Recorded in full because the wrong conclusion shipped in this file's own
+status block, and shipped confidently.**
+
+P6 read "Done — the appliance starts, migrates itself and serves the operating
+surface with no `DATABASE_URL`". Every word of that is true. Every word of it is
+about the half of the appliance that **reads**.
+
+The half that **copies** was never on the seam:
+
+```ts
+// apps/worker/src/build-deps.ts — called once per pass, per domain
+const databaseUrl = process.env.DATABASE_URL;
+const db = createPgDb(databaseUrl, LEDGER_POOL_MAX);
+const ledger  = new PgLedger(db);
+const cursors = new PgCursorStore(db);
+```
+
+That is correct for the managed worker — stateless, a pass is a job, the pool
+dies with it. On the appliance it means every pass opened its **own** pool,
+never touching the database the appliance had migrated and was serving.
+
+On the container path that was invisible: a second pool to the same Postgres.
+Wasteful, and it worked. On PGlite there is no server to open a pool *to* —
+it runs in-process and has no address — so `DATABASE_URL` still pointed at the
+`postgres` service the override had disabled, and the first ledger query of
+every domain died:
+
+```
+[Worker] email sync failed: Failed query: select "cursor_value" from "cursor" …
+  cause: getaddrinfo ENOTFOUND postgres
+```
+
+All four domains, every pass, deterministically. The gate then waited its full
+300 s for a completed pass that was never coming, which is why it looked like a
+timeout.
+
+### Why nothing caught it
+
+- `pglite-startup.unit.test.ts` starts a real appliance on PGlite — and never
+  runs a pass. It tests the HTTP surface.
+- The e2e runs real passes — and always had a Postgres container, which the
+  second pool connected to happily.
+
+Neither test was wrong. Between them they covered every line and left the
+intersection — *a pass, without Postgres present* — uncovered. That
+intersection is the entire claim of this workplan.
+
+### The fix
+
+An optional `LedgerOptions { ledgerDb }` threaded through the four worker entry
+points the appliance calls — `runAllDomains`, `discoverAllDomains`,
+`verifyMapping`, `applyMappingDeletion` — into `buildDeps`/`buildDomainDeps`
+and `createLedgerVerificationReader`. Managed passes nothing and is unchanged.
+
+Three details that are not incidental:
+
+- **An injected handle is never closed.** `withClose()` gets a no-op. The
+  appliance has one database and hands the same handle to every pass; closing it
+  afterwards would take the appliance down, and on PGlite there is no pool to
+  reopen.
+- **`buildDeps` REFUSES to fall back when `SELFHOST_PERSISTENCE=pglite`.** This
+  is the part that makes the bug unrepeatable. `DATABASE_URL` is still set on
+  that path — compose merges maps key by key, so an override cannot remove what
+  the base file declares — so a fallback does not fail, it *succeeds against the
+  wrong database*. We were lucky the host had gone away.
+- **Tested as wiring, not as syncing.** `ledger-injection.unit.test.ts` asserts
+  the handle passed in is the handle used, and that it is not closed. No
+  connectors, no network, no database: the defect was plumbing, so plumbing is
+  what is inspected. Mutation-verified — ignoring the injected handle fails 3 of
+  the 5.
+
+### The lesson worth keeping
+
+"The appliance runs on PGlite" was asserted from the startup path and believed.
+The question that would have caught it is not *"does it start?"* but **"which
+database does the work land in?"** — and the only thing that could answer it was
+running a real pass with the server genuinely absent.
+
 
 ## P4 — two backends, and the hole that asking about them found
 

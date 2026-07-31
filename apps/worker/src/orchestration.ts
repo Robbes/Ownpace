@@ -42,7 +42,7 @@ import {
   fileNaturalKeyHash,
 } from '@openmig/shared';
 import type { TargetReindexer } from '@openmig/shared';
-import { buildDeps, buildDomainDeps } from './build-deps';
+import { buildDeps, buildDomainDeps, type LedgerOptions } from './build-deps';
 import { discoverDomains, type DomainDiscoveryTask, type DomainDiscoveryOutcome } from './discovery';
 import { log, metrics as registry, MAX_ITEM_ATTEMPTS, type PassMetrics } from '@openmig/shared';
 
@@ -248,6 +248,7 @@ export function planDomainLanes(
 export async function runAllDomains(
   config: MappingConfig,
   statusStore: MigrationStatusStore,
+  ledger?: LedgerOptions,
 ): Promise<DomainSyncResult[]> {
   const results: DomainSyncResult[] = [];
   const domains: Array<{ name: SyncDomain; enabled: boolean }> = [
@@ -308,7 +309,7 @@ export async function runAllDomains(
       // Each builder opens a Postgres pool; always release it after the pass
       // (finally) so a long-running scheduler never leaks a pool per domain.
       if (domain === 'email') {
-        const deps = await buildDeps(config);
+        const deps = await buildDeps(config, ledger);
         try {
           const result = await runShadowPass(deps);
           outcome = { domain, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted ?? 0, moved: result.moved ?? 0, failed: 0 };
@@ -326,7 +327,7 @@ export async function runAllDomains(
           await deps.close();
         }
       } else if (domain === 'calendar') {
-        const deps = buildDomainDeps(config, 'calendar');
+        const deps = buildDomainDeps(config, 'calendar', ledger);
         try {
           const result = await runCalendarSync(deps);
           outcome = {
@@ -348,7 +349,7 @@ export async function runAllDomains(
           await deps.close();
         }
       } else if (domain === 'contact') {
-        const deps = buildDomainDeps(config, 'contact');
+        const deps = buildDomainDeps(config, 'contact', ledger);
         try {
           const result = await runContactSync(deps);
           outcome = {
@@ -370,7 +371,7 @@ export async function runAllDomains(
           await deps.close();
         }
       } else {
-        const deps = buildDomainDeps(config, 'file');
+        const deps = buildDomainDeps(config, 'file', ledger);
         try {
           const result = await runFileSync(deps);
           outcome = {
@@ -502,6 +503,7 @@ export async function discoverAllDomains(
   store: DiscoveryStore,
   tenantId: TenantId,
   mappingId: MappingId,
+  ledger?: LedgerOptions,
 ): Promise<DomainDiscoveryOutcome[]> {
   const hasDomainConfig = config.domains && Object.values(config.domains).some((d) => d?.enabled);
   const runMailOnly = !hasDomainConfig && config.source.type === 'imap-oauth2';
@@ -509,16 +511,16 @@ export async function discoverAllDomains(
   type Opened = { source: unknown; target: unknown; close: () => Promise<void> };
   const enabled: Array<{ domain: DiscoveryDomain; open: () => Promise<Opened> }> = [];
   if (config.domains?.mail?.enabled || runMailOnly) {
-    enabled.push({ domain: 'email', open: async () => { const d = await buildDeps(config); return { source: d.source, target: d.target, close: d.close }; } });
+    enabled.push({ domain: 'email', open: async () => { const d = await buildDeps(config, ledger); return { source: d.source, target: d.target, close: d.close }; } });
   }
   if (config.domains?.calendar?.enabled) {
-    enabled.push({ domain: 'calendar', open: async () => { const d = buildDomainDeps(config, 'calendar'); return { source: d.source, target: d.target, close: d.close }; } });
+    enabled.push({ domain: 'calendar', open: async () => { const d = buildDomainDeps(config, 'calendar', ledger); return { source: d.source, target: d.target, close: d.close }; } });
   }
   if (config.domains?.contacts?.enabled) {
-    enabled.push({ domain: 'contact', open: async () => { const d = buildDomainDeps(config, 'contact'); return { source: d.source, target: d.target, close: d.close }; } });
+    enabled.push({ domain: 'contact', open: async () => { const d = buildDomainDeps(config, 'contact', ledger); return { source: d.source, target: d.target, close: d.close }; } });
   }
   if (config.domains?.files?.enabled) {
-    enabled.push({ domain: 'file', open: async () => { const d = buildDomainDeps(config, 'file'); return { source: d.source, target: d.target, close: d.close }; } });
+    enabled.push({ domain: 'file', open: async () => { const d = buildDomainDeps(config, 'file', ledger); return { source: d.source, target: d.target, close: d.close }; } });
   }
 
   const tasks: DomainDiscoveryTask[] = enabled.map(({ domain, open }) => ({
@@ -657,9 +659,12 @@ function firstUid(text?: string): string | undefined {
  * whose target cannot enumerate itself is left out of the map, and
  * `runVerification` reports it honestly rather than inventing numbers.
  */
-export async function verifyMapping(config: MappingConfig): Promise<VerificationResult> {
+export async function verifyMapping(
+  config: MappingConfig,
+  ledger?: LedgerOptions,
+): Promise<VerificationResult> {
   const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
+  if (!ledger?.ledgerDb && !databaseUrl) {
     throw new Error('DATABASE_URL environment variable is required to run verification');
   }
 
@@ -694,31 +699,33 @@ export async function verifyMapping(config: MappingConfig): Promise<Verification
 
   if (config.domains?.mail?.enabled ?? config.source.type === 'imap-oauth2') {
     await collect('mail', async () => {
-      const d = await buildDeps(config);
+      const d = await buildDeps(config, ledger);
       return { target: d.target, close: d.close };
     });
   }
   if (config.domains?.calendar?.enabled) {
     await collect('calendar', async () => {
-      const d = buildDomainDeps(config, 'calendar');
+      const d = buildDomainDeps(config, 'calendar', ledger);
       return { target: d.target, close: d.close };
     });
   }
   if (config.domains?.contacts?.enabled) {
     await collect('contacts', async () => {
-      const d = buildDomainDeps(config, 'contact');
+      const d = buildDomainDeps(config, 'contact', ledger);
       return { target: d.target, close: d.close };
     });
   }
   if (config.domains?.files?.enabled) {
     await collect('files', async () => {
-      const d = buildDomainDeps(config, 'file');
+      const d = buildDomainDeps(config, 'file', ledger);
       return { target: d.target, close: d.close };
     });
   }
 
   // Owns its own pool (see createLedgerVerificationReader) — closed below.
-  const verificationReader = createLedgerVerificationReader({ connectionString: databaseUrl });
+  const verificationReader = createLedgerVerificationReader(
+    ledger?.ledgerDb ? { db: ledger.ledgerDb } : { connectionString: databaseUrl! },
+  );
 
   try {
     return await runVerification(
@@ -785,6 +792,7 @@ function enabledSyncDomains(config: MappingConfig): SyncDomain[] {
 async function openSyncDomainDeps(
   config: MappingConfig,
   domain: SyncDomain,
+  ledgerOptions?: LedgerOptions,
 ): Promise<{ target: unknown; ledger: Ledger; close: () => Promise<void> }> {
   // Branched explicitly rather than passing `domain` straight through: each
   // overload of `buildDomainDeps` accepts exactly one literal, and the union
@@ -792,19 +800,19 @@ async function openSyncDomainDeps(
   // as the overload resolution is concerned.
   switch (domain) {
     case 'email': {
-      const d = await buildDeps(config);
+      const d = await buildDeps(config, ledgerOptions);
       return { target: d.target, ledger: d.ledger, close: d.close };
     }
     case 'calendar': {
-      const d = buildDomainDeps(config, 'calendar');
+      const d = buildDomainDeps(config, 'calendar', ledgerOptions);
       return { target: d.target, ledger: d.ledger, close: d.close };
     }
     case 'contact': {
-      const d = buildDomainDeps(config, 'contact');
+      const d = buildDomainDeps(config, 'contact', ledgerOptions);
       return { target: d.target, ledger: d.ledger, close: d.close };
     }
     case 'file': {
-      const d = buildDomainDeps(config, 'file');
+      const d = buildDomainDeps(config, 'file', ledgerOptions);
       return { target: d.target, ledger: d.ledger, close: d.close };
     }
   }
@@ -828,6 +836,7 @@ async function openSyncDomainDeps(
 export async function applyMappingDeletion(
   config: MappingConfig,
   naturalKeyHash: string,
+  ledger?: LedgerOptions,
 ): Promise<ApplyDeletionOutcome> {
   const tenantId = config.tenantId as TenantId;
   const mappingId = config.mappingId as MappingId;
@@ -842,7 +851,7 @@ export async function applyMappingDeletion(
   }
 
   for (const domain of domains) {
-    const deps = await openSyncDomainDeps(config, domain);
+    const deps = await openSyncDomainDeps(config, domain, ledger);
     try {
       const row = await deps.ledger.find(tenantId, mappingId, domain, naturalKeyHash);
       // Not this domain's item — move on without touching anything or
