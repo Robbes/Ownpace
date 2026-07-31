@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+import { useParams } from 'react-router';
 import { AlertCircle, CheckCircle2, HelpCircle, Loader2, MinusCircle, XCircle } from 'lucide-react';
 import type {
   DataTypeVerification,
@@ -184,6 +185,10 @@ function Report({ mappingId, r }: { mappingId: string; r: VerificationResult }):
 }
 
 const Verify: React.FC = () => {
+  // Present on the managed per-mapping route (`mappings/:mappingId/verify`),
+  // absent on the appliance's flat one — `verifyPath()` needs it for the former
+  // and ignores it for the latter, the same split the queue screens have.
+  const { mappingId } = useParams<{ mappingId: string }>();
   const [state, setState] = React.useState<
     | { kind: 'idle' }
     | { kind: 'running'; startedAt?: string }
@@ -205,7 +210,7 @@ const Verify: React.FC = () => {
   React.useEffect(() => stopPolling, []);
 
   const poll = () => {
-    void fetchVerifyReport()
+    void fetchVerifyReport(mappingId)
       .then((r) => {
         if (r.state === 'done') {
           stopPolling();
@@ -232,7 +237,7 @@ const Verify: React.FC = () => {
 
   const run = () => {
     setState({ kind: 'running' });
-    void startVerification()
+    void startVerification(mappingId)
       .then(({ report }) => {
         setState({
           kind: 'running',

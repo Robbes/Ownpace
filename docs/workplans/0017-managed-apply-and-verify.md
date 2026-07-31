@@ -55,14 +55,17 @@
 
 ## Follow-ups this plan now owns
 
-- **The managed Verify screen.** T3 gives managed the endpoints and T5 gives
-  the screen the start + poll loop — but the screen calls the appliance's flat
-  paths (`/verify/start`), and managed's are per-mapping
-  (`/api/migrations/:id/verify/start`). Wiring the managed screen means the
-  same `*PathFor(edition, mappingId)` treatment the queue screens already have
-  (`services/edition.ts`), plus a route in App.tsx. Until then the managed
-  endpoints are curl-able and job-backed but have no screen — an honest gap,
-  same shape ADR-0026 used to record for the endpoints themselves.
+- **The managed Verify screen.** ✅ Done — `verifyPathFor(edition, action,
+  mappingId)` in `services/edition.ts` (flat pair on the appliance, per-mapping
+  on managed, refusing a managed call with no id), the screen reads
+  `:mappingId` from the route, and App.tsx mounts `mappings/:mappingId/verify`
+  beside the flat `verify` — the same two mount points the queues have. Tests:
+  4 on the pure path function, 1 routed jsdom test pinning that the URL's id
+  reaches BOTH service calls (start one mapping's scan, poll another's, is the
+  bug it exists for). What remains true, unchanged by this: NO per-mapping
+  screen (queues included) is linked from any navigation — they are
+  URL-reachable only, a pre-existing posture that belongs to a
+  managed-navigation piece of work, not to this wiring.
 - **Retiring the appliance's synchronous `GET /verify`** once the e2e
   verification gate moves to the pair — T2 kept it for exactly one release.
 - **Deploying the Trigger.dev v4 tasks.** T3/T4 give managed its jobs

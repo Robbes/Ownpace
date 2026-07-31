@@ -12,6 +12,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import Verify from './Verify';
 import * as service from '../services/operating-service';
 import type { VerificationResult } from '@openmig/shared';
@@ -176,5 +177,37 @@ describe('the Verify screen', () => {
 
     // The rejected first poll did not kill the loop or the run.
     expect(screen.getByText('mapping-1')).toBeInTheDocument();
+  });
+
+  it('hands the route mappingId to BOTH service calls on the managed per-mapping route', async () => {
+    // The bare renders above have no router, so `useParams` yields nothing and
+    // the service sees `undefined` — the appliance's flat shape. This is the
+    // managed shape: the id in the URL must reach start AND report, or the
+    // screen would start one mapping's scan and poll another's.
+    vi.useFakeTimers();
+    started.mockResolvedValue({
+      started: true,
+      report: { state: 'running', startedAt: '2026-07-31T12:00:00Z' },
+    });
+    fetched.mockResolvedValue({
+      state: 'failed',
+      startedAt: '2026-07-31T12:00:00Z',
+      error: 'stopped here, deliberately — one poll is enough for this test',
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/mappings/m-42/verify']}>
+        <Routes>
+          <Route path="mappings/:mappingId/verify" element={<Verify />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /run the check/i }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+    expect(started).toHaveBeenCalledWith('m-42');
+    expect(fetched).toHaveBeenCalledWith('m-42');
   });
 });

@@ -27,6 +27,7 @@ import {
   mappingPathFor,
   operatingBaseUrlFor,
   queuePathFor,
+  verifyPathFor,
 } from './edition';
 
 describe('edition detection', () => {
@@ -69,6 +70,28 @@ describe('queuePathFor', () => {
     expect(queuePathFor('managed', 'moves', 'a/b')).toBe('/migrations/a%2Fb/moves');
     // ...and the appliance ignores the id entirely, so it cannot be smuggled in.
     expect(queuePathFor('selfhost', 'moves', '../secrets')).toBe('/moves');
+  });
+});
+
+describe('verifyPathFor', () => {
+  it('is the appliance root pair for self-host — one run covers every mapping', () => {
+    expect(verifyPathFor('selfhost', 'start')).toBe('/verify/start');
+    expect(verifyPathFor('selfhost', 'report')).toBe('/verify/report');
+  });
+
+  it('hangs off the mapping for managed, where a run is a per-mapping row', () => {
+    expect(verifyPathFor('managed', 'start', 'm-1')).toBe('/migrations/m-1/verify/start');
+    expect(verifyPathFor('managed', 'report', 'm-1')).toBe('/migrations/m-1/verify/report');
+  });
+
+  it('REFUSES a managed verify with no mapping — a scan is a real cost against a real target', () => {
+    expect(() => verifyPathFor('managed', 'start')).toThrow(/needs a mappingId/);
+    expect(() => verifyPathFor('managed', 'report')).toThrow(/needs a mappingId/);
+  });
+
+  it('escapes the id, and the appliance ignores it entirely', () => {
+    expect(verifyPathFor('managed', 'start', 'a/b')).toBe('/migrations/a%2Fb/verify/start');
+    expect(verifyPathFor('selfhost', 'start', '../secrets')).toBe('/verify/start');
   });
 });
 

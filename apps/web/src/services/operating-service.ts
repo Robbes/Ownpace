@@ -22,7 +22,7 @@ import type {
   ScopeManifest,
   StatusReport,
 } from '@openmig/shared';
-import { mappingPath, operatingBaseUrl, queuePath } from './edition';
+import { mappingPath, operatingBaseUrl, queuePath, verifyPath } from './edition';
 
 const client: AxiosInstance = axios.create({
   baseURL: operatingBaseUrl(),
@@ -173,14 +173,17 @@ export async function runPass(mappingId: string): Promise<unknown> {
  * whole scan, behind a 15-minute axios timeout. That worked exactly as long as
  * nothing between the browser and the appliance cut a quarter-hour request —
  * and could never work on managed, where target I/O belongs to the worker.
+ *
+ * `mappingId` is required by the managed edition and ignored by the appliance —
+ * see `verifyPath()`, the same split the queues have.
  */
-export async function startVerification(): Promise<VerifyStartResponse> {
-  return (await client.post<VerifyStartResponse>('/verify/start')).data;
+export async function startVerification(mappingId?: string): Promise<VerifyStartResponse> {
+  return (await client.post<VerifyStartResponse>(verifyPath('start', mappingId))).data;
 }
 
 /** The current run's state. A status read — safe to poll, starts nothing. */
-export async function fetchVerifyReport(): Promise<VerificationRunReport> {
-  return (await client.get<VerificationRunReport>('/verify/report')).data;
+export async function fetchVerifyReport(mappingId?: string): Promise<VerificationRunReport> {
+  return (await client.get<VerificationRunReport>(verifyPath('report', mappingId))).data;
 }
 
 /** A refusal to finish, kept distinct from a transport failure — see `DecisionRefusedError`. */
