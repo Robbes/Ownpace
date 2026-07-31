@@ -12,6 +12,47 @@
 | T5 The Verify screen starts and polls instead of blocking | ✅ **Done** | `Verify.tsx` POSTs `/verify/start` and polls `/verify/report` every 3 s; the 15-minute single-request GET is gone from the client. The loop stops on every terminal state (mutation-verified), `failed` renders as not-a-result with the reason, a mid-run appliance restart (`never-run` while polling) is said out loud instead of spun against forever, and a missed poll keeps polling — the run's state is authoritative, not the network. 5 jsdom tests. |
 | T6 `verification.status` cannot hold two of the five statuses | ✅ **Done — and the run table with it** | `0003_verification_fits_the_contract.sql`: the CHECK now admits all five statuses (`skipped`, `not_verifiable` were unstorable — exactly the two the UI refuses to soften), and `verification_run` exists for the run-level truth managed must persist (state/started/finished/error/report jsonb), with a CHECK that refuses rows that lie about themselves (running-with-finish, terminal-without). RLS + FORCE + grants match every other table; the `force-rls` catalog audit covers it by name (mutation-verified — dropping FORCE fails naming `verification_run`). 6 schema tests. |
 
+## Post-merge validation (2026-07-31)
+
+- **e2e, both backends, first real boot through the squashed chain.** `E2E
+  (self-hosted)` dispatched twice on merged main (75-message corpus):
+  `persistence: postgres` and `persistence: pglite`, 46/46 each (UI smoke 5,
+  restart-resume 9, verification 14, apply-deletion 12, finish 6). Both boot
+  logs show `[migrate] applying 0001…0004` → `applied 4 migration(s); now at
+  0004_managed_apply.sql`, and the restart gate later reports `schema up to
+  date`. Migrations 0002–0004 had never run in a real container before this.
+- **Live managed smoke (Spark, 2026-07-31).** Fresh stack (volume reset per the
+  migrator's own remedy — the old volume was pre-squash), migrations 0001–0004
+  on a real managed database, both seeded mappings showing
+  `allow_apply_deletions` FALSE by default. `POST /verify/start` over real auth
+  and RLS answered 502 and the run landed `failed` **3 ms later** with the
+  enqueue reason attached; five polls of `/verify/report` all served that
+  terminal state — never `running`, exactly the never-left-running property T3
+  promised. The enqueue error itself pins down the deploy follow-up's first
+  job: the SDK asks for `TRIGGER_SECRET_KEY`, while `managed.yml` supplies
+  `TRIGGER_API_KEY`/`TRIGGER_API_URL` and `trigger-client.ts` reads
+  `TRIGGER_DEV_ACCESS_TOKEN`/`TRIGGER_DEV_BASE_URL` — three disagreeing env
+  namings that the task-deployment follow-up owns reconciling. The apply half
+  of the same smoke: with the flag at its migrated default, a POST answered
+  403 `not_enabled` with the operator prose intact and left NO receipt behind
+  (refusals are answers, not jobs); after `UPDATE mailbox_mapping SET
+  allow_apply_deletions = true`, the same unknown hash became 404 `not_found` —
+  gate 1 passing, the domain loop falling through honestly. The permitted →
+  enqueue-dies → receipt-lands-failed path was NOT exercised live (the fresh
+  demo corpus had no migrated items yet); it stays covered by the
+  fault-injection integration test until the trigger deploy lands, after which
+  the same curl pair becomes the real loop's smoke. Flag returned to FALSE and
+  smoke rows removed afterwards.
+- **The managed compose stack could not have booted the new chain from a fresh
+  volume**: `managed.yml` still mounted the migration files into
+  `docker-entrypoint-initdb.d`, so initdb applied them with no
+  `schema_migrations` bookkeeping and the API's boot-time migrator would
+  re-apply the non-idempotent squashed baseline and crash. Fixed by removing
+  the mount and having `seed-managed.ts` run the migrator itself (the demo run
+  order seeds before the API ever boots). A live stack whose volume predates
+  the squash still needs the migrator's own documented remedy: drop and
+  recreate — the ledger is a rebuildable cache (ADR-0020).
+
 ## Follow-ups this plan now owns
 
 - **The managed Verify screen.** T3 gives managed the endpoints and T5 gives

@@ -42,7 +42,13 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
-      - ../../packages/ledger/migrations:/docker-entrypoint-initdb.d
+      # NO docker-entrypoint-initdb.d mount of the migration files, deliberately
+      # (one used to be here): initdb applies them WITHOUT schema_migrations
+      # bookkeeping, and the squashed 0001_baseline is not idempotent — the
+      # API's boot-time migrator would then re-apply it onto the already-created
+      # schema and crash the container. Schema creation belongs to the migrator
+      # alone: the API runs it at boot, and seed-managed.ts runs it first so the
+      # demo run order (seed before API) still works on an empty database.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-openmigrate}"]
       interval: 10s
