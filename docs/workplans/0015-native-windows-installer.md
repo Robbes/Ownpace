@@ -6,8 +6,8 @@
 |---|---|---|
 | T0 PGlite feasibility spike | ✅ **Done — PASS, 15/15** | `scripts/spike-pglite-windows.mjs`, run against the REAL `packages/ledger/migrations/0001_baseline.sql` (2580 lines, unmodified). Results in "The spike" below. |
 | T1 driver seam (`pg.Pool` → PGlite) | ✅ **Done — the appliance runs on PGlite** | `packages/ledger/src/driver.ts` — `LedgerDriver`/`LedgerConnection`, with `pgDriver(pool)` as the only implementation. `withTenant()` goes through it and takes a driver **or** a pool, so the 45 existing call sites were untouched. Single-connection behaviour is unit-tested against a fake driver with PGlite's constraint (5 tests, serialisation mutation-verified). **Adoption done ([0016](./0016-pglite-adoption.md)): the whole-workspace blocker was not real** — it was an artefact of an incremental `pnpm add`; a clean `--frozen-lockfile` install resolves one drizzle. `pgliteDriver()` + `SELFHOST_PERSISTENCE=pglite`: the appliance starts, migrates itself and serves the operating surface **with no `DATABASE_URL`, no container, no port and no `initdb`** (4 startup tests). **Postgres was the last native dependency, so nothing now blocks T2 on runtime grounds.** |
-| T2 packaging shell decision + build | 🟡 **Decided — [ADR-0027](../adr/0027-windows-packaging-shell.md); build not started** | **Windows Service + Start-menu shortcut. No native shell.** The observation that decided it: Tauri cannot run our TypeScript, so it needs the Node backend as a sidecar — it is the same packaging work *plus* a Rust toolchain, not an alternative to it. Bundling measured, not assumed: esbuild produces a single **3.6 MB** ESM bundle in 166 ms, no errors. Remaining build work is the installer (T3). |
-| T3 installer, upgrade, uninstall | ⬜ Not started | |
+| T2 packaging shell decision + build | 🟡 **Decided — [ADR-0027](../adr/0027-windows-packaging-shell.md); build not started** | **Windows Service + Start-menu shortcut. No native shell.** The observation that decided it: Tauri cannot run our TypeScript, so it needs the Node backend as a sidecar — it is the same packaging work *plus* a Rust toolchain, not an alternative to it. Bundling measured, not assumed: esbuild produces a single **2.8 MB** ESM bundle in ~150 ms, no errors (3.6 MB before T3 established that PGlite must stay external). Remaining build work is the installer (T3). |
+| T3 installer, upgrade, uninstall | 🟡 **Payload done; the MSI is not** | `scripts/package-appliance.mjs` (`pnpm package:appliance`) stages a **27.6 MB relocatable directory** an installer copies verbatim: one 2.8 MB bundle, `start.mjs`, the real migration SQL, the built UI, and PGlite unbundled. `scripts/package-appliance.unit.test.ts` starts it as a real child process **with the repository nowhere in its environment** — it migrates itself, serves the operating surface, stops on `SIGTERM`, and comes back on the same data directory without re-migrating. 10 tests, ~12 s, no Docker. Two mutation-verified. The MSI/WiX half, service registration and the shortcut are Windows-only and not done. |
 | T4 code signing | ⬜ Not started | Needs a purchasing decision, not a technical one. |
 | **UI prerequisite** — operating contract + operating screens | ✅ **Done** | [ADR-0026](../adr/0026-one-operating-ui-one-contract.md). Contract in `packages/shared/src/operating-contract.ts`, served by `apps/selfhost`; deletions/moves/failures screens in `apps/web` (9 tests, apply-gate mutation-verified); **served from the appliance at `/ui`** (17 tests, traversal-probed over a raw socket against the real bundle). **Verify and finish screens done** — finish is the runbook's five-step cutover checklist, gated on the operator confirming delivery has moved (mutation-verified). **Managed edition implements it** — the three queues, keep/retry/accept and finish, from the same shapes and prose (`apps/api/.../operating-routes.ts`; 4 route tests, Express-5 registration mutation-verified). `apply`/`verify` stay worker-side by design — see the ADR's update notes. **Confirm page folded in**: the appliance's hand-rolled HTML is deleted and `GET /` redirects to `/ui/confirm`, so it runs one UI technology instead of two (17 tests). |
 
@@ -206,21 +206,35 @@ cheaper than it looked when this workplan was written, and reversible.
   bash, a Linux filesystem or Docker; it says nothing about a native window, and
   a Start-menu shortcut satisfies it completely.
 
-  The payload is the same either way: a **3.6 MB** backend bundle (measured —
-  esbuild, 166 ms, no errors), **~26 MB** of PGlite WASM and data, the 500 KB web
-  bundle, and 88 KB of migrations SQL that must sit beside the binary. The Node
-  runtime (~110 MB) is the largest line and the obvious target if size ever
-  becomes a complaint — the shell is not.
+  The payload is the same either way: a **2.8 MB** backend bundle, **~24 MB** of
+  PGlite WASM and data, the 500 KB web bundle, and 88 KB of migrations SQL that
+  must sit beside the binary — **27.6 MB** staged, measured by T3 rather than
+  estimated. (This originally read 3.6 MB, from a bundle that still contained
+  PGlite's JavaScript; T3 had to leave the package external, which takes it
+  out. See ADR-0027's update note.) The Node runtime (~110 MB) is the largest
+  line and the obvious target if size ever becomes a complaint — the shell is
+  not.
 
   Node SEA was rejected specifically: it is experimental, needs a CommonJS entry
   (three `import.meta.url` sites work against that), and the WASM ships alongside
   regardless — so it takes an unstable API's constraints without delivering the
   single-file result that is the only reason to want it.
 
-- **T3 install/upgrade/uninstall.** Where the data directory lives
+- **T3 install/upgrade/uninstall — the payload half is built.** `pnpm
+  package:appliance` stages the directory an installer copies. What bundling
+  broke, and what each fix is doing, is written up in the script's header; the
+  short version is that all three failures were about *how a module finds a
+  file*, which is exactly what a file listing cannot check — hence a test that
+  boots the payload as a real process with the repository out of its
+  environment.
+
+  **Still open, and all Windows-side:** where the data directory lives
   (`%LOCALAPPDATA%`), what uninstall does with a ledger that may be mid-migration
-  (it is a rebuildable cache per ADR-0020, but the answer must be deliberate), and
-  how an in-place upgrade runs migrations before the app serves.
+  (it is a rebuildable cache per ADR-0020, but the answer must be deliberate),
+  how an in-place upgrade runs migrations before the app serves, and whether the
+  payload ships its own Node runtime or requires one. That last one matters: the
+  payload needs Node 22+ and nothing else, and "install Node first" is precisely
+  the kind of instruction ADR-0027 exists to avoid.
 - **T4 code signing.** An unsigned MSI/EXE gets a SmartScreen block on every
   download. EV certificate or Azure Trusted Signing — a recurring cost and a CI
   change, not an afterthought. Decide before T3, because it shapes the release
