@@ -52,7 +52,13 @@ services:
       # live here (600 perms — see the quickstart).
       - .env
     environment:
-      # Single-tenant: the app connects as the owner (RLS unused here).
+      # The app connects as the database OWNER, because it migrates itself on
+      # startup and creating roles and policies needs that. It does not SERVE as
+      # the owner: `withTenant()` drops to `app_user` inside each transaction,
+      # because Postgres exempts owners and superusers from row security and
+      # this connection would otherwise bypass every policy in the baseline.
+      # Single-tenant, so that is defence in depth rather than the live
+      # boundary — but it used to say "RLS unused here", and it was right.
       DATABASE_URL: postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-openmigrate}
       CONFIG_DIR: /data/config
       HOST: 0.0.0.0
