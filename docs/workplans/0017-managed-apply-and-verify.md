@@ -9,7 +9,7 @@
 | T2 Self-host serves the new pair (keeping today's behaviour working) | ✅ **Done** | `POST /verify/start` (202 new run / 200 joined — the `activated: false` shape) + `GET /verify/report`; one run at a time, report swapped whole so a poller never sees a hybrid; `failed` carries the reason (hard rule 9). Synchronous `GET /verify` kept for one release — the e2e verification gate still uses it. 7 lifecycle tests against a real appliance on PGlite, with a silent-TCP-server target so "a second start joins the run" is deterministic rather than raced. |
 | T3 `run-verification` Trigger.dev job + managed routes | ⬜ Not started | Needs T1. |
 | T4 `run-apply-deletion` job + managed routes | ⬜ Not started | Needs T1. The destructive one — do it last and on its own. |
-| T5 The Verify screen starts and polls instead of blocking | ⬜ Not started | Unblocked now that T2 exists to develop against. The screen keeps working meanwhile — the synchronous GET it calls is still served. |
+| T5 The Verify screen starts and polls instead of blocking | ✅ **Done** | `Verify.tsx` POSTs `/verify/start` and polls `/verify/report` every 3 s; the 15-minute single-request GET is gone from the client. The loop stops on every terminal state (mutation-verified), `failed` renders as not-a-result with the reason, a mid-run appliance restart (`never-run` while polling) is said out loud instead of spun against forever, and a missed poll keeps polling — the run's state is authoritative, not the network. 5 jsdom tests. |
 | T6 `verification.status` cannot hold two of the five statuses | ⬜ Not started | A migration. See "The schema does not fit the contract". |
 
 ## Why this exists

@@ -20,8 +20,9 @@ import type {
   DataTypeVerification,
   DataTypeVerificationStatus,
   VerificationResult,
+  VerifyResponse,
 } from '@openmig/shared';
-import { runVerification } from '../services/operating-service';
+import { startVerification, fetchVerifyReport } from '../services/operating-service';
 
 const STATUS_STYLE: Record<DataTypeVerificationStatus, { icon: React.ReactNode; className: string; help: string }> = {
   PASS: {
@@ -185,21 +186,71 @@ function Report({ mappingId, r }: { mappingId: string; r: VerificationResult }):
 const Verify: React.FC = () => {
   const [state, setState] = React.useState<
     | { kind: 'idle' }
-    | { kind: 'running' }
-    | { kind: 'done'; report: Awaited<ReturnType<typeof runVerification>> }
+    | { kind: 'running'; startedAt?: string }
+    | { kind: 'done'; report: VerifyResponse }
     | { kind: 'error'; message: string }
   >({ kind: 'idle' });
 
+  // Start + poll (workplan 0017 T5). The POST begins the scan — or joins one
+  // already under way, which reads identically here — and the interval reads
+  // `/verify/report`, a status endpoint that never triggers anything. The old
+  // synchronous GET held a single request open behind a 15-minute timeout,
+  // which any proxy between the browser and the appliance was free to cut.
+  const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPolling = () => {
+    if (pollRef.current !== null) clearInterval(pollRef.current);
+    pollRef.current = null;
+  };
+  React.useEffect(() => stopPolling, []);
+
+  const poll = () => {
+    void fetchVerifyReport()
+      .then((r) => {
+        if (r.state === 'done') {
+          stopPolling();
+          setState({ kind: 'done', report: r.report });
+        } else if (r.state === 'failed') {
+          stopPolling();
+          setState({ kind: 'error', message: r.error });
+        } else if (r.state === 'never-run') {
+          // The appliance restarted mid-run and honestly forgot. Say so rather
+          // than spinning forever against a run that no longer exists.
+          stopPolling();
+          setState({
+            kind: 'error',
+            message: 'The appliance restarted while the check ran. Run it again.',
+          });
+        }
+        // 'running': keep polling.
+      })
+      .catch(() => {
+        // A missed poll is not a failed RUN — the appliance may be busy or the
+        // laptop asleep. Keep polling; the run's own state is authoritative.
+      });
+  };
+
   const run = () => {
     setState({ kind: 'running' });
-    void runVerification()
-      .then((report) => setState({ kind: 'done', report }))
-      .catch((err: unknown) =>
+    void startVerification()
+      .then(({ report }) => {
+        setState({
+          kind: 'running',
+          ...(report.state === 'running' ? { startedAt: report.startedAt } : {}),
+        });
+        stopPolling();
+        pollRef.current = setInterval(poll, 3000);
+        // One immediate read, so a scan that finishes fast is not stuck
+        // waiting out the first interval.
+        poll();
+      })
+      .catch((err: unknown) => {
+        stopPolling();
         setState({
           kind: 'error',
-          message: err instanceof Error ? err.message : 'The check did not complete.',
-        }),
-      );
+          message: err instanceof Error ? err.message : 'The check did not start.',
+        });
+      });
   };
 
   return (
