@@ -58,7 +58,7 @@ import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
 
 import * as schemaPg from './schema-pg';
 import { log } from '@openmig/shared';
-import type { LedgerConnection, LedgerDriver } from './driver';
+import { assertRoleName, type LedgerConnection, type LedgerDriver } from './driver';
 import type { PgDatabase } from './db-types';
 
 export interface PgliteDriverOptions {
@@ -69,6 +69,15 @@ export interface PgliteDriverOptions {
    * passes a real directory — `%LOCALAPPDATA%` on Windows (workplan 0015 T3).
    */
   readonly dataDir?: string;
+  /**
+   * Serve tenant traffic as this role — `app_user` for the appliance.
+   *
+   * PGlite runs as `postgres`, a superuser, and superusers bypass row security
+   * unconditionally. Without a role the appliance's 96 policies are inert. See
+   * `LedgerDriver.role`; `withTenant()` applies it transaction-locally, so the
+   * migration chain still runs as the owner that has to create those policies.
+   */
+  readonly role?: string;
 }
 
 /**
@@ -79,6 +88,7 @@ export interface PgliteDriverOptions {
  * the process's critical path until something actually needs the database.
  */
 export function pgliteDriver(options: PgliteDriverOptions = {}): LedgerDriver {
+  const role = options.role === undefined ? undefined : assertRoleName(options.role);
   let opening: Promise<PGlite> | null = null;
   // The serialisation queue. Each `acquire()` chains onto the previous holder's
   // release, so at most one caller holds the connection at a time.
@@ -100,6 +110,8 @@ export function pgliteDriver(options: PgliteDriverOptions = {}): LedgerDriver {
   }
 
   return {
+    role,
+
     async acquire(): Promise<LedgerConnection> {
       const db = await open();
 

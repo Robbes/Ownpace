@@ -7,7 +7,12 @@ import { Pool } from 'pg';
 
 import * as schemaPg from './schema-pg';
 import { log } from '@openmig/shared';
-import { isLedgerDriver, type LedgerConnection, type LedgerDriver } from './driver';
+import {
+  assertRoleName,
+  isLedgerDriver,
+  type LedgerConnection,
+  type LedgerDriver,
+} from './driver';
 import type { PgDatabase } from './db-types';
 
 export type { PgDatabase };
@@ -25,8 +30,12 @@ export type { PgDatabase };
  * — see the note in `driver.ts` on why that is a correctness requirement and
  * not a performance choice.
  */
-export function pgDriver(pool: Pool): LedgerDriver {
+export function pgDriver(pool: Pool, options: { readonly role?: string } = {}): LedgerDriver {
+  // Validated at construction, not at use: a bad role name should fail when the
+  // process is wired up, not on the first request that happens to need it.
+  const role = options.role === undefined ? undefined : assertRoleName(options.role);
   return {
+    role,
     async acquire(): Promise<LedgerConnection> {
       const client = await pool.connect();
       return {
@@ -95,6 +104,21 @@ export async function withTenant<T>(
   try {
     // Begin transaction
     await conn.query('BEGIN');
+
+    // Drop to the unprivileged role, if the driver was given one, BEFORE the
+    // tenant context is set and before any of the caller's queries run.
+    //
+    // Without this the policies below are decoration: Postgres exempts
+    // superusers from row security unconditionally, and a table's owner unless
+    // the table is FORCEd — and the appliance connects as one or the other on
+    // both of its backends. See `LedgerDriver.role`.
+    //
+    // `SET LOCAL`, so it reverts on the COMMIT or ROLLBACK this function
+    // already issues. Nothing to remember to undo, and a connection handed back
+    // to the pool carries no trace of it.
+    if (driver.role) {
+      await conn.query(`SET LOCAL ROLE "${assertRoleName(driver.role)}"`);
+    }
 
     // Set tenant context - use set_config with bind param for safety
     // The third parameter `true` makes it transaction-local (equivalent to SET LOCAL)

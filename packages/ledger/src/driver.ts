@@ -144,6 +144,43 @@ export interface LedgerDriver {
   acquire(): Promise<LedgerConnection>;
   /** Close everything. Idempotent by convention. */
   end(): Promise<void>;
+  /**
+   * The role served traffic runs as — and without it, **RLS does nothing.**
+   *
+   * Postgres exempts two kinds of user from row security: superusers, always
+   * and unconditionally, and a table's owner unless the table is `FORCE`d. The
+   * appliance connects as the database owner on the container path and as
+   * `postgres` on the PGlite path, so on the shipped product every policy in
+   * `0001_baseline.sql` was created, granted, tested — and bypassed. Measured,
+   * not inferred: `rls-in-force.unit.test.ts` fails without this line.
+   *
+   * Setting it makes `withTenant()` issue `SET LOCAL ROLE` inside the
+   * transaction it already opens. Transaction-local because it must be: the
+   * migration chain creates roles and policies and has to keep running as the
+   * owner, and `SET LOCAL` reverts on COMMIT or ROLLBACK with nothing to
+   * remember to undo.
+   *
+   * Left undefined, nothing changes — which is deliberate. The managed edition
+   * takes its role from the connection string it is deployed with, and quietly
+   * switching roles under a running API is not a change to make from here.
+   */
+  readonly role?: string;
+}
+
+/**
+ * Reject anything that is not a plain SQL identifier.
+ *
+ * `SET ROLE` takes an identifier, and an identifier cannot be a bind parameter
+ * — so the role name is the one thing here that reaches SQL by concatenation.
+ * The names in play are compile-time constants (`app_user`), so this is a
+ * backstop rather than a filter, and it refuses rather than escaping: a role
+ * name that needs escaping is a configuration mistake worth failing on.
+ */
+export function assertRoleName(role: string): string {
+  if (!/^[A-Za-z_][A-Za-z0-9_$]*$/.test(role)) {
+    throw new Error(`Refusing to use ${JSON.stringify(role)} as a role name`);
+  }
+  return role;
 }
 
 /** Narrow a `pg.Pool` from a `LedgerDriver` without importing `pg` into the type. */
