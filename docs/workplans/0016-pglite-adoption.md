@@ -317,15 +317,19 @@ same **on this corpus**: 60 messages, 61 calendar objects, 61 contacts, 245
 files. It does not say they behave the same on a 48k mailbox, and
 [P5](#p5--concurrency-measured) is an extrapolation, not a measurement.
 
-### Left open, deliberately
+### Left open at closure — since closed
 
-**Two tables have `ENABLE ROW LEVEL SECURITY` without `FORCE`:**
-`migration_discovery` and `migration_status` (22 of 24 are forced). For those
-two, the table *owner* is still exempt even with the role switch in place — it
-only stops mattering because `app_user` does not own them. Fixing it is two
-`ALTER TABLE ... FORCE ROW LEVEL SECURITY` lines, but it is a migration and it
-changes managed's behaviour too, so it belongs in its own change with the
-managed edition's connection role established first.
+**Two tables had `ENABLE ROW LEVEL SECURITY` without `FORCE`** — closed by
+`0002_force_row_security_stragglers.sql`, once the deferral's precondition was
+checked and found already met: managed serves as `app_user` via
+`APP_DATABASE_URL` (its owner URL is migrations/seed only), so FORCE — which
+only binds *owners* — changes nothing for any session either edition actually
+serves with. `force-rls.unit.test.ts` asks the catalogs that no RLS table
+exempts its owner (so the next forgotten FORCE fails by name), and proves
+enforcement on the one shape where FORCE is observable at all: a NON-superuser
+owner, manufactured by handing `app_user` ownership in a throwaway PGlite
+database — every rig's own owner is a superuser, whom FORCE cannot bind by
+design. Mutation-verified: removing the migration fails both.
 
 ## P5 — concurrency, measured
 
