@@ -553,7 +553,9 @@ function receiptFromRow(row: {
   // one here would paper over the constraint being bypassed (hard rule 9).
   const finishedAt = row.finishedAt!.toISOString();
   if (row.state === 'applied') {
-    return { state: 'applied', requestedAt, finishedAt, kind: row.kind ?? 'deleted' };
+    // 'unknown', not 'deleted': a hand-written row missing its kind must not
+    // be reported as MORE final than anyone knows it to be.
+    return { state: 'applied', requestedAt, finishedAt, kind: row.kind ?? 'unknown' };
   }
   if (row.state === 'refused') {
     return {
