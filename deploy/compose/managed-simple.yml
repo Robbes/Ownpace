@@ -33,7 +33,7 @@ services:
       SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY:?set a 32-byte key in .env}
       JWT_EXPIRY: ${JWT_EXPIRY:-24h}
       TRIGGER_API_URL: http://localhost:3090
-      TRIGGER_API_KEY: ${TRIGGER_API_KEY:-dev-api-key}
+      TRIGGER_SECRET_KEY: ${TRIGGER_SECRET_KEY:-}
       MOLLIE_API_KEY: ${MOLLIE_API_KEY:-}
       MOLLIE_WEBHOOK_SECRET: ${MOLLIE_WEBHOOK_SECRET:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3123}

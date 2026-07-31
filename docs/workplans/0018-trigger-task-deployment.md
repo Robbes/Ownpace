@@ -4,12 +4,12 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T0 Decide the deploy topology | ⬜ Not started | — |
-| T1 One env contract for the trigger client | ⬜ Not started | — |
-| T2 `trigger.config.ts` + task registration | ⬜ Not started | — |
-| T3 The deploy registry | ⬜ Not started | — |
-| T4 A scripted, repeatable deploy | ⬜ Not started | — |
-| T5 Live proof: the 0017 smoke curls, now green | ⬜ Not started | — |
+| T0 Decide the deploy topology | ✅ **Decided** | Full deploy path against the reference layout (registry + supervisor + socket-proxy), not dev-CLI worker sessions — the demo stack exists to mirror the production shape. One `TRIGGER_IMAGE_TAG` for webapp AND supervisor, defaulted to the SDK's exact version (v4.5.7 — the old hardcoded v4.5.4 pin claimed to match an SDK that had moved); the deploy CLI is pinned to the SDK version by construction (read from `apps/worker/package.json` at run time). Decision text below. |
+| T1 One env contract for the trigger client | ✅ **Built** | The SDK's own pair, nothing else: `TRIGGER_API_URL` + `TRIGGER_SECRET_KEY`. `trigger-client.ts` rewritten — the old wrapper passed `TRIGGER_DEV_ACCESS_TOKEN` (unset → fell through to an env nobody set) while its always-truthy `localhost:3000` fallback silently OVERRODE the stack's correct URL: three namings, two live bugs, now one pair. Throws at call time naming what is missing; NOT `:?`-required at compose level, deliberately — the key is minted by the very stack it gates, so a boot-time requirement would deadlock first bring-up. `TRIGGER_API_KEY` is gone from every file. |
+| T2 `trigger.config.ts` + task registration | ✅ **Built** | `apps/worker/trigger.config.ts`: all seven `src/jobs/*` tasks, project ref from `TRIGGER_PROJECT_REF` (throws with the where-to-get-it if unset), retries safe-by-construction (every job re-checks gates; the apply job lands its receipt every attempt), workspace packages bundled with the wasm/native tail (`@electric-sql/pglite`, `pg`) external. Typechecked; the build list is a first cut T5 proves. |
+| T3 The deploy registry (and the rest of the missing execution plane) | ✅ **Built** | Not just the registry — the stack had bootstrap env vars with NO consumer: `managed.yml` gains `trigger-registry` (loopback-bound on `127.0.0.1:${REGISTRY_PORT}`, which is what lets it run without auth — both consumers are on this host), `trigger-supervisor` (executes deployed runs; worker token from the shared volume the webapp already writes), `trigger-docker-proxy` (whitelisted socket access instead of handing the supervisor the raw socket), and `minio` (which `OBJECT_STORE_BASE_URL` had pointed at since the stack was written). Run containers join the compose network so tasks reach `postgres`/`stalwart`/`nextcloud` by name. |
+| T4 A scripted, repeatable deploy | ✅ **Built** | `deploy/compose/deploy-tasks.sh`: idempotent; CLI version = SDK version by construction; preflights instance reachability, project ref, and login (printing the exact pinned login command); documents the one-time dashboard steps (org/project, `TRIGGER_PROJECT_REF`, `TRIGGER_SECRET_KEY`) and the task-runtime env vars that must live in the dashboard (`DATABASE_URL`/`APP_DATABASE_URL`/`SECRET_ENCRYPTION_KEY` — task containers inherit nothing from compose). `setup-managed-demo.sh`'s run order gains step 5. |
+| T5 Live proof: the 0017 smoke curls, now green | ⬜ **Blocked on a Spark session** | Everything above is CI-provable code and config only — none of it has met a live instance. T5 is the whole point: `verify/start` → 202 → poll to `done`; apply on a permitted item → 202 → receipt `applied`/`refused`. Steps below. |
 
 ## Why this exists
 
@@ -54,18 +54,43 @@ than from re-diagnosis.
   poller never hangs — which is what makes the deploy safe to iterate on
   against a live stack.
 
-## T0 — decide the deploy topology
+## T0 — the deploy topology, decided
 
-Self-hosted Trigger.dev v4 supports more than one way to get task code
-running: a full `trigger deploy` (build an image, push to the registry, the
-instance schedules it) or a long-lived dev/CLI worker session against the
-instance. Decide which one this stack uses — and for the Spark demo vs. a real
-managed deployment, whether that answer differs. Record the decision HERE with
-the reasons, including the SDK/server version-alignment policy (pin both to
-one version, and say where the pin lives). The bootstrap worker group
-(`TRIGGER_BOOTSTRAP_WORKER_GROUP_NAME: bootstrap`, token on the
-`trigger_shared` volume) is already provisioned by the compose stack and is
-probably the hook the choice hangs on.
+**The full deploy path, matching the upstream reference layout: CLI `deploy`
+builds task images, pushes them to a registry this stack runs, and a
+supervisor executes one container per run.** The alternative — a long-lived
+`trigger dev` CLI session as the worker — was rejected for the same reason the
+managed stack exists at all: it is a laptop-development shape (a terminal that
+must stay open, code served from a checkout), and the demo stack's job is to
+mirror what a production deployment looks like.
+
+The pieces, and where each decision landed:
+
+- **Supervisor** (`ghcr.io/triggerdotdev/supervisor`): the missing consumer of
+  the bootstrap worker token the webapp has been writing to `trigger_shared`
+  all along. It talks to docker through a `tecnativa/docker-socket-proxy`
+  whitelisted to exactly what running task containers needs — the raw socket
+  never enters it. Its run containers join the compose network
+  (`DOCKER_RUNNER_NETWORKS`) so tasks reach `postgres`, `stalwart` and
+  `nextcloud` by the same names the worker container uses.
+- **Registry** (`registry:2`): loopback-bound (`127.0.0.1:${REGISTRY_PORT}`),
+  which is simultaneously why it needs no auth (nothing off-host can reach
+  it), why docker accepts it over plain HTTP (localhost registries are
+  trusted), and why `localhost:<port>` is the correct address from BOTH
+  consumers — the CLI pushes from the host, the supervisor pulls through the
+  host's daemon. A production deployment brings its own authenticated
+  registry; this one is the single-host shape.
+- **Versions**: ONE `TRIGGER_IMAGE_TAG` for webapp and supervisor, defaulted
+  to the exact `@trigger.dev/sdk` version in `apps/worker/package.json`
+  (v4.5.7 at decision time), and the deploy CLI pinned to that same number by
+  reading it from `package.json` at run time. The 4.5.x family is
+  SDK-compatible per upstream (4.5.1+ only rejects v3-SDK tasks), but one
+  number in one place beats "probably compatible".
+- **Task runtime env vars live in the instance's dashboard**, per
+  environment — task containers inherit nothing from compose. The deploy
+  script names the required set. (A `syncEnvVars` build extension could push
+  them at deploy time; deferred — it adds a dependency for something the
+  dashboard already does.)
 
 ## T1 — one env contract
 
@@ -108,8 +133,16 @@ reads the same `.env` as everything else.
 
 ## T5 — live proof
 
-The exact smoke from 0017's post-merge validation, re-run on the Spark, now
-expecting the other branch: `POST .../verify/start` → 202 → poll
+On the Spark, in order: `git pull`; `docker compose -f
+deploy/compose/managed.yml up -d --build` (four new services — registry,
+supervisor, socket-proxy, minio — and trigger-api moves to the pinned
+`TRIGGER_IMAGE_TAG`); the one-time dashboard steps in `deploy-tasks.sh`'s
+header (account → org/project → `TRIGGER_PROJECT_REF` + `TRIGGER_SECRET_KEY`
+into `.env` → restart the api → task env vars into the dashboard → CLI
+login); then `./deploy/compose/deploy-tasks.sh`.
+
+Then the exact smoke from 0017's post-merge validation, now expecting the
+other branch: `POST .../verify/start` → 202 → poll
 `.../verify/report` to `done` with the per-domain report (the route → job →
 row → poller loop, closed for the first time anywhere). Then the apply pair
 on a migrated item with confirmed evidence and the flag opted in: 202 → poll

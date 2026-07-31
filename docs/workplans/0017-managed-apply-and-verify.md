@@ -66,8 +66,13 @@
   screen (queues included) is linked from any navigation — they are
   URL-reachable only, a pre-existing posture that belongs to a
   managed-navigation piece of work, not to this wiring.
-- **Retiring the appliance's synchronous `GET /verify`** once the e2e
-  verification gate moves to the pair — T2 kept it for exactly one release.
+- **Retiring the appliance's synchronous `GET /verify`** — T2 kept it for
+  exactly one release. Its precondition is now MET and proven: PR #200 moved
+  the e2e verification gate onto the start + poll pair, and the first
+  post-merge run (2026-07-31, postgres backend, 46/46 incl. the 14-test gate)
+  produced its report through the pair on a real appliance. Nothing in the
+  repo calls the synchronous route any more; remove it (and its lifecycle
+  tests) in the next release.
 - **Deploying the Trigger.dev v4 tasks.** T3/T4 give managed its jobs
   (`run-verification`, `run-apply-deletion`) and the routes enqueue them — but
   the repo still has no `trigger.config.ts` and no `trigger deploy` step
