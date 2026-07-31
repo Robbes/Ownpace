@@ -164,6 +164,12 @@ a deliberate piece of work rather than a line in a route file; until then the
 managed edition has no `apply` and no `verify` screen, which is an honest gap
 rather than a broken button.
 
+That piece of work is now scheduled, and its shape is decided:
+[workplan 0017](../workplans/0017-managed-apply-and-verify.md) — start + poll,
+both verbs on both editions, with `apply`'s ledger-side refusals still answered
+synchronously because "you may not do that, here is why" must not become "check
+back later".
+
 `startTransition`/`finishTransition` moved to `@openmig/shared` at the same time.
 They are pure decisions — most importantly that finishing is refused while items
 await a decision — and an edition that quietly allowed what the other refused
