@@ -136,7 +136,11 @@ function reportPhases(phases: PhaseTiming, domain: string, scanned: number): voi
   log.debug(
     `[timing] ${domain}: ${scanned} items in ${(wallMs / 1000).toFixed(1)}s | ` +
       `source-fetch ${(phases.fetchMs / 1000).toFixed(1)}s (${per(phases.fetchMs)}ms/item) | ` +
-      `target-write ${(phases.upsertMs / 1000).toFixed(1)}s (${per(phases.upsertMs)}ms/item) | ` +
+      // Two decimals, not one. The e2e gate reads this to decide whether a
+      // pass did enough writing for its overlap to mean anything, and its
+      // floor is 0.1s — at one decimal a 115 ms pass prints as `0.1s` and the
+      // boundary case is literally unrepresentable. It cost a red run.
+      `target-write ${(phases.upsertMs / 1000).toFixed(2)}s (${per(phases.upsertMs)}ms/item) | ` +
       `ledger-read ${(phases.ledgerReadMs / 1000).toFixed(1)}s | ` +
       `ledger-write ${(phases.ledgerWriteMs / 1000).toFixed(1)}s | ` +
       `hash ${(phases.hashMs / 1000).toFixed(1)}s | ` +

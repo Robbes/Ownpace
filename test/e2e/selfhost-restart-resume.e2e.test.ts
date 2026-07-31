@@ -387,11 +387,34 @@ describe('Restart-Resume Idempotency Gate (T5)', () => {
    * regression read 1.0. So assert on it, and the same mistake cannot cost
    * four runs again.
    *
-   * Threshold 2.5, not 4: leaves room for scheduling noise and for a domain
-   * whose last few items drain below full width, while still being nowhere
-   * near the 1.0 that means "serial".
+   * The bar is a FRACTION OF WHAT THE CORPUS CAN REACH, not a fixed number,
+   * because overlap is bounded by corpus size and a fixed bar made this gate
+   * dispatch-size roulette. A pass of N items at width W spends the first W-1
+   * item-times ramping up and the last W-1 draining, so the ceiling is
+   *
+   *     N / (ceil(N / W) + (W - 1))
+   *
+   * — 3.76 at N=233, but only 2.60 at N=26. A flat `> 2.5` therefore demands
+   * 96% of theoretical on a small corpus and 66% on a large one, which is why
+   * it passed at seed_count 56 and failed at 25 on one backend and at 27 on
+   * the other. Measured across three runs, both backends and all four domains,
+   * the observed ratio was 0.85-0.95 EVERY time (N from 25 to 233) — so the
+   * healthy band is tight and 0.75 sits comfortably below it.
+   *
+   * It still catches what it was written for. The regression that survived four
+   * green runs reported overlap 1.0; the bar at N=26 is 1.95 and at N=233 is
+   * 2.82, so serial fails at every corpus size rather than only at large ones.
    */
   it('every domain actually runs items concurrently', () => {
+    // The fixture's concurrency. Kept next to the maths that uses it rather
+    // than buried in a message, because the ceiling below is meaningless
+    // without it.
+    const WIDTH = 4;
+    // How close to the ceiling a healthy pass gets. Measured, not chosen:
+    // 0.85-0.95 across three runs, both persistence backends, all four
+    // domains, corpora from 25 to 233 items.
+    const HEALTHY_FRACTION = 0.75;
+
     const logs = execSync(`docker compose ${COMPOSE_FILES} logs app --no-color --tail 4000`, {
       encoding: 'utf8',
       maxBuffer: 64 * 1024 * 1024,
@@ -449,6 +472,12 @@ describe('Restart-Resume Idempotency Gate (T5)', () => {
       // fast and the corpus was small) and the gate failed for a reason that
       // had nothing to do with concurrency. 0.1s still separates "did real
       // work" from "did nothing" by an order of magnitude.
+      //
+      // The floor only became usable when `[timing]` started printing two
+      // decimals. At one, a 115 ms pass printed as `0.1s`, parsed as exactly
+      // 0.1, and failed `> 0.1` — no corpus could produce a value between the
+      // floor and the next representable number. That is what turned a red run
+      // in, and it was a rounding artefact rather than a measurement.
       expect(
         report!.writeSecs,
         `no migrating pass observed for ${domain}: the best [timing] line reports ` +
@@ -456,12 +485,17 @@ describe('Restart-Resume Idempotency Gate (T5)', () => {
           `concurrency. If this is a very small dispatch, raise seed_count — the ` +
           `overlap reading needs a corpus bigger than the concurrency width to mean much.`,
       ).toBeGreaterThan(0.1);
+      // The most this corpus could reach at width WIDTH, given ramp-up and drain.
+      const ceiling = report!.items / (Math.ceil(report!.items / WIDTH) + (WIDTH - 1));
+      const floor = ceiling * HEALTHY_FRACTION;
       expect(
         report!.overlap,
         `${domain} ran with overlap ${report!.overlap}x over ${report!.items} items — ` +
-          `at concurrency 4 that is effectively SERIAL. Check for a "concurrency" ` +
-          `override in the mapping fixture, which is exactly what caused this before.`,
-      ).toBeGreaterThan(2.5);
+          `at concurrency ${WIDTH} the most this corpus can reach is ${ceiling.toFixed(2)}x, ` +
+          `so anything at or below ${floor.toFixed(2)}x is effectively SERIAL. Check for a ` +
+          `"concurrency" override in the mapping fixture, which is exactly what caused this ` +
+          `before. (Serial reports ~1.0x at every corpus size.)`,
+      ).toBeGreaterThan(floor);
     }
   }, 60000);
 
