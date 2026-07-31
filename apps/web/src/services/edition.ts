@@ -108,6 +108,35 @@ export function queuePathFor(
   return `/migrations/${encodeURIComponent(mappingId)}/${queue}`;
 }
 
+/**
+ * Path to the §20 verify pair (workplan 0017 T3/T5 — the same start + poll
+ * shape in both editions, at different URLs).
+ *
+ * The split mirrors `queuePathFor` for the same reason: the appliance scans
+ * every configured mapping in one run and answers at its root
+ * (`/verify/start`), while a managed run is a per-mapping row in
+ * `verification_run`, so its pair hangs off the mapping
+ * (`/migrations/{id}/verify/start`).
+ */
+export function verifyPath(action: 'start' | 'report', mappingId?: string): string {
+  return verifyPathFor(edition(), action, mappingId);
+}
+
+/** As `verifyPath`, as a pure function of the edition. See `queuePathFor`. */
+export function verifyPathFor(
+  ed: Edition,
+  action: 'start' | 'report',
+  mappingId?: string,
+): string {
+  if (ed === 'selfhost') return `/verify/${action}`;
+  if (!mappingId) {
+    // Same refusal as the queues: a scan is a real cost against a real target,
+    // and guessing whose would start (or report) the wrong migration's.
+    throw new Error(`The managed edition needs a mappingId for verify/${action}.`);
+  }
+  return `/migrations/${encodeURIComponent(mappingId)}/verify/${action}`;
+}
+
 /** Path prefix for the decisions and `finish`, which are per-mapping in both editions. */
 export function mappingPath(mappingId: string): string {
   return mappingPathFor(edition(), mappingId);

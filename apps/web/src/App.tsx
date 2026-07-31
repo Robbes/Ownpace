@@ -95,8 +95,12 @@ const App: React.FC = () => {
             <Route path="mappings/:mappingId/deletions" element={<Deletions />} />
             <Route path="mappings/:mappingId/moves" element={<Moves />} />
             <Route path="mappings/:mappingId/failures" element={<Failures />} />
-            {/* The §20 gate and the end of the shadow sync. */}
+            {/* The §20 gate and the end of the shadow sync. Verify has the
+                same two mount points as the queues and for the same reason:
+                the appliance scans every configured mapping in one run, a
+                managed run is per-mapping (workplan 0017 T3). */}
             <Route path="verify" element={<Verify />} />
+            <Route path="mappings/:mappingId/verify" element={<Verify />} />
             <Route path="finish" element={<Finish />} />
             <Route path="tenants" element={<Tenants />} />
             <Route path="billing" element={<Billing />} />
