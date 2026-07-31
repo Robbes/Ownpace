@@ -9,7 +9,7 @@
 | P2 `pgliteDriver()` implementing `LedgerDriver` | ✅ **Done** | `packages/ledger/src/pglite-driver.ts`. Serialises `acquire()`, resets rather than destroys on a failed rollback, loads the `pgcrypto` contrib, re-asserts `row_security` per acquire. |
 | P3 Run RLS against PGlite | ✅ **Done — RLS genuinely ENFORCES** | `pglite-driver.unit.test.ts`: the real 2580-line baseline applies unmodified; tenant A sees only A's row, B only B's, cross-tenant INSERT refused — all under `SET LOCAL ROLE app_user`. **Mutation-verified**: removing the role switch fails all three, because a superuser bypasses RLS. 11 tests, ~6 s, **no Docker**. |
 | **P6 Wire the appliance to it** | ✅ **Done** | `SELFHOST_PERSISTENCE=pglite` — `apps/selfhost` starts, migrates itself and serves the operating surface with **no `DATABASE_URL`**. The Postgres path is untouched and still the default (hard rule 5). 4 startup tests. |
-| P4 Decide + document the two-backend testing story | 🟡 **Partly** | RLS is now testable against PGlite with no container at all, in the unit project. Whether managed stays on server Postgres is still open. |
+| P4 Decide + document the two-backend testing story | ✅ **Done — and it found a real hole** | Two backends ship. Asking the question surfaced that **RLS was inert on BOTH of the appliance's paths**: it connects as the owner (container) or as `postgres` (PGlite), and Postgres exempts owners and superusers from row security — so 96 policies were created, granted, tested and bypassed, while every RLS test stayed green by opening its own `app_user` pool the appliance never uses. Fixed with `LedgerDriver.role` (`SET LOCAL ROLE` inside `withTenant`'s transaction), and now proved through the production wiring on both backends: `rls-in-force.unit.test.ts` (PGlite, no Docker) and `rls-in-force.integration.test.ts` (real Postgres, on a superuser connection). Mutation-verified. |
 | **P7 e2e on the PGlite backend** | 🟡 **Runnable, not yet run** | `deploy/selfhost/compose.pglite.yml` (validated with `docker compose config`: only `app` starts, no `depends_on`, `SELFHOST_PERSISTENCE=pglite`), and the Restart-Resume gate takes `SELFHOST_COMPOSE_OVERRIDE`. **Needs a runner with Docker** — not executed here. |
 | P5 Concurrency, measured | ✅ **Done — serialisation costs nothing measurable** | `scripts/bench-pglite-concurrency.mjs` (`pnpm bench:pglite`), real hot path through real `withTenant`. Flat 3.6–3.9 ms/item across widths 1→16; width 8 vs 1 across three runs: **+6.8%, −0.0%, −6.2%** — noise. **Two corrections to the T0 numbers below.** Still not a real mailbox. |
 
@@ -127,17 +127,86 @@ the claim worth testing.
 Worth noting for P4: this suite lives in the **unit** project. RLS enforcement
 previously could not be tested without a Postgres container.
 
-## P4 — two backends, or one?
+## P4 — two backends, and the hole that asking about them found
 
-If managed stays on server Postgres (almost certainly — PGlite is
-single-connection and single-process, wrong for a multi-tenant API with a worker
-fleet), then **two persistence backends ship**, and the RLS integration tests
-have to run against both. Otherwise self-host's tenant isolation is asserted
-against a database nobody ships.
+Managed stays on server Postgres (PGlite is single-connection and
+single-process — wrong for a multi-tenant API with a worker fleet), so **two
+persistence backends ship**. Answering "must the RLS tests run against both?"
+turned up something more serious than the question assumed.
 
-Note the asymmetry that makes this less alarming than it sounds: self-host is
-**single-tenant**, so its RLS is defence in depth rather than the primary
-boundary. That is an argument for proportionate coverage, not for skipping it.
+### The finding: RLS was inert on BOTH of the appliance's backends
+
+Not "untested on one backend". **Not in force on either.**
+
+Postgres exempts two kinds of user from row security: a **superuser**, always
+and unconditionally, and a table's **owner**, unless the table is `FORCE`d. The
+appliance connects as the database owner on the container path
+(`DATABASE_URL: postgresql://${POSTGRES_USER}...`) and as `postgres` on the
+PGlite path. So every one of the 96 policies in `0001_baseline.sql` was created,
+granted, tested — and skipped, on the shipped product, on both paths.
+
+Measured, not deduced. Through the appliance's own wiring, seeding one
+connection row for each of two tenants and then asking as tenant A:
+
+```
+current_user  : postgres
+is superuser  : true
+As tenant A, the appliance sees 2 connection row(s)
+=> RLS IS INERT: tenant A can read tenant B
+```
+
+**And every existing RLS test passed throughout**, because each one opens its
+own `pg.Pool` as `app_user` — a connection the appliance never makes. That is
+the P4 hazard in its sharpest form: not "asserted against a database nobody
+ships", but *asserted against a role nobody serves as*. `pglite-driver.unit.test.ts`
+had the same shape — it proves enforcement by issuing `SET LOCAL ROLE app_user`
+in the test body.
+
+### The fix: `LedgerDriver.role`
+
+`withTenant()` issues `SET LOCAL ROLE "<role>"` inside the transaction it
+already opens, when the driver was given one. `pgDriver(pool, { role })` and
+`pgliteDriver({ role })`; the appliance passes `app_user` on both paths.
+
+- **`SET LOCAL`, not `SET`** — it has to revert at COMMIT/ROLLBACK. The
+  migration chain creates the roles and the policies and must keep running as
+  the owner; and on PGlite there is exactly one connection, so a role that
+  leaked past a transaction would be the role the next startup migrated as.
+- **The role is validated at construction and refused rather than escaped.**
+  `SET ROLE` takes an identifier, and identifiers cannot be bound, so it is the
+  one value that reaches SQL by concatenation.
+- **Undefined by default, so managed is untouched** — it takes its role from
+  the connection string it is deployed with.
+- **No escape hatch.** `app_user` is created by our own baseline. If it has been
+  dropped, `SET LOCAL ROLE` fails loudly, which beats serving with isolation
+  silently off (hard rule 9).
+
+### And the answer to the question P4 actually asked
+
+Both backends, tested through the production wiring rather than beside it:
+
+| | where | what it proves |
+|---|---|---|
+| `rls-in-force.unit.test.ts` | unit, PGlite, **no Docker** | the served path enforces; the role is `app_user` and not a superuser; a foreign-tenant write is refused AND not written; the role is given back at COMMIT |
+| `rls-in-force.integration.test.ts` | integration, real Postgres | the same, over `pgDriver`, on a **superuser** connection — plus a test that *without* a role that connection still sees everything, so the isolation above is attributable to the switch |
+
+Mutation-verified: removing the `SET LOCAL ROLE` line fails 3 of the 6 unit
+tests, including "shows a tenant only its own rows".
+
+The asymmetry noted originally still holds — self-host is single-tenant, so
+this is defence in depth rather than the live boundary, and no shipped
+deployment leaked anything. It is an argument for proportionate coverage, which
+is what the table above is.
+
+### Left open, deliberately
+
+**Two tables have `ENABLE ROW LEVEL SECURITY` without `FORCE`:**
+`migration_discovery` and `migration_status` (22 of 24 are forced). For those
+two, the table *owner* is still exempt even with the role switch in place — it
+only stops mattering because `app_user` does not own them. Fixing it is two
+`ALTER TABLE ... FORCE ROW LEVEL SECURITY` lines, but it is a migration and it
+changes managed's behaviour too, so it belongs in its own change with the
+managed edition's connection role established first.
 
 ## P5 — concurrency, measured
 

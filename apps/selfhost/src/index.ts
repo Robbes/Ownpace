@@ -64,6 +64,24 @@ import { log } from '@openmig/shared';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
 
 const DEFAULT_CONFIG_DIR = '/data/config';
+
+/**
+ * The role served requests run as, so that RLS is actually in force.
+ *
+ * The appliance connects as the database owner (container path) or as
+ * `postgres` (PGlite path). Postgres exempts both from row security — a
+ * superuser always, an owner unless the table is `FORCE`d — so until this
+ * existed, every policy in the baseline was created, granted and bypassed.
+ * `withTenant()` drops to this role transaction-locally; migrations, which
+ * create the roles and the policies, still run as the owner.
+ *
+ * Not configurable, and no escape hatch: `app_user` is created by our own
+ * `0001_baseline.sql`, so it exists in any database this appliance migrated. If
+ * it has been dropped, `SET LOCAL ROLE` fails loudly — which is the right
+ * outcome, because the alternative is serving with tenant isolation silently
+ * switched off (hard rule 9).
+ */
+const SERVING_ROLE = 'app_user';
 const DEFAULT_SCHEDULE = '*/15 * * * *'; // every 15 minutes if a mapping omits one
 
 // UUID generation for selfhost (deterministic based on input for idempotency)
@@ -212,10 +230,14 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   //    driver re-asserts it per acquire for exactly that reason.
   const persistenceBackend =
     persistence === 'pglite'
-      ? await createPgliteDb({ dataDir: pgliteDataDir })
+      ? await createPgliteDb({ dataDir: pgliteDataDir, role: SERVING_ROLE })
       : (() => {
           const pgDb = createPgDb(databaseUrl!);
-          return { db: pgDb, driver: pgDriver(pgDb.$pool), close: () => pgDb.close() };
+          return {
+            db: pgDb,
+            driver: pgDriver(pgDb.$pool, { role: SERVING_ROLE }),
+            close: () => pgDb.close(),
+          };
         })();
   log.info(
     `[selfhost] persistence: ${persistence}` +
