@@ -11,7 +11,7 @@
 | **P6 Wire the appliance to it** | ✅ **Done** | `SELFHOST_PERSISTENCE=pglite` — `apps/selfhost` starts, migrates itself and serves the operating surface with **no `DATABASE_URL`**. The Postgres path is untouched and still the default (hard rule 5). 4 startup tests. |
 | P4 Decide + document the two-backend testing story | 🟡 **Partly** | RLS is now testable against PGlite with no container at all, in the unit project. Whether managed stays on server Postgres is still open. |
 | **P7 e2e on the PGlite backend** | 🟡 **Runnable, not yet run** | `deploy/selfhost/compose.pglite.yml` (validated with `docker compose config`: only `app` starts, no `depends_on`, `SELFHOST_PERSISTENCE=pglite`), and the Restart-Resume gate takes `SELFHOST_COMPOSE_OVERRIDE`. **Needs a runner with Docker** — not executed here. |
-| P5 Re-measure concurrency against a real corpus | ⬜ Not started | Unchanged — still wants a real mailbox, not 5,000 synthetic inserts. |
+| P5 Concurrency, measured | ✅ **Done — serialisation costs nothing measurable** | `scripts/bench-pglite-concurrency.mjs` (`pnpm bench:pglite`), real hot path through real `withTenant`. Flat 3.6–3.9 ms/item across widths 1→16; width 8 vs 1 across three runs: **+6.8%, −0.0%, −6.2%** — noise. **Two corrections to the T0 numbers below.** Still not a real mailbox. |
 
 > **This workplan exists so T1 is not left half-done indefinitely.** Workplan
 > 0015 T0 proved PGlite runs our real schema; 0015 T1 built the seam. Neither
@@ -141,24 +141,50 @@ boundary. That is an argument for proportionate coverage, not for skipping it.
 
 ## P5 — concurrency, measured
 
-The sync path runs at `DEFAULT_CONCURRENCY` 8; PGlite serialises DB access. The
-T0 numbers say the ledger is not the bottleneck by orders of magnitude, but they
-came from 5,000 synthetic inserts, not a real corpus.
+`pnpm bench:pglite` (`scripts/bench-pglite-concurrency.mjs`). It runs the REAL
+ledger hot path — `find()` by natural key, then `recordIfAbsent()` — inside the
+REAL `withTenant`, against the REAL schema. That pair is what `runShadowPass`
+does per item and is the only database work in the loop.
 
-Measure against a real mailbox before relying on it. And keep the failure shape
-in mind when tuning: **serialising fails slow, not serialising fails
-cross-tenant**, so serialise first and measure second.
+Fresh in-memory database per width, 1500–2500 items each:
 
-## What would make this not worth doing
+| width | first pass / item | items/s | re-run / item | items/s |
+|---|---|---|---|---|
+| 1 | 3.61–3.76 ms | 266–277 | 2.47–2.52 ms | 397–405 |
+| 4 | 3.69 ms | 271 | 2.60 ms | 385 |
+| 8 | 3.51–3.86 ms | 259–285 | 2.44–2.70 ms | 370–411 |
+| 16 | 3.80 ms | 263 | 2.55 ms | 392 |
 
-Worth stating so it can be checked rather than assumed:
+**Serialisation costs nothing measurable.** Width 8 against width 1, three runs:
+`+6.8%`, `−0.0%`, `−6.2%`. The answer is zero within run-to-run noise, and there
+is no cliff at 16 either. The sync path can keep `DEFAULT_CONCURRENCY` 8 on
+PGlite without thinking about it.
 
-- If P1 has no answer short of vendoring drizzle or forking it, stop. The
-  bundled-Postgres path (ADR-0023 as it stands) keeps working and is merely
-  heavier.
-- If P3 shows RLS cannot be enforced under PGlite the way it is on a server,
-  stop — and reopen ADR-0023, because that would be a real difference in the
-  security model between editions rather than a packaging detail.
-- If P5 shows serialisation actually is the bottleneck on a real corpus, the
-  answer is probably still PGlite for the single-user appliance, but the
-  managed/self-host split then has to be stated explicitly rather than assumed.
+### Two corrections to the T0 spike's numbers
+
+Both matter because someone will otherwise plan against them.
+
+1. **~1700 rows/s is not the throughput of this system.** That figure came from
+   5,000 synthetic single-statement inserts. The real hot path is two statements
+   per item, both through drizzle, both inside a transaction that sets
+   `app.current_tenant` — and it runs at **~270 items/s**, six times slower.
+2. **"Not the bottleneck by orders of magnitude" overstates it.** A 48k-message
+   mailbox is ~170–185 s of ledger time against ~40 min of network at a
+   conservative 50 ms/message fetch. That is ~13×, i.e. **one** order of
+   magnitude, and the ledger is ~7% of wall clock. Comfortably not the
+   bottleneck; not free either.
+
+### A methodological note, because it changed the answer
+
+The first version of this script reused one database across all widths, so each
+width queried a table the previous widths had grown. It reported concurrency
+costing **+29%** — almost all of which was table growth. A fresh database per
+width costs ~4 s of migration each and is the difference between measuring the
+flag and measuring something else.
+
+### What this still does not tell you
+
+A real mailbox has variable item sizes, cold caches, and a source that pushes
+back. This bounds the ledger's contribution; it does not predict a migration.
+The remaining unknown is whether a real corpus changes the SHAPE — and the
+honest way to find out is to run one, not to extrapolate this.

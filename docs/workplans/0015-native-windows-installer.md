@@ -50,7 +50,7 @@ port, no `initdb`. Run `node scripts/spike-pglite-windows.mjs` to reproduce.
 | Transaction-local `set_config` (what `withTenant()` needs) | works, resets on rollback |
 | **RLS actually ENFORCES** as `app_user` | tenant A sees 1 of 2 rows, B sees 1 of 2 |
 | **Cross-tenant INSERT** | refused by policy |
-| Write throughput, per-transaction | ~1700 rows/s → **~28s of ledger writes for a 48k-message mailbox** |
+| Write throughput, per-transaction | ~1700 rows/s → ~28s for a 48k-message mailbox — ⚠️ **synthetic; see [0016 P5](./0016-pglite-adoption.md#p5--concurrency-measured)**, which measures the real hot path at ~270 items/s (~170–185 s for the same mailbox) |
 | Indexed natural-key lookup (ledger fast path) | 3 ms |
 | On-disk size | 11 MB per 5,500 item rows (~2 KB/row) |
 | Cold start / warm start | ~3.2 s / ~0.7 s |
@@ -60,15 +60,22 @@ port, no `initdb`. Run `node scripts/spike-pglite-windows.mjs` to reproduce.
 Drizzle schema, same RLS policies — the *server* goes away, not Postgres. No
 SQLite fork, no second dialect.
 
-### Two findings an adopter must not miss
+### Three findings — two of them since corrected
 
-1. **`row_security` defaults to `off` in PGlite**, where a real server defaults to
-   `on`. With it off, a query that *would* be filtered raises `query would be
-   affected by row-level security policy` instead of silently returning every
-   tenant's rows. That is a loud failure rather than a quiet cross-tenant leak —
-   the right direction to be wrong in — but it **must be set explicitly** on every
-   session, and a test must assert it, because the failure mode if someone later
-   "fixes" the error by turning RLS off is catastrophic and silent.
+1. ⚠️ **CORRECTED — the symptom was real, the cause was not.** This recorded that
+   PGlite defaults `row_security` to `off` where a real server defaults it `on`.
+   Measured directly against PGlite 0.5.4, a fresh instance reports **`on`**.
+   What turns it off is **our own migration**: `0001_baseline.sql` is a `pg_dump`
+   and line 43 of its preamble is `SET row_security = off;`.
+
+   Harmless on a pool — session-scoped, dies with the client that migrated. On a
+   single persistent connection it would disable row security for the life of
+   the process, so `pgliteDriver()` re-asserts it per acquire. **Not a PGlite
+   quirk**: any driver reusing one long-lived connection across
+   migrate-then-serve inherits it. See [0016 P2](./0016-pglite-adoption.md).
+
+   The conclusion "set it explicitly and assert it in a test" stands; the reason
+   is different, and the difference matters because it applies to `pg` too.
 2. **`pgcrypto` must be loaded as a contrib extension** (`@electric-sql/pglite/contrib/pgcrypto`),
    or `CREATE EXTENSION pgcrypto` fails with "extension is not available". Nothing
    in our schema actually calls a pgcrypto function — `gen_random_uuid()` has been
@@ -77,14 +84,20 @@ SQLite fork, no second dialect.
    file byte-identical to what real Postgres gets is worth more than removing two
    lines, and the squash equivalence proof stays valid.
 
-3. **PGlite cannot simply be added alongside `pg`.** Installing
-   `@electric-sql/pglite` into the workspace makes pnpm resolve a **second copy of
-   `drizzle-orm`** — drizzle declares pglite as an optional peer, so its store key
-   changes — and the workspace then typechecks two incompatible `SQL<unknown>`
-   types against each other and fails outright. Found while running this spike.
-   The consequence for T1: the driver switch is a **whole-workspace change made at
-   once**, not an incremental "support both" step, and the spike script therefore
-   runs PGlite via `pnpm dlx` rather than as a dependency.
+3. ⚠️ **WITHDRAWN — this was not true, and it parked the work for nothing.**
+   This recorded that installing `@electric-sql/pglite` makes pnpm resolve a
+   second `drizzle-orm` and breaks the workspace typecheck, so adoption had to be
+   one atomic whole-workspace change.
+
+   The symptom reproduces exactly. The cause is that **`pnpm add` relinks
+   incrementally** — it left `apps/worker` on the old instance while the root and
+   `packages/ledger` moved — and the lockfile was already consistent. A plain
+   `pnpm install` converges every importer, and a clean `--frozen-lockfile`
+   install, which is what CI and any new checkout does, resolves exactly **one**.
+
+   No overrides, no `.npmrc` change, no atomic commit: it is an ordinary
+   dependency of `packages/ledger`. See [0016 P0/P1](./0016-pglite-adoption.md).
+   **Re-run `pnpm install` before concluding a dependency is incompatible.**
 
 ## What this actually depends on — read before scheduling T2
 
@@ -203,18 +216,14 @@ cheaper than it looked when this workplan was written, and reversible.
    multi-tenant API with a worker fleet. That means **two persistence backends**,
    which is a real cost: the RLS integration tests must run against both, or the
    self-host edition's isolation is asserted against a database nobody ships.
-2. **Concurrency.** The sync path runs at `DEFAULT_CONCURRENCY` 8; PGlite
-   serialises DB access. The measurement above says the ledger is not the
-   bottleneck (network I/O dominates by orders of magnitude), but that should be
-   re-measured against a real corpus rather than 5,000 synthetic inserts.
+2. **Concurrency — ANSWERED.** See [0016 P5](./0016-pglite-adoption.md#p5--concurrency-measured).
+   Serialisation costs nothing measurable at `DEFAULT_CONCURRENCY` 8: the real
+   ledger hot path is flat at 3.6–3.9 ms/item across widths 1→16, and width 8
+   against width 1 came out at +6.8%, −0.0% and −6.2% over three runs — noise.
 
-   Half of this is now answered: the seam makes serialisation expressible and
-   CORRECT (see T1 above), so the remaining question is purely how much
-   throughput it costs, not whether it is safe. Note the shape of the risk —
-   serialising is the safe failure (slow), while not serialising is the unsafe
-   one (cross-tenant), so a PGlite driver should serialise first and be measured
-   second.
-3. **Does anything else in the stack assume a server?** `pg_dump`-based backup
-   guidance in the runbook, the `DATABASE_URL` shape in config, and the
-   compose-based self-host path all assume a reachable server. The container path
-   must keep working unchanged (hard rule 5).
+   That measurement also corrects two claims above: the ~1700 rows/s figure was
+   synthetic single-statement inserts and the real path runs at ~270 items/s;
+   and "not the bottleneck by orders of magnitude" is really ~13× — one order of
+   magnitude, with the ledger at ~7% of wall clock. Comfortably fine, not free.
+
+   Still measured against synthetic items rather than a real mailbox.
