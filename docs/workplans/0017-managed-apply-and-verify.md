@@ -24,6 +24,18 @@
   same shape ADR-0026 used to record for the endpoints themselves.
 - **Retiring the appliance's synchronous `GET /verify`** once the e2e
   verification gate moves to the pair — T2 kept it for exactly one release.
+- **Deploying the Trigger.dev v4 tasks.** T3/T4 give managed its jobs
+  (`run-verification`, `run-apply-deletion`) and the routes enqueue them — but
+  the repo still has no `trigger.config.ts` and no `trigger deploy` step
+  (recorded since 0011 T7 in `managed-scheduler.ts`'s header), so on a live
+  stack every enqueue takes the designed failure branch: the run/receipt lands
+  `failed` with "Could not enqueue …" and the caller gets a 502. Syncs have the
+  polling `managed-scheduler` as an interim; verify and apply have no interim —
+  they are the first operator-visible features whose happy path NEEDS the
+  deployment step (a `trigger.config.ts`, a deploy registry the compose stack
+  references but does not run, and `trigger deploy` against `trigger-api`).
+  Until that lands, the live stack proves the routes, migrations, state
+  machines, and the never-left-running/queued property — not the job loop.
 
 ## Why this exists
 
