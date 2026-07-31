@@ -190,6 +190,17 @@ export interface SelfhostOptions {
    * way and `/ui` explains how to build it.
    */
   readonly uiDir?: string;
+  /**
+   * Where the migration SQL lives.
+   *
+   * Defaults to `packages/ledger/migrations` resolved from the ledger module,
+   * which is right for a checkout and right for the container image. It is
+   * WRONG for a bundled appliance: bundling collapses the package layout, so
+   * `import.meta.url` no longer points inside `packages/ledger` and the
+   * relative walk lands somewhere arbitrary. The packaging script stages the
+   * SQL next to the bundle and passes this explicitly (workplan 0015 T3).
+   */
+  readonly migrationsDir?: string;
 }
 
 export interface SelfhostHandle {
@@ -244,7 +255,10 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       (persistence === 'pglite' ? ` (${pgliteDataDir})` : ''),
   );
   log.info('[selfhost] applying migrations…');
-  await runMigrations({ driver: persistenceBackend.driver });
+  await runMigrations({
+    driver: persistenceBackend.driver,
+    migrationsDir: options.migrationsDir ?? process.env.SELFHOST_MIGRATIONS_DIR,
+  });
 
   // 2. Load and validate the mapping configs.
   const mappings = loadConfigDir(configDir);
