@@ -271,6 +271,18 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   // The failure queue's two reads and two writes (§11.2's "actions required").
   const ledger = new PgLedger(db);
   const cursorStore = new PgCursorStore(db);
+  /**
+   * The appliance's own ledger, handed to every worker entry point it calls.
+   *
+   * Without it those builders open their OWN `pg.Pool` from `DATABASE_URL`,
+   * which is right for the managed worker and wrong here twice over. On the
+   * container path it quietly opened a second pool to the same server and
+   * looked fine. On PGlite there is no server to open a pool TO — it runs
+   * in-process — so every ledger query of every domain died with
+   * `getaddrinfo ENOTFOUND postgres`, and `SELFHOST_PERSISTENCE=pglite` turned
+   * out to have wired only the half of the appliance that reads.
+   */
+  const ledgerOptions = { ledgerDb: db };
   const scheduler = new InProcessScheduler();
   const handles: ScheduleHandle[] = [];
   // config mappingIds currently scheduled (only 'active' mappings run — 0013 T7).
@@ -404,7 +416,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         log.error(`[selfhost] ${m.config.mappingId}: failed to open run row:`, err instanceof Error ? err.message : err);
       }
 
-      const results = await runAllDomains(configWithCorrectMappingId, statusStore);
+      const results = await runAllDomains(configWithCorrectMappingId, statusStore, ledgerOptions);
       const created = results.reduce((n, r) => n + r.created, 0);
 
       if (runId) {
@@ -464,6 +476,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       discoveryStore,
       m.config.tenantId as TenantId,
       m.mailboxMappingId as MappingId,
+      ledgerOptions,
     ).catch((err) => {
       log.error(
         `[selfhost] ${m.config.mappingId}: discovery failed:`,
@@ -546,10 +559,10 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       if (req.method === 'GET' && req.url === '/verify') {
         const reports: Record<string, VerificationResult> = {};
         for (const m of mappings) {
-          reports[m.config.mappingId] = await verifyMapping({
-            ...m.config,
-            mappingId: m.mailboxMappingId,
-          } as typeof m.config);
+          reports[m.config.mappingId] = await verifyMapping(
+            { ...m.config, mappingId: m.mailboxMappingId } as typeof m.config,
+            ledgerOptions,
+          );
         }
         return sendJson(res, 200, reports);
       }
@@ -735,7 +748,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
 
         const configWithCorrectMappingId = { ...m.config, mappingId: m.mailboxMappingId };
-        const outcome = await applyMappingDeletion(configWithCorrectMappingId, hash);
+        const outcome = await applyMappingDeletion(configWithCorrectMappingId, hash, ledgerOptions);
 
         if (!outcome.ok) {
           // Every refusal reason is written to be read verbatim by an operator —

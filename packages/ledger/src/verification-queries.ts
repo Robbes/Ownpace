@@ -7,6 +7,7 @@
 
 import type { TenantId, MappingId } from '@openmig/shared';
 import { createPgDb } from './db';
+import type { PgDatabase } from './db-types';
 import * as schema from './schema-pg';
 import { eq, and, sql, ne } from 'drizzle-orm';
 
@@ -45,6 +46,19 @@ export interface LedgerVerificationReaderConfig {
   connectionString: string;
 }
 
+/**
+ * A reader over a database the CALLER owns.
+ *
+ * The `connectionString` form opens its own pool, which is right for a job that
+ * ends. It is wrong — and, on PGlite, impossible — for the self-host appliance:
+ * PGlite runs in-process and has no address, so there is nothing to put in a
+ * connection string and no second connection to open. Give it the handle
+ * instead, and it will not close what it did not open.
+ */
+export interface LedgerVerificationReaderHandle {
+  db: PgDatabase;
+}
+
 /** A reader that owns its connection pool and must be closed. */
 export type DisposableLedgerVerificationReader = LedgerVerificationReader & {
   /** Release the pool this reader opened. */
@@ -60,13 +74,17 @@ export type DisposableLedgerVerificationReader = LedgerVerificationReader & {
  * long-lived worker that is one leaked pool per cutover attempt.
  */
 export function createLedgerVerificationReader(
-  config: LedgerVerificationReaderConfig,
+  config: LedgerVerificationReaderConfig | LedgerVerificationReaderHandle,
 ): DisposableLedgerVerificationReader {
-  const db = createPgDb(config.connectionString);
+  // `close()` releases only a pool this function opened. Closing a caller's
+  // handle would, on the appliance, take its whole database down mid-run.
+  const provided = 'db' in config ? config.db : undefined;
+  const owned = provided ? undefined : createPgDb((config as LedgerVerificationReaderConfig).connectionString);
+  const db = (provided ?? owned)!;
   
   return {
     async close(): Promise<void> {
-      await db.close();
+      await owned?.close();
     },
     async countItems(tenantId, mappingId, domain): Promise<number> {
       const result = await db
