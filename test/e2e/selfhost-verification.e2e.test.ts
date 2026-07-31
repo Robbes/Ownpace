@@ -17,11 +17,18 @@
 // `runVerification`, so a green e2e has so far said nothing about any of this.
 //
 // This runs the real gate over the data the restart-resume gate just synced,
-// via the appliance's `GET /verify`, and reports the diagnostics that only a
-// real server can settle. It is deliberately loud about them: a systematic
-// 100% checksum mismatch means the JMAP server does not store blobs verbatim
-// and mail needs the same treatment CalDAV/CardDAV got, which is exactly the
-// kind of thing that must not be discovered during someone's cutover.
+// via the appliance's start + poll pair (`POST /verify/start`, then
+// `GET /verify/report` until terminal — workplan 0017 T2), and reports the
+// diagnostics that only a real server can settle. It is deliberately loud
+// about them: a systematic 100% checksum mismatch means the JMAP server does
+// not store blobs verbatim and mail needs the same treatment CalDAV/CardDAV
+// got, which is exactly the kind of thing that must not be discovered during
+// someone's cutover.
+//
+// The pair, not the old synchronous `GET /verify`, deliberately: it is the
+// path the Verify screen actually exercises, and moving this gate onto it is
+// the precondition 0017 set for retiring the synchronous route next release —
+// after this, nothing in the repo calls it.
 //
 // PREREQUISITES: same running stack as selfhost-restart-resume.e2e.test.ts, and
 // it must have run TO COMPLETION first so there is synced data to verify.
@@ -38,7 +45,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 
 const SELFHOST_PORT = process.env.SELFHOST_PORT || '8081';
 const SELFHOST_BIND = process.env.SELFHOST_BIND || '127.0.0.1';
-const VERIFY_URL = `http://${SELFHOST_BIND}:${SELFHOST_PORT}/verify`;
+const APPLIANCE = `http://${SELFHOST_BIND}:${SELFHOST_PORT}`;
 
 // Direct DAV access, for the byte-fidelity check below. Same values the seed
 // step and the appliance config use.
@@ -96,17 +103,48 @@ let report: VerificationReport;
 
 describe('Verification gate against real servers', () => {
   beforeAll(async () => {
-    const response = await fetch(VERIFY_URL);
-    const raw = await response.text();
-    // Read the body BEFORE asserting. Asserting on `response.ok` alone threw
-    // the diagnosis away: run #29 failed with a bare "500" and the cause —
-    // which the endpoint had put in the body — was never printed, so the run
-    // proved only that something broke.
-    expect(response.ok, `GET /verify failed: ${response.status}\n${raw}`).toBe(true);
-    const byMapping = JSON.parse(raw) as Record<string, VerificationReport>;
+    // Start (or join) the scan. The body is read BEFORE asserting, always:
+    // run #29 once failed with a bare "500" because asserting on `ok` alone
+    // threw away the diagnosis the endpoint had put in the body.
+    const start = await fetch(`${APPLIANCE}/verify/start`, { method: 'POST' });
+    const startRaw = await start.text();
+    expect(start.ok, `POST /verify/start failed: ${start.status}\n${startRaw}`).toBe(true);
+
+    // Poll to a terminal state. Every branch below is explicit, because
+    // silence is the one wrong answer: `failed` carries the reason (hard rule
+    // 9) and `never-run` after a successful start means the appliance
+    // restarted mid-scan — both are diagnoses, not timeouts.
+    const deadline = Date.now() + 280_000;
+    let byMapping: Record<string, VerificationReport> | undefined;
+    for (;;) {
+      const res = await fetch(`${APPLIANCE}/verify/report`);
+      const raw = await res.text();
+      expect(res.ok, `GET /verify/report failed: ${res.status}\n${raw}`).toBe(true);
+      const run = JSON.parse(raw) as {
+        state: 'never-run' | 'running' | 'done' | 'failed';
+        error?: string;
+        report?: Record<string, VerificationReport>;
+      };
+      if (run.state === 'done') {
+        byMapping = run.report ?? {};
+        break;
+      }
+      if (run.state === 'failed') {
+        throw new Error(`the scan failed: ${run.error ?? 'no reason recorded'}`);
+      }
+      if (run.state === 'never-run') {
+        throw new Error(
+          'the report says never-run AFTER a successful start — the appliance restarted mid-scan',
+        );
+      }
+      if (Date.now() > deadline) {
+        throw new Error('the scan was still running at the deadline; see the appliance logs');
+      }
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
 
     const first = Object.values(byMapping)[0];
-    expect(first, 'no mapping in the /verify response').toBeTruthy();
+    expect(first, 'no mapping in the /verify/report response').toBeTruthy();
     report = first!;
 
     // Print the whole thing. When this fails on someone's stack the numbers are
