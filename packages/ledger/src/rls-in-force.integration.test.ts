@@ -16,7 +16,10 @@
  * how correct the policies were. Nothing here connects as `app_user`; the
  * driver drops to it, which is the behaviour under test.
  *
- * UUID family 5c2b0000-…-4466554414xx, distinct from the other RLS suites.
+ * UUID family 5c3b0000-…, a prefix of its own. The collision guard
+ * (`scripts/check-fixture-uuid-collisions.sh`) is what says whether that is
+ * true — it caught this file reusing 5c2b, which `rls.integration.test.ts`
+ * already owns, against a shared database.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -29,10 +32,10 @@ if (!URL) {
   throw new Error('TEST_DATABASE_URL is not set. Run: pnpm test:integration');
 }
 
-const TENANT_A = '5c2b0000-e29b-41d4-a716-446655441401';
-const TENANT_B = '5c2b0000-e29b-41d4-a716-446655441402';
-const CONN_A = '5c2b0000-e29b-41d4-a716-446655441411';
-const CONN_B = '5c2b0000-e29b-41d4-a716-446655441412';
+const TENANT_A = '5c3b0000-e29b-41d4-a716-446655441401';
+const TENANT_B = '5c3b0000-e29b-41d4-a716-446655441402';
+const CONN_A = '5c3b0000-e29b-41d4-a716-446655441411';
+const CONN_B = '5c3b0000-e29b-41d4-a716-446655441412';
 
 let pool: Pool;
 

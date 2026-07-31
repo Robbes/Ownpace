@@ -40,12 +40,13 @@ import { withTenant } from './db';
 import { connection } from './schema-pg';
 import type { LedgerDriver } from './driver';
 
-// UUID family 5c2b0000-…-4466554413xx, distinct from the RLS integration
-// suite's 11xx/12xx so a shared database could hold both without collisions.
-const TENANT_A = '5c2b0000-e29b-41d4-a716-446655441301';
-const TENANT_B = '5c2b0000-e29b-41d4-a716-446655441302';
-const CONN_A = '5c2b0000-e29b-41d4-a716-446655441311';
-const CONN_B = '5c2b0000-e29b-41d4-a716-446655441312';
+// UUID family 5c3b0000-…, a prefix of this file's own. `5c2b` was the first
+// choice and is already owned by `rls.integration.test.ts`; the collision guard
+// (`scripts/check-fixture-uuid-collisions.sh`) is what said so.
+const TENANT_A = '5c3b0000-e29b-41d4-a716-446655441301';
+const TENANT_B = '5c3b0000-e29b-41d4-a716-446655441302';
+const CONN_A = '5c3b0000-e29b-41d4-a716-446655441311';
+const CONN_B = '5c3b0000-e29b-41d4-a716-446655441312';
 
 /** The appliance's own wiring: PGlite, serving as `app_user`. */
 let driver: LedgerDriver;
@@ -114,7 +115,7 @@ describe('the appliance serves with RLS in force', () => {
   }, 30_000);
 
   it('refuses a write stamped with somebody else’s tenant', async () => {
-    const smuggled = '5c2b0000-e29b-41d4-a716-446655441399';
+    const smuggled = '5c3b0000-e29b-41d4-a716-446655441399';
     const rejection = await withTenant(driver, TENANT_A, (db) =>
       db.insert(connection).values({
         id: smuggled,
