@@ -6,6 +6,9 @@ export * from './cursor-store';
 export * from './db';
 // The connection seam (workplan 0015 T1) — what a PGlite driver would implement.
 export * from './driver';
+// The PGlite implementation (workplan 0016). Imported explicitly by the
+// appliance; the managed edition never touches it.
+export * from './pglite-driver';
 export * from './db-types';
 export * from './schema-pg';
 export * from './cutover-store';

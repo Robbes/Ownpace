@@ -34,18 +34,23 @@
  * That number came from 5,000 synthetic inserts, though, and wants re-measuring
  * against a real corpus before anyone relies on it.
  *
- * ## Why PGlite is not implemented here yet
+ * ## The PGlite implementation
  *
- * Installing `@electric-sql/pglite` into the workspace makes pnpm resolve a
- * SECOND copy of `drizzle-orm` — drizzle declares pglite as an optional peer,
- * so the store key changes — and the workspace then typechecks two
- * incompatible `SQL<unknown>` types against each other and fails outright.
- * Found the hard way during the T0 spike. The driver switch therefore has to be
- * one whole-workspace change, so this commit builds the seam and leaves `pg`
- * as the only implementation. The single-connection behaviour is not left
- * untested for it: `driver.unit.test.ts` exercises `withTenant` against a fake
- * driver with PGlite's constraint, which is the property that actually needs
- * proving.
+ * `pgliteDriver()` in `pglite-driver.ts` implements this, and serialises
+ * `acquire()` for the reason above. Two things it discovered that this
+ * interface now reflects:
+ *
+ *  - **`exec()` exists** because Postgres has two wire protocols. `query()`
+ *    with parameters uses the extended one, which accepts a single statement,
+ *    so a migration file fails on it. `pg` hides that by dropping to the simple
+ *    protocol when there are no parameters; PGlite does not.
+ *  - **`release(err)` cannot always destroy.** With one connection there is
+ *    nothing else to hand out, so that driver resets the connection instead.
+ *    The contract below says "unusable", not "discarded", for that reason.
+ *
+ * The adoption blocker recorded during the T0 spike — that installing pglite
+ * makes pnpm resolve a second `drizzle-orm` — turned out to be an artefact of
+ * an incremental `pnpm add`. A clean install resolves one. See workplan 0016.
  */
 
 import type { PgDatabase } from './db-types';
@@ -84,6 +89,23 @@ export interface LedgerConnection {
     text: string,
     params?: readonly unknown[],
   ): Promise<LedgerQueryResult<R>>;
+  /**
+   * Run a SCRIPT: one or more statements, no parameters, no rows back.
+   *
+   * Separate from `query()` because Postgres has two wire protocols and they
+   * differ in exactly this. `query()` with parameters uses the EXTENDED
+   * protocol, which accepts **one** statement — a migration file full of them
+   * fails with "cannot insert multiple commands into a prepared statement".
+   * `pg` hides this by falling back to the simple protocol when there are no
+   * parameters; PGlite does not, and exposes the two as `query()` and `exec()`.
+   *
+   * Found by running the real migration chain through the real PGlite driver,
+   * which is the sort of thing a spike against the raw library cannot surface.
+   *
+   * Never interpolate user input into a script: with no parameters there is
+   * nothing binding it. Callers here pass migration files read from disk.
+   */
+  exec(sql: string): Promise<void>;
   /**
    * A drizzle handle bound to THIS connection.
    *

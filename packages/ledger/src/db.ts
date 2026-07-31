@@ -35,6 +35,11 @@ export function pgDriver(pool: Pool): LedgerDriver {
             text,
             params as unknown[] | undefined,
           ),
+        // No parameters, so node-postgres uses the SIMPLE protocol and accepts
+        // multiple statements — which is what a migration file is.
+        exec: async (sql: string) => {
+          await client.query(sql);
+        },
         db: drizzlePg(client, { schema: schemaPg }) as unknown as PgDatabase,
         release: (err?: Error) => client.release(err),
       };
