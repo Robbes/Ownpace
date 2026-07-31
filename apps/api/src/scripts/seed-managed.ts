@@ -52,6 +52,7 @@ import { sql } from 'drizzle-orm';
 import {
   createPgDb,
   withTenant,
+  runMigrations,
   tenant,
   tenantMember,
   connection,
@@ -282,6 +283,14 @@ async function main(): Promise<void> {
   // Fails fast with a clear message via SecretStore.validate() -> validateSecretKey()
   // if SECRET_ENCRYPTION_KEY is missing/malformed, before any connection is encrypted.
   SecretStore.validate();
+
+  // The demo run order (setup-managed-demo.sh's header) runs this seed BEFORE
+  // the API has ever booted, so the schema may not exist yet. The migrator is
+  // idempotent and advisory-locked, so racing an API boot is safe — whoever
+  // arrives first applies, the other finds everything already recorded. This
+  // used to be initdb's job via a docker-entrypoint-initdb.d mount, which
+  // applied the files WITHOUT schema_migrations bookkeeping — see managed.yml.
+  await runMigrations({ connectionString });
 
   const tokens: Array<{ tenant: string; email: string; token: string }> = [];
   for (const t of DEMO_TENANTS) {
