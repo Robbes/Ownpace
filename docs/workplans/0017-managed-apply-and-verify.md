@@ -32,7 +32,17 @@
   job: the SDK asks for `TRIGGER_SECRET_KEY`, while `managed.yml` supplies
   `TRIGGER_API_KEY`/`TRIGGER_API_URL` and `trigger-client.ts` reads
   `TRIGGER_DEV_ACCESS_TOKEN`/`TRIGGER_DEV_BASE_URL` — three disagreeing env
-  namings that the task-deployment follow-up owns reconciling.
+  namings that the task-deployment follow-up owns reconciling. The apply half
+  of the same smoke: with the flag at its migrated default, a POST answered
+  403 `not_enabled` with the operator prose intact and left NO receipt behind
+  (refusals are answers, not jobs); after `UPDATE mailbox_mapping SET
+  allow_apply_deletions = true`, the same unknown hash became 404 `not_found` —
+  gate 1 passing, the domain loop falling through honestly. The permitted →
+  enqueue-dies → receipt-lands-failed path was NOT exercised live (the fresh
+  demo corpus had no migrated items yet); it stays covered by the
+  fault-injection integration test until the trigger deploy lands, after which
+  the same curl pair becomes the real loop's smoke. Flag returned to FALSE and
+  smoke rows removed afterwards.
 - **The managed compose stack could not have booted the new chain from a fresh
   volume**: `managed.yml` still mounted the migration files into
   `docker-entrypoint-initdb.d`, so initdb applied them with no
