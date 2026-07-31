@@ -115,6 +115,9 @@ export const mailboxMapping = pgTable(
     // User-facing name + optional cron schedule (migration 0013).
     name: text('name'),
     schedule: text('schedule'),
+    // apply's gate 1 (0017 T4). DEFAULT FALSE: a mapping can remove nothing
+    // from the target until somebody turns this on for it, deliberately.
+    allowApplyDeletions: boolean('allow_apply_deletions').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -470,6 +473,34 @@ export const verificationRun = pgTable(
     report: jsonb('report'),
   },
   (t) => [index('verification_run_mapping_started_idx').on(t.tenantId, t.mappingId, t.startedAt)],
+);
+
+/**
+ * One `apply` request's outcome, for the managed edition's poller (0017 T4).
+ *
+ * The route evaluates the ledger-side gates synchronously and refuses on the
+ * request; only a PERMITTED removal gets a receipt and a job. The job lands
+ * the outcome here: applied (with how final that was), refused (by a gate
+ * only the target could answer — capability, or the owner edited our copy),
+ * or failed. The appliance answers synchronously and has no such table.
+ */
+export const applyReceipt = pgTable(
+  'apply_receipt',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenant.id),
+    mappingId: uuid('mapping_id').notNull().references(() => mailboxMapping.id),
+    naturalKeyHash: text('natural_key_hash').notNull(),
+    state: text('state', { enum: ['queued', 'applied', 'refused', 'failed'] }).notNull(),
+    requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    kind: text('kind'),
+    code: text('code'),
+    reason: text('reason'),
+  },
+  (t) => [
+    index('apply_receipt_item_idx').on(t.tenantId, t.mappingId, t.naturalKeyHash, t.requestedAt),
+  ],
 );
 
 export const cutover = pgTable(

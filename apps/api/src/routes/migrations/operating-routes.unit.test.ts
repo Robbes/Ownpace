@@ -50,9 +50,11 @@ describe('route registration', () => {
     expect(got).toEqual(
       [
         'GET /:mappingId/deletions',
+        'GET /:mappingId/deletions/:hash/receipt',
         'GET /:mappingId/failures',
         'GET /:mappingId/moves',
         'GET /:mappingId/verify/report',
+        'POST /:mappingId/deletions/:hash/apply',
         'POST /:mappingId/deletions/:hash/keep',
         'POST /:mappingId/failures/:hash/:action',
         'POST /:mappingId/finish',
@@ -62,13 +64,18 @@ describe('route registration', () => {
     );
   });
 
-  it('does NOT expose apply, which still belongs to the worker in this edition', () => {
-    // Deliberate, not missing (workplan 0017 T4). It removes a message from
-    // the target, and target I/O in the managed edition belongs behind
-    // Trigger.dev (ADR-0004), not on a request thread holding connector
-    // credentials for the one operation that destroys data.
-    const paths = routes().map((r) => r.path);
-    expect(paths.some((p) => p.includes('apply'))).toBe(false);
+  it('exposes apply ONLY as evaluate-then-queue — the removal itself never runs here', () => {
+    // The one destructive operation (workplan 0017 T4). The POST answers the
+    // ledger-side gates synchronously and QUEUES a permitted removal; the
+    // target call lives in the worker behind Trigger.dev (ADR-0004), and the
+    // receipt is what a poller reads. No route in this edition performs a
+    // removal on the request thread.
+    const got = routes().filter((r) => r.path.includes('apply') || r.path.includes('receipt'))
+      .map((r) => `${r.method} ${r.path}`);
+    expect(got.sort()).toEqual([
+      'GET /:mappingId/deletions/:hash/receipt',
+      'POST /:mappingId/deletions/:hash/apply',
+    ]);
   });
 
   it('exposes verify ONLY as start + poll — no synchronous scan endpoint', () => {

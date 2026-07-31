@@ -53,6 +53,8 @@ import {
   log,
 } from '@openmig/shared';
 import type {
+  ApplyQueuedResponse,
+  ApplyReceipt,
   VerificationRunReport,
   VerifyResponse,
   VerifyStartResponse,
@@ -67,6 +69,7 @@ import type {
 } from '@openmig/shared';
 import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth';
 import { getTriggerClient } from '@openmig/scheduler';
+import { evaluateApplyDeletion } from '@openmig/core';
 import type { AuthenticatedRequest } from '../../types/api';
 
 const router = Router({ mergeParams: true });
@@ -525,5 +528,192 @@ router.get('/:mappingId/verify/report', authenticate, async (req: AuthenticatedR
     serverError(res, 'read the verification report', error);
   }
 });
+
+/**
+ * `apply` — the one destructive operation — as evaluate-then-enqueue
+ * (workplan 0017 T4). The ledger-side gates are answered HERE, synchronously:
+ * a refusal is an answer to the operator's question and comes back on the
+ * request they made, as the same 403/404 + code + reason the appliance sends.
+ * Only a removal every ledger gate permits gets a receipt and a job; the two
+ * gates only the target can answer (capability, and whether the owner edited
+ * our copy) land on the receipt, which `GET .../receipt` serves.
+ */
+
+function receiptFromRow(row: {
+  state: string;
+  requestedAt: Date;
+  finishedAt: Date | null;
+  kind: string | null;
+  code: string | null;
+  reason: string | null;
+}): ApplyReceipt {
+  const requestedAt = row.requestedAt.toISOString();
+  if (row.state === 'queued') return { state: 'queued', requestedAt };
+  // The CHECK constraint guarantees a terminal row has a finish time; guessing
+  // one here would paper over the constraint being bypassed (hard rule 9).
+  const finishedAt = row.finishedAt!.toISOString();
+  if (row.state === 'applied') {
+    // 'unknown', not 'deleted': a hand-written row missing its kind must not
+    // be reported as MORE final than anyone knows it to be.
+    return { state: 'applied', requestedAt, finishedAt, kind: row.kind ?? 'unknown' };
+  }
+  if (row.state === 'refused') {
+    return {
+      state: 'refused',
+      requestedAt,
+      finishedAt,
+      code: row.code ?? 'unknown',
+      reason: row.reason ?? 'Refused with no recorded reason.',
+    };
+  }
+  return { state: 'failed', requestedAt, finishedAt, error: row.reason ?? 'The job failed with no recorded reason.' };
+}
+
+async function latestReceipt(s: Scoped, hash: string): Promise<ApplyReceipt> {
+  const rows = await withTenantDb(s.tenantId, pool(), (db) =>
+    db
+      .select()
+      .from(schema.applyReceipt)
+      .where(
+        and(
+          eq(schema.applyReceipt.tenantId, s.tenantId),
+          eq(schema.applyReceipt.mappingId, s.mappingId),
+          eq(schema.applyReceipt.naturalKeyHash, hash),
+        ),
+      )
+      .orderBy(desc(schema.applyReceipt.requestedAt))
+      .limit(1),
+  );
+  return rows[0] ? receiptFromRow(rows[0]) : { state: 'none' };
+}
+
+router.post(
+  '/:mappingId/deletions/:hash/apply',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const s = await scope(req, res);
+      if (!s) return;
+      const hash = String(req.params.hash ?? '');
+      if (!hash) return void res.status(400).json({ error: 'hash is required' });
+
+      // Joined, not stacked: an open receipt for this item means the job is
+      // already on its way, and §11.2's "one item, one decision, one call"
+      // does not multiply because somebody double-clicked.
+      const existing = await latestReceipt(s, hash);
+      if (existing.state === 'queued') {
+        const body: ApplyQueuedResponse = { queued: false, receipt: existing };
+        return void res.status(200).json(body);
+      }
+
+      // Every ledger-side gate, answered on this request. The flag comes from
+      // the mapping row — the managed home of `allowApplyDeletions`, default
+      // FALSE by migration 0004.
+      const verdict = await withTenantDb(s.tenantId, pool(), async (db) => {
+        const flagRows = await db
+          .select({ allow: schema.mailboxMapping.allowApplyDeletions })
+          .from(schema.mailboxMapping)
+          .where(eq(schema.mailboxMapping.id, s.mappingId));
+        const ledger = new PgLedger(db);
+        // Domain by domain, the appliance's order: the evaluator needs the
+        // domain to read the row, and the first domain holding the item wins.
+        for (const domain of ['email', 'calendar', 'contact', 'file'] as const) {
+          const outcome = await evaluateApplyDeletion(
+            {
+              tenantId: s.tenantId as TenantId,
+              mappingId: s.mappingId as MappingId,
+              domain,
+              ledger,
+              allowApplyDeletions: flagRows[0]?.allow === true,
+            },
+            hash,
+          );
+          // not_found in THIS domain may be found in the next; every other
+          // verdict is final.
+          if (outcome.ok || outcome.code !== 'not_found') return outcome;
+        }
+        return {
+          ok: false as const,
+          code: 'not_found' as const,
+          reason:
+            "No migrated item under that natural key in any of this mapping's enabled domains.",
+        };
+      });
+
+      if (!verdict.ok) {
+        // The appliance's status mapping, verbatim: 404 for "nothing here to
+        // act on", 403 for "this exists but you may not remove it".
+        const status =
+          verdict.code === 'not_found' ||
+          verdict.code === 'not_confirmed' ||
+          verdict.code === 'already_applied'
+            ? 404
+            : 403;
+        return void res.status(status).json({ error: verdict.code, reason: verdict.reason });
+      }
+
+      const inserted = await withTenantDb(s.tenantId, pool(), (db) =>
+        db
+          .insert(schema.applyReceipt)
+          .values({
+            tenantId: s.tenantId,
+            mappingId: s.mappingId,
+            naturalKeyHash: hash,
+            state: 'queued',
+          })
+          .returning({ id: schema.applyReceipt.id, requestedAt: schema.applyReceipt.requestedAt }),
+      );
+      const receipt = inserted[0]!;
+
+      try {
+        await getTriggerClient().tasks.trigger(
+          'run-apply-deletion',
+          { tenantId: s.tenantId, mappingId: s.mappingId, naturalKeyHash: hash, receiptId: receipt.id },
+          { tags: [`tenant:${s.tenantId}`, `mapping:${s.mappingId}`] },
+        );
+      } catch (err) {
+        // Never leave a queued receipt pointing at a job that was never
+        // enqueued — a poller would wait on nothing, about a REMOVAL.
+        const message = err instanceof Error ? err.message : String(err);
+        await withTenantDb(s.tenantId, pool(), (db) =>
+          db
+            .update(schema.applyReceipt)
+            .set({ state: 'failed', finishedAt: new Date(), reason: `Could not enqueue the removal: ${message}` })
+            .where(eq(schema.applyReceipt.id, receipt.id)),
+        );
+        log.error(`[api] ${s.mappingId}: could not enqueue run-apply-deletion:`, err);
+        return void res.status(502).json({ error: 'Could not queue the removal', message });
+      }
+
+      log.warn(
+        `[api] ${s.mappingId}: operator queued removal of item ${hash.slice(0, 12)} — every ` +
+          'ledger gate permits; the target-side gates decide on the receipt.',
+      );
+      const body: ApplyQueuedResponse = {
+        queued: true,
+        receipt: { state: 'queued', requestedAt: receipt.requestedAt.toISOString() },
+      };
+      res.status(202).json(body);
+    } catch (error) {
+      serverError(res, 'queue the removal', error);
+    }
+  },
+);
+
+router.get(
+  '/:mappingId/deletions/:hash/receipt',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const s = await scope(req, res);
+      if (!s) return;
+      const hash = String(req.params.hash ?? '');
+      if (!hash) return void res.status(400).json({ error: 'hash is required' });
+      res.json(await latestReceipt(s, hash));
+    } catch (error) {
+      serverError(res, 'read the removal receipt', error);
+    }
+  },
+);
 
 export default router;

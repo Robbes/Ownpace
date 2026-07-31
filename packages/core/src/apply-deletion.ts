@@ -121,6 +121,109 @@ export interface ApplyDeletionDeps {
 }
 
 /**
+ * The LEDGER-side gates alone — no target, no removal (workplan 0017 T4).
+ *
+ * The managed edition's route calls this synchronously before it enqueues
+ * anything: a refusal is an answer to the operator's question and must come
+ * back on the request they made, not as "check back later" from a job result.
+ * Five of the seven gates need only the ledger and the mapping's flag; the two
+ * that need the TARGET — whether it can remove at all (gate 2) and whether the
+ * owner has edited our copy (gate 5, checked at the moment of removal, where
+ * the ETag is) — cannot be answered from a request thread and land on the
+ * receipt instead.
+ *
+ * This deliberately DUPLICATES those gates rather than being called by
+ * `applyDeletion`: folding it in would reorder gate 2 relative to the ledger
+ * reads and change which refusal wins when several apply, on the one path in
+ * the product that destroys data. The two are locked together by
+ * `apply-deletion-evaluate.unit.test.ts`, which runs BOTH against the same
+ * ledger for every ledger-side case and fails on any divergence in code — so
+ * the route can never promise what the job then refuses.
+ *
+ * A permitted outcome here is a PREDICTION, not a guarantee: the job re-runs
+ * every gate (including these, freshly) and the ledger's conditional UPDATE
+ * (gate 7) stays the final word under concurrency.
+ */
+export async function evaluateApplyDeletion(
+  deps: Omit<ApplyDeletionDeps, 'target'>,
+  naturalKeyHash: string,
+): Promise<{ ok: true; domain: ApplyDeletionDeps['domain'] } | Extract<ApplyDeletionOutcome, { ok: false }>> {
+  const { tenantId, mappingId, domain, ledger } = deps;
+
+  // GATE 1: switched on at all.
+  if (deps.allowApplyDeletions !== true) {
+    return {
+      ok: false,
+      code: 'not_enabled',
+      reason:
+        'Removing items from the target is switched off for this mapping. Set ' +
+        '`allowApplyDeletions: true` in its config to enable it, and read the runbook first — ' +
+        'this is the only operation here that destroys anything.',
+    };
+  }
+
+  const row = await ledger.find(tenantId, mappingId, domain, naturalKeyHash);
+  if (!row) {
+    return { ok: false, code: 'not_found', reason: 'No migrated item under that natural key.' };
+  }
+
+  if (row.deletionAppliedAt !== undefined || row.status === 'tombstoned') {
+    return {
+      ok: false,
+      code: 'already_applied',
+      reason: 'The target copy of this item has already been removed.',
+    };
+  }
+
+  // GATE 3: positive evidence only.
+  const evidence =
+    row.deletionReportedAt !== undefined
+      ? 'reported'
+      : row.deletionTrashedAt !== undefined
+        ? 'trashed'
+        : 'inferred';
+  if (evidence === 'inferred') {
+    const absent = row.absentPasses ?? 0;
+    return {
+      ok: false,
+      code: absent > 0 ? 'weak_evidence' : 'not_confirmed',
+      reason:
+        absent > 0
+          ? `This item is only INFERRED to be deleted: it has been missing from ${absent} ` +
+            'complete scan(s) and nothing has stated it was deleted. Absence has innocent causes ' +
+            'that all look identical, so it is never enough to remove anything. Delete it in the ' +
+            'target system yourself if you are sure, then choose `keep`.'
+          : 'Nothing says this item was deleted on the source.',
+    };
+  }
+
+  // GATE 4: it is ours to remove.
+  if (!isOnTarget(row.status)) {
+    return {
+      ok: false,
+      code: 'not_ours',
+      reason: `This item is not on the target (status ${row.status ?? 'unknown'}), so there is nothing to remove.`,
+    };
+  }
+  if (row.status === 'adopted') {
+    return {
+      ok: false,
+      code: 'not_ours',
+      reason:
+        'The copy on the target was already there before this migration ran — those bytes are ' +
+        'the account owner\'s, not ours to delete (hard rule 2). Remove it yourself if you want ' +
+        'it gone, then choose `keep`.',
+    };
+  }
+
+  // GATE 6: does this look like a mass-deletion event?
+  const breaker = await massDeletionCheck(deps);
+  if (breaker) return breaker;
+
+  return { ok: true, domain };
+}
+
+/**
  * Apply one owner decision to remove the target's copy of a deleted item.
  *
  * Returns rather than throws for every refusal, because each one is a sentence an
@@ -293,8 +396,8 @@ export async function applyDeletion(
  * a new one.
  */
 async function massDeletionCheck(
-  deps: ApplyDeletionDeps,
-): Promise<ApplyDeletionOutcome | undefined> {
+  deps: Omit<ApplyDeletionDeps, 'target'>,
+): Promise<Extract<ApplyDeletionOutcome, { ok: false }> | undefined> {
   const { tenantId, mappingId, domain, ledger } = deps;
 
   const placed = await ledger.placedItems(tenantId, mappingId, domain);
