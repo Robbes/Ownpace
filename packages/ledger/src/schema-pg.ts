@@ -435,10 +435,41 @@ export const verification = pgTable(
     targetBytes: bigint('target_bytes', { mode: 'bigint' }),
     checksumSampled: integer('checksum_sampled').default(0),
     checksumMismatches: integer('checksum_mismatches').default(0),
-    status: text('status', { enum: ['pass', 'warn', 'fail'] }).notNull(),
+    // Five, matching DataTypeVerificationStatus (0003 widened the CHECK).
+    // 'skipped' and 'not_verifiable' both mean NOBODY CHECKED, for different
+    // reasons — persisting either as 'fail' was the shortcut workplan 0017
+    // named as the one not to take.
+    status: text('status', {
+      enum: ['pass', 'warn', 'fail', 'skipped', 'not_verifiable'],
+    }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('ix_verif_mapping').on(t.mappingId, t.createdAt)],
+);
+
+/**
+ * A verification RUN — the managed half of the contract's start + poll pair
+ * (workplan 0017 T3, `0003_verification_fits_the_contract.sql`).
+ *
+ * `verification` above holds per-domain results; this holds the run itself:
+ * running since when, finished when, failed why, and the whole wire-shaped
+ * report as jsonb so `GET .../verify/report` serves what the run produced
+ * rather than a reassembly that can drift. The appliance deliberately keeps
+ * its report in memory instead — the contract documents that asymmetry.
+ */
+export const verificationRun = pgTable(
+  'verification_run',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenant.id),
+    mappingId: uuid('mapping_id').notNull().references(() => mailboxMapping.id),
+    state: text('state', { enum: ['running', 'done', 'failed'] }).notNull(),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    error: text('error'),
+    report: jsonb('report'),
+  },
+  (t) => [index('verification_run_mapping_started_idx').on(t.tenantId, t.mappingId, t.startedAt)],
 );
 
 export const cutover = pgTable(
