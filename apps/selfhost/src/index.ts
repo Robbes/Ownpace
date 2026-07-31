@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, createPgDb, PgMigrationStatusStore, PgDiscoveryStore, PgLedger, PgCursorStore, RunStore, withTenant } from '@openmig/ledger';
+import { runMigrations, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgLedger, PgCursorStore, RunStore, withTenant } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -145,6 +145,21 @@ async function ensureMappingRecords(
 
 export interface SelfhostOptions {
   readonly databaseUrl?: string;
+  /**
+   * Which persistence backend to run on (workplan 0015 T1 / 0016).
+   *
+   * `postgres` (default) connects to a server with `DATABASE_URL`, as this
+   * appliance always has. `pglite` runs Postgres **in-process** — compiled to
+   * WASM, no service, no port, no `initdb`, no `DATABASE_URL` — which is what
+   * makes a native Windows installer possible at all: it removes the last
+   * native dependency the appliance had.
+   *
+   * Same SQL, same migrations, same schema, same RLS policies either way
+   * (ADR-0023). The server goes away, not Postgres.
+   */
+  readonly persistence?: 'postgres' | 'pglite';
+  /** Where PGlite keeps its data. Ignored unless `persistence` is `pglite`. */
+  readonly pgliteDataDir?: string;
   readonly configDir?: string;
   readonly port?: number;
   readonly host?: string;
@@ -166,10 +181,17 @@ export interface SelfhostHandle {
 
 /** Start the appliance. Returns a handle for graceful shutdown (used by tests too). */
 export async function start(options: SelfhostOptions = {}): Promise<SelfhostHandle> {
+  const persistence =
+    options.persistence ?? (process.env.SELFHOST_PERSISTENCE === 'pglite' ? 'pglite' : 'postgres');
   const databaseUrl = options.databaseUrl ?? process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    throw new Error('DATABASE_URL is required');
+  // Only the server path needs a URL. PGlite is a directory, not an address —
+  // demanding one would be the last thing tying the appliance to a running
+  // Postgres after every query became portable.
+  if (persistence === 'postgres' && !databaseUrl) {
+    throw new Error('DATABASE_URL is required (or set SELFHOST_PERSISTENCE=pglite)');
   }
+  const pgliteDataDir =
+    options.pgliteDataDir ?? process.env.SELFHOST_PGLITE_DIR ?? '/data/pglite';
   const configDir = options.configDir ?? process.env.CONFIG_DIR ?? DEFAULT_CONFIG_DIR;
   const port = options.port ?? Number(process.env.PORT ?? 8080);
   const host = options.host ?? process.env.HOST ?? '127.0.0.1';
@@ -181,16 +203,33 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     process.env.SELFHOST_UI_DIR ??
     fileURLToPath(new URL('../../web/dist-selfhost', import.meta.url));
 
-  // 1. Self-migrate under the advisory lock (refuses to start if DB is newer).
+  // 1. Build the persistence backend, then self-migrate under the advisory lock
+  //    (which refuses to start if the DB is newer than this build understands).
+  //
+  //    The migration runs through the SAME driver the appliance then serves
+  //    with. That matters for PGlite specifically: it is one connection, and
+  //    the baseline is a pg_dump whose preamble sets `row_security = off`. The
+  //    driver re-asserts it per acquire for exactly that reason.
+  const persistenceBackend =
+    persistence === 'pglite'
+      ? await createPgliteDb({ dataDir: pgliteDataDir })
+      : (() => {
+          const pgDb = createPgDb(databaseUrl!);
+          return { db: pgDb, driver: pgDriver(pgDb.$pool), close: () => pgDb.close() };
+        })();
+  log.info(
+    `[selfhost] persistence: ${persistence}` +
+      (persistence === 'pglite' ? ` (${pgliteDataDir})` : ''),
+  );
   log.info('[selfhost] applying migrations…');
-  await runMigrations({ connectionString: databaseUrl });
+  await runMigrations({ driver: persistenceBackend.driver });
 
   // 2. Load and validate the mapping configs.
   const mappings = loadConfigDir(configDir);
   log.info(`[selfhost] loaded ${mappings.length} mapping(s) from ${configDir}`);
 
   // 3. Wire the status store + scheduler.
-  const db = createPgDb(databaseUrl);
+  const db = persistenceBackend.db;
   const statusStore = new PgMigrationStatusStore(db);
   const discoveryStore = new PgDiscoveryStore(db);
   // The failure queue's two reads and two writes (§11.2's "actions required").
@@ -209,10 +248,12 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     tenantId: string,
     fn: (client: { query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }> }) => Promise<T>
   ): Promise<T> => {
-    const client = await db.$pool.connect();
+    // Through the seam, not `$pool`: PGlite has no pool, and this is the only
+    // other place the appliance took a raw connection.
+    const client = await persistenceBackend.driver.acquire();
     try {
       await client.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
-      return await fn(client);
+      return await fn(client as unknown as { query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }> });
     } finally {
       client.release();
     }
@@ -320,7 +361,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       const mappingId = configWithCorrectMappingId.mappingId as MappingId;
       let runId: string | null = null;
       try {
-        runId = await withTenant(db.$pool, tenantId, async (tdb) =>
+        runId = await withTenant(persistenceBackend.driver, tenantId, async (tdb) =>
           new RunStore(tdb).startRun({ tenantId, mappingId, kind: 'incremental', trigger: 'schedule' }),
         );
       } catch (err) {
@@ -334,7 +375,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         const id = runId;
         const failures = results.filter((r) => r.error);
         try {
-          await withTenant(db.$pool, tenantId, async (tdb) => {
+          await withTenant(persistenceBackend.driver, tenantId, async (tdb) => {
             const runs = new RunStore(tdb);
             for (const r of results) {
               // Failures carry the real message verbatim (hard rule 9).
@@ -969,7 +1010,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
 
   return {
     port: boundPort,
-    stop: () => shutdown(server, handles, db),
+    stop: () => shutdown(server, handles, persistenceBackend),
   };
 }
 

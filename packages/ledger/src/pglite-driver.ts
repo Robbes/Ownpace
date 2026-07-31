@@ -165,3 +165,27 @@ export function pgliteDriver(options: PgliteDriverOptions = {}): LedgerDriver {
     },
   };
 }
+
+/**
+ * A PGlite database handle plus its driver, shaped for the appliance's startup.
+ *
+ * Mirrors what `createPgDb()` returns for the `pg` path, so the entrypoint can
+ * choose a backend and then wire the stores identically either way. The drizzle
+ * handle is bound to the one PGlite instance — which is safe here precisely
+ * because there IS only one connection: there is no pool to hand a statement to
+ * a different session than the transaction it belongs to.
+ */
+export async function createPgliteDb(options: PgliteDriverOptions = {}): Promise<{
+  readonly db: PgDatabase;
+  readonly driver: LedgerDriver;
+  close: () => Promise<void>;
+}> {
+  const driver = pgliteDriver(options);
+  // Take and release a connection once, so the WASM database is booted and its
+  // drizzle handle exists before anything asks for it. Cold start is ~3 s and
+  // belongs at startup, not inside the first request.
+  const conn = await driver.acquire();
+  const db = conn.db;
+  conn.release();
+  return { db, driver, close: () => driver.end() };
+}
