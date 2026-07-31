@@ -1076,6 +1076,33 @@ async function shutdown(
   await db.close();
 }
 
+/**
+ * A hint to print next to a startup failure we know the shape of.
+ *
+ * Only one so far, and it cost a full e2e cycle to diagnose from the raw error:
+ * `EACCES … mkdir '/data/state/pglite'`. That message names the path and the
+ * syscall and is still not enough, because the cause is not in the container at
+ * all — Docker seeds a fresh named volume with the ownership of the image
+ * directory it covers, so a volume created by an image that never made
+ * `/data/state` comes up owned by root, and the appliance runs as uid 10001.
+ *
+ * Returns the hint rather than replacing the error, and the caller logs both:
+ * a guess that turned out to be wrong must not be the only thing an operator
+ * sees (hard rule 9). Anything unrecognised gets nothing, deliberately — a hint
+ * for every error is a hint for none.
+ */
+export function startupHint(err: unknown): string | undefined {
+  const e = err as { code?: string; path?: string } | null;
+  if (e?.code !== 'EACCES' || !e.path) return undefined;
+  return (
+    `The appliance runs as uid 10001 and cannot write to ${e.path}. ` +
+    'In Docker, that usually means the volume mounted there is owned by root — ' +
+    'which happens when it was created by an image that did not itself create ' +
+    'the directory. Recreate the volume (`docker compose down -v`) on a current ' +
+    'image, or chown it to 10001:10001.'
+  );
+}
+
 // CLI entrypoint (skipped when imported by tests).
 const invokedPath = process.argv[1];
 if (invokedPath && import.meta.url === `file://${invokedPath}`) {
@@ -1090,6 +1117,8 @@ if (invokedPath && import.meta.url === `file://${invokedPath}`) {
     })
     .catch((err) => {
       log.error('[selfhost] failed to start:', err);
+      const hint = startupHint(err);
+      if (hint) log.error(`[selfhost] ${hint}`);
       process.exit(1);
     });
 }

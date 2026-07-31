@@ -54,9 +54,21 @@ ENV SELFHOST_UI_DIR=/app/apps/web/dist-selfhost
 COPY --from=build /app /app
 # Copy default config into the image (can be overridden by mounted volume).
 COPY deploy/selfhost/config /app/config
-# Non-root runtime user; owns /app and the /data mount point.
+# Non-root runtime user; owns /app and the /data mount points.
+#
+# `/data/state` MUST exist here, empty, before the chown — even though compose
+# mounts a named volume over it. Docker seeds a fresh named volume from the
+# image path it covers, INCLUDING that directory's ownership; if the path does
+# not exist in the image, Docker creates the mount point as root and the volume
+# comes up root-owned. `appuser` (uid 10001) then cannot write to it.
+#
+# That was latent for as long as nothing wrote there: on the Postgres path the
+# database lives in the `postgres` container's own `pgdata` volume, so `appdata`
+# was declared, mounted, root-owned and unused. PGlite is the first thing to
+# actually put a file in it, and it failed on the first boot of the e2e stack
+# with `EACCES: permission denied, mkdir '/data/state/pglite'`.
 RUN useradd --system --uid 10001 --home-dir /app appuser \
-  && mkdir -p /data/config \
+  && mkdir -p /data/config /data/state \
   && cp -r /app/config/* /data/config/ \
   && chown -R appuser:appuser /app /data
 USER appuser
