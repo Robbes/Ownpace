@@ -9,6 +9,8 @@
 
 import axios, { type AxiosInstance } from 'axios';
 import type {
+  VerificationRunReport,
+  VerifyStartResponse,
   DecisionAccepted,
   DecisionRefused,
   DeletionsResponse,
@@ -19,7 +21,6 @@ import type {
   DiscoveryRecord,
   ScopeManifest,
   StatusReport,
-  VerifyResponse,
 } from '@openmig/shared';
 import { mappingPath, operatingBaseUrl, queuePath } from './edition';
 
@@ -163,16 +164,23 @@ export async function runPass(mappingId: string): Promise<unknown> {
 /**
  * Run the §20 verification gate.
  *
- * **This is expensive and does real work**: it counts and samples the TARGET
- * for every enabled domain, so it is a request that goes out over the network
- * rather than a status read. Never call it on mount, never poll it — a UI puts
- * it behind a button the operator presses.
+ * **Starting is expensive and does real work**: the scan counts and samples
+ * the TARGET for every enabled domain. That is why it is a POST behind a
+ * button the operator presses — and why POLLING is safe: `fetchVerifyReport`
+ * reads the run's state and never triggers anything (workplan 0017 T0).
  *
- * The long timeout is the point: the default 30s is a fine ceiling for a status
- * read and far too short for a real mailbox.
+ * The pair replaced a synchronous GET that held one HTTP request open for the
+ * whole scan, behind a 15-minute axios timeout. That worked exactly as long as
+ * nothing between the browser and the appliance cut a quarter-hour request —
+ * and could never work on managed, where target I/O belongs to the worker.
  */
-export async function runVerification(): Promise<VerifyResponse> {
-  return (await client.get<VerifyResponse>('/verify', { timeout: 15 * 60 * 1000 })).data;
+export async function startVerification(): Promise<VerifyStartResponse> {
+  return (await client.post<VerifyStartResponse>('/verify/start')).data;
+}
+
+/** The current run's state. A status read — safe to poll, starts nothing. */
+export async function fetchVerifyReport(): Promise<VerificationRunReport> {
+  return (await client.get<VerificationRunReport>('/verify/report')).data;
 }
 
 /** A refusal to finish, kept distinct from a transport failure — see `DecisionRefusedError`. */
