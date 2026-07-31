@@ -1,6 +1,6 @@
 # Workplan 0016 — Adopting PGlite (the whole-workspace driver switch)
 
-## Status — 2026-07-30 (update this block at the end of every session)
+## Status — 2026-07-31 — CLOSED (update this block at the end of every session)
 
 | Task | Status | Evidence |
 |---|---|---|
@@ -10,7 +10,7 @@
 | P3 Run RLS against PGlite | ✅ **Done — RLS genuinely ENFORCES** | `pglite-driver.unit.test.ts`: the real 2580-line baseline applies unmodified; tenant A sees only A's row, B only B's, cross-tenant INSERT refused — all under `SET LOCAL ROLE app_user`. **Mutation-verified**: removing the role switch fails all three, because a superuser bypasses RLS. 11 tests, ~6 s, **no Docker**. |
 | **P6 Wire the appliance to it** | ✅ **Done — but it was only HALF done until the e2e said so** | `SELFHOST_PERSISTENCE=pglite` — `apps/selfhost` starts, migrates itself and serves the operating surface with **no `DATABASE_URL`** (4 startup tests). **That was the reading half.** The SYNC half went on opening its own `pg.Pool` from `DATABASE_URL` inside `buildDeps`, so no pass ever touched the appliance's database — invisible on the container path (a second pool to the same server), fatal on PGlite (`getaddrinfo ENOTFOUND postgres`). Fixed by threading the appliance's handle through all four worker entry points; `buildDeps` now REFUSES to open its own pool when `SELFHOST_PERSISTENCE=pglite`. 5 wiring tests, mutation-verified. See "P6 — the half that was missing". |
 | P4 Decide + document the two-backend testing story | ✅ **Done — and it found a real hole** | Two backends ship. Asking the question surfaced that **RLS was inert on BOTH of the appliance's paths**: it connects as the owner (container) or as `postgres` (PGlite), and Postgres exempts owners and superusers from row security — so 96 policies were created, granted, tested and bypassed, while every RLS test stayed green by opening its own `app_user` pool the appliance never uses. Fixed with `LedgerDriver.role` (`SET LOCAL ROLE` inside `withTenant`'s transaction), and now proved through the production wiring on both backends: `rls-in-force.unit.test.ts` (PGlite, no Docker) and `rls-in-force.integration.test.ts` (real Postgres, on a superuser connection). Mutation-verified. |
-| **P7 e2e on the PGlite backend** | ✅ **Done — GREEN, 35 tests, three gates** | Dispatched with `persistence: pglite` (`compose.pglite.yml`, no Postgres container at all): **Restart-Resume 9**, **Verification 14**, **Apply-Deletion 12**. All four domains sync, survive `docker compose restart app` with zero duplicates (email 59→59, calendar 60→60, contact 60→60, file 177→177), the planted unmigratable item is isolated and accepted, a source-side move is reported and closed, byte-identical binary and non-ASCII fidelity holds, and `apply` removes the target copy — verified against the real Stalwart/Nextcloud, not against the appliance's own answer — with no resurrection on the next pass. **It took two runs and found two real bugs on the way**: `/data/state` was never created in the image, so Docker seeded the `appdata` volume root-owned and PGlite could not `mkdir` (`EACCES`); and then the sync path turned out never to have been on the seam at all (see P6). Neither was findable without this run. |
+| **P7 e2e on both backends** | ✅ **Done — GREEN on PGlite AND Postgres, 35 tests each** | Two dispatches at the same `seed_count`, one per backend: Restart-Resume 9, Verification 14, Apply-Deletion 12. All four domains sync, survive `docker compose restart app` with zero duplicates, the planted unmigratable item is isolated and accepted, a source-side move is reported and closed, binary and non-ASCII fidelity holds byte-for-byte, and `apply` removes the target copy — verified against the real Stalwart/Nextcloud rather than the appliance's own answer — with no resurrection on the next pass. **It took four dispatches and found three real bugs**: `/data/state` was never created in the image so Docker seeded `appdata` root-owned (`EACCES`); the sync path was never on the seam at all (P6); and the gate's own concurrency check used a fixed bar against a corpus-dependent measure. None was findable without running this. |
 | P5 Concurrency, measured | ✅ **Done — serialisation costs nothing measurable** | `scripts/bench-pglite-concurrency.mjs` (`pnpm bench:pglite`), real hot path through real `withTenant`. Flat 3.6–3.9 ms/item across widths 1→16; width 8 vs 1 across three runs: **+6.8%, −0.0%, −6.2%** — noise. **Two corrections to the T0 numbers below.** Still not a real mailbox. |
 
 > **This workplan exists so T1 is not left half-done indefinitely.** Workplan
@@ -19,6 +19,21 @@
 > Postgres server. This is the piece that cashes that in, and it is *blocked*
 > rather than *unscheduled*, which is a different thing and easy to lose track
 > of.
+>
+> **Closed 2026-07-31.** The appliance runs on PGlite with no `DATABASE_URL`,
+> no container, no port and no `initdb`, and the full 35-test e2e gate is green
+> on that backend and on Postgres. What it does NOT say is that PGlite is the
+> default: `deploy/selfhost/compose.yml` still ships the Postgres service and
+> `SELFHOST_PERSISTENCE=pglite` is opt-in. Making it the default is a separate,
+> deliberate decision — see workplan 0015, which is where the installer that
+> wants it lives.
+>
+> **The lesson this plan cost most to learn**: every one of its three real bugs
+> was an INTERSECTION nobody tested. The startup test ran the appliance without
+> running a pass; the e2e ran passes but always with Postgres present; the
+> packaging test ran the bundle but with a stub UI and no server. Each was a
+> good test. What shipped broken was the case none of them covered. When a
+> claim spans two axes, test the corner.
 
 ## What is already done (do not redo)
 
@@ -278,6 +293,29 @@ The asymmetry noted originally still holds — self-host is single-tenant, so
 this is defence in depth rather than the live boundary, and no shipped
 deployment leaked anything. It is an argument for proportionate coverage, which
 is what the table above is.
+
+### The two backends, measured against each other
+
+P4 asked whether a guarantee proved on one backend may be assumed on the other.
+It now has an answer that is not a judgement call: **both backends ran the same
+35-test gate at the same seed size, and agree domain-for-domain.**
+
+Per-item concurrency, as a fraction of what the corpus can reach at width 4:
+
+| domain | items | Postgres | PGlite |
+|---|---:|---:|---:|
+| email | 60 | 0.89 | 0.94 |
+| calendar | 61 | 0.91 | 0.93 |
+| contact | 61 | 0.91 | 0.87 |
+| file | 245 | 0.96 | 0.96 |
+
+So the role switch this task added, and the shared ledger handle P6 added, cost
+nothing measurable on the server path — the thing hard rule 5 actually asks.
+
+That is also the honest scope of the claim. It says the two backends behave the
+same **on this corpus**: 60 messages, 61 calendar objects, 61 contacts, 245
+files. It does not say they behave the same on a 48k mailbox, and
+[P5](#p5--concurrency-measured) is an extrapolation, not a measurement.
 
 ### Left open, deliberately
 
