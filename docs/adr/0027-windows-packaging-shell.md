@@ -31,7 +31,7 @@ The payload is the same in every option:
 
 | Piece | Size | Note |
 |---|---|---|
-| Backend bundle | 3.6 MB | New. There is no JS build today — the appliance runs TypeScript under `tsx`. |
+| Backend bundle | 3.6 MB | New. There is no JS build today — the appliance runs TypeScript under `tsx`. *(2.8 MB once PGlite is left external — see the note below.)* |
 | PGlite WASM + data | ~26 MB | `pglite.wasm` 9.6 MB, `pglite.data` 6.0 MB, plus contrib tarballs. |
 | Web UI bundle | 500 KB | Already produced by `pnpm --filter @openmig/web build:selfhost`. |
 | Migrations SQL | 88 KB | Must sit beside the binary; `runMigrations` resolves it relative to its own module. |
@@ -41,6 +41,21 @@ The payload is the same in every option:
 errors. Three `import.meta.url` sites (migrations dir, UI dir, entrypoint check)
 resolve relative to the bundle, and two of them already have explicit overrides
 (`migrationsDir`, `SELFHOST_UI_DIR`).
+
+> **Re-measured when T3 actually built the payload — two corrections.** The
+> bundle is **2.8 MB**, not 3.6: PGlite has to be left *external* (it finds its
+> WASM with `new URL(..., import.meta.url)`, so bundling it points those lookups
+> at the bundle and the database never boots), which takes its JS out. Total
+> staged payload, Node runtime aside: **27.6 MB**.
+>
+> And "two of them already have explicit overrides" was half true. `runMigrations`
+> accepted a `migrationsDir`; **`start()` did not pass one and had no way to be
+> given one**, so the bundled appliance walked up from the wrong module and died
+> on `ENOENT … scandir '/tmp/migrations'`. It is an option now. The third site —
+> `pg`'s CommonJS `require('events')` becoming esbuild's throwing `__require`
+> helper — was not on the list at all, because it is not an `import.meta.url`
+> site; it is the same class of bug wearing different clothes. The conclusion
+> holds (bundling is not a risk), but it took three fixes, not zero.
 
 ## The requirement, read literally
 
