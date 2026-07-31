@@ -1,6 +1,6 @@
 # ADR-0019: Packaging & runtime targets — container-first, optional Tauri tray, prefer JS-native engines for portability
 
-- **Status:** Accepted (the Tauri tray variant is planned/optional, not MVP)
+- **Status:** Accepted (the Tauri tray variant is **superseded as the first Windows target** by [ADR-0027](./0027-windows-packaging-shell.md), 2026-07-30 — deferred, not rejected, with a named revisit condition there)
 - **Date:** 2026-06-21
 - **Refines:** ADR-0007 (engine reuse); relates to ADR-0003 (two editions, one core) and ADR-0018 (JMAP-first).
 
