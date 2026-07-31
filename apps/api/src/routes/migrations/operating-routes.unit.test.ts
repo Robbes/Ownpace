@@ -52,23 +52,32 @@ describe('route registration', () => {
         'GET /:mappingId/deletions',
         'GET /:mappingId/failures',
         'GET /:mappingId/moves',
+        'GET /:mappingId/verify/report',
         'POST /:mappingId/deletions/:hash/keep',
         'POST /:mappingId/failures/:hash/:action',
         'POST /:mappingId/finish',
         'POST /:mappingId/moves/:hash/keep',
+        'POST /:mappingId/verify/start',
       ].sort(),
     );
   });
 
-  it('does NOT expose apply or verify, which belong to the worker in this edition', () => {
-    // Deliberate, not missing. Both touch the target — one removes a message,
-    // the other counts and samples every domain — and target I/O in the managed
-    // edition belongs behind Trigger.dev (ADR-0004), not on a request thread
-    // holding connector credentials. A synchronous version bolted in here would
-    // make the two editions differ in exactly the operation that destroys data.
+  it('does NOT expose apply, which still belongs to the worker in this edition', () => {
+    // Deliberate, not missing (workplan 0017 T4). It removes a message from
+    // the target, and target I/O in the managed edition belongs behind
+    // Trigger.dev (ADR-0004), not on a request thread holding connector
+    // credentials for the one operation that destroys data.
     const paths = routes().map((r) => r.path);
     expect(paths.some((p) => p.includes('apply'))).toBe(false);
-    expect(paths.some((p) => p.includes('verify'))).toBe(false);
+  });
+
+  it('exposes verify ONLY as start + poll — no synchronous scan endpoint', () => {
+    // The appliance's GET /verify holds a request open for the whole scan;
+    // here that would put connector credentials and minutes of target I/O on
+    // an API thread. The pair is the contract (workplan 0017 T0): POST begins
+    // work in the worker, GET reads a row.
+    const got = routes().filter((r) => r.path.includes('verify')).map((r) => `${r.method} ${r.path}`);
+    expect(got.sort()).toEqual(['GET /:mappingId/verify/report', 'POST /:mappingId/verify/start']);
   });
 
   it('takes the failure action as a plain parameter, not a regex', () => {

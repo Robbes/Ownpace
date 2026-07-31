@@ -38,7 +38,7 @@
 
 import { Router } from 'express';
 import type { Response } from 'express';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { PgLedger, PgCursorStore } from '@openmig/ledger';
 import {
@@ -53,6 +53,9 @@ import {
   log,
 } from '@openmig/shared';
 import type {
+  VerificationRunReport,
+  VerifyResponse,
+  VerifyStartResponse,
   DeletionsResponse,
   FailuresResponse,
   FinishAccepted,
@@ -63,6 +66,7 @@ import type {
   TenantId,
 } from '@openmig/shared';
 import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth';
+import { getTriggerClient } from '@openmig/scheduler';
 import type { AuthenticatedRequest } from '../../types/api';
 
 const router = Router({ mergeParams: true });
@@ -410,6 +414,115 @@ router.post('/:mappingId/finish', authenticate, async (req: AuthenticatedRequest
     res.json(body);
   } catch (error) {
     serverError(res, 'finish the migration', error);
+  }
+});
+
+/**
+ * The §20 gate's start + poll pair (workplan 0017 T3) — the last deliberate
+ * ADR-0026 gap, closed. Target I/O stays in the worker: `start` inserts a
+ * `running` row in `verification_run` and enqueues `run-verification`, which
+ * lands the outcome on that row; `report` reads the latest row and never
+ * triggers anything, which is what keeps the Verify screen a page rather than
+ * a trapdoor. Same wire shapes as the appliance (`VerificationRunReport`,
+ * `VerifyStartResponse`), so the one UI polls both editions identically.
+ */
+
+/** The latest run row for a mapping, as the contract's report. */
+async function latestRunReport(s: Scoped): Promise<VerificationRunReport> {
+  const rows = await withTenantDb(s.tenantId, pool(), (db) =>
+    db
+      .select()
+      .from(schema.verificationRun)
+      .where(
+        and(
+          eq(schema.verificationRun.tenantId, s.tenantId),
+          eq(schema.verificationRun.mappingId, s.mappingId),
+        ),
+      )
+      .orderBy(desc(schema.verificationRun.startedAt))
+      .limit(1),
+  );
+  const row = rows[0];
+  if (!row) return { state: 'never-run' };
+  const startedAt = row.startedAt.toISOString();
+  if (row.state === 'running') return { state: 'running', startedAt };
+  if (row.state === 'failed') {
+    return { state: 'failed', startedAt, error: row.error ?? 'The scan failed with no recorded reason.' };
+  }
+  return {
+    state: 'done',
+    startedAt,
+    // The CHECK constraint guarantees a terminal row has a finish time; a row
+    // that violates that would mean the constraint was bypassed, and guessing
+    // a timestamp here would paper over exactly that (hard rule 9).
+    finishedAt: row.finishedAt!.toISOString(),
+    report: (row.report ?? {}) as VerifyResponse,
+  };
+}
+
+router.post('/:mappingId/verify/start', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const s = await scope(req, res);
+    if (!s) return;
+
+    const current = await latestRunReport(s);
+    if (current.state === 'running') {
+      // Joined, not stacked — the same idempotent-action shape as POST
+      // .../start's `activated: false`. Verification reads every enabled
+      // domain's target; two concurrent scans double that load to answer a
+      // question once.
+      const body: VerifyStartResponse = { started: false, report: current };
+      return void res.status(200).json(body);
+    }
+
+    const inserted = await withTenantDb(s.tenantId, pool(), (db) =>
+      db
+        .insert(schema.verificationRun)
+        .values({ tenantId: s.tenantId, mappingId: s.mappingId, state: 'running' })
+        .returning({ id: schema.verificationRun.id, startedAt: schema.verificationRun.startedAt }),
+    );
+    const run = inserted[0]!;
+
+    try {
+      await getTriggerClient().tasks.trigger(
+        'run-verification',
+        { tenantId: s.tenantId, mappingId: s.mappingId, runId: run.id },
+        { tags: [`tenant:${s.tenantId}`, `mapping:${s.mappingId}`] },
+      );
+    } catch (err) {
+      // The row must not sit 'running' forever pointing at a job that was
+      // never enqueued — a poller would wait on nothing. Land it failed with
+      // the reason, and tell the caller the start did not happen.
+      const message = err instanceof Error ? err.message : String(err);
+      await withTenantDb(s.tenantId, pool(), (db) =>
+        db
+          .update(schema.verificationRun)
+          .set({ state: 'failed', finishedAt: new Date(), error: `Could not enqueue the scan: ${message}` })
+          .where(eq(schema.verificationRun.id, run.id)),
+      );
+      log.error(`[api] ${s.mappingId}: could not enqueue run-verification:`, err);
+      return void res
+        .status(502)
+        .json({ error: 'Could not start the scan', message });
+    }
+
+    const body: VerifyStartResponse = {
+      started: true,
+      report: { state: 'running', startedAt: run.startedAt.toISOString() },
+    };
+    res.status(202).json(body);
+  } catch (error) {
+    serverError(res, 'start the verification', error);
+  }
+});
+
+router.get('/:mappingId/verify/report', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const s = await scope(req, res);
+    if (!s) return;
+    res.json(await latestRunReport(s));
+  } catch (error) {
+    serverError(res, 'read the verification report', error);
   }
 });
 
