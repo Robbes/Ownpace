@@ -315,6 +315,59 @@ export interface VerifyStartResponse {
 }
 
 /**
+ * One `apply` request's lifecycle in the managed edition (workplan 0017 T4).
+ *
+ * The route answers the LEDGER-side gates synchronously — a refusal is an
+ * answer to the operator's question and comes back on the request they made,
+ * as 403/404 with the same code and reason the appliance uses. What cannot be
+ * answered from a request thread is the target's half: whether it can remove
+ * at all, and whether the owner has edited our copy (checked at the moment of
+ * removal, where the ETag is). Those land here, on the receipt the job owns.
+ *
+ * `none` is for the poll endpoint: nothing was ever queued for this item.
+ * `refused` here is not a transport failure and not a crash — it is one of
+ * the destructive path's own gates saying no, with the code a UI can switch
+ * on and the sentence an operator reads verbatim. `failed` is the job itself
+ * crashing, reason attached (hard rule 9). The appliance answers all of this
+ * synchronously and never produces a receipt.
+ */
+export type ApplyReceipt =
+  | { readonly state: 'none' }
+  | { readonly state: 'queued'; readonly requestedAt: string }
+  | {
+      readonly state: 'applied';
+      readonly requestedAt: string;
+      readonly finishedAt: string;
+      /** How final the removal was: `binned` targets may still hold a copy. */
+      readonly kind: string;
+    }
+  | {
+      readonly state: 'refused';
+      readonly requestedAt: string;
+      readonly finishedAt: string;
+      /** The stable refusal code (`@openmig/core`'s `ApplyRefusal`). */
+      readonly code: string;
+      readonly reason: string;
+    }
+  | {
+      readonly state: 'failed';
+      readonly requestedAt: string;
+      readonly finishedAt: string;
+      readonly error: string;
+    };
+
+/**
+ * What the managed `POST .../deletions/{hash}/apply` answers when the removal
+ * is PERMITTED. (A refusal never gets this far — it is a 403/404 on the spot.)
+ * `queued: false` means a receipt for this item was already open and this
+ * request joined it — the idempotent-action shape again.
+ */
+export interface ApplyQueuedResponse {
+  readonly queued: boolean;
+  readonly receipt: ApplyReceipt;
+}
+
+/**
  * A migration that has been ended.
  *
  * Finishing stops the shadow sync: the mapping is no longer scheduled, so
