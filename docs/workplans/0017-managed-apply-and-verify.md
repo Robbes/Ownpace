@@ -12,6 +12,19 @@
 | T5 The Verify screen starts and polls instead of blocking | ✅ **Done** | `Verify.tsx` POSTs `/verify/start` and polls `/verify/report` every 3 s; the 15-minute single-request GET is gone from the client. The loop stops on every terminal state (mutation-verified), `failed` renders as not-a-result with the reason, a mid-run appliance restart (`never-run` while polling) is said out loud instead of spun against forever, and a missed poll keeps polling — the run's state is authoritative, not the network. 5 jsdom tests. |
 | T6 `verification.status` cannot hold two of the five statuses | ✅ **Done — and the run table with it** | `0003_verification_fits_the_contract.sql`: the CHECK now admits all five statuses (`skipped`, `not_verifiable` were unstorable — exactly the two the UI refuses to soften), and `verification_run` exists for the run-level truth managed must persist (state/started/finished/error/report jsonb), with a CHECK that refuses rows that lie about themselves (running-with-finish, terminal-without). RLS + FORCE + grants match every other table; the `force-rls` catalog audit covers it by name (mutation-verified — dropping FORCE fails naming `verification_run`). 6 schema tests. |
 
+## Follow-ups this plan now owns
+
+- **The managed Verify screen.** T3 gives managed the endpoints and T5 gives
+  the screen the start + poll loop — but the screen calls the appliance's flat
+  paths (`/verify/start`), and managed's are per-mapping
+  (`/api/migrations/:id/verify/start`). Wiring the managed screen means the
+  same `*PathFor(edition, mappingId)` treatment the queue screens already have
+  (`services/edition.ts`), plus a route in App.tsx. Until then the managed
+  endpoints are curl-able and job-backed but have no screen — an honest gap,
+  same shape ADR-0026 used to record for the endpoints themselves.
+- **Retiring the appliance's synchronous `GET /verify`** once the e2e
+  verification gate moves to the pair — T2 kept it for exactly one release.
+
 ## Why this exists
 
 [ADR-0026](../adr/0026-one-operating-ui-one-contract.md) closed the gap between
