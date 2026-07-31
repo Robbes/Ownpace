@@ -74,12 +74,21 @@ describe('root-level e2e files', () => {
       ).toEqual([]);
     });
 
-    it(`${file} imports only vitest and node builtins`, () => {
+    it(`${file} imports only vitest, node builtins and declared instruments`, () => {
       // The stronger property, and the one that keeps these tests honest about
       // what they are testing: the deployed appliance, not the source tree.
+      //
+      // INSTRUMENTS is the deliberate-decision path the header describes: a
+      // ROOT devDependency (so it resolves on the runner — the failure reason 1
+      // guards against cannot occur) that drives the appliance from outside
+      // rather than borrowing its code (so reason 2 is intact). playwright-core
+      // is a browser: the UI smoke's equivalent of the `execSync('docker
+      // compose …')` calls these files already make. Anything added here must
+      // pass both halves of that test, and be in the root package.json first.
+      const INSTRUMENTS = new Set(['vitest', 'playwright-core']);
       const source = readFileSync(join(E2E_DIR, file), 'utf8');
       const disallowed = specifiersIn(source).filter(
-        (s) => s !== 'vitest' && !s.startsWith('node:') && !s.startsWith('.'),
+        (s) => !INSTRUMENTS.has(s) && !s.startsWith('node:') && !s.startsWith('.'),
       );
       expect(
         disallowed,

@@ -2,7 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <!-- Inline rather than a file: an href like /vite.svg (the create-vite
+         scaffold this replaced) escapes the /ui/ mount the appliance serves the
+         bundle from, and pointed at a file that never existed — a 404 in the
+         console on every page load, in both editions. Found by the UI e2e
+         smoke the first time anything loaded the page in a real browser. -->
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232563eb'/%3E%3Cpath d='M7 16h14m-5-6 6 6-6 6' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"
+    />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Open Migrate - Sovereign Data Migration</title>
     <meta name="description" content="Sovereign data migration for families and SMBs. Move from US cloud services to EU targets." />
