@@ -10,6 +10,7 @@
 | P3 Run RLS against PGlite | ✅ **Done — RLS genuinely ENFORCES** | `pglite-driver.unit.test.ts`: the real 2580-line baseline applies unmodified; tenant A sees only A's row, B only B's, cross-tenant INSERT refused — all under `SET LOCAL ROLE app_user`. **Mutation-verified**: removing the role switch fails all three, because a superuser bypasses RLS. 11 tests, ~6 s, **no Docker**. |
 | **P6 Wire the appliance to it** | ✅ **Done** | `SELFHOST_PERSISTENCE=pglite` — `apps/selfhost` starts, migrates itself and serves the operating surface with **no `DATABASE_URL`**. The Postgres path is untouched and still the default (hard rule 5). 4 startup tests. |
 | P4 Decide + document the two-backend testing story | 🟡 **Partly** | RLS is now testable against PGlite with no container at all, in the unit project. Whether managed stays on server Postgres is still open. |
+| **P7 e2e on the PGlite backend** | 🟡 **Runnable, not yet run** | `deploy/selfhost/compose.pglite.yml` (validated with `docker compose config`: only `app` starts, no `depends_on`, `SELFHOST_PERSISTENCE=pglite`), and the Restart-Resume gate takes `SELFHOST_COMPOSE_OVERRIDE`. **Needs a runner with Docker** — not executed here. |
 | P5 Re-measure concurrency against a real corpus | ⬜ Not started | Unchanged — still wants a real mailbox, not 5,000 synthetic inserts. |
 
 > **This workplan exists so T1 is not left half-done indefinitely.** Workplan
