@@ -5,11 +5,11 @@
 | Task | Status | Evidence |
 |---|---|---|
 | T0 Decide the shape (sync, poll, or stream) | ✅ **Decided: start + poll, one contract, both editions** | Below. The alternatives and why they lose are recorded rather than re-litigated. |
-| T1 Contract: `VerificationReport` + `ApplyReceipt` in `@openmig/shared` | ⬜ Not started | |
-| T2 Self-host serves the new pair (keeping today's behaviour working) | ⬜ Not started | |
+| T1 Contract: `VerificationRunReport` + `VerifyStartResponse` in `@openmig/shared` | ✅ **Done** (verify half) | `operating-contract.ts`: the four-state run report and the idempotent-start response. `ApplyReceipt` waits for T4, where its real shape will be dictated by the job. |
+| T2 Self-host serves the new pair (keeping today's behaviour working) | ✅ **Done** | `POST /verify/start` (202 new run / 200 joined — the `activated: false` shape) + `GET /verify/report`; one run at a time, report swapped whole so a poller never sees a hybrid; `failed` carries the reason (hard rule 9). Synchronous `GET /verify` kept for one release — the e2e verification gate still uses it. 7 lifecycle tests against a real appliance on PGlite, with a silent-TCP-server target so "a second start joins the run" is deterministic rather than raced. |
 | T3 `run-verification` Trigger.dev job + managed routes | ⬜ Not started | Needs T1. |
 | T4 `run-apply-deletion` job + managed routes | ⬜ Not started | Needs T1. The destructive one — do it last and on its own. |
-| T5 The Verify screen starts and polls instead of blocking | ⬜ Not started | Needs T2 (so it can be developed against the appliance). |
+| T5 The Verify screen starts and polls instead of blocking | ⬜ Not started | Unblocked now that T2 exists to develop against. The screen keeps working meanwhile — the synchronous GET it calls is still served. |
 | T6 `verification.status` cannot hold two of the five statuses | ⬜ Not started | A migration. See "The schema does not fit the contract". |
 
 ## Why this exists

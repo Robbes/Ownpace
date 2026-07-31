@@ -269,6 +269,52 @@ export function decisionSucceeded(outcome: DecisionOutcome): outcome is Decision
 export type VerifyResponse = ByMapping<VerificationResult>;
 
 /**
+ * A verification run's lifecycle, for the start + poll pair (workplan 0017 T0).
+ *
+ * The synchronous `GET /verify` above holds an HTTP request open for as long
+ * as the scan takes — minutes, against every enabled domain's target. That
+ * works on the appliance and is impossible for the managed edition, where
+ * target I/O belongs to the worker and no request thread may hold connector
+ * credentials for minutes. So both editions converge on this instead:
+ * `POST /verify/start` begins the work, `GET /verify/report` says where it is,
+ * and the report is one of exactly four states.
+ *
+ * `never-run` is a true statement, not a default to paper over: the appliance
+ * holds its last report in memory, so a restart honestly forgets it (re-running
+ * is cheap next to a migration); managed persists a row and remembers. The
+ * asymmetry is deliberate and documented rather than hidden.
+ *
+ * `failed` means the run itself did not complete — the scan crashed, not "the
+ * data did not match". A domain that could not be read is a NOT_VERIFIABLE
+ * status inside a `done` report; conflating the two would let an infrastructure
+ * error read as a clean bill of health, or a real mismatch read as a hiccup
+ * (hard rule 9 either way).
+ */
+export type VerificationRunReport =
+  | { readonly state: 'never-run' }
+  | { readonly state: 'running'; readonly startedAt: string }
+  | {
+      readonly state: 'done';
+      readonly startedAt: string;
+      readonly finishedAt: string;
+      readonly report: VerifyResponse;
+    }
+  | { readonly state: 'failed'; readonly startedAt: string; readonly error: string };
+
+/**
+ * What `POST /verify/start` answers.
+ *
+ * `started: false` is not an error — it means a run was already under way and
+ * this request joined it, the same idempotent-action shape as `POST .../start`'s
+ * `activated: false`. The report is included either way so a client can begin
+ * polling from what it already has.
+ */
+export interface VerifyStartResponse {
+  readonly started: boolean;
+  readonly report: VerificationRunReport;
+}
+
+/**
  * A migration that has been ended.
  *
  * Finishing stops the shadow sync: the mapping is no longer scheduled, so

@@ -44,6 +44,8 @@ import {
   DELETION_GUIDANCE,
 } from '@openmig/shared';
 import type {
+  VerificationRunReport,
+  VerifyStartResponse,
   TenantId,
   MappingId,
   ScheduleHandle,
@@ -60,6 +62,7 @@ import { loadConfigDir, type LoadedMapping } from './config-dir';
 import { buildStatusReport, type MappingStatusInput } from './status';
 import { startTransition, finishTransition } from './lifecycle';
 import { serveUi, UI_MOUNT } from './static-ui';
+import { createVerifyRunner } from './verify-run';
 import { log } from '@openmig/shared';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
 
@@ -493,6 +496,21 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   }
 
   // 4. Local status/health + confirm server.
+  /**
+   * The verification run (workplan 0017 T2): state machine in verify-run.ts,
+   * scan here — it is the entrypoint that knows the mappings and the ledger.
+   */
+  const verifyRunner = createVerifyRunner(async () => {
+    const reports: Record<string, VerificationResult> = {};
+    for (const m of mappings) {
+      reports[m.config.mappingId] = await verifyMapping(
+        { ...m.config, mappingId: m.mailboxMappingId } as typeof m.config,
+        ledgerOptions,
+      );
+    }
+    return reports;
+  });
+
   const server = createServer(async (req, res) => {
     try {
       // The operating UI (ADR-0026), under /ui so it cannot collide with the
@@ -552,10 +570,29 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         }
         return sendJson(res, 200, buildStatusReport(inputs));
       }
-      // The §20 verification gate. Without this a self-host operator has no way
-      // to run it at all: the managed edition reaches it through the cutover
-      // job, and neither edition's UI does. Read-only — it counts and samples,
-      // it never writes to the target or advances any cutover state.
+      // The §20 verification gate, in its two forms (workplan 0017 T2).
+      //
+      // The start + poll pair is the contract both editions converge on: the
+      // scan takes minutes against every enabled domain's target, and a page
+      // must be able to begin it and come back rather than hold a request open.
+      // POST starts (idempotently — a second start while running JOINS the run,
+      // the same shape as POST .../start's `activated: false`); GET reports one
+      // of four states and never triggers anything, so the Verify screen stays
+      // a page rather than a trapdoor.
+      if (req.method === 'POST' && req.url === '/verify/start') {
+        await drain(req);
+        // 202 for "began work", 200 for "was already under way" — the body
+        // carries the running report either way, so a client polls from here.
+        const outcome: VerifyStartResponse = verifyRunner.start();
+        return sendJson(res, outcome.started ? 202 : 200, outcome);
+      }
+      if (req.method === 'GET' && req.url === '/verify/report') {
+        return sendJson(res, 200, verifyRunner.current() satisfies VerificationRunReport);
+      }
+      // The synchronous form, kept deliberately for one release: the e2e
+      // verification gate and any operator script that curls it keep working
+      // (hard rule 5). Same scan, same shape — it just holds the request open
+      // for the duration. Remove only once nothing calls it.
       if (req.method === 'GET' && req.url === '/verify') {
         const reports: Record<string, VerificationResult> = {};
         for (const m of mappings) {
