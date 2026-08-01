@@ -34,6 +34,7 @@ const appUserUrl = (u: string): string => {
 process.env.APP_DATABASE_URL = appUserUrl(PG_CONNECTION_STRING);
 
 import app from '../../index.js';
+import { seedMembership } from '../../__tests__/seed-membership.js';
 
 const P = '5f3b0000-e29b-41d4-a716-4466554431';
 const TENANT_A = `${P}01`;
@@ -65,6 +66,9 @@ describe('Real run-history endpoints', () => {
        ON CONFLICT (id) DO NOTHING`,
       [TENANT_A, TENANT_B],
     );
+    // Membership gate (0020 T1): the minted tokens must belong to their tenants.
+    await seedMembership(pool, TENANT_A, `user-${TENANT_A}`);
+    await seedMembership(pool, TENANT_B, `user-${TENANT_B}`);
     await pool.query(
       `INSERT INTO connection (id, tenant_id, role, kind, display_name, config)
        VALUES ($1,$3,'source','o365','src','{}'),($2,$3,'target','nextcloud','tgt','{}')

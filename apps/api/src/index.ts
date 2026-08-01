@@ -22,6 +22,7 @@ import mappingRoutes from './routes/migrations/index';
 import billingRoutes from './routes/billing/index';
 import billingWebhookRoutes from './routes/billing/webhooks';
 import scopeManifestRoutes from './routes/scope-manifest';
+import { assertProductionAuthConfig } from './middleware/auth';
 import { log } from '@openmig/shared';
 
 // Re-export for backwards compatibility
@@ -70,6 +71,9 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
 // the managed edition has no separate migration step, unlike apps/selfhost, so this is
 // the only thing that ever creates the managed schema on a fresh database.
 if (process.env.NODE_ENV !== 'test') {
+  // Fail-closed secrets (0020 T2): refuse to boot in production with a
+  // known-placeholder JWT_SECRET rather than serve authenticated theater.
+  assertProductionAuthConfig();
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     throw new Error('DATABASE_URL is required');

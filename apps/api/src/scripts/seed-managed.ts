@@ -38,7 +38,7 @@
  * Usage (from repo root, with the managed stack + demo backend up — see
  * deploy/compose/setup-managed-demo.sh — and Postgres port exposed):
  *   DATABASE_URL=postgres://openmigrate:...@localhost:5432/openmigrate \
- *   JWT_SECRET=change-this-in-production \
+ *   JWT_SECRET=<the value in deploy/compose/.env — MUST match the api container> \
  *   SECRET_ENCRYPTION_KEY=<32-byte key, same as the api/worker containers> \
  *   pnpm --filter @openmig/api seed:managed
  *

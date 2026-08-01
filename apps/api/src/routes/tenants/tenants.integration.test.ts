@@ -38,16 +38,23 @@ const getAppUserConnectionString = (originalUrl: string): string => {
 process.env.APP_DATABASE_URL = getAppUserConnectionString(PG_CONNECTION_STRING);
 
 import app from '../../index.js';
+import { seedMembership } from '../../__tests__/seed-membership.js';
 
 // UUIDs for API isolation tests (950e8400-e29b-41d4-a716-44665544xxxx)
 const API_TENANT_A = '5e2b0000-e29b-41d4-a716-446655442101';
 const API_TENANT_B = '5e2b0000-e29b-41d4-a716-446655442102';
 
-// Generate valid JWT tokens for each tenant
-function createTestToken(tenantId: string, role: string = 'member'): string {
+// Generate valid JWT tokens for each tenant. One sub per (tenant, role): the
+// membership gate (0020 T1) takes the role from the tenant_member row, so two
+// tokens with the same sub can no longer act as two different roles.
+function createTestToken(
+  tenantId: string,
+  role: string = 'member',
+  sub: string = `user-${role}-${tenantId}`
+): string {
   return jwt.sign(
     {
-      sub: `user-${tenantId}`,
+      sub,
       tenantId,
       role,
       email: `user@${tenantId}.test`,
@@ -79,6 +86,12 @@ describe('API Tenant Isolation', () => {
       API_TENANT_A, 'API Tenant A', 'active',
       API_TENANT_B, 'API Tenant B', 'active',
     ]);
+
+    // Membership gate (0020 T1): every minted token needs its row, and the
+    // ROW's role — not the token's claim — is what the API enforces.
+    await seedMembership(superuserPool, API_TENANT_A, `user-member-${API_TENANT_A}`, 'member');
+    await seedMembership(superuserPool, API_TENANT_A, `user-admin-${API_TENANT_A}`, 'admin');
+    await seedMembership(superuserPool, API_TENANT_B, `user-member-${API_TENANT_B}`, 'member');
 
     // Create connections for each tenant
     await superuserPool.query(`
@@ -240,6 +253,7 @@ describe('API Tenant Isolation', () => {
         VALUES ($1, $2, $3)
         ON CONFLICT (id) DO NOTHING
       `, [tempId, 'Temp Tenant', 'active']);
+      await seedMembership(superuserPool, tempId, `user-owner-${tempId}`, 'owner');
 
       // Create owner token for temp tenant
       const tokenOwnerTemp = createTestToken(tempId, 'owner');

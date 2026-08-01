@@ -38,6 +38,7 @@ const appUserUrl = (u: string): string => {
 process.env.APP_DATABASE_URL = appUserUrl(PG_CONNECTION_STRING);
 
 import app from '../../index.js';
+import { seedMembership } from '../../__tests__/seed-membership.js';
 
 const TENANT_A = '5f4b0000-e29b-41d4-a716-446655443101';
 const TENANT_B = '5f4b0000-e29b-41d4-a716-446655443102';
@@ -72,6 +73,9 @@ describe('POST /api/migrations — real persistence', () => {
        ON CONFLICT (id) DO NOTHING`,
       [TENANT_A, TENANT_B],
     );
+    // Membership gate (0020 T1): the minted tokens must belong to their tenants.
+    await seedMembership(pool, TENANT_A, `user-${TENANT_A}`);
+    await seedMembership(pool, TENANT_B, `user-${TENANT_B}`);
     request = supertest(app);
   });
 

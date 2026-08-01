@@ -35,6 +35,7 @@ const appUserUrl = (u: string): string => {
 process.env.APP_DATABASE_URL = appUserUrl(PG);
 
 import app from '../../index.js';
+import { seedMembership } from '../../__tests__/seed-membership.js';
 
 const TENANT = '5f5b0000-e29b-41d4-a716-446655440001';
 const OTHER_TENANT = '5f5b0000-e29b-41d4-a716-446655440002';
@@ -68,6 +69,9 @@ describe('verify start + poll routes (0017 T3)', () => {
       `INSERT INTO tenant (id, name, status, settings) VALUES ($1,'Verify T','active','{}'),($2,'Verify Other','active','{}') ON CONFLICT DO NOTHING`,
       [TENANT, OTHER_TENANT],
     );
+    // Membership gate (0020 T1): the minted tokens must belong to their tenants.
+    await seedMembership(pool, TENANT, `user-${TENANT}`);
+    await seedMembership(pool, OTHER_TENANT, `user-${OTHER_TENANT}`);
     await pool.query(
       `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status) VALUES ($1,$2,'source','imap','src','{}','connected') ON CONFLICT DO NOTHING`,
       [CONN, TENANT],

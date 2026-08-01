@@ -29,7 +29,8 @@ services:
       PORT: 3001
       DATABASE_URL: postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD:-openmigrate_password}@postgres:5432/${POSTGRES_DB:-openmigrate}
       APP_DATABASE_URL: postgresql://${APP_DB_USER:-app_user}:${APP_DB_PASSWORD:-app_password}@postgres:5432/${POSTGRES_DB:-openmigrate}
-      JWT_SECRET: ${JWT_SECRET:-change-this-in-production}
+      # Fail-closed (0020 T2): no default — this secret is the tenancy boundary.
+      JWT_SECRET: ${JWT_SECRET:?generate with openssl rand -hex 32 and set in .env}
       SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY:?set a 32-byte key in .env}
       JWT_EXPIRY: ${JWT_EXPIRY:-24h}
       TRIGGER_API_URL: http://localhost:3090

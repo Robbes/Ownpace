@@ -12,7 +12,8 @@ import jwt from 'jsonwebtoken';
 import { jwtVerify, createRemoteJWKSet, decodeJwt } from 'jose';
 import type { AuthenticatedRequest } from '../types/api';
 import { Pool } from 'pg';
-import { withTenant as ledgerWithTenant, type PgDatabase } from '@openmig/ledger';
+import { eq, and } from 'drizzle-orm';
+import { withTenant as ledgerWithTenant, tenantMember, type PgDatabase } from '@openmig/ledger';
 import { log } from '@openmig/shared';
 
 export interface JwtPayload {
@@ -145,6 +146,68 @@ class AuthNotConfiguredError extends Error {
   }
 }
 
+// ====================== Tenant-membership gate (0020 T1) ======================
+
+/**
+ * Signature verification proves who SIGNED a token — not that its subject
+ * belongs to the tenant it names. Anyone holding the signing secret (or an IdP
+ * that assigns tenant claims without checking) can mint
+ * `{tenantId: <any>, role: 'owner'}`, and RLS would then faithfully scope every
+ * query to the CLAIMED tenant — the attack, not the defense. So after claim
+ * verification, `authenticate` confirms `(tenantId, sub)` is an ACTIVE row in
+ * `tenant_member`, and the role comes from that row, never from the token.
+ *
+ * The lookup runs inside `withTenant(claimedTenantId)`: the tenant_member
+ * policies scope it to the claimed tenant, so a claim naming a tenant the
+ * subject doesn't belong to simply finds no row and gets a 403.
+ */
+export type MembershipLookup = (
+  tenantId: string,
+  userId: string
+) => Promise<{ role: string } | null>;
+
+/** One pool for the gate — never one per request (getDbPool constructs a new Pool). */
+let _authPool: Pool | null = null;
+function getAuthPool(): Pool {
+  if (!_authPool) _authPool = getDbPool();
+  return _authPool;
+}
+
+// The claimed tenantId lands in RLS policies as a ::uuid cast; a non-UUID claim
+// must read as "no membership" (403), not as a query error (500).
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function lookupMembership(
+  tenantId: string,
+  userId: string
+): Promise<{ role: string } | null> {
+  if (!UUID_RE.test(tenantId)) return null;
+  const rows = await ledgerWithTenant(getAuthPool(), tenantId, async (db) =>
+    db
+      .select({ role: tenantMember.role })
+      .from(tenantMember)
+      .where(
+        and(
+          eq(tenantMember.tenantId, tenantId),
+          eq(tenantMember.userId, userId),
+          eq(tenantMember.status, 'active')
+        )
+      )
+  );
+  return rows[0] ?? null;
+}
+
+let membershipLookup: MembershipLookup = lookupMembership;
+
+/**
+ * TEST SEAM ONLY. Unit tests exercise `authenticate` without a database; this
+ * swaps the tenant_member lookup for a fake (pass null to restore the real one).
+ * Production code must never call it — the gate has no bypass by construction.
+ */
+export function __setMembershipLookupForTests(fn: MembershipLookup | null): void {
+  membershipLookup = fn ?? lookupMembership;
+}
+
 /**
  * Choose the verification mode. The managed **JWKS** path (JWT_ISSUER) takes
  * precedence over a symmetric JWT_SECRET: if an operator configures JWKS, a
@@ -197,6 +260,32 @@ async function verifyToken(token: string): Promise<JwtPayload> {
 }
 
 /**
+ * Boot-time refusal of known-placeholder auth secrets in production (0020 T2).
+ *
+ * With the membership gate, JWT_SECRET is the outer wall of the tenancy
+ * boundary — a deployment running the placeholder value is a deployment whose
+ * signing key is committed to a public repository. Refusing to boot is the only
+ * honest failure: every later request would be authenticated theater. Pure and
+ * exported for tests; index.ts calls it before starting the server.
+ */
+const PLACEHOLDER_JWT_SECRETS = new Set([
+  'change-this-in-production', // managed.yml's old default (now removed) + managed.env.example
+  'your-super-secret-jwt-key-change-in-production', // root .env.example
+]);
+
+export function assertProductionAuthConfig(env: NodeJS.ProcessEnv = process.env): void {
+  if (env.NODE_ENV !== 'production') return;
+  const mode = selectAuthMode(env.JWT_ISSUER, env.JWT_SECRET);
+  if (mode === 'local' && PLACEHOLDER_JWT_SECRETS.has(env.JWT_SECRET!)) {
+    throw new Error(
+      'JWT_SECRET is a known placeholder value. In production it is the tenancy ' +
+        'boundary: generate a real secret (openssl rand -hex 32), set it in .env, ' +
+        'and re-mint any tokens signed with the old value.'
+    );
+  }
+}
+
+/**
  * Authentication middleware
  *
  * Validates JWT token from Authorization header and attaches
@@ -228,11 +317,30 @@ export async function authenticate(
     // Verify the token (managed JWKS wins over a local secret — see selectAuthMode).
     const payload = await verifyToken(token);
 
+    // Authorization gate (0020 T1): the signature proved who signed the token;
+    // membership proves the subject belongs to the tenant it claims, and the
+    // ROLE comes from the tenant_member row, never from the token. Dev mode
+    // (no verifier configured; forbidden in production) is the one path that
+    // skips it — it already runs on unverified decode with no database wired.
+    let role = payload.role;
+    const mode = selectAuthMode(process.env.JWT_ISSUER, process.env.JWT_SECRET);
+    if (mode !== 'dev') {
+      const membership = await membershipLookup(payload.tenantId, payload.sub);
+      if (!membership) {
+        res.status(403).json({
+          error: 'Forbidden',
+          message: 'No active membership for this tenant',
+        });
+        return;
+      }
+      role = membership.role;
+    }
+
     // Attach user context to request
     const authenticatedReq = req as AuthenticatedRequest;
     authenticatedReq.userId = payload.sub;
     authenticatedReq.tenantId = payload.tenantId;
-    authenticatedReq.userRole = payload.role;
+    authenticatedReq.userRole = role;
 
     // Set tenant context for RLS
     // This will be used by the database client to set app.current_tenant
@@ -307,10 +415,24 @@ export async function optionalAuth(
     // (the previous jwt.decode fallback attached forged claims in managed mode).
     const payload = await verifyToken(token);
 
+    // Same membership gate as authenticate() (0020 T1) — a token naming a
+    // tenant the subject doesn't belong to attaches NO context here, because
+    // "optional" means the auth may be absent, not that it may be weaker.
+    let role = payload.role;
+    const mode = selectAuthMode(process.env.JWT_ISSUER, process.env.JWT_SECRET);
+    if (mode !== 'dev') {
+      const membership = await membershipLookup(payload.tenantId, payload.sub);
+      if (!membership) {
+        next();
+        return;
+      }
+      role = membership.role;
+    }
+
     const authenticatedReq = req as AuthenticatedRequest;
     authenticatedReq.userId = payload.sub;
     authenticatedReq.tenantId = payload.tenantId;
-    authenticatedReq.userRole = payload.role;
+    authenticatedReq.userRole = role;
 
     next();
   } catch (_error) {
