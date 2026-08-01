@@ -657,8 +657,12 @@ The order that works:
 
 ```sh
 # 1. Prove the copy is complete. §20 checks counts, checksums and bytes per
-#    domain and tells you whether it is safe to proceed.
-curl -s http://127.0.0.1:8080/verify | jq '.[].canProceedToCutover'
+#    domain and tells you whether it is safe to proceed. Start the scan, then
+#    poll the report to a terminal state (the synchronous GET /verify is
+#    retired — 0019 T6; the scan holds no HTTP request open any more):
+curl -sX POST http://127.0.0.1:8080/verify/start | jq
+curl -s http://127.0.0.1:8080/verify/report | jq   # repeat until state is done/failed
+curl -s http://127.0.0.1:8080/verify/report | jq '.report[].canProceedToCutover'
 
 # 2. Clear the decision queues. Anything here is a real question:
 #    /failures = could not be copied, /moves and /deletions = the owner changed
