@@ -8,10 +8,11 @@
  * verify and apply run as DEPLOYED Trigger.dev tasks (`trigger.config.ts` +
  * `deploy/compose/deploy-tasks.sh` exist since workplan 0018, closed with
  * live evidence — an API 202 becomes a real runner executing `src/jobs/*`).
- * Whether syncs also move onto scheduled Trigger.dev tasks — retiring this
- * process — or this poller becomes the permanent sync engine (and gets the
- * tests it currently lacks) is an OPEN OWNER DECISION: workplan 0020 T8.
- * Until it is made, this file is load-bearing for every managed sync.
+ * DECIDED (owner, 2026-08-01, 0020 T8 → workplan 0022): syncs move onto the
+ * scheduled `managed-sync-tick` task and THIS PROCESS RETIRES. Until 0022 T3
+ * proves the tick live, this file stays load-bearing — and during the
+ * cutover it is the rollback lever (`docker compose start worker`). Do not
+ * extend it; sync-starting logic now lives in src/jobs/managed-sync-tick.ts.
  *
  * What it does: a long-running, multi-tenant process that polls
  * `mailbox_mapping` for `status = 'active'` rows across ALL tenants (the
