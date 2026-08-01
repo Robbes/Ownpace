@@ -264,6 +264,25 @@ export async function fetchVerifyReport(mappingId?: string): Promise<Verificatio
   return (await client.get<VerificationRunReport>(verifyPath('report', mappingId))).data;
 }
 
+/**
+ * Ask for one more sync pass, in each edition's own temporal shape (0019 T5).
+ *
+ * The appliance runs the pass and answers when it FINISHES (single-flight —
+ * see `runPass`, including its started-before-you-asked sharp edge). The
+ * managed edition enqueues a delta-sync job and answers at once; the pass
+ * itself lands in the run history, executed by the same task the sync tick
+ * triggers. The Finish screen says which of the two happened rather than
+ * letting "done" mean two different things.
+ */
+export async function requestFinalPass(mappingId: string): Promise<'finished' | 'queued'> {
+  if (isSelfHost()) {
+    await runPass(mappingId);
+    return 'finished';
+  }
+  await client.post(`${mappingPath(mappingId)}/sync`, { type: 'delta' });
+  return 'queued';
+}
+
 /** A refusal to finish, kept distinct from a transport failure — see `DecisionRefusedError`. */
 export class FinishRefusedError extends Error {
   constructor(

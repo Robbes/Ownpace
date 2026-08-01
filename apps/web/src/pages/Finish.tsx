@@ -9,21 +9,28 @@
  * destroys it.** While a mapping is active, items arriving on the old system
  * keep flowing to the new one. Finishing stops that. So if somebody finishes
  * before mail delivery has actually moved, every message that arrives at the
- * old system afterwards is never copied — and the appliance has stopped
- * watching, so nothing reports it. That is silent data loss produced by
- * pressing the right button in the wrong order.
+ * old system afterwards is never copied — and the tool has stopped watching,
+ * so nothing reports it. That is silent data loss produced by pressing the
+ * right button in the wrong order.
  *
  * The runbook's sequence is therefore the screen: prove the copy is complete →
  * clear the decision queues → run a final pass → move delivery → finish. Step
  * four is outside this tool — it is MX/DNS and client reconfiguration — so it
- * is the one precondition the appliance cannot check and the only one the
- * operator is asked to attest to. Everything above it, the appliance checks for
- * itself and refuses to take on trust.
+ * is the one precondition nothing can check and the only one the operator is
+ * asked to attest to. Everything above it is checked, not taken on trust.
+ *
+ * TWO MODES, one checklist (workplan 0019 T5). Without a route param this is
+ * the appliance's whole-appliance view, driven by `/status` (which managed
+ * does not serve). With `mappings/:mappingId/finish` it is a per-mapping
+ * screen for EITHER edition: the lifecycle and the failure count come from the
+ * queue envelopes themselves, the links stay inside the mapping, and the
+ * final-pass button speaks each edition's temporal shape (the appliance runs
+ * the pass and answers when it finishes; managed queues the job and says so).
  */
 
 import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { AlertCircle, AlertTriangle, Check, Flag, Loader2, Circle } from 'lucide-react';
 import type { FinishAccepted, MappingLifecycle } from '@openmig/shared';
 import {
@@ -32,7 +39,7 @@ import {
   fetchMoves,
   fetchStatus,
   finishMigration,
-  runPass,
+  requestFinalPass,
   FinishRefusedError,
 } from '../services/operating-service';
 
@@ -41,6 +48,8 @@ type Outcome =
   | { readonly state: 'done'; readonly result: FinishAccepted }
   | { readonly state: 'blocked'; readonly error: string; readonly hint?: string };
 
+type PassState = 'running' | 'finished' | 'queued' | 'failed';
+
 const LIFECYCLE_NOTE: Record<MappingLifecycle, string> = {
   paused: 'Never started, so there is nothing to finish. Remove it from the config directory to retire it.',
   active: 'Syncing on a schedule. Items still arriving on the old system are being copied across.',
@@ -48,7 +57,7 @@ const LIFECYCLE_NOTE: Record<MappingLifecycle, string> = {
   done: 'Finished. This mapping no longer syncs and nothing is being reported for it.',
 };
 
-/** One line of the checklist. `done` is what the appliance can verify itself. */
+/** One line of the checklist. `done` is what the tool can verify itself. */
 const Step: React.FC<{
   n: number;
   title: string;
@@ -74,34 +83,51 @@ const Step: React.FC<{
   </li>
 );
 
+/** What one mapping's checklist needs to know, whichever mode supplied it. */
+interface FinishRow {
+  readonly id: string;
+  readonly lifecycle: MappingLifecycle;
+  readonly needingDecision: number;
+}
+
 const Finish: React.FC = () => {
   const queryClient = useQueryClient();
+  const { mappingId: routeMappingId } = useParams<{ mappingId: string }>();
   const [outcomes, setOutcomes] = React.useState<Record<string, Outcome>>({});
   const [deliveryMoved, setDeliveryMoved] = React.useState<Record<string, boolean>>({});
-  const [passRunning, setPassRunning] = React.useState<Record<string, boolean>>({});
-  const [passDone, setPassDone] = React.useState<Record<string, boolean>>({});
+  const [pass, setPass] = React.useState<Record<string, PassState>>({});
 
-  const status = useQuery({ queryKey: ['status'], queryFn: fetchStatus, refetchOnWindowFocus: true });
-  // The queue counts, so step 2 is checked rather than asserted. Cheap DB reads,
-  // unlike /verify — which is why that one stays behind its own button.
-  //
-  // Called with no mapping, i.e. "every configured mapping". This screen and
-  // Verify are APPLIANCE screens today: both start from `/status` and `/verify`,
-  // which answer for the whole appliance and which the managed edition does not
-  // serve (its equivalents are per-mapping, and its cutover runs through the
-  // cutover job rather than a screen). Wired as arrow functions rather than
-  // passed directly because react-query would otherwise hand the fetcher its
-  // own context object as the first argument.
-  const failures = useQuery({ queryKey: ['failures'], queryFn: () => fetchFailures() });
-  const moves = useQuery({ queryKey: ['moves'], queryFn: () => fetchMoves() });
-  const deletions = useQuery({ queryKey: ['deletions'], queryFn: () => fetchDeletions() });
+  // Whole-appliance mode only: `/status` answers for every configured mapping
+  // and the managed edition does not serve it. Per-mapping mode never asks.
+  const status = useQuery({
+    queryKey: ['status'],
+    queryFn: fetchStatus,
+    refetchOnWindowFocus: true,
+    enabled: !routeMappingId,
+  });
+  // The queue counts, so step 2 is checked rather than asserted. Cheap DB
+  // reads, unlike /verify — which is why that one stays behind its own button.
+  // With a route param these are scoped to the one mapping (which is also what
+  // the managed edition requires); without one the appliance answers for all.
+  const failures = useQuery({
+    queryKey: ['failures', routeMappingId],
+    queryFn: () => fetchFailures(routeMappingId),
+  });
+  const moves = useQuery({
+    queryKey: ['moves', routeMappingId],
+    queryFn: () => fetchMoves(routeMappingId),
+  });
+  const deletions = useQuery({
+    queryKey: ['deletions', routeMappingId],
+    queryFn: () => fetchDeletions(routeMappingId),
+  });
 
   const finish = (mappingId: string, force: boolean) => {
     setOutcomes((o) => ({ ...o, [mappingId]: { state: 'pending' } }));
     void finishMigration(mappingId, force)
       .then((result) => {
         setOutcomes((o) => ({ ...o, [mappingId]: { state: 'done', result } }));
-        void queryClient.invalidateQueries({ queryKey: ['status'] });
+        void queryClient.invalidateQueries();
       })
       .catch((err: unknown) => {
         if (err instanceof FinishRefusedError) {
@@ -126,16 +152,50 @@ const Finish: React.FC = () => {
   };
 
   const doPass = (mappingId: string) => {
-    setPassRunning((p) => ({ ...p, [mappingId]: true }));
-    void runPass(mappingId)
-      .then(() => setPassDone((p) => ({ ...p, [mappingId]: true })))
+    setPass((p) => ({ ...p, [mappingId]: 'running' }));
+    void requestFinalPass(mappingId)
+      .then((how) => setPass((p) => ({ ...p, [mappingId]: how })))
+      .catch(() => setPass((p) => ({ ...p, [mappingId]: 'failed' })))
       .finally(() => {
-        setPassRunning((p) => ({ ...p, [mappingId]: false }));
         void queryClient.invalidateQueries();
       });
   };
 
-  if (status.isLoading) {
+  // The rows the checklist renders, whichever mode supplied them.
+  const perMapping = Boolean(routeMappingId);
+  const loading = perMapping ? failures.isLoading : status.isLoading;
+  const loadError = perMapping ? failures.error : status.error;
+
+  let rows: FinishRow[] = [];
+  let unknownMapping = false;
+  if (perMapping) {
+    const env = failures.data?.[routeMappingId!];
+    if (failures.data && !env) {
+      // Loaded, and the mapping is not in the answer: say so rather than
+      // rendering an empty checklist that looks like "nothing to do".
+      unknownMapping = true;
+    } else if (env) {
+      rows = [
+        {
+          id: routeMappingId!,
+          lifecycle: env.migrationStatus,
+          needingDecision: env.needsDecision.length,
+        },
+      ];
+    }
+  } else {
+    rows = (status.data?.mappings ?? []).map((m) => ({
+      id: m.mappingId,
+      lifecycle: m.migrationStatus,
+      needingDecision: m.domains.reduce((n, d) => n + d.itemsNeedingDecision, 0),
+    }));
+  }
+
+  // Where the checklist's links live: inside the mapping when we are inside a
+  // mapping, at the appliance's top level otherwise.
+  const linkBase = perMapping ? `/mappings/${routeMappingId}` : '';
+
+  if (loading) {
     return (
       <div className="flex items-center gap-2 text-gray-500">
         <Loader2 className="w-4 h-4 animate-spin" />
@@ -144,14 +204,14 @@ const Finish: React.FC = () => {
     );
   }
 
-  if (status.error) {
+  if (loadError) {
     return (
       <div className="flex items-start gap-2 p-4 rounded-lg bg-red-50 text-red-800 text-sm">
         <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
         <div>
-          <p className="font-medium">Could not read the migrations.</p>
+          <p className="font-medium">Could not read the migration{perMapping ? '' : 's'}.</p>
           <p className="mt-1">
-            {status.error instanceof Error ? status.error.message : String(status.error)}
+            {loadError instanceof Error ? loadError.message : String(loadError)}
           </p>
         </div>
       </div>
@@ -166,28 +226,35 @@ const Finish: React.FC = () => {
         one is the only one that cannot be undone by simply carrying on.
       </p>
 
-      {status.data?.mappings.length === 0 && (
+      {unknownMapping && (
+        <p className="text-sm text-amber-800">
+          No migration with id {routeMappingId} answered. Check the address — this is not the same
+          as a migration with nothing to finish.
+        </p>
+      )}
+      {!perMapping && rows.length === 0 && (
         <p className="text-sm text-gray-500">No mappings configured.</p>
       )}
 
-      {status.data?.mappings.map((m) => {
-        const id = m.mappingId;
+      {rows.map((m) => {
+        const id = m.id;
         const outcome = outcomes[id];
-        const finishable = m.migrationStatus === 'active' || m.migrationStatus === 'cutover';
-        const needingDecision = m.domains.reduce((n, d) => n + d.itemsNeedingDecision, 0);
+        const finishable = m.lifecycle === 'active' || m.lifecycle === 'cutover';
+        const needingDecision = m.needingDecision;
         const openMoves = moves.data?.[id]?.open.length ?? 0;
         const openDeletions = deletions.data?.[id]?.confirmed.length ?? 0;
         const queuesClear = needingDecision === 0 && openMoves === 0 && openDeletions === 0;
         const queuesKnown =
           failures.data !== undefined && moves.data !== undefined && deletions.data !== undefined;
+        const passState = pass[id];
 
         return (
           <section key={id} className="mb-6 p-4 bg-white border border-gray-200 rounded-lg">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="font-semibold text-gray-900">{id}</h3>
-              <span className="text-xs text-gray-500">{m.migrationStatus}</span>
+              <span className="text-xs text-gray-500">{m.lifecycle}</span>
             </div>
-            <p className="mt-1 text-sm text-gray-600">{LIFECYCLE_NOTE[m.migrationStatus]}</p>
+            <p className="mt-1 text-sm text-gray-600">{LIFECYCLE_NOTE[m.lifecycle]}</p>
 
             {!finishable ? null : outcome?.state === 'done' ? (
               <div className="mt-3 text-sm">
@@ -209,7 +276,7 @@ const Finish: React.FC = () => {
               <ol className="mt-4">
                 <Step n={1} title="Check the copy is complete">
                   Compare the two systems and sample the contents.{' '}
-                  <Link to="/verify" className="text-blue-700 hover:underline">
+                  <Link to={`${linkBase}/verify`} className="text-blue-700 hover:underline">
                     Run the check
                   </Link>
                   . Reads the whole destination, so it takes minutes on a large mailbox.
@@ -224,7 +291,7 @@ const Finish: React.FC = () => {
                     <span>
                       {needingDecision > 0 && (
                         <>
-                          <Link to="/failures" className="text-blue-700 hover:underline">
+                          <Link to={`${linkBase}/failures`} className="text-blue-700 hover:underline">
                             {needingDecision} could not be copied
                           </Link>
                           {(openDeletions > 0 || openMoves > 0) && ', '}
@@ -232,14 +299,14 @@ const Finish: React.FC = () => {
                       )}
                       {openDeletions > 0 && (
                         <>
-                          <Link to="/deletions" className="text-blue-700 hover:underline">
+                          <Link to={`${linkBase}/deletions`} className="text-blue-700 hover:underline">
                             {openDeletions} deleted on the old system
                           </Link>
                           {openMoves > 0 && ', '}
                         </>
                       )}
                       {openMoves > 0 && (
-                        <Link to="/moves" className="text-blue-700 hover:underline">
+                        <Link to={`${linkBase}/moves`} className="text-blue-700 hover:underline">
                           {openMoves} moved
                         </Link>
                       )}
@@ -249,24 +316,47 @@ const Finish: React.FC = () => {
                   )}
                 </Step>
 
-                <Step n={3} title="Run one final pass" done={passDone[id] ? true : undefined}>
+                <Step
+                  n={3}
+                  title="Run one final pass"
+                  done={passState === 'finished' || passState === 'queued' ? true : undefined}
+                >
                   So the new system reflects the old one as of right now.{' '}
                   <button
                     onClick={() => doPass(id)}
-                    disabled={passRunning[id]}
+                    disabled={passState === 'running'}
                     className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                   >
-                    {passRunning[id] && <Loader2 className="w-3 h-3 animate-spin" />}
-                    {passDone[id] ? 'Run another' : 'Run a pass now'}
+                    {passState === 'running' && <Loader2 className="w-3 h-3 animate-spin" />}
+                    {passState === 'finished' || passState === 'queued'
+                      ? 'Run another'
+                      : 'Run a pass now'}
                   </button>
+                  {/* Each edition's own temporal shape, said rather than blurred:
+                      the appliance answered when the pass FINISHED; managed
+                      queued a job that lands in the run history. */}
+                  {passState === 'finished' && (
+                    <p className="mt-1 text-emerald-700">The pass has run and finished.</p>
+                  )}
+                  {passState === 'queued' && (
+                    <p className="mt-1 text-gray-600">
+                      Queued. The pass runs as a job and lands in the run history — give it a
+                      moment, then re-check the queues above.
+                    </p>
+                  )}
+                  {passState === 'failed' && (
+                    <p className="mt-1 text-amber-800">
+                      The pass request failed — nothing ran. Try again.
+                    </p>
+                  )}
                 </Step>
 
                 {/*
                   The step this tool cannot check, and the one that makes the
                   difference between finishing and losing mail. It is MX/DNS and
-                  client reconfiguration — outside the appliance entirely — so
-                  it is asked rather than verified, and the consequence is
-                  spelled out instead of assumed understood.
+                  client reconfiguration — outside the tool entirely — so it is
+                  asked rather than verified, and the consequence is spelled out
+                  instead of assumed understood.
                 */}
                 <Step n={4} title="Move delivery to the new system" done={deliveryMoved[id]}>
                   <p>
@@ -276,8 +366,8 @@ const Finish: React.FC = () => {
                   </p>
                   <p className="mt-1 text-amber-800">
                     <b>If you finish before this is done</b>, anything that arrives on the old
-                    system afterwards will not be copied, and nothing will report it — the
-                    appliance has stopped watching.
+                    system afterwards will not be copied, and nothing will report it — the tool has
+                    stopped watching.
                   </p>
                   <label className="mt-2 flex items-center gap-2 text-gray-800">
                     <input

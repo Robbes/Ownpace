@@ -14,7 +14,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import type { StatusReport } from '@openmig/shared';
 
 const {
@@ -23,7 +23,7 @@ const {
   fetchMoves,
   fetchDeletions,
   finishMigration,
-  runPass,
+  requestFinalPass,
   FinishRefusedError,
 } = vi.hoisted(() => {
   class FinishRefusedError extends Error {
@@ -41,7 +41,7 @@ const {
     fetchMoves: vi.fn(),
     fetchDeletions: vi.fn(),
     finishMigration: vi.fn(),
-    runPass: vi.fn(),
+    requestFinalPass: vi.fn(),
     FinishRefusedError,
   };
 });
@@ -52,7 +52,7 @@ vi.mock('../services/operating-service', () => ({
   fetchMoves,
   fetchDeletions,
   finishMigration,
-  runPass,
+  requestFinalPass,
   FinishRefusedError,
 }));
 
@@ -229,5 +229,60 @@ describe('a migration that cannot be finished', () => {
 
     expect(await screen.findByText(/no longer syncs/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Finish this migration/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('the per-mapping mode (workplan 0019 T5)', () => {
+  // Reached as `mappings/:mappingId/finish` in EITHER edition. The lifecycle
+  // comes from the queue envelopes themselves — never from `/status`, which
+  // the managed edition does not serve — and the checklist's links stay inside
+  // the mapping.
+  function renderPerMapping(id = 'acme-mail') {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={[`/mappings/${id}/finish`]}>
+          <Routes>
+            <Route path="/mappings/:mappingId/finish" element={<Finish />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  it('renders the checklist from the queue envelopes and never asks /status', async () => {
+    renderPerMapping();
+
+    expect(await screen.findByRole('heading', { name: 'acme-mail' })).toBeInTheDocument();
+    expect(screen.getByText(/Run the check/)).toBeInTheDocument();
+    expect(fetchStatus).not.toHaveBeenCalled();
+    // The queues were asked about THIS mapping, not everything.
+    expect(fetchFailures).toHaveBeenCalledWith('acme-mail');
+  });
+
+  it("keeps the checklist's links inside the mapping", async () => {
+    renderPerMapping();
+
+    const check = await screen.findByRole('link', { name: /Run the check/ });
+    expect(check.getAttribute('href')).toBe('/mappings/acme-mail/verify');
+  });
+
+  it('says when no migration with that id answered — not the same as nothing to do', async () => {
+    fetchFailures.mockResolvedValue({});
+    fetchMoves.mockResolvedValue({});
+    fetchDeletions.mockResolvedValue({});
+    renderPerMapping('nope');
+
+    expect(await screen.findByText(/No migration with id nope answered/)).toBeInTheDocument();
+    expect(screen.queryByText(/Run the check/)).not.toBeInTheDocument();
+  });
+
+  it("reports the managed final pass as QUEUED — each edition's temporal shape, said not blurred", async () => {
+    requestFinalPass.mockResolvedValue('queued');
+    renderPerMapping();
+
+    fireEvent.click(await screen.findByRole('button', { name: /Run a pass now/ }));
+    await waitFor(() => expect(requestFinalPass).toHaveBeenCalledWith('acme-mail'));
+    expect(await screen.findByText(/Queued\. The pass runs as a job/)).toBeInTheDocument();
   });
 });
