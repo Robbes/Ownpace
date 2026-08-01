@@ -19,10 +19,14 @@ All project documentation lives here.
 - **`deployment.md`** — canonical deployment doc (editions, dev/e2e stack, release controls).
 - **`performance.md`** — performance levers and guardrails (do not optimize speculatively).
 
-Operational how-tos already live at the docs root: connector guides (`dav-sync.md` — CalDAV,
-CardDAV and WebDAV in one), `o365-setup.md`, `dns-management.md`,
-`rls-guide.md`, `rollback-mechanisms.md`, and the cutover procedures (`cutover-runbook.md`,
-`cutover-communication-templates.md`). A dedicated `guides/` / `runbooks/` split can come later if
+Operational how-tos already live at the docs root: the runbooks (`operator-runbook.md`,
+`cutover-runbook.md`, `selfhost-quickstart.md`, `TROUBLESHOOTING.md`), connector guides
+(`dav-sync.md` — CalDAV, CardDAV and WebDAV in one), `o365-setup.md`, `dns-management.md`,
+`rls-guide.md`, `rollback-mechanisms.md`, `target-providers.md`,
+`desec-provider-assessment.md`, the cutover comms templates
+(`cutover-communication-templates.md`), and the one-off audit note
+`test-fixture-uuid-collision-audit.md` (its remediation shipped as the
+`fixture-uuid-check` CI job). A dedicated `guides/` / `runbooks/` split can come later if
 the root grows unwieldy; don't add empty placeholder directories.
 
 Historical notes are banner-marked in place rather than deleted (workplan/ADR policy): e.g.

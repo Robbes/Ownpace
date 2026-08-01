@@ -1,6 +1,10 @@
 # ADR-0023: Persistence — Postgres-only across both editions
 
-- **Status:** Accepted
+- **Status:** Accepted — **amended by [ADR-0028](./0028-pglite-appliance-persistence.md)**
+  (2026-08-01): the "PGlite… not chosen now" parking below was reversed by
+  workplan 0016 for the appliance only — one Postgres dialect, two engines
+  behind the `LedgerDriver` seam, parity-gated. The managed edition stays on
+  server Postgres exactly as decided here.
 - **Date:** 2026-07-16
 - **Supersedes (in part):** ADR-0010 (the SQLite / dual-backend option), ADR-0016 (its "dual pg/sqlite access layer" clause). The rest of both ADRs — Postgres+RLS for managed, the ledger schema v1, non-destructive/idempotency semantics — still stands.
 
