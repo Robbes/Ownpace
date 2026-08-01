@@ -4,13 +4,14 @@ Operational procedures for whoever runs the **managed** control plane (the multi
 as distinct from a self-host owner running the single-tenant appliance (see the future
 `selfhost-quickstart.md`). Stack definition: [`deploy/compose/managed.yml`](../deploy/compose/managed.yml).
 
-> **Scope & honesty note (workplan 0011 T7, updated 2026-07-23).** `apps/{api,worker,web}/Dockerfile`
-> exist and `managed.yml` builds all three from them (no more "run from source" workaround needed).
-> `worker` runs `apps/worker/src/managed-scheduler.ts`, a DB-polling scheduler — not the real
-> Trigger.dev v4 task model yet (that still needs a `trigger.config.ts` + `trigger deploy` step).
-> **Not yet verified end-to-end against a live Docker host** — see the 0011 workplan T7 Status block
-> for exactly what has and hasn't been run. Update this note once someone with Docker access confirms
-> the full clean-`up` → DoD-journey run and pastes the evidence into that Status block.
+> **Scope note (rewritten 2026-08-01, workplan 0020 T4).** This runbook's managed half now
+> describes the REAL bring-up, verified live: the full compose stack including the Trigger.dev
+> execution plane (registry, supervisor, ClickHouse, MinIO, the TLS front), the scripted task
+> deploy, and `smoke-managed.sh` as the acceptance test. Two schedulers coexist today:
+> **syncs** run through `apps/worker/src/managed-scheduler.ts` (a DB-polling scheduler — its
+> future is workplan 0020 T8), while **verify and apply** run as deployed Trigger.dev tasks
+> (workplan 0018, closed with live evidence). The appliance-flavored sections further down
+> (127.0.0.1:8080 URLs) are workplan 0021's to fix.
 
 ## What the operator can and cannot see
 
@@ -30,14 +31,21 @@ This is a core promise of the architecture (SAD §17, §17.1), not just a policy
 ## Prerequisites
 
 - Docker + Docker Compose v2 on the host.
-- A filled-in env file. Copy the template and edit every `change-me*` value:
+- `pnpm install` run in the repo (the seed, the deploy CLI wrapper and the env-var/smoke
+  scripts use workspace `node_modules`).
+- A filled-in env file, with every required secret present. The compose file has **no
+  defaults for secrets** (0020 T2) — a missing value fails the `up`, loudly:
   ```
-  cp deploy/compose/managed.env.example deploy/compose/.env
-  # edit deploy/compose/.env — set strong POSTGRES_PASSWORD, APP_DB_PASSWORD,
-  # JWT_SECRET, and the TRIGGER_* secrets. Never commit the filled-in file.
+  cd deploy/compose
+  cp managed.env.example .env
+  # edit .env — set POSTGRES_PASSWORD, APP_DB_PASSWORD, NEXTCLOUD_ADMIN_PASSWORD, ports…
+  ./ensure-env-secrets.sh   # generates every still-blank required secret (idempotent —
+                            # it NEVER touches a value you already set)
   ```
   Compose auto-loads `.env` from the compose file's directory. To keep it elsewhere, pass
-  `--env-file <path>`.
+  `--env-file <path>`. The API also refuses to **boot** in production with a
+  known-placeholder `JWT_SECRET` — with the tenant-membership gate (0020 T1), that secret
+  is the tenancy boundary.
 
 ### The two database roles (why there are two DB URLs)
 
@@ -55,19 +63,22 @@ rotate it in the DB (`ALTER ROLE app_user PASSWORD …`) to match.
 
 ## Start / stop
 
+Bring up the WHOLE stack — the trigger execution plane (registry, docker-proxy, supervisor,
+ClickHouse, MinIO, the TLS front) is not optional garnish: a stack without the supervisor
+accepts every enqueue and executes none of them, and the 2026-08-01 bring-up proved the
+dashboard genuinely queries ClickHouse (its absence killed the webapp process, not a page).
+
 ```bash
 cd deploy/compose
 
-# Start the infrastructure services.
-docker compose -f managed.yml up -d postgres trigger-db trigger-redis trigger-api
+# Everything, in dependency order (healthchecks gate the app tier):
+docker compose -f managed.yml up -d --build
 
-# Migrations: applied automatically on first Postgres init from
-# packages/ledger/migrations (mounted at /docker-entrypoint-initdb.d). This runs
-# ONLY on an empty data volume. For an existing volume, apply new migrations with
-# the migration runner / your migration step before starting the app (§22.1).
-
-# Bring up the app tier (builds apps/{api,worker,web}/Dockerfile):
-docker compose -f managed.yml up -d --build api worker web
+# Migrations: the API runs them itself at boot (packages/ledger migration runner,
+# under an advisory lock, idempotent). There is deliberately NO initdb mount of the
+# migration files — initdb applies them without schema_migrations bookkeeping and
+# the squashed baseline is not idempotent, so the API's own migrator would then
+# re-apply it and crash (the comment in managed.yml records this).
 
 # Status / logs (status only — no content is ever logged):
 docker compose -f managed.yml ps
@@ -80,6 +91,31 @@ docker compose -f managed.yml down
 # Tear down and DELETE all data (destructive):
 docker compose -f managed.yml down -v
 ```
+
+**Env changes need a recreate, not a restart.** `docker compose up -d` recreates only
+services whose configuration changed *as compose sees it*; a container that shows
+`Running 0.0s` in the `up` output kept its old environment. After editing `.env` for a
+running service, force it: `docker compose -f managed.yml up -d --force-recreate <service>`
+— the live symptom that teaches this the hard way is changing the `TRIGGER_*_ORIGIN`s and
+getting a white screen from a dashboard still advertising the old origins.
+
+### The trigger dashboard's TLS front (`trigger-tls`)
+
+The dashboard runs production-mode Secure cookies, so login is unusable over plain http
+from anything but localhost. The `trigger-tls` service (Caddy, `tls internal`) serves
+`https://$TRIGGER_TLS_HOST:$TRIGGER_TLS_PORT` for browsers. The origin split is
+deliberate and load-bearing:
+
+- `TRIGGER_APP_ORIGIN` / `TRIGGER_LOGIN_ORIGIN` → the **https** front (browsers).
+- `TRIGGER_API_ORIGIN` → **`http://localhost:3090`**, always. The deploy CLI follows the
+  server-advertised API origin; pointing it at a self-signed https front fails deploys
+  with a bare "Connection error".
+
+Set `TRIGGER_TLS_HOST` to the address browsers actually use (e.g. the machine's VPN IP) —
+it is both the certificate's subject and the SNI default for IP-connecting browsers, and
+both rules exist because their absence fails as a silent TLS handshake death, not an HTTP
+error (`trigger-tls.Caddyfile` documents this). The certificate is internally minted, so
+the first visit needs the browser's "accept the risk" step.
 
 ### Alternative: run apps from source (no image build)
 
@@ -108,31 +144,83 @@ Stalwart, Tenant B syncs calendar/contact/file against a demo Nextcloud. Provisi
 first:
 
 ```bash
-# 1. Bring up Postgres + the demo Nextcloud (part of managed.yml):
-docker compose -f managed.yml up -d postgres nextcloud
-
-# 2. Provision the demo mail (Stalwart) + DAV (Nextcloud) accounts. Requires stalwart-cli
-#    on PATH (see deploy/selfhost/setup-stalwart.sh's header for the install command).
+# 1. With the stack up (see Start/stop), provision the demo mail (Stalwart) +
+#    DAV (Nextcloud) accounts. Joins Stalwart to the compose network.
 ./setup-managed-demo.sh
 
-# 3. Seed the two demo tenants, pointed at the accounts setup-managed-demo.sh just created.
+# 2. Seed the two demo tenants, pointed at the accounts just created.
 #    Runs as the DB owner (bypasses RLS to create tenants); JWT_SECRET and
-#    SECRET_ENCRYPTION_KEY must match the API/worker's .env values.
-DATABASE_URL="postgres://openmigrate:<POSTGRES_PASSWORD>@localhost:5432/openmigrate" \
-JWT_SECRET="<same value as in .env>" \
-SECRET_ENCRYPTION_KEY="<same value as in .env>" \
-pnpm --filter @openmig/api seed:managed
+#    SECRET_ENCRYPTION_KEY must match the API/worker's .env values — source
+#    them from the same file the stack runs on:
+cd ..              # repo root
+set -a; source deploy/compose/.env; set +a
+DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:${POSTGRES_PORT:-5432}/${POSTGRES_DB}" \
+  pnpm --filter @openmig/api seed:managed
 
-# 4. Bring up the rest of the stack — the worker's managed-scheduler.ts polls
-#    mailbox_mapping and starts running the seeded mappings' sync passes within
-#    its poll interval (60s default):
-docker compose -f managed.yml up -d --build api worker web
+# The worker's managed-scheduler.ts polls mailbox_mapping and starts running
+# the seeded mappings' sync passes within its poll interval (60s default).
 ```
 
 Use each printed token as `Authorization: Bearer <token>` against the API, or drop it into the web
-app's stored auth token, to sign in as that tenant. The **cross-tenant check** is the acceptance
-centerpiece: tenant B's token must never read or affect tenant A's data through any path — verified
-at the SQL layer (RLS) and the HTTP layer (the T1/T2 integration tests).
+app's stored auth token, to sign in as that tenant. **Tokens must belong to seeded members**: since
+the tenant-membership gate (0020 T1), `authenticate` confirms `(tenantId, sub)` against
+`tenant_member` and takes the role from that row — a hand-minted token with an arbitrary sub gets
+a 403 *by design*, however valid its signature. The seed's members are `demo-owner-a` (tenant A)
+and `demo-owner-b` (tenant B). The **cross-tenant check** is the acceptance centerpiece: tenant
+B's token must never read or affect tenant A's data through any path — verified at the SQL layer
+(RLS) and the HTTP layer (the T1/T2 integration tests).
+
+## Deploying the Trigger.dev tasks (verify + apply run through these)
+
+The API's verify/apply routes enqueue jobs; without deployed tasks and a running supervisor,
+every enqueue lands `failed` with the reason (by design — never silently). Full background:
+workplan 0018.
+
+**One-time setup (per fresh trigger-db volume):**
+
+1. Open the dashboard — `https://$TRIGGER_TLS_HOST:$TRIGGER_TLS_PORT` — and enter an email.
+   There is no SMTP: fetch the magic link from the logs and open it in the same browser:
+   ```bash
+   docker logs trigger-api 2>&1 | grep -o 'https://[^ ]*magic[^ ]*' | tail -1
+   ```
+2. Create an org + project in the dashboard. Copy the project ref (`proj_…`) into `.env` as
+   `TRIGGER_PROJECT_REF`.
+3. Read the prod API key from the trigger DB and set it in `.env` as `TRIGGER_SECRET_KEY`
+   (the dashboard shows it too, under API keys):
+   ```bash
+   docker exec trigger-db psql -U trigger -d triggerdb -Atc \
+     "SELECT e.\"apiKey\" FROM \"RuntimeEnvironment\" e JOIN \"Project\" p ON p.id = e.\"projectId\" WHERE e.slug = 'prod' ORDER BY e.\"createdAt\" DESC LIMIT 1"
+   ```
+4. Recreate the api/worker so they pick up the new values:
+   `docker compose -f managed.yml up -d --force-recreate api worker`
+5. Upload the task-runtime env vars (task containers inherit NOTHING from compose):
+   ```bash
+   ./deploy/compose/set-task-env.sh
+   ```
+   Re-run it after any rotation of the values it uploads; the dashboard's env page is never
+   load-bearing.
+
+**Deploy (every code change to `apps/worker/src/jobs/*` or its dependencies):**
+
+```bash
+./deploy/compose/deploy-tasks.sh
+```
+
+Idempotent; pins the CLI to the SDK version; preflights reachability, project ref and login.
+On a non-amd64 host set `DEPLOY_IMAGE_PLATFORM` in `.env` (e.g. `linux/arm64`) — the platform
+is decided server-side and handed to the CLI, and a mismatch produces runners that die at
+exec in under a second with `AutoRemove` destroying the evidence.
+
+**Acceptance — after ANY stack change:**
+
+```bash
+./deploy/compose/smoke-managed.sh
+```
+
+Runs the live verify + apply loop end to end (seeded-member tokens, poll to terminal,
+runner-log capture, guarded evidence cleanup) and exits non-zero unless verify lands `done`
+and apply lands `applied` or `refused`. A green CI says nothing about this machine; the
+smoke does. Its evidence file is **secret-bearing** (runner logs print the task env).
 
 ## Backup & restore (§22.1)
 
@@ -627,14 +715,27 @@ result and run it again if not.
 - **"fail-closed" errors with no tenant context:** expected when a query runs without
   `app.current_tenant` set — that's RLS doing its job, not a bug. The request path must go through
   `withTenantDb`/`withTenant`.
-- **Seed prints tokens but sign-in fails:** `JWT_SECRET` used by the seed must equal the API's.
-- **Trigger.dev:** the self-host image tag is currently `latest` (placeholder) and the T3 jobs
-  import the v3 SDK path while the dep is v4 — reconcile before wiring live tasks (noted in
-  `managed.yml`).
+- **Seed prints tokens but sign-in fails:** `JWT_SECRET` used by the seed must equal the API's —
+  and the token's `sub` must be a seeded `tenant_member` (the 0020 T1 gate; arbitrary subs 403).
+- **Verify/apply enqueues land `failed` with "Could not enqueue":** tasks not deployed, or the
+  supervisor is down — run `deploy-tasks.sh`, check `docker ps` for `trigger-supervisor`, then
+  `smoke-managed.sh`.
+- **Runner containers die in under a second with no logs:** almost always the image platform —
+  set `DEPLOY_IMAGE_PLATFORM` to match `uname -m` and redeploy. `smoke-managed.sh` captures
+  runner logs live precisely because `AutoRemove` destroys them.
+- **Dashboard Runs page is empty while runs exist in postgres:** the runs LIST is served from
+  ClickHouse; without run-replication it renders empty. Cosmetic, accepted for now (0020 T7
+  decides). Not an outage — the smoke and the DB rows are the truth.
+- **White screen / login loop on the dashboard:** origins. The running trigger-api must
+  advertise the SAME origins your browser uses — after changing `TRIGGER_*_ORIGIN` in `.env`,
+  `--force-recreate trigger-api` (see Start/stop).
 
 ## Related docs
 
 - Architecture (source of truth): [`architecture/solution-architecture.md`](./architecture/solution-architecture.md) — §4 roles, §16 cost drivers, §17 security/GDPR, §22.1 releases.
 - RLS details: [`rls-guide.md`](./rls-guide.md).
-- Workplan: [`workplans/0011-managed-edition-hardening.md`](./workplans/0011-managed-edition-hardening.md) (T7).
+- Workplans: [`0018`](./workplans/0018-trigger-task-deployment.md) (task deployment, closed with
+  live evidence), [`0020`](./workplans/0020-managed-stack-productionization.md) (this stack's
+  productionization — T8 will decide the polling scheduler's future),
+  [`0011`](./workplans/0011-managed-edition-hardening.md) (history).
 - Deployment overview: [`deployment.md`](./deployment.md).
