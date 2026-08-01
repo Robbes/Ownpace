@@ -9,6 +9,7 @@
 
 import axios, { type AxiosInstance } from 'axios';
 import type {
+  ApplyDeletionsFlag,
   ApplyQueuedResponse,
   ApplyReceipt,
   VerificationRunReport,
@@ -147,6 +148,36 @@ export async function fetchApplyReceipt(mappingId: string, hash: string): Promis
       `${mappingPath(mappingId)}/deletions/${encodeURIComponent(hash)}/receipt`,
     )
   ).data;
+}
+
+/** Gate 1 of the destructive path, as a readable fact — both editions (0019 T3). */
+export async function fetchApplyDeletionsFlag(mappingId: string): Promise<ApplyDeletionsFlag> {
+  return (await client.get<ApplyDeletionsFlag>(`${mappingPath(mappingId)}/apply-deletions`)).data;
+}
+
+/**
+ * Flip gate 1 (managed only; owner role — the server enforces both).
+ *
+ * The appliance answers 405 here on purpose: its flag is config-file-owned,
+ * and the panel never offers this call there (`source: 'config'`).
+ */
+export async function setApplyDeletionsFlag(
+  mappingId: string,
+  allowApplyDeletions: boolean,
+): Promise<ApplyDeletionsFlag> {
+  try {
+    return (
+      await client.patch<ApplyDeletionsFlag>(`${mappingPath(mappingId)}/apply-deletions`, {
+        allowApplyDeletions,
+      })
+    ).data;
+  } catch (err) {
+    const res = (err as { response?: { status: number; data?: DecisionRefused } }).response;
+    // requireRole's 403 and the appliance's 405 both carry words meant for the
+    // person who clicked — keep them, same as every other refusal.
+    if (res?.data?.error) throw new DecisionRefusedError(res.data, res.status);
+    throw err;
+  }
 }
 
 /** Accept the target's layout for a moved item, and stop reporting it. */

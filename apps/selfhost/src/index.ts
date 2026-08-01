@@ -44,6 +44,7 @@ import {
   DELETION_GUIDANCE,
 } from '@openmig/shared';
 import type {
+  ApplyDeletionsFlag,
   VerificationRunReport,
   VerifyStartResponse,
   TenantId,
@@ -722,6 +723,36 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           };
         }
         return sendJson(res, 200, out);
+      }
+      // Gate 1 of the destructive path, as a readable fact (workplan 0019 T3).
+      // The value lives in the mapping's CONFIG FILE on this edition, and
+      // `source: 'config'` says so — the same screen that offers a switch on
+      // managed renders a read-only note here.
+      const applyFlagMatch = req.url
+        ? /^\/mappings\/([^/]+)\/apply-deletions$/.exec(req.url)
+        : null;
+      if (applyFlagMatch && req.method === 'GET') {
+        const id = decodeURIComponent(applyFlagMatch[1]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+        const flag: ApplyDeletionsFlag = {
+          allowApplyDeletions: m.config.allowApplyDeletions === true,
+          source: 'config',
+        };
+        return sendJson(res, 200, flag);
+      }
+      if (applyFlagMatch && req.method === 'PATCH') {
+        // An honest refusal, not a silent 404: the appliance's flag is
+        // config-file-owned, and pretending the route does not exist would
+        // send somebody hunting for a different URL instead of the file.
+        await drain(req);
+        return sendJson(res, 405, {
+          error: 'config_owned',
+          reason:
+            "The appliance's flag lives in the mapping's config file " +
+            '(`allowApplyDeletions`); edit the file and restart the appliance. ' +
+            'No API changes it.',
+        });
       }
       const deletionMatch =
         req.method === 'POST' && req.url

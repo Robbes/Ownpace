@@ -49,11 +49,13 @@ describe('route registration', () => {
     const got = routes().map((r) => `${r.method} ${r.path}`).sort();
     expect(got).toEqual(
       [
+        'GET /:mappingId/apply-deletions',
         'GET /:mappingId/deletions',
         'GET /:mappingId/deletions/:hash/receipt',
         'GET /:mappingId/failures',
         'GET /:mappingId/moves',
         'GET /:mappingId/verify/report',
+        'PATCH /:mappingId/apply-deletions',
         'POST /:mappingId/deletions/:hash/apply',
         'POST /:mappingId/deletions/:hash/keep',
         'POST /:mappingId/failures/:hash/:action',
@@ -73,7 +75,10 @@ describe('route registration', () => {
     const got = routes().filter((r) => r.path.includes('apply') || r.path.includes('receipt'))
       .map((r) => `${r.method} ${r.path}`);
     expect(got.sort()).toEqual([
+      // The flag pair (0019 T3) reads/flips gate 1 — it never removes anything.
+      'GET /:mappingId/apply-deletions',
       'GET /:mappingId/deletions/:hash/receipt',
+      'PATCH /:mappingId/apply-deletions',
       'POST /:mappingId/deletions/:hash/apply',
     ]);
   });

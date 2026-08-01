@@ -53,6 +53,7 @@ import {
   log,
 } from '@openmig/shared';
 import type {
+  ApplyDeletionsFlag,
   ApplyQueuedResponse,
   ApplyReceipt,
   VerificationRunReport,
@@ -67,7 +68,7 @@ import type {
   MappingId,
   TenantId,
 } from '@openmig/shared';
-import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth';
+import { authenticate, getDbPool, requireRole, withTenantDb } from '../../middleware/auth';
 import { getTriggerClient } from '@openmig/scheduler';
 import { evaluateApplyDeletion } from '@openmig/core';
 import type { AuthenticatedRequest } from '../../types/api';
@@ -712,6 +713,83 @@ router.get(
       res.json(await latestReceipt(s, hash));
     } catch (error) {
       serverError(res, 'read the removal receipt', error);
+    }
+  },
+);
+
+/**
+ * Gate 1 of the destructive path, as a readable fact (workplan 0019 T3).
+ *
+ * Any member may READ it — the Deletions screen shows the current value to
+ * whoever can see the queue, because "the delete button will be refused" is
+ * something an operator should learn before clicking, not from a 403.
+ */
+router.get(
+  '/:mappingId/apply-deletions',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const s = await scope(req, res);
+      if (!s) return;
+      const rows = await withTenantDb(s.tenantId, pool(), (db) =>
+        db
+          .select({ allow: schema.mailboxMapping.allowApplyDeletions })
+          .from(schema.mailboxMapping)
+          .where(eq(schema.mailboxMapping.id, s.mappingId)),
+      );
+      const body: ApplyDeletionsFlag = {
+        allowApplyDeletions: rows[0]?.allow === true,
+        source: 'mapping',
+      };
+      res.json(body);
+    } catch (error) {
+      serverError(res, 'read the apply-deletions flag', error);
+    }
+  },
+);
+
+/**
+ * Flip gate 1 — OWNER only (workplan 0019 T3).
+ *
+ * This was the recorded interim's `UPDATE mailbox_mapping SET
+ * allow_apply_deletions = true` (0017 T4), now an authorized API instead of a
+ * psql session. The role comes from the tenant_member row (0020 T1), so
+ * "owner" here is a database fact, not a token claim. Changing the flag
+ * changes what MAY be asked for — every per-item gate still stands.
+ */
+router.patch(
+  '/:mappingId/apply-deletions',
+  authenticate,
+  requireRole('owner'),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const s = await scope(req, res);
+      if (!s) return;
+      const allow = (req.body as { allowApplyDeletions?: unknown } | undefined)
+        ?.allowApplyDeletions;
+      if (typeof allow !== 'boolean') {
+        return void res.status(400).json({
+          error: 'invalid_body',
+          reason: 'Send { "allowApplyDeletions": true | false } — nothing else is accepted.',
+        });
+      }
+      const updated = await withTenantDb(s.tenantId, pool(), (db) =>
+        db
+          .update(schema.mailboxMapping)
+          .set({ allowApplyDeletions: allow })
+          .where(eq(schema.mailboxMapping.id, s.mappingId))
+          .returning({ allow: schema.mailboxMapping.allowApplyDeletions }),
+      );
+      log.warn(
+        `[api] ${s.mappingId}: apply-deletions flag set to ${allow} by ${req.userId ?? 'unknown'}`,
+      );
+      const body: ApplyDeletionsFlag = {
+        allowApplyDeletions: updated[0]?.allow === true,
+        source: 'mapping',
+      };
+      res.json(body);
+    } catch (error) {
+      serverError(res, 'change the apply-deletions flag', error);
     }
   },
 );

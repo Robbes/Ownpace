@@ -28,6 +28,7 @@ import { useParams } from 'react-router';
 import type { ApplyReceipt, DeletionsQueue, ItemDeletion } from '@openmig/shared';
 import { mayOfferApply } from '@openmig/shared';
 import { QueueScreen, type ItemOutcome } from '../components/queues/QueueScreen';
+import { ApplyDeletionsPanel } from '../components/queues/ApplyDeletionsPanel';
 import {
   ActionButton,
   DestructiveButton,
@@ -171,6 +172,9 @@ const Deletions: React.FC<{
     fetcher={() => fetchDeletions(mappingId)}
     renderMapping={(mappingId, queue, act, outcomes, setOutcome, refresh) => (
       <>
+        {/* Gate 1, visible where it bites (0019 T3): the delete buttons below
+            are refused by the server while this is off. */}
+        <ApplyDeletionsPanel mappingId={mappingId} />
         <QueueSection
           title="Waiting on you"
           count={queue.confirmed.length}
