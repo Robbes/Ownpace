@@ -28,7 +28,7 @@ import { createLedgerVerificationReader, withTenant } from '@openmig/ledger';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import { runVerification, createRealVerificationDeps } from '@openmig/core';
 import type { VerificationResult } from '@openmig/shared';
-import { buildDepsFromMapping } from '../build-deps-from-mapping';
+import { enabledDomains } from '../enabled-domains';
 import { buildTargetReindexers } from '../build-reindexers';
 
 const VerificationJobSchema = z.object({
@@ -73,11 +73,21 @@ export const runVerificationTask = schemaTask({
     logger.info(`[run-verification] ${mappingId}: scan starting (run ${runId})`);
 
     try {
-      // The cutover gate's own wiring: deps for connector construction, one
-      // reindexer per domain (a domain with no reindexer reports
+      // Which domains the owner actually selected. The verify flags below
+      // come from here so a domain the mapping does not migrate reports
+      // SKIPPED ("your call, nobody checked") instead of NOT_VERIFIABLE
+      // (which blocks cutover) — and so this job never touches connector
+      // config for a domain the mapping does not have.
+      //
+      // A mail-deps build used to sit here too, consumed by NOTHING (built,
+      // closed, never passed on) — dead wiring that threw on any mapping
+      // whose source is not IMAP, found live on the DAV-only demo tenant
+      // (0018 T5, 2026-08-01).
+      const enabled = await enabledDomains(pool, tenantId, mappingId);
+
+      // One reindexer per domain (a domain with no reindexer reports
       // NOT_VERIFIABLE rather than being measured against another domain's
       // listing), and a ledger reader that owns its pool and must be closed.
-      const deps = await buildDepsFromMapping(pool, tenantId, mappingId);
       const targets = await buildTargetReindexers(pool, tenantId, mappingId);
       const verificationReader = createLedgerVerificationReader({
         connectionString: DATABASE_URL,
@@ -94,10 +104,10 @@ export const runVerificationTask = schemaTask({
               maxSampleSize: 1000,
               requiredMatchPercentage: 0.99,
               maxDiscrepancyPercentage: 0.01,
-              verifyMail: true,
-              verifyCalendar: true,
-              verifyContacts: true,
-              verifyFiles: true,
+              verifyMail: enabled.has('email'),
+              verifyCalendar: enabled.has('calendar'),
+              verifyContacts: enabled.has('contact'),
+              verifyFiles: enabled.has('file'),
             },
             verificationReader,
             targetReindexers: targets.reindexers,
@@ -106,7 +116,6 @@ export const runVerificationTask = schemaTask({
       } finally {
         await targets.close();
         await verificationReader.close(); // it opens its own pool
-        await deps.close();
       }
 
       // Keyed by mappingId: the contract's ByMapping shape with one key, the
