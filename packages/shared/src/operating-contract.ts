@@ -368,6 +368,42 @@ export interface ApplyQueuedResponse {
 }
 
 /**
+ * Gate 1 of the destructive path, readable in both editions (workplan 0019 T3).
+ *
+ * `GET .../apply-deletions` answers this in both editions so the same screen
+ * renders the same fact. What differs is who OWNS the value, and `source` says
+ * so honestly:
+ *
+ *  - `'mapping'` — the managed mapping row; an owner changes it via
+ *    `PATCH .../apply-deletions` with `{ allowApplyDeletions: boolean }`.
+ *  - `'config'` — the appliance's mapping config file. No API mutates it: the
+ *    file IS the appliance's configuration surface, and a PATCH there answers
+ *    405 naming the file instead of pretending.
+ *
+ * Off is the default in both editions, by migration and by config parsing: a
+ * capability that destroys data is opted INTO, never out of.
+ */
+export interface ApplyDeletionsFlag {
+  readonly allowApplyDeletions: boolean;
+  readonly source: 'mapping' | 'config';
+}
+
+/**
+ * The warning a UI puts IN FRONT of the switch that enables `apply` (0019 T3).
+ *
+ * Shared prose, like the queue guidance: the sentence somebody reads before
+ * arming the only destructive capability must not drift between editions.
+ */
+export const APPLY_FLAG_WARNING =
+  'Turning this on enables the only operation in this product that deletes ' +
+  'anything: on your explicit per-item decision, the copy this migration wrote ' +
+  'to the new system is removed, following a deletion the owner made on the old ' +
+  'one. Every removal still has to pass every gate — positive evidence only ' +
+  '(never an inferred absence), only items this tool wrote, never a copy ' +
+  'somebody has since edited, and the mass-deletion breaker. While this is off, ' +
+  'nothing can be removed however the endpoint is called.';
+
+/**
  * A migration that has been ended.
  *
  * Finishing stops the shadow sync: the mapping is no longer scheduled, so

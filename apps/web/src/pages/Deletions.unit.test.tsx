@@ -20,8 +20,15 @@ import {
   DELETION_GUIDANCE,
 } from '@openmig/shared';
 
-const { fetchDeletions, keepDeletion, applyDeletion, fetchApplyReceipt, DecisionRefusedError } =
-  vi.hoisted(() => {
+const {
+  fetchDeletions,
+  keepDeletion,
+  applyDeletion,
+  fetchApplyReceipt,
+  fetchApplyDeletionsFlag,
+  setApplyDeletionsFlag,
+  DecisionRefusedError,
+} = vi.hoisted(() => {
     class DecisionRefusedError extends Error {
       constructor(
         readonly refusal: { error: string; reason?: string; hint?: string },
@@ -36,6 +43,8 @@ const { fetchDeletions, keepDeletion, applyDeletion, fetchApplyReceipt, Decision
       keepDeletion: vi.fn(),
       applyDeletion: vi.fn(),
       fetchApplyReceipt: vi.fn(),
+      fetchApplyDeletionsFlag: vi.fn(),
+      setApplyDeletionsFlag: vi.fn(),
       DecisionRefusedError,
     };
   });
@@ -45,8 +54,14 @@ vi.mock('../services/operating-service', () => ({
   keepDeletion,
   applyDeletion,
   fetchApplyReceipt,
+  fetchApplyDeletionsFlag,
+  setApplyDeletionsFlag,
   DecisionRefusedError,
 }));
+
+// The flag panel reads this on every render of the screen; a stable default
+// keeps the queue tests focused on the queue (the panel has its own suite).
+fetchApplyDeletionsFlag.mockResolvedValue({ allowApplyDeletions: true, source: 'mapping' });
 
 import Deletions from './Deletions';
 

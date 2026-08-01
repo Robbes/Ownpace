@@ -263,4 +263,76 @@ describe('apply evaluate-then-queue routes (0017 T4)', () => {
       (await request.get(`/api/migrations/${MAPPING}/deletions/${HASH_NONE}/receipt`)).status,
     ).toBe(401);
   });
+
+  describe('the apply-deletions flag API (0019 T3)', () => {
+    // Gate 1 as an authorized API instead of a psql session. Runs LAST in this
+    // file on purpose: it drives the flag to known states itself rather than
+    // inheriting whatever the gates' tests left behind.
+    const VIEWER_SUB = `viewer-${TENANT}`;
+    const viewerAuth = () => ({
+      Authorization: `Bearer ${jwt.sign(
+        { sub: VIEWER_SUB, tenantId: TENANT, role: 'owner', email: 'v@t.test' },
+        process.env.JWT_SECRET!,
+      )}`,
+    });
+
+    beforeAll(async () => {
+      // A real viewer membership: the token above CLAIMS owner, and the 0020 T1
+      // gate takes the role from this row instead — which is exactly what the
+      // 403 below proves.
+      await seedMembership(pool, TENANT, VIEWER_SUB, 'viewer');
+    });
+
+    it('an owner turns it off and the flag reads back off', async () => {
+      const patched = await request
+        .patch(`/api/migrations/${MAPPING}/apply-deletions`)
+        .set(auth)
+        .send({ allowApplyDeletions: false });
+      expect(patched.status).toBe(200);
+      expect(patched.body).toEqual({ allowApplyDeletions: false, source: 'mapping' });
+
+      const read = await request.get(`/api/migrations/${MAPPING}/apply-deletions`).set(auth);
+      expect(read.status).toBe(200);
+      expect(read.body).toEqual({ allowApplyDeletions: false, source: 'mapping' });
+    });
+
+    it('a viewer may READ the flag but not change it — role from the ROW, not the token', async () => {
+      const read = await request
+        .get(`/api/migrations/${MAPPING}/apply-deletions`)
+        .set(viewerAuth());
+      expect(read.status).toBe(200);
+
+      const patched = await request
+        .patch(`/api/migrations/${MAPPING}/apply-deletions`)
+        .set(viewerAuth())
+        .send({ allowApplyDeletions: true });
+      expect(patched.status).toBe(403);
+
+      // And the refusal changed nothing.
+      const after = await request.get(`/api/migrations/${MAPPING}/apply-deletions`).set(auth);
+      expect(after.body.allowApplyDeletions).toBe(false);
+    });
+
+    it('rejects anything but a boolean — a truthy string must not arm the destructive path', async () => {
+      const res = await request
+        .patch(`/api/migrations/${MAPPING}/apply-deletions`)
+        .set(auth)
+        .send({ allowApplyDeletions: 'yes' });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('invalid_body');
+    });
+
+    it('an owner turns it on, and an unknown mapping 404s', async () => {
+      const patched = await request
+        .patch(`/api/migrations/${MAPPING}/apply-deletions`)
+        .set(auth)
+        .send({ allowApplyDeletions: true });
+      expect(patched.status).toBe(200);
+      expect(patched.body.allowApplyDeletions).toBe(true);
+
+      expect(
+        (await request.get(`/api/migrations/${NO_SUCH}/apply-deletions`).set(auth)).status,
+      ).toBe(404);
+    });
+  });
 });
