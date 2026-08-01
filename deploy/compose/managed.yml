@@ -127,6 +127,14 @@ services:
       # trigger-registry service publishes on 127.0.0.1:${REGISTRY_PORT} below.
       DEPLOY_REGISTRY_HOST: localhost:${REGISTRY_PORT:-5000}
       DEPLOY_REGISTRY_NAMESPACE: trigger
+      # The architecture task images are built FOR — decided SERVER-side and
+      # handed to the deploying CLI (deployment.imagePlatform; no CLI flag).
+      # Upstream defaults to linux/amd64, which on the arm64 Spark produced
+      # images whose runners died at exec ("exec format error") in under a
+      # second, with AutoRemove destroying the evidence — the 2026-08-01 T5
+      # hunt. MUST match the host that runs the supervisor's containers:
+      # uname -m x86_64 → linux/amd64, aarch64 → linux/arm64 (set in .env).
+      DEPLOY_IMAGE_PLATFORM: ${DEPLOY_IMAGE_PLATFORM:-linux/amd64}
       # Object storage (for large payloads) — the minio service below; one
       # pair of env vars so the two sides cannot disagree.
       OBJECT_STORE_BASE_URL: http://minio:9000
