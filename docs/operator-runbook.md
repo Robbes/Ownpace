@@ -7,11 +7,11 @@ as distinct from a self-host owner running the single-tenant appliance (see the 
 > **Scope note (rewritten 2026-08-01, workplan 0020 T4).** This runbook's managed half now
 > describes the REAL bring-up, verified live: the full compose stack including the Trigger.dev
 > execution plane (registry, supervisor, ClickHouse, MinIO, the TLS front), the scripted task
-> deploy, and `smoke-managed.sh` as the acceptance test. Two schedulers coexist today:
-> **syncs** run through `apps/worker/src/managed-scheduler.ts` (a DB-polling scheduler — its
-> future is workplan 0020 T8), while **verify and apply** run as deployed Trigger.dev tasks
-> (workplan 0018, closed with live evidence). The appliance-flavored sections further down
-> (127.0.0.1:8080 URLs) are workplan 0021's to fix.
+> deploy, and `smoke-managed.sh` as the acceptance test. **One execution plane** (workplan
+> 0022, per the 0020 T8 owner decision): syncs are started by the `managed-sync-tick`
+> scheduled task, and every job — sync, verify, apply, discovery — executes as a deployed
+> Trigger.dev task. There is no worker/poller container. The appliance-flavored sections
+> further down (127.0.0.1:8080 URLs) are workplan 0021's to fix.
 
 ## What the operator can and cannot see
 
@@ -157,8 +157,9 @@ set -a; source deploy/compose/.env; set +a
 DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:${POSTGRES_PORT:-5432}/${POSTGRES_DB}" \
   pnpm --filter @openmig/api seed:managed
 
-# The worker's managed-scheduler.ts polls mailbox_mapping and starts running
-# the seeded mappings' sync passes within its poll interval (60s default).
+# The managed-sync-tick scheduled task (deployed via deploy-tasks.sh) picks
+# up the seeded mappings within a minute and starts their sync passes on
+# each mapping's own schedule (default */15).
 ```
 
 Use each printed token as `Authorization: Bearer <token>` against the API, or drop it into the web

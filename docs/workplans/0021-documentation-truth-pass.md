@@ -66,9 +66,9 @@ with a change note so the next drift is measurable against a date.
   `fixture-uuid-check`; the e2e dispatch inputs (`seed_count`,
   `persistence: postgres|pglite`) are undocumented.
 - `docs/testing.md` appendix (new): the untested-seams list from the review
-  (all seven trigger jobs, `managed-scheduler`, `build-deps-from-mapping`,
+  (the trigger jobs, `build-deps-from-mapping`,
   `enabled-domains`, the untested web pages/services/stores, Mollie webhook
-  handler) — so "what has no tests" is a fact in the repo, not a rediscovery.
+  handler; `managed-scheduler` left the list by being DELETED — 0022 T4) — so "what has no tests" is a fact in the repo, not a rediscovery.
 - `performance.md`: add the `bench:pglite` numbers already in CHANGELOG.
 - `test-fixture-uuid-collision-audit.md`: one line noting its remediation
   shipped (`fixture-uuid-check` CI job) — it currently reads as open.
@@ -80,8 +80,9 @@ with a change note so the next drift is measurable against a date.
   the API cannot boot without (`APP_DATABASE_URL`, `SECRET_ENCRYPTION_KEY`);
   `pnpm migrate` does not exist.
 - `apps/worker/README.md`: lists a `src/trigger-client.ts` that lives in
-  `packages/scheduler`, omits three of the seven jobs and the
-  `managed-scheduler` that actually runs syncs, points at a nonexistent
+  `packages/scheduler`, omits several of the jobs (now eight, incl.
+  `managed-sync-tick` — the poller it used to omit is deleted, 0022 T4, and
+  the Docker section was corrected in that change), points at a nonexistent
   `deploy/compose/trigger.yml`, and shows the v2/v3 SDK call shape.
 - `apps/web/README.md`: port 3000 → 3123; `react-router` v8 not
   `react-router-dom`; document `build:selfhost` (`--base=/ui/`).

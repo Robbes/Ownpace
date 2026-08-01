@@ -258,16 +258,17 @@ All jobs respect RLS policies:
 
 ## Production Deployment
 
-### Docker
+There is no worker container (0022 T4 retired it, with the polling
+scheduler). Everything in this package deploys as Trigger.dev tasks:
 
 ```bash
-docker build -t openmigrate-worker -f apps/worker/Dockerfile .
-docker run -d \
-  --name worker \
-  -e TRIGGER_DEV_API_KEY=xxx \
-  -e DATABASE_URL=xxx \
-  openmigrate-worker
+./deploy/compose/deploy-tasks.sh
 ```
+
+Syncs are started by the `managed-sync-tick` scheduled task; task-runtime
+env vars are uploaded with `./deploy/compose/set-task-env.sh`. See
+`docs/operator-runbook.md`. (The rest of this README is due a rewrite —
+workplan 0021 T4.)
 
 ### Kubernetes
 

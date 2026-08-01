@@ -244,7 +244,7 @@ async function seedTenant(
         .onConflictDoNothing();
 
       // Scope selection: only the domains this tenant's backend can actually serve
-      // (see the DemoTenant.domains comment) so managed-scheduler.ts has real work to do.
+      // (see the DemoTenant.domains comment) so the managed-sync-tick task has real work to do.
       await tx
         .insert(scopeSelection)
         .values(
