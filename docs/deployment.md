@@ -15,7 +15,7 @@ For managed day-2 operations (start/stop, seed, backup, tenant offboarding, what
 - What a **native** Windows build would still have to answer for is therefore **Postgres**, not imapsync: ADR-0023 makes both editions Postgres-only, so a no-container Windows install needs a Postgres to point at (bundled, installed, or remote). Under Docker Desktop today that is simply another container.
 
 ## Dev / e2e stack
-`deploy/compose/dev.yml` — Postgres (ledger) + **Stalwart** (reference target: JMAP **and** IMAP/SMTP/CalDAV/CardDAV/WebDAV) + Nextcloud (secondary DAV/files target). Light by design. **Trigger.dev is added later** from the official templates (github.com/triggerdotdev/docker); the first slice needs only Postgres + Stalwart.
+`deploy/compose/dev.yml` — Postgres (ledger) + **Stalwart** (reference target: JMAP **and** IMAP/SMTP/CalDAV/CardDAV/WebDAV) + Nextcloud (secondary DAV/files target). Light by design — no Trigger.dev here; the full self-hosted Trigger.dev execution plane (webapp, supervisor, registry, ClickHouse, MinIO, TLS front) lives in `deploy/compose/managed.yml`, where **every managed job — including the sync-starting `managed-sync-tick` — runs as a deployed task** (workplans 0018/0022; `docs/operator-runbook.md` is the bring-up).
 
 ## Release controls (see §22.1)
 - SemVer; one release train; `CHANGELOG.md` + upgrade guide per release.
