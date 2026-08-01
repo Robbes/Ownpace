@@ -102,6 +102,7 @@ const App: React.FC = () => {
             <Route path="verify" element={<Verify />} />
             <Route path="mappings/:mappingId/verify" element={<Verify />} />
             <Route path="finish" element={<Finish />} />
+            <Route path="mappings/:mappingId/finish" element={<Finish />} />
             <Route path="tenants" element={<Tenants />} />
             <Route path="billing" element={<Billing />} />
             <Route path="operator" element={<OperatorDashboard />} />

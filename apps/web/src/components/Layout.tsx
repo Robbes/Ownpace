@@ -42,11 +42,11 @@ const Layout: React.FC = () => {
     //
     // Self-host only in the NAV, not in the app: the appliance answers these for
     // every configured mapping, so a top-level entry makes sense there. A
-    // managed tenant reaches the same screens per-mapping (see App.tsx), because
-    // "every deletion across every migration you have" is not a page anyone
-    // asked for. Verify joined the per-mapping screens with 0017 T3
-    // (`mappings/:id/verify`); Finish still has no managed screen — managed
-    // cutover runs through the cutover job.
+    // managed tenant reaches the same screens per-mapping — Mappings → a
+    // mapping's hub (MappingDetail, 0019 T4) → its queues/check/finish —
+    // because "every deletion across every migration you have" is not a page
+    // anyone asked for. All five screens are per-mapping-routable in both
+    // editions (Finish joined with 0019 T5).
     ...(selfHost
       ? [
           { name: 'Review', href: '/confirm', icon: ClipboardCheck },
