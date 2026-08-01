@@ -229,3 +229,20 @@ is silently *followed* by the `fetch` the React screen uses. It reports
   authenticates nothing. There are no accounts on the appliance, and adding a
   credential to a localhost-bound single-user process adds a thing to lose
   without adding a boundary.
+
+## Update — 2026-08-01: the last deliberate gap is closed
+
+`apply` and `verify` are no longer absent from the managed API. Workplan 0017
+built the start + poll pair on both editions (`verify/start` + `verify/report`;
+`apply` as evaluate-then-enqueue with a polled receipt), and workplan 0018
+deployed the Trigger.dev execution plane that makes the managed job loop real —
+proven live 2026-08-01 (verify: 202 → `done` in 1.7 s with the per-domain
+report). The capability tables at the top of this ADR describe the world this
+decision was made in and are left as history; every ❌ in them is now ✅.
+
+One qualification joined the contract with it: for `apply`, the editions share
+the refusal shapes and prose but not the SUCCESS shape — the appliance answers
+the outcome synchronously, managed answers `202 ApplyQueuedResponse` plus a
+polled `ApplyReceipt`. The shared client currently assumes the appliance's
+shape, which is exactly the kind of drift this ADR exists to name: closing it
+is workplan 0019 T1.

@@ -12,6 +12,18 @@
 | T5 The Verify screen starts and polls instead of blocking | ✅ **Done** | `Verify.tsx` POSTs `/verify/start` and polls `/verify/report` every 3 s; the 15-minute single-request GET is gone from the client. The loop stops on every terminal state (mutation-verified), `failed` renders as not-a-result with the reason, a mid-run appliance restart (`never-run` while polling) is said out loud instead of spun against forever, and a missed poll keeps polling — the run's state is authoritative, not the network. 5 jsdom tests. |
 | T6 `verification.status` cannot hold two of the five statuses | ✅ **Done — and the run table with it** | `0003_verification_fits_the_contract.sql`: the CHECK now admits all five statuses (`skipped`, `not_verifiable` were unstorable — exactly the two the UI refuses to soften), and `verification_run` exists for the run-level truth managed must persist (state/started/finished/error/report jsonb), with a CHECK that refuses rows that lie about themselves (running-with-finish, terminal-without). RLS + FORCE + grants match every other table; the `force-rls` catalog audit covers it by name (mutation-verified — dropping FORCE fails naming `verification_run`). 6 schema tests. |
 
+## Post-merge validation — closure (2026-08-01)
+
+The "designed 502" caveat below is CLOSED: with 0018's execution plane
+deployed (arm64 image, deploy 20260801.4), the live Spark smoke ran
+`POST /verify/start` → 202 → **`done` in 1.7 s** with the real per-domain
+report (mail PASS, 3/3 matched, 3/3 checksums clean, 0 missing on target) —
+route → queue → supervisor → runner → job → row → poller, end to end. The
+apply half's first live run then caught a real job bug (all-domain deps
+opening, fixed with `enabled-domains.ts`); its green re-run is tracked as
+0018 T5's last step. Everything below stands as the record of the pre-deploy
+state.
+
 ## Post-merge validation (2026-07-31)
 
 - **e2e, both backends, first real boot through the squashed chain.** `E2E

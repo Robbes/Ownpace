@@ -155,10 +155,16 @@ actual blocker.
 
 Not done, and still between here and T2:
 
-- **The managed edition implementing the contract.** It still has no deletions,
-  moves, failures, verify or finish endpoints. Not on the installer's critical
-  path — the appliance is what gets installed — but leaving it undone is what
-  makes "one app, both editions" a claim rather than a fact.
+- ~~The managed edition implementing the contract.~~ **Done since this was
+  written** (2026-08-01 review correction): the managed API serves deletions,
+  moves, failures, finish, the verify pair and apply — workplans 0017/0018.
+  Nothing managed-side blocks T2 any more.
+- **Whether PGlite becomes the appliance DEFAULT.** 0016 closed with "making
+  it the default belongs to 0015" and this file never recorded that handoff
+  (found by the 2026-08-01 review). It is the shipped-installer posture
+  question: the MSI shape (ADR-0027) has no Postgres container, so the
+  installer path effectively decides it. Decide alongside T2; record here and
+  in ADR-0028.
 
 ### A note for whoever picks up T2
 
@@ -242,11 +248,11 @@ cheaper than it looked when this workplan was written, and reversible.
 
 ## Open questions
 
-1. **Does the managed edition stay on server Postgres?** Almost certainly yes —
-   PGlite is single-connection and single-process, which is wrong for a
-   multi-tenant API with a worker fleet. That means **two persistence backends**,
-   which is a real cost: the RLS integration tests must run against both, or the
-   self-host edition's isolation is asserted against a database nobody ships.
+1. **Does the managed edition stay on server Postgres? — ANSWERED** (closed by
+   0016 P4 and recorded in [ADR-0028](../adr/0028-pglite-appliance-persistence.md)):
+   yes. The two-backend cost this question feared is paid and gated — RLS is
+   enforced through the `LedgerDriver.role` seam on both appliance backends,
+   and the e2e gate runs the full suite per backend.
 2. **Concurrency — ANSWERED.** See [0016 P5](./0016-pglite-adoption.md#p5--concurrency-measured).
    Serialisation costs nothing measurable at `DEFAULT_CONCURRENCY` 8: the real
    ledger hot path is flat at 3.6–3.9 ms/item across widths 1→16, and width 8

@@ -1,17 +1,17 @@
 # Workplan 0006 — Intermediate remediation: repo integrity & findings outside the plan
 
-## Status — all is approved
+## Status — all done (rows corrected 2026-08-01; the work landed long before, this block was never flipped)
 
 | Item | Status | Owner decision |
 |---|---|---|
-| A — Test-selection gap (17 test files never run) | ⬜ Proposed | approved |
-| B — Docs case collision `DEPLOYMENT.md` vs `deployment.md` | ⬜ Proposed | approved |
-| C — Workplan & docs integrity (0003/0004/0005 status, broken links, stale README) | ⬜ Proposed | approved |
-| D — Root dependency & shim cleanup (`mollie-api-node`, stale `.d.ts`) | ⬜ Proposed | approved |
-| E — CI hardening (self-hosted runner on `pull_request`, unpinned actions) | ⬜ Proposed | approved |
-| G — Compose duplication & Postgres version drift (root vs `deploy/compose`) | ⬜ Proposed | approved |
-| H — Re-enable `no-unused-vars` lint rule | ⬜ Proposed | approved |
-| I — Worker CLI config-path bug | ⬜ Proposed | approved |
+| A — Test-selection gap (17 test files never run) | ✅ Done — files renamed to `*.unit.test.ts` so every vitest project picks them up | approved |
+| B — Docs case collision `DEPLOYMENT.md` vs `deployment.md` | ✅ Done — single `deployment.md` remains | approved |
+| C — Workplan & docs integrity (0003/0004/0005 status, broken links, stale README) | ✅ Done — index rows carry supersession notes | approved |
+| D — Root dependency & shim cleanup (`mollie-api-node`, stale `.d.ts`) | ✅ Done — dependency and shim removed | approved |
+| E — CI hardening (self-hosted runner on `pull_request`, unpinned actions) | ✅ Done — PRs run on `ubuntu-latest`, Spark only on push | approved |
+| G — Compose duplication & Postgres version drift (root vs `deploy/compose`) | ✅ Done — root compose removed; `deploy/compose/managed.yml` is the one source | approved |
+| H — Re-enable `no-unused-vars` lint rule | ✅ Done — `eslint.config.js` enables `@typescript-eslint/no-unused-vars` | approved |
+| I — Worker CLI config-path bug | ✅ Done — `--config` resolves against `process.cwd()` (`apps/worker/src/index.ts`) | approved |
 
 > This workplan was produced by an assessment session on 2026-07-09 (clean clone of `main`,
 > `f1acd4a`). It collects **verified findings that fall outside the architecture/feature plans**.
