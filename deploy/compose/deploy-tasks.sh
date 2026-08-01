@@ -76,6 +76,7 @@ TRIGGER_PROJECT_REF="${TRIGGER_PROJECT_REF}" \
 
 echo "[deploy-tasks] deploy command finished. The CLI's own output above is the"
 echo "[deploy-tasks] registration evidence; the dashboard's Deployments page"
-echo "[deploy-tasks] shows the task list. The REAL proof is the 0018 T5 smoke:"
-echo "[deploy-tasks]   POST /api/migrations/<id>/verify/start   → 202"
-echo "[deploy-tasks]   GET  /api/migrations/<id>/verify/report  → running → done"
+echo "[deploy-tasks] shows the task list. The REAL proof is the live smoke:"
+echo "[deploy-tasks]   ./deploy/compose/smoke-managed.sh"
+echo "[deploy-tasks] (verify start->poll->done AND apply->receipt terminal;"
+echo "[deploy-tasks]  exits non-zero on failure — see its header for knobs)"

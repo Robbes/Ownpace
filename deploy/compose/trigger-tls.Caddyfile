@@ -1,0 +1,25 @@
+# TLS front for the Trigger.dev dashboard (workplan 0020 T3).
+#
+# Why this exists: the dashboard runs production-mode Secure cookies, so login
+# is unusable over plain http from anything but localhost. This Caddy serves
+# https with an internally-minted certificate (no public CA signs a private IP)
+# and proxies to the trigger webapp.
+#
+# The two hard-won rules from the 2026-08-01 live bring-up (0018 T5), do not
+# remove either:
+#   1. The site address MUST be a concrete host ({$TRIGGER_TLS_HOST}) — a
+#      bare-port site gives Caddy no certificate to present and the handshake
+#      dies before any HTTP error can be seen.
+#   2. default_sni MUST be set — browsers that connect BY IP send no SNI, and
+#      without a default they too get no certificate (same silent death).
+#
+# TRIGGER_TLS_HOST comes from the compose service env (set it in .env to the
+# address browsers actually use, e.g. the machine's VPN IP).
+{
+	default_sni {$TRIGGER_TLS_HOST}
+}
+
+{$TRIGGER_TLS_HOST}:3443 {
+	tls internal
+	reverse_proxy trigger-api:3000
+}

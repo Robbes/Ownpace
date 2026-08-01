@@ -285,6 +285,36 @@ services:
     networks:
       - open-migrate-network
 
+  # TLS front for the trigger dashboard (0020 T3) — the hand-run Caddy sidecar
+  # from the 2026-08-01 live bring-up, folded in. The dashboard's
+  # production-mode Secure cookies make login unusable over plain http from
+  # anything but localhost, so browsers go through this https front:
+  #   TRIGGER_APP_ORIGIN / TRIGGER_LOGIN_ORIGIN = https://<TRIGGER_TLS_HOST>:<TRIGGER_TLS_PORT>
+  # while TRIGGER_API_ORIGIN stays http://localhost:3090 — the deploy CLI
+  # follows the server-advertised API origin and must not hit a self-signed
+  # certificate (deploys died with a bare "Connection error" when it did).
+  # The two rules baked into trigger-tls.Caddyfile: a concrete host as the
+  # site address (else Caddy has no certificate to present) and default_sni
+  # (IP-connecting browsers send no SNI). Set TRIGGER_TLS_HOST in .env to the
+  # address browsers actually use (e.g. the machine's VPN IP).
+  trigger-tls:
+    image: caddy:2-alpine
+    container_name: trigger-tls
+    restart: unless-stopped
+    environment:
+      TRIGGER_TLS_HOST: ${TRIGGER_TLS_HOST:-localhost}
+    ports:
+      - "${TRIGGER_TLS_PORT:-3443}:3443"
+    volumes:
+      - ./trigger-tls.Caddyfile:/etc/caddy/Caddyfile:ro
+      - trigger_tls_data:/data
+      - trigger_tls_config:/config
+    depends_on:
+      trigger-api:
+        condition: service_started
+    networks:
+      - open-migrate-network
+
   # Open Migration API
   api:
     build:
@@ -412,4 +442,6 @@ volumes:
   trigger_shared:
   registry_data:
   minio_data:
+  trigger_tls_data:
+  trigger_tls_config:
   clickhouse_data:
