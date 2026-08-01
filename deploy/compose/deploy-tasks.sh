@@ -69,6 +69,36 @@ fi
 # trigger-registry comment), so no `docker login` step exists here — the CLI
 # pushes to localhost:${REGISTRY_PORT:-5000} directly.
 
+# Platform preflight (0020 T7). The image platform is decided SERVER-side
+# (managed.yml's DEPLOY_IMAGE_PLATFORM, default linux/amd64) and handed to the
+# CLI — there is no CLI flag. A mismatch with the host running the supervisor's
+# containers produces runners that die at exec ("exec format error") in under a
+# second, with AutoRemove destroying the evidence — the failure that cost the
+# 2026-08-01 bring-up a session. Refuse it here instead. The value must come
+# from .env (the same file the webapp read at its start); export
+# SKIP_PLATFORM_CHECK=1 only when deploying FOR a different host on purpose.
+if [ "${SKIP_PLATFORM_CHECK:-0}" != "1" ]; then
+  host_arch="$(uname -m)"
+  case "$host_arch" in
+    x86_64) host_platform="linux/amd64" ;;
+    aarch64 | arm64) host_platform="linux/arm64" ;;
+    *) host_platform="unknown" ;;
+  esac
+  env_file="${REPO_ROOT}/deploy/compose/.env"
+  configured="$(grep -E '^DEPLOY_IMAGE_PLATFORM=' "$env_file" 2>/dev/null | tail -1 | cut -d= -f2-)"
+  configured="${configured:-linux/amd64}" # managed.yml's default when .env is silent
+  if [ "$host_platform" != "unknown" ] && [ "$configured" != "$host_platform" ]; then
+    echo "[deploy-tasks] ERROR: DEPLOY_IMAGE_PLATFORM is '${configured}' but this host is" >&2
+    echo "               ${host_arch} (${host_platform}). Runners built for the wrong" >&2
+    echo "               platform die at exec with no logs. Set in deploy/compose/.env:" >&2
+    echo "                 DEPLOY_IMAGE_PLATFORM=${host_platform}" >&2
+    echo "               then recreate the webapp (the value is read server-side):" >&2
+    echo "                 docker compose -f managed.yml up -d --force-recreate trigger-api" >&2
+    echo "               (Deploying FOR another host on purpose: SKIP_PLATFORM_CHECK=1)" >&2
+    exit 1
+  fi
+fi
+
 echo "[deploy-tasks] deploying apps/worker tasks (project ${TRIGGER_PROJECT_REF})..."
 cd "${REPO_ROOT}/apps/worker"
 TRIGGER_PROJECT_REF="${TRIGGER_PROJECT_REF}" \
