@@ -27,7 +27,9 @@
  * the run/receipt row a poller reads.
  */
 
-import { TriggerClient } from '@trigger.dev/sdk/v3';
+// Root-path import (0020 T7): the SDK's `.` and `./v3` exports resolve to the
+// same module, and the subpath was the last `/v3` import in the repo.
+import { TriggerClient } from '@trigger.dev/sdk';
 
 export function getTriggerClient(): TriggerClient {
   const baseURL = process.env.TRIGGER_API_URL;

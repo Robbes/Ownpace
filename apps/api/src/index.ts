@@ -16,7 +16,10 @@ import { runMigrations } from '@openmig/ledger';
 import type { AuthenticatedRequest, JwtPayload } from './types/api';
 
 // Import routes
-import webhookRoutes from './routes/trigger-webhook';
+// NOTE: there is deliberately no Trigger.dev webhook route (0020 T7). The old
+// /api/webhooks/trigger was an unauthenticated no-op sink expecting a payload
+// shape the self-hosted v4 platform never sends; job state lands on
+// verification_run/apply_receipt rows by the jobs themselves.
 import tenantRoutes from './routes/tenants/index';
 import mappingRoutes from './routes/migrations/index';
 import billingRoutes from './routes/billing/index';
@@ -49,7 +52,6 @@ app.get('/health', (req: Request, res: Response) => {
 });
 
 // API Routes
-app.use('/api/webhooks', webhookRoutes);
 app.use('/api/tenants', tenantRoutes);
 app.use('/api/scope-manifest', scopeManifestRoutes);
 app.use('/api/migrations', mappingRoutes);

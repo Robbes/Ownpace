@@ -724,11 +724,16 @@ result and run it again if not.
   set `DEPLOY_IMAGE_PLATFORM` to match `uname -m` and redeploy. `smoke-managed.sh` captures
   runner logs live precisely because `AutoRemove` destroys them.
 - **Dashboard Runs page is empty while runs exist in postgres:** the runs LIST is served from
-  ClickHouse; without run-replication it renders empty. Cosmetic, accepted for now (0020 T7
-  decides). Not an outage — the smoke and the DB rows are the truth.
-- **White screen / login loop on the dashboard:** origins. The running trigger-api must
-  advertise the SAME origins your browser uses — after changing `TRIGGER_*_ORIGIN` in `.env`,
-  `--force-recreate trigger-api` (see Start/stop).
+  ClickHouse; without run-replication it renders empty. Cosmetic — ACCEPTED (0020 T7 decision,
+  2026-08-01): the smoke and the DB rows are the operational truth, the Tasks tab still works,
+  and enabling replication adds moving parts for a page nobody depends on. Revisit only if the
+  Runs page becomes someone's tool. Not an outage.
+- **White screen / login loop on the dashboard:** two known causes, both env. (1) A missing
+  `TRIGGER_TLS_HOST` in `.env` — Caddy falls back to `localhost`, your browser's `Host` header
+  matches no site block, and the response is EMPTY (a white screen, not an error; confirmed
+  live 2026-08-01). (2) Stale origins — the running trigger-api must advertise the SAME
+  origins your browser uses. Either way the fix ends with a recreate:
+  `--force-recreate trigger-tls trigger-api` after correcting `.env` (see Start/stop).
 
 ## Related docs
 

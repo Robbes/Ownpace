@@ -1,27 +1,28 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 
 /**
- * Managed edition scheduler entrypoint (workplan 0011 T7).
+ * Managed edition SYNC scheduler entrypoint (workplan 0011 T7; header brought
+ * current 2026-08-01, 0020 T7).
  *
- * The Trigger.dev v4 tasks under `src/jobs/*` are the intended long-term
- * execution path, but registering them requires a `trigger.config.ts` plus a
- * `trigger deploy` step against a live Trigger.dev instance — neither exists
- * in this repo yet, so those tasks are currently unreachable/undeployed.
- * `src/index.ts` (the CLI worker entrypoint) is not a substitute either: it
- * requires a single `--config <mapping.json>` file and models one file-driven
- * mapping, which is the self-host shape, not the managed edition's per-tenant
- * DB-row model.
+ * Division of labour today: this poller runs every managed SYNC pass, while
+ * verify and apply run as DEPLOYED Trigger.dev tasks (`trigger.config.ts` +
+ * `deploy/compose/deploy-tasks.sh` exist since workplan 0018, closed with
+ * live evidence — an API 202 becomes a real runner executing `src/jobs/*`).
+ * Whether syncs also move onto scheduled Trigger.dev tasks — retiring this
+ * process — or this poller becomes the permanent sync engine (and gets the
+ * tests it currently lacks) is an OPEN OWNER DECISION: workplan 0020 T8.
+ * Until it is made, this file is load-bearing for every managed sync.
  *
- * This entrypoint is the pragmatic interim: a long-running, multi-tenant
- * process that polls `mailbox_mapping` for `status = 'active'` rows across
- * ALL tenants (the owner `DATABASE_URL` connection bypasses RLS for this
- * trusted, system-level enumeration — the same trust boundary self-host's
+ * What it does: a long-running, multi-tenant process that polls
+ * `mailbox_mapping` for `status = 'active'` rows across ALL tenants (the
+ * owner `DATABASE_URL` connection bypasses RLS for this trusted,
+ * system-level enumeration — the same trust boundary self-host's
  * `withTenantContext` relies on for its own single tenant), reads
  * `scope_selection` for each mapping's enabled domains, and schedules a
  * recurring sync tick with the in-process croner scheduler. Each tick reuses
  * the already-proven, RLS-enforced, credential-decrypting deps builders
  * (`buildDepsFromMapping` / `buildDomainDepsFromMapping`) and sync functions
- * that the Trigger.dev job definitions already use — see
+ * that the Trigger.dev job definitions also use — see
  * `src/jobs/run-delta-sync.ts` for the per-domain template this mirrors.
  *
  * A failed domain is logged and marked failed in migration_status (hard rule
@@ -30,10 +31,11 @@
  * every active tenant, so one tenant's broken credentials must never stop
  * the loop.
  *
- * NOT verified against a live Docker/Postgres stack from this sandbox (no
- * Docker daemon available here) — typecheck/lint only. See
- * docs/workplans/0011-managed-edition-hardening.md T7 status for what is and
- * isn't confirmed.
+ * Live evidence: this process has run the Spark demo stack's syncs since the
+ * 0011 T7 close (2026-07-26) — cross-domain shadow syncs landing real data in
+ * real target backends. It has NO automated tests (recorded in 0021 T3's
+ * untested-seams list); T8's decision determines whether it gains them or
+ * retires.
  */
 
 import { createServer, type Server } from 'node:http';
