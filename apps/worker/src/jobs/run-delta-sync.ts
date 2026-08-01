@@ -8,7 +8,7 @@
  */
 
 import { z } from 'zod';
-import { schemaTask } from '@trigger.dev/sdk';
+import { schemaTask, queue } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
 import { runShadowPass, runCalendarSync, runContactSync, runFileSync } from '@openmig/core';
 import type { TenantId, MappingId } from '@openmig/shared';
@@ -60,11 +60,17 @@ function getCurrentPeriod(): { periodStart: string; periodEnd: string } {
   return { periodStart, periodEnd };
 }
 
+// Concurrency 1, partitioned by `concurrencyKey: mappingId` at trigger time
+// (the sync tick sets it): one running delta sync per mapping, ever — a slow
+// pass serializes the next one instead of overlapping it (0022 T2).
+const deltaSyncQueue = queue({ name: 'delta-sync', concurrencyLimit: 1 });
+
 // Register the job with Trigger.dev
 export const runDeltaSync = schemaTask({
   id: 'run-delta-sync',
   description: 'Delta Sync',
   schema: DeltaSyncJobSchema,
+  queue: deltaSyncQueue,
   run: async (payload: unknown, _context) => {
     // Type assertion since schemaTask validates the payload
     const typedPayload = payload as DeltaSyncJobPayload;
