@@ -21,20 +21,14 @@
 
 import { defineConfig } from '@trigger.dev/sdk';
 
-const projectRef = process.env.TRIGGER_PROJECT_REF;
-if (!projectRef) {
-  // The CLI would otherwise fail later with a generic message. The ref is the
-  // `proj_…` id from the instance dashboard's project settings;
-  // deploy-tasks.sh exports it from deploy/compose/.env.
-  throw new Error(
-    'TRIGGER_PROJECT_REF is not set. Create the org/project in the self-hosted ' +
-      "instance's dashboard, put the proj_… ref in deploy/compose/.env, and " +
-      'deploy via deploy/compose/deploy-tasks.sh.',
-  );
-}
-
 export default defineConfig({
-  project: projectRef,
+  // Resolved on the DEPLOYING machine, where deploy-tasks.sh guards that the
+  // env var is set. This file is imported a SECOND time inside the build's
+  // indexer container, where no such env var exists — so it must never throw
+  // on a missing ref (a defensive throw here aborted the first real deploy at
+  // exactly that point). The deployment's real project was already fixed by
+  // the CLI before the indexer runs; the fallback string is never acted on.
+  project: process.env.TRIGGER_PROJECT_REF ?? 'proj_ref_set_at_deploy_time',
   dirs: ['./src/jobs'],
   // Verification counts and samples a real mailbox; an hour is generous
   // headroom, not an expectation.
