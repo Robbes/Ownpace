@@ -13,11 +13,19 @@
  * mapping's opt-in, an untouched target copy, the target being capable of
  * removal, and the mass-deletion breaker). A refusal is therefore a normal
  * outcome here, not an error, and is rendered as the server's own words.
+ *
+ * ONE screen, TWO temporal shapes (workplan 0019 T1/T2): the appliance answers
+ * an apply synchronously, and the managed edition answers `202 queued` with the
+ * outcome landing later on a receipt. This screen polls that receipt to a
+ * terminal state with the Verify screen's discipline — stop on every terminal
+ * state, a missed poll keeps polling — and renders each terminal state in its
+ * own character (`refused` is never softened into an error, `failed` never
+ * into silence).
  */
 
 import React from 'react';
 import { useParams } from 'react-router';
-import type { DeletionsQueue, ItemDeletion } from '@openmig/shared';
+import type { ApplyReceipt, DeletionsQueue, ItemDeletion } from '@openmig/shared';
 import { mayOfferApply } from '@openmig/shared';
 import { QueueScreen, type ItemOutcome } from '../components/queues/QueueScreen';
 import {
@@ -29,10 +37,17 @@ import {
   HashChip,
   ItemRow,
   QueueSection,
+  ReceiptStatus,
   Refused,
   Resolved,
 } from '../components/queues/primitives';
-import { applyDeletion, fetchDeletions, keepDeletion } from '../services/operating-service';
+import {
+  applyDeletion,
+  DecisionRefusedError,
+  fetchApplyReceipt,
+  fetchDeletions,
+  keepDeletion,
+} from '../services/operating-service';
 
 const Row: React.FC<{
   d: ItemDeletion;
@@ -51,6 +66,8 @@ const Row: React.FC<{
         <Resolved effect={outcome.effect} />
       ) : outcome?.state === 'refused' ? (
         <Refused text={outcome.text} />
+      ) : outcome?.state === 'receipt' ? (
+        <ReceiptStatus receipt={outcome.receipt} />
       ) : (
         actions
       )}
@@ -58,18 +75,101 @@ const Row: React.FC<{
   </ItemRow>
 );
 
-const Deletions: React.FC = () => {
+const isTerminal = (r: ApplyReceipt): boolean =>
+  r.state === 'applied' || r.state === 'refused' || r.state === 'failed';
+
+const Deletions: React.FC<{
+  /** Test seam: the receipt poll interval. Production uses the default. */
+  receiptPollMs?: number;
+}> = ({ receiptPollMs = 2000 }) => {
   // Undefined on the appliance, which answers for every configured mapping;
   // required by the managed edition, which scopes each queue to one. See
   // `queuePath()` — the shapes are shared, the URLs are not.
   const { mappingId } = useParams<{ mappingId: string }>();
+
+  // One timer per in-flight receipt; all cleared on unmount so an abandoned
+  // page never keeps polling. (Server-side nothing is lost — the receipt is a
+  // row, and reopening the page re-reads the queue.)
+  const pollers = React.useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  React.useEffect(() => {
+    const timers = pollers.current;
+    return () => {
+      for (const t of timers.values()) clearTimeout(t);
+      timers.clear();
+    };
+  }, []);
+
+  const trackReceipt = React.useCallback(
+    (
+      mapping: string,
+      hash: string,
+      receipt: ApplyReceipt,
+      setOutcome: (hash: string, outcome: ItemOutcome) => void,
+      refresh: () => void,
+    ) => {
+      setOutcome(hash, { state: 'receipt', receipt });
+      if (isTerminal(receipt)) {
+        pollers.current.delete(hash);
+        // An applied removal changes the queue itself; re-read rather than
+        // guess what the server did to it.
+        if (receipt.state === 'applied') refresh();
+        return;
+      }
+      // `queued` (or, defensively, `none`): poll on. A missed poll keeps
+      // polling — a transient read failure must not strand the outcome as
+      // forever-queued when the job may have finished.
+      const t = setTimeout(() => {
+        fetchApplyReceipt(mapping, hash)
+          .then((next) => trackReceipt(mapping, hash, next, setOutcome, refresh))
+          .catch(() => trackReceipt(mapping, hash, receipt, setOutcome, refresh));
+      }, receiptPollMs);
+      pollers.current.set(hash, t);
+    },
+    [receiptPollMs],
+  );
+
+  const startApply = React.useCallback(
+    (
+      mapping: string,
+      hash: string,
+      setOutcome: (hash: string, outcome: ItemOutcome) => void,
+      refresh: () => void,
+    ) => {
+      setOutcome(hash, { state: 'pending' });
+      applyDeletion(mapping, hash)
+        .then((outcome) => {
+          if (outcome.mode === 'immediate') {
+            // The appliance's synchronous answer renders as it always has.
+            setOutcome(hash, { state: 'done', effect: outcome.result.effect });
+            refresh();
+            return;
+          }
+          trackReceipt(mapping, hash, outcome.receipt, setOutcome, refresh);
+        })
+        .catch((err: unknown) => {
+          // Same split as QueueScreen's act(): the gates' words when we have
+          // them, the transport error when we do not.
+          setOutcome(hash, {
+            state: 'refused',
+            text:
+              err instanceof DecisionRefusedError
+                ? (err.refusal.reason ?? err.refusal.hint ?? err.refusal.error)
+                : err instanceof Error
+                  ? err.message
+                  : 'The request did not complete.',
+          });
+        });
+    },
+    [trackReceipt],
+  );
+
   return (
   <QueueScreen<DeletionsQueue>
     title="Deleted on the old system"
     intro="Items the owner has deleted where they came from, which the new system still has. Nothing has been removed from either side."
     queryKey="deletions"
     fetcher={() => fetchDeletions(mappingId)}
-    renderMapping={(mappingId, queue, act, outcomes) => (
+    renderMapping={(mappingId, queue, act, outcomes, setOutcome, refresh) => (
       <>
         <QueueSection
           title="Waiting on you"
@@ -107,7 +207,7 @@ const Deletions: React.FC = () => {
                         label="Delete it here too"
                         armedLabel="Confirm delete"
                         onClick={() =>
-                          act(d.naturalKeyHash, () => applyDeletion(mappingId, d.naturalKeyHash))
+                          startApply(mappingId, d.naturalKeyHash, setOutcome, refresh)
                         }
                       />
                     )}
