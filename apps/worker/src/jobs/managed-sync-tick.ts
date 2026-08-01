@@ -2,7 +2,7 @@
 
 /**
  * The managed sync tick (workplan 0022 T2) — the scheduled Trigger.dev task
- * that replaces the polling `managed-scheduler` as the thing that STARTS
+ * that replaces the (now-retired) polling managed-scheduler as the thing that STARTS
  * syncs (owner decision 2026-08-01, 0020 T8: one execution plane; this
  * restores ADR-0004's original architecture, which the poller was always an
  * interim for).

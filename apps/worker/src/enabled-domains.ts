@@ -2,8 +2,8 @@
 
 /**
  * Domains selected for a mapping — `scope_selection` rows with
- * `included = true`, the same query the managed scheduler ticks by, so the
- * jobs and the scheduler cannot disagree about what a mapping migrates.
+ * `included = true`, the same query the managed sync tick uses, so the
+ * jobs and the tick cannot disagree about what a mapping migrates.
  *
  * Exists because the first live apply run (0018 T5, 2026-08-01) proved what
  * happens without it: `run-apply-deletion` opened connector deps for ALL four
@@ -14,8 +14,8 @@
  * SKIPPED ("your call, nobody checked") rather than as an error.
  *
  * Uses the owner pool without a tenant context on purpose: this is the same
- * trusted, system-level enumeration the scheduler's poll loop performs (see
- * managed-scheduler.ts's header for that trust boundary), filtered by tenant
+ * trusted, system-level enumeration the sync tick performs (see
+ * jobs/managed-sync-tick.ts for that trust boundary), filtered by tenant
  * explicitly.
  */
 
