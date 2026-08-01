@@ -57,6 +57,7 @@ const appUserUrl = (u: string): string => {
 process.env.APP_DATABASE_URL = appUserUrl(PG);
 
 import app from '../../index.js';
+import { seedMembership } from '../../__tests__/seed-membership.js';
 
 const TENANT = '5b4b0000-e29b-41d4-a716-446655440001';
 const CONN = '5b4b0000-e29b-41d4-a716-446655440010';
@@ -108,6 +109,8 @@ describe('apply evaluate-then-queue routes (0017 T4)', () => {
       `INSERT INTO tenant (id, name, status, settings) VALUES ($1,'Apply T','active','{}') ON CONFLICT DO NOTHING`,
       [TENANT],
     );
+    // Membership gate (0020 T1): the minted token must belong to its tenant.
+    await seedMembership(pool, TENANT, `user-${TENANT}`);
     await pool.query(
       `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status) VALUES ($1,$2,'source','imap','src','{}','connected') ON CONFLICT DO NOTHING`,
       [CONN, TENANT],

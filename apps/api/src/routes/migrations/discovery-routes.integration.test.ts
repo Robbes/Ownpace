@@ -29,6 +29,7 @@ const appUserUrl = (u: string): string => {
 process.env.APP_DATABASE_URL = appUserUrl(PG);
 
 import app from '../../index.js';
+import { seedMembership } from '../../__tests__/seed-membership.js';
 
 const TENANT = 'e0d15000-e29b-41d4-a716-446655440001';
 const CONN = 'e0d15000-e29b-41d4-a716-446655440010';
@@ -51,6 +52,8 @@ describe('discovery/confirm routes (0013 T4/T5)', () => {
   beforeAll(async () => {
     pool = new Pool({ connectionString: PG });
     await pool.query(`INSERT INTO tenant (id, name, status, settings) VALUES ($1,'Disc T','active','{}') ON CONFLICT DO NOTHING`, [TENANT]);
+    // Membership gate (0020 T1): the minted tokens must belong to their tenants.
+    await seedMembership(pool, TENANT, `user-${TENANT}`);
     await pool.query(`INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status) VALUES ($1,$2,'source','imap','src','{}','connected') ON CONFLICT DO NOTHING`, [CONN, TENANT]);
     await pool.query(`INSERT INTO mailbox (id, tenant_id, connection_id, kind, status) VALUES ($1,$3,$2,'user','active'),($4,$3,$2,'user','active') ON CONFLICT DO NOTHING`, [SRC_MB, CONN, TENANT, TGT_MB]);
     await pool.query(

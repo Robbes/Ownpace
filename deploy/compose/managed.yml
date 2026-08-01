@@ -107,12 +107,15 @@ services:
       # Database
       DATABASE_URL: postgresql://trigger:trigger_password@trigger-db:5432/triggerdb
       DIRECT_URL: postgresql://trigger:trigger_password@trigger-db:5432/triggerdb
-      # Auth secrets
-      SESSION_SECRET: ${TRIGGER_SESSION_SECRET:-0123456789abcdef0123456789abcdef}
-      MAGIC_LINK_SECRET: ${TRIGGER_MAGIC_LINK_SECRET:-fedcba9876543210fedcba9876543210}
-      ENCRYPTION_KEY: ${TRIGGER_ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef}
-      LOGIN_SECRET: ${TRIGGER_LOGIN_SECRET:-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1}
-      MANAGED_WORKER_SECRET: ${TRIGGER_MANAGED_WORKER_SECRET:-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb2}
+      # Auth secrets — fail-closed (0020 T2): these gate the trigger dashboard,
+      # its magic-link login and its stored env vars. The old hardcoded
+      # fallbacks were committed to a public repository, i.e. not secrets.
+      # Generate each: openssl rand -hex 16   (32 hex chars)
+      SESSION_SECRET: ${TRIGGER_SESSION_SECRET:?generate with openssl rand -hex 16 and set in .env}
+      MAGIC_LINK_SECRET: ${TRIGGER_MAGIC_LINK_SECRET:?generate with openssl rand -hex 16 and set in .env}
+      ENCRYPTION_KEY: ${TRIGGER_ENCRYPTION_KEY:?generate with openssl rand -hex 16 and set in .env}
+      LOGIN_SECRET: ${TRIGGER_LOGIN_SECRET:?generate with openssl rand -hex 16 and set in .env}
+      MANAGED_WORKER_SECRET: ${TRIGGER_MANAGED_WORKER_SECRET:?generate with openssl rand -hex 16 and set in .env}
       # Origins
       APP_ORIGIN: ${TRIGGER_APP_ORIGIN:-http://localhost:3090}
       LOGIN_ORIGIN: ${TRIGGER_LOGIN_ORIGIN:-http://localhost:3090}
@@ -245,7 +248,7 @@ services:
       TRIGGER_API_URL: http://trigger-api:3000
       OTEL_EXPORTER_OTLP_ENDPOINT: http://trigger-api:3000/otel
       TRIGGER_WORKER_TOKEN: file:///home/node/shared/worker_token
-      MANAGED_WORKER_SECRET: ${TRIGGER_MANAGED_WORKER_SECRET:-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb2}
+      MANAGED_WORKER_SECRET: ${TRIGGER_MANAGED_WORKER_SECRET:?generate with openssl rand -hex 16 and set in .env}
       TRIGGER_WORKLOAD_API_DOMAIN: trigger-supervisor
       TRIGGER_WORKLOAD_API_PORT_EXTERNAL: 8020
       DOCKER_HOST: tcp://trigger-docker-proxy:2375
@@ -297,7 +300,10 @@ services:
       # (a superuser/owner bypasses RLS even under FORCE — see workplan 0011 T1).
       DATABASE_URL: postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD:-openmigrate_password}@postgres:5432/${POSTGRES_DB:-openmigrate}
       APP_DATABASE_URL: postgresql://${APP_DB_USER:-app_user}:${APP_DB_PASSWORD:-app_password}@postgres:5432/${POSTGRES_DB:-openmigrate}
-      JWT_SECRET: ${JWT_SECRET:-change-this-in-production}
+      # Fail-closed (0020 T2): with the tenant-membership gate, JWT_SECRET is
+      # the outer wall of the tenancy boundary. No default — and the API also
+      # refuses to BOOT in production with a known placeholder value.
+      JWT_SECRET: ${JWT_SECRET:?generate with openssl rand -hex 32 and set in .env}
       # Required to encrypt/decrypt connection credentials (create-mapping, worker deps).
       SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY:?set a 32-byte key in .env}
       JWT_EXPIRY: ${JWT_EXPIRY:-24h}

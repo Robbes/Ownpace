@@ -35,15 +35,23 @@ const getAppUserConnectionString = (originalUrl: string): string => {
 process.env.APP_DATABASE_URL = getAppUserConnectionString(PG_CONNECTION_STRING);
 
 import app from '../../index.js';
+import { seedMembership } from '../../__tests__/seed-membership.js';
 
 // UUIDs for API isolation tests (950e8400-e29b-41d4-a716-44665544xxxx)
 const API_TENANT_A = '5d2b0000-e29b-41d4-a716-446655444101';
 const API_TENANT_B = '5d2b0000-e29b-41d4-a716-446655444102';
 
-function createTestToken(tenantId: string, role: string = 'member'): string {
+// One sub per (tenant, role): the membership gate (0020 T1) takes the role
+// from the tenant_member row, so two tokens with the same sub can no longer
+// act as two different roles.
+function createTestToken(
+  tenantId: string,
+  role: string = 'member',
+  sub: string = `user-${role}-${tenantId}`
+): string {
   return jwt.sign(
     {
-      sub: `user-${tenantId}`,
+      sub,
       tenantId,
       role,
       email: `user@${tenantId}.test`,
@@ -55,7 +63,9 @@ function createTestToken(tenantId: string, role: string = 'member'): string {
 const TOKEN_TENANT_A = createTestToken(API_TENANT_A);
 const TOKEN_TENANT_B = createTestToken(API_TENANT_B);
 const TOKEN_ADMIN_A = createTestToken(API_TENANT_A, 'admin');
-const TOKEN_OWNER_A = createTestToken(API_TENANT_A, 'owner');
+// The owner token IS the seeded sole owner (user-owner-001): seeding a second
+// owner row for a separate token sub would break the last-owner guard tests.
+const TOKEN_OWNER_A = createTestToken(API_TENANT_A, 'owner', 'user-owner-001');
 
 describe('Members Route Isolation', () => {
   let superuserPool: Pool;
@@ -109,6 +119,12 @@ describe('Members Route Isolation', () => {
     ]);
     ownerAId = ownerId;
 
+    // Membership gate (0020 T1): rows for the minted member/admin tokens (the
+    // owner token reuses user-owner-001 above), and tenant B's requester.
+    await seedMembership(superuserPool, API_TENANT_A, `user-member-${API_TENANT_A}`, 'member');
+    await seedMembership(superuserPool, API_TENANT_A, `user-admin-${API_TENANT_A}`, 'admin');
+    await seedMembership(superuserPool, API_TENANT_B, `user-member-${API_TENANT_B}`, 'member');
+
     request = supertest(app);
   });
 
@@ -142,8 +158,12 @@ describe('Members Route Isolation', () => {
         .set('Authorization', `Bearer ${TOKEN_TENANT_B}`);
 
       expect(response.status).toBe(200);
-      // RLS should filter out tenant A's members
-      expect(response.body.members).toEqual([]);
+      // RLS scopes the query to the REQUESTER's tenant: B sees only its own
+      // membership (the gate requires the requester to be a member), never
+      // anything of tenant A's.
+      expect(
+        (response.body.members as { userId: string }[]).map((m) => m.userId)
+      ).toEqual([`user-member-${API_TENANT_B}`]);
     });
 
     it('should return 401 without token', async () => {

@@ -42,6 +42,7 @@ const getAppUserConnectionString = (originalUrl: string): string => {
 process.env.APP_DATABASE_URL = getAppUserConnectionString(PG_CONNECTION_STRING);
 
 import app from '../../index.js';
+import { seedMembership } from '../../__tests__/seed-membership.js';
 // import * as schema from '@open-migrate/ledger'; // Not needed - using raw SQL queries
 
 // UUIDs for migration tests
@@ -85,6 +86,9 @@ describe('Migrations Routes - Tenant Isolation', () => {
       MIG_TENANT_A, 'Migration Tenant A', 'active',
       MIG_TENANT_B, 'Migration Tenant B', 'active',
     ]);
+    // Membership gate (0020 T1): the minted tokens must belong to their tenants.
+    await seedMembership(superuserPool, MIG_TENANT_A, `user-${MIG_TENANT_A}`, 'member');
+    await seedMembership(superuserPool, MIG_TENANT_B, `user-${MIG_TENANT_B}`, 'member');
 
     // Create source connections for each tenant
     const connA = '5a1b0000-e29b-41d4-a716-446655443301';

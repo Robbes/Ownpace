@@ -40,6 +40,7 @@ const getAppUserConnectionString = (originalUrl: string): string => {
 process.env.APP_DATABASE_URL = getAppUserConnectionString(PG_CONNECTION_STRING);
 
 import app from '../../index.js';
+import { seedMembership } from '../../__tests__/seed-membership.js';
 
 
 // UUIDs for API isolation tests (950e8400-e29b-41d4-a716-44665544xxxx)
@@ -79,6 +80,9 @@ describe('Billing Route Isolation', () => {
       API_TENANT_A, 'Billing Tenant A', 'active',
       API_TENANT_B, 'Billing Tenant B', 'active',
     ]);
+    // Membership gate (0020 T1): the minted tokens must belong to their tenants.
+    await seedMembership(superuserPool, API_TENANT_A, `user-${API_TENANT_A}`, 'member');
+    await seedMembership(superuserPool, API_TENANT_B, `user-${API_TENANT_B}`, 'member');
 
     request = supertest(app);
   });
