@@ -30,6 +30,7 @@ import { withTenant } from '@openmig/ledger';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import type { MappingId, RemovalKind, TenantId } from '@openmig/shared';
 import { buildDomainDepsFromMapping } from '../build-deps-from-mapping';
+import { enabledDomains } from '../enabled-domains';
 
 const ApplyJobSchema = z.object({
   tenantId: z.string().uuid(),
@@ -122,8 +123,17 @@ export const runApplyDeletionTask = schemaTask({
       );
       const allowApplyDeletions = allowRows[0]?.allow === true;
 
+      // Only the domains the owner SELECTED are probed. Opening deps for a
+      // domain the mapping does not migrate is not a harmless no-op: the
+      // domain's deps builder needs that domain's connector config, and on a
+      // mapping without it, it throws — the first live run failed exactly
+      // there, on the MAIL builder of a DAV-only mapping, before the item's
+      // own domain was ever reached (0018 T5, 2026-08-01).
+      const enabled = await enabledDomains(pool, tenantId, mappingId);
+
       let outcome: ApplyDeletionOutcome | undefined;
       for (const domain of DOMAINS) {
+        if (!enabled.has(domain)) continue;
         const deps = await openDeps(tenantId, mappingId, domain);
         try {
           const row = await deps.ledger.find(
