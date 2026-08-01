@@ -31,7 +31,7 @@
  * "default to everything".
  */
 
-import { schedules } from '@trigger.dev/sdk';
+import { schedules, configure } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
 import { log } from '@openmig/shared';
 import { isSyncDue, DEFAULT_SYNC_SCHEDULE } from '../sync-due';
@@ -56,6 +56,20 @@ export const managedSyncTick = schedules.task({
   id: 'managed-sync-tick',
   cron: '* * * * *',
   run: async () => {
+    // In-network API URL (found live, 2026-08-01, the tick's first due firing):
+    // the platform injects TRIGGER_API_URL as the HOST-perspective API origin
+    // (http://localhost:3090 — correct for the deploy CLI, which is why
+    // API_ORIGIN is set that way), but inside a runner container `localhost`
+    // is the runner itself. This is the FIRST task that calls the API from
+    // within a runner — idle ticks succeeded, and the first DUE tick died on
+    // the .trigger() call with connection refused. Point the SDK at the
+    // compose-network address instead; secretKey keeps resolving from the
+    // injected TRIGGER_SECRET_KEY env. Scoped to this run's own process (each
+    // task run executes in its own TaskRunProcess).
+    configure({
+      baseURL: process.env.TRIGGER_API_URL_IN_NETWORK ?? 'http://trigger-api:3000',
+    });
+
     const now = new Date();
     const { rows } = await pool.query<TickRow>(
       `SELECT m.id, m.tenant_id, m.schedule,
