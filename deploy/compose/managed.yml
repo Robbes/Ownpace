@@ -34,6 +34,7 @@ services:
   postgres:
     image: postgres:18-alpine
     container_name: open-migrate-db
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-openmigrate}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-openmigrate_password}
@@ -61,6 +62,7 @@ services:
   trigger-db:
     image: postgres:18-alpine
     container_name: trigger-db
+    restart: unless-stopped
     environment:
       POSTGRES_USER: trigger
       POSTGRES_PASSWORD: trigger_password
@@ -78,6 +80,7 @@ services:
   trigger-redis:
     image: redis:7-alpine
     container_name: trigger-redis
+    restart: unless-stopped
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
@@ -97,6 +100,7 @@ services:
     # had moved to 4.5.7.
     image: ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.5.7}
     container_name: trigger-api
+    restart: unless-stopped
     user: root
     command: sh -c "chown -R node:node /home/node/shared && exec ./scripts/entrypoint.sh"
     environment:
@@ -128,20 +132,16 @@ services:
       OBJECT_STORE_BASE_URL: http://minio:9000
       OBJECT_STORE_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-admin}
       OBJECT_STORE_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-very-safe-password}
-      # ClickHouse (for task events) - EVENT_REPOSITORY_DEFAULT_STORE=postgres below means
-      # this is never actually queried, but the webapp still unconditionally does
-      # `new URL(CLICKHOUSE_URL)` at boot regardless of that setting -- an empty string
-      # crashes the whole process with "TypeError: Invalid URL" (confirmed live on the
-      # Spark box, 2026-07-25: trigger-api crash-looped on every restart). A
-      # syntactically valid URL satisfies that constructor, BUT docker/scripts/entrypoint.sh
-      # (verified against the v4.5.4 tag) separately treats any non-empty CLICKHOUSE_URL as
-      # "run real ClickHouse migrations via goose" unless SKIP_CLICKHOUSE_MIGRATIONS=1 --
-      # without this flag, goose then fails trying to actually reach a ClickHouse instance
-      # that doesn't exist in this stack (also confirmed live: "goose run: clickhouse [dsn
-      # parse]: http with TLS specify"). Both settings are needed together.
-      CLICKHOUSE_URL: "http://localhost:8123"
-      SKIP_CLICKHOUSE_MIGRATIONS: "1"
-      EVENT_REPOSITORY_DEFAULT_STORE: postgres
+      # ClickHouse — REAL, not the placeholder-URL hack that used to live here.
+      # That hack (a syntactically valid URL + SKIP_CLICKHOUSE_MIGRATIONS +
+      # events-in-postgres) survived webapp BOOT, but v4.5.7's dashboard
+      # genuinely queries ClickHouse for the environment metrics page, and the
+      # resulting ECONNREFUSED became an unhandledRejection that killed the
+      # whole webapp process — confirmed live on the Spark, 2026-08-01, taking
+      # the supervisor's session down with it. The clickhouse service below is
+      # the reference stack's own; goose migrations run at entrypoint.
+      CLICKHOUSE_URL: http://${CLICKHOUSE_USER:-default}:${CLICKHOUSE_PASSWORD:-password}@clickhouse:8123?secure=false
+      RUN_REPLICATION_CLICKHOUSE_URL: http://${CLICKHOUSE_USER:-default}:${CLICKHOUSE_PASSWORD:-password}@clickhouse:8123
       # Realtime streams - disabled, using v1 (Redis) instead
       REALTIME_STREAMS_DEFAULT_VERSION: v1
       # Bootstrap
@@ -160,6 +160,29 @@ services:
         condition: service_healthy
       trigger-redis:
         condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    networks:
+      - open-migrate-network
+
+  # Task-event store the webapp actually queries (see the CLICKHOUSE comment
+  # above). The reference stack's service, with its own <16GB-RAM tuning file.
+  clickhouse:
+    image: bitnamilegacy/clickhouse:latest
+    container_name: trigger-clickhouse
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_ADMIN_USER: ${CLICKHOUSE_USER:-default}
+      CLICKHOUSE_ADMIN_PASSWORD: ${CLICKHOUSE_PASSWORD:-password}
+    volumes:
+      - clickhouse_data:/bitnami/clickhouse
+      - ./clickhouse-override.xml:/bitnami/clickhouse/etc/config.d/override.xml:ro
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--host", "localhost", "--port", "9000", "--user", "${CLICKHOUSE_USER:-default}", "--password", "${CLICKHOUSE_PASSWORD:-password}", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - open-migrate-network
 
@@ -173,6 +196,7 @@ services:
   trigger-registry:
     image: registry:2
     container_name: trigger-registry
+    restart: unless-stopped
     ports:
       - "127.0.0.1:${REGISTRY_PORT:-5000}:5000"
     volumes:
@@ -187,6 +211,7 @@ services:
   trigger-docker-proxy:
     image: tecnativa/docker-socket-proxy:v0.5.0
     container_name: trigger-docker-proxy
+    restart: unless-stopped
     environment:
       CONTAINERS: 1
       IMAGES: 1
@@ -207,6 +232,7 @@ services:
   trigger-supervisor:
     image: ghcr.io/triggerdotdev/supervisor:${TRIGGER_IMAGE_TAG:-v4.5.7}
     container_name: trigger-supervisor
+    restart: unless-stopped
     environment:
       TRIGGER_API_URL: http://trigger-api:3000
       OTEL_EXPORTER_OTLP_ENDPOINT: http://trigger-api:3000/otel
@@ -238,6 +264,7 @@ services:
   minio:
     image: bitnamilegacy/minio:latest
     container_name: trigger-minio
+    restart: unless-stopped
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-very-safe-password}
@@ -253,6 +280,7 @@ services:
       context: ../..
       dockerfile: apps/api/Dockerfile
     container_name: open-migrate-api
+    restart: unless-stopped
     environment:
       NODE_ENV: ${NODE_ENV:-development}
       PORT: 3001
@@ -299,6 +327,7 @@ services:
       context: ../..
       dockerfile: apps/worker/Dockerfile
     container_name: open-migrate-worker
+    restart: unless-stopped
     environment:
       NODE_ENV: ${NODE_ENV:-development}
       PORT: 8082
@@ -332,6 +361,7 @@ services:
         VITE_API_URL: ${VITE_API_URL:-/api}
         VITE_AUTH_URL: ${VITE_AUTH_URL:-/auth}
     container_name: open-migrate-web
+    restart: unless-stopped
     ports:
       - "${WEB_PORT:-3123}:80"
     depends_on:
@@ -346,6 +376,7 @@ services:
   nextcloud:
     image: nextcloud:34-apache
     container_name: open-migrate-nextcloud
+    restart: unless-stopped
     environment:
       SQLITE_DATABASE: nextcloud
       NEXTCLOUD_ADMIN_USER: admin
@@ -367,3 +398,4 @@ volumes:
   trigger_shared:
   registry_data:
   minio_data:
+  clickhouse_data:
