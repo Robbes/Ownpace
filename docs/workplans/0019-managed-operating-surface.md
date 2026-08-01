@@ -4,8 +4,8 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T1 The apply client speaks the managed shape | ⬜ Not started | — |
-| T2 The Deletions screen polls the receipt | ⬜ Not started | — |
+| T1 The apply client speaks the managed shape | 🟡 **Built, PR open** | `applyDeletion` returns a typed `ApplyOutcome` — `{mode:'immediate', result: DecisionAccepted}` on the appliance, `{mode:'queued', receipt: ApplyReceipt}` on managed — the ONE success-shape split ADR-0026 permits, branched via the `edition.ts` pattern and typed entirely from `@openmig/shared`. Refusals stay identical in both editions (403/404 → `DecisionRefusedError`, the gates' words preserved). New `fetchApplyReceipt` reads the receipt (a status read — safe to poll, starts nothing). |
+| T2 The Deletions screen polls the receipt | 🟡 **Built, PR open** | One screen, two temporal shapes: the appliance's synchronous answer renders as before; on managed the screen polls the receipt to a terminal state with the Verify discipline (stop on EVERY terminal state; a missed poll keeps polling — a transient read failure must not strand the outcome as forever-queued; timers cleared on unmount). Each terminal state keeps its character (`ReceiptStatus` primitive): `applied` reports how final the removal was per `kind` (binned/deleted/unrecorded — reported, never inferred), `refused` renders the gates' code + prose verbatim (amber, not an error), `failed` is a red FAILURE with its reason (new `JobFailed` primitive — hard rule 9, never softened into a refusal). 4 new jsdom tests (queued→applied incl. kind text, refused verbatim + code, failed with reason, missed-poll-keeps-polling); 13/13 in the suite, 1195/1195 workspace unit tests. |
 | T3 `allow_apply_deletions` gets an API and a switch | ⬜ Not started | — |
 | T4 Per-mapping navigation exists | ⬜ Not started | — |
 | T5 The managed Finish screen | ⬜ Not started | — |

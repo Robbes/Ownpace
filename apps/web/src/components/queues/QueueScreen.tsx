@@ -13,15 +13,22 @@
 import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Loader2 } from 'lucide-react';
-import type { QueueEnvelope } from '@openmig/shared';
+import type { ApplyReceipt, QueueEnvelope } from '@openmig/shared';
 import { ClosedBanner, LIFECYCLE_NOTE } from './primitives';
 import { DecisionRefusedError } from '../../services/operating-service';
 
-/** What happened to one item after the operator acted on it. */
+/**
+ * What happened to one item after the operator acted on it.
+ *
+ * `receipt` is the managed apply's temporal shape (workplan 0019 T2): the
+ * outcome is a lifecycle the Deletions screen polls to a terminal state, not a
+ * single reply. Other queues never produce it.
+ */
 export type ItemOutcome =
   | { readonly state: 'pending' }
   | { readonly state: 'done'; readonly effect: string }
-  | { readonly state: 'refused'; readonly text: string };
+  | { readonly state: 'refused'; readonly text: string }
+  | { readonly state: 'receipt'; readonly receipt: ApplyReceipt };
 
 export interface QueueScreenProps<T extends QueueEnvelope> {
   readonly title: string;
@@ -33,6 +40,10 @@ export interface QueueScreenProps<T extends QueueEnvelope> {
     queue: T,
     act: (hash: string, run: () => Promise<{ effect: string }>) => void,
     outcomes: Readonly<Record<string, ItemOutcome>>,
+    /** Direct outcome control, for flows `act` cannot model (the apply receipt). */
+    setOutcome: (hash: string, outcome: ItemOutcome) => void,
+    /** Re-read the queue from the server (never patch the cache by hand). */
+    refresh: () => void,
   ) => React.ReactNode;
 }
 
@@ -55,6 +66,14 @@ export function QueueScreen<T extends QueueEnvelope>({
     refetchOnWindowFocus: true,
     staleTime: 30_000,
   });
+
+  const setOutcome = React.useCallback((hash: string, outcome: ItemOutcome) => {
+    setOutcomes((o) => ({ ...o, [hash]: outcome }));
+  }, []);
+
+  const refresh = React.useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: [queryKey] });
+  }, [queryClient, queryKey]);
 
   const act = React.useCallback(
     (hash: string, run: () => Promise<{ effect: string }>) => {
@@ -139,7 +158,7 @@ export function QueueScreen<T extends QueueEnvelope>({
           {LIFECYCLE_NOTE[queue.migrationStatus] && (
             <p className="mb-3 text-sm text-gray-600">{LIFECYCLE_NOTE[queue.migrationStatus]}</p>
           )}
-          {renderMapping(mappingId, queue, act, outcomes)}
+          {renderMapping(mappingId, queue, act, outcomes, setOutcome, refresh)}
         </section>
       ))}
     </div>

@@ -20,28 +20,31 @@ import {
   DELETION_GUIDANCE,
 } from '@openmig/shared';
 
-const { fetchDeletions, keepDeletion, applyDeletion, DecisionRefusedError } = vi.hoisted(() => {
-  class DecisionRefusedError extends Error {
-    constructor(
-      readonly refusal: { error: string; reason?: string; hint?: string },
-      readonly httpStatus: number,
-    ) {
-      super(refusal.reason ?? refusal.error);
-      this.name = 'DecisionRefusedError';
+const { fetchDeletions, keepDeletion, applyDeletion, fetchApplyReceipt, DecisionRefusedError } =
+  vi.hoisted(() => {
+    class DecisionRefusedError extends Error {
+      constructor(
+        readonly refusal: { error: string; reason?: string; hint?: string },
+        readonly httpStatus: number,
+      ) {
+        super(refusal.reason ?? refusal.error);
+        this.name = 'DecisionRefusedError';
+      }
     }
-  }
-  return {
-    fetchDeletions: vi.fn(),
-    keepDeletion: vi.fn(),
-    applyDeletion: vi.fn(),
-    DecisionRefusedError,
-  };
-});
+    return {
+      fetchDeletions: vi.fn(),
+      keepDeletion: vi.fn(),
+      applyDeletion: vi.fn(),
+      fetchApplyReceipt: vi.fn(),
+      DecisionRefusedError,
+    };
+  });
 
 vi.mock('../services/operating-service', () => ({
   fetchDeletions,
   keepDeletion,
   applyDeletion,
+  fetchApplyReceipt,
   DecisionRefusedError,
 }));
 
@@ -76,7 +79,7 @@ function renderScreen() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <Deletions />
+      <Deletions receiptPollMs={10} />
     </QueryClientProvider>,
   );
 }
@@ -151,12 +154,17 @@ describe('the apply button itself', () => {
     fetchDeletions.mockResolvedValue(
       queue({ confirmed: [deletion({ naturalKeyHash: 'h1' })] }),
     );
+    // The appliance's synchronous shape (workplan 0019 T1: the client now
+    // carries the ONE permitted success-shape split).
     applyDeletion.mockResolvedValue({
-      status: 'ok',
-      action: 'apply',
-      naturalKeyHash: 'h1',
-      effect: 'Removed from the target.',
-      kind: 'binned',
+      mode: 'immediate',
+      result: {
+        status: 'ok',
+        action: 'apply',
+        naturalKeyHash: 'h1',
+        effect: 'Removed from the target.',
+        kind: 'binned',
+      },
     });
     renderScreen();
 
@@ -194,6 +202,116 @@ describe('the apply button itself', () => {
 
     expect(
       await screen.findByText('This mapping does not have allowApplyDeletions set.'),
+    ).toBeInTheDocument();
+  });
+});
+
+describe('the managed receipt lifecycle (workplan 0019 T2)', () => {
+  // On managed, "apply" is queued → terminal: the ledger gates answered on the
+  // request, the target's half lands on a receipt the screen polls. Stop on
+  // EVERY terminal state; render each in its own character.
+
+  it('polls a queued receipt to `applied` and reports how final the removal was', async () => {
+    fetchDeletions.mockResolvedValue(
+      queue({ confirmed: [deletion({ naturalKeyHash: 'hq1' })] }),
+    );
+    applyDeletion.mockResolvedValue({
+      mode: 'queued',
+      receipt: { state: 'queued', requestedAt: '2026-08-01T12:00:00Z' },
+    });
+    fetchApplyReceipt
+      .mockResolvedValueOnce({ state: 'queued', requestedAt: '2026-08-01T12:00:00Z' })
+      .mockResolvedValue({
+        state: 'applied',
+        requestedAt: '2026-08-01T12:00:00Z',
+        finishedAt: '2026-08-01T12:00:06Z',
+        kind: 'binned',
+      });
+    renderScreen();
+
+    fireEvent.click(await screen.findByText('Delete it here too'));
+    fireEvent.click(screen.getByText('Confirm delete'));
+
+    // The queued state is shown while the job runs...
+    expect(await screen.findByText(/Removal queued/)).toBeInTheDocument();
+    // ...and the poll lands on the terminal state, kind included.
+    expect(
+      await screen.findByText(/moved to the target's own bin/),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(fetchApplyReceipt).toHaveBeenCalledWith('acme-mail', 'hq1'));
+  });
+
+  it("renders a `refused` receipt as the gates' own words with the code — never as an error", async () => {
+    fetchDeletions.mockResolvedValue(
+      queue({ confirmed: [deletion({ naturalKeyHash: 'hq2' })] }),
+    );
+    applyDeletion.mockResolvedValue({
+      mode: 'queued',
+      receipt: { state: 'queued', requestedAt: '2026-08-01T12:00:00Z' },
+    });
+    fetchApplyReceipt.mockResolvedValue({
+      state: 'refused',
+      requestedAt: '2026-08-01T12:00:00Z',
+      finishedAt: '2026-08-01T12:00:03Z',
+      code: 'edited_on_target',
+      reason: 'Somebody has edited the target copy since it was written; it is theirs now.',
+    });
+    renderScreen();
+
+    fireEvent.click(await screen.findByText('Delete it here too'));
+    fireEvent.click(screen.getByText('Confirm delete'));
+
+    expect(
+      await screen.findByText(/Somebody has edited the target copy.*\(edited_on_target\)/),
+    ).toBeInTheDocument();
+  });
+
+  it('renders a `failed` receipt as a FAILURE with its reason — never as silence or a refusal', async () => {
+    fetchDeletions.mockResolvedValue(
+      queue({ confirmed: [deletion({ naturalKeyHash: 'hq3' })] }),
+    );
+    applyDeletion.mockResolvedValue({
+      mode: 'queued',
+      receipt: { state: 'queued', requestedAt: '2026-08-01T12:00:00Z' },
+    });
+    fetchApplyReceipt.mockResolvedValue({
+      state: 'failed',
+      requestedAt: '2026-08-01T12:00:00Z',
+      finishedAt: '2026-08-01T12:00:03Z',
+      error: 'buildDepsFromMapping currently only supports imap-oauth2, got: undefined',
+    });
+    renderScreen();
+
+    fireEvent.click(await screen.findByText('Delete it here too'));
+    fireEvent.click(screen.getByText('Confirm delete'));
+
+    expect(await screen.findByText(/The removal job failed:/)).toBeInTheDocument();
+    expect(screen.getByText(/imap-oauth2/)).toBeInTheDocument();
+  });
+
+  it('a missed poll keeps polling instead of stranding the outcome as forever-queued', async () => {
+    fetchDeletions.mockResolvedValue(
+      queue({ confirmed: [deletion({ naturalKeyHash: 'hq4' })] }),
+    );
+    applyDeletion.mockResolvedValue({
+      mode: 'queued',
+      receipt: { state: 'queued', requestedAt: '2026-08-01T12:00:00Z' },
+    });
+    fetchApplyReceipt
+      .mockRejectedValueOnce(new Error('transient read failure'))
+      .mockResolvedValue({
+        state: 'applied',
+        requestedAt: '2026-08-01T12:00:00Z',
+        finishedAt: '2026-08-01T12:00:06Z',
+        kind: 'deleted',
+      });
+    renderScreen();
+
+    fireEvent.click(await screen.findByText('Delete it here too'));
+    fireEvent.click(screen.getByText('Confirm delete'));
+
+    expect(
+      await screen.findByText(/gone, with no recovery path from here/),
     ).toBeInTheDocument();
   });
 });

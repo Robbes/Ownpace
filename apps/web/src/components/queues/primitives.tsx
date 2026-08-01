@@ -8,8 +8,8 @@
  */
 
 import React from 'react';
-import { AlertTriangle, Check, Info, Loader2, Trash2 } from 'lucide-react';
-import type { DeletionEvidence, MappingLifecycle } from '@openmig/shared';
+import { AlertCircle, AlertTriangle, Check, Info, Loader2, Trash2 } from 'lucide-react';
+import type { ApplyReceipt, DeletionEvidence, MappingLifecycle } from '@openmig/shared';
 
 const DOMAIN_LABEL: Record<string, string> = {
   email: 'Email',
@@ -204,6 +204,59 @@ export const Refused: React.FC<{ text: string }> = ({ text }) => (
     {text}
   </span>
 );
+
+/**
+ * A job failure, which is NOT a refusal (workplan 0019 T2, hard rule 9).
+ *
+ * `Refused` is amber and carries the gates' own words — the product working.
+ * This is red and carries the error, because the removal job CRASHED and
+ * nobody knows the item's fate until someone looks. Softening one into the
+ * other would either dress a failure up as an answer or bury an answer in an
+ * error style nobody reads calmly.
+ */
+export const JobFailed: React.FC<{ error: string }> = ({ error }) => (
+  <span className="inline-flex items-start gap-1 text-xs text-red-700">
+    <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+    The removal job failed: {error}
+  </span>
+);
+
+/**
+ * One apply receipt's lifecycle, rendered without softening (workplan 0019 T2).
+ *
+ * The managed edition's "apply" is queued → terminal, and every terminal state
+ * keeps its own character: `applied` says how final the removal was (`binned`
+ * targets may still hold a copy — reported, never inferred), `refused` renders
+ * the gates' code and prose verbatim, `failed` is a failure with its reason.
+ */
+export const ReceiptStatus: React.FC<{ receipt: ApplyReceipt }> = ({ receipt }) => {
+  switch (receipt.state) {
+    case 'queued':
+    case 'none':
+      return (
+        <span className="inline-flex items-start gap-1 text-xs text-gray-600">
+          <Loader2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 animate-spin" />
+          Removal queued — the job re-checks every gate before touching anything.
+        </span>
+      );
+    case 'applied':
+      return (
+        <Resolved
+          effect={
+            receipt.kind === 'binned'
+              ? "Removed — moved to the target's own bin; a copy may still be recoverable there."
+              : receipt.kind === 'deleted'
+                ? 'Removed — gone, with no recovery path from here.'
+                : 'Removed. How final the removal was is not recorded on the receipt.'
+          }
+        />
+      );
+    case 'refused':
+      return <Refused text={`${receipt.reason} (${receipt.code})`} />;
+    case 'failed':
+      return <JobFailed error={receipt.error} />;
+  }
+};
 
 export const LIFECYCLE_NOTE: Record<MappingLifecycle, string | undefined> = {
   paused: 'This migration has not started, so nothing has been copied and nothing can have diverged.',

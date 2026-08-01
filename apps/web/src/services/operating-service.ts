@@ -9,6 +9,8 @@
 
 import axios, { type AxiosInstance } from 'axios';
 import type {
+  ApplyQueuedResponse,
+  ApplyReceipt,
   VerificationRunReport,
   VerifyStartResponse,
   DecisionAccepted,
@@ -22,7 +24,7 @@ import type {
   ScopeManifest,
   StatusReport,
 } from '@openmig/shared';
-import { mappingPath, operatingBaseUrl, queuePath, verifyPath } from './edition';
+import { isSelfHost, mappingPath, operatingBaseUrl, queuePath, verifyPath } from './edition';
 
 const client: AxiosInstance = axios.create({
   baseURL: operatingBaseUrl(),
@@ -92,14 +94,59 @@ export function keepDeletion(mappingId: string, hash: string): Promise<DecisionA
 }
 
 /**
+ * What one `apply` request came back as — the ONE success-shape difference
+ * ADR-0026 permits the client to contain (workplan 0019 T1).
+ *
+ * The appliance answers synchronously: the removal has happened (or been
+ * refused) by the time the response arrives. The managed edition answers
+ * **202 `ApplyQueuedResponse`**: the ledger-side gates were all passed on this
+ * request, and the outcome arrives later on the RECEIPT, because the target's
+ * half (can it remove; has the owner edited our copy) belongs to the worker.
+ * Before this type existed the client parsed the managed reply as the
+ * appliance's shape — a mis-parse on the one route that destroys data.
+ */
+export type ApplyOutcome =
+  | { readonly mode: 'immediate'; readonly result: DecisionAccepted }
+  | { readonly mode: 'queued'; readonly receipt: ApplyReceipt };
+
+/**
  * Follow a source deletion through and remove the target's copy.
  *
  * THE ONLY DESTRUCTIVE CALL IN THIS CLIENT. Every gate is on the server
  * (ADR-0024) and this cannot weaken any of them — `mayOfferApply` decides what
  * the UI SHOWS, `applyDeletion` decides what actually happens.
+ *
+ * Refusals arrive the same way in both editions (403/404 with the shared code
+ * + reason shape → `DecisionRefusedError`); only the SUCCESS shape differs,
+ * per `ApplyOutcome`.
  */
-export function applyDeletion(mappingId: string, hash: string): Promise<DecisionAccepted> {
-  return decide(`${mappingPath(mappingId)}/deletions/${encodeURIComponent(hash)}/apply`);
+export async function applyDeletion(mappingId: string, hash: string): Promise<ApplyOutcome> {
+  const path = `${mappingPath(mappingId)}/deletions/${encodeURIComponent(hash)}/apply`;
+  if (isSelfHost()) {
+    return { mode: 'immediate', result: await decide(path) };
+  }
+  try {
+    const { data } = await client.post<ApplyQueuedResponse>(path);
+    return { mode: 'queued', receipt: data.receipt };
+  } catch (err) {
+    const res = (err as { response?: { status: number; data?: DecisionRefused } }).response;
+    if (res?.data?.error) throw new DecisionRefusedError(res.data, res.status);
+    throw err;
+  }
+}
+
+/**
+ * The receipt an apply's job lands its outcome on (managed only).
+ *
+ * A status read — safe to poll, starts nothing. Terminal states are
+ * `applied`, `refused` and `failed`; `queued` means keep polling.
+ */
+export async function fetchApplyReceipt(mappingId: string, hash: string): Promise<ApplyReceipt> {
+  return (
+    await client.get<ApplyReceipt>(
+      `${mappingPath(mappingId)}/deletions/${encodeURIComponent(hash)}/receipt`,
+    )
+  ).data;
 }
 
 /** Accept the target's layout for a moved item, and stop reporting it. */
