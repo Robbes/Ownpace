@@ -63,6 +63,24 @@ const en = {
   'hub.finish.name': 'Finish',
   'hub.finish.blurb':
     'The cutover checklist. Ends the migration — in order, with the one attested step.',
+  'queue.waitingOnYou': 'Waiting on you',
+  'queue.alreadyDecided': 'Already decided',
+  'moves.title': 'Moved on the old system',
+  'moves.intro':
+    'Items the owner has filed somewhere else where they came from. The new system still has them where we put them, and nothing has been changed on either side.',
+  'moves.empty.open': 'Nothing has moved.',
+  'moves.empty.acknowledged': 'Nothing has been decided yet.',
+  'moves.keep': 'Leave it where it is',
+  'failures.title': 'Could not be copied',
+  'failures.intro':
+    'Items that did not make it across, what went wrong, and how many times we tried.',
+  'failures.empty.needsDecision': 'Nothing is waiting on a decision.',
+  'failures.stillTrying': 'Still trying',
+  'failures.empty.retrying': 'Nothing is being retried.',
+  'failures.retry': 'Try again',
+  'failures.accept': 'Migrate without it',
+  'failures.try.one': 'try',
+  'failures.try.many': 'tries',
 } as const;
 
 const nl: Record<keyof typeof en, string> = {
@@ -119,6 +137,24 @@ const nl: Record<keyof typeof en, string> = {
   'hub.finish.name': 'Afronden',
   'hub.finish.blurb':
     'De cutover-checklist. Beëindigt de migratie — in volgorde, met de ene bevestigde stap.',
+  'queue.waitingOnYou': 'Wacht op u',
+  'queue.alreadyDecided': 'Al besloten',
+  'moves.title': 'Verplaatst op het oude systeem',
+  'moves.intro':
+    'Items die de eigenaar ergens anders heeft ondergebracht dan waar ze vandaan kwamen. Het nieuwe systeem heeft ze nog waar wij ze plaatsten; aan geen van beide kanten is iets veranderd.',
+  'moves.empty.open': 'Er is niets verplaatst.',
+  'moves.empty.acknowledged': 'Er is nog niets besloten.',
+  'moves.keep': 'Laat het waar het staat',
+  'failures.title': 'Kon niet worden gekopieerd',
+  'failures.intro':
+    'Items die niet zijn overgekomen, wat er misging, en hoe vaak we het hebben geprobeerd.',
+  'failures.empty.needsDecision': 'Er wacht niets op een beslissing.',
+  'failures.stillTrying': 'Wordt nog geprobeerd',
+  'failures.empty.retrying': 'Er wordt niets opnieuw geprobeerd.',
+  'failures.retry': 'Probeer opnieuw',
+  'failures.accept': 'Migreer zonder dit item',
+  'failures.try.one': 'poging',
+  'failures.try.many': 'pogingen',
 };
 
 export type Locale = 'en' | 'nl';
