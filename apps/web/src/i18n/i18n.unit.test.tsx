@@ -17,6 +17,7 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { STRINGS, LOCALES } from './strings';
 import { APPLY_FLAG_WARNING, APPLY_FLAG_WARNING_NL } from '@openmig/shared';
 import { LocaleProvider, useLocale, detectLocale } from './index';
+import { ReceiptStatus } from '../components/queues/primitives';
 
 afterEach(() => {
   cleanup();
@@ -108,5 +109,22 @@ describe('LocaleProvider', () => {
     render(<Probe />);
     expect(screen.getByTestId('locale').textContent).toBe('en');
     expect(screen.getByTestId('deletions').textContent).toBe('Deletions');
+  });
+
+  it('the queue primitives speak Dutch under nl — and the refusal stays the server verbatim', () => {
+    window.localStorage.setItem('openmig.locale', 'nl');
+    render(
+      <LocaleProvider>
+        <ReceiptStatus receipt={{ state: 'queued' } as never} />
+        <ReceiptStatus
+          receipt={{ state: 'refused', code: 'inferred_evidence', reason: 'Only positive evidence may be acted on' } as never}
+        />
+      </LocaleProvider>,
+    );
+    expect(screen.getByText(/Verwijdering in de wachtrij/)).toBeTruthy();
+    // Rule 2: the gates' words render untranslated, code included.
+    expect(
+      screen.getByText(/Only positive evidence may be acted on \(inferred_evidence\)/),
+    ).toBeTruthy();
   });
 });

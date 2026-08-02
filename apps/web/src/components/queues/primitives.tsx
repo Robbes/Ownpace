@@ -10,19 +10,29 @@
 import React from 'react';
 import { AlertCircle, AlertTriangle, Check, Info, Loader2, Trash2 } from 'lucide-react';
 import type { ApplyReceipt, DeletionEvidence, MappingLifecycle } from '@openmig/shared';
+import { useT } from '../../i18n';
+import type { StringKey } from '../../i18n';
 
-const DOMAIN_LABEL: Record<string, string> = {
-  email: 'Email',
-  calendar: 'Calendar',
-  contact: 'Contacts',
-  file: 'Files',
+// Client-authored strings here go through the dictionary (workplan 0024 T2);
+// SERVER prose (guidance entries, refusal reasons, whatThisMeans) renders
+// verbatim as ever — translating it is drift (rule 2/ADR-0026).
+
+const DOMAIN_KEY: Record<string, StringKey> = {
+  email: 'domain.email',
+  calendar: 'domain.calendar',
+  contact: 'domain.contact',
+  file: 'domain.file',
 };
 
-export const DomainTag: React.FC<{ domain: string }> = ({ domain }) => (
-  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
-    {DOMAIN_LABEL[domain] ?? domain}
-  </span>
-);
+export const DomainTag: React.FC<{ domain: string }> = ({ domain }) => {
+  const t = useT();
+  const key = DOMAIN_KEY[domain];
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
+      {key ? t(key) : domain}
+    </span>
+  );
+};
 
 /**
  * The natural-key hash, shortened.
@@ -48,16 +58,20 @@ export const HashChip: React.FC<{ hash: string }> = ({ hash }) => (
  * items could ever have an apply button without reading a word.
  */
 export const EvidenceBadge: React.FC<{ evidence: DeletionEvidence }> = ({ evidence }) => {
+  const t = useT();
   const style =
     evidence === 'inferred'
       ? 'bg-amber-50 text-amber-800 border-amber-200'
       : 'bg-emerald-50 text-emerald-800 border-emerald-200';
+  // The badge TEXT stays the server's own evidence word (the operating
+  // vocabulary the docs and receipts use); the explanatory title is client
+  // prose and translates.
   const title =
     evidence === 'reported'
-      ? 'The source itself told us the object was gone.'
+      ? t('evidence.reported.title')
       : evidence === 'trashed'
-        ? "We found it in the owner's Deleted Items — the old system's own record that they deleted it."
-        : 'It stopped appearing in consecutive complete scans. A suspicion, not a fact — this can never be applied.';
+        ? t('evidence.trashed.title')
+        : t('evidence.inferred.title');
   return (
     <span
       className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${style}`}
@@ -87,10 +101,12 @@ export const ClosedBanner: React.FC<{ text: string }> = ({ text }) => (
 export const GuidancePanel: React.FC<{
   entries: Readonly<Record<string, string>>;
   meaning?: string;
-}> = ({ entries, meaning }) => (
+}> = ({ entries, meaning }) => {
+  const t = useT();
+  return (
   <details className="mt-4 text-sm">
     <summary className="cursor-pointer text-gray-600 hover:text-gray-900">
-      What this means and what you can do
+      {t('guidance.summary')}
     </summary>
     <div className="mt-2 p-4 rounded-lg bg-gray-50 space-y-2">
       {meaning && <p className="text-gray-800">{meaning}</p>}
@@ -104,7 +120,8 @@ export const GuidancePanel: React.FC<{
       </dl>
     </div>
   </details>
-);
+  );
+};
 
 export const QueueSection: React.FC<{
   title: string;
@@ -214,12 +231,15 @@ export const Refused: React.FC<{ text: string }> = ({ text }) => (
  * other would either dress a failure up as an answer or bury an answer in an
  * error style nobody reads calmly.
  */
-export const JobFailed: React.FC<{ error: string }> = ({ error }) => (
-  <span className="inline-flex items-start gap-1 text-xs text-red-700">
-    <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-    The removal job failed: {error}
-  </span>
-);
+export const JobFailed: React.FC<{ error: string }> = ({ error }) => {
+  const t = useT();
+  return (
+    <span className="inline-flex items-start gap-1 text-xs text-red-700">
+      <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+      {t('receipt.failedPrefix')} {error}
+    </span>
+  );
+};
 
 /**
  * One apply receipt's lifecycle, rendered without softening (workplan 0019 T2).
@@ -230,13 +250,14 @@ export const JobFailed: React.FC<{ error: string }> = ({ error }) => (
  * the gates' code and prose verbatim, `failed` is a failure with its reason.
  */
 export const ReceiptStatus: React.FC<{ receipt: ApplyReceipt }> = ({ receipt }) => {
+  const t = useT();
   switch (receipt.state) {
     case 'queued':
     case 'none':
       return (
         <span className="inline-flex items-start gap-1 text-xs text-gray-600">
           <Loader2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 animate-spin" />
-          Removal queued — the job re-checks every gate before touching anything.
+          {t('receipt.queued')}
         </span>
       );
     case 'applied':
@@ -244,13 +265,14 @@ export const ReceiptStatus: React.FC<{ receipt: ApplyReceipt }> = ({ receipt }) 
         <Resolved
           effect={
             receipt.kind === 'binned'
-              ? "Removed — moved to the target's own bin; a copy may still be recoverable there."
+              ? t('receipt.applied.binned')
               : receipt.kind === 'deleted'
-                ? 'Removed — gone, with no recovery path from here.'
-                : 'Removed. How final the removal was is not recorded on the receipt.'
+                ? t('receipt.applied.deleted')
+                : t('receipt.applied.unknown')
           }
         />
       );
+    // Refusals render the gates' code + prose VERBATIM (rule 2) — no t().
     case 'refused':
       return <Refused text={`${receipt.reason} (${receipt.code})`} />;
     case 'failed':
@@ -258,8 +280,9 @@ export const ReceiptStatus: React.FC<{ receipt: ApplyReceipt }> = ({ receipt }) 
   }
 };
 
-export const LIFECYCLE_NOTE: Record<MappingLifecycle, string | undefined> = {
-  paused: 'This migration has not started, so nothing has been copied and nothing can have diverged.',
+/** Dictionary keys for the lifecycle note (only `paused` has one today). */
+export const LIFECYCLE_NOTE_KEY: Record<MappingLifecycle, StringKey | undefined> = {
+  paused: 'lifecycle.paused',
   active: undefined,
   cutover: undefined,
   done: undefined,
