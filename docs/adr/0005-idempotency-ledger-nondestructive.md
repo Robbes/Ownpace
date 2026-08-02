@@ -3,6 +3,12 @@
 - **Status:** Accepted
 - **Date:** 2026-06-20
 
+> **Update 2026-08-02:** "deletions are never auto-propagated" still holds —
+> and [ADR-0024](./0024-explicit-owner-deletion-apply.md) records the ONE
+> deliberate, gated exception built since: `apply`, an explicit per-item owner
+> decision behind seven gates. Nothing automatic changed; read 0024 before
+> touching anything on that path.
+
 ## Context
 Migrations must be safely re-runnable and able to shadow-run indefinitely without duplicates or data loss.
 

@@ -35,7 +35,7 @@ The self-host edition is container/Linux-first (Docker Compose, NAS/Pi/Spark, He
 ## Consequences
 - Windows 11 works now (WSL2/Docker Desktop); a nicer native tray experience is a known, non-disruptive future option.
 - The JMAP-first mail path is binary-free and therefore the most portable; the IMAP/DAV/files paths may still want WSL2 or a bundled runtime on native Windows (imapsync especially).
-- A Tauri build, when pursued, must spawn/bundle the Node runtime as a sidecar and ship the web UI assets; the self-host SQLite state is already embeddable. It adds a multi-OS packaging/build pipeline.
+- A Tauri build, when pursued, must spawn/bundle the Node runtime as a sidecar and ship the web UI assets; the self-host SQLite state is already embeddable. *(Update 2026-08-02: read "SQLite state" as PGlite — SQLite was dropped by ADR-0023, and the embeddable-state property this consequence relies on is provided by PGlite since ADR-0028.)* It adds a multi-OS packaging/build pipeline.
 - The tension with ADR-0007 (reuse over reimplement) is intentional and bounded: prefer JS-native **only** where it does not sacrifice fidelity or robustness; otherwise keep the battle-tested CLI engines.
 
 ## Alternatives considered
