@@ -1,8 +1,9 @@
 # Operator Runbook — Managed Edition
 
 Operational procedures for whoever runs the **managed** control plane (the multi-tenant service),
-as distinct from a self-host owner running the single-tenant appliance (see the future
-`selfhost-quickstart.md`). Stack definition: [`deploy/compose/managed.yml`](../deploy/compose/managed.yml).
+as distinct from a self-host owner running the single-tenant appliance (see
+[`selfhost-quickstart.md`](./selfhost-quickstart.md)). Stack definition:
+[`deploy/compose/managed.yml`](../deploy/compose/managed.yml).
 
 > **Scope note (rewritten 2026-08-01, workplan 0020 T4).** This runbook's managed half now
 > describes the REAL bring-up, verified live: the full compose stack including the Trigger.dev
@@ -10,8 +11,9 @@ as distinct from a self-host owner running the single-tenant appliance (see the 
 > deploy, and `smoke-managed.sh` as the acceptance test. **One execution plane** (workplan
 > 0022, per the 0020 T8 owner decision): syncs are started by the `managed-sync-tick`
 > scheduled task, and every job — sync, verify, apply, discovery — executes as a deployed
-> Trigger.dev task. There is no worker/poller container. The appliance-flavored sections
-> further down (127.0.0.1:8080 URLs) are workplan 0021's to fix.
+> Trigger.dev task. There is no worker/poller container. The ledger-semantics sections further
+> down ("Items that would not migrate" onward) apply to BOTH editions and illustrate with the
+> appliance's local URLs — see the scope banner there (0021 T2).
 
 ## What the operator can and cannot see
 
@@ -54,9 +56,10 @@ Migration `0009` creates a **non-owner `app_user`** role. RLS is enforced throug
 - `DATABASE_URL` → the DB **owner** (`POSTGRES_USER`). In the postgres image the bootstrap user is a
   **superuser**, which **bypasses RLS even under FORCE**. Used only for **migrations** and the
   **demo seed** — never for the request path.
-- `APP_DATABASE_URL` → the **`app_user`** role. The API and worker connect through this for all
-  tenant data, so row-level security is always in force (workplan 0011 T1). If you ever point the
-  app at the owner URL, tenant isolation silently disappears — don't.
+- `APP_DATABASE_URL` → the **`app_user`** role. The API and the deployed Trigger.dev tasks
+  connect through this for all tenant data, so row-level security is always in force (workplan
+  0011 T1; `set-task-env.sh` uploads both URLs into the task env). If you ever point the app at
+  the owner URL, tenant isolation silently disappears — don't.
 
 Change `APP_DB_PASSWORD` from the migration default (`app_password`) before any real deployment, and
 rotate it in the DB (`ALTER ROLE app_user PASSWORD …`) to match.
@@ -82,7 +85,7 @@ docker compose -f managed.yml up -d --build
 
 # Status / logs (status only — no content is ever logged):
 docker compose -f managed.yml ps
-docker compose -f managed.yml logs -f api worker
+docker compose -f managed.yml logs -f api
 
 # Stop (keep data):
 docker compose -f managed.yml stop
@@ -119,7 +122,7 @@ the first visit needs the browser's "accept the risk" step.
 
 ### Alternative: run apps from source (no image build)
 
-To iterate without rebuilding images, run the three app services from source against the compose
+To iterate without rebuilding images, run the app services from source against the compose
 Postgres (the DB port is published on `POSTGRES_PORT`, default 5432):
 
 ```bash
@@ -128,7 +131,8 @@ export APP_DATABASE_URL="postgres://app_user:<APP_DB_PASSWORD>@localhost:5432/op
 export JWT_SECRET="<same value as in .env>"
 pnpm --filter @openmig/api dev       # API on :3001
 pnpm --filter @openmig/web dev       # Web (Vite) dev server
-pnpm --filter @openmig/worker dev    # Worker
+# (There is no worker process to run — jobs execute as deployed Trigger.dev
+# tasks; iterate on them with deploy-tasks.sh below.)
 ```
 
 ## Seed a demo (two-tenant DoD journey)
@@ -150,7 +154,7 @@ first:
 
 # 2. Seed the two demo tenants, pointed at the accounts just created.
 #    Runs as the DB owner (bypasses RLS to create tenants); JWT_SECRET and
-#    SECRET_ENCRYPTION_KEY must match the API/worker's .env values — source
+#    SECRET_ENCRYPTION_KEY must match the API's/tasks' .env values — source
 #    them from the same file the stack runs on:
 cd ..              # repo root
 set -a; source deploy/compose/.env; set +a
@@ -192,8 +196,9 @@ workplan 0018.
    docker exec trigger-db psql -U trigger -d triggerdb -Atc \
      "SELECT e.\"apiKey\" FROM \"RuntimeEnvironment\" e JOIN \"Project\" p ON p.id = e.\"projectId\" WHERE e.slug = 'prod' ORDER BY e.\"createdAt\" DESC LIMIT 1"
    ```
-4. Recreate the api/worker so they pick up the new values:
-   `docker compose -f managed.yml up -d --force-recreate api worker`
+4. Recreate the API so it picks up the new values:
+   `docker compose -f managed.yml up -d --force-recreate api`
+   (and re-run `set-task-env.sh` if a value the tasks read changed)
 5. Upload the task-runtime env vars (task containers inherit NOTHING from compose):
    ```bash
    ./deploy/compose/set-task-env.sh
@@ -291,6 +296,22 @@ Erasure = **revoke access, then purge data + ledger + logs** for that tenant.
 > `pnpm --filter @openmig/web build:selfhost`. The JSON endpoints work either
 > way.
 
+## Scope note for everything below — both editions, appliance URLs shown
+
+The sections from here down describe **ledger semantics shared by both
+editions**: failure queues, drift, deletions, `apply`, moves, and finishing.
+The behavior — the gates, the evidence kinds, the refusal codes — is
+identical; only how you reach it differs:
+
+- **Appliance (self-host):** the local HTTP routes shown in the examples.
+  The shipped compose publishes them on `http://127.0.0.1:8081` (the
+  `${SELFHOST_PORT:-8081}` default; an appliance run from source with no
+  `PORT` set uses 8080). The examples below use **8081**.
+- **Managed:** the same operations live under each mapping's API path
+  (`/api/migrations/:mappingId/…`, tenant-scoped, authenticated) and — like
+  the appliance — as the shared per-mapping screens (ADR-0026): Mappings →
+  mapping → deletions / moves / failures / check / finish.
+
 ## Items that would not migrate
 
 One unmigratable item does not stop its domain: the pass records it, steps over
@@ -377,7 +398,7 @@ decide, so the disappearance goes in a queue.
 | Where | What it tells you |
 |---|---|
 | `GET /deletions` | `confirmed`, `watching` and `acknowledged`, each with the collection it vanished from, its `evidence`, and `absentPasses` |
-| worker log | one warning per domain per pass, with a count |
+| appliance log / task run log | one warning per domain per pass, with a count |
 
 **`evidence` is the field to read first.** There are two ways we come to believe
 an item is gone, and they are different in kind, not in degree.
@@ -503,7 +524,7 @@ source somehow lists the same key again afterwards (an owner can legitimately
 so would silently undo the decision you just made, and this tool has no way to
 tell "changed my mind" from "this was an erasure request and putting it back is
 a compliance failure". It is reported instead (`reappearedAfterRemoval` in the
-pass result, and a warning in the worker log) and the tombstone stands.
+pass result, and a warning in the appliance/task log) and the tombstone stands.
 
 Coverage today, by domain:
 
@@ -592,7 +613,7 @@ node test/e2e/trash-dav-file-source.mjs
 # comes straight from the next sync-collection REPORT.
 node test/e2e/trash-caldav-source.mjs
 
-curl -s http://127.0.0.1:8080/deletions | jq
+curl -s http://127.0.0.1:8081/deletions | jq
 ```
 
 `test/e2e/move-dav-source.mjs` does the equivalent for a relocated calendar event.
@@ -620,7 +641,7 @@ tool never does on its own (hard rule 2).
 | Where | What it tells you |
 |---|---|
 | `GET /moves` | `open` and `acknowledged`, each with `from` and `to` |
-| worker log | one warning per domain per pass, with a count |
+| appliance log / task run log | one warning per domain per pass, with a count |
 
 Two answers, per item:
 
@@ -660,25 +681,25 @@ The order that works:
 #    domain and tells you whether it is safe to proceed. Start the scan, then
 #    poll the report to a terminal state (the synchronous GET /verify is
 #    retired — 0019 T6; the scan holds no HTTP request open any more):
-curl -sX POST http://127.0.0.1:8080/verify/start | jq
-curl -s http://127.0.0.1:8080/verify/report | jq   # repeat until state is done/failed
-curl -s http://127.0.0.1:8080/verify/report | jq '.report[].canProceedToCutover'
+curl -sX POST http://127.0.0.1:8081/verify/start | jq
+curl -s http://127.0.0.1:8081/verify/report | jq   # repeat until state is done/failed
+curl -s http://127.0.0.1:8081/verify/report | jq '.report[].canProceedToCutover'
 
 # 2. Clear the decision queues. Anything here is a real question:
 #    /failures = could not be copied, /moves and /deletions = the owner changed
 #    something. Nothing outstanding should be a surprise at this point.
-curl -s http://127.0.0.1:8080/failures  | jq
-curl -s http://127.0.0.1:8080/moves     | jq
-curl -s http://127.0.0.1:8080/deletions | jq
+curl -s http://127.0.0.1:8081/failures  | jq
+curl -s http://127.0.0.1:8081/moves     | jq
+curl -s http://127.0.0.1:8081/deletions | jq
 
 # 3. Run one last pass, so the target reflects the source as of right now.
-curl -sX POST http://127.0.0.1:8080/mappings/<mappingId>/run
+curl -sX POST http://127.0.0.1:8081/mappings/<mappingId>/run
 
 # 4. Move mail delivery to the new system (MX/DNS, client reconfiguration —
 #    outside this tool; `openmig runbook` generates the DNS steps).
 
 # 5. Finish. The mapping stops syncing and stops reporting.
-curl -sX POST http://127.0.0.1:8080/mappings/<mappingId>/finish
+curl -sX POST http://127.0.0.1:8081/mappings/<mappingId>/finish
 ```
 
 **What `finish` does and does not do.** It sets the mapping to `done` and
@@ -693,7 +714,7 @@ because finishing over those quietly turns "we are still working on this" into
 behind), or say so explicitly:
 
 ```sh
-curl -sX POST 'http://127.0.0.1:8080/mappings/<mappingId>/finish?force=true'
+curl -sX POST 'http://127.0.0.1:8081/mappings/<mappingId>/finish?force=true'
 ```
 
 The response then reports `leftUnmigrated`, so the choice is on the record.
@@ -715,7 +736,7 @@ result and run it again if not.
 
 ## Health & troubleshooting
 
-- **API/worker won't connect / RLS errors on every query:** confirm `APP_DATABASE_URL` is set and
+- **API or tasks won't connect / RLS errors on every query:** confirm `APP_DATABASE_URL` is set and
   points at `app_user` (not the owner), and that migration `0009` ran (the role exists).
 - **"fail-closed" errors with no tenant context:** expected when a query runs without
   `app.current_tenant` set — that's RLS doing its job, not a bug. The request path must go through

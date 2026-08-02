@@ -8,12 +8,13 @@ domains** (mail / calendar / contacts / files) with the same engines as the
 managed edition, and loads **none** of the managed-only machinery (no Trigger.dev,
 no billing). Container-first per **ADR-0019**; Postgres-backed per **ADR-0023**.
 
-> **Footprint note (ADR-0023).** Earlier designs imagined an embedded SQLite file.
-> Both editions now standardise on Postgres, and the appliance bundles a small
-> Postgres container. That costs ~a few hundred MB of RAM over a file, in exchange
-> for one storage engine, one migration path, and the RLS option the managed
-> edition needs. The "no container / embedded Postgres" path is parked as future
-> work, not this bundle.
+> **Footprint note (ADR-0023, amended by ADR-0028).** Earlier designs imagined an
+> embedded SQLite file. Both editions standardise on Postgres — but since
+> ADR-0028 the appliance can run it **embedded** (PGlite, Postgres compiled to
+> WASM, in-process): same SQL, same migrations, same RLS, no second container,
+> no port. The bundled-Postgres compose below remains the default; the
+> no-Postgres-server shape is one override file away (see "No Postgres server:
+> the PGlite variant" under step 4).
 
 ## What you need
 
@@ -57,8 +58,10 @@ Edit `deploy/selfhost/.env`:
   your mapping (step 3).
 - Optional: `SELFHOST_BIND` (default `127.0.0.1` — localhost only; set to
   `0.0.0.0` to reach `/status` from the LAN, behind your own firewall),
-  `SELFHOST_PORT` (default `8080`), `SELFHOST_IMAGE` (pin to a `stable` tag or a
-  digest for production — see **Upgrades** below).
+  `SELFHOST_PORT` (the compose files default to `8081`), `SELFHOST_IMAGE` (pin
+  to a `stable` tag or a digest for production — see **Upgrades** below).
+  (Running the appliance straight from source with `pnpm` and no `PORT` set
+  defaults to `8080` — the examples in this guide use the compose port, 8081.)
 
 - **`LOG_LEVEL`** — `error` | `warn` | `info` (default) | `debug`. Raise it to
   `debug` when a migration is slower than you expect: the appliance then prints
@@ -115,7 +118,7 @@ Postgres comes up and passes its healthcheck → the app applies the ledger
 migrations under an advisory lock → the app becomes healthy. Check it:
 
 ```sh
-curl -s http://127.0.0.1:8080/healthz          # {"status":"ok"}
+curl -s http://127.0.0.1:8081/healthz          # {"status":"ok"}
 docker compose -f deploy/selfhost/compose.yml logs -f app
 ```
 
@@ -123,6 +126,33 @@ A new mapping loads **paused** — it is not scheduled yet. In the background th
 appliance runs a read-only, body-free **discovery** pass against your source
 (counting mailboxes/messages, calendars/events, address books/contacts,
 drives/files — never fetching content) and stores the counts.
+
+### No Postgres server: the PGlite variant (ADR-0028)
+
+The appliance can run with **no Postgres container at all** — PGlite is
+Postgres compiled to WASM running in-process, so the database becomes a
+directory inside the app's own state volume. Same SQL, same migrations, same
+RLS; the *server* goes away, not Postgres. Start it with the override file:
+
+```sh
+docker compose -f deploy/selfhost/compose.yml \
+               -f deploy/selfhost/compose.pglite.yml up -d
+```
+
+The override sets `SELFHOST_PERSISTENCE=pglite` and
+`SELFHOST_PGLITE_DIR=/data/state/pglite`; `DATABASE_URL` and
+`POSTGRES_PASSWORD` are simply not used on this path. Everything else in this
+guide — ports, config directory, every URL — is identical. Two differences
+that matter:
+
+- **One container instead of two**, and nothing listening on the Postgres
+  port. This is the shape the future native Windows installer ships
+  (workplan 0015).
+- **Backups work differently** — there is no `pg_dump`; see the Backup
+  section below.
+
+The local-disk warning above applies unchanged: the PGlite directory is still
+a Postgres data directory and must not live on a network share.
 
 ## 5. Review & confirm
 
@@ -161,8 +191,10 @@ and the Nextcloud file trashbin lives at an endpoint the tool does not read.
 
 
 
-Open `http://127.0.0.1:8080/` in a browser (or over the LAN if you set
-`SELFHOST_BIND=0.0.0.0`). For each configured mapping you'll see the discovery
+Open `http://127.0.0.1:8081/` in a browser (or over the LAN if you set
+`SELFHOST_BIND=0.0.0.0`) — the root redirects to the confirm screen at
+`/ui/confirm`, part of the shared operating UI (ADR-0026). For each
+configured mapping you'll see the discovery
 counts as they land, next to the scope manifest — what migrates, what's
 partial, and what's explicitly **not** migrated (SAD §11.2, "no silent
 omissions"). Nothing has been copied yet. Once you're satisfied, click
@@ -172,9 +204,9 @@ in-process scheduler picks it up on its normal cron from then on.
 The same information is available as JSON, if you'd rather script it:
 
 ```sh
-curl -s http://127.0.0.1:8080/scope-manifest | jq   # what migrates / partial / does not
-curl -s http://127.0.0.1:8080/discovery | jq         # per-mapping discovery counts
-curl -si -X POST http://127.0.0.1:8080/mappings/<mappingId>/start   # green light
+curl -s http://127.0.0.1:8081/scope-manifest | jq   # what migrates / partial / does not
+curl -s http://127.0.0.1:8081/discovery | jq         # per-mapping discovery counts
+curl -si -X POST http://127.0.0.1:8081/mappings/<mappingId>/start   # green light
 ```
 
 `POST /mappings/:id/start` is idempotent (a second click on an already-active
@@ -188,7 +220,7 @@ duplicated.
 ## 6. Read `/status`
 
 ```sh
-curl -s http://127.0.0.1:8080/status | jq
+curl -s http://127.0.0.1:8081/status | jq
 ```
 
 You get per-mapping, per-domain state derived from the ledger: `state`
@@ -210,7 +242,7 @@ are transient and resolve themselves. After **5 attempts** an item stops being
 retried and waits for you.
 
 ```sh
-curl -s http://127.0.0.1:8080/failures | jq
+curl -s http://127.0.0.1:8081/failures | jq
 ```
 
 You get two lists per mapping:
@@ -232,7 +264,7 @@ Read `lastError` first; it is the whole reason the queue exists. Then choose:
 raised a quota):
 
 ```sh
-curl -X POST http://127.0.0.1:8080/mappings/<mappingId>/failures/<naturalKeyHash>/retry
+curl -X POST http://127.0.0.1:8081/mappings/<mappingId>/failures/<naturalKeyHash>/retry
 ```
 
 Attempts reset to zero and the item is tried again on the next scheduled pass.
@@ -244,7 +276,7 @@ nothing else — re-listing is idempotent, never a re-copy.
 without it:
 
 ```sh
-curl -X POST http://127.0.0.1:8080/mappings/<mappingId>/failures/<naturalKeyHash>/accept
+curl -X POST http://127.0.0.1:8081/mappings/<mappingId>/failures/<naturalKeyHash>/accept
 ```
 
 Permanent. The item stops being retried, and stops counting as missing at the
@@ -275,8 +307,8 @@ Nothing you delete in the old system is deleted in the new one **by default**.
 Instead it is reported at `GET /deletions`, and you say what you want:
 
 ```sh
-curl -s http://127.0.0.1:8080/deletions | jq
-curl -X POST http://127.0.0.1:8080/mappings/<mappingId>/deletions/<naturalKeyHash>/keep
+curl -s http://127.0.0.1:8081/deletions | jq
+curl -X POST http://127.0.0.1:8081/mappings/<mappingId>/deletions/<naturalKeyHash>/keep
 ```
 
 How quickly it shows up depends on how we found out, which each entry states as
@@ -312,7 +344,7 @@ working as designed. If you genuinely want something gone, delete it in the new
 system yourself — or, for `reported`/`trashed` evidence, ask this tool to do it:
 
 ```sh
-curl -X POST http://127.0.0.1:8080/mappings/<mappingId>/deletions/<naturalKeyHash>/apply
+curl -X POST http://127.0.0.1:8081/mappings/<mappingId>/deletions/<naturalKeyHash>/apply
 ```
 
 This is the ONE call in the whole appliance that deletes anything, so it is off
@@ -357,6 +389,22 @@ docker compose -f deploy/selfhost/compose.yml exec postgres \
 ```
 
 Keep the dump off the host. Restore into a fresh volume with `psql` if needed.
+
+**On the PGlite variant there is no `pg_dump`** — no server to connect to.
+The database is the `pglite` directory inside the app's state volume; back it
+up by copying that directory **while the appliance is stopped** (a copy taken
+mid-write is not a consistent snapshot):
+
+```sh
+docker compose -f deploy/selfhost/compose.yml -f deploy/selfhost/compose.pglite.yml stop app
+# Find the state volume's real name first (compose prefixes it with the
+# project name): docker volume ls | grep appdata
+docker run --rm -v <project>_appdata:/data -v "$PWD":/backup alpine \
+  tar czf /backup/openmigrate-pglite-$(date +%F).tar.gz -C /data state/pglite
+docker compose -f deploy/selfhost/compose.yml -f deploy/selfhost/compose.pglite.yml start app
+```
+
+Restore by untarring into the volume the same way, again with the app stopped.
 
 > **Recovery (ADR-0020): ledger loss ≠ data loss.** The ledger records what was
 > migrated; the migrated data lives on the **target**. If you lose the ledger,
