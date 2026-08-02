@@ -46,6 +46,14 @@ owner keeps becomes its own workplan (the 0023/0024 pattern).
    (`packages/shared/src/throttling.ts:394`, wired in both build-deps).
    Either build per-domain limiters or make the config type say what
    actually happens.
+5. **Wire `reindexFromTarget` to an invokable surface** (added 2026-08-02 —
+   T3 row 1 decided KEEP, and the build is small enough to live here: the
+   reindexer is built and tested, only the doorway is missing). An explicit
+   operator command in both editions (appliance route/CLI step, managed
+   job) plus ADR-0020's own on-startup half: detect "ledger empty, target
+   populated" and at minimum say it loudly, offering the reindex. A
+   recovery path that cannot be invoked during a disaster is a rule-9
+   promise.
 
 ## T2 — the dead web surface (needs the owner)
 
@@ -82,7 +90,7 @@ promising document (ADR/SAD/scope-manifest), exactly as 0021 T5 did.
 
 | # | Promise | Where it lives | What the code says |
 |---|---|---|---|
-| 1 | **Ledger reindex/adopt runs on startup + on demand** | ADR-0020 decision 3 | `reindexFromTarget` exists, tested, **called by nothing in production** — the recovery story cannot be invoked |
+| 1 | **Ledger reindex/adopt runs on startup + on demand** — **KEPT 2026-08-02 → T1 item 5** (wire the doorway; the reindexer is built) | ADR-0020 decision 3 | `reindexFromTarget` exists, tested, **called by nothing in production** — the recovery story cannot be invoked |
 | 2 | **Pattern D: shared-mailbox/group migration** — **KEPT 2026-08-02 → [workplan 0027](./0027-shared-addresses.md)** | SAD §14.1; **shown to owners in the pre-start scope manifest** | `group_def` table: zero code refs; no Graph groups discovery; `pattern` settable, read by nothing |
 | 3 | **Rich Graph extractor** (SharePoint versions/permissions/lists/pages) | SAD §13.1, ADR-0007; manifest says "Partial" | Zero code (no `/versions`, `/permissions`, sites, lists) |
 | 4 | **Permission inventory & guidance module** | SAD §14.2, §3 decision 6 | Zero code (no SendAs/FullAccess/sharing-link handling) |
@@ -126,7 +134,12 @@ is demand — it was only ever blocked on priority.
 the two categories discovery can already see (`new_mailbox`,
 `shared_address_pattern` — the latter wired to 0027 T1), presets as `auto`
 answers for those two only, and the other eight detectors left unbuilt and
-said to be unbuilt. 22 rows remain open.
+said to be unbuilt.
+
+**Update 2026-08-02 — row 1 decided: KEPT.** No new workplan — the
+reindexer exists and is tested, so wiring its doorway is T1-sized build
+work: it joins T1 as item 5 (operator command in both editions + the
+on-startup detection ADR-0020 promised). 21 rows remain open.
 
 ## T4 — mechanical truth sweep (no decisions; small PRs)
 
