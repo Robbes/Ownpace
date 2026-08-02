@@ -9,6 +9,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { buildDeps } from './build-deps';
+import { GraphMailSource } from '@openmig/connectors';
 import type { MappingConfig, SourceAuth } from '@openmig/shared';
 
 interface ImapSourceInternals {
@@ -66,6 +67,60 @@ describe('buildDeps IMAP source auth wiring', () => {
       expect(internals.auth.accessToken).toBe('tok');
       expect(internals.auth.password).toBeUndefined();
       await deps.close();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// graph-mail (workplan 0023 T2 — ADR-0006's IMAP-disabled fallback):
+// the OAUTH2_* env contract is REQUIRED here — no static-token fallback —
+// and a missing credential must refuse at build time naming the variable,
+// not fail mid-pass with a token error.
+// ---------------------------------------------------------------------------
+
+function graphMailConfig(): MappingConfig {
+  const base = configWith({ kind: 'login', passwordFromEnv: 'UNUSED' });
+  return {
+    ...base,
+    source: { type: 'graph-mail', tenantId: 'contoso.example' },
+  };
+}
+
+describe('buildDeps graph-mail source wiring', () => {
+  it('builds a GraphMailSource on the client-credentials flow', async () => {
+    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
+    vi.stubEnv('OAUTH2_CLIENT_ID', 'app-id');
+    vi.stubEnv('OAUTH2_CLIENT_SECRET', 'app-secret');
+    vi.stubEnv('TGT_PASSWORD', 'pw');
+    try {
+      const deps = await buildDeps(graphMailConfig());
+      expect(deps.source).toBeInstanceOf(GraphMailSource);
+      await deps.close();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('refuses at build time, naming OAUTH2_CLIENT_ID, when it is missing', async () => {
+    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
+    vi.stubEnv('TGT_PASSWORD', 'pw');
+    try {
+      await expect(buildDeps(graphMailConfig())).rejects.toThrow(/OAUTH2_CLIENT_ID/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('refuses when neither OAUTH2_CLIENT_SECRET nor OAUTH2_REFRESH_TOKEN is set', async () => {
+    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
+    vi.stubEnv('OAUTH2_CLIENT_ID', 'app-id');
+    vi.stubEnv('TGT_PASSWORD', 'pw');
+    try {
+      await expect(buildDeps(graphMailConfig())).rejects.toThrow(
+        /OAUTH2_CLIENT_SECRET.*OAUTH2_REFRESH_TOKEN/,
+      );
     } finally {
       vi.unstubAllEnvs();
     }

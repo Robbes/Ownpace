@@ -28,6 +28,7 @@ import {
 } from '@openmig/shared';
 import {
   ImapSource,
+  GraphMailSource,
   ImapDavMailTarget,
   type ImapDavTargetConfig,
   createTokenProvider,
@@ -234,17 +235,69 @@ function buildThrottleLimiter(config: MappingConfig): ThrottleLimiter | undefine
 
 /**
  * Build a source connector from the mapping config.
- * Supports imap-oauth2 with TokenProvider for automatic token refresh.
+ * Supports imap-oauth2 (TokenProvider for automatic token refresh) and
+ * graph-mail (workplan 0023 T2 — ADR-0006's IMAP-disabled fallback).
  * Note: For graph-calendar and graph-contacts, use separate build functions.
  */
 function buildSourceConnector(sourceConfig: MappingConfig['source'], throttleLimiter?: ThrottleLimiter): SourceConnector {
   switch (sourceConfig.type) {
     case 'imap-oauth2':
       return buildImapSource(sourceConfig, throttleLimiter);
-    
+    case 'graph-mail':
+      return buildGraphMailSource(sourceConfig, throttleLimiter);
+
     default:
-      throw new Error(`Unsupported source type for ReconcileDeps: ${(sourceConfig as {type: string}).type}. Use buildGraphCalendarSource or buildGraphContactsSource for graph sources.`);
+      throw new Error(`Unsupported source type for ReconcileDeps: ${(sourceConfig as {type: string}).type}. Use buildGraphCalendarSource or buildGraphContactsSource for graph cal/contact sources.`);
   }
+}
+
+/**
+ * Build the Graph mail source (workplan 0023 T2).
+ *
+ * Token credentials come from the same OAUTH2_* env vars the IMAP XOAUTH2
+ * path already reads — but here they are REQUIRED: there is no static-token
+ * fallback (a Graph token expires within the first long pass), and
+ * constructing the source without a working token provider would fail later
+ * and less clearly. Fail at build time, naming the variable (rule 9).
+ *
+ * Two flows, chosen by what is set: OAUTH2_REFRESH_TOKEN -> delegated
+ * refresh-token flow scoped to Mail.Read; otherwise OAUTH2_CLIENT_SECRET ->
+ * client-credentials with .default (application permissions — needs admin
+ * consent plus an Application Access Policy, ADR-0006).
+ */
+function buildGraphMailSource(sourceConfig: MappingConfig['source'], throttleLimiter?: ThrottleLimiter): SourceConnector {
+  if (sourceConfig.type !== 'graph-mail') {
+    throw new Error(`Expected graph-mail source, got: ${sourceConfig.type}`);
+  }
+
+  const clientId = process.env.OAUTH2_CLIENT_ID;
+  const clientSecret = process.env.OAUTH2_CLIENT_SECRET;
+  const refreshToken = process.env.OAUTH2_REFRESH_TOKEN;
+
+  if (!clientId) {
+    throw new Error('graph-mail source: OAUTH2_CLIENT_ID is not set (the Entra app registration id)');
+  }
+  if (!clientSecret && !refreshToken) {
+    throw new Error(
+      'graph-mail source: set OAUTH2_CLIENT_SECRET (client-credentials flow) or OAUTH2_REFRESH_TOKEN (delegated flow)',
+    );
+  }
+
+  const tokenProvider = createTokenProvider({
+    tokenEndpoint: `https://login.microsoftonline.com/${sourceConfig.tenantId}/oauth2/v2.0/token`,
+    clientId,
+    clientSecret,
+    refreshToken,
+    tenantId: sourceConfig.tenantId,
+    scope: refreshToken
+      ? 'https://graph.microsoft.com/Mail.Read offline_access'
+      : 'https://graph.microsoft.com/.default',
+  });
+
+  return new GraphMailSource(tokenProvider, sourceConfig.tenantId, {
+    baseUrl: sourceConfig.baseUrl,
+    throttleLimiter,
+  });
 }
 
 /**
@@ -305,10 +358,11 @@ function buildImapSource(sourceConfig: MappingConfig['source'], throttleLimiter?
 }
 
 // NOTE: Microsoft Graph calendar/contacts sources are not wired into the
-// file-config path (only imap-oauth2 mail + caldav/carddav/webdav DAV domains
-// are). The previous `_buildGraph*` scaffolding here was dead code; supporting
-// Graph sources is a future feature, tracked separately. `buildSourceConnector`
-// throws a clear "Unsupported source type" until then.
+// file-config path (imap-oauth2 + graph-mail for mail, caldav/carddav/webdav
+// for the DAV domains). The previous `_buildGraph*` scaffolding here was dead
+// code; supporting Graph cal/contact sources is a future feature, tracked
+// separately. `buildSourceConnector` throws a clear "Unsupported source type"
+// until then. (graph-mail joined in workplan 0023 T2 — ADR-0006's fallback.)
 
 /**
  * Build a target writer from the mapping config.
