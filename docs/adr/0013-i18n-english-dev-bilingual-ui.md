@@ -14,6 +14,14 @@
 > T4 (the server-prose boundary) follow there. One boundary is already
 > decided: server REFUSAL prose renders verbatim (rule 2/ADR-0024) and is
 > deliberately not translated.
+>
+> **Update 2026-08-02 (later the same day): built.** All four tasks landed —
+> T2 made every operating screen bilingual (five slices), T3 routed dates,
+> times and numbers through shared `Intl` helpers keyed on the app locale
+> (retiring `date-fns`), and T4 drew the full server-prose boundary per
+> class in **`docs/i18n-prose-boundary.md`** — the rule in one line:
+> *translate the frame, never the finding.* Notifications still do not
+> exist; when built, their prose is day-one-bilingual under those classes.
 
 ## Context
 The project is built with coding agents and may attract international contributors; the initial end-user audience is Dutch and English speaking.

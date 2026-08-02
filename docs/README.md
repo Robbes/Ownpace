@@ -23,7 +23,9 @@ Operational how-tos already live at the docs root: the runbooks (`operator-runbo
 `cutover-runbook.md`, `selfhost-quickstart.md`, `TROUBLESHOOTING.md`), connector guides
 (`dav-sync.md` — CalDAV, CardDAV and WebDAV in one), `o365-setup.md`, `dns-management.md`,
 `rls-guide.md`, `rollback-mechanisms.md`, `target-providers.md`,
-`desec-provider-assessment.md`, the cutover comms templates
+`desec-provider-assessment.md`, `i18n-prose-boundary.md` (what the bilingual
+UI may and may not translate, per prose class — read it before adding
+user-facing strings), the cutover comms templates
 (`cutover-communication-templates.md`), and the one-off audit note
 `test-fixture-uuid-collision-audit.md` (its remediation shipped as the
 `fixture-uuid-check` CI job). A dedicated `guides/` / `runbooks/` split can come later if
