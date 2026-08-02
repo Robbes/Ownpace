@@ -404,6 +404,25 @@ export const APPLY_FLAG_WARNING =
   'nothing can be removed however the endpoint is called.';
 
 /**
+ * The same warning in Dutch (ADR-0013, workplan 0024). It lives HERE, beside
+ * its English source, for the same reason the English lives here at all
+ * (ADR-0026): prose in front of the destructive path must have one source of
+ * truth — a translation kept in a web-app dictionary would drift from the
+ * sentence it translates without anything noticing. Update BOTH or neither.
+ */
+export const APPLY_FLAG_WARNING_NL =
+  'Als u dit inschakelt, activeert u de enige bewerking in dit product die ' +
+  'iets verwijdert: op uw uitdrukkelijke beslissing per item wordt de kopie ' +
+  'die deze migratie naar het nieuwe systeem schreef verwijderd, volgend op ' +
+  'een verwijdering die de eigenaar in het oude systeem deed. Elke ' +
+  'verwijdering moet nog steeds elke controle doorstaan — uitsluitend ' +
+  'positief bewijs (nooit een afgeleide afwezigheid), alleen items die dit ' +
+  'programma zelf schreef, nooit een kopie die iemand sindsdien heeft ' +
+  'bewerkt, en de massaverwijderings-stroomonderbreker. Zolang dit uit ' +
+  'staat, kan er niets worden verwijderd, hoe het eindpunt ook wordt ' +
+  'aangeroepen.';
+
+/**
  * A migration that has been ended.
  *
  * Finishing stops the shadow sync: the mapping is no longer scheduled, so
