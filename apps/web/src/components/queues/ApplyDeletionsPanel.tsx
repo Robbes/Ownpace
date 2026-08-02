@@ -17,7 +17,8 @@
 import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ShieldCheck, ShieldOff } from 'lucide-react';
-import { APPLY_FLAG_WARNING } from '@openmig/shared';
+import { APPLY_FLAG_WARNING, APPLY_FLAG_WARNING_NL } from '@openmig/shared';
+import { useLocale } from '../../i18n';
 import { ActionButton, DestructiveButton, Refused } from './primitives';
 import {
   DecisionRefusedError,
@@ -27,6 +28,11 @@ import {
 
 export const ApplyDeletionsPanel: React.FC<{ mappingId: string }> = ({ mappingId }) => {
   const queryClient = useQueryClient();
+  // The Dutch warning lives beside its English source in @openmig/shared
+  // (ADR-0026: one source of truth for destructive-path prose) — the panel
+  // only PICKS, it never rephrases (workplan 0024 T1).
+  const { locale } = useLocale();
+  const applyFlagWarning = locale === 'nl' ? APPLY_FLAG_WARNING_NL : APPLY_FLAG_WARNING;
   const [changeError, setChangeError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
 
@@ -106,7 +112,7 @@ export const ApplyDeletionsPanel: React.FC<{ mappingId: string }> = ({ mappingId
                 two-step — same ceremony as the delete button it enables. */}
             <p className="flex items-start gap-2 text-amber-800">
               <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-              {APPLY_FLAG_WARNING}
+              {applyFlagWarning}
             </p>
             <div className="mt-2">
               <DestructiveButton

@@ -1,0 +1,112 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+
+/**
+ * The i18n foundation (workplan 0024 T1, ADR-0013).
+ *
+ * Key parity is compile-time (nl is typed against en's key set); the runtime
+ * assertion here is belt-and-braces so a `as any` escape hatch cannot ship a
+ * half-translated dictionary. The behavioral tests cover detection order
+ * (storage beats navigator), persistence, and the un-provided fallback.
+ */
+
+// @vitest-environment jsdom
+
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import React from 'react';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { STRINGS, LOCALES } from './strings';
+import { APPLY_FLAG_WARNING, APPLY_FLAG_WARNING_NL } from '@openmig/shared';
+import { LocaleProvider, useLocale, detectLocale } from './index';
+
+afterEach(() => {
+  cleanup();
+  window.localStorage.clear();
+  vi.restoreAllMocks();
+});
+
+beforeEach(() => {
+  window.localStorage.clear();
+});
+
+describe('the dictionary', () => {
+  it('carries the exact same key set in every locale', () => {
+    const enKeys = Object.keys(STRINGS.en).sort();
+    for (const locale of LOCALES) {
+      expect(Object.keys(STRINGS[locale]).sort()).toEqual(enKeys);
+    }
+  });
+
+  it('has no empty translations', () => {
+    for (const locale of LOCALES) {
+      for (const [key, value] of Object.entries(STRINGS[locale])) {
+        expect(value.trim(), `${locale}:${key}`).not.toBe('');
+      }
+    }
+  });
+
+  it('the shared destructive-path warning exists in both languages and they differ', () => {
+    expect(APPLY_FLAG_WARNING_NL.trim()).not.toBe('');
+    expect(APPLY_FLAG_WARNING_NL).not.toBe(APPLY_FLAG_WARNING);
+  });
+});
+
+describe('detectLocale', () => {
+  it('prefers the persisted choice over the browser language', () => {
+    vi.spyOn(navigator, 'language', 'get').mockReturnValue('nl-NL');
+    window.localStorage.setItem('openmig.locale', 'en');
+    expect(detectLocale()).toBe('en');
+  });
+
+  it('falls back to the browser language (nl* -> nl)', () => {
+    vi.spyOn(navigator, 'language', 'get').mockReturnValue('nl-BE');
+    expect(detectLocale()).toBe('nl');
+  });
+
+  it('defaults to English for anything else', () => {
+    vi.spyOn(navigator, 'language', 'get').mockReturnValue('de-DE');
+    expect(detectLocale()).toBe('en');
+  });
+});
+
+const Probe: React.FC = () => {
+  const { locale, setLocale, t } = useLocale();
+  return (
+    <div>
+      <span data-testid="locale">{locale}</span>
+      <span data-testid="deletions">{t('nav.deletions')}</span>
+      <button onClick={() => setLocale('nl')}>to-nl</button>
+    </div>
+  );
+};
+
+describe('LocaleProvider', () => {
+  it('serves English by default and Dutch after the toggle — and persists the choice', () => {
+    render(
+      <LocaleProvider>
+        <Probe />
+      </LocaleProvider>,
+    );
+
+    expect(screen.getByTestId('deletions').textContent).toBe('Deletions');
+    fireEvent.click(screen.getByText('to-nl'));
+    expect(screen.getByTestId('deletions').textContent).toBe('Verwijderingen');
+    expect(window.localStorage.getItem('openmig.locale')).toBe('nl');
+  });
+
+  it('boots in Dutch when the choice was persisted', () => {
+    window.localStorage.setItem('openmig.locale', 'nl');
+    render(
+      <LocaleProvider>
+        <Probe />
+      </LocaleProvider>,
+    );
+    expect(screen.getByTestId('locale').textContent).toBe('nl');
+    expect(screen.getByTestId('deletions').textContent).toBe('Verwijderingen');
+  });
+
+  it('degrades to a fixed English handle outside a provider (isolated renders must not crash)', () => {
+    render(<Probe />);
+    expect(screen.getByTestId('locale').textContent).toBe('en');
+    expect(screen.getByTestId('deletions').textContent).toBe('Deletions');
+  });
+});

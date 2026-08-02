@@ -19,11 +19,14 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../stores/auth-store';
 import { isSelfHost } from '../services/edition';
+import { useLocale } from '../i18n';
+import { LOCALES } from '../i18n/strings';
 
 const Layout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const location = useLocation();
   const { user, logout } = useAuthStore();
+  const { locale, setLocale, t } = useLocale();
 
   // Tenants and Billing are managed-edition concepts: the appliance is
   // single-tenant and is not billed for (ADR-0026). Hidden rather than shown
@@ -34,8 +37,8 @@ const Layout: React.FC = () => {
     ...(selfHost
       ? []
       : [
-          { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-          { name: 'Mappings', href: '/mappings', icon: FolderGit2 },
+          { name: t('nav.dashboard'), href: '/dashboard', icon: LayoutDashboard },
+          { name: t('nav.mappings'), href: '/mappings', icon: FolderGit2 },
         ]),
     // The §11.2 decision queues, and then the §20 gate and the end of the
     // migration — in the order the runbook's cutover sequence uses.
@@ -49,18 +52,18 @@ const Layout: React.FC = () => {
     // editions (Finish joined with 0019 T5).
     ...(selfHost
       ? [
-          { name: 'Review', href: '/confirm', icon: ClipboardCheck },
-          { name: 'Deletions', href: '/deletions', icon: Trash2 },
-          { name: 'Moves', href: '/moves', icon: MoveRight },
-          { name: 'Failures', href: '/failures', icon: AlertTriangle },
-          { name: 'Check', href: '/verify', icon: ListChecks },
-          { name: 'Finish', href: '/finish', icon: Flag },
+          { name: t('nav.review'), href: '/confirm', icon: ClipboardCheck },
+          { name: t('nav.deletions'), href: '/deletions', icon: Trash2 },
+          { name: t('nav.moves'), href: '/moves', icon: MoveRight },
+          { name: t('nav.failures'), href: '/failures', icon: AlertTriangle },
+          { name: t('nav.check'), href: '/verify', icon: ListChecks },
+          { name: t('nav.finish'), href: '/finish', icon: Flag },
         ]
       : []),
-    ...(selfHost ? [] : [{ name: 'Tenants', href: '/tenants', icon: Building2 }]),
-    ...(selfHost ? [] : [{ name: 'Billing', href: '/billing', icon: CreditCard }]),
-    { name: 'Operator', href: '/operator', icon: Server },
-    { name: 'Settings', href: '/settings', icon: Settings },
+    ...(selfHost ? [] : [{ name: t('nav.tenants'), href: '/tenants', icon: Building2 }]),
+    ...(selfHost ? [] : [{ name: t('nav.billing'), href: '/billing', icon: CreditCard }]),
+    { name: t('nav.operator'), href: '/operator', icon: Server },
+    { name: t('nav.settings'), href: '/settings', icon: Settings },
   ];
 
   return (
@@ -100,7 +103,7 @@ const Layout: React.FC = () => {
               const isActive = location.pathname.startsWith(item.href);
               return (
                 <Link
-                  key={item.name}
+                  key={item.href}
                   to={item.href}
                   onClick={() => setSidebarOpen(false)}
                   className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
@@ -133,12 +136,31 @@ const Layout: React.FC = () => {
                 </p>
               </div>
             </div>
+            {/* Language switcher (ADR-0013 / workplan 0024): text-labelled
+                buttons, not an icon — WCAG 2.2 AA per SAD §23. */}
+            <div className="flex items-center gap-2 mb-3" aria-label={t('language.label')}>
+              <span className="text-xs text-gray-500">{t('language.label')}:</span>
+              {LOCALES.map((l) => (
+                <button
+                  key={l}
+                  onClick={() => setLocale(l)}
+                  aria-pressed={locale === l}
+                  className={`px-2 py-1 text-xs font-medium rounded ${
+                    locale === l
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  {l.toUpperCase()}
+                </button>
+              ))}
+            </div>
             <button
               onClick={logout}
               className="w-full flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <LogOut className="w-5 h-5 mr-3" />
-              Sign out
+              {t('nav.signOut')}
             </button>
           </div>
         </div>

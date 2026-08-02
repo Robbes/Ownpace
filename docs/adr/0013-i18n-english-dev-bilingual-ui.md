@@ -3,6 +3,18 @@
 - **Status:** Accepted
 - **Date:** 2026-06-20
 
+> **Update 2026-08-02 (workplan 0021 T5, owner decision: keep + build).** The
+> bilingual promise had zero i18n behind it for the project's whole life —
+> Dutch existed only in the cutover comms templates. Kept, and the build is
+> **workplan 0024**: T1 (the typed EN/NL dictionary + LocaleProvider, the
+> localized chrome with a WCAG-compliant language switcher, and the
+> destructive-path warning in both languages — the Dutch living BESIDE its
+> English source in @openmig/shared so they cannot drift apart) is built;
+> T2 (the operating screens), T3 (locale-aware dates + notifications) and
+> T4 (the server-prose boundary) follow there. One boundary is already
+> decided: server REFUSAL prose renders verbatim (rule 2/ADR-0024) and is
+> deliberately not translated.
+
 ## Context
 The project is built with coding agents and may attract international contributors; the initial end-user audience is Dutch and English speaking.
 

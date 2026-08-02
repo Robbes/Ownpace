@@ -20,6 +20,7 @@ import Verify from './pages/Verify';
 import Finish from './pages/Finish';
 import Confirm from './pages/Confirm';
 import { isSelfHost, uiBasename } from './services/edition';
+import { LocaleProvider } from './i18n';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -51,6 +52,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
+      <LocaleProvider>
       {/* Mounted wherever this bundle was built for — see `uiBasename()`. */}
       <BrowserRouter basename={uiBasename()}>
         <Routes>
@@ -110,6 +112,7 @@ const App: React.FC = () => {
           </Route>
         </Routes>
       </BrowserRouter>
+      </LocaleProvider>
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
   );
