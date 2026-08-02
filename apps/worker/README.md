@@ -1,316 +1,106 @@
-# Worker Application
+# Worker Package — the Trigger.dev tasks (and the cutover CLI)
 
-The worker application handles background job execution using Trigger.dev for the managed edition.
+This package is **not a running service**. Since workplan 0022 there is no
+worker container and no polling scheduler — everything in `src/jobs/` deploys
+as **Trigger.dev tasks** and executes in the platform's runners. The managed
+edition runs on one execution plane (ADR-0004).
 
-## Overview
+> Corrected 2026-08-02 (workplan 0021 T4): the previous version named a
+> `src/trigger-client.ts` that lives in `packages/scheduler`, listed four of
+> the eight tasks, pointed at a nonexistent `deploy/compose/trigger.yml`,
+> showed the v2 SDK call shape, and documented webhook processing and DNS
+> restore that have never existed here.
 
-The worker is responsible for:
-- Executing migration jobs (full sync, delta sync, cutover, rollback)
-- Processing webhooks from Trigger.dev
-- Managing background tasks with durable execution
+## The eight tasks (`src/jobs/`)
 
-## Architecture
+| Task | Trigger | What it does |
+|---|---|---|
+| `managed-sync-tick` | declarative schedule, `* * * * *` | Evaluates every active mapping's own cron against the DB (croner; due = nextRun(last run start) ≤ now; invalid cron → loud log + default `*/15` cadence, never a dead stop) and triggers `run-delta-sync` per due mapping. |
+| `run-delta-sync` | the tick, or API `POST .../sync {"type":"delta"}` | Incremental pass over the mapping's **enabled domains only** (the #207 rule). Queue `delta-sync`, concurrency 1 per mapping (`concurrencyKey: mappingId`) — a duplicate run is a wasted idempotent delta, never duplicated data. |
+| `run-full-sync` | API `POST .../sync {"type":"full"}` | Full pass, same enabled-domains rule. |
+| `run-discovery` | mapping creation / API | Read-only, body-free per-domain counts into `migration_discovery` (the confirm screen's data). |
+| `run-verification` | API `POST .../verify/start` | The §20 gate as a job; drives `verification_run` to a terminal report the API serves at `GET .../verify/report`. |
+| `run-apply-deletion` | API apply → receipt | Re-runs ALL apply gates in the job, performs the one destructive removal, lands the `apply_receipt` terminal state (`applied`/`refused`/`failed`). |
+| `run-cutover` | manual | Cutover **preparation** only: final delta + §20 gate, landing in `READY_FOR_CUTOVER` and stopping there — approving and executing are explicit `--yes` CLI actions it never performs. |
+| `run-rollback` | manual | Marks `ROLLED_BACK`, reactivates the mapping. DNS is NOT restored and users are NOT notified — see `docs/rollback-mechanisms.md`. |
 
-```
-apps/worker/
-├── src/
-│   ├── trigger-client.ts    # Trigger.dev client configuration
-│   ├── jobs/                # Job definitions
-│   │   ├── run-full-sync.ts
-│   │   ├── run-delta-sync.ts
-│   │   ├── run-cutover.ts
-│   │   └── run-rollback.ts
-│   └── index.ts             # Worker entry point
-└── package.json
-```
+Task payloads carry **ids only** — never content, never credentials (SAD §17).
 
-## Environment Variables
+## Configuration
+
+- `trigger.config.ts` (this package) — project ref, dirs, build.
+- Client env (the SDK's own names, read by `packages/scheduler`'s
+  `trigger-client` — one contract shared by the API, the deploy script and
+  the tasks):
 
 ```bash
-# Trigger.dev Configuration
-TRIGGER_DEV_API_KEY=your_api_key
-TRIGGER_DEV_API_URL=https://app.trigger.dev  # or http://localhost:3000
-TRIGGER_ENVIRONMENT=production
-
-# Database
-DATABASE_URL=postgresql://user:pass@localhost:5432/openmigrate
-
-# Webhook Security
-TRIGGER_WEBHOOK_SECRET=your_webhook_secret
+TRIGGER_API_URL=http://localhost:3090   # deploy CLI / API enqueue path
+TRIGGER_SECRET_KEY=tr_prod_...
 ```
 
-## Development
+- **In-runner gotcha (0022 T3, learned live):** the platform injects the
+  host-perspective `TRIGGER_API_URL` into runners, so any task that calls
+  `.trigger()` from inside a runner (the tick does) must
+  `configure({ baseURL: process.env.TRIGGER_API_URL_IN_NETWORK ?? 'http://trigger-api:3000' })`.
+- Task-runtime env (`DATABASE_URL`, `APP_DATABASE_URL`,
+  `SECRET_ENCRYPTION_KEY`) is uploaded once per environment with
+  `deploy/compose/set-task-env.sh` — runners do not read the compose `.env`.
 
-### Prerequisites
+## Deploy
 
-- Node.js 24+
-- PostgreSQL 15+
-- Trigger.dev (Cloud or self-hosted)
-
-### Setup
-
-1. **Install dependencies:**
-```bash
-pnpm install
-```
-
-2. **Configure environment:**
-```bash
-cp .env.example .env
-# Edit .env with your configuration
-```
-
-3. **Start Trigger.dev (self-hosted option):**
-```bash
-docker compose -f deploy/compose/trigger.yml up -d
-```
-
-4. **Run the worker:**
-```bash
-pnpm dev
-```
-
-### Running Jobs
-
-Jobs are triggered automatically by:
-- **Cron schedules** (full sync, delta sync)
-- **Manual triggers** (cutover, rollback)
-- **Events** (user actions via API)
-
-### Manual Job Triggering
-
-```typescript
-import { getTriggerClient } from './src/trigger-client';
-
-const client = getTriggerClient();
-
-// Trigger a full sync
-await client.trigger({
-  job: 'run-full-sync',
-  payload: {
-    tenantId: 'uuid-here',
-    mappingId: 'uuid-here',
-    options: {
-      forceFullScan: false,
-    },
-  },
-});
-```
-
-## Job Definitions
-
-### Full Sync (`run-full-sync`)
-
-Executes a complete synchronization for a mapping.
-
-**Trigger:** Daily at 2 AM (cron)
-
-**Input:**
-```typescript
-{
-  tenantId: string;
-  mappingId: string;
-  options: {
-    forceFullScan: boolean;
-    maxItems?: number;
-  };
-}
-```
-
-**Features:**
-- Idempotent execution
-- Full scan of all items
-- Updates ledger with sync results
-
-### Delta Sync (`run-delta-sync`)
-
-Executes an incremental synchronization, processing only changes.
-
-**Trigger:** Every 15 minutes (cron)
-
-**Input:**
-```typescript
-{
-  tenantId: string;
-  mappingId: string;
-  domains?: ('email' | 'calendar' | 'contact' | 'file')[];
-}
-```
-
-**Features:**
-- Uses checkpoints for efficiency
-- Only processes changed items
-- Minimal resource usage
-
-### Cutover (`run-cutover`)
-
-Executes the final cutover process.
-
-**Trigger:** Manual (user-initiated)
-
-**Input:**
-```typescript
-{
-  tenantId: string;
-  mappingId: string;
-  options: {
-    skipFinalSync: boolean;
-    skipVerification: boolean;
-    gracePeriodHours: number;
-  };
-}
-```
-
-**Process:**
-1. Final delta sync
-2. Verification checks
-3. Update cutover status
-4. Start grace period monitoring
-
-### Rollback (`run-rollback`)
-
-Rolls back a cutover if issues are detected.
-
-**Trigger:** Manual or automatic on failure
-
-**Input:**
-```typescript
-{
-  tenantId: string;
-  mappingId: string;
-  reason?: string;
-  options: {
-    restoreDns: boolean;
-    notifyUsers: boolean;
-  };
-}
-```
-
-**Process:**
-1. Stop grace period monitoring
-2. Restore DNS/MX records
-3. Update cutover status
-4. Notify users
-
-## Monitoring
-
-### Job Status
-
-Job status is tracked in the `run` table:
-```sql
-SELECT * FROM run 
-WHERE mapping_id = 'uuid-here' 
-ORDER BY created_at DESC 
-LIMIT 10;
-```
-
-### Logs
-
-Job logs are stored in the `run_event` table:
-```sql
-SELECT * FROM run_event 
-WHERE run_id = 'run-uuid' 
-ORDER BY at ASC;
-```
-
-### Trigger.dev Dashboard
-
-View job execution history, logs, and metrics in the Trigger.dev dashboard:
-- Cloud: https://app.trigger.dev
-- Self-hosted: http://localhost:3000
-
-## Error Handling
-
-### Automatic Retries
-
-Jobs automatically retry with exponential backoff:
-- Attempt 1: Immediate
-- Attempt 2: 1 minute
-- Attempt 3: 5 minutes
-- Attempt 4: 15 minutes
-- Attempt 5: 1 hour
-
-### Failed Jobs
-
-Jobs that fail after all retries are marked as `failed` in the `run` table. Operators should:
-1. Check logs in Trigger.dev dashboard
-2. Review `run_event` table for errors
-3. Fix underlying issue
-4. Manually re-trigger the job
-
-## Security
-
-### Webhook Verification
-
-Webhooks from Trigger.dev are verified using HMAC-SHA256 signatures:
-
-```typescript
-const signature = req.headers['x-trigger-signature'];
-const isValid = verifySignature(payload, signature, TRIGGER_WEBHOOK_SECRET);
-```
-
-### Tenant Isolation
-
-All jobs respect RLS policies:
-- Jobs can only access data for their tenant
-- Tenant context is set from job payload
-- Database enforces isolation
-
-## Production Deployment
-
-There is no worker container (0022 T4 retired it, with the polling
-scheduler). Everything in this package deploys as Trigger.dev tasks:
+Every code change to `src/jobs/*` or its dependencies needs a task deploy:
 
 ```bash
 ./deploy/compose/deploy-tasks.sh
 ```
 
-Syncs are started by the `managed-sync-tick` scheduled task; task-runtime
-env vars are uploaded with `./deploy/compose/set-task-env.sh`. See
-`docs/operator-runbook.md`. (The rest of this README is due a rewrite —
-workplan 0021 T4.)
+The script preflights `uname -m` against `DEPLOY_IMAGE_PLATFORM` (an
+amd64-image-on-arm64 mismatch dies log-less in the runner; override with
+`SKIP_PLATFORM_CHECK=1`), builds, pushes to the local registry, and registers
+the new version. Smoke-test the deployed plane end to end with
+`./deploy/compose/smoke-managed.sh`. Full procedure: `docs/operator-runbook.md`.
 
-### Kubernetes
+There are no Helm charts in this repo.
+
+## The cutover CLI (`src/cli/`)
+
+Operator CLI for the cutover lifecycle — `start-cutover`, `verify`,
+`approve`, `execute`, `complete`, `rollback`, `status`, `runbook`.
+State-changing subcommands require `--yes`. Run with
+`pnpm exec tsx apps/worker/src/cli/index.ts --help`; the operator procedure
+is `docs/cutover-runbook.md`.
+
+`src/index.ts` is a separate dev entrypoint (`--config mapping.json`) with no
+live caller; its fate is an owner decision tracked in workplan 0021 T5.
+
+## Monitoring
+
+- **`run` / `run_event` tables** — the ledger's own record of every pass
+  (status, counts, verbatim errors).
+- **Trigger.dev dashboard** — through the compose stack's TLS front
+  (`https://$TRIGGER_TLS_HOST:$TRIGGER_TLS_PORT`); the Runs page may be
+  empty when ClickHouse analytics lag (accepted, 0020 T7) — the `run` table
+  is ground truth.
+
+## Testing
+
+The task **logic** is tested through extracted seams: `sync-due.unit.test.ts`
+(the tick's due-evaluation), `cutover-preparation.integration.test.ts`
+(`prepareCutover` against a real ledger), the apply/verify suites in
+`@openmig/core`, and the connector/target integration suites in this package
+(`imap-dav-target`, `jmap-reindex`, `shared-mailbox`). The `schemaTask`
+wrappers themselves run only in the live smoke — an honest gap recorded in
+`docs/testing.md`'s untested-seams appendix.
 
 ```bash
-helm install worker ./deploy/helm/worker \
-  --set trigger.apiKey=xxx \
-  --set database.url=xxx
-```
-
-## Troubleshooting
-
-### Jobs Not Running
-
-1. Check Trigger.dev connection:
-```bash
-curl https://app.trigger.dev/api/health
-```
-
-2. Verify environment variables are set
-3. Check worker logs for errors
-
-### Webhook Issues
-
-1. Verify webhook secret matches Trigger.dev configuration
-2. Check firewall rules allow incoming webhooks
-3. Review webhook logs in Trigger.dev dashboard
-
-### Database Connection Errors
-
-1. Verify `DATABASE_URL` is correct
-2. Check database is running
-3. Verify RLS is enabled:
-```sql
-SELECT tablename, rowsecurity 
-FROM pg_tables 
-WHERE schemaname = 'public' 
-LIMIT 5;
+pnpm test               # workspace unit gate (repo root)
+pnpm test:integration   # testcontainers (Postgres + Stalwart + Nextcloud)
 ```
 
 ## References
 
-- [Trigger.dev Documentation](https://trigger.dev/docs)
-- [Workplan 0005](../../.agents_tmp/PLAN.md)
-- [RLS Guide](../../docs/rls-guide.md)
-- [Architecture Decision Records](../../docs/adr/)
+- [`docs/operator-runbook.md`](../../docs/operator-runbook.md) — deploy, env upload, smoke
+- [`docs/cutover-runbook.md`](../../docs/cutover-runbook.md) — the CLI procedure
+- [Workplan 0022](../../docs/workplans/0022-syncs-on-trigger-tasks.md) — why there is no worker container
+- [ADR-0004](../../docs/adr/0004-orchestration-triggerdev-and-inprocess.md) — orchestration
+- [Trigger.dev docs](https://trigger.dev/docs)

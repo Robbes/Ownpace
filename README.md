@@ -27,26 +27,27 @@ pnpm install
 
 ### Running Tests
 ```bash
-# Unit tests (root config boots a throwaway Postgres via Testcontainers → needs Docker)
+# Unit tests — NO Docker needed (container-free projects; PGlite makes even
+# the real-appliance and RLS-enforcement suites run without a database server)
 pnpm test
 
-# Integration tests (requires Docker)
+# Integration tests (requires Docker — testcontainers brings up Postgres,
+# Stalwart and Nextcloud itself; no pre-running stack needed)
 pnpm test:integration
 
 # All gates
 pnpm lint && pnpm typecheck && pnpm test && pnpm test:integration
 ```
 
-### Running the Worker (Development)
-
-> **Note:** The worker CLI and dependency injection (ledger, IMAP source, JMAP target) are implemented in `apps/worker/src/build-deps.ts`. Integration tests verify the full stack works end-to-end.
+### Running a one-off sync from source (development)
 
 ```bash
-# Bring up the dev stack (Postgres + Stalwart + Nextcloud)
+# Optional dev stack (Postgres + Nextcloud; Stalwart is NOT in dev.yml — its
+# two-phase startup can't be one compose service, use deploy/selfhost/setup-stalwart.sh)
 docker compose -f deploy/compose/dev.yml up -d
 
-# Run worker (uses buildDeps to wire ledger, IMAP, JMAP)
-node --loader ts-node/esm apps/worker/src/index.ts --config ./mapping.example.json --once
+# Run one pass against a mapping file (uses buildDeps to wire ledger + connectors)
+pnpm exec tsx apps/worker/src/index.ts --config ./mapping.example.json --once
 ```
 
 ### Configuration
@@ -92,16 +93,17 @@ The **migration core** is done and property-tested for idempotency: O365 → JMA
 plus calendar/contacts/files domains (worker `runAllDomains` orchestration) and the cutover
 machine.
 
-The **managed edition** control plane is complete through workplan 0011 T1–T7: tenant isolation
-enforced at runtime (Postgres RLS with a non-owner role, proven cross-tenant at the SQL and HTTP
-layers), real API persistence, Trigger.dev jobs running real syncs across all four domains,
-usage metering from real runs, billing with a Mollie webhook end-to-end, the web UI on the real
-API, and a live-verified `docker compose` operator stack.
+The **managed edition** runs on one execution plane (workplan 0022): every job — sync, verify,
+apply, discovery — executes as a deployed Trigger.dev task, started by a scheduled tick; there is
+no worker container. Tenant isolation is enforced at runtime (FORCE RLS through a non-owner role
++ a tenant-membership auth gate), `apply`/`verify` run asynchronously with receipts, billing has
+a Mollie webhook end-to-end, and the compose operator stack is live-verified
+(`docs/operator-runbook.md`, `smoke-managed.sh`).
 
-The **self-host edition** (a single-tenant NAS/Pi appliance bundling Postgres) is complete through
-workplan 0010 T1–T6, including the restart-resume idempotency gate — a real seeded run showing
-zero item-count growth across a container restart for mail, calendar, contacts and files. See the
-[quickstart](./docs/selfhost-quickstart.md) and `deploy/selfhost/`.
+The **self-host edition** (a single-tenant NAS/Pi appliance) is complete through workplan 0010,
+including the restart-resume idempotency gate across all four domains — and since ADR-0028 it can
+run with **no database server at all** (embedded PGlite, one container; the e2e gate is green on
+both backends). See the [quickstart](./docs/selfhost-quickstart.md) and `deploy/selfhost/`.
 
 **Known gaps** (tracked in [`docs/workplans/README.md`](./docs/workplans/README.md)): DNS
 **writes** are deliberately out of scope — cutover DNS is verify-only, with a generated manual
