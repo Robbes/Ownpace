@@ -92,7 +92,7 @@ promising document (ADR/SAD/scope-manifest), exactly as 0021 T5 did.
 |---|---|---|---|
 | 1 | **Ledger reindex/adopt runs on startup + on demand** — **KEPT 2026-08-02 → T1 item 5** (wire the doorway; the reindexer is built) | ADR-0020 decision 3 | `reindexFromTarget` exists, tested, **called by nothing in production** — the recovery story cannot be invoked |
 | 2 | **Pattern D: shared-mailbox/group migration** — **KEPT 2026-08-02 → [workplan 0027](./0027-shared-addresses.md)** | SAD §14.1; **shown to owners in the pre-start scope manifest** | `group_def` table: zero code refs; no Graph groups discovery; `pattern` settable, read by nothing |
-| 3 | **Rich Graph extractor** (SharePoint versions/permissions/lists/pages) | SAD §13.1, ADR-0007; manifest says "Partial" | Zero code (no `/versions`, `/permissions`, sites, lists) |
+| 3 | **Rich Graph extractor** (SharePoint versions/permissions/lists/pages) — **RETRACTED 2026-08-02** (ADR-0007 update; manifest row moved to *does not migrate*) | SAD §13.1, ADR-0007; manifest says "Partial" | Zero code (no `/versions`, `/permissions`, sites, lists) |
 | 4 | **Permission inventory & guidance module** | SAD §14.2, §3 decision 6 | Zero code (no SendAs/FullAccess/sharing-link handling) |
 | 5 | **Notifications** (in-app/email on decisions/milestones) | SAD §11.2 #4, §5 | Only honest "not implemented" stubs; 0024 transferred a day-one-bilingual requirement to whoever builds this |
 | 6 | **Policy presets + the §11.1 drift decision queue** — **KEPT SCOPED 2026-08-02 → [workplan 0028](./0028-drift-decision-queue.md)** (two categories, not ten) | SAD §11.2 #3, ADR-0016; 0013 named it "its own workplan" | `decision` and `policy_preset` tables shipped, **zero readers/writers** — the largest unowned feature |
@@ -139,7 +139,15 @@ said to be unbuilt.
 **Update 2026-08-02 — row 1 decided: KEPT.** No new workplan — the
 reindexer exists and is tested, so wiring its doorway is T1-sized build
 work: it joins T1 as item 5 (operator command in both editions + the
-on-startup detection ADR-0020 promised). 21 rows remain open.
+on-startup detection ADR-0020 promised).
+
+**Update 2026-08-02 — row 3 decided: RETRACTED for now.** ADR-0007's dated
+update records both halves' fate (the shell-out engines were already gone
+via ADR-0019; the rich extractor was never built); the manifest's
+"SharePoint extras" row moved from *Partial* ("best-effort" with zero code
+was a promise, not a hedge) to *does not migrate* with honest wording;
+SAD §13.1 + the §11.2 listing carry the dated notes and keep the design
+sketch for if SMB demand reopens it. 20 rows remain open.
 
 ## T4 — mechanical truth sweep (no decisions; small PRs)
 
