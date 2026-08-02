@@ -8,7 +8,8 @@
  * controlled scan in `verify-run.unit.test.ts`. This file proves the WIRING:
  * a real appliance on PGlite serves the pair, the verbs behave (GET never
  * starts anything), a run started over HTTP reaches a terminal state, and the
- * synchronous `GET /verify` the e2e gate curls still answers.
+ * retired synchronous `GET /verify` stays retired (0019 T6 — the pin is the
+ * absence).
  *
  * The fixture's connector secrets are deliberately ABSENT, so the scan cannot
  * construct a target and completes in milliseconds with the unreachable
@@ -123,9 +124,12 @@ describe('the verify pair over HTTP', () => {
     await waitForTerminal();
   }, 60_000);
 
-  it('the synchronous GET /verify still answers — the e2e gate and curl keep working', async () => {
+  it('the synchronous GET /verify is GONE (0019 T6) — it survived exactly one release', async () => {
+    // The pin is now the ABSENCE: 0017 T2 promised the route one release, PR
+    // #200 moved the e2e gate onto the pair, and nothing calls it. A 200 here
+    // would mean somebody resurrected a route that holds one HTTP request
+    // open for a whole target scan.
     const res = await fetch(`${base}/verify`);
-    expect(res.status).toBe(200);
-    expect(Object.keys((await res.json()) as Record<string, unknown>)).toContain(MAPPING_ID);
-  }, 60_000);
+    expect(res.status).toBe(404);
+  });
 });

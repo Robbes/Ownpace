@@ -648,10 +648,10 @@ function firstUid(text?: string): string | undefined {
 /**
  * Run the §20 verification gate for one mapping, against its real targets.
  *
- * Shared by the self-host appliance's `GET /verify` (workplan 0010 T2 —
- * "extract/share it, don't fork it"), which is the only way a self-host
- * operator can run the gate at all: the managed edition reaches it through the
- * cutover job, and neither edition's UI does.
+ * Shared by the self-host appliance's verify runner (the `POST /verify/start`
+ * + `GET /verify/report` pair — workplan 0010 T2's "extract/share it, don't
+ * fork it", moved onto the pair by 0017 T2/0019 T6), the managed
+ * `run-verification` task, and the cutover job's final gate.
  *
  * Reindexers are per-domain, each reading its OWN target. Handing one target to
  * every domain is how calendar/contact/file rows once came to be compared

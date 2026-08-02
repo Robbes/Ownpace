@@ -10,7 +10,7 @@
  * (single-flight, so an overrunning pass never overlaps itself). A paused (draft)
  * mapping waits for the operator to green-light it on the React confirm screen
  * (`GET /` redirects to it; `POST /mappings/:id/start`). Also serves `GET /healthz`,
- * `GET /status`, `GET /verify`,
+ * `GET /status`, the verify pair (`POST /verify/start` + `GET /verify/report`),
  * `GET /scope-manifest`, and `GET /discovery` on localhost, plus the React operating UI
  * under `GET /ui` (ADR-0026 — mounted on a prefix because the JSON routes already own
  * /deletions, /moves and /failures, which are also screen names). Graceful shutdown
@@ -590,20 +590,12 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       if (req.method === 'GET' && req.url === '/verify/report') {
         return sendJson(res, 200, verifyRunner.current() satisfies VerificationRunReport);
       }
-      // The synchronous form, kept deliberately for one release: the e2e
-      // verification gate and any operator script that curls it keep working
-      // (hard rule 5). Same scan, same shape — it just holds the request open
-      // for the duration. Remove only once nothing calls it.
-      if (req.method === 'GET' && req.url === '/verify') {
-        const reports: Record<string, VerificationResult> = {};
-        for (const m of mappings) {
-          reports[m.config.mappingId] = await verifyMapping(
-            { ...m.config, mappingId: m.mailboxMappingId } as typeof m.config,
-            ledgerOptions,
-          );
-        }
-        return sendJson(res, 200, reports);
-      }
+      // There is deliberately no synchronous `GET /verify` any more (0019 T6).
+      // It survived exactly the one release 0017 T2 promised: PR #200 moved
+      // the e2e gate onto the pair above, the first post-merge run was green
+      // through it, and nothing in the repo called it since. A route that
+      // holds one HTTP request open for a whole target scan is the shape the
+      // pair exists to end.
       // The failure queue: what could not be migrated, why, and how many times
       // we tried. This is the INSIGHT half of §11.2's decision queue — the
       // actions are the two POSTs below.

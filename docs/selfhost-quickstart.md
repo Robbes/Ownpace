@@ -254,8 +254,8 @@ the source.
 
 **Do nothing** — fine for anything under `retrying`, and fine for
 `needsDecision` too if you are not ready. The items simply stay in the queue,
-and `GET /verify` keeps reporting them as missing on the target, which is
-accurate.
+and the verification report (`POST /verify/start`, then `GET /verify/report`)
+keeps counting them as missing on the target, which is accurate.
 
 > **A whole domain can still stop.** If 25 items fail in a row, the pass stops
 > with a clear error instead of failing every remaining item the same way. That
