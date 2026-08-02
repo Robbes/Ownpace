@@ -87,7 +87,7 @@ promising document (ADR/SAD/scope-manifest), exactly as 0021 T5 did.
 | 3 | **Rich Graph extractor** (SharePoint versions/permissions/lists/pages) | SAD §13.1, ADR-0007; manifest says "Partial" | Zero code (no `/versions`, `/permissions`, sites, lists) |
 | 4 | **Permission inventory & guidance module** | SAD §14.2, §3 decision 6 | Zero code (no SendAs/FullAccess/sharing-link handling) |
 | 5 | **Notifications** (in-app/email on decisions/milestones) | SAD §11.2 #4, §5 | Only honest "not implemented" stubs; 0024 transferred a day-one-bilingual requirement to whoever builds this |
-| 6 | **Policy presets + the §11.1 drift decision queue** | SAD §11.2 #3, ADR-0016; 0013 named it "its own workplan" | `decision` and `policy_preset` tables shipped, **zero readers/writers** — the largest unowned feature |
+| 6 | **Policy presets + the §11.1 drift decision queue** — **KEPT SCOPED 2026-08-02 → [workplan 0028](./0028-drift-decision-queue.md)** (two categories, not ten) | SAD §11.2 #3, ADR-0016; 0013 named it "its own workplan" | `decision` and `policy_preset` tables shipped, **zero readers/writers** — the largest unowned feature |
 | 7 | **Bidirectional + asymmetric sync modes** (conflict policy) | SAD §11, §3 decision 3 | Enum values only; nothing branches on mode |
 | 8 | **Post-cutover reverse sync** (sovereign→O365) | SAD §20 | No reverse direction, no source-side writer exists |
 | 9 | **Proton Bridge + ICS/vCard snapshots** — **RETRACTED 2026-08-02** (ADR-0025 update covers the whole Proton destination; manifest row removed) | SAD §15.1; **in the user-facing scope manifest** | Zero Proton code (ADR-0025 defers only Drive — this half is uncovered) |
@@ -119,7 +119,14 @@ a dated update extending its deferral to the whole Proton destination
 of half-deferred, half-promised); the scope manifest's Proton row is
 removed (version bumped to `2026-08-02`); SAD §15.1 and the §11.2 manifest
 listing carry the dated notes. The Bridge/snapshot half's revisit trigger
-is demand — it was only ever blocked on priority. 23 rows remain open.
+is demand — it was only ever blocked on priority.
+
+**Update 2026-08-02 — row 6 decided: KEPT, SCOPED.** The build is
+[workplan 0028](./0028-drift-decision-queue.md): the queue end to end for
+the two categories discovery can already see (`new_mailbox`,
+`shared_address_pattern` — the latter wired to 0027 T1), presets as `auto`
+answers for those two only, and the other eight detectors left unbuilt and
+said to be unbuilt. 22 rows remain open.
 
 ## T4 — mechanical truth sweep (no decisions; small PRs)
 
