@@ -83,7 +83,7 @@ promising document (ADR/SAD/scope-manifest), exactly as 0021 T5 did.
 | # | Promise | Where it lives | What the code says |
 |---|---|---|---|
 | 1 | **Ledger reindex/adopt runs on startup + on demand** | ADR-0020 decision 3 | `reindexFromTarget` exists, tested, **called by nothing in production** — the recovery story cannot be invoked |
-| 2 | **Pattern D: shared-mailbox/group migration** | SAD §14.1; **shown to owners in the pre-start scope manifest** | `group_def` table: zero code refs; no Graph groups discovery; `pattern` settable, read by nothing |
+| 2 | **Pattern D: shared-mailbox/group migration** — **KEPT 2026-08-02 → [workplan 0027](./0027-shared-addresses.md)** | SAD §14.1; **shown to owners in the pre-start scope manifest** | `group_def` table: zero code refs; no Graph groups discovery; `pattern` settable, read by nothing |
 | 3 | **Rich Graph extractor** (SharePoint versions/permissions/lists/pages) | SAD §13.1, ADR-0007; manifest says "Partial" | Zero code (no `/versions`, `/permissions`, sites, lists) |
 | 4 | **Permission inventory & guidance module** | SAD §14.2, §3 decision 6 | Zero code (no SendAs/FullAccess/sharing-link handling) |
 | 5 | **Notifications** (in-app/email on decisions/milestones) | SAD §11.2 #4, §5 | Only honest "not implemented" stubs; 0024 transferred a day-one-bilingual requirement to whoever builds this |
@@ -107,6 +107,12 @@ promising document (ADR/SAD/scope-manifest), exactly as 0021 T5 did.
 | 23 | **ClickHouse run-replication** | 0020 accepted-absent with a revisit condition | Runs page renders empty; revisit or re-accept |
 | 24 | **Demo-secret rotation** | Standing note since the Spark bring-up | Step zero when the stack stops being a demo |
 | 25 | **Private vulnerability reporting toggle** | 0021 T6's outside-the-repo action | Not verifiable from the repo; SECURITY.md's only channel depends on it |
+
+**Update 2026-08-02 — row 2 decided: KEPT, and the build is
+[workplan 0027](./0027-shared-addresses.md)** (both §14.1 patterns, since
+the manifest promises S and D together and D's classification rule — "a
+group with a store is S" — needs S to route to). The remaining 24 rows are
+still open.
 
 ## T4 — mechanical truth sweep (no decisions; small PRs)
 
