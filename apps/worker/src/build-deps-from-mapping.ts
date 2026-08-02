@@ -22,6 +22,7 @@ import { connection as connectionTable } from '@openmig/ledger';
 import {
   ImapSource,
   GraphMailSource,
+  MailSourceWithGraphFallback,
   createTokenProvider,
   ImapDavMailTarget,
   type ImapDavTargetConfig,
@@ -431,7 +432,28 @@ function buildImapSourceFromCredentials(
     throttleLimiter,
   };
 
-  return new ImapSource(imapConfig);
+  const imap = new ImapSource(imapConfig);
+
+  // The runtime IMAP-disabled fallback (workplan 0023 T3, ADR-0006): when the
+  // connection's credential store ALSO carries Graph-capable credentials —
+  // tenantId is the signal, since the Graph token endpoint needs it and plain
+  // IMAP does not — wrap the source so an auth-refused mailbox is probed over
+  // Graph instead of dead-ending the run. Lazy: IMAP-working mailboxes never
+  // touch these credentials.
+  const graphTenantId = credentials.tenantId;
+  const hasGraphCreds =
+    graphTenantId && credentials.clientId && (credentials.clientSecret || credentials.refreshToken);
+  if (hasGraphCreds) {
+    return new MailSourceWithGraphFallback(imap, () =>
+      buildGraphMailSourceFromCredentials(
+        { type: 'graph-mail', tenantId: graphTenantId },
+        credentials,
+        throttleLimiter,
+      ),
+    );
+  }
+
+  return imap;
 }
 
 /**

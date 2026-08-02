@@ -9,7 +9,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { buildDeps } from './build-deps';
-import { GraphMailSource } from '@openmig/connectors';
+import { GraphMailSource, MailSourceWithGraphFallback, ImapSource } from '@openmig/connectors';
 import type { MappingConfig, SourceAuth } from '@openmig/shared';
 
 interface ImapSourceInternals {
@@ -121,6 +121,45 @@ describe('buildDeps graph-mail source wiring', () => {
       await expect(buildDeps(graphMailConfig())).rejects.toThrow(
         /OAUTH2_CLIENT_SECRET.*OAUTH2_REFRESH_TOKEN/,
       );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The runtime IMAP-disabled fallback (workplan 0023 T3, ADR-0006): an
+// imap-oauth2 mapping gets the fallback wrapper exactly when the env also
+// carries Graph-capable credentials — OAUTH2_TENANT_ID being the signal.
+// ---------------------------------------------------------------------------
+
+describe('buildDeps IMAP→Graph fallback wiring', () => {
+  it('wraps the IMAP source when Graph-capable env credentials exist', async () => {
+    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
+    vi.stubEnv('SRC_PASSWORD', 'pw');
+    vi.stubEnv('TGT_PASSWORD', 'pw');
+    vi.stubEnv('OAUTH2_TENANT_ID', 'contoso.example');
+    vi.stubEnv('OAUTH2_CLIENT_ID', 'app-id');
+    vi.stubEnv('OAUTH2_CLIENT_SECRET', 'app-secret');
+    try {
+      const deps = await buildDeps(configWith({ kind: 'login', passwordFromEnv: 'SRC_PASSWORD' }));
+      expect(deps.source).toBeInstanceOf(MailSourceWithGraphFallback);
+      await deps.close();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('leaves the IMAP source unwrapped without OAUTH2_TENANT_ID (nothing to fall back to)', async () => {
+    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
+    vi.stubEnv('SRC_PASSWORD', 'pw');
+    vi.stubEnv('TGT_PASSWORD', 'pw');
+    vi.stubEnv('OAUTH2_CLIENT_ID', 'app-id');
+    vi.stubEnv('OAUTH2_CLIENT_SECRET', 'app-secret');
+    try {
+      const deps = await buildDeps(configWith({ kind: 'login', passwordFromEnv: 'SRC_PASSWORD' }));
+      expect(deps.source).toBeInstanceOf(ImapSource);
+      await deps.close();
     } finally {
       vi.unstubAllEnvs();
     }

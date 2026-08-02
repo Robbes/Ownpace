@@ -449,6 +449,14 @@ docker compose -f deploy/selfhost/compose.yml down -v       # ALSO delete the DB
 - **`POSTGRES_PASSWORD` error on `up`:** it's unset in `.env`.
 - **Can't reach `/status` from another machine:** it binds to localhost by
   default — set `SELFHOST_BIND=0.0.0.0` (and firewall it).
+- **IMAP authentication keeps failing against O365** (`AUTHENTICATE failed`):
+  the tenant may simply have IMAP disabled — a common hardening step. Set the
+  mapping's mail source to `type: "graph-mail"` (with `tenantId`) and provide
+  `OAUTH2_CLIENT_ID` + `OAUTH2_CLIENT_SECRET` (or `OAUTH2_REFRESH_TOKEN`) in
+  `.env` to migrate over Microsoft Graph instead. If those variables (plus
+  `OAUTH2_TENANT_ID`) are present alongside an IMAP mapping, the appliance
+  detects the refusal at run time and falls back to Graph for that run on its
+  own, logging the switch (ADR-0006, workplan 0023).
 
 See also: `deploy/selfhost/README.md` (file layout + channels) and
 `docs/workplans/0010-selfhost-edition.md` (design + acceptance).
