@@ -322,11 +322,14 @@ beforeAll(async () => {
 Generally, **mailbox cleanup is preferred** unless you have a specific need for complete isolation.
 
 ## CI mapping (.github/workflows)
-- `ci.yml` — `detect-changes -> docs-hygiene + fixture-uuid-check (parallel) -> lint ->
-  unit-tests -> integration-tests`; docs-hygiene enforces the root `.md` allowlist and that the
-  canonical docs exist; **`fixture-uuid-check`** enforces unique test-fixture UUIDs across the
-  tree (the remediation from `docs/test-fixture-uuid-collision-audit.md` — a colliding tenant or
-  mapping UUID pasted into a new test fails CI by name rather than causing cross-test bleed).
+- `ci.yml` — `detect-changes -> docs-hygiene + fixture-uuid-check + migration-lint (parallel) ->
+  lint -> unit-tests -> integration-tests`; docs-hygiene enforces the root `.md` allowlist and
+  that the canonical docs exist; **`fixture-uuid-check`** enforces unique test-fixture UUIDs
+  across the tree (the remediation from `docs/test-fixture-uuid-collision-audit.md` — a colliding
+  tenant or mapping UUID pasted into a new test fails CI by name rather than causing cross-test
+  bleed); **`migration-lint`** (ADR-0017, built 2026-08-02) replays `packages/ledger/migrations`
+  with Atlas against a disposable dockerized Postgres and fails on destructive schema changes —
+  runs only when the migration directory (or the workflow) changes.
 - `security-scan.yml` — pnpm audit + Trivy (SARIF) + CycloneDX SBOM; weekly + PR + push + manual;
   SBOM attached to release tags.
 - `e2e.yml` — manual only, on `[self-hosted, linux, arm64]` (the Spark); brings up Stalwart via

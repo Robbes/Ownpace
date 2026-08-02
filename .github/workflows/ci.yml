@@ -22,6 +22,7 @@ jobs:
     runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-latest' }}
     outputs:
       any_changed: ${{ steps.filter.outputs.any_changed }}
+      migrations_changed: ${{ steps.migrations.outputs.any_changed }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
       - name: Get changed files
@@ -48,6 +49,15 @@ jobs:
             packages/provisioner/**
             apps/**
             deploy/**
+      - name: Did the ledger migrations (or this workflow) change?
+        id: migrations
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v44.5.7
+        with:
+          # The workflow file is included so a change to the lint job itself
+          # proves green on its own PR instead of merging untested.
+          files: |
+            packages/ledger/migrations/**
+            .github/workflows/ci.yml
 
   docs-hygiene:
     name: docs-hygiene
@@ -108,6 +118,35 @@ jobs:
       - name: Check for cross-file UUID collisions
         run: |
           ./scripts/check-fixture-uuid-collisions.sh
+
+  migration-lint:
+    name: migration-lint
+    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-latest' }}
+    needs: detect-changes
+    # ADR-0017's last unbuilt bullet, decided KEEP + BUILD by the owner
+    # (2026-08-02, workplan 0021 T5): Atlas replays every migration against a
+    # disposable dockerized Postgres and fails on destructive changes. Only
+    # runs when the migration directory (or this workflow) changes.
+    if: ${{ needs.detect-changes.outputs.migrations_changed == 'true' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
+      - name: Install Atlas (community edition)
+        run: |
+          curl -sSf https://atlasgo.sh | sh -s -- --community
+          atlas version
+      - name: Lint all migrations against a disposable dev database
+        run: |
+          # atlas.sum is generated here, not committed: lint requires the
+          # integrity file to exist, while append-only migration discipline is
+          # enforced by review and scripts/squash-migrations.sh.
+          atlas migrate hash --dir "file://packages/ledger/migrations"
+          # --latest 999 = lint the whole directory every time. The set is
+          # small, the replay is seconds, and it keeps the job deterministic
+          # instead of depending on git-base resolution.
+          atlas migrate lint \
+            --dir "file://packages/ledger/migrations" \
+            --dev-url "docker://postgres/16/dev?search_path=public" \
+            --latest 999
 
   lint:
     name: lint
