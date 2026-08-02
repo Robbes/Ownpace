@@ -1,7 +1,10 @@
 # Security Policy
 
 ## Reporting
-Report vulnerabilities privately to the maintainers (add contact). Do not open public issues for security reports.
+Report vulnerabilities privately via **GitHub Security Advisories**: open the
+repository's **Security** tab and use **"Report a vulnerability"**
+(<https://github.com/Robbes/open-migrate/security/advisories/new>). This is
+the only reporting channel. Do not open public issues for security reports.
 
 ## Principles
 - **Secrets** never live in git. OAuth tokens / API keys / DB creds go in a vault; `.env` is gitignored.
