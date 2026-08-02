@@ -34,3 +34,5 @@ export * from './graph-contacts-source.types';
 
 export * from './graph-mail-source';
 export * from './graph-mail-source.types';
+
+export * from './mail-source-with-graph-fallback';

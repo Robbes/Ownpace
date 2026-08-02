@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { GraphMailSource, ImapSource } from '@openmig/connectors';
+import { GraphMailSource, ImapSource, MailSourceWithGraphFallback } from '@openmig/connectors';
 import { buildSourceConnectorFromCredentials } from './build-deps-from-mapping';
 import type { SourceConfig } from '@openmig/shared';
 
@@ -55,6 +55,25 @@ describe('buildSourceConnectorFromCredentials', () => {
 
   it('still builds the IMAP source for imap-oauth2 (the existing path is untouched)', () => {
     const source = buildSourceConnectorFromCredentials(IMAP, { password: 'pw' });
+    expect(source).toBeInstanceOf(ImapSource);
+  });
+
+  it('wraps imap-oauth2 in the Graph fallback when the credentials also carry a Graph set (0023 T3)', () => {
+    const source = buildSourceConnectorFromCredentials(IMAP, {
+      password: 'pw',
+      tenantId: 'contoso.example',
+      clientId: 'app-id',
+      clientSecret: 'app-secret',
+    });
+    expect(source).toBeInstanceOf(MailSourceWithGraphFallback);
+  });
+
+  it('leaves imap-oauth2 unwrapped when the credentials carry no tenantId', () => {
+    const source = buildSourceConnectorFromCredentials(IMAP, {
+      password: 'pw',
+      clientId: 'app-id',
+      clientSecret: 'app-secret',
+    });
     expect(source).toBeInstanceOf(ImapSource);
   });
 

@@ -29,6 +29,7 @@ import {
 import {
   ImapSource,
   GraphMailSource,
+  MailSourceWithGraphFallback,
   ImapDavMailTarget,
   type ImapDavTargetConfig,
   createTokenProvider,
@@ -354,7 +355,26 @@ function buildImapSource(sourceConfig: MappingConfig['source'], throttleLimiter?
     throttleLimiter, // Pass throttle limiter if available
   };
 
-  return new ImapSource(imapConfig);
+  const imap = new ImapSource(imapConfig);
+
+  // The runtime IMAP-disabled fallback (workplan 0023 T3, ADR-0006): when the
+  // env ALSO carries Graph-capable credentials — OAUTH2_TENANT_ID is the
+  // signal, since graph needs it for the token endpoint and plain IMAP does
+  // not — wrap the source so an auth-refused mailbox is probed over Graph
+  // instead of dead-ending the run. Construction is LAZY inside the wrapper:
+  // a mapping whose IMAP works never touches these credentials.
+  const graphTenantId = process.env.OAUTH2_TENANT_ID;
+  const hasGraphCreds =
+    graphTenantId &&
+    process.env.OAUTH2_CLIENT_ID &&
+    (process.env.OAUTH2_CLIENT_SECRET || process.env.OAUTH2_REFRESH_TOKEN);
+  if (hasGraphCreds) {
+    return new MailSourceWithGraphFallback(imap, () =>
+      buildGraphMailSource({ type: 'graph-mail', tenantId: graphTenantId }, throttleLimiter),
+    );
+  }
+
+  return imap;
 }
 
 // NOTE: Microsoft Graph calendar/contacts sources are not wired into the

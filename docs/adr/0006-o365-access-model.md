@@ -5,12 +5,16 @@
 
 > **Update 2026-08-02 (workplan 0021 T5, owner decision: keep + build).** The
 > "Microsoft Graph fallback when IMAP is disabled per mailbox" promise had no
-> code behind it — the mail path was IMAP+OAuth2 only. Kept, and the build
-> started the same day as **workplan 0023**: T1 (the `GraphMailSource`
-> connector, keyed on the same `internetMessageId` natural key so a
-> transport switch cannot duplicate a mailbox) is built; T2 (token/env
-> wiring through the worker's dep builders) and T3 (the runtime
-> IMAP-disabled detection this ADR actually promises) follow there. Also
+> code behind it — the mail path was IMAP+OAuth2 only. Kept, and built the
+> same day as **workplan 0023**: T1 the `GraphMailSource` connector (keyed on
+> the same `internetMessageId` natural key so a transport switch cannot
+> duplicate a mailbox), T2 the wiring through both editions' dep builders,
+> and T3 the runtime detection this ADR promises —
+> `MailSourceWithGraphFallback` probes Graph when IMAP refuses
+> authentication and Graph credentials exist, and continues the run over
+> Graph, loudly. Detection is self-verifying (probe the alternative) rather
+> than parsing Microsoft's error prose, which does not distinguish
+> disabled-IMAP from a bad credential. Also
 > historical: "imapsync"/"DavMail->vdirsyncer" in the decision text are
 > pre-ADR-0019 names — the real path is our own TypeScript connectors
 > (IMAP+OAuth2 mail, Graph cal/contacts/files), and DavMail was never used
