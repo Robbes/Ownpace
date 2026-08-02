@@ -3,13 +3,14 @@
  * Cutover CLI - manages cutover lifecycle
  *
  * Usage:
- *   node --loader ts-node/esm apps/worker/src/cli/index.ts <command> [options]
+ *   pnpm exec tsx apps/worker/src/cli/index.ts <command> [options]
  *
  * Commands:
  *   start-cutover  Initialize a new cutover
  *   verify         Run verification checks
  *   approve        Approve cutover for execution
- *   execute        Execute the cutover
+ *   execute        Execute the cutover (lands in GRACE_PERIOD)
+ *   complete       Close out the grace period (GRACE_PERIOD -> COMPLETED)
  *   rollback       Rollback cutover
  *   status         Show cutover status
  *   runbook        Generate the guided DNS migration runbook (Markdown)
@@ -67,13 +68,14 @@ function parseArgs(): {
 Cutover CLI - Manage migration cutover lifecycle
 
 Usage:
-  node --loader ts-node/esm apps/worker/src/cli/index.ts <command> [options]
+  pnpm exec tsx apps/worker/src/cli/index.ts <command> [options]
 
 Commands:
   start-cutover    Initialize a new cutover
   verify           Run verification checks (DNS, data completeness)
   approve          Approve cutover for execution
-  execute          Execute the cutover (switch DNS, etc.)
+  execute          Execute the cutover (DNS switch is YOUR manual step; lands in GRACE_PERIOD)
+  complete         Close out the grace period (GRACE_PERIOD -> COMPLETED, terminal)
   rollback         Rollback cutover to previous state
   status           Show current cutover status
   runbook          Generate the guided DNS migration runbook (Markdown, no DB required)
@@ -86,37 +88,41 @@ Options:
   --dkim-selector, -k <s>   DKIM selector to check/document (default: "default")
   --target-ip, -i <ip>      IP for the autodiscover record (default: target mail server)
   --yes, -y                 Confirm a state-changing command. REQUIRED by
-                            approve, execute and rollback — without it they
-                            print what they would do and exit non-zero.
+                            approve, execute, complete and rollback — without
+                            it they print what they would do and exit non-zero.
   --help, -h                Show this help message
 
 Examples:
   # Start a new cutover
-  node --loader ts-node/esm apps/worker/src/cli/index.ts start-cutover \\
+  pnpm exec tsx apps/worker/src/cli/index.ts start-cutover \\
     --tenant tenant123 --mapping mapping456 --domain example.com
 
   # Run verification checks
-  node --loader ts-node/esm apps/worker/src/cli/index.ts verify \\
+  pnpm exec tsx apps/worker/src/cli/index.ts verify \\
     --tenant tenant123 --mapping mapping456 --domain example.com
 
   # Approve cutover (state-changing -> needs --yes)
-  node --loader ts-node/esm apps/worker/src/cli/index.ts approve \\
+  pnpm exec tsx apps/worker/src/cli/index.ts approve \\
     --tenant tenant123 --mapping mapping456 --domain example.com --yes
 
   # Execute cutover (state-changing -> needs --yes)
-  node --loader ts-node/esm apps/worker/src/cli/index.ts execute \\
+  pnpm exec tsx apps/worker/src/cli/index.ts execute \\
+    --tenant tenant123 --mapping mapping456 --domain example.com --yes
+
+  # Complete the cutover after the grace period (state-changing -> needs --yes)
+  pnpm exec tsx apps/worker/src/cli/index.ts complete \\
     --tenant tenant123 --mapping mapping456 --domain example.com --yes
 
   # Rollback cutover (state-changing -> needs --yes)
-  node --loader ts-node/esm apps/worker/src/cli/index.ts rollback \\
+  pnpm exec tsx apps/worker/src/cli/index.ts rollback \\
     --tenant tenant123 --mapping mapping456 --domain example.com --yes
 
   # Show status
-  node --loader ts-node/esm apps/worker/src/cli/index.ts status \\
+  pnpm exec tsx apps/worker/src/cli/index.ts status \\
     --tenant tenant123 --mapping mapping456 --domain example.com
 
   # Generate the DNS runbook (no DB connection needed)
-  node --loader ts-node/esm apps/worker/src/cli/index.ts runbook \\
+  pnpm exec tsx apps/worker/src/cli/index.ts runbook \\
     --domain example.com --target mail.example.com > dns-runbook.md
 
 Environment Variables:
@@ -127,7 +133,7 @@ Environment Variables:
   }
 
   if (!command) {
-    log.error('Error: command required (start-cutover, verify, approve, execute, rollback, status, runbook)');
+    log.error('Error: command required (start-cutover, verify, approve, execute, complete, rollback, status, runbook)');
     process.exit(1);
   }
 
@@ -252,6 +258,10 @@ async function main() {
       await cutoverCli.executeCutover(deps);
       break;
     }
+    case 'complete': {
+      await cutoverCli.completeCutover(deps);
+      break;
+    }
     case 'rollback': {
       await cutoverCli.rollbackCutover(deps);
       break;
@@ -262,7 +272,7 @@ async function main() {
     }
     default:
       log.error(`Unknown cutover command: ${command}`);
-      log.error('Use: start-cutover, verify, approve, execute, rollback, status, runbook');
+      log.error('Use: start-cutover, verify, approve, execute, complete, rollback, status, runbook');
       process.exit(1);
   }
 }

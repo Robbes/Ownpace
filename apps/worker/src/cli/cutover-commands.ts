@@ -5,7 +5,8 @@
  * - start-cutover: Begin cutover process
  * - verify: Run verification checks
  * - approve: Approve cutover after verification
- * - execute: Execute the actual cutover
+ * - execute: Execute the actual cutover (lands in GRACE_PERIOD)
+ * - complete: Close out the grace period (GRACE_PERIOD -> COMPLETED)
  * - rollback: Rollback cutover if needed
  * - status: Show current cutover status
  * 
@@ -389,7 +390,7 @@ export async function executeCutover(deps: CutoverCliDeps): Promise<void> {
     if (
       !confirmed(deps, 'execute this cutover', [
         `Move mapping ${deps.mappingId} to CUTOVER_IN_PROGRESS.`,
-        `Wait for YOU to point the ${deps.dnsDomain} MX record at ${deps.targetMailServer} — this command does not change DNS — then mark the cutover COMPLETED.`,
+        `Wait for YOU to point the ${deps.dnsDomain} MX record at ${deps.targetMailServer} — this command does not change DNS — then enter the GRACE_PERIOD.`,
         'Mail delivery follows DNS — this is the point users notice.',
       ])
     ) {
@@ -426,16 +427,24 @@ export async function executeCutover(deps: CutoverCliDeps): Promise<void> {
 
     if (propagated) {
       CutoverCliOutput.success('DNS propagation confirmed');
-      
+
+      // GRACE_PERIOD, not COMPLETED: the state machine (cutover-state.ts) has
+      // no CUTOVER_IN_PROGRESS -> COMPLETED edge. This used to attempt it, so
+      // the happy path threw "Invalid transition" AFTER the operator had
+      // already switched DNS, stranding the ledger in CUTOVER_IN_PROGRESS.
+      // The grace window is also §11's actual next phase: both systems live,
+      // the operator watching mail flow, rollback still possible.
       await deps.cutoverPersistence.transitionState(
         deps.tenantId,
         deps.mappingId,
-        'COMPLETED',
-        { completedAt: new Date().toISOString() }
+        'GRACE_PERIOD',
+        { gracePeriodStartedAt: new Date().toISOString() }
       );
 
-      CutoverCliOutput.success('Cutover completed successfully!');
-      CutoverCliOutput.info('Next step: Monitor for issues during grace period');
+      CutoverCliOutput.success('Cutover executed — grace period active.');
+      CutoverCliOutput.info(
+        'Monitor mail flow, then close it out with "complete --yes" (or "rollback --yes" to revert).',
+      );
     } else {
       CutoverCliOutput.error('DNS propagation failed');
       
@@ -452,6 +461,57 @@ export async function executeCutover(deps: CutoverCliDeps): Promise<void> {
   } catch (error) {
     const err = error as Error;
     CutoverCliOutput.error(`Cutover execution failed: ${err.message}`);
+    process.exit(1);
+  }
+}
+
+/**
+ * Close out the grace period: GRACE_PERIOD -> COMPLETED.
+ *
+ * COMPLETED is only reachable from GRACE_PERIOD, and before this subcommand
+ * existed nothing in the CLI could get there — `execute` jumped straight at
+ * COMPLETED and the state machine threw. COMPLETED is terminal (`rollback`
+ * is no longer accepted from it), so this is a state-changing action and
+ * `--yes`-gated like the others.
+ */
+export async function completeCutover(deps: CutoverCliDeps): Promise<void> {
+  CutoverCliOutput.section('Completing Cutover');
+
+  try {
+    const state = await deps.cutoverPersistence.loadCutoverState(deps.tenantId, deps.mappingId);
+
+    if (!state) {
+      CutoverCliOutput.error('No cutover state found.');
+      process.exit(1);
+    }
+
+    if (state.currentState !== 'GRACE_PERIOD') {
+      CutoverCliOutput.error(`Invalid state for completion: ${state.currentState}`);
+      CutoverCliOutput.info('Cutover must be in GRACE_PERIOD state');
+      process.exit(1);
+    }
+
+    if (
+      !confirmed(deps, 'complete this cutover', [
+        `Mark mapping ${deps.mappingId} COMPLETED — a terminal state.`,
+        'After this, "rollback" is no longer accepted; reverting means a manual MX change.',
+      ])
+    ) {
+      process.exit(1);
+    }
+
+    await deps.cutoverPersistence.transitionState(
+      deps.tenantId,
+      deps.mappingId,
+      'COMPLETED',
+      { completedAt: new Date().toISOString(), completedBy: 'cli' }
+    );
+
+    CutoverCliOutput.success('Cutover completed.');
+    CutoverCliOutput.info('Restore DNS TTLs to their normal values and archive the source per the runbook.');
+  } catch (error) {
+    const err = error as Error;
+    CutoverCliOutput.error(`Failed to complete cutover: ${err.message}`);
     process.exit(1);
   }
 }

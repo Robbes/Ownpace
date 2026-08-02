@@ -59,14 +59,15 @@ and rejected from `PREPARING`, `READY_FOR_CUTOVER`, `COMPLETED`, `ROLLED_BACK`, 
 ### CLI (self-host / operator)
 
 ```sh
-node --loader ts-node/esm apps/worker/src/cli/index.ts rollback \
+pnpm exec tsx apps/worker/src/cli/index.ts rollback \
+  --yes \
   --tenant <tenantId> --mapping <mappingId> --domain example.com
 ```
 
 Then check the resulting state and event trail:
 
 ```sh
-node --loader ts-node/esm apps/worker/src/cli/index.ts status \
+pnpm exec tsx apps/worker/src/cli/index.ts status \
   --tenant <tenantId> --mapping <mappingId> --domain example.com
 ```
 

@@ -3,7 +3,7 @@
  * Worker CLI - runs shadow migration for a single mapping with multi-domain support.
  *
  * Usage:
- *   node --loader ts-node/esm apps/worker/src/index.ts --config <mapping.json> [--once]
+ *   pnpm exec tsx apps/worker/src/index.ts --config <mapping.json> [--once]
  *
  * Secrets are loaded from environment variables only (never from the config file).
  * 
@@ -44,7 +44,7 @@ function parseArgs(): { configPath: string; once: boolean } {
 Worker CLI - Run shadow migration for a mapping with multi-domain support
 
 Usage:
-  node --loader ts-node/esm apps/worker/src/index.ts --config <mapping.json> [--once]
+  pnpm exec tsx apps/worker/src/index.ts --config <mapping.json> [--once]
 
 Options:
   --config, -c <path>  Path to mapping config JSON file (required)
@@ -53,10 +53,10 @@ Options:
 
 Examples:
   # Run once immediately
-  node --loader ts-node/esm apps/worker/src/index.ts --config mapping.json --once
+  pnpm exec tsx apps/worker/src/index.ts --config mapping.json --once
 
   # Run in scheduled mode (respects cron from config)
-  node --loader ts-node/esm apps/worker/src/index.ts --config mapping.json
+  pnpm exec tsx apps/worker/src/index.ts --config mapping.json
 
 Environment Variables:
   DATABASE_URL         PostgreSQL connection string (required)

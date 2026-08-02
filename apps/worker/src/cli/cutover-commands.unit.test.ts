@@ -13,7 +13,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { asTenantId, asMappingId } from '@openmig/shared';
 import type { VerificationResult } from '@openmig/core';
 import * as core from '@openmig/core';
-import { confirmed, rollbackCutover, verifyCutover, type CutoverCliDeps } from './cutover-commands';
+import {
+  confirmed,
+  rollbackCutover,
+  verifyCutover,
+  executeCutover,
+  completeCutover,
+  type CutoverCliDeps,
+} from './cutover-commands';
 
 const TENANT = asTenantId('5e1b0000-e29b-41d4-a716-4466554402a1' as never);
 const MAPPING = asMappingId('5e1b0000-e29b-41d4-a716-4466554402a2' as never);
@@ -264,5 +271,107 @@ describe('verifyCutover() data gate', () => {
     await verifyCutover(deps);
 
     expect(logged.join('\n')).toContain('Re-sync 6 missing mail item(s)');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// execute + complete: the state machine's actual edges
+//
+// `executeCutover()` used to transition CUTOVER_IN_PROGRESS -> COMPLETED, an
+// edge VALID_TRANSITIONS (cutover-state.ts) does not have — the store threw
+// "Invalid transition" AFTER the operator had already switched DNS, stranding
+// the ledger in CUTOVER_IN_PROGRESS with a non-zero exit. The happy path is
+// CUTOVER_IN_PROGRESS -> GRACE_PERIOD, and COMPLETED is only reachable from
+// there — which is what the `complete` subcommand now does.
+// ---------------------------------------------------------------------------
+
+describe('executeCutover() follows the state machine', () => {
+  let exitSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`process.exit(${code})`);
+    }) as never);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('lands in GRACE_PERIOD, never COMPLETED, when propagation confirms', async () => {
+    vi.spyOn(core, 'checkPropagation').mockResolvedValue(true as never);
+    const store = makeStore('APPROVED');
+
+    await executeCutover(makeDeps(store, true));
+
+    const states = store.transitionState.mock.calls.map((c) => c[2]);
+    expect(states).toEqual(['CUTOVER_IN_PROGRESS', 'GRACE_PERIOD']);
+    expect(states).not.toContain('COMPLETED');
+  });
+
+  it('refuses without --yes and leaves the ledger untouched', async () => {
+    const store = makeStore('APPROVED');
+
+    await expect(executeCutover(makeDeps(store))).rejects.toThrow('process.exit(1)');
+
+    expect(store.transitionState).not.toHaveBeenCalled();
+    expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+
+  it('marks FAILED when propagation times out', async () => {
+    vi.spyOn(core, 'checkPropagation').mockResolvedValue(false as never);
+    const store = makeStore('APPROVED');
+
+    await expect(executeCutover(makeDeps(store, true))).rejects.toThrow('process.exit(1)');
+
+    const states = store.transitionState.mock.calls.map((c) => c[2]);
+    expect(states).toEqual(['CUTOVER_IN_PROGRESS', 'FAILED']);
+  });
+});
+
+describe('completeCutover()', () => {
+  let exitSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`process.exit(${code})`);
+    }) as never);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('closes GRACE_PERIOD -> COMPLETED with --yes', async () => {
+    const store = makeStore('GRACE_PERIOD');
+
+    await completeCutover(makeDeps(store, true));
+
+    expect(store.transitionState).toHaveBeenCalledTimes(1);
+    expect(store.transitionState).toHaveBeenCalledWith(
+      TENANT,
+      MAPPING,
+      'COMPLETED',
+      expect.objectContaining({ completedBy: 'cli' }),
+    );
+  });
+
+  it('refuses without --yes and leaves the ledger untouched', async () => {
+    const store = makeStore('GRACE_PERIOD');
+
+    await expect(completeCutover(makeDeps(store))).rejects.toThrow('process.exit(1)');
+
+    expect(store.transitionState).not.toHaveBeenCalled();
+    expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+
+  it('refuses from a non-GRACE_PERIOD state (COMPLETED is only reachable from there)', async () => {
+    const store = makeStore('CUTOVER_IN_PROGRESS');
+
+    await expect(completeCutover(makeDeps(store, true))).rejects.toThrow('process.exit(1)');
+
+    expect(store.transitionState).not.toHaveBeenCalled();
   });
 });
