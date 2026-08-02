@@ -4,7 +4,7 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T1 solution-architecture.md v1.2 | ⬜ Not started | — |
+| T1 solution-architecture.md v1.2 | 🟡 **Built, PR open** | Version bumped to 1.2 with a dated change note. The engine-name sweep executed: every imapsync/vdirsyncer/rclone row in §7.3/§8 (mermaid)/§9/§10/§11/§12/§13/§14/§21 now names our own TypeScript connectors, and the §6 banner reads as history instead of a decoder ring (the two remaining mentions are the banner itself and §9.4's *rejected* rclone Proton backend). §3.2/§18 corrected to ADR-0011's real position (self-hosted targets permitted, user-operated). §11.1's apply paragraph corrected — the IMAP/DAV mail target DOES implement `TargetRemover` (verified: `ImapDavMailTarget implements … TargetRemover`, `removeItem` reports `deleted`). PGlite named in §7.3 State row + §22.1 (ADR-0028). §23 got an honest update note: bilingual UI is an unbuilt promise pending the T5 owner decision (header + §3.8 marked too). §24 ADR index extended 0024–0028. §25's Windows row rewritten per ADR-0027/workplan 0015. Bonus truth fix: §13.2's "reuse an external one-shot JMAP import utility" plan replaced with the built reality (our own JMAP writer does bulk + incremental). |
 | T2 The runbooks tell the truth | ⬜ Not started | — |
 | T3 Reference docs catch up with the code | ⬜ Not started | — |
 | T4 READMEs stop lying about env and ports | ⬜ Not started | — |
