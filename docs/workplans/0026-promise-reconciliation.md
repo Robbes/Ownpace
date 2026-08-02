@@ -90,7 +90,7 @@ promising document (ADR/SAD/scope-manifest), exactly as 0021 T5 did.
 | 6 | **Policy presets + the §11.1 drift decision queue** | SAD §11.2 #3, ADR-0016; 0013 named it "its own workplan" | `decision` and `policy_preset` tables shipped, **zero readers/writers** — the largest unowned feature |
 | 7 | **Bidirectional + asymmetric sync modes** (conflict policy) | SAD §11, §3 decision 3 | Enum values only; nothing branches on mode |
 | 8 | **Post-cutover reverse sync** (sovereign→O365) | SAD §20 | No reverse direction, no source-side writer exists |
-| 9 | **Proton Bridge + ICS/vCard snapshots** | SAD §15.1; **in the user-facing scope manifest** | Zero Proton code (ADR-0025 defers only Drive — this half is uncovered) |
+| 9 | **Proton Bridge + ICS/vCard snapshots** — **RETRACTED 2026-08-02** (ADR-0025 update covers the whole Proton destination; manifest row removed) | SAD §15.1; **in the user-facing scope manifest** | Zero Proton code (ADR-0025 defers only Drive — this half is uncovered) |
 | 10 | **Secrets vault (OpenBao/Infisical) + self-host keychain** | SAD §7.3, SECURITY.md, deployment.md | Reality: AES over a `SECRET_ENCRYPTION_KEY` env var |
 | 11 | **A full threat model** | SECURITY.md points at "§26" — **which is the glossary**; §17.1 is a 6-row lightweight table | No threat-model artifact exists |
 | 12 | **NOTICE file + Apache source headers** | ADR-0001 | Neither exists |
@@ -111,8 +111,15 @@ promising document (ADR/SAD/scope-manifest), exactly as 0021 T5 did.
 **Update 2026-08-02 — row 2 decided: KEPT, and the build is
 [workplan 0027](./0027-shared-addresses.md)** (both §14.1 patterns, since
 the manifest promises S and D together and D's classification rule — "a
-group with a store is S" — needs S to route to). The remaining 24 rows are
-still open.
+group with a store is S" — needs S to route to).
+
+**Update 2026-08-02 — row 9 decided: RETRACTED for now.** ADR-0025 gained
+a dated update extending its deferral to the whole Proton destination
+(Bridge mail, ICS/vCard snapshots, Drive — one consistent posture instead
+of half-deferred, half-promised); the scope manifest's Proton row is
+removed (version bumped to `2026-08-02`); SAD §15.1 and the §11.2 manifest
+listing carry the dated notes. The Bridge/snapshot half's revisit trigger
+is demand — it was only ever blocked on priority. 23 rows remain open.
 
 ## T4 — mechanical truth sweep (no decisions; small PRs)
 
