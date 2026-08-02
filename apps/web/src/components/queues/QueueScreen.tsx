@@ -14,7 +14,8 @@ import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import type { ApplyReceipt, QueueEnvelope } from '@openmig/shared';
-import { ClosedBanner, LIFECYCLE_NOTE } from './primitives';
+import { ClosedBanner, LIFECYCLE_NOTE_KEY } from './primitives';
+import { useT } from '../../i18n';
 import { DecisionRefusedError } from '../../services/operating-service';
 
 /**
@@ -55,6 +56,7 @@ export function QueueScreen<T extends QueueEnvelope>({
   renderMapping,
 }: QueueScreenProps<T>): React.ReactElement {
   const queryClient = useQueryClient();
+  const t = useT();
   const [outcomes, setOutcomes] = React.useState<Record<string, ItemOutcome>>({});
 
   const { data, isLoading, error } = useQuery({
@@ -155,8 +157,10 @@ export function QueueScreen<T extends QueueEnvelope>({
             <span className="text-xs text-gray-500">{queue.migrationStatus}</span>
           </div>
           {queue.reportingClosed && <ClosedBanner text={queue.reportingClosed} />}
-          {LIFECYCLE_NOTE[queue.migrationStatus] && (
-            <p className="mb-3 text-sm text-gray-600">{LIFECYCLE_NOTE[queue.migrationStatus]}</p>
+          {LIFECYCLE_NOTE_KEY[queue.migrationStatus] && (
+            <p className="mb-3 text-sm text-gray-600">
+              {t(LIFECYCLE_NOTE_KEY[queue.migrationStatus]!)}
+            </p>
           )}
           {renderMapping(mappingId, queue, act, outcomes, setOutcome, refresh)}
         </section>
