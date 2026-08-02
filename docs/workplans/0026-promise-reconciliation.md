@@ -5,7 +5,7 @@
 | Task | Status | Evidence |
 |---|---|---|
 | T1 Verified defects (build, no decision needed) | ⬜ Not started | — |
-| T2 Dead-surface decisions (needs the owner) | ⬜ Needs the owner | — |
+| T2 Dead-surface decisions (needs the owner) | ✅ **Decided + built 2026-08-02** | Owner: ditch OperatorDashboard and Settings, keep Tenants and build it. Deleted: `OperatorDashboard.tsx` (393 lines, five `/admin/*` calls with no server), the `Settings.tsx` stub, both nav entries + routes + the Dashboard tile, `useMappingStore`, `NotImplementedError` (+ `shared/src/errors.ts`), and `tenantApi.list/create/delete` (create was a 501 by design). Built: `Tenants.tsx` — members list / invite / role change / two-step remove against the existing tenants+members API, server guards rendered verbatim, admin offered no owner option, own row not removable, member/viewer read-only; invite says out loud that no email is sent (notifications are T3 row 5). Client schemas re-verified against the routes (the old ones had drifted: no `invited` status, PATCH parsed as a full member). Bilingual per 0024 (+40 keys EN/NL). 9 new unit tests; typecheck + lint clean, 1282/1282 unit. |
 | T3 Product-promise decisions (needs the owner, per row) | ⬜ Needs the owner | — |
 | T4 Mechanical truth sweep (stale prose, dangling refs) | ⬜ Not started | — |
 
@@ -61,6 +61,19 @@ owner keeps becomes its own workplan (the 0023/0024 pattern).
 - Related earlier candidate (0024): Dashboard/Mappings body prose is
   EN-only — localize as 0024-T5 **if these screens live**; moot for any
   screen deleted here.
+
+**Update 2026-08-02 — decided and executed.** The owner's call: *"ditch
+OperatorDashboard and settings. keep tenants and build."* OperatorDashboard
+and Settings are gone (files, routes, nav entries, the Dashboard tile, their
+dictionary keys), and with them `useMappingStore` and `NotImplementedError`.
+`tenantApi`/`memberApi` stayed and gained their caller: `Tenants.tsx` is now
+the real team-management screen (see the Status row for what it does). The
+0024-T5 question narrows to Dashboard/Mappings only — the two screens that
+live are the two whose body prose is still EN-only; the new Tenants screen
+is bilingual from birth. A future operator surface, if ever wanted, starts
+from a spec and a privileged non-tenant-scoped API, not from the deleted
+mockup (cross-tenant reads cannot run through the RLS-scoped tenant API —
+the same reason `POST /tenants` is an honest 501).
 
 ## T3 — product-promise decisions (one row = one owner decision)
 

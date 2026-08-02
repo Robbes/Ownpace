@@ -1,6 +1,5 @@
 export const packageName = '@openmig/shared';
 
-export * from './errors';
 export * from './ids';
 export * from './mail';
 export * from './calendar';

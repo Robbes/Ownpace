@@ -1,15 +1,13 @@
 import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router';
-import { 
-  LayoutDashboard, 
-  FolderGit2, 
-  Building2, 
-  Settings, 
+import {
+  LayoutDashboard,
+  FolderGit2,
+  Building2,
   LogOut,
   Menu,
   X,
   CreditCard,
-  Server,
   Trash2,
   MoveRight,
   AlertTriangle,
@@ -62,8 +60,6 @@ const Layout: React.FC = () => {
       : []),
     ...(selfHost ? [] : [{ name: t('nav.tenants'), href: '/tenants', icon: Building2 }]),
     ...(selfHost ? [] : [{ name: t('nav.billing'), href: '/billing', icon: CreditCard }]),
-    { name: t('nav.operator'), href: '/operator', icon: Server },
-    { name: t('nav.settings'), href: '/settings', icon: Settings },
   ];
 
   return (
