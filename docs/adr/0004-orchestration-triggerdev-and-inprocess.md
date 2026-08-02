@@ -3,6 +3,14 @@
 - **Status:** Accepted
 - **Date:** 2026-06-20
 
+> **Update 2026-08-02:** "imapsync/rclone move data directly source->target"
+> is historical — the bytes now flow through OUR connector code executing as
+> deployed Trigger.dev tasks (workplans 0018/0022; since 0022 the managed
+> edition runs on exactly one execution plane, this ADR as originally drawn).
+> The privacy property survives in its real form: the ORCHESTRATOR still never
+> sees content, because task payloads carry ids only and content moves inside
+> the task process (SAD §17).
+
 ## Context
 We need robust scheduling, retries, concurrency budgets, and long-running tasks. The ledger already holds durable migration state, so full durable-execution is helpful but not essential. Self-host must remain possible, including local dev on an arm64 Spark.
 
