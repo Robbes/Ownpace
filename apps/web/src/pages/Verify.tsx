@@ -24,49 +24,35 @@ import type {
   VerifyResponse,
 } from '@openmig/shared';
 import { startVerification, fetchVerifyReport } from '../services/operating-service';
+import { useT } from '../i18n';
+import type { StringKey } from '../i18n';
 
-const STATUS_STYLE: Record<DataTypeVerificationStatus, { icon: React.ReactNode; className: string; help: string }> = {
-  PASS: {
-    icon: <CheckCircle2 className="w-4 h-4" />,
-    className: 'text-emerald-700',
-    help: 'Counts matched and the sampled content compared clean.',
-  },
-  WARN: {
-    icon: <AlertCircle className="w-4 h-4" />,
-    className: 'text-amber-700',
-    help: 'Discrepancies within tolerance. Read the issues before proceeding.',
-  },
-  FAIL: {
-    icon: <XCircle className="w-4 h-4" />,
-    className: 'text-red-700',
-    help: 'Items are missing on the target, or sampled content did not match.',
-  },
-  SKIPPED: {
-    icon: <MinusCircle className="w-4 h-4" />,
-    className: 'text-gray-500',
-    help: 'You turned this domain off in the config. Your call, so it does not block cutover — but nobody checked it.',
-  },
-  NOT_VERIFIABLE: {
-    icon: <HelpCircle className="w-4 h-4" />,
-    className: 'text-amber-800',
-    help: 'This domain IS enabled, but there is no way to read the target for it, so nothing could be checked. This blocks cutover — an unchecked domain has not passed.',
-  },
+// The status WORD (PASS/FAIL/…) stays the server's vocabulary; the hover help
+// is client prose and translates (workplan 0024 T2).
+const STATUS_STYLE: Record<DataTypeVerificationStatus, { icon: React.ReactNode; className: string; helpKey: StringKey }> = {
+  PASS: { icon: <CheckCircle2 className="w-4 h-4" />, className: 'text-emerald-700', helpKey: 'verify.help.PASS' },
+  WARN: { icon: <AlertCircle className="w-4 h-4" />, className: 'text-amber-700', helpKey: 'verify.help.WARN' },
+  FAIL: { icon: <XCircle className="w-4 h-4" />, className: 'text-red-700', helpKey: 'verify.help.FAIL' },
+  SKIPPED: { icon: <MinusCircle className="w-4 h-4" />, className: 'text-gray-500', helpKey: 'verify.help.SKIPPED' },
+  NOT_VERIFIABLE: { icon: <HelpCircle className="w-4 h-4" />, className: 'text-amber-800', helpKey: 'verify.help.NOT_VERIFIABLE' },
 };
 
-const DOMAIN_LABEL: Record<DataTypeVerification['dataType'], string> = {
-  mail: 'Email',
-  calendar: 'Calendar',
-  contacts: 'Contacts',
-  files: 'Files',
+// Reuses the queue screens' domain keys — one vocabulary, one translation.
+const DOMAIN_KEY: Record<DataTypeVerification['dataType'], StringKey> = {
+  mail: 'domain.email',
+  calendar: 'domain.calendar',
+  contacts: 'domain.contact',
+  files: 'domain.file',
 };
 
 function DomainRow({ d }: { d: DataTypeVerification }): React.ReactElement {
+  const t = useT();
   const s = STATUS_STYLE[d.status];
   return (
     <tr className="border-b border-gray-100 last:border-0">
-      <td className="py-2 pr-3 font-medium text-gray-900">{DOMAIN_LABEL[d.dataType]}</td>
+      <td className="py-2 pr-3 font-medium text-gray-900">{t(DOMAIN_KEY[d.dataType])}</td>
       <td className="py-2 pr-3">
-        <span className={`inline-flex items-center gap-1 ${s.className}`} title={s.help}>
+        <span className={`inline-flex items-center gap-1 ${s.className}`} title={t(s.helpKey)}>
           {s.icon}
           {d.status}
         </span>
@@ -89,15 +75,13 @@ function DomainRow({ d }: { d: DataTypeVerification }): React.ReactElement {
         */}
         {d.checksumSampleSize === 0
           ? '—'
-          : `${d.checksumMatches}/${d.checksumSampleSize} matched` +
-            (d.checksumMismatches > 0 ? `, ${d.checksumMismatches} differed` : '') +
-            (d.checksumUnavailable > 0 ? `, ${d.checksumUnavailable} not comparable` : '')}
+          : `${d.checksumMatches}/${d.checksumSampleSize} ${t('verify.matched')}` +
+            (d.checksumMismatches > 0 ? `, ${d.checksumMismatches} ${t('verify.differed')}` : '') +
+            (d.checksumUnavailable > 0 ? `, ${d.checksumUnavailable} ${t('verify.notComparable')}` : '')}
       </td>
       <td className="py-2 text-xs text-gray-600">
         {d.totalBytesTarget === null ? (
-          <span title="The target exposes no per-item size, so nothing was measured on that side. Not the same as a match.">
-            not measured
-          </span>
+          <span title={t('verify.notMeasured.title')}>{t('verify.notMeasured')}</span>
         ) : (
           d.totalBytesTarget.toLocaleString()
         )}
@@ -107,6 +91,7 @@ function DomainRow({ d }: { d: DataTypeVerification }): React.ReactElement {
 }
 
 function Report({ mappingId, r }: { mappingId: string; r: VerificationResult }): React.ReactElement {
+  const t = useT();
   const domains = [r.mail, r.calendar, r.contacts, r.files];
   const issues = domains.flatMap((d) => d.issues.map((i) => ({ ...i, domain: d.dataType })));
   return (
@@ -115,7 +100,7 @@ function Report({ mappingId, r }: { mappingId: string; r: VerificationResult }):
         <h3 className="font-semibold text-gray-900">{mappingId}</h3>
         <div className="flex items-center gap-3 text-sm">
           <span className={STATUS_STYLE[r.overallStatus].className}>{r.overallStatus}</span>
-          <span className="text-gray-500">score {(r.score * 100).toFixed(1)}%</span>
+          <span className="text-gray-500">{t('verify.score')} {(r.score * 100).toFixed(1)}%</span>
         </div>
       </div>
 
@@ -124,22 +109,20 @@ function Report({ mappingId, r }: { mappingId: string; r: VerificationResult }):
           r.canProceedToCutover ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'
         }`}
       >
-        {r.canProceedToCutover
-          ? 'This migration is ready to cut over.'
-          : 'Not ready to cut over. See the domains and issues below.'}
+        {r.canProceedToCutover ? t('verify.ready') : t('verify.notReady')}
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-gray-500 border-b border-gray-200">
-              <th className="py-2 pr-3 font-medium">Type</th>
-              <th className="py-2 pr-3 font-medium">Result</th>
-              <th className="py-2 pr-3 font-medium">On the old system</th>
-              <th className="py-2 pr-3 font-medium">On the new one</th>
-              <th className="py-2 pr-3 font-medium">Missing</th>
-              <th className="py-2 pr-3 font-medium">Content sample</th>
-              <th className="py-2 font-medium">Bytes (target)</th>
+              <th className="py-2 pr-3 font-medium">{t('verify.th.type')}</th>
+              <th className="py-2 pr-3 font-medium">{t('verify.th.result')}</th>
+              <th className="py-2 pr-3 font-medium">{t('verify.th.source')}</th>
+              <th className="py-2 pr-3 font-medium">{t('verify.th.target')}</th>
+              <th className="py-2 pr-3 font-medium">{t('verify.th.missing')}</th>
+              <th className="py-2 pr-3 font-medium">{t('verify.th.sample')}</th>
+              <th className="py-2 font-medium">{t('verify.th.bytes')}</th>
             </tr>
           </thead>
           <tbody>
@@ -152,7 +135,7 @@ function Report({ mappingId, r }: { mappingId: string; r: VerificationResult }):
 
       {issues.length > 0 && (
         <div className="mt-4">
-          <h4 className="text-sm font-semibold text-gray-900 mb-2">Issues ({issues.length})</h4>
+          <h4 className="text-sm font-semibold text-gray-900 mb-2">{t('verify.issues')} ({issues.length})</h4>
           <ul className="space-y-1 text-sm">
             {issues.map((i) => (
               <li key={`${i.domain}-${i.id}`} className="flex items-start gap-2">
@@ -172,7 +155,7 @@ function Report({ mappingId, r }: { mappingId: string; r: VerificationResult }):
 
       {r.recommendations.length > 0 && (
         <div className="mt-4">
-          <h4 className="text-sm font-semibold text-gray-900 mb-2">What to do</h4>
+          <h4 className="text-sm font-semibold text-gray-900 mb-2">{t('verify.whatToDo')}</h4>
           <ul className="list-disc list-inside space-y-1 text-sm text-gray-800">
             {r.recommendations.map((rec) => (
               <li key={rec}>{rec}</li>
@@ -189,6 +172,7 @@ const Verify: React.FC = () => {
   // absent on the appliance's flat one — `verifyPath()` needs it for the former
   // and ignores it for the latter, the same split the queue screens have.
   const { mappingId } = useParams<{ mappingId: string }>();
+  const t = useT();
   const [state, setState] = React.useState<
     | { kind: 'idle' }
     | { kind: 'running'; startedAt?: string }
@@ -222,10 +206,7 @@ const Verify: React.FC = () => {
           // The appliance restarted mid-run and honestly forgot. Say so rather
           // than spinning forever against a run that no longer exists.
           stopPolling();
-          setState({
-            kind: 'error',
-            message: 'The appliance restarted while the check ran. Run it again.',
-          });
+          setState({ kind: 'error', message: t('verify.restarted') });
         }
         // 'running': keep polling.
       })
@@ -253,18 +234,15 @@ const Verify: React.FC = () => {
         stopPolling();
         setState({
           kind: 'error',
-          message: err instanceof Error ? err.message : 'The check did not start.',
+          message: err instanceof Error ? err.message : t('verify.didNotStart'),
         });
       });
   };
 
   return (
     <div>
-      <h2 className="text-lg font-semibold text-gray-900">Check the migration</h2>
-      <p className="mt-1 mb-4 text-sm text-gray-600">
-        Compares what the old system has against what the new one has, and samples the contents to
-        confirm they match. Read-only — it never writes to either side.
-      </p>
+      <h2 className="text-lg font-semibold text-gray-900">{t('verify.title')}</h2>
+      <p className="mt-1 mb-4 text-sm text-gray-600">{t('verify.intro')}</p>
 
       <div className="mb-6 flex items-center gap-3">
         <button
@@ -273,28 +251,23 @@ const Verify: React.FC = () => {
           className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {state.kind === 'running' && <Loader2 className="w-4 h-4 animate-spin" />}
-          {state.kind === 'done' ? 'Check again' : 'Run the check'}
+          {state.kind === 'done' ? t('verify.runAgain') : t('verify.run')}
         </button>
         {/*
           Said before they press it, not after. This reads the whole target and
           can take minutes on a real mailbox — an operator who is not told that
           will assume it has hung and reload.
         */}
-        <span className="text-xs text-gray-500">
-          Reads the whole destination — on a large mailbox this takes minutes.
-        </span>
+        <span className="text-xs text-gray-500">{t('verify.durationHint')}</span>
       </div>
 
       {state.kind === 'error' && (
         <div className="flex items-start gap-2 p-4 rounded-lg bg-red-50 text-red-800 text-sm">
           <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
           <div>
-            <p className="font-medium">The check did not complete.</p>
+            <p className="font-medium">{t('verify.didNotComplete')}</p>
             <p className="mt-1">{state.message}</p>
-            <p className="mt-1">
-              Nothing is known about the migration&apos;s completeness either way — this is not a
-              result.
-            </p>
+            <p className="mt-1">{t('verify.notAResult')}</p>
           </div>
         </div>
       )}
