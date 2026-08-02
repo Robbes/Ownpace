@@ -3,6 +3,17 @@
 - **Status:** Accepted
 - **Date:** 2026-06-20
 
+> **Update 2026-08-02 (workplan 0021 T5, owner decision: keep + build).** The
+> Atlas lint bullet was the one promise here with no code behind it — every
+> migration to date had been reviewed by eye only. It is now real: the
+> `migration-lint` CI job (`ci.yml`) installs the Atlas community binary and
+> replays the whole `packages/ledger/migrations` directory against a
+> disposable dockerized Postgres, failing on destructive changes; it runs
+> whenever the migration directory changes. `atlas.sum` is generated in-job,
+> not committed. Also note: this ADR's SQLite half was superseded by ADR-0023
+> (Postgres-only, both editions) — Drizzle Kit + the startup lock runner and
+> the newer-schema refusal guard are all real (`packages/ledger/src/migrate.ts`).
+
 ## Context
 We need schema **and** data migrations for both PostgreSQL (managed) and SQLite (self-host) in a TypeScript/Node stack; the self-host edition runs on small hardware (Pi/NAS). Liquibase and Flyway are mature and DB-agnostic but JVM-based.
 
