@@ -93,6 +93,8 @@ const en = {
   'deletions.applyArmed': 'Confirm delete',
   'deletions.requestFailed': 'The request did not complete.',
   'common.loading': 'Loading…',
+  'mappings.lastSync': 'Last sync:',
+  'mappings.never': 'Never',
   'confirm.title': 'Review & confirm your migration',
   'confirm.intro': 'Nothing has been copied yet. Review what will migrate, then start it.',
   'confirm.readError': 'Could not read the migrations.',
@@ -111,6 +113,7 @@ const en = {
   'verify.run': 'Run the check',
   'verify.runAgain': 'Check again',
   'verify.durationHint': 'Reads the whole destination — on a large mailbox this takes minutes.',
+  'verify.runningSince': 'Running since',
   'verify.didNotComplete': 'The check did not complete.',
   'verify.notAResult':
     "Nothing is known about the migration's completeness either way — this is not a result.",
@@ -279,6 +282,8 @@ const nl: Record<keyof typeof en, string> = {
   'deletions.applyArmed': 'Bevestig verwijderen',
   'deletions.requestFailed': 'Het verzoek is niet voltooid.',
   'common.loading': 'Laden…',
+  'mappings.lastSync': 'Laatste synchronisatie:',
+  'mappings.never': 'Nooit',
   'confirm.title': 'Controleer en bevestig uw migratie',
   'confirm.intro': 'Er is nog niets gekopieerd. Controleer wat er migreert en start het daarna.',
   'confirm.readError': 'De migraties konden niet worden gelezen.',
@@ -298,6 +303,7 @@ const nl: Record<keyof typeof en, string> = {
   'verify.runAgain': 'Controleer opnieuw',
   'verify.durationHint':
     'Leest de volledige bestemming — bij een grote mailbox duurt dit minuten.',
+  'verify.runningSince': 'Bezig sinds',
   'verify.didNotComplete': 'De controle is niet voltooid.',
   'verify.notAResult':
     'Er is in geen van beide richtingen iets bekend over de volledigheid van de migratie — dit is geen resultaat.',

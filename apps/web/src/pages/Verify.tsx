@@ -26,6 +26,7 @@ import type {
 import { startVerification, fetchVerifyReport } from '../services/operating-service';
 import { useT } from '../i18n';
 import type { StringKey } from '../i18n';
+import { useFormatters } from '../i18n/datetime';
 
 // The status WORD (PASS/FAIL/…) stays the server's vocabulary; the hover help
 // is client prose and translates (workplan 0024 T2).
@@ -47,6 +48,7 @@ const DOMAIN_KEY: Record<DataTypeVerification['dataType'], StringKey> = {
 
 function DomainRow({ d }: { d: DataTypeVerification }): React.ReactElement {
   const t = useT();
+  const { number } = useFormatters();
   const s = STATUS_STYLE[d.status];
   return (
     <tr className="border-b border-gray-100 last:border-0">
@@ -57,11 +59,11 @@ function DomainRow({ d }: { d: DataTypeVerification }): React.ReactElement {
           {d.status}
         </span>
       </td>
-      <td className="py-2 pr-3 tabular-nums">{d.sourceCount.toLocaleString()}</td>
-      <td className="py-2 pr-3 tabular-nums">{d.targetCount.toLocaleString()}</td>
+      <td className="py-2 pr-3 tabular-nums">{number(d.sourceCount)}</td>
+      <td className="py-2 pr-3 tabular-nums">{number(d.targetCount)}</td>
       <td className="py-2 pr-3 tabular-nums">
         {d.missingOnTarget > 0 ? (
-          <span className="text-red-700 font-medium">{d.missingOnTarget.toLocaleString()}</span>
+          <span className="text-red-700 font-medium">{number(d.missingOnTarget)}</span>
         ) : (
           '0'
         )}
@@ -83,7 +85,7 @@ function DomainRow({ d }: { d: DataTypeVerification }): React.ReactElement {
         {d.totalBytesTarget === null ? (
           <span title={t('verify.notMeasured.title')}>{t('verify.notMeasured')}</span>
         ) : (
-          d.totalBytesTarget.toLocaleString()
+          number(d.totalBytesTarget)
         )}
       </td>
     </tr>
@@ -173,6 +175,7 @@ const Verify: React.FC = () => {
   // and ignores it for the latter, the same split the queue screens have.
   const { mappingId } = useParams<{ mappingId: string }>();
   const t = useT();
+  const { dateTime } = useFormatters();
   const [state, setState] = React.useState<
     | { kind: 'idle' }
     | { kind: 'running'; startedAt?: string }
@@ -258,7 +261,17 @@ const Verify: React.FC = () => {
           can take minutes on a real mailbox — an operator who is not told that
           will assume it has hung and reload.
         */}
-        <span className="text-xs text-gray-500">{t('verify.durationHint')}</span>
+        <span className="text-xs text-gray-500">
+          {t('verify.durationHint')}
+          {/*
+            The server said when the run began (stored since the async rewrite,
+            shown since 0024 T3). It matters for the same reason the hint does:
+            "running since five minutes ago" answers "has it hung?" honestly.
+          */}
+          {state.kind === 'running' && state.startedAt
+            ? ` ${t('verify.runningSince')} ${dateTime(state.startedAt)}.`
+            : null}
+        </span>
       </div>
 
       {state.kind === 'error' && (
