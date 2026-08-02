@@ -1,5 +1,11 @@
 # Test Fixture UUID Collision Audit Report
 
+> **Status: REMEDIATED.** The collisions below were fixed and the guard
+> shipped: the **`fixture-uuid-check`** CI job (`ci.yml`) fails any PR that
+> reuses a fixture UUID across test files, so this class of order-dependent
+> failure cannot silently return. This document remains as the audit record;
+> read it as history, not as an open finding.
+
 ## Executive Summary
 
 **Problem**: Multiple integration test files share hardcoded fixture UUIDs on a SHARED Testcontainers Postgres database. Because seeds use `ON CONFLICT (id) DO NOTHING`, whichever file runs first "wins" a row, and later files silently get another file's data — causing order-dependent failures that pass in isolation but fail in the full suite.
