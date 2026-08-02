@@ -22,6 +22,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Loader2, Play } from 'lucide-react';
 import { Link } from 'react-router';
 import type { MappingLifecycle } from '@openmig/shared';
+import { useT } from '../i18n';
+import type { StringKey } from '../i18n';
 import DiscoveryCounts from '../components/confirm/DiscoveryCounts';
 import ScopeManifestPanel from '../components/confirm/ScopeManifestPanel';
 import {
@@ -31,15 +33,16 @@ import {
   startMigration,
 } from '../services/operating-service';
 
-const LIFECYCLE_NOTE: Record<MappingLifecycle, string | null> = {
+const LIFECYCLE_NOTE_KEY: Record<MappingLifecycle, StringKey | null> = {
   paused: null,
-  active: 'Running. It syncs on its schedule and reports anything that needs you.',
-  cutover: 'In cutover.',
-  done: 'Finished. This migration no longer syncs.',
+  active: 'confirm.note.active',
+  cutover: 'confirm.note.cutover',
+  done: 'confirm.note.done',
 };
 
 const Confirm: React.FC = () => {
   const queryClient = useQueryClient();
+  const t = useT();
 
   const status = useQuery({ queryKey: ['status'], queryFn: fetchStatus });
   const discovery = useQuery({
@@ -63,7 +66,7 @@ const Confirm: React.FC = () => {
     return (
       <div className="flex items-center gap-2 text-gray-500">
         <Loader2 className="w-4 h-4 animate-spin" />
-        Loading…
+        {t('common.loading')}
       </div>
     );
   }
@@ -75,7 +78,7 @@ const Confirm: React.FC = () => {
       <div className="flex items-start gap-2 p-4 rounded-lg bg-red-50 text-red-800 text-sm">
         <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
         <div>
-          <p className="font-medium">Could not read the migrations.</p>
+          <p className="font-medium">{t('confirm.readError')}</p>
           <p className="mt-1">
             {status.error instanceof Error ? status.error.message : String(status.error)}
           </p>
@@ -88,16 +91,14 @@ const Confirm: React.FC = () => {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold text-gray-900">Review &amp; confirm your migration</h2>
-      <p className="mt-1 mb-6 text-sm text-gray-600">
-        Nothing has been copied yet. Review what will migrate, then start it.
-      </p>
+      <h2 className="text-lg font-semibold text-gray-900">{t('confirm.title')}</h2>
+      <p className="mt-1 mb-6 text-sm text-gray-600">{t('confirm.intro')}</p>
 
-      {mappings.length === 0 && <p className="text-sm text-gray-500">No mappings configured.</p>}
+      {mappings.length === 0 && <p className="text-sm text-gray-500">{t('confirm.noMappings')}</p>}
 
       {mappings.map((m) => {
         const domains = discovery.data?.[m.mappingId] ?? [];
-        const note = LIFECYCLE_NOTE[m.migrationStatus];
+        const noteKey = LIFECYCLE_NOTE_KEY[m.migrationStatus];
         return (
           <section
             key={m.mappingId}
@@ -122,22 +123,22 @@ const Confirm: React.FC = () => {
                   ) : (
                     <Play className="w-4 h-4" />
                   )}
-                  Start migration
+                  {t('confirm.start')}
                 </button>
               ) : (
                 <p className="text-sm text-gray-700">
-                  {note}{' '}
+                  {noteKey && t(noteKey)}{' '}
                   {m.migrationStatus === 'active' && (
                     <Link to="/deletions" className="text-blue-700 hover:underline">
-                      Open the migration console
+                      {t('confirm.openConsole')}
                     </Link>
                   )}
                 </p>
               )}
               {start.isError && start.variables === m.mappingId && (
                 <p className="mt-2 text-sm text-red-700" role="alert">
-                  Could not start it:{' '}
-                  {start.error instanceof Error ? start.error.message : 'the request failed'}
+                  {t('confirm.startError')}{' '}
+                  {start.error instanceof Error ? start.error.message : t('confirm.startErrorFallback')}
                 </p>
               )}
             </div>
@@ -147,7 +148,7 @@ const Confirm: React.FC = () => {
 
       {manifest.data && (
         <section className="p-4 bg-white border border-gray-200 rounded-lg">
-          <h3 className="font-semibold text-gray-900 mb-3">What migrates</h3>
+          <h3 className="font-semibold text-gray-900 mb-3">{t('confirm.whatMigrates')}</h3>
           <ScopeManifestPanel manifest={manifest.data} />
         </section>
       )}
