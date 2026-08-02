@@ -46,7 +46,6 @@ jobs:
             packages/ledger/**
             packages/testing/**
             packages/scheduler/**
-            packages/provisioner/**
             apps/**
             deploy/**
       - name: Did the ledger migrations (or this workflow) change?

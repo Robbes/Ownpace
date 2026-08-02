@@ -30,11 +30,11 @@ Nextcloud) — both in MVP (ADR-0018). The **O365 source stays IMAP+OAuth2/Graph
 - Ledger: **Postgres everywhere** — managed Postgres+RLS (managed) / bundled small Postgres (self-host), one schema (ADR-0016, **ADR-0023** supersedes the SQLite option in ADR-0010); migrations via Drizzle Kit + Atlas lint (ADR-0017). **No SQLite** — do not reintroduce a second dialect.
 - Engines: JMAP writer (jmap-jam) for JMAP targets; imapsync/vdirsyncer/rclone shell-outs for IMAP/DAV; prefer JS-native where fidelity is equal (ADR-0007/0018/0019).
 - O365: one multi-tenant Entra app; IMAP+OAuth2 primary, Graph fallback (ADR-0006).
-- Target provisioning behind `TargetProvisioner` (manual + API) (ADR-0008).
+- Target provisioning: RETRACTED (ADR-0008, owner decision 2026-08-02) — the owner supplies existing-account credentials; provisioning guidance lives in docs, not an interface.
 
 ## Repo map (top level; don't trust paths blindly — verify before editing)
 - `docs/` — all documentation: `architecture/` (source of truth), `adr/`, `workplans/` (Status blocks), canonical docs incl. `stalwart-integration-fix.md`, `testing.md`.
-- `packages/` — `core` (reconcile+idempotency), `ledger`, `connectors`, `engines`, `scheduler`, `provisioner`, `shared`.
+- `packages/` — `core` (reconcile+idempotency), `ledger`, `connectors`, `engines`, `scheduler`, `shared`, `testing`.
 - `apps/` — `api`, `web`, `worker`, `selfhost`. `deploy/` — `compose/` (dev stack), `helm/`, `homeassistant/`. `test/` — fixtures, integration, e2e.
 
 ## Hard rules (each "don't" has its "do")
