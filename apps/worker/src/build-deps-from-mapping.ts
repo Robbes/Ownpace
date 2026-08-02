@@ -19,10 +19,12 @@ import {
   type TargetConfig,
 } from '@openmig/shared';
 import { connection as connectionTable } from '@openmig/ledger';
-import { 
-  ImapSource, 
-  ImapDavMailTarget, 
-  type ImapDavTargetConfig, 
+import {
+  ImapSource,
+  GraphMailSource,
+  createTokenProvider,
+  ImapDavMailTarget,
+  type ImapDavTargetConfig,
 } from '@openmig/connectors';
 import { JmapTargetWriter } from '@openmig/connectors';
 import type { CalendarSyncDeps, ContactSyncDeps, FileSyncDeps } from '@openmig/core';
@@ -324,21 +326,72 @@ export async function buildDomainDepsFromMapping(
 
 /**
  * Build source connector from config and decrypted credentials.
- * Currently only supports imap-oauth2 (the only mail source type SourceConfig
- * defines) for mail sync — but that type's own auth carries EITHER an OAuth2
- * token (O365) OR a plain password (any other IMAP server, e.g. a self-hosted
- * Stalwart), see SourceAuth in @openmig/shared. Both are handled below.
+ * Supports imap-oauth2 (whose auth carries EITHER an OAuth2 token (O365) OR a
+ * plain password (any other IMAP server, e.g. a self-hosted Stalwart) — see
+ * SourceAuth in @openmig/shared; both handled below) and graph-mail (workplan
+ * 0023 T2 — ADR-0006's IMAP-disabled fallback, token credentials from the
+ * connection's encrypted credential store).
+ *
+ * Exported for unit tests: the branch-per-type and its refusals are the
+ * behavior worth pinning, and they need no database to prove.
  */
-function buildSourceConnectorFromCredentials(
+export function buildSourceConnectorFromCredentials(
   sourceConfig: SourceConfig,
   credentials: Record<string, string>,
   throttleLimiter?: ThrottleLimiter
 ): SourceConnector {
+  if (sourceConfig.type === 'graph-mail') {
+    return buildGraphMailSourceFromCredentials(sourceConfig, credentials, throttleLimiter);
+  }
   if (sourceConfig.type !== 'imap-oauth2') {
-    throw new Error(`buildDepsFromMapping currently only supports imap-oauth2, got: ${sourceConfig.type}`);
+    throw new Error(`buildDepsFromMapping only supports imap-oauth2 and graph-mail mail sources, got: ${sourceConfig.type}`);
   }
 
   return buildImapSourceFromCredentials(sourceConfig, credentials, throttleLimiter);
+}
+
+/**
+ * Build the Graph mail source from the connection's decrypted credentials
+ * (managed edition — the appliance's env-var equivalent lives in
+ * build-deps.ts). Same two flows: a refreshToken credential selects the
+ * delegated Mail.Read flow; otherwise clientSecret selects client-credentials
+ * with .default. Missing credentials refuse AT BUILD TIME with the field
+ * named — a token provider that cannot mint tokens would otherwise fail
+ * mid-pass with a far less useful error (rule 9).
+ */
+function buildGraphMailSourceFromCredentials(
+  sourceConfig: SourceConfig & { type: 'graph-mail' },
+  credentials: Record<string, string>,
+  throttleLimiter?: ThrottleLimiter
+): SourceConnector {
+  const clientId = credentials.clientId;
+  const clientSecret = credentials.clientSecret;
+  const refreshToken = credentials.refreshToken;
+
+  if (!clientId) {
+    throw new Error('graph-mail source credentials must include clientId (the Entra app registration id)');
+  }
+  if (!clientSecret && !refreshToken) {
+    throw new Error(
+      'graph-mail source credentials must include clientSecret (client-credentials flow) or refreshToken (delegated flow)',
+    );
+  }
+
+  const tokenProvider = createTokenProvider({
+    tokenEndpoint: `https://login.microsoftonline.com/${sourceConfig.tenantId}/oauth2/v2.0/token`,
+    clientId,
+    clientSecret,
+    refreshToken,
+    tenantId: sourceConfig.tenantId,
+    scope: refreshToken
+      ? 'https://graph.microsoft.com/Mail.Read offline_access'
+      : 'https://graph.microsoft.com/.default',
+  });
+
+  return new GraphMailSource(tokenProvider, sourceConfig.tenantId, {
+    baseUrl: sourceConfig.baseUrl,
+    throttleLimiter,
+  });
 }
 
 /**
