@@ -9,6 +9,7 @@
 
 import React from 'react';
 import { STRINGS, type Locale, type StringKey } from './strings';
+import { formatRelativeToNow, formatDateTime, formatNumber } from './datetime';
 
 const STORAGE_KEY = 'openmig.locale';
 
@@ -69,6 +70,28 @@ export function useLocale(): LocaleContextValue {
 /** Shorthand for components that only read strings. */
 export function useT(): (key: StringKey) => string {
   return useLocale().t;
+}
+
+/**
+ * The date/time/number formatters bound to the active locale — the only form
+ * components should reach for (workplan 0024 T3). The pure functions live in
+ * `datetime.ts`; outside a LocaleProvider this inherits `useLocale()`'s
+ * documented English fallback, so isolated renders keep working.
+ */
+export function useFormatters(): {
+  relativeToNow: (when: string | Date) => string;
+  dateTime: (when: string | Date) => string;
+  number: (n: number) => string;
+} {
+  const { locale } = useLocale();
+  return React.useMemo(
+    () => ({
+      relativeToNow: (when: string | Date) => formatRelativeToNow(when, locale),
+      dateTime: (when: string | Date) => formatDateTime(when, locale),
+      number: (n: number) => formatNumber(n, locale),
+    }),
+    [locale],
+  );
 }
 
 export type { Locale, StringKey };

@@ -11,9 +11,11 @@ import {
   Settings
 } from 'lucide-react';
 import { mappingApi } from '../services/mapping-service';
-import { formatDistanceToNow } from 'date-fns';
+import { useT, useFormatters } from '../i18n';
 
 const Dashboard: React.FC = () => {
+  const t = useT();
+  const { relativeToNow } = useFormatters();
   const { data: mappings, isLoading, error } = useQuery({
     queryKey: ['mappings'],
     queryFn: mappingApi.list,
@@ -161,7 +163,7 @@ const Dashboard: React.FC = () => {
                   </div>
                   <div className="flex items-center space-x-4">
                     <p className="text-sm text-gray-500">
-                      Last sync: {mapping.lastSyncAt ? formatDistanceToNow(new Date(mapping.lastSyncAt), { addSuffix: true }) : 'Never'}
+                      {t('mappings.lastSync')} {mapping.lastSyncAt ? relativeToNow(mapping.lastSyncAt) : t('mappings.never')}
                     </p>
                     <Link
                       to={`/mappings/${mapping.id}`}
