@@ -70,8 +70,23 @@ State-changing subcommands require `--yes`. Run with
 `pnpm exec tsx apps/worker/src/cli/index.ts --help`; the operator procedure
 is `docs/cutover-runbook.md`.
 
-`src/index.ts` is a separate dev entrypoint (`--config mapping.json`) with no
-live caller; its fate is an owner decision tracked in workplan 0021 T5.
+## The dev entrypoint (`src/index.ts`)
+
+**Kept deliberately** (owner decision 2026-08-02, workplan 0021 T5): a
+standalone dev tool — not an operator procedure — that runs a shadow
+migration for ONE mapping from a JSON config, outside both editions'
+control planes:
+
+```
+pnpm exec tsx apps/worker/src/index.ts --config mapping.json --once
+```
+
+Secrets come from env only (`DATABASE_URL` required), never the config
+file. It calls the same `runAllDomains` the editions run, so it cannot
+drift from them silently, and the sync it runs is the ordinary
+non-destructive shadow pass. Use it to debug a connector or reproduce a
+support case end to end without booting an edition; it has no live caller
+in either edition, by design.
 
 ## Monitoring
 
