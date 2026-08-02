@@ -42,6 +42,8 @@ import {
   requestFinalPass,
   FinishRefusedError,
 } from '../services/operating-service';
+import { useT } from '../i18n';
+import type { StringKey } from '../i18n';
 
 type Outcome =
   | { readonly state: 'pending' }
@@ -50,11 +52,11 @@ type Outcome =
 
 type PassState = 'running' | 'finished' | 'queued' | 'failed';
 
-const LIFECYCLE_NOTE: Record<MappingLifecycle, string> = {
-  paused: 'Never started, so there is nothing to finish. Remove it from the config directory to retire it.',
-  active: 'Syncing on a schedule. Items still arriving on the old system are being copied across.',
-  cutover: 'In cutover. Still syncing until you finish it.',
-  done: 'Finished. This mapping no longer syncs and nothing is being reported for it.',
+const LIFECYCLE_NOTE_KEY: Record<MappingLifecycle, StringKey> = {
+  paused: 'finish.note.paused',
+  active: 'finish.note.active',
+  cutover: 'finish.note.cutover',
+  done: 'finish.note.done',
 };
 
 /** One line of the checklist. `done` is what the tool can verify itself. */
@@ -92,6 +94,7 @@ interface FinishRow {
 
 const Finish: React.FC = () => {
   const queryClient = useQueryClient();
+  const t = useT();
   const { mappingId: routeMappingId } = useParams<{ mappingId: string }>();
   const [outcomes, setOutcomes] = React.useState<Record<string, Outcome>>({});
   const [deliveryMoved, setDeliveryMoved] = React.useState<Record<string, boolean>>({});
@@ -145,7 +148,7 @@ const Finish: React.FC = () => {
           ...o,
           [mappingId]: {
             state: 'blocked',
-            error: err instanceof Error ? err.message : 'The request did not complete.',
+            error: err instanceof Error ? err.message : t('deletions.requestFailed'),
           },
         }));
       });
@@ -199,7 +202,7 @@ const Finish: React.FC = () => {
     return (
       <div className="flex items-center gap-2 text-gray-500">
         <Loader2 className="w-4 h-4 animate-spin" />
-        Loading…
+        {t('common.loading')}
       </div>
     );
   }
@@ -209,7 +212,9 @@ const Finish: React.FC = () => {
       <div className="flex items-start gap-2 p-4 rounded-lg bg-red-50 text-red-800 text-sm">
         <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
         <div>
-          <p className="font-medium">Could not read the migration{perMapping ? '' : 's'}.</p>
+          <p className="font-medium">
+            {perMapping ? t('finish.readError.one') : t('finish.readError.many')}
+          </p>
           <p className="mt-1">
             {loadError instanceof Error ? loadError.message : String(loadError)}
           </p>
@@ -220,20 +225,16 @@ const Finish: React.FC = () => {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold text-gray-900">Finish a migration</h2>
-      <p className="mt-1 mb-4 text-sm text-gray-600">
-        Finishing stops the copying and the reporting. Work through the steps in order — the last
-        one is the only one that cannot be undone by simply carrying on.
-      </p>
+      <h2 className="text-lg font-semibold text-gray-900">{t('finish.title')}</h2>
+      <p className="mt-1 mb-4 text-sm text-gray-600">{t('finish.intro')}</p>
 
       {unknownMapping && (
         <p className="text-sm text-amber-800">
-          No migration with id {routeMappingId} answered. Check the address — this is not the same
-          as a migration with nothing to finish.
+          {t('finish.unknown.pre')} {routeMappingId} {t('finish.unknown.post')}
         </p>
       )}
       {!perMapping && rows.length === 0 && (
-        <p className="text-sm text-gray-500">No mappings configured.</p>
+        <p className="text-sm text-gray-500">{t('confirm.noMappings')}</p>
       )}
 
       {rows.map((m) => {
@@ -254,7 +255,7 @@ const Finish: React.FC = () => {
               <h3 className="font-semibold text-gray-900">{id}</h3>
               <span className="text-xs text-gray-500">{m.lifecycle}</span>
             </div>
-            <p className="mt-1 text-sm text-gray-600">{LIFECYCLE_NOTE[m.lifecycle]}</p>
+            <p className="mt-1 text-sm text-gray-600">{t(LIFECYCLE_NOTE_KEY[m.lifecycle])}</p>
 
             {!finishable ? null : outcome?.state === 'done' ? (
               <div className="mt-3 text-sm">
@@ -264,8 +265,8 @@ const Finish: React.FC = () => {
                 </p>
                 {outcome.result.leftUnmigrated !== undefined && (
                   <p className="mt-1 text-amber-800">
-                    {outcome.result.leftUnmigrated} item
-                    {outcome.result.leftUnmigrated === 1 ? '' : 's'} left unmigrated.
+                    {outcome.result.leftUnmigrated}{' '}
+                    {outcome.result.leftUnmigrated === 1 ? t('finish.left.one') : t('finish.left.many')}
                   </p>
                 )}
                 {outcome.result.ifYouNeedToResume && (
@@ -274,25 +275,25 @@ const Finish: React.FC = () => {
               </div>
             ) : (
               <ol className="mt-4">
-                <Step n={1} title="Check the copy is complete">
-                  Compare the two systems and sample the contents.{' '}
+                <Step n={1} title={t('finish.step1.title')}>
+                  {t('finish.step1.pre')}{' '}
                   <Link to={`${linkBase}/verify`} className="text-blue-700 hover:underline">
-                    Run the check
+                    {t('finish.step1.link')}
                   </Link>
-                  . Reads the whole destination, so it takes minutes on a large mailbox.
+                  {t('finish.step1.post')}
                 </Step>
 
-                <Step n={2} title="Clear the decision queues" done={queuesKnown ? queuesClear : undefined}>
+                <Step n={2} title={t('finish.step2.title')} done={queuesKnown ? queuesClear : undefined}>
                   {!queuesKnown ? (
-                    'Reading…'
+                    t('finish.step2.reading')
                   ) : queuesClear ? (
-                    'Nothing is waiting on you.'
+                    t('finish.step2.clear')
                   ) : (
                     <span>
                       {needingDecision > 0 && (
                         <>
                           <Link to={`${linkBase}/failures`} className="text-blue-700 hover:underline">
-                            {needingDecision} could not be copied
+                            {needingDecision} {t('finish.step2.failures')}
                           </Link>
                           {(openDeletions > 0 || openMoves > 0) && ', '}
                         </>
@@ -300,28 +301,27 @@ const Finish: React.FC = () => {
                       {openDeletions > 0 && (
                         <>
                           <Link to={`${linkBase}/deletions`} className="text-blue-700 hover:underline">
-                            {openDeletions} deleted on the old system
+                            {openDeletions} {t('finish.step2.deletions')}
                           </Link>
                           {openMoves > 0 && ', '}
                         </>
                       )}
                       {openMoves > 0 && (
                         <Link to={`${linkBase}/moves`} className="text-blue-700 hover:underline">
-                          {openMoves} moved
+                          {openMoves} {t('finish.step2.moves')}
                         </Link>
                       )}
-                      . Only the first of these blocks finishing — the other two are already
-                      answered by the new system keeping its copy.
+                      {t('finish.step2.onlyFirstBlocks')}
                     </span>
                   )}
                 </Step>
 
                 <Step
                   n={3}
-                  title="Run one final pass"
+                  title={t('finish.step3.title')}
                   done={passState === 'finished' || passState === 'queued' ? true : undefined}
                 >
-                  So the new system reflects the old one as of right now.{' '}
+                  {t('finish.step3.body')}{' '}
                   <button
                     onClick={() => doPass(id)}
                     disabled={passState === 'running'}
@@ -329,25 +329,20 @@ const Finish: React.FC = () => {
                   >
                     {passState === 'running' && <Loader2 className="w-3 h-3 animate-spin" />}
                     {passState === 'finished' || passState === 'queued'
-                      ? 'Run another'
-                      : 'Run a pass now'}
+                      ? t('finish.step3.runAgain')
+                      : t('finish.step3.run')}
                   </button>
                   {/* Each edition's own temporal shape, said rather than blurred:
                       the appliance answered when the pass FINISHED; managed
                       queued a job that lands in the run history. */}
                   {passState === 'finished' && (
-                    <p className="mt-1 text-emerald-700">The pass has run and finished.</p>
+                    <p className="mt-1 text-emerald-700">{t('finish.step3.finished')}</p>
                   )}
                   {passState === 'queued' && (
-                    <p className="mt-1 text-gray-600">
-                      Queued. The pass runs as a job and lands in the run history — give it a
-                      moment, then re-check the queues above.
-                    </p>
+                    <p className="mt-1 text-gray-600">{t('finish.step3.queued')}</p>
                   )}
                   {passState === 'failed' && (
-                    <p className="mt-1 text-amber-800">
-                      The pass request failed — nothing ran. Try again.
-                    </p>
+                    <p className="mt-1 text-amber-800">{t('finish.step3.failed')}</p>
                   )}
                 </Step>
 
@@ -358,16 +353,11 @@ const Finish: React.FC = () => {
                   asked rather than verified, and the consequence is spelled out
                   instead of assumed understood.
                 */}
-                <Step n={4} title="Move delivery to the new system" done={deliveryMoved[id]}>
-                  <p>
-                    Change MX/DNS and reconfigure clients so new mail arrives on the new system.
-                    This happens outside this tool, so it is the one step here nobody can check for
-                    you.
-                  </p>
+                <Step n={4} title={t('finish.step4.title')} done={deliveryMoved[id]}>
+                  <p>{t('finish.step4.body')}</p>
                   <p className="mt-1 text-amber-800">
-                    <b>If you finish before this is done</b>, anything that arrives on the old
-                    system afterwards will not be copied, and nothing will report it — the tool has
-                    stopped watching.
+                    <b>{t('finish.step4.warn.pre')}</b>
+                    {t('finish.step4.warn.post')}
                   </p>
                   <label className="mt-2 flex items-center gap-2 text-gray-800">
                     <input
@@ -377,14 +367,14 @@ const Finish: React.FC = () => {
                         setDeliveryMoved((d) => ({ ...d, [id]: e.target.checked }))
                       }
                     />
-                    Delivery now goes to the new system.
+                    {t('finish.step4.checkbox')}
                   </label>
                 </Step>
 
-                <Step n={5} title="Finish">
+                <Step n={5} title={t('finish.step5.title')}>
                   <p className="mb-2">
-                    <b>Nothing is added to or removed from either system.</b> What is on the new
-                    system stays exactly as it is — this only stops the tool watching the old one.
+                    <b>{t('finish.step5.nothingChanges.pre')}</b>
+                    {t('finish.step5.nothingChanges.post')}
                   </p>
 
                   {outcome?.state === 'blocked' ? (
@@ -404,18 +394,14 @@ const Finish: React.FC = () => {
                         className="mt-2 inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded border border-amber-600 text-amber-800 hover:bg-amber-50"
                       >
                         <Flag className="w-3 h-3" />
-                        Finish anyway, leaving them behind
+                        {t('finish.forceButton')}
                       </button>
                     </div>
                   ) : (
                     <button
                       onClick={() => finish(id, false)}
                       disabled={!deliveryMoved[id] || outcome?.state === 'pending'}
-                      title={
-                        deliveryMoved[id]
-                          ? undefined
-                          : 'Confirm step 4 first — finishing before delivery has moved loses anything that arrives afterwards.'
-                      }
+                      title={deliveryMoved[id] ? undefined : t('finish.button.disabledTitle')}
                       className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {outcome?.state === 'pending' ? (
@@ -423,7 +409,7 @@ const Finish: React.FC = () => {
                       ) : (
                         <Flag className="w-4 h-4" />
                       )}
-                      Finish this migration
+                      {t('finish.button')}
                     </button>
                   )}
                 </Step>

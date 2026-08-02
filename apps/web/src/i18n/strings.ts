@@ -141,6 +141,58 @@ const en = {
     'You turned this domain off in the config. Your call, so it does not block cutover — but nobody checked it.',
   'verify.help.NOT_VERIFIABLE':
     'This domain IS enabled, but there is no way to read the target for it, so nothing could be checked. This blocks cutover — an unchecked domain has not passed.',
+  'finish.title': 'Finish a migration',
+  'finish.intro':
+    'Finishing stops the copying and the reporting. Work through the steps in order — the last one is the only one that cannot be undone by simply carrying on.',
+  'finish.unknown.pre': 'No migration with id',
+  'finish.unknown.post':
+    'answered. Check the address — this is not the same as a migration with nothing to finish.',
+  'finish.readError.one': 'Could not read the migration.',
+  'finish.readError.many': 'Could not read the migrations.',
+  'finish.note.paused':
+    'Never started, so there is nothing to finish. Remove it from the config directory to retire it.',
+  'finish.note.active':
+    'Syncing on a schedule. Items still arriving on the old system are being copied across.',
+  'finish.note.cutover': 'In cutover. Still syncing until you finish it.',
+  'finish.note.done':
+    'Finished. This mapping no longer syncs and nothing is being reported for it.',
+  'finish.left.one': 'item left unmigrated.',
+  'finish.left.many': 'items left unmigrated.',
+  'finish.step1.title': 'Check the copy is complete',
+  'finish.step1.pre': 'Compare the two systems and sample the contents.',
+  'finish.step1.link': 'Run the check',
+  'finish.step1.post': '. Reads the whole destination, so it takes minutes on a large mailbox.',
+  'finish.step2.title': 'Clear the decision queues',
+  'finish.step2.reading': 'Reading…',
+  'finish.step2.clear': 'Nothing is waiting on you.',
+  'finish.step2.failures': 'could not be copied',
+  'finish.step2.deletions': 'deleted on the old system',
+  'finish.step2.moves': 'moved',
+  'finish.step2.onlyFirstBlocks':
+    '. Only the first of these blocks finishing — the other two are already answered by the new system keeping its copy.',
+  'finish.step3.title': 'Run one final pass',
+  'finish.step3.body': 'So the new system reflects the old one as of right now.',
+  'finish.step3.run': 'Run a pass now',
+  'finish.step3.runAgain': 'Run another',
+  'finish.step3.finished': 'The pass has run and finished.',
+  'finish.step3.queued':
+    'Queued. The pass runs as a job and lands in the run history — give it a moment, then re-check the queues above.',
+  'finish.step3.failed': 'The pass request failed — nothing ran. Try again.',
+  'finish.step4.title': 'Move delivery to the new system',
+  'finish.step4.body':
+    'Change MX/DNS and reconfigure clients so new mail arrives on the new system. This happens outside this tool, so it is the one step here nobody can check for you.',
+  'finish.step4.warn.pre': 'If you finish before this is done',
+  'finish.step4.warn.post':
+    ', anything that arrives on the old system afterwards will not be copied, and nothing will report it — the tool has stopped watching.',
+  'finish.step4.checkbox': 'Delivery now goes to the new system.',
+  'finish.step5.title': 'Finish',
+  'finish.step5.nothingChanges.pre': 'Nothing is added to or removed from either system.',
+  'finish.step5.nothingChanges.post':
+    ' What is on the new system stays exactly as it is — this only stops the tool watching the old one.',
+  'finish.forceButton': 'Finish anyway, leaving them behind',
+  'finish.button': 'Finish this migration',
+  'finish.button.disabledTitle':
+    'Confirm step 4 first — finishing before delivery has moved loses anything that arrives afterwards.',
 } as const;
 
 const nl: Record<keyof typeof en, string> = {
@@ -278,6 +330,60 @@ const nl: Record<keyof typeof en, string> = {
     'U heeft dit domein uitgeschakeld in de configuratie. Uw keuze, dus het blokkeert de cutover niet — maar niemand heeft het gecontroleerd.',
   'verify.help.NOT_VERIFIABLE':
     'Dit domein staat WEL aan, maar het doelsysteem kan er niet voor worden gelezen, dus er kon niets worden gecontroleerd. Dit blokkeert de cutover — een ongecontroleerd domein is niet geslaagd.',
+  'finish.title': 'Rond een migratie af',
+  'finish.intro':
+    'Afronden stopt het kopiëren en het rapporteren. Doorloop de stappen in volgorde — alleen de laatste kan niet ongedaan worden gemaakt door gewoon door te gaan.',
+  'finish.unknown.pre': 'Geen migratie met id',
+  'finish.unknown.post':
+    'gaf antwoord. Controleer het adres — dit is niet hetzelfde als een migratie zonder iets af te ronden.',
+  'finish.readError.one': 'De migratie kon niet worden gelezen.',
+  'finish.readError.many': 'De migraties konden niet worden gelezen.',
+  'finish.note.paused':
+    'Nooit gestart, dus er is niets af te ronden. Verwijder het uit de configuratiemap om het op te ruimen.',
+  'finish.note.active':
+    'Synchroniseert volgens schema. Items die nog op het oude systeem binnenkomen, worden gekopieerd.',
+  'finish.note.cutover': 'In cutover. Synchroniseert nog totdat u afrondt.',
+  'finish.note.done':
+    'Afgerond. Deze koppeling synchroniseert niet meer en er wordt niets meer voor gerapporteerd.',
+  'finish.left.one': 'item niet gemigreerd achtergelaten.',
+  'finish.left.many': 'items niet gemigreerd achtergelaten.',
+  'finish.step1.title': 'Controleer of de kopie volledig is',
+  'finish.step1.pre': 'Vergelijk de twee systemen en controleer steekproeven van de inhoud.',
+  'finish.step1.link': 'Voer de controle uit',
+  'finish.step1.post':
+    '. Leest de volledige bestemming, dus bij een grote mailbox duurt dit minuten.',
+  'finish.step2.title': 'Werk de beslissingswachtrijen weg',
+  'finish.step2.reading': 'Lezen…',
+  'finish.step2.clear': 'Er wacht niets op u.',
+  'finish.step2.failures': 'konden niet worden gekopieerd',
+  'finish.step2.deletions': 'verwijderd op het oude systeem',
+  'finish.step2.moves': 'verplaatst',
+  'finish.step2.onlyFirstBlocks':
+    '. Alleen de eerste hiervan blokkeert het afronden — de andere twee zijn al beantwoord doordat het nieuwe systeem zijn kopie behoudt.',
+  'finish.step3.title': 'Voer één laatste doorloop uit',
+  'finish.step3.body': 'Zodat het nieuwe systeem het oude weerspiegelt zoals het nu is.',
+  'finish.step3.run': 'Voer nu een doorloop uit',
+  'finish.step3.runAgain': 'Voer er nog een uit',
+  'finish.step3.finished': 'De doorloop is uitgevoerd en voltooid.',
+  'finish.step3.queued':
+    'In de wachtrij. De doorloop draait als taak en verschijnt in de uitvoeringsgeschiedenis — geef het even, en controleer daarna de wachtrijen hierboven opnieuw.',
+  'finish.step3.failed': 'Het doorloopverzoek is mislukt — er is niets uitgevoerd. Probeer opnieuw.',
+  'finish.step4.title': 'Verplaats de bezorging naar het nieuwe systeem',
+  'finish.step4.body':
+    'Wijzig MX/DNS en configureer de clients opnieuw zodat nieuwe e-mail op het nieuwe systeem aankomt. Dit gebeurt buiten dit programma, dus dit is de ene stap die niemand hier voor u kan controleren.',
+  'finish.step4.warn.pre': 'Als u afrondt voordat dit is gedaan',
+  'finish.step4.warn.post':
+    ', wordt alles wat daarna op het oude systeem binnenkomt niet gekopieerd, en niets zal het melden — het programma kijkt niet meer mee.',
+  'finish.step4.checkbox': 'De bezorging gaat nu naar het nieuwe systeem.',
+  'finish.step5.title': 'Afronden',
+  'finish.step5.nothingChanges.pre':
+    'Er wordt aan geen van beide systemen iets toegevoegd of verwijderd.',
+  'finish.step5.nothingChanges.post':
+    ' Wat op het nieuwe systeem staat, blijft precies zoals het is — dit stopt alleen het meekijken met het oude.',
+  'finish.forceButton': 'Rond toch af en laat ze achter',
+  'finish.button': 'Rond deze migratie af',
+  'finish.button.disabledTitle':
+    'Bevestig eerst stap 4 — afronden voordat de bezorging is verplaatst, verliest alles wat daarna binnenkomt.',
 };
 
 export type Locale = 'en' | 'nl';
