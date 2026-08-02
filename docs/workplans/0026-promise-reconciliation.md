@@ -94,7 +94,7 @@ promising document (ADR/SAD/scope-manifest), exactly as 0021 T5 did.
 | 2 | **Pattern D: shared-mailbox/group migration** — **KEPT 2026-08-02 → [workplan 0027](./0027-shared-addresses.md)** | SAD §14.1; **shown to owners in the pre-start scope manifest** | `group_def` table: zero code refs; no Graph groups discovery; `pattern` settable, read by nothing |
 | 3 | **Rich Graph extractor** (SharePoint versions/permissions/lists/pages) — **RETRACTED 2026-08-02** (ADR-0007 update; manifest row moved to *does not migrate*) | SAD §13.1, ADR-0007; manifest says "Partial" | Zero code (no `/versions`, `/permissions`, sites, lists) |
 | 4 | **Permission inventory & guidance module** — **KEPT SCOPED 2026-08-02 → [workplan 0029](./0029-permission-inventory.md)** (discover+map+guide as a read-only report; the apply-where-safe writes deferred, not retracted) | SAD §14.2, §3 decision 6 | Zero code (no SendAs/FullAccess/sharing-link handling) |
-| 5 | **Notifications** (in-app/email on decisions/milestones) | SAD §11.2 #4, §5 | Only honest "not implemented" stubs; 0024 transferred a day-one-bilingual requirement to whoever builds this |
+| 5 | **Notifications** (in-app/email on decisions/milestones) — **KEPT SCOPED 2026-08-02 → [workplan 0030](./0030-email-notifications.md)** (email only: ad hoc + daily/weekly attention digests; no in-app center) | SAD §11.2 #4, §5 | Only honest "not implemented" stubs; 0024 transferred a day-one-bilingual requirement to whoever builds this |
 | 6 | **Policy presets + the §11.1 drift decision queue** — **KEPT SCOPED 2026-08-02 → [workplan 0028](./0028-drift-decision-queue.md)** (two categories, not ten) | SAD §11.2 #3, ADR-0016; 0013 named it "its own workplan" | `decision` and `policy_preset` tables shipped, **zero readers/writers** — the largest unowned feature |
 | 7 | **Bidirectional + asymmetric sync modes** (conflict policy) | SAD §11, §3 decision 3 | Enum values only; nothing branches on mode |
 | 8 | **Post-cutover reverse sync** (sovereign→O365) | SAD §20 | No reverse direction, no source-side writer exists |
@@ -155,7 +155,15 @@ later").** The build is
 a read-only report riding 0027 T0's application-permission surface; the
 **apply-where-safe** half is deferred with a named revisit trigger (the
 report proving useful in a real migration), and 0029 T4 makes the manifest
-say so. 19 rows remain open.
+say so.
+
+**Update 2026-08-02 — row 5 decided: KEPT, SCOPED.** The build is
+[workplan 0030](./0030-email-notifications.md): email only — ad hoc events
+(decision raised, runs failing, verify done, finished) plus daily/weekly
+"what needs attention" digests computed from the same envelopes the
+screens read; bilingual templates from day one (0024's transfer
+discharged); no in-app notification center by this decision. Sequenced
+after 0028's plumbing. 18 rows remain open.
 
 ## T4 — mechanical truth sweep (no decisions; small PRs)
 
