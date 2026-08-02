@@ -49,6 +49,7 @@ import {
   fetchDeletions,
   keepDeletion,
 } from '../services/operating-service';
+import { useT } from '../i18n';
 
 const Row: React.FC<{
   d: ItemDeletion;
@@ -87,6 +88,7 @@ const Deletions: React.FC<{
   // required by the managed edition, which scopes each queue to one. See
   // `queuePath()` — the shapes are shared, the URLs are not.
   const { mappingId } = useParams<{ mappingId: string }>();
+  const t = useT();
 
   // One timer per in-flight receipt; all cleared on unmount so an abandoned
   // page never keeps polling. (Server-side nothing is lost — the receipt is a
@@ -157,17 +159,17 @@ const Deletions: React.FC<{
                 ? (err.refusal.reason ?? err.refusal.hint ?? err.refusal.error)
                 : err instanceof Error
                   ? err.message
-                  : 'The request did not complete.',
+                  : t('deletions.requestFailed'),
           });
         });
     },
-    [trackReceipt],
+    [trackReceipt, t],
   );
 
   return (
   <QueueScreen<DeletionsQueue>
-    title="Deleted on the old system"
-    intro="Items the owner has deleted where they came from, which the new system still has. Nothing has been removed from either side."
+    title={t('deletions.title')}
+    intro={t('deletions.intro')}
     queryKey="deletions"
     fetcher={() => fetchDeletions(mappingId)}
     renderMapping={(mappingId, queue, act, outcomes, setOutcome, refresh) => (
@@ -176,9 +178,9 @@ const Deletions: React.FC<{
             are refused by the server while this is off. */}
         <ApplyDeletionsPanel mappingId={mappingId} />
         <QueueSection
-          title="Waiting on you"
+          title={t('queue.waitingOnYou')}
           count={queue.confirmed.length}
-          empty="Nothing is waiting on a decision."
+          empty={t('deletions.empty.confirmed')}
         >
           {queue.confirmed.map((d) => {
             const pending = outcomes[d.naturalKeyHash]?.state === 'pending';
@@ -195,7 +197,7 @@ const Deletions: React.FC<{
                         act(d.naturalKeyHash, () => keepDeletion(mappingId, d.naturalKeyHash))
                       }
                     >
-                      Keep our copy
+                      {t('deletions.keep')}
                     </ActionButton>
                     {/*
                       The apply button exists only for positive evidence. An
@@ -208,8 +210,8 @@ const Deletions: React.FC<{
                     {mayOfferApply(d) && (
                       <DestructiveButton
                         pending={pending}
-                        label="Delete it here too"
-                        armedLabel="Confirm delete"
+                        label={t('deletions.apply')}
+                        armedLabel={t('deletions.applyArmed')}
                         onClick={() =>
                           startApply(mappingId, d.naturalKeyHash, setOutcome, refresh)
                         }
@@ -223,9 +225,9 @@ const Deletions: React.FC<{
         </QueueSection>
 
         <QueueSection
-          title="Watching"
+          title={t('deletions.watching')}
           count={queue.watching.length}
-          empty="Nothing is being watched."
+          empty={t('deletions.empty.watching')}
         >
           {/*
             Shown so the queue is not a black box, and deliberately without
@@ -238,9 +240,9 @@ const Deletions: React.FC<{
         </QueueSection>
 
         <QueueSection
-          title="Already decided"
+          title={t('queue.alreadyDecided')}
           count={queue.acknowledged.length}
-          empty="Nothing has been decided yet."
+          empty={t('deletions.empty.acknowledged')}
         >
           {queue.acknowledged.map((d) => (
             <Row key={d.naturalKeyHash} d={d} />

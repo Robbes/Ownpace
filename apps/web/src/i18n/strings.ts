@@ -81,6 +81,17 @@ const en = {
   'failures.accept': 'Migrate without it',
   'failures.try.one': 'try',
   'failures.try.many': 'tries',
+  'deletions.title': 'Deleted on the old system',
+  'deletions.intro':
+    'Items the owner has deleted where they came from, which the new system still has. Nothing has been removed from either side.',
+  'deletions.empty.confirmed': 'Nothing is waiting on a decision.',
+  'deletions.watching': 'Watching',
+  'deletions.empty.watching': 'Nothing is being watched.',
+  'deletions.empty.acknowledged': 'Nothing has been decided yet.',
+  'deletions.keep': 'Keep our copy',
+  'deletions.apply': 'Delete it here too',
+  'deletions.applyArmed': 'Confirm delete',
+  'deletions.requestFailed': 'The request did not complete.',
 } as const;
 
 const nl: Record<keyof typeof en, string> = {
@@ -155,6 +166,17 @@ const nl: Record<keyof typeof en, string> = {
   'failures.accept': 'Migreer zonder dit item',
   'failures.try.one': 'poging',
   'failures.try.many': 'pogingen',
+  'deletions.title': 'Verwijderd op het oude systeem',
+  'deletions.intro':
+    'Items die de eigenaar heeft verwijderd waar ze vandaan kwamen, maar die het nieuwe systeem nog heeft. Er is aan geen van beide kanten iets verwijderd.',
+  'deletions.empty.confirmed': 'Er wacht niets op een beslissing.',
+  'deletions.watching': 'Onder observatie',
+  'deletions.empty.watching': 'Er wordt niets geobserveerd.',
+  'deletions.empty.acknowledged': 'Er is nog niets besloten.',
+  'deletions.keep': 'Behoud onze kopie',
+  'deletions.apply': 'Verwijder het hier ook',
+  'deletions.applyArmed': 'Bevestig verwijderen',
+  'deletions.requestFailed': 'Het verzoek is niet voltooid.',
 };
 
 export type Locale = 'en' | 'nl';
