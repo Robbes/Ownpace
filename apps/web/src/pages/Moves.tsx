@@ -26,6 +26,7 @@ import {
   Resolved,
 } from '../components/queues/primitives';
 import { fetchMoves, keepMove } from '../services/operating-service';
+import { useT } from '../i18n';
 
 const Row: React.FC<{
   mv: ItemMove;
@@ -66,18 +67,19 @@ const Moves: React.FC = () => {
   // required by the managed edition, which scopes each queue to one. See
   // `queuePath()` — the shapes are shared, the URLs are not.
   const { mappingId } = useParams<{ mappingId: string }>();
+  const t = useT();
   return (
   <QueueScreen<MovesQueue>
-    title="Moved on the old system"
-    intro="Items the owner has filed somewhere else where they came from. The new system still has them where we put them, and nothing has been changed on either side."
+    title={t('moves.title')}
+    intro={t('moves.intro')}
     queryKey="moves"
     fetcher={() => fetchMoves(mappingId)}
     renderMapping={(mappingId, queue, act, outcomes) => (
       <>
         <QueueSection
-          title="Waiting on you"
+          title={t('queue.waitingOnYou')}
           count={queue.open.length}
-          empty="Nothing has moved."
+          empty={t('moves.empty.open')}
         >
           {queue.open.map((mv) => (
             <Row
@@ -91,7 +93,7 @@ const Moves: React.FC = () => {
                     act(mv.naturalKeyHash, () => keepMove(mappingId, mv.naturalKeyHash))
                   }
                 >
-                  Leave it where it is
+                  {t('moves.keep')}
                 </ActionButton>
               }
             />
@@ -99,9 +101,9 @@ const Moves: React.FC = () => {
         </QueueSection>
 
         <QueueSection
-          title="Already decided"
+          title={t('queue.alreadyDecided')}
           count={queue.acknowledged.length}
-          empty="Nothing has been decided yet."
+          empty={t('moves.empty.acknowledged')}
         >
           {queue.acknowledged.map((mv) => (
             <Row key={mv.naturalKeyHash} mv={mv} />

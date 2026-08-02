@@ -27,12 +27,15 @@ import {
   Resolved,
 } from '../components/queues/primitives';
 import { acceptFailure, fetchFailures, retryFailure } from '../services/operating-service';
+import { useT } from '../i18n';
 
 const Row: React.FC<{
   f: ItemFailure;
   outcome?: ItemOutcome;
   actions?: React.ReactNode;
-}> = ({ f, outcome, actions }) => (
+}> = ({ f, outcome, actions }) => {
+  const t = useT();
+  return (
   <ItemRow>
     <DomainTag domain={f.domain} />
     <div className="flex-1 min-w-0">
@@ -44,7 +47,7 @@ const Row: React.FC<{
       <div className="text-xs text-red-700 break-words">{f.lastError}</div>
     </div>
     <span className="text-xs text-gray-500 whitespace-nowrap">
-      {f.attempts} {f.attempts === 1 ? 'try' : 'tries'}
+      {f.attempts} {f.attempts === 1 ? t('failures.try.one') : t('failures.try.many')}
     </span>
     <HashChip hash={f.naturalKeyHash} />
     <div className="flex items-center gap-2 ml-auto">
@@ -57,25 +60,27 @@ const Row: React.FC<{
       )}
     </div>
   </ItemRow>
-);
+  );
+};
 
 const Failures: React.FC = () => {
   // Undefined on the appliance, which answers for every configured mapping;
   // required by the managed edition, which scopes each queue to one. See
   // `queuePath()` — the shapes are shared, the URLs are not.
   const { mappingId } = useParams<{ mappingId: string }>();
+  const t = useT();
   return (
   <QueueScreen<FailuresQueue>
-    title="Could not be copied"
-    intro="Items that did not make it across, what went wrong, and how many times we tried."
+    title={t('failures.title')}
+    intro={t('failures.intro')}
     queryKey="failures"
     fetcher={() => fetchFailures(mappingId)}
     renderMapping={(mappingId, queue, act, outcomes) => (
       <>
         <QueueSection
-          title="Waiting on you"
+          title={t('queue.waitingOnYou')}
           count={queue.needsDecision.length}
-          empty="Nothing is waiting on a decision."
+          empty={t('failures.empty.needsDecision')}
         >
           {queue.needsDecision.map((f) => {
             const pending = outcomes[f.naturalKeyHash]?.state === 'pending';
@@ -92,7 +97,7 @@ const Failures: React.FC = () => {
                         act(f.naturalKeyHash, () => retryFailure(mappingId, f.naturalKeyHash))
                       }
                     >
-                      Try again
+                      {t('failures.retry')}
                     </ActionButton>
                     {/*
                       `accept` is permanent and excludes the item from the
@@ -108,7 +113,7 @@ const Failures: React.FC = () => {
                         act(f.naturalKeyHash, () => acceptFailure(mappingId, f.naturalKeyHash))
                       }
                     >
-                      Migrate without it
+                      {t('failures.accept')}
                     </ActionButton>
                   </>
                 }
@@ -118,9 +123,9 @@ const Failures: React.FC = () => {
         </QueueSection>
 
         <QueueSection
-          title="Still trying"
+          title={t('failures.stillTrying')}
           count={queue.retrying.length}
-          empty="Nothing is being retried."
+          empty={t('failures.empty.retrying')}
         >
           {/*
             No actions: these are attempted again on every pass by themselves.
