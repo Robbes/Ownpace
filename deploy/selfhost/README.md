@@ -1,9 +1,11 @@
 # Self-host appliance (`deploy/selfhost/`)
 
-A single-tenant bundle for a NAS / mini-PC / Pi: a small **bundled Postgres** +
-one **app** container that migrates itself on startup, schedules your mappings
-with an in-process scheduler, and serves a local status endpoint. No Trigger.dev,
-no billing — hard rule 5 (see `docs/workplans/0010-selfhost-edition.md`).
+A single-tenant bundle for a NAS / mini-PC / Pi: one **app** container that
+migrates itself on startup, schedules your mappings with an in-process
+scheduler, and serves a local status endpoint + the operating UI — backed by
+either a small **bundled Postgres** (default) or **embedded PGlite** (no
+database container at all, ADR-0028). No Trigger.dev, no billing — hard
+rule 5 (see `docs/workplans/0010-selfhost-edition.md`).
 
 ## Quick start
 
@@ -13,19 +15,26 @@ chmod 600 deploy/selfhost/.env                       # then set POSTGRES_PASSWOR
 cp deploy/selfhost/config/mapping.json.example \
    deploy/selfhost/config/mapping.json               # then edit (one file per mapping)
 docker compose -f deploy/selfhost/compose.yml up -d
-curl -s http://127.0.0.1:8080/status | jq            # per-domain state
+curl -s http://127.0.0.1:8081/status | jq            # per-domain state
+
+# Or with NO Postgres server (single container, embedded PGlite):
+docker compose -f deploy/selfhost/compose.yml \
+               -f deploy/selfhost/compose.pglite.yml up -d
 ```
 
-The full NAS/Pi/WSL2 walkthrough, backup, and upgrade guidance live in
-`docs/selfhost-quickstart.md` (workplan T6).
+The full NAS/Pi/WSL2 walkthrough, backup (different on PGlite — no
+`pg_dump`), and upgrade guidance live in `docs/selfhost-quickstart.md`.
 
 ## Files
 
 | Path | What |
 |---|---|
 | `compose.yml` | The two-service stack (bundled Postgres + app). |
+| `compose.pglite.yml` | Override: drops the Postgres service, `SELFHOST_PERSISTENCE=pglite` — the single-container shape (and what the future native installer ships, workplan 0015). |
+| `compose.dev.yml` | Dev conveniences (source mounts); not for production. |
 | `selfhost.env.example` | Env template — copy to `.env`, `chmod 600`. |
 | `config/*.json` | Your mapping configs (each is scheduled). `*.example` is ignored. |
+| `setup-stalwart.sh` / `setup-nextcloud-users.sh` | Test/e2e target provisioning (Stalwart's two-phase bring-up can't be one compose service). |
 | `../../apps/selfhost/Dockerfile` | The app image (source-ships-TS, runs under `tsx`). |
 
 ## Image channels (§22.1)

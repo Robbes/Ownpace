@@ -1,6 +1,8 @@
 # Open Migration Web Application
 
-React-based web UI for the Open Migration Stack managed edition.
+React-based web UI for the Open Migration Stack — **one app, both editions**
+(ADR-0026): the managed edition serves it as its portal; the self-host
+appliance serves the same app under `/ui` via the `build:selfhost` bundle.
 
 ## Features
 
@@ -17,7 +19,8 @@ React-based web UI for the Open Migration Stack managed edition.
 - **React Query** for server state management
 - **Zustand** for client state management
 - **Tailwind CSS** for styling
-- **React Router** for navigation
+- **react-router v8** for navigation (the `react-router` package — not
+  `react-router-dom`, which v7+ folded in)
 - **Axios** for HTTP requests
 - **Lucide React** for icons
 
@@ -46,16 +49,20 @@ cp .env.example .env
 pnpm dev
 ```
 
-The application will be available at `http://localhost:3000`
+The application will be available at `http://localhost:3123` (the port is
+set in `vite.config.ts`).
 
 ## Environment Variables
 
 ```bash
-# API URL
+# Optional — where the API lives. Defaults to '/api' (same-origin), which is
+# correct behind the compose stack and the appliance alike.
 VITE_API_URL=http://localhost:3001/api
 
-# Authentication
-VITE_AUTH_URL=http://localhost:3001/auth
+# Set BY the build, not by you: `--mode selfhost` (the build:selfhost script)
+# sets VITE_EDITION, which drives the edition split in src/services/edition.ts —
+# the ONLY split the client is allowed (URLs + apply's success shape, ADR-0026).
+VITE_EDITION=selfhost
 ```
 
 ## Project Structure
@@ -66,13 +73,13 @@ apps/web/
 │   ├── components/        # Reusable UI components
 │   │   └── Layout.tsx    # Main application layout
 │   ├── pages/            # Page components
-│   │   ├── Dashboard.tsx
-│   │   ├── Mappings.tsx
-│   │   ├── CreateMapping.tsx
-│   │   ├── MappingDetail.tsx
-│   │   ├── Tenants.tsx
-│   │   ├── Settings.tsx
-│   │   └── Login.tsx
+│   │   ├── Dashboard.tsx / Mappings.tsx / CreateMapping.tsx
+│   │   ├── MappingDetail.tsx   # per-mapping hub: the five operating links
+│   │   ├── Confirm.tsx         # discovery counts + scope manifest + Start
+│   │   ├── Deletions.tsx / Moves.tsx / Failures.tsx   # decision queues
+│   │   ├── Verify.tsx / Finish.tsx                    # §20 gate + finish
+│   │   ├── Billing.tsx / Tenants.tsx / Settings.tsx / Login.tsx
+│   │   └── OperatorDashboard.tsx
 │   ├── services/         # API services
 │   │   ├── api.ts        # Axios client
 │   │   └── mapping-service.ts
@@ -92,11 +99,14 @@ apps/web/
 
 ## Available Scripts
 
-- `pnpm dev` - Start development server
-- `pnpm build` - Build for production
+- `pnpm dev` - Start development server (port 3123)
+- `pnpm build` - Build for production (managed portal)
+- `pnpm build:selfhost` - Build the appliance bundle (`--base=/ui/`, output
+  `dist-selfhost/`, `--mode selfhost`) — what the appliance serves at `/ui`
 - `pnpm preview` - Preview production build
+- `pnpm typecheck` - `tsc --noEmit`
 - `pnpm lint` - Run ESLint
-- `pnpm test` - Run tests
+- `pnpm test` - Run tests (jsdom, part of the workspace unit gate)
 
 ## Key Components
 
@@ -124,12 +134,11 @@ View and manage all migrations:
 
 ## Authentication
 
-The web app uses JWT authentication:
-1. User logs in with email/password
-2. Server returns JWT token
-3. Token stored in localStorage
-4. Token sent with every API request
-5. Token automatically refreshed on expiration
+Bearer-JWT only — **there is no email/password login endpoint** (SSO is a
+later slice). The Login screen takes a pasted token (the managed demo seed
+prints demo owner tokens), stores it, and the Axios client sends it on every
+request. Authorization is decided server-side by the tenant-membership gate
+(role from the `tenant_member` row, never the token — 0020 T1).
 
 ## State Management
 
@@ -209,11 +218,7 @@ const MyComponent = () => {
 ## Testing
 
 ```bash
-# Run tests
-pnpm test
-
-# Run with coverage
-pnpm test:coverage
+pnpm test    # jsdom suites; also part of the root workspace unit gate
 ```
 
 ## Production Deployment
@@ -230,11 +235,10 @@ This creates optimized static files in `dist/`.
 pnpm preview
 ```
 
-### Docker
-```bash
-docker build -t openmigrate-web -f apps/web/Dockerfile .
-docker run -p 3000:80 openmigrate-web
-```
+### Docker / compose
+
+The managed compose stack builds and serves it (`deploy/compose/managed.yml`);
+the appliance image runs `build:selfhost` and serves the bundle at `/ui`.
 
 ## Browser Support
 
