@@ -31,3 +31,6 @@ export * from './graph-calendar-source.types';
 // Graph Contacts source connector
 export * from './graph-contacts-source';
 export * from './graph-contacts-source.types';
+
+export * from './graph-mail-source';
+export * from './graph-mail-source.types';

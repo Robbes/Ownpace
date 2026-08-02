@@ -82,6 +82,13 @@ export interface GraphContactsSource {
   readonly tenantId: string;
 }
 
+/** Microsoft Graph mail source (workplan 0023 — ADR-0006's IMAP-disabled fallback). */
+export interface GraphMailSource {
+  readonly type: 'graph-mail';
+  readonly baseUrl?: string;
+  readonly tenantId: string;
+}
+
 /** CalDAV target for calendar data */
 export interface CalDAVTarget {
   readonly type: 'caldav';
@@ -128,7 +135,7 @@ export interface DomainsConfig {
   files?: DomainConfig;
 }
 
-export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource;
+export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphMailSource;
 export type TargetConfig = JmapTarget | ImapDavTarget | CalDAVTarget | CardDAVTarget | WebDAVTarget;
 
 export interface ScheduleConfig {
@@ -345,7 +352,14 @@ function parseSource(obj: Record<string, unknown>): SourceConfig {
       tenantId: reqString(obj, 'tenantId', 'source.tenantId'),
     };
   }
-  throw new ConfigError(`source.type: unsupported "${type}" (expected "imap-oauth2", "caldav", "carddav", "webdav", "graph-calendar", or "graph-contacts")`);
+  if (type === 'graph-mail') {
+    return {
+      type: 'graph-mail',
+      baseUrl: obj['baseUrl'] as string | undefined,
+      tenantId: reqString(obj, 'tenantId', 'source.tenantId'),
+    };
+  }
+  throw new ConfigError(`source.type: unsupported "${type}" (expected "imap-oauth2", "caldav", "carddav", "webdav", "graph-calendar", "graph-contacts", or "graph-mail")`);
 }
 
 function parseJmapAuth(obj: Record<string, unknown>): JmapAuth {
