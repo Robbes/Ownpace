@@ -24,9 +24,8 @@ import type {
   VerifyResponse,
 } from '@openmig/shared';
 import { startVerification, fetchVerifyReport } from '../services/operating-service';
-import { useT } from '../i18n';
+import { useT, useFormatters } from '../i18n';
 import type { StringKey } from '../i18n';
-import { useFormatters } from '../i18n/datetime';
 
 // The status WORD (PASS/FAIL/…) stays the server's vocabulary; the hover help
 // is client prose and translates (workplan 0024 T2).

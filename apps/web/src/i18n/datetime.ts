@@ -8,10 +8,13 @@
  * `Intl` covers all of it natively, which is also why `date-fns` could leave:
  * its one caller was `formatDistanceToNow`, and `Intl.RelativeTimeFormat`
  * speaks both of our languages for free.
+ *
+ * Pure functions only — the locale-bound `useFormatters()` hook lives in
+ * `index.tsx` with the other hooks. (Also a root-typecheck constraint: the
+ * workspace tsconfig sweeps `.ts` files without `--jsx`, so a `.ts` module
+ * must not import from a `.tsx` one.)
  */
 
-import React from 'react';
-import { useLocale } from './index';
 import type { Locale } from './strings';
 
 // Largest-fitting-unit ladder for relative times. `numeric: 'auto'` lets Intl
@@ -63,25 +66,4 @@ export function formatDateTime(
 /** Grouped integer/decimal in the active language: en "1,234" — nl "1.234". */
 export function formatNumber(n: number, locale: Locale): string {
   return new Intl.NumberFormat(locale).format(n);
-}
-
-/**
- * The formatters bound to the active locale — the only form components should
- * reach for. Outside a LocaleProvider this inherits `useLocale()`'s documented
- * English fallback, so isolated renders keep working.
- */
-export function useFormatters(): {
-  relativeToNow: (when: string | Date) => string;
-  dateTime: (when: string | Date) => string;
-  number: (n: number) => string;
-} {
-  const { locale } = useLocale();
-  return React.useMemo(
-    () => ({
-      relativeToNow: (when: string | Date) => formatRelativeToNow(when, locale),
-      dateTime: (when: string | Date) => formatDateTime(when, locale),
-      number: (n: number) => formatNumber(n, locale),
-    }),
-    [locale],
-  );
 }

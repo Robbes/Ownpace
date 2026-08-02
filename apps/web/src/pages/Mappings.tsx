@@ -11,8 +11,7 @@ import {
   Edit
 } from 'lucide-react';
 import { mappingApi } from '../services/mapping-service';
-import { useT } from '../i18n';
-import { useFormatters } from '../i18n/datetime';
+import { useT, useFormatters } from '../i18n';
 
 const Mappings: React.FC = () => {
   const t = useT();
