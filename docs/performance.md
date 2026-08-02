@@ -5,6 +5,31 @@ the **target / ledger databases**. Most performance levers therefore live in the
 SQL ledger, which run against the live stack. This doc records what is already optimized in the
 stack-independent core, and the prioritized levers for the agent to apply (and measure) with real data.
 
+## Measured: the ledger on PGlite (workplan 0016 P5, `pnpm bench:pglite`)
+
+The one real measurement this doc has (2026-08-01, recorded in the CHANGELOG;
+re-runnable via `pnpm bench:pglite`). PGlite has a single connection, so
+`withTenant` serialises on it while the sync path runs at concurrency 8 —
+whether that mattered was the last open question before PGlite could be a
+default:
+
+- **Serialisation costs nothing at this width.** The real ledger hot path —
+  `find()` by natural key then `recordIfAbsent()`, inside the real
+  `withTenant`, against the real schema — is **flat at 3.6–3.9 ms/item across
+  widths 1, 4, 8 and 16** (width 8 vs width 1: +6.8%, −0.0%, −6.2% over three
+  runs — zero within noise, no cliff at 16).
+- **Real throughput is ~270 items/s**, not the ~1700 rows/s the T0 spike
+  quoted (that number came from synthetic single-statement inserts). Plan
+  against 270.
+- **The ledger is ~7% of wall clock** for a 48k-message mailbox (~170–185 s of
+  ledger against ~40 min of network at 50 ms/message) — ~13× off the
+  bottleneck, i.e. one order of magnitude, not "orders of magnitude".
+  Comfortably not the constraint; not free either.
+- Methodology note worth keeping: the benchmark's first version shared a
+  database across widths and reported concurrency costing +29% — almost all
+  of it was the table growing. Fresh database per width, or you measure the
+  wrong thing.
+
 ## Applied in the core (unit-verified, no new deps)
 - **Bounded-concurrency reconcile** — `runShadowPass` processes per-folder items in parallel via
   `mapWithConcurrency` up to `concurrency` (default 4; configurable on `ReconcileDeps` / `MappingConfig`).
@@ -49,4 +74,4 @@ stack-independent core, and the prioritized levers for the agent to apply (and m
 - Keep concurrency **bounded**: servers throttle, and memory scales with in-flight bodies. Default modest;
   make it configurable per mapping.
 - Preserve the idempotency / non-destructive invariants under any optimization — the property tests
-  (`packages/core/src/reconcile.test.ts`, `reindex.test.ts`) are the gate.
+  (`packages/core/src/reconcile.unit.test.ts`, `reindex.unit.test.ts`) are the gate.
