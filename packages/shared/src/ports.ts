@@ -1448,6 +1448,12 @@ export interface ReindexDeps {
   readonly mappingId: MappingId;
   readonly reindexer: TargetReindexer;
   readonly ledger: Ledger;
+  /**
+   * Which domain's rows the adopted entries become. Defaults to 'email' —
+   * the reindexer was mail-only until the doorway existed (0026 T1 item 5);
+   * the reindexer passed in must of course read the SAME domain's target.
+   */
+  readonly domain?: 'email' | 'calendar' | 'contact' | 'file';
 }
 
 /** Summary of a reindex/adopt pass. */

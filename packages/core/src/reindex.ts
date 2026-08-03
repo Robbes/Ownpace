@@ -8,6 +8,9 @@ import { naturalKeyHash, type RunReindex } from '@openmig/shared';
  */
 export const reindexFromTarget: RunReindex = async (deps) => {
   const { tenantId, mappingId, reindexer, ledger } = deps;
+  // 'email' by default for the callers that predate the domain field; the
+  // reindexer handed in decides what is actually being read either way.
+  const domain = deps.domain ?? 'email';
   let scanned = 0;
   let adopted = 0;
   let alreadyKnown = 0;
@@ -15,14 +18,14 @@ export const reindexFromTarget: RunReindex = async (deps) => {
   for await (const entry of reindexer.listEntries()) {
     scanned++;
     const nkh = naturalKeyHash(entry.naturalKey);
-    const known = await ledger.find(tenantId, mappingId, 'email', nkh);
+    const known = await ledger.find(tenantId, mappingId, domain, nkh);
     if (known) {
       alreadyKnown++;
       continue;
     }
     await ledger.recordIfAbsent({
       tenantId,
-      itemType: 'email',
+      itemType: domain,
       mappingId,
       naturalKeyHash: nkh,
       contentHash: entry.contentHash ?? '',

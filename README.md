@@ -17,7 +17,7 @@ Low-maintenance, open-source stack to migrate families and small/medium business
 ### Installation
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/open-migrate.git
+git clone https://github.com/Robbes/open-migrate.git
 cd open-migrate
 
 # Install dependencies

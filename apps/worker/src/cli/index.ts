@@ -14,11 +14,12 @@
  *   rollback       Rollback cutover
  *   status         Show cutover status
  *   runbook        Generate the guided DNS migration runbook (Markdown)
+ *   reindex        Rebuild the ledger FROM the target (ADR-0020 recovery)
  */
 
 import { CutoverStore, createLedgerVerificationReader } from '@openmig/ledger';
 import { asTenantId, asMappingId, type TenantId, type MappingId } from '@openmig/shared';
-import { runVerification, createRealVerificationDeps } from '@openmig/core';
+import { runVerification, createRealVerificationDeps, reindexFromTarget } from '@openmig/core';
 import { buildDepsFromMapping } from '../build-deps-from-mapping';
 import { buildTargetReindexers } from '../build-reindexers';
 import * as cutoverCli from './cutover-commands';
@@ -79,6 +80,10 @@ Commands:
   rollback         Rollback cutover to previous state
   status           Show current cutover status
   runbook          Generate the guided DNS migration runbook (Markdown, no DB required)
+  reindex          Rebuild the ledger FROM the target (ADR-0020 lost-ledger
+                   recovery). Adopts what the target already holds so the next
+                   pass re-copies nothing; reads the target, writes only
+                   ledger rows. State-changing -> needs --yes; no --domain.
 
 Options:
   --tenant, -t <id>         Tenant ID (required, except for "runbook")
@@ -125,6 +130,10 @@ Examples:
   pnpm exec tsx apps/worker/src/cli/index.ts runbook \\
     --domain example.com --target mail.example.com > dns-runbook.md
 
+  # Rebuild a lost ledger from the target (state-changing -> needs --yes)
+  pnpm exec tsx apps/worker/src/cli/index.ts reindex \\
+    --tenant tenant123 --mapping mapping456 --yes
+
 Environment Variables:
   DATABASE_URL  PostgreSQL connection string (required for all commands except "runbook")
 `);
@@ -133,11 +142,12 @@ Environment Variables:
   }
 
   if (!command) {
-    log.error('Error: command required (start-cutover, verify, approve, execute, complete, rollback, status, runbook)');
+    log.error('Error: command required (start-cutover, verify, approve, execute, complete, rollback, status, runbook, reindex)');
     process.exit(1);
   }
 
-  if (!domain) {
+  // reindex reads the target and writes the ledger — DNS never enters it.
+  if (!domain && command !== 'reindex') {
     log.error('Error: --domain <name> is required');
     process.exit(1);
   }
@@ -155,7 +165,8 @@ Environment Variables:
     }
   }
 
-  return { command, tenantId: tenantId ?? '', mappingId: mappingId ?? '', domain, targetMailServer, dkimSelector, targetIp, assumeYes };
+  // domain is '' only for reindex, which never touches DNS.
+  return { command, tenantId: tenantId ?? '', mappingId: mappingId ?? '', domain: domain ?? '', targetMailServer, dkimSelector, targetIp, assumeYes };
 }
 
 /** Main entry point. */
@@ -270,9 +281,61 @@ async function main() {
       await cutoverCli.showStatus(deps);
       break;
     }
+    case 'reindex': {
+      // ADR-0020's recovery doorway (0026 T1 item 5): rebuild idempotency
+      // state FROM the target after a lost ledger. Reads the target, writes
+      // only ledger rows — non-destructive and idempotent — but it is still a
+      // state-changing command, so the house `--yes` gate applies.
+      if (!assumeYes) {
+        log.error('reindex writes ledger rows — confirm with --yes');
+        process.exit(1);
+      }
+      const runDeps = await buildDepsFromMapping(pool, tenantId, mappingId);
+      const targets = await buildTargetReindexers(pool, tenantId, mappingId);
+      try {
+        // Reindexer keys are the verification gate's; ledger rows use the
+        // ledger's domain names.
+        const domainOf = {
+          mail: 'email',
+          calendar: 'calendar',
+          contacts: 'contact',
+          files: 'file',
+        } as const;
+        const entries = Object.entries(targets.reindexers) as Array<
+          [keyof typeof domainOf, (typeof targets.reindexers)[keyof typeof targets.reindexers]]
+        >;
+        if (entries.length === 0) {
+          // Rule 9: "no target can enumerate itself" is a blind spot, not a
+          // clean bill of health — exit non-zero so a recovery script notices.
+          log.error(
+            '[reindex] no domain target can enumerate itself — nothing was reindexed. ' +
+              'This means "cannot read the target", not "nothing to adopt".',
+          );
+          process.exit(1);
+        }
+        for (const [key, reindexer] of entries) {
+          if (!reindexer) continue;
+          const result = await reindexFromTarget({
+            tenantId: asTenantId(tenantId),
+            mappingId: asMappingId(mappingId),
+            reindexer,
+            ledger: runDeps.ledger,
+            domain: domainOf[key],
+          });
+          log.info(
+            `[reindex] ${key}: scanned=${result.scanned} adopted=${result.adopted} ` +
+              `alreadyKnown=${result.alreadyKnown}`,
+          );
+        }
+      } finally {
+        await targets.close();
+        await runDeps.close();
+      }
+      break;
+    }
     default:
       log.error(`Unknown cutover command: ${command}`);
-      log.error('Use: start-cutover, verify, approve, execute, complete, rollback, status, runbook');
+      log.error('Use: start-cutover, verify, approve, execute, complete, rollback, status, runbook, reindex');
       process.exit(1);
   }
 }

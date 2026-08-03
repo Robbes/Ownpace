@@ -23,3 +23,13 @@ A growing class of EU sovereign suites — **La Suite numérique** (DINUM) and i
 ## Alternatives considered
 - **IMAP/DAV-first** (JMAP later): rejected — delays the JMAP-first sovereign targets that motivate the project.
 - **JMAP-only**: rejected — excludes OX-based openDesk and Soverin, which are IMAP/DAV.
+
+## Update 2026-08-03 — the "one-shot JMAP migration utility" was never used
+
+The engine bullet above credits an external one-shot JMAP import utility for
+the initial bulk copy. No such utility was ever adopted: our own
+`JmapTargetWriter` (jmap-jam) does bulk AND incremental through the same
+idempotent shadow pass, and ADR-0019's update note records that the runtime is
+pure JavaScript with no shell-outs at all. The SAD's tables were corrected in
+its v1.2 pass; this note brings the ADR itself in line (0026 T4). The
+decision — JMAP primary, IMAP/DAV parallel, mail leads — is unchanged.

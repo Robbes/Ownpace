@@ -1,11 +1,11 @@
 /**
  * Rollback Job
  *
- * Reverts a migration to its previous state.
- * This includes:
- * - Restoring original data sources
- * - Reverting DNS/MX records
- * - Notifying users of the rollback
+ * Reverts a migration to its previous state: reactivates the mapping so
+ * shadow sync resumes with the original source authoritative, and marks the
+ * cutover ROLLED_BACK. DNS restore is deferred (verify-only DNS — the
+ * operator reverts MX manually) and user notification does not exist yet
+ * (workplan 0030): `notifyUsers: true` is refused, not silently skipped.
  *
  * Trigger: Manual (user-initiated)
  */
@@ -27,7 +27,12 @@ const RollbackJobSchema = z.object({
   reason: z.string(),
   options: z.object({
     restoreDns: z.boolean().default(true),
-    notifyUsers: z.boolean().default(true),
+    // FALSE, because it does nothing. It used to default `true` and be
+    // "handled" by a warn-and-skip — an API shape promising a capability
+    // that does not exist (0026 T1 item 3). An explicit `true` is refused
+    // up front in run(); the default stops implying anyone gets told.
+    // Workplan 0030 (email notifications) is where this becomes real.
+    notifyUsers: z.boolean().default(false),
     dnsDomain: z.string().optional(),
   }).prefault({}),
 });
@@ -43,6 +48,17 @@ export const runRollback = schemaTask({
     const typedPayload = payload as RollbackJobPayload;
     const { tenantId, mappingId, reason, options } = typedPayload;
     
+    // Refused BEFORE any rollback action, not warn-skipped after them: a
+    // caller who asked for notification and got a silent skip believes users
+    // were told when nobody was (rule 9). Failing here leaves everything
+    // untouched, so the caller can simply resubmit without the flag.
+    if (options.notifyUsers) {
+      throw new Error(
+        'notifyUsers: true was requested, but user notification is not implemented ' +
+          '(workplan 0030). Resubmit without the flag — the rollback itself has not run.',
+      );
+    }
+
     log.info('Starting rollback process', {
       tenantId,
       mappingId,
@@ -105,10 +121,8 @@ export const runRollback = schemaTask({
       });
       logger.info('Cutover marked as rolled back');
 
-      // Step 4: User notification is not yet implemented — say so, don't fake it.
-      if (options.notifyUsers) {
-        logger.warn('User notification requested but not yet implemented — skipping.');
-      }
+      // There is deliberately no notification step: `notifyUsers: true` is
+      // refused at the top of run() until workplan 0030 builds the channel.
 
       // There is deliberately no "cancel the pending grace-period task" step.
       // It used to call `ctx.cancel({ id: 'grace-period-<mapping>' })` — two

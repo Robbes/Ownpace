@@ -31,4 +31,26 @@ describe('reindexFromTarget (lost-ledger recovery)', () => {
     const r2 = await reindexFromTarget(reindexDeps);
     expect(r2).toMatchObject({ adopted: 0, alreadyKnown: 2 });
   });
+
+  it('adopts into the domain it was given, not always email (the CLI doorway needs this)', async () => {
+    // The reindexer was mail-only by hard-coded 'email' until the doorway
+    // existed (0026 T1 item 5); the CLI runs one reindex per domain whose
+    // target can enumerate itself, so the domain must be injectable.
+    const source = new MemorySource();
+    source.add({ folderPath: 'INBOX', messageId: '<a@x>', rfc822: 'Subject: A\r\n\r\nhello' });
+    const target = new MemoryTarget();
+    const ledger = new MemoryLedger();
+    const id = { tenantId: asTenantId('t1'), mappingId: asMappingId('m1') };
+    await runShadowPass({ ...id, source, target, ledger });
+    ledger.clear();
+
+    const r = await reindexFromTarget({ ...id, reindexer: target, ledger, domain: 'calendar' });
+    expect(r).toMatchObject({ scanned: 1, adopted: 1 });
+
+    // The row landed under 'calendar': an email-domain pass does NOT see it
+    // and creates its copy afresh — which is exactly why the CLI must pair
+    // each reindexer with its own domain.
+    const pass = await runShadowPass({ ...id, source, target, ledger });
+    expect(pass.created + (pass.adopted ?? 0)).toBe(1);
+  });
 });

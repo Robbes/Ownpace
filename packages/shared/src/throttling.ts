@@ -383,19 +383,25 @@ export interface ThrottleConfigMapping {
 }
 
 /**
- * Create a ThrottleLimiter from a configuration mapping
- * Allows per-domain configuration with fallback to defaults
+ * ONE shared limiter from a per-domain configuration mapping — not per-domain
+ * limiters, and the name of the input type should not suggest otherwise
+ * (0026 T1 item 4; `DomainConfig.throttleConfig` documents the same).
+ *
+ * The merge is deliberately the SAFE collapse: the most restrictive
+ * `maxConcurrent` and `requestsPerSecond` across every domain's block win, so
+ * no provider's cap is ever exceeded (rule 4) — at the cost that one slow
+ * domain's cap slows all of them. Retry/backoff fields have no "safest" value,
+ * so for those the last block enumerated wins; give domains identical values
+ * if you care which. True per-domain limiters are future work and need the
+ * connector wiring to route by domain first (today only the mail source
+ * receives a limiter at all — see `build-deps.ts`).
  */
 export function createThrottleLimiterFromMapping(
   mapping: ThrottleConfigMapping,
   defaultConfig: Partial<ThrottleConfig> = {}
 ): ThrottleLimiter {
-  // Merge all configs, using the first non-empty config as the base
-  // For now, we use a single limiter with the merged config
-  // In the future, this could create per-domain limiters
-  
   const mergedConfig: ThrottleConfig = { ...DEFAULT_THROTTLE_CONFIG, ...defaultConfig };
-  
+
   // Apply the most restrictive settings from all domains
   for (const domainConfig of Object.values(mapping)) {
     if (domainConfig.maxConcurrent && domainConfig.maxConcurrent < mergedConfig.maxConcurrent) {

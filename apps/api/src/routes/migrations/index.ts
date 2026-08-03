@@ -440,7 +440,6 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
     res.json({
       id: mapping.id,
       tenantId,
-      tenant_id: tenantId, // TODO: drop once all consumers are confirmed on tenantId (camelCase)
       name: mapping.name ?? mapping.mode,
       sourceType: sourceConn?.kind ?? 'unknown',
       targetType: targetConn?.kind ?? 'unknown',

@@ -491,6 +491,29 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     const status = await mappingStatus(m);
     if (status === 'active') {
       scheduleMapping(m);
+      // ADR-0020's on-startup half (0026 T1 item 5): an ACTIVE mapping whose
+      // ledger holds zero rows is the lost-ledger shape — active means the
+      // owner pressed start, so a sync has (normally) run before. Detection
+      // only, said loudly; the doorway is the worker CLI's `reindex` command.
+      // A first pass that simply has not finished yet also matches, which is
+      // why this warns instead of acting.
+      try {
+        const rows = await withTenantContext(m.config.tenantId, async (client) => {
+          const res = await client.query('SELECT count(*)::int AS n FROM item WHERE mapping_id = $1', [
+            m.mailboxMappingId,
+          ]);
+          return (res.rows[0] as { n?: number } | undefined)?.n ?? 0;
+        });
+        const warning = lostLedgerWarning(m.config.mappingId, rows);
+        if (warning) log.warn(`[selfhost] ${warning}`);
+      } catch (err) {
+        // The check must never take the appliance down; the failed check is
+        // itself said out loud (rule 9), not swallowed into silence.
+        log.warn(
+          `[selfhost] ${m.config.mappingId}: could not check the ledger for the lost-ledger ` +
+            `warning: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     } else {
       log.info(`[selfhost] ${m.config.mappingId} is '${status}' — awaiting confirm at /`);
     }
@@ -1164,6 +1187,24 @@ async function shutdown(
  * sees (hard rule 9). Anything unrecognised gets nothing, deliberately — a hint
  * for every error is a hint for none.
  */
+/**
+ * The lost-ledger warning for an ACTIVE mapping with an empty ledger
+ * (ADR-0020 / 0026 T1 item 5). Pure so the wording is testable; returns
+ * undefined when there is nothing to say. Zero rows on an active mapping is
+ * a warning and not an action because it has an innocent cause too — a first
+ * pass still running — and the recovery (reindex) belongs to the operator.
+ */
+export function lostLedgerWarning(mappingId: string, ledgerRows: number): string | undefined {
+  if (ledgerRows > 0) return undefined;
+  return (
+    `${mappingId} is active but its ledger holds ZERO rows. If this install has synced ` +
+    'before, the ledger was lost (wiped volume, restored disk) — the ledger is a rebuildable ' +
+    'cache (ADR-0020): run the worker CLI\'s `reindex --tenant <t> --mapping <m> --yes` to ' +
+    'adopt what the target already holds before the next pass re-copies it. If this mapping ' +
+    'has genuinely never completed a pass, this warning is expected and will stop once one has.'
+  );
+}
+
 export function startupHint(err: unknown): string | undefined {
   const e = err as { code?: string; path?: string } | null;
   if (e?.code !== 'EACCES' || !e.path) return undefined;

@@ -1,9 +1,10 @@
 # Solution Architecture — Sovereign Migration Stack
 
-**Version:** 1.2 (2026-08-02) — canonical copy, lives in `docs/architecture/`.
+**Version:** 1.3 (2026-08-03) — canonical copy, lives in `docs/architecture/`.
+**v1.3 change:** the 0026 sweep's truth pass. §23 + the Languages header say the bilingual UI is BUILT (0024); §11.2 #1's drift-queue tail points at workplan 0028 (kept scoped, owner decision 2026-08-02); §13.1's rich extractor and §15.1's Proton half carry their retraction notes (same decisions); §14.1/§14.2 unchanged in substance — their builds are workplans 0027/0029.
 **v1.2 change:** the tables caught up with the 2026-07-30 engine change — every imapsync/vdirsyncer/rclone reference in §7.3/§8/§9/§10/§11/§12/§13/§14/§21 now names our own TypeScript connectors (the §6 banner had acknowledged the change; the tables had not followed). §3/§18's "no self-hosted mail" corrected to ADR-0011's actual position (permitted, user-operated). §11.1's apply paragraph corrected: the IMAP/DAV mail target DOES implement `TargetRemover` (ADR-0024's correction). PGlite named as the appliance's embedded persistence option (§7.3/§22.1, ADR-0028). §23's bilingual claim marked as an unbuilt promise pending the workplan 0021 T5 owner decision. §24's ADR index extended through 0028; §25's Windows-packaging row updated per ADR-0027.
 **v1.1 change:** added release management, versioning & data-migration controls (§22.1) and the migration-tooling decision (ADR-0017); clarified self-hosted targets are user-operated (ADR-0011); ledger schema v1 (`packages/ledger`, ADR-0016).
-**Languages:** English is the development language (code, docs, ADRs). The end-user UI is intended to be bilingual **English + Dutch**, but this is an unbuilt ADR-0013 promise today — see §23.
+**Languages:** English is the development language (code, docs, ADRs). The end-user UI is bilingual **English + Dutch** (ADR-0013, built by workplan 0024) — see §23.
 **Subject:** A low-maintenance stack that lets families and small/medium businesses migrate, at their own pace, off US cloud (Microsoft 365 / Google / Dropbox) to **managed EU/CH platforms** for email, calendar, contacts, files and related features.
 **First migration path:** Microsoft 365 (O365) → Soverin / Nextcloud (Proton later).
 
@@ -244,7 +245,7 @@ A scheduled **discovery process** detects source/target changes and sorts each i
 
 ### 11.2 User control, transparency & UI
 The user stays in control; nothing irreversible happens without it being visible and approved. Four UI principles:
-1. **Scope manifest — what migrates, what doesn't, and why.** Explicit, readable, shown before start and always available — no silent omissions. *Migrates:* email (folders/Sent/Drafts/Archive), calendar, contacts, OneDrive/SharePoint files, shared mailboxes (pattern S) and distribution lists (pattern D). *Partial:* permissions (§14.2) — the Proton calendar/contacts row was removed 2026-08-02 with the §15.1 retraction, and SharePoint metadata/versions/lists moved to *does not migrate* the same day (§13.1 retraction). *Does not migrate (named explicitly):* SharePoint versions/permissions/metadata/lists/pages, Teams chat/calls, Planner, Power Automate, InfoPath, OneNote (unless set up separately), retention holds, other O365 apps with no sovereign equivalent. **Partially implemented (workplan 0013, both editions):** a pre-sync **Review & confirm** step shows live, read-only per-domain discovery counts (collections/items/bytes) alongside this manifest, and the mapping only starts syncing once the owner clicks **"Start migration"** — the managed web wizard (`ConfirmMigration`) and the self-host appliance's own confirm page (`GET /`) both implement this; the §11.1 drift decision queue below remains a later slice.
+1. **Scope manifest — what migrates, what doesn't, and why.** Explicit, readable, shown before start and always available — no silent omissions. *Migrates:* email (folders/Sent/Drafts/Archive), calendar, contacts, OneDrive/SharePoint files, shared mailboxes (pattern S) and distribution lists (pattern D). *Partial:* permissions (§14.2) — the Proton calendar/contacts row was removed 2026-08-02 with the §15.1 retraction, and SharePoint metadata/versions/lists moved to *does not migrate* the same day (§13.1 retraction). *Does not migrate (named explicitly):* SharePoint versions/permissions/metadata/lists/pages, Teams chat/calls, Planner, Power Automate, InfoPath, OneNote (unless set up separately), retention holds, other O365 apps with no sovereign equivalent. **Partially implemented (workplan 0013, both editions):** a pre-sync **Review & confirm** step shows live, read-only per-domain discovery counts (collections/items/bytes) alongside this manifest, and the mapping only starts syncing once the owner clicks **"Start migration"** — the managed web wizard (`ConfirmMigration`) and the self-host appliance's own confirm page (`GET /`) both implement this. The item-level decision queues (deletions/moves/failures) shipped with ADR-0026's operating screens; the mapping-level §11.1 drift decision queue is **workplan 0028** (owner decision 2026-08-02: kept, scoped to two categories).
 2. **Status & progress.** Per mailbox/domain state (queued / initial copy / shadow / verified / cutover), overall progress, sync freshness, last run, errors — derived from the ledger and orchestrator.
 3. **Decision queue ("actions required").** The §11.1 choices appear here with a safe default and one-tap choice; policy presets decide what lands here vs runs automatically.
 4. **Asynchronous, come back anytime.** Migration/sync runs server-side; the user can close the app and return to see status or make choices. Notifications (in-app/email) on a required decision or milestone.
@@ -347,11 +348,21 @@ Family to SMB: ~25 mailboxes/tenant, a few shared mailboxes — small. Per tenan
 
 ## 23. Internationalization & accessibility
 
-> **Update 2026-08-02 — the bilingual UI is a promise, not a fact.** There is
-> zero i18n in `apps/web` today; Dutch exists only in the cutover comms
-> templates. Whether ADR-0013's EN+NL commitment is built or retracted is an
-> owner decision pending in workplan 0021 T5 — until it is recorded, read this
-> section as intent.
+> **Update 2026-08-02 (evening) — the bilingual UI is BUILT.** The owner kept
+> ADR-0013 (0021 T5) and workplan 0024 shipped it the same day: a hand-rolled
+> typed EN/NL dictionary with compile-time key parity, every operating screen
+> bilingual, locale-aware dates/times/numbers, and the server-prose boundary
+> documented per class in `docs/i18n-prose-boundary.md` (*translate the frame,
+> never the finding* — refusals stay verbatim, rule 2). Still EN-only by
+> deliberate note: the Dashboard/Mappings body prose (a 0024-T5 candidate).
+> Bilingual notifications transfer to workplan 0030 (notifications do not
+> exist yet). The earlier note below records what was true that morning.
+>
+> **Update 2026-08-02 (morning) — the bilingual UI is a promise, not a fact.**
+> There is zero i18n in `apps/web` today; Dutch exists only in the cutover
+> comms templates. Whether ADR-0013's EN+NL commitment is built or retracted
+> is an owner decision pending in workplan 0021 T5 — until it is recorded,
+> read this section as intent.
 
 **Development language: English** (code, comments, docs, ADRs). **End-user UI & interaction: English + Dutch** (full i18n; locale-aware dates/times; bilingual notifications and the cutover comms templates below). [ADR-0013] **Accessibility:** target **WCAG 2.2 AA** — keyboard navigation, screen-reader labels, sufficient contrast, clear focus; the UI is deliberately simple (status + decisions). **End-user communication (audience-fit):** pre-built, plain-language email templates (EN/NL) the admin can send — "we're moving your email", "what changes / what stays", "your new login", "cutover date and what to expect" — non-technical, reassuring, suitable for families and small teams.
 

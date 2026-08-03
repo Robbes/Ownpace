@@ -1,7 +1,7 @@
 name: E2E (self-hosted)
 
 # ==============================================================================
-# Intentionally SEPARATE from CI (ci.yml). Manual-trigger only: needs the
+# Intentionally SEPARATE from CI (ci.yml). Nightly + manual dispatch: needs the
 # self-hosted Spark runner + Docker. Drives the workplan 0010 T5 acceptance gate
 # — the self-host appliance's restart-resume idempotency property — end to end,
 # for all FOUR domains (issue #114 follow-up extended this from mail-only to also
@@ -58,6 +58,18 @@ name: E2E (self-hosted)
 # HARD RULE 5: no managed-only services here (no Trigger.dev / billing).
 # ==============================================================================
 on:
+  # SAD §22's "e2e nightly", scheduled at last (0025 T5): BOTH persistence
+  # backends every night, as two firings — 01:30 UTC runs the Postgres stack,
+  # 03:30 UTC the PGlite one. A schedule event carries no inputs, so which
+  # backend a firing drives is derived from WHICH cron fired (the exact
+  # `github.event.schedule` string) in the two `pglite` expressions below —
+  # change a cron here and those two expressions must follow. Staggered, not
+  # matrixed: the runner is a single shared box and `concurrency` already
+  # queues rather than cancels, so two spaced firings beat two parallel jobs
+  # fighting over Docker.
+  schedule:
+    - cron: '30 1 * * *' # postgres
+    - cron: '30 3 * * *' # pglite
   workflow_dispatch:
     inputs:
       seed_count:
@@ -84,7 +96,7 @@ env:
   # spliced only into the `docker compose` calls below) because the gate itself
   # reads it: `selfhost-restart-resume.e2e.test.ts` restarts the appliance and
   # therefore has to address the same stack this workflow brought up.
-  SELFHOST_COMPOSE_OVERRIDE: ${{ inputs.persistence == 'pglite' && 'deploy/selfhost/compose.pglite.yml' || '' }}
+  SELFHOST_COMPOSE_OVERRIDE: ${{ (inputs.persistence == 'pglite' || github.event.schedule == '30 3 * * *') && 'deploy/selfhost/compose.pglite.yml' || '' }}
   # Every `docker compose` call below uses THIS, unquoted, so the flags split.
   # One list in one place: before this, `up` passed compose.dev.yml while `ps`
   # and `logs` in the very same step did not, which is how a diagnostic dump can
@@ -92,7 +104,7 @@ env:
   SELFHOST_COMPOSE_FILES: >-
     -f deploy/selfhost/compose.yml
     -f deploy/selfhost/compose.dev.yml
-    ${{ inputs.persistence == 'pglite' && '-f deploy/selfhost/compose.pglite.yml' || '' }}
+    ${{ (inputs.persistence == 'pglite' || github.event.schedule == '30 3 * * *') && '-f deploy/selfhost/compose.pglite.yml' || '' }}
   # SELFHOST_PORT is NOT fixed here — it's computed in "Pick free host ports"
   # below and exported to $GITHUB_ENV so it's free regardless of what else is
   # running on this box.
