@@ -39,13 +39,32 @@ The full NAS/Pi/WSL2 walkthrough, backup (different on PGlite — no
 
 ## Image channels (§22.1)
 
-Two rolling tags are published to the container registry:
+What `images.yml` actually publishes to ghcr (0025 T1/T3 — this section said
+"stable" before any pipeline existed; these are the real channels):
 
-- **`edge`** — built from `main` on every merge. What the example env pins by
-  default; fine for trying the appliance, not for unattended production.
-- **`stable`** — a promoted release. Pin your production `.env` to a `stable`
-  tag, or to an immutable `sha256` **digest**, so an upgrade is a deliberate act:
-  `SELFHOST_IMAGE=ghcr.io/robbes/open-migrate-selfhost:stable`.
+- **`edge`** — built from `main` on every merge, multi-arch (amd64+arm64),
+  cosign-signed. What the example env pins by default; fine for trying the
+  appliance, not for unattended production.
+- **`sha-<commit>`** — every `edge` publish also lands under its commit, so
+  any past build stays addressable.
+- **`X.Y.Z` + `latest`** — published when a release tag is cut. **No release
+  exists yet** (0025 T2, an owner decision), so until then `edge` is the only
+  moving channel and production pinning means a digest.
+
+**Pin production to a digest**, so an upgrade is a deliberate act and the ref
+is immutable. Verify the signature first — the image is signed by this repo's
+workflow identity, keyless, in the public Sigstore log:
+
+```sh
+cosign verify \
+  --certificate-identity-regexp 'https://github.com/Robbes/open-migrate' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  ghcr.io/robbes/open-migrate-selfhost:edge
+# The digest is in the verify output (and in
+# `docker buildx imagetools inspect ghcr.io/robbes/open-migrate-selfhost:edge`).
+# Then, in .env:
+SELFHOST_IMAGE=ghcr.io/robbes/open-migrate-selfhost@sha256:<digest>
+```
 
 Always **back up the `/data` Postgres volume before upgrading**, and never run
 two app versions against one database (the startup downgrade guard refuses a

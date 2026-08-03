@@ -59,7 +59,9 @@ Edit `deploy/selfhost/.env`:
 - Optional: `SELFHOST_BIND` (default `127.0.0.1` — localhost only; set to
   `0.0.0.0` to reach `/status` from the LAN, behind your own firewall),
   `SELFHOST_PORT` (the compose files default to `8081`), `SELFHOST_IMAGE` (pin
-  to a `stable` tag or a digest for production — see **Upgrades** below).
+  to a release tag or — until the first release exists — a verified `sha256`
+  digest for production; the procedure is in `deploy/selfhost/README.md`,
+  "Image channels").
   (Running the appliance straight from source with `pnpm` and no `PORT` set
   defaults to `8080` — the examples in this guide use the compose port, 8081.)
 
