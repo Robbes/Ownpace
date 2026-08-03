@@ -6,7 +6,7 @@
  * Uses Microsoft Graph API v1.0 with delta query for incremental synchronization.
  * 
  * Features:
- * - Contact folder enumeration via /me/contactFolders endpoint
+ * - Contact folder enumeration via {scope}/contactFolders endpoint
  * - Delta query for incremental contact synchronization
  * - vCard 4.0 format generation from Graph contacts
  * - Photo handling with BASE64 encoding
@@ -24,6 +24,7 @@ import type { ContactSource, ContactFolder, RawContact, SyncCursor, ContactPhone
 import type { TokenProvider } from '@openmig/shared';
 import type { GraphContactsSourceConfig, GraphContactFolder, GraphContact, GraphContactsDeltaCursor, VCardFieldMapping, GraphContactWithPhoto } from './graph-contacts-source.types';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types';
+import { graphScopePrefix } from './graph-scope';
 import type { ThrottleLimiter } from '@openmig/shared';
 import { log } from '@openmig/shared';
 
@@ -36,12 +37,14 @@ export class GraphContactsSource implements ContactSource {
   private readonly httpClient: HttpClient;
   private readonly baseUrl: string;
   private readonly throttleLimiter?: ThrottleLimiter;
+  /** `{baseUrl}/me` or `{baseUrl}/users/{address}` — see graph-scope.ts. */
+  private readonly scope: string;
   private readonly provider: string;
 
   constructor(
     tokenProvider: TokenProvider,
     tenantId: string,
-    options?: { baseUrl?: string; throttleLimiter?: ThrottleLimiter },
+    options?: { baseUrl?: string; throttleLimiter?: ThrottleLimiter; mailbox?: string },
     deps?: { httpClient?: HttpClient },
   ) {
     this.tokenProvider = tokenProvider;
@@ -51,13 +54,15 @@ export class GraphContactsSource implements ContactSource {
     };
     this.baseUrl = options?.baseUrl?.replace(/\/$/, '') ?? 'https://graph.microsoft.com/v1.0';
     this.httpClient = deps?.httpClient ?? createDefaultHttpClient();
+    // Application-permission scope, workplan 0027 T0; `/me` by default.
+    this.scope = graphScopePrefix(this.baseUrl, options?.mailbox);
     this.throttleLimiter = options?.throttleLimiter;
     this.provider = this.extractProviderFromBaseUrl(this.baseUrl);
   }
 
   /**
    * Enumerate all contact folders.
-   * Uses /me/contactFolders endpoint to list all contact folders.
+   * Uses {scope}/contactFolders endpoint to list all contact folders.
    */
   async listFolders(): Promise<ReadonlyArray<ContactFolder>> {
     const folders: GraphContactFolder[] = [];
@@ -65,7 +70,7 @@ export class GraphContactsSource implements ContactSource {
 
     // Paginate through all contact folders
     do {
-      const url = nextLink ?? `${this.baseUrl}/me/contactFolders`;
+      const url = nextLink ?? `${this.scope}/contactFolders`;
       const response = await this.makeRequest({
         url,
         method: 'GET',
@@ -118,7 +123,7 @@ export class GraphContactsSource implements ContactSource {
     const folderId = this.extractFolderIdFromFolder(folder);
     
     // Build the delta query URL
-    const baseUrl = `${this.baseUrl}/me/contactFolders/${folderId}/contacts`;
+    const baseUrl = `${this.scope}/contactFolders/${folderId}/contacts`;
     const url = deltaLink ?? `${baseUrl}/$delta`;
 
     const contacts: GraphContact[] = [];
@@ -355,7 +360,7 @@ export class GraphContactsSource implements ContactSource {
     // Try to get photo from the photo endpoint
     if (contact.photo?.id || contact.id) {
       try {
-        const photoUrl = `${this.baseUrl}/me/contactFolders/${folderId}/contacts/${contact.id}/photo/$value`;
+        const photoUrl = `${this.scope}/contactFolders/${folderId}/contacts/${contact.id}/photo/$value`;
         const response = await this.makeRequest({
           url: photoUrl,
           method: 'GET',

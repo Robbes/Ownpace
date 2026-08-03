@@ -6,7 +6,7 @@
  * Uses Microsoft Graph API v1.0 with delta query for incremental synchronization.
  * 
  * Features:
- * - Calendar enumeration via /me/calendars endpoint
+ * - Calendar enumeration via {scope}/calendars endpoint
  * - Delta query for incremental event synchronization
  * - iCal MIME format extraction using Prefer header
  * - Natural key extraction from UID + RECURRENCE-ID
@@ -19,6 +19,7 @@ import type { CalendarSource, CalendarFolder, RawCalendarEvent, SyncCursor } fro
 import type { TokenProvider } from '@openmig/shared';
 import type { GraphCalendarSourceConfig, GraphCalendar, GraphEvent, GraphDeltaCursor, ParsedIcalComponent } from './graph-calendar-source.types';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types';
+import { graphScopePrefix } from './graph-scope';
 import type { ThrottleLimiter } from '@openmig/shared';
 import { log } from '@openmig/shared';
 
@@ -31,12 +32,14 @@ export class GraphCalendarSource implements CalendarSource {
   private readonly httpClient: HttpClient;
   private readonly baseUrl: string;
   private readonly throttleLimiter?: ThrottleLimiter;
+  /** `{baseUrl}/me` or `{baseUrl}/users/{address}` — see graph-scope.ts. */
+  private readonly scope: string;
   private readonly provider: string;
 
   constructor(
     tokenProvider: TokenProvider,
     tenantId: string,
-    options?: { baseUrl?: string; throttleLimiter?: ThrottleLimiter },
+    options?: { baseUrl?: string; throttleLimiter?: ThrottleLimiter; mailbox?: string },
     deps?: { httpClient?: HttpClient },
   ) {
     this.tokenProvider = tokenProvider;
@@ -48,11 +51,13 @@ export class GraphCalendarSource implements CalendarSource {
     this.httpClient = deps?.httpClient ?? createDefaultHttpClient();
     this.throttleLimiter = options?.throttleLimiter;
     this.provider = this.extractProviderFromBaseUrl(this.baseUrl);
+    // Application-permission scope, workplan 0027 T0; `/me` by default.
+    this.scope = graphScopePrefix(this.baseUrl, options?.mailbox);
   }
 
   /**
    * Enumerate all calendar folders (collections).
-   * Uses /me/calendars endpoint to list all calendars.
+   * Uses {scope}/calendars endpoint to list all calendars.
    */
   async listFolders(): Promise<ReadonlyArray<CalendarFolder>> {
     const calendars: GraphCalendar[] = [];
@@ -60,7 +65,7 @@ export class GraphCalendarSource implements CalendarSource {
 
     // Paginate through all calendars
     do {
-      const url = nextLink ?? `${this.baseUrl}/me/calendars`;
+      const url = nextLink ?? `${this.scope}/calendars`;
       const response = await this.makeRequest({
         url,
         method: 'GET',
@@ -112,7 +117,7 @@ export class GraphCalendarSource implements CalendarSource {
 
     // Build the delta query URL
     const calendarId = this.extractCalendarIdFromFolder(folder);
-    const baseUrl = `${this.baseUrl}/me/calendars/${calendarId}/events`;
+    const baseUrl = `${this.scope}/calendars/${calendarId}/events`;
     
     // Use delta query endpoint
     const url = deltaLink ?? `${baseUrl}/$delta`;
@@ -267,10 +272,10 @@ export class GraphCalendarSource implements CalendarSource {
 
   /**
    * Fetch a single event as iCal MIME format.
-   * Uses /me/events/{id}/$value endpoint with Prefer header.
+   * Uses {scope}/events/{id}/$value endpoint with Prefer header.
    */
   private async fetchEventAsIcal(eventId: string, calendarId: string): Promise<string> {
-    const url = `${this.baseUrl}/me/calendars/${calendarId}/events/${eventId}/$value`;
+    const url = `${this.scope}/calendars/${calendarId}/events/${eventId}/$value`;
     
     const response = await this.makeRequest({
       url,
