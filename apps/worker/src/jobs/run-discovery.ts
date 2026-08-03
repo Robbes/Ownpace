@@ -1,3 +1,4 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 /**
  * Discovery Job (workplan 0013 T3, managed edition)
  *

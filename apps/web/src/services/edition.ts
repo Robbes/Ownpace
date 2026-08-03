@@ -1,3 +1,4 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 /**
  * Which edition this bundle was built for (ADR-0026).
  *

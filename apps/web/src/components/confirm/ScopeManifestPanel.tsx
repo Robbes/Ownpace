@@ -1,3 +1,4 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 /**
  * The §11.2 scope manifest: what migrates, what migrates partially, and what
  * does not migrate at all (ADR-0026).

@@ -1,3 +1,4 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '../stores/auth-store';
 

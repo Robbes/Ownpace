@@ -1,0 +1,50 @@
+Open Migration Stack
+Copyright 2026 The Open Migration Stack authors
+
+This product includes software developed by The Open Migration Stack authors.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this software except in compliance with the License. A copy of the License
+is distributed with this software in LICENSE.md, and is also available at:
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
+
+--------------------------------------------------------------------------------
+THIRD-PARTY COMPONENTS
+
+This software depends on third-party components, each distributed under its own
+license. Those licenses are not superseded by the Apache License above, and
+nothing in this NOTICE grants rights beyond what each component's own license
+grants.
+
+The authoritative, per-release list is the CycloneDX SBOM published alongside
+each release artifact and generated for every commit — it names every component
+and its resolved version, which a hand-maintained list in this file would
+misstate within a week. To inspect the dependency set of a working tree
+directly, read the package manifests and the lockfile (`pnpm-lock.yaml`).
+
+Components worth naming here because they ship inside the distributed
+appliance rather than merely building it:
+
+  - @electric-sql/pglite (Apache-2.0) — the embedded Postgres the self-host
+    appliance runs on when no Postgres server is configured.
+  - croner (MIT) — the in-process scheduler the appliance uses instead of an
+    external orchestrator.
+  - drizzle-orm (Apache-2.0) — the query layer over the ledger schema.
+  - nodemailer (MIT) — the SMTP client behind the notification channel; the
+    only mail library in the workspace.
+  - @trigger.dev/sdk (Apache-2.0) — the task runtime used by the managed
+    edition only. It is not part of the self-host appliance.
+
+Trademarks: Microsoft, Microsoft 365, Office 365, Outlook, SharePoint and
+OneDrive are trademarks of Microsoft Corporation. Other product and company
+names mentioned in this software or its documentation may be the trademarks of
+their respective owners. Use of these names is descriptive — it identifies the
+systems this software migrates data from or to — and does not imply
+endorsement by, or affiliation with, their owners.

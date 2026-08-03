@@ -1,3 +1,4 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 /**
  * The bilingual dictionary (workplan 0024 T1, ADR-0013).
  *
@@ -194,6 +195,10 @@ const en = {
   'finish.button': 'Finish this migration',
   'finish.button.disabledTitle':
     'Confirm step 4 first — finishing before delivery has moved loses anything that arrives afterwards.',
+  'createMapping.target.userOperated':
+    'The destination server is yours to run. We migrate your data into it — we do not ' +
+    'operate, monitor or back it up, and it carries no service level from us (ADR-0011). ' +
+    'If it is a managed European platform, its own provider is responsible for it.',
   'tenants.title': 'Team & organization',
   'tenants.intro':
     'Who can sign in to this organization, and what they are allowed to do. Changes apply immediately.',
@@ -465,6 +470,11 @@ const nl: Record<keyof typeof en, string> = {
   'finish.button': 'Rond deze migratie af',
   'finish.button.disabledTitle':
     'Bevestig eerst stap 4 — afronden voordat de bezorging is verplaatst, verliest alles wat daarna binnenkomt.',
+  'createMapping.target.userOperated':
+    'De doelserver beheert u zelf. Wij zetten uw gegevens erin over — wij beheren, ' +
+    'bewaken of back-uppen hem niet, en er geldt van onze kant geen serviceniveau voor ' +
+    '(ADR-0011). Is het een beheerd Europees platform, dan is de aanbieder ervan ' +
+    'verantwoordelijk.',
   'tenants.title': 'Team & organisatie',
   'tenants.intro':
     'Wie zich bij deze organisatie kan aanmelden, en wat ze mogen doen. Wijzigingen gelden direct.',

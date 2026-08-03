@@ -1,4 +1,9 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import React, { useState } from 'react';
+// One bilingual string on a screen that had none (0024's rule: the FRAME is
+// translated). The rest of this wizard is still EN-only prose — a 0024 T5
+// candidate — but a new user-facing sentence does not get to add to that debt.
+import { useT } from '../i18n';
 import { useNavigate } from 'react-router';
 import { 
   ArrowLeft, 
@@ -75,6 +80,7 @@ const dataTypes: { id: Domain; name: string; icon: React.FC<React.SVGProps<SVGSV
 ];
 
 const CreateMapping: React.FC = () => {
+  const t = useT();
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<FormData>(initialFormData);
@@ -190,6 +196,15 @@ const CreateMapping: React.FC = () => {
                   </button>
                 ))}
               </div>
+              {/* ADR-0011's own consequence, and it belongs where the choice is
+                  made rather than in a doc nobody opens: whatever server the
+                  owner points this at is THEIRS. We migrate into it; we do not
+                  run it, monitor it, back it up, or carry an SLA for it. Said
+                  before the connection details are typed, not after. */}
+              <p className="mt-4 text-sm text-gray-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                {t('createMapping.target.userOperated')}
+              </p>
+
             </div>
 
             <div className="space-y-4">

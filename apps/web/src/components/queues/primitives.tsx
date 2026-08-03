@@ -1,3 +1,4 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 /**
  * Shared pieces for the three decision-queue screens (ADR-0026).
  *
