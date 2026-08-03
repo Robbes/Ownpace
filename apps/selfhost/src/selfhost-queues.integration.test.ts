@@ -34,13 +34,31 @@ import { start, type SelfhostHandle } from './index';
 import { uuidFromString } from './config-dir';
 import { collectAttention } from './digest-collect';
 
-const PG_CONNECTION_STRING = process.env.TEST_DATABASE_URL;
-if (!PG_CONNECTION_STRING) {
+const ADMIN_URL = process.env.TEST_DATABASE_URL;
+if (!ADMIN_URL) {
   throw new Error(
     'TEST_DATABASE_URL is not set. Integration tests require Testcontainers to be running. ' +
       'Run: pnpm test:integration',
   );
 }
+
+/**
+ * This test gets its OWN database, for the same reason `migrate.integration`
+ * does: the shared test database is prepared by the global setup, which
+ * executes the migration files directly and never records them in
+ * `schema_migrations`. The appliance migrates itself at startup (that IS the
+ * appliance's contract — it owns its database and brings it up to date), so
+ * pointed at the shared one it would find no recorded versions, re-apply
+ * `0001_baseline.sql` onto a schema that already exists, and fail on
+ * `relation "audit_log" already exists`.
+ *
+ * A fresh database is also the truer test: this is what an appliance actually
+ * boots against.
+ */
+const DB_NAME = `selfhost_queues_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+const dbUrl = new URL(ADMIN_URL);
+dbUrl.pathname = `/${DB_NAME}`;
+const PG_CONNECTION_STRING = dbUrl.toString();
 
 const TENANT_ID = '5e1f0000-e29b-41d4-a716-446655440001';
 const MAPPING_ID = '5e1f0000-e29b-41d4-a716-446655440002';
@@ -110,6 +128,13 @@ async function seedItem(fields: {
 }
 
 beforeAll(async () => {
+  const admin = new Pool({ connectionString: ADMIN_URL });
+  try {
+    await admin.query(`CREATE DATABASE ${DB_NAME}`);
+  } finally {
+    await admin.end();
+  }
+
   pool = new Pool({ connectionString: PG_CONNECTION_STRING });
   const db = createPgDb(PG_CONNECTION_STRING);
   ledger = new PgLedger(db);
@@ -150,12 +175,10 @@ beforeAll(async () => {
   });
   base = `http://127.0.0.1:${handle.port}`;
 
-  // Start from a known state. The seeded counts below are exact, so a second
-  // run against a surviving database would double them and fail for a reason
-  // that has nothing to do with the code under test.
-  await pool.query('DELETE FROM item WHERE tenant_id = $1', [TENANT_ID]);
-  await pool.query('DELETE FROM decision WHERE tenant_id = $1', [TENANT_ID]);
-
+  // No cleanup needed before seeding: the database was created empty a few
+  // lines above, and the appliance's own startup is the only thing that has
+  // written to it.
+  //
   // Three items, one per queue, plus one that must NOT appear in any of them.
   await seedItem({
     key: '<deletion-waiting@test>',
@@ -190,11 +213,23 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await handle?.stop();
-  // Tenant-scoped, like every other integration test here: the database is
-  // shared with the rest of the suite and only this namespace is ours.
-  await pool?.query('DELETE FROM item WHERE tenant_id = $1', [TENANT_ID]);
-  await pool?.query('DELETE FROM decision WHERE tenant_id = $1', [TENANT_ID]);
   await pool?.end();
+
+  // Drop the whole database rather than the rows: nothing else in the suite
+  // shares it. Stragglers are terminated first — the appliance's own pool and
+  // the drizzle one above both hold connections, and Postgres refuses to drop
+  // a database anybody is still attached to.
+  const cleanup = new Pool({ connectionString: ADMIN_URL });
+  try {
+    await cleanup.query(
+      `SELECT pg_terminate_backend(pid) FROM pg_stat_activity
+        WHERE datname = $1 AND pid <> pg_backend_pid()`,
+      [DB_NAME],
+    );
+    await cleanup.query(`DROP DATABASE IF EXISTS ${DB_NAME}`);
+  } finally {
+    await cleanup.end();
+  }
 });
 
 describe('the queue endpoints see the real rows', () => {
