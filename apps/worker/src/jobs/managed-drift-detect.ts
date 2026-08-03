@@ -32,10 +32,10 @@ import {
   listTenantMailboxes,
   notifierFromEnv,
   directoryNotEnumerable,
+  directoryAvailability,
 } from '@openmig/connectors';
 import { runNewMailboxDetection, coverageIncompleteReason } from '@openmig/core';
 import type { HttpClient } from '@openmig/connectors';
-import { directoryAvailability } from '../directory-availability';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {

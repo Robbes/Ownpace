@@ -76,7 +76,27 @@ import {
   type MappingAttention,
   type DigestCadence,
 } from '@openmig/shared';
-import { notifierFromEnv } from '@openmig/connectors';
+import {
+  notifierFromEnv,
+  createTokenProvider,
+  listTenantMailboxes,
+  directoryNotEnumerable,
+  directoryAvailability,
+  type HttpClient,
+} from '@openmig/connectors';
+import {
+  runNewMailboxDetection,
+  resolveCoverage,
+  coverageIncompleteReason,
+} from '@openmig/core';
+
+/** Graph speaks plain JSON over fetch; the detector needs nothing more. */
+const detectorHttpClient: HttpClient = {
+  async request({ url, method, headers }) {
+    const res = await fetch(url, { method, headers });
+    return { status: res.status, body: await res.text(), headers: {} };
+  },
+};
 import { collectAttention as collectAttentionFrom } from './digest-collect';
 
 const DEFAULT_CONFIG_DIR = '/data/config';
@@ -678,6 +698,103 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     const handle = scheduler.schedule(`digest-${cadence}`, cron, () => sendDigest(cadence));
     handles.push(handle);
     log.info(`[selfhost] ${cadence} digest scheduled (${cron})`);
+  }
+
+  // 3d. Drift detection (workplan 0028 T2).
+  //
+  // The appliance's half of the detector. Every rule is in `@openmig/core` and
+  // tested without a database; what is here is the wiring — the token, the
+  // store, the notifier and the schedule — exactly as on managed.
+  //
+  // Coverage comes from the MAPPING FILES here, not the ledger: an appliance's
+  // mappings ARE its config, and `resolveCoverage` reads the address out of an
+  // IMAP `user` or a Graph `mailbox`. A mapping that states neither is
+  // reported as unstated, and the tenant raises nothing that run — announcing
+  // a mailbox somebody is already migrating would teach the owner the queue is
+  // wrong, which is worse than saying nothing.
+  const detectDrift = async (): Promise<void> => {
+    // Grouped by tenant: the directory is a tenant-level fact, and the
+    // decision belongs to the tenant rather than to any one mapping.
+    const byTenant = new Map<string, LoadedMapping[]>();
+    for (const m of mappings) {
+      const list = byTenant.get(m.config.tenantId) ?? [];
+      list.push(m);
+      byTenant.set(m.config.tenantId, list);
+    }
+
+    for (const [tenantId, tenantMappings] of byTenant) {
+      const coverage = resolveCoverage(
+        tenantMappings.map((m) => ({ mappingId: m.config.mappingId, source: m.config.source })),
+      );
+      // The Graph tenant, from whichever mapping has a Graph source. An
+      // appliance migrating only IMAP has none, which is a legitimate
+      // configuration and not an error.
+      const graphSource = tenantMappings
+        .map((m) => m.config.source)
+        .find((src) => src.type.startsWith('graph-')) as { tenantId?: string } | undefined;
+
+      try {
+        const summary = await runNewMailboxDetection({
+          tenantId: tenantId as TenantId,
+          listDirectory: async () => {
+            const available = directoryAvailability(process.env, graphSource?.tenantId);
+            if (!available.ok) {
+              return { kind: 'not_enumerable', reason: directoryNotEnumerable(available.reason) };
+            }
+            const tokenProvider = createTokenProvider({
+              tokenEndpoint: `https://login.microsoftonline.com/${graphSource!.tenantId!}/oauth2/v2.0/token`,
+              clientId: available.clientId,
+              clientSecret: available.clientSecret,
+              tenantId: graphSource!.tenantId!,
+              scope: 'https://graph.microsoft.com/.default',
+            });
+            return listTenantMailboxes(
+              async () => (await tokenProvider.getToken()).accessToken,
+              detectorHttpClient,
+              { applicationPermissions: true },
+            );
+          },
+          coveredAddresses: async () => coverage.addresses,
+          coverageIncomplete: async () =>
+            coverage.unstated.length > 0 ? coverageIncompleteReason(coverage.unstated) : undefined,
+          dismissedAddresses: async () =>
+            (await new PgDecisionStore(db).list(tenantId as TenantId, { status: 'dismissed' }))
+              .filter((d) => d.category === 'new_mailbox')
+              .map((d) => d.subjectKey)
+              .filter((k): k is string => Boolean(k)),
+          raise: async (input) => {
+            const { created } = await new PgDecisionStore(db).raise(input);
+            return { created };
+          },
+          // `tell` already logs a failed send loudly without rethrowing, which
+          // is rule 4: the decision is in the queue whatever the email did.
+          onRaised: async (input) =>
+            tell({ kind: 'decision_raised', summary: input.summary }),
+          warn: (m) => log.warn(m),
+          error: (m, err) => log.error(m, err instanceof Error ? err.message : err),
+        });
+        if (summary.raised > 0 || summary.alreadyPending > 0) {
+          log.info(
+            `[detect] ${tenantId}: ${summary.raised} raised, ${summary.alreadyPending} already pending`,
+          );
+        }
+      } catch (err) {
+        // A detection pass must never take the appliance down; the failure is
+        // said out loud (rule 9) rather than swallowed.
+        log.error(
+          `[detect] ${tenantId}: the detection pass failed:`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+  };
+
+  // 07:00 local, an hour before the digest — a mailbox found this morning is
+  // in the summary the owner reads rather than waiting a day.
+  {
+    const handle = scheduler.schedule('drift-detect', '0 7 * * *', detectDrift);
+    handles.push(handle);
+    log.info('[selfhost] drift detection scheduled (0 7 * * *)');
   }
 
   // 4. Local status/health + confirm server.

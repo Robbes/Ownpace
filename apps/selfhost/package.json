@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@openmig/connectors": "workspace:*",
+    "@openmig/core": "workspace:*",
     "@openmig/ledger": "workspace:*",
     "@openmig/scheduler": "workspace:*",
     "@openmig/shared": "workspace:*",
