@@ -37,7 +37,7 @@ function deps(overrides: Partial<DetectionDeps> = {}): DetectionDeps & {
     dismissedAddresses: async () => [],
     raise: async (input) => {
       raised.push(input.subjectKey);
-      return { created: true };
+      return { created: true, id: `decision-for-${input.subjectKey}` };
     },
     onRaised: async (input) => {
       announced.push(input.subjectKey);
@@ -73,7 +73,7 @@ describe('one condition, one email', () => {
     // The store's raise is idempotent. Without this check, an hourly detector
     // would email about the same mailbox twenty-four times a day until it was
     // answered — and the channel would be filtered by the second day.
-    const d = deps({ raise: async () => ({ created: false }) });
+    const d = deps({ raise: async () => ({ created: false, id: 'existing' }) });
     const summary = await runNewMailboxDetection(d);
 
     expect(summary).toMatchObject({ raised: 0, alreadyPending: 1 });
@@ -81,7 +81,7 @@ describe('one condition, one email', () => {
   });
 
   it('still counts it, so a working detector does not look idle', async () => {
-    const d = deps({ raise: async () => ({ created: false }) });
+    const d = deps({ raise: async () => ({ created: false, id: 'existing' }) });
     expect((await runNewMailboxDetection(d)).alreadyPending).toBe(1);
   });
 });
@@ -120,7 +120,7 @@ describe('when something fails', () => {
   it('keeps going after a raise throws, and reports it', async () => {
     const raise = vi.fn(async (input: { subjectKey: string }) => {
       if (input.subjectKey === 'bad@acme.nl') throw new Error('duplicate key');
-      return { created: true };
+      return { created: true, id: `id-${input.subjectKey}` };
     });
     const d = deps({
       listDirectory: async () => ({
@@ -163,5 +163,69 @@ describe('when something fails', () => {
     // Announcing something that is not in the queue would send the owner to a
     // screen that does not show it.
     expect(d.announced).toEqual([]);
+  });
+});
+
+describe('a standing preset (workplan 0028 T5)', () => {
+  it('asks by default — no preset means no preset', async () => {
+    // A tenant that has never expressed a preference must be ASKED, not
+    // quietly auto-answered by a default somebody else chose.
+    const d = deps();
+    const summary = await runNewMailboxDetection(d);
+    expect(summary).toMatchObject({ raised: 1, autoResolved: 0 });
+    expect(d.announced).toEqual(['info@acme.nl']);
+  });
+
+  it('still RAISES an auto-answered decision, then closes it', async () => {
+    const closed: string[] = [];
+    const d = deps({
+      presetAction: async () => 'auto',
+      autoResolve: async (id) => {
+        closed.push(id);
+      },
+    });
+    const summary = await runNewMailboxDetection(d);
+
+    // The row exists: "we noticed this mailbox and a standing rule closed it"
+    // is exactly what the audit trail should record. Skipping the raise would
+    // leave no evidence the mailbox was ever seen.
+    expect(d.raised).toEqual(['info@acme.nl']);
+    expect(closed).toEqual(['decision-for-info@acme.nl']);
+    expect(summary).toMatchObject({ raised: 0, autoResolved: 1 });
+  });
+
+  it('does NOT interrupt anybody about a decision the preset answered', async () => {
+    const d = deps({ presetAction: async () => 'auto', autoResolve: async () => {} });
+    await runNewMailboxDetection(d);
+    // Being told about something already answered is precisely the noise
+    // presets exist to remove.
+    expect(d.announced).toEqual([]);
+  });
+
+  it('reads the preset ONCE per run, not once per mailbox', async () => {
+    const presetAction = vi.fn(async () => 'ask' as const);
+    const d = deps({
+      listDirectory: async () => ({
+        kind: 'listed',
+        addresses: ['a@acme.nl', 'b@acme.nl', 'c@acme.nl'],
+      }),
+      presetAction,
+    });
+    await runNewMailboxDetection(d);
+    // A preset changed mid-run would otherwise answer some of a tenant's
+    // mailboxes and ask about the rest.
+    expect(presetAction).toHaveBeenCalledOnce();
+  });
+
+  it('reports a failed auto-resolution rather than silently counting it', async () => {
+    const d = deps({
+      presetAction: async () => 'auto',
+      autoResolve: async () => {
+        throw new Error('row already closed');
+      },
+    });
+    const summary = await runNewMailboxDetection(d);
+    expect(summary.autoResolved).toBe(1);
+    expect(d.errors[0]).toContain('could not auto-resolve');
   });
 });

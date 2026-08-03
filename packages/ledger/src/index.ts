@@ -17,6 +17,7 @@ export * from './verification-queries';
 export * from './migration-status-store';
 export * from './discovery-store';
 export * from './decision-store';
+export * from './policy-preset-store';
 export * from './usage-metering';
 export * from './run-store';
 export * from './migrate';

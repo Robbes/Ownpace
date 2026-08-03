@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgLedger, PgCursorStore, RunStore, withTenant } from '@openmig/ledger';
+import { runMigrations, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgLedger, PgCursorStore, RunStore, withTenant } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -763,8 +763,19 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
               .map((d) => d.subjectKey)
               .filter((k): k is string => Boolean(k)),
           raise: async (input) => {
-            const { created } = await new PgDecisionStore(db).raise(input);
-            return { created };
+            const { created, decision } = await new PgDecisionStore(db).raise(input);
+            return { created, id: decision.id };
+          },
+
+          // The tenant's standing answer, if it expressed one (0028 T5).
+          presetAction: () =>
+            new PgPolicyPresetStore(db).get(tenantId as TenantId, 'new_mailbox'),
+          autoResolve: async (decisionId, input) => {
+            await new PgDecisionStore(db).autoResolve(tenantId as TenantId, decisionId, {
+              closedBy: 'policy_preset',
+              preset: { category: 'new_mailbox', action: 'auto' },
+              subject: input.subjectKey,
+            });
           },
           // `tell` already logs a failed send loudly without rethrowing, which
           // is rule 4: the decision is in the queue whatever the email did.
@@ -1042,6 +1053,41 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           decisions.push(...(await store.list(t as TenantId)));
         }
         return sendJson(res, 200, { decisions });
+      }
+      // The standing answers (workplan 0028 T5). Same contract as managed
+      // (ADR-0026): one operating UI, so the screen calls the same shapes.
+      if (req.method === 'GET' && req.url === '/decisions/presets') {
+        const store = new PgPolicyPresetStore(db);
+        const tenants = [...new Set(mappings.map((m) => m.config.tenantId))];
+        const presets = [];
+        for (const t of tenants) {
+          presets.push(...(await store.list(t as TenantId)));
+        }
+        // Categories absent are `ask`; said rather than left to be inferred.
+        return sendJson(res, 200, { presets, defaultAction: 'ask' });
+      }
+      const presetSetMatch =
+        req.method === 'PUT' && req.url
+          ? /^\/decisions\/presets\/([^/]+)$/.exec(req.url)
+          : null;
+      if (presetSetMatch) {
+        const category = decodeURIComponent(presetSetMatch[1]!);
+        const body = await readJson(req).catch(() => undefined);
+        const action = (body as { action?: unknown } | undefined)?.action;
+        if (action !== 'auto' && action !== 'ask') {
+          return sendJson(res, 400, {
+            error: 'Bad Request',
+            message: "action must be 'auto' or 'ask'.",
+          });
+        }
+        const store = new PgPolicyPresetStore(db);
+        // Every configured tenant: the appliance's operator speaks for all of
+        // them, and a preset that applied to only one would be a surprise on
+        // an appliance whose owner thinks of it as one system.
+        for (const t of [...new Set(mappings.map((m) => m.config.tenantId))]) {
+          await store.set(t as TenantId, category, action);
+        }
+        return sendJson(res, 200, { category, action });
       }
       const decisionActMatch =
         req.method === 'POST' && req.url

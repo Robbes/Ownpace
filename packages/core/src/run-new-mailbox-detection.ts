@@ -43,7 +43,20 @@ export interface DetectionDeps {
    */
   coverageIncomplete?(): Promise<string | undefined>;
   /** Write to the decision queue. `created` false means it was already pending. */
-  raise(input: RaiseDecisionInput): Promise<{ readonly created: boolean }>;
+  raise(input: RaiseDecisionInput): Promise<{ readonly created: boolean; readonly id: string }>;
+  /**
+   * The tenant's standing answer for this category (workplan 0028 T5).
+   *
+   * `ask` — the default, and the default when no preference was ever
+   * expressed — means the decision waits for a person. `auto` means the
+   * detector answers its own decision: the row is still RAISED, so the
+   * history shows the mailbox was noticed, and then closed as
+   * `auto_resolved` recording that a standing rule closed it rather than a
+   * human. Omit the dep entirely to always ask.
+   */
+  presetAction?(): Promise<'auto' | 'ask'>;
+  /** Close a decision the preset answered. Never called when the preset is `ask`. */
+  autoResolve?(decisionId: string, input: RaiseDecisionInput): Promise<void>;
   /**
    * Tell somebody about a decision that is NEW. Called once per created
    * decision, never for one that was already pending.
@@ -56,6 +69,8 @@ export interface DetectionDeps {
 export interface DetectionSummary {
   /** Decisions created by this run — the ones somebody was told about. */
   readonly raised: number;
+  /** Decisions a standing preset answered, so nobody was interrupted. */
+  readonly autoResolved: number;
   /** Subjects already pending; re-detected, deliberately not re-announced. */
   readonly alreadyPending: number;
   /** Raises that threw. Reported, never silent. */
@@ -86,17 +101,29 @@ export async function runNewMailboxDetection(deps: DetectionDeps): Promise<Detec
     // be able to see that today's run could not look, without going back to
     // find the first time it happened.
     deps.warn(`[detect] ${deps.tenantId}: ${result.blindSpot}`);
-    return { raised: 0, alreadyPending: 0, failed: 0, blindSpot: result.blindSpot };
+    return {
+      raised: 0,
+      autoResolved: 0,
+      alreadyPending: 0,
+      failed: 0,
+      blindSpot: result.blindSpot,
+    };
   }
 
   let raised = 0;
+  let autoResolved = 0;
   let alreadyPending = 0;
   let failed = 0;
 
+  // Read ONCE per run, not per decision: a preset that changed mid-run would
+  // otherwise answer some of a tenant's mailboxes and ask about the rest.
+  const preset = (await deps.presetAction?.()) ?? 'ask';
+
   for (const decision of result.decisions) {
     let created: boolean;
+    let id: string;
     try {
-      ({ created } = await deps.raise(decision));
+      ({ created, id } = await deps.raise(decision));
     } catch (err) {
       // Rule 3.
       deps.error(`[detect] ${deps.tenantId}: could not raise a decision about ${decision.subjectKey}`, err);
@@ -110,6 +137,23 @@ export async function runNewMailboxDetection(deps: DetectionDeps): Promise<Detec
       alreadyPending++;
       continue;
     }
+    if (preset === 'auto') {
+      // The row exists — the queue is the audit trail, and "we noticed this
+      // mailbox and a standing rule closed it" is exactly what it should
+      // record. Nobody is interrupted: being told about something already
+      // answered is the noise presets exist to remove.
+      autoResolved++;
+      try {
+        await deps.autoResolve?.(id, decision);
+      } catch (err) {
+        deps.error(
+          `[detect] ${deps.tenantId}: could not auto-resolve the decision about ${decision.subjectKey}`,
+          err,
+        );
+      }
+      continue;
+    }
+
     raised++;
 
     try {
@@ -123,5 +167,5 @@ export async function runNewMailboxDetection(deps: DetectionDeps): Promise<Detec
     }
   }
 
-  return { raised, alreadyPending, failed };
+  return { raised, autoResolved, alreadyPending, failed };
 }
