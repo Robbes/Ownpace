@@ -58,6 +58,73 @@ export interface Notifier {
 export type DigestCadence = 'daily' | 'weekly';
 
 /**
+ * Pushing the bytes — the ONE thing that needs a protocol library, kept as a
+ * function so this package does not grow an SMTP dependency (it is imported
+ * by the browser bundle; `@openmig/connectors` owns the nodemailer binding).
+ */
+export type MailTransport = (message: {
+  readonly from: string;
+  readonly to: readonly string[];
+  readonly subject: string;
+  readonly body: string;
+}) => Promise<void>;
+
+/** Everything the channel needs to send. Secrets arrive already resolved. */
+export interface NotifierSettings {
+  readonly from: string;
+  readonly to: readonly string[];
+  /** The recipient's language. Defaults to English, the dictionary's source. */
+  readonly locale?: NotificationLocale;
+}
+
+/**
+ * A notifier that sends, and one that honestly does not.
+ *
+ * The disabled case is not an oversight to be silent about: an appliance with
+ * no SMTP configured is the DEFAULT state, and an owner who believes they
+ * will be emailed when they will not be is worse off than one who knows the
+ * channel is off. So `disabledNotifier` says so — once, with the reason —
+ * rather than swallowing the call (hard rule 9), and `notificationsEnabled`
+ * lets `/status` show the same fact without sending anything.
+ */
+export function disabledNotifier(reason: string, log: (msg: string) => void): Notifier {
+  let said = false;
+  return {
+    notify(): Promise<void> {
+      if (!said) {
+        said = true;
+        // Once, not per message: a channel that is off is one fact, and
+        // repeating it per event would bury the run's real output.
+        log(`[notify] not sending — ${reason}`);
+      }
+      return Promise.resolve();
+    },
+  };
+}
+
+/**
+ * The sending notifier.
+ *
+ * A send failure PROPAGATES. It is tempting to swallow it — the migration
+ * itself is fine, after all — but a notification that silently failed to
+ * send is indistinguishable from one that was never worth sending, and the
+ * whole point of this channel is reaching someone who is not watching. The
+ * caller decides what a failure means; this seam refuses to decide for them.
+ */
+export function createNotifier(transport: MailTransport, settings: NotifierSettings): Notifier {
+  return {
+    async notify(message: NotificationMessage): Promise<void> {
+      await transport({
+        from: settings.from,
+        to: settings.to,
+        subject: message.subject,
+        body: message.body,
+      });
+    },
+  };
+}
+
+/**
  * One mapping's outstanding work, as the digest sees it.
  *
  * Counts come from the same envelopes the screens read — never a parallel
@@ -192,6 +259,82 @@ export function renderDigest(
 
   lines.push(t.footer);
   return { subject: DIGEST_SUBJECT[locale][cadence], body: lines.join('\n') };
+}
+
+/** What an SMTP transport needs. The password arrives resolved, never a ref. */
+export interface SmtpSettings {
+  readonly host: string;
+  readonly port: number;
+  /** Implicit TLS (465). False means STARTTLS on 587, the common default. */
+  readonly secure: boolean;
+  readonly user?: string;
+  readonly password?: string;
+}
+
+/** Configured and ready, or off — with the reason, always. */
+export type NotifierConfig =
+  | { readonly enabled: true; readonly smtp: SmtpSettings; readonly settings: NotifierSettings }
+  | { readonly enabled: false; readonly reason: string };
+
+/**
+ * Read the channel's configuration from the environment.
+ *
+ * Environment rather than the mapping file on purpose: notifications are an
+ * APPLIANCE-wide concern (who gets told), not a per-migration one, and the
+ * appliance already takes its secrets this way — `.env`, gitignored, 600
+ * (hard rule 3: never inline, never in the repo).
+ *
+ * THE HALF-CONFIGURED CASE IS THE INTERESTING ONE. Nothing set at all is the
+ * normal, expected default and says so plainly. But an operator who set
+ * `SMTP_HOST` and stopped has plainly TRIED to turn this on, and silently
+ * treating that as "off" would leave them believing they are covered. So a
+ * partial configuration reports exactly which variables are missing —
+ * still off, but never quietly (hard rule 9).
+ */
+export function readNotifierConfig(env: {
+  readonly [key: string]: string | undefined;
+}): NotifierConfig {
+  const host = env.SMTP_HOST?.trim();
+  const from = env.NOTIFY_FROM?.trim();
+  const to = (env.NOTIFY_TO ?? '')
+    .split(',')
+    .map((address) => address.trim())
+    .filter(Boolean);
+
+  const touched = Boolean(host || from || to.length > 0 || env.SMTP_USER || env.SMTP_PASSWORD);
+  if (!touched) {
+    return { enabled: false, reason: 'no SMTP settings configured (SMTP_HOST, NOTIFY_FROM, NOTIFY_TO)' };
+  }
+
+  const missing: string[] = [];
+  if (!host) missing.push('SMTP_HOST');
+  if (!from) missing.push('NOTIFY_FROM');
+  if (to.length === 0) missing.push('NOTIFY_TO');
+  if (missing.length > 0) {
+    return {
+      enabled: false,
+      reason:
+        `SMTP is partly configured and therefore OFF — missing: ${missing.join(', ')}. ` +
+        'Set them all, or unset the rest to silence this.',
+    };
+  }
+
+  const secure = env.SMTP_SECURE === 'true';
+  const parsedPort = Number.parseInt(env.SMTP_PORT ?? '', 10);
+  const port = Number.isFinite(parsedPort) && parsedPort > 0 ? parsedPort : secure ? 465 : 587;
+  const locale: NotificationLocale = env.NOTIFY_LOCALE === 'nl' ? 'nl' : 'en';
+
+  return {
+    enabled: true,
+    smtp: {
+      host: host!,
+      port,
+      secure,
+      ...(env.SMTP_USER ? { user: env.SMTP_USER } : {}),
+      ...(env.SMTP_PASSWORD ? { password: env.SMTP_PASSWORD } : {}),
+    },
+    settings: { from: from!, to, locale },
+  };
 }
 
 /**

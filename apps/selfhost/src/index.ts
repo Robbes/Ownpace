@@ -66,6 +66,13 @@ import { serveUi, UI_MOUNT } from './static-ui';
 import { createVerifyRunner } from './verify-run';
 import { log } from '@openmig/shared';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
+import {
+  readNotifierConfig,
+  createNotifier,
+  disabledNotifier,
+  type Notifier,
+} from '@openmig/shared';
+import { smtpTransport } from '@openmig/connectors';
 
 const DEFAULT_CONFIG_DIR = '/data/config';
 
@@ -209,6 +216,15 @@ export interface SelfhostOptions {
 
 export interface SelfhostHandle {
   readonly port: number;
+  /**
+   * The notification channel this appliance booted with (workplan 0030 T1) —
+   * a real sender when SMTP is configured, an honest no-op that says why when
+   * it is not. Exposed rather than hidden in the closure because the events
+   * that will call it (0030 T2/T3) live outside `start()`, and because a test
+   * can then assert which of the two an environment produces without sending
+   * anything.
+   */
+  readonly notifier: Notifier;
   stop(): Promise<void>;
 }
 
@@ -518,6 +534,28 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       log.info(`[selfhost] ${m.config.mappingId} is '${status}' — awaiting confirm at /`);
     }
   }
+
+  // 3b. The notification channel (workplan 0030 T1).
+  //
+  // Built from the environment, because who gets told is an APPLIANCE-wide
+  // fact rather than a per-mapping one, and because the appliance already
+  // takes its secrets that way (`.env`, gitignored — hard rule 3). Rule 5
+  // holds: this is the owner's own SMTP server, not a managed dependency.
+  //
+  // The state is announced at startup either way. An owner who believes they
+  // will be emailed when the channel is off is worse off than one who knows
+  // it is off, and `readNotifierConfig` names the missing variables when the
+  // configuration is half-done — the case where somebody plainly tried.
+  const notifierConfig = readNotifierConfig(process.env);
+  const notifier: Notifier = notifierConfig.enabled
+    ? createNotifier(smtpTransport(notifierConfig.smtp), notifierConfig.settings)
+    : disabledNotifier(notifierConfig.reason, (m) => log.warn(m));
+  log.info(
+    notifierConfig.enabled
+      ? `[selfhost] notifications: ON → ${notifierConfig.settings.to.join(', ')} ` +
+          `(${notifierConfig.settings.locale ?? 'en'}, via ${notifierConfig.smtp.host}:${notifierConfig.smtp.port})`
+      : `[selfhost] notifications: OFF — ${notifierConfig.reason}`,
+  );
 
   // 4. Local status/health + confirm server.
   /**
@@ -1202,6 +1240,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
 
   return {
     port: boundPort,
+    notifier,
     stop: () => shutdown(server, handles, persistenceBackend),
   };
 }

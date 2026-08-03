@@ -36,3 +36,8 @@ export * from './graph-mail-source';
 export * from './graph-mail-source.types';
 
 export * from './mail-source-with-graph-fallback';
+
+// The notification channel's SMTP binding (workplan 0030 T1) — the only
+// nodemailer import in the workspace; see the file header for why it lives
+// here rather than in @openmig/shared.
+export * from './smtp-transport';
