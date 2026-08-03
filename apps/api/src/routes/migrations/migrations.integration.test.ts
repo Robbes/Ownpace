@@ -179,7 +179,9 @@ describe('Migrations Routes - Tenant Isolation', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.id).toBe(MIG_MAPPING_A);
-      expect(response.body.tenant_id).toBe(MIG_TENANT_A);
+      expect(response.body.tenantId).toBe(MIG_TENANT_A);
+      // The snake_case duplicate is gone (0026 T4) — pinned so it stays gone.
+      expect(response.body).not.toHaveProperty('tenant_id');
     });
 
     it('should prevent tenant B from accessing tenant A mapping (CROSS-TENANT TEST)', async () => {
@@ -203,7 +205,8 @@ describe('Migrations Routes - Tenant Isolation', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.id).toBe(MIG_MAPPING_B);
-      expect(response.body.tenant_id).toBe(MIG_TENANT_B);
+      expect(response.body.tenantId).toBe(MIG_TENANT_B);
+      expect(response.body).not.toHaveProperty('tenant_id');
     });
 
     it('should prevent tenant A from accessing tenant B mapping (CROSS-TENANT TEST)', async () => {
