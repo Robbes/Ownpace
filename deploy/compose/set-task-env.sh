@@ -17,6 +17,14 @@
 #   APP_DATABASE_URL   — the RLS-enforcing app_user role, same address
 #   SECRET_ENCRYPTION_KEY — must equal the api/worker containers' value or
 #                        stored connection credentials cannot be decrypted
+#   OAUTH2_*           — the Entra app registration the Graph connectors and
+#                        the drift detector authenticate with, OPTIONAL. A
+#                        stack whose mappings are all IMAP needs none of it;
+#                        one with a Graph source or 0028's detector needs
+#                        CLIENT_ID plus either CLIENT_SECRET (application
+#                        flow) or REFRESH_TOKEN (delegated). Without them the
+#                        task container has no credentials at all — the same
+#                        trap the SMTP values fell into.
 #   SMTP_* / NOTIFY_*  — the notification channel (workplan 0030), OPTIONAL.
 #                        Uploaded only when set, so a stack that does not want
 #                        email keeps a clean env rather than a row of blanks.
@@ -72,6 +80,10 @@ TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
   TASK_DATABASE_URL="$TASK_DATABASE_URL" \
   TASK_APP_DATABASE_URL="$TASK_APP_DATABASE_URL" \
   SECRET_ENCRYPTION_KEY="$SECRET_ENCRYPTION_KEY" \
+  OAUTH2_CLIENT_ID="${OAUTH2_CLIENT_ID:-}" \
+  OAUTH2_CLIENT_SECRET="${OAUTH2_CLIENT_SECRET:-}" \
+  OAUTH2_REFRESH_TOKEN="${OAUTH2_REFRESH_TOKEN:-}" \
+  OAUTH2_TENANT_ID="${OAUTH2_TENANT_ID:-}" \
   SMTP_HOST="${SMTP_HOST:-}" \
   SMTP_PORT="${SMTP_PORT:-}" \
   SMTP_SECURE="${SMTP_SECURE:-}" \
@@ -90,11 +102,13 @@ const { envvars } = require("@trigger.dev/sdk");
     APP_DATABASE_URL: process.env.TASK_APP_DATABASE_URL,
     SECRET_ENCRYPTION_KEY: process.env.SECRET_ENCRYPTION_KEY,
   };
-  // Notification settings are optional; only the ones actually set are
+  // Graph credentials and notification settings are optional; only the ones
+  // actually set are
   // uploaded. Empty strings would make readNotifierConfig see a HALF
   // configured channel, which reports that somebody tried and names the
   // missing variables — noise for a stack that simply does not want email.
   for (const name of [
+    "OAUTH2_CLIENT_ID", "OAUTH2_CLIENT_SECRET", "OAUTH2_REFRESH_TOKEN", "OAUTH2_TENANT_ID",
     "SMTP_HOST", "SMTP_PORT", "SMTP_SECURE", "SMTP_USER", "SMTP_PASSWORD",
     "NOTIFY_FROM", "NOTIFY_TO", "NOTIFY_LOCALE",
   ]) {
