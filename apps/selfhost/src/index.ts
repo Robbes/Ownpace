@@ -67,20 +67,18 @@ import { createVerifyRunner } from './verify-run';
 import { log } from '@openmig/shared';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
 import {
-  readNotifierConfig,
-  createNotifier,
-  disabledNotifier,
   createFailureStreakGate,
   renderEvent,
   renderDigest,
   digestSchedule,
+  summariseQueues,
+  reportsToDigest,
   type Notifier,
   type NotificationEvent,
   type MappingAttention,
   type DigestCadence,
 } from '@openmig/shared';
-import { smtpTransport } from '@openmig/connectors';
-import { summariseQueues, reportsToDigest } from './attention';
+import { notifierFromEnv } from '@openmig/connectors';
 
 const DEFAULT_CONFIG_DIR = '/data/config';
 
@@ -330,20 +328,17 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   // will be emailed when the channel is off is worse off than one who knows
   // it is off, and `readNotifierConfig` names the missing variables when the
   // configuration is half-done — the case where somebody plainly tried.
-  const notifierConfig = readNotifierConfig(process.env);
-  const notifier: Notifier = notifierConfig.enabled
-    ? createNotifier(smtpTransport(notifierConfig.smtp), notifierConfig.settings)
-    : disabledNotifier(notifierConfig.reason, (m) => log.warn(m));
-  log.info(
-    notifierConfig.enabled
-      ? `[selfhost] notifications: ON → ${notifierConfig.settings.to.join(', ')} ` +
-          `(${notifierConfig.settings.locale ?? 'en'}, via ${notifierConfig.smtp.host}:${notifierConfig.smtp.port})`
-      : `[selfhost] notifications: OFF — ${notifierConfig.reason}`,
-  );
+  // Built the same way the managed worker builds it (0030 T4): both editions
+  // read the same variables and fall back to the same honest no-op, so
+  // "notifications are on" cannot mean two different things.
+  const channel = notifierFromEnv(process.env, (m) => log.warn(m));
+  const notifierConfig = channel.config;
+  const notifier: Notifier = channel.notifier;
+  log.info(`[selfhost] ${channel.announcement}`);
 
   /** One outage, one email — never one per failed pass (0030 T2). */
   const failureStreak = createFailureStreakGate();
-  const notifyLocale = notifierConfig.enabled ? (notifierConfig.settings.locale ?? 'en') : 'en';
+  const notifyLocale = channel.locale;
 
   /**
    * Send an event, or do nothing when there is nothing to say.

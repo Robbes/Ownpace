@@ -147,12 +147,45 @@ describe('immediate events', () => {
     expect(pass.body).not.toEqual(fail.body);
   });
 
+  it('says what is true NOW after a rollback, and whose words the reason is', () => {
+    // Somebody reading this at 22:00 has one question: where is my mail
+    // arriving? So the body answers that first — old system authoritative,
+    // syncing resumed — and only then gives the reason.
+    const msg = renderEvent(
+      {
+        kind: 'rollback_finished',
+        mappingId: 'm',
+        reason: 'target rejected 4% of messages during the first hour',
+      },
+      'en',
+    );
+    expect(msg.body).toContain('rolled back');
+    expect(msg.body).toContain('authoritative again');
+    // DNS is verify-only: claiming the MX record was put back would be a lie
+    // about the one thing that decides where mail actually lands.
+    expect(msg.body).toContain('revert it by hand');
+    // The operator's sentence, untouched — the prose boundary covers a
+    // human's words for the same reason it covers the server's.
+    expect(msg.body).toContain('target rejected 4% of messages during the first hour');
+  });
+
+  it('carries the rollback reason verbatim in Dutch too', () => {
+    const msg = renderEvent(
+      { kind: 'rollback_finished', mappingId: 'm', reason: 'target rejected 4% of messages' },
+      'nl',
+    );
+    expect(msg.subject).toContain('teruggedraaid');
+    // Frame translated, finding NOT translated (docs/i18n-prose-boundary.md).
+    expect(msg.body).toContain('target rejected 4% of messages');
+  });
+
   it('gives every event a subject in both languages', () => {
     const events = [
       { kind: 'decision_raised', summary: 's' },
       { kind: 'runs_failing', mappingId: 'm', consecutiveFailures: 1, lastError: 'e' },
       { kind: 'verification_finished', mappingId: 'm', passed: true },
       { kind: 'migration_finished', mappingId: 'm' },
+      { kind: 'rollback_finished', mappingId: 'm', reason: 'r' },
     ] as const;
     for (const event of events) {
       for (const locale of ['en', 'nl'] as const) {
@@ -169,6 +202,7 @@ describe('immediate events', () => {
     for (const event of [
       { kind: 'migration_finished', mappingId: 'm' },
       { kind: 'verification_finished', mappingId: 'm', passed: true },
+      { kind: 'rollback_finished', mappingId: 'm', reason: 'reason' },
     ] as const) {
       expect(renderEvent(event, 'en').subject).not.toEqual(renderEvent(event, 'nl').subject);
       expect(renderEvent(event, 'en').body).not.toEqual(renderEvent(event, 'nl').body);

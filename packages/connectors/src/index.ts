@@ -41,3 +41,4 @@ export * from './mail-source-with-graph-fallback';
 // nodemailer import in the workspace; see the file header for why it lives
 // here rather than in @openmig/shared.
 export * from './smtp-transport';
+export * from './notifier-from-env';

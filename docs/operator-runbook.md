@@ -199,7 +199,9 @@ workplan 0018.
 4. Recreate the API so it picks up the new values:
    `docker compose -f managed.yml up -d --force-recreate api`
    (and re-run `set-task-env.sh` if a value the tasks read changed)
-5. Upload the task-runtime env vars (task containers inherit NOTHING from compose):
+5. Upload the task-runtime env vars (task containers inherit NOTHING from compose — including
+   the `SMTP_*`/`NOTIFY_*` values the digest and the rollback notice read, so a value that lives
+   only in `.env` and is never uploaded is a value those tasks will never see):
    ```bash
    ./deploy/compose/set-task-env.sh
    ```
@@ -227,6 +229,30 @@ Runs the live verify + apply loop end to end (seeded-member tokens, poll to term
 runner-log capture, guarded evidence cleanup) and exits non-zero unless verify lands `done`
 and apply lands `applied` or `refused`. A green CI says nothing about this machine; the
 smoke does. Its evidence file is **secret-bearing** (runner logs print the task env).
+
+## Email notifications (workplan 0030)
+
+Two things send email on managed, both through the operator's own SMTP relay configured in
+`.env` and uploaded by `set-task-env.sh`:
+
+- **`managed-digest`** — a scheduled task, daily at **08:00 UTC**. It asks each active tenant
+  whether today is its day (cadence is per tenant, chosen on the Tenants screen: daily, weekly
+  on Monday, or off) and mails that tenant's **active owners and admins** a summary of what is
+  waiting: pending drift decisions, the deletions/moves/failures queues, and mappings sitting in
+  READY_FOR_CUTOVER. Counted from the same ledger calls the screens read.
+- **the rollback notice** — only when `run-rollback` is submitted with `notifyUsers: true`.
+
+Two behaviours worth knowing before you go looking for a missing email:
+
+- **A summary with nothing in it is not sent.** Silence means nothing is waiting. If you want a
+  heartbeat, watch the task run — it logs `{ tenants, sent, quiet, notDue, noRecipients }` every
+  morning — not your inbox.
+- **A queue that could not be READ always sends**, naming the reason verbatim. "I found nothing"
+  and "I could not look" must never arrive as the same email.
+
+With no SMTP configured the task runs, logs `not sending — no SMTP settings configured (…)`, and
+sends nothing. A tenant that is due a digest but has no active owner or admin is named in the log
+rather than silently skipped.
 
 ## Backup & restore (§22.1)
 

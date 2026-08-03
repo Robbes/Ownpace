@@ -17,6 +17,18 @@ export const TenantSchema = z.object({
   createdAt: z.string(),
 });
 
+/** The tenant's email-summary preference (workplan 0030 T4). */
+export const TenantNotificationPrefsSchema = z.object({
+  digest: z.enum(['daily', 'weekly', 'off']),
+  locale: z.enum(['en', 'nl']),
+});
+export type TenantNotificationPrefs = z.infer<typeof TenantNotificationPrefsSchema>;
+
+export const TenantNotificationsSchema = z.object({
+  id: z.string(),
+  notifications: TenantNotificationPrefsSchema,
+});
+
 /** PUT /tenants/:id answers with a different shape than GET (no createdAt). */
 export const TenantUpdateSchema = z.object({
   id: z.string(),
@@ -106,6 +118,18 @@ export const tenantApi = {
   update: async (tenantId: string, data: { name?: string; settings?: Record<string, unknown> }) => {
     const response = await apiClient.put(`/tenants/${tenantId}`, data);
     return TenantUpdateSchema.parse(response.data);
+  },
+
+  /**
+   * How often this organization is emailed a summary (workplan 0030 T4).
+   *
+   * The server answers with what it STORED, read back through the same reader
+   * the digest task uses — so the screen shows the value that will actually be
+   * acted on, never the one that was posted.
+   */
+  setNotifications: async (tenantId: string, prefs: TenantNotificationPrefs) => {
+    const response = await apiClient.put(`/tenants/${tenantId}/notifications`, prefs);
+    return TenantNotificationsSchema.parse(response.data).notifications;
   },
 };
 

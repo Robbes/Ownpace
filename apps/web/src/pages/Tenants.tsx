@@ -15,15 +15,29 @@
  * offers no owner option, your own row offers no remove button, and a
  * member/viewer sees a read-only list. Everything else is the server's call.
  *
- * Inviting creates the membership row and nothing more: notifications do not
- * exist yet (an 0026 T3 decision), so the form says out loud that no email is
- * sent, rather than letting the word "invite" promise one.
+ * Inviting creates the membership row and nothing more: invitation email is
+ * still not a thing the product sends, so the form says out loud that no email
+ * goes out, rather than letting the word "invite" promise one. (The channel
+ * built by 0030 sends what a migration needs a decision about — it does not
+ * send invitations, and saying so here is cheaper than the support ticket.)
+ *
+ * The email-summary card is 0030 T4: how often this organization is emailed a
+ * summary of what is waiting, read every morning by the `managed-digest` task.
+ * Owner/admin only, like every other change here.
  */
 
 import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, Pencil, UserPlus } from 'lucide-react';
-import { tenantApi, memberApi, type Member } from '../services/mapping-service';
+import {
+  tenantApi,
+  memberApi,
+  type Member,
+  type TenantNotificationPrefs,
+} from '../services/mapping-service';
+// The SAME reader the API and the digest task use, so what this screen shows
+// and what the morning job acts on cannot be two different defaults.
+import { readTenantNotificationPrefs } from '@openmig/shared';
 import { useAuthStore } from '../stores/auth-store';
 import { useT, useFormatters } from '../i18n';
 import type { StringKey } from '../i18n';
@@ -63,6 +77,10 @@ const Tenants: React.FC = () => {
   const [rowErrors, setRowErrors] = React.useState<Record<string, string>>({});
   const [busyRow, setBusyRow] = React.useState<string | null>(null);
   const [armedRemove, setArmedRemove] = React.useState<string | null>(null);
+  const [notifyBusy, setNotifyBusy] = React.useState(false);
+  const [notifyError, setNotifyError] = React.useState<string | null>(null);
+  const [notifySaved, setNotifySaved] = React.useState(false);
+  const [notifyDraft, setNotifyDraft] = React.useState<TenantNotificationPrefs | null>(null);
   const [renaming, setRenaming] = React.useState(false);
   const [nameDraft, setNameDraft] = React.useState('');
   const [renameError, setRenameError] = React.useState<string | null>(null);
@@ -156,6 +174,38 @@ const Tenants: React.FC = () => {
   // A const binding so the rename button's closure keeps the narrowing below.
   const tenant = tenantQuery.data;
 
+  /**
+   * The stored preference, or the server's default while nothing is stored.
+   *
+   * The DRAFT wins once a save has answered, so the control shows what was
+   * actually stored rather than snapping back to the cached tenant row while
+   * the query refetches — a select that flickers to its old value looks like
+   * a failed save.
+   */
+  const prefs: TenantNotificationPrefs =
+    notifyDraft ?? readTenantNotificationPrefs(tenant?.settings);
+
+  const saveNotifications = async (next: TenantNotificationPrefs) => {
+    setNotifyBusy(true);
+    setNotifyError(null);
+    setNotifySaved(false);
+    // Shown immediately, so the select does not sit on the old value while
+    // the request is in flight; replaced by the server's answer below.
+    setNotifyDraft(next);
+    try {
+      setNotifyDraft(await tenantApi.setNotifications(tenantId, next));
+      setNotifySaved(true);
+      await queryClient.invalidateQueries({ queryKey: ['tenant', tenantId] });
+    } catch (err) {
+      // Back to what is actually stored: leaving the new value on screen
+      // after a failed save would show a setting nobody has.
+      setNotifyDraft(null);
+      setNotifyError(errorText(err, t('tenants.requestFailed')));
+    } finally {
+      setNotifyBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -209,6 +259,61 @@ const Tenants: React.FC = () => {
                 {t('tenants.org.rename')}
               </button>
             )}
+          </div>
+        )}
+      </div>
+
+      {/* Email summaries (workplan 0030 T4) */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-1">
+          {t('tenants.notify.heading')}
+        </h2>
+        <p className="text-sm text-gray-500 mb-3">{t('tenants.notify.intro')}</p>
+        {tenantQuery.isError ? (
+          /* Disabled rather than defaulted: saving a value read from a failed
+             request would overwrite a setting nobody has seen (rule 9). */
+          <p className="text-amber-700">{t('tenants.notify.readError')}</p>
+        ) : (
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-1 text-sm text-gray-700">
+              {t('tenants.notify.cadence')}
+              <select
+                value={prefs.digest}
+                disabled={!canManage || notifyBusy || !tenantQuery.isSuccess}
+                onChange={(e) =>
+                  saveNotifications({
+                    ...prefs,
+                    digest: e.target.value as TenantNotificationPrefs['digest'],
+                  })
+                }
+                className="px-3 py-2 border border-gray-300 rounded-lg text-gray-900 disabled:bg-gray-50 disabled:text-gray-500"
+              >
+                <option value="daily">{t('tenants.notify.daily')}</option>
+                <option value="weekly">{t('tenants.notify.weekly')}</option>
+                <option value="off">{t('tenants.notify.off')}</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-sm text-gray-700">
+              {t('tenants.notify.locale')}
+              <select
+                value={prefs.locale}
+                disabled={!canManage || notifyBusy || !tenantQuery.isSuccess}
+                onChange={(e) =>
+                  saveNotifications({
+                    ...prefs,
+                    locale: e.target.value as TenantNotificationPrefs['locale'],
+                  })
+                }
+                className="px-3 py-2 border border-gray-300 rounded-lg text-gray-900 disabled:bg-gray-50 disabled:text-gray-500"
+              >
+                <option value="en">English</option>
+                <option value="nl">Nederlands</option>
+              </select>
+            </label>
+            <p className="w-full text-sm text-gray-500">{t('tenants.notify.recipients')}</p>
+            {notifySaved && <p className="w-full text-sm text-green-700">{t('tenants.notify.saved')}</p>}
+            {/* The server's own words, verbatim — the prose boundary. */}
+            {notifyError && <p className="w-full text-sm text-amber-700">{notifyError}</p>}
           </div>
         )}
       </div>

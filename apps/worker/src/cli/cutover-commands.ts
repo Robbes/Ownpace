@@ -536,7 +536,10 @@ export async function rollbackCutover(deps: CutoverCliDeps): Promise<void> {
       !confirmed(deps, 'roll this cutover back', [
         `Mark mapping ${deps.mappingId} ROLLED_BACK in the cutover ledger.`,
         'Leave DNS untouched — reverting the MX record is a MANUAL step (verify-only DNS).',
-        'Send no user notification — that is not implemented.',
+        // The channel exists (0030 T4) — this command does not use it. Said
+        // as a property of THIS command, not of the product, so nobody reads
+        // it as "notifications do not work" and nobody expects mail from here.
+        'Send no user notification — run the rollback job with notifyUsers for that.',
       ])
     ) {
       process.exit(1);

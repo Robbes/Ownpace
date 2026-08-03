@@ -10,13 +10,17 @@
  * pinned here as the same expressions the queue endpoints use.
  *
  * The other half is hard rule 9: a queue that could not be read must not
- * become a zero. `wantsAttention` (tested in shared) then sends on the blind
- * spot alone, so "I could not look" never arrives as silence.
+ * become a zero. `wantsAttention` then sends on the blind spot alone, so
+ * "I could not look" never arrives as silence.
  */
 
 import { describe, it, expect } from 'vitest';
-import { wantsAttention } from '@openmig/shared';
-import { summariseQueues, reportsToDigest, type QueueReads } from './attention';
+import {
+  wantsAttention,
+  summariseQueues,
+  reportsToDigest,
+  type QueueReads,
+} from './notifications';
 
 const EMPTY: QueueReads = {
   deletions: [],
