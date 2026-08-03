@@ -4,7 +4,7 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T1 The channel: SMTP per edition, EN/NL templates, recipient locale | ⬜ Not started | — |
+| T1 The channel: SMTP per edition, EN/NL templates, recipient locale | 🟡 **Rules + templates built 2026-08-03; transport and wiring are the next slice** | `packages/shared/src/notifications.ts`: the `Notifier` port (one method, so no policy can accumulate in a transport), the ad hoc `NotificationEvent` union, and EN/NL templates beside each other with **compile-time key parity** (`DigestLines`/`EventLines` interfaces — a line missing from one language is a type error, the 0024 T1 property). The two load-bearing rules are here and exhaustively tested: **an empty digest returns `undefined`** (a weekly "all clear" trains its reader to filter the channel, taking the one that mattered with it — so silence IS the signal), and **a blind spot is never silence** (a mapping whose queue could not be READ sends anyway, with the server's reason verbatim, because "I found nothing" and "I could not look" must not be the same email — rule 9). Prose boundary honoured: a decision's `summary` and a run's `lastError` ride verbatim in both languages. 14 unit tests. Deliberately pure and **not yet wired to anything** — no SMTP transport, no schedule, no caller; the next slice binds a transport per edition (rule 5: appliance uses the owner's own SMTP; unconfigured = off, said honestly) and T2/T3 supply the callers. Recorded as unwired rather than left to look finished. |
 | T2 Ad hoc events (decision raised, run failing, verify done, finished) | ⬜ Not started | — |
 | T3 The daily/weekly "needs attention" digest | ⬜ Not started | — |
 | T4 Preferences + the rollback flag + doc truth | ⬜ Not started | — |
