@@ -59,7 +59,7 @@ import type {
   FinishAccepted,
   VerificationResult,
 } from '@openmig/shared';
-import { loadConfigDir, type LoadedMapping } from './config-dir';
+import { loadConfigDir, uuidFromString, type LoadedMapping } from './config-dir';
 import { buildStatusReport, type MappingStatusInput } from './status';
 import { startTransition, finishTransition } from './lifecycle';
 import { serveUi, UI_MOUNT } from './static-ui';
@@ -99,12 +99,6 @@ const DEFAULT_CONFIG_DIR = '/data/config';
  */
 const SERVING_ROLE = 'app_user';
 const DEFAULT_SCHEDULE = '*/15 * * * *'; // every 15 minutes if a mapping omits one
-
-// UUID generation for selfhost (deterministic based on input for idempotency)
-function uuidFromString(seed: string): string {
-  const hash = Buffer.from(seed).toString('hex').slice(0, 32);
-  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-${hash.slice(16, 20)}-${hash.slice(20, 32)}`;
-}
 
 /**
  * Ensure all necessary database records exist for a mapping.
