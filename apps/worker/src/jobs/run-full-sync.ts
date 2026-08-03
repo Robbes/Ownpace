@@ -70,10 +70,6 @@ export const runFullSync = schemaTask({
       const tenantId = typedPayload.tenantId as TenantId;
       const mappingId = typedPayload.mappingId as MappingId;
 
-      // Initialize status
-      // Note: This needs to be done within withTenant context
-      // For now, we'll let buildDepsFromMapping handle the initial status setup
-      
       // Open the run-ledger row up front so an in-flight run is visible and a
       // crash leaves a `running` row rather than no trace at all.
       const runId = await withTenant(pool, tenantId, async (db) =>

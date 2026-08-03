@@ -245,4 +245,5 @@ the refusal shapes and prose but not the SUCCESS shape — the appliance answers
 the outcome synchronously, managed answers `202 ApplyQueuedResponse` plus a
 polled `ApplyReceipt`. The shared client currently assumes the appliance's
 shape, which is exactly the kind of drift this ADR exists to name: closing it
-is workplan 0019 T1.
+is workplan 0019 T1. *(Update 2026-08-03: closed — 0019 T1 shipped the typed
+`ApplyOutcome` split, the one success-shape difference this contract permits.)*

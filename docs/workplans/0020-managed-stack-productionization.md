@@ -115,7 +115,8 @@ Each is small; none is optional; evidence in the 2026-08-01 review:
 - `apps/api/src/routes/trigger-webhook.ts` is a no-op sink (both TODOs) and
   unauthenticated in every shipped config (`TRIGGER_WEBHOOK_SECRET` set
   nowhere). Wire it to land run/receipt state, or delete the route — an
-  endpoint that pretends to receive is worse than none.
+  endpoint that pretends to receive is worse than none. *(Resolved: DELETED
+  in #216 — see the T7 status row; the file no longer exists.)*
 - `managed-simple.yml`: decide fix-or-delete. It missed every 0018-era fix
   (no restart policies, no ClickHouse), hardcodes the exact
   `TRIGGER_API_URL: http://localhost:3090` in-container bug T1 of 0018
