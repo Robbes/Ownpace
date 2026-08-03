@@ -41,6 +41,10 @@ concurrency:
 permissions:
   contents: read
   packages: write
+  # Cosign keyless signing (0025 T3): the OIDC token IS the identity — no
+  # stored key material anywhere (rule 3), the signature binds this repo's
+  # workflow identity to the image digest via the public Sigstore log.
+  id-token: write
 
 jobs:
   build:
@@ -80,6 +84,7 @@ jobs:
             org.opencontainers.image.licenses=Apache-2.0
 
       - name: Build${{ github.event_name != 'pull_request' && ' + push' || '' }}
+        id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
@@ -96,3 +101,19 @@ jobs:
           # the same reason compose.yml hardcodes ghcr.io/robbes/….
           cache-from: type=registry,ref=ghcr.io/robbes/open-migrate-${{ matrix.image }}:buildcache
           cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref=ghcr.io/robbes/open-migrate-{0}:buildcache,mode=max', matrix.image) || '' }}
+
+      - name: Install cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
+
+      - name: Sign the published image (keyless, by digest)
+        if: github.event_name != 'pull_request'
+        # The DIGEST, not a tag: one signature covers every tag pointing at
+        # this manifest, and a later retag cannot claim the signature. `--yes`
+        # accepts the transparency-log upload — publishing to the public
+        # Sigstore log is the point, not a side effect. Failing loud is the
+        # contract (rule 9): a publish whose signing step soft-failed would be
+        # the pipeline lying about what it shipped.
+        run: |
+          cosign sign --yes \
+            "ghcr.io/robbes/open-migrate-${{ matrix.image }}@${{ steps.build.outputs.digest }}"

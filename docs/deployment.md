@@ -3,7 +3,7 @@
 Canonical doc. Summarises how the stack is deployed; full rationale in `architecture/solution-architecture.md` §7, §18, §22.1.
 
 ## Editions (one core)
-- **Managed:** Trigger.dev (self-host or cloud) + managed Postgres (with RLS) + S3-compatible EU object storage + secrets vault (OpenBao/Infisical) + identity (Zitadel/Keycloak); IaC/GitOps (OpenTofu + Helm + Argo CD/Flux), Renovate.
+- **Managed:** Trigger.dev (self-host or cloud) + managed Postgres (with RLS) + S3-compatible EU object storage + secrets vault (OpenBao/Infisical) + identity (Zitadel/Keycloak); IaC/GitOps (OpenTofu + Helm + Argo CD/Flux), Dependabot.
 - **Self-host:** Docker Compose or a Home Assistant add-on; **in-process scheduler** (no Trigger.dev); a **small bundled Postgres** (no SQLite — ADR-0023 makes both editions Postgres-only); OS keychain / age-encrypted secrets. Targets remain managed EU/CH platforms (self-hosted email is permitted but user-operated, ADR-0011).
 
 For managed day-2 operations (start/stop, seed, backup, tenant offboarding, what the operator can and cannot see) see the **[Operator Runbook](./operator-runbook.md)**; the stack is [`deploy/compose/managed.yml`](../deploy/compose/managed.yml).
@@ -20,7 +20,7 @@ For managed day-2 operations (start/stop, seed, backup, tenant offboarding, what
 ## Release controls (see §22.1)
 - SemVer; one release train; `CHANGELOG.md` + upgrade guide per release.
 - **Migrations on startup behind a lock** (Drizzle Kit; Atlas lint in CI); the app refuses to start if the schema is newer than it understands.
-- **Multi-arch images (amd64+arm64), signed (cosign), with an SBOM (syft)**; consumers pin by digest.
+- **Multi-arch images (amd64+arm64), signed (cosign keyless, by digest)**, SBOM in **CycloneDX** (per-commit CI artifact; attached to releases once tags exist); consumers pin by digest. Verify a pull with `cosign verify --certificate-identity-regexp 'https://github.com/Robbes/open-migrate' --certificate-oidc-issuer https://token.actions.githubusercontent.com ghcr.io/robbes/open-migrate-selfhost:edge`.
 - **Release channels:** `stable` (default) and `edge`/`beta` (opt-in); self-host updates via image tags; back up the ledger before upgrading; never run two app versions against one database.
 - Managed: staged/canary rollout, DB backup before migrate, roll-forward preferred over schema rollback.
 
