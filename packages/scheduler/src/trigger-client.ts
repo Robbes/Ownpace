@@ -1,3 +1,4 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 /**
  * The ONE construction path for the Trigger.dev API client (workplan 0018 T1).
  *

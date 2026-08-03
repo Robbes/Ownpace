@@ -2,6 +2,31 @@
 
 This document describes the supported target providers for the IMAP/DAV target family, including configuration details, special-use folder handling, and known quirks.
 
+## Who operates the target (ADR-0011)
+
+**Every target listed here is operated by somebody who is not us.** A managed
+European platform (Soverin, openDesk, mailbox.org, Infomaniak …) is run by that
+provider under their own terms; a server you host yourself is run by you. This
+tool migrates data *into* a target — it does not run, monitor, patch or back up
+one, and it carries no service level for one.
+
+This matters in three concrete places, so it is worth stating plainly rather
+than leaving to be inferred:
+
+- **Availability during a migration.** If the target is down, syncs fail and
+  the failures queue says so verbatim. That is the target's outage, not a bug
+  in the migration, and no amount of retrying here fixes it.
+- **Backups.** Nothing in this product backs up the target. Once the migration
+  finishes and the source is decommissioned, the target's backup arrangement is
+  the only one protecting the data.
+- **Support.** Questions about mailbox quotas, spam filtering, deliverability
+  or client configuration on the target belong to whoever operates it.
+
+The source side is the same story in reverse and with a stronger guarantee:
+this tool never deletes anything on the source (hard rule 2), so the system
+being migrated away from stays intact and remains the fallback until its owner
+decides otherwise.
+
 ## Overview
 
 The IMAP/DAV target family supports migration to European sovereign platforms that use standard IMAP for email delivery. This includes:

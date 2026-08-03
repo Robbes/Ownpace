@@ -1,3 +1,4 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import { type Scheduler, type ScheduleHandle } from '@openmig/shared';
 import { SingleFlight } from './single-flight';
 import { Cron } from 'croner';

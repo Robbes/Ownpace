@@ -1,3 +1,4 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 /**
  * Review & confirm, for the appliance (ADR-0026).
  *

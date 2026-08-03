@@ -1,3 +1,4 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import type { CursorStore, SyncCursor, TenantId, MappingId } from '@openmig/shared';
 import type { PgDatabase } from './db';
 import { eq, and, sql } from 'drizzle-orm';

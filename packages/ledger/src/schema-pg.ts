@@ -1,3 +1,4 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 // Drizzle schema for PostgreSQL — matches the canonical DDL in migrations/0001_baseline.sql.
 // See ADR-0016 (ledger schema v1).
 

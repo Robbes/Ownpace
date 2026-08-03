@@ -1,3 +1,4 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import { createHash } from 'node:crypto';
 import { calendarFingerprint, contactFingerprint } from './dav-canonical';
 import type { MailItem } from './mail';

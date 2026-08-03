@@ -1,3 +1,4 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { CreditCard, TrendingUp, DollarSign, FileText } from 'lucide-react';

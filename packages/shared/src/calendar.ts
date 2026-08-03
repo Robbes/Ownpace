@@ -1,3 +1,4 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 /** CalDAV calendar event model for migration. */
 
 /** VEVENT component types we support. */

@@ -1,3 +1,4 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 /** Nominal/branded primitive helper, so a TenantId can't be passed where a MappingId is wanted. */
 export type Brand<T, B extends string> = T & { readonly __brand: B };
 

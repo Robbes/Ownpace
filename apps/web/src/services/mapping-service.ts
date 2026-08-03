@@ -1,3 +1,4 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import apiClient from './api';
 import { z } from 'zod';
 import type { DiscoveryRecord } from '@openmig/shared';

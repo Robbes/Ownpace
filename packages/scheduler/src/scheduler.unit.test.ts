@@ -1,3 +1,4 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { InProcessScheduler } from './scheduler';
 

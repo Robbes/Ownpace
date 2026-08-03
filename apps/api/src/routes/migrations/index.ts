@@ -1,3 +1,4 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 /**
  * Migration Management Routes
  * 
@@ -110,7 +111,27 @@ const CreateMappingSchema = z.object({
   }).default({ domains: ['email'] }),
   // Mapping-specific fields (for mailbox_mapping table)
   status: z.enum(['active', 'paused', 'cutover', 'done']).optional(),
-  mode: z.enum(['mirror', 'bidirectional', 'one_time', 'asymmetric']).optional(),
+  /**
+   * The sync mode. Only the two the engine actually implements are accepted.
+   *
+   * `bidirectional` and `asymmetric` were RETRACTED 2026-08-03 (owner decision,
+   * 0026 T3 row 7; SAD §11 carries the note). They were enum values nothing
+   * ever branched on — accepting one stored a word and changed no behaviour,
+   * which is precisely the shape of promise 0026 exists to end. They stay in
+   * the DATABASE enum, because existing rows may carry them and hard rule 2
+   * does not delete a customer's data to tidy a type; what changes is that the
+   * API no longer pretends to honour a mode it does not implement.
+   */
+  mode: z
+    .enum(['mirror', 'one_time'], {
+      message:
+        "sync mode must be 'mirror' or 'one_time'. Bidirectional and asymmetric " +
+        'sync were withdrawn on 2026-08-03: writing changes back to the source ' +
+        'would mean modifying the system being migrated away from, which this ' +
+        'tool does not do. Changes made on the target during shadow are ' +
+        'surfaced as decisions instead.',
+    })
+    .optional(),
   pattern: z.enum(['shared_s', 'distribution_d']).optional(),
 });
 
@@ -516,7 +537,9 @@ router.put(
         updateData.status = body.status as 'active' | 'paused' | 'cutover' | 'done';
       }
       if ('mode' in body && body.mode) {
-        updateData.mode = body.mode as 'mirror' | 'bidirectional' | 'one_time' | 'asymmetric';
+        // Narrowed to what the engine implements; the schema above refuses the
+        // retracted modes with the reason, so nothing unsupported reaches here.
+        updateData.mode = body.mode as 'mirror' | 'one_time';
       }
       if ('pattern' in body && body.pattern) {
         updateData.pattern = body.pattern as 'shared_s' | 'distribution_d' | undefined;

@@ -1,10 +1,10 @@
 # Workplan 0027 — shared addresses (Pattern S + Pattern D)
 
-## Status — 2026-08-02 (update this block at the end of every session)
+## Status — 2026-08-03 (update this block at the end of every session)
 
 | Task | Status | Evidence |
 |---|---|---|
-| T0 The auth-model extension (application access, spike) | ⬜ Not started | — |
+| T0 The auth-model extension (application access, spike) | 🟢 **Decided 2026-08-03 — unblocked, build starting** | Owner decision: **grant application permissions on the test tenant, scoped by an Application Access Policy to named test mailboxes** (option A of three; tenant-wide-without-a-policy was declined, and so was retracting the §14.1 promises). Read-only scopes, least privilege — the app cannot reach a mailbox outside the named set, so a bug or a leaked credential reaches one test mailbox rather than the tenant. This is what SAD §14.3 already committed to, now actually chosen. **Split deliberately:** the admin-consent runbook and the connector's `/users/{address}` auth mode are built WITHOUT consent, against the existing config types and with unit tests; only the live proof — one real shared-mailbox read — waits on the owner running the consent steps. So the consent step is a short task done when convenient, not a blocker. This decision also unblocks 0028 T2/T3/T5, all of 0029, and 0030 T2's `decision_raised`, the one notification event with no live source. |
 | T1 Discovery: groups + shared mailboxes into `group_def` | ⬜ Not started | — |
 | T2 Pattern D: recreate the group on the target | ⬜ Not started | — |
 | T3 Pattern S: the shared store as an ordinary mapping | ⬜ Not started | — |

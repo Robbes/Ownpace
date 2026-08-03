@@ -1,3 +1,4 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import type { TenantId, MappingId } from './ids';
 import type { DomainDiscovery, DiscoveryRecord, DiscoveryDomain } from './discovery';
 import type { MailFolder, MailItem, RawMessage, MailKeyword, SpecialUse } from './mail';

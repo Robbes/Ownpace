@@ -1,3 +1,4 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 /**
  * Graph Mail Source Connector (workplan 0023 T1)
  *
