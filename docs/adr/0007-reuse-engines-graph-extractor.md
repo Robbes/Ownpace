@@ -16,3 +16,22 @@ Shell out to **imapsync** (mail), **vdirsyncer** (cal/contacts), **rclone** (fil
 ## Alternatives considered
 - Commercial SP migration suites: rejected (closed, costly, wrong destination).
 - Reimplementing sync engines: rejected (cost/risk).
+
+## Update 2026-08-02 — the rich extractor is retracted for now
+
+Both halves of this ADR have since moved:
+
+- **The shell-out engines are gone** — ADR-0019's update note records that
+  the runtime is pure JavaScript; imapsync/vdirsyncer/rclone were replaced
+  by our own JS-native connectors. The "reuse proven engines" half is
+  history, not guidance.
+- **The rich extractor was never built** (0026 T3 row 3, owner decision
+  2026-08-02: retract for now). Zero code exists for `/versions`,
+  `/permissions`, lists or pages, and the targets cannot cleanly receive
+  most of that layer — a built extractor would mostly produce reports, not
+  migrated data. The scope manifest now lists SharePoint extras under
+  *does not migrate* (files and folders migrate; the rich layer does not),
+  instead of a "best-effort" promise with no effort behind it. SAD §13.1
+  carries the same dated note and keeps the design sketch for if SMB
+  demand reopens this. The **"no commercial SharePoint tools"** decision
+  stands unchanged.

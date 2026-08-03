@@ -1,14 +1,14 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { 
-  FolderGit2, 
-  ArrowRightLeft, 
-  CheckCircle, 
+import {
+  FolderGit2,
+  ArrowRightLeft,
+  CheckCircle,
   AlertCircle,
   Clock,
   Plus,
-  Settings
+  Building2
 } from 'lucide-react';
 import { mappingApi } from '../services/mapping-service';
 import { useT, useFormatters } from '../i18n';
@@ -206,13 +206,13 @@ const Dashboard: React.FC = () => {
           </Link>
           
           <Link
-            to="/settings"
+            to="/tenants"
             className="flex items-center p-4 bg-white rounded-lg border border-blue-200 hover:border-blue-300 transition-colors"
           >
-            <Settings className="w-5 h-5 text-blue-600 mr-3" />
+            <Building2 className="w-5 h-5 text-blue-600 mr-3" />
             <div>
-              <p className="font-medium text-gray-900">Settings</p>
-              <p className="text-sm text-gray-500">Configure your account</p>
+              <p className="font-medium text-gray-900">Team</p>
+              <p className="text-sm text-gray-500">Manage who has access</p>
             </div>
           </Link>
         </div>

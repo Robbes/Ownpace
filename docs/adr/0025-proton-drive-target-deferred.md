@@ -137,3 +137,26 @@ tool is the wrong place to spend that risk.
   the cheapest possible integration, but it has been requested for years, is
   not on the roadmap, and is arguably incompatible with Proton's client-side
   encryption model. The SDK is the path Proton is actually building.
+
+## Update 2026-08-02 — the deferral now covers the whole Proton destination
+
+The 2026-08-02 sweep (workplan 0026 T3 row 9) found that this ADR deferred
+only **Drive**, while the rest of the Proton story — mail via Bridge in the
+local edition, calendar/contacts via scheduled ICS/vCard snapshots (SAD
+§15.1) — was promised in the **user-facing scope manifest** with zero code
+behind it and no deferral covering it. Owner decision 2026-08-02:
+**retract for now.**
+
+- The deferral above extends to the **entire Proton destination**: Bridge
+  mail, ICS/vCard snapshots, and Drive. Nothing Proton is built until the
+  work is deliberately picked up — for Drive that remains the two revisit
+  conditions above; for the Bridge/snapshot half the trigger is simply
+  demand (it was never blocked on anything but priority, and Bridge keeps
+  its §9.4 confinement to the local edition whenever it is built).
+- The scope manifest's "Proton calendar/contacts (ICS/vCard snapshots
+  only)" row is **removed** (version `2026-08-02`) — the manifest promises
+  only what is built. SAD §15.1 and §11.2's manifest listing carry dated
+  notes of the same day.
+- Proton's product position is unchanged, again: optional
+  family/individual destination, never continuous-shadow, cluster B stays
+  the default. Workplan 0014 remains the parking spot for the Drive work.

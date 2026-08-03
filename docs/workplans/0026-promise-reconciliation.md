@@ -5,7 +5,7 @@
 | Task | Status | Evidence |
 |---|---|---|
 | T1 Verified defects (build, no decision needed) | ⬜ Not started | — |
-| T2 Dead-surface decisions (needs the owner) | ⬜ Needs the owner | — |
+| T2 Dead-surface decisions (needs the owner) | ✅ **Decided + built 2026-08-02** | Owner: ditch OperatorDashboard and Settings, keep Tenants and build it. Deleted: `OperatorDashboard.tsx` (393 lines, five `/admin/*` calls with no server), the `Settings.tsx` stub, both nav entries + routes + the Dashboard tile, `useMappingStore`, `NotImplementedError` (+ `shared/src/errors.ts`), and `tenantApi.list/create/delete` (create was a 501 by design). Built: `Tenants.tsx` — members list / invite / role change / two-step remove against the existing tenants+members API, server guards rendered verbatim, admin offered no owner option, own row not removable, member/viewer read-only; invite says out loud that no email is sent (notifications are T3 row 5). Client schemas re-verified against the routes (the old ones had drifted: no `invited` status, PATCH parsed as a full member). Bilingual per 0024 (+40 keys EN/NL). 9 new unit tests; typecheck + lint clean, 1282/1282 unit. |
 | T3 Product-promise decisions (needs the owner, per row) | ⬜ Needs the owner | — |
 | T4 Mechanical truth sweep (stale prose, dangling refs) | ⬜ Not started | — |
 
@@ -46,6 +46,14 @@ owner keeps becomes its own workplan (the 0023/0024 pattern).
    (`packages/shared/src/throttling.ts:394`, wired in both build-deps).
    Either build per-domain limiters or make the config type say what
    actually happens.
+5. **Wire `reindexFromTarget` to an invokable surface** (added 2026-08-02 —
+   T3 row 1 decided KEEP, and the build is small enough to live here: the
+   reindexer is built and tested, only the doorway is missing). An explicit
+   operator command in both editions (appliance route/CLI step, managed
+   job) plus ADR-0020's own on-startup half: detect "ledger empty, target
+   populated" and at minimum say it loudly, offering the reindex. A
+   recovery path that cannot be invoked during a disaster is a rule-9
+   promise.
 
 ## T2 — the dead web surface (needs the owner)
 
@@ -62,6 +70,19 @@ owner keeps becomes its own workplan (the 0023/0024 pattern).
   EN-only — localize as 0024-T5 **if these screens live**; moot for any
   screen deleted here.
 
+**Update 2026-08-02 — decided and executed.** The owner's call: *"ditch
+OperatorDashboard and settings. keep tenants and build."* OperatorDashboard
+and Settings are gone (files, routes, nav entries, the Dashboard tile, their
+dictionary keys), and with them `useMappingStore` and `NotImplementedError`.
+`tenantApi`/`memberApi` stayed and gained their caller: `Tenants.tsx` is now
+the real team-management screen (see the Status row for what it does). The
+0024-T5 question narrows to Dashboard/Mappings only — the two screens that
+live are the two whose body prose is still EN-only; the new Tenants screen
+is bilingual from birth. A future operator surface, if ever wanted, starts
+from a spec and a privileged non-tenant-scoped API, not from the deleted
+mockup (cross-tenant reads cannot run through the RLS-scoped tenant API —
+the same reason `POST /tenants` is an honest 501).
+
 ## T3 — product-promise decisions (one row = one owner decision)
 
 Keep → it becomes a numbered workplan; retract → a dated update note in the
@@ -69,15 +90,15 @@ promising document (ADR/SAD/scope-manifest), exactly as 0021 T5 did.
 
 | # | Promise | Where it lives | What the code says |
 |---|---|---|---|
-| 1 | **Ledger reindex/adopt runs on startup + on demand** | ADR-0020 decision 3 | `reindexFromTarget` exists, tested, **called by nothing in production** — the recovery story cannot be invoked |
-| 2 | **Pattern D: shared-mailbox/group migration** | SAD §14.1; **shown to owners in the pre-start scope manifest** | `group_def` table: zero code refs; no Graph groups discovery; `pattern` settable, read by nothing |
-| 3 | **Rich Graph extractor** (SharePoint versions/permissions/lists/pages) | SAD §13.1, ADR-0007; manifest says "Partial" | Zero code (no `/versions`, `/permissions`, sites, lists) |
-| 4 | **Permission inventory & guidance module** | SAD §14.2, §3 decision 6 | Zero code (no SendAs/FullAccess/sharing-link handling) |
-| 5 | **Notifications** (in-app/email on decisions/milestones) | SAD §11.2 #4, §5 | Only honest "not implemented" stubs; 0024 transferred a day-one-bilingual requirement to whoever builds this |
-| 6 | **Policy presets + the §11.1 drift decision queue** | SAD §11.2 #3, ADR-0016; 0013 named it "its own workplan" | `decision` and `policy_preset` tables shipped, **zero readers/writers** — the largest unowned feature |
+| 1 | **Ledger reindex/adopt runs on startup + on demand** — **KEPT 2026-08-02 → T1 item 5** (wire the doorway; the reindexer is built) | ADR-0020 decision 3 | `reindexFromTarget` exists, tested, **called by nothing in production** — the recovery story cannot be invoked |
+| 2 | **Pattern D: shared-mailbox/group migration** — **KEPT 2026-08-02 → [workplan 0027](./0027-shared-addresses.md)** | SAD §14.1; **shown to owners in the pre-start scope manifest** | `group_def` table: zero code refs; no Graph groups discovery; `pattern` settable, read by nothing |
+| 3 | **Rich Graph extractor** (SharePoint versions/permissions/lists/pages) — **RETRACTED 2026-08-02** (ADR-0007 update; manifest row moved to *does not migrate*) | SAD §13.1, ADR-0007; manifest says "Partial" | Zero code (no `/versions`, `/permissions`, sites, lists) |
+| 4 | **Permission inventory & guidance module** — **KEPT SCOPED 2026-08-02 → [workplan 0029](./0029-permission-inventory.md)** (discover+map+guide as a read-only report; the apply-where-safe writes deferred, not retracted) | SAD §14.2, §3 decision 6 | Zero code (no SendAs/FullAccess/sharing-link handling) |
+| 5 | **Notifications** (in-app/email on decisions/milestones) — **KEPT SCOPED 2026-08-02 → [workplan 0030](./0030-email-notifications.md)** (email only: ad hoc + daily/weekly attention digests; no in-app center) | SAD §11.2 #4, §5 | Only honest "not implemented" stubs; 0024 transferred a day-one-bilingual requirement to whoever builds this |
+| 6 | **Policy presets + the §11.1 drift decision queue** — **KEPT SCOPED 2026-08-02 → [workplan 0028](./0028-drift-decision-queue.md)** (two categories, not ten) | SAD §11.2 #3, ADR-0016; 0013 named it "its own workplan" | `decision` and `policy_preset` tables shipped, **zero readers/writers** — the largest unowned feature |
 | 7 | **Bidirectional + asymmetric sync modes** (conflict policy) | SAD §11, §3 decision 3 | Enum values only; nothing branches on mode |
 | 8 | **Post-cutover reverse sync** (sovereign→O365) | SAD §20 | No reverse direction, no source-side writer exists |
-| 9 | **Proton Bridge + ICS/vCard snapshots** | SAD §15.1; **in the user-facing scope manifest** | Zero Proton code (ADR-0025 defers only Drive — this half is uncovered) |
+| 9 | **Proton Bridge + ICS/vCard snapshots** — **RETRACTED 2026-08-02** (ADR-0025 update covers the whole Proton destination; manifest row removed) | SAD §15.1; **in the user-facing scope manifest** | Zero Proton code (ADR-0025 defers only Drive — this half is uncovered) |
 | 10 | **Secrets vault (OpenBao/Infisical) + self-host keychain** | SAD §7.3, SECURITY.md, deployment.md | Reality: AES over a `SECRET_ENCRYPTION_KEY` env var |
 | 11 | **A full threat model** | SECURITY.md points at "§26" — **which is the glossary**; §17.1 is a 6-row lightweight table | No threat-model artifact exists |
 | 12 | **NOTICE file + Apache source headers** | ADR-0001 | Neither exists |
@@ -94,6 +115,55 @@ promising document (ADR/SAD/scope-manifest), exactly as 0021 T5 did.
 | 23 | **ClickHouse run-replication** | 0020 accepted-absent with a revisit condition | Runs page renders empty; revisit or re-accept |
 | 24 | **Demo-secret rotation** | Standing note since the Spark bring-up | Step zero when the stack stops being a demo |
 | 25 | **Private vulnerability reporting toggle** | 0021 T6's outside-the-repo action | Not verifiable from the repo; SECURITY.md's only channel depends on it |
+
+**Update 2026-08-02 — row 2 decided: KEPT, and the build is
+[workplan 0027](./0027-shared-addresses.md)** (both §14.1 patterns, since
+the manifest promises S and D together and D's classification rule — "a
+group with a store is S" — needs S to route to).
+
+**Update 2026-08-02 — row 9 decided: RETRACTED for now.** ADR-0025 gained
+a dated update extending its deferral to the whole Proton destination
+(Bridge mail, ICS/vCard snapshots, Drive — one consistent posture instead
+of half-deferred, half-promised); the scope manifest's Proton row is
+removed (version bumped to `2026-08-02`); SAD §15.1 and the §11.2 manifest
+listing carry the dated notes. The Bridge/snapshot half's revisit trigger
+is demand — it was only ever blocked on priority.
+
+**Update 2026-08-02 — row 6 decided: KEPT, SCOPED.** The build is
+[workplan 0028](./0028-drift-decision-queue.md): the queue end to end for
+the two categories discovery can already see (`new_mailbox`,
+`shared_address_pattern` — the latter wired to 0027 T1), presets as `auto`
+answers for those two only, and the other eight detectors left unbuilt and
+said to be unbuilt.
+
+**Update 2026-08-02 — row 1 decided: KEPT.** No new workplan — the
+reindexer exists and is tested, so wiring its doorway is T1-sized build
+work: it joins T1 as item 5 (operator command in both editions + the
+on-startup detection ADR-0020 promised).
+
+**Update 2026-08-02 — row 3 decided: RETRACTED for now.** ADR-0007's dated
+update records both halves' fate (the shell-out engines were already gone
+via ADR-0019; the rich extractor was never built); the manifest's
+"SharePoint extras" row moved from *Partial* ("best-effort" with zero code
+was a promise, not a hedge) to *does not migrate* with honest wording;
+SAD §13.1 + the §11.2 listing carry the dated notes and keep the design
+sketch for if SMB demand reopens it.
+
+**Update 2026-08-02 — row 4 decided: KEPT, SCOPED ("perhaps the writes
+later").** The build is
+[workplan 0029](./0029-permission-inventory.md): discover + map + guide as
+a read-only report riding 0027 T0's application-permission surface; the
+**apply-where-safe** half is deferred with a named revisit trigger (the
+report proving useful in a real migration), and 0029 T4 makes the manifest
+say so.
+
+**Update 2026-08-02 — row 5 decided: KEPT, SCOPED.** The build is
+[workplan 0030](./0030-email-notifications.md): email only — ad hoc events
+(decision raised, runs failing, verify done, finished) plus daily/weekly
+"what needs attention" digests computed from the same envelopes the
+screens read; bilingual templates from day one (0024's transfer
+discharged); no in-app notification center by this decision. Sequenced
+after 0028's plumbing. 18 rows remain open.
 
 ## T4 — mechanical truth sweep (no decisions; small PRs)
 

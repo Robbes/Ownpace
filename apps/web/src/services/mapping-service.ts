@@ -3,28 +3,47 @@ import { z } from 'zod';
 import type { DiscoveryRecord } from '@openmig/shared';
 
 // Schema definitions
+//
+// These mirror what apps/api/src/routes/tenants actually sends, verified
+// against the route code — they had drifted (a status enum without 'invited',
+// the value every invite creates; a settings shape the server never sends) and
+// the drift went unnoticed for as long as nothing called them. The Tenants
+// screen is the caller now; a parse failure here is a contract break, not noise.
 export const TenantSchema = z.object({
   id: z.string(),
   name: z.string(),
   slug: z.string(),
-  settings: z.object({
-    maxMappings: z.number(),
-    maxUsers: z.number(),
-  }).optional(),
-  ownerId: z.string().optional(),
+  settings: z.record(z.string(), z.unknown()).nullish(),
   createdAt: z.string(),
 });
+
+/** PUT /tenants/:id answers with a different shape than GET (no createdAt). */
+export const TenantUpdateSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+});
+
+export const MemberRoleSchema = z.enum(['owner', 'admin', 'member', 'viewer']);
+export const MemberStatusSchema = z.enum(['active', 'invited', 'suspended', 'removed']);
 
 export const MemberSchema = z.object({
   id: z.string(),
   tenantId: z.string(),
-  userId: z.string().optional(),
+  userId: z.string(),
   email: z.string(),
-  role: z.enum(['owner', 'admin', 'member', 'viewer']),
-  status: z.enum(['pending', 'active']).optional(),
-  invitedAt: z.string(),
-  joinedAt: z.string().optional(),
-  invitedBy: z.string().optional(),
+  role: MemberRoleSchema,
+  status: MemberStatusSchema,
+  invitedAt: z.string().nullish(),
+  joinedAt: z.string().nullish(),
+});
+
+/** PATCH /members/:id answers with the changed fields only, not the member. */
+export const MemberRoleUpdateSchema = z.object({
+  id: z.string(),
+  tenantId: z.string(),
+  role: MemberRoleSchema,
+  updatedAt: z.string(),
 });
 
 export const MappingSchema = z.object({
@@ -74,30 +93,19 @@ export type Member = z.infer<typeof MemberSchema>;
 export type Mapping = z.infer<typeof MappingSchema>;
 export type Run = z.infer<typeof RunSchema>;
 
-// Tenant API
+// Tenant API — only what the Tenants screen uses. `create` is gone because the
+// server answers it with a deliberate 501 (tenant creation is a cross-tenant
+// bootstrap operation, see the route's comment); `list` and `delete` had no
+// screen and went with the rest of the dead surface (0026 T2).
 export const tenantApi = {
-  list: async () => {
-    const response = await apiClient.get('/tenants');
-    return z.array(TenantSchema).parse(response.data.tenants);
-  },
-
-  create: async (data: { name: string; slug: string; settings?: Record<string, unknown> }) => {
-    const response = await apiClient.post('/tenants', data);
-    return TenantSchema.parse(response.data);
-  },
-
   get: async (tenantId: string) => {
     const response = await apiClient.get(`/tenants/${tenantId}`);
     return TenantSchema.parse(response.data);
   },
 
-  update: async (tenantId: string, data: Partial<Tenant>) => {
+  update: async (tenantId: string, data: { name?: string; settings?: Record<string, unknown> }) => {
     const response = await apiClient.put(`/tenants/${tenantId}`, data);
-    return TenantSchema.parse(response.data);
-  },
-
-  delete: async (tenantId: string) => {
-    await apiClient.delete(`/tenants/${tenantId}`);
+    return TenantUpdateSchema.parse(response.data);
   },
 };
 
@@ -108,14 +116,14 @@ export const memberApi = {
     return z.array(MemberSchema).parse(response.data.members);
   },
 
-  invite: async (tenantId: string, data: { email: string; role: string }) => {
+  invite: async (tenantId: string, data: { email: string; role: Member['role'] }) => {
     const response = await apiClient.post(`/tenants/${tenantId}/members`, data);
     return MemberSchema.parse(response.data);
   },
 
-  updateRole: async (tenantId: string, memberId: string, role: string) => {
+  updateRole: async (tenantId: string, memberId: string, role: Member['role']) => {
     const response = await apiClient.patch(`/tenants/${tenantId}/members/${memberId}`, { role });
-    return MemberSchema.parse(response.data);
+    return MemberRoleUpdateSchema.parse(response.data);
   },
 
   remove: async (tenantId: string, memberId: string) => {

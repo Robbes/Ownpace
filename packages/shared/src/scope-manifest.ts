@@ -25,7 +25,7 @@ export interface ScopeManifest {
 }
 
 export const SCOPE_MANIFEST: ScopeManifest = {
-  version: '2026-07-27',
+  version: '2026-08-02',
   migrates: [
     { item: 'Email', detail: 'Folders incl. Sent / Drafts / Archive, flags/keywords, timestamps.' },
     { item: 'Calendar', detail: 'Events, recurrence, attendees (ICS).' },
@@ -43,10 +43,20 @@ export const SCOPE_MANIFEST: ScopeManifest = {
         'reports how many messages this applies to.',
     },
     { item: 'Permissions', detail: 'Inventoried and guided; only the clean, reversible subset is auto-applied (§14.2).' },
-    { item: 'SharePoint extras', detail: 'Metadata/columns, version history and lists are best-effort (§13.1).' },
-    { item: 'Proton calendar/contacts', detail: 'ICS / vCard snapshots only.' },
+    // Proton calendar/contacts (ICS/vCard snapshots) removed 2026-08-02: zero
+    // Proton code exists and the whole Proton destination is deferred with
+    // ADR-0025's discipline (0026 T3 row 9). "SharePoint extras" moved to
+    // doesNotMigrate the same day (row 3 retracted): "best-effort" with zero
+    // code was a promise, not a hedge. The manifest promises only what is
+    // built — rows return when the code does.
   ],
   doesNotMigrate: [
+    {
+      item: 'SharePoint extras',
+      detail:
+        'Version history, permissions, metadata/columns, lists and site pages are not ' +
+        'migrated — files and folders are (see Files above).',
+    },
     { item: 'Teams chat & calls', detail: 'Not migrated.' },
     { item: 'Planner', detail: 'Not migrated.' },
     { item: 'Power Automate', detail: 'Not migrated.' },
