@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   FolderGit2,
   Building2,
+  ListTodo,
   LogOut,
   Menu,
   X,
@@ -58,6 +59,9 @@ const Layout: React.FC = () => {
           { name: t('nav.finish'), href: '/finish', icon: Flag },
         ]
       : []),
+    // The §11.1 drift decision queue (0028 T1): tenant-level in BOTH editions
+    // — a new mailbox belongs to no mapping, so it cannot live under one.
+    { name: t('nav.decisions'), href: '/decisions', icon: ListTodo },
     ...(selfHost ? [] : [{ name: t('nav.tenants'), href: '/tenants', icon: Building2 }]),
     ...(selfHost ? [] : [{ name: t('nav.billing'), href: '/billing', icon: CreditCard }]),
   ];

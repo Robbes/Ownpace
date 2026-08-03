@@ -13,6 +13,7 @@ export * from './operating-contract';
 export * from './lifecycle';
 export * from './verification-report';
 export * from './discovery';
+export * from './decisions';
 export * from './scope-manifest';
 export * from './keywords';
 export * from './specialUse';

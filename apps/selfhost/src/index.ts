@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgLedger, PgCursorStore, RunStore, withTenant } from '@openmig/ledger';
+import { runMigrations, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgLedger, PgCursorStore, RunStore, withTenant } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -739,6 +739,66 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         }
         return sendJson(res, 200, out);
       }
+      // The §11.1 drift decision queue (workplan 0028 T1). The appliance
+      // answers for every configured mapping's tenant, like every queue. No
+      // detector exists yet, so an empty list here means "nothing can raise
+      // decisions yet" — the screen's empty state says so (rule 9), not
+      // "no drift".
+      if (req.method === 'GET' && req.url === '/decisions') {
+        const store = new PgDecisionStore(db);
+        const tenants = [...new Set(mappings.map((m) => m.config.tenantId))];
+        const decisions = [];
+        for (const t of tenants) {
+          decisions.push(...(await store.list(t as TenantId)));
+        }
+        return sendJson(res, 200, { decisions });
+      }
+      const decisionActMatch =
+        req.method === 'POST' && req.url
+          ? /^\/decisions\/([^/]+)\/(resolve|dismiss)$/.exec(req.url)
+          : null;
+      if (decisionActMatch) {
+        const decisionId = decodeURIComponent(decisionActMatch[1]!);
+        const action = decisionActMatch[2] as 'resolve' | 'dismiss';
+        let body: unknown;
+        try {
+          body = await readJson(req);
+        } catch (err) {
+          return sendJson(res, 400, {
+            error: 'invalid_json',
+            reason: err instanceof Error ? err.message : String(err),
+          });
+        }
+        const resolution =
+          body && typeof body === 'object' && 'resolution' in body
+            ? ((body as { resolution: unknown }).resolution as Record<string, unknown>)
+            : undefined;
+        if (action === 'resolve' && (resolution === undefined || typeof resolution !== 'object')) {
+          return sendJson(res, 400, {
+            error: 'missing_resolution',
+            reason: 'resolve carries the answer: POST { "resolution": { ... } }',
+          });
+        }
+        const store = new PgDecisionStore(db);
+        // Single-user edition: no accounts, so the answer is attributed to
+        // the appliance's one operator, by name.
+        let closed: Awaited<ReturnType<PgDecisionStore['resolve']>>;
+        for (const t of [...new Set(mappings.map((m) => m.config.tenantId))]) {
+          closed =
+            action === 'resolve'
+              ? await store.resolve(t as TenantId, decisionId, resolution!, 'appliance-operator')
+              : await store.dismiss(t as TenantId, decisionId, 'appliance-operator');
+          if (closed) break;
+        }
+        if (!closed!) {
+          // Same wording as the managed edition (ADR-0026): one contract.
+          return sendJson(res, 409, {
+            error: 'Conflict',
+            message: 'This decision does not exist or has already been answered.',
+          });
+        }
+        return sendJson(res, 200, closed!);
+      }
       // Gate 1 of the destructive path, as a readable fact (workplan 0019 T3).
       // The value lives in the mapping's CONFIG FILE on this edition, and
       // `source: 'config'` says so — the same screen that offers a switch on
@@ -1156,6 +1216,29 @@ function drain(req: IncomingMessage): Promise<void> {
   return new Promise((resolve, reject) => {
     req.on('data', () => {});
     req.on('end', () => resolve());
+    req.on('error', reject);
+  });
+}
+
+/**
+ * Read a JSON request body. The first appliance route to carry one is the
+ * decision queue's resolve (0028 T1) — the owner's answer is the payload.
+ * An empty body resolves to undefined; malformed JSON rejects, and the
+ * caller answers 400 with the parse error verbatim (rule 9).
+ */
+function readJson(req: IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (c: Buffer) => chunks.push(c));
+    req.on('end', () => {
+      const text = Buffer.concat(chunks).toString('utf8');
+      if (!text) return resolve(undefined);
+      try {
+        resolve(JSON.parse(text));
+      } catch (err) {
+        reject(err);
+      }
+    });
     req.on('error', reject);
   });
 }

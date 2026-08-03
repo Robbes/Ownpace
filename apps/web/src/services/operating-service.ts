@@ -24,6 +24,7 @@ import type {
   DiscoveryRecord,
   ScopeManifest,
   StatusReport,
+  DecisionRow,
 } from '@openmig/shared';
 import { isSelfHost, mappingPath, operatingBaseUrl, queuePath, verifyPath } from './edition';
 
@@ -54,6 +55,29 @@ export async function fetchMoves(mappingId?: string): Promise<MovesResponse> {
 
 export async function fetchFailures(mappingId?: string): Promise<FailuresResponse> {
   return (await client.get<FailuresResponse>(queuePath('failures', mappingId))).data;
+}
+
+// The §11.1 drift decision queue (workplan 0028 T1). TENANT-level, unlike the
+// three item queues — a new mailbox belongs to no mapping yet — so both
+// editions serve the same path under their base and no mappingId enters it.
+export async function fetchDriftDecisions(): Promise<{ decisions: ReadonlyArray<DecisionRow> }> {
+  return (await client.get<{ decisions: ReadonlyArray<DecisionRow> }>('/decisions')).data;
+}
+
+export async function resolveDriftDecision(
+  decisionId: string,
+  resolution: Record<string, unknown>,
+): Promise<DecisionRow> {
+  return (
+    await client.post<DecisionRow>(`/decisions/${encodeURIComponent(decisionId)}/resolve`, {
+      resolution,
+    })
+  ).data;
+}
+
+export async function dismissDriftDecision(decisionId: string): Promise<DecisionRow> {
+  return (await client.post<DecisionRow>(`/decisions/${encodeURIComponent(decisionId)}/dismiss`, {}))
+    .data;
 }
 
 /**
