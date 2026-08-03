@@ -130,9 +130,21 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
       - name: Install Atlas (community edition)
+        # A direct binary download into RUNNER_TEMP, NOT `curl | sh`: the
+        # installer script ends with a sudo copy into /usr/local/bin, and the
+        # self-hosted runner (main pushes) has no passwordless sudo. That
+        # combination stayed invisible for as long as no main push touched the
+        # migration directory — the first one (migration 0005, 2026-08-03)
+        # failed here on the sudo prompt, not on the migration. The download
+        # host is the same one the installer itself resolves to.
         run: |
-          curl -sSf https://atlasgo.sh | sh -s -- --community
-          atlas version
+          arch="$(uname -m)"
+          case "$arch" in x86_64) arch=amd64 ;; aarch64) arch=arm64 ;; esac
+          curl -sSf -o "$RUNNER_TEMP/atlas" \
+            "https://atlasbinaries.com/atlas/atlas-community-linux-${arch}-latest"
+          chmod +x "$RUNNER_TEMP/atlas"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/atlas" version
       - name: Lint all migrations against a disposable dev database
         run: |
           # atlas.sum is generated here, not committed: lint requires the
