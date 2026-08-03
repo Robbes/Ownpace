@@ -42,3 +42,5 @@ export * from './mail-source-with-graph-fallback';
 // here rather than in @openmig/shared.
 export * from './smtp-transport';
 export * from './notifier-from-env';
+export * from './graph-scope';
+export * from './graph-directory';

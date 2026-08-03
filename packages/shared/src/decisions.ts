@@ -57,6 +57,26 @@ export interface DecisionRow {
   readonly resolvedBy?: string;
 }
 
+/**
+ * What a source came back with when asked to list the directory (0028 T2).
+ *
+ * A UNION, not an array, and that is the whole design. A source that cannot
+ * enumerate — every IMAP source, and a Graph connection with only delegated
+ * permissions — must report that it could not look. An empty list from a
+ * source that never looked reads exactly like a tenant where nothing changed,
+ * and those two mean opposite things: "you are covered" versus "you are not
+ * watching" (hard rule 9).
+ *
+ * It lives in shared because the connector that produces it and the detector
+ * that consumes it are in different packages, and neither should own the
+ * other's vocabulary.
+ */
+export type DirectoryListing =
+  /** It looked. These are the mailboxes it found. */
+  | { readonly kind: 'listed'; readonly addresses: readonly string[] }
+  /** It could not look, and this is why — in the source's own words. */
+  | { readonly kind: 'not_enumerable'; readonly reason: string };
+
 export interface RaiseDecisionInput {
   readonly tenantId: TenantId;
   readonly mappingId?: MappingId;

@@ -15,6 +15,13 @@ export interface GraphDriveSourceConfig {
   readonly tokenProvider: TokenProvider;
   readonly tenantId: string;
   readonly baseUrl?: string;
+  /**
+   * WHOSE drive to read. Unset means the signed-in user (`/me`, delegated) —
+   * the default every existing mapping relies on. An address opts in to
+   * application permissions and reads `/users/{address}` instead (SAD §14.3,
+   * workplan 0027 T0); see `graph-scope.ts` for why it is validated.
+   */
+  readonly mailbox?: string;
 }
 
 /**

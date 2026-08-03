@@ -6,8 +6,8 @@
  * Uses Microsoft Graph API v1.0 with delta query for incremental synchronization.
  * 
  * Features:
- * - File/folder enumeration via /me/drive/root/children endpoint
- * - Delta query for incremental sync, scoped per folder (/me/drive/root:{path}:/delta)
+ * - File/folder enumeration via {scope}/drive/root/children endpoint
+ * - Delta query for incremental sync, scoped per folder ({scope}/drive/root:{path}:/delta)
  * - Path normalization as natural key (§10)
  * - cTag/quickXorHash as cheap change detection before byte hashing
  * - Download streams to file writer
@@ -17,6 +17,7 @@
 
 import type { FileSource, FileFolder, RawFileItem, SyncCursor, ThrottleLimiter, FileItem } from '@openmig/shared';
 import type { GraphDriveSourceConfig, GraphDriveItem, GraphDriveDeltaResponse, GraphDriveDeltaCursor, ParsedPath, NormalizePathOptions } from './graph-drive-source.types';
+import { graphScopePrefix } from './graph-scope';
 import type { HttpClient as _HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types';
 import { log } from '@openmig/shared';
 
@@ -28,6 +29,8 @@ export class GraphDriveSource implements FileSource {
   private readonly baseUrl: string;
   private readonly throttleLimiter?: ThrottleLimiter;
   private readonly provider: string;
+  /** `{baseUrl}/me` or `{baseUrl}/users/{address}` — see graph-scope.ts. */
+  private readonly scope: string;
 
   constructor(
     config: GraphDriveSourceConfig,
@@ -37,6 +40,8 @@ export class GraphDriveSource implements FileSource {
     this.baseUrl = config.baseUrl?.replace(/\/$/, '') ?? 'https://graph.microsoft.com/v1.0';
     this.throttleLimiter = throttleLimiter;
     this.provider = this.extractProviderFromBaseUrl(this.baseUrl);
+    // Application-permission scope, workplan 0027 T0; `/me` by default.
+    this.scope = graphScopePrefix(this.baseUrl, config.mailbox);
   }
 
   /**
@@ -49,7 +54,7 @@ export class GraphDriveSource implements FileSource {
 
     // Start from root and enumerate
     do {
-      const url = nextLink ?? `${this.baseUrl}/me/drive/root/children`;
+      const url = nextLink ?? `${this.scope}/drive/root/children`;
       const response = await this.makeRequest({
         url,
         method: 'GET',
@@ -115,14 +120,14 @@ export class GraphDriveSource implements FileSource {
     // delta, so every folder's poll processed every item on the drive (the
     // ledger's natural key made it converge, but at N-folders × whole-drive
     // cost per pass — 0026 T1 item 1). Graph addresses a folder's delta by
-    // path — `/me/drive/root:/{path}:/delta` — which scopes the response
+    // path — `{scope}/drive/root:/{path}:/delta` — which scopes the response
     // server-side to that folder's descendants; no client-side filter needed.
     const folderPath = folder.path;
     const isRoot = folderPath === '/' || folderPath === '';
 
     const baseUrl = isRoot
-      ? `${this.baseUrl}/me/drive/root/delta`
-      : `${this.baseUrl}/me/drive/root:${folderPath
+      ? `${this.scope}/drive/root/delta`
+      : `${this.scope}/drive/root:${folderPath
           .split('/')
           .map(encodeURIComponent)
           .join('/')}:/delta`;
@@ -240,7 +245,7 @@ export class GraphDriveSource implements FileSource {
    * Fetch file content as Uint8Array.
    */
   private async fetchFileContent(itemId: string): Promise<Uint8Array> {
-    const url = `${this.baseUrl}/me/drive/items/${itemId}/content`;
+    const url = `${this.scope}/drive/items/${itemId}/content`;
     const response = await this.makeRequest({
       url,
       method: 'GET',

@@ -117,7 +117,35 @@ migrated, see 0011's Status block).
 
 ## Recommended order (from here)
 
-**2026-08-03 — almost everything unblocked has been built. What remains needs
+**2026-08-03, later — the five parked decisions were taken, and what they
+unblocked was built the same evening.** Consent granted (scoped by access
+policy), release chosen as `v0.1.0-rc.1`, code signing deferred until the
+appliance has been run on Windows at all, and bidirectional + reverse sync
+retracted rather than deferred. Built on the back of them: the
+application-permission scope across all four Graph connectors with its consent
+runbook (0027 T0), the `new_mailbox` detector's read and judgement (0028 T2),
+and the rc's CHANGELOG and version bump — the tag itself deliberately not
+pushed.
+
+**What is left, in the order it matters:**
+
+1. **Run the consent runbook** (`docs/o365-application-access.md`) on the test
+   tenant. The code is waiting on it, not the other way round. It closes 0027
+   T0 and lets 0028 T2's detector be proven against a real directory.
+2. **Push the `v0.1.0-rc.1` tag**, when you say so. Everything else is ready;
+   it unblocks 0025 T5's upgrade-path gate.
+3. **Run the appliance on your own Windows machine** — `pnpm
+   package:appliance`, then `node start.mjs`. No MSI or certificate needed for
+   this, and it is where the real Windows bugs are. 0015 T3's remaining items
+   are all Windows-side.
+4. **0026 T3 rows 10–25** — ten real decisions, parked by choice; three
+   mechanical ones were done on 2026-08-03 and three are owner-only actions
+   (publisher verification, demo-secret rotation, the GitHub private
+   vulnerability reporting toggle).
+
+### Earlier the same day
+
+**Almost everything unblocked has been built. What remains needs
 the owner, and one decision unblocks the most:**
 
 1. **Admin consent on the O365 tenant** (0027 T0). This is the keystone: it

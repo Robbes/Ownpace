@@ -38,6 +38,7 @@ import type {
 import { specialUseFromName, log } from '@openmig/shared';
 import type { GraphMailFolder, GraphMessage, GraphPage } from './graph-mail-source.types';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types';
+import { graphScopePrefix } from './graph-scope';
 
 /** Graph well-known folder name -> our SpecialUse. */
 const WELL_KNOWN_TO_SPECIAL_USE: ReadonlyArray<readonly [string, SpecialUse]> = [
@@ -59,6 +60,8 @@ export class GraphMailSource implements SourceConnector {
   private readonly httpClient: HttpClient;
   private readonly baseUrl: string;
   private readonly throttleLimiter?: ThrottleLimiter;
+  /** `{baseUrl}/me` or `{baseUrl}/users/{address}` — see graph-scope.ts. */
+  private readonly scope: string;
 
   /**
    * path -> Graph folder id, built by `listFolders()`. The mail port's
@@ -71,12 +74,17 @@ export class GraphMailSource implements SourceConnector {
   constructor(
     tokenProvider: TokenProvider,
     tenantId: string,
-    options?: { baseUrl?: string; throttleLimiter?: ThrottleLimiter },
+    options?: { baseUrl?: string; throttleLimiter?: ThrottleLimiter; mailbox?: string },
     deps?: { httpClient?: HttpClient },
   ) {
-    void tenantId; // Recorded in config by callers; requests are /me-scoped in T1.
+    void tenantId; // Recorded in config by callers; the SCOPE is `options.mailbox`.
     this.tokenProvider = tokenProvider;
     this.baseUrl = options?.baseUrl?.replace(/\/$/, '') ?? 'https://graph.microsoft.com/v1.0';
+    // `/me` unless a mailbox address was configured, in which case
+    // `/users/{address}` — application permissions, workplan 0027 T0. Resolved
+    // ONCE here so a bad address fails at construction rather than on the
+    // first request, and so no URL below can spell the scope differently.
+    this.scope = graphScopePrefix(this.baseUrl, options?.mailbox);
     this.httpClient = deps?.httpClient ?? createDefaultHttpClient();
     this.throttleLimiter = options?.throttleLimiter;
   }
@@ -84,7 +92,7 @@ export class GraphMailSource implements SourceConnector {
   /**
    * Enumerate the full folder tree with special-use detection.
    *
-   * Well-known folders are resolved FIRST (`/me/mailFolders/{wellKnownName}`)
+   * Well-known folders are resolved FIRST (`{scope}/mailFolders/{wellKnownName}`)
    * so their ids map to roles authoritatively; a tenant that has disabled one
    * (404) simply lacks that role. Nesting is walked breadth-first via
    * `childFolders`, building IMAP-shaped "Parent/Child" paths.
@@ -93,7 +101,7 @@ export class GraphMailSource implements SourceConnector {
     const roleById = new Map<string, SpecialUse>();
     for (const [wellKnown, role] of WELL_KNOWN_TO_SPECIAL_USE) {
       const res = await this.request({
-        url: `${this.baseUrl}/me/mailFolders/${wellKnown}`,
+        url: `${this.scope}/mailFolders/${wellKnown}`,
         method: 'GET',
         headers: { Accept: 'application/json' },
       });
@@ -111,7 +119,7 @@ export class GraphMailSource implements SourceConnector {
     // Breadth-first walk from the root listing; queue entries carry the
     // already-built parent path so children get "Parent/Child".
     const queue: Array<{ url: string; parentPath: string }> = [
-      { url: `${this.baseUrl}/me/mailFolders?$top=100`, parentPath: '' },
+      { url: `${this.scope}/mailFolders?$top=100`, parentPath: '' },
     ];
 
     while (queue.length > 0) {
@@ -134,7 +142,7 @@ export class GraphMailSource implements SourceConnector {
           ids.set(path, f.id);
           if ((f.childFolderCount ?? 0) > 0) {
             queue.push({
-              url: `${this.baseUrl}/me/mailFolders/${f.id}/childFolders?$top=100`,
+              url: `${this.scope}/mailFolders/${f.id}/childFolders?$top=100`,
               parentPath: path,
             });
           }
@@ -179,7 +187,7 @@ export class GraphMailSource implements SourceConnector {
       next = cursor.value.slice(CURSOR_PREFIX.length);
     } else {
       const folderId = await this.resolveFolderId(folder.path);
-      next = `${this.baseUrl}/me/mailFolders/${folderId}/messages/delta?$select=${DELTA_SELECT}`;
+      next = `${this.scope}/mailFolders/${folderId}/messages/delta?$select=${DELTA_SELECT}`;
     }
 
     let deltaLink: string | undefined;
@@ -244,7 +252,7 @@ export class GraphMailSource implements SourceConnector {
   /** Fetch the full RFC822/MIME bytes for an item. */
   async fetch(item: MailItem): Promise<RawMessage> {
     const res = await this.request({
-      url: `${this.baseUrl}/me/messages/${item.sourceRef}/$value`,
+      url: `${this.scope}/messages/${item.sourceRef}/$value`,
       method: 'GET',
       headers: {},
     });
