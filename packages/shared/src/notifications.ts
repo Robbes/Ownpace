@@ -365,6 +365,58 @@ export type NotificationEvent =
     }
   | { readonly kind: 'migration_finished'; readonly mappingId: string };
 
+/**
+ * One outage, one email (workplan 0030 T2).
+ *
+ * A sync that fails runs again a minute later and fails again. Notifying per
+ * failed pass would send sixty emails an hour about a single unplugged
+ * server, and the channel would be filtered inside a day — taking the
+ * decision queue's mail with it. So the rule is: say it once when the
+ * failures have gone on long enough to be real, then stay quiet until the
+ * condition CHANGES.
+ *
+ * A threshold rather than the first failure, because one failed pass is
+ * usually a blip that the next pass fixes; `MAX_ITEM_ATTEMPTS` reasoning
+ * applied to whole passes. Recovery resets the streak, so a second outage
+ * next week notifies again — the alternative would be a channel that goes
+ * quiet permanently after its first bad day.
+ */
+export interface FailureStreakGate {
+  /**
+   * Record how a pass ended. Returns the event worth sending, or `undefined`
+   * when this pass changes nothing anyone needs to be told about.
+   */
+  record(
+    mappingId: string,
+    outcome: 'ok' | 'failed',
+    lastError?: string,
+  ): NotificationEvent | undefined;
+}
+
+export function createFailureStreakGate(threshold = 3): FailureStreakGate {
+  const streak = new Map<string, number>();
+  return {
+    record(mappingId, outcome, lastError) {
+      if (outcome === 'ok') {
+        streak.delete(mappingId);
+        return undefined;
+      }
+      const consecutiveFailures = (streak.get(mappingId) ?? 0) + 1;
+      streak.set(mappingId, consecutiveFailures);
+      // EXACTLY at the threshold, never above it: the fourth, fifth and
+      // hundredth consecutive failure are the same outage, already reported.
+      if (consecutiveFailures !== threshold) return undefined;
+      return {
+        kind: 'runs_failing',
+        mappingId,
+        consecutiveFailures,
+        // Verbatim — a diagnostic we reworded is a diagnostic we broke.
+        lastError: lastError ?? 'no error message was recorded',
+      };
+    },
+  };
+}
+
 const EVENT: Record<NotificationLocale, Record<NotificationEvent['kind'], string>> = {
   en: {
     decision_raised: 'Open Migrate — a change needs your decision',

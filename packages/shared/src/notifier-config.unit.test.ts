@@ -18,6 +18,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   readNotifierConfig,
   createNotifier,
+  createFailureStreakGate,
   disabledNotifier,
   type MailTransport,
 } from './notifications';
@@ -178,5 +179,66 @@ describe('the sending notifier', () => {
     const notifier = createNotifier(transport, { from: 'a@x.nl', to: ['b@x.nl'] });
     await notifier.notify({ subject: 's', body: 'b' });
     expect(transport).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('one outage, one email (the failure streak gate)', () => {
+  it('stays quiet below the threshold — one bad pass is usually a blip', () => {
+    const gate = createFailureStreakGate(3);
+    expect(gate.record('m', 'failed', 'boom')).toBeUndefined();
+    expect(gate.record('m', 'failed', 'boom')).toBeUndefined();
+  });
+
+  it('speaks EXACTLY once, at the threshold, and never again during the outage', () => {
+    const gate = createFailureStreakGate(3);
+    gate.record('m', 'failed', 'boom');
+    gate.record('m', 'failed', 'boom');
+
+    const event = gate.record('m', 'failed', 'getaddrinfo ENOTFOUND stalwart');
+    expect(event).toMatchObject({
+      kind: 'runs_failing',
+      mappingId: 'm',
+      consecutiveFailures: 3,
+      // Verbatim, from the pass that crossed the line.
+      lastError: 'getaddrinfo ENOTFOUND stalwart',
+    });
+
+    // The fourth, fifth and hundredth failure are the SAME outage. A cron
+    // that runs every minute would otherwise send sixty emails an hour about
+    // one unplugged server, and the channel would be filtered by lunchtime.
+    for (let i = 0; i < 20; i++) {
+      expect(gate.record('m', 'failed', 'boom')).toBeUndefined();
+    }
+  });
+
+  it('resets on recovery, so a LATER outage is reported again', () => {
+    const gate = createFailureStreakGate(2);
+    gate.record('m', 'failed', 'boom');
+    expect(gate.record('m', 'failed', 'boom')).toBeDefined();
+
+    gate.record('m', 'ok');
+
+    // A channel that went permanently quiet after its first bad day would be
+    // worse than none at all.
+    gate.record('m', 'failed', 'boom again');
+    expect(gate.record('m', 'failed', 'boom again')).toMatchObject({
+      consecutiveFailures: 2,
+      lastError: 'boom again',
+    });
+  });
+
+  it('counts each mapping separately', () => {
+    const gate = createFailureStreakGate(2);
+    gate.record('a', 'failed', 'x');
+    // b's first failure must not be pushed over the line by a's.
+    expect(gate.record('b', 'failed', 'y')).toBeUndefined();
+    expect(gate.record('a', 'failed', 'x')).toMatchObject({ mappingId: 'a' });
+  });
+
+  it('says so rather than sending an empty reason when none was recorded', () => {
+    const gate = createFailureStreakGate(1);
+    expect(gate.record('m', 'failed')).toMatchObject({
+      lastError: 'no error message was recorded',
+    });
   });
 });
