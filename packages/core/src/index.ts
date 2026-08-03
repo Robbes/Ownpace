@@ -16,3 +16,4 @@ export * from './discovery';
 export * from './apply-deletion';
 export * from './detect-new-mailboxes';
 export * from './run-new-mailbox-detection';
+export * from './mapping-coverage';

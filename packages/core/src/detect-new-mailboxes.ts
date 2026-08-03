@@ -43,6 +43,17 @@ export interface DetectInput {
    * owner has closed every time the detector runs.
    */
   readonly dismissed?: readonly string[];
+  /**
+   * Why `covered` is INCOMPLETE, when it is (see `mapping-coverage.ts`).
+   *
+   * Present means at least one mapping does not state which mailbox it
+   * covers, so anything this function would call "uncovered" might in fact be
+   * covered by that mapping. Raising in that state produces a decision about
+   * a mailbox the owner already set up migrating — which teaches them the
+   * queue is wrong, and a queue believed to be wrong is worse than no queue.
+   * So it raises nothing and reports the reason instead.
+   */
+  readonly coverageIncomplete?: string;
 }
 
 export interface DetectResult {
@@ -72,6 +83,13 @@ export function detectNewMailboxes(input: DetectInput): DetectResult {
     // No decisions AND a stated reason. A caller that ignores the second half
     // has turned "I could not look" into "nothing needs attention".
     return { decisions: [], blindSpot: input.listing.reason };
+  }
+
+  // The second blind spot, and the subtler one: the directory READ fine, but
+  // we cannot say what is already covered. Being wrong here is worse than
+  // being silent — see the field's comment.
+  if (input.coverageIncomplete) {
+    return { decisions: [], blindSpot: input.coverageIncomplete };
   }
 
   const covered = new Set(input.covered.map((m) => norm(m.address)));
