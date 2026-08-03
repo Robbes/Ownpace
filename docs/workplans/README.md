@@ -9,13 +9,15 @@ to execute.
 plan gets a ⚠️ SUPERSEDED banner pointing to its successor (0003→0007, 0004→0009, 0005→0011)
 and stays put, preserving the evidence trail and inbound links.
 
-## State of the stack (verified against code, 2026-08-02, `main` post-#249)
+## State of the stack (verified against code, 2026-08-03, `main` post-#271)
 
-Since the last index refresh (post-#73), PRs #74–#120 merged: closed out **0011 T7** (managed
-compose DoD, live-verified with real evidence) and its file/WebDAV domain follow-up (#119), and
-**closed 0010 T5** (the restart-resume idempotency gate, all three proven domains) — both were
-the last open acceptance items blocking their plans. **0013 was already fully done** (T1–T8) but
-this index hadn't reflected that until now. Verified state:
+Since the last refresh (post-#249), PRs #250–#271 merged: the owner's decision series on 0026 T3
+and everything it unblocked — 0026 T1's five verified defects, the release pipeline's real
+publish/sign/scan gates (0025 T1/T3/T4 and two of T5's three), the drift decision queue's
+plumbing and screen (0028 T1/T4), and email notifications end to end for both editions (0030).
+See *What landed this cycle*. The rows below were re-verified against `main` at #271; four of
+them were stale enough to mislead — 0025, 0026, 0028 and 0030 all still read "Planned" while
+substantial parts of them had shipped. Verified state:
 
 | Plan | Subject | Verified state |
 |---|---|---|
@@ -43,14 +45,57 @@ this index hadn't reflected that until now. Verified state:
 | [0024](./0024-bilingual-ui.md) | The bilingual UI (ADR-0013, kept) | ✅ **ALL TASKS DONE 2026-08-02** (T1 #239; T2 in five slices #241–#245; T3 #246; T4 in the close-out PR — all CI green). Owner decision 2026-08-02 (0021 T5): keep. Hand-rolled typed EN/NL dictionary (no i18n framework — two locales with compile-time key parity don't need one), LocaleProvider (persisted, browser-detected), localized chrome + switcher, every operating screen bilingual, dates/times/numbers through shared `Intl` helpers keyed on the app locale (`date-fns` retired), and the destructive-path warning in Dutch beside its English source in `@openmig/shared`. The server-prose boundary is documented per class in `docs/i18n-prose-boundary.md` — *translate the frame, never the finding*; refusal prose verbatim (rule 2), pinned by test. |
 | [0023](./0023-graph-mail-source.md) | The Graph mail source (ADR-0006's fallback) | ✅ **ALL TASKS CLOSED 2026-08-02** (#233/#234/#235, CI green). ADR-0006's June promise is real end to end: connector, wiring in both editions, and the self-verifying runtime fallback (one Graph probe on an auth-refused IMAP mailbox; the run continues over Graph, loudly). Owner decision 2026-08-02 (0021 T5): the Graph-mail fallback is KEPT — a tenant whose admin disabled IMAP currently cannot migrate mail at all. T1: `GraphMailSource` implements the mail `SourceConnector` port (well-known-folder special-use mapping — authoritative even for localized names; delta-query listSince with deltaLink cursors; `unkeyable` counting; binary-safe MIME via `$value` + `bodyBytes`), keyed on the same `internetMessageId` natural key as IMAP so a transport switch cannot duplicate a mailbox; `graph-mail` config type; 9 unit tests. |
 | [0027](./0027-shared-addresses.md) | Shared addresses (Pattern S + Pattern D) | ⬜ **Planned (owner decision 2026-08-02, 0026 T3 row 2: keep and build).** The scope manifest promises both §14.1 patterns under *Migrates* with zero code behind them: `group_def` has no readers/writers, no connector touches Graph's groups surface, `mailbox_mapping.pattern` is read by nothing, and every Graph connector is delegated `/me` — a shared store needs `/users/{address}` + application permissions + an Application Access Policy (§14.3). Tasks: the auth spike (one shared mailbox read end to end, least-privilege, on the real read-only test tenant), groups+shared-mailbox discovery into `group_def` (store → S, no store → D; IMAP says "not discoverable" honestly), Pattern D recreation (automate the clean subset, §14.2-style runbook for the rest), Pattern S as an ordinary `shared_s` mapping over the existing mail path, and the Review & confirm + manifest truth pass. |
-| [0028](./0028-drift-decision-queue.md) | The drift decision queue, first slice | ⬜ **Planned (owner decision 2026-08-02, 0026 T3 row 6: keep, SCOPED).** The §11.1 promise — drift becomes owner decisions, presets pre-answer categories — whose schema shipped in ledger v1 (`decision` with ten categories + `policy_preset`, both with zero readers/writers: the largest unowned feature). The scope discipline: TWO categories, not ten — `new_mailbox` (directory poll over 0027's application-permission surface, diffed against configured mappings; IMAP says "cannot enumerate" honestly) and `shared_address_pattern` (raised by 0027 T1 where S-or-D is ambiguous, instead of guessing). Tasks: idempotent raise/list/resolve plumbing in core + both editions' routes, the two detectors, one Decisions screen in the house queue style (bilingual frame, server prose verbatim), and `auto`/`ask` presets for the two built categories only. The item-level queues are untouched — this is the mapping-level queue above them. |
+| [0028](./0028-drift-decision-queue.md) | The drift decision queue, first slice | 🟡 **T1 + T4 built 2026-08-03; T2/T3/T5 blocked on 0027 T0.** The plumbing is real: migration 0005 gives `decision` a `subject_key` and a partial unique index over PENDING rows, so an idempotent raise is enforced BY THE DATABASE rather than by a read-then-write race; `PgDecisionStore` never overwrites an answer. Routes in both editions with the same 409 words (ADR-0026), RLS making a foreign tenant's row indistinguishable from an unknown one. The screen is live in both navs, bilingual, with the load-bearing empty state: *"nothing can raise a decision yet — not watched yet"*, never *"no changes"*. **The detectors need Graph application permissions — 0027 T0's spike, blocked on admin consent — and that is also why 0030's `decision_raised` notification is the one event with no live source.** |
 | [0029](./0029-permission-inventory.md) | The permission inventory & guidance report | ⬜ **Planned (owner decision 2026-08-02, 0026 T3 row 4: keep SCOPED — "perhaps the writes later").** SAD §14.2's four-step module, built as its first three: **discover** (read-only Graph, behind 0027 T0's application-permission auth: FullAccess/SendAs/SendOnBehalf, shared-mailbox members, calendar shares, OneDrive/SharePoint links + ACLs; IMAP says "not discoverable" honestly), **map** (clean target equivalent or an explicit *manual* verdict — no fuzzy ACL translation), **guide** (the per-mapping runbook, generated, reachable from the hub + Finish checklist). The **apply-where-safe** write half is deferred with a named revisit trigger — the report proving useful in a real migration — and the manifest's Permissions row says so until then. |
-| [0030](./0030-email-notifications.md) | Email notifications: ad hoc + attention digests | ⬜ **Planned (owner decision 2026-08-02, 0026 T3 row 5: keep SCOPED — email only).** The §11.2 #4 promise, scoped to what reaches an absent owner: ad hoc events (a decision was raised — 0028's seam, runs repeatedly failing, verification finished, migration finished; each deduped) plus **daily/weekly "what needs attention" digests** computed at send time from the same envelopes the screens read (pending decisions, waiting-on-you queue counts, stalled syncs, READY_FOR_CUTOVER) — an empty digest sends **no email**. One `Notifier` seam in core; SMTP per edition (appliance: owner-supplied, rule 5; unconfigured = off, said honestly); EN/NL template pairs in shared from day one (0024's transferred requirement); per-member recipient locale; per-tenant cadence preferences on the Tenants screen. No in-app notification center by this decision. Sequenced after 0028's plumbing. |
-| [0025](./0025-release-pipeline.md) | The release pipeline | ⬜ **Planned (2026-08-02 full sweep).** No workflow builds or publishes any image (`ghcr.io/…-selfhost:edge` in compose is produced by nothing); zero tags, version 0.0.0, CHANGELOG all `[Unreleased]`; signing promised (cosign) with no pipeline; the SBOM is generated per-commit but never published (the release-attach step is tag-gated and has never run); "e2e nightly" unscheduled; 4 of §22.1's 6 CI gates missing; three actions unpinned with TODOs. Tasks: image build+publish, first tagged release (owner), cosign + SBOM + doc truth (Renovate→Dependabot, syft→CycloneDX), pinning, scheduled e2e + upgrade/idempotence/backup gates, and the Windows code-signing purchase (shared with 0015 T4). |
-| [0026](./0026-promise-reconciliation.md) | Promise reconciliation, round two | 🟡 **T2 decided + built 2026-08-02; T1/T3/T4 open.** 0021 fixed the docs that misled; this settles the promises that are UNBACKED. **T2 (dead web surface) is done**: owner ditched OperatorDashboard (393 lines calling five `/admin/*` routes no server has) and the Settings stub — files, routes, nav, tile, `useMappingStore`, `NotImplementedError` all deleted — and kept Tenants, now a REAL screen: members list/invite/role-change/two-step-remove against the always-complete tenants+members API, server guards verbatim, bilingual, 9 unit tests. T1 verified defects still open: Graph drive's folder-scoped delta returns the whole drive per folder (`graph-drive-source.ts:118-125`, confirmed); mail deletions over Graph (0023's follow-up — minimal change set recorded); rollback's do-nothing `notifyUsers: true` default; per-domain throttling collapsing to one limiter. T3: 25 promise rows needing keep-or-retract (Pattern D groups and Proton snapshots are IN the user-facing scope manifest with zero code; ADR-0020's reindex is exported but uninvokable; the §11.1 drift decision queue is the largest unowned feature; threat-model pointer names the glossary). T4 mechanical truth sweep. |
+| [0030](./0030-email-notifications.md) | Email notifications: ad hoc + attention digests | ✅ **Built for both editions 2026-08-03, minus the one event with no source.** The owner's scope (email only, no in-app centre) end to end: EN/NL templates with compile-time key parity, an SMTP transport that is the workspace's only nodemailer import, three of four ad hoc events wired to live callers, and the *what needs attention* digest — appliance on croner via `NOTIFY_DIGEST`, managed as one daily task asking each tenant whether today is its day (cadence per tenant, on the Tenants screen). Two rules do the work and are tested from every angle: **an empty digest is not sent** (silence is the signal), and **a queue that could not be READ always sends**, naming the reason verbatim — hard rule 9. Counting is one shared function, and an integration test now holds the digest's numbers to the queue screens' numbers against live rows. `notifyUsers` on rollback is real. **`decision_raised` stays unwired** until 0028's detectors exist — a notification wired to a seam with no caller is the dead surface 0026 spent a day deleting. |
+| [0025](./0025-release-pipeline.md) | The release pipeline | 🟡 **Four of six tasks done 2026-08-03; the two that remain need the owner.** T1 image build/publish ✅ and **shaken down for real** — all three images multi-arch (amd64+arm64) on ghcr. T3 ✅ signing + SBOM: cosign keyless by DIGEST via GitHub OIDC, CycloneDX SBOMs, and the docs now say what is actually signed. T4 ✅ every GitHub Action SHA-pinned. T5 🟡 two of three §22.1 gates built AND proven on the runner — nightly e2e on both persistence backends, and the backup/restore drill (whose first version passed VACUOUSLY: a restored appliance cut off from its network could not grow its ledger, so the drill now snapshots failing domains before and after). **T2 (the first tagged release) and T6 (the code-signing purchase) need the owner**, and T5's third gate — the N-1→N upgrade path — is blocked on T2 having produced something to upgrade FROM. |
+| [0026](./0026-promise-reconciliation.md) | Promise reconciliation, round two | 🟡 **T1/T2/T4 done, T3 six rows decided — rows 7–8 and 10–25 parked with the owner.** T1 ✅ all five verified defects built: Graph drive's folder-scoped delta (it returned the whole drive per folder), mail deletions over Graph, rollback's do-nothing `notifyUsers` (now refused honestly, and real as of 0030 T4), per-domain throttling, and ADR-0020's uninvokable reindex given a CLI doorway. T2 ✅ dead web surface deleted (OperatorDashboard's 393 lines calling five routes no server has, the Settings stub) and Tenants built for real. T4 ✅ mechanical truth sweep, SAD v1.3. T3: rows 1/2/4/5/6 KEPT (rows 2/4/5/6 became workplans 0027/0029/0030/0028), rows 3 and 9 RETRACTED with dated notes in the ADRs and the SAD. **Rows 7–8 (sync directions — standing recommendation: retract both) and 10–25 await the owner.** |
 | [0022](./0022-syncs-on-trigger-tasks.md) | Syncs move onto Trigger.dev tasks (retiring the poller) | ✅ **ALL TASKS CLOSED 2026-08-01** (#218/#219/#220/#221, CI green; T3 proven live twice — the first attempt caught a real in-runner API-URL bug, the second ran syncs with the worker stopped; the poller-free stack re-certified by a final `SMOKE PASS`). The 0020 T8 owner decision executed: one declarative `managed-sync-tick` (every minute, mapping crons evaluated against the DB) triggers `run-delta-sync` with explicit enabled domains and per-mapping concurrency 1. The staged cutover caught a real in-runner API-URL bug on the first due firing (fixed, #219); the second attempt proved the tick alone runs managed syncs with the worker stopped (both mappings, `run` rows `succeeded`, quarter-hour boundary honored). The poller, its Dockerfile and its compose service are DELETED (−487 lines) — **the managed edition runs on one execution plane** (ADR-0004 as originally drawn). |
 
 ## What landed this cycle
+
+### 2026-08-03 (PRs #250–#271)
+
+The day after the owner's decision series, spent building what those decisions
+unblocked and then telling the truth about what is left.
+
+**0026 T1 — all five verified defects fixed.** The Graph drive delta was
+folder-scoped in name only: it returned the whole drive for every folder, so a
+mapping scoped to one folder synced everything. Mail deletions over Graph were
+detected and then dropped. `notifyUsers: true` on rollback did nothing while
+reporting success. Per-domain throttling collapsed to a single limiter.
+ADR-0020's reindex was exported and uninvokable — it has a `--yes`-gated CLI
+doorway now that exits non-zero when no target can enumerate, rather than
+reporting an empty reindex as a clean one.
+
+**0025 — the supply chain became real.** Multi-arch images actually published
+to ghcr, cosign keyless signing BY DIGEST, CycloneDX SBOMs, every GitHub Action
+SHA-pinned, nightly e2e on both persistence backends, and the §22.1
+backup/restore drill. That drill is worth its own sentence: its first version
+**passed vacuously**, because a restored appliance cut off from its network
+could not grow its ledger no matter what was wrong with it. It now snapshots
+failing domains before and after.
+
+**0028 T1 + T4 — the drift decision queue's plumbing and screen.** Idempotent
+raise enforced by a partial unique index over pending rows, not by a
+read-then-write race. The screen's empty state says *"nothing can raise a
+decision yet — not watched yet"*, never *"no changes"*, because with no
+detectors built those two sentences mean opposite things.
+
+**0030 — email notifications, both editions.** The full channel: EN/NL
+templates with compile-time key parity, one SMTP binding, three ad hoc events
+with live callers, and the attention digest on croner (appliance) and a daily
+Trigger.dev task (managed, cadence per tenant). An empty digest is not sent; a
+queue that could not be READ always sends, verbatim.
+
+**And a truth pass over our own work.** Two of this cycle's PRs exist only
+because shipped code lacked tests for rules that decide whether somebody is
+emailed — both digest loops moved behind seams and got them. One integration
+test now holds the digest's counts to the queue screens' counts against live
+rows, closing a gap this index's own workplan had recorded three times.
+
+### Earlier: 0011 T7 and 0010 T5
+
 **0011 T7 closed for real, its file/WebDAV follow-up closed the same day, and 0010's last open
 item (T5) closed too (PRs #118–#120).** 0011 T7's live `compose up` DoD was verified against a
 genuinely fresh managed stack on the Spark box, with 13 real bugs found and fixed along the way
@@ -72,7 +117,27 @@ migrated, see 0011's Status block).
 
 ## Recommended order (from here)
 
-**2026-07-27: 0010 and 0013 are both fully done; 0009 T3 closed the same day** (PR #131). What's
+**2026-08-03 — almost everything unblocked has been built. What remains needs
+the owner, and one decision unblocks the most:**
+
+1. **Admin consent on the O365 tenant** (0027 T0). This is the keystone: it
+   unblocks 0027's shared addresses, 0028's detectors (T2/T3/T5), all of 0029,
+   and 0030's last unwired event. Nothing else in the numbering is waiting on
+   as much.
+2. **The first tagged release** (0025 T2) — an owner decision plus execution.
+   It also unblocks 0025 T5's third §22.1 gate, the N-1→N upgrade path, which
+   cannot be tested without a release to upgrade FROM.
+3. **The code-signing purchase** (0025 T6, shared with 0015 T4).
+4. **0026 T3 rows 7–8 and 10–25**, parked on 2026-08-02 at the owner's word.
+   Standing recommendation on rows 7–8 (sync directions): retract both.
+
+Items 1–3 are owner actions, not engineering ones. Until one of them moves,
+the remaining engineering work is maintenance rather than progress — which is
+worth saying plainly rather than manufacturing a queue.
+
+### Earlier note (2026-07-27)
+
+**0010 and 0013 are both fully done; 0009 T3 closed the same day** (PR #131). What's
 actually left:
 
 1. **Audit follow-ups outside the plan numbering** (2026-07-27 doc/code audit; no workplan owns
