@@ -1,6 +1,8 @@
 # Solution Architecture — Sovereign Migration Stack
 
-**Version:** 1.4 (2026-08-03) — canonical copy, lives in `docs/architecture/`.
+**Version:** 1.5 (2026-08-03) — canonical copy, lives in `docs/architecture/`.
+**v1.5 change:** §11's mode B (bidirectional) and §20's reverse sync are RETRACTED with dated notes (owner decision 2026-08-03, 0026 T3 rows 7–8) — one-way mirror is the only sync mode, and the source itself is the post-cutover fallback. §3 decision 3 and the §6 functional line carry the same note.
+
 **v1.4 change:** §11.2 #4 carries the notification scope decided 2026-08-02 and built in workplan 0030 — email only, no in-app centre, with the empty-digest and blind-spot rules stated; §23's bilingual-notifications transfer is marked discharged there.
 
 **v1.3 change:** the 0026 sweep's truth pass. §23 + the Languages header say the bilingual UI is BUILT (0024); §11.2 #1's drift-queue tail points at workplan 0028 (kept scoped, owner decision 2026-08-02); §13.1's rich extractor and §15.1's Proton half carry their retraction notes (same decisions); §14.1/§14.2 unchanged in substance — their builds are workplans 0027/0029.
@@ -39,7 +41,7 @@ The stack solves this with three core properties plus one ambition:
 ## 3. Confirmed decisions
 1. **Two editions, one core.** A self-host edition (NAS/Pi/Spark, optionally single-user) and a managed multi-tenant service. Only the control plane differs; the migration core and idempotency are identical (§7).
 2. **Recommended targets are managed EU/CH cloud platforms, in clusters.** Soverin/Nextcloud (default) and Proton (optional, family/individual). Self-hosted targets — including self-hosted mail — are *permitted* but user-operated; we migrate into them, we don't host them (§2 non-goals, §9). [ADR-0011]
-3. **Shadow = one-way mirror + clean cutover**, with one asymmetric exception (send from the new environment while inbound still lands on O365) and bidirectional allowed for calendar/contacts/files (§11).
+3. **Shadow = one-way mirror + clean cutover**, with one asymmetric exception (send from the new environment while inbound still lands on O365 — a DNS/procedure choice, not a sync direction). ~~and bidirectional allowed for calendar/contacts/files~~ — **bidirectional retracted 2026-08-03** (owner decision, 0026 T3 row 7; see §11).
 4. **Residency = EU + Switzerland.** US providers (and CLOUD Act exposure) excluded.
 5. **Scale = small (family to SMB).** ~25 mailboxes per tenant, a few shared mailboxes (§21).
 6. **Permissions: covered, not necessarily automated** — inventory + guidance, auto-apply only where mapping is clean (§14.2).
@@ -55,7 +57,7 @@ The stack solves this with three core properties plus one ambition:
 - **Support** — read access to status/logs, no access to content.
 
 ## 5. Requirements
-**Functional:** connect source via OAuth (O365) and targets via credentials/OAuth; choose scope (mailboxes, folders, calendars, address books, drives, date range); choose mode (one-time / one-way mirror / asymmetric or bidirectional where safe); set schedule (continuous shadow vs one-shot); track progress/errors and per-item status; reconciliation report; cutover wizard with verification gate and DNS/MX guidance; (managed) self-service onboarding, billing, tenant isolation.
+**Functional:** connect source via OAuth (O365) and targets via credentials/OAuth; choose scope (mailboxes, folders, calendars, address books, drives, date range); choose mode (one-time / one-way mirror; **bidirectional retracted 2026-08-03**, see §11); set schedule (continuous shadow vs one-shot); track progress/errors and per-item status; reconciliation report; cutover wizard with verification gate and DNS/MX guidance; (managed) self-service onboarding, billing, tenant isolation.
 
 **Non-functional:** idempotency & resumability as the correctness guarantee (crucial for intermittent self-host hosts); low-maintenance (managed-first + IaC/GitOps + auto-updates); scalable (thousands of tenants in cheap delta shadow); secure & GDPR-compliant (EU/CH residency, data minimisation, encryption, audit log, right to erasure); throttle-tolerant (respects O365 Graph/IMAP and target limits); accessible bilingual UI (§23).
 
@@ -212,7 +214,7 @@ Cover the common 95% automatically; inventory + guide the rare bits.
 - **Target message-size limits:** oversize items detected and flagged rather than silently dropped.
 
 ## 11. Shadow-running & cutover
-**Modes:** A — one-way mirror (default; user keeps using O365, sovereign stays warm/validated). B — bidirectional for calendar/contacts/files only (the DAV/file connectors; conflict policy: hash-equality -> last-writer-wins by mtime -> keep-both + flag). **Asymmetric path** ("send from new, receive on old"): MX stays on O365 (inbound mirrored), but you already send from the sovereign environment — either send-as the existing address (needs SPF/DKIM for both providers; DMARC `p=none` during transition) or from the new address. Mail stays one-way until cutover.
+**Modes:** A — one-way mirror (default; user keeps using O365, sovereign stays warm/validated). ~~B — bidirectional for calendar/contacts/files only (the DAV/file connectors; conflict policy: hash-equality -> last-writer-wins by mtime -> keep-both + flag).~~ **Update 2026-08-03 (owner decision, 0026 T3 row 7): MODE B IS RETRACTED.** Mode B was an enum value nothing branched on — the 2026-08-02 sweep found no code reading the mode at all. It is withdrawn rather than built, for a reason bigger than effort: writing changes back to the SOURCE means this tool modifies the system the customer is leaving, which is the one place hard rule 2 promises never to touch. It also needs conflict resolution, loop suppression (our own write must not read back as a user change) and a per-item causality record the ledger does not carry — that is a different product, not a larger version of this one. **One-way mirror is the only sync mode.** Changes made on the TARGET during shadow are surfaced as decisions in the queues (§11.1/§11.2), never copied back. **Asymmetric path** ("send from new, receive on old"): MX stays on O365 (inbound mirrored), but you already send from the sovereign environment — either send-as the existing address (needs SPF/DKIM for both providers; DMARC `p=none` during transition) or from the new address. Mail stays one-way until cutover.
 
 **Email cutover:** final delta -> optional source read-only/forwarding -> switch MX/DNS + autodiscover -> reconfigure clients -> grace window with reverse read -> archive. A **verification gate** (counts/checksums within tolerance) is an approval step before the DNS switch.
 
@@ -317,7 +319,7 @@ Tenant = household/SMB; `tenant_id` everywhere + Postgres RLS; per-tenant worksp
 Per-job logs (engine stdout captured); per-tenant dashboards (migrated, queued, errors, throughput, sync lag); alerts on stalls, auth failures, throttling. SLOs: sync freshness/lag, success rate, time-to-first-mirror. Self-host: a local status dashboard in the UI.
 
 ## 20. Verification & rollback
-**Verification:** count parity per folder/calendar/address book/drive; checksum sampling; total size; mandatory gate before cutover. **Rollback before cutover:** trivial — keep using O365. **Rollback after cutover:** MX back to O365 + reverse sync (sovereign->O365) via the same engines for standards targets; harder for Proton.
+**Verification:** count parity per folder/calendar/address book/drive; checksum sampling; total size; mandatory gate before cutover. **Rollback before cutover:** trivial — keep using O365. **Rollback after cutover:** MX back to O365. **Update 2026-08-03 (owner decision, 0026 T3 row 8): REVERSE SYNC IS RETRACTED** — there is no reverse direction and no source-side writer, and there will not be one; it needs the same write-to-source machinery §11's retracted mode B does. What makes this a withdrawal rather than a gap: **the source IS the fallback.** Nothing is ever deleted on the source (hard rule 2), so the old system is still whole and still current at the moment of cutover; rollback reactivates the mapping with the source authoritative again and shadow sync resumes. That path exists, is tested, and is documented in `docs/rollback-mechanisms.md` — including what it deliberately does NOT do (DNS is verify-only; reverting the MX record is a manual operator step). The genuine loss is mail that arrived in the NEW system after cutover: it stays there and is not pushed back, so a retreat is 'the old system is authoritative from now on', not 'as if the cutover never happened'.
 
 ## 21. Scale & sizing
 Family to SMB: ~25 mailboxes/tenant, a few shared mailboxes — small. Per tenant a small concurrency (3-5 parallel mailbox syncs) suffices; no intra-tenant sharding. The **real constraint is the initial copy** (time/bandwidth for large mailboxes), not mailbox count; delta shadow is cheap afterwards. The **scaling axis for the managed service is the number of tenants**. Self-host (Pi/NAS) handles 25 mailboxes easily. Throttle-aware (Graph `Retry-After`, per-app/per-mailbox limits, backoff).

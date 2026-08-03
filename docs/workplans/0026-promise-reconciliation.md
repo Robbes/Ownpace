@@ -96,8 +96,8 @@ promising document (ADR/SAD/scope-manifest), exactly as 0021 T5 did.
 | 4 | **Permission inventory & guidance module** — **KEPT SCOPED 2026-08-02 → [workplan 0029](./0029-permission-inventory.md)** (discover+map+guide as a read-only report; the apply-where-safe writes deferred, not retracted) | SAD §14.2, §3 decision 6 | Zero code (no SendAs/FullAccess/sharing-link handling) |
 | 5 | **Notifications** (in-app/email on decisions/milestones) — **KEPT SCOPED 2026-08-02 → [workplan 0030](./0030-email-notifications.md)** (email only: ad hoc + daily/weekly attention digests; no in-app center) | SAD §11.2 #4, §5 | Only honest "not implemented" stubs; 0024 transferred a day-one-bilingual requirement to whoever builds this |
 | 6 | **Policy presets + the §11.1 drift decision queue** — **KEPT SCOPED 2026-08-02 → [workplan 0028](./0028-drift-decision-queue.md)** (two categories, not ten) | SAD §11.2 #3, ADR-0016; 0013 named it "its own workplan" | `decision` and `policy_preset` tables shipped, **zero readers/writers** — the largest unowned feature |
-| 7 | **Bidirectional + asymmetric sync modes** (conflict policy) | SAD §11, §3 decision 3 | Enum values only; nothing branches on mode |
-| 8 | **Post-cutover reverse sync** (sovereign→O365) | SAD §20 | No reverse direction, no source-side writer exists |
+| 7 | **Bidirectional + asymmetric sync modes** (conflict policy) | SAD §11, §3 decision 3 | ✅ **RETRACTED 2026-08-03** — see the note below |
+| 8 | **Post-cutover reverse sync** (sovereign→O365) | SAD §20 | ✅ **RETRACTED 2026-08-03** — see the note below |
 | 9 | **Proton Bridge + ICS/vCard snapshots** — **RETRACTED 2026-08-02** (ADR-0025 update covers the whole Proton destination; manifest row removed) | SAD §15.1; **in the user-facing scope manifest** | Zero Proton code (ADR-0025 defers only Drive — this half is uncovered) |
 | 10 | **Secrets vault (OpenBao/Infisical) + self-host keychain** | SAD §7.3, SECURITY.md, deployment.md | Reality: AES over a `SECRET_ENCRYPTION_KEY` env var |
 | 11 | **A full threat model** | SECURITY.md points at "§26" — **which is the glossary**; §17.1 is a 6-row lightweight table | No threat-model artifact exists |
@@ -156,6 +156,33 @@ a read-only report riding 0027 T0's application-permission surface; the
 **apply-where-safe** half is deferred with a named revisit trigger (the
 report proving useful in a real migration), and 0029 T4 makes the manifest
 say so.
+
+**Update 2026-08-03 — rows 7 and 8 decided: BOTH RETRACTED.** The owner's
+call after the trade-offs were laid out. Neither is a matter of effort.
+
+**Row 7 (bidirectional / asymmetric modes).** Writing changes back to the
+SOURCE means this tool modifies the system the customer is leaving — the one
+place hard rule 2 promises never to touch. Beyond that it needs conflict
+resolution, loop suppression (our own write must not read back as a user
+change) and a per-item causality record the ledger does not carry: a different
+product, not a larger version of this one. **One-way mirror is now the only
+sync mode.** Changes made on the target during shadow are surfaced as
+decisions in the queues, never copied back. SAD §11, §3 decision 3 and the §6
+functional line carry dated notes (SAD v1.5), and the API no longer accepts a
+mode it does not implement — `bidirectional` and `asymmetric` are refused with
+the reason, rather than stored as a word that changes nothing. The DATABASE
+enum keeps all four values: existing rows may carry them, and hard rule 2 does
+not delete a customer's data to tidy a type.
+
+**Row 8 (post-cutover reverse sync).** It needs the same write-to-source
+machinery row 7 just retracted. What makes it a withdrawal rather than a gap:
+**the source IS the fallback.** Nothing is ever deleted on the source, so the
+old system is still whole and still current at cutover; rollback reactivates
+the mapping with the source authoritative and shadow sync resumes. That path
+exists and is tested. The honest loss, stated in SAD §20 rather than glossed:
+mail that arrived in the NEW system after cutover stays there and is not
+pushed back — a retreat means "the old system is authoritative from now on",
+not "as if the cutover never happened".
 
 **Update 2026-08-02 — row 5 decided: KEPT, SCOPED.** The build is
 [workplan 0030](./0030-email-notifications.md): email only — ad hoc events
