@@ -235,6 +235,74 @@ describe('GraphDriveSource', () => {
       expect(result.items[0]?.content).toBeUndefined(); // Metadata-only, no content
       expect(result.items[1]?.item.contentHash).toBe('xyz789');
       expect(result.nextCursor.value).toContain('graph-drive-delta:');
+      // The root folder polls the root delta.
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        'https://graph.microsoft.com/v1.0/me/drive/root/delta',
+      );
+    });
+
+    it('scopes a non-root folder poll to THAT folder\'s delta, not the whole drive', async () => {
+      // The 0026 T1 defect: both branches requested /me/drive/root/delta, so a
+      // sync over N folders processed every item on the drive N times per pass.
+      // The fix addresses the folder by path — Graph then only returns that
+      // folder's descendants, so this pins the URL, which IS the scoping.
+      fetchMock.mockResolvedValueOnce({
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            value: [
+              {
+                id: 'file-sub',
+                name: 'notes.txt',
+                path: '/Team Docs/notes.txt',
+                file: { mimeType: 'text/plain' },
+                lastModifiedDateTime: '2024-02-01T00:00:00Z',
+                size: 10,
+                quickXorHash: 'sub1',
+              },
+            ],
+            '@odata.deltaLink': 'https://graph.microsoft.com/v1.0/delta?deltatoken=sub',
+          }),
+        headers: new Map(),
+      });
+
+      const driveSource = new GraphDriveSource({
+        tokenProvider: mockTokenProvider,
+        tenantId: 'test-tenant-id',
+      });
+
+      const result = await driveSource.listSince({ path: '/Team Docs' });
+
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        'https://graph.microsoft.com/v1.0/me/drive/root:/Team%20Docs:/delta',
+      );
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]?.item.path).toBe('/Team Docs/notes.txt');
+    });
+
+    it('a cursor\'s deltaLink wins over the folder-scoped base URL', async () => {
+      // The deltaLink Graph hands back is already scoped to whatever the
+      // original request addressed — replaying it verbatim preserves the scope.
+      fetchMock.mockResolvedValueOnce({
+        status: 200,
+        text: async () =>
+          JSON.stringify({ value: [], '@odata.deltaLink': 'https://g/next' }),
+        headers: new Map(),
+      });
+
+      const driveSource = new GraphDriveSource({
+        tokenProvider: mockTokenProvider,
+        tenantId: 'test-tenant-id',
+      });
+
+      await driveSource.listSince(
+        { path: '/Team Docs' },
+        { value: 'graph-drive-delta:/Team Docs:https://graph.microsoft.com/v1.0/delta?deltatoken=prev' },
+      );
+
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        'https://graph.microsoft.com/v1.0/delta?deltatoken=prev',
+      );
     });
 
     it('should fetch file content using fetch method', async () => {

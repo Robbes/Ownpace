@@ -194,7 +194,7 @@ describe('listSince', () => {
     expect(unkeyable).toBe(1);
   });
 
-  it('skips @removed entries — and does not count them as unkeyable', async () => {
+  it('reports @removed entries by id — and does not count them as unkeyable', async () => {
     const { client } = fakeClient(
       listingRoutes({
         [`${BASE}/me/mailFolders/id-inbox/messages/delta`]: json(200, {
@@ -209,9 +209,30 @@ describe('listSince', () => {
 
     const s = source(client);
     await s.listFolders();
-    const { items, unkeyable } = await s.listSince(inboxFolder);
+    const { items, unkeyable, removed } = await s.listSince(inboxFolder);
     expect(items.map((i) => i.messageId)).toEqual(['<b@x>']);
     expect(unkeyable).toBeUndefined();
+    // The id, because a removed entry has no internetMessageId left — it is
+    // matched back to the ledger row through the sourceRef recorded at copy.
+    expect(removed).toEqual(['g1']);
+  });
+
+  it('omits `removed` entirely when the server reported none', async () => {
+    // Omitted, not [] — "reported none" and "cannot report" must not read
+    // the same downstream.
+    const { client } = fakeClient(
+      listingRoutes({
+        [`${BASE}/me/mailFolders/id-inbox/messages/delta`]: json(200, {
+          value: [{ id: 'g2', internetMessageId: '<b@x>' }],
+          '@odata.deltaLink': `${BASE}/delta-token-1`,
+        }),
+      }),
+    );
+
+    const s = source(client);
+    await s.listFolders();
+    const result = await s.listSince(inboxFolder);
+    expect('removed' in result).toBe(false);
   });
 
   it('throws an honest error (status + body) on a failed delta call', async () => {

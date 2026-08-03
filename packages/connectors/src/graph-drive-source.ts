@@ -6,7 +6,7 @@
  * 
  * Features:
  * - File/folder enumeration via /me/drive/root/children endpoint
- * - Delta query for incremental file synchronization using /me/drive/root/delta
+ * - Delta query for incremental sync, scoped per folder (/me/drive/root:{path}:/delta)
  * - Path normalization as natural key (§10)
  * - cTag/quickXorHash as cheap change detection before byte hashing
  * - Download streams to file writer
@@ -109,20 +109,22 @@ export class GraphDriveSource implements FileSource {
       }
     }
 
-    // Build the delta query URL
-    // For root folder, use /drive/root/delta
-    // For subfolders, we need to use the folder's ID
+    // Scope the delta to THE FOLDER BEING POLLED. The files sync calls this
+    // once per folder; both branches used to request the whole drive's root
+    // delta, so every folder's poll processed every item on the drive (the
+    // ledger's natural key made it converge, but at N-folders × whole-drive
+    // cost per pass — 0026 T1 item 1). Graph addresses a folder's delta by
+    // path — `/me/drive/root:/{path}:/delta` — which scopes the response
+    // server-side to that folder's descendants; no client-side filter needed.
     const folderPath = folder.path;
     const isRoot = folderPath === '/' || folderPath === '';
-    
-    let baseUrl: string;
-    if (isRoot) {
-      baseUrl = `${this.baseUrl}/me/drive/root/delta`;
-    } else {
-      // For subfolders, we need to resolve the folder ID first
-      // For now, we'll use the root delta and filter by path
-      baseUrl = `${this.baseUrl}/me/drive/root/delta`;
-    }
+
+    const baseUrl = isRoot
+      ? `${this.baseUrl}/me/drive/root/delta`
+      : `${this.baseUrl}/me/drive/root:${folderPath
+          .split('/')
+          .map(encodeURIComponent)
+          .join('/')}:/delta`;
 
     const url = deltaLink ?? baseUrl;
 

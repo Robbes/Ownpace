@@ -115,6 +115,29 @@ export class MemorySource implements SourceConnector {
     return true;
   }
 
+  /** Refs queued for the next listSince's removal report, per folder. */
+  private readonly pendingRemovals = new Map<string, string[]>();
+
+  /**
+   * What a Graph delta does when a message is deleted OUTRIGHT (not moved to
+   * the bin): the item vanishes from the folder and the next delta poll for
+   * that folder reports its id as `@removed`. One-shot, like the real report —
+   * a delta only states a removal once, on the poll that crosses it.
+   *
+   * Returns false when the message is not in `folderPath`, so a test cannot
+   * silently assert on a removal that never happened.
+   */
+  reportRemoved(messageId: string, folderPath: string): boolean {
+    const list = this.byFolder.get(folderPath) ?? [];
+    const at = list.findIndex((i) => i.messageId === messageId);
+    if (at < 0) return false;
+    const [item] = list.splice(at, 1);
+    const queue = this.pendingRemovals.get(folderPath) ?? [];
+    queue.push(item!.sourceRef);
+    this.pendingRemovals.set(folderPath, queue);
+    return true;
+  }
+
   listFolders(): Promise<ReadonlyArray<MailFolder>> {
     return Promise.resolve([...this.folders.values()]);
   }
@@ -122,11 +145,23 @@ export class MemorySource implements SourceConnector {
   listSince(
     folder: MailFolder,
     cursor?: SyncCursor,
-  ): Promise<{ items: ReadonlyArray<MailItem>; nextCursor: SyncCursor }> {
+  ): Promise<{
+    items: ReadonlyArray<MailItem>;
+    nextCursor: SyncCursor;
+    removed?: ReadonlyArray<string>;
+  }> {
     const all = this.byFolder.get(folder.path) ?? [];
     // Cursor = "items already seen" offset; malformed/absent -> full scan (non-authoritative, ADR-0020).
     const start = cursor ? Math.max(0, Number(cursor.value) || 0) : 0;
-    return Promise.resolve({ items: all.slice(start), nextCursor: { value: String(all.length) } });
+    // Delivered once and cleared, like the delta report it stands in for;
+    // omitted (not []) when there is nothing, matching the port's contract.
+    const removed = this.pendingRemovals.get(folder.path);
+    this.pendingRemovals.delete(folder.path);
+    return Promise.resolve({
+      items: all.slice(start),
+      nextCursor: { value: String(all.length) },
+      ...(removed && removed.length > 0 ? { removed } : {}),
+    });
   }
 
   fetch(item: MailItem): Promise<RawMessage> {

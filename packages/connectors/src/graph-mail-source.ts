@@ -155,9 +155,23 @@ export class GraphMailSource implements SourceConnector {
   async listSince(
     folder: MailFolder,
     cursor?: SyncCursor,
-  ): Promise<{ items: ReadonlyArray<MailItem>; nextCursor: SyncCursor; unkeyable?: number }> {
+  ): Promise<{
+    items: ReadonlyArray<MailItem>;
+    nextCursor: SyncCursor;
+    unkeyable?: number;
+    removed?: ReadonlyArray<string>;
+  }> {
     const items: MailItem[] = [];
     let unkeyable = 0;
+    /**
+     * Message ids Graph reported as DELETED on this poll — the delta query's
+     * own removal report (0023's recorded follow-up, built as 0026 T1 item 2).
+     * Ids, not Message-IDs: a removed entry has no body left, so `id` — what
+     * every listed item records as its `sourceRef` — is all there is to match
+     * on. The reconcile loop takes them back to rows via `findBySourceRef`,
+     * the same seam the DAV domains use; the source stays read-only (rule 2).
+     */
+    const removed: string[] = [];
 
     let next: string | undefined;
     if (cursor?.value.startsWith(CURSOR_PREFIX)) {
@@ -181,10 +195,13 @@ export class GraphMailSource implements SourceConnector {
       }
       const page = JSON.parse(res.body) as GraphPage<GraphMessage>;
       for (const m of page.value) {
-        // Removed entries are deliberately skipped, not counted as unkeyable:
-        // the mail port has no removal channel (deletion evidence stays on
-        // the trash/absence path), and the source stays read-only (rule 2).
-        if (m['@removed']) continue;
+        // Removed entries are reported, not counted as unkeyable: they are
+        // not messages that failed to list, they are the server stating
+        // outright that a message is gone.
+        if (m['@removed']) {
+          if (m.id) removed.push(m.id);
+          continue;
+        }
         if (!m.internetMessageId) {
           unkeyable += 1;
           continue;
@@ -213,7 +230,14 @@ export class GraphMailSource implements SourceConnector {
     }
 
     const nextCursor: SyncCursor = { value: `${CURSOR_PREFIX}${deltaLink}` };
-    return unkeyable > 0 ? { items, nextCursor, unkeyable } : { items, nextCursor };
+    // Both fields omitted rather than sent empty, so "the server reported
+    // none" and "this listing cannot report" read differently downstream.
+    return {
+      items,
+      nextCursor,
+      ...(unkeyable > 0 ? { unkeyable } : {}),
+      ...(removed.length > 0 ? { removed } : {}),
+    };
   }
 
   /** Fetch the full RFC822/MIME bytes for an item. */
