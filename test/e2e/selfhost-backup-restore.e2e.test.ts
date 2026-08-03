@@ -61,12 +61,37 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const COMPOSE_FILES = [
-  'deploy/selfhost/compose.yml',
-  ...(process.env.SELFHOST_COMPOSE_OVERRIDE ? [process.env.SELFHOST_COMPOSE_OVERRIDE] : []),
-]
-  .map((f) => `-f ${f}`)
-  .join(' ');
+/**
+ * THE WORKFLOW'S OWN FILE LIST, verbatim, whenever it is exported.
+ *
+ * This drill is the one gate that RECREATES containers (`up -d`) rather than
+ * restarting them, and that makes the list load-bearing in a way it is not
+ * anywhere else. `docker compose up -d app` composes the service from exactly
+ * the files it is given: run it with a shorter list than the stack was brought
+ * up with and compose rebuilds the container WITHOUT the missing override —
+ * silently, and reporting success.
+ *
+ * That is precisely what happened on the first shakedown (run #92). The list
+ * here omitted `compose.dev.yml`, the override that joins the appliance to
+ * `openmig_dev-network`, so the restored app came back healthy but could no
+ * longer resolve `stalwart` or `nextcloud`: every later sync died with
+ * `getaddrinfo ENOTFOUND stalwart` and the Finish gate failed two steps later.
+ * The drill itself passed, because a ledger that cannot reach anything also
+ * cannot grow — see the guard in the last test, which exists so that can
+ * never again look like success.
+ *
+ * `SELFHOST_COMPOSE_FILES` is exported by e2e.yml as a complete `-f a -f b`
+ * fragment for exactly this reason; its own comment says "One list in one
+ * place". Use it. The fallback is for a by-hand run outside the workflow.
+ */
+const COMPOSE_FILES =
+  process.env.SELFHOST_COMPOSE_FILES?.trim() ||
+  [
+    'deploy/selfhost/compose.yml',
+    ...(process.env.SELFHOST_COMPOSE_OVERRIDE ? [process.env.SELFHOST_COMPOSE_OVERRIDE] : []),
+  ]
+    .map((f) => `-f ${f}`)
+    .join(' ');
 
 /** PGlite has no `postgres` service, so the procedure branches on this. */
 const IS_PGLITE = (process.env.SELFHOST_COMPOSE_OVERRIDE ?? '').includes('pglite');
@@ -102,7 +127,9 @@ function sh(command: string, opts: { quiet?: boolean } = {}): string {
 
 interface DomainStatus {
   domain: string;
+  state?: string;
   itemsSynced?: number;
+  lastError?: string;
 }
 interface StatusPayload {
   status: string;
@@ -119,6 +146,29 @@ function syncedByDomain(): Record<string, number> {
   for (const m of getStatus().mappings) {
     for (const d of m.domains) {
       out[`${m.mappingId}:${d.domain}`] = d.itemsSynced ?? 0;
+    }
+  }
+  return out;
+}
+
+/**
+ * Domains the appliance is currently reporting as broken, with their reasons.
+ *
+ * The counterweight to every "nothing changed" assertion in this file. A
+ * restored appliance that cannot REACH its source and target also cannot
+ * create anything, so "no new items" is satisfied just as well by total
+ * failure as by correct idempotency — which is how run #92's drill passed
+ * green while every domain was dying on `ENOTFOUND stalwart`. Asserting the
+ * absence of failures is what tells the two apart (hard rule 9: an empty
+ * result that came from an error is not a result).
+ */
+function failingDomains(): string[] {
+  const out: string[] = [];
+  for (const m of getStatus().mappings) {
+    for (const d of m.domains) {
+      if (d.state === 'failed' || d.lastError) {
+        out.push(`${m.mappingId}:${d.domain} — ${d.state}${d.lastError ? `: ${d.lastError}` : ''}`);
+      }
     }
   }
   return out;
@@ -155,9 +205,18 @@ function ledgerItemCount(): number {
 
 let before: Record<string, number>;
 let beforeRows: number | undefined;
+/**
+ * Failures the appliance was ALREADY reporting before the drill touched
+ * anything — compared against, rather than asserted empty, because this
+ * workflow deliberately plants an item that can never migrate (the poison
+ * file) and a domain may legitimately still be carrying its reason. What
+ * must not happen is NEW failures appearing across a backup and restore.
+ */
+let beforeFailures: string[];
 
 beforeAll(() => {
   before = syncedByDomain();
+  beforeFailures = failingDomains();
   if (!IS_PGLITE) beforeRows = ledgerItemCount();
 });
 
@@ -275,6 +334,15 @@ describe('the backup/restore drill (§22.1)', () => {
 
       const after = syncedByDomain();
       expect(after).toEqual(before);
+
+      // The appliance is BACK, not merely up. A container recreated without
+      // the overrides the stack was built with comes up healthy and answers
+      // /status while being unable to reach a single server — run #92.
+      expect(
+        failingDomains(),
+        'the restored appliance reports failures it did not report before the drill — ' +
+          'it came back up, but not back to work',
+      ).toEqual(beforeFailures);
     },
   );
 
@@ -294,6 +362,17 @@ describe('the backup/restore drill (§22.1)', () => {
         quiet: true,
       });
       const afterPass = syncedByDomain();
+
+      // FIRST: the pass actually worked. Checked before the count comparison
+      // on purpose — a pass in which every domain failed also creates nothing,
+      // so the interesting assertion below is only meaningful once this one
+      // holds. Getting this order wrong is what let run #92 report success
+      // while the appliance was cut off from every server it syncs.
+      expect(
+        failingDomains(),
+        'the post-restore pass reported failures it did not report before — "nothing was ' +
+          'created" then means nothing COULD be, which is not the property this drill claims',
+      ).toEqual(beforeFailures);
 
       // Not "roughly the same": a pass over an intact ledger creates exactly
       // zero. Any growth here is a duplicate that a real operator would be
