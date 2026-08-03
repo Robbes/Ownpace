@@ -42,7 +42,7 @@
     "esbuild": "^0.28.1",
     "eslint": "10.8.0",
     "imap-simple": "^5.1.0",
-    "jsdom": "^29.1.1",
+    "jsdom": "^30.0.1",
     "pg": "catalog:",
     "playwright-core": "^1.62.1",
     "prettier": "3.9.6",
