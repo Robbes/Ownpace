@@ -304,12 +304,12 @@ Tenant = household/SMB; `tenant_id` everywhere + Postgres RLS; per-tenant worksp
 | OAuth token theft | Vault storage, least-privilege scopes + Application Access Policy, short-lived tokens, revocation |
 | Multi-tenant isolation breach | Postgres RLS, per-tenant secret scope + rate budgets, egress controls |
 | Worker sees plaintext during copy | Minimise at-rest staging, encrypt spool + short TTL, TLS everywhere; Proton Bridge local-only |
-| Supply chain (engines/deps) | Pin deps, Renovate, signed release images, SBOM |
+| Supply chain (engines/deps) | Pin deps, Dependabot, signed images (cosign keyless), SBOM (CycloneDX) |
 | Self-hosted CI runner RCE (docker+root) | Trusted workflows only; no untrusted fork PRs |
 | Managed orchestrator metadata exposure | Self-host Trigger.dev (or EU cloud); never pass content as task payloads |
 
 ## 18. Deployment & EU providers
-**Managed (managed-first):** Trigger.dev (self-host on managed K8s, or cloud); managed Postgres (Aiven EU / Scaleway / OVH / Exoscale); S3-compatible EU object storage; secrets (Infisical/OpenBao); identity (Zitadel); observability (Grafana Cloud EU or self-host LGTM); IaC/GitOps (OpenTofu/Terraform + Helm + Argo CD/Flux; Renovate). **Self-host packaging:** Docker Compose + Home Assistant add-on; optional hybrid agent. **EU/CH provider options:** Scaleway, OVHcloud (incl. SecNumCloud), Exoscale, StackIT, IONOS, Open Telekom Cloud, UpCloud, Elastx, Leafcloud/Fuga; Aiven for managed data; Hetzner for cheap IaaS. **Recommended targets are managed EU/CH platforms**; self-hosted targets are permitted but user-operated (ADR-0011).
+**Managed (managed-first):** Trigger.dev (self-host on managed K8s, or cloud); managed Postgres (Aiven EU / Scaleway / OVH / Exoscale); S3-compatible EU object storage; secrets (Infisical/OpenBao); identity (Zitadel); observability (Grafana Cloud EU or self-host LGTM); IaC/GitOps (OpenTofu/Terraform + Helm + Argo CD/Flux; Dependabot). **Self-host packaging:** Docker Compose + Home Assistant add-on; optional hybrid agent. **EU/CH provider options:** Scaleway, OVHcloud (incl. SecNumCloud), Exoscale, StackIT, IONOS, Open Telekom Cloud, UpCloud, Elastx, Leafcloud/Fuga; Aiven for managed data; Hetzner for cheap IaaS. **Recommended targets are managed EU/CH platforms**; self-hosted targets are permitted but user-operated (ADR-0011).
 
 ## 19. Observability & SLOs
 Per-job logs (engine stdout captured); per-tenant dashboards (migrated, queued, errors, throughput, sync lag); alerts on stalls, auth failures, throttling. SLOs: sync freshness/lag, success rate, time-to-first-mirror. Self-host: a local status dashboard in the UI.
@@ -336,7 +336,7 @@ Family to SMB: ~25 mailboxes/tenant, a few shared mailboxes — small. Per tenan
 
 **Compatibility & rollback.** Breaking API/UI/config changes are SemVer **MAJOR** with a deprecation cycle and migration notes; `.env.example` updated when env vars change. Schema rollback is hard, so we **prefer roll-forward + backups**; write down-migrations only where cheap; **feature-flag** risky behavior to decouple deploy from release.
 
-**Supply chain (with §17.1).** Releases are **multi-arch images (amd64+arm64), signed (cosign), with an SBOM (syft)** and build provenance; consumers pin by digest; Renovate keeps dependencies current.
+**Supply chain (with §17.1).** Published images are **multi-arch (amd64+arm64) and signed (cosign keyless, GitHub OIDC — by digest, so one signature covers every tag)**; the SBOM is **CycloneDX** (generated per commit by `security-scan.yml`, attached to releases once tags exist), and **Dependabot** keeps dependencies current — this sentence said syft/Renovate until 2026-08-03 (0025 T3), which was the intent of 2026-06, not what runs. Consumers pin by digest. Build provenance beyond the signature (SLSA attestations) is not produced yet — an honest gap, not a promise.
 
 **Testing this concern (CI gates).**
 - **Fresh install** (empty -> latest) on **Postgres** (both editions; ADR-0023).
