@@ -488,14 +488,29 @@ jobs:
           echo "MKCOL target/${POISON} -> ${dst_code}"
           case "$dst_code" in 201|405) ;; *) echo "could not seed the target directory"; exit 1;; esac
 
-          # Drive a pass now rather than waiting on the cron, so the failure is
-          # in the queue by the time the gate looks.
-          # `/run` is synchronous — it answers when the pass has finished — so
-          # this returns with the failure already in the queue. Best-effort with
-          # a ceiling: the gate polls and fails loudly if nothing shows up, so a
-          # slow or refused pass must not hang the job here.
-          curl -s -o /dev/null --max-time 300 -X POST \
-            "http://127.0.0.1:${SELFHOST_PORT}/mappings/11111111-1111-4111-8111-111111111111/run" || true
+          # Drive the passes the gate needs, rather than hoping the cron
+          # delivers them in time.
+          #
+          # A failing item is RETRIED until `MAX_ITEM_ATTEMPTS` (5) and only
+          # then moves to "awaiting a decision" — which is the state the Finish
+          # gate refuses over. One pass leaves it at 1 attempt; the gate then
+          # polled for 200s while the every-minute cron supplied the rest, and
+          # 200s fits only THREE firings. So the step needed five attempts and
+          # produced four, and passed only when the plant happened to land
+          # early enough in a minute for a fourth firing to fit. That coin flip
+          # went green for months and then started failing when an unrelated
+          # step above got 19 seconds slower (the backup/restore drill).
+          #
+          # Five explicit synchronous passes remove the timing dependency
+          # entirely: the item is provably at the threshold before the gate
+          # looks. `/run` answers when the pass has finished. Best-effort with
+          # a ceiling, since the gate polls and fails loudly on its own if
+          # nothing shows up — a slow pass must not hang the job here.
+          for attempt in 1 2 3 4 5; do
+            echo "poison-2 attempt ${attempt}/5"
+            curl -s -o /dev/null --max-time 300 -X POST \
+              "http://127.0.0.1:${SELFHOST_PORT}/mappings/11111111-1111-4111-8111-111111111111/run" || true
+          done
 
       - name: Run Finish Gate (§11.2 — the end of a migration)
         run: pnpm test:e2e test/e2e/selfhost-finish.e2e.test.ts

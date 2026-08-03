@@ -73,7 +73,11 @@ async function waitForUnresolved(): Promise<Failure[]> {
       throw new Error(
         `no failure is awaiting a decision after ${WAIT_MS}ms, so the refusal below ` +
           `would pass vacuously. The workflow plants a second poison file before this ` +
-          `step — check that step, and that a pass has run since.`,
+          `step — check that step, and that a pass has run since.\n` +
+          `NOTE: "awaiting a decision" needs MAX_ITEM_ATTEMPTS (5) failed attempts, not ` +
+          `one. The plant step drives five explicit passes for exactly this reason; if ` +
+          `it was changed back to one, this wait is left depending on the every-minute ` +
+          `cron delivering four more inside ${WAIT_MS}ms — which fits only three.`,
       );
     }
     await new Promise((r) => setTimeout(r, 3000));
