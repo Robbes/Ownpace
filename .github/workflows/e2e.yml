@@ -447,6 +447,21 @@ jobs:
           test/e2e/selfhost-apply-deletion-mail.e2e.test.ts
           test/e2e/selfhost-apply-deletion-calendar.e2e.test.ts
 
+      # §22.1's backup/restore drill (0025 T5). Placed HERE, and the position is
+      # load-bearing in both directions: the ledger is at its richest after the
+      # apply gates (synced items + applied deletions + resolved failures), and
+      # the mapping is still active — which is what makes the drill's closing
+      # assertion ("a further pass creates nothing") available at all. After
+      # Finish the mapping is unscheduled and the drill could only count rows.
+      #
+      # It DESTROYS the database (volume removed on Postgres, state directory
+      # deleted on PGlite) and restores it from the documented backup, so
+      # everything downstream is running on restored state. That is the point:
+      # if the restore is subtly wrong, the Finish gate below is the first
+      # thing to say so.
+      - name: Run Backup/Restore Drill (§22.1)
+        run: pnpm test:e2e test/e2e/selfhost-backup-restore.e2e.test.ts
+
       # Finishing UNSCHEDULES the mapping, so every gate above needs to have run
       # already. Hence its own step, last, and its own `pnpm test:e2e` call —
       # vitest gives no ordering guarantee across files in one invocation.

@@ -386,11 +386,38 @@ The Postgres volume is the appliance's state (the ledger + cursors). Back it up
 with a portable dump:
 
 ```sh
-docker compose -f deploy/selfhost/compose.yml exec postgres \
+docker compose -f deploy/selfhost/compose.yml exec -T postgres \
   pg_dump -U openmigrate -d openmigrate > openmigrate-$(date +%F).sql
 ```
 
-Keep the dump off the host. Restore into a fresh volume with `psql` if needed.
+Keep the dump off the host.
+
+**Restoring into a fresh volume takes three steps, in this order** (the CI
+drill executes exactly these — `test/e2e/selfhost-backup-restore.e2e.test.ts`):
+
+```sh
+# 1. Postgres ALONE. The app must not be running: it would migrate the empty
+#    database out from under the restore and collide with it.
+docker compose -f deploy/selfhost/compose.yml up -d postgres
+
+# 2. Recreate the app_user role. Roles are cluster-global, so `pg_dump` leaves
+#    them out by design — while every GRANT and every RLS policy in the dump
+#    names this one. Without this, the restore dies on the first GRANT. (Same
+#    definition the baseline migration uses.)
+docker compose -f deploy/selfhost/compose.yml exec -T postgres \
+  psql -U openmigrate -d openmigrate -v ON_ERROR_STOP=1 \
+  -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='app_user')
+       THEN CREATE ROLE app_user LOGIN PASSWORD 'app_password'; END IF; END \$\$;"
+
+# 3. The dump itself. ON_ERROR_STOP so a half-applied restore fails loudly
+#    instead of leaving you with a database that looks restored.
+docker compose -f deploy/selfhost/compose.yml exec -T postgres \
+  psql -U openmigrate -d openmigrate -v ON_ERROR_STOP=1 < openmigrate-YYYY-MM-DD.sql
+
+# 4. Now start the app. Its startup migration run finds the schema current and
+#    applies nothing.
+docker compose -f deploy/selfhost/compose.yml up -d app
+```
 
 **On the PGlite variant there is no `pg_dump`** — no server to connect to.
 The database is the `pglite` directory inside the app's state volume; back it
@@ -398,15 +425,27 @@ up by copying that directory **while the appliance is stopped** (a copy taken
 mid-write is not a consistent snapshot):
 
 ```sh
-docker compose -f deploy/selfhost/compose.yml -f deploy/selfhost/compose.pglite.yml stop app
-# Find the state volume's real name first (compose prefixes it with the
-# project name): docker volume ls | grep appdata
-docker run --rm -v <project>_appdata:/data -v "$PWD":/backup alpine \
-  tar czf /backup/openmigrate-pglite-$(date +%F).tar.gz -C /data state/pglite
-docker compose -f deploy/selfhost/compose.yml -f deploy/selfhost/compose.pglite.yml start app
+COMPOSE="-f deploy/selfhost/compose.yml -f deploy/selfhost/compose.pglite.yml"
+docker compose $COMPOSE stop app
+# The state volume is `<project>_appdata` — `open-migrate-selfhost_appdata`
+# unless you renamed the project (`docker volume ls | grep appdata`).
+# It mounts AT /data/state in the app, so the volume's own root already IS
+# `state`: the directory inside it is `pglite`, not `state/pglite`.
+docker run --rm -v open-migrate-selfhost_appdata:/data -v "$PWD":/backup alpine \
+  tar czf /backup/openmigrate-pglite-$(date +%F).tar.gz -C /data pglite
+docker compose $COMPOSE start app
 ```
 
-Restore by untarring into the volume the same way, again with the app stopped.
+Restore the same way with the app stopped — replacing the directory rather
+than untarring over it, so a leftover file from the dead copy cannot survive
+into the restored one:
+
+```sh
+docker compose $COMPOSE stop app
+docker run --rm -v open-migrate-selfhost_appdata:/data -v "$PWD":/backup alpine \
+  sh -c 'rm -rf /data/pglite && tar xzf /backup/openmigrate-pglite-YYYY-MM-DD.tar.gz -C /data'
+docker compose $COMPOSE start app
+```
 
 > **Recovery (ADR-0020): ledger loss ≠ data loss.** The ledger records what was
 > migrated; the migrated data lives on the **target**. If you lose the ledger,
@@ -432,9 +471,11 @@ Rules of the road (§22.1):
 - **No downgrades.** If you start an app image **older** than the DB schema, the
   startup runner **refuses to start** (the downgrade guard) rather than risk the
   data — roll forward, or restore the matching backup.
-- **Channels.** `edge` is the rolling build from `main` (good for trying it);
-  `stable` is a promoted release. Pin production to a `stable` tag or an
-  immutable `sha256` digest so upgrades are deliberate.
+- **Channels.** `edge` is the rolling build from `main` (good for trying it),
+  and every build is also tagged `sha-<commit>`. Release tags (`X.Y.Z`,
+  `latest`) begin with the first release. Pin production to an immutable
+  `sha256` digest so upgrades are deliberate — verify-then-pin procedure in
+  [`deploy/selfhost/README.md`](../deploy/selfhost/README.md).
 
 ## Stopping / removing
 
