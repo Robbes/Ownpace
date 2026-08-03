@@ -42,6 +42,37 @@ describe('a source that could not look', () => {
   });
 });
 
+describe('coverage we cannot fully resolve', () => {
+  it('raises NOTHING and reports the reason', () => {
+    // The directory read fine. What we cannot say is what is already covered
+    // — and announcing a mailbox somebody is already migrating teaches them
+    // the queue is wrong, which is worse than saying nothing.
+    const result = detectNewMailboxes({
+      tenantId: TENANT,
+      listing: listed('info@acme.nl'),
+      covered: [],
+      coverageIncomplete: 'm-2 does not state which mailbox it covers',
+    });
+
+    expect(result.decisions).toEqual([]);
+    expect(result.blindSpot).toBe('m-2 does not state which mailbox it covers');
+  });
+
+  it('is a separate blind spot from a directory that could not be read', () => {
+    // Both produce no decisions; they are different problems with different
+    // fixes, and the reason carried has to be the right one.
+    const unreadable = detectNewMailboxes({
+      tenantId: TENANT,
+      listing: { kind: 'not_enumerable', reason: 'delegated permissions' },
+      covered: [],
+      coverageIncomplete: 'm-2 is unstated',
+    });
+    // The directory failure is reported first: there is nothing to compare
+    // coverage against, so that is the more fundamental of the two.
+    expect(unreadable.blindSpot).toBe('delegated permissions');
+  });
+});
+
 describe('what counts as new', () => {
   it('raises one decision per uncovered mailbox', () => {
     const result = detectNewMailboxes({

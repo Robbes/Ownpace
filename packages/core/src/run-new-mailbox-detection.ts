@@ -37,6 +37,11 @@ export interface DetectionDeps {
   coveredAddresses(): Promise<readonly string[]>;
   /** Subjects the owner has already closed; not asked again. */
   dismissedAddresses(): Promise<readonly string[]>;
+  /**
+   * Why coverage is incomplete, when it is. Returning a reason stops this run
+   * from raising anything — see `DetectInput.coverageIncomplete`.
+   */
+  coverageIncomplete?(): Promise<string | undefined>;
   /** Write to the decision queue. `created` false means it was already pending. */
   raise(input: RaiseDecisionInput): Promise<{ readonly created: boolean }>;
   /**
@@ -67,11 +72,13 @@ export async function runNewMailboxDetection(deps: DetectionDeps): Promise<Detec
     deps.dismissedAddresses(),
   ]);
 
+  const incomplete = await deps.coverageIncomplete?.();
   const result = detectNewMailboxes({
     tenantId: deps.tenantId,
     listing,
     covered: covered.map((address) => ({ address })),
     dismissed,
+    ...(incomplete ? { coverageIncomplete: incomplete } : {}),
   });
 
   if (result.blindSpot) {
