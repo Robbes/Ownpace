@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@openmig/connectors": "workspace:*",
     "@openmig/ledger": "workspace:*",
     "@openmig/scheduler": "workspace:*",
     "@openmig/shared": "workspace:*",

@@ -66,6 +66,16 @@ import { serveUi, UI_MOUNT } from './static-ui';
 import { createVerifyRunner } from './verify-run';
 import { log } from '@openmig/shared';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
+import {
+  readNotifierConfig,
+  createNotifier,
+  disabledNotifier,
+  createFailureStreakGate,
+  renderEvent,
+  type Notifier,
+  type NotificationEvent,
+} from '@openmig/shared';
+import { smtpTransport } from '@openmig/connectors';
 
 const DEFAULT_CONFIG_DIR = '/data/config';
 
@@ -209,6 +219,15 @@ export interface SelfhostOptions {
 
 export interface SelfhostHandle {
   readonly port: number;
+  /**
+   * The notification channel this appliance booted with (workplan 0030 T1) —
+   * a real sender when SMTP is configured, an honest no-op that says why when
+   * it is not. Exposed rather than hidden in the closure because the events
+   * that will call it (0030 T2/T3) live outside `start()`, and because a test
+   * can then assert which of the two an environment produces without sending
+   * anything.
+   */
+  readonly notifier: Notifier;
   stop(): Promise<void>;
 }
 
@@ -294,6 +313,53 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
    * `handles` stays the shutdown list; ScheduleHandle exposes only stop(), so a
    * separate map is the only way to find the right one. */
   const scheduled = new Map<string, ScheduleHandle>();
+
+  // 3b. The notification channel (workplan 0030 T1).
+  //
+  // Built from the environment, because who gets told is an APPLIANCE-wide
+  // fact rather than a per-mapping one, and because the appliance already
+  // takes its secrets that way (`.env`, gitignored — hard rule 3). Rule 5
+  // holds: this is the owner's own SMTP server, not a managed dependency.
+  //
+  // The state is announced at startup either way. An owner who believes they
+  // will be emailed when the channel is off is worse off than one who knows
+  // it is off, and `readNotifierConfig` names the missing variables when the
+  // configuration is half-done — the case where somebody plainly tried.
+  const notifierConfig = readNotifierConfig(process.env);
+  const notifier: Notifier = notifierConfig.enabled
+    ? createNotifier(smtpTransport(notifierConfig.smtp), notifierConfig.settings)
+    : disabledNotifier(notifierConfig.reason, (m) => log.warn(m));
+  log.info(
+    notifierConfig.enabled
+      ? `[selfhost] notifications: ON → ${notifierConfig.settings.to.join(', ')} ` +
+          `(${notifierConfig.settings.locale ?? 'en'}, via ${notifierConfig.smtp.host}:${notifierConfig.smtp.port})`
+      : `[selfhost] notifications: OFF — ${notifierConfig.reason}`,
+  );
+
+  /** One outage, one email — never one per failed pass (0030 T2). */
+  const failureStreak = createFailureStreakGate();
+  const notifyLocale = notifierConfig.enabled ? (notifierConfig.settings.locale ?? 'en') : 'en';
+
+  /**
+   * Send an event, or do nothing when there is nothing to say.
+   *
+   * A failed SEND must never take down the thing it was reporting on: a
+   * migration that finished is still finished if the email about it bounced.
+   * So the error is logged loudly here (rule 9 — it is not swallowed, it is
+   * reported) and not rethrown into a sync pass or an operator's request.
+   */
+  const tell = async (event: NotificationEvent | undefined): Promise<void> => {
+    if (!event) return;
+    try {
+      await notifier.notify(renderEvent(event, notifyLocale));
+    } catch (err) {
+      log.error(
+        `[notify] could not send "${event.kind}":`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  };
+
 
   // Helper to run a function with tenant context set for RLS
   const withTenantContext = async <T>(
@@ -450,9 +516,31 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       }
 
       log.info(`[selfhost] ${m.config.mappingId}: pass complete (${created} created)`);
+
+      // A pass in which EVERY domain failed is the mapping failing, and the
+      // same definition the run row uses — a partly failed pass is per-item
+      // trouble that the queues already report to a person. The gate makes
+      // this one email per outage rather than one per minute (0030 T2).
+      const allFailed = results.length > 0 && results.every((r) => r.error);
+      await tell(
+        failureStreak.record(
+          m.config.mappingId,
+          allFailed ? 'failed' : 'ok',
+          results.find((r) => r.error)?.error,
+        ),
+      );
     } catch (err) {
       // Surface, never swallow (hard rule 9). The scheduler keeps running.
       log.error(`[selfhost] ${m.config.mappingId}: pass failed:`, err instanceof Error ? err.message : err);
+      // A pass that threw outright never produced results, and is as failed
+      // as a pass can be.
+      await tell(
+        failureStreak.record(
+          m.config.mappingId,
+          'failed',
+          err instanceof Error ? err.message : String(err),
+        ),
+      );
     }
   };
 
@@ -531,6 +619,18 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         { ...m.config, mappingId: m.mailboxMappingId } as typeof m.config,
         ledgerOptions,
       );
+    }
+    // The §20 gate is the slow one — minutes against a real target — and the
+    // owner who started it has long since closed the tab. Told once per run,
+    // per mapping, on the transition to a finished report (0030 T2). Only a
+    // PASS counts as passed: WARN is not a green light, and saying so in the
+    // one email somebody reads about it would be the worst place to blur it.
+    for (const [mappingId, report] of Object.entries(reports)) {
+      await tell({
+        kind: 'verification_finished',
+        mappingId,
+        passed: report.overallStatus === 'PASS',
+      });
     }
     return reports;
   });
@@ -1110,6 +1210,10 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           `[selfhost] ${m.config.mappingId}: FINISHED by operator — no longer syncing` +
             (unresolved > 0 ? ` (forced over ${unresolved} unresolved failure(s))` : ''),
         );
+        // Once, on the real transition: the repeat path above answers
+        // `alreadyDone` and returns before reaching here, so finishing twice
+        // cannot send twice (0030 T2).
+        await tell({ kind: 'migration_finished', mappingId: m.config.mappingId });
 
         const finished: FinishAccepted = {
           status: 'ok',
@@ -1202,6 +1306,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
 
   return {
     port: boundPort,
+    notifier,
     stop: () => shutdown(server, handles, persistenceBackend),
   };
 }
