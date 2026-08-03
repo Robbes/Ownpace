@@ -76,6 +76,8 @@ let base: string;
 // integration suite to run out of.
 let ledger: PgLedger;
 let decisions: PgDecisionStore;
+/** Kept so it can be CLOSED before the database is dropped — see afterAll. */
+let db: ReturnType<typeof createPgDb>;
 
 /** The queue envelopes, as far as this test reads them. */
 interface QueueBody {
@@ -136,7 +138,7 @@ beforeAll(async () => {
   }
 
   pool = new Pool({ connectionString: PG_CONNECTION_STRING });
-  const db = createPgDb(PG_CONNECTION_STRING);
+  db = createPgDb(PG_CONNECTION_STRING);
   ledger = new PgLedger(db);
   decisions = new PgDecisionStore(db);
 
@@ -212,13 +214,20 @@ beforeAll(async () => {
 }, 180_000);
 
 afterAll(async () => {
-  await handle?.stop();
+  // CLOSE every pool of ours before the drop, rather than relying on the
+  // terminate below to do it. `pg_terminate_backend` against a live pool makes
+  // its client emit `terminating connection due to administrator command`
+  // with nobody listening, and vitest fails the run on the unhandled error
+  // even when every test passed — which is exactly what happened on the first
+  // green run of this file.
+  await handle?.stop(); // ends the appliance's own pool
+  await db?.close();
   await pool?.end();
 
   // Drop the whole database rather than the rows: nothing else in the suite
-  // shares it. Stragglers are terminated first — the appliance's own pool and
-  // the drizzle one above both hold connections, and Postgres refuses to drop
-  // a database anybody is still attached to.
+  // shares it. The terminate stays as a backstop for anything that outlived
+  // its owner — Postgres refuses to drop a database somebody is attached to —
+  // and by this point it should find nothing to kill.
   const cleanup = new Pool({ connectionString: ADMIN_URL });
   try {
     await cleanup.query(
