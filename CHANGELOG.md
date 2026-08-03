@@ -3,6 +3,73 @@
 All notable changes are documented here (Keep a Changelog format; SemVer once released).
 
 ## [Unreleased]
+
+## [0.1.0-rc.1] - 2026-08-03
+
+The first tagged artifact. A **release candidate**, deliberately: the pipeline
+that produces it is proven, the feature set is still moving, and a version
+people might pin should not imply otherwise (owner decision 2026-08-03,
+workplan 0025 T2).
+
+### What is in it, and actually works
+
+- **Shadow sync, one way, idempotent.** Mail, calendar, contacts and files from
+  Microsoft 365 to JMAP (Stalwart) and to the IMAP/DAV family (Soverin,
+  openDesk, Nextcloud). Re-running a pass creates nothing twice — the natural
+  key is the same on both transports, so switching between IMAP and Graph
+  cannot duplicate a mailbox. Proven end to end in CI against real servers,
+  nightly, on both persistence backends.
+- **The three item queues** — deletions, moves, failures — each reporting what
+  is waiting on a person and what the machine is still retrying, with the
+  server's own diagnostics carried verbatim.
+- **`apply`, the one destructive operation**, behind seven gates including a
+  mass-deletion circuit breaker. Off unless a mapping opts in.
+- **Verification and cutover**, with the count/checksum gate that must pass
+  before the DNS switch, and a rollback path that reactivates the source.
+- **Both editions**: the self-host appliance (PGlite or Postgres, in-process
+  scheduler, no Docker required for the packaged payload) and the managed stack
+  (Trigger.dev tasks, RLS-isolated tenants, billing).
+- **Bilingual EN/NL** across the operating screens, with compile-time key
+  parity — a missing translation is a type error, not a silent fallback.
+- **Email notifications**: ad hoc events plus a daily/weekly "what needs
+  attention" digest, per edition. An empty digest is never sent; a queue that
+  could not be read always is.
+- **Supply chain**: multi-arch images signed with cosign (keyless, by digest),
+  a CycloneDX SBOM per build, every GitHub Action pinned by commit SHA.
+
+### What is NOT in it — read this before pointing anyone at it
+
+- **Shared mailboxes and distribution lists do not migrate.** The SAD promises
+  both §14.1 patterns; the code for them is workplan 0027 and is unbuilt. The
+  auth model it needs landed here (application-permission scope + runbook), the
+  migration itself did not.
+- **No drift detection.** The decision queue exists end to end and nothing
+  raises a decision into it yet — the detectors are workplan 0028 and are
+  blocked on tenant admin consent. The screen says so rather than showing an
+  empty list that reads as "no changes".
+- **No permission inventory.** Delegate and share rights are not discovered,
+  mapped or reported (workplan 0029).
+- **One-way only.** Bidirectional sync and post-cutover reverse sync were
+  **retracted** on 2026-08-03, not deferred: writing back to the source would
+  mean modifying the system being migrated away from. The source itself is the
+  fallback — it is never deleted from.
+- **DNS is verify-only.** The MX switch and any revert are manual operator
+  steps. Nothing here writes DNS.
+- **No signed installers.** The Windows MSI is unbuilt and no code-signing
+  certificate has been bought, so a desktop installer will show SmartScreen and
+  Gatekeeper warnings when one exists.
+- **Byte-level parity is not measured** on the target for every domain; where
+  it is not, verification reports "not measured" rather than a fabricated
+  match.
+
+### Notes for anyone running it
+
+- Prerelease images do **not** take the `latest` tag — pin the explicit
+  `0.1.0-rc.1` tag or a digest.
+- Verify a signature before running anything:
+  `cosign verify ghcr.io/robbes/open-migrate-selfhost@sha256:… --certificate-identity-regexp '^https://github.com/Robbes/open-migrate/' --certificate-oidc-issuer https://token.actions.githubusercontent.com`
+- Back up the control-plane database before upgrading. The N-1 → N upgrade
+  path becomes testable from this tag onward and is not yet proven.
 - **This cycle (2026-08-02): 0019 and 0021 closed; ADR-0006's Graph-mail fallback built end to end (workplan 0023); two dormant ADR promises became real or were corrected.** In order: **workplan 0019 closed** — the apply client speaks the managed receipt shape (the one success-shape edition split ADR-0026 permits), the Deletions screen polls receipts to their terminal states, `allow_apply_deletions` got its owner-only API and a deliberately heavy two-step switch, `MappingDetail` became a real per-mapping hub, `Finish` gained a queue-envelope-driven per-mapping mode, and the appliance's deprecated synchronous `GET /verify` was retired exactly one release after 0017 promised it (the wiring test now pins the 404). **Workplan 0021, the documentation truth pass** — the SAD bumped to v1.2 (engine-name sweep, ADR-0011's real self-hosted-targets position, the corrected `TargetRemover` claim, PGlite named, the bilingual promise marked unbuilt, ADR index through 0028); the cutover runbook was rewritten against the code and **found a real bug doing it**: the CLI's `execute` attempted `CUTOVER_IN_PROGRESS→COMPLETED`, an edge the state machine rejects — the happy path threw AFTER the operator had switched DNS. Fixed: `execute` lands in `GRACE_PERIOD` and a new `--yes`-gated `complete` closes it; `rls-guide.md` was rewritten around the real FORCE-RLS/`app_user`/`withTenant` model (26 tables, all FORCEd); `testing.md` dropped its deleted-engine tutorial and gained a tree-verified untested-seams appendix; six READMEs stopped lying about env vars, ports and architecture. **Two ADR promises with no code behind them got owner decisions and same-day builds**: the **Atlas migration lint** is a CI job (`migration-lint` — replays the whole migration dir against a disposable Postgres, fails on destructive changes; ADR-0017), and **ADR-0006's Graph-mail fallback is real end to end** (workplan 0023): a `GraphMailSource` connector keyed on the same `internetMessageId` natural key as IMAP (a transport switch cannot duplicate a mailbox), wired through both editions' dep builders with fail-closed credential contracts, and a runtime `MailSourceWithGraphFallback` that answers an auth-refused IMAP mailbox with one self-verifying Graph probe and continues the run over Graph, loudly — because O365 answers disabled-IMAP and bad-credential with the same prose, so the honest detection is to prove the alternative works rather than parse the error.
 - **The managed edition runs on ONE execution plane (workplans 0020+0022, all closed 2026-08-01 with live evidence).** The day started with two security findings and ended with the polling scheduler deleted. In order: `authenticate` now confirms tenant **membership** and takes the role from the `tenant_member` row, never the token — proven in production with two identically-signed tokens (member → 200, non-member → 403, where before both were served); every secret is `:?`-required with zero committed fallbacks and the API refuses to boot in production on a known placeholder (`ensure-env-secrets.sh` generates per-install values); the dashboard's TLS front became a compose service; the hand-run verify+apply smoke became **`smoke-managed.sh`**, the one-command acceptance test for every stack change; the managed runbook was rewritten around the real bring-up (the initdb-mount instruction that crashed the API is gone); task env vars upload via **`set-task-env.sh`** instead of a dashboard ritual; and a hardening sweep deleted 204 lines of pretend-code (the unauthenticated webhook sink, the rotten `managed-simple.yml`). Then the owner decision: **syncs moved onto the `managed-sync-tick` scheduled task** — one declarative every-minute tick evaluating each mapping's own cron against the DB (no per-mapping schedule state to reconcile), explicit enabled-domains, per-mapping concurrency 1 — and the polling `managed-scheduler`, its Dockerfile and its compose service were **deleted** (−487 lines). The staged cutover earned its keep: the tick's first due firing surfaced a real in-runner networking bug (the platform injects the HOST-perspective API URL into runners; this was the first task to call the API from inside one), fixed with the poller one command from resuming and zero data impact. Every claim above has Spark-stack evidence in the 0020/0022 status blocks.
 - **Catch-up entry (2026-08-01) — the changelog had fallen behind the tree; the whole-repo review brings it current.** Since the last entry: **`apply` and `verify` landed in the managed edition** (workplan 0017 — verify as a start+poll pair over `verification_run`, apply as evaluate-then-enqueue with an `apply_receipt` lifecycle; every gate answered synchronously with the appliance's exact refusal codes; ledger migrations 0003/0004), which retracts this file's older claim below that they are "deliberately absent from the managed API" — that was true when written and is not anymore. **The Trigger.dev tasks actually deploy and run** (workplan 0018): `apps/worker/trigger.config.ts`, one env contract (`TRIGGER_API_URL`/`TRIGGER_SECRET_KEY` — the SDK's own names, replacing three disagreeing ones), a compose execution plane (local registry, docker-socket proxy, supervisor, ClickHouse, MinIO, all with restart policies), `deploy/compose/deploy-tasks.sh`, and `DEPLOY_IMAGE_PLATFORM` for arm64 hosts. Verified live on real hardware, both halves: an API `202` became a real runner executing `run-verification` and landing a per-domain PASS report in 1.7 s, and the apply path landed a live receipt `applied`/`kind: deleted` in ~6 s after re-running every gate in the job — the managed edition's destructive path is proven end to end. **The e2e gate now runs both persistence backends** (Postgres + PGlite, 46 tests each) and moved onto the verify start+poll pair. **Jobs now respect the scope selection**: apply/verify touch only domains enabled in `scope_selection` instead of building connectors for all four (PR #207). Housekeeping from the review: the committed `.env.managed` was removed and gitignored, ADR-0028 records the PGlite architecture decision post-hoc, and workplans 0019 (managed operating surface), 0020 (managed-stack productionization, incl. two security findings) and 0021 (documentation truth pass) collect all known leftover work.
