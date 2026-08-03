@@ -123,7 +123,20 @@ export interface DomainConfig {
   readonly target: TargetConfig;
   /** Optional per-domain concurrency override */
   readonly concurrency?: number;
-  /** Optional per-domain throttle configuration */
+  /**
+   * Optional throttle configuration.
+   *
+   * NOT per-domain in effect, despite where it sits (0026 T1 item 4): every
+   * domain's block is merged into ONE shared limiter —
+   * `createThrottleLimiterFromMapping` takes the most restrictive
+   * `maxConcurrent`/`requestsPerSecond` across domains — and that limiter is
+   * currently wired to the MAIL source only; the DAV/files connectors run
+   * without one. The most-restrictive merge errs in the safe direction
+   * (rule 4: no domain's cap is ever exceeded), but a lower cap on one
+   * domain slows all of them. True per-domain limiters are future work;
+   * until then, configure this as "the mapping's limiter", not a per-domain
+   * one.
+   */
   readonly throttleConfig?: Partial<ThrottleConfig>;
 }
 
