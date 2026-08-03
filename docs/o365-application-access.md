@@ -124,11 +124,23 @@ behaviour, which is what every current mapping does.
 ```json
 {
   "source": {
-    "type": "graph",
+    "type": "graph-mail",
+    "tenantId": "yourtenant.onmicrosoft.com",
     "mailbox": "gedeeld@yourtenant.nl"
   }
 }
 ```
+
+`graph-calendar` and `graph-contacts` take the same field. Omit `mailbox`
+entirely to keep the delegated `/me` behaviour — that is what every mapping
+written before this feature does, and it is unchanged.
+
+**The two flows are not interchangeable, and naming a mailbox picks one.** The
+worker builds a delegated token when `OAUTH2_REFRESH_TOKEN` is set and an
+application token from `OAUTH2_CLIENT_SECRET` otherwise. A mapping that names
+a mailbox while a refresh token is present is **refused at build time**, with
+the reason and a pointer back to this document — because the alternative is a
+bare `403` from Graph that says nothing about which flow you are on.
 
 The address is validated before any request is built (`graph-scope.ts`): a
 value that is empty or does not look like a user principal name is refused with

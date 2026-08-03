@@ -74,6 +74,20 @@ export interface GraphCalendarSource {
   readonly type: 'graph-calendar';
   readonly baseUrl?: string;
   readonly tenantId: string;
+  /**
+   * WHOSE mailbox to read, when it is not the signed-in user's own.
+   *
+   * Unset (the default, and what every existing mapping does) means `/me`
+   * under delegated permissions. An address makes this a `/users/{address}`
+   * read, which needs APPLICATION permissions and admin consent on the source
+   * tenant — see `docs/o365-application-access.md`. That is how a SHARED
+   * mailbox becomes an ordinary mapping (SAD §14.1 Pattern S): a shared store
+   * has no interactive user to sign in as.
+   *
+   * Validated by `graph-scope.ts` before any request is built; a value that is
+   * not a usable user principal name is refused with the reason.
+   */
+  readonly mailbox?: string;
 }
 
 /** Microsoft Graph Contacts source */
@@ -81,6 +95,20 @@ export interface GraphContactsSource {
   readonly type: 'graph-contacts';
   readonly baseUrl?: string;
   readonly tenantId: string;
+  /**
+   * WHOSE mailbox to read, when it is not the signed-in user's own.
+   *
+   * Unset (the default, and what every existing mapping does) means `/me`
+   * under delegated permissions. An address makes this a `/users/{address}`
+   * read, which needs APPLICATION permissions and admin consent on the source
+   * tenant — see `docs/o365-application-access.md`. That is how a SHARED
+   * mailbox becomes an ordinary mapping (SAD §14.1 Pattern S): a shared store
+   * has no interactive user to sign in as.
+   *
+   * Validated by `graph-scope.ts` before any request is built; a value that is
+   * not a usable user principal name is refused with the reason.
+   */
+  readonly mailbox?: string;
 }
 
 /** Microsoft Graph mail source (workplan 0023 — ADR-0006's IMAP-disabled fallback). */
@@ -88,6 +116,20 @@ export interface GraphMailSource {
   readonly type: 'graph-mail';
   readonly baseUrl?: string;
   readonly tenantId: string;
+  /**
+   * WHOSE mailbox to read, when it is not the signed-in user's own.
+   *
+   * Unset (the default, and what every existing mapping does) means `/me`
+   * under delegated permissions. An address makes this a `/users/{address}`
+   * read, which needs APPLICATION permissions and admin consent on the source
+   * tenant — see `docs/o365-application-access.md`. That is how a SHARED
+   * mailbox becomes an ordinary mapping (SAD §14.1 Pattern S): a shared store
+   * has no interactive user to sign in as.
+   *
+   * Validated by `graph-scope.ts` before any request is built; a value that is
+   * not a usable user principal name is refused with the reason.
+   */
+  readonly mailbox?: string;
 }
 
 /** CalDAV target for calendar data */
@@ -357,6 +399,8 @@ function parseSource(obj: Record<string, unknown>): SourceConfig {
       type: 'graph-calendar',
       baseUrl: obj['baseUrl'] as string | undefined,
       tenantId: reqString(obj, 'tenantId', 'source.tenantId'),
+      // Optional: unset means the signed-in user (/me). See the type's comment.
+      ...(obj['mailbox'] === undefined ? {} : { mailbox: String(obj['mailbox']) }),
     };
   }
   if (type === 'graph-contacts') {
@@ -364,6 +408,8 @@ function parseSource(obj: Record<string, unknown>): SourceConfig {
       type: 'graph-contacts',
       baseUrl: obj['baseUrl'] as string | undefined,
       tenantId: reqString(obj, 'tenantId', 'source.tenantId'),
+      // Optional: unset means the signed-in user (/me). See the type's comment.
+      ...(obj['mailbox'] === undefined ? {} : { mailbox: String(obj['mailbox']) }),
     };
   }
   if (type === 'graph-mail') {
@@ -371,6 +417,8 @@ function parseSource(obj: Record<string, unknown>): SourceConfig {
       type: 'graph-mail',
       baseUrl: obj['baseUrl'] as string | undefined,
       tenantId: reqString(obj, 'tenantId', 'source.tenantId'),
+      // Optional: unset means the signed-in user (/me). See the type's comment.
+      ...(obj['mailbox'] === undefined ? {} : { mailbox: String(obj['mailbox']) }),
     };
   }
   throw new ConfigError(`source.type: unsupported "${type}" (expected "imap-oauth2", "caldav", "carddav", "webdav", "graph-calendar", "graph-contacts", or "graph-mail")`);

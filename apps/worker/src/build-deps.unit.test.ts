@@ -80,11 +80,15 @@ describe('buildDeps IMAP source auth wiring', () => {
 // not fail mid-pass with a token error.
 // ---------------------------------------------------------------------------
 
-function graphMailConfig(): MappingConfig {
+function graphMailConfig(mailbox?: string): MappingConfig {
   const base = configWith({ kind: 'login', passwordFromEnv: 'UNUSED' });
   return {
     ...base,
-    source: { type: 'graph-mail', tenantId: 'contoso.example' },
+    source: {
+      type: 'graph-mail',
+      tenantId: 'contoso.example',
+      ...(mailbox === undefined ? {} : { mailbox }),
+    },
   };
 }
 
@@ -108,6 +112,62 @@ describe('buildDeps graph-mail source wiring', () => {
     vi.stubEnv('TGT_PASSWORD', 'pw');
     try {
       await expect(buildDeps(graphMailConfig())).rejects.toThrow(/OAUTH2_CLIENT_ID/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('reads a NAMED mailbox on the client-credentials flow (the shared-mailbox path)', async () => {
+    // 0027 T0 gave the connector a `mailbox` option and nothing could set it;
+    // this is the mapping-file surface that makes it reachable (SAD §14.1
+    // Pattern S — a shared store has no user to sign in as).
+    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
+    vi.stubEnv('OAUTH2_CLIENT_ID', 'app-id');
+    vi.stubEnv('OAUTH2_CLIENT_SECRET', 'app-secret');
+    vi.stubEnv('TGT_PASSWORD', 'pw');
+    try {
+      const deps = await buildDeps(graphMailConfig('gedeeld@contoso.nl'));
+      expect(deps.source).toBeInstanceOf(GraphMailSource);
+      await deps.close();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('REFUSES a named mailbox on the delegated flow, naming the fix', async () => {
+    // The failure this prevents: a delegated token against /users/{address}
+    // gets a bare 403 from Graph, and the operator reads an access-denied
+    // error that says nothing about which of the two flows they are on.
+    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
+    vi.stubEnv('OAUTH2_CLIENT_ID', 'app-id');
+    vi.stubEnv('OAUTH2_REFRESH_TOKEN', 'a-delegated-refresh-token');
+    vi.stubEnv('TGT_PASSWORD', 'pw');
+    try {
+      const failure = buildDeps(graphMailConfig('gedeeld@contoso.nl'));
+      await expect(failure).rejects.toThrow(/gedeeld@contoso\.nl/);
+      await expect(buildDeps(graphMailConfig('gedeeld@contoso.nl'))).rejects.toThrow(
+        /OAUTH2_REFRESH_TOKEN is set/,
+      );
+      // Points at the runbook rather than leaving them to guess.
+      await expect(buildDeps(graphMailConfig('gedeeld@contoso.nl'))).rejects.toThrow(
+        /o365-application-access\.md/,
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('still allows the delegated flow when no mailbox is named', async () => {
+    // The guard must not break /me reads, which is what every existing
+    // delegated mapping does.
+    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
+    vi.stubEnv('OAUTH2_CLIENT_ID', 'app-id');
+    vi.stubEnv('OAUTH2_REFRESH_TOKEN', 'a-delegated-refresh-token');
+    vi.stubEnv('TGT_PASSWORD', 'pw');
+    try {
+      const deps = await buildDeps(graphMailConfig());
+      expect(deps.source).toBeInstanceOf(GraphMailSource);
+      await deps.close();
     } finally {
       vi.unstubAllEnvs();
     }
