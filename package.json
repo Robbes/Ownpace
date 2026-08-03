@@ -21,9 +21,9 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
-    "@azure/msal-node": "^5.4.2",
-    "@trigger.dev/core": "4.5.7",
-    "@trigger.dev/sdk": "4.5.7",
+    "@azure/msal-node": "^5.4.3",
+    "@trigger.dev/core": "4.5.9",
+    "@trigger.dev/sdk": "4.5.9",
     "croner": "^10.0.1",
     "jmap-jam": "^0.13.3"
   },
@@ -31,7 +31,7 @@
     "@cyclonedx/cyclonedx-npm": "^6.0.0",
     "@eslint/js": "10.0.1",
     "@types/imap-simple": "^4.2.10",
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.1.2",
     "@types/pg": "catalog:",
     "@types/supertest": "^7.2.1",
     "@typescript-eslint/eslint-plugin": "^8.65.0",
@@ -44,7 +44,7 @@
     "imap-simple": "^5.1.0",
     "jsdom": "^29.1.1",
     "pg": "catalog:",
-    "playwright-core": "^1.62.0",
+    "playwright-core": "^1.62.1",
     "prettier": "3.9.6",
     "supertest": "^7.2.2",
     "testcontainers": "^12.0.4",

@@ -10,6 +10,6 @@
   },
   "dependencies": {
     "@openmig/shared": "workspace:*",
-    "@trigger.dev/sdk": "^4.5.7"
+    "@trigger.dev/sdk": "^4.5.9"
   }
 }

@@ -22,7 +22,7 @@
     "cors": "^2.8.5",
     "express": "^5.2.1",
     "helmet": "^8.3.0",
-    "jose": "^6.2.4",
+    "jose": "^6.2.5",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "zod": "^4.4.3"
@@ -32,7 +32,7 @@
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.5",
     "@types/morgan": "^1.9.9",
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.1.2",
     "tsx": "^4.23.1",
     "typescript": "^5.3.0",
     "vitest": "^4.1.10"
