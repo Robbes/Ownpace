@@ -71,14 +71,13 @@ import {
   renderEvent,
   renderDigest,
   digestSchedule,
-  summariseQueues,
-  reportsToDigest,
   type Notifier,
   type NotificationEvent,
   type MappingAttention,
   type DigestCadence,
 } from '@openmig/shared';
 import { notifierFromEnv } from '@openmig/connectors';
+import { collectAttention as collectAttentionFrom } from './digest-collect';
 
 const DEFAULT_CONFIG_DIR = '/data/config';
 
@@ -360,77 +359,50 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     }
   };
 
+  const byId = (c: { mappingId: string }): LoadedMapping => {
+    const found = mappings.find((m) => m.config.mappingId === c.mappingId);
+    // Cannot happen — the list the collector walks IS this list — but a
+    // non-null assertion here would be exactly the silent lie rule 9 is about.
+    if (!found) throw new Error(`no configured mapping with id ${c.mappingId}`);
+    return found;
+  };
+
   /**
    * What is waiting on a person right now (workplan 0030 T3).
    *
-   * Read from the SAME ledger calls and the SAME filters the queue endpoints
-   * use, deliberately: a digest that counted differently from the screen it
-   * points at would send somebody to look for four things and show them
-   * three.
-   *
-   * Every read is individually guarded. A queue that could not be read
-   * becomes a BLIND SPOT rather than a zero — `renderDigest` then sends even
-   * when every count is zero, because "I found nothing" and "I could not
-   * look" must not arrive as the same email (hard rule 9).
+   * The RULES live in `digest-collect.ts`, where they are tested without a
+   * database — a `done` mapping skipped before its reads, a failed read
+   * becoming a blind spot rather than a zero, the decision count taken once
+   * per tenant. What is here is the wiring: the same ledger calls and the
+   * same filters the queue endpoints use, deliberately, because a digest that
+   * counted differently from the screen it points at would send somebody to
+   * look for four things and show them three.
    */
-  const collectAttention = async (): Promise<MappingAttention[]> => {
-    const out: MappingAttention[] = [];
-    const decisionsCountedFor = new Set<string>();
-
-    for (const m of mappings) {
-      const tenantId = m.config.tenantId as TenantId;
-      const mappingId = m.mailboxMappingId as MappingId;
-      const blindSpots: string[] = [];
-
-      const status = await mappingStatus(m).catch((err: unknown) => {
-        blindSpots.push(
-          `the migration's own status: ${err instanceof Error ? err.message : String(err)}`,
-        );
-        return undefined;
-      });
-      // A finished migration keeps its history but stops nagging — the same
-      // rule the queue endpoints apply with `reportingClosed`. Checked before
-      // the reads, so a done mapping costs the digest four queries less.
-      if (!reportsToDigest(status)) continue;
-
-      const count = async <T>(what: string, read: () => Promise<T[]>): Promise<T[]> => {
-        try {
-          return await read();
-        } catch (err) {
-          blindSpots.push(`${what}: ${err instanceof Error ? err.message : String(err)}`);
-          return [];
-        }
-      };
-
-      const deletions = await count('the deletions queue', () =>
-        ledger.listDeletions(tenantId, mappingId),
-      );
-      const moves = await count('the moves queue', () => ledger.listMoves(tenantId, mappingId));
-      const failures = await count('the failures queue', () =>
-        ledger.listFailures(tenantId, mappingId),
-      );
-      const decisions = await count('the decision queue', async () => {
-        // Tenant-level, not per mapping: a new mailbox belongs to no mapping
-        // yet. Counted once per tenant so several mappings cannot each report
-        // the same pending decision as if it were theirs.
-        if (decisionsCountedFor.has(tenantId)) return [];
-        decisionsCountedFor.add(tenantId);
-        return [...(await new PgDecisionStore(db).list(tenantId, { status: 'pending' }))];
-      });
-
-      out.push(
-        summariseQueues(m.config.mappingId, {
-          deletions,
-          moves,
-          failures,
-          pendingDecisions: decisions.length,
-          status,
-          blindSpots,
-        }),
-      );
-    }
-    return out;
-  };
+  const collectAttention = (): Promise<MappingAttention[]> =>
+    collectAttentionFrom({
+      mappings: mappings.map((m) => ({
+        mappingId: m.config.mappingId,
+        tenantId: m.config.tenantId,
+      })),
+      status: (c) => mappingStatus(byId(c)),
+      listDeletions: (c) =>
+        ledger.listDeletions(
+          byId(c).config.tenantId as TenantId,
+          byId(c).mailboxMappingId as MappingId,
+        ),
+      listMoves: (c) =>
+        ledger.listMoves(
+          byId(c).config.tenantId as TenantId,
+          byId(c).mailboxMappingId as MappingId,
+        ),
+      listFailures: (c) =>
+        ledger.listFailures(
+          byId(c).config.tenantId as TenantId,
+          byId(c).mailboxMappingId as MappingId,
+        ),
+      countPendingDecisions: async (tenantId) =>
+        (await new PgDecisionStore(db).list(tenantId as TenantId, { status: 'pending' })).length,
+    });
 
   /** Send one digest, or nothing at all when nothing is waiting (0030 T3). */
   const sendDigest = async (cadence: DigestCadence): Promise<void> => {
