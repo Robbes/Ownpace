@@ -11,6 +11,7 @@ import CreateMapping from './pages/CreateMapping';
 import Tenants from './pages/Tenants';
 import Billing from './pages/Billing';
 import Login from './pages/Login';
+import Decisions from './pages/Decisions';
 import Deletions from './pages/Deletions';
 import Moves from './pages/Moves';
 import Failures from './pages/Failures';
@@ -89,6 +90,9 @@ const App: React.FC = () => {
               hang off the mapping they belong to. The SCREENS are identical —
               only the URL they read from differs.
             */}
+            {/* The §11.1 drift decision queue (0028 T1) — TENANT-level, one
+                mount in both editions: a new mailbox belongs to no mapping. */}
+            <Route path="decisions" element={<Decisions />} />
             <Route path="deletions" element={<Deletions />} />
             <Route path="moves" element={<Moves />} />
             <Route path="failures" element={<Failures />} />

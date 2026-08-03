@@ -231,6 +231,31 @@ const en = {
   'memberStatus.invited': 'Invited',
   'memberStatus.suspended': 'Suspended',
   'memberStatus.removed': 'Removed',
+  'nav.decisions': 'Attention',
+  'decisions.title': 'Needs a decision',
+  'decisions.intro':
+    'Changes the sync noticed that only you can decide about. Nothing happens until you answer.',
+  'decisions.readError': 'Could not read the decision queue.',
+  'decisions.requestFailed': 'The request did not complete.',
+  'decisions.dismiss': 'Dismiss',
+  'decisions.empty.noDetectors':
+    'Nothing is waiting — but note that nothing can raise a decision yet: the watchers for new ' +
+    'mailboxes and shared addresses are not built. An empty queue here means "not watched yet", ' +
+    'not "no changes".',
+  'decisions.empty.answered': 'Nothing has been decided yet.',
+  'decisionCategory.new_mailbox': 'New mailbox',
+  'decisionCategory.deleted_mailbox': 'Deleted mailbox',
+  'decisionCategory.quota': 'Quota',
+  'decisionCategory.shared_address_pattern': 'Shared address',
+  'decisionCategory.offboarding': 'Offboarding',
+  'decisionCategory.alias_removed': 'Alias removed',
+  'decisionCategory.new_domain': 'New domain',
+  'decisionCategory.rules_detected': 'Rules detected',
+  'decisionCategory.target_drift': 'Target drift',
+  'decisionCategory.other': 'Other',
+  'decisionStatus.resolved': 'Decided',
+  'decisionStatus.auto_resolved': 'Decided by preset',
+  'decisionStatus.dismissed': 'Dismissed',
 } as const;
 
 const nl: Record<keyof typeof en, string> = {
@@ -460,6 +485,31 @@ const nl: Record<keyof typeof en, string> = {
   'memberStatus.invited': 'Uitgenodigd',
   'memberStatus.suspended': 'Geschorst',
   'memberStatus.removed': 'Verwijderd',
+  'nav.decisions': 'Aandacht',
+  'decisions.title': 'Vraagt om een beslissing',
+  'decisions.intro':
+    'Veranderingen die de synchronisatie opmerkte en waarover alleen u kunt beslissen. Er gebeurt niets totdat u antwoordt.',
+  'decisions.readError': 'De beslissingswachtrij kon niet worden gelezen.',
+  'decisions.requestFailed': 'Het verzoek is niet voltooid.',
+  'decisions.dismiss': 'Afwijzen',
+  'decisions.empty.noDetectors':
+    'Er wacht niets — maar let op: er kan nog niets een beslissing aankaarten. De wachters voor ' +
+    'nieuwe postvakken en gedeelde adressen zijn nog niet gebouwd. Een lege wachtrij betekent ' +
+    'hier "nog niet bewaakt", niet "geen veranderingen".',
+  'decisions.empty.answered': 'Er is nog niets beslist.',
+  'decisionCategory.new_mailbox': 'Nieuw postvak',
+  'decisionCategory.deleted_mailbox': 'Verwijderd postvak',
+  'decisionCategory.quota': 'Quotum',
+  'decisionCategory.shared_address_pattern': 'Gedeeld adres',
+  'decisionCategory.offboarding': 'Vertrek',
+  'decisionCategory.alias_removed': 'Alias verwijderd',
+  'decisionCategory.new_domain': 'Nieuw domein',
+  'decisionCategory.rules_detected': 'Regels gedetecteerd',
+  'decisionCategory.target_drift': 'Afwijking op het doel',
+  'decisionCategory.other': 'Overig',
+  'decisionStatus.resolved': 'Beslist',
+  'decisionStatus.auto_resolved': 'Beslist door voorkeuze',
+  'decisionStatus.dismissed': 'Afgewezen',
 };
 
 export type Locale = 'en' | 'nl';
