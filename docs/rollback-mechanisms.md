@@ -2,9 +2,11 @@
 
 How a cutover is reverted, and — just as importantly — **what rollback does not do for you**.
 
-> **Read this before relying on rollback.** DNS restore and user notification are **not
-> automated**. Rollback reactivates the mapping so shadow sync resumes; reverting the MX record
-> is a **manual operator step**. See "What rollback does not do" below.
+> **Read this before relying on rollback.** DNS restore is **not automated**. Rollback reactivates
+> the mapping so shadow sync resumes; reverting the MX record is a **manual operator step**. Email
+> notification IS available as of 2026-08-03 (workplan 0030 T4) but is **off unless you ask for
+> it** and goes to the configured notification recipients, not to end users. See "What rollback
+> does not do" below.
 
 ## The real rollback path
 
@@ -25,7 +27,14 @@ Two entry points, both driving the same persisted cutover state machine
    authoritative again. *This is the real, in-scope rollback action.*
 4. **Transition cutover state to `ROLLED_BACK`**, recording `rolledBackAt`, `rolledBackBy` and the
    reason in the append-only event log.
-5. **User notification — skipped, and says so.** Not implemented; logged as such rather than faked.
+5. **Notification — only if asked for.** `notifyUsers: true` sends the rollback notice through the
+   product's notification channel (workplan 0030). It defaults to **false**: a rollback is an
+   emergency action, and mail to every configured recipient is not something to do because nobody
+   said not to. If the flag is set and **no SMTP is configured**, the job refuses *before* any
+   rollback action, naming the missing settings — so nothing has happened yet and you can resubmit
+   without the flag. If the send fails *after* the rollback, the failure is logged loudly and the
+   rollback still reports success: it did succeed, and a mail server being down must not tell you
+   otherwise. Tell people by hand when you see that line.
 6. **Cancel the pending grace-period task** — best-effort. Steps 3–4 are already committed, so a
    failed cancel must not flip a successful rollback to `FAILED`.
 
@@ -38,7 +47,9 @@ These are deliberate gaps, not bugs. Do not plan a cutover assuming otherwise.
   `packages/core/src/dns-provider-desec.ts` stays an unwired template). **Revert the MX record
   manually**, then confirm with the verify-only checks — see
   [`dns-management.md`](./dns-management.md) and the `runbook` CLI subcommand.
-- **Users are not notified.** No email is sent. Notify affected users through your own channel;
+- **End users are not notified.** The `notifyUsers` flag emails the addresses the notification
+  channel is configured with — the operator/owner recipients — **not** the people whose mailboxes
+  moved. Nothing in this product mails your customers' users. Notify them through your own channel;
   templates are in [`cutover-communication-templates.md`](./cutover-communication-templates.md).
 - **Data is not restored from a backup.** Rollback is *non-destructive by design* — nothing was
   deleted on the source during cutover, so there is nothing to restore. The source mailbox is still
@@ -74,8 +85,9 @@ pnpm exec tsx apps/worker/src/cli/index.ts status \
 ### Managed (Trigger.dev)
 
 The `run-rollback` task takes `{ tenantId, mappingId, reason, options }`, where `options` carries
-`restoreDns` / `dnsDomain` / `notifyUsers`. Those flags are honoured only as far as the gaps above
-allow: setting `restoreDns: true` logs the manual-step reminder, it does not perform a restore.
+`restoreDns` / `dnsDomain` / `notifyUsers`. `restoreDns: true` logs the manual-step reminder — it
+does not perform a restore. `notifyUsers: true` sends the rollback notice (EN or NL, per
+`NOTIFY_LOCALE`) and refuses up front if the channel is unconfigured, as described in step 5.
 
 ## Audit trail
 

@@ -222,6 +222,23 @@ const en = {
     'No email is sent yet — tell them yourself. The invitation appears below as "invited".',
   'tenants.invite.email': 'Email address',
   'tenants.invite.role': 'Role',
+  'tenants.notify.heading': 'Email summaries',
+  'tenants.notify.intro':
+    'How often this organization is emailed a summary of what is waiting for a decision. ' +
+    'A summary with nothing in it is never sent — silence means nothing is waiting.',
+  'tenants.notify.cadence': 'Summary',
+  'tenants.notify.daily': 'Daily',
+  'tenants.notify.weekly': 'Weekly (Monday)',
+  'tenants.notify.off': 'No summary',
+  'tenants.notify.locale': 'Language',
+  'tenants.notify.recipients':
+    'Sent to every owner and admin below. Urgent events are emailed as they happen, whichever ' +
+    'summary you choose here.',
+  'tenants.notify.save': 'Save',
+  'tenants.notify.saved': 'Saved.',
+  'tenants.notify.readError':
+    'Could not read the current setting — saving would overwrite something unknown, so the ' +
+    'controls are disabled.',
   'tenants.invite.submit': 'Invite',
   'role.owner': 'Owner',
   'role.admin': 'Admin',
@@ -476,6 +493,23 @@ const nl: Record<keyof typeof en, string> = {
     'Er wordt nog geen e-mail verstuurd — vertel het diegene zelf. De uitnodiging verschijnt hieronder als "uitgenodigd".',
   'tenants.invite.email': 'E-mailadres',
   'tenants.invite.role': 'Rol',
+  'tenants.notify.heading': 'E-mailsamenvattingen',
+  'tenants.notify.intro':
+    'Hoe vaak deze organisatie een samenvatting krijgt van wat op een beslissing wacht. ' +
+    'Een lege samenvatting wordt nooit verstuurd — stilte betekent dat er niets wacht.',
+  'tenants.notify.cadence': 'Samenvatting',
+  'tenants.notify.daily': 'Dagelijks',
+  'tenants.notify.weekly': 'Wekelijks (maandag)',
+  'tenants.notify.off': 'Geen samenvatting',
+  'tenants.notify.locale': 'Taal',
+  'tenants.notify.recipients':
+    'Gaat naar elke eigenaar en beheerder hieronder. Dringende gebeurtenissen worden direct ' +
+    'gemaild, welke samenvatting u hier ook kiest.',
+  'tenants.notify.save': 'Opslaan',
+  'tenants.notify.saved': 'Opgeslagen.',
+  'tenants.notify.readError':
+    'De huidige instelling kon niet worden gelezen — opslaan zou iets onbekends overschrijven, ' +
+    'dus de knoppen zijn uitgeschakeld.',
   'tenants.invite.submit': 'Uitnodigen',
   'role.owner': 'Eigenaar',
   'role.admin': 'Beheerder',

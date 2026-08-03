@@ -233,6 +233,72 @@ describe('API Tenant Isolation', () => {
     });
   });
 
+  /**
+   * The tenant's email-summary preference (workplan 0030 T4).
+   *
+   * The property that needs a real database is the MERGE: `tenant.settings`
+   * holds other things, and a cadence change that replaced the object would
+   * be silent data loss nobody notices until the slug goes missing.
+   */
+  describe('PUT /api/tenants/:id/notifications', () => {
+    beforeAll(async () => {
+      await superuserPool.query(
+        `UPDATE tenant SET settings = '{"slug": "tenant-a-slug"}'::jsonb WHERE id = $1`,
+        [API_TENANT_A],
+      );
+    });
+
+    it('stores an admin\'s choice and answers with what was stored', async () => {
+      const response = await request
+        .put(`/api/tenants/${API_TENANT_A}/notifications`)
+        .set('Authorization', `Bearer ${TOKEN_ADMIN_A}`)
+        .send({ digest: 'daily', locale: 'nl' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.notifications).toEqual({ digest: 'daily', locale: 'nl' });
+
+      const check = await superuserPool.query(
+        'SELECT settings FROM tenant WHERE id = $1',
+        [API_TENANT_A],
+      );
+      expect(check.rows[0].settings.notifications).toEqual({ digest: 'daily', locale: 'nl' });
+    });
+
+    it('leaves every other key in settings alone', async () => {
+      await request
+        .put(`/api/tenants/${API_TENANT_A}/notifications`)
+        .set('Authorization', `Bearer ${TOKEN_ADMIN_A}`)
+        .send({ digest: 'off', locale: 'en' });
+
+      const check = await superuserPool.query(
+        'SELECT settings FROM tenant WHERE id = $1',
+        [API_TENANT_A],
+      );
+      // The slug was there before the preference existed and must survive it.
+      expect(check.rows[0].settings.slug).toBe('tenant-a-slug');
+      expect(check.rows[0].settings.notifications.digest).toBe('off');
+    });
+
+    it('refuses a cadence the digest task does not understand', async () => {
+      const response = await request
+        .put(`/api/tenants/${API_TENANT_A}/notifications`)
+        .set('Authorization', `Bearer ${TOKEN_ADMIN_A}`)
+        .send({ digest: 'fortnightly', locale: 'en' });
+
+      // 400 rather than a stored value nothing acts on.
+      expect(response.status).toBe(400);
+    });
+
+    it('forbids a member from changing it', async () => {
+      const response = await request
+        .put(`/api/tenants/${API_TENANT_A}/notifications`)
+        .set('Authorization', `Bearer ${TOKEN_TENANT_A}`) // role: member
+        .send({ digest: 'daily', locale: 'en' });
+
+      expect(response.status).toBe(403);
+    });
+  });
+
   describe('POST /api/tenants', () => {
     it('is not available through the tenant-scoped API (501, not a silent 500)', async () => {
       const response = await request

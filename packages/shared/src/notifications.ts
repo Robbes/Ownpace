@@ -152,6 +152,81 @@ export interface MappingAttention {
   readonly blindSpots?: readonly string[];
 }
 
+/**
+ * ---------------------------------------------------------------------------
+ * Counting the queues (workplan 0030 T3/T4)
+ * ---------------------------------------------------------------------------
+ *
+ * Both editions collect the digest their own way — the appliance reads its
+ * PGlite ledger in-process, the managed digest task enumerates tenants — but
+ * they must COUNT the same, and they must count what the screens count. A
+ * summary that says four things are waiting, pointing at a queue that shows
+ * three, sends the owner hunting for an item that does not exist; the next
+ * digest they get goes unread. So the filters live here, once, where a test
+ * can hold them to the same expressions `/api/deletions`, `/api/moves` and
+ * `/api/failures` apply.
+ *
+ * Pure on purpose: the reading is I/O each edition does differently, the
+ * counting is a rule neither may have its own version of.
+ */
+
+/** Just enough of a deletion row to count it — structural on purpose. */
+export interface DeletionRow {
+  readonly confirmed: boolean;
+  readonly acknowledgedAt?: string | undefined;
+}
+
+/** Just enough of a move row. */
+export interface MoveRow {
+  readonly acknowledgedAt?: string | undefined;
+}
+
+/** Just enough of a failure row. */
+export interface FailureRow {
+  readonly needsDecision: boolean;
+}
+
+/** What one mapping's four reads came back with. */
+export interface QueueReads {
+  readonly deletions: readonly DeletionRow[];
+  readonly moves: readonly MoveRow[];
+  readonly failures: readonly FailureRow[];
+  /** Tenant-level, counted once per tenant by the caller — zero elsewhere. */
+  readonly pendingDecisions: number;
+  /** The mapping's own status, or undefined when even that could not be read. */
+  readonly status: string | undefined;
+  /** Whatever could not be read, in the server's own words. */
+  readonly blindSpots: readonly string[];
+}
+
+/**
+ * Should this mapping appear in the digest at all?
+ *
+ * A finished migration keeps its history but stops nagging — the same rule
+ * `reportingClosed` applies to the queue endpoints. Without it every appliance
+ * that ever completed a migration would email its owner about it forever.
+ */
+export function reportsToDigest(status: string | undefined): boolean {
+  return status !== 'done';
+}
+
+/** Count one mapping's queues the way the screens count them. */
+export function summariseQueues(mappingId: string, reads: QueueReads): MappingAttention {
+  return {
+    mappingId,
+    pendingDecisions: reads.pendingDecisions,
+    // Confirmed but unacknowledged: a deletion still being watched has not
+    // been established as real yet, so it is not waiting on anybody.
+    deletionsWaiting: reads.deletions.filter((d) => d.confirmed && !d.acknowledgedAt).length,
+    movesWaiting: reads.moves.filter((mv) => !mv.acknowledgedAt).length,
+    // Only the ones that gave up retrying. A failure still inside its retry
+    // budget is the machine's problem, not the owner's.
+    failuresWaiting: reads.failures.filter((f) => f.needsDecision).length,
+    readyForCutover: reads.status === 'cutover',
+    ...(reads.blindSpots.length > 0 ? { blindSpots: reads.blindSpots } : {}),
+  };
+}
+
 /** Does this mapping want a person? */
 export function wantsAttention(m: MappingAttention): boolean {
   return (
@@ -335,6 +410,86 @@ export function digestSchedule(
 }
 
 /**
+ * ---------------------------------------------------------------------------
+ * Per-tenant preferences (workplan 0030 T4)
+ * ---------------------------------------------------------------------------
+ *
+ * The appliance is one tenant and one `.env`, so `NOTIFY_DIGEST` IS its
+ * preference. Managed is not: one operator's SMTP serves many tenants, and
+ * how often a customer wants to hear from us is theirs to say, not ours.
+ *
+ * Stored in the existing `tenant.settings` JSON rather than a new column,
+ * because that is what it is for and a migration for one enum would be a
+ * schema change to undo later. Read defensively: this is JSON somebody could
+ * have written by hand, and an unreadable preference must fall back to the
+ * default rather than take the digest down.
+ */
+export interface TenantNotificationPrefs {
+  /** How often the summary goes out. `off` keeps the ad hoc events. */
+  readonly digest: DigestCadence | 'off';
+  /** The language the tenant reads. */
+  readonly locale: NotificationLocale;
+}
+
+export const DEFAULT_TENANT_NOTIFICATION_PREFS: TenantNotificationPrefs = {
+  // On by default, and weekly rather than daily: a managed customer is not
+  // watching the appliance's log, and one summary a week is the cadence
+  // somebody keeps reading. They can ask for daily.
+  digest: 'weekly',
+  locale: 'en',
+};
+
+/** Read a tenant's preferences out of its settings JSON, whatever is in it. */
+export function readTenantNotificationPrefs(settings: unknown): TenantNotificationPrefs {
+  const box = (settings as { notifications?: unknown } | null | undefined)?.notifications;
+  if (!box || typeof box !== 'object') return DEFAULT_TENANT_NOTIFICATION_PREFS;
+  const raw = box as { digest?: unknown; locale?: unknown };
+  const digest =
+    raw.digest === 'daily' || raw.digest === 'weekly' || raw.digest === 'off'
+      ? raw.digest
+      : // Anything else — a typo, an older shape, a hand-edited row — takes
+        // the default. Never silence: a value we cannot read must not be the
+        // reason somebody stops hearing about their own migration.
+        DEFAULT_TENANT_NOTIFICATION_PREFS.digest;
+  const locale = raw.locale === 'nl' ? 'nl' : 'en';
+  return { digest, locale };
+}
+
+/** Merge a preference change into a tenant's settings, touching nothing else. */
+export function withTenantNotificationPrefs(
+  settings: unknown,
+  prefs: TenantNotificationPrefs,
+): Record<string, unknown> {
+  const base =
+    settings && typeof settings === 'object' ? (settings as Record<string, unknown>) : {};
+  // Spread rather than replace: `settings` is shared with everything else
+  // that keeps tenant configuration there, and a preference edit that dropped
+  // a neighbouring key would be a silent data loss.
+  return { ...base, notifications: { digest: prefs.digest, locale: prefs.locale } };
+}
+
+/**
+ * Is today this tenant's digest day?
+ *
+ * Managed runs ONE daily task and asks this per tenant, rather than a task per
+ * cadence: cadences are a per-tenant preference there, and a job that had to
+ * be rescheduled whenever a customer changed a dropdown would be a scheduler
+ * built out of settings rows.
+ *
+ * `weekday` is `Date.getDay()` — 0 is Sunday. Monday for the weekly digest,
+ * so a week's queue lands at the start of a working week rather than at the
+ * end of one.
+ */
+export function digestDueToday(
+  prefs: TenantNotificationPrefs,
+  weekday: number,
+): DigestCadence | undefined {
+  if (prefs.digest === 'off') return undefined;
+  if (prefs.digest === 'daily') return 'daily';
+  return weekday === 1 ? 'weekly' : undefined;
+}
+
+/**
  * Read the channel's configuration from the environment.
  *
  * Environment rather than the mapping file on purpose: notifications are an
@@ -422,7 +577,13 @@ export type NotificationEvent =
       readonly mappingId: string;
       readonly passed: boolean;
     }
-  | { readonly kind: 'migration_finished'; readonly mappingId: string };
+  | { readonly kind: 'migration_finished'; readonly mappingId: string }
+  | {
+      readonly kind: 'rollback_finished';
+      readonly mappingId: string;
+      /** Why the operator rolled back, in their own words — never reworded. */
+      readonly reason: string;
+    };
 
 /**
  * One outage, one email (workplan 0030 T2).
@@ -482,12 +643,14 @@ const EVENT: Record<NotificationLocale, Record<NotificationEvent['kind'], string
     runs_failing: 'Open Migrate — a migration keeps failing',
     verification_finished: 'Open Migrate — the check has finished',
     migration_finished: 'Open Migrate — the migration is finished',
+    rollback_finished: 'Open Migrate — the migration was rolled back',
   },
   nl: {
     decision_raised: 'Open Migrate — een wijziging vraagt uw beslissing',
     runs_failing: 'Open Migrate — een migratie blijft mislukken',
     verification_finished: 'Open Migrate — de controle is afgerond',
     migration_finished: 'Open Migrate — de migratie is afgerond',
+    rollback_finished: 'Open Migrate — de migratie is teruggedraaid',
   },
 };
 
@@ -500,6 +663,8 @@ interface EventLines {
   readonly verifyPassed: string;
   readonly verifyFailed: string;
   readonly finished: string;
+  readonly rolledBack: string;
+  readonly rollbackReason: string;
   readonly act: string;
 }
 
@@ -512,6 +677,13 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     verifyPassed: 'The check passed: the new system matches the old one.',
     verifyFailed: 'The check did NOT pass. Open the app to see what differs.',
     finished: 'This migration is finished and no longer syncs.',
+    // Says what is true NOW, because that is the question somebody reading
+    // this at 22:00 actually has: where is my mail arriving?
+    rolledBack:
+      'This migration was rolled back. The old system is authoritative again ' +
+      'and syncing has resumed. If the MX record was changed, revert it by hand — ' +
+      'this system does not change DNS.',
+    rollbackReason: 'The reason given was:',
     act: 'Open the app to act on this.',
   },
   nl: {
@@ -522,6 +694,11 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     verifyPassed: 'De controle is geslaagd: het nieuwe systeem komt overeen met het oude.',
     verifyFailed: 'De controle is NIET geslaagd. Open de app om te zien wat afwijkt.',
     finished: 'Deze migratie is afgerond en synchroniseert niet meer.',
+    rolledBack:
+      'Deze migratie is teruggedraaid. Het oude systeem is weer leidend en de ' +
+      'synchronisatie loopt weer. Is het MX-record gewijzigd, zet het dan handmatig ' +
+      'terug — dit systeem wijzigt geen DNS.',
+    rollbackReason: 'De opgegeven reden was:',
     act: 'Open de app om actie te ondernemen.',
   },
 };
@@ -553,6 +730,14 @@ export function renderEvent(
     case 'migration_finished':
       lines.push(`${b.migration}: ${event.mappingId}`, '');
       lines.push(b.finished);
+      break;
+    case 'rollback_finished':
+      lines.push(`${b.migration}: ${event.mappingId}`, '');
+      lines.push(b.rolledBack, '');
+      // The operator's own sentence, carried through untouched — the prose
+      // boundary covers a human's words for the same reason it covers the
+      // server's: whoever reads this needs what was actually said.
+      lines.push(b.rollbackReason, event.reason);
       break;
   }
 

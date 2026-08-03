@@ -17,6 +17,13 @@
 #   APP_DATABASE_URL   — the RLS-enforcing app_user role, same address
 #   SECRET_ENCRYPTION_KEY — must equal the api/worker containers' value or
 #                        stored connection credentials cannot be decrypted
+#   SMTP_* / NOTIFY_*  — the notification channel (workplan 0030), OPTIONAL.
+#                        Uploaded only when set, so a stack that does not want
+#                        email keeps a clean env rather than a row of blanks.
+#                        Without these the managed digest and the rollback
+#                        notice are OFF — honestly, with the reason in the task
+#                        log — because a task container inherits nothing from
+#                        compose and would otherwise never see them.
 #
 # `override: true` on purpose: this file is the source of truth, and a stale
 # dashboard value silently winning over a rotated .env is exactly the failure
@@ -65,19 +72,36 @@ TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
   TASK_DATABASE_URL="$TASK_DATABASE_URL" \
   TASK_APP_DATABASE_URL="$TASK_APP_DATABASE_URL" \
   SECRET_ENCRYPTION_KEY="$SECRET_ENCRYPTION_KEY" \
+  SMTP_HOST="${SMTP_HOST:-}" \
+  SMTP_PORT="${SMTP_PORT:-}" \
+  SMTP_SECURE="${SMTP_SECURE:-}" \
+  SMTP_USER="${SMTP_USER:-}" \
+  SMTP_PASSWORD="${SMTP_PASSWORD:-}" \
+  NOTIFY_FROM="${NOTIFY_FROM:-}" \
+  NOTIFY_TO="${NOTIFY_TO:-}" \
+  NOTIFY_LOCALE="${NOTIFY_LOCALE:-}" \
   node -e '
 const { envvars } = require("@trigger.dev/sdk");
 (async () => {
   const ref = process.env.TRIGGER_PROJECT_REF;
   const slug = process.env.TRIGGER_ENV_SLUG;
-  await envvars.upload(ref, slug, {
-    variables: {
-      DATABASE_URL: process.env.TASK_DATABASE_URL,
-      APP_DATABASE_URL: process.env.TASK_APP_DATABASE_URL,
-      SECRET_ENCRYPTION_KEY: process.env.SECRET_ENCRYPTION_KEY,
-    },
-    override: true,
-  });
+  const variables = {
+    DATABASE_URL: process.env.TASK_DATABASE_URL,
+    APP_DATABASE_URL: process.env.TASK_APP_DATABASE_URL,
+    SECRET_ENCRYPTION_KEY: process.env.SECRET_ENCRYPTION_KEY,
+  };
+  // Notification settings are optional; only the ones actually set are
+  // uploaded. Empty strings would make readNotifierConfig see a HALF
+  // configured channel, which reports that somebody tried and names the
+  // missing variables — noise for a stack that simply does not want email.
+  for (const name of [
+    "SMTP_HOST", "SMTP_PORT", "SMTP_SECURE", "SMTP_USER", "SMTP_PASSWORD",
+    "NOTIFY_FROM", "NOTIFY_TO", "NOTIFY_LOCALE",
+  ]) {
+    const value = process.env[name];
+    if (value) variables[name] = value;
+  }
+  await envvars.upload(ref, slug, { variables, override: true });
   const list = await envvars.list(ref, slug);
   console.log(
     "[set-task-env] upload OK — env now holds:",

@@ -16,10 +16,20 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-const { tenantGet, tenantUpdate, memberList, memberInvite, memberUpdateRole, memberRemove, auth } =
+const {
+  tenantGet,
+  tenantUpdate,
+  tenantSetNotifications,
+  memberList,
+  memberInvite,
+  memberUpdateRole,
+  memberRemove,
+  auth,
+} =
   vi.hoisted(() => ({
     tenantGet: vi.fn(),
     tenantUpdate: vi.fn(),
+    tenantSetNotifications: vi.fn(),
     memberList: vi.fn(),
     memberInvite: vi.fn(),
     memberUpdateRole: vi.fn(),
@@ -31,7 +41,7 @@ const { tenantGet, tenantUpdate, memberList, memberInvite, memberUpdateRole, mem
   }));
 
 vi.mock('../services/mapping-service', () => ({
-  tenantApi: { get: tenantGet, update: tenantUpdate },
+  tenantApi: { get: tenantGet, update: tenantUpdate, setNotifications: tenantSetNotifications },
   memberApi: {
     list: memberList,
     invite: memberInvite,
@@ -201,8 +211,101 @@ describe('the read-only roles', () => {
     expect(screen.getByText(/Your role here is read-only/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Invite/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    // No role select on any member row — the read-only rule this test is
+    // about. (The email-summary card renders its selects DISABLED rather than
+    // hiding them: what the organization has chosen is worth seeing even when
+    // changing it is not yours to do.)
+    expect(screen.queryByRole('combobox', { name: /^Role / })).not.toBeInTheDocument();
     // The role still shows, as text.
     expect(screen.getByText('Member')).toBeInTheDocument();
+  });
+});
+
+/**
+ * The email-summary card (workplan 0030 T4).
+ *
+ * The point of the card is that the value on screen is the value the morning
+ * digest job will act on. So what is pinned is: the stored preference is what
+ * shows, a save sends the CLOSED values the job understands, a failed save
+ * does not leave a setting nobody has on screen, a viewer cannot change it,
+ * and a tenant read that FAILED disables the controls rather than offering a
+ * default that would overwrite something unseen.
+ */
+describe('the email summary preference', () => {
+  it('shows what is stored, not the default', async () => {
+    tenantGet.mockResolvedValue({
+      id: 'acme',
+      name: 'Acme BV',
+      slug: 'acme-bv',
+      settings: { notifications: { digest: 'daily', locale: 'nl' } },
+      createdAt: '2026-07-01T10:00:00.000Z',
+    });
+    renderScreen();
+    // Wait for the tenant read, not just for the control: the card renders
+    // (disabled) while the query is in flight.
+    await screen.findByText('Acme BV');
+
+    expect((screen.getByLabelText('Summary') as HTMLSelectElement).value).toBe('daily');
+    expect((screen.getByLabelText('Language') as HTMLSelectElement).value).toBe('nl');
+  });
+
+  it('falls back to the shared default when nothing is stored', async () => {
+    renderScreen();
+    await screen.findByText('Acme BV');
+    const cadence = screen.getByLabelText('Summary') as HTMLSelectElement;
+    // Weekly, and emphatically not "off": a tenant that never chose still
+    // hears from us.
+    expect(cadence.value).toBe('weekly');
+  });
+
+  it('saves the choice and shows what the server stored', async () => {
+    tenantSetNotifications.mockResolvedValue({ digest: 'off', locale: 'en' });
+    renderScreen();
+    await screen.findByText('collega@acme.nl');
+
+    await userEvent.selectOptions(screen.getByLabelText('Summary'), 'off');
+
+    await waitFor(() =>
+      expect(tenantSetNotifications).toHaveBeenCalledWith('acme', {
+        digest: 'off',
+        locale: 'en',
+      }),
+    );
+    expect(await screen.findByText('Saved.')).toBeInTheDocument();
+  });
+
+  it('puts the control back and shows the server’s words when a save fails', async () => {
+    tenantSetNotifications.mockRejectedValue({
+      response: { data: { message: 'Only an owner or admin may change this' } },
+    });
+    renderScreen();
+    await screen.findByText('collega@acme.nl');
+
+    await userEvent.selectOptions(screen.getByLabelText('Summary'), 'daily');
+
+    // Verbatim (the prose boundary), and the select is back on the stored
+    // value — leaving "daily" on screen would show a setting nobody has.
+    expect(await screen.findByText('Only an owner or admin may change this')).toBeInTheDocument();
+    await waitFor(() =>
+      expect((screen.getByLabelText('Summary') as HTMLSelectElement).value).toBe('weekly'),
+    );
+  });
+
+  it('is read-only for a member', async () => {
+    auth.user = { id: 'user-b', email: 'collega@acme.nl', name: 'B', role: 'member' };
+    renderScreen();
+    await screen.findByText('Acme BV');
+
+    expect(screen.getByLabelText('Summary')).toBeDisabled();
+    expect(screen.getByLabelText('Language')).toBeDisabled();
+  });
+
+  it('offers no control at all when the tenant read failed', async () => {
+    tenantGet.mockRejectedValue(new Error('boom'));
+    renderScreen();
+
+    // Not a default that a save would then write over something unseen.
+    expect(await screen.findByText(/Could not read the current setting/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Summary')).not.toBeInTheDocument();
   });
 });

@@ -4,8 +4,14 @@
  * Reverts a migration to its previous state: reactivates the mapping so
  * shadow sync resumes with the original source authoritative, and marks the
  * cutover ROLLED_BACK. DNS restore is deferred (verify-only DNS — the
- * operator reverts MX manually) and user notification does not exist yet
- * (workplan 0030): `notifyUsers: true` is refused, not silently skipped.
+ * operator reverts MX manually).
+ *
+ * `notifyUsers` is REAL as of workplan 0030 T4: when SMTP is configured, it
+ * sends the rollback notice through the same channel every other event uses.
+ * When it is NOT configured, `notifyUsers: true` is still refused BEFORE any
+ * rollback action — the 0026 T1 shape, now with a different reason. Asking to
+ * tell people and being told nothing happened is recoverable; believing they
+ * were told when the channel was never configured is not (hard rule 9).
  *
  * Trigger: Manual (user-initiated)
  */
@@ -17,8 +23,9 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { and, eq } from 'drizzle-orm';
 import { Pool } from 'pg';
 import * as schemaPg from '@openmig/ledger/schema-pg';
-import { asTenantId, asMappingId } from '@openmig/shared';
+import { asTenantId, asMappingId, renderEvent } from '@openmig/shared';
 import { log } from '@openmig/shared';
+import { notifierFromEnv } from '@openmig/connectors';
 
 // Job input schema
 const RollbackJobSchema = z.object({
@@ -27,11 +34,12 @@ const RollbackJobSchema = z.object({
   reason: z.string(),
   options: z.object({
     restoreDns: z.boolean().default(true),
-    // FALSE, because it does nothing. It used to default `true` and be
-    // "handled" by a warn-and-skip — an API shape promising a capability
-    // that does not exist (0026 T1 item 3). An explicit `true` is refused
-    // up front in run(); the default stops implying anyone gets told.
-    // Workplan 0030 (email notifications) is where this becomes real.
+    // Still FALSE by default, now for a different reason. It once defaulted
+    // `true` and was "handled" by a warn-and-skip — an API shape promising a
+    // capability that did not exist (0026 T1 item 3). The capability exists
+    // now (0030 T4), but a rollback is an emergency action and mail to every
+    // configured recipient is not something to do because nobody said not
+    // to. Opting in is one word; un-sending is impossible.
     notifyUsers: z.boolean().default(false),
     dnsDomain: z.string().optional(),
   }).prefault({}),
@@ -48,14 +56,17 @@ export const runRollback = schemaTask({
     const typedPayload = payload as RollbackJobPayload;
     const { tenantId, mappingId, reason, options } = typedPayload;
     
-    // Refused BEFORE any rollback action, not warn-skipped after them: a
-    // caller who asked for notification and got a silent skip believes users
-    // were told when nobody was (rule 9). Failing here leaves everything
-    // untouched, so the caller can simply resubmit without the flag.
-    if (options.notifyUsers) {
+    // Built here, before any rollback action, for one reason: if the channel
+    // is not configured, the caller finds out while everything is still
+    // untouched and can resubmit without the flag. Discovering it AFTER the
+    // rollback would leave a system that had been rolled back and nobody
+    // told — the state 0026 T1 called out and rule 9 forbids.
+    const channel = notifierFromEnv(process.env, (m) => log.warn(m));
+    if (options.notifyUsers && !channel.config.enabled) {
       throw new Error(
-        'notifyUsers: true was requested, but user notification is not implemented ' +
-          '(workplan 0030). Resubmit without the flag — the rollback itself has not run.',
+        `notifyUsers: true was requested, but no notification channel is configured: ` +
+          `${channel.config.reason}. Configure SMTP or resubmit without the flag — ` +
+          'the rollback itself has not run.',
       );
     }
 
@@ -121,8 +132,27 @@ export const runRollback = schemaTask({
       });
       logger.info('Cutover marked as rolled back');
 
-      // There is deliberately no notification step: `notifyUsers: true` is
-      // refused at the top of run() until workplan 0030 builds the channel.
+      // Tell people, if asked to (workplan 0030 T4). AFTER the rollback, so
+      // the mail only ever describes something that actually happened, and
+      // guarded, so a mail server that is down cannot undo a rollback that
+      // succeeded: the failed SEND is logged loudly and the job still
+      // reports success, because the rollback IS complete. A thrown error
+      // here would tell the operator their rollback failed when it did not.
+      if (options.notifyUsers) {
+        try {
+          await channel.notifier.notify(
+            renderEvent({ kind: 'rollback_finished', mappingId, reason }, channel.locale),
+          );
+          logger.info('Rollback notification sent');
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          log.error('Rollback notification FAILED to send', { error: message });
+          logger.error(
+            `The rollback succeeded but its notification did not send: ${message}. ` +
+              'Nobody has been told — tell them by hand.',
+          );
+        }
+      }
 
       // There is deliberately no "cancel the pending grace-period task" step.
       // It used to call `ctx.cancel({ id: 'grace-period-<mapping>' })` — two

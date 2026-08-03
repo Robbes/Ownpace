@@ -9,7 +9,7 @@
  * then runs one container per task run (see deploy/compose/managed.yml and
  * deploy/compose/deploy-tasks.sh).
  *
- * All seven task files are registered, not just verify/apply: deploying the
+ * All task files under src/jobs are registered, not just verify/apply: deploying the
  * discovery/sync/cutover tasks costs nothing extra and stops them bit-rotting
  * as undeployable code. Deploying them changes NOTHING about what runs —
  * syncs run through the managed-sync-tick scheduled task (0022 retired the poller)
