@@ -14,12 +14,14 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { start, type SelfhostHandle } from './index';
 
 let handle: SelfhostHandle;
+/** Reused by the configured-appliance suite below, so the mapping is one fact. */
+let baseConfigDir: string;
 
 beforeAll(async () => {
   // Deliberately no SMTP_* in the environment: the default an appliance
@@ -29,6 +31,7 @@ beforeAll(async () => {
   }
 
   const configDir = mkdtempSync(join(tmpdir(), 'openmig-notify-cfg-'));
+  baseConfigDir = configDir;
   writeFileSync(
     join(configDir, 'mapping.json'),
     JSON.stringify({
@@ -78,5 +81,59 @@ describe('the appliance with no SMTP configured', () => {
     await expect(
       handle.notifier.notify({ subject: 'subject', body: 'body' }),
     ).resolves.toBeUndefined();
+  });
+});
+
+/**
+ * The digest schedule (workplan 0030 T3).
+ *
+ * `digestSchedule` decides WHICH jobs exist and is tested exhaustively in
+ * shared; what only a real boot can prove is that the appliance's scheduler
+ * accepts those cron expressions and that the jobs are torn down with it. A
+ * cron string croner rejects throws inside `start()`, which would take the
+ * appliance down at boot over a summary email — so it is worth one real
+ * start.
+ */
+describe('the appliance with SMTP and both digests configured', () => {
+  let configured: SelfhostHandle;
+  let stopped = false;
+
+  beforeAll(async () => {
+    // Port 1 with no listener: the channel is built, and nothing is sent
+    // during a boot, so this never touches the network.
+    process.env.SMTP_HOST = '127.0.0.1';
+    process.env.SMTP_PORT = '1';
+    process.env.NOTIFY_FROM = 'openmigrate@example.nl';
+    process.env.NOTIFY_TO = 'owner@example.nl';
+    process.env.NOTIFY_DIGEST = 'both';
+
+    const configDir = mkdtempSync(join(tmpdir(), 'openmig-digest-cfg-'));
+    writeFileSync(join(configDir, 'mapping.json'), readFileSync(join(baseConfigDir, 'mapping.json')));
+
+    configured = await start({
+      persistence: 'pglite',
+      pgliteDataDir: mkdtempSync(join(tmpdir(), 'openmig-digest-db-')),
+      configDir,
+      port: 0,
+      host: '127.0.0.1',
+    });
+  }, 120_000);
+
+  afterAll(async () => {
+    if (!stopped) await configured?.stop();
+    for (const key of ['SMTP_HOST', 'SMTP_PORT', 'NOTIFY_FROM', 'NOTIFY_TO', 'NOTIFY_DIGEST']) {
+      delete process.env[key];
+    }
+  });
+
+  it('boots with the digest jobs registered — both crons parse', () => {
+    expect(configured.port).toBeGreaterThan(0);
+  });
+
+  it('shuts down cleanly, taking the digest jobs with it', async () => {
+    // If a scheduled digest outlived `stop()`, a test run would keep the
+    // process alive and the appliance would leak a job per restart.
+    await expect(configured.stop()).resolves.toBeUndefined();
+    stopped = true;
   });
 });

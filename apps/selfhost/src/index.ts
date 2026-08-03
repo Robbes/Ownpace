@@ -72,10 +72,15 @@ import {
   disabledNotifier,
   createFailureStreakGate,
   renderEvent,
+  renderDigest,
+  digestSchedule,
   type Notifier,
   type NotificationEvent,
+  type MappingAttention,
+  type DigestCadence,
 } from '@openmig/shared';
 import { smtpTransport } from '@openmig/connectors';
+import { summariseQueues, reportsToDigest } from './attention';
 
 const DEFAULT_CONFIG_DIR = '/data/config';
 
@@ -360,6 +365,97 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     }
   };
 
+  /**
+   * What is waiting on a person right now (workplan 0030 T3).
+   *
+   * Read from the SAME ledger calls and the SAME filters the queue endpoints
+   * use, deliberately: a digest that counted differently from the screen it
+   * points at would send somebody to look for four things and show them
+   * three.
+   *
+   * Every read is individually guarded. A queue that could not be read
+   * becomes a BLIND SPOT rather than a zero — `renderDigest` then sends even
+   * when every count is zero, because "I found nothing" and "I could not
+   * look" must not arrive as the same email (hard rule 9).
+   */
+  const collectAttention = async (): Promise<MappingAttention[]> => {
+    const out: MappingAttention[] = [];
+    const decisionsCountedFor = new Set<string>();
+
+    for (const m of mappings) {
+      const tenantId = m.config.tenantId as TenantId;
+      const mappingId = m.mailboxMappingId as MappingId;
+      const blindSpots: string[] = [];
+
+      const status = await mappingStatus(m).catch((err: unknown) => {
+        blindSpots.push(
+          `the migration's own status: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        return undefined;
+      });
+      // A finished migration keeps its history but stops nagging — the same
+      // rule the queue endpoints apply with `reportingClosed`. Checked before
+      // the reads, so a done mapping costs the digest four queries less.
+      if (!reportsToDigest(status)) continue;
+
+      const count = async <T>(what: string, read: () => Promise<T[]>): Promise<T[]> => {
+        try {
+          return await read();
+        } catch (err) {
+          blindSpots.push(`${what}: ${err instanceof Error ? err.message : String(err)}`);
+          return [];
+        }
+      };
+
+      const deletions = await count('the deletions queue', () =>
+        ledger.listDeletions(tenantId, mappingId),
+      );
+      const moves = await count('the moves queue', () => ledger.listMoves(tenantId, mappingId));
+      const failures = await count('the failures queue', () =>
+        ledger.listFailures(tenantId, mappingId),
+      );
+      const decisions = await count('the decision queue', async () => {
+        // Tenant-level, not per mapping: a new mailbox belongs to no mapping
+        // yet. Counted once per tenant so several mappings cannot each report
+        // the same pending decision as if it were theirs.
+        if (decisionsCountedFor.has(tenantId)) return [];
+        decisionsCountedFor.add(tenantId);
+        return [...(await new PgDecisionStore(db).list(tenantId, { status: 'pending' }))];
+      });
+
+      out.push(
+        summariseQueues(m.config.mappingId, {
+          deletions,
+          moves,
+          failures,
+          pendingDecisions: decisions.length,
+          status,
+          blindSpots,
+        }),
+      );
+    }
+    return out;
+  };
+
+  /** Send one digest, or nothing at all when nothing is waiting (0030 T3). */
+  const sendDigest = async (cadence: DigestCadence): Promise<void> => {
+    try {
+      const message = renderDigest(await collectAttention(), notifyLocale, cadence);
+      if (!message) {
+        // The rule that makes this channel worth reading: no email at all.
+        log.info(`[notify] ${cadence} digest: nothing needs attention — not sending`);
+        return;
+      }
+      await notifier.notify(message);
+      log.info(`[notify] ${cadence} digest sent`);
+    } catch (err) {
+      log.error(
+        `[notify] ${cadence} digest failed:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  };
+
 
   // Helper to run a function with tenant context set for RLS
   const withTenantContext = async <T>(
@@ -605,6 +701,22 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     } else {
       log.info(`[selfhost] ${m.config.mappingId} is '${status}' — awaiting confirm at /`);
     }
+  }
+
+  // 3c. The digest schedule (workplan 0030 T3).
+  //
+  // Through the same `Scheduler` seam the syncs use (croner here, hard rule
+  // 5), so a digest cannot outlive a shutdown any more than a pass can.
+  // Morning local time on purpose: a summary that lands at 03:00 is read
+  // twelve hours late, and the whole point is reaching somebody before their
+  // day starts. Weekly goes out on Monday for the same reason.
+  //
+  // Nothing is scheduled when notifications are off, rather than scheduling a
+  // job that would discover that every morning and do nothing.
+  for (const { cadence, cron } of digestSchedule(notifierConfig)) {
+    const handle = scheduler.schedule(`digest-${cadence}`, cron, () => sendDigest(cadence));
+    handles.push(handle);
+    log.info(`[selfhost] ${cadence} digest scheduled (${cron})`);
   }
 
   // 4. Local status/health + confirm server.
