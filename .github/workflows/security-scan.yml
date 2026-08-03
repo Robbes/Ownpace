@@ -48,7 +48,7 @@ jobs:
         run: pnpm audit --audit-level=high || echo "::warning::pnpm audit reported advisories"
 
       - name: Trivy filesystem/dependency scan (SARIF)
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           format: sarif
@@ -58,7 +58,7 @@ jobs:
 
       - name: Upload SARIF to code scanning
         if: always() && hashFiles('trivy.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v4 # TODO: pin to commit SHA
+        uses: github/codeql-action/upload-sarif@f205ea1c3313d32999d8d6a48b4f6530d4437b38 # v4.37.4
         with:
           sarif_file: trivy.sarif
 
@@ -75,6 +75,6 @@ jobs:
 
       - name: Attach SBOM to GitHub release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v3 # TODO: pin to commit SHA
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           files: bom.json

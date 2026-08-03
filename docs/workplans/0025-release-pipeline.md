@@ -7,7 +7,7 @@
 | T1 Image build + publish workflow | ⬜ Not started | — |
 | T2 First tagged release (owner decision + execution) | ⬜ Needs the owner | — |
 | T3 Signing + SBOM publication + doc truth | ⬜ Not started | — |
-| T4 Action pinning + digest hygiene | ⬜ Not started | — |
+| T4 Action pinning + digest hygiene | 🟡 **Action half done 2026-08-03** | The three TODO-marked actions are SHA-pinned to their tag commits (trivy-action v0.36.0, codeql upload-sarif v4.37.4, action-gh-release v3.0.2 — peeled SHAs from `git ls-remote`), the TODOs removed; every `uses:` in `.github/workflows/` is now SHA-pinned. The compose digest-pinning half waits on T1 (an image nothing produces cannot be pinned). |
 | T5 Scheduled e2e + the missing §22.1 gates | ⬜ Not started | — |
 | T6 Code-signing purchase (shared with 0015 T4) | ⬜ Needs the owner | — |
 
