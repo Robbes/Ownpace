@@ -106,6 +106,12 @@ export const runShadowPass: RunShadowPass = async (deps) => {
       return keep;
     },
     listSince: (folder, cursor) => source.listSince(folder, cursor),
+    // Recorded at copy time so a later removal report can be matched back —
+    // mail was the ONE domain that never recorded it, which is why 0023's
+    // reported-removals follow-up (Graph delta `@removed`, now returned by
+    // `listSince` above) had nothing to land on. Graph's `id` / IMAP's
+    // folder:uid; `findBySourceRef` is the way back.
+    sourceRef: (item) => (item as MailItem).sourceRef,
     // WHAT THE OWNER THREW AWAY — the mail domain's only deletion signal.
     //
     // IMAP has no removal report of the kind CalDAV's `sync-collection` gives,

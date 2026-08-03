@@ -83,6 +83,23 @@ export interface SourceConnector {
      * rather than a silent one. Omitted (or 0) when there were none.
      */
     unkeyable?: number;
+    /**
+     * Source refs the server REPORTED as removed on this poll — Graph's
+     * delta `@removed` entries, the mail equivalent of CalDAV's
+     * `sync-collection` 404s (see `CalendarSource.listSince`).
+     *
+     * Message ids, not natural keys, and unavoidably so: a removed delta
+     * entry carries no `internetMessageId` — `id` is all that is left, which
+     * is why `sourceRef` is recorded at copy time and `findBySourceRef` is
+     * the way back.
+     *
+     * IMAP never populates this — a plain mailbox listing has no removal
+     * report — and that absence is legitimate, not a blind spot being
+     * papered over: mail's other deletion evidence (the trash scan,
+     * absence-counting) keeps working exactly as before. Absent must not be
+     * read as "nothing was deleted".
+     */
+    removed?: ReadonlyArray<string>;
   }>;
   /** Fetch the full RFC822 bytes for an item. */
   fetch(item: MailItem): Promise<RawMessage>;

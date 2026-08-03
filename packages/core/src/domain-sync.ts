@@ -1418,9 +1418,10 @@ async function resolveReportedRemovals(args: {
 /**
  * Record the items we copied that are now sitting in the owner's bin.
  *
- * The only deletion evidence the MAIL domain has, and the reason the trash
+ * The mail domain's deletion evidence over IMAP, and the reason the trash
  * exclusion in `excludeSpecialUse` is more than tidiness. IMAP offers no removal
- * report in the shape `sync-collection` gives, and a mailbox cannot be enumerated
+ * report in the shape `sync-collection` gives (Graph's delta `@removed` does,
+ * and feeds the reported channel above), and a mailbox cannot be enumerated
  * cheaply enough to run absence-counting on every pass — so before this, a
  * message the owner deleted in the old system produced nothing at all. The target
  * kept its copy, and no surface anywhere said so.
