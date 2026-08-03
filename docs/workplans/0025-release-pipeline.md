@@ -4,7 +4,7 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T1 Image build + publish workflow | ⬜ Not started | — |
+| T1 Image build + publish workflow | 🟡 **Written 2026-08-03, PR proof pending; first main-branch run is the multi-arch shakedown** | `images.yml`: the three Dockerfiles (api/web/selfhost) on a matrix; PRs touching them build amd64-only with no push (the rule-8 self-proof kept fast — QEMU multi-arch costs tens of minutes and belongs on the publish path); pushes to main build amd64+arm64 and publish `edge` + `sha-<commit>` to ghcr; `v*` tags publish semver + `latest` (that path stays never-run until T2 cuts the first release — same honest gating as the SBOM step). GITHUB_TOKEN only (rule 3), all actions SHA-pinned, registry-backed layer cache bounds the QEMU cost after the first run. Makes compose's `ghcr.io/robbes/open-migrate-selfhost:edge` an image something produces. |
 | T2 First tagged release (owner decision + execution) | ⬜ Needs the owner | — |
 | T3 Signing + SBOM publication + doc truth | ⬜ Not started | — |
 | T4 Action pinning + digest hygiene | 🟡 **Action half done 2026-08-03** | The three TODO-marked actions are SHA-pinned to their tag commits (trivy-action v0.36.0, codeql upload-sarif v4.37.4, action-gh-release v3.0.2 — peeled SHAs from `git ls-remote`), the TODOs removed; every `uses:` in `.github/workflows/` is now SHA-pinned. The compose digest-pinning half waits on T1 (an image nothing produces cannot be pinned). |
