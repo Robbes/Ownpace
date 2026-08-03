@@ -393,6 +393,13 @@ export const decision = pgTable(
     summary: text('summary').notNull(),
     detail: jsonb('detail').notNull().default({}),
     proposedDefault: text('proposed_default'),
+    /**
+     * The detector's stable identifier for WHAT this decision is about (a
+     * mailbox address, a group id) — what makes re-raising idempotent via the
+     * partial unique index below (migration 0005, 0028 T1). Nullable: a
+     * category with no natural subject stays legal, just uncovered.
+     */
+    subjectKey: text('subject_key'),
     status: text('status', { enum: ['pending', 'resolved', 'auto_resolved', 'dismissed'] })
       .notNull()
       .default('pending'),
@@ -403,6 +410,9 @@ export const decision = pgTable(
   },
   (t) => [
     index('ix_decision_pending').on(t.tenantId, t.status).where(sql`status = 'pending'`),
+    uniqueIndex('uk_decision_pending_subject')
+      .on(t.tenantId, t.category, t.subjectKey)
+      .where(sql`status = 'pending' AND subject_key IS NOT NULL`),
   ],
 );
 
