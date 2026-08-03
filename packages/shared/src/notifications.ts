@@ -273,8 +273,66 @@ export interface SmtpSettings {
 
 /** Configured and ready, or off — with the reason, always. */
 export type NotifierConfig =
-  | { readonly enabled: true; readonly smtp: SmtpSettings; readonly settings: NotifierSettings }
+  | {
+      readonly enabled: true;
+      readonly smtp: SmtpSettings;
+      readonly settings: NotifierSettings;
+      /**
+       * Which digests to send. Empty means ad hoc events only — a legitimate
+       * choice for someone who wants the interruptions and not the summary.
+       */
+      readonly digests: readonly DigestCadence[];
+    }
   | { readonly enabled: false; readonly reason: string };
+
+/** `NOTIFY_DIGEST`: daily | weekly | both | off. Defaults to daily. */
+function parseDigests(raw: string | undefined): readonly DigestCadence[] {
+  switch ((raw ?? 'daily').trim().toLowerCase()) {
+    case 'off':
+    case 'none':
+      return [];
+    case 'weekly':
+      return ['weekly'];
+    case 'both':
+    case 'daily,weekly':
+    case 'weekly,daily':
+      return ['daily', 'weekly'];
+    default:
+      // Daily by default, and for anything unrecognised: a typo should not
+      // silently turn the summary off, which is the failure nobody notices.
+      return ['daily'];
+  }
+}
+
+/**
+ * When each digest goes out (workplan 0030 T3).
+ *
+ * Morning local time on purpose: a summary that lands at 03:00 is read twelve
+ * hours late, and the whole point is reaching somebody BEFORE their day
+ * starts. Weekly goes out on Monday for the same reason — a summary of last
+ * week that arrives on Friday afternoon is history, not a to-do list.
+ */
+export const DIGEST_CRON: Record<DigestCadence, string> = {
+  daily: '0 8 * * *',
+  weekly: '0 8 * * 1',
+};
+
+/**
+ * Which digest jobs an edition should actually register.
+ *
+ * A pure function rather than an `if` buried in the appliance's startup, so
+ * the two properties that matter can be pinned without booting anything:
+ * a channel that is OFF schedules nothing (a job that wakes every morning to
+ * discover there is no SMTP server is a job that will one day log an error
+ * nobody asked for), and `NOTIFY_DIGEST=off` schedules nothing while leaving
+ * the ad hoc events alone.
+ */
+export function digestSchedule(
+  config: NotifierConfig,
+): readonly { readonly cadence: DigestCadence; readonly cron: string }[] {
+  if (!config.enabled) return [];
+  return config.digests.map((cadence) => ({ cadence, cron: DIGEST_CRON[cadence] }));
+}
 
 /**
  * Read the channel's configuration from the environment.
@@ -334,6 +392,7 @@ export function readNotifierConfig(env: {
       ...(env.SMTP_PASSWORD ? { password: env.SMTP_PASSWORD } : {}),
     },
     settings: { from: from!, to, locale },
+    digests: parseDigests(env.NOTIFY_DIGEST),
   };
 }
 

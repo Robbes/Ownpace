@@ -20,6 +20,8 @@ import {
   createNotifier,
   createFailureStreakGate,
   disabledNotifier,
+  digestSchedule,
+  DIGEST_CRON,
   type MailTransport,
 } from './notifications';
 
@@ -115,6 +117,79 @@ describe('fully configured', () => {
     const auth = readNotifierConfig({ ...FULL, SMTP_USER: 'u', SMTP_PASSWORD: 'p' });
     if (anon.enabled) expect(anon.smtp.user).toBeUndefined();
     if (auth.enabled) expect(auth.smtp).toMatchObject({ user: 'u', password: 'p' });
+  });
+});
+
+describe('the digest cadence (NOTIFY_DIGEST)', () => {
+  const digests = (value?: string) => {
+    const config = readNotifierConfig(value === undefined ? FULL : { ...FULL, NOTIFY_DIGEST: value });
+    return config.enabled ? config.digests : undefined;
+  };
+
+  it('sends the daily summary when nothing was asked for', () => {
+    // The default has to be ON: somebody who configured SMTP and stopped
+    // reading the docs wanted to be told things.
+    expect(digests()).toEqual(['daily']);
+  });
+
+  it('takes weekly, both, and off at their word', () => {
+    expect(digests('weekly')).toEqual(['weekly']);
+    expect(digests('both')).toEqual(['daily', 'weekly']);
+    expect(digests('off')).toEqual([]);
+    expect(digests('none')).toEqual([]);
+  });
+
+  it('accepts either order of the comma form', () => {
+    expect(digests('daily,weekly')).toEqual(['daily', 'weekly']);
+    expect(digests('weekly,daily')).toEqual(['daily', 'weekly']);
+  });
+
+  it('ignores case and stray whitespace', () => {
+    expect(digests('  WEEKLY ')).toEqual(['weekly']);
+    expect(digests('Off')).toEqual([]);
+  });
+
+  it('falls back to daily on a typo rather than silently going quiet', () => {
+    // The asymmetry is deliberate. A typo that produces one email a day is a
+    // visible mistake somebody fixes; a typo that produces silence is the
+    // failure nobody notices until the migration has been stuck for a month.
+    expect(digests('dayly')).toEqual(['daily']);
+    expect(digests('')).toEqual(['daily']);
+  });
+
+  it('leaves the ad hoc events alone when the digest is off', () => {
+    const config = readNotifierConfig({ ...FULL, NOTIFY_DIGEST: 'off' });
+    // Still enabled: "no summary" and "no notifications" are different asks,
+    // and wanting the interruptions without the weekly recap is reasonable.
+    expect(config.enabled).toBe(true);
+  });
+});
+
+describe('which digest jobs get registered', () => {
+  it('schedules nothing at all when the channel is off', () => {
+    // Not "schedules a job that discovers it every morning": a disabled
+    // channel with a live cron would log a failure daily for a box whose
+    // owner never asked for email in the first place.
+    expect(digestSchedule({ enabled: false, reason: 'no SMTP settings configured' })).toEqual([]);
+  });
+
+  it('schedules nothing when the digest is switched off', () => {
+    expect(digestSchedule(readNotifierConfig({ ...FULL, NOTIFY_DIGEST: 'off' }))).toEqual([]);
+  });
+
+  it('pairs each cadence with its morning cron', () => {
+    expect(digestSchedule(readNotifierConfig({ ...FULL, NOTIFY_DIGEST: 'both' }))).toEqual([
+      { cadence: 'daily', cron: '0 8 * * *' },
+      { cadence: 'weekly', cron: '0 8 * * 1' },
+    ]);
+  });
+
+  it('sends both digests in the morning, and the weekly one on Monday', () => {
+    // Pinned because the value is a judgement, not an implementation detail:
+    // a summary delivered at 03:00 is read twelve hours late, and a weekly
+    // recap that lands on Friday afternoon is history rather than a to-do.
+    expect(DIGEST_CRON.daily.startsWith('0 8 ')).toBe(true);
+    expect(DIGEST_CRON.weekly).toBe('0 8 * * 1');
   });
 });
 
