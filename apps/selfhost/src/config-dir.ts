@@ -11,8 +11,17 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseMappingConfigJson, type MappingConfig } from '@openmig/shared';
 
-// Deterministic UUID generation for mailbox_mapping IDs (matches selfhost/index.ts)
-function uuidFromString(seed: string): string {
+/**
+ * Deterministic UUID from a seed string.
+ *
+ * The appliance has no id-issuing service: a mapping's ledger row must land on
+ * the same id every restart, or a restarted appliance would orphan its own
+ * history. Exported because `index.ts` derives connection and mailbox ids the
+ * same way and a test has to be able to compute the value the appliance will
+ * choose — it lived in both files with a comment asking them to match, which
+ * is the arrangement that eventually stops matching.
+ */
+export function uuidFromString(seed: string): string {
   const hash = Buffer.from(seed).toString('hex').slice(0, 32);
   return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-${hash.slice(16, 20)}-${hash.slice(20, 32)}`;
 }
