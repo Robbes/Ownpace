@@ -52,3 +52,5 @@ export * from './imap-groups';
 export * from './graph-permissions';
 export * from './graph-permission-scan';
 export * from './drive-sharing-availability';
+// Proving the consent runbook actually worked (0027 T0).
+export * from './graph-access-check';

@@ -146,6 +146,54 @@ If the second returns *Granted*, the policy has not taken effect yet (wait) or
 the group membership is wider than you think (check it). Do not proceed until
 a mailbox outside the group is denied.
 
+## 6. Prove that *this product* can read
+
+Step 5 proves the **policy**. It does not prove that Open Migrate can read
+anything — the client secret could be wrong, the consent could sit on a
+different app registration, a permission could have been added and never
+consented. Every one of those looks identical from PowerShell.
+
+```bash
+export OAUTH2_CLIENT_ID="00000000-0000-0000-0000-000000000000"
+export OAUTH2_CLIENT_SECRET="…"        # never commit this (hard rule 3)
+
+pnpm exec tsx apps/worker/src/cli/index.ts check-access \
+  --tenant yourtenant.onmicrosoft.com \
+  --mailbox gedeeld@yourtenant.nl
+```
+
+It asks Graph one question per consented permission — one record each, nothing
+written, no database — and prints a line per capability:
+
+```
+OK    List the tenant’s mailboxes  (User.Read.All)
+OK    List mail-enabled groups  (Group.Read.All)
+OK    Read a shared mailbox’s mail  (Mail.Read)
+OK    Read a mailbox’s calendar sharing  (Calendars.Read)
+```
+
+Read the lines, not the summary. Three properties are worth knowing:
+
+- **Each permission is reported separately**, because they are consented
+  separately and fail separately. `Group.Read.All` working while `Mail.Read` is
+  refused is a real state, and one that a single verdict would send you to the
+  wrong step over.
+- **Omitting `--mailbox` reports the two mailbox-scoped permissions as NOT
+  tested, and that counts as a failure**, not a pass. Running it without one is
+  still useful — it tells you whether consent landed at all.
+- **A failure prints Graph's own words**, including the `AADSTS…` or
+  `Authorization_RequestDenied` code. Where a status has more than one meaning,
+  it says so rather than picking one: a 403 on `/users` is usually the Access
+  Policy excluding this app, and can also be a permission that was added in
+  step 2 and never consented in step 3.
+
+Exit status is non-zero unless every capability answered, so this can gate a
+setup script rather than only being read by a person.
+
+**If it fails here, nothing downstream will work** — discovery, drift detection
+and the permission report will each run on schedule and honestly report that
+they could not look, which is correct but is not what you set this up for.
+
 ---
 
 ## Configuring the migration
@@ -212,3 +260,16 @@ Graph sources take an optional mailbox and address `/users/{address}` when
 given one. What has **not** happened is a live read against a real tenant with
 a real policy in place — that is the proof this runbook exists to make
 possible, and 0027 T0 stays open until it is done.
+
+Three features are waiting on exactly that and nothing else, and all three
+already run on schedule against every tenant today:
+
+| Feature | Where | What it does until consent lands |
+|---|---|---|
+| Shared-address discovery (0027 T1) | 06:30 daily | Records nothing; warns, every run, that the directory could not be read |
+| New-mailbox drift detection (0028 T2) | 07:00 daily | Raises nothing; states the blind spot per tenant |
+| The permission report (0029) | on demand, from Finish | Renders, with every section an honest *not inventoried* |
+
+None of them needs another line of code to become real. **Step 6 is how you
+find that out in thirty seconds** instead of waiting for 06:30 the next morning
+and reading a log.
