@@ -44,6 +44,7 @@ import {
   FinishRefusedError,
 } from '../services/operating-service';
 import { useT } from '../i18n';
+import PermissionsHandover from '../components/finish/PermissionsHandover';
 import type { StringKey } from '../i18n';
 
 type Outcome =
@@ -275,6 +276,19 @@ const Finish: React.FC = () => {
                 )}
               </div>
             ) : (
+              <>
+              {/*
+                A PANEL, not a numbered step (workplan 0029 T4). The numbered
+                steps are things this tool can check or make you attest to;
+                this is a document you take away and work through on systems
+                it never touches. Numbering it would put it in a list of
+                things somebody could reasonably expect to be ticked off.
+
+                Above the steps because of WHEN it has to happen: rights
+                carried across after delivery moves were missing for however
+                long that took.
+              */}
+              <PermissionsHandover mappingId={id} />
               <ol className="mt-4">
                 <Step n={1} title={t('finish.step1.title')}>
                   {t('finish.step1.pre')}{' '}
@@ -415,6 +429,7 @@ const Finish: React.FC = () => {
                   )}
                 </Step>
               </ol>
+              </>
             )}
           </section>
         );

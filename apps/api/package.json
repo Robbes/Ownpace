@@ -26,6 +26,7 @@
     "jose": "^6.2.5",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
+    "pg": "catalog:",
     "zod": "^4.4.3"
   },
   "devDependencies": {

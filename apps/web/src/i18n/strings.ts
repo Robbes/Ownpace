@@ -266,6 +266,18 @@ const en = {
     'Could not read the standing answers, so this queue may be answering some categories ' +
     'without showing you which.',
   'decisions.presets.readOnly': 'An owner or admin sets these.',
+  // The permission handover, on Finish (workplan 0029 T4, SAD §14.2).
+  'permissions.heading': 'Carry the permissions across before you move delivery',
+  'permissions.body':
+    'Who could see whose calendar, who had access to which shared files — none of that moves ' +
+    'with the mail. Get the list, work through it on the new system, and do it before delivery ' +
+    'moves: rights added afterwards were missing for however long that took.',
+  'permissions.blindSpot':
+    'One thing the list cannot tell you: who had FullAccess or Send-As on a mailbox. Microsoft ' +
+    'does not expose that to us at all — you have to read it out of Exchange yourself. The ' +
+    'document says so and tells you how.',
+  'permissions.download': 'Get the permission list',
+  'permissions.failed': 'The permission list could not be fetched.',
   // Shared addresses, on Review & confirm (workplan 0027 T4).
   'sharedAddresses.heading': 'Shared addresses found',
   'sharedAddresses.pattern.shared_s': 'Shared mailbox — the store is copied',
@@ -580,6 +592,18 @@ const nl: Record<keyof typeof en, string> = {
     'De vaste antwoorden konden niet worden gelezen; deze wachtrij beantwoordt mogelijk ' +
     'categorieën zonder te tonen welke.',
   'decisions.presets.readOnly': 'Een eigenaar of beheerder stelt dit in.',
+  'permissions.heading': 'Zet de rechten over voordat u de bezorging verplaatst',
+  'permissions.body':
+    'Wie wiens agenda kon zien, wie toegang had tot welke gedeelde bestanden — dat verhuist ' +
+    'niet mee met de post. Haal de lijst op, werk hem door op het nieuwe systeem, en doe dat ' +
+    'vóór de bezorging verhuist: rechten die daarna worden toegevoegd, ontbraken zolang dat ' +
+    'duurde.',
+  'permissions.blindSpot':
+    'Eén ding kan de lijst u niet vertellen: wie FullAccess of Send-As op een postvak had. ' +
+    'Microsoft geeft ons dat helemaal niet — dat moet u zelf uit Exchange halen. Het document ' +
+    'zegt dat, en legt uit hoe.',
+  'permissions.download': 'Haal de rechtenlijst op',
+  'permissions.failed': 'De rechtenlijst kon niet worden opgehaald.',
   'sharedAddresses.heading': 'Gevonden gedeelde adressen',
   'sharedAddresses.pattern.shared_s': 'Gedeeld postvak — het postvak wordt gekopieerd',
   'sharedAddresses.pattern.distribution_d': 'Distributielijst — de leden worden opnieuw aangemaakt',

@@ -105,6 +105,23 @@ export async function fetchGroupRunbook(): Promise<string> {
 }
 
 /**
+ * The §14.2 permission inventory for a migration's mailbox (workplan 0029).
+ *
+ * By mappingId rather than by address: the screen knows which migration the
+ * operator is looking at, not which mailbox is behind it, and asking somebody
+ * to retype their own address is a way to get it wrong. The server resolves
+ * it, and says which fact is missing when it cannot.
+ */
+export async function fetchPermissionReport(mappingId: string): Promise<string> {
+  return (
+    await client.get<string>(
+      `/permissions/report?mappingId=${encodeURIComponent(mappingId)}`,
+      { responseType: 'text' },
+    )
+  ).data;
+}
+
+/**
  * The tenant's standing answers, and what an absent category means (0028 T5).
  *
  * `defaultAction` is returned by the server rather than assumed here: a

@@ -1201,11 +1201,39 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       const permissionReportMatch =
         req.method === 'GET' && req.url ? /^\/permissions\/report(?:\?(.*))?$/.exec(req.url) : null;
       if (permissionReportMatch) {
-        const mailbox = new URLSearchParams(permissionReportMatch[1] ?? '').get('mailbox')?.trim();
+        const params = new URLSearchParams(permissionReportMatch[1] ?? '');
+        // Either the address directly, or a mapping to resolve it from —
+        // the screen knows which migration the operator is looking at, not
+        // which mailbox is behind it, and asking somebody to retype their
+        // own address is a way to get it wrong. `resolveCoverage` already
+        // knows where a mapping's address lives per source kind.
+        const askedMappingId = params.get('mappingId')?.trim();
+        let mailbox = params.get('mailbox')?.trim();
+        if (!mailbox && askedMappingId) {
+          const m = mappings.find((x) => x.config.mappingId === askedMappingId);
+          if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+          const coverage = resolveCoverage([
+            { mappingId: m.config.mappingId, source: m.config.source },
+          ]);
+          mailbox = coverage.addresses[0];
+          if (!mailbox) {
+            // An UNSTATED mapping — a Graph source reading /me, whose address
+            // the config never records. Said, not guessed (rule 9).
+            return sendJson(res, 409, {
+              error: 'address_unstated',
+              reason:
+                'This mapping does not state which mailbox it reads, so its permissions ' +
+                'cannot be inventoried. Ask for a mailbox directly: ' +
+                '?mailbox=someone@example.com',
+            });
+          }
+        }
         if (!mailbox) {
           return sendJson(res, 400, {
             error: 'missing_mailbox',
-            reason: 'GET /permissions/report?mailbox=someone@example.com',
+            reason:
+              'GET /permissions/report?mailbox=someone@example.com ' +
+              '(or ?mappingId=… to resolve it from a migration)',
           });
         }
         // The Graph tenant, from whichever mapping has a Graph source. An

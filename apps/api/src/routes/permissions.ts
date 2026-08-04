@@ -66,11 +66,42 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
       res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found' });
       return;
     }
-    const mailbox = typeof req.query.mailbox === 'string' ? req.query.mailbox.trim() : '';
+    // Either the address directly, or a mapping to resolve it from. The
+    // second is what the UI uses: a screen knows which migration the
+    // operator is looking at, not which mailbox is behind it, and asking
+    // somebody to retype their own address is a way to get it wrong.
+    const asked = typeof req.query.mailbox === 'string' ? req.query.mailbox.trim() : '';
+    const mappingId = typeof req.query.mappingId === 'string' ? req.query.mappingId.trim() : '';
+    let mailbox = asked;
+
+    if (mailbox === '' && mappingId !== '') {
+      const { rows: found } = await pool().query<{ primary_address: string | null }>(
+        `SELECT mb.primary_address
+           FROM mailbox_mapping mm
+           JOIN mailbox mb ON mb.id = mm.source_mailbox_id
+          WHERE mm.tenant_id = $1 AND mm.id = $2`,
+        [tenantId, mappingId],
+      );
+      mailbox = found[0]?.primary_address?.trim() ?? '';
+      if (mailbox === '') {
+        // A mapping whose source address the ledger never recorded cannot be
+        // inventoried, and saying which is missing beats a bare 400 (rule 9).
+        res.status(409).json({
+          error: 'Conflict',
+          message:
+            'This migration does not record which mailbox it reads, so its permissions ' +
+            'cannot be inventoried. Ask for a mailbox directly: ?mailbox=someone@example.com',
+        });
+        return;
+      }
+    }
+
     if (mailbox === '') {
       res.status(400).json({
         error: 'Bad Request',
-        message: 'mailbox is required: GET /api/permissions/report?mailbox=someone@example.com',
+        message:
+          'a mailbox is required: GET /api/permissions/report?mailbox=someone@example.com ' +
+          '(or ?mappingId=… to resolve it from a migration)',
       });
       return;
     }
