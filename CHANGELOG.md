@@ -4,6 +4,66 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+Three of rc.1's named gaps are now built. **Every one of them is waiting on the
+same thing to prove itself**: admin consent on a real Microsoft 365 tenant
+(`docs/o365-application-access.md`). Until that happens they run on schedule and
+report, honestly and per tenant, that they could not look — which is the correct
+behaviour, and becomes real output with no further code.
+
+### Added
+
+- **Shared addresses are discovered and classified** (workplan 0027). Mail-enabled
+  groups are read from the source directory and sorted into §14.1's two patterns:
+  a shared MAILBOX, whose store is copied like any other mailbox, or a
+  distribution LIST, which has no store and whose definition and members have to
+  be recreated. Where the directory does not say which, **you are asked instead
+  of guessed at** — both wrong guesses cost real work, one silently leaving a
+  mailbox full of mail behind and the other leaving an address that reaches
+  nobody after cutover.
+- **A shared mailbox can be migrated as an ordinary mapping** (0027 T3):
+  `source.mailbox` names the shared address, the full folder tree is copied with
+  the same idempotency and verification as any mailbox. See
+  `docs/shared-mailboxes.md` for the target convention — a dedicated mailbox at
+  its own address, team access by per-person app passwords, Send-As.
+- **A step-by-step list for distribution lists** (0027 T2), with each address and
+  exactly who must receive its mail. Manual by necessity: no target platform this
+  tool supports offers a way to create a mail group for you, and the document
+  says so on its first line rather than implying otherwise. Lists whose
+  membership could not be read are named as such rather than presented as empty
+  groups to recreate.
+- **Drift detection** (workplan 0028). A daily pass notices a mailbox on the
+  source that no migration covers, raises it as a decision, and tells you.
+  Re-running converges on the same open questions instead of growing the queue,
+  and a tenant whose coverage cannot be established raises nothing and says why.
+  Standing answers (`auto`/`ask`, per category) let a category answer itself,
+  recording that a rule closed it rather than a person.
+- **The permission inventory** (workplan 0029, SAD §14.2). A report per mailbox,
+  reachable from the Finish checklist: who can see whose calendar, who has access
+  to which files, what each right corresponds to on the target, and which items
+  only a person can carry across. **Nothing is applied automatically** — the
+  write half is deferred by decision.
+
+### Fixed
+
+- A managed migration could be created declaring itself a distribution list,
+  which would have connected, copied nothing, and reported success. Both editions
+  now refuse it in the same words.
+- Seven dependencies with published advisories are pinned to their fixed
+  versions, including one in the managed worker's runtime path
+  (`socket.io-parser`, CVE-2026-69185, HIGH).
+
+### Known limits, said out loud
+
+- **Mailbox delegation cannot be inventoried.** FullAccess, SendAs and
+  SendOnBehalf are not exposed by the Microsoft Graph API this tool uses. Every
+  permission report says so and names the Exchange Online PowerShell cmdlets that
+  do read them. This is the class of right most likely to break silently at
+  cutover, so it is reported rather than omitted.
+- **IMAP sources cannot discover shared addresses at all** — the protocol has no
+  directory. Such a source reports that it could not look, never an empty list.
+- **Nothing above has been proven against a live tenant yet.** See the note at
+  the top of this section.
+
 ## [0.1.0-rc.1] - 2026-08-03
 
 The first tagged artifact. A **release candidate**, deliberately: the pipeline
@@ -38,6 +98,11 @@ workplan 0025 T2).
   a CycloneDX SBOM per build, every GitHub Action pinned by commit SHA.
 
 ### What is NOT in it — read this before pointing anyone at it
+
+> This list describes **rc.1 as tagged**, and it is left as it was written: a
+> released entry that quietly rewrites itself is a changelog nobody can trust.
+> Three of the gaps below were closed on 2026-08-04 — see **[Unreleased]** for
+> what changed and what those features still cannot prove.
 
 - **Shared mailboxes and distribution lists do not migrate.** The SAD promises
   both §14.1 patterns; the code for them is workplan 0027 and is unbuilt. The
