@@ -60,7 +60,20 @@ export const SCOPE_MANIFEST: ScopeManifest = {
         'message exactly once. The original on the source is never modified, and discovery ' +
         'reports how many messages this applies to.',
     },
-    { item: 'Permissions', detail: 'Inventoried and guided; only the clean, reversible subset is auto-applied (§14.2).' },
+    // Corrected 2026-08-04 (workplan 0029 T1–T3). The old wording — "only the
+    // clean, reversible subset is auto-applied" — described a write step that
+    // is DEFERRED by owner decision and has no code, and it read as a promise
+    // that permissions largely take care of themselves. They do not.
+    {
+      item: 'Permissions',
+      detail:
+        'INVENTORIED and GUIDED; nothing is auto-applied — §14.2\'s write step is deferred by ' +
+        'decision, so every item in the report is a step for a person. The report covers what ' +
+        'Microsoft Graph exposes: calendar sharing, and file and folder sharing including ' +
+        '"anyone with the link". Mailbox delegation — FullAccess, SendAs — is NOT readable ' +
+        'through Graph at all; the report says so for every migration rather than omitting it, ' +
+        'and you capture it with Exchange Online PowerShell before you cut over.',
+    },
     // Proton calendar/contacts (ICS/vCard snapshots) removed 2026-08-02: zero
     // Proton code exists and the whole Proton destination is deferred with
     // ADR-0025's discipline (0026 T3 row 9). "SharePoint extras" moved to

@@ -48,3 +48,6 @@ export * from './directory-availability';
 // Shared-address discovery (0027 T1) — and IMAP's honest "I cannot look".
 export * from './graph-groups';
 export * from './imap-groups';
+// The permission inventory's read layer (0029 T1, SAD §14.2).
+export * from './graph-permissions';
+export * from './graph-permission-scan';

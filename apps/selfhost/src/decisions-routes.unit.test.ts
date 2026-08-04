@@ -60,6 +60,30 @@ afterAll(async () => {
   await handle?.stop();
 });
 
+describe('GET /permissions/report (workplan 0029)', () => {
+  it('refuses without a mailbox, and says how to ask', async () => {
+    const res = await fetch(`${base}/permissions/report`);
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { reason: string }).reason).toContain('mailbox=');
+  });
+
+  it('serves a report whose blind spots are stated, not omitted', async () => {
+    const res = await fetch(`${base}/permissions/report?mailbox=rob@acme.nl`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/markdown');
+    const md = await res.text();
+    // This appliance has an IMAP source and no Graph credentials, so every
+    // category is uninventoried — which the document must SAY rather than
+    // render as an empty report (rule 9).
+    expect(md).toContain('could NOT be inventoried');
+    expect(md).toContain('Mailbox delegation');
+    expect(md).toContain('Get-MailboxPermission');
+    // And the deferred apply step is stated before the first finding.
+    expect(md).toContain('has been applied');
+  });
+});
+
 describe('GET /decisions', () => {
   it('serves the queue — empty, because nothing can raise decisions yet', async () => {
     const res = await fetch(`${base}/decisions`);

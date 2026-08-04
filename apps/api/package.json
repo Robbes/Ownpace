@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@mollie/api-client": "^4.6.0",
+    "@openmig/connectors": "workspace:*",
     "@openmig/core": "workspace:*",
     "@openmig/ledger": "workspace:*",
     "@openmig/scheduler": "workspace:*",
@@ -25,6 +26,7 @@
     "jose": "^6.2.5",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
+    "pg": "catalog:",
     "zod": "^4.4.3"
   },
   "devDependencies": {

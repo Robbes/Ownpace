@@ -25,6 +25,7 @@ import tenantRoutes from './routes/tenants/index';
 import mappingRoutes from './routes/migrations/index';
 import decisionRoutes from './routes/decisions';
 import sharedAddressRoutes from './routes/shared-addresses';
+import permissionRoutes from './routes/permissions';
 import billingRoutes from './routes/billing/index';
 import billingWebhookRoutes from './routes/billing/webhooks';
 import scopeManifestRoutes from './routes/scope-manifest';
@@ -61,6 +62,7 @@ app.use('/api/migrations', mappingRoutes);
 // The §11.1 drift decision queue (workplan 0028 T1).
 app.use('/api/decisions', decisionRoutes);
 app.use('/api/shared-addresses', sharedAddressRoutes);
+app.use('/api/permissions', permissionRoutes);
 app.use('/api/billing', billingRoutes);
 // Mount at /webhooks so the route resolves to /api/billing/webhooks/mollie —
 // the exact URL advertised to Mollie in createPayment's webhookUrl.
