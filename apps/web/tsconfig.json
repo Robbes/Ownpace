@@ -14,17 +14,20 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
+    /* Ambient types this program actually needs, named rather than inherited.
+       `vite/client` declares the asset modules a side-effect `import './x.css'`
+       relies on — TypeScript 6 checks those imports, where 5.x let them pass.
+       `node` is here because the program compiles `@openmig/shared` from
+       source, and parts of it (hashing, the logger) use node builtins; that
+       was arriving through an ancestor `node_modules/@types` lookup, which is
+       exactly the kind of dependency that breaks on a compiler upgrade. */
+    "types": ["node", "vite/client"],
+
     /* Linting */
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-
-    /* Path mapping */
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
-    }
+    "noFallthroughCasesInSwitch": true
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]

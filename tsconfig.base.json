@@ -2,7 +2,23 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
-    "moduleResolution": "node",
+
+    /* Was `"moduleResolution": "node"` (node10). TypeScript 6 deprecates that
+       with an error and 7 removes it, so this is the migration rather than an
+       `ignoreDeprecations` line that only buys the 6.x window. `bundler` is
+       the honest description of how this workspace actually resolves: nothing
+       here is emitted by tsc — the apps run under tsx, the web app is built by
+       Vite — so module specifiers are resolved by a bundler or a loader, never
+       by node's own algorithm against tsc output.
+
+       `allowImportingTsExtensions` follows from that. Under `bundler`, a
+       dependency that ships raw TypeScript (`jmap-rfc-types`) resolves to its
+       `.ts` sources, whose own imports carry the extension; node10 resolution
+       never reached them. It is safe only because every config here sets
+       `noEmit` — tsc refuses the option otherwise — and it permits nothing at
+       runtime that tsx and Vite did not already accept. */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
     "lib": ["ES2022"],
     "strict": true,
     "noUncheckedIndexedAccess": true,
