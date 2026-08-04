@@ -501,7 +501,17 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
         },
       });
       return response.status === 207 || response.status === 200;
-    } catch {
+    } catch (err) {
+      // A failed PROPFIND is "I could not check", and this returns it as
+      // "it does not exist" — which sends the caller on to create it. That
+      // is not destructive (MKCOL on an existing collection is refused by the
+      // server, it does not replace anything), but the error the operator
+      // then sees is a confusing create failure rather than the connectivity
+      // problem that actually happened. So the real reason is logged here.
+      log.warn(
+        `[carddav] could not check whether ${path} exists: ` +
+          `${err instanceof Error ? err.message : String(err)}; treating it as absent`,
+      );
       return false;
     }
   }

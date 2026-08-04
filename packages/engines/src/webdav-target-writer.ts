@@ -485,7 +485,14 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
           Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
         },
       });
-    } catch {
+    } catch (err) {
+      // The same shape the CalDAV writer already had: the result is honest
+      // either way (counted as unavailable, never as a mismatch), but the
+      // REASON has to be recoverable from the log.
+      log.warn(
+        `[webdav] GET ${filePath} failed: ${err instanceof Error ? err.message : String(err)}; ` +
+          'content not sampled',
+      );
       return undefined;
     }
 
@@ -514,7 +521,16 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
         },
       });
       return response.status === 207 || response.status === 200;
-    } catch {
+    } catch (err) {
+      // "I could not check" returned as "it does not exist", which sends the
+      // caller on to create it. Not destructive — MKCOL on an existing
+      // collection is refused by the server, never a replacement — but the
+      // operator then sees a confusing create failure instead of the
+      // connectivity problem that actually happened.
+      log.warn(
+        `[webdav] could not check whether ${path} exists: ` +
+          `${err instanceof Error ? err.message : String(err)}; treating it as absent`,
+      );
       return false;
     }
   }

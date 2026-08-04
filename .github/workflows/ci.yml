@@ -226,8 +226,39 @@ jobs:
           docker --version
           docker compose version
       - name: Install stalwart-cli
+        # Retried, because a single network blip here fails the whole
+        # integration suite before one test has run. 2026-08-04: GitHub's
+        # release CDN answered 502 for the binary and the job died at 27
+        # seconds — the second third-party-download flake of that day, after
+        # cosign/Rekor in the images workflow, which is what made this worth
+        # absorbing rather than re-running by hand each time.
+        #
+        # THREE ATTEMPTS, THEN FAIL LOUD. The installer's own message says a
+        # failure "may be a standard network error, but it may also indicate
+        # that stalwart-cli's release process is not working", and those need
+        # telling apart: a retry absorbs the first and must not hide the
+        # second. A persistent outage still fails the job, with the attempts
+        # it made stated (hard rule 9).
         run: |
-          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/stalwartlabs/cli/releases/latest/download/stalwart-cli-installer.sh | sh
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if curl --proto '=https' --tlsv1.2 -LsSf \
+                 https://github.com/stalwartlabs/cli/releases/latest/download/stalwart-cli-installer.sh | sh; then
+              installed=yes
+              break
+            fi
+            echo "::warning::stalwart-cli install attempt $attempt failed"
+            # 5s, then 15s. Long enough for a CDN blip, short enough that a
+            # real outage is reported inside a minute rather than five.
+            [ "$attempt" -lt 3 ] && sleep $((attempt * 10 - 5))
+          done
+          if [ "${installed:-no}" != yes ]; then
+            echo "::error::stalwart-cli could not be installed after 3 attempts."
+            echo "This is not a test failure: no test ran. Either the download is"
+            echo "unavailable (check https://github.com/stalwartlabs/cli/releases)"
+            echo "or its release process is broken."
+            exit 1
+          fi
           # Add cargo bin to PATH for this step and future steps
           export PATH="$HOME/.cargo/bin:$PATH"
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
