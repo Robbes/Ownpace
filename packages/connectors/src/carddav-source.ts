@@ -492,9 +492,11 @@ export class CarddavSource implements ContactSource {
       const descriptionMatch = responseContent.match(/<[A-Za-z]+:addressbook-description[^>]*>([^<]*)<\/[A-Za-z]+:addressbook-description>/i);
       const description = descriptionMatch && descriptionMatch[1] ? this.decodeXmlEntities(descriptionMatch[1].trim()) : undefined;
 
-      // Extract color - namespace-agnostic
-      const colorMatch = responseContent.match(/<[A-Za-z]+:color[^>]*>([^<]+)<\/[A-Za-z]+:color>/i);
-      const _color = colorMatch && colorMatch[1] ? colorMatch[1].trim() : undefined;
+      // An address book's COLOUR is deliberately not read. It is presentation,
+      // not content: nothing in the scope manifest promises it and no target
+      // field receives it. The parse used to happen and the result was dropped,
+      // which costs a regex per collection and — worse — reads as though the
+      // colour were carried across.
 
       // Skip Nextcloud internal address books. MUST check the stable path segment, not the
       // human-readable displayname -- confirmed live against Nextcloud 34: the internal

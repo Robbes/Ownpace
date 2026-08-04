@@ -49,15 +49,6 @@ const NotificationPrefsSchema = z.object({
   locale: z.enum(['en', 'nl']),
 });
 
-const _InviteMemberSchema = z.object({
-  email: z.string().email(),
-  role: z.enum(['owner', 'admin', 'member', 'viewer']),
-});
-
-const _UpdateMemberRoleSchema = z.object({
-  role: z.enum(['owner', 'admin', 'member', 'viewer']),
-});
-
 /**
  * GET /api/tenants
  * 
