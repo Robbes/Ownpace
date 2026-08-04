@@ -45,6 +45,13 @@ behaviour, and becomes real output with no further code.
   granted (`GRAPH_FILES_READ_CONSENTED=true`); by default that section is a
   stated blind spot rather than a silent omission — see below.
 
+- **A command that proves the Microsoft 365 setup worked.**
+  `check-access` asks Graph one small question per consented permission and
+  reports each separately — because they are granted separately and refused
+  separately. It replaces the previous answer to *did that work?*, which was to
+  wait for the next morning's scheduled pass and read a log. Documented as
+  step 6 of `docs/o365-application-access.md`.
+
 ### Fixed
 
 - A managed migration could be created declaring itself a distribution list,

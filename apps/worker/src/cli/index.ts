@@ -16,6 +16,7 @@
  *   status         Show cutover status
  *   runbook        Generate the guided DNS migration runbook (Markdown)
  *   reindex        Rebuild the ledger FROM the target (ADR-0020 recovery)
+ *   check-access   Prove the O365 consent runbook actually worked
  */
 
 import { CutoverStore, createLedgerVerificationReader } from '@openmig/ledger';
@@ -23,6 +24,12 @@ import { asTenantId, asMappingId, type TenantId, type MappingId } from '@openmig
 import { runVerification, createRealVerificationDeps, reindexFromTarget } from '@openmig/core';
 import { buildDepsFromMapping } from '../build-deps-from-mapping';
 import { buildTargetReindexers } from '../build-reindexers';
+import {
+  checkGraphAccess,
+  renderAccessCheck,
+  createTokenProvider,
+  directoryAvailability,
+} from '@openmig/connectors';
 import * as cutoverCli from './cutover-commands';
 import { log } from '@openmig/shared';
 
@@ -35,6 +42,7 @@ function parseArgs(): {
   targetMailServer?: string;
   dkimSelector?: string;
   targetIp?: string;
+  mailbox?: string;
   assumeYes: boolean;
 } {
   const args = process.argv.slice(2);
@@ -45,6 +53,7 @@ function parseArgs(): {
   let targetMailServer: string | undefined;
   let dkimSelector: string | undefined;
   let targetIp: string | undefined;
+  let mailbox: string | undefined;
   let assumeYes = false;
 
   for (let i = 0; i < args.length; i++) {
@@ -63,6 +72,8 @@ function parseArgs(): {
       dkimSelector = args[++i];
     } else if (arg === '--target-ip' || arg === '-i') {
       targetIp = args[++i];
+    } else if (arg === '--mailbox') {
+      mailbox = args[++i];
     } else if (arg === '--yes' || arg === '-y') {
       assumeYes = true;
     } else if (arg === '--help' || arg === '-h') {
@@ -85,6 +96,13 @@ Commands:
                    recovery). Adopts what the target already holds so the next
                    pass re-copies nothing; reads the target, writes only
                    ledger rows. State-changing -> needs --yes; no --domain.
+  check-access     Ask Microsoft Graph, once per consented permission, whether
+                   this deployment can actually read what
+                   docs/o365-application-access.md set up. Read-only, one
+                   record per capability, no database. Needs --tenant (the
+                   O365 tenant id) and OAUTH2_CLIENT_ID/OAUTH2_CLIENT_SECRET;
+                   pass --mailbox to also prove the two mailbox-scoped
+                   permissions.
 
 Options:
   --tenant, -t <id>         Tenant ID (required, except for "runbook")
@@ -93,6 +111,10 @@ Options:
   --target, -T <host>       Target mail server (default: mail.<domain>)
   --dkim-selector, -k <s>   DKIM selector to check/document (default: "default")
   --target-ip, -i <ip>      IP for the autodiscover record (default: target mail server)
+  --mailbox <address>       For check-access: a mailbox INSIDE the Application
+                            Access Policy's group. Without it the two
+                            mailbox-scoped permissions are reported as NOT
+                            tested, which is not the same as passing.
   --yes, -y                 Confirm a state-changing command. REQUIRED by
                             approve, execute, complete and rollback — without
                             it they print what they would do and exit non-zero.
@@ -143,36 +165,38 @@ Environment Variables:
   }
 
   if (!command) {
-    log.error('Error: command required (start-cutover, verify, approve, execute, complete, rollback, status, runbook, reindex)');
+    log.error('Error: command required (start-cutover, verify, approve, execute, complete, rollback, status, runbook, reindex, check-access)');
     process.exit(1);
   }
 
-  // reindex reads the target and writes the ledger — DNS never enters it.
-  if (!domain && command !== 'reindex') {
+  // Neither reindex nor check-access has anything to do with DNS.
+  if (!domain && command !== 'reindex' && command !== 'check-access') {
     log.error('Error: --domain <name> is required');
     process.exit(1);
   }
 
   // "runbook" is a pure local computation — no tenant/mapping/DB needed.
+  // "check-access" needs the O365 tenant id and nothing else: it runs BEFORE
+  // there is a migration to name, which is the whole point of running it.
   if (command !== 'runbook') {
     if (!tenantId) {
       log.error('Error: --tenant <id> is required');
       process.exit(1);
     }
 
-    if (!mappingId) {
+    if (!mappingId && command !== 'check-access') {
       log.error('Error: --mapping <id> is required');
       process.exit(1);
     }
   }
 
   // domain is '' only for reindex, which never touches DNS.
-  return { command, tenantId: tenantId ?? '', mappingId: mappingId ?? '', domain: domain ?? '', targetMailServer, dkimSelector, targetIp, assumeYes };
+  return { command, tenantId: tenantId ?? '', mappingId: mappingId ?? '', domain: domain ?? '', targetMailServer, dkimSelector, targetIp, mailbox, assumeYes };
 }
 
 /** Main entry point. */
 async function main() {
-  const { command, tenantId, mappingId, domain, targetMailServer, dkimSelector, targetIp, assumeYes } = parseArgs();
+  const { command, tenantId, mappingId, domain, targetMailServer, dkimSelector, targetIp, mailbox, assumeYes } = parseArgs();
 
   // "runbook" is a pure local computation — generate and print without touching the DB.
   if (command === 'runbook') {
@@ -184,6 +208,46 @@ async function main() {
         dkimSelector,
       }),
     );
+    return;
+  }
+
+  // "check-access" is the proof half of docs/o365-application-access.md, and it
+  // deliberately runs BEFORE there is a database, a tenant row or a migration:
+  // it is what somebody runs the moment they finish the runbook, to find out
+  // whether it worked. Putting it after the DATABASE_URL check would make a
+  // setup command require a stack that is not set up yet.
+  //
+  // Read-only and unauthenticated against our own ledger by construction —
+  // it asks Graph four questions and prints the answers.
+  if (command === 'check-access') {
+    const available = directoryAvailability(process.env, tenantId);
+    if (!available.ok) {
+      // The credentials are wrong or delegated. Said in the same words the
+      // detectors use, so the fix is the same fix.
+      log.error(`Cannot check: ${available.reason}`);
+      process.exit(1);
+    }
+    const provider = createTokenProvider({
+      tokenEndpoint: `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
+      clientId: available.clientId,
+      clientSecret: available.clientSecret,
+      tenantId,
+      scope: 'https://graph.microsoft.com/.default',
+    });
+    const result = await checkGraphAccess(
+      async () => (await provider.getToken()).accessToken,
+      {
+        async request({ url, method, headers }) {
+          const res = await fetch(url, { method, headers });
+          return { status: res.status, body: await res.text(), headers: {} };
+        },
+      },
+      mailbox ? { mailbox } : {},
+    );
+    log.info(renderAccessCheck(result));
+    // Non-zero when anything did not answer, so it can gate a setup script
+    // rather than only being read by a person.
+    if (!result.allOk) process.exit(1);
     return;
   }
 
