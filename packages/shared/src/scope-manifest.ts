@@ -60,7 +60,20 @@ export const SCOPE_MANIFEST: ScopeManifest = {
         'message exactly once. The original on the source is never modified, and discovery ' +
         'reports how many messages this applies to.',
     },
-    { item: 'Permissions', detail: 'Inventoried and guided; only the clean, reversible subset is auto-applied (§14.2).' },
+    // Corrected 2026-08-04 (workplan 0029 T1–T3). The old wording — "only the
+    // clean, reversible subset is auto-applied" — described a write step that
+    // is DEFERRED by owner decision and has no code, and it read as a promise
+    // that permissions largely take care of themselves. They do not.
+    {
+      item: 'Permissions',
+      detail:
+        'NOT yet inventoried, and nothing is ever auto-applied — §14.2\'s write step is ' +
+        'deferred by decision. The reading and the report exist (calendar and file sharing, ' +
+        'which Graph exposes) and are not yet reachable from a screen. Mailbox delegation — ' +
+        'FullAccess, SendAs — is not readable through Graph at all and is reported as ' +
+        'uninventoried rather than omitted; capture it with Exchange Online PowerShell before ' +
+        'you cut over.',
+    },
     // Proton calendar/contacts (ICS/vCard snapshots) removed 2026-08-02: zero
     // Proton code exists and the whole Proton destination is deferred with
     // ADR-0025's discipline (0026 T3 row 9). "SharePoint extras" moved to

@@ -15,6 +15,7 @@ export * from './lifecycle';
 export * from './verification-report';
 export * from './discovery';
 export * from './decisions';
+export * from './permissions';
 export * from './notifications';
 export * from './scope-manifest';
 export * from './keywords';
