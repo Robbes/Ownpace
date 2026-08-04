@@ -56,11 +56,11 @@ router.get('/usage', authenticate, async (req: AuthenticatedRequest, res: Respon
     }
     
     const periodStart = new Date().toISOString().slice(0, 7) + '-01'; // First day of current month
-    const _periodEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 10); // Last day of current month
+    const periodEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 10); // Last day of current month
 
     // Get REAL usage via T4's metering - derive storage/egress from item ledger, read compute/api from upserts
     const metrics = await withTenantDb(tenantId, getSharedPool(), async (db) => {
-      return await getUsageMetricsForPeriod(db, tenantId as never as import('@openmig/shared').TenantId, periodStart, _periodEnd);
+      return await getUsageMetricsForPeriod(db, tenantId as never as import('@openmig/shared').TenantId, periodStart, periodEnd);
     });
 
     // Map T4's result to the UI response shape
