@@ -182,6 +182,15 @@ jobs:
     needs: lint
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
+        with:
+          # TAGS, and therefore full history. §22.1's N-1 -> N upgrade gate
+          # reads the previous release's migrations straight out of the tag
+          # (`git show v0.1.0-rc.1:packages/ledger/migrations/...`), so a
+          # depth-1 checkout leaves it with no reference to upgrade FROM.
+          # It would then SKIP — silently, and green. The gate fails loudly on
+          # a missing tag under CI for the same reason, but the fix belongs
+          # here: the gate should run, not report why it could not.
+          fetch-depth: 0
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
