@@ -825,7 +825,13 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer, TargetR
     if (!this.conn) return undefined;
 
     const uid = Number(entry.targetId);
-    if (!Number.isInteger(uid)) return undefined;
+    if (!Number.isInteger(uid)) {
+      log.warn(
+        `[imap] ${entry.targetId} is not a UID, so its content could not be sampled; ` +
+          'counted as unavailable, not as a mismatch',
+      );
+      return undefined;
+    }
 
     try {
       await this.conn.openBox(entry.mailboxId);
@@ -845,9 +851,21 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer, TargetR
         fetch.once('end', () => resolve());
       });
 
-      if (chunks.length === 0) return undefined;
+      if (chunks.length === 0) {
+        // The server answered with no body. Unavailable, not empty content:
+        // hashing zero bytes would produce a real-looking hash of nothing.
+        log.warn(`[imap] UID ${uid} returned no body; its content could not be sampled`);
+        return undefined;
+      }
       return contentHash(new Uint8Array(Buffer.concat(chunks)));
-    } catch {
+    } catch (err) {
+      // Silent until now. The RESULT was always honest — verification counts
+      // this as unavailable rather than as a mismatch — but an operator
+      // asking "why does the check say not measured?" had nothing to read.
+      log.warn(
+        `[imap] could not sample UID ${uid} in ${entry.mailboxId}: ` +
+          `${err instanceof Error ? err.message : String(err)}`,
+      );
       return undefined;
     }
   }

@@ -581,7 +581,16 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
         },
       });
       return response.status === 207 || response.status === 200;
-    } catch {
+    } catch (err) {
+      // "I could not check" returned as "it does not exist", which sends the
+      // caller on to create it. Not destructive — MKCOL on an existing
+      // collection is refused by the server, never a replacement — but the
+      // operator then sees a confusing create failure instead of the
+      // connectivity problem that actually happened.
+      log.warn(
+        `[caldav] could not check whether ${path} exists: ` +
+          `${err instanceof Error ? err.message : String(err)}; treating it as absent`,
+      );
       return false;
     }
   }
