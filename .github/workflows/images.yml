@@ -12,9 +12,16 @@ name: Images
 #     belongs on the publish path, not on every PR.
 #   - Pushes to main build linux/amd64 + linux/arm64 (SAD §22) and publish the
 #     `edge` channel + a `sha-<commit>` tag.
-#   - Tags `v*` publish the semver tags + `latest`. This path has never run
-#     until the first release is cut (0025 T2, an owner decision) — the same
-#     honest gating as the SBOM release-attach step.
+#   - Tags `v*` publish the semver tags. **A PRE-RELEASE DOES NOT TAKE
+#     `latest`** — metadata-action's default `latest=auto` withholds it from
+#     any semver tag carrying a pre-release suffix, so `v0.1.0-rc.1` publishes
+#     `0.1.0-rc.1` and nothing else. That is the behaviour the CHANGELOG tells
+#     people to rely on when it says to pin the explicit tag or a digest; this
+#     comment claimed the opposite until 2026-08-04, which is the direction
+#     that would have hurt — a reader would expect a release candidate to
+#     become the default anyone pulling `latest` gets.
+#     This path has never run until the first release is cut (0025 T2, an
+#     owner decision).
 #
 # Credentials: GITHUB_TOKEN only (packages: write) — no stored secrets
 # (hard rule 3). The first main-branch run is the multi-arch shakedown.

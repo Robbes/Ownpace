@@ -1,10 +1,22 @@
 # Security scanning — Node/TS equivalent of OWASP Dependency-Check + CycloneDX.
 # Trivy (dependency/filesystem) -> SARIF, plus a CycloneDX SBOM; SBOM attached to release tags.
+#
+# The SBOM half runs on TAGS as well as main. It did not until 2026-08-04, and
+# the attach step was gated on a tag ref the workflow never saw — so the step
+# read as deliberate and did nothing, which is the worst shape a guard can
+# have. See the trigger block.
 name: Security Scan
 
 on:
   push:
     branches: [main]
+    # Tags too, and that is not cosmetic: the SBOM-attach step below is gated
+    # on `refs/tags/`, a condition this workflow could never reach while it
+    # only ran on branches. The step has been present and unreachable since it
+    # was written, so "a CycloneDX SBOM is attached to the release" was a claim
+    # with nothing behind it — found reviewing the tag path before the first
+    # tag was pushed (0025 T2/T3, 2026-08-04).
+    tags: ['v*']
   pull_request:
     branches: [main]
   schedule:
@@ -24,7 +36,11 @@ jobs:
     name: security-scan
     runs-on: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'self-hosted' || 'ubuntu-latest' }}
     permissions:
-      contents: read
+      # `contents: write` for the SBOM attach on a tag: creating or updating a
+      # release is a write, and the read-only token this job used would have
+      # failed the step with a 403 even once it became reachable. Scoped to
+      # this job rather than the workflow — the top-level block stays read.
+      contents: write
       security-events: write
       actions: read
     steps:
@@ -74,7 +90,20 @@ jobs:
           retention-days: 90
 
       - name: Attach SBOM to GitHub release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') && hashFiles('bom.json') != ''
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           files: bom.json
+          # A hyphen in the version is what SemVer calls a pre-release, and it
+          # is what keeps `0.1.0-rc.1` from being presented as this project's
+          # current release. The same rule governs the image tags: metadata-
+          # action's `latest=auto` withholds `latest` from a pre-release, which
+          # is why nothing here has to ask for that behaviour.
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          # No body is set, deliberately. The obvious candidates are both
+          # wrong: `github.event.head_commit.message` on a tag push is the
+          # commit the tag points at — here a "Merge pull request #294"
+          # line — not the tag's own annotation, and generated notes would be
+          # a list of commit subjects. The release is created so the SBOM has
+          # somewhere to attach; whoever cuts the release writes what it says,
+          # and CHANGELOG.md is where that text already lives.
