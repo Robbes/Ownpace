@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgLedger, PgCursorStore, RunStore, withTenant } from '@openmig/ledger';
+import { runMigrations, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -80,12 +80,15 @@ import {
   notifierFromEnv,
   createTokenProvider,
   listTenantMailboxes,
+  listMailEnabledGroups,
+  groupsNotEnumerable,
   directoryNotEnumerable,
   directoryAvailability,
   type HttpClient,
 } from '@openmig/connectors';
 import {
   runNewMailboxDetection,
+  runGroupDiscovery,
   resolveCoverage,
   coverageIncompleteReason,
 } from '@openmig/core';
@@ -806,6 +809,105 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     const handle = scheduler.schedule('drift-detect', '0 7 * * *', detectDrift);
     handles.push(handle);
     log.info('[selfhost] drift detection scheduled (0 7 * * *)');
+  }
+
+  // 3e. Shared-address discovery (workplan 0027 T1).
+  //
+  // The appliance's half. Same shape as 3d and the same division of labour:
+  // every rule is in `@openmig/core`, what is here is the token, the store and
+  // the schedule.
+  //
+  // An appliance with only IMAP mappings is not visited at all, and that is
+  // deliberate rather than an oversight: IMAP has no directory of groups, so
+  // there is nothing to ask. `listImapGroups()` carries that sentence for
+  // wherever a caller DOES ask (Review & confirm, T4) — what must not happen
+  // is this pass writing zero rows and the screen reading "no shared
+  // addresses" (hard rule 9).
+  const discoverGroups = async (): Promise<void> => {
+    // Grouped by tenant, like drift detection: the directory is a
+    // tenant-level fact.
+    const byTenant = new Map<string, LoadedMapping[]>();
+    for (const m of mappings) {
+      const list = byTenant.get(m.config.tenantId) ?? [];
+      list.push(m);
+      byTenant.set(m.config.tenantId, list);
+    }
+
+    for (const [tenantId, tenantMappings] of byTenant) {
+      const graphSource = tenantMappings
+        .map((m) => m.config.source)
+        .find((src) => src.type.startsWith('graph-')) as { tenantId?: string } | undefined;
+      if (!graphSource?.tenantId) continue; // no Graph source: nothing to ask
+
+      // `group_def.source_connection_id` is NOT NULL and references
+      // `connection`. The appliance's mappings are files, so the row is
+      // derived deterministically from the Graph tenant — the same id every
+      // run, which is what makes the group upsert converge (rule 1).
+      const sourceConnectionId = uuidFromString(
+        `${tenantId}:source:graph:${graphSource.tenantId}`,
+      );
+      try {
+        await withTenantContext(tenantId, async (client) => {
+          await client.query(
+            `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
+             VALUES ($1, $2, 'source', 'o365', 'Source Microsoft 365', $3, 'connected')
+             ON CONFLICT (id) DO NOTHING`,
+            [sourceConnectionId, tenantId, JSON.stringify({ tenantId: graphSource.tenantId })],
+          );
+        });
+
+        const summary = await runGroupDiscovery({
+          tenantId: tenantId as TenantId,
+          sourceConnectionId,
+          listGroups: async () => {
+            const available = directoryAvailability(process.env, graphSource.tenantId);
+            if (!available.ok) {
+              return { kind: 'not_enumerable', reason: groupsNotEnumerable(available.reason) };
+            }
+            const tokenProvider = createTokenProvider({
+              tokenEndpoint: `https://login.microsoftonline.com/${graphSource.tenantId!}/oauth2/v2.0/token`,
+              clientId: available.clientId,
+              clientSecret: available.clientSecret,
+              tenantId: graphSource.tenantId!,
+              scope: 'https://graph.microsoft.com/.default',
+            });
+            return listMailEnabledGroups(
+              async () => (await tokenProvider.getToken()).accessToken,
+              detectorHttpClient,
+              { applicationPermissions: true },
+            );
+          },
+          record: async (input) => {
+            const { created } = await new PgGroupDefStore(db).upsert(tenantId as TenantId, input);
+            return { created };
+          },
+          warn: (m) => log.warn(m),
+          error: (m, err) => log.error(m, err instanceof Error ? err.message : err),
+        });
+
+        if (summary.discovered > 0 || summary.unclassified > 0) {
+          log.info(
+            `[groups] ${tenantId}: ${summary.discovered} discovered, ${summary.known} known, ` +
+              `${summary.unclassified} still to classify`,
+          );
+        }
+      } catch (err) {
+        // A discovery pass must never take the appliance down; the failure is
+        // said out loud (rule 9) rather than swallowed.
+        log.error(
+          `[groups] ${tenantId}: the discovery pass failed:`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+  };
+
+  // 06:30 local, before both the drift detector and the digest — a shared
+  // address found this morning is in the summary the owner reads.
+  {
+    const handle = scheduler.schedule('group-discovery', '30 6 * * *', discoverGroups);
+    handles.push(handle);
+    log.info('[selfhost] shared-address discovery scheduled (30 6 * * *)');
   }
 
   // 4. Local status/health + confirm server.

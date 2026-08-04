@@ -17,3 +17,6 @@ export * from './apply-deletion';
 export * from './detect-new-mailboxes';
 export * from './run-new-mailbox-detection';
 export * from './mapping-coverage';
+// Shared addresses — §14.1's S-or-D judgement and the discovery pass (0027 T1).
+export * from './classify-shared-address';
+export * from './run-group-discovery';

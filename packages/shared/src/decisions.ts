@@ -77,6 +77,51 @@ export type DirectoryListing =
   /** It could not look, and this is why — in the source's own words. */
   | { readonly kind: 'not_enumerable'; readonly reason: string };
 
+/**
+ * Whether a shared address carries a message store (workplan 0027 T1).
+ *
+ * §14.1's whole question turns on this: a store means there are messages to
+ * copy (Pattern S), no store means what migrates is the definition and the
+ * member list (Pattern D). The three-way shape is deliberate — `unknown` is
+ * an answer, not a failure, and it is the one that becomes a
+ * `shared_address_pattern` decision instead of a guess.
+ *
+ * Source-neutral on purpose. Translating a directory's vocabulary into these
+ * three words is the connector's job (Microsoft's `Unified` group type means
+ * `has_store`); turning them into a §14.1 pattern is `@openmig/core`'s.
+ */
+export type GroupStore = 'has_store' | 'no_store' | 'unknown';
+
+/** §14.1's two patterns, as `mailbox_mapping.pattern` records them. */
+export type SharedAddressPattern = 'shared_s' | 'distribution_d';
+
+/** One shared address as a source's directory described it (0027 T1). */
+export interface DiscoveredGroup {
+  /** The directory's stable id — survives a rename, unlike the address. */
+  readonly id: string;
+  readonly address: string;
+  readonly displayName?: string;
+  readonly store: GroupStore;
+  /**
+   * Who is in it, or why that could not be found out. Pattern D recreates a
+   * group from exactly this list, so a failed read must not arrive as an
+   * empty membership (hard rule 9) — hence the same union as the directory.
+   */
+  readonly members: DirectoryListing;
+}
+
+/**
+ * What a source came back with when asked to list its groups (0027 T1).
+ *
+ * The same union as {@link DirectoryListing} and for the same reason: IMAP
+ * has no directory of groups at all, and a delegated Graph connection cannot
+ * read `/groups`. Both must report that they could not look — an empty list
+ * would tell an owner their organisation has no shared addresses.
+ */
+export type GroupListing =
+  | { readonly kind: 'listed'; readonly groups: readonly DiscoveredGroup[] }
+  | { readonly kind: 'not_enumerable'; readonly reason: string };
+
 export interface RaiseDecisionInput {
   readonly tenantId: TenantId;
   readonly mappingId?: MappingId;
