@@ -15,10 +15,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import type { StatusReport } from '@openmig/shared';
 
-const { fetchStatus, fetchAllDiscovery, fetchScopeManifest, startMigration } = vi.hoisted(() => ({
+const {
+  fetchStatus,
+  fetchAllDiscovery,
+  fetchScopeManifest,
+  fetchSharedAddresses,
+  startMigration,
+} = vi.hoisted(() => ({
   fetchStatus: vi.fn(),
   fetchAllDiscovery: vi.fn(),
   fetchScopeManifest: vi.fn(),
+  fetchSharedAddresses: vi.fn(),
   startMigration: vi.fn(),
 }));
 
@@ -26,6 +33,7 @@ vi.mock('../services/operating-service', () => ({
   fetchStatus,
   fetchAllDiscovery,
   fetchScopeManifest,
+  fetchSharedAddresses,
   startMigration,
 }));
 
@@ -80,6 +88,8 @@ function renderScreen() {
 beforeEach(() => {
   vi.clearAllMocks();
   fetchAllDiscovery.mockResolvedValue(discovery);
+  // Nothing discovered by default; the panel's own suite owns the states.
+  fetchSharedAddresses.mockResolvedValue({ addresses: [] });
   fetchScopeManifest.mockResolvedValue({
     version: 'v1',
     migrates: [{ item: 'Mail', detail: 'folders and flags' }],

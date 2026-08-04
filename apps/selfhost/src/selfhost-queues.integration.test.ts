@@ -382,6 +382,16 @@ describe('the decision queue', () => {
     expect(rows[0].pattern).toBe('shared_s');
   });
 
+  it('serves the discovered addresses under the same shape as managed', async () => {
+    // 0027 T4. Written here for the same reason as the answer round trips:
+    // the rows have to exist beside a running appliance, which PGlite cannot
+    // do. The shape is ADR-0026's — one operating UI reads both editions.
+    const res = await fetch(`${base}/shared-addresses`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { addresses: { address: string; pattern?: string }[] };
+    expect(body.addresses.map((a) => a.address)).toContain('sales@example.nl');
+  });
+
   it('leaves the group alone when the answer names no pattern', async () => {
     const conn = await pool.query(
       `INSERT INTO connection (tenant_id, role, kind, display_name, config, status)

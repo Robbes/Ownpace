@@ -65,6 +65,33 @@ export async function fetchDriftDecisions(): Promise<{ decisions: ReadonlyArray<
   return (await client.get<{ decisions: ReadonlyArray<DecisionRow> }>('/decisions')).data;
 }
 
+/** One shared address as discovery found it (workplan 0027 T1/T4). */
+export interface SharedAddressRow {
+  readonly id: string;
+  readonly address: string;
+  readonly displayName?: string;
+  /** Absent means the source did not say — the S-or-D question is open. */
+  readonly pattern?: 'shared_s' | 'distribution_d';
+  readonly members: readonly string[];
+  /** False when the member list could not be read; `members` is then empty. */
+  readonly membersKnown: boolean;
+  readonly status: 'pending' | 'created' | 'error';
+}
+
+/**
+ * What shared-address discovery found (workplan 0027 T4).
+ *
+ * TENANT-level like the decision queue, and for the same reason: info@ is the
+ * organisation's address, not any one mapping's. An empty list is NOT proof
+ * the organisation has none — see the screen's empty state.
+ */
+export async function fetchSharedAddresses(): Promise<{
+  addresses: ReadonlyArray<SharedAddressRow>;
+}> {
+  return (await client.get<{ addresses: ReadonlyArray<SharedAddressRow> }>('/shared-addresses'))
+    .data;
+}
+
 /**
  * The tenant's standing answers, and what an absent category means (0028 T5).
  *

@@ -1152,11 +1152,23 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         }
         return sendJson(res, 200, out);
       }
+      // What shared-address discovery found (workplan 0027 T4). Same shape
+      // and same words as managed (ADR-0026): one operating UI.
+      //
+      // An empty list is NOT "this organisation has no shared addresses" —
+      // an IMAP source cannot enumerate groups at all, and a Graph source
+      // without application permissions cannot either. The screen's empty
+      // state carries that sentence (rule 9); this route just reports rows.
+      if (req.method === 'GET' && req.url === '/shared-addresses') {
+        const store = new PgGroupDefStore(db);
+        const addresses = [];
+        for (const t of [...new Set(mappings.map((m) => m.config.tenantId))]) {
+          addresses.push(...(await store.list(t as TenantId)));
+        }
+        return sendJson(res, 200, { addresses });
+      }
       // The §11.1 drift decision queue (workplan 0028 T1). The appliance
-      // answers for every configured mapping's tenant, like every queue. No
-      // detector exists yet, so an empty list here means "nothing can raise
-      // decisions yet" — the screen's empty state says so (rule 9), not
-      // "no drift".
+      // answers for every configured mapping's tenant, like every queue.
       if (req.method === 'GET' && req.url === '/decisions') {
         const store = new PgDecisionStore(db);
         const tenants = [...new Set(mappings.map((m) => m.config.tenantId))];
