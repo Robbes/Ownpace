@@ -23,7 +23,7 @@ import {
   type RawFileItem,
   type TenantId,
   type MappingId,
-  calendarNaturalKeyHash,
+  naturalKeyForCalendar,
   calendarContentHash,
   contactNaturalKeyHash,
   contactContentHash,
@@ -76,7 +76,11 @@ export async function runCalendarSync(deps: CalendarSyncDeps): Promise<DomainSyn
     },
     upsert: async (calendarId, raw, _item, options) =>
       target.upsertCalendarEvent(calendarId, raw as RawCalendarEvent, options),
-    naturalKey: (item) => calendarNaturalKeyHash(item.item.uid),
+    // Through the shared helper, not the bare UID: a recurring series and each
+    // of its modified occurrences share a UID, so keying on it alone makes an
+    // exception look like an item the target already has (see
+    // `naturalKeyForCalendar`).
+    naturalKey: (item) => naturalKeyForCalendar(item.item),
     // The CalDAV ETag, when the server sent one. Undefined keeps the old
     // skip-anything-seen behaviour rather than guessing at change.
     sourceVersion: (item) => item.item.etag,

@@ -38,8 +38,20 @@ export function calendarNaturalKeyHash(uid: string): string {
   return sha256Hex(`cal:${uid.toLowerCase()}`);
 }
 
+/**
+ * The natural key for a calendar event, series and exceptions alike.
+ *
+ * A recurring series and each of its modified occurrences share a UID (RFC
+ * 5545), so the UID alone does not identify one of them. RECURRENCE-ID is
+ * what tells them apart, and it is part of the key for exactly that reason.
+ *
+ * Unchanged for an ordinary event: no RECURRENCE-ID means the key is the UID,
+ * exactly as before, so nothing already migrated is re-keyed.
+ */
 export function naturalKeyForCalendar(event: CalendarEvent): string {
-  return calendarNaturalKeyHash(event.uid);
+  return calendarNaturalKeyHash(
+    event.recurrenceId ? `${event.uid}|${event.recurrenceId}` : event.uid,
+  );
 }
 
 /**
