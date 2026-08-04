@@ -45,3 +45,6 @@ export * from './notifier-from-env';
 export * from './graph-scope';
 export * from './graph-directory';
 export * from './directory-availability';
+// Shared-address discovery (0027 T1) — and IMAP's honest "I cannot look".
+export * from './graph-groups';
+export * from './imap-groups';

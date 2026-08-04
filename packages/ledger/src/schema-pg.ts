@@ -417,6 +417,54 @@ export const decision = pgTable(
   ],
 );
 
+/**
+ * A shared address discovered on the source (workplan 0027 T1).
+ *
+ * The table is ledger v1's; the columns below the member list are migration
+ * 0006's, added when discovery finally gave it a writer. `pattern` is §14.1's
+ * question — a shared MAILBOX (a store to copy, Pattern S) or a distribution
+ * LIST (a definition to recreate, Pattern D) — and it is NULLABLE because
+ * "discovered but not classifiable from what the directory said" is a real
+ * state that belongs in the `shared_address_pattern` decision queue rather
+ * than in a guess.
+ */
+export const groupDef = pgTable(
+  'group_def',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenant.id, { onDelete: 'cascade' }),
+    sourceConnectionId: uuid('source_connection_id')
+      .notNull()
+      .references(() => connection.id, { onDelete: 'cascade' }),
+    address: text('address').notNull(),
+    /** Graph's group id — the identity that survives a rename. */
+    sourceGroupId: text('source_group_id'),
+    /** What an operator confirming a migration actually reads. */
+    displayName: text('display_name'),
+    pattern: text('pattern', { enum: ['shared_s', 'distribution_d'] }),
+    members: jsonb('members').notNull().default([]),
+    /**
+     * Whether `members` is the answer or the absence of one. An empty list is
+     * a legitimate finding AND what a failed member read leaves behind; since
+     * Pattern D recreates a group from exactly this list, the two must not
+     * look alike (migration 0006, hard rule 9).
+     */
+    membersKnown: boolean('members_known').notNull().default(true),
+    targetGroupRef: text('target_group_ref'),
+    status: text('status', { enum: ['pending', 'created', 'error'] })
+      .notNull()
+      .default('pending'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('ix_group_tenant').on(t.tenantId),
+    // Rule 1: discovery re-runs, and a second row for the same group would
+    // make "which member list is current" depend on read order.
+    uniqueIndex('uk_group_def_source_address').on(t.tenantId, t.sourceConnectionId, t.address),
+  ],
+);
+
 export const policyPreset = pgTable(
   'policy_preset',
   {
