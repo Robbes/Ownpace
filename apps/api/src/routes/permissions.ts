@@ -14,10 +14,17 @@
  * (workplan 0029), so this route reads Graph and returns text; there is no
  * write path here to get wrong.
  *
- * Until the source connection holds application permissions — and until the
- * two scopes this needs, `Calendars.Read` and `Files.Read.All`, are consented
- * — the report is all blind spots, honestly. That is the correct behaviour,
- * and it becomes a real inventory with no further code.
+ * Until the source connection holds application permissions, the report is all
+ * blind spots, honestly. That is the correct behaviour, and it becomes a real
+ * inventory with no further code.
+ *
+ * The two scans this route composes have different standing (owner decision,
+ * 2026-08-04). `Calendars.Read` is consented, so calendar sharing is a live
+ * finding as soon as the connection carries application permissions.
+ * `Files.Read.All` is not, and deliberately: an Exchange Application Access
+ * Policy cannot narrow it, so it would grant read over every file in the
+ * tenant. The drive section is therefore a STATED blind spot by default,
+ * behind `GRAPH_FILES_READ_CONSENTED` for a deployment that decided otherwise.
  */
 
 import { Router } from 'express';
@@ -28,6 +35,7 @@ import { log } from '@openmig/shared';
 import {
   createTokenProvider,
   directoryAvailability,
+  driveSharingAvailability,
   mailboxDelegations,
   resolveUserDriveId,
   scanCalendarPermissions,
@@ -118,6 +126,9 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
     // attempted when the connection can actually make them.
     const delegation = mailboxDelegations();
     const scanOptions = { applicationPermissions: true } as const;
+    // Asked once, so the report says the same thing about the drive section
+    // whether or not the connection could have made the request anyway.
+    const drive = driveSharingAvailability(process.env);
 
     const markdown = await runPermissionInventory({
       mappingLabel: mailbox,
@@ -126,26 +137,33 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
       // the type system's, not a runtime possibility.
       delegationReason:
         delegation.kind === 'not_discoverable' ? delegation.reason : 'not inventoried',
-      ...(available.ok
-        ? {
-            scanCalendars: () =>
-              scanCalendarPermissions(
-                mailbox,
-                graphToken(available, graphTenantId!),
-                httpClient,
-                scanOptions,
-              ),
-            scanDrive: async () => {
-              // `/drives/{id}` is the only addressing the sharing endpoints
-              // take, so the drive id is resolved first rather than built
-              // from a path by concatenation.
-              const token = graphToken(available, graphTenantId!);
-              const drive = await resolveUserDriveId(mailbox, token, httpClient, scanOptions);
-              if (!drive.ok) return { kind: 'not_discoverable' as const, reason: drive.reason };
-              return scanDrivePermissions(drive.id, token, httpClient, scanOptions);
-            },
-          }
-        : {}),
+      // BOTH scans are always passed, even when nothing can be read. An
+      // omitted dep falls back to the pass's generic "no reader is
+      // configured", and these two are not unconfigured — each has a specific
+      // reason a reader can act on, and they are different reasons.
+      scanCalendars: async () =>
+        available.ok
+          ? scanCalendarPermissions(
+              mailbox,
+              graphToken(available, graphTenantId!),
+              httpClient,
+              scanOptions,
+            )
+          : { kind: 'not_discoverable' as const, reason: available.reason },
+      scanDrive: async () => {
+        // The consent decision answers first, because it holds whatever the
+        // credentials say: a deployment without `Files.Read.All` would get a
+        // 403 here, and a 403 reads as a fault to fix rather than a choice.
+        if (!drive.ok) return { kind: 'not_discoverable' as const, reason: drive.reason };
+        if (!available.ok)
+          return { kind: 'not_discoverable' as const, reason: available.reason };
+        // `/drives/{id}` is the only addressing the sharing endpoints take, so
+        // the drive id is resolved first rather than built by concatenation.
+        const token = graphToken(available, graphTenantId!);
+        const found = await resolveUserDriveId(mailbox, token, httpClient, scanOptions);
+        if (!found.ok) return { kind: 'not_discoverable' as const, reason: found.reason };
+        return scanDrivePermissions(found.id, token, httpClient, scanOptions);
+      },
       error: (m, err) => log.error(m, err instanceof Error ? err.message : err),
     });
 

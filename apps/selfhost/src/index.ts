@@ -89,6 +89,7 @@ import {
   scanDrivePermissions,
   directoryNotEnumerable,
   directoryAvailability,
+  driveSharingAvailability,
   type HttpClient,
 } from '@openmig/connectors';
 import {
@@ -1263,6 +1264,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         const available = directoryAvailability(process.env, graphSource?.tenantId);
         const delegation = mailboxDelegations();
         const scanOptions = { applicationPermissions: true } as const;
+        const driveSharing = driveSharingAvailability(process.env);
         const graphToken = () => {
           const provider = createTokenProvider({
             tokenEndpoint: `https://login.microsoftonline.com/${graphSource!.tenantId!}/oauth2/v2.0/token`,
@@ -1279,23 +1281,31 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           generatedOn: new Date().toISOString().slice(0, 10),
           delegationReason:
             delegation.kind === 'not_discoverable' ? delegation.reason : 'not inventoried',
-          ...(available.ok
-            ? {
-                scanCalendars: () =>
-                  scanCalendarPermissions(mailbox, graphToken(), detectorHttpClient, scanOptions),
-                scanDrive: async () => {
-                  const token = graphToken();
-                  const drive = await resolveUserDriveId(
-                    mailbox,
-                    token,
-                    detectorHttpClient,
-                    scanOptions,
-                  );
-                  if (!drive.ok) return { kind: 'not_discoverable' as const, reason: drive.reason };
-                  return scanDrivePermissions(drive.id, token, detectorHttpClient, scanOptions);
-                },
-              }
-            : {}),
+          // Both scans always passed, never omitted: an absent dep falls back
+          // to the pass's generic "no reader is configured", and neither of
+          // these is unconfigured — each has its own reason, and they differ.
+          scanCalendars: async () =>
+            available.ok
+              ? scanCalendarPermissions(mailbox, graphToken(), detectorHttpClient, scanOptions)
+              : { kind: 'not_discoverable' as const, reason: available.reason },
+          scanDrive: async () => {
+            // The consent decision answers before the credentials do; see
+            // `drive-sharing-availability.ts` for why a 403 is the wrong
+            // sentence to give somebody here.
+            if (!driveSharing.ok)
+              return { kind: 'not_discoverable' as const, reason: driveSharing.reason };
+            if (!available.ok)
+              return { kind: 'not_discoverable' as const, reason: available.reason };
+            const token = graphToken();
+            const drive = await resolveUserDriveId(
+              mailbox,
+              token,
+              detectorHttpClient,
+              scanOptions,
+            );
+            if (!drive.ok) return { kind: 'not_discoverable' as const, reason: drive.reason };
+            return scanDrivePermissions(drive.id, token, detectorHttpClient, scanOptions);
+          },
           error: (m, err) => log.error(m, err instanceof Error ? err.message : err),
         });
         res.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8' });

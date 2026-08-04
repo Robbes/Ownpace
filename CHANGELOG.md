@@ -38,10 +38,12 @@ behaviour, and becomes real output with no further code.
   Standing answers (`auto`/`ask`, per category) let a category answer itself,
   recording that a rule closed it rather than a person.
 - **The permission inventory** (workplan 0029, SAD §14.2). A report per mailbox,
-  reachable from the Finish checklist: who can see whose calendar, who has access
-  to which files, what each right corresponds to on the target, and which items
-  only a person can carry across. **Nothing is applied automatically** — the
-  write half is deferred by decision.
+  reachable from the Finish checklist: who can see whose calendar, what each
+  right corresponds to on the target, and which items only a person can carry
+  across. **Nothing is applied automatically** — the write half is deferred by
+  decision. File and folder sharing is read only where `Files.Read.All` has been
+  granted (`GRAPH_FILES_READ_CONSENTED=true`); by default that section is a
+  stated blind spot rather than a silent omission — see below.
 
 ### Fixed
 
@@ -61,6 +63,18 @@ behaviour, and becomes real output with no further code.
   cutover, so it is reported rather than omitted.
 - **IMAP sources cannot discover shared addresses at all** — the protocol has no
   directory. Such a source reports that it could not look, never an empty list.
+- **OneDrive and SharePoint sharing is not inventoried by default.** Reading it
+  needs `Files.Read.All`, and unlike every other permission this product asks
+  for, an Exchange Application Access Policy cannot narrow it — granting it
+  would mean read access to every file in the tenant. Declined for the reference
+  deployment (owner decision 2026-08-04). The scan is built and tested; a
+  deployment that has granted the scope enables it with
+  `GRAPH_FILES_READ_CONSENTED=true`. Off, the report names the section as
+  uninventoried and says why, which is not the same as saying nothing is shared.
+- **The shared-mailbox-or-distribution-list question is always asked**, never
+  answered by a standing rule. A preset could only mean *assume one of the two*,
+  and assuming wrong migrates a mailbox full of mail as an empty group
+  definition. Deliberately not offered (owner decision 2026-08-04).
 - **Nothing above has been proven against a live tenant yet.** See the note at
   the top of this section.
 

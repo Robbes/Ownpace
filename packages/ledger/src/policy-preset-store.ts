@@ -12,6 +12,20 @@
  * `ask` is the default and the absence of a row means `ask`. That direction
  * matters: a tenant who has never expressed a preference must be ASKED, not
  * quietly auto-answered by a default somebody chose for them.
+ *
+ * ONE CATEGORY IS WIRED: `new_mailbox`. The other detector's category,
+ * `shared_address_pattern`, is deliberately not — and `params` stays an unused
+ * column (owner decision, 2026-08-04). `auto` means *the detector answers its
+ * own decision*, and for a new mailbox there is an answer to give: noticed,
+ * closed by a standing rule, nothing executed. For the S-or-D question there
+ * is not — that decision exists BECAUSE the directory could not tell us which
+ * it is, so answering it automatically can only mean *assume one of the two*,
+ * which is the guess the detector refuses to make. The defensible version
+ * (`params` carrying which pattern to assume) is described in workplan 0028
+ * T5 along with the evidence that would justify building it. Until then, a
+ * `shared_address_pattern` preset should not be added here: setting it wrong
+ * migrates a mailbox full of mail as an empty group definition, and nothing
+ * would say so at the time.
  */
 
 import { and, eq } from 'drizzle-orm';
