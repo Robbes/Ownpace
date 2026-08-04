@@ -21,3 +21,4 @@ export * from './mapping-coverage';
 export * from './classify-shared-address';
 export * from './run-group-discovery';
 export * from './group-runbook';
+export * from './mapping-pattern';
