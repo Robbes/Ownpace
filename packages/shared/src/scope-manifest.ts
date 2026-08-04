@@ -25,16 +25,37 @@ export interface ScopeManifest {
 }
 
 export const SCOPE_MANIFEST: ScopeManifest = {
-  version: '2026-08-02',
+  version: '2026-08-04',
   migrates: [
     { item: 'Email', detail: 'Folders incl. Sent / Drafts / Archive, flags/keywords, timestamps.' },
     { item: 'Calendar', detail: 'Events, recurrence, attendees (ICS).' },
     { item: 'Contacts', detail: 'Address books and contacts (vCard).' },
     { item: 'Files', detail: 'OneDrive / SharePoint document libraries (files + folders).' },
-    { item: 'Shared mailboxes', detail: 'Pattern S — the shared store is copied.' },
-    { item: 'Distribution lists', detail: 'Pattern D — the group definition + member list (no separate store).' },
   ],
   partial: [
+    // Moved down from `migrates` on 2026-08-04 (workplan 0027 T4). Discovery
+    // ships — the addresses are found, classified and shown before anything
+    // is copied — and the copying half does not. Under *Migrates* these two
+    // rows promised a migration that no code performs, which is the promise
+    // 0026's truth pass exists to stop us making. They move back up when
+    // 0027 T2/T3 land, with whatever qualifiers are true then.
+    {
+      item: 'Shared mailboxes (Pattern S)',
+      detail:
+        'DISCOVERED, not yet copied. Shared addresses are found on the source and classified ' +
+        'before you start; where the source cannot say which kind an address is, you are asked ' +
+        'rather than guessed at. Copying the shared store itself is not built yet (workplan ' +
+        '0027 T3).',
+    },
+    {
+      item: 'Distribution lists (Pattern D)',
+      detail:
+        'DISCOVERED and GUIDED, not automated. The list and its members are read and shown, ' +
+        'and you get a step-by-step document with each address and exactly who must receive ' +
+        'its mail — including which lists cannot be recreated because their membership could ' +
+        'not be read. Recreating them is manual: no target platform here offers a way to ' +
+        'create a mail group for us (§14.2 — covered, not necessarily automated).',
+    },
     {
       item: 'Mail with no Message-ID',
       detail:

@@ -266,6 +266,27 @@ const en = {
     'Could not read the standing answers, so this queue may be answering some categories ' +
     'without showing you which.',
   'decisions.presets.readOnly': 'An owner or admin sets these.',
+  // Shared addresses, on Review & confirm (workplan 0027 T4).
+  'sharedAddresses.heading': 'Shared addresses found',
+  'sharedAddresses.pattern.shared_s': 'Shared mailbox — the store is copied',
+  'sharedAddresses.pattern.distribution_d': 'Distribution list — the members are recreated',
+  'sharedAddresses.pattern.unknown': 'Which kind? Waiting on you',
+  'sharedAddresses.members': 'members',
+  // Not "0 members": the list could not be read, and recreating a group from
+  // an unread list would produce an empty one on the target.
+  'sharedAddresses.membersUnknown': 'members could not be read',
+  'sharedAddresses.empty':
+    'Nothing found. This is not "your organisation has none" — an IMAP source cannot list groups ' +
+    'at all, and a Microsoft 365 source needs application permissions before it can. Shared ' +
+    'addresses can also be migrated by adding them by hand.',
+  'sharedAddresses.readError': 'Could not read the discovered shared addresses.',
+  // Pattern D recreation is entirely manual: no target platform this tool
+  // supports exposes an interface for creating a mail group.
+  'sharedAddresses.runbook.intro':
+    'Distribution lists have to be recreated on the target by hand — no target platform here ' +
+    'offers a way to do it for you.',
+  'sharedAddresses.runbook.download': 'Get the step-by-step list',
+  'sharedAddresses.runbook.failed': 'The steps could not be fetched.',
   'decisions.title': 'Needs a decision',
   'decisions.intro':
     'Changes the sync noticed that only you can decide about. Nothing happens until you answer.',
@@ -559,6 +580,22 @@ const nl: Record<keyof typeof en, string> = {
     'De vaste antwoorden konden niet worden gelezen; deze wachtrij beantwoordt mogelijk ' +
     'categorieën zonder te tonen welke.',
   'decisions.presets.readOnly': 'Een eigenaar of beheerder stelt dit in.',
+  'sharedAddresses.heading': 'Gevonden gedeelde adressen',
+  'sharedAddresses.pattern.shared_s': 'Gedeeld postvak — het postvak wordt gekopieerd',
+  'sharedAddresses.pattern.distribution_d': 'Distributielijst — de leden worden opnieuw aangemaakt',
+  'sharedAddresses.pattern.unknown': 'Welke soort? Wacht op u',
+  'sharedAddresses.members': 'leden',
+  'sharedAddresses.membersUnknown': 'leden konden niet worden gelezen',
+  'sharedAddresses.empty':
+    'Niets gevonden. Dit betekent niet "uw organisatie heeft er geen": een IMAP-bron kan groepen ' +
+    'helemaal niet opsommen, en een Microsoft 365-bron heeft daarvoor toepassingsmachtigingen ' +
+    'nodig. Gedeelde adressen kunnen ook met de hand worden toegevoegd.',
+  'sharedAddresses.readError': 'De gevonden gedeelde adressen konden niet worden gelezen.',
+  'sharedAddresses.runbook.intro':
+    'Distributielijsten moeten met de hand op de bestemming opnieuw worden aangemaakt — geen ' +
+    'van de bestemmingen hier biedt een manier om dat voor u te doen.',
+  'sharedAddresses.runbook.download': 'Haal de stappenlijst op',
+  'sharedAddresses.runbook.failed': 'De stappen konden niet worden opgehaald.',
   'decisions.title': 'Vraagt om een beslissing',
   'decisions.intro':
     'Veranderingen die de synchronisatie opmerkte en waarover alleen u kunt beslissen. Er gebeurt niets totdat u antwoordt.',

@@ -27,9 +27,11 @@ import { useT } from '../i18n';
 import type { StringKey } from '../i18n';
 import DiscoveryCounts from '../components/confirm/DiscoveryCounts';
 import ScopeManifestPanel from '../components/confirm/ScopeManifestPanel';
+import SharedAddresses from '../components/confirm/SharedAddresses';
 import {
   fetchAllDiscovery,
   fetchScopeManifest,
+  fetchSharedAddresses,
   fetchStatus,
   startMigration,
 } from '../services/operating-service';
@@ -55,6 +57,12 @@ const Confirm: React.FC = () => {
       Object.values(query.state.data ?? {}).some((d) => d.length > 0) ? false : 2000,
   });
   const manifest = useQuery({ queryKey: ['scope-manifest'], queryFn: fetchScopeManifest });
+  // Read separately from discovery: a failure here must not hide the counts,
+  // and an empty result means something different from an unread one.
+  const sharedAddresses = useQuery({
+    queryKey: ['shared-addresses'],
+    queryFn: fetchSharedAddresses,
+  });
 
   const start = useMutation({
     mutationFn: (mappingId: string) => startMigration(mappingId),
@@ -146,6 +154,27 @@ const Confirm: React.FC = () => {
           </section>
         );
       })}
+
+      {/*
+        Shared addresses (workplan 0027 T4). TENANT-level, so it sits beside
+        the manifest rather than inside a mapping's card: info@ is the
+        organisation's address, not any one mapping's. Shown here because this
+        is the screen that answers "what am I actually getting" BEFORE
+        anything is copied — the §14.1 promises are made two panels below.
+      */}
+      <section className="mb-8 p-4 bg-white border border-gray-200 rounded-lg">
+        <h3 className="font-semibold text-gray-900 mb-3">{t('sharedAddresses.heading')}</h3>
+        {sharedAddresses.isLoading ? (
+          <p className="text-sm text-gray-500">{t('common.loading')}</p>
+        ) : (
+          <SharedAddresses
+            addresses={sharedAddresses.data?.addresses ?? []}
+            // A failed read must not render as "nothing found": one means we
+            // could not look, the other is a claim about the organisation.
+            unreadable={sharedAddresses.isError}
+          />
+        )}
+      </section>
 
       {manifest.data && (
         <section className="p-4 bg-white border border-gray-200 rounded-lg">
