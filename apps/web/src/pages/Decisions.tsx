@@ -21,7 +21,10 @@ import {
   fetchDriftDecisions,
   resolveDriftDecision,
   dismissDriftDecision,
+  fetchDecisionPresets,
+  setDecisionPreset,
 } from '../services/operating-service';
+import { useAuthStore } from '../stores/auth-store';
 import { useT, useFormatters } from '../i18n';
 import type { StringKey } from '../i18n';
 
@@ -38,11 +41,49 @@ const Decisions: React.FC = () => {
   const queryClient = useQueryClient();
   const [busyRow, setBusyRow] = React.useState<string | null>(null);
   const [rowErrors, setRowErrors] = React.useState<Record<string, string>>({});
+  const { user } = useAuthStore();
+  const canManage = user?.role === 'owner' || user?.role === 'admin';
+  const [presetBusy, setPresetBusy] = React.useState(false);
+  const [presetSaved, setPresetSaved] = React.useState(false);
+  const [presetDraft, setPresetDraft] = React.useState<'auto' | 'ask' | null>(null);
 
   const query = useQuery({
     queryKey: ['drift-decisions'],
     queryFn: fetchDriftDecisions,
   });
+
+  // The standing answers (0028 T5). Read separately from the queue: a
+  // failure here must not hide the decisions themselves, and a queue shown
+  // without saying which categories answer themselves is a queue whose
+  // silence is unexplained.
+  const presetQuery = useQuery({
+    queryKey: ['decision-presets'],
+    queryFn: fetchDecisionPresets,
+  });
+
+  /** The standing answer for new_mailbox — the only category with a detector. */
+  const newMailboxPreset: 'auto' | 'ask' =
+    presetDraft ??
+    presetQuery.data?.presets.find((p) => p.category === 'new_mailbox')?.action ??
+    presetQuery.data?.defaultAction ??
+    'ask';
+
+  const savePreset = async (action: 'auto' | 'ask') => {
+    setPresetBusy(true);
+    setPresetSaved(false);
+    setPresetDraft(action);
+    try {
+      setPresetDraft((await setDecisionPreset('new_mailbox', action)).action);
+      setPresetSaved(true);
+      await queryClient.invalidateQueries({ queryKey: ['decision-presets'] });
+    } catch {
+      // Back to what is actually stored: leaving the new value on screen
+      // would show a standing answer nobody has.
+      setPresetDraft(null);
+    } finally {
+      setPresetBusy(false);
+    }
+  };
 
   const act = async (decision: DecisionRow, action: 'resolve' | 'dismiss') => {
     setBusyRow(decision.id);
@@ -79,6 +120,41 @@ const Decisions: React.FC = () => {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">{t('decisions.title')}</h1>
         <p className="text-gray-500 mt-1">{t('decisions.intro')}</p>
+      </div>
+
+      {/* Standing answers (workplan 0028 T5) */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-1">
+          {t('decisions.presets.heading')}
+        </h2>
+        <p className="text-sm text-gray-500 mb-3">{t('decisions.presets.intro')}</p>
+        {presetQuery.isError ? (
+          /* Said, not hidden: a queue that answers some categories without
+             showing which is exactly the silence this feature exists to
+             explain (rule 9). */
+          <p className="text-amber-700">{t('decisions.presets.readError')}</p>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              {t('decisions.presets.newMailbox')}
+              <select
+                value={newMailboxPreset}
+                disabled={!canManage || presetBusy || !presetQuery.isSuccess}
+                onChange={(e) => savePreset(e.target.value as 'auto' | 'ask')}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-gray-900 disabled:bg-gray-50 disabled:text-gray-500"
+              >
+                <option value="ask">{t('decisions.presets.ask')}</option>
+                <option value="auto">{t('decisions.presets.auto')}</option>
+              </select>
+            </label>
+            {!canManage && (
+              <span className="text-sm text-gray-500">{t('decisions.presets.readOnly')}</span>
+            )}
+            {presetSaved && (
+              <span className="text-sm text-green-700">{t('decisions.presets.saved')}</span>
+            )}
+          </div>
+        )}
       </div>
 
       {query.isError ? (

@@ -117,6 +117,26 @@ export class PgDecisionStore implements DecisionStore {
     return this.close(tenantId, decisionId, 'resolved', resolution, resolvedBy);
   }
 
+  /**
+   * Close a decision the way a POLICY PRESET said to, without asking anybody
+   * (workplan 0028 T5).
+   *
+   * A separate status from `resolved` on purpose: the history has to show
+   * whether a person decided this or a standing rule did. Six months later,
+   * "who agreed to this?" is a question the audit trail must be able to
+   * answer, and `resolved` would claim a human did.
+   *
+   * Still goes through the same conditional UPDATE, so it can only close a
+   * PENDING row — a preset cannot overwrite an answer somebody already gave.
+   */
+  async autoResolve(
+    tenantId: TenantId,
+    decisionId: string,
+    resolution: Readonly<Record<string, unknown>>,
+  ): Promise<DecisionRow | undefined> {
+    return this.close(tenantId, decisionId, 'auto_resolved', resolution, 'policy-preset');
+  }
+
   async dismiss(
     tenantId: TenantId,
     decisionId: string,
@@ -133,7 +153,7 @@ export class PgDecisionStore implements DecisionStore {
   private async close(
     tenantId: TenantId,
     decisionId: string,
-    status: 'resolved' | 'dismissed',
+    status: 'resolved' | 'auto_resolved' | 'dismissed',
     resolution: Readonly<Record<string, unknown>> | undefined,
     by: string,
   ): Promise<DecisionRow | undefined> {

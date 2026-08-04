@@ -44,3 +44,4 @@ export * from './smtp-transport';
 export * from './notifier-from-env';
 export * from './graph-scope';
 export * from './graph-directory';
+export * from './directory-availability';

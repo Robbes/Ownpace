@@ -16,10 +16,13 @@ import type { Response } from 'express';
 import { z } from 'zod';
 import { authenticate, requireRole, getDbPool, withTenantDb } from '../middleware/auth';
 import type { AuthenticatedRequest } from '../types/api';
-import { PgDecisionStore } from '@openmig/ledger';
+import { PgDecisionStore, PgPolicyPresetStore } from '@openmig/ledger';
 import { asTenantId, asMappingId, log, type DecisionStatus } from '@openmig/shared';
 
 const router = Router();
+
+/** The two things a preset can say. Anything else is a 400, not a stored word. */
+const PresetSchema = z.object({ action: z.enum(['auto', 'ask']) });
 
 let _dbPool: ReturnType<typeof getDbPool> | null = null;
 function getSharedPool() {
@@ -179,6 +182,85 @@ router.post(
       res.status(500).json({
         error: 'Internal server error',
         message: 'Failed to dismiss decision',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/decisions/presets — the tenant's standing answers (0028 T5).
+ *
+ * Any member may READ them: knowing which categories answer themselves is
+ * part of understanding what the queue is showing, and a queue whose silence
+ * is unexplained is the thing this whole feature exists to avoid. Only
+ * owner/admin may change them, below.
+ */
+router.get('/presets', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Tenant ID not found in authentication context',
+      });
+      return;
+    }
+    const presets = await withTenantDb(tenantId, getSharedPool(), async (db) =>
+      new PgPolicyPresetStore(db).list(asTenantId(tenantId)),
+    );
+    // Categories absent from this list are `ask` — said here rather than
+    // left for the client to infer, because inferring it the other way round
+    // would show a tenant as auto-answering things it actually asks about.
+    res.json({ presets, defaultAction: 'ask' });
+  } catch (error) {
+    log.error('Error listing policy presets:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to list policy presets',
+    });
+  }
+});
+
+/**
+ * PUT /api/decisions/presets/:category — set a standing answer.
+ *
+ * Owner/admin only, like answering a decision: choosing that a whole
+ * CATEGORY answers itself is a larger version of the same act.
+ */
+router.put(
+  '/presets/:category',
+  authenticate,
+  requireRole('owner', 'admin'),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const tenantId = req.tenantId;
+      const { category } = req.params;
+      if (!tenantId) {
+        res.status(401).json({
+          error: 'Unauthorized',
+          message: 'Tenant ID not found in authentication context',
+        });
+        return;
+      }
+      if (!category || Array.isArray(category)) {
+        res.status(400).json({ error: 'Bad Request', message: 'Category required' });
+        return;
+      }
+      const { action } = PresetSchema.parse(req.body);
+
+      await withTenantDb(tenantId, getSharedPool(), async (db) =>
+        new PgPolicyPresetStore(db).set(asTenantId(tenantId), category, action),
+      );
+      res.json({ category, action });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: 'Validation error', details: error.issues });
+        return;
+      }
+      log.error('Error setting a policy preset:', error);
+      res.status(500).json({
+        error: 'Internal server error',
+        message: 'Failed to set the policy preset',
       });
     }
   },

@@ -8,6 +8,12 @@
  * detector's output when it cannot look is a sentence somebody reads in a log
  * and acts on; "directory unavailable" would send them hunting.
  *
+ * It lives in connectors, beside `graph-scope.ts` and `graph-directory.ts`,
+ * because BOTH editions ask the question and neither should own the other's
+ * copy — the appliance and the managed worker each wire a detector, and two
+ * copies of this rule with a comment asking them to match is the arrangement
+ * that eventually stops matching.
+ *
  * The permission mode is DERIVED from the credentials rather than declared:
  * a refresh token means the delegated flow, which cannot read `/users`
  * whatever a config flag claims. A declared flag can disagree with reality;

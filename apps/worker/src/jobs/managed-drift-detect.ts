@@ -25,17 +25,17 @@ import { schedules } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schemaPg from '@openmig/ledger/schema-pg';
-import { PgDecisionStore } from '@openmig/ledger';
+import { PgDecisionStore, PgPolicyPresetStore } from '@openmig/ledger';
 import { log, renderEvent, asTenantId, type DirectoryListing } from '@openmig/shared';
 import {
   createTokenProvider,
   listTenantMailboxes,
   notifierFromEnv,
   directoryNotEnumerable,
+  directoryAvailability,
 } from '@openmig/connectors';
 import { runNewMailboxDetection, coverageIncompleteReason } from '@openmig/core';
 import type { HttpClient } from '@openmig/connectors';
-import { directoryAvailability } from '../directory-availability';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
@@ -70,12 +70,14 @@ export const managedDriftDetect = schedules.task({
   run: async () => {
     const channel = notifierFromEnv(process.env, (m) => log.warn(m));
     const decisions = new PgDecisionStore(db);
+    const presets = new PgPolicyPresetStore(db);
 
     const { rows: tenants } = await pool.query<TenantRow>(
       `SELECT id, name FROM tenant WHERE status = 'active'`,
     );
 
     let raised = 0;
+    let autoResolved = 0;
     let alreadyPending = 0;
     let blindSpots = 0;
 
@@ -145,8 +147,20 @@ export const managedDriftDetect = schedules.task({
             .filter((k): k is string => Boolean(k)),
 
         raise: async (input) => {
-          const { created } = await decisions.raise(input);
-          return { created };
+          const { created, decision } = await decisions.raise(input);
+          return { created, id: decision.id };
+        },
+
+        // The tenant's standing answer, if it expressed one (0028 T5).
+        presetAction: () => presets.get(asTenantId(tenant.id), 'new_mailbox'),
+        autoResolve: async (decisionId, input) => {
+          await decisions.autoResolve(asTenantId(tenant.id), decisionId, {
+            // What closed it and why — the audit trail has to be able to
+            // answer "who agreed to this?" six months from now.
+            closedBy: 'policy_preset',
+            preset: { category: 'new_mailbox', action: 'auto' },
+            subject: input.subjectKey,
+          });
         },
 
         // 0030 T2's `decision_raised` finally has a live source.
@@ -161,11 +175,12 @@ export const managedDriftDetect = schedules.task({
       });
 
       raised += summary.raised;
+      autoResolved += summary.autoResolved;
       alreadyPending += summary.alreadyPending;
       if (summary.blindSpot) blindSpots++;
     }
 
-    const result = { tenants: tenants.length, raised, alreadyPending, blindSpots };
+    const result = { tenants: tenants.length, raised, autoResolved, alreadyPending, blindSpots };
     log.info('[drift-detect]', result);
     return result;
   },

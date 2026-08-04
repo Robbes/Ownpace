@@ -254,6 +254,18 @@ const en = {
   'memberStatus.suspended': 'Suspended',
   'memberStatus.removed': 'Removed',
   'nav.decisions': 'Attention',
+  'decisions.presets.heading': 'Standing answers',
+  'decisions.presets.intro':
+    'Categories set to answer themselves are still recorded here — you can see what was ' +
+    'noticed and what closed it — but nobody is interrupted about them.',
+  'decisions.presets.newMailbox': 'When a mailbox appears that nothing migrates',
+  'decisions.presets.ask': 'Ask me',
+  'decisions.presets.auto': 'Answer automatically',
+  'decisions.presets.saved': 'Saved.',
+  'decisions.presets.readError':
+    'Could not read the standing answers, so this queue may be answering some categories ' +
+    'without showing you which.',
+  'decisions.presets.readOnly': 'An owner or admin sets these.',
   'decisions.title': 'Needs a decision',
   'decisions.intro':
     'Changes the sync noticed that only you can decide about. Nothing happens until you answer.',
@@ -530,6 +542,18 @@ const nl: Record<keyof typeof en, string> = {
   'memberStatus.suspended': 'Geschorst',
   'memberStatus.removed': 'Verwijderd',
   'nav.decisions': 'Aandacht',
+  'decisions.presets.heading': 'Vaste antwoorden',
+  'decisions.presets.intro':
+    'Categorieën die zichzelf beantwoorden worden hier nog steeds vastgelegd — u ziet wat ' +
+    'is opgemerkt en waardoor het is afgesloten — maar niemand wordt erover gestoord.',
+  'decisions.presets.newMailbox': 'Als er een postvak verschijnt dat niets migreert',
+  'decisions.presets.ask': 'Vraag het mij',
+  'decisions.presets.auto': 'Automatisch beantwoorden',
+  'decisions.presets.saved': 'Opgeslagen.',
+  'decisions.presets.readError':
+    'De vaste antwoorden konden niet worden gelezen; deze wachtrij beantwoordt mogelijk ' +
+    'categorieën zonder te tonen welke.',
+  'decisions.presets.readOnly': 'Een eigenaar of beheerder stelt dit in.',
   'decisions.title': 'Vraagt om een beslissing',
   'decisions.intro':
     'Veranderingen die de synchronisatie opmerkte en waarover alleen u kunt beslissen. Er gebeurt niets totdat u antwoordt.',

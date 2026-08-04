@@ -190,6 +190,9 @@ importers:
       '@openmig/connectors':
         specifier: workspace:*
         version: link:../../packages/connectors
+      '@openmig/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@openmig/ledger':
         specifier: workspace:*
         version: link:../../packages/ledger

@@ -65,6 +65,37 @@ export async function fetchDriftDecisions(): Promise<{ decisions: ReadonlyArray<
   return (await client.get<{ decisions: ReadonlyArray<DecisionRow> }>('/decisions')).data;
 }
 
+/**
+ * The tenant's standing answers, and what an absent category means (0028 T5).
+ *
+ * `defaultAction` is returned by the server rather than assumed here: a
+ * client that inferred "absent = auto" would show a tenant as auto-answering
+ * things it actually asks about, which is the wrong way round to be wrong.
+ */
+export async function fetchDecisionPresets(): Promise<{
+  presets: ReadonlyArray<{ category: string; action: 'auto' | 'ask' }>;
+  defaultAction: 'auto' | 'ask';
+}> {
+  return (
+    await client.get<{
+      presets: ReadonlyArray<{ category: string; action: 'auto' | 'ask' }>;
+      defaultAction: 'auto' | 'ask';
+    }>('/decisions/presets')
+  ).data;
+}
+
+export async function setDecisionPreset(
+  category: string,
+  action: 'auto' | 'ask',
+): Promise<{ category: string; action: 'auto' | 'ask' }> {
+  return (
+    await client.put<{ category: string; action: 'auto' | 'ask' }>(
+      `/decisions/presets/${encodeURIComponent(category)}`,
+      { action },
+    )
+  ).data;
+}
+
 export async function resolveDriftDecision(
   decisionId: string,
   resolution: Record<string, unknown>,
