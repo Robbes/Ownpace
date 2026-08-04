@@ -8,11 +8,21 @@
  * a pattern, and an UNREAD member list rendered as an empty group.
  */
 
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+
+const { fetchGroupRunbook } = vi.hoisted(() => ({ fetchGroupRunbook: vi.fn() }));
+vi.mock('../../services/operating-service', () => ({ fetchGroupRunbook }));
+
 import SharedAddresses from './SharedAddresses';
 import type { SharedAddressRow } from '../../services/operating-service';
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  fetchGroupRunbook.mockResolvedValue('# Recreating your distribution lists');
+});
 
 const row = (overrides: Partial<SharedAddressRow> = {}): SharedAddressRow => ({
   id: 'g1',
@@ -81,6 +91,33 @@ describe('the member list', () => {
     // the target — the failure hard rule 9 exists to prevent.
     expect(screen.getByText(/could not be read/)).toBeInTheDocument();
     expect(screen.queryByText('0')).not.toBeInTheDocument();
+  });
+});
+
+describe('the manual runbook (workplan 0027 T2)', () => {
+  it('offers the steps, and says plainly that nobody does it for you', () => {
+    renderPanel([row({ pattern: 'distribution_d' })]);
+
+    expect(screen.getByText(/recreated on the target by hand/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /step-by-step/i })).toBeInTheDocument();
+  });
+
+  it('does not offer it when there is no list to recreate', () => {
+    // An offer of manual steps for work that does not exist is noise, and it
+    // would imply a shared mailbox needs them too.
+    renderPanel([row({ pattern: 'shared_s' })]);
+    expect(screen.queryByRole('button', { name: /step-by-step/i })).not.toBeInTheDocument();
+  });
+
+  it('says so when the steps could not be fetched', async () => {
+    fetchGroupRunbook.mockRejectedValue(new Error('502'));
+    renderPanel([row({ pattern: 'distribution_d' })]);
+
+    await userEvent.click(screen.getByRole('button', { name: /step-by-step/i }));
+
+    // A silent no-op would look like an empty runbook, and the reader would
+    // conclude there is nothing to do.
+    await waitFor(() => expect(screen.getByText(/could not be fetched/)).toBeInTheDocument());
   });
 });
 

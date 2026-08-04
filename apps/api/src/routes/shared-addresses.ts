@@ -22,6 +22,7 @@ import { authenticate, getDbPool, withTenantDb } from '../middleware/auth';
 import type { AuthenticatedRequest } from '../types/api';
 import { PgGroupDefStore } from '@openmig/ledger';
 import { asTenantId, log } from '@openmig/shared';
+import { renderGroupRunbook } from '@openmig/core';
 
 const router = Router();
 
@@ -57,6 +58,51 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to list shared addresses',
+    });
+  }
+});
+
+/**
+ * GET /api/shared-addresses/runbook — the Pattern D steps (workplan 0027 T2).
+ *
+ * Markdown rather than JSON, and that is the point: this is a document a
+ * person follows, on a target platform this tool cannot reach. §14.2's
+ * "guide" step, applied to §14.1 — no target we support exposes an interface
+ * for creating a mail group, so the whole of Pattern D recreation is guided
+ * and the document says so on its first line.
+ *
+ * Read-only and derived: nothing is stored, so re-reading after answering a
+ * decision or re-running discovery gives the current picture rather than a
+ * snapshot somebody has to remember to refresh.
+ */
+router.get('/runbook', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Tenant ID not found in authentication context',
+      });
+      return;
+    }
+
+    const groups = await withTenantDb(tenantId, getSharedPool(), async (db) =>
+      new PgGroupDefStore(db).list(asTenantId(tenantId)),
+    );
+
+    const markdown = renderGroupRunbook({
+      groups,
+      // The date is passed IN: `renderGroupRunbook` never reads a clock, so
+      // it stays a pure function of its inputs and testable without one.
+      generatedOn: new Date().toISOString().slice(0, 10),
+    });
+
+    res.type('text/markdown; charset=utf-8').send(markdown);
+  } catch (error) {
+    log.error('Error rendering the shared-address runbook:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to render the runbook',
     });
   }
 });

@@ -50,9 +50,11 @@ export const SCOPE_MANIFEST: ScopeManifest = {
     {
       item: 'Distribution lists (Pattern D)',
       detail:
-        'DISCOVERED, not yet recreated. The list and its members are read and shown; a list ' +
-        'whose members could not be read says so rather than appearing empty. Recreating the ' +
-        'group on the target is not built yet (workplan 0027 T2).',
+        'DISCOVERED and GUIDED, not automated. The list and its members are read and shown, ' +
+        'and you get a step-by-step document with each address and exactly who must receive ' +
+        'its mail — including which lists cannot be recreated because their membership could ' +
+        'not be read. Recreating them is manual: no target platform here offers a way to ' +
+        'create a mail group for us (§14.2 — covered, not necessarily automated).',
     },
     {
       item: 'Mail with no Message-ID',

@@ -146,4 +146,40 @@ describe('GET /api/shared-addresses', () => {
   it('refuses an unauthenticated read', async () => {
     expect((await request.get('/api/shared-addresses')).status).toBe(401);
   });
+
+  describe('the Pattern D runbook (workplan 0027 T2)', () => {
+    it('serves Markdown a person can follow, from the tenant’s own rows', async () => {
+      const res = await request
+        .get('/api/shared-addresses/runbook')
+        .set('Authorization', `Bearer ${token(TENANT_A)}`);
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toContain('text/markdown');
+      expect(res.text).toContain(`sales@${TENANT_A}.nl`);
+      // The line the whole document turns on: nothing is automated.
+      expect(res.text).toContain('Nothing in it has been done for you');
+    });
+
+    it('carries the unread membership as a refusal, not as an empty list', async () => {
+      const res = await request
+        .get('/api/shared-addresses/runbook')
+        .set('Authorization', `Bearer ${token(TENANT_A)}`);
+
+      // `mystery@` is unclassified with members_known false — it must not
+      // arrive as a group somebody recreates empty.
+      expect(res.text).toContain('still to classify');
+      expect(res.text).toContain(`mystery@${TENANT_A}.nl`);
+    });
+
+    it('never leaks another tenant’s addresses into the document (RLS)', async () => {
+      const res = await request
+        .get('/api/shared-addresses/runbook')
+        .set('Authorization', `Bearer ${token(TENANT_A)}`);
+      expect(res.text).not.toContain(`sales@${TENANT_B}.nl`);
+    });
+
+    it('refuses an unauthenticated read', async () => {
+      expect((await request.get('/api/shared-addresses/runbook')).status).toBe(401);
+    });
+  });
 });

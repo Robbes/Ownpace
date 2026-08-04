@@ -27,7 +27,7 @@ import React from 'react';
 import { Link } from 'react-router';
 import { Users } from 'lucide-react';
 import { useT } from '../../i18n';
-import type { SharedAddressRow } from '../../services/operating-service';
+import { fetchGroupRunbook, type SharedAddressRow } from '../../services/operating-service';
 
 const PATTERN_KEY = {
   shared_s: 'sharedAddresses.pattern.shared_s',
@@ -40,6 +40,28 @@ export const SharedAddresses: React.FC<{
   unreadable?: boolean;
 }> = ({ addresses, unreadable = false }) => {
   const t = useT();
+  const [busy, setBusy] = React.useState(false);
+  const [failed, setFailed] = React.useState(false);
+
+  const downloadRunbook = async () => {
+    setBusy(true);
+    setFailed(false);
+    try {
+      const markdown = await fetchGroupRunbook();
+      const url = URL.createObjectURL(new Blob([markdown], { type: 'text/markdown' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'distribution-lists.md';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // Said, not swallowed: a silent no-op would look like an empty runbook,
+      // and the reader would conclude there is nothing to do (rule 9).
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   if (unreadable) {
     return <p className="text-sm text-amber-700">{t('sharedAddresses.readError')}</p>;
@@ -54,7 +76,27 @@ export const SharedAddresses: React.FC<{
     );
   }
 
+  // Pattern D recreation is entirely manual (0027 T2): no target this stack
+  // supports exposes an interface for creating a mail group. The offer only
+  // appears when there is a list to recreate, so it never implies work that
+  // does not exist.
+  const hasLists = addresses.some((a) => a.pattern === 'distribution_d');
+
   return (
+    <>
+    {hasLists && (
+      <p className="mb-3 text-sm text-gray-600">
+        {t('sharedAddresses.runbook.intro')}{' '}
+        <button
+          onClick={downloadRunbook}
+          disabled={busy}
+          className="text-blue-700 hover:underline disabled:opacity-50"
+        >
+          {t('sharedAddresses.runbook.download')}
+        </button>
+        {failed && <span className="ml-2 text-amber-700">{t('sharedAddresses.runbook.failed')}</span>}
+      </p>
+    )}
     <ul className="divide-y divide-gray-100">
       {addresses.map((a) => (
         <li key={a.id} className="py-2 flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -91,6 +133,7 @@ export const SharedAddresses: React.FC<{
         </li>
       ))}
     </ul>
+    </>
   );
 };
 

@@ -89,6 +89,7 @@ import {
 import {
   runNewMailboxDetection,
   runGroupDiscovery,
+  renderGroupRunbook,
   sharedAddressAnswer,
   resolveCoverage,
   coverageIncompleteReason,
@@ -1166,6 +1167,23 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           addresses.push(...(await store.list(t as TenantId)));
         }
         return sendJson(res, 200, { addresses });
+      }
+      // The Pattern D runbook (workplan 0027 T2). Markdown, not JSON: it is a
+      // document a person follows on a target platform this tool cannot
+      // reach. Derived on every read, so answering a decision or re-running
+      // discovery is reflected without anybody refreshing a snapshot.
+      if (req.method === 'GET' && req.url === '/shared-addresses/runbook') {
+        const store = new PgGroupDefStore(db);
+        const groups = [];
+        for (const t of [...new Set(mappings.map((m) => m.config.tenantId))]) {
+          groups.push(...(await store.list(t as TenantId)));
+        }
+        const markdown = renderGroupRunbook({
+          groups,
+          generatedOn: new Date().toISOString().slice(0, 10),
+        });
+        res.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8' });
+        return res.end(markdown);
       }
       // The §11.1 drift decision queue (workplan 0028 T1). The appliance
       // answers for every configured mapping's tenant, like every queue.

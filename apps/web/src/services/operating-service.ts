@@ -93,6 +93,18 @@ export async function fetchSharedAddresses(): Promise<{
 }
 
 /**
+ * The Pattern D runbook, as Markdown (workplan 0027 T2).
+ *
+ * Fetched through the client rather than linked with an `<a href>`: the
+ * managed edition needs the bearer token, and a link that 401s would look
+ * like an empty runbook. Returned as text so the caller can hand it to the
+ * browser as a file.
+ */
+export async function fetchGroupRunbook(): Promise<string> {
+  return (await client.get<string>('/shared-addresses/runbook', { responseType: 'text' })).data;
+}
+
+/**
  * The tenant's standing answers, and what an absent category means (0028 T5).
  *
  * `defaultAction` is returned by the server rather than assumed here: a

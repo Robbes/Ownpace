@@ -280,6 +280,13 @@ const en = {
     'at all, and a Microsoft 365 source needs application permissions before it can. Shared ' +
     'addresses can also be migrated by adding them by hand.',
   'sharedAddresses.readError': 'Could not read the discovered shared addresses.',
+  // Pattern D recreation is entirely manual: no target platform this tool
+  // supports exposes an interface for creating a mail group.
+  'sharedAddresses.runbook.intro':
+    'Distribution lists have to be recreated on the target by hand — no target platform here ' +
+    'offers a way to do it for you.',
+  'sharedAddresses.runbook.download': 'Get the step-by-step list',
+  'sharedAddresses.runbook.failed': 'The steps could not be fetched.',
   'decisions.title': 'Needs a decision',
   'decisions.intro':
     'Changes the sync noticed that only you can decide about. Nothing happens until you answer.',
@@ -584,6 +591,11 @@ const nl: Record<keyof typeof en, string> = {
     'helemaal niet opsommen, en een Microsoft 365-bron heeft daarvoor toepassingsmachtigingen ' +
     'nodig. Gedeelde adressen kunnen ook met de hand worden toegevoegd.',
   'sharedAddresses.readError': 'De gevonden gedeelde adressen konden niet worden gelezen.',
+  'sharedAddresses.runbook.intro':
+    'Distributielijsten moeten met de hand op de bestemming opnieuw worden aangemaakt — geen ' +
+    'van de bestemmingen hier biedt een manier om dat voor u te doen.',
+  'sharedAddresses.runbook.download': 'Haal de stappenlijst op',
+  'sharedAddresses.runbook.failed': 'De stappen konden niet worden opgehaald.',
   'decisions.title': 'Vraagt om een beslissing',
   'decisions.intro':
     'Veranderingen die de synchronisatie opmerkte en waarover alleen u kunt beslissen. Er gebeurt niets totdat u antwoordt.',
