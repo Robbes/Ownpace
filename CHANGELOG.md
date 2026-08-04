@@ -2,95 +2,22 @@
 
 All notable changes are documented here (Keep a Changelog format; SemVer once released).
 
-## [Unreleased]
-
-Three of rc.1's named gaps are now built. **Every one of them is waiting on the
-same thing to prove itself**: admin consent on a real Microsoft 365 tenant
-(`docs/o365-application-access.md`). Until that happens they run on schedule and
-report, honestly and per tenant, that they could not look — which is the correct
-behaviour, and becomes real output with no further code.
-
-### Added
-
-- **Shared addresses are discovered and classified** (workplan 0027). Mail-enabled
-  groups are read from the source directory and sorted into §14.1's two patterns:
-  a shared MAILBOX, whose store is copied like any other mailbox, or a
-  distribution LIST, which has no store and whose definition and members have to
-  be recreated. Where the directory does not say which, **you are asked instead
-  of guessed at** — both wrong guesses cost real work, one silently leaving a
-  mailbox full of mail behind and the other leaving an address that reaches
-  nobody after cutover.
-- **A shared mailbox can be migrated as an ordinary mapping** (0027 T3):
-  `source.mailbox` names the shared address, the full folder tree is copied with
-  the same idempotency and verification as any mailbox. See
-  `docs/shared-mailboxes.md` for the target convention — a dedicated mailbox at
-  its own address, team access by per-person app passwords, Send-As.
-- **A step-by-step list for distribution lists** (0027 T2), with each address and
-  exactly who must receive its mail. Manual by necessity: no target platform this
-  tool supports offers a way to create a mail group for you, and the document
-  says so on its first line rather than implying otherwise. Lists whose
-  membership could not be read are named as such rather than presented as empty
-  groups to recreate.
-- **Drift detection** (workplan 0028). A daily pass notices a mailbox on the
-  source that no migration covers, raises it as a decision, and tells you.
-  Re-running converges on the same open questions instead of growing the queue,
-  and a tenant whose coverage cannot be established raises nothing and says why.
-  Standing answers (`auto`/`ask`, per category) let a category answer itself,
-  recording that a rule closed it rather than a person.
-- **The permission inventory** (workplan 0029, SAD §14.2). A report per mailbox,
-  reachable from the Finish checklist: who can see whose calendar, what each
-  right corresponds to on the target, and which items only a person can carry
-  across. **Nothing is applied automatically** — the write half is deferred by
-  decision. File and folder sharing is read only where `Files.Read.All` has been
-  granted (`GRAPH_FILES_READ_CONSENTED=true`); by default that section is a
-  stated blind spot rather than a silent omission — see below.
-
-- **A command that proves the Microsoft 365 setup worked.**
-  `check-access` asks Graph one small question per consented permission and
-  reports each separately — because they are granted separately and refused
-  separately. It replaces the previous answer to *did that work?*, which was to
-  wait for the next morning's scheduled pass and read a log. Documented as
-  step 6 of `docs/o365-application-access.md`.
-
-### Fixed
-
-- A managed migration could be created declaring itself a distribution list,
-  which would have connected, copied nothing, and reported success. Both editions
-  now refuse it in the same words.
-- Seven dependencies with published advisories are pinned to their fixed
-  versions, including one in the managed worker's runtime path
-  (`socket.io-parser`, CVE-2026-69185, HIGH).
-
-### Known limits, said out loud
-
-- **Mailbox delegation cannot be inventoried.** FullAccess, SendAs and
-  SendOnBehalf are not exposed by the Microsoft Graph API this tool uses. Every
-  permission report says so and names the Exchange Online PowerShell cmdlets that
-  do read them. This is the class of right most likely to break silently at
-  cutover, so it is reported rather than omitted.
-- **IMAP sources cannot discover shared addresses at all** — the protocol has no
-  directory. Such a source reports that it could not look, never an empty list.
-- **OneDrive and SharePoint sharing is not inventoried by default.** Reading it
-  needs `Files.Read.All`, and unlike every other permission this product asks
-  for, an Exchange Application Access Policy cannot narrow it — granting it
-  would mean read access to every file in the tenant. Declined for the reference
-  deployment (owner decision 2026-08-04). The scan is built and tested; a
-  deployment that has granted the scope enables it with
-  `GRAPH_FILES_READ_CONSENTED=true`. Off, the report names the section as
-  uninventoried and says why, which is not the same as saying nothing is shared.
-- **The shared-mailbox-or-distribution-list question is always asked**, never
-  answered by a standing rule. A preset could only mean *assume one of the two*,
-  and assuming wrong migrates a mailbox full of mail as an empty group
-  definition. Deliberately not offered (owner decision 2026-08-04).
-- **Nothing above has been proven against a live tenant yet.** See the note at
-  the top of this section.
-
-## [0.1.0-rc.1] - 2026-08-03
+## [0.1.0-rc.1] - 2026-08-04
 
 The first tagged artifact. A **release candidate**, deliberately: the pipeline
 that produces it is proven, the feature set is still moving, and a version
 people might pin should not imply otherwise (owner decision 2026-08-03,
 workplan 0025 T2).
+
+> **On the date.** This entry was first written on 2026-08-03 against the
+> commit that prepared it, and was **not tagged then**. Tagging that commit a
+> day later would have published a signed image carrying `socket.io-parser`
+> 4.2.6 (CVE-2026-69185, HIGH), fixed on main the following morning — a poor
+> first artifact for anyone to pin. So rc.1 is cut from 2026-08-04 instead and
+> this entry was rewritten to describe that tree (owner decision 2026-08-04).
+> Rewriting it is legitimate precisely because **rc.1 was never published**:
+> the rule that a released entry must not quietly change protects readers who
+> already have the artifact, and there were none.
 
 ### What is in it, and actually works
 
@@ -118,23 +45,78 @@ workplan 0025 T2).
 - **Supply chain**: multi-arch images signed with cosign (keyless, by digest),
   a CycloneDX SBOM per build, every GitHub Action pinned by commit SHA.
 
+### In it, but not yet proven against a live tenant
+
+These four are **built, tested and running on schedule**, and not one of them
+has read a real Microsoft 365 directory. They all wait on the same thing: admin
+consent on a tenant (`docs/o365-application-access.md`). Until that happens
+they run daily and report, honestly and per tenant, that they could not look —
+which is the correct behaviour, and becomes real output with no further code.
+
+Read this section as *the machinery exists*, not as *this works for you yet*.
+
+- **Shared addresses are discovered and classified** (workplan 0027).
+  Mail-enabled groups are read from the source directory and sorted into
+  §14.1's two patterns: a shared MAILBOX, whose store is copied like any other
+  mailbox, or a distribution LIST, which has no store and whose definition and
+  members have to be recreated. Where the directory does not say which, **you
+  are asked instead of guessed at** — both wrong guesses cost real work, one
+  silently leaving a mailbox full of mail behind and the other leaving an
+  address that reaches nobody after cutover.
+- **A shared mailbox migrates as an ordinary mapping** (0027 T3):
+  `source.mailbox` names the shared address and the full folder tree is copied
+  with the same idempotency and verification as any mailbox. See
+  `docs/shared-mailboxes.md` for the target convention — a dedicated mailbox at
+  its own address, team access by per-person app passwords, Send-As.
+- **A step-by-step list for distribution lists** (0027 T2), with each address
+  and exactly who must receive its mail. Manual by necessity: no target
+  platform this tool supports offers a way to create a mail group for you, and
+  the document says so on its first line rather than implying otherwise. Lists
+  whose membership could not be read are named as such rather than presented as
+  empty groups to recreate.
+- **Drift detection** (workplan 0028). A daily pass notices a mailbox on the
+  source that no migration covers, raises it as a decision, and tells you.
+  Re-running converges on the same open questions instead of growing the queue,
+  and a tenant whose coverage cannot be established raises nothing and says why.
+  Standing answers (`auto`/`ask`, per category) let a category answer itself,
+  recording that a rule closed it rather than a person.
+- **The permission inventory** (workplan 0029, SAD §14.2). A report per
+  mailbox, reachable from the Finish checklist: who can see whose calendar,
+  what each right corresponds to on the target, and which items only a person
+  can carry across. **Nothing is applied automatically** — the write half is
+  deferred by decision.
+- **`check-access`**, which tells you whether the consent above actually
+  worked. One small question per consented permission, each reported
+  separately, because they are granted separately and refused separately. It
+  replaces the previous answer to *did that work?*, which was to wait for the
+  next morning's scheduled pass and read a log.
+
 ### What is NOT in it — read this before pointing anyone at it
 
-> This list describes **rc.1 as tagged**, and it is left as it was written: a
-> released entry that quietly rewrites itself is a changelog nobody can trust.
-> Three of the gaps below were closed on 2026-08-04 — see **[Unreleased]** for
-> what changed and what those features still cannot prove.
-
-- **Shared mailboxes and distribution lists do not migrate.** The SAD promises
-  both §14.1 patterns; the code for them is workplan 0027 and is unbuilt. The
-  auth model it needs landed here (application-permission scope + runbook), the
-  migration itself did not.
-- **No drift detection.** The decision queue exists end to end and nothing
-  raises a decision into it yet — the detectors are workplan 0028 and are
-  blocked on tenant admin consent. The screen says so rather than showing an
-  empty list that reads as "no changes".
-- **No permission inventory.** Delegate and share rights are not discovered,
-  mapped or reported (workplan 0029).
+- **Nothing in the section above has read a real tenant.** It is the single
+  most important limit in this release: four features that will report *I could
+  not look* on every run until somebody completes the consent runbook.
+- **Distribution lists are not created for you.** The runbook tells a person
+  what to make; no target platform this tool supports offers an API to do it.
+- **OneDrive and SharePoint sharing is not inventoried by default.** It needs
+  `Files.Read.All`, and unlike every other permission this product asks for, an
+  Exchange Application Access Policy cannot narrow it — granting it would mean
+  read access to every file in the tenant. Declined for the reference
+  deployment (owner decision 2026-08-04); a deployment that has granted the
+  scope sets `GRAPH_FILES_READ_CONSENTED=true`. Off, the report names the
+  section as uninventoried and says why, which is not the same as saying
+  nothing is shared.
+- **Mailbox delegation cannot be inventoried at all.** FullAccess, SendAs and
+  SendOnBehalf are Exchange recipient permissions that the Microsoft Graph API
+  this tool speaks does not expose. Every permission report says so and names
+  the Exchange Online PowerShell cmdlets that do read them. This is the class of
+  right most likely to break silently at cutover, so it is reported rather than
+  omitted.
+- **IMAP sources cannot discover shared addresses at all** — the protocol has
+  no directory. Such a source reports that it could not look, never an empty
+  list.
+- **Permissions are never applied.** Inventory and guidance only; the write
+  half is deferred by decision and has no code.
 - **One-way only.** Bidirectional sync and post-cutover reverse sync were
   **retracted** on 2026-08-03, not deferred: writing back to the source would
   mean modifying the system being migrated away from. The source itself is the
@@ -148,6 +130,19 @@ workplan 0025 T2).
   it is not, verification reports "not measured" rather than a fabricated
   match.
 
+### Fixed since the 2026-08-03 preparation
+
+- A managed migration could be created declaring itself a distribution list,
+  which would have connected, copied nothing, and reported success. Both
+  editions now refuse it in the same words.
+- A recurring meeting and its modified occurrences share a UID under RFC 5545,
+  and the calendar natural key used the UID alone — so an edited occurrence
+  collided with its series. The key now includes `RECURRENCE-ID`.
+- Seven dependencies with published advisories are pinned to their fixed
+  versions, including one in the runtime path shared by the managed worker and
+  the appliance image (`socket.io-parser`, CVE-2026-69185, HIGH). **This is the
+  reason rc.1 is cut from 2026-08-04 rather than the day before.**
+
 ### Notes for anyone running it
 
 - Prerelease images do **not** take the `latest` tag — pin the explicit
@@ -156,6 +151,10 @@ workplan 0025 T2).
   `cosign verify ghcr.io/robbes/open-migrate-selfhost@sha256:… --certificate-identity-regexp '^https://github.com/Robbes/open-migrate/' --certificate-oidc-issuer https://token.actions.githubusercontent.com`
 - Back up the control-plane database before upgrading. The N-1 → N upgrade
   path becomes testable from this tag onward and is not yet proven.
+- **If you are migrating from Microsoft 365, do the consent runbook first**
+  (`docs/o365-application-access.md`) and finish with its step 6,
+  `check-access`. Four of the features above do nothing until it passes, and
+  they will tell you so on every run rather than failing loudly.
 - **This cycle (2026-08-02): 0019 and 0021 closed; ADR-0006's Graph-mail fallback built end to end (workplan 0023); two dormant ADR promises became real or were corrected.** In order: **workplan 0019 closed** — the apply client speaks the managed receipt shape (the one success-shape edition split ADR-0026 permits), the Deletions screen polls receipts to their terminal states, `allow_apply_deletions` got its owner-only API and a deliberately heavy two-step switch, `MappingDetail` became a real per-mapping hub, `Finish` gained a queue-envelope-driven per-mapping mode, and the appliance's deprecated synchronous `GET /verify` was retired exactly one release after 0017 promised it (the wiring test now pins the 404). **Workplan 0021, the documentation truth pass** — the SAD bumped to v1.2 (engine-name sweep, ADR-0011's real self-hosted-targets position, the corrected `TargetRemover` claim, PGlite named, the bilingual promise marked unbuilt, ADR index through 0028); the cutover runbook was rewritten against the code and **found a real bug doing it**: the CLI's `execute` attempted `CUTOVER_IN_PROGRESS→COMPLETED`, an edge the state machine rejects — the happy path threw AFTER the operator had switched DNS. Fixed: `execute` lands in `GRACE_PERIOD` and a new `--yes`-gated `complete` closes it; `rls-guide.md` was rewritten around the real FORCE-RLS/`app_user`/`withTenant` model (26 tables, all FORCEd); `testing.md` dropped its deleted-engine tutorial and gained a tree-verified untested-seams appendix; six READMEs stopped lying about env vars, ports and architecture. **Two ADR promises with no code behind them got owner decisions and same-day builds**: the **Atlas migration lint** is a CI job (`migration-lint` — replays the whole migration dir against a disposable Postgres, fails on destructive changes; ADR-0017), and **ADR-0006's Graph-mail fallback is real end to end** (workplan 0023): a `GraphMailSource` connector keyed on the same `internetMessageId` natural key as IMAP (a transport switch cannot duplicate a mailbox), wired through both editions' dep builders with fail-closed credential contracts, and a runtime `MailSourceWithGraphFallback` that answers an auth-refused IMAP mailbox with one self-verifying Graph probe and continues the run over Graph, loudly — because O365 answers disabled-IMAP and bad-credential with the same prose, so the honest detection is to prove the alternative works rather than parse the error.
 - **The managed edition runs on ONE execution plane (workplans 0020+0022, all closed 2026-08-01 with live evidence).** The day started with two security findings and ended with the polling scheduler deleted. In order: `authenticate` now confirms tenant **membership** and takes the role from the `tenant_member` row, never the token — proven in production with two identically-signed tokens (member → 200, non-member → 403, where before both were served); every secret is `:?`-required with zero committed fallbacks and the API refuses to boot in production on a known placeholder (`ensure-env-secrets.sh` generates per-install values); the dashboard's TLS front became a compose service; the hand-run verify+apply smoke became **`smoke-managed.sh`**, the one-command acceptance test for every stack change; the managed runbook was rewritten around the real bring-up (the initdb-mount instruction that crashed the API is gone); task env vars upload via **`set-task-env.sh`** instead of a dashboard ritual; and a hardening sweep deleted 204 lines of pretend-code (the unauthenticated webhook sink, the rotten `managed-simple.yml`). Then the owner decision: **syncs moved onto the `managed-sync-tick` scheduled task** — one declarative every-minute tick evaluating each mapping's own cron against the DB (no per-mapping schedule state to reconcile), explicit enabled-domains, per-mapping concurrency 1 — and the polling `managed-scheduler`, its Dockerfile and its compose service were **deleted** (−487 lines). The staged cutover earned its keep: the tick's first due firing surfaced a real in-runner networking bug (the platform injects the HOST-perspective API URL into runners; this was the first task to call the API from inside one), fixed with the poller one command from resuming and zero data impact. Every claim above has Spark-stack evidence in the 0020/0022 status blocks.
 - **Catch-up entry (2026-08-01) — the changelog had fallen behind the tree; the whole-repo review brings it current.** Since the last entry: **`apply` and `verify` landed in the managed edition** (workplan 0017 — verify as a start+poll pair over `verification_run`, apply as evaluate-then-enqueue with an `apply_receipt` lifecycle; every gate answered synchronously with the appliance's exact refusal codes; ledger migrations 0003/0004), which retracts this file's older claim below that they are "deliberately absent from the managed API" — that was true when written and is not anymore. **The Trigger.dev tasks actually deploy and run** (workplan 0018): `apps/worker/trigger.config.ts`, one env contract (`TRIGGER_API_URL`/`TRIGGER_SECRET_KEY` — the SDK's own names, replacing three disagreeing ones), a compose execution plane (local registry, docker-socket proxy, supervisor, ClickHouse, MinIO, all with restart policies), `deploy/compose/deploy-tasks.sh`, and `DEPLOY_IMAGE_PLATFORM` for arm64 hosts. Verified live on real hardware, both halves: an API `202` became a real runner executing `run-verification` and landing a per-domain PASS report in 1.7 s, and the apply path landed a live receipt `applied`/`kind: deleted` in ~6 s after re-running every gate in the job — the managed edition's destructive path is proven end to end. **The e2e gate now runs both persistence backends** (Postgres + PGlite, 46 tests each) and moved onto the verify start+poll pair. **Jobs now respect the scope selection**: apply/verify touch only domains enabled in `scope_selection` instead of building connectors for all four (PR #207). Housekeeping from the review: the committed `.env.managed` was removed and gitignored, ADR-0028 records the PGlite architecture decision post-hoc, and workplans 0019 (managed operating surface), 0020 (managed-stack productionization, incl. two security findings) and 0021 (documentation truth pass) collect all known leftover work.
