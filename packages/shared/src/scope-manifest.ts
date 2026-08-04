@@ -31,22 +31,19 @@ export const SCOPE_MANIFEST: ScopeManifest = {
     { item: 'Calendar', detail: 'Events, recurrence, attendees (ICS).' },
     { item: 'Contacts', detail: 'Address books and contacts (vCard).' },
     { item: 'Files', detail: 'OneDrive / SharePoint document libraries (files + folders).' },
+    {
+      item: 'Shared mailboxes',
+      detail:
+        'Pattern S — the shared store is copied, as an ordinary mapping: the full folder tree ' +
+        'incl. Sent/Drafts/Archive, same idempotency and verification as any mailbox. Needs ' +
+        'application permissions on the source (see docs/shared-mailboxes.md).',
+    },
   ],
   partial: [
-    // Moved down from `migrates` on 2026-08-04 (workplan 0027 T4). Discovery
-    // ships — the addresses are found, classified and shown before anything
-    // is copied — and the copying half does not. Under *Migrates* these two
-    // rows promised a migration that no code performs, which is the promise
-    // 0026's truth pass exists to stop us making. They move back up when
-    // 0027 T2/T3 land, with whatever qualifiers are true then.
-    {
-      item: 'Shared mailboxes (Pattern S)',
-      detail:
-        'DISCOVERED, not yet copied. Shared addresses are found on the source and classified ' +
-        'before you start; where the source cannot say which kind an address is, you are asked ' +
-        'rather than guessed at. Copying the shared store itself is not built yet (workplan ' +
-        '0027 T3).',
-    },
+    // Pattern D moved down from `migrates` on 2026-08-04 (workplan 0027 T4).
+    // Under *Migrates* it promised a recreation no code performs, which is
+    // the promise 0026's truth pass exists to stop us making. Pattern S went
+    // with it and came back the same day, when 0027 T3 landed.
     {
       item: 'Distribution lists (Pattern D)',
       detail:

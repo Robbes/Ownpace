@@ -72,3 +72,52 @@ describe('a Graph source naming a shared mailbox', () => {
     expect((second.source as { mailbox?: string }).mailbox).toBe('gedeeld@contoso.nl');
   });
 });
+
+describe('declaring the §14.1 pattern (workplan 0027 T3)', () => {
+  const parse = (pattern: unknown, source: Record<string, unknown>) =>
+    parseMappingConfigJson(
+      JSON.stringify({ ...(JSON.parse(base(source)) as Record<string, unknown>), pattern }),
+    );
+
+  it('accepts shared_s', () => {
+    const config = parse('shared_s', {
+      type: 'graph-mail',
+      tenantId: GRAPH_TENANT,
+      mailbox: 'gedeeld@contoso.nl',
+    });
+    expect(config.pattern).toBe('shared_s');
+  });
+
+  it('REFUSES distribution_d, and names the work it actually needs', () => {
+    // A distribution list has no store, so a mapping for one would connect,
+    // find nothing, and report a successful empty migration — after which
+    // the owner cuts over to an address that reaches nobody.
+    expect(() => parse('distribution_d', { type: 'graph-mail', tenantId: GRAPH_TENANT })).toThrow(
+      /no message store to copy/,
+    );
+    expect(() => parse('distribution_d', { type: 'graph-mail', tenantId: GRAPH_TENANT })).toThrow(
+      /runbook/,
+    );
+  });
+
+  it('refuses a value that is neither', () => {
+    expect(() => parse('shared', { type: 'graph-mail', tenantId: GRAPH_TENANT })).toThrow(
+      /expected 'shared_s'/,
+    );
+  });
+
+  it('leaves an ordinary mapping without one', () => {
+    const config = parseMappingConfigJson(base({ type: 'graph-mail', tenantId: GRAPH_TENANT }));
+    // Almost every mapping is neither pattern and must not have to say so.
+    expect(config.pattern).toBeUndefined();
+  });
+
+  it('survives a round trip through JSON', () => {
+    const first = parse('shared_s', {
+      type: 'graph-mail',
+      tenantId: GRAPH_TENANT,
+      mailbox: 'gedeeld@contoso.nl',
+    });
+    expect(parseMappingConfigJson(JSON.stringify(first)).pattern).toBe('shared_s');
+  });
+});

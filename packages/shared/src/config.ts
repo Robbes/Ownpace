@@ -227,6 +227,23 @@ export interface MappingConfig {
    */
   readonly onCollision?: 'skip' | 'fail';
   /**
+   * Which §14.1 shared-address pattern this mapping is (workplan 0027 T3).
+   *
+   * Almost always omitted: an ordinary personal mailbox is neither pattern.
+   *
+   *  - `shared_s` — a SHARED MAILBOX. The full folder tree is copied
+   *    idempotently, which is the existing mail path unchanged; what makes it
+   *    Pattern S is that `source.mailbox` names the shared address, so the
+   *    source reads `/users/{address}` rather than `/me`. Setting it is a
+   *    declaration checked against the source, not a switch that changes how
+   *    the copy runs.
+   *  - `distribution_d` — REFUSED here. A distribution list usually has no
+   *    message store, so a mapping for one would copy nothing and report a
+   *    successful, empty migration. What migrates is the definition and the
+   *    member list, by hand (0027 T2's runbook).
+   */
+  readonly pattern?: 'shared_s';
+  /**
    * Mail folders to leave behind, by their RFC 6154 special-use role.
    *
    * Defaults to `['trash', 'junk']`, and that default is the fix for something
@@ -310,6 +327,29 @@ export function parseExcludeSpecialUse(v: unknown): ReadonlyArray<SpecialUse> | 
     out.push(entry as SpecialUse);
   }
   return out;
+}
+
+/**
+ * Validate `pattern`, refusing the one that cannot work (workplan 0027 T3).
+ *
+ * `distribution_d` is a legal value of the LEDGER column and an illegal value
+ * here, and the asymmetry is deliberate: `group_def` records that an address
+ * IS a distribution list, while a `mailbox_mapping` for one would connect,
+ * find no store, and report a clean empty migration. The refusal names the
+ * runbook so the reader learns what to do instead of only what not to.
+ */
+function parsePattern(v: unknown): 'shared_s' | undefined {
+  if (v === undefined) return undefined;
+  if (v === 'shared_s') return v;
+  if (v === 'distribution_d') {
+    throw new ConfigError(
+      "pattern: 'distribution_d' cannot be a mapping. A distribution list has no message " +
+        'store to copy — what migrates is the group definition and its member list, which is ' +
+        'a manual step (see the shared-addresses runbook). A mapping for one would find ' +
+        'nothing and report a successful, empty migration.',
+    );
+  }
+  throw new ConfigError("pattern: expected 'shared_s' (a shared mailbox) or nothing");
 }
 
 /** Validate `onCollision`, rejecting anything we do not actually implement. */
@@ -490,6 +530,7 @@ export function parseMappingConfig(input: unknown): MappingConfig {
       : { cron: reqString(asRecord(root.schedule, 'schedule'), 'cron', 'schedule.cron') };
   const concurrency = root.concurrency === undefined ? undefined : reqInt(root, 'concurrency', 'concurrency');
   const onCollision = parseOnCollision(root.onCollision);
+  const pattern = parsePattern(root.pattern);
   const excludeSpecialUse = parseExcludeSpecialUse(root.excludeSpecialUse);
   const domains = root.domains === undefined ? undefined : parseDomainsConfig(asRecord(root.domains, 'domains'));
   const allowApplyDeletions =
@@ -505,6 +546,7 @@ export function parseMappingConfig(input: unknown): MappingConfig {
     ...(schedule ? { schedule } : {}),
     ...(concurrency !== undefined ? { concurrency } : {}),
     ...(onCollision !== undefined ? { onCollision } : {}),
+    ...(pattern !== undefined ? { pattern } : {}),
     ...(excludeSpecialUse !== undefined ? { excludeSpecialUse } : {}),
     ...(domains !== undefined ? { domains } : {}),
     ...(allowApplyDeletions !== undefined ? { allowApplyDeletions } : {}),

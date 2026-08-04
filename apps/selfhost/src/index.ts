@@ -90,6 +90,8 @@ import {
   runNewMailboxDetection,
   runGroupDiscovery,
   renderGroupRunbook,
+  assertMappingPattern,
+  resolveMappingPattern,
   sharedAddressAnswer,
   resolveCoverage,
   coverageIncompleteReason,
@@ -138,6 +140,8 @@ async function ensureMappingRecords(
   mailboxMappingId: string,
   sourceUser: string,
   targetUser: string,
+  /** §14.1's pattern, when this mapping is a shared address (0027 T3). */
+  pattern?: string,
 ) {
   log.debug(`[selfhost] ensuring mapping records for ${mailboxMappingId}...`);
   
@@ -187,11 +191,16 @@ async function ensureMappingRecords(
 
     // 3. Ensure mailbox_mapping record exists (ignore if exists)
     await client.query(
-      `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, mode, status)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (id) DO NOTHING`,
+      `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, mode, status, pattern)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (id) DO UPDATE SET pattern = EXCLUDED.pattern`,
       // 0013 T7: created PAUSED (draft) — only scheduled after the operator confirms in the UI.
-      [mailboxMappingId, tenantId, sourceMailboxId, targetMailboxId, 'mirror', 'paused']
+      // `pattern` is the one column refreshed on conflict (0027 T3): a config
+      // file that gained `source.mailbox` since the last boot describes a
+      // shared mailbox now, and the row has to say so. Nothing else is
+      // touched — `status` in particular is the appliance's own record of
+      // what the operator confirmed, not the config file's to reset.
+      [mailboxMappingId, tenantId, sourceMailboxId, targetMailboxId, 'mirror', 'paused', pattern ?? null]
     );
     log.debug(`[selfhost] ensured mailbox_mapping ${mailboxMappingId}`);
 }
@@ -306,6 +315,11 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
 
   // 2. Load and validate the mapping configs.
   const mappings = loadConfigDir(configDir);
+  // §14.1's pattern, checked before anything is scheduled (0027 T3). A mapping
+  // that declares `shared_s` without naming the mailbox would read `/me` —
+  // whoever the stored credentials belong to — and copy the wrong mailbox into
+  // the shared target, reporting success. Refused at boot, with the fix.
+  for (const m of mappings) assertMappingPattern(m.config);
   log.info(`[selfhost] loaded ${mappings.length} mapping(s) from ${configDir}`);
 
   // 3. Wire the status store + scheduler.
@@ -480,6 +494,10 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         m.mailboxMappingId,
         sourceUser,
         targetUser,
+        // §14.1's pattern, from what the mapping declares or its source
+        // implies (0027 T3). `mailbox_mapping.pattern` has been settable
+        // since ledger v1 and written by nothing until now.
+        resolveMappingPattern(m.config),
       );
     });
   };
