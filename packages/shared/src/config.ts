@@ -330,6 +330,24 @@ export function parseExcludeSpecialUse(v: unknown): ReadonlyArray<SpecialUse> | 
 }
 
 /**
+ * Why a distribution list cannot be a mailbox mapping (workplan 0027 T3).
+ *
+ * Exported and shared because THREE doors have to refuse it in the same
+ * words: an appliance config file (`parsePattern`, below), a mapping built in
+ * code (`assertMappingPattern` in `@openmig/core`), and the managed create /
+ * update API. Three hand-written variants of one refusal is three chances for
+ * one of them to drift into being wrong, or to quietly stop refusing at all.
+ *
+ * It lives in `shared` rather than `core` because the config parser is here
+ * and `shared` is the base package — nothing above it can lend it a string.
+ */
+export const DISTRIBUTION_D_NOT_A_MAPPING =
+  "'distribution_d' cannot be a mapping. A distribution list has no message store to copy — " +
+  'what migrates is the group definition and its member list, which is a manual step (see the ' +
+  'shared-addresses runbook). A mapping for one would connect, find nothing, and report a ' +
+  'successful, empty migration.';
+
+/**
  * Validate `pattern`, refusing the one that cannot work (workplan 0027 T3).
  *
  * `distribution_d` is a legal value of the LEDGER column and an illegal value
@@ -341,14 +359,7 @@ export function parseExcludeSpecialUse(v: unknown): ReadonlyArray<SpecialUse> | 
 function parsePattern(v: unknown): 'shared_s' | undefined {
   if (v === undefined) return undefined;
   if (v === 'shared_s') return v;
-  if (v === 'distribution_d') {
-    throw new ConfigError(
-      "pattern: 'distribution_d' cannot be a mapping. A distribution list has no message " +
-        'store to copy — what migrates is the group definition and its member list, which is ' +
-        'a manual step (see the shared-addresses runbook). A mapping for one would find ' +
-        'nothing and report a successful, empty migration.',
-    );
-  }
+  if (v === 'distribution_d') throw new ConfigError(`pattern: ${DISTRIBUTION_D_NOT_A_MAPPING}`);
   throw new ConfigError("pattern: expected 'shared_s' (a shared mailbox) or nothing");
 }
 

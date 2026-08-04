@@ -22,6 +22,7 @@
  * between a caught misconfiguration and a silent data loss (hard rule 9).
  */
 
+import { DISTRIBUTION_D_NOT_A_MAPPING } from '@openmig/shared';
 import type { MappingConfig, SourceConfig, SharedAddressPattern } from '@openmig/shared';
 
 export type { SharedAddressPattern };
@@ -56,12 +57,9 @@ export function assertMappingPattern(config: MappingConfig): void {
   // other doors: a mapping built in code, or by the managed wizard.
   if ((config.pattern as string) !== 'shared_s') {
     throw new Error(
-      `Mapping ${config.mappingId} declares pattern ${JSON.stringify(config.pattern)}, which ` +
-        'cannot be a mapping. The only pattern a mailbox mapping can carry is "shared_s" (a ' +
-        'shared mailbox). A distribution list has no message store to copy — what migrates is ' +
-        'the group definition and its member list, which is a manual step (see the ' +
-        'shared-addresses runbook, GET /shared-addresses/runbook). A mapping for one would ' +
-        'connect, find nothing, and report a successful empty migration.',
+      `Mapping ${config.mappingId} declares pattern ${JSON.stringify(config.pattern)}. The only ` +
+        `pattern a mailbox mapping can carry is "shared_s" (a shared mailbox). ` +
+        DISTRIBUTION_D_NOT_A_MAPPING,
     );
   }
 
