@@ -12,6 +12,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { asTenantId } from '@openmig/shared';
 import type { DiscoveredGroup } from '@openmig/shared';
+import { listImapGroups } from '@openmig/connectors';
 import { runGroupDiscovery, type GroupDiscoveryDeps, type RecordGroupInput } from './run-group-discovery';
 
 const TENANT = asTenantId('22222222-2222-4222-8222-222222222222' as never);
@@ -85,6 +86,23 @@ describe('the happy path', () => {
     // The second pass is not news.
     const d = deps({ record: async () => ({ created: false }) });
     expect(await runGroupDiscovery(d)).toMatchObject({ discovered: 0, known: 1 });
+  });
+});
+
+describe('a source with no directory at all (IMAP)', () => {
+  it('is RUN, not skipped, and its refusal becomes the stated blind spot', async () => {
+    // This is what `listImapGroups()` is for, and for a day it was for
+    // nothing: both editions skipped an IMAP-only tenant entirely, so the
+    // operator got no rows, no warning and no reason. Silence and "you have
+    // none" are the same output — the failure hard rule 9 exists to prevent.
+    const d = deps({ listGroups: async () => listImapGroups() });
+    const summary = await runGroupDiscovery(d);
+
+    expect(summary.blindSpot).toContain('IMAP has no directory');
+    expect(d.recorded).toEqual([]);
+    expect(d.warnings).toHaveLength(1);
+    // And it names the way out, rather than leaving the operator stuck.
+    expect(d.warnings[0]).toContain('entered by hand');
   });
 });
 

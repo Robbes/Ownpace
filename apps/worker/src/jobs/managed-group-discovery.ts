@@ -29,6 +29,7 @@ import { log, renderEvent, asTenantId, type GroupListing } from '@openmig/shared
 import {
   createTokenProvider,
   listMailEnabledGroups,
+  listImapGroups,
   groupsNotEnumerable,
   notifierFromEnv,
   directoryAvailability,
@@ -54,6 +55,7 @@ const httpClient: HttpClient = {
 interface SourceRow {
   readonly id: string;
   readonly tenant_id: string;
+  readonly kind: string;
   readonly config: unknown;
 }
 
@@ -65,14 +67,19 @@ export const managedGroupDiscovery = schedules.task({
     const groups = new PgGroupDefStore(db);
     const decisions = new PgDecisionStore(db);
 
-    // Every Graph source across active tenants. An IMAP-only tenant has none
-    // and is simply not visited — there is nothing here it could be asked,
-    // and `listImapGroups()` says so wherever a caller does ask.
+    // EVERY source across active tenants, not only the Graph ones.
+    //
+    // This used to select `kind = 'o365'` alone, which meant an IMAP-only
+    // tenant was never visited: no rows, no warning, no reason — and silence
+    // reads exactly like "this organisation has no shared addresses". IMAP
+    // sources are included and handed `listImapGroups()`, which always
+    // refuses with the reason, so the blind spot is stated every run (hard
+    // rule 9) through the same path the drift detector uses.
     const { rows: sources } = await pool.query<SourceRow>(
-      `SELECT c.id, c.tenant_id, c.config
+      `SELECT c.id, c.tenant_id, c.kind, c.config
          FROM connection c
          JOIN tenant t ON t.id = c.tenant_id
-        WHERE t.status = 'active' AND c.role = 'source' AND c.kind = 'o365'`,
+        WHERE t.status = 'active' AND c.role = 'source'`,
     );
 
     let discovered = 0;
@@ -90,6 +97,9 @@ export const managedGroupDiscovery = schedules.task({
         sourceConnectionId: source.id,
 
         listGroups: async (): Promise<GroupListing> => {
+          // A source with no directory at all answers first, in its own
+          // words: no amount of configuration makes IMAP enumerable.
+          if (source.kind !== 'o365') return listImapGroups();
           // Three preconditions, each with its own reason and its own fix —
           // told apart in `directory-availability.ts`, where they are tested.
           const available = directoryAvailability(process.env, graphTenantId);

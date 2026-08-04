@@ -81,6 +81,7 @@ import {
   createTokenProvider,
   listTenantMailboxes,
   listMailEnabledGroups,
+  listImapGroups,
   groupsNotEnumerable,
   mailboxDelegations,
   resolveUserDriveId,
@@ -842,12 +843,15 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   // every rule is in `@openmig/core`, what is here is the token, the store and
   // the schedule.
   //
-  // An appliance with only IMAP mappings is not visited at all, and that is
-  // deliberate rather than an oversight: IMAP has no directory of groups, so
-  // there is nothing to ask. `listImapGroups()` carries that sentence for
-  // wherever a caller DOES ask (Review & confirm, T4) — what must not happen
-  // is this pass writing zero rows and the screen reading "no shared
-  // addresses" (hard rule 9).
+  // An appliance with only IMAP mappings IS visited, and gets `listImapGroups()`
+  // — which always answers "I cannot look", with the reason. That path used to
+  // `continue` past such a tenant, which meant an IMAP-only operator saw
+  // nothing about shared addresses in the log at all: no rows, no warning, no
+  // reason. Silence and "you have none" are the same output, which is the
+  // failure hard rule 9 exists to prevent, and it is why the drift detector
+  // warns every run rather than once. Running the pass with a refusing reader
+  // produces exactly that warning through `runGroupDiscovery`'s own blind-spot
+  // rule, and writes nothing.
   const discoverGroups = async (): Promise<void> => {
     // Grouped by tenant, like drift detection: the directory is a
     // tenant-level fact.
@@ -862,7 +866,21 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       const graphSource = tenantMappings
         .map((m) => m.config.source)
         .find((src) => src.type.startsWith('graph-')) as { tenantId?: string } | undefined;
-      if (!graphSource?.tenantId) continue; // no Graph source: nothing to ask
+
+      if (!graphSource?.tenantId) {
+        // No directory to ask. Say so — every run — rather than skipping.
+        await runGroupDiscovery({
+          tenantId: tenantId as TenantId,
+          sourceConnectionId: '',
+          listGroups: async () => listImapGroups(),
+          record: async () => {
+            throw new Error('unreachable: a refusing reader yields no groups to record');
+          },
+          warn: (m) => log.warn(m),
+          error: (m, err) => log.error(m, err instanceof Error ? err.message : err),
+        });
+        continue;
+      }
 
       // `group_def.source_connection_id` is NOT NULL and references
       // `connection`. The appliance's mappings are files, so the row is
