@@ -243,6 +243,33 @@ describe('Migrations Routes - Tenant Isolation', () => {
       expect([200, 400, 404]).toContain(response.status);
     });
 
+    it('REFUSES a distribution list as a mapping, with the reason (0027 T3)', async () => {
+      // §14.1's two patterns are both legal in the ledger — `group_def`
+      // records that an address IS a distribution list — but only one can be
+      // a MAPPING. A distribution list has no store, so this mapping would
+      // connect, find nothing, and report a successful empty migration, after
+      // which the owner cuts over to an address that reaches nobody.
+      //
+      // The appliance refuses it at startup; ADR-0026 says both editions hold
+      // one contract, and this is the door that used to be open.
+      const response = await request
+        .post('/api/migrations')
+        .set('Authorization', `Bearer ${TOKEN_TENANT_A}`)
+        .send({
+          sourceMailboxId: '5a1b0000-e29b-41d4-a716-446655443503',
+          targetMailboxId: '5a1b0000-e29b-41d4-a716-446655443503',
+          status: 'active',
+          mode: 'mirror',
+          pattern: 'distribution_d',
+        });
+
+      expect(response.status).toBe(400);
+      // Refused for the RIGHT reason, not incidentally by some other
+      // validation — and the reason names the work that actually applies.
+      expect(JSON.stringify(response.body)).toContain('no message store to copy');
+      expect(JSON.stringify(response.body)).toContain('runbook');
+    });
+
     it('should not allow client to specify different tenant_id (security test)', async () => {
       const newMapping = {
         sourceMailboxId: '5a1b0000-e29b-41d4-a716-446655443502',

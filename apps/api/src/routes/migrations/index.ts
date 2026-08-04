@@ -22,7 +22,7 @@ import { resolveSyncJob, resolveCutoverJob } from './job-resolution';
 // this same router so they sit under /api/migrations/:mappingId/... alongside
 // discovery and start, which is where the appliance's equivalents live too.
 import operatingRoutes from './operating-routes';
-import { log } from '@openmig/shared';
+import { log, DISTRIBUTION_D_NOT_A_MAPPING } from '@openmig/shared';
 
 /** Take the first row of a RETURNING result or fail loudly (no silent nulls). */
 function firstOrThrow<T>(rows: T[], what: string): T {
@@ -132,7 +132,15 @@ const CreateMappingSchema = z.object({
         'surfaced as decisions instead.',
     })
     .optional(),
-  pattern: z.enum(['shared_s', 'distribution_d']).optional(),
+  // §14.1's two patterns are both legal in the LEDGER — `group_def` records
+  // that an address IS a distribution list — but only one of them can be a
+  // MAPPING (workplan 0027 T3). The appliance refuses the other at startup;
+  // refusing it here too is ADR-0026's one contract, and without it a managed
+  // tenant could create a mapping that copies nothing and reports success.
+  pattern: z
+    .enum(['shared_s', 'distribution_d'])
+    .refine((p) => p !== 'distribution_d', { message: DISTRIBUTION_D_NOT_A_MAPPING })
+    .optional(),
 });
 
 const UpdateMappingSchema = CreateMappingSchema.partial();
