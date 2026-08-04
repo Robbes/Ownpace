@@ -102,6 +102,25 @@ export function membersUsable(group: DiscoveredGroup): boolean {
 }
 
 /**
+ * The owner's answer to the S-or-D question, out of a `resolution` jsonb
+ * (workplan 0028 T3).
+ *
+ * The resolve route stores whatever the caller sent — the answer is
+ * category-shaped and the API deliberately does not second-guess it. So the
+ * reading happens here, once, and it is STRICT: anything that is not one of
+ * §14.1's two patterns returns `undefined` rather than a best guess, and the
+ * caller writes nothing. A resolution nobody could read must leave
+ * `group_def.pattern` as it was — recording a pattern the owner did not
+ * choose is the one outcome worse than leaving the question open.
+ */
+export function sharedAddressAnswer(
+  resolution: Readonly<Record<string, unknown>> | undefined,
+): SharedAddressPattern | undefined {
+  const value = resolution?.['pattern'];
+  return value === 'shared_s' || value === 'distribution_d' ? value : undefined;
+}
+
+/**
  * The summary an owner reads when the pattern has to be asked.
  *
  * Written as a question about their organisation rather than about our data

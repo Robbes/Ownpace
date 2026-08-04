@@ -159,6 +159,126 @@ describe('a member list that could not be read', () => {
   });
 });
 
+describe('asking which pattern it is (workplan 0028 T3)', () => {
+  function asking(overrides: Partial<GroupDiscoveryDeps> = {}) {
+    const raised: string[] = [];
+    const announced: string[] = [];
+    const d = deps({
+      listGroups: async () => ({ kind: 'listed', groups: [{ ...DL, store: 'unknown' }] }),
+      raise: async (input) => {
+        raised.push(input.subjectKey);
+        return { created: true, id: `decision-${input.subjectKey}` };
+      },
+      onRaised: async (input) => {
+        announced.push(input.subjectKey);
+      },
+      ...overrides,
+    });
+    return { d, raised, announced };
+  }
+
+  it('raises a shared_address_pattern decision for an address it could not classify', async () => {
+    const { d, raised, announced } = asking();
+    const summary = await runGroupDiscovery(d);
+
+    expect(raised).toEqual(['sales@acme.nl']);
+    expect(announced).toEqual(['sales@acme.nl']);
+    expect(summary).toMatchObject({ unclassified: 1, asked: 1, alreadyAsked: 0 });
+  });
+
+  it('does NOT ask about an address it could classify', async () => {
+    // A group we can tell apart is not a question, and asking anyway is the
+    // noise that teaches owners to ignore the queue.
+    const { d, raised } = asking({
+      listGroups: async () => ({ kind: 'listed', groups: [DL, M365] }),
+    });
+    const summary = await runGroupDiscovery(d);
+
+    expect(raised).toEqual([]);
+    expect(summary.asked).toBe(0);
+  });
+
+  it('keys the question on the ADDRESS, not the group id', async () => {
+    const { d } = asking();
+    let seen: { subjectKey: string; category: string } | undefined;
+    const withCapture = deps({
+      ...d,
+      raise: async (input) => {
+        seen = { subjectKey: input.subjectKey, category: input.category };
+        return { created: true, id: 'x' };
+      },
+    });
+    await runGroupDiscovery(withCapture);
+
+    // A group renamed or recreated with the same address is the SAME open
+    // question; the partial unique index is on (tenant, category, subject).
+    expect(seen).toEqual({ subjectKey: 'sales@acme.nl', category: 'shared_address_pattern' });
+  });
+
+  it('proposes NO default — that is what is being asked', async () => {
+    let proposed: string | undefined = 'set';
+    const d = deps({
+      listGroups: async () => ({ kind: 'listed', groups: [{ ...DL, store: 'unknown' }] }),
+      raise: async (input) => {
+        proposed = input.proposedDefault;
+        return { created: true, id: 'x' };
+      },
+    });
+    await runGroupDiscovery(d);
+
+    // The screen renders `proposedDefault` as an accept button. A default
+    // here would be the guess this whole category exists to avoid.
+    expect(proposed).toBeUndefined();
+  });
+
+  it('does not re-announce a question that was already open', async () => {
+    // The store's raise is idempotent. Without this, a daily pass would email
+    // about the same address every morning until it was answered.
+    const { d, announced } = asking({ raise: async () => ({ created: false, id: 'existing' }) });
+    const summary = await runGroupDiscovery(d);
+
+    expect(announced).toEqual([]);
+    expect(summary).toMatchObject({ asked: 0, alreadyAsked: 1 });
+  });
+
+  it('keeps the group recorded when the question could not be raised', async () => {
+    const { d } = asking({
+      raise: async () => {
+        throw new Error('database is down');
+      },
+    });
+    const summary = await runGroupDiscovery(d);
+
+    // The address is discovered either way; the next pass asks again.
+    expect(d.recorded).toHaveLength(1);
+    expect(summary).toMatchObject({ discovered: 1, asked: 0 });
+    expect(d.errors[0]).toContain('could not ask which pattern');
+  });
+
+  it('keeps the question when the announcement fails', async () => {
+    const { d } = asking({
+      onRaised: async () => {
+        throw new Error('535 authentication failed');
+      },
+    });
+    const summary = await runGroupDiscovery(d);
+
+    // The decision is in the queue and the screen will show it; the email was
+    // the courtesy. Losing the courtesy must not lose the record.
+    expect(summary.asked).toBe(1);
+    expect(d.errors[0]).toContain('could not announce it');
+  });
+
+  it('discovers without asking when no queue is wired', async () => {
+    // The dep is optional: an edition that discovers but has no decision
+    // queue records the group and says nothing, rather than crashing.
+    const d = deps({ listGroups: async () => ({ kind: 'listed', groups: [{ ...DL, store: 'unknown' }] }) });
+    const summary = await runGroupDiscovery(d);
+
+    expect(summary).toMatchObject({ discovered: 1, unclassified: 1, asked: 0 });
+  });
+});
+
 describe('when something fails', () => {
   it('keeps going after a write throws, and reports it', async () => {
     const record = vi.fn(async (input: RecordGroupInput) => {

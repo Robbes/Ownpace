@@ -66,14 +66,66 @@ beforeEach(() => {
 });
 
 describe('the honest empty state', () => {
-  it('says "not watched yet", never "no changes" — no detector exists', async () => {
+  it('never lets a source it could not read count as "no changes"', async () => {
     fetchDecisions.mockResolvedValue({ decisions: [] });
     renderScreen();
 
-    expect(
-      await screen.findByText(/nothing can raise a decision yet/),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/not watched yet/)).toBeInTheDocument();
+    // The wording changed when the detectors were built (0027 T1 / 0028 T2,
+    // T3) — "nothing can raise a decision yet" became false the day they
+    // shipped. What must survive every rewrite is rule 9's distinction:
+    // "nothing to ask about" and "could not look" are different sentences.
+    expect(await screen.findByText(/run once a day/)).toBeInTheDocument();
+    expect(screen.getByText(/blind spot/)).toBeInTheDocument();
+    expect(screen.queryByText(/^Nothing has changed/)).not.toBeInTheDocument();
+  });
+});
+
+describe('the shared-address question (workplan 0028 T3)', () => {
+  const AMBIGUOUS = {
+    ...PENDING,
+    id: 'dec-2',
+    category: 'shared_address_pattern',
+    summary:
+      'Do recipients jointly handle one shared mailbox at Sales (sales@acme.nl), or should it ' +
+      'work as a distribution list where each recipient receives the mail?',
+    subjectKey: 'sales@acme.nl',
+    // No proposed default — not knowing which it is is why it was asked.
+    proposedDefault: undefined,
+  };
+
+  it('offers §14.1’s two named answers instead of an accept button', async () => {
+    fetchDecisions.mockResolvedValue({ decisions: [AMBIGUOUS] });
+    renderScreen();
+
+    expect(await screen.findByRole('button', { name: 'One shared mailbox' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'A distribution list' })).toBeInTheDocument();
+    // A decision with no proposed default must not render an empty button.
+    expect(screen.getByText(/Do recipients jointly handle/)).toBeInTheDocument();
+  });
+
+  it('sends the chosen pattern, which is what writes it back to the group', async () => {
+    fetchDecisions.mockResolvedValue({ decisions: [AMBIGUOUS] });
+    resolveDecision.mockResolvedValue({ ...AMBIGUOUS, status: 'resolved' });
+    renderScreen();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'A distribution list' }));
+
+    await waitFor(() =>
+      expect(resolveDecision).toHaveBeenCalledWith('dec-2', {
+        action: 'set_shared_address_pattern',
+        pattern: 'distribution_d',
+      }),
+    );
+  });
+
+  it('does not offer the pattern buttons on other categories', async () => {
+    // They would be meaningless on a `new_mailbox` decision, and a button
+    // that answers the wrong question is worse than no button.
+    fetchDecisions.mockResolvedValue({ decisions: [PENDING] });
+    renderScreen();
+
+    await screen.findByRole('button', { name: 'create a mapping' });
+    expect(screen.queryByRole('button', { name: 'One shared mailbox' })).not.toBeInTheDocument();
   });
 });
 
@@ -140,9 +192,9 @@ describe('the answered section', () => {
     renderScreen();
 
     expect(await screen.findByText('Decided')).toBeInTheDocument();
-    // With everything answered, the pending section still tells the truth
-    // about the missing detectors.
-    expect(screen.getByText(/nothing can raise a decision yet/)).toBeInTheDocument();
+    // With everything answered, the pending section still states what an
+    // empty queue does and does not mean.
+    expect(screen.getByText(/blind spot/)).toBeInTheDocument();
   });
 });
 

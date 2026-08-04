@@ -104,6 +104,12 @@ describe('Decision Queue Routes', () => {
     await superuserPool.query(`DELETE FROM decision WHERE tenant_id = ANY($1::uuid[])`, [
       [DEC_TENANT_A, DEC_TENANT_B],
     ]);
+    // The group rows go with their connections (FK ON DELETE CASCADE); the
+    // suite shares a database, so leaving them would leak into the next run's
+    // uniqueness assumptions.
+    await superuserPool.query(`DELETE FROM connection WHERE tenant_id = ANY($1::uuid[])`, [
+      [DEC_TENANT_A, DEC_TENANT_B],
+    ]);
     await superuserPool.end();
   });
 
@@ -166,6 +172,88 @@ describe('Decision Queue Routes', () => {
       expect(second.body.message).toBe(
         'This decision does not exist or has already been answered.',
       );
+    });
+  });
+
+  describe('answering the shared-address question (workplan 0028 T3)', () => {
+    /** A discovered group with no pattern, plus the decision asking about it. */
+    async function seedAmbiguous(address: string) {
+      const conn = await superuserPool.query(
+        `INSERT INTO connection (tenant_id, role, kind, display_name, config, status)
+         VALUES ($1, 'source', 'o365', 'Source', '{}', 'connected') RETURNING id`,
+        [DEC_TENANT_A],
+      );
+      await superuserPool.query(
+        `INSERT INTO group_def (tenant_id, source_connection_id, address, members)
+         VALUES ($1, $2, $3, '[]')`,
+        [DEC_TENANT_A, conn.rows[0].id, address],
+      );
+      const dec = await superuserPool.query(
+        `INSERT INTO decision (tenant_id, category, subject_key, summary)
+         VALUES ($1, 'shared_address_pattern', $2, 'Shared mailbox or distribution list?')
+         RETURNING id`,
+        [DEC_TENANT_A, address],
+      );
+      return dec.rows[0].id as string;
+    }
+
+    it('writes the chosen pattern back to the discovered group', async () => {
+      const id = await seedAmbiguous('sales@acme.nl');
+
+      const response = await request
+        .post(`/api/decisions/${id}/resolve`)
+        .set('Authorization', `Bearer ${TOKEN_OWNER_A}`)
+        .send({ resolution: { action: 'set_shared_address_pattern', pattern: 'distribution_d' } });
+
+      expect(response.status).toBe(200);
+      // The whole point of the category: the answer CHANGES something. A
+      // decision that closes and leaves the ledger untouched is dead surface.
+      const { rows } = await superuserPool.query(
+        `SELECT pattern FROM group_def WHERE tenant_id = $1 AND address = 'sales@acme.nl'`,
+        [DEC_TENANT_A],
+      );
+      expect(rows[0].pattern).toBe('distribution_d');
+    });
+
+    it('leaves the group alone when the answer names no pattern', async () => {
+      const id = await seedAmbiguous('vague@acme.nl');
+
+      const response = await request
+        .post(`/api/decisions/${id}/resolve`)
+        .set('Authorization', `Bearer ${TOKEN_OWNER_A}`)
+        .send({ resolution: { action: 'accept_default' } });
+
+      // The decision is answered — that is the caller's business — but
+      // recording a pattern nobody chose is worse than leaving it open.
+      expect(response.status).toBe(200);
+      const { rows } = await superuserPool.query(
+        `SELECT pattern FROM group_def WHERE tenant_id = $1 AND address = 'vague@acme.nl'`,
+        [DEC_TENANT_A],
+      );
+      expect(rows[0].pattern).toBeNull();
+    });
+
+    it('does not let a losing second answer rewrite the group', async () => {
+      const id = await seedAmbiguous('once@acme.nl');
+      await request
+        .post(`/api/decisions/${id}/resolve`)
+        .set('Authorization', `Bearer ${TOKEN_OWNER_A}`)
+        .send({ resolution: { pattern: 'shared_s' } });
+
+      const second = await request
+        .post(`/api/decisions/${id}/resolve`)
+        .set('Authorization', `Bearer ${TOKEN_OWNER_A}`)
+        .send({ resolution: { pattern: 'distribution_d' } });
+
+      // The conditional UPDATE is what guarantees exactly one answer wins, so
+      // the pattern write has to come AFTER it — otherwise the 409'd answer
+      // would still have changed the ledger.
+      expect(second.status).toBe(409);
+      const { rows } = await superuserPool.query(
+        `SELECT pattern FROM group_def WHERE tenant_id = $1 AND address = 'once@acme.nl'`,
+        [DEC_TENANT_A],
+      );
+      expect(rows[0].pattern).toBe('shared_s');
     });
   });
 

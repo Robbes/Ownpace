@@ -24,12 +24,13 @@ import { schedules } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schemaPg from '@openmig/ledger/schema-pg';
-import { PgGroupDefStore } from '@openmig/ledger';
-import { log, asTenantId, type GroupListing } from '@openmig/shared';
+import { PgGroupDefStore, PgDecisionStore } from '@openmig/ledger';
+import { log, renderEvent, asTenantId, type GroupListing } from '@openmig/shared';
 import {
   createTokenProvider,
   listMailEnabledGroups,
   groupsNotEnumerable,
+  notifierFromEnv,
   directoryAvailability,
 } from '@openmig/connectors';
 import { runGroupDiscovery } from '@openmig/core';
@@ -60,7 +61,9 @@ export const managedGroupDiscovery = schedules.task({
   id: 'managed-group-discovery',
   cron: '30 6 * * *',
   run: async () => {
+    const channel = notifierFromEnv(process.env, (m) => log.warn(m));
     const groups = new PgGroupDefStore(db);
+    const decisions = new PgDecisionStore(db);
 
     // Every Graph source across active tenants. An IMAP-only tenant has none
     // and is simply not visited — there is nothing here it could be asked,
@@ -75,6 +78,7 @@ export const managedGroupDiscovery = schedules.task({
     let discovered = 0;
     let known = 0;
     let unclassified = 0;
+    let asked = 0;
     let membersUnknown = 0;
     let blindSpots = 0;
 
@@ -111,6 +115,19 @@ export const managedGroupDiscovery = schedules.task({
           return { created };
         },
 
+        // The S-or-D question, for an address the source did not classify
+        // (workplan 0028 T3) — the second category the decision queue was
+        // scoped to carry, and the one §14.1 was designed to ask.
+        raise: async (input) => {
+          const { created, decision } = await decisions.raise(input);
+          return { created, id: decision.id };
+        },
+        onRaised: async (input) => {
+          await channel.notifier.notify(
+            renderEvent({ kind: 'decision_raised', summary: input.summary }, channel.locale),
+          );
+        },
+
         warn: (m) => log.warn(m),
         error: (m, err) => log.error(m, err instanceof Error ? err.message : err),
       });
@@ -118,6 +135,7 @@ export const managedGroupDiscovery = schedules.task({
       discovered += summary.discovered;
       known += summary.known;
       unclassified += summary.unclassified;
+      asked += summary.asked;
       membersUnknown += summary.membersUnknown;
       if (summary.blindSpot) blindSpots++;
     }
@@ -127,6 +145,7 @@ export const managedGroupDiscovery = schedules.task({
       discovered,
       known,
       unclassified,
+      asked,
       membersUnknown,
       blindSpots,
     };

@@ -124,6 +124,38 @@ export class PgGroupDefStore {
     return { row: toGroupDefRow(row), created: false };
   }
 
+  /**
+   * Record the pattern an owner chose for an address (workplan 0028 T3).
+   *
+   * By ADDRESS rather than by row id, and across every source connection in
+   * the tenant, because that is the shape of the question that was asked:
+   * *do recipients jointly handle info@, or does each of them receive the
+   * mail?* is a fact about how the organisation uses that address, not about
+   * which directory we happened to read it from. Two sources being
+   * consolidated hold two rows for it and the answer is true of both.
+   *
+   * Returns how many rows it set, so a caller can tell a real write from an
+   * answer that landed on nothing (an address discovery has since stopped
+   * seeing) rather than reporting success either way.
+   */
+  async setPattern(
+    tenantId: TenantId,
+    address: string,
+    pattern: SharedAddressPattern,
+  ): Promise<number> {
+    const updated = await this.db
+      .update(schemaPg.groupDef)
+      .set({ pattern, updatedAt: sql`now()` })
+      .where(
+        and(
+          eq(schemaPg.groupDef.tenantId, tenantId),
+          eq(schemaPg.groupDef.address, address.trim().toLowerCase()),
+        ),
+      )
+      .returning();
+    return updated.length;
+  }
+
   /** Every shared address discovered for this tenant. */
   async list(tenantId: TenantId): Promise<readonly GroupDefRow[]> {
     const rows = await this.db

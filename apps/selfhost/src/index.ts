@@ -89,6 +89,7 @@ import {
 import {
   runNewMailboxDetection,
   runGroupDiscovery,
+  sharedAddressAnswer,
   resolveCoverage,
   coverageIncompleteReason,
 } from '@openmig/core';
@@ -881,6 +882,15 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             const { created } = await new PgGroupDefStore(db).upsert(tenantId as TenantId, input);
             return { created };
           },
+          // The S-or-D question, for an address the source did not classify
+          // (workplan 0028 T3). `shared_address_pattern` is the second
+          // category the decision queue was scoped to carry.
+          raise: async (input) => {
+            const { created, decision } = await new PgDecisionStore(db).raise(input);
+            return { created, id: decision.id };
+          },
+          // `tell` already logs a failed send loudly without rethrowing.
+          onRaised: async (input) => tell({ kind: 'decision_raised', summary: input.summary }),
           warn: (m) => log.warn(m),
           error: (m, err) => log.error(m, err instanceof Error ? err.message : err),
         });
@@ -1221,12 +1231,35 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         // Single-user edition: no accounts, so the answer is attributed to
         // the appliance's one operator, by name.
         let closed: Awaited<ReturnType<PgDecisionStore['resolve']>>;
+        let closedTenant: string | undefined;
         for (const t of [...new Set(mappings.map((m) => m.config.tenantId))]) {
           closed =
             action === 'resolve'
               ? await store.resolve(t as TenantId, decisionId, resolution!, 'appliance-operator')
               : await store.dismiss(t as TenantId, decisionId, 'appliance-operator');
-          if (closed) break;
+          if (closed) {
+            closedTenant = t;
+            break;
+          }
+        }
+        // The one category whose answer CHANGES something (workplan 0028 T3),
+        // with the same words and the same ordering as managed (ADR-0026):
+        // applied only AFTER the resolve succeeded, because the conditional
+        // UPDATE is what guarantees exactly one answer wins.
+        if (closed! && closedTenant && closed!.category === 'shared_address_pattern' && closed!.subjectKey) {
+          const pattern = sharedAddressAnswer(resolution);
+          if (pattern) {
+            const rows = await new PgGroupDefStore(db).setPattern(
+              closedTenant as TenantId,
+              closed!.subjectKey,
+              pattern,
+            );
+            if (rows === 0) {
+              log.warn(
+                `[decisions] answered ${closed!.subjectKey} as ${pattern} but no group_def row matched`,
+              );
+            }
+          }
         }
         if (!closed!) {
           // Same wording as the managed edition (ADR-0026): one contract.

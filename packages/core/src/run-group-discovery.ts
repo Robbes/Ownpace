@@ -29,8 +29,17 @@
  *     reported and the loop continues.
  */
 
-import type { GroupListing, TenantId, SharedAddressPattern } from '@openmig/shared';
-import { classifySharedAddress, membersUsable } from './classify-shared-address';
+import type {
+  GroupListing,
+  TenantId,
+  SharedAddressPattern,
+  RaiseDecisionInput,
+} from '@openmig/shared';
+import {
+  classifySharedAddress,
+  membersUsable,
+  sharedAddressQuestion,
+} from './classify-shared-address';
 
 /** What discovery hands the ledger for one address. */
 export interface RecordGroupInput {
@@ -51,6 +60,19 @@ export interface GroupDiscoveryDeps {
   listGroups(): Promise<GroupListing>;
   /** Record one. `created` false means it was already known. */
   record(input: RecordGroupInput): Promise<{ readonly created: boolean }>;
+  /**
+   * Ask the S-or-D question for an address the source did not classify
+   * (workplan 0028 T3). Idempotent at the database on (tenant, category,
+   * subjectKey), so re-running converges on the same open question rather
+   * than growing the queue. Omit the dep to discover without asking.
+   */
+  raise?(input: RaiseDecisionInput): Promise<{ readonly created: boolean; readonly id: string }>;
+  /**
+   * Tell somebody about a question that is NEW. Called once per created
+   * decision, never for one that was already pending — an hourly detector
+   * would otherwise email about the same address until it was answered.
+   */
+  onRaised?(input: RaiseDecisionInput): Promise<void>;
   warn(message: string): void;
   error(message: string, err: unknown): void;
 }
@@ -62,6 +84,10 @@ export interface GroupDiscoverySummary {
   readonly known: number;
   /** Recorded without a pattern — the S-or-D question has to be asked. */
   readonly unclassified: number;
+  /** Questions raised into the decision queue, and announced (0028 T3). */
+  readonly asked: number;
+  /** Unclassified addresses whose question was already open. Not re-announced. */
+  readonly alreadyAsked: number;
   /** Recorded, but whose membership could not be read. Not recreatable yet. */
   readonly membersUnknown: number;
   /** Writes that threw. Reported, never silent. */
@@ -74,6 +100,8 @@ const EMPTY: GroupDiscoverySummary = {
   discovered: 0,
   known: 0,
   unclassified: 0,
+  asked: 0,
+  alreadyAsked: 0,
   membersUnknown: 0,
   failed: 0,
 };
@@ -95,6 +123,8 @@ export async function runGroupDiscovery(
   let discovered = 0;
   let known = 0;
   let unclassified = 0;
+  let asked = 0;
+  let alreadyAsked = 0;
   let membersUnknown = 0;
   let failed = 0;
 
@@ -135,7 +165,63 @@ export async function runGroupDiscovery(
     // recorded as missing.
     if (!pattern) unclassified++;
     if (!usable) membersUnknown++;
+
+    // The S-or-D question (workplan 0028 T3). Only for an address the source
+    // did not classify — a group we CAN tell apart is not a question, and
+    // asking about it would be the noise that teaches owners to ignore the
+    // queue. Deliberately raised without a `proposedDefault`: this category
+    // has no default, which is the whole reason it is being asked, and the
+    // screen offers the two named answers instead of an accept button.
+    if (pattern || !deps.raise) continue;
+
+    const question: RaiseDecisionInput = {
+      tenantId: deps.tenantId,
+      category: 'shared_address_pattern',
+      // The ADDRESS, not the group id: the question is about how info@ is
+      // used, so a group renamed or recreated with the same address is the
+      // same open question and must not be asked twice.
+      subjectKey: group.address,
+      summary: sharedAddressQuestion(group),
+      detail: {
+        address: group.address,
+        ...(group.displayName ? { displayName: group.displayName } : {}),
+        ...(group.id ? { sourceGroupId: group.id } : {}),
+        sourceConnectionId: deps.sourceConnectionId,
+      },
+    };
+
+    let created: boolean;
+    try {
+      ({ created } = await deps.raise(question));
+    } catch (err) {
+      // Rule 4 again: a question that could not be asked is reported, and the
+      // group stays recorded — the next pass asks it.
+      deps.error(
+        `[groups] ${deps.tenantId}: recorded ${group.address} but could not ask which pattern it is`,
+        err,
+      );
+      continue;
+    }
+
+    if (!created) {
+      // Already pending, already announced. Counted so a run's output shows
+      // the pass is working rather than looking idle.
+      alreadyAsked++;
+      continue;
+    }
+    asked++;
+
+    try {
+      await deps.onRaised?.(question);
+    } catch (err) {
+      // The decision is in the queue and the screen has it; the email was the
+      // courtesy. Losing the courtesy must not lose the record.
+      deps.error(
+        `[groups] ${deps.tenantId}: asked about ${group.address} but could not announce it`,
+        err,
+      );
+    }
   }
 
-  return { discovered, known, unclassified, membersUnknown, failed };
+  return { discovered, known, unclassified, asked, alreadyAsked, membersUnknown, failed };
 }
