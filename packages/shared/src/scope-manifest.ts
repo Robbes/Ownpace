@@ -67,12 +67,12 @@ export const SCOPE_MANIFEST: ScopeManifest = {
     {
       item: 'Permissions',
       detail:
-        'NOT yet inventoried, and nothing is ever auto-applied — §14.2\'s write step is ' +
-        'deferred by decision. The reading and the report exist (calendar and file sharing, ' +
-        'which Graph exposes) and are not yet reachable from a screen. Mailbox delegation — ' +
-        'FullAccess, SendAs — is not readable through Graph at all and is reported as ' +
-        'uninventoried rather than omitted; capture it with Exchange Online PowerShell before ' +
-        'you cut over.',
+        'INVENTORIED and GUIDED; nothing is auto-applied — §14.2\'s write step is deferred by ' +
+        'decision, so every item in the report is a step for a person. The report covers what ' +
+        'Microsoft Graph exposes: calendar sharing, and file and folder sharing including ' +
+        '"anyone with the link". Mailbox delegation — FullAccess, SendAs — is NOT readable ' +
+        'through Graph at all; the report says so for every migration rather than omitting it, ' +
+        'and you capture it with Exchange Online PowerShell before you cut over.',
     },
     // Proton calendar/contacts (ICS/vCard snapshots) removed 2026-08-02: zero
     // Proton code exists and the whole Proton destination is deferred with

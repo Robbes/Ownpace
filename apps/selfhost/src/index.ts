@@ -82,6 +82,10 @@ import {
   listTenantMailboxes,
   listMailEnabledGroups,
   groupsNotEnumerable,
+  mailboxDelegations,
+  resolveUserDriveId,
+  scanCalendarPermissions,
+  scanDrivePermissions,
   directoryNotEnumerable,
   directoryAvailability,
   type HttpClient,
@@ -90,6 +94,7 @@ import {
   runNewMailboxDetection,
   runGroupDiscovery,
   renderGroupRunbook,
+  runPermissionInventory,
   assertMappingPattern,
   resolveMappingPattern,
   sharedAddressAnswer,
@@ -1185,6 +1190,70 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           addresses.push(...(await store.list(t as TenantId)));
         }
         return sendJson(res, 200, { addresses });
+      }
+      // The §14.2 permission inventory (workplan 0029 T1/T3/T4). Markdown,
+      // same shape and same words as managed (ADR-0026), derived on every
+      // read — a permission granted this morning belongs in the report this
+      // afternoon, and a stored snapshot goes stale exactly when it matters.
+      //
+      // Read-only by construction: §14.2's apply step is deferred, so there
+      // is no write path here to get wrong.
+      const permissionReportMatch =
+        req.method === 'GET' && req.url ? /^\/permissions\/report(?:\?(.*))?$/.exec(req.url) : null;
+      if (permissionReportMatch) {
+        const mailbox = new URLSearchParams(permissionReportMatch[1] ?? '').get('mailbox')?.trim();
+        if (!mailbox) {
+          return sendJson(res, 400, {
+            error: 'missing_mailbox',
+            reason: 'GET /permissions/report?mailbox=someone@example.com',
+          });
+        }
+        // The Graph tenant, from whichever mapping has a Graph source. An
+        // appliance migrating only IMAP has none, which is a legitimate
+        // configuration — the report then says so for every category.
+        const graphSource = mappings
+          .map((m) => m.config.source)
+          .find((src) => src.type.startsWith('graph-')) as { tenantId?: string } | undefined;
+        const available = directoryAvailability(process.env, graphSource?.tenantId);
+        const delegation = mailboxDelegations();
+        const scanOptions = { applicationPermissions: true } as const;
+        const graphToken = () => {
+          const provider = createTokenProvider({
+            tokenEndpoint: `https://login.microsoftonline.com/${graphSource!.tenantId!}/oauth2/v2.0/token`,
+            clientId: (available as { clientId: string }).clientId,
+            clientSecret: (available as { clientSecret: string }).clientSecret,
+            tenantId: graphSource!.tenantId!,
+            scope: 'https://graph.microsoft.com/.default',
+          });
+          return async () => (await provider.getToken()).accessToken;
+        };
+
+        const markdown = await runPermissionInventory({
+          mappingLabel: mailbox,
+          generatedOn: new Date().toISOString().slice(0, 10),
+          delegationReason:
+            delegation.kind === 'not_discoverable' ? delegation.reason : 'not inventoried',
+          ...(available.ok
+            ? {
+                scanCalendars: () =>
+                  scanCalendarPermissions(mailbox, graphToken(), detectorHttpClient, scanOptions),
+                scanDrive: async () => {
+                  const token = graphToken();
+                  const drive = await resolveUserDriveId(
+                    mailbox,
+                    token,
+                    detectorHttpClient,
+                    scanOptions,
+                  );
+                  if (!drive.ok) return { kind: 'not_discoverable' as const, reason: drive.reason };
+                  return scanDrivePermissions(drive.id, token, detectorHttpClient, scanOptions);
+                },
+              }
+            : {}),
+          error: (m, err) => log.error(m, err instanceof Error ? err.message : err),
+        });
+        res.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8' });
+        return res.end(markdown);
       }
       // The Pattern D runbook (workplan 0027 T2). Markdown, not JSON: it is a
       // document a person follows on a target platform this tool cannot

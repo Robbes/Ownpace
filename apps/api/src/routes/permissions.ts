@@ -1,0 +1,144 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+
+/**
+ * GET /api/permissions/report — the §14.2 inventory (workplan 0029 T1/T3/T4).
+ *
+ * Markdown, like the Pattern D runbook and for the same reason: it is a
+ * document a person works through before a cutover, most of it on systems
+ * this tool does not touch. Derived on every read rather than stored — a
+ * permission granted this morning should be in the report this afternoon,
+ * and a snapshot somebody has to remember to refresh is a snapshot that goes
+ * stale precisely when it matters.
+ *
+ * READ-ONLY BY CONSTRUCTION. §14.2's apply step is deferred by owner decision
+ * (workplan 0029), so this route reads Graph and returns text; there is no
+ * write path here to get wrong.
+ *
+ * Until the source connection holds application permissions — and until the
+ * two scopes this needs, `Calendars.Read` and `Files.Read.All`, are consented
+ * — the report is all blind spots, honestly. That is the correct behaviour,
+ * and it becomes a real inventory with no further code.
+ */
+
+import { Router } from 'express';
+import type { Response } from 'express';
+import { authenticate } from '../middleware/auth';
+import type { AuthenticatedRequest } from '../types/api';
+import { log } from '@openmig/shared';
+import {
+  createTokenProvider,
+  directoryAvailability,
+  mailboxDelegations,
+  resolveUserDriveId,
+  scanCalendarPermissions,
+  scanDrivePermissions,
+  type HttpClient,
+} from '@openmig/connectors';
+import { runPermissionInventory } from '@openmig/core';
+import { Pool } from 'pg';
+
+const router = Router();
+
+const httpClient: HttpClient = {
+  async request({ url, method, headers }) {
+    const res = await fetch(url, { method, headers });
+    return { status: res.status, body: await res.text(), headers: {} };
+  },
+};
+
+let _pool: Pool | null = null;
+function pool(): Pool {
+  if (!_pool) _pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  return _pool;
+}
+
+/**
+ * The report for one mailbox.
+ *
+ * Per mailbox rather than per tenant: permissions are held on somebody's
+ * calendars and somebody's files, and a report that merged a whole tenant's
+ * into one document would be unreadable at exactly the moment it is needed.
+ */
+router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found' });
+      return;
+    }
+    const mailbox = typeof req.query.mailbox === 'string' ? req.query.mailbox.trim() : '';
+    if (mailbox === '') {
+      res.status(400).json({
+        error: 'Bad Request',
+        message: 'mailbox is required: GET /api/permissions/report?mailbox=someone@example.com',
+      });
+      return;
+    }
+
+    const { rows } = await pool().query<{ config: unknown }>(
+      `SELECT config FROM connection
+        WHERE tenant_id = $1 AND role = 'source' AND kind = 'o365' LIMIT 1`,
+      [tenantId],
+    );
+    const graphTenantId = (rows[0]?.config as { tenantId?: string } | undefined)?.tenantId;
+    const available = directoryAvailability(process.env, graphTenantId);
+
+    // The delegation sentence is always in the report; the scans are only
+    // attempted when the connection can actually make them.
+    const delegation = mailboxDelegations();
+    const scanOptions = { applicationPermissions: true } as const;
+
+    const markdown = await runPermissionInventory({
+      mappingLabel: mailbox,
+      generatedOn: new Date().toISOString().slice(0, 10),
+      // `mailboxDelegations()` is always `not_discoverable`; the narrowing is
+      // the type system's, not a runtime possibility.
+      delegationReason:
+        delegation.kind === 'not_discoverable' ? delegation.reason : 'not inventoried',
+      ...(available.ok
+        ? {
+            scanCalendars: () =>
+              scanCalendarPermissions(
+                mailbox,
+                graphToken(available, graphTenantId!),
+                httpClient,
+                scanOptions,
+              ),
+            scanDrive: async () => {
+              // `/drives/{id}` is the only addressing the sharing endpoints
+              // take, so the drive id is resolved first rather than built
+              // from a path by concatenation.
+              const token = graphToken(available, graphTenantId!);
+              const drive = await resolveUserDriveId(mailbox, token, httpClient, scanOptions);
+              if (!drive.ok) return { kind: 'not_discoverable' as const, reason: drive.reason };
+              return scanDrivePermissions(drive.id, token, httpClient, scanOptions);
+            },
+          }
+        : {}),
+      error: (m, err) => log.error(m, err instanceof Error ? err.message : err),
+    });
+
+    res.type('text/markdown; charset=utf-8').send(markdown);
+  } catch (error) {
+    log.error('Error rendering the permission report:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to render the permission report',
+    });
+  }
+});
+
+type Available = Extract<ReturnType<typeof directoryAvailability>, { ok: true }>;
+
+function graphToken(available: Available, graphTenantId: string): () => Promise<string> {
+  const provider = createTokenProvider({
+    tokenEndpoint: `https://login.microsoftonline.com/${graphTenantId}/oauth2/v2.0/token`,
+    clientId: available.clientId,
+    clientSecret: available.clientSecret,
+    tenantId: graphTenantId,
+    scope: 'https://graph.microsoft.com/.default',
+  });
+  return async () => (await provider.getToken()).accessToken;
+}
+
+export default router;

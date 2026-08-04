@@ -25,3 +25,4 @@ export * from './mapping-pattern';
 // The permission inventory's judgement (0029 T2, SAD §14.2).
 export * from './permission-map';
 export * from './permission-report';
+export * from './run-permission-inventory';
