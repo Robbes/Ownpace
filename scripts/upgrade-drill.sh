@@ -1,0 +1,182 @@
+#!/usr/bin/env bash
+# Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+#
+# The CONTAINER-level N-1 -> N upgrade drill (workplan 0025 T5, SAD §22.1).
+#
+# The unit gate (`packages/ledger/src/migrate-upgrade.unit.test.ts`) proves the
+# SCHEMA upgrades: the released migrations apply, the new ones apply on top,
+# the result matches a fresh install, and an older build is refused. It runs on
+# every PR and needs nothing but git.
+#
+# THIS drill proves the three things that one cannot, because it uses a single
+# build of everything for both sides:
+#
+#   1. The new image can OPEN A STATE DIRECTORY THE OLD IMAGE WROTE. PGlite is
+#      Postgres compiled to WASM, and its on-disk format is its own business —
+#      a format change between releases would break every appliance upgrade in
+#      the field, and no amount of SQL-level testing would see it coming.
+#   2. Migrations run through the APPLIANCE'S OWN STARTUP PATH (advisory lock,
+#      driver seam, the real boot sequence) rather than a test calling
+#      `runMigrations` directly.
+#   3. The container comes back HEALTHY against a pre-existing volume, and
+#      still reports the mappings it had.
+#
+# SAFETY: runs under its own compose project (`-p`) with its own volumes, so it
+# cannot touch an appliance you actually use. It removes only what it created,
+# and only volumes carrying its own project prefix.
+#
+# HONESTY: while the release tag and HEAD are the same commit, this proves the
+# MECHANICS and nothing about version skew — both sides are the same software.
+# It gains its real teeth at the next release. The script says which case it is
+# rather than printing a green tick either way.
+#
+#   Usage:  scripts/upgrade-drill.sh [FROM_TAG]
+#   e.g.    scripts/upgrade-drill.sh v0.1.0-rc.1
+#
+# Requires: docker, docker compose, curl, git. No source/target servers — this
+# drills the appliance's own upgrade, not a migration.
+
+set -euo pipefail
+
+FROM_TAG="${1:-v0.1.0-rc.1}"
+FROM_VERSION="${FROM_TAG#v}"
+REGISTRY="ghcr.io/robbes/open-migrate-selfhost"
+PROJECT="open-migrate-upgrade-drill"
+PORT="${DRILL_PORT:-8099}"
+BASE="http://127.0.0.1:${PORT}"
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+
+# PGlite path on purpose: one container, no server, and it is the shape a
+# native installer ships — so the state directory is the thing being upgraded,
+# which is exactly the risk this drill exists for.
+COMPOSE=(docker compose -p "$PROJECT"
+  -f deploy/selfhost/compose.yml
+  -f deploy/selfhost/compose.pglite.yml)
+
+say() { printf '\n=== %s\n' "$*"; }
+fail() { printf '\nDRILL FAILED: %s\n' "$*" >&2; exit 1; }
+
+cleanup() {
+  say "Cleaning up the drill's own project (your appliances are untouched)"
+  "${COMPOSE[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+# ---------------------------------------------------------------------------
+# 0. Preconditions, stated before anything is created.
+# ---------------------------------------------------------------------------
+command -v docker >/dev/null || fail "docker is not installed"
+git rev-parse --verify "${FROM_TAG}^{commit}" >/dev/null 2>&1 \
+  || fail "$FROM_TAG is not reachable. Run: git fetch origin --tags"
+
+# `env_file:` is not optional to compose — a missing .env aborts the whole run
+# with a message about the file rather than about the drill.
+if [ ! -f deploy/selfhost/.env ]; then
+  say "Creating a throwaway deploy/selfhost/.env for the drill"
+  printf 'POSTGRES_PASSWORD=drill-only-not-a-secret\n' > deploy/selfhost/.env
+fi
+
+# Is there actually a version difference to drill? Reported, never assumed.
+FROM_MIGRATIONS="$(git ls-tree --name-only "$FROM_TAG" packages/ledger/migrations/ | grep -c '\.sql$' || true)"
+HEAD_MIGRATIONS="$(find packages/ledger/migrations -name '*.sql' | wc -l | tr -d ' ')"
+if [ "$FROM_MIGRATIONS" = "$HEAD_MIGRATIONS" ]; then
+  VACUOUS=1
+  say "NOTE: $FROM_TAG and the working tree both carry $HEAD_MIGRATIONS migrations."
+  echo "    This run proves the MECHANICS — old image writes state, new image"
+  echo "    opens it, migrates on startup and comes back healthy. It exercises"
+  echo "    NO migration. It gains teeth at the next release."
+else
+  VACUOUS=0
+  say "Upgrading across $((HEAD_MIGRATIONS - FROM_MIGRATIONS)) new migration(s)."
+fi
+
+wait_healthy() {
+  local what="$1" i
+  for i in $(seq 1 60); do
+    if curl -sf "${BASE}/healthz" >/dev/null 2>&1; then
+      echo "    $what is healthy (after $((i * 2))s)"
+      return 0
+    fi
+    sleep 2
+  done
+  "${COMPOSE[@]}" logs app --no-color --tail 80 || true
+  fail "$what never became healthy at ${BASE}"
+}
+
+# ---------------------------------------------------------------------------
+# 1. The RELEASED appliance, from the registry. Not built — pulled, so this is
+#    the artifact an operator would actually be running.
+# ---------------------------------------------------------------------------
+say "1/5  Starting the released appliance ($REGISTRY:$FROM_VERSION)"
+cleanup                                     # a stale drill project would poison the result
+export SELFHOST_IMAGE="${REGISTRY}:${FROM_VERSION}"
+export SELFHOST_PORT="$PORT"
+export SELFHOST_BIND=127.0.0.1
+"${COMPOSE[@]}" pull app || fail "could not pull ${SELFHOST_IMAGE} — is the tag published?"
+"${COMPOSE[@]}" up -d --no-build app
+wait_healthy "released appliance"
+
+BEFORE_STATUS="$(curl -sf "${BASE}/status")" || fail "released appliance served no /status"
+echo "$BEFORE_STATUS" | head -c 400; echo
+
+# Proof the OLD image really did create the database, rather than the drill
+# passing against a directory nothing ever wrote.
+"${COMPOSE[@]}" exec -T app sh -c 'ls /data/state/pglite >/dev/null' \
+  || fail "the released image left no PGlite state directory — nothing to upgrade"
+say "    released image wrote its PGlite state directory"
+
+# ---------------------------------------------------------------------------
+# 2. Build HEAD. Same volumes, same project — this is an upgrade in place, not
+#    a fresh install beside it.
+# ---------------------------------------------------------------------------
+say "2/5  Building the appliance from the working tree"
+export SELFHOST_IMAGE="open-migrate-selfhost:upgrade-drill-head"
+"${COMPOSE[@]}" build app
+
+say "3/5  Swapping the image in place (volumes kept)"
+"${COMPOSE[@]}" up -d --no-deps --force-recreate app
+wait_healthy "upgraded appliance"
+
+# ---------------------------------------------------------------------------
+# 3. What the upgrade has to have done.
+# ---------------------------------------------------------------------------
+say "4/5  Checking what the upgraded appliance reports"
+AFTER_STATUS="$(curl -sf "${BASE}/status")" || fail "upgraded appliance served no /status"
+
+# The startup migration path ran at all. Its own log line is the evidence; an
+# upgrade that silently skipped migrations is the failure mode with no symptom
+# until a query hits a missing column.
+if ! "${COMPOSE[@]}" logs app --no-color --tail 200 | grep -qi 'migrat'; then
+  "${COMPOSE[@]}" logs app --no-color --tail 60
+  fail "the upgraded appliance logged nothing about migrations on startup"
+fi
+say "    startup migration path ran"
+
+# The mappings it knew about are still there. Comparing the mapping id set
+# rather than the whole payload: counters legitimately move between two reads,
+# the set of configured migrations does not.
+ids_of() { echo "$1" | grep -o '"mappingId":"[^"]*"' | sort -u; }
+if [ "$(ids_of "$BEFORE_STATUS")" != "$(ids_of "$AFTER_STATUS")" ]; then
+  printf 'before: %s\nafter:  %s\n' "$(ids_of "$BEFORE_STATUS")" "$(ids_of "$AFTER_STATUS")"
+  fail "the upgraded appliance reports a different set of mappings"
+fi
+say "    same mappings before and after"
+
+# ---------------------------------------------------------------------------
+# 4. Restart once more. An upgrade that only works the first time is a bomb on
+#    the next reboot — migrations must be idempotent through the real boot.
+# ---------------------------------------------------------------------------
+say "5/5  Restarting the upgraded appliance (migrations must be a no-op)"
+"${COMPOSE[@]}" restart app >/dev/null
+wait_healthy "restarted appliance"
+curl -sf "${BASE}/status" >/dev/null || fail "restarted appliance served no /status"
+
+say "DRILL PASSED"
+if [ "$VACUOUS" = "1" ]; then
+  echo "    Mechanics only: $FROM_TAG and HEAD are the same schema."
+  echo "    Re-run this after the next release for the real thing."
+else
+  echo "    Upgraded across $((HEAD_MIGRATIONS - FROM_MIGRATIONS)) migration(s), in place, on the released artifact."
+fi
