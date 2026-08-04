@@ -16,6 +16,7 @@ import { GraphCalendarSource } from './graph-calendar-source';
 import type { GraphCalendarSourceConfig as _GraphCalendarSourceConfig } from './graph-calendar-source.types';
 import type { HttpClient, HttpResponse } from './dav-http.types';
 import type { TokenProvider, OAuth2Token } from '@openmig/shared';
+import { naturalKeyForCalendar, calendarNaturalKeyHash } from '@openmig/shared';
 
 // Mock token provider
 function createMockTokenProvider(token: OAuth2Token = defaultToken): TokenProvider {
@@ -400,144 +401,81 @@ END:VCALENDAR`,
     });
   });
 
-  describe('UID + RECURRENCE-ID extraction', () => {
-    it('should extract UID from iCal event', async () => {
-      const source = new GraphCalendarSource(
-        createMockTokenProvider(),
-        'test-tenant-id',
-      );
-
-      const icalendar = `BEGIN:VCALENDAR
-VERSION:2.0
-BEGIN:VEVENT
-UID:unique-event-id@example.com
-DTSTART:20240115T100000Z
-SUMMARY:Test Event
-END:VEVENT
-END:VCALENDAR`;
-
-      const parsed = (source as any).parseIcal(icalendar);
-      const naturalKey = (source as any).extractNaturalKey(parsed);
-
-      expect(naturalKey).toBe('unique-event-id@example.com');
-    });
-
-    it('should extract UID + RECURRENCE-ID for recurring event instances', async () => {
-      const source = new GraphCalendarSource(
-        createMockTokenProvider(),
-        'test-tenant-id',
-      );
-
-      const icalendar = `BEGIN:VCALENDAR
+  describe('UID + RECURRENCE-ID: the natural key (hard rule 1)', () => {
+    /**
+     * These tests used to reach into a private `extractNaturalKey` and assert
+     * it composed `UID|RECURRENCE-ID` correctly. It did — and production threw
+     * the result away, emitting an item that carried only its UID. The tests
+     * passed for months while the behaviour they described did not happen.
+     *
+     * So they now go through the path the sync actually uses: the item the
+     * source emits, and `naturalKeyForCalendar`, which is what `dav-sync` keys
+     * on. A series and its exceptions SHARE a UID (RFC 5545), so the property
+     * that matters is that their keys differ.
+     */
+    const icalWith = (extra: string) => `BEGIN:VCALENDAR
 VERSION:2.0
 BEGIN:VEVENT
 UID:recurring-event@example.com
-RECURRENCE-ID:20240115T100000Z
-DTSTART:20240115T100000Z
-SUMMARY:Recurring Event - Specific Instance
+${extra}DTSTART:20240115T100000Z
+SUMMARY:Weekly standup
 END:VEVENT
 END:VCALENDAR`;
 
-      const parsed = (source as any).parseIcal(icalendar);
-      const naturalKey = (source as any).extractNaturalKey(parsed);
+    async function itemFor(icalendar: string) {
+      const tokenProvider = createMockTokenProvider();
+      const mockClient = createMockHttpClient([
+        {
+          status: 200,
+          body: JSON.stringify({
+            value: [{ id: 'evt-1', subject: 'Weekly standup', isAllDay: false }],
+            '@odata.deltaLink': 'https://graph.microsoft.com/v1.0/delta',
+          }),
+          headers: {},
+        },
+        { status: 200, body: icalendar, headers: {} },
+      ]);
+      const source = new GraphCalendarSource(tokenProvider, 'test-tenant-id', undefined, {
+        httpClient: mockClient,
+      });
+      const result = await source.listSince({ path: '/calendars/cal1', name: 'Calendar' });
+      return result.items[0]?.item;
+    }
 
-      expect(naturalKey).toBe('recurring-event@example.com|20240115T100000Z');
+    it('carries no recurrence id for an ordinary event', async () => {
+      const item = await itemFor(icalWith(''));
+      expect(item?.uid).toBe('recurring-event@example.com');
+      expect(item?.recurrenceId).toBeUndefined();
     });
 
-    it('should handle multiple UID values (should take first)', async () => {
-      const source = new GraphCalendarSource(
-        createMockTokenProvider(),
-        'test-tenant-id',
+    it('CARRIES the recurrence id for a modified occurrence', async () => {
+      // The line that used to be `const _naturalKey = ...` and discarded.
+      const item = await itemFor(icalWith('RECURRENCE-ID:20240115T100000Z\n'));
+      expect(item?.recurrenceId).toBe('20240115T100000Z');
+    });
+
+    it('gives a series and its exception DIFFERENT natural keys', async () => {
+      const series = await itemFor(icalWith(''));
+      const exception = await itemFor(icalWith('RECURRENCE-ID:20240115T100000Z\n'));
+
+      // The defect this replaces: identical keys meant the exception looked
+      // like an item the target already had, so it was adopted and never
+      // copied — a moved occurrence silently missing, inside a run that
+      // reported success.
+      expect(series && naturalKeyForCalendar(series)).not.toBe(
+        exception && naturalKeyForCalendar(exception),
       );
+    });
 
-      const icalendar = `BEGIN:VCALENDAR
-VERSION:2.0
-BEGIN:VEVENT
-UID:first-uid@example.com
-UID:second-uid@example.com
-DTSTART:20240115T100000Z
-SUMMARY:Test
-END:VEVENT
-END:VCALENDAR`;
-
-      const parsed = (source as any).parseIcal(icalendar);
-      const uid = (source as any).extractUid(parsed);
-
-      expect(uid).toBe('first-uid@example.com');
+    it('leaves an ordinary event’s key exactly as it was', async () => {
+      // Nothing already migrated is re-keyed by this change.
+      const item = await itemFor(icalWith(''));
+      expect(item && naturalKeyForCalendar(item)).toBe(
+        calendarNaturalKeyHash('recurring-event@example.com'),
+      );
     });
   });
 
-  describe('Recurrence exception handling', () => {
-    it('should identify recurrence masters', async () => {
-      const source = new GraphCalendarSource(
-        createMockTokenProvider(),
-        'test-tenant-id',
-      );
-
-      const icalendar = `BEGIN:VCALENDAR
-VERSION:2.0
-BEGIN:VEVENT
-UID:recurring-master@example.com
-DTSTART:20240101T100000Z
-RRULE:FREQ=WEEKLY;COUNT=10
-SUMMARY:Recurring Master Event
-END:VEVENT
-END:VCALENDAR`;
-
-      const parsed = (source as any).parseIcal(icalendar);
-      const naturalKey = (source as any).extractNaturalKey(parsed);
-
-      expect(naturalKey).toBe('recurring-master@example.com');
-      expect(parsed.properties['RRULE']).toBeDefined();
-    });
-
-    it('should identify recurrence exceptions', async () => {
-      const source = new GraphCalendarSource(
-        createMockTokenProvider(),
-        'test-tenant-id',
-      );
-
-      const icalendar = `BEGIN:VCALENDAR
-VERSION:2.0
-BEGIN:VEVENT
-UID:recurring-master@example.com
-RECURRENCE-ID:20240115T100000Z
-DTSTART:20240115T100000Z
-SUMMARY:Modified Instance
-END:VEVENT
-END:VCALENDAR`;
-
-      const parsed = (source as any).parseIcal(icalendar);
-      const naturalKey = (source as any).extractNaturalKey(parsed);
-      const recurrenceId = (source as any).extractRecurrenceId(parsed);
-
-      expect(naturalKey).toBe('recurring-master@example.com|20240115T100000Z');
-      expect(recurrenceId).toBe('20240115T100000Z');
-    });
-
-    it('should handle exceptions with different start times', async () => {
-      const source = new GraphCalendarSource(
-        createMockTokenProvider(),
-        'test-tenant-id',
-      );
-
-      const icalendar = `BEGIN:VCALENDAR
-VERSION:2.0
-BEGIN:VEVENT
-UID:recurring-master@example.com
-RECURRENCE-ID;TZID=America/New_York:20240115T100000
-DTSTART;TZID=America/New_York:20240115T140000
-SUMMARY:Rescheduled Instance
-END:VEVENT
-END:VCALENDAR`;
-
-      const parsed = (source as any).parseIcal(icalendar);
-      const naturalKey = (source as any).extractNaturalKey(parsed);
-
-      expect(naturalKey).toContain('recurring-master@example.com');
-      expect(naturalKey).toContain('20240115T100000');
-    });
-  });
 
   describe('Cancelled occurrences (drift log, not delete)', () => {
     it('should exclude cancelled events from results', async () => {

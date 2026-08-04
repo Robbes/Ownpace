@@ -32,8 +32,24 @@ export interface RecurrenceRule {
  * The `uid` is the natural key (idempotency anchor); content is hashed from normalized event data.
  */
 export interface CalendarEvent {
-  /** RFC 5545 UID - the natural key for idempotency. */
+  /**
+   * RFC 5545 UID. The natural key for idempotency — but NOT on its own for a
+   * recurring series: see `recurrenceId`.
+   */
   readonly uid: string;
+  /**
+   * RFC 5545 RECURRENCE-ID, when this event is a modified occurrence of a
+   * recurring series (one meeting in the weekly slot moved an hour, or given
+   * a different room).
+   *
+   * A series and each of its exceptions SHARE a UID — that is what RFC 5545
+   * says they do — so the UID alone is not a key. Keying on it alone makes the
+   * exception look like an item the target already has, so it is adopted and
+   * never copied: a moved occurrence silently missing from the migration,
+   * inside a run that reports success. `naturalKeyForCalendar` is the one
+   * place that composes the two (hard rule 1).
+   */
+  readonly recurrenceId?: string;
   /** Event type. */
   readonly type: CalendarEventType;
   /** Summary/title. */

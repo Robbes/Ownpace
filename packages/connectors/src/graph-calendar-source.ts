@@ -152,7 +152,11 @@ export class GraphCalendarSource implements CalendarSource {
       try {
         const icalData = await this.fetchEventAsIcal(event.id, calendarId);
         const parsed = this.parseIcal(icalData);
-        const _naturalKey = this.extractNaturalKey(parsed);
+        // RECURRENCE-ID, when this is a modified occurrence. It used to be
+        // computed here and thrown away, so the item carried only its UID —
+        // which a series and all its exceptions share, so every exception
+        // collided with the series and was adopted rather than copied.
+        const recurrenceId = this.extractRecurrenceId(parsed);
         
         // Check if this is a cancelled occurrence
         const isCancelled = this.checkIfCancelled(parsed);
@@ -166,6 +170,7 @@ export class GraphCalendarSource implements CalendarSource {
         const item: RawCalendarEvent = {
           item: {
             uid: this.extractUid(parsed),
+            ...(recurrenceId ? { recurrenceId } : {}),
             type: 'event',
             summary: event.subject || 'Untitled Event',
             start: this.extractStart(parsed),
@@ -551,23 +556,6 @@ export class GraphCalendarSource implements CalendarSource {
       return recurrenceId[0];
     }
     return recurrenceId;
-  }
-
-  /**
-   * Extract natural key from iCal component.
-   * Natural key = UID + RECURRENCE-ID (for exceptions)
-   */
-  private extractNaturalKey(parsed: ParsedIcalComponent): string {
-    const uid = this.extractUid(parsed);
-    const recurrenceId = this.extractRecurrenceId(parsed);
-    
-    if (recurrenceId) {
-      // For recurrence exceptions, use UID + RECURRENCE-ID
-      return `${uid}|${recurrenceId}`;
-    }
-    
-    // For regular events, just use UID
-    return uid;
   }
 
   /**
