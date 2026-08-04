@@ -17,6 +17,7 @@ import {
   classifyStoreSignal,
   membersUsable,
   sharedAddressQuestion,
+  sharedAddressAnswer,
 } from './classify-shared-address';
 
 const group = (overrides: Partial<DiscoveredGroup> = {}): DiscoveredGroup => ({
@@ -70,6 +71,30 @@ describe('an address the source could not describe', () => {
 
   it('names the bare address when the group has no display name', () => {
     expect(sharedAddressQuestion(group({ store: 'unknown' }))).toContain('at info@acme.nl,');
+  });
+});
+
+describe('reading the owner’s answer (workplan 0028 T3)', () => {
+  it('accepts either of §14.1’s two patterns', () => {
+    expect(sharedAddressAnswer({ pattern: 'shared_s' })).toBe('shared_s');
+    expect(sharedAddressAnswer({ pattern: 'distribution_d' })).toBe('distribution_d');
+  });
+
+  it('refuses anything else rather than guessing', () => {
+    // The resolve route stores whatever the caller sent — the answer is
+    // category-shaped and the API deliberately does not second-guess it — so
+    // the strictness has to be here. Recording a pattern the owner did not
+    // choose is worse than leaving the question open.
+    expect(sharedAddressAnswer({ pattern: 'shared' })).toBeUndefined();
+    expect(sharedAddressAnswer({ pattern: '' })).toBeUndefined();
+    expect(sharedAddressAnswer({ action: 'accept_default' })).toBeUndefined();
+    expect(sharedAddressAnswer({})).toBeUndefined();
+    expect(sharedAddressAnswer(undefined)).toBeUndefined();
+  });
+
+  it('refuses a non-string that would coerce', () => {
+    expect(sharedAddressAnswer({ pattern: true })).toBeUndefined();
+    expect(sharedAddressAnswer({ pattern: ['shared_s'] })).toBeUndefined();
   });
 });
 

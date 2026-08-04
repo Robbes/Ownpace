@@ -16,8 +16,9 @@ import type { Response } from 'express';
 import { z } from 'zod';
 import { authenticate, requireRole, getDbPool, withTenantDb } from '../middleware/auth';
 import type { AuthenticatedRequest } from '../types/api';
-import { PgDecisionStore, PgPolicyPresetStore } from '@openmig/ledger';
+import { PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore } from '@openmig/ledger';
 import { asTenantId, asMappingId, log, type DecisionStatus } from '@openmig/shared';
+import { sharedAddressAnswer } from '@openmig/core';
 
 const router = Router();
 
@@ -110,12 +111,37 @@ router.post(
 
       const resolved = await withTenantDb(tenantId, getSharedPool(), async (db) => {
         const store = new PgDecisionStore(db);
-        return store.resolve(
+        const row = await store.resolve(
           asTenantId(tenantId),
           decisionId,
           body.resolution,
           req.userId ?? 'unknown',
         );
+
+        // The one category whose answer CHANGES something (workplan 0028 T3).
+        // Applied inside the same tenant-scoped connection as the resolve, and
+        // only after it succeeded: the conditional UPDATE is what guarantees
+        // exactly one answer wins, so writing the pattern first would let a
+        // second, losing answer rewrite `group_def` anyway.
+        if (row?.category === 'shared_address_pattern' && row.subjectKey) {
+          const pattern = sharedAddressAnswer(body.resolution);
+          if (pattern) {
+            const rows = await new PgGroupDefStore(db).setPattern(
+              asTenantId(tenantId),
+              row.subjectKey,
+              pattern,
+            );
+            // Said, not swallowed: the decision IS answered either way, and an
+            // answer that landed on no row means discovery has stopped seeing
+            // the address — worth knowing, not worth a 500 (rule 9).
+            if (rows === 0) {
+              log.warn(
+                `[decisions] answered ${row.subjectKey} as ${pattern} but no group_def row matched`,
+              );
+            }
+          }
+        }
+        return row;
       });
 
       if (!resolved) {

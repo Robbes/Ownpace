@@ -338,4 +338,80 @@ describe('the decision queue', () => {
       'A mailbox exists on the source that no mapping covers.',
     );
   });
+
+  /**
+   * The one category whose answer CHANGES something (workplan 0028 T3).
+   *
+   * Proved here rather than in `decisions-routes.unit.test.ts` for the reason
+   * that file records: PGlite's single connection cannot seed a group beside
+   * a running appliance. Postgres can, so the round trip belongs here — and
+   * it has to be a round trip, because a decision that closes and leaves the
+   * ledger untouched is exactly the dead surface 0026 spent a day deleting.
+   */
+  it('writes the pattern an operator chose back to the discovered group', async () => {
+    const conn = await pool.query(
+      `INSERT INTO connection (tenant_id, role, kind, display_name, config, status)
+       VALUES ($1, 'source', 'o365', 'Source', '{}', 'connected') RETURNING id`,
+      [TENANT_ID],
+    );
+    await pool.query(
+      `INSERT INTO group_def (tenant_id, source_connection_id, address, members)
+       VALUES ($1, $2, 'sales@example.nl', '[]')`,
+      [TENANT_ID, conn.rows[0].id],
+    );
+    const { decision } = await decisions.raise({
+      tenantId: asTenantId(TENANT_ID),
+      category: 'shared_address_pattern',
+      subjectKey: 'sales@example.nl',
+      summary: 'Shared mailbox, or a distribution list?',
+    });
+
+    const res = await fetch(`${base}/decisions/${decision.id}/resolve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        resolution: { action: 'set_shared_address_pattern', pattern: 'shared_s' },
+      }),
+    });
+    expect(res.status).toBe(200);
+
+    const { rows } = await pool.query(
+      `SELECT pattern FROM group_def WHERE tenant_id = $1 AND address = 'sales@example.nl'`,
+      [TENANT_ID],
+    );
+    expect(rows[0].pattern).toBe('shared_s');
+  });
+
+  it('leaves the group alone when the answer names no pattern', async () => {
+    const conn = await pool.query(
+      `INSERT INTO connection (tenant_id, role, kind, display_name, config, status)
+       VALUES ($1, 'source', 'o365', 'Other source', '{}', 'connected') RETURNING id`,
+      [TENANT_ID],
+    );
+    await pool.query(
+      `INSERT INTO group_def (tenant_id, source_connection_id, address, members)
+       VALUES ($1, $2, 'vague@example.nl', '[]')`,
+      [TENANT_ID, conn.rows[0].id],
+    );
+    const { decision } = await decisions.raise({
+      tenantId: asTenantId(TENANT_ID),
+      category: 'shared_address_pattern',
+      subjectKey: 'vague@example.nl',
+      summary: 'Shared mailbox, or a distribution list?',
+    });
+
+    const res = await fetch(`${base}/decisions/${decision.id}/resolve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ resolution: { action: 'accept_default' } }),
+    });
+    expect(res.status).toBe(200);
+
+    // Recording a pattern nobody chose is worse than leaving it open.
+    const { rows } = await pool.query(
+      `SELECT pattern FROM group_def WHERE tenant_id = $1 AND address = 'vague@example.nl'`,
+      [TENANT_ID],
+    );
+    expect(rows[0].pattern).toBeNull();
+  });
 });

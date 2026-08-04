@@ -210,6 +210,63 @@ describe('discovery running again', () => {
   });
 });
 
+describe('recording the pattern an owner chose (workplan 0028 T3)', () => {
+  it('sets it on the discovered address', async () => {
+    await groups.upsert(TENANT, {
+      sourceConnectionId: CONN_A,
+      address: 'answered@acme.nl',
+      members: [],
+    });
+
+    expect(await groups.setPattern(TENANT, 'answered@acme.nl', 'shared_s')).toBe(1);
+    const [row] = (await groups.list(TENANT)).filter((g) => g.address === 'answered@acme.nl');
+    expect(row?.pattern).toBe('shared_s');
+  });
+
+  it('answers the ADDRESS across every source that has it', async () => {
+    await groups.upsert(TENANT, {
+      sourceConnectionId: CONN_A,
+      address: 'both@acme.nl',
+      members: [],
+    });
+    await groups.upsert(TENANT, {
+      sourceConnectionId: CONN_B,
+      address: 'both@acme.nl',
+      members: [],
+    });
+
+    // "Do recipients jointly handle both@?" is a fact about how the
+    // organisation uses the address, not about which directory we read it
+    // from, so it is true of both rows.
+    expect(await groups.setPattern(TENANT, 'both@acme.nl', 'distribution_d')).toBe(2);
+  });
+
+  it('normalises the address the same way the upsert does', async () => {
+    await groups.upsert(TENANT, {
+      sourceConnectionId: CONN_A,
+      address: 'Case@Acme.NL',
+      members: [],
+    });
+    expect(await groups.setPattern(TENANT, 'CASE@ACME.NL', 'shared_s')).toBe(1);
+  });
+
+  it('reports landing on NOTHING rather than claiming success', async () => {
+    // An answer that matched no row means discovery has stopped seeing the
+    // address — worth knowing, and indistinguishable from a real write if
+    // this returned void (rule 9).
+    expect(await groups.setPattern(TENANT, 'gone@acme.nl', 'shared_s')).toBe(0);
+  });
+
+  it('never answers another tenant’s address', async () => {
+    await groups.upsert(TENANT, {
+      sourceConnectionId: CONN_A,
+      address: 'mine@acme.nl',
+      members: [],
+    });
+    expect(await groups.setPattern(OTHER, 'mine@acme.nl', 'shared_s')).toBe(0);
+  });
+});
+
 describe('what counts as the same group', () => {
   it('keeps connections independent', async () => {
     await groups.upsert(TENANT, {

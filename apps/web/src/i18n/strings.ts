@@ -272,10 +272,15 @@ const en = {
   'decisions.readError': 'Could not read the decision queue.',
   'decisions.requestFailed': 'The request did not complete.',
   'decisions.dismiss': 'Dismiss',
+  // The two named answers to §14.1's question. This category has no proposed
+  // default on purpose — not knowing which of the two it is is the whole
+  // reason it is being asked — so the answers are buttons rather than an
+  // accept. Kept short: the question itself is in the summary above them.
+  'decisions.sharedAddress.shared_s': 'One shared mailbox',
+  'decisions.sharedAddress.distribution_d': 'A distribution list',
   'decisions.empty.noDetectors':
-    'Nothing is waiting — but note that nothing can raise a decision yet: the watchers for new ' +
-    'mailboxes and shared addresses are not built. An empty queue here means "not watched yet", ' +
-    'not "no changes".',
+    'Nothing is waiting. The watchers for new mailboxes and shared addresses run once a day; a ' +
+    'source they could not read is reported as a blind spot rather than counted as "no changes".',
   'decisions.empty.answered': 'Nothing has been decided yet.',
   'decisionCategory.new_mailbox': 'New mailbox',
   'decisionCategory.deleted_mailbox': 'Deleted mailbox',
@@ -560,10 +565,12 @@ const nl: Record<keyof typeof en, string> = {
   'decisions.readError': 'De beslissingswachtrij kon niet worden gelezen.',
   'decisions.requestFailed': 'Het verzoek is niet voltooid.',
   'decisions.dismiss': 'Afwijzen',
+  'decisions.sharedAddress.shared_s': 'Eén gedeeld postvak',
+  'decisions.sharedAddress.distribution_d': 'Een distributielijst',
   'decisions.empty.noDetectors':
-    'Er wacht niets — maar let op: er kan nog niets een beslissing aankaarten. De wachters voor ' +
-    'nieuwe postvakken en gedeelde adressen zijn nog niet gebouwd. Een lege wachtrij betekent ' +
-    'hier "nog niet bewaakt", niet "geen veranderingen".',
+    'Er wacht niets. De wachters voor nieuwe postvakken en gedeelde adressen draaien eenmaal per ' +
+    'dag; een bron die zij niet konden lezen wordt gemeld als blinde vlek en niet geteld als ' +
+    '"geen veranderingen".',
   'decisions.empty.answered': 'Er is nog niets beslist.',
   'decisionCategory.new_mailbox': 'Nieuw postvak',
   'decisionCategory.deleted_mailbox': 'Verwijderd postvak',

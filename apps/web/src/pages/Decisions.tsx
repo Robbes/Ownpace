@@ -85,18 +85,32 @@ const Decisions: React.FC = () => {
     }
   };
 
-  const act = async (decision: DecisionRow, action: 'resolve' | 'dismiss') => {
+  const act = async (
+    decision: DecisionRow,
+    action: 'resolve' | 'dismiss',
+    /** §14.1's answer, for `shared_address_pattern` (0028 T3). */
+    pattern?: 'shared_s' | 'distribution_d',
+  ) => {
     setBusyRow(decision.id);
     setRowErrors((errors) => ({ ...errors, [decision.id]: '' }));
     try {
       if (action === 'resolve') {
-        // The skeleton's one answer: accept the proposed default. Categories
-        // with richer answers get their own controls when their detectors
-        // exist to raise them.
-        await resolveDriftDecision(decision.id, {
-          action: 'accept_default',
-          ...(decision.proposedDefault ? { proposedDefault: decision.proposedDefault } : {}),
-        });
+        // Two shapes of answer. Accepting a proposed default is the general
+        // one; `shared_address_pattern` names WHICH pattern instead, because
+        // it has no default — not knowing which of the two it is is the whole
+        // reason it was asked. The server reads `pattern` and writes it back
+        // to the discovered group.
+        await resolveDriftDecision(
+          decision.id,
+          pattern
+            ? { action: 'set_shared_address_pattern', pattern }
+            : {
+                action: 'accept_default',
+                ...(decision.proposedDefault
+                  ? { proposedDefault: decision.proposedDefault }
+                  : {}),
+              },
+        );
       } else {
         await dismissDriftDecision(decision.id);
       }
@@ -189,6 +203,20 @@ const Decisions: React.FC = () => {
                     {/* The server's words, verbatim. */}
                     <p className="text-gray-900">{decision.summary}</p>
                     <div className="flex flex-wrap items-center gap-2 pt-1">
+                      {/* §14.1's two answers (0028 T3). Named, not defaulted:
+                          this category is raised precisely because the source
+                          could not tell which one it is. */}
+                      {decision.category === 'shared_address_pattern' &&
+                        (['shared_s', 'distribution_d'] as const).map((pattern) => (
+                          <button
+                            key={pattern}
+                            onClick={() => act(decision, 'resolve', pattern)}
+                            disabled={busyRow === decision.id}
+                            className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            {t(`decisions.sharedAddress.${pattern}` as StringKey)}
+                          </button>
+                        ))}
                       {decision.proposedDefault && (
                         <button
                           onClick={() => act(decision, 'resolve')}
