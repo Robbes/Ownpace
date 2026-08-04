@@ -51,3 +51,4 @@ export * from './imap-groups';
 // The permission inventory's read layer (0029 T1, SAD §14.2).
 export * from './graph-permissions';
 export * from './graph-permission-scan';
+export * from './drive-sharing-availability';

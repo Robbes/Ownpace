@@ -47,6 +47,20 @@ describe('what it says before anybody clicks', () => {
     expect(screen.getByText(/FullAccess or Send-As/)).toBeInTheDocument();
     expect(screen.getByText(/does not expose that to us at all/)).toBeInTheDocument();
   });
+
+  it('does not promise file sharing this installation may not have read', () => {
+    render(<PermissionsHandover mappingId="m1" />);
+
+    // `Files.Read.All` is not consented by default (owner decision
+    // 2026-08-04), so drive sharing is a stated blind spot in most
+    // deployments. The panel used to read as though the list always covered
+    // it — a promise the document then quietly did not keep.
+    expect(screen.getByText(/OneDrive and SharePoint/)).toBeInTheDocument();
+    expect(screen.getByText(/only included when this installation/)).toBeInTheDocument();
+    // And it points at the document for the per-run answer, because that is
+    // where the truth for THIS report lives.
+    expect(screen.getByText(/which of the two it actually read/)).toBeInTheDocument();
+  });
 });
 
 describe('fetching the list', () => {

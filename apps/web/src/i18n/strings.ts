@@ -271,11 +271,14 @@ const en = {
   'permissions.body':
     'Who could see whose calendar, who had access to which shared files — none of that moves ' +
     'with the mail. Get the list, work through it on the new system, and do it before delivery ' +
-    'moves: rights added afterwards were missing for however long that took.',
+    'moves: rights added afterwards were missing for however long that took. The list names ' +
+    'what it could not read, at the top.',
   'permissions.blindSpot':
-    'One thing the list cannot tell you: who had FullAccess or Send-As on a mailbox. Microsoft ' +
-    'does not expose that to us at all — you have to read it out of Exchange yourself. The ' +
-    'document says so and tells you how.',
+    'Two things the list may not tell you. Who had FullAccess or Send-As on a mailbox: ' +
+    'Microsoft does not expose that to us at all, so you have to read it out of Exchange ' +
+    'yourself. And sharing on OneDrive and SharePoint, which is only included when this ' +
+    'installation was given that extra permission. The document says which of the two it ' +
+    'actually read, and how to cover the rest.',
   'permissions.download': 'Get the permission list',
   'permissions.failed': 'The permission list could not be fetched.',
   // Shared addresses, on Review & confirm (workplan 0027 T4).
@@ -597,11 +600,13 @@ const nl: Record<keyof typeof en, string> = {
     'Wie wiens agenda kon zien, wie toegang had tot welke gedeelde bestanden — dat verhuist ' +
     'niet mee met de post. Haal de lijst op, werk hem door op het nieuwe systeem, en doe dat ' +
     'vóór de bezorging verhuist: rechten die daarna worden toegevoegd, ontbraken zolang dat ' +
-    'duurde.',
+    'duurde. Bovenaan de lijst staat wat er niet gelezen kon worden.',
   'permissions.blindSpot':
-    'Eén ding kan de lijst u niet vertellen: wie FullAccess of Send-As op een postvak had. ' +
-    'Microsoft geeft ons dat helemaal niet — dat moet u zelf uit Exchange halen. Het document ' +
-    'zegt dat, en legt uit hoe.',
+    'Twee dingen kan de lijst u mogelijk niet vertellen. Wie FullAccess of Send-As op een ' +
+    'postvak had: Microsoft geeft ons dat helemaal niet, dat moet u zelf uit Exchange halen. ' +
+    'En het delen op OneDrive en SharePoint, dat alleen meekomt als deze installatie die ' +
+    'extra machtiging heeft gekregen. Het document zegt welke van de twee het werkelijk ' +
+    'gelezen heeft, en hoe u de rest afdekt.',
   'permissions.download': 'Haal de rechtenlijst op',
   'permissions.failed': 'De rechtenlijst kon niet worden opgehaald.',
   'sharedAddresses.heading': 'Gevonden gedeelde adressen',

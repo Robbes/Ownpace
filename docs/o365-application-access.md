@@ -13,6 +13,11 @@ an administrator's consent (SAD §14.3, ADR-0006).
 **Owner decision 2026-08-03:** grant these on the **test tenant**, scoped by an
 Application Access Policy to named mailboxes. Not tenant-wide.
 
+**Owner decision 2026-08-04:** add `Calendars.Read`, and **do not** add
+`Files.Read.All`. The reasoning is in *[Two scopes, one
+granted](#two-scopes-one-granted)* below; the short version is that the access
+policy in step 4 narrows the first and cannot narrow the second.
+
 ---
 
 ## What you are granting, in plain terms
@@ -20,7 +25,7 @@ Application Access Policy to named mailboxes. Not tenant-wide.
 An application permission is not "this app can act for the user who signed in".
 It is "this app can act **without any user**, against the whole tenant". That
 is why the Application Access Policy in step 4 is not optional here: it is what
-turns *the whole tenant* into *these three mailboxes*.
+turns *the whole tenant* into *these few mailboxes*.
 
 Concretely, after step 3 and before step 4, the app registration can read every
 mailbox in the tenant. After step 4 it can read only the members of the mail-
@@ -50,6 +55,7 @@ Note the **Application (client) ID** and the **Directory (tenant) ID**.
 | `Mail.Read` | Read the shared mailbox's messages | Pattern S (0027 T3) |
 | `Group.Read.All` | Enumerate distribution lists and mail-enabled groups, with their members | Pattern D (0027 T2), discovery (0027 T1) |
 | `User.Read.All` | Enumerate mailboxes, so a NEW one can be noticed | the `new_mailbox` detector (0028 T2) |
+| `Calendars.Read` | Read who a calendar is shared with | the permission inventory (0029 T1) |
 
 Add nothing else. If a step later seems to need a further permission, that is
 worth a conversation rather than a click — every extra application permission
@@ -57,10 +63,37 @@ is tenant-wide until an access policy narrows it, and `Mail.ReadWrite` in
 particular would hand this app the ability to modify the system you are
 migrating away from.
 
+### Two scopes, one granted
+
+0029's permission inventory can read two kinds of sharing through Graph:
+calendar shares and OneDrive/SharePoint shares. They need one scope each, and
+**only the first was granted** (owner decision, 2026-08-04). The asymmetry is
+not about how useful the findings are — it is about what step 4 can reach.
+
+`Calendars.Read` is an **Exchange-family** permission, so the Application
+Access Policy below narrows it to exactly the same mailbox group that narrows
+`Mail.Read`. It is not new reach; it is one more data type over mailboxes the
+app can already read.
+
+`Files.Read.All` is **not**. Application Access Policy is an Exchange
+mechanism and does not apply to SharePoint or OneDrive, and `Files.Read.All`
+has no narrowed variant — it is read over every file in every OneDrive and
+every site collection in the tenant, with nothing here able to fence it in.
+(SharePoint's own scoping mechanism, `Sites.Selected`, is a different
+permission with a per-site grant model that this code is not written against.)
+That is a large standing grant to buy one section of a handover report.
+
+So the drive-sharing section of the permission report stays a **stated blind
+spot**, alongside mailbox delegation, which Graph cannot read at all. Both are
+named in the report rather than omitted from it — the reader is told what was
+not looked at, which is the point (hard rule 9). The moment to revisit this is
+when the drive migration itself needs file access, because then the grant pays
+for the migration rather than for a report about it.
+
 ## 3. Grant admin consent
 
 Still on **API permissions**: **Grant admin consent for {tenant}**, then
-confirm. The three rows should show *Granted for {tenant}* with a green tick.
+confirm. All four rows should show *Granted for {tenant}* with a green tick.
 
 **At this moment the app can read every mailbox in the tenant.** Continue
 directly to step 4.
@@ -153,17 +186,22 @@ collection instead of one mailbox.
 Remove-ApplicationAccessPolicy -Identity "<policy identity>"
 ```
 
-and remove the three application permissions in the portal. Revoking consent
+and remove the four application permissions in the portal. Revoking consent
 takes effect on the app's next token; tokens already issued remain valid until
 they expire (up to an hour), which is worth knowing if you are revoking in a
 hurry.
 
 ## What this does NOT grant
 
-- **No write access.** All three permissions are read. This product never
+- **No write access.** All four permissions are read. This product never
   writes to the source (hard rule 2).
 - **No access to mailboxes outside the group**, once step 4 has taken effect
-  and step 5 has proven it.
+  and step 5 has proven it. `Calendars.Read` is inside that fence with the
+  rest; the access policy covers Exchange data, and a calendar is Exchange
+  data.
+- **No access to files.** `Files.Read.All` was considered and declined —
+  see *[Two scopes, one granted](#two-scopes-one-granted)*. Drive sharing is
+  reported as uninventoried, not as absent.
 - **Nothing on the target side.** The destination is reached with its own
   credentials and is operated by whoever runs it (ADR-0011).
 
