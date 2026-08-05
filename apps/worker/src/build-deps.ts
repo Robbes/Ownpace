@@ -43,10 +43,10 @@ import {
   buildCalendarSource,
   buildCalendarTarget,
   buildContactSource,
-  buildContactTarget,
   buildFileSource,
   buildFileTarget,
 } from './dav-factories';
+import { buildContactTargetFor, contactTargetProtocol } from './contact-target-factory';
 import { withClose, type WithClose } from './deps-lifecycle';
 
 /**
@@ -573,10 +573,20 @@ export function buildDomainDeps(
       source = buildCalendarSource(davEndpoint(sourceConfig, 'caldav', 'source'));
       target = buildCalendarTarget(davEndpoint(targetConfig, 'caldav', 'target'), targetDeps);
       break;
-    case 'contact':
+    case 'contact': {
       source = buildContactSource(davEndpoint(sourceConfig, 'carddav', 'source'));
-      target = buildContactTarget(davEndpoint(targetConfig, 'carddav', 'target'), targetDeps);
+      // Contacts can go over JMAP where the target speaks it (0031 T2). The
+      // config already expresses it: `TargetConfig` is a union that includes
+      // `JmapTarget`, so a contacts domain naming `type: 'jmap'` needs no new
+      // field — only a builder that stops insisting on CardDAV.
+      const protocol = contactTargetProtocol(targetConfig.type);
+      target = buildContactTargetFor(
+        protocol,
+        davEndpoint(targetConfig, protocol === 'jmap' ? 'jmap' : 'carddav', 'target'),
+        targetDeps,
+      );
       break;
+    }
     case 'file':
       source = buildFileSource(davEndpoint(sourceConfig, 'webdav', 'source'));
       target = buildFileTarget(davEndpoint(targetConfig, 'webdav', 'target'), targetDeps);
@@ -607,13 +617,26 @@ export function buildDomainDeps(
 /** Resolve a file-config DAV endpoint (url/user + env-based credential) for a factory. */
 function davEndpoint(
   cfg: SourceConfig | TargetConfig,
-  expected: 'caldav' | 'carddav' | 'webdav',
+  expected: 'caldav' | 'carddav' | 'webdav' | 'jmap',
   role: 'source' | 'target',
 ): DavEndpoint {
   if (cfg.type !== expected) {
     throw new Error(`Expected ${expected} ${role}, got ${(cfg as { type: string }).type}`);
   }
-  const c = cfg as { url: string; user: string; auth: { kind: string; passwordFromEnv?: string; tokenFromEnv?: string } };
+  // `url` for the DAV shapes, `baseUrl` for `JmapTarget`. Read both rather than
+  // adding a second near-identical resolver: everything below — the auth kind,
+  // the env indirection, the refusal to build a connector with empty
+  // credentials — is the same question whichever protocol asked it.
+  const c = cfg as {
+    url?: string;
+    baseUrl?: string;
+    user: string;
+    auth: { kind: string; passwordFromEnv?: string; tokenFromEnv?: string };
+  };
+  const url = c.url ?? c.baseUrl;
+  if (!url) {
+    throw new Error(`${expected} ${role} config has neither a url nor a baseUrl`);
+  }
   const envName =
     c.auth.kind === 'login' || c.auth.kind === 'basic'
       ? c.auth.passwordFromEnv
@@ -627,5 +650,5 @@ function davEndpoint(
   if (!password) {
     throw new Error(`${expected} ${role} credential env var ${envName} is not set`);
   }
-  return { url: c.url, username: c.user, password };
+  return { url, username: c.user, password };
 }
