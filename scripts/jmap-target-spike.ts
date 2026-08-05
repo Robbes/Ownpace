@@ -28,18 +28,40 @@
  * It writes NOTHING to the ledger and creates nothing outside the throwaway
  * account it is pointed at. It is a question, not a migration.
  *
- *   Usage (on a host that can reach the dev stack):
+ *   Bring the dev Stalwart up first, if it is not already:
+ *     deploy/selfhost/setup-stalwart.sh
+ *
+ *   Then:
  *     pnpm exec tsx scripts/jmap-target-spike.ts
  *
  *   Environment:
- *     JMAP_BASE_URL   default http://127.0.0.1:8080
+ *     JMAP_BASE_URL   default http://127.0.0.1:18080 — `setup-stalwart.sh`'s
+ *                     published port (STALWART_JMAP_PORT), not JMAP's 8080.
+ *                     Inside the dev network the same server is stalwart:8080.
  *     JMAP_USER       default admin
- *     JMAP_PASSWORD   default (required — no default; rule 3)
+ *     JMAP_PASSWORD   defaults to the dev provisioning password ONLY against a
+ *                     loopback URL — see below.
  */
 
-const BASE = process.env.JMAP_BASE_URL || 'http://127.0.0.1:8080';
+const BASE = process.env.JMAP_BASE_URL || 'http://127.0.0.1:18080';
 const USER = process.env.JMAP_USER || 'admin';
-const PASSWORD = process.env.JMAP_PASSWORD;
+
+/**
+ * Loopback gets the dev default; anything else must be told.
+ *
+ * `provision_password` is not a secret — it is `setup-stalwart.sh`'s committed
+ * `STALWART_RECOVERY_PASSWORD` default, in the repo in plain text, for a
+ * throwaway container full of `source@dev.local` fixtures. Refusing to run
+ * without it would be theatre: it protects nothing and costs everybody a
+ * lookup.
+ *
+ * What hard rule 3 is actually about is a real credential reaching a real
+ * server, so the default stops at the boundary where that becomes possible.
+ * Point this at a host that is not loopback and it demands the password,
+ * because at that point the script no longer knows what it is talking to.
+ */
+const LOOPBACK = /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:|\/|$)/.test(BASE);
+const PASSWORD = process.env.JMAP_PASSWORD || (LOOPBACK ? 'provision_password' : undefined);
 
 /**
  * The capabilities T1-T3 would each need, with what the absence of one MEANS.
@@ -81,8 +103,9 @@ interface JmapSession {
 async function main(): Promise<number> {
   if (!PASSWORD) {
     console.error(
-      'JMAP_PASSWORD is not set. This script authenticates against a real server;\n' +
-        'it does not carry a default password (hard rule 3).',
+      `JMAP_PASSWORD is not set, and ${BASE} is not loopback.\n` +
+        'The dev-stack default is only applied to 127.0.0.1 — against anything\n' +
+        'else this script does not know what it is authenticating to, so it asks.',
     );
     return 2;
   }
@@ -103,7 +126,15 @@ async function main(): Promise<number> {
     }
     session = (await res.json()) as JmapSession;
   } catch (err) {
-    console.error(`Could not reach ${sessionUrl}: ${err instanceof Error ? err.message : err}`);
+    // Name the fix rather than the symptom: on a fresh box the answer is
+    // almost always that the dev Stalwart was never brought up.
+    console.error(
+      `Could not reach ${sessionUrl}: ${err instanceof Error ? err.message : err}\n\n` +
+        'If the dev stack is not running, start it with:\n' +
+        '    deploy/selfhost/setup-stalwart.sh\n' +
+        'That script provisions the container, the dev.local domain and the\n' +
+        'source/target/shared accounts, and publishes JMAP on 18080.',
+    );
     return 1;
   }
 
