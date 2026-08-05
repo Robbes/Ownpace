@@ -863,17 +863,46 @@ async function main(): Promise<number> {
               '<D:propfind xmlns:D="DAV:"><D:prop><D:getetag/></D:prop></D:propfind>',
           }).then((r) => r.text());
 
+          // TWO FIXES, both from the 2026-08-05 run, and both were mine.
+          //
+          // (1) This filtered hrefs to `.vcf`. A card WE named over CardDAV
+          //     ends in `.vcf` because we chose that filename; a card the
+          //     SERVER created from a `ContactCard/set` gets a DAV name of
+          //     Stalwart's choosing, and the run showed it does not match.
+          //     So the one card this rung exists to read was the one card the
+          //     filter excluded. Every resource below the collection now.
+          //
+          // (2) A failed GET became `''` via `r.ok ? r.text() : ''`, and `''`
+          //     does not contain the uid, so an unreadable resource was
+          //     indistinguishable from "not the card we wanted" — and the rung
+          //     then reported the store might not be one store. That is the
+          //     fifth time this week the same shape has cost a run, and this
+          //     one was written in the same session as the comments warning
+          //     about it. A read that could not happen is now SAID.
+          const bookPath = decodeURIComponent(new URL(bookHref, davRoot).pathname).replace(/\/+$/, '');
+          const hrefs = [...listing.matchAll(/<[Dd]?:?href>([^<]+)<\/[Dd]?:?href>/g)]
+            .map((m) => decodeURIComponent(m[1] ?? ''))
+            .filter((h) => !h.endsWith('/') && h.replace(/\/+$/, '') !== bookPath);
+          console.log(`  ${hrefs.length} resource(s) under ${bookPath}/:`);
+          for (const h of hrefs) console.log(`    ${h}`);
+
           let found = false;
-          for (const m of listing.matchAll(/<[Dd]?:?href>([^<]+\.vcf)<\/[Dd]?:?href>/g)) {
-            const url = new URL(decodeURIComponent(m[1] ?? ''), davRoot).toString();
-            const card = await fetch(url, { method: 'GET', headers: { Authorization: auth } }).then(
-              (r) => (r.ok ? r.text() : ''),
-            );
+          for (const h of hrefs) {
+            const url = new URL(h, davRoot).toString();
+            const res = await fetch(url, { method: 'GET', headers: { Authorization: auth } });
+            if (!res.ok) {
+              console.log(
+                `  GET ${url} -> HTTP ${res.status}; NOT readable. That is not the\n` +
+                  `  same fact as "not the card we are looking for", so it is said.`,
+              );
+              continue;
+            }
+            const card = await res.text();
             // `parseUid` is the card written over JMAP; `davUid` is the one
             // written over CardDAV a moment ago and is not the question here.
             if (!card.includes(parseUid)) continue;
             found = true;
-            console.log(`  GET ${url}\n`);
+            console.log(`\n  GET ${url}\n`);
             console.log(card.replace(/^/gm, '    '));
             console.log(
               `\n         COMPARE against the vCard this run uploaded. Both ADR and\n` +
@@ -886,10 +915,11 @@ async function main(): Promise<number> {
           }
           if (!found) {
             console.log(
-              `  The JMAP-written card (${parseUid}) is not in this address book over\n` +
-                `  CardDAV. Reported rather than concluded from: it may have been\n` +
-                `  destroyed by an earlier run before this rung looked, or the two\n` +
-                `  surfaces may not be one store — and those are very different.`,
+              `  The JMAP-written card (${parseUid}) was not found among the ${hrefs.length}\n` +
+                `  resource(s) listed above. Reported rather than concluded from — but\n` +
+                `  note that Rung B's own JMAP read-back lists it in this book, so if\n` +
+                `  this says "not found" again the honest reading is that the DAV\n` +
+                `  listing does not show it, NOT that the card is absent.`,
             );
           }
 
