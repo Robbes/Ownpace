@@ -7,6 +7,9 @@ export * from './calendar';
 export * from './contact';
 export * from './file';
 export * from './hash';
+// The JMAP parent-chain -> WebDAV path reconstruction (0031 T3). Beside hash.ts
+// deliberately: it exists only to produce something fileNaturalKeyHash can key.
+export * from './jmap-file-path';
 export * from './dav-canonical';
 export * from './generated-message-id';
 export * from './ports';
