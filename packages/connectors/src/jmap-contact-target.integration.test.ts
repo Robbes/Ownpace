@@ -8,17 +8,30 @@
  * established by hand in `scripts/jmap-target-spike.ts` on 2026-08-05 — this is
  * that evidence turned into something that fails when it stops being true.
  *
- * Bring the dev stack up first if it is not already:
+ * NOTHING NEEDS CONFIGURING. `vitest.global-setup.ts` provisions a Stalwart
+ * with Testcontainers and exports `STALWART_JMAP_URL`, `STALWART_JMAP_USERNAME`
+ * and `STALWART_JMAP_PASSWORD` before any test file loads, so this runs — and
+ * is gated in CI — under:
  *
- *     deploy/selfhost/setup-stalwart.sh
- *     STALWART_JMAP_URL=http://127.0.0.1:18080 pnpm vitest run --project integration \
- *       packages/connectors/src/jmap-contact-target.integration.test.ts
+ *     pnpm test:integration
  *
- * `STALWART_JMAP_URL` is required rather than defaulted, and the skip below
- * says WHAT WAS NOT VERIFIED rather than "skipped": a suite that goes green
- * having checked nothing is the failure mode this repo keeps finding, and a
- * skipped test named after its own absence is the cheapest guard against
- * reading that green as coverage.
+ * CORRECTED 2026-08-05, because the first version of this comment told the
+ * owner to point it at their dev Stalwart with
+ * `STALWART_JMAP_URL=http://127.0.0.1:18080`. That variable is OVERWRITTEN by
+ * the global setup, so the run went to the Testcontainers instance instead and
+ * the instruction was noise. Worse, this file then read a hardcoded
+ * `target@dev.local` and a loopback password default while ignoring the two
+ * variables the harness actually exports — it passed because the fixture
+ * happens to use those exact values, which is luck rather than correctness.
+ * Both are read properly now, the way `shadow-pass.integration.test.ts` reads
+ * them.
+ *
+ * The skip below says WHAT WAS NOT VERIFIED rather than "skipped", because a
+ * suite that goes green having checked nothing is the failure mode this repo
+ * keeps finding. Under the integration project it is effectively unreachable —
+ * the harness always sets the URL — so it guards the case of someone running
+ * this file outside the harness, and nothing else. Worth saying, because a
+ * guard that cannot fire where it matters is not the protection it looks like.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -27,7 +40,8 @@ import type { RawContact, TargetEntry } from '@openmig/shared';
 import { contactNaturalKeyHash } from '@openmig/shared';
 
 const BASE = process.env.STALWART_JMAP_URL;
-const USER = process.env.STALWART_JMAP_USER ?? 'target@dev.local';
+// The names the global setup exports, not names of this file's own invention.
+const USER = process.env.STALWART_JMAP_USERNAME ?? 'target@dev.local';
 /**
  * The dev fixture credential, applied only against loopback.
  *
@@ -69,8 +83,8 @@ function raw(uid: string): RawContact {
 
 if (!BASE || !PASSWORD) {
   console.warn(
-    '[jmap-contacts] NOT RUN: set STALWART_JMAP_URL (and STALWART_JMAP_PASSWORD off loopback). ' +
-      'Bring the dev server up with deploy/selfhost/setup-stalwart.sh.',
+    '[jmap-contacts] NOT RUN: no STALWART_JMAP_URL. Under `pnpm test:integration` the global ' +
+      'setup provides one, so seeing this means the harness did not start Stalwart.',
   );
   describe.skip('JMAP contacts target — NOT VERIFIED against a real server', () => {
     it('was not run, so nothing below is known to hold', () => {
@@ -148,7 +162,7 @@ if (!BASE || !PASSWORD) {
       const accountId = session.primaryAccounts?.['urn:ietf:params:jmap:contacts'];
       expect(accountId, 'the session advertises no contacts account').toBeTruthy();
 
-      const response = await fetch(`${BASE}/jmap`, {
+      const response = (await fetch(`${BASE}/jmap`, {
         method: 'POST',
         headers: { Authorization: auth, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -165,14 +179,27 @@ if (!BASE || !PASSWORD) {
             ],
           ],
         }),
-      });
-      const body = await response.text();
-      expect(body).toContain(uid);
+      }).then((r) => r.json())) as {
+        methodResponses?: Array<[string, { list?: Array<Record<string, unknown>> }, string]>;
+      };
+
+      // ISOLATE OUR CARD first. Grepping the whole response body would pass on
+      // somebody else's: `packages/core/src/jmap-contact-sync.integration.test.ts`
+      // plants an identical `X-OPENMIG-PROBE` against the same Stalwart
+      // account, so a body-wide `toContain` would go green even if this test
+      // had written nothing. It only fails when BOTH suites are broken at once,
+      // which is the vacuous shape this repo keeps finding.
+      const list = response.methodResponses?.[0]?.[1]?.list ?? [];
+      const card = list.find((c) => c.uid === uid);
+      expect(card, `no card on the server with uid ${uid}`).toBeDefined();
       // The RFC 9555 escape hatch, carrying the property JSContact has no home
       // for. If this ever stops holding, a JMAP contacts migration silently
       // starts thinning every card that has an X- property — which is most of
       // the ones a real address book contains.
-      expect(body.toLowerCase()).toContain('x-openmig-probe');
+      expect(JSON.stringify(card!.vCard ?? {}).toLowerCase()).toContain('x-openmig-probe');
+      // And the properties our own `Contact` model has no field for at all.
+      expect(card!.onlineServices, 'IMPP did not survive').toBeDefined();
+      expect(JSON.stringify(card!.titles ?? {})).toContain('Probe');
     }, 60_000);
 
     it('refuses to rewrite a card whose stored shape has moved under us', async () => {

@@ -6,7 +6,7 @@
 |---|---|---|
 | T0 The spike: do our natural keys survive the transport switch? | ✅ **ANSWERED on Spark 2026-08-05. The key question is answer 1 — but the run surfaced a DIFFERENT blocker that changes T1** | **All three capabilities are advertised**, so the plan is NOT blocked on the server: `urn:ietf:params:jmap:calendars`, `:contacts` and `:filenode`, alongside `:mail`, `:blob`, `:principals`, `:quota`, `:sieve`, `:submission`, `:websocket` and Stalwart's own `urn:stalwart:jmap`. That closes the branch this task existed to test cheaply, in one request. **Two corrections came out of running it.** (1) The spike asked for `urn:ietf:params:jmap:blob` for files and warned that blob gives no collection model — true of blob and beside the point: Stalwart advertises **`filenode`**, which IS the file-node concept, so the check was aimed at the wrong URN and would have reported a doubt the server had already answered. Corrected, with blob's insufficiency kept as the reason filenode is the one that matters. (2) The session advertises **`apiUrl: https://0.0.0.0/jmap/`** — unroutable. That is not a new discovery: `jmap-target.ts` already ignores the session's apiUrl and rebuilds the endpoint from `baseUrl`, with a comment saying the host is unreliable on Stalwart. The run is that comment proven, and T1-T3 inherit the convention rather than rediscovering it. **STEP 2, the part that mattered.** The natural-key question is **answer 1: the keys agree, no transformation needed.** `uid` round-trips unchanged, and an override's map key came back **byte-identical** to what was written (`2026-09-08T09:00:00`) — which is exactly the value CalDAV puts in RECURRENCE-ID, so `naturalKeyForCalendar()` produces the same hash on both transports and a switched mapping re-copies nothing. **But the ladder found what a single attempt would have missed: Stalwart accepts `recurrenceOverrides` and REFUSES `recurrenceRules`.** Three different rule shapes — with `@type`, without it, and `until` instead of `count` — all came back `invalidProperties: ["recurrenceRules"]`, identically. Three refusals of three syntaxes is not a syntax problem: **this Stalwart version (v0.16.10) does not implement recurrence rules over JMAP at all**, while its CalDAV path does. That is a bigger finding than the one T0 was chartered to get, and it is the kind this repo exists to catch: a JMAP calendar target built today would write a recurring series as **a single event plus orphaned overrides**, losing the RRULE — silently, because every write would succeed. |
 | T1 Calendars as a JMAP target | ⏸️ **PARKED 2026-08-05 by owner decision — option (a): wait for JMAP to mature on Stalwart** | The natural key is no longer the obstacle: T0 proved it agrees. The obstacle is that `recurrenceRules` is refused by Stalwart v0.16.10 over JMAP, so a JMAP calendar target cannot carry a recurring series at all. Three options, and none of them is *build it as scoped*: **(a)** wait for Stalwart to implement it and keep DAV for calendars meanwhile; **(b)** build T1 but REFUSE recurring events on the JMAP path, migrating them over DAV — honest, and a per-item split nothing else in this product does; **(c)** drop T1 and take T2/T3 first, where no equivalent gap is known yet. **Owner chose (a) on 2026-08-05: wait.** Calendars keep going over CalDAV, which works today and is in the nightly e2e, so nothing regresses and no half-measure is taken on. **The trigger is `scripts/jmap-target-spike.ts` re-run on each Stalwart bump** — it takes seconds and rung 2 is the whole test: the day `recurrenceRules` is accepted, T1 unblocks. Option (b) was rejected as strictly worse than DAV-only: splitting one domain across two transports mid-migration would take the complexity of both protocols and the simplicity of neither, which is the opposite of the reason JMAP was chosen. **Research 2026-08-05 — the refusal is probably NOT our request being odd, and the reason matters.** Stalwart's documentation says it **pre-expands** a recurrence pattern into individual stored instances rather than keeping the rule and computing occurrences on read (there is a `maxRecurrenceExpansions` limit on the Calendar singleton for exactly that cost). The JMAP calendars draft in turn says `recurrenceRules` and `recurrenceOverrides` MUST be returned as null **for a server-expanded single instance** — so a store built around expansion has a real reason to refuse a rule on write while still accepting overrides, which is precisely the asymmetry the ladder observed. Corroborating: Stalwart's own JMAP conformance suite covers **mail only** — its maintainers say so in discussion #2772, where extending it to Calendars/Contacts/Files was raised and deferred. So the calendar surface is genuinely younger and less exercised than the mail one this product already relies on, and CalDAV remains its better-trodden path for this domain. **Trigger re-checked 2026-08-05 (the T2.0 run): STILL REFUSED.** All three rungs came back `invalidProperties: ["recurrenceRules"]` on the same Stalwart, so T1 stays parked and the trigger stays armed — recorded here because a trigger nobody records the state of is a trigger nobody knows is still pending. One thing the same run did surface for T1's eventual benefit: the session advertises **`urn:ietf:params:jmap:calendars:parse`** alongside the contacts one, so when T1 unparks it inherits T2's fidelity route (let the server convert) rather than needing its own. It does **not** unpark T1 — parse is a read-side conversion and the refusal is on `set`. |
-| T2 Contacts as a JMAP target | 🟡 **T2.1 + T2.2 BUILT 2026-08-05 — connector, both editions wired, 34 unit tests + an integration test. Not yet in the nightly e2e** | `JmapContactTarget` (`packages/connectors`) implements `ContactTargetWriter` + `TargetReindexer` + `TargetRemover` on route (2): upload the vCard blob, `ContactCard/parse`, write the SERVER's own parsed card with only `addressBookIds` added. Rung C is the proof it is faithful — the card this path writes, read back out through the CardDAV door, returns every property that went in including a standalone `GEO` and an `X-OPENMIG-PROBE` with no JSContact equivalent. `apps/worker/src/contact-target-factory.ts` dispatches for BOTH editions off `connection.kind` (managed) and `target.type` (self-host); **no migration and no new config field were needed** — `'jmap'` has been a valid kind since the 0001 baseline and `TargetConfig` already included `JmapTarget`. Everything unrecognised falls back to CardDAV rather than throwing, so no existing mapping moves. Two things carried rather than fixed: **every read names `vCard`** (pinned by a mutation-verified test) and **no §20 checksum leg** — `contentHashFor` deliberately absent rather than stubbed. **Still open (T2.3): not in the nightly e2e, not in the scope manifest.** |
+| T2 Contacts as a JMAP target | 🟡 **T2.1 + T2.2 BUILT 2026-08-05 — connector, both editions wired, 34 unit tests + an integration test. Not yet in the nightly e2e** | `JmapContactTarget` (`packages/connectors`) implements `ContactTargetWriter` + `TargetReindexer` + `TargetRemover` on route (2): upload the vCard blob, `ContactCard/parse`, write the SERVER's own parsed card with only `addressBookIds` added. Rung C is the proof it is faithful — the card this path writes, read back out through the CardDAV door, returns every property that went in including a standalone `GEO` and an `X-OPENMIG-PROBE` with no JSContact equivalent. `apps/worker/src/contact-target-factory.ts` dispatches for BOTH editions off `connection.kind` (managed) and `target.type` (self-host); **no migration and no new config field were needed** — `'jmap'` has been a valid kind since the 0001 baseline and `TargetConfig` already included `JmapTarget`. Everything unrecognised falls back to CardDAV rather than throwing, so no existing mapping moves. Two things carried rather than fixed: **every read names `vCard`** (pinned by a mutation-verified test) and **no §20 checksum leg** — `contentHashFor` deliberately absent rather than stubbed. **Gated in CI** — the `integration-tests` job runs `pnpm test:integration`, whose global setup provisions Stalwart with Testcontainers, so the integration test needs nothing configured. **T2.3 built:** `packages/core/src/jmap-contact-sync.integration.test.ts` runs `runContactSync` against a real Stalwart — three passes (create / idempotent through a FRESH writer so the ledger rather than the connector's snapshot is what decides / one added later), plus the two assertions specific to this transport: the stored-card fingerprint reaches the ledger (or hard rule 2 stops being enforced silently) and the RFC 9555 escape hatch survives a full pass. Placed beside `dav-sync.integration.test.ts` rather than in the nightly e2e, which boots the whole appliance from one fixture and would have cost a second twenty-minute run or the CardDAV coverage. **Still open: the scope manifest does not yet say which protocol carries which domain (T4).** |
 | T3 Files as a JMAP target | 🟠 **ANSWERED 2026-08-05: buildable, but it needs a PATH RECONSTRUCTION that does not exist yet** | Same reasoning. Deliberately READ-ONLY: the identity question is what a `FileNode` calls itself — a path, or a name plus a parentId — and listing answers that without creating anything in a hierarchy whose shape is still unknown. `fileNaturalKeyHash()` hashes a normalised PATH, so a parent-chain model needs a documented reconstruction before T3 can key anything. **Two runs, two of our own mistakes.** The read-only probe returned an empty list — a probe that cannot fail informatively against an empty store, which is the third time this week that shape has cost a run. Creating a node then failed with `invalidProperties: ["@type"]`, because the spike sent `'@type': 'FileNode'`. Both corrected. **Nothing here yet suggests a server gap**, and the record matters: on this surface the spike has been wrong twice and Stalwart zero times, so the next refusal deserves the same suspicion of ourselves first. **The third run answered it, and the news is mixed.** Creation works cleanly, and a `FileNode` reads back as: `{id, parentId, nodeType, blobId, target, size, name, type, created, modified, accessed, changed, executable, isSubscribed, myRights, shareWith, role}`. **There is no path field.** Identity is `name` + `parentId` — a parent-chain model, which is the case flagged as needing a documented reconstruction before anything can be keyed. `fileNaturalKeyHash()` hashes a NORMALISED PATH, so T3 must walk the parent chain to the root and join names, and **that reconstruction has to produce byte-identical output to what the WebDAV path produces** or every file re-copies on the first pass — silently, because each write succeeds. Path normalisation has already caused four silent-mismatch bugs in this repo; this would be the fifth and the most expensive, since it would hit every file at once rather than an edge case. **Two consequences worth deciding before T3 starts.** (1) The reconstruction costs a lookup per ancestor, or a whole-tree fetch per pass, where WebDAV hands the path over for free. (2) Renaming a folder changes every descendant's key — that is equally true of the WebDAV path today, so it is not a regression, but a parent-chain model makes it easy to introduce a normalisation difference while working around it. **T3 is therefore not blocked; it is larger than the row implied, and the first thing it needs is the reconstruction plus a test asserting both transports hash identically — not a connector.** |
 | T4 Surface + manifest truth | ⬜ Blocked on T1 | |
 
@@ -411,17 +411,82 @@ the rewrite guard refuses a moved card; the fingerprint is stable enough that a
 matching rewrite goes through; and removal reports `deleted` rather than
 `binned`.
 
-When `STALWART_JMAP_URL` is unset it skips — under a describe named **"NOT
+**It is already gated in CI, and that was a pleasant correction to make.** The
+`integration-tests` job runs `pnpm test:integration`, and `vitest.global-setup.ts`
+provisions a Stalwart with Testcontainers and exports `STALWART_JMAP_URL`,
+`STALWART_JMAP_USERNAME` and `STALWART_JMAP_PASSWORD` before any test file
+loads. Nothing needs configuring; the suite brings its own server.
+
+Two things this file got wrong on the first pass, both found by running it:
+
+1. The header told the owner to point it at their dev Stalwart with
+   `STALWART_JMAP_URL=http://127.0.0.1:18080`. **That variable is overwritten by
+   the global setup**, so the run went to the Testcontainers instance and the
+   instruction was noise.
+2. It then read a hardcoded `target@dev.local` and a loopback password default
+   while **ignoring the two variables the harness actually exports**. It passed
+   because the fixture happens to use those exact values — luck rather than
+   correctness, and it would have broken on any fixture change for a reason
+   having nothing to do with the connector. Both are read properly now, the way
+   `shadow-pass.integration.test.ts` reads them.
+
+When `STALWART_JMAP_URL` is unset it skips under a describe named **"NOT
 VERIFIED against a real server"**, because a suite that goes green having
-checked nothing is the failure mode this repo keeps finding, and a skip named
-after its own absence is the cheapest guard against reading that green as
-coverage.
+checked nothing is the failure mode this repo keeps finding. Under the
+integration project that branch is effectively **unreachable** — the harness
+always sets the URL — so it guards someone running the file outside the
+harness and nothing else. Said plainly in the file, because a guard that cannot
+fire where it matters is not the protection it looks like.
 
 ### T2.3 — what is STILL not done
 
-- **Not in the nightly e2e.** The integration test has to be run by hand. Until
-  it runs on the schedule beside the CardDAV target, JMAP contacts have the
-  same standing every unrun path has.
+### T2.3 — the LOOP over the connector (built 2026-08-05)
+
+`packages/core/src/jmap-contact-sync.integration.test.ts` — `runContactSync`
+against a real Stalwart, shaped like `dav-sync.integration.test.ts` with the
+same synthetic in-memory source so only the untested leg is on trial.
+
+**Why here rather than in the nightly e2e.** The e2e boots the whole appliance
+from ONE mapping fixture whose contacts domain is CardDAV→CardDAV. Adding JMAP
+there meant either a second twenty-minute appliance run or replacing the
+CardDAV coverage — spending real e2e time to prove something a much cheaper
+gate can prove, and losing a proven path to do it. `dav-sync.integration.test.ts`
+already established the right size for "the loop, over a real target", it runs
+in CI on every push rather than nightly, and this sits beside it.
+
+Three cases, and two of them are assertions the DAV file does not make because
+they are specific to this transport:
+
+1. **N created, 0 on a second pass through a FRESH writer, 1 more on a third.**
+   The fresh writer matters: the connector caches an account-wide key snapshot
+   for the life of an instance, so reusing it would let the snapshot rather
+   than the LEDGER be what makes pass 2 idempotent — and the ledger is the leg
+   the connector's own tests cannot reach. The third pass is the shadow-sync
+   property: a sync that had stopped taking new work entirely passes 1 and 2
+   perfectly, because "created 0" is exactly what it would report.
+
+2. **The stored-card fingerprint reaches the ledger.** JMAP contacts expose no
+   ETag, so the writer invents its version marker by fingerprinting the card as
+   stored — and unlike the DAV writers it does **not** record its own rows, so
+   the value only survives if `runDomainSync` persists what `upsertContact`
+   returned. If it does not, nothing fails: every future rewrite simply runs
+   with no ownership guard and hard rule 2 stops being enforced quietly.
+
+3. **The RFC 9555 escape hatch survives a full pass.** `X-OPENMIG-PROBE` can
+   only be on the server by riding the `vCard` property, which is the one thing
+   letting the server parse buys over building the card from our normalised
+   model. Change that and every other assertion still passes; only this goes
+   red.
+
+**One vacuous assertion caught before it shipped**, in both this file and the
+connector's own integration test: the escape-hatch check grepped the entire
+`ContactCard/get` response body, and the two suites plant an identical
+`X-OPENMIG-PROBE` against the same Stalwart account. Either would have gone
+green on the other's card — failing only when BOTH were broken at once. Both
+now isolate their own card by uid first and assert on that object.
+
+**Not run locally**: this container has no Docker, so the integration harness
+cannot start. CI is the first execution.
 - **Not in the scope manifest**, which is T4's job: the manifest should say
   which protocol carries which domain, and it does not yet.
 - **No §20 checksum leg**, permanently, for the reason in T2.1.
