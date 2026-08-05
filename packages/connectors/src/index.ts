@@ -9,6 +9,11 @@ export * from './jmap-target';
 // session discovery, the unroutable advertised apiUrl, rate-limit retry — not
 // theirs.
 export * from './jmap-contact-target';
+
+// The imap-simple -> imapflow parity harness (0032 T0). Exported because T1/T2
+// wire it into an integration test, and because a harness nobody can reach is
+// a harness nobody runs.
+export * from './imap-parity';
 export * from './imap-dav-target';
 
 // DAV shared HTTP types
