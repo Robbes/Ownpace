@@ -512,6 +512,12 @@ async function main(): Promise<number> {
     //     that leg cannot be implemented at all and contacts verified over
     //     JMAP would fall back to counts alone.
     // -----------------------------------------------------------------------
+    /**
+     * The card written over JMAP, kept alive until Rung C has read it back out
+     * through the CardDAV door and then destroyed. Declared here rather than
+     * inside the parse block because the tidy-up has to outlive it.
+     */
+    let jmapWrittenCardId: string | undefined;
     const parseUid = `openmig-spike-vcard-${session.state ?? 'x'}`;
     // CRLF line endings and a folded line, because that is what a real card
     // off a CardDAV server looks like; a spike that sends tidier input than
@@ -685,16 +691,11 @@ async function main(): Promise<number> {
                 `         that has nothing to do with the card.`,
             );
 
-            await fetch(apiUrl, {
-              method: 'POST',
-              headers: { Authorization: auth, 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:contacts'],
-                methodCalls: [
-                  ['ContactCard/set', { accountId: contactsAccount, destroy: [pid] }, '0'],
-                ],
-              }),
-            }).catch(() => undefined);
+            // NOT destroyed here. Rung C below reads this exact card back out
+            // through the CardDAV door, which is the whole point of it — a
+            // tidy-up that ran first would leave Rung C reporting "not in the
+            // address book" and that reads as a finding about the store.
+            jmapWrittenCardId = pid;
           } else {
             console.log(
               `  The parsed card was REFUSED by ContactCard/set. Read the\n` +
@@ -828,13 +829,69 @@ async function main(): Promise<number> {
             );
           }
           console.log(
-            `\n         COMPARE against "read back from the STORE" earlier:\n` +
-              `         - one \`addresses\` entry or two?  Two on BOTH paths means the\n` +
-              `           parser; two only on the JMAP path means our write route.\n` +
-              `         - is \`vCard\` (with x-openmig-probe) present here? If it\n` +
-              `           survives a DAV write but not a JMAP one, the JMAP contacts\n` +
-              `           target loses every X- property the DAV target keeps.`,
+            `\n         ANSWERED 2026-08-05: the DAV-written card has ONE address with\n` +
+              `         coordinates merged in; the JMAP-written one has TWO. So the\n` +
+              `         split is the JMAP WRITE path — but that is not the defect it\n` +
+              `         looked like. The fixture vCard sends ADR and GEO as SEPARATE\n` +
+              `         properties, so the PARSER merging them is the liberty and the\n` +
+              `         STORE splitting them apart reproduces the source's own shape.\n` +
+              `         \`vCard\` with x-openmig-probe survived on BOTH paths.`,
           );
+
+          // -----------------------------------------------------------------
+          // Rung C — the claim T2 rests on, proven rather than reasoned.
+          //
+          // Everything above compares JSContact against JSContact. What a
+          // customer actually keeps is a vCard: their next client reads this
+          // account over CardDAV. So the question that decides whether a
+          // JMAP-written contact is faithful is not what `ContactCard/get`
+          // says about it — it is what comes back out of the CardDAV door.
+          //
+          // Read the card WE wrote over JMAP as vCard, and compare it against
+          // the bytes we started from. Round-tripping ADR + GEO back to two
+          // separate properties is the specific thing being checked: if the
+          // store's split is Stalwart's canonical form, this comes back
+          // carrying both, and the address that "split" never split at all
+          // from the customer's point of view.
+          // -----------------------------------------------------------------
+          console.log(`\n=== Rung C — the JMAP-written card, read back out as vCard\n`);
+          const listing = await fetch(new URL(bookHref, davRoot).toString(), {
+            method: 'PROPFIND',
+            headers: { Authorization: auth, Depth: '1', 'Content-Type': 'application/xml' },
+            body:
+              '<?xml version="1.0" encoding="utf-8"?>' +
+              '<D:propfind xmlns:D="DAV:"><D:prop><D:getetag/></D:prop></D:propfind>',
+          }).then((r) => r.text());
+
+          let found = false;
+          for (const m of listing.matchAll(/<[Dd]?:?href>([^<]+\.vcf)<\/[Dd]?:?href>/g)) {
+            const url = new URL(decodeURIComponent(m[1] ?? ''), davRoot).toString();
+            const card = await fetch(url, { method: 'GET', headers: { Authorization: auth } }).then(
+              (r) => (r.ok ? r.text() : ''),
+            );
+            // `parseUid` is the card written over JMAP; `davUid` is the one
+            // written over CardDAV a moment ago and is not the question here.
+            if (!card.includes(parseUid)) continue;
+            found = true;
+            console.log(`  GET ${url}\n`);
+            console.log(card.replace(/^/gm, '    '));
+            console.log(
+              `\n         COMPARE against the vCard this run uploaded. Both ADR and\n` +
+                `         GEO present as separate properties means the JMAP write path\n` +
+                `         is FAITHFUL and T2 is clear to build. A missing GEO, a lost\n` +
+                `         X-OPENMIG-PROBE or a mangled ADR is a real narrowing and\n` +
+                `         goes back to the owner.`,
+            );
+            break;
+          }
+          if (!found) {
+            console.log(
+              `  The JMAP-written card (${parseUid}) is not in this address book over\n` +
+                `  CardDAV. Reported rather than concluded from: it may have been\n` +
+                `  destroyed by an earlier run before this rung looked, or the two\n` +
+                `  surfaces may not be one store — and those are very different.`,
+            );
+          }
 
           await fetch(cardUrl, { method: 'DELETE', headers: { Authorization: auth } }).catch(
             () => undefined,
@@ -843,6 +900,22 @@ async function main(): Promise<number> {
       }
     } catch (err) {
       console.log(`  ERROR dav comparison: ${err instanceof Error ? err.message : err}`);
+    } finally {
+      // In `finally`, so a Rung B or C failure still leaves the account as this
+      // script found it. A spike that litters the fixture on the unhappy path
+      // makes the NEXT run's "already exists" look like a finding.
+      if (jmapWrittenCardId) {
+        await fetch(apiUrl, {
+          method: 'POST',
+          headers: { Authorization: auth, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:contacts'],
+            methodCalls: [
+              ['ContactCard/set', { accountId: contactsAccount, destroy: [jmapWrittenCardId] }, '0'],
+            ],
+          }),
+        }).catch(() => undefined);
+      }
     }
   }
 
