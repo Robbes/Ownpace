@@ -114,6 +114,29 @@ interface JmapSession {
   readonly primaryAccounts?: Record<string, string>;
 }
 
+/**
+ * The Card that `ContactCard/parse` produced for `blobId`, or undefined.
+ *
+ * Returns undefined for every way the answer can be "no card": a body that is
+ * not JSON, a method-level `["error", ...]`, a `notParsable` entry, or a
+ * `parsed` map with nothing under this blob. They are deliberately NOT
+ * collapsed into an exception — the caller prints the raw response either way,
+ * and which of those four happened is the finding.
+ */
+function firstParsedCard(body: string, blobId: string): Record<string, unknown> | undefined {
+  let response: { methodResponses?: Array<unknown[]> };
+  try {
+    response = JSON.parse(body) as { methodResponses?: Array<unknown[]> };
+  } catch {
+    return undefined;
+  }
+  const first = response.methodResponses?.[0];
+  if (!Array.isArray(first) || first[0] === 'error') return undefined;
+  const parsed = (first[1] as { parsed?: Record<string, unknown> } | undefined)?.parsed;
+  const card = parsed?.[blobId];
+  return card && typeof card === 'object' ? (card as Record<string, unknown>) : undefined;
+}
+
 async function main(): Promise<number> {
   if (!PASSWORD) {
     console.error(
@@ -437,6 +460,200 @@ async function main(): Promise<number> {
       }
     } catch (err) {
       console.log(`  ERROR contacts: ${err instanceof Error ? err.message : err}`);
+    }
+
+    // -----------------------------------------------------------------------
+    // Step 3b — the question T2 actually has to answer before it is written.
+    //
+    // Step 3 proved the KEY survives. That is necessary and it is not enough,
+    // because the key surviving says nothing about the CARD surviving, and the
+    // two failure modes look identical from the outside: a successful write.
+    //
+    // Here is the shape of the problem. Every contacts SOURCE in this product
+    // hands the sync loop a `RawContact` carrying the original vCard TEXT, and
+    // `carddav-target-writer.ts` PUTs those bytes verbatim — nothing is lost
+    // because nothing is interpreted. JMAP has no vCard: `ContactCard` is
+    // JSContact (RFC 9553), a different object model. So a JMAP contacts
+    // target must get from one to the other, and there are only two ways:
+    //
+    //   (1) WE convert. The only structured thing we hold besides the vCard
+    //       text is `Contact` — our own normalised model — and it is already
+    //       lossy by design: no IMPP, no ROLE, no GEO, no X- properties, one
+    //       photo. Building the JSContact from THAT would silently drop
+    //       whatever the normaliser never modelled, on every card, forever.
+    //       Hard rule 9's exact failure mode with a green result.
+    //
+    //   (2) THE SERVER converts, via `ContactCard/parse` on an uploaded vCard
+    //       blob. Then the mapping is Stalwart's own — the same one its
+    //       CardDAV store uses — and a card written over JMAP holds what a
+    //       card written over CardDAV holds. That is the answer that makes T2
+    //       a connector rather than a standards project.
+    //
+    // Stalwart's documentation says `ContactCard/parse` exists and bounds it
+    // with `parseLimitContact` (default 10 vCards per request), which is why
+    // this rung is worth a request rather than an assumption. But this repo's
+    // rule is that a spike answers against the running server, not against
+    // documentation — the recurrence ladder is the reason that rule exists.
+    //
+    // WHAT TO LOOK FOR IN THE OUTPUT, in order:
+    //   - Does `ContactCard/parse` accept a blobId at all?
+    //   - Does the parsed card carry our UID unchanged? (the key again, this
+    //     time through the SERVER's parser rather than our hand-built object)
+    //   - Which properties came back? The vCard below deliberately carries
+    //     several that our `Contact` model does NOT have — IMPP, ROLE, GEO,
+    //     an X- property, a second photo-less URL — so anything present in the
+    //     read-back is fidelity route (2) buys us over route (1).
+    //   - Does the stored card carry a `blobId`, or anything else that leads
+    //     back to vCard bytes? This decides a SECOND thing, and it is easy to
+    //     miss: §20's content-verification leg. `carddav-target-writer.ts`
+    //     implements `contentHashFor` by GETting the card and hashing the
+    //     vCard with the same `contactContentHash` the ledger row was written
+    //     with. A JMAP target has no vCard to GET, so without a blob handle
+    //     that leg cannot be implemented at all and contacts verified over
+    //     JMAP would fall back to counts alone.
+    // -----------------------------------------------------------------------
+    const parseUid = `openmig-spike-vcard-${session.state ?? 'x'}`;
+    // CRLF line endings and a folded line, because that is what a real card
+    // off a CardDAV server looks like; a spike that sends tidier input than
+    // production does is testing something production never sends.
+    const vcard = [
+      'BEGIN:VCARD',
+      'VERSION:4.0',
+      `UID:${parseUid}`,
+      'FN:Openmig Spike Vcard',
+      'N:Vcard;Openmig;Spike;;',
+      'ORG:Open Migration Stack;Engineering',
+      'TITLE:Test Fixture',
+      'ROLE:Probe',
+      'EMAIL;TYPE=work:spike@dev.local',
+      'EMAIL;TYPE=home:spike-home@dev.local',
+      'TEL;TYPE=cell:+31600000000',
+      'ADR;TYPE=work:;;Keizersgracht 1;Amsterdam;;1015 CJ;NL',
+      'IMPP:xmpp:spike@dev.local',
+      'GEO:geo:52.3676,4.9041',
+      'BDAY:19900101',
+      'CATEGORIES:fixture,spike',
+      'URL:https://example.invalid/spike',
+      'NOTE:A long note that is deliberately folded across two physical lines s',
+      ' o that unfolding is exercised on the way through the parser.',
+      'X-OPENMIG-PROBE:this property has no JSContact equivalent',
+      'END:VCARD',
+      '',
+    ].join('\r\n');
+
+    try {
+      // Upload the vCard as a blob. The upload endpoint is built from the
+      // rebuilt apiUrl for the same reason every other call here is — the
+      // session's advertised host is unroutable (see step 1b).
+      const upload = await fetch(`${apiUrl}/upload/${contactsAccount}`, {
+        method: 'POST',
+        headers: { Authorization: auth, 'Content-Type': 'text/vcard' },
+        body: vcard,
+      });
+      const uploadBody = await upload.text();
+      console.log(`\n  Blob upload: HTTP ${upload.status} ${uploadBody.slice(0, 300)}`);
+      const blobId = (/"blobId":"([^"]+)"/.exec(uploadBody) ?? [])[1];
+
+      if (!blobId) {
+        console.log(
+          `  FAIL  no blobId came back, so ContactCard/parse cannot be tested.\n` +
+            `        This is NOT yet evidence that parse is missing — it is evidence\n` +
+            `        that the upload did not work, which is a different problem and\n` +
+            `        has to be separated from it before anything is concluded.`,
+        );
+      } else {
+        const parsed = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { Authorization: auth, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:contacts'],
+            methodCalls: [
+              ['ContactCard/parse', { accountId: contactsAccount, blobIds: [blobId] }, '0'],
+            ],
+          }),
+        }).then((r) => r.text());
+        console.log(`  ContactCard/parse: ${parsed.slice(0, 2000)}`);
+        console.log(
+          `\n         uid written: ${parseUid}  <- must appear UNCHANGED above\n` +
+            `         Then read the property list. Every one of ROLE / IMPP / GEO /\n` +
+            `         X-OPENMIG-PROBE that survived is fidelity our own converter\n` +
+            `         would have dropped without saying so.`,
+        );
+
+        // Parsing is not writing. A parsed card that ContactCard/set refuses
+        // leaves T2 exactly as blocked as no parse at all, so the round trip
+        // has to go all the way to the store and back.
+        // JSON.parse, not a regex. A JSContact card nests objects several deep,
+        // so a non-greedy `\{.*?\}` stops at the first inner closing brace and
+        // hands on a truncated fragment — which the server would then refuse
+        // for a reason having nothing to do with the question being asked.
+        // That would be the third time this spike blamed Stalwart for its own
+        // mistake; see the `@type` and `addressBookIds` notes above.
+        const card = firstParsedCard(parsed, blobId);
+        if (!card) {
+          console.log(
+            `  (no Card under \`parsed\` in the response above — read the JSON by\n` +
+              `   eye. The shape of the answer is whether ContactCard/parse\n` +
+              `   produced a card at all, or answered notParsable / an error.)`,
+          );
+        } else {
+          const wrote = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { Authorization: auth, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:contacts'],
+              methodCalls: [
+                [
+                  'ContactCard/set',
+                  {
+                    accountId: contactsAccount,
+                    // The address book is added to the SERVER's own parsed card
+                    // rather than substituted into it: the point of this rung is
+                    // that we write back exactly what the parser produced, minus
+                    // the one property the parser cannot know (which book).
+                    create: { p: { ...card, addressBookIds: { [addressBookId]: true } } },
+                  },
+                  '0',
+                ],
+              ],
+            }),
+          }).then((r) => r.text());
+          console.log(`  ContactCard/set (the PARSED card): ${wrote.slice(0, 1500)}`);
+          const pid = (/"id":"([^"]+)"/.exec(wrote) ?? [])[1];
+          if (pid) {
+            const back = await fetch(apiUrl, {
+              method: 'POST',
+              headers: { Authorization: auth, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:contacts'],
+                methodCalls: [
+                  ['ContactCard/get', { accountId: contactsAccount, ids: [pid] }, '0'],
+                ],
+              }),
+            }).then((r) => r.text());
+            console.log(`  read back from the STORE: ${back.slice(0, 2500)}`);
+            await fetch(apiUrl, {
+              method: 'POST',
+              headers: { Authorization: auth, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:contacts'],
+                methodCalls: [
+                  ['ContactCard/set', { accountId: contactsAccount, destroy: [pid] }, '0'],
+                ],
+              }),
+            }).catch(() => undefined);
+          } else {
+            console.log(
+              `  The parsed card was REFUSED by ContactCard/set. Read the\n` +
+                `  notCreated above: if it names a property, that is ours to fix\n` +
+                `  (the spike has been wrong twice and Stalwart zero times on this\n` +
+                `  surface). If it names the method, T2 needs route (1) after all.`,
+            );
+          }
+        }
+      }
+    } catch (err) {
+      console.log(`  ERROR vcard parse route: ${err instanceof Error ? err.message : err}`);
     }
   }
 
