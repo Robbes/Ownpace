@@ -197,6 +197,43 @@ async function main(): Promise<number> {
     );
   }
 
+  // -------------------------------------------------------------------------
+  // Step 1b — can we actually CALL the API, and what is on this account?
+  //
+  // Two facts step 2 needs and cannot assume. First, that the rebuilt endpoint
+  // works: the session's own apiUrl is unroutable here, so every later request
+  // depends on the baseUrl reconstruction being right rather than on the
+  // server's advice. Second, the calendar ids — step 2 has to write an event
+  // somewhere, and inventing a container id is how a spike fails for a reason
+  // that has nothing to do with what it was asking.
+  // -------------------------------------------------------------------------
+  const apiUrl = BASE.endsWith('/') ? `${BASE}jmap` : `${BASE}/jmap`;
+  const accountId = session.primaryAccounts?.['urn:ietf:params:jmap:calendars'];
+  console.log(`\n=== Step 1b — calling ${apiUrl} (NOT the advertised apiUrl)\n`);
+
+  if (!accountId) {
+    console.log('    No primary account for calendars, so there is nothing to call with.');
+  } else {
+    try {
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { Authorization: auth, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:calendars'],
+          methodCalls: [['Calendar/get', { accountId, ids: null }, '0']],
+        }),
+      });
+      const text = await res.text();
+      console.log(`    HTTP ${res.status}`);
+      // Printed raw and whole. This is a spike: the field NAMES are the
+      // finding, and a summarised version would drop exactly the detail step 2
+      // is being written against.
+      console.log(text.slice(0, 2000));
+    } catch (err) {
+      console.log(`    The call failed: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
   console.log(
     `\n=== Step 2 — the natural-key round trip\n\n` +
       `    NOT AUTOMATED YET, and deliberately not faked. Step 1 decides whether\n` +
