@@ -102,7 +102,7 @@ Multi-tenant (`tenant_id` + Postgres RLS, per-tenant workspaces/rate budgets), c
 | **Orchestration** | interface `Scheduler/JobRunner` | **in-process** (croner) | **Trigger.dev** (self-host or cloud) |
 | **State** | ledger contract | **bundled Postgres (compose) or embedded PGlite** (`SELFHOST_PERSISTENCE=pglite` — no container, no port; ADR-0028) | **managed Postgres + RLS** |
 | **Tenancy** | — | single | multi-tenant (RLS) |
-| **Secrets** | — | OS keychain / age-encrypted file | vault (OpenBao/Infisical) |
+| **Secrets** | — | AES under `SECRET_ENCRYPTION_KEY` (OS keychain / age-encrypted file: **not built**) | AES under `SECRET_ENCRYPTION_KEY` (vault OpenBao/Infisical: **not built**) |
 | **Auth** | — | local / single-user | IdP/SSO (Zitadel) |
 | **Provisioning** | *retracted (ADR-0008, 2026-08-02)* — owner supplies existing-account credentials; guidance in docs | idem | idem |
 | **Billing** | — | none | cost-recovery (Mollie) |
@@ -116,7 +116,7 @@ flowchart TB
     PORTAL["Self-service portal / Wizard"]
     IDP["Identity (Zitadel/Keycloak)"]
     TENANT["Tenant & scope mgmt (RBAC, RLS)"]
-    VAULT["Secrets vault (OpenBao/Infisical)"]
+    VAULT["Secrets: AES under SECRET_ENCRYPTION_KEY<br/>(vault OpenBao/Infisical NOT built)"]
   end
   subgraph ORCH["Orchestration — Trigger.dev (self-host or cloud)"]
     FLOWS["Tasks: full-copy / incremental / cutover"]
