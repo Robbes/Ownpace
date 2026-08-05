@@ -108,6 +108,7 @@ const NEEDED = [
 ] as const;
 
 interface JmapSession {
+  readonly state?: string;
   readonly capabilities?: Record<string, unknown>;
   readonly apiUrl?: string;
   readonly primaryAccounts?: Record<string, string>;
@@ -234,25 +235,119 @@ async function main(): Promise<number> {
     }
   }
 
+  // -------------------------------------------------------------------------
+  // Step 2 — does a modified occurrence keep an identity our key can see?
+  //
+  // The whole plan turns on this. A recurring series and each of its modified
+  // occurrences share a UID under RFC 5545, so the UID alone does not identify
+  // one of them; `naturalKeyForCalendar()` appends RECURRENCE-ID for exactly
+  // that reason, after the key collided and silently lost occurrences on
+  // 2026-08-04.
+  //
+  // JSCalendar does not model an override as a separate object with its own
+  // RECURRENCE-ID field. It nests them under `recurrenceOverrides`, KEYED BY
+  // the recurrence id. So the question is not "is there a RECURRENCE-ID
+  // property" — there is not — but whether the key of that map is the same
+  // value CalDAV would have put in RECURRENCE-ID. If it is, the transformation
+  // is mechanical and answer 2 in the plan applies. If it is not, answer 3.
+  //
+  // This CREATES one event in the dev calendar and then DELETES it. That is
+  // the first thing in this file to write anything, so it is confined to the
+  // throwaway `dev.local` account, and the delete runs even when the read
+  // fails — a spike that leaves debris behind poisons the next run.
+  // -------------------------------------------------------------------------
+  console.log(`\n=== Step 2 — a modified occurrence, written and read back\n`);
+  const calendarId = 'b';
+  const uid = `openmig-spike-${session.state ?? 'x'}-recurring`;
+  const OVERRIDE_AT = '2026-09-08T09:00:00';
+
+  if (!accountId) {
+    console.log('    No calendars account; cannot run step 2.');
+    return 1;
+  }
+
+  const call = async (methodCalls: unknown[][]): Promise<string> => {
+    const res = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { Authorization: auth, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:calendars'],
+        methodCalls,
+      }),
+    });
+    return res.text();
+  };
+
+  let createdId: string | undefined;
+  try {
+    const created = await call([
+      [
+        'CalendarEvent/set',
+        {
+          accountId,
+          create: {
+            spike: {
+              '@type': 'Event',
+              calendarIds: { [calendarId]: true },
+              uid,
+              title: 'openmig spike — weekly series',
+              start: '2026-09-01T09:00:00',
+              timeZone: 'Europe/Amsterdam',
+              duration: 'PT1H',
+              recurrenceRules: [{ '@type': 'RecurrenceRule', frequency: 'weekly', count: 3 }],
+              // The one that matters: a single occurrence moved and retitled.
+              recurrenceOverrides: { [OVERRIDE_AT]: { title: 'openmig spike — MOVED' } },
+            },
+          },
+        },
+        '0',
+      ],
+    ]);
+    console.log('--- CalendarEvent/set (create) ---');
+    console.log(created.slice(0, 1500));
+    createdId = (/"id":"([^"]+)"/.exec(created) ?? [])[1];
+
+    if (!createdId) {
+      console.log(
+        '\n    No id came back, so the create was REFUSED. The response above is\n' +
+          '    the finding — read notCreated for the reason before concluding\n' +
+          '    anything about recurrence identity.',
+      );
+      return 1;
+    }
+
+    const read = await call([
+      ['CalendarEvent/get', { accountId, ids: [createdId] }, '0'],
+    ]);
+    console.log('\n--- CalendarEvent/get (read back, raw) ---');
+    console.log(read.slice(0, 4000));
+
+    console.log(
+      `\n--- What this means for naturalKeyForCalendar()\n\n` +
+        `    uid as written:        ${uid}\n` +
+        `    override map key:      ${OVERRIDE_AT}\n\n` +
+        `    Compare the read-back object above against those two. The series\n` +
+        `    key is hash("cal:<uid>"); an occurrence key is\n` +
+        `    hash("cal:<uid>|<RECURRENCE-ID>"). So the question is whether the\n` +
+        `    override map key round-trips UNCHANGED and in the same form CalDAV\n` +
+        `    writes RECURRENCE-ID. If Stalwart normalised it — a Z suffix, a\n` +
+        `    different precision, a TZID — the two transports hash differently\n` +
+        `    and every modified occurrence is re-copied on a switch.\n`,
+    );
+  } catch (err) {
+    console.log(`    Step 2 failed: ${err instanceof Error ? err.message : err}`);
+    return 1;
+  } finally {
+    if (createdId) {
+      await call([['CalendarEvent/set', { accountId, destroy: [createdId] }, '0']]).catch(
+        () => undefined,
+      );
+      console.log(`\n    (cleaned up ${createdId})`);
+    }
+  }
+
   console.log(
-    `\n=== Step 2 — the natural-key round trip\n\n` +
-      `    NOT AUTOMATED YET, and deliberately not faked. Step 1 decides whether\n` +
-      `    step 2 is even a question, and until a capability is advertised there\n` +
-      `    is nothing to write over DAV and read back over JMAP.\n\n` +
-      `    When it is: create a recurring event with a MODIFIED OCCURRENCE over\n` +
-      `    CalDAV, read it back through JMAP, and compare\n` +
-      `    naturalKeyForCalendar() computed from each side. That case, not the\n` +
-      `    simple one, is the whole test — a series and its modified occurrences\n` +
-      `    share a UID under RFC 5545, and the key only tells them apart because\n` +
-      `    RECURRENCE-ID was added to it on 2026-08-04 after it silently lost\n` +
-      `    occurrences. If JMAP does not expose a recurrence identifier that\n` +
-      `    hashes identically, a switched mapping re-copies every modified\n` +
-      `    occurrence and reports success.\n\n` +
-      `    apiUrl (as advertised): ${session.apiUrl ?? '(absent)'}\n` +
-      `    ^ do NOT follow this blindly. Stalwart advertises an unroutable host\n` +
-      `      here; the existing mail target already ignores it and rebuilds the\n` +
-      `      endpoint from baseUrl, and T1-T3 inherit that convention.\n` +
-      `    primaryAccounts: ${JSON.stringify(session.primaryAccounts ?? {})}\n`,
+    `\n    apiUrl (as advertised): ${session.apiUrl ?? '(absent)'} — not followed; see above.\n`,
   );
 
   return blocked > 0 ? 1 : 0;
