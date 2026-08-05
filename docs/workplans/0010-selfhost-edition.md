@@ -57,7 +57,7 @@ cleanly").
 - The restart-resume black-box idempotency gate.
 
 ## Out of scope (later)
-- Home Assistant add-on and the hybrid agent (§7.1) — after the compose path is proven.
+- ~~Home Assistant add-on and the hybrid agent (§7.1) — after the compose path is proven.~~ **RETRACTED 2026-08-05** (owner decision, 0026 T3 row 17): the compose path IS proven, and the deferral expired without either being built. The add-on is a distribution channel rather than a capability — the appliance runs on any Docker host, including a Home Assistant one — and the hybrid agent is a third deployment topology with its own credential flow and security boundary, not packaging. SAD §7.1 carries the note.
 - Tauri tray app / Windows-native (§25.3, ADR-0019) — container-first stands.
 - Embedded/serverless Postgres (pglite/embedded-postgres) to drop the container — ADR-0023 parks
   this as the future "no container" path; **not** this slice.
