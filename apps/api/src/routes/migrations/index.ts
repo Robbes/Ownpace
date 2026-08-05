@@ -87,7 +87,15 @@ function getSharedPool() {
 }
 
 // Schema validation
-const CreateMappingSchema = z.object({
+/**
+ * Exported for the retraction guard (`sync-mode.unit.test.ts`).
+ *
+ * The mode enum below is the whole of what rows 7 and 8's retraction amounts
+ * to in code. Nothing else refuses a withdrawn mode, so nothing else can be
+ * asserted against — and a schema nothing tests is one careless widening away
+ * from accepting `bidirectional` again in silence.
+ */
+export const CreateMappingSchema = z.object({
   name: z.string().min(1).max(255),
   sourceType: z.enum(['imap', 'oauth2', 'graph']),
   targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav']),
