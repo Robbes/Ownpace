@@ -632,6 +632,53 @@ async function main(): Promise<number> {
               }),
             }).then((r) => r.text());
             console.log(`  read back from the STORE: ${back.slice(0, 2500)}`);
+
+            // -----------------------------------------------------------
+            // Rung A — was `vCard` DROPPED, or merely not returned?
+            //
+            // The 2026-08-05 run found `vCard` (the JSContact escape hatch
+            // holding X-OPENMIG-PROBE, plus a `convertedProperties`
+            // provenance map) present in the PARSE output and absent from
+            // the store read-back. Those are two completely different
+            // findings wearing the same appearance:
+            //
+            //   dropped on WRITE  -> every unmapped vCard property is lost
+            //                        on the JMAP path while the DAV path
+            //                        keeps it verbatim, which makes JMAP
+            //                        contacts strictly worse than what we
+            //                        already ship. Owner-grade.
+            //   omitted on READ   -> nothing was lost; `ContactCard/get`
+            //                        simply did not volunteer it.
+            //
+            // Asking for it BY NAME is what tells them apart. A property
+            // explicitly requested and still absent was not stored.
+            // -----------------------------------------------------------
+            const explicit = await fetch(apiUrl, {
+              method: 'POST',
+              headers: { Authorization: auth, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:contacts'],
+                methodCalls: [
+                  [
+                    'ContactCard/get',
+                    {
+                      accountId: contactsAccount,
+                      ids: [pid],
+                      properties: ['uid', 'vCard', 'addresses', 'name'],
+                    },
+                    '0',
+                  ],
+                ],
+              }),
+            }).then((r) => r.text());
+            console.log(`\n  Rung A — asked for \`vCard\` BY NAME: ${explicit.slice(0, 1800)}`);
+            console.log(
+              `         If \`vCard\` is still absent here, the STORE dropped it and\n` +
+                `         every X- property is lost on the JMAP path but kept on the\n` +
+                `         DAV one. If it is present, the earlier read merely did not\n` +
+                `         volunteer it and nothing was lost.`,
+            );
+
             await fetch(apiUrl, {
               method: 'POST',
               headers: { Authorization: auth, 'Content-Type': 'application/json' },
@@ -654,6 +701,129 @@ async function main(): Promise<number> {
       }
     } catch (err) {
       console.log(`  ERROR vcard parse route: ${err instanceof Error ? err.message : err}`);
+    }
+
+    // -----------------------------------------------------------------------
+    // Rung B — the DAV/JMAP comparison T0 was chartered to do, finally aimed
+    // at the CONTENT rather than the key.
+    //
+    // The 2026-08-05 run found the single `ADR` coming back out of the store
+    // as TWO addresses: `k1` holding nothing but `coordinates`, and a new
+    // `k1-2` holding the actual street address. One address in, two out, one
+    // of them a bare coordinate — and every write returned success.
+    //
+    // That could be either of two things, and they lead to opposite places:
+    //
+    //   the PARSER's doing   -> Stalwart's CardDAV store would do it too, so
+    //                           a customer already on DAV has the same cards
+    //                           and switching transport changes nothing.
+    //   the JMAP WRITE path  -> a card written over JMAP genuinely differs
+    //                           from the same vCard written over CardDAV, and
+    //                           0031's whole premise (a mapping is switchable
+    //                           between them without duplicating anything) is
+    //                           narrower than it was written to be.
+    //
+    // The only way to tell is to let STALWART do the storing: PUT the same
+    // vCard over CardDAV and read the result back over JMAP. Same server,
+    // same store, same card — the only variable is which door it came in.
+    // -----------------------------------------------------------------------
+    console.log(`\n=== Rung B — the same vCard in through CardDAV, out through JMAP\n`);
+    const davUid = `openmig-spike-dav-${session.state ?? 'x'}`;
+    const davVcard = vcard.replace(`UID:${parseUid}`, `UID:${davUid}`);
+    try {
+      // The account segment is not guessable and must not be guessed — the
+      // whole rung is worthless if it silently 404s and gets read as "DAV
+      // stores it differently". Try the forms Stalwart uses and SAY which one
+      // answered, or that none did.
+      let bookHref: string | undefined;
+      let davRoot: string | undefined;
+      for (const account of [USER, USER.split('@')[0] ?? USER]) {
+        const root = `${BASE.replace(/\/$/, '')}/dav/card/${encodeURIComponent(account)}/`;
+        const res = await fetch(root, {
+          method: 'PROPFIND',
+          headers: { Authorization: auth, Depth: '1', 'Content-Type': 'application/xml' },
+          body:
+            '<?xml version="1.0" encoding="utf-8"?>' +
+            '<D:propfind xmlns:D="DAV:"><D:prop><D:resourcetype/></D:prop></D:propfind>',
+        });
+        const body = await res.text();
+        console.log(`  PROPFIND ${root} -> HTTP ${res.status}`);
+        if (res.status !== 207) continue;
+        // Any href one level below the home set is the address book. The home
+        // set itself is in the list too and is not one.
+        const hrefs = [...body.matchAll(/<[Dd]?:?href>([^<]+)<\/[Dd]?:?href>/g)].map((m) => m[1] ?? '');
+        bookHref = hrefs
+          .map((h) => decodeURIComponent(h))
+          .find((h) => h.replace(/\/$/, '') !== new URL(root).pathname.replace(/\/$/, '') && h.endsWith('/'));
+        davRoot = root;
+        if (bookHref) break;
+      }
+
+      if (!bookHref || !davRoot) {
+        console.log(
+          `  SKIPPED — no CardDAV address book could be discovered for ${USER}.\n` +
+            `  Reported rather than worked around: a guessed path that 404s would\n` +
+            `  make this rung report "DAV differs" when nothing was ever written.`,
+        );
+      } else {
+        const cardUrl = new URL(`${bookHref}${davUid}.vcf`, davRoot).toString();
+        const put = await fetch(cardUrl, {
+          method: 'PUT',
+          headers: { Authorization: auth, 'Content-Type': 'text/vcard', 'If-None-Match': '*' },
+          body: davVcard,
+        });
+        console.log(`  PUT ${cardUrl} -> HTTP ${put.status}`);
+
+        if (put.status !== 201 && put.status !== 204) {
+          console.log(`         ${(await put.text()).slice(0, 400)}`);
+          console.log(`  The card was not stored, so nothing below would mean anything.`);
+        } else {
+          // Read EVERY card and pick ours by uid: the DAV write assigns its own
+          // JMAP id, and inventing one is how a rung fails for a reason that has
+          // nothing to do with what it was asking.
+          const all = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { Authorization: auth, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:contacts'],
+              methodCalls: [
+                [
+                  'ContactCard/get',
+                  {
+                    accountId: contactsAccount,
+                    ids: null,
+                    properties: ['uid', 'vCard', 'addresses', 'name', 'titles', 'onlineServices'],
+                  },
+                  '0',
+                ],
+              ],
+            }),
+          }).then((r) => r.text());
+          const mine = all.includes(davUid) ? all : undefined;
+          console.log(`  read back over JMAP: ${(mine ?? all).slice(0, 2500)}`);
+          if (!mine) {
+            console.log(
+              `  ${davUid} is NOT in the JMAP list above. That is its own finding:\n` +
+                `  the two surfaces are not one store, which would change 0031 far\n` +
+                `  more than an address that splits.`,
+            );
+          }
+          console.log(
+            `\n         COMPARE against "read back from the STORE" earlier:\n` +
+              `         - one \`addresses\` entry or two?  Two on BOTH paths means the\n` +
+              `           parser; two only on the JMAP path means our write route.\n` +
+              `         - is \`vCard\` (with x-openmig-probe) present here? If it\n` +
+              `           survives a DAV write but not a JMAP one, the JMAP contacts\n` +
+              `           target loses every X- property the DAV target keeps.`,
+          );
+
+          await fetch(cardUrl, { method: 'DELETE', headers: { Authorization: auth } }).catch(
+            () => undefined,
+          );
+        }
+      }
+    } catch (err) {
+      console.log(`  ERROR dav comparison: ${err instanceof Error ? err.message : err}`);
     }
   }
 
