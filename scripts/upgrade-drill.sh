@@ -21,9 +21,11 @@
 #   3. The container comes back HEALTHY against a pre-existing volume, and
 #      still reports the mappings it had.
 #
-# SAFETY: runs under its own compose project (`-p`) with its own volumes, so it
-# cannot touch an appliance you actually use. It removes only what it created,
-# and only volumes carrying its own project prefix.
+# SAFETY: its own compose project, its own volumes AND its own container name.
+# The last of those needs `compose.drill.yml`, because `container_name` in the
+# base file is a fixed string that `-p` does not namespace — without the
+# override a drill run would collide with a real appliance rather than ignore
+# it. It removes only what it created.
 #
 # HONESTY: while the release tag and HEAD are the same commit, this proves the
 # MECHANICS and nothing about version skew — both sides are the same software.
@@ -51,9 +53,15 @@ cd "$REPO_ROOT"
 # PGlite path on purpose: one container, no server, and it is the shape a
 # native installer ships — so the state directory is the thing being upgraded,
 # which is exactly the risk this drill exists for.
+# `compose.drill.yml` carries the two isolations `-p` does not give: a
+# container name of its own, and a mounted config so the appliance actually
+# has a mapping to lose. See that file for why both are load-bearing.
+DRILL_CONFIG_DIR="$(mktemp -d)"
+export DRILL_CONFIG_DIR
 COMPOSE=(docker compose -p "$PROJECT"
   -f deploy/selfhost/compose.yml
-  -f deploy/selfhost/compose.pglite.yml)
+  -f deploy/selfhost/compose.pglite.yml
+  -f deploy/selfhost/compose.drill.yml)
 
 say() { printf '\n=== %s\n' "$*"; }
 fail() { printf '\nDRILL FAILED: %s\n' "$*" >&2; exit 1; }
@@ -61,6 +69,8 @@ fail() { printf '\nDRILL FAILED: %s\n' "$*" >&2; exit 1; }
 cleanup() {
   say "Cleaning up the drill's own project (your appliances are untouched)"
   "${COMPOSE[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
+  [ -n "${DRILL_CONFIG_DIR:-}" ] && rm -rf "$DRILL_CONFIG_DIR"
+  return 0
 }
 trap cleanup EXIT
 
@@ -92,6 +102,11 @@ else
   say "Upgrading across $((HEAD_MIGRATIONS - FROM_MIGRATIONS)) new migration(s)."
 fi
 
+# One real mapping, from the shipped example. The appliance has to CONFIGURE
+# it and keep reporting it across the upgrade; it never has to reach anything,
+# because this drills an appliance upgrade, not a migration.
+cp deploy/selfhost/config/mapping.json.example "$DRILL_CONFIG_DIR/mapping.json"
+
 wait_healthy() {
   local what="$1" i
   for i in $(seq 1 60); do
@@ -120,6 +135,16 @@ wait_healthy "released appliance"
 
 BEFORE_STATUS="$(curl -sf "${BASE}/status")" || fail "released appliance served no /status"
 echo "$BEFORE_STATUS" | head -c 400; echo
+
+# THE GUARD THAT MAKES STEP 4 MEAN SOMETHING. With no mappings configured, the
+# "same mappings before and after" comparison is empty-set against empty-set —
+# it passes while proving nothing, which is how the first real run of this
+# drill (2026-08-04) reported success on `"mappings":[]`. Refuse to continue.
+if ! echo "$BEFORE_STATUS" | grep -q '"mappingId"'; then
+  fail "the released appliance configured NO mappings, so nothing downstream can be compared.
+    Check $DRILL_CONFIG_DIR/mapping.json — the appliance logs will say why it was rejected:
+      ${COMPOSE[*]} logs app"
+fi
 
 # Proof the OLD image really did create the database, rather than the drill
 # passing against a directory nothing ever wrote.
@@ -158,11 +183,12 @@ say "    startup migration path ran"
 # rather than the whole payload: counters legitimately move between two reads,
 # the set of configured migrations does not.
 ids_of() { echo "$1" | grep -o '"mappingId":"[^"]*"' | sort -u; }
+[ -n "$(ids_of "$AFTER_STATUS")" ] || fail "the upgraded appliance reports no mappings at all"
 if [ "$(ids_of "$BEFORE_STATUS")" != "$(ids_of "$AFTER_STATUS")" ]; then
   printf 'before: %s\nafter:  %s\n' "$(ids_of "$BEFORE_STATUS")" "$(ids_of "$AFTER_STATUS")"
   fail "the upgraded appliance reports a different set of mappings"
 fi
-say "    same mappings before and after"
+say "    same mappings before and after ($(ids_of "$AFTER_STATUS" | wc -l | tr -d ' ') configured)"
 
 # ---------------------------------------------------------------------------
 # 4. Restart once more. An upgrade that only works the first time is a bomb on

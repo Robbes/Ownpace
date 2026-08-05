@@ -1,0 +1,30 @@
+# Overrides for the upgrade drill (workplan 0025 T5) — `scripts/upgrade-drill.sh`.
+#
+# Two things the drill needs that `-p <project>` does NOT give it, both found
+# by running the drill for real on 2026-08-04:
+#
+# 1. `container_name` IS NOT NAMESPACED BY THE PROJECT. The base file pins
+#    `open-migrate-selfhost-app`, so a drill run under its own project still
+#    tries to create a container with the same name as a REAL appliance. The
+#    first run got away with it only because no appliance happened to be up;
+#    with one running it would have collided, and a script whose own output
+#    says "your appliances are untouched" must not depend on that luck.
+#
+# 2. A CONFIG DIRECTORY WITH AN ACTUAL MAPPING IN IT. Config is baked into the
+#    image, and the repo ships only `mapping.json.example`, so the released
+#    image starts with `"mappings":[]`. The drill's "same mappings before and
+#    after" check then compared an empty set to an empty set and passed having
+#    proved nothing — the exact vacuous shape this whole task keeps finding.
+#    Mounting a config makes that comparison real, and exercises config
+#    loading across the upgrade as well.
+#
+# The mapping named here does not have to reach anything: the drill upgrades an
+# appliance, it does not migrate mail. What matters is that the appliance
+# CONFIGURED it, reports it in /status, and still reports it afterwards.
+
+services:
+  app:
+    container_name: open-migrate-upgrade-drill-app
+    volumes:
+      - appdata:/data/state
+      - ${DRILL_CONFIG_DIR:?the drill sets this}:/data/config:ro
