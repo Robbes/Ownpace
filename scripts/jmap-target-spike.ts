@@ -91,13 +91,19 @@ const NEEDED = [
     absence: 'Stalwart does not offer JMAP contacts. T2 is blocked on the server.',
   },
   {
+    // CORRECTED 2026-08-05 by the first real run. This asked for
+    // `urn:ietf:params:jmap:blob` and warned that blob alone gives no
+    // collection model — true of blob, and beside the point, because Stalwart
+    // advertises `urn:ietf:params:jmap:filenode`, which IS the file-node
+    // concept. Checking the wrong URN would have reported a doubt that the
+    // server had already answered.
     domain: 'files (0031 T3)',
-    urn: 'urn:ietf:params:jmap:blob',
+    urn: 'urn:ietf:params:jmap:filenode',
     absence:
-      'No JMAP blob capability. Note that even WITH it, JMAP has no file-sharing ' +
-      'model equivalent to WebDAV collections — T3 may be unbuildable on ' +
-      'protocol grounds rather than server grounds, which is worth settling ' +
-      'before T1 starts rather than after.',
+      'No JMAP filenode capability. Blob alone is not enough: it addresses ' +
+      'opaque content, not a named hierarchy, so without filenode there is no ' +
+      'collection model to map WebDAV paths onto and T3 is blocked on ' +
+      'protocol grounds rather than server grounds.',
   },
 ] as const;
 
@@ -205,7 +211,10 @@ async function main(): Promise<number> {
       `    occurrences. If JMAP does not expose a recurrence identifier that\n` +
       `    hashes identically, a switched mapping re-copies every modified\n` +
       `    occurrence and reports success.\n\n` +
-      `    apiUrl:         ${session.apiUrl ?? '(absent)'}\n` +
+      `    apiUrl (as advertised): ${session.apiUrl ?? '(absent)'}\n` +
+      `    ^ do NOT follow this blindly. Stalwart advertises an unroutable host\n` +
+      `      here; the existing mail target already ignores it and rebuilds the\n` +
+      `      endpoint from baseUrl, and T1-T3 inherit that convention.\n` +
       `    primaryAccounts: ${JSON.stringify(session.primaryAccounts ?? {})}\n`,
   );
 

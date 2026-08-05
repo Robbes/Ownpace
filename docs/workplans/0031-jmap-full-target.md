@@ -4,8 +4,8 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T0 The spike: do our natural keys survive the transport switch? | ⬜ **Not started — and NOTHING below it starts until this answers** | See "Why T0 comes first" |
-| T1 Calendars as a JMAP target | ⬜ Blocked on T0 | |
+| T0 The spike: do our natural keys survive the transport switch? | 🟡 **Step 1 RUN on Spark 2026-08-05 — GO. Step 2, the key round trip, is the remaining half** | **All three capabilities are advertised**, so the plan is NOT blocked on the server: `urn:ietf:params:jmap:calendars`, `:contacts` and `:filenode`, alongside `:mail`, `:blob`, `:principals`, `:quota`, `:sieve`, `:submission`, `:websocket` and Stalwart's own `urn:stalwart:jmap`. That closes the branch this task existed to test cheaply, in one request. **Two corrections came out of running it.** (1) The spike asked for `urn:ietf:params:jmap:blob` for files and warned that blob gives no collection model — true of blob and beside the point: Stalwart advertises **`filenode`**, which IS the file-node concept, so the check was aimed at the wrong URN and would have reported a doubt the server had already answered. Corrected, with blob's insufficiency kept as the reason filenode is the one that matters. (2) The session advertises **`apiUrl: https://0.0.0.0/jmap/`** — unroutable. That is not a new discovery: `jmap-target.ts` already ignores the session's apiUrl and rebuilds the endpoint from `baseUrl`, with a comment saying the host is unreliable on Stalwart. The run is that comment proven, and T1-T3 inherit the convention rather than rediscovering it. |
+| T1 Calendars as a JMAP target | ⬜ Blocked on T0 step 2 | The capability exists; what is unproven is whether `naturalKeyForCalendar()` agrees across a DAV↔JMAP switch for a MODIFIED OCCURRENCE. |
 | T2 Contacts as a JMAP target | ⬜ Blocked on T1 | |
 | T3 Files as a JMAP target | ⬜ Blocked on T1 | |
 | T4 Surface + manifest truth | ⬜ Blocked on T1 | |
