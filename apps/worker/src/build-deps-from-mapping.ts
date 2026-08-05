@@ -33,11 +33,11 @@ import {
   buildCalendarSource,
   buildCalendarTarget,
   buildContactSource,
-  buildContactTarget,
   buildFileSource,
   buildFileTarget,
 } from './dav-factories';
 import { davEndpointFromCreds, fileEndpointFromCreds } from './dav-endpoint';
+import { buildContactTargetFor, contactTargetProtocol } from './contact-target-factory';
 import { PgLedger, PgCursorStore, createPgDb, withTenant } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import { mailboxMapping } from '@openmig/ledger';
@@ -304,7 +304,16 @@ export async function buildDomainDepsFromMapping(
         {
           ...common,
           source: buildContactSource(srcEndpoint),
-          target: buildContactTarget(tgtEndpoint, targetDeps),
+          // Contacts can go over JMAP where the target speaks it (0031 T2).
+          // Read off the connection's own `kind`, which has allowed `jmap`
+          // since the 0001 baseline, so this needs no migration and no new
+          // config field. Anything else stays on CardDAV, which is what every
+          // existing mapping is and must remain.
+          target: buildContactTargetFor(
+            contactTargetProtocol(tgt.kind),
+            tgtEndpoint,
+            targetDeps,
+          ),
         } satisfies ContactSyncDeps,
         db,
       );
