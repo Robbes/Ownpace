@@ -25,11 +25,20 @@ export interface ScopeManifest {
 }
 
 export const SCOPE_MANIFEST: ScopeManifest = {
-  version: '2026-08-04',
+  version: '2026-08-05',
   migrates: [
     { item: 'Email', detail: 'Folders incl. Sent / Drafts / Archive, flags/keywords, timestamps.' },
     { item: 'Calendar', detail: 'Events, recurrence, attendees (ICS).' },
-    { item: 'Contacts', detail: 'Address books and contacts (vCard).' },
+      {
+      item: 'Contacts',
+      detail:
+        'Address books and contacts (vCard). Carried over CardDAV, or over JMAP where the ' +
+        'target speaks it — the same contacts either way, including properties with no ' +
+        'JSContact equivalent. One difference worth knowing before cutover: on the JMAP path ' +
+        'the target exposes no route back to the original vCard, so content-checksum sampling ' +
+        'does not run and verification checks counts and presence instead. The report says so ' +
+        'per run rather than leaving it to be inferred.',
+    },
     { item: 'Files', detail: 'OneDrive / SharePoint document libraries (files + folders).' },
     {
       item: 'Shared mailboxes',

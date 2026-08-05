@@ -33,3 +33,32 @@ idempotent shadow pass, and ADR-0019's update note records that the runtime is
 pure JavaScript with no shell-outs at all. The SAD's tables were corrected in
 its v1.2 pass; this note brings the ADR itself in line (0026 T4). The
 decision — JMAP primary, IMAP/DAV parallel, mail leads — is unchanged.
+
+## Update 2026-08-05 — "mail leads" has a first follower, and it is contacts
+
+"Mail leads and cal/contacts/files follow" was written when JMAP for
+Calendars/Contacts/Files was new on Stalwart. Workplan 0031 tested it against
+the running server rather than the specification, and the three domains did not
+move together:
+
+- **Contacts followed.** `JmapContactTarget` ships (0031 T2), wired for both
+  editions, with the sync loop exercised against a real Stalwart in CI. The
+  vCard is converted by the SERVER via `ContactCard/parse`, so a card written
+  over JMAP holds what a card written over CardDAV holds — proven by reading it
+  back out through the CardDAV door.
+- **Calendars did not.** Stalwart v0.16.10 refuses `recurrenceRules` over JMAP
+  while its CalDAV path accepts them, so a JMAP calendar target could not carry
+  a recurring series at all. Parked by owner decision; CalDAV keeps that
+  domain. The trigger is `scripts/jmap-target-spike.ts`, re-run on each bump.
+- **Files are buildable and unstarted.** A JMAP `FileNode` has no path, only a
+  `name` + `parentId` chain, and `fileNaturalKeyHash` hashes a normalised path
+  — so that reconstruction has to exist and agree with WebDAV's before
+  anything can be keyed.
+
+**The decision is unchanged; the sequencing note is now specific rather than
+aspirational.** One thing it does change: JMAP is not uniformly at parity with
+DAV per domain, so "which protocol carries which domain" is a real question per
+deployment rather than a detail. Contacts over JMAP also get **no §20 checksum
+leg** — a stored `ContactCard` exposes no route back to vCard bytes — which
+verification reports as `CHECKSUM_UNAVAILABLE_contacts` rather than passing
+quietly.
