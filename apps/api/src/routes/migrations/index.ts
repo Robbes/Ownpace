@@ -120,24 +120,40 @@ export const CreateMappingSchema = z.object({
   // Mapping-specific fields (for mailbox_mapping table)
   status: z.enum(['active', 'paused', 'cutover', 'done']).optional(),
   /**
-   * The sync mode. Only the two the engine actually implements are accepted.
+   * The sync mode. **One value, because one is all the engine implements.**
    *
    * `bidirectional` and `asymmetric` were RETRACTED 2026-08-03 (owner decision,
-   * 0026 T3 row 7; SAD §11 carries the note). They were enum values nothing
-   * ever branched on — accepting one stored a word and changed no behaviour,
-   * which is precisely the shape of promise 0026 exists to end. They stay in
-   * the DATABASE enum, because existing rows may carry them and hard rule 2
-   * does not delete a customer's data to tidy a type; what changes is that the
-   * API no longer pretends to honour a mode it does not implement.
+   * 0026 T3 row 7; SAD §11 carries the note): writing changes back to the
+   * source would mean modifying the system being migrated away from.
+   *
+   * `one_time` went the same way on 2026-08-05, for a different and simpler
+   * reason. Tracing consumers for that retraction turned up the fact that
+   * **nothing anywhere branches on `mode` at all** — it is written on create,
+   * echoed back on read, and never acted upon. So `one_time` was as
+   * unimplemented as the two withdrawn modes, minus their hard-rule-2
+   * argument: "run once and stop" writes nothing to the source, it simply does
+   * not exist. Accepting it told an operator their migration would stop after
+   * one pass, and it would have gone on mirroring indefinitely.
+   *
+   * It is refused rather than silently ignored, and refused as NOT BUILT
+   * rather than as withdrawn, because the two are different promises: this one
+   * could be built, and the message says so instead of closing the door.
+   *
+   * All three stay in the DATABASE enum. Existing rows may carry them and hard
+   * rule 2 does not delete a customer's data to tidy a type; what changes is
+   * that the API no longer pretends to honour a mode it does not implement.
    */
   mode: z
-    .enum(['mirror', 'one_time'], {
+    .enum(['mirror'], {
       message:
-        "sync mode must be 'mirror' or 'one_time'. Bidirectional and asymmetric " +
-        'sync were withdrawn on 2026-08-03: writing changes back to the source ' +
-        'would mean modifying the system being migrated away from, which this ' +
-        'tool does not do. Changes made on the target during shadow are ' +
-        'surfaced as decisions instead.',
+        "sync mode must be 'mirror', which is the only mode this engine " +
+        'implements. `bidirectional` and `asymmetric` were withdrawn on ' +
+        '2026-08-03: writing changes back to the source would mean modifying ' +
+        'the system being migrated away from, which this tool does not do — ' +
+        'changes made on the target during shadow are surfaced as decisions ' +
+        'instead. `one_time` is NOT WITHDRAWN but NOT BUILT: nothing stops a ' +
+        'mapping after one pass today, so accepting it would promise a ' +
+        'migration that ends when it would in fact keep mirroring.',
     })
     .optional(),
   // §14.1's two patterns are both legal in the LEDGER — `group_def` records
@@ -555,7 +571,7 @@ router.put(
       if ('mode' in body && body.mode) {
         // Narrowed to what the engine implements; the schema above refuses the
         // retracted modes with the reason, so nothing unsupported reaches here.
-        updateData.mode = body.mode as 'mirror' | 'one_time';
+        updateData.mode = body.mode as 'mirror';
       }
       if ('pattern' in body && body.pattern) {
         updateData.pattern = body.pattern as 'shared_s' | 'distribution_d' | undefined;
