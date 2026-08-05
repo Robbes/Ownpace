@@ -278,73 +278,77 @@ async function main(): Promise<number> {
     return res.text();
   };
 
-  let createdId: string | undefined;
-  try {
-    const created = await call([
-      [
-        'CalendarEvent/set',
-        {
-          accountId,
-          create: {
-            spike: {
-              '@type': 'Event',
-              calendarIds: { [calendarId]: true },
-              uid,
-              title: 'openmig spike — weekly series',
-              start: '2026-09-01T09:00:00',
-              timeZone: 'Europe/Amsterdam',
-              duration: 'PT1H',
-              recurrenceRules: [{ '@type': 'RecurrenceRule', frequency: 'weekly', count: 3 }],
-              // The one that matters: a single occurrence moved and retitled.
-              recurrenceOverrides: { [OVERRIDE_AT]: { title: 'openmig spike — MOVED' } },
-            },
-          },
-        },
-        '0',
-      ],
-    ]);
-    console.log('--- CalendarEvent/set (create) ---');
-    console.log(created.slice(0, 1500));
-    createdId = (/"id":"([^"]+)"/.exec(created) ?? [])[1];
+  // A LADDER, not a single attempt. The first run was refused with
+  // `invalidProperties: ["recurrenceRules"]`, which says the rule shape was
+  // wrong — NOT that Stalwart lacks recurrence, and not anything at all about
+  // `recurrenceOverrides`, which it never got far enough to judge. Concluding
+  // "no recurrence support" from that would have been the spike answering a
+  // question it had not asked.
+  //
+  // So each rung adds ONE thing to the rung below, and the first failure names
+  // the exact property that is not accepted. Every rung cleans up after itself.
+  const rungs: Array<{ name: string; props: Record<string, unknown> }> = [
+    { name: '1. plain single event', props: {} },
+    {
+      name: '2. + recurrenceRules WITH @type',
+      props: { recurrenceRules: [{ '@type': 'RecurrenceRule', frequency: 'weekly', count: 3 }] },
+    },
+    {
+      name: '3. + recurrenceRules WITHOUT @type',
+      props: { recurrenceRules: [{ frequency: 'weekly', count: 3 }] },
+    },
+    {
+      // `count` is the likelier culprit than `frequency`: it is optional in
+      // JSCalendar and a server may implement only `until`.
+      name: '4. + recurrenceRules with until instead of count',
+      props: {
+        recurrenceRules: [{ frequency: 'weekly', until: '2026-09-22T09:00:00' }],
+      },
+    },
+    {
+      name: '5. + recurrenceOverrides ONLY (no rule)',
+      props: { recurrenceOverrides: { [OVERRIDE_AT]: { title: 'openmig spike — MOVED' } } },
+    },
+  ];
 
-    if (!createdId) {
-      console.log(
-        '\n    No id came back, so the create was REFUSED. The response above is\n' +
-          '    the finding — read notCreated for the reason before concluding\n' +
-          '    anything about recurrence identity.',
-      );
-      return 1;
-    }
-
-    const read = await call([
-      ['CalendarEvent/get', { accountId, ids: [createdId] }, '0'],
-    ]);
-    console.log('\n--- CalendarEvent/get (read back, raw) ---');
-    console.log(read.slice(0, 4000));
-
-    console.log(
-      `\n--- What this means for naturalKeyForCalendar()\n\n` +
-        `    uid as written:        ${uid}\n` +
-        `    override map key:      ${OVERRIDE_AT}\n\n` +
-        `    Compare the read-back object above against those two. The series\n` +
-        `    key is hash("cal:<uid>"); an occurrence key is\n` +
-        `    hash("cal:<uid>|<RECURRENCE-ID>"). So the question is whether the\n` +
-        `    override map key round-trips UNCHANGED and in the same form CalDAV\n` +
-        `    writes RECURRENCE-ID. If Stalwart normalised it — a Z suffix, a\n` +
-        `    different precision, a TZID — the two transports hash differently\n` +
-        `    and every modified occurrence is re-copied on a switch.\n`,
-    );
-  } catch (err) {
-    console.log(`    Step 2 failed: ${err instanceof Error ? err.message : err}`);
-    return 1;
-  } finally {
-    if (createdId) {
-      await call([['CalendarEvent/set', { accountId, destroy: [createdId] }, '0']]).catch(
-        () => undefined,
-      );
-      console.log(`\n    (cleaned up ${createdId})`);
+  for (const rung of rungs) {
+    const base = {
+      '@type': 'Event',
+      calendarIds: { [calendarId]: true },
+      uid: `${uid}-${rung.name.slice(0, 1)}`,
+      title: 'openmig spike',
+      start: '2026-09-01T09:00:00',
+      timeZone: 'Europe/Amsterdam',
+      duration: 'PT1H',
+      ...rung.props,
+    };
+    let id: string | undefined;
+    try {
+      const out = await call([['CalendarEvent/set', { accountId, create: { r: base } }, '0']]);
+      id = (/"id":"([^"]+)"/.exec(out) ?? [])[1];
+      console.log(`  ${id ? 'OK   ' : 'FAIL '} ${rung.name}`);
+      if (!id) {
+        // The server's own words, verbatim: `properties` names exactly what it
+        // would not take, and that is the finding rather than the failure.
+        console.log(`         ${out.slice(0, 600)}`);
+      } else {
+        const read = await call([['CalendarEvent/get', { accountId, ids: [id] }, '0']]);
+        console.log(`         read back: ${read.slice(0, 1200)}`);
+      }
+    } catch (err) {
+      console.log(`  ERROR ${rung.name}: ${err instanceof Error ? err.message : err}`);
+    } finally {
+      if (id) await call([['CalendarEvent/set', { accountId, destroy: [id] }, '0']]).catch(() => undefined);
     }
   }
+
+  console.log(
+    `\n    Read the highest rung that succeeded, and its read-back object.\n` +
+      `    uid written: ${uid}-N      override map key: ${OVERRIDE_AT}\n` +
+      `    The question is whether an override's map key survives UNCHANGED —\n` +
+      `    that key is what must equal CalDAV's RECURRENCE-ID for\n` +
+      `    naturalKeyForCalendar() to agree across a transport switch.\n`,
+  );
 
   console.log(
     `\n    apiUrl (as advertised): ${session.apiUrl ?? '(absent)'} — not followed; see above.\n`,
