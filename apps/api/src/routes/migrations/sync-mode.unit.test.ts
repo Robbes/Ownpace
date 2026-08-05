@@ -59,6 +59,29 @@ describe('the modes the engine actually implements', () => {
   });
 });
 
+describe('`one_time`, refused as NOT BUILT rather than withdrawn', () => {
+  // Added 2026-08-05 (owner decision, 0026 T3). Tracing consumers for the
+  // rows 7-8 retraction turned up that NOTHING branches on `mode` at all, so
+  // `one_time` was as unimplemented as the two withdrawn modes — minus their
+  // hard-rule-2 argument. Accepting it told an operator their migration would
+  // stop after one pass while it went on mirroring indefinitely.
+  it('is refused', () => {
+    expect(CreateMappingSchema.safeParse(body('one_time')).success).toBe(false);
+  });
+
+  it('is refused as UNBUILT, not as withdrawn — they are different promises', () => {
+    const result = CreateMappingSchema.safeParse(body('one_time'));
+    if (result.success) throw new Error('expected a refusal');
+    const message = JSON.stringify(result.error.issues);
+
+    // The distinction is the whole point of a separate test. `bidirectional`
+    // will never be built and the message says why; this one could be, and a
+    // message that lumped them together would close a door nobody closed.
+    expect(message).toContain('NOT WITHDRAWN but NOT BUILT');
+    expect(message).toContain('keep mirroring');
+  });
+});
+
 describe('the modes that were retracted', () => {
   for (const mode of ['bidirectional', 'asymmetric']) {
     it(`refuses \`${mode}\``, () => {
@@ -91,7 +114,7 @@ describe('the modes that were retracted', () => {
 });
 
 describe('what this test deliberately does NOT assert', () => {
-  it('leaves the retracted values in the DATABASE enum', async () => {
+  it('leaves every refused value in the DATABASE enum', async () => {
     // Hard rule 2. A tenant whose row was written before 2026-08-03 may carry
     // `bidirectional`, and removing it from the CHECK would make that row
     // unreadable — destroying data to tidy a type. The API refusing new ones
@@ -102,5 +125,6 @@ describe('what this test deliberately does NOT assert', () => {
     ).enumValues;
     expect(enumValues).toContain('bidirectional');
     expect(enumValues).toContain('asymmetric');
+    expect(enumValues).toContain('one_time');
   });
 });

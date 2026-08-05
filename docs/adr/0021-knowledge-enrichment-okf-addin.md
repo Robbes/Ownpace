@@ -4,6 +4,28 @@
 - **Date:** 2026-06-22
 - **Relates to:** ADR-0007 (reuse/engines), ADR-0009 (repo strategy), ADR-0011 (sovereignty), ADR-0015 (backup/data scope), ADR-0020 (rebuildable cache / natural-key idempotency).
 
+> **Update 2026-08-05 (owner decision, workplan 0026 T3 row 16) — RETRACTED.**
+> This ADR was accepted with a deferral: build it *after the file slices*. Those
+> landed, the precondition expired, and in the whole time since **not one line
+> of code was written** against it — no `KnowledgeSink`, no OKF writer, no
+> vocabulary.
+>
+> Retracted rather than deferred again, for a reason the ADR states about
+> itself: it is **a different concern from migration** and it is
+> **privacy-sensitive**, deriving relationships and topics from personal
+> mailboxes. A product whose first-run story is not finished should not carry a
+> standing promise to mine its customers' mail for a knowledge graph — and a
+> promise nobody has moved on in months is one nobody is going to build.
+>
+> The reasoning is kept below rather than deleted: if this is ever picked up,
+> the analysis of OKF v0.1 against OWL/RDF is worth having, and the decision to
+> put it behind an **opt-in** sink rather than in the migration path is the
+> right shape whatever the format turns out to be.
+>
+> **Revisit condition, and it is a real trigger rather than a date:** somebody
+> asks for a knowledge side-output, with a use for it. Until then the scope
+> manifest does not name it and neither does the SAD.
+
 ## Context
 We already extract every item during migration (the `SourceConnector` reads content; the reconcile loop touches each one). A recurring ask is to produce, **in parallel**, an agent-readable knowledge bundle alongside the migrated data — "knowledge files with an ontology," as an add-in.
 

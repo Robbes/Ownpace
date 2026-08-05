@@ -7,9 +7,15 @@ export * from './reindex';
 export * from './cutover-state';
 export * from './verification';
 export * from './verification-implementations';
-export * from './dns-manager';
+// DNS is VERIFY-ONLY, and that is the whole of it. `dns-manager.ts` and
+// `dns-provider-desec.ts` — a ~950-line write path with a deSEC provider —
+// were deleted on 2026-08-05 (owner decision, workplan 0026 T3 row 20). They
+// were exported from here and imported by nothing but their own test since the
+// July decision to defer DNS writes, which is the same shape that got the
+// engine wrappers deleted under ADR-0019 and `OperatorDashboard` deleted under
+// 0026 T2. Git preserves them; the CHANGELOG has always told users the MX
+// switch is a manual operator step, and now the code says the same thing.
 export * from './dns-verify-only';
-export * from './dns-provider-desec';
 export * from './domain-sync';
 export * from './dav-sync';
 export * from './discovery';

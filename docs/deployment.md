@@ -4,7 +4,7 @@ Canonical doc. Summarises how the stack is deployed; full rationale in `architec
 
 ## Editions (one core)
 - **Managed:** Trigger.dev (self-host or cloud) + managed Postgres (with RLS) + S3-compatible EU object storage + secrets vault (OpenBao/Infisical) + identity (Zitadel/Keycloak); IaC/GitOps (OpenTofu + Helm + Argo CD/Flux), Dependabot.
-- **Self-host:** Docker Compose or a Home Assistant add-on; **in-process scheduler** (no Trigger.dev); a **small bundled Postgres** (no SQLite — ADR-0023 makes both editions Postgres-only); OS keychain / age-encrypted secrets. Targets remain managed EU/CH platforms (self-hosted email is permitted but user-operated, ADR-0011).
+- **Self-host:** Docker Compose (the Home Assistant add-on was retracted 2026-08-05, 0026 T3 row 17 — SAD §7.1); **in-process scheduler** (no Trigger.dev); a **small bundled Postgres** (no SQLite — ADR-0023 makes both editions Postgres-only); OS keychain / age-encrypted secrets. Targets remain managed EU/CH platforms (self-hosted email is permitted but user-operated, ADR-0011).
 
 For managed day-2 operations (start/stop, seed, backup, tenant offboarding, what the operator can and cannot see) see the **[Operator Runbook](./operator-runbook.md)**; the stack is [`deploy/compose/managed.yml`](../deploy/compose/managed.yml).
 
