@@ -350,6 +350,100 @@ async function main(): Promise<number> {
       `    naturalKeyForCalendar() to agree across a transport switch.\n`,
   );
 
+  // -------------------------------------------------------------------------
+  // Step 3 — contacts and files (0031 T2/T3), same question, same method.
+  //
+  // Added on the owner's call after calendars came back blocked: the useful
+  // question is no longer "can T1 be built" but "is the calendar gap an
+  // EXCEPTION or a PATTERN". Stalwart's own JMAP conformance suite covers mail
+  // only — its maintainers said so — so these surfaces are less exercised than
+  // the mail one this product already relies on, and finding out costs a
+  // request each.
+  //
+  // For each: write with an identity we control, read it back, and see whether
+  // that identity survives. Contacts key on the vCard UID; files key on a
+  // normalised path. Both are what `hash.ts` hashes.
+  // -------------------------------------------------------------------------
+  console.log(`\n=== Step 3 — contacts and files\n`);
+
+  const contactsAccount = session.primaryAccounts?.['urn:ietf:params:jmap:contacts'];
+  if (contactsAccount) {
+    const contactUid = `openmig-spike-contact-${session.state ?? 'x'}`;
+    let cid: string | undefined;
+    try {
+      const out = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { Authorization: auth, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:contacts'],
+          methodCalls: [
+            [
+              'ContactCard/set',
+              {
+                accountId: contactsAccount,
+                create: {
+                  c: { '@type': 'Card', uid: contactUid, name: { full: 'Openmig Spike' } },
+                },
+              },
+              '0',
+            ],
+          ],
+        }),
+      }).then((r) => r.text());
+      cid = (/"id":"([^"]+)"/.exec(out) ?? [])[1];
+      console.log(`  ${cid ? 'OK   ' : 'FAIL '} ContactCard/set`);
+      console.log(`         ${out.slice(0, 800)}`);
+      if (cid) {
+        const back = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { Authorization: auth, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:contacts'],
+            methodCalls: [['ContactCard/get', { accountId: contactsAccount, ids: [cid] }, '0']],
+          }),
+        }).then((r) => r.text());
+        console.log(`         read back: ${back.slice(0, 1200)}`);
+        console.log(`         uid written: ${contactUid}  <- must appear UNCHANGED above`);
+        await fetch(apiUrl, {
+          method: 'POST',
+          headers: { Authorization: auth, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:contacts'],
+            methodCalls: [['ContactCard/set', { accountId: contactsAccount, destroy: [cid] }, '0']],
+          }),
+        }).catch(() => undefined);
+      }
+    } catch (err) {
+      console.log(`  ERROR contacts: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  const filesAccount = session.primaryAccounts?.['urn:ietf:params:jmap:filenode'];
+  if (filesAccount) {
+    try {
+      // READ ONLY for files. The identity question here is what a FileNode
+      // calls itself — name, parentId, or a path — and listing answers that
+      // without creating anything in a hierarchy whose shape is still unknown.
+      const out = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { Authorization: auth, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:filenode'],
+          methodCalls: [['FileNode/get', { accountId: filesAccount, ids: null }, '0']],
+        }),
+      }).then((r) => r.text());
+      console.log(`\n  FileNode/get (read-only): ${out.slice(0, 1500)}`);
+      console.log(
+        `         The finding is the FIELD NAMES: does a node carry a path, or\n` +
+          `         only a name plus a parentId? fileNaturalKeyHash() hashes a\n` +
+          `         normalised PATH, so a parent-chain model needs a documented\n` +
+          `         reconstruction before T3 can key anything.`,
+      );
+    } catch (err) {
+      console.log(`  ERROR files: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
   console.log(
     `\n    apiUrl (as advertised): ${session.apiUrl ?? '(absent)'} — not followed; see above.\n`,
   );
