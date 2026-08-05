@@ -794,11 +794,19 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
   /**
    * Hash a sampled message as it is stored on the target (§20 checksum leg).
    *
-   * Mail is one of the two places where this is sound: a JMAP blob is the
-   * message as submitted, so hashing it with the same `contentHash` the sync
-   * path used on the source is a like-for-like comparison. (CalDAV/CardDAV
-   * deliberately do not implement this — servers re-serialize iCalendar and
-   * vCard, so every item would look corrupt.)
+   * Mail is the easy case: a JMAP blob is the message as submitted, so hashing
+   * it with the same `contentHash` the sync path used on the source is a
+   * like-for-like comparison of the actual bytes.
+   *
+   * This used to add that "CalDAV/CardDAV deliberately do not implement this —
+   * servers re-serialize iCalendar and vCard, so every item would look
+   * corrupt". CORRECTED 2026-08-05: that WAS the position (#143), and it was
+   * reversed, because the consequence was that §20's content leg silently
+   * stopped running for two of four domains — 9 of 10 samples came back
+   * `checksumUnavailable` on the first real run. Both DAV writers implement it
+   * now, against a CANONICAL fingerprint (`dav-canonical.ts`) rather than the
+   * returned bytes, precisely so re-serialization does not read as corruption.
+   * See `dav-reindexers.unit.test.ts`, "DAV writers hash content canonically".
    *
    * Called only for sampled items, so the two extra round trips are bounded by
    * the sample size, not the mailbox size. Returns undefined when the blob

@@ -673,10 +673,16 @@ async function main(): Promise<number> {
             }).then((r) => r.text());
             console.log(`\n  Rung A — asked for \`vCard\` BY NAME: ${explicit.slice(0, 1800)}`);
             console.log(
-              `         If \`vCard\` is still absent here, the STORE dropped it and\n` +
-                `         every X- property is lost on the JMAP path but kept on the\n` +
-                `         DAV one. If it is present, the earlier read merely did not\n` +
-                `         volunteer it and nothing was lost.`,
+              `         ANSWERED 2026-08-05: \`vCard\` IS present when asked for by\n` +
+                `         name — convertedProperties and x-openmig-probe both intact.\n` +
+                `         The store keeps the escape hatch; ContactCard/get simply\n` +
+                `         does not volunteer it. Nothing was lost.\n` +
+                `\n` +
+                `         KEPT AS A REGRESSION CHECK, and it carries a requirement:\n` +
+                `         every read T2 makes must name \`vCard\` explicitly. A read\n` +
+                `         that omits it gets a card that LOOKS complete and is not,\n` +
+                `         which would make a content comparison differ for a reason\n` +
+                `         that has nothing to do with the card.`,
             );
 
             await fetch(apiUrl, {
@@ -749,13 +755,26 @@ async function main(): Promise<number> {
         const body = await res.text();
         console.log(`  PROPFIND ${root} -> HTTP ${res.status}`);
         if (res.status !== 207) continue;
-        // Any href one level below the home set is the address book. The home
-        // set itself is in the list too and is not one.
+
+        // An address book is a collection STRICTLY BELOW the home set. Both
+        // sides of that comparison are decoded before comparing, which is the
+        // whole fix from the 2026-08-05 run: the server returns the href
+        // percent-decoded (`/dav/card/target@dev.local/`) while `URL.pathname`
+        // keeps it encoded (`target%40dev.local`), so comparing one against
+        // the other never matched, the home set passed the "not the home set"
+        // filter, and the PUT went to the collection root — which Stalwart
+        // correctly refused with 409. That failure then LOOKED like a DAV
+        // finding, which is exactly what this rung must never manufacture.
+        const homePath = decodeURIComponent(new URL(root).pathname).replace(/\/+$/, '');
         const hrefs = [...body.matchAll(/<[Dd]?:?href>([^<]+)<\/[Dd]?:?href>/g)].map((m) => m[1] ?? '');
         bookHref = hrefs
           .map((h) => decodeURIComponent(h))
-          .find((h) => h.replace(/\/$/, '') !== new URL(root).pathname.replace(/\/$/, '') && h.endsWith('/'));
+          .map((h) => (h.endsWith('/') ? h : `${h}/`))
+          .find((h) => h.replace(/\/+$/, '').startsWith(`${homePath}/`));
         davRoot = root;
+        // SAY which collection was chosen. The previous run printed only the
+        // final PUT url, so the wrong pick was visible but had to be inferred.
+        console.log(`         home set ${homePath}/  ->  address book ${bookHref ?? '(none found)'}`);
         if (bookHref) break;
       }
 
