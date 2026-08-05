@@ -470,7 +470,12 @@ async function main(): Promise<number> {
               'FileNode/set',
               {
                 accountId: filesAccount,
-                create: { f: { '@type': 'FileNode', name: 'openmig-spike-folder', parentId: null } },
+                // No `@type`. The first attempt sent `'@type': 'FileNode'` and was
+                // refused with `invalidProperties: ["@type"]` — twice now the
+                // spike has been wrong about a property rather than the server
+                // being short of a feature, which is worth remembering before
+                // reading any refusal here as a capability gap.
+                create: { f: { name: 'openmig-spike-folder', parentId: null } },
               },
               '0',
             ],
