@@ -4,6 +4,11 @@ export const packageName = '@openmig/connectors';
 
 export * from './imap-source';
 export * from './jmap-target';
+// Contacts over JMAP (0031 T2). Beside the mail target rather than beside the
+// DAV writers in @openmig/engines: it shares this file's transport concerns —
+// session discovery, the unroutable advertised apiUrl, rate-limit retry — not
+// theirs.
+export * from './jmap-contact-target';
 export * from './imap-dav-target';
 
 // DAV shared HTTP types
