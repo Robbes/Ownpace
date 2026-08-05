@@ -199,6 +199,7 @@ Once approved:
 | `packages/ledger/src/rls.integration.test.ts` | `5c2b` | ✅ Done | 11 passed |
 | `apps/api/src/routes/tenants/members.integration.test.ts` | `5d2b` | ✅ Done | 14 passed |
 | `apps/api/src/routes/tenants/tenants.integration.test.ts` | `5e2b` | ✅ Done | 8 passed |
+| `packages/core/src/jmap-contact-sync.integration.test.ts` | `5a2b` | ✅ Added 2026-08-05 (0031 T2.3) | 3 cases |
 
 ### Full Integration Suite Result
 
@@ -221,3 +222,17 @@ All 12 files committed individually to branch `fix/test-fixture-id-namespaces`:
 ### Branch
 
 `fix/test-fixture-id-namespaces` pushed to origin. Draft PR ready for review.
+
+## Adding a NEW integration test (added 2026-08-05)
+
+Pick a prefix nobody uses and add a row above. `scripts/check-fixture-uuid-collisions.sh`
+is the authority — run it before pushing; CI runs it as `fixture-uuid-check`
+ahead of the heavier jobs, so a collision costs seconds rather than a full
+integration run.
+
+**It earns its keep.** `packages/core/src/jmap-contact-sync.integration.test.ts`
+was written with `5e0b0300-…`, which is `dav-sync.integration.test.ts`'s FILE
+domain tenant. Its `beforeEach` deletes fixture rows **by `tenant_id`**, so the
+two suites would have torn down each other's state mid-run — producing a
+failure in whichever file happened to lose the race, pointing at code that was
+fine. Renamespaced to `5a2b`.

@@ -61,8 +61,8 @@ const JMAP_URL = process.env.STALWART_JMAP_URL;
 const JMAP_USER = process.env.STALWART_JMAP_USERNAME || 'target@dev.local';
 const JMAP_PASSWORD = process.env.STALWART_JMAP_PASSWORD || 'target_password';
 
-const TENANT_ID = asTenantId('5e0b0300-e29b-41d4-a716-446655440001');
-const MAPPING_ID = asMappingId('5e0b0300-e29b-41d4-a716-446655440002');
+const TENANT_ID = asTenantId('5a2b0100-e29b-41d4-a716-446655440001');
+const MAPPING_ID = asMappingId('5a2b0100-e29b-41d4-a716-446655440002');
 const CONTACT_COUNT = 3;
 const BOOK = 'openmig-jmap-sync';
 
@@ -176,7 +176,7 @@ if (!JMAP_URL) {
         ON CONFLICT (id) DO NOTHING
       `);
 
-      const sourceConnId = '5e0b0300-e29b-41d4-a716-446655440003';
+      const sourceConnId = '5a2b0100-e29b-41d4-a716-446655440003';
       await client.execute(sql`
         INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
         VALUES (${sourceConnId}, ${TENANT_ID}, 'source', 'carddav', 'Stub Contact Source', '{}', 'connected')
@@ -186,19 +186,19 @@ if (!JMAP_URL) {
       // `contactTargetProtocol` dispatches on. Written here rather than assumed:
       // it also proves the DB CHECK accepts it, which is what made this need no
       // migration.
-      const targetConnId = '5e0b0300-e29b-41d4-a716-446655440004';
+      const targetConnId = '5a2b0100-e29b-41d4-a716-446655440004';
       await client.execute(sql`
         INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
         VALUES (${targetConnId}, ${TENANT_ID}, 'target', 'jmap', 'Stalwart Contact Target', '{}', 'connected')
       `);
 
-      const sourceMailboxId = '5e0b0300-e29b-41d4-a716-446655440005';
+      const sourceMailboxId = '5a2b0100-e29b-41d4-a716-446655440005';
       await client.execute(sql`
         INSERT INTO mailbox (id, tenant_id, connection_id, kind, display_name, status)
         VALUES (${sourceMailboxId}, ${TENANT_ID}, ${sourceConnId}, 'user', 'stub-addressbook', 'active')
       `);
 
-      const targetMailboxId = '5e0b0300-e29b-41d4-a716-446655440006';
+      const targetMailboxId = '5a2b0100-e29b-41d4-a716-446655440006';
       await client.execute(sql`
         INSERT INTO mailbox (id, tenant_id, connection_id, kind, display_name, status)
         VALUES (${targetMailboxId}, ${TENANT_ID}, ${targetConnId}, 'user', ${BOOK}, 'active')
