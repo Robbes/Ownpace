@@ -216,9 +216,22 @@ async function getTargetSamplesFromReindexer(
   //
   // Without it every sample carried '' and was counted as `checksumUnavailable`,
   // so §20's "checksum sampling" never actually ran. A reindexer that cannot
-  // produce a comparable hash (CalDAV/CardDAV, where the server re-serializes
-  // what it stored) still omits `contentHashFor`, and those samples stay
+  // produce a comparable hash omits `contentHashFor`, and those samples stay
   // honestly unavailable rather than being scored as mismatches.
+  //
+  // CORRECTED 2026-08-05: this used to name CalDAV/CardDAV as the reindexers
+  // that omit it, "where the server re-serializes what it stored". That WAS
+  // true and was reversed — leaving it out stopped §20's content leg running
+  // for two of four domains, so both DAV writers implement it now against a
+  // canonical fingerprint (`dav-canonical.ts`) rather than the returned bytes.
+  //
+  // The accurate present-day example is `JmapContactTarget` (0031 T2). A
+  // stored JMAP `ContactCard` carries no blobId and no handle back to vCard
+  // bytes, so there is nothing to fetch and fingerprint comparably with the
+  // source — the omission is deliberate and documented in that file, and it is
+  // why contacts migrated over JMAP get counts and presence but no checksum
+  // leg. `verification.ts` raises CHECKSUM_UNAVAILABLE_* for exactly this, so
+  // the operator is told rather than left to infer it from a green gate.
   if (targetReindexer.contentHashFor) {
     for (const sample of sampled) {
       if (isNonEmpty(sample.content)) continue; // the listing already had one

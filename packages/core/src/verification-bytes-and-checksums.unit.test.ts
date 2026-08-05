@@ -170,7 +170,17 @@ describe('checksum sampling', () => {
     expect(result.mail.status).toBe('PASS');
   });
 
-  it('stays unavailable for a reindexer that cannot hash at all (CalDAV/CardDAV)', async () => {
+  it('stays unavailable for a reindexer that cannot hash at all (JMAP contacts)', async () => {
+    // RENAMED 2026-08-05. This said "(CalDAV/CardDAV)", which stopped being
+    // true when #143 was reversed — both DAV writers hash canonically now. The
+    // property under test is unchanged and still load-bearing; only the
+    // example was wrong, and a test named after a case that no longer exists
+    // is how somebody deletes it as obsolete.
+    //
+    // The real one today is `JmapContactTarget`: a stored JMAP ContactCard has
+    // no blobId and no route back to vCard bytes, so it omits `contentHashFor`
+    // deliberately. This is the test that stops that omission turning into a
+    // silent pass.
     const result = await verify(reindexer(sized([100, 200])));
 
     expect(result.mail.checksumUnavailable).toBe(2);
