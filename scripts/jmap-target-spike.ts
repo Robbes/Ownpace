@@ -368,6 +368,18 @@ async function main(): Promise<number> {
 
   const contactsAccount = session.primaryAccounts?.['urn:ietf:params:jmap:contacts'];
   if (contactsAccount) {
+    // The container has to be looked up, not guessed — the same lesson the
+    // calendar half learned in step 1b.
+    const books = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { Authorization: auth, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:contacts'],
+        methodCalls: [['AddressBook/get', { accountId: contactsAccount, ids: null }, '0']],
+      }),
+    }).then((r) => r.text());
+    console.log(`  AddressBook/get: ${books.slice(0, 600)}`);
+    const addressBookId = (/"id":"([^"]+)"/.exec(books) ?? [])[1] ?? 'a';
     const contactUid = `openmig-spike-contact-${session.state ?? 'x'}`;
     let cid: string | undefined;
     try {
@@ -382,7 +394,17 @@ async function main(): Promise<number> {
               {
                 accountId: contactsAccount,
                 create: {
-                  c: { '@type': 'Card', uid: contactUid, name: { full: 'Openmig Spike' } },
+                  c: {
+                    '@type': 'Card',
+                    uid: contactUid,
+                    name: { full: 'Openmig Spike' },
+                    // Added 2026-08-05 after the first run. Stalwart refused
+                    // with "Contact has to belong to at least one address
+                    // book" — the exact analogue of `calendarIds` on an event,
+                    // which the calendar rungs DID pass. A clean, actionable
+                    // server error, and the omission was ours.
+                    addressBookIds: { [addressBookId]: true },
+                  },
                 },
               },
               '0',
@@ -432,7 +454,50 @@ async function main(): Promise<number> {
           methodCalls: [['FileNode/get', { accountId: filesAccount, ids: null }, '0']],
         }),
       }).then((r) => r.text());
-      console.log(`\n  FileNode/get (read-only): ${out.slice(0, 1500)}`);
+      console.log(`\n  FileNode/get (existing nodes): ${out.slice(0, 1200)}`);
+
+      // An empty store answers nothing about field names, which is what the
+      // first run returned. A read-only probe cannot settle an identity
+      // question when there is nothing to look at, so this creates ONE node
+      // and destroys it — the same discipline as the other rungs.
+      const made = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { Authorization: auth, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:filenode'],
+          methodCalls: [
+            [
+              'FileNode/set',
+              {
+                accountId: filesAccount,
+                create: { f: { '@type': 'FileNode', name: 'openmig-spike-folder', parentId: null } },
+              },
+              '0',
+            ],
+          ],
+        }),
+      }).then((r) => r.text());
+      console.log(`  FileNode/set: ${made.slice(0, 900)}`);
+      const fid = (/"id":"([^"]+)"/.exec(made) ?? [])[1];
+      if (fid) {
+        const back = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { Authorization: auth, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:filenode'],
+            methodCalls: [['FileNode/get', { accountId: filesAccount, ids: [fid] }, '0']],
+          }),
+        }).then((r) => r.text());
+        console.log(`  read back: ${back.slice(0, 1200)}`);
+        await fetch(apiUrl, {
+          method: 'POST',
+          headers: { Authorization: auth, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:filenode'],
+            methodCalls: [['FileNode/set', { accountId: filesAccount, destroy: [fid] }, '0']],
+          }),
+        }).catch(() => undefined);
+      }
       console.log(
         `         The finding is the FIELD NAMES: does a node carry a path, or\n` +
           `         only a name plus a parentId? fileNaturalKeyHash() hashes a\n` +
