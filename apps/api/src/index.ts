@@ -30,6 +30,7 @@ import billingRoutes from './routes/billing/index';
 import billingWebhookRoutes from './routes/billing/webhooks';
 import scopeManifestRoutes from './routes/scope-manifest';
 import { assertProductionAuthConfig } from './middleware/auth';
+import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
 import { log } from '@openmig/shared';
 
 // Re-export for backwards compatibility
@@ -53,6 +54,35 @@ app.use(express.urlencoded({ extended: false }));
 // Health check
 app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+/**
+ * Prometheus metrics (0026 T3 row 19, owner decision 2026-08-05: option A).
+ *
+ * The appliance has served `/metrics` since workplan 0010; the managed API
+ * served nothing at all — an asymmetry that ran backwards from what anyone
+ * would expect, since the single-tenant box an operator can SSH into was
+ * observable and the multi-tenant service they cannot reach was not.
+ *
+ * Same `renderMetrics()` as the appliance, deliberately: two renderers would
+ * drift, and a dashboard that reads one edition's series names cannot read the
+ * other's. The counters are registered by the packages that increment them, so
+ * this endpoint exposes whatever the process has actually loaded rather than a
+ * list maintained here.
+ *
+ * **Unauthenticated, like `/health` above, and that is a decision rather than
+ * an oversight.** The body carries counts and durations only — no addresses,
+ * no folder names, no tenant identifiers (§17). What it does reveal is
+ * aggregate volume, so it belongs behind the ingress that already fronts this
+ * service rather than on a public route; deployment.md says so.
+ *
+ * What this does NOT deliver: §19's per-tenant dashboards, alert rules and
+ * SLOs. Those were deferred in the same decision — thresholds chosen before
+ * there is traffic to measure would be guesses wearing the costume of a
+ * service level. The endpoint is what makes them possible later.
+ */
+app.get('/metrics', (req: Request, res: Response) => {
+  res.set('content-type', METRICS_CONTENT_TYPE).send(renderMetrics());
 });
 
 // API Routes
