@@ -162,7 +162,7 @@ if (!BASE || !PASSWORD) {
       const accountId = session.primaryAccounts?.['urn:ietf:params:jmap:contacts'];
       expect(accountId, 'the session advertises no contacts account').toBeTruthy();
 
-      const response = await fetch(`${BASE}/jmap`, {
+      const response = (await fetch(`${BASE}/jmap`, {
         method: 'POST',
         headers: { Authorization: auth, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -179,14 +179,27 @@ if (!BASE || !PASSWORD) {
             ],
           ],
         }),
-      });
-      const body = await response.text();
-      expect(body).toContain(uid);
+      }).then((r) => r.json())) as {
+        methodResponses?: Array<[string, { list?: Array<Record<string, unknown>> }, string]>;
+      };
+
+      // ISOLATE OUR CARD first. Grepping the whole response body would pass on
+      // somebody else's: `packages/core/src/jmap-contact-sync.integration.test.ts`
+      // plants an identical `X-OPENMIG-PROBE` against the same Stalwart
+      // account, so a body-wide `toContain` would go green even if this test
+      // had written nothing. It only fails when BOTH suites are broken at once,
+      // which is the vacuous shape this repo keeps finding.
+      const list = response.methodResponses?.[0]?.[1]?.list ?? [];
+      const card = list.find((c) => c.uid === uid);
+      expect(card, `no card on the server with uid ${uid}`).toBeDefined();
       // The RFC 9555 escape hatch, carrying the property JSContact has no home
       // for. If this ever stops holding, a JMAP contacts migration silently
       // starts thinning every card that has an X- property — which is most of
       // the ones a real address book contains.
-      expect(body.toLowerCase()).toContain('x-openmig-probe');
+      expect(JSON.stringify(card!.vCard ?? {}).toLowerCase()).toContain('x-openmig-probe');
+      // And the properties our own `Contact` model has no field for at all.
+      expect(card!.onlineServices, 'IMPP did not survive').toBeDefined();
+      expect(JSON.stringify(card!.titles ?? {})).toContain('Probe');
     }, 60_000);
 
     it('refuses to rewrite a card whose stored shape has moved under us', async () => {
