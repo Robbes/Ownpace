@@ -38,22 +38,29 @@
  *     JMAP_BASE_URL   default http://127.0.0.1:18080 — `setup-stalwart.sh`'s
  *                     published port (STALWART_JMAP_PORT), not JMAP's 8080.
  *                     Inside the dev network the same server is stalwart:8080.
- *     JMAP_USER       default admin
- *     JMAP_PASSWORD   defaults to the dev provisioning password ONLY against a
+ *     JMAP_USER       default target@dev.local — one of the accounts
+ *                     `setup-stalwart.sh` leaves behind, and the right one:
+ *                     0031 is about JMAP as a TARGET.
+ *     JMAP_PASSWORD   defaults to that account's dev password ONLY against a
  *                     loopback URL — see below.
+ *
+ * NOT `admin:provision_password`. That credential exists only during the setup
+ * script's PHASE 1 (recovery mode, `STALWART_RECOVERY_ADMIN`); phase 2 restarts
+ * the container without it and the account stops authenticating. Using it here
+ * cost a 401 and a puzzled minute on 2026-08-05 — the script's own closing
+ * output lists the accounts that survive, and those are the ones to use.
  */
 
 const BASE = process.env.JMAP_BASE_URL || 'http://127.0.0.1:18080';
-const USER = process.env.JMAP_USER || 'admin';
+const USER = process.env.JMAP_USER || 'target@dev.local';
 
 /**
  * Loopback gets the dev default; anything else must be told.
  *
- * `provision_password` is not a secret — it is `setup-stalwart.sh`'s committed
- * `STALWART_RECOVERY_PASSWORD` default, in the repo in plain text, for a
- * throwaway container full of `source@dev.local` fixtures. Refusing to run
- * without it would be theatre: it protects nothing and costs everybody a
- * lookup.
+ * `target_password` is not a secret — it is `setup-stalwart.sh`'s committed
+ * fixture credential, in the repo in plain text, for a throwaway container of
+ * `dev.local` accounts. Refusing to run without it would be theatre: it
+ * protects nothing and costs everybody a lookup.
  *
  * What hard rule 3 is actually about is a real credential reaching a real
  * server, so the default stops at the boundary where that becomes possible.
@@ -61,7 +68,7 @@ const USER = process.env.JMAP_USER || 'admin';
  * because at that point the script no longer knows what it is talking to.
  */
 const LOOPBACK = /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:|\/|$)/.test(BASE);
-const PASSWORD = process.env.JMAP_PASSWORD || (LOOPBACK ? 'provision_password' : undefined);
+const PASSWORD = process.env.JMAP_PASSWORD || (LOOPBACK ? 'target_password' : undefined);
 
 /**
  * The capabilities T1-T3 would each need, with what the absence of one MEANS.
@@ -119,9 +126,19 @@ async function main(): Promise<number> {
   try {
     const res = await fetch(sessionUrl, { headers: { Authorization: auth } });
     if (!res.ok) {
-      // Rule 9: the server's own words. A 401 here means credentials, a 404
-      // means this is not a JMAP server, and they need different fixes.
+      // Rule 9: the server's own words. A 401 means credentials, a 404 means
+      // this is not a JMAP server, and they need different fixes — so the
+      // hint is attached to the status rather than printed for every failure.
       console.error(`The session endpoint answered ${res.status}: ${await res.text()}`);
+      if (res.status === 401) {
+        console.error(
+          `\nAuthenticated as ${USER}. If that is the dev stack's own account the\n` +
+            'password may have changed; if you overrode JMAP_USER with `admin`, note\n' +
+            "that `admin:provision_password` works only during setup-stalwart.sh's\n" +
+            'PHASE 1 (recovery mode). Phase 2 restarts without it. The accounts that\n' +
+            'survive are the ones that script prints when it finishes.',
+        );
+      }
       return 1;
     }
     session = (await res.json()) as JmapSession;
