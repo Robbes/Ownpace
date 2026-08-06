@@ -30,7 +30,7 @@ prediction is shaky, this document says so rather than sounding confident.
 
 ## What to send back
 
-Whatever happens, the useful artefact is the same. `scripts/windows/collect-evidence.ps1`
+Whatever happens, the useful artefact is the same. `scripts/windows/collect-evidence.cmd`
 writes one file with the versions, the console output, the listening ports and
 the data directory layout. Run it after whichever phase you reach and send
 `windows-evidence.txt`. That is enough to act on without a back-and-forth.
@@ -62,18 +62,24 @@ That is the list.
 **Use PowerShell, not `cmd`.** Every command here is PowerShell — `cmd.exe` has
 no `Copy-Item`, and the first run of this runbook lost time to exactly that.
 
-**Windows blocks unsigned scripts by default.** `collect-evidence.ps1` and
-`run-appliance.ps1` will not run under the stock `Restricted` policy; you get
-*"running scripts is disabled on this system"*. Invoke them as:
+**Windows blocks unsigned scripts by default**, so **use the `.cmd` wrappers**:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\collect-evidence.ps1 -PayloadPath <path>
+.\collect-evidence.cmd -PayloadPath "C:\Program Files\OpenMigrateTest"
+.\run-appliance.cmd    -PayloadPath "C:\Program Files\OpenMigrateTest"
 ```
 
-This is worth noticing rather than working around: an MSI that shipped
-PowerShell scripts would hit the same wall on a customer's machine, which is an
-argument for the installer doing its work natively (and a second, concrete
-reason for T4 code signing beyond SmartScreen).
+Calling the `.ps1` files directly fails under the stock `Restricted` policy with
+*"running scripts is disabled on this system"*. The wrappers pass
+`-ExecutionPolicy Bypass` for that one process only — they do **not** change the
+machine's stored policy, and you should not either: telling an owner to run
+`Set-ExecutionPolicy RemoteSigned` weakens their machine permanently in order to
+read a diagnostic file.
+
+This is worth noticing rather than only working around. **An MSI that shipped
+PowerShell scripts would hit the same wall on a customer's machine**, which is an
+argument for the installer doing its work natively — and a second, concrete
+reason for T4 code signing beyond SmartScreen.
 
 **Owner decision, 2026-08-06: the payload ships its own Node runtime.**
 `pnpm package:appliance --with-node win-x64` stages `node.exe` beside
@@ -319,7 +325,7 @@ account has non-default write access to Program Files, and the test says nothing
 **Then prove the fix works:**
 
 ```powershell
-..\..\scripts\windows\run-appliance.ps1 -PayloadPath "C:\Program Files\OpenMigrateTest"
+..\..\scripts\windows\run-appliance.cmd -PayloadPath "C:\Program Files\OpenMigrateTest"
 ```
 
 That script sets both variables to `C:\ProgramData\OpenMigrate\...`, creates the
