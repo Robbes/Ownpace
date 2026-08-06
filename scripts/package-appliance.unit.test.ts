@@ -29,6 +29,8 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { createHash } from 'node:crypto';
+import { shaFor, verifySha256 } from './package-appliance.mjs';
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import {
   existsSync,
@@ -372,6 +374,70 @@ describe('the Postgres path survived bundling too', () => {
     // And the specific way bundling breaks this must not appear.
     expect(out).not.toMatch(/Dynamic require|Cannot find module|is not a function/i);
   }, 120_000);
+});
+
+describe('the shipped Windows payload carries its own Node', () => {
+  /**
+   * Owner decision, 2026-08-06: the payload ships a Node runtime.
+   *
+   * 0015's requirement is that an end user never touches a terminal, and an
+   * installer that must also detect, prompt for or side-install Node is a
+   * terminal-shaped problem wearing a dialog box. The owner uninstalled Node
+   * from the target laptop to make the point, which is the right test of the
+   * requirement.
+   *
+   * The DOWNLOAD is not exercised here — it is ~93 MB and CI should not pay for
+   * it on every push. What is exercised is the half that can be wrong quietly:
+   * checksum selection and mismatch handling. We would be shipping somebody
+   * else's binary to customers, and an unverified download is a supply-chain
+   * hole with a progress bar.
+   */
+  const SHASUMS = [
+    'aa'.repeat(32) + '  node-v24.19.0-linux-x64.tar.gz',
+    'bb'.repeat(32) + '  win-x64/node.exe',
+    'cc'.repeat(32) + '  win-arm64/node.exe',
+  ].join('\n');
+
+  it('picks the checksum for the exact file, not one that merely looks similar', () => {
+    expect(shaFor(SHASUMS, 'win-x64/node.exe')).toBe('bb'.repeat(32));
+    expect(shaFor(SHASUMS, 'win-arm64/node.exe')).toBe('cc'.repeat(32));
+  });
+
+  it('returns null for a file the release does not list, rather than guessing', () => {
+    // The caller turns this into a refusal. A helper that fell back to "no
+    // checksum, then" would stage an unverified runtime and say nothing.
+    expect(shaFor(SHASUMS, 'win-x64/node.pdb')).toBeNull();
+    expect(shaFor('', 'win-x64/node.exe')).toBeNull();
+  });
+
+  it('THROWS on a checksum mismatch, and names both hashes', () => {
+    const bytes = Buffer.from('not the runtime you were promised');
+    let err: Error | undefined;
+    try {
+      verifySha256(bytes, 'dd'.repeat(32), 'v24.19.0 win-x64/node.exe');
+    } catch (e) {
+      err = e as Error;
+    }
+    expect(err).toBeDefined();
+    expect(err!.message).toContain('Checksum mismatch');
+    expect(err!.message).toContain('dd'.repeat(32));
+    expect(err!.message).toContain(createHash('sha256').update(bytes).digest('hex'));
+    // A mismatch is a stop. If this ever becomes a warning, the payload ships
+    // whatever arrived over the wire.
+    expect(err!.message).toContain('never a warning');
+  });
+
+  it('accepts bytes that match', () => {
+    const bytes = Buffer.from('the real thing');
+    const sha = createHash('sha256').update(bytes).digest('hex');
+    expect(() => verifySha256(bytes, sha, 'test')).not.toThrow();
+  });
+
+  it('does NOT ship a runtime unless asked, so a dev build stays small', () => {
+    // The default payload is built in beforeAll. 93 MB is the price of a
+    // shipped Windows installer, not of `pnpm package:appliance` on Linux.
+    expect(existsSync(join(payload, 'node.exe'))).toBe(false);
+  });
 });
 
 describe('staging refuses to produce a broken payload', () => {

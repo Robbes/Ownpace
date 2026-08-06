@@ -64,7 +64,16 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -100,16 +109,116 @@ function packageDir(name, from = REPO) {
 
 const esbuildBin = () => join(packageDir('esbuild'), 'bin', 'esbuild');
 
+/**
+ * The Node runtime the payload ships when asked to (workplan 0015 T3).
+ *
+ * **Why ship one at all.** 0015's requirement is that an end user never touches
+ * a terminal. An installer that also has to detect, prompt for or side-install
+ * Node is a terminal-shaped problem wearing a dialog box, and the owner settled
+ * it on 2026-08-06: the payload carries its own runtime. `node.exe` for win-x64
+ * is ~93 MB, so this is OPT-IN — a Linux dev build has a perfectly good Node
+ * already and should not pay for a download it will never run.
+ *
+ * Pinned rather than floating. A packaging step that silently changes the
+ * interpreter between builds makes "works on my machine" unfalsifiable, and the
+ * runtime we ship is one we are then responsible for patching — that should be
+ * a visible edit to this line, in a diff someone reviews.
+ */
+const NODE_RUNTIME_VERSION = 'v24.19.0';
+
+/** Where a platform's single-file runtime lives on nodejs.org, and what it is called here. */
+const NODE_RUNTIMES = {
+  'win-x64': { remote: 'win-x64/node.exe', local: 'node.exe' },
+  'win-arm64': { remote: 'win-arm64/node.exe', local: 'node.exe' },
+};
+
+/**
+ * The published SHA-256 for one file out of a `SHASUMS256.txt`.
+ *
+ * Separated from the download so it can be tested without the network, because
+ * this is the half that matters: we are shipping somebody else's binary to
+ * customers, and an unverified download is a supply-chain hole with a progress
+ * bar. Returns null when the file is not listed — which must fail the build
+ * rather than fall back to "no checksum, then".
+ */
+export function shaFor(shasumsText, remotePath) {
+  for (const line of shasumsText.split('\n')) {
+    // Format: "<64 hex>  <path>", two spaces, path relative to the release root.
+    const m = line.match(/^([0-9a-f]{64})\s+(.+?)\s*$/);
+    if (m && m[2] === remotePath) return m[1];
+  }
+  return null;
+}
+
+/** Throw unless `bytes` hashes to `expected`. */
+export function verifySha256(bytes, expected, what) {
+  const actual = createHash('sha256').update(bytes).digest('hex');
+  if (actual !== expected) {
+    throw new Error(
+      `Checksum mismatch for ${what}.\n  expected ${expected}\n  actual   ${actual}\n\n` +
+        'Refusing to stage it. This is a runtime we would be shipping to customers, ' +
+        'so a mismatch is a stop, never a warning.',
+    );
+  }
+}
+
+/**
+ * Download and verify a Node runtime, caching it between builds.
+ *
+ * The cache is keyed by version and platform, so bumping
+ * `NODE_RUNTIME_VERSION` fetches afresh rather than reusing a stale binary
+ * under the same name.
+ */
+async function stageNodeRuntime(out, platform) {
+  const spec = NODE_RUNTIMES[platform];
+  if (!spec) {
+    throw new Error(
+      `Unknown --with-node platform '${platform}'. Known: ${Object.keys(NODE_RUNTIMES).join(', ')}.`,
+    );
+  }
+  const base = `https://nodejs.org/dist/${NODE_RUNTIME_VERSION}`;
+  const cacheDir = join(REPO, 'node_modules', '.cache', 'openmig-node', NODE_RUNTIME_VERSION, platform);
+  const cached = join(cacheDir, spec.local);
+
+  if (!existsSync(cached)) {
+    console.log(`  fetching Node ${NODE_RUNTIME_VERSION} for ${platform} …`);
+    const shasums = await fetch(`${base}/SHASUMS256.txt`).then((r) => {
+      if (!r.ok) throw new Error(`Could not fetch SHASUMS256.txt: HTTP ${r.status}`);
+      return r.text();
+    });
+    const expected = shaFor(shasums, spec.remote);
+    if (!expected) {
+      throw new Error(
+        `${spec.remote} is not listed in ${base}/SHASUMS256.txt, so it cannot be verified. ` +
+          'Refusing to stage an unverified runtime.',
+      );
+    }
+    const res = await fetch(`${base}/${spec.remote}`);
+    if (!res.ok) throw new Error(`Could not fetch ${spec.remote}: HTTP ${res.status}`);
+    const bytes = Buffer.from(await res.arrayBuffer());
+    verifySha256(bytes, expected, `${NODE_RUNTIME_VERSION} ${spec.remote}`);
+    mkdirSync(cacheDir, { recursive: true });
+    writeFileSync(cached, bytes);
+  }
+
+  cpSync(cached, join(out, spec.local));
+  return spec.local;
+}
+
 function parseArgs(argv) {
   let out = join(REPO, 'dist', 'appliance');
   // `--ui` exists so the packaging test does not have to run a Vite build to
   // check that a payload assembles and boots. Real invocations leave it alone.
   let ui = join(REPO, 'apps/web/dist-selfhost');
+  // Opt-in, because it is a ~93 MB download and only a shipped Windows payload
+  // needs it. See NODE_RUNTIMES.
+  let withNode = null;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--out') out = resolve(argv[++i]);
     else if (argv[i] === '--ui') ui = resolve(argv[++i]);
+    else if (argv[i] === '--with-node') withNode = argv[++i];
   }
-  return { out, ui };
+  return { out, ui, withNode };
 }
 
 function dirSize(dir) {
@@ -220,8 +329,8 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 }
 `;
 
-function main() {
-  const { out, ui } = parseArgs(process.argv.slice(2));
+async function main() {
+  const { out, ui, withNode } = parseArgs(process.argv.slice(2));
   console.log(`Staging the appliance into ${relative(REPO, out) || out}\n`);
 
   rmSync(out, { recursive: true, force: true });
@@ -276,12 +385,23 @@ function main() {
   console.log('  copying the operating UI …');
   cpSync(ui, join(out, 'ui'), { recursive: true });
 
+  let runtime = null;
+  if (withNode) runtime = await stageNodeRuntime(out, withNode);
+
   const total = dirSize(out);
   console.log(`\nStaged ${mb(total)} in ${relative(REPO, out) || out}`);
   console.log(`  appliance.mjs  ${mb(statSync(join(out, 'appliance.mjs')).size)}`);
   console.log(`  pglite         ${mb(dirSize(join(out, 'node_modules/@electric-sql/pglite')))}`);
   console.log(`  ui             ${mb(dirSize(join(out, 'ui')))}`);
-  console.log('\nRun it with:  node start.mjs   (needs Node 22+; nothing else)');
+  if (runtime) console.log(`  ${runtime.padEnd(14)} ${mb(statSync(join(out, runtime)).size)}`);
+
+  console.log(
+    runtime
+      ? `\nRun it with:  .\\${runtime} start.mjs   (nothing to install)`
+      : '\nRun it with:  node start.mjs   (needs Node 22+; nothing else)\n' +
+        'For a shipped Windows payload add --with-node win-x64, so the machine ' +
+        'running it needs nothing at all.',
+  );
 }
 
-main();
+await main();

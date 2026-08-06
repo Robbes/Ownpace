@@ -71,6 +71,31 @@ gets adopted by momentum rather than by decision.
 
 **Ship a Windows Service plus a Start-menu shortcut. No native shell.**
 
+> **Update, 2026-08-06 — the payload ships its own Node runtime.**
+>
+> This ADR left open what the service would execute. 0015 T3 recorded it as
+> *"whether the payload ships its own Node runtime"*, and the owner settled it
+> by uninstalling Node from the target laptop and asking why it was needed at
+> all — which is the right test of *"never touching a terminal"*. An installer
+> that must detect, prompt for or side-install a runtime is a terminal-shaped
+> problem wearing a dialog box, and every branch of it lands on an end user who
+> was promised none.
+>
+> So `pnpm package:appliance --with-node win-x64` stages `node.exe` beside
+> `start.mjs`, the WinSW definition executes `%BASE%\..\..\node.exe`, and the
+> installed directory runs on a machine with nothing on it.
+>
+> **What it costs, so the trade is visible:** the payload goes from 28.8 MB to
+> 117.3 MB (`node.exe` win-x64 is 88.5 MB), and we now ship a runtime we are
+> responsible for patching. `NODE_RUNTIME_VERSION` is pinned in
+> `scripts/package-appliance.mjs` so a bump is a reviewed edit rather than a
+> silent float, and the download is verified against the release's own
+> `SHASUMS256.txt` — a mismatch stops the build, because shipping somebody
+> else's binary unverified is a supply-chain hole with a progress bar.
+>
+> It stays **opt-in** at the flag: a Linux dev build has a Node already and
+> should not pay for a 93 MB download it will never run.
+
 - The bundled backend installs as a Windows Service, so it starts on boot and
   keeps syncing whether or not anyone is logged in. That is what a background
   sync appliance *is*; an application somebody can close is the wrong shape for

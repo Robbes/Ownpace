@@ -41,43 +41,44 @@ rather than mine.
 
 ---
 
-## Phase 0 — prerequisites, and why there are so few
+## Phase 0 — prerequisites: none
 
-**Only Node 22+.** Not pnpm, not Git, not the repository. An earlier version of
-this runbook told you to install all three; that was wrong, and worth correcting
-rather than quietly dropping, because the mistake is the interesting part: it
-made you install a *developer* toolchain to test a product whose entire premise
-(0015: *"end users never touching bash, a Linux filesystem or Docker"*) is that
-none of it is needed.
+**Nothing to install on the Windows machine.** Not Node, not pnpm, not Git.
 
-| Need | Why | Check |
-|---|---|---|
-| **Node 22 or newer** | the bundle targets `node22` and `start.mjs` uses top-level `await` | `node --version` |
-| PowerShell 5.1 or 7 | the scripts here; already on the machine | `$PSVersionTable.PSVersion` |
+An earlier version of this runbook asked for all three, then for Node alone.
+Both were wrong, and the correction is recorded rather than quietly applied
+because the mistake is the instructive part: it made you install a *developer*
+toolchain to test a product whose entire premise (0015: *"end users never
+touching bash, a Linux filesystem or Docker"*) is that none of it is needed. The
+owner uninstalled Node from the laptop to make the point, which is the right
+test of the requirement.
+
+| Need | Why |
+|---|---|
+| PowerShell 5.1 or 7 | already on the machine |
+
+That is the list.
+
+**Owner decision, 2026-08-06: the payload ships its own Node runtime.**
+`pnpm package:appliance --with-node win-x64` stages `node.exe` beside
+`start.mjs`, and everything here runs it as `.\node.exe`. The alternative —
+requiring Node and having the installer detect, prompt for or side-install it —
+is a terminal-shaped problem wearing a dialog box, which is the thing 0015
+exists to avoid.
+
+What it costs, stated plainly: the payload goes from **28.8 MB to 117.3 MB**
+(`node.exe` win-x64 is 88.5 MB). It compresses well in an MSI, and it means a
+runtime we are now responsible for patching — `NODE_RUNTIME_VERSION` in
+`scripts/package-appliance.mjs` is pinned to `v24.19.0` so that bumping it is a
+visible edit somebody reviews, not a silent float.
+
+The download is **checksum-verified** against the release's own
+`SHASUMS256.txt`, and a mismatch stops the build. We would be shipping somebody
+else's binary to customers; an unverified download is a supply-chain hole with a
+progress bar.
 
 **No Docker, no WSL, no Postgres, no Visual Studio, no build toolchain.** If any
 phase turns out to need one, that is a finding worth reporting.
-
-### And you should not need Node either — this is the open question
-
-`package-appliance.mjs` produces a directory. Running it needs *a* Node; nothing
-says it has to be one **you** installed. Workplan 0015's open item —
-*"whether the payload ships its own Node runtime"* — is exactly this question,
-and it is not a packaging detail, it decides what the product is:
-
-- **Payload ships `node.exe`** (~50 MB more, ~78 MB total). The MSI installs and
-  the appliance runs. The end user has no idea Node exists. This is what "never
-  touching a terminal" actually requires.
-- **Payload requires Node** (~28 MB). The MSI has to detect it, prompt for it, or
-  bundle an installer for it — and every one of those is a terminal-shaped
-  problem wearing a dialog box.
-
-I think the answer is obviously the first, and that it should be settled before
-the MSI rather than during. It is an owner decision (size, and shipping a runtime
-you must then keep patched), so it is stated here rather than assumed.
-
-Until it is settled, use whatever Node you have to answer Phase 1 — the question
-"does this code run on Windows" is independent of who supplied the interpreter.
 
 ---
 
@@ -85,50 +86,53 @@ Until it is settled, use whatever Node you have to answer Phase 1 — the questi
 
 **The one that matters.** Everything else is downstream of this answer.
 
-### Option A (recommended) — build on the Spark, copy, run
+### Build on the Spark, copy, run
 
-The payload is **platform-independent**: `package-appliance.mjs` only copies
-files, PGlite is WASM, and the bundle is plain JavaScript. Its own header says
-so, and CI has only ever built it on Linux. So build it where the repository
-already lives:
+The payload is **platform-independent to build**: `package-appliance.mjs` only
+copies files, PGlite is WASM, the bundle is plain JavaScript, and `node.exe` is
+just a download. Its own header says so, and CI has only ever built it on Linux.
+So build it where the repository already lives:
 
 ```bash
 # On the Spark
-pnpm package:appliance          # produces dist/appliance
+pnpm package:appliance --with-node win-x64
 tar -czf appliance.tgz -C dist appliance
 ```
 
-Copy `appliance.tgz` to the laptop over NetBird (`scp`, or any file share), expand
-it, and:
+Expected: `Staged 117.3 MB`, itemised, ending with
+`Run it with:  .\node.exe start.mjs   (nothing to install)`.
+
+Copy `appliance.tgz` to the laptop over NetBird (`scp`, or any file share),
+expand it, and:
 
 ```powershell
 cd appliance
-node start.mjs
+.\node.exe start.mjs
 ```
 
-**This is the better test, not just the cheaper one.** An MSI will hand a Windows
-machine a directory built somewhere else — so building on the Spark and running
+**This is the better test, not just the cheaper one.** An MSI hands a Windows
+machine a directory built somewhere else, so building on the Spark and running
 on the laptop exercises the *relocatable* property the way the product actually
-uses it. Building on Windows and running in place does not.
+uses it — and running `.\node.exe` exercises the *shipped* configuration rather
+than a developer's environment. Building on Windows and running in place tests
+neither.
 
-### Option B — build on Windows too
+### If you also want to know whether the build works on Windows
 
-Only if you also want to know whether the *build* works on Windows, which no
-product requirement depends on. It needs `git` and `pnpm` as well:
+Optional, and nothing on the path to an MSI depends on it — a failure here would
+not block one. It needs Git and pnpm, which is exactly why it is not the main
+path:
 
 ```powershell
 git clone https://github.com/Robbes/open-migrate.git
 cd open-migrate
 pnpm install --frozen-lockfile
-pnpm package:appliance
+pnpm package:appliance --with-node win-x64
 cd dist\appliance
-node start.mjs
+.\node.exe start.mjs
 ```
 
-Worth doing eventually — a contributor on Windows would hit it — but it is not on
-the path to an MSI, and a failure here would not block one.
-
-### Either way, what to expect
+### What to expect either way
 
 It migrates itself on first start and prints
 `[appliance] listening on http://127.0.0.1:8080`. Open <http://127.0.0.1:8080/ui>
@@ -175,7 +179,7 @@ valuable test needs a real source and target, and that is what the Spark is for.
 
 | Phase | Needs a source/target server? |
 |---|---|
-| 1 — does the payload run | **No.** `node start.mjs` boots PGlite, migrates itself and serves `/ui` with no mapping configured. That is the whole test. |
+| 1 — does the payload run | **No.** `.\node.exe start.mjs` boots PGlite, migrates itself and serves `/ui` with no mapping configured. That is the whole test. |
 | 2 — data directory | **No.** Same, from a different directory. |
 | 3 — Windows Service | Registration, boot survival and a clean `Stop-Service`: **no**. The *mid-sync shutdown* test: **yes** — you cannot interrupt a sync that is not running. |
 | 4 — installer | Not for the build. Yes for an end-to-end smoke after installing. |
@@ -231,11 +235,6 @@ stops it.
 
 ---
 
-**Expected:** it migrates itself on first start and prints
-`[appliance] listening on http://127.0.0.1:8080`. Open <http://127.0.0.1:8080/ui>
-and you should get the operating UI. Press `Ctrl+C` to stop; run `node start.mjs`
-again and it should come back **without** re-migrating.
-
 ## Phase 2 — the data directory problem, which is real and already known
 
 **Do not skip this. It is a design defect I can see from here, and Phase 1 will
@@ -268,7 +267,7 @@ CONFIG_DIR          = C:\ProgramData\OpenMigrate\config
 mkdir "C:\Program Files\OpenMigrateTest"
 Copy-Item -Recurse dist\appliance\* "C:\Program Files\OpenMigrateTest\"
 cd "C:\Program Files\OpenMigrateTest"
-node start.mjs
+.\node.exe start.mjs
 ```
 
 Expected: it **refuses to start**, naming the directory and the variable to set:
@@ -369,10 +368,10 @@ What it must do, all of which Phases 1–3 will have established:
   migration ledger, and hard rule 2 says we do not delete data the owner did not
   ask us to delete. Offer it as an explicit checkbox, defaulted off.
 
-Open question from the workplan, still open: **does the payload ship its own Node
-runtime?** Requiring an end user to install Node contradicts *"end users must
-never touch bash, a Linux filesystem, or Docker"* in spirit. Bundling `node.exe`
-adds ~50 MB. Worth deciding before the MSI, not during.
+**That open question is now closed** (owner decision, 2026-08-06): the payload
+ships its own Node runtime, so the MSI installs a directory that runs on a
+machine with nothing on it. See Phase 0 for what it costs and how it is
+verified. Nothing in the installer needs to detect, prompt for or bundle Node.
 
 ---
 
