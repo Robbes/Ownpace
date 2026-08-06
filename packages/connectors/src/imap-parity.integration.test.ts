@@ -173,5 +173,30 @@ if (!HOST) {
       // left to be inferred from `imap-source.ts`.
       expect(ids.some((id) => id.startsWith('<') && id.endsWith('>'))).toBe(true);
     }, 120_000);
+
+    it('reads a per-item size, which the confirm screen totals', async () => {
+      // Not a parity check either — a check that the field parity agrees ABOUT
+      // is actually populated. `compareSources` compares `String(size ?? '')`,
+      // so two clients that both report NOTHING agree perfectly, and the
+      // comparison above would stay green while the §11.2 Review & confirm
+      // screen quietly went back to showing a mail count with no bytes behind
+      // it.
+      //
+      // That is not hypothetical: it is the state this connector was in until
+      // 2026-08-06, when this very harness reported `size: '' vs 216` on its
+      // first real run and named `imap-simple` as the side that was wrong.
+      const listed = await source().listSince({
+        path: SEEDED_FOLDER,
+        name: SEEDED_FOLDER,
+        specialUse: 'inbox',
+      });
+
+      const sizes = listed.items.map((i) => i.size);
+      expect(sizes.length, 'nothing in the seeded mailbox to size').toBeGreaterThan(0);
+      expect(
+        sizes.every((s) => typeof s === 'number' && s > 0),
+        `every listed message must carry a byte size, got ${JSON.stringify(sizes)}`,
+      ).toBe(true);
+    }, 120_000);
   });
 }

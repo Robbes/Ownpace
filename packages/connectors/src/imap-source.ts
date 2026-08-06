@@ -13,10 +13,6 @@ import type {
   SpecialUse,
 } from "@openmig/shared";
 
-// Type alias for IMAP FetchOptions - using 'any' due to type definition issues
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type FetchOptions = any;
-
 /**
  * Configuration for IMAP connection.
  */
@@ -97,6 +93,42 @@ export function mapImapSpecialUse(attributes: string[]): SpecialUse {
   }
   return "normal";
 }
+
+/**
+ * What a listing FETCH asks the server for, and the reason it is a constant.
+ *
+ * **`size` was missing here until 2026-08-06, and nothing noticed for months.**
+ * node-imap only appends `RFC822.SIZE` to the FETCH when `options.size` is set
+ * (`Connection.js`: `if (options.size) fetching.push('RFC822.SIZE')`), so
+ * `attrs.size` was always `undefined` and every `MailItem.size` this connector
+ * produced was empty.
+ *
+ * That is not cosmetic. Pre-sync discovery sums exactly this field
+ * (`itemBytes` in `apps/worker/src/orchestration.ts`) to tell the owner how
+ * much data is about to move, on the §11.2 Review & confirm screen they
+ * approve before anything is copied — so the mail domain has been showing a
+ * count with no bytes behind it. (The SYNC path is unaffected: `reconcile.ts`
+ * deliberately uses the fetched message's own byte length rather than the
+ * listing's advertised size, which is why the ledger totals are right.)
+ *
+ * **It was found by the workplan 0032 parity harness on its first real run**,
+ * as `INBOX/items/INBOX:50 · size: '' vs 216` — `imapflow` populates the field
+ * and `imap-simple` did not. Worth recording because it is the argument for
+ * having built the harness at all: the difference it named was a defect in the
+ * PROVEN client, not in the candidate.
+ *
+ * A constant rather than an inline literal for the same reason
+ * `CARD_PROPERTIES` is one in `jmap-contact-target.ts`: a request list that
+ * silently loses an entry is a PASSING read returning less than the server
+ * holds, and `imap-source.unit.test.ts` pins this one.
+ */
+export const LISTING_FETCH_CRITERIA = {
+  bodies: '', // Headers only — the body comes from `fetch()`, per item.
+  struct: true, // BODYSTRUCTURE
+  envelope: true, // ENVELOPE, which carries the Message-ID
+  size: true, // RFC822.SIZE — see above.
+  markSeen: false, // Never modify the source (hard rule 2).
+} as const;
 
 /**
  * An ENVELOPE's message-id as `MailItem.messageId` — angle brackets included.
@@ -390,14 +422,7 @@ export class ImapSource implements SourceConnector {
         }
       }
 
-      const fetchCriteria: FetchOptions = {
-        bodies: "", // Don't fetch body, just headers
-        struct: true, // Fetch message structure
-        envelope: true, // Fetch envelope (headers)
-        markSeen: false,
-      };
-
-      const results = await conn.search(searchCriteria, fetchCriteria);
+      const results = await conn.search(searchCriteria, LISTING_FETCH_CRITERIA);
 
       // Filter results by UID if we're using a cursor
       let filteredResults = results || [];
