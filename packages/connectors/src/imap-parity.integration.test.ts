@@ -8,28 +8,29 @@
  * that matters, and stubs are the right way to prove it.
  *
  * What stubs cannot prove is that `compareSources` survives a real connector:
- * real folder shapes, a real cursor, a real `fetch`, an `ImapSource` that
- * self-connects per call. This runs it against the Testcontainers Stalwart to
- * settle that, and it is where T1 plugs the imapflow source in — at which point
- * this file stops comparing a client with itself and starts being the gate 0032
- * exists for.
+ * real folder shapes, a real cursor, a real `fetch`, a source that
+ * self-connects per call.
  *
- * ## What this file claims TODAY, stated plainly
+ * ## THIS IS NOW THE REAL GATE (T1, 2026-08-06)
  *
- * It runs `ImapSource` against `ImapSource`, so **of course** it agrees. That
- * is not evidence of parity and is not presented as any: it is a smoke test of
- * the harness against a live server, plus the assertion that it had something
- * to compare. A run where the mailbox was empty would agree just as loudly and
- * mean nothing, which is why `itemsCompared` is asserted rather than only
+ * Until today this file compared `ImapSource` with ITSELF, said so at the top,
+ * and claimed nothing: a self-comparison agrees by construction. **The second
+ * `source()` is now `imapFlowSource()`**, which is the one-line diff T0 was
+ * built to make possible. Every field the two clients disagree about now
+ * arrives as a named comparison on a named message — which is the entire
+ * safety argument for moving 1430 lines off `imap-simple`.
+ *
+ * A green run still does not claim equivalence in general. It claims the two
+ * clients agreed **on the folders and messages that exist on the server it was
+ * pointed at**, and an empty mailbox agrees about nothing — which is why
+ * `itemsCompared` and `bodiesCompared` are asserted rather than only
  * `differences`.
- *
- * The honest name for this today is a self-comparison. It becomes a parity
- * test the moment T1 lands, and the diff that does it is one line.
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import imap from 'imap-simple';
 import { ImapSource } from './imap-source';
+import { ImapFlowSource } from './imapflow-source';
 import { compareSources, describeDifferences } from './imap-parity';
 
 const HOST = process.env.STALWART_IMAP_HOST;
@@ -43,8 +44,26 @@ const USER = 'source@dev.local';
 const PASSWORD = 'source_password';
 const SEEDED_FOLDER = 'INBOX';
 
+/** The proven client — `imap-simple`, the one the nightly e2e has behind it. */
 function source(): ImapSource {
   return new ImapSource({
+    host: HOST!,
+    port: PORT,
+    tls: true,
+    auth: { user: USER, password: PASSWORD },
+  });
+}
+
+/**
+ * The candidate — `imapflow`, built to the same `SourceConnector` contract.
+ *
+ * Identical config on purpose: the harness must vary exactly ONE thing, and
+ * that thing is the client. A different host, a different TLS posture or a
+ * different credential would produce differences that say nothing about the
+ * migration.
+ */
+function imapFlowSource(): ImapFlowSource {
+  return new ImapFlowSource({
     host: HOST!,
     port: PORT,
     tls: true,
@@ -111,19 +130,25 @@ if (!HOST) {
       await seed();
     }, 60_000);
 
-    it('runs end to end against a real connector, and had something to compare', async () => {
-      const result = await compareSources(source(), source(), { sampleBodies: 2 });
+    it('ImapSource and ImapFlowSource agree, field by field, on a real mailbox', async () => {
+      const result = await compareSources(source(), imapFlowSource(), { sampleBodies: 2 });
 
-      // A SELF-comparison, so agreement is guaranteed and proves nothing about
-      // parity. What it does prove is that `compareSources` drives a real
-      // `ImapSource` without falling over — real LIST output, a real
-      // UIDVALIDITY:UIDNEXT cursor, a real per-item fetch.
+      // THE GATE. Two different IMAP client libraries, the same server, the
+      // same seeded mailbox — and every disagreement reported as a named field
+      // on a named message rather than as a behaviour change discovered later
+      // in somebody's mailbox.
+      //
+      // The one that matters most is `messageId`: `naturalKeyForItem()` hashes
+      // it, so a normalisation difference is not an error, it is a re-copy of
+      // every message on the next pass with every write succeeding.
       expect(result.differences, describeDifferences(result)).toEqual([]);
 
       // THE assertion that stops this being a tautology. Two empty mailboxes
       // agree perfectly; so does a harness that silently listed nothing. If the
       // seeding above ever breaks, this goes red rather than going green for
-      // the wrong reason.
+      // the wrong reason — and now that the comparison is between two real
+      // clients, agreeing over nothing would be the most misleading possible
+      // result.
       expect(result.foldersCompared).toBeGreaterThan(0);
       expect(result.itemsCompared).toBeGreaterThanOrEqual(FIXTURES.length);
       expect(result.bodiesCompared).toBeGreaterThan(0);

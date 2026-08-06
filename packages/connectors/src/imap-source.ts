@@ -64,8 +64,13 @@ export function decodeImapCursor(cursor: SyncCursor): {
 
 /**
  * Map IMAP system flags to our MailKeyword type.
+ *
+ * EXPORTED for `imapflow-source.ts` (workplan 0032 T1). Shared rather than
+ * transcribed: a second copy of this that drifted would show up as a lost flag
+ * on every message the two clients disagreed about, and the whole point of the
+ * migration is that the only thing that changes is the CLIENT.
  */
-function mapImapFlagsToKeywords(flags: string[]): MailKeyword[] {
+export function mapImapFlagsToKeywords(flags: string[]): MailKeyword[] {
   const keywords: MailKeyword[] = [];
   for (const flag of flags) {
     const lower = flag.toLowerCase();
@@ -91,6 +96,51 @@ export function mapImapSpecialUse(attributes: string[]): SpecialUse {
     if (lower === "\\trash" || lower === "\\deleted") return "trash";
   }
   return "normal";
+}
+
+/**
+ * An ENVELOPE's message-id as `MailItem.messageId` — angle brackets included.
+ *
+ * **The single most load-bearing line in the IMAP source, and the reason
+ * workplan 0032 has a parity harness at all.** `naturalKeyForItem()` hashes
+ * this string, so if two clients produce different forms of it, every message
+ * re-copies on the next pass and every write succeeds while it happens
+ * (hard rule 1). No count is wrong and no error is raised — the mailbox is
+ * simply twice its size.
+ *
+ * EXPORTED so `imapflow-source.ts` calls exactly this, rather than a
+ * transcription of it. Note what that does and does not buy: it removes the
+ * risk of OUR logic drifting between two files, and it deliberately does NOT
+ * paper over a difference in what the two CLIENTS hand in — different input
+ * still gives different output, which is precisely what the harness must be
+ * able to see. (`imapflow` trims the ENVELOPE value; `node-imap` does not. If
+ * a server ever emits a padded msg-id, that difference is real and this
+ * function will report it as one rather than hide it.)
+ *
+ * Returns null when the envelope carried nothing — the caller counts that as
+ * `unkeyable` and the sync derives an id from the body bytes.
+ */
+export function messageIdFromEnvelopeValue(raw: unknown): string | null {
+  if (typeof raw !== 'string' || raw === '') return null;
+  // Already bracketed: returned VERBATIM. Trimming here would be a silent
+  // normalisation and is exactly the class of change the harness exists to
+  // catch — the decision about whether a padded id should be trimmed belongs
+  // in one place, not smuggled into a helper.
+  if (raw.startsWith('<') && raw.endsWith('>')) return raw;
+  return `<${raw}>`;
+}
+
+/**
+ * The UID out of a `MailItem.sourceRef` (`"<folder>:<uid>"`).
+ *
+ * EXPORTED for the same reason as the two helpers above: a folder path may
+ * itself contain a colon, so the UID is the LAST segment, and two clients
+ * splitting that differently would fetch the wrong message rather than fail.
+ */
+export function uidFromSourceRef(sourceRef: string): number {
+  const parts = sourceRef.split(':');
+  const uid = parseInt(parts[parts.length - 1] || '0', 10);
+  return isNaN(uid) ? 0 : uid;
 }
 
 /** The shape node-imap's `getBoxes()` actually returns, per its own type declarations. */
@@ -513,26 +563,16 @@ export class ImapSource implements SourceConnector {
     // The search result structure is: { attributes: { envelope: { messageId: ... } }, parts: [...] }
     // Try to get from envelope first (fetched with envelope: true)
     const envelope = msg.attributes?.envelope || msg.envelope;
-    if (envelope?.messageId) {
-      const messageId = envelope.messageId;
-      // Ensure it has angle brackets
-      if (messageId.startsWith("<") && messageId.endsWith(">")) {
-        return messageId;
-      }
-      // Add angle brackets if missing
-      return `<${messageId}>`;
-    }
-    return null;
+    // Delegates to the exported helper so the imapflow source produces the
+    // natural key through the SAME code rather than a copy of it (0032 T1).
+    return messageIdFromEnvelopeValue(envelope?.messageId);
   }
 
   /**
    * Extract UID from sourceRef (format: "folder:uid").
    */
   private extractUidFromSourceRef(sourceRef: string): number {
-    const parts = sourceRef.split(":");
-    const uidStr = parts[parts.length - 1];
-    const uid = parseInt(uidStr || "0", 10);
-    return isNaN(uid) ? 0 : uid;
+    return uidFromSourceRef(sourceRef);
   }
 
   /**
