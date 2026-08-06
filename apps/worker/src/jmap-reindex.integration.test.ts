@@ -312,6 +312,22 @@ async function seedReindex(): Promise<void> {
   console.log('[seedReindex] Seeded', messages.length, 'test messages to source');
 }
 
+/**
+ * A writer with no snapshot of the account yet.
+ *
+ * Called per test rather than once, because `beforeEach` purges the target over
+ * IMAP and this writer caches what it saw. See the note in `beforeEach`.
+ */
+// An arrow const, not a function declaration: TypeScript preserves the
+// `STALWART_JMAP_URL` narrowing from the guard above into a closure created
+// after it, but not into a hoisted declaration that could run before it.
+const freshTarget = (): InstanceType<typeof JmapTargetWriter> =>
+  new JmapTargetWriter({
+    baseUrl: STALWART_JMAP_URL,
+    username: STALWART_JMAP_USERNAME,
+    password: STALWART_JMAP_PASSWORD,
+  });
+
 describe('JMAP Reindex Integration Tests', () => {
   let db: ReturnType<typeof createPgDb>;
   let ledger: InstanceType<typeof PgLedger>;
@@ -343,12 +359,8 @@ describe('JMAP Reindex Integration Tests', () => {
       },
     });
     
-    target = new JmapTargetWriter({
-      baseUrl: STALWART_JMAP_URL,
-      username: STALWART_JMAP_USERNAME,
-      password: STALWART_JMAP_PASSWORD,
-    });
-    
+    target = freshTarget();
+
     console.log('[JMAP Reindex] Test setup complete');
   }, 30000);
 
@@ -360,6 +372,22 @@ describe('JMAP Reindex Integration Tests', () => {
     // Clean database state
     console.log('[JMAP Reindex] Cleaning database state...');
     await cleanDatabaseState();
+
+    // A FRESH WRITER, because the purge above went behind this one's back.
+    //
+    // `JmapTargetWriter` memoises a natural-key -> targetId snapshot of the
+    // account on first use (`keySnapshot ??= …`) and reuses it for the rest of
+    // its life. That is correct for production, where a writer is built per run
+    // and is the only thing writing; it is wrong for a test that empties the
+    // account over IMAP between cases. Reuse the instance and the second test
+    // consults a snapshot listing three messages that are no longer there,
+    // "adopts" all three without appending, and leaves the target empty — which
+    // is exactly how this surfaced: `scanned: 0` from `listEntries` on an
+    // account the shadow pass had just been asked to fill.
+    //
+    // Not a defect in the writer. A test that reaches around a component with a
+    // different protocol owes it a clean instance.
+    target = freshTarget();
 
     // NOTE: intentionally do NOT call target.connect() here. The production sync path
     // (runShadowPass/runDomainSync) never calls it — the TargetWriter interface has no
