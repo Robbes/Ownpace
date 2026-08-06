@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+
+  WinSW service definition for the self-host appliance (workplan 0015 T3,
+  Phase 3 of docs/windows-appliance-runbook.md).
+
+  Rename a WinSW release binary to `appliance-service.exe` and put it beside
+  this file; WinSW finds its configuration by matching its own filename.
+
+      .\appliance-service.exe install
+      .\appliance-service.exe start
+
+  WHY WinSW AND NOT sc.exe: `sc.exe` can point a service at `node.exe`, but a
+  plain Node process is not a Windows service — it never answers the service
+  control manager, so Windows reports it as failing to start even while it
+  runs. WinSW is the wrapper that answers SCM and supervises the child.
+
+  WHY NOT nssm: unmaintained since 2017, and its install flow is an interactive
+  GUI, which is the wrong shape for an unattended MSI.
+
+  UNTESTED — written on Linux. In particular `stopparentprocessfirst` and the
+  shutdown path are the parts to watch: `start.mjs` closes PGlite cleanly on
+  SIGINT/SIGTERM, but Windows services do not receive POSIX signals, so how
+  WinSW terminates the child decides whether the database is closed properly or
+  killed mid-write. Test that deliberately before trusting it.
+-->
+<service>
+  <id>OpenMigrateAppliance</id>
+  <name>Open Migration Stack appliance</name>
+  <description>
+    Runs the self-host migration appliance and its operating UI on
+    http://127.0.0.1:8080/ui. Starts on boot; no Docker, no Postgres.
+  </description>
+
+  <!--
+    %BASE% is the directory holding this file and the .exe. An installer that
+    copies the payload verbatim gets a working service with no path rewriting,
+    which is the whole reason the payload is relocatable.
+  -->
+  <executable>node</executable>
+  <arguments>"%BASE%\..\..\start.mjs"</arguments>
+  <workingdirectory>%BASE%\..\..</workingdirectory>
+
+  <!--
+    THE LOAD-BEARING PART. `start.mjs` defaults its writable state to inside the
+    payload, which is `C:\Program Files\...` once installed and therefore not
+    writable by the service account. Both must be set explicitly, to a location
+    the service can write and an uninstall does NOT delete: this is the
+    customer's migration ledger (hard rule 2).
+  -->
+  <env name="SELFHOST_PERSISTENCE" value="pglite" />
+  <env name="SELFHOST_PGLITE_DIR" value="C:\ProgramData\OpenMigrate\pglite" />
+  <env name="CONFIG_DIR" value="C:\ProgramData\OpenMigrate\config" />
+  <env name="HOST" value="127.0.0.1" />
+  <env name="PORT" value="8080" />
+
+  <!--
+    Loopback only, by default. The appliance holds mail credentials for a live
+    migration; binding it to a routable interface is an explicit decision an
+    operator can make by changing HOST, not something an installer does for them.
+  -->
+
+  <logpath>C:\ProgramData\OpenMigrate\logs</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>8</keepFiles>
+  </log>
+
+  <startmode>Automatic</startmode>
+  <onfailure action="restart" delay="10 sec" />
+  <onfailure action="restart" delay="60 sec" />
+  <!--
+    Third failure: stop trying. A service that restart-loops forever against a
+    real fault (a corrupt data directory, a port permanently taken) hides the
+    fault behind a busy Services panel instead of surfacing it.
+  -->
+  <onfailure action="none" />
+
+  <resetfailure>1 hour</resetfailure>
+  <stoptimeout>30 sec</stoptimeout>
+  <stopparentprocessfirst>true</stopparentprocessfirst>
+</service>
