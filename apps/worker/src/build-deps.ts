@@ -27,10 +27,10 @@ import {
   type TargetConfig,
 } from '@openmig/shared';
 import {
-  ImapSource,
+  ImapFlowSource,
   GraphMailSource,
   MailSourceWithGraphFallback,
-  ImapDavMailTarget,
+  ImapFlowDavMailTarget,
   type ImapDavTargetConfig,
   createTokenProvider,
 } from '@openmig/connectors';
@@ -376,7 +376,26 @@ function buildImapSource(sourceConfig: MappingConfig['source'], throttleLimiter?
     throttleLimiter, // Pass throttle limiter if available
   };
 
-  const imap = new ImapSource(imapConfig);
+  // **CUT OVER TO `imapflow` on 2026-08-06 (workplan 0032 T3).** This line is
+  // the migration: everything before it was a port shipped beside the proven
+  // client, and nothing ran on it.
+  //
+  // What it rests on, so a future reader can judge it rather than trust it:
+  // `imap-parity.integration.test.ts` runs `ImapSource` and `ImapFlowSource`
+  // against the same seeded Stalwart mailbox on every push and reports any
+  // disagreement as a named field — folder set, per-folder path/name/
+  // specialUse, per message messageId/keywords/receivedAt/size/sourceRef, the
+  // resume cursor, the `unkeyable` count, and a bytewise body sample. It is
+  // green. The field that mattered is `messageId`: it is what
+  // `naturalKeyForItem()` hashes, so a difference there would re-copy every
+  // message on the next pass with every write succeeding.
+  //
+  // `ImapSource` is deliberately still here and still declared. It is the
+  // harness's reference implementation, and removing it would leave the
+  // comparison running imapflow against itself — which is where T0 started and
+  // what that file called "not evidence of parity". It goes when the nightly
+  // e2e has been green on this path (workplan 0032 T3b).
+  const imap = new ImapFlowSource(imapConfig);
 
   // The runtime IMAP-disabled fallback (workplan 0023 T3, ADR-0006): when the
   // env ALSO carries Graph-capable credentials — OAUTH2_TENANT_ID is the
@@ -472,7 +491,18 @@ function buildTargetWriter(targetConfig: MappingConfig['target']): TargetWriter 
         password,
       };
 
-      return new ImapDavMailTarget(imapConfig);
+      // CUT OVER TO `imapflow` on 2026-08-06 (workplan 0032 T3) — the WRITE
+      // path, and the half that can lose data. Rests on
+      // `imap-target-parity.integration.test.ts`, which drives both writers
+      // through the same script against a real Stalwart and compares the
+      // outcomes: ensureMailbox, every upsert's created/adopted/targetId shape,
+      // a SECOND pass, findByNaturalKey, listEntries (by COUNT, because a
+      // writer can report `adopted` and have appended anyway) and every content
+      // hash against the bytes that went in. Green.
+      //
+      // `ImapDavMailTarget` stays for the same reason `ImapSource` does — it is
+      // what the harness compares against.
+      return new ImapFlowDavMailTarget(imapConfig);
     }
 
     default: {
