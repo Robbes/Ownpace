@@ -328,7 +328,7 @@ export async function readTargetTrashbin(): Promise<string[]> {
 // JMAP target writer uses (Stalwart serves both protocols off one account), so
 // this is an independent view of exactly what `removeItem` did — not a re-read
 // through the same JMAP API the appliance itself called. Shelled out to
-// imap-message-locations.mjs, which is where `imap-simple` is imported.
+// imap-message-locations.mjs, which is where the IMAP client is imported.
 // ---------------------------------------------------------------------------
 
 /** One mailbox holding the message, with its RFC 6154 LIST attributes. */

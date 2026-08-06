@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/testcontainers-setup.ts"
+    ".": "./src/testcontainers-setup.ts",
+    "./imap-test-client": "./src/imap-test-client.ts"
+  },
+  "dependencies": {
+    "imapflow": "^1.6.5"
   }
 }

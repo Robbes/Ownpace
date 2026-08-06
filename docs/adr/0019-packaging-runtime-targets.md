@@ -16,7 +16,7 @@ nothing. They have now been deleted, so the runtime dependency list below is not
 "preferred" — it is exhaustive:
 
 **No Perl, no Python, no external binaries.** The sync path is Node plus pure-JS
-libraries (`imap-simple`/`node-imap`, `webdav`, `ical.js`, `undici`). The one
+libraries (`imapflow`, `webdav`, `ical.js`, `undici`). The one
 native dependency left in the self-host edition is **Postgres** (ADR-0023), which
 is what a native-Windows packaging story has to answer for — not imapsync.
 

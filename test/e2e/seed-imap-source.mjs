@@ -3,7 +3,7 @@
 // Seed the SOURCE mailbox for the self-host restart-resume e2e (workplan 0010 T5).
 // The restart-resume gate is only meaningful against a non-zero source, so this
 // APPENDs N known messages to the source account's INBOX over IMAP — using
-// imap-simple, the same client the app's IMAP connector uses.
+// imapflow, the same client the app's IMAP connector uses (workplan 0032).
 //
 // Config via env (all have dev defaults matching test/e2e/fixtures/…mapping.json
 // and deploy/compose provisioning: source@dev.local / source_password):
@@ -18,7 +18,7 @@
 // re-run against a fresh mailbox produces the same corpus. Exits non-zero on any
 // failure so the workflow stops before running the (now-meaningless) gate.
 
-import imaps from 'imap-simple';
+import { ImapFlow } from 'imapflow';
 
 const host = process.env.SEED_IMAP_HOST || '127.0.0.1';
 const port = Number(process.env.SEED_IMAP_PORT || '143');
@@ -61,24 +61,26 @@ function buildMessage(i) {
 
 async function main() {
   console.log(`[seed] connecting to imap://${user}@${host}:${port} (tls=${tls})`);
-  const connection = await imaps.connect({
+  const client = new ImapFlow({
+    host,
+    port,
+    secure: tls,
     // rejectUnauthorized: false — the dev/e2e Stalwart serves a self-signed cert, so accept it,
-    // exactly like the app's own ImapSource connector (packages/connectors/src/imap-source.ts)
-    // and docs/testing.md ("connects to 993 with rejectUnauthorized: false for the self-signed
-    // test certificate"). This is a throwaway test source, never a real credential path.
-    imap: { user, password, host, port, tls, tlsOptions: { rejectUnauthorized: false }, authTimeout: 15000 },
+    // exactly like the app's own ImapFlowSource connector and docs/testing.md ("connects to 993
+    // with rejectUnauthorized: false for the self-signed test certificate"). This is a throwaway
+    // test source, never a real credential path.
+    tls: { rejectUnauthorized: false },
+    auth: { user, pass: password },
+    logger: false,
   });
+  await client.connect();
 
   try {
-    await connection.openBox('INBOX');
     for (let n = 1; n <= count; n++) {
       const i = offset + n;
-      const msg = buildMessage(i);
-      await new Promise((resolve, reject) => {
-        connection.imap.append(msg, { mailbox: 'INBOX', flags: ['\\Seen'] }, (err) =>
-          err ? reject(err) : resolve(),
-        );
-      });
+      // `\\Seen` so the seeded corpus does not change the account's unread count,
+      // which the §11.2 screens display.
+      await client.append('INBOX', Buffer.from(buildMessage(i)), ['\\Seen']);
       console.log(`[seed] appended message ${n}/${count} (seed-${i})`);
     }
     console.log(
@@ -86,7 +88,7 @@ async function main() {
         (offset ? ` (numbered ${offset + 1}..${offset + count})` : ''),
     );
   } finally {
-    connection.end();
+    await client.logout().catch(() => client.close());
   }
 }
 

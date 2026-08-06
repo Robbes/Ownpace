@@ -11,16 +11,21 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
-import type { ImapSimpleOptions } from 'imap-simple';
 import { sql } from 'drizzle-orm';
 import { createPgDb } from '../../../packages/ledger/src/db';
 import { PgLedger } from '../../../packages/ledger/src/ledger';
-import { ImapSource } from '../../../packages/connectors/src/imap-source';
+import { ImapFlowSource } from '../../../packages/connectors/src/imapflow-source';
 import { JmapTargetWriter } from '../../../packages/connectors/src/jmap-target';
 import { runShadowPass } from '../../../packages/core/src/reconcile';
 import { reindexFromTarget } from '../../../packages/core/src/reindex';
 import { asTenantId, asMappingId, type MailItem } from '@openmig/shared';
-import imap from 'imap-simple';
+import {
+  withImapTestClient,
+  purgeAllMailboxes,
+  purgeMailbox,
+  seedMailbox,
+  type ImapTestClientConfig,
+} from '../../../packages/testing/src/imap-test-client';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -37,6 +42,12 @@ if (!PG_CONNECTION_STRING) {
 // Stalwart configuration from Testcontainers (shared instance)
 const STALWART_IMAP_HOST = process.env.STALWART_IMAP_HOST;
 const STALWART_IMAP_PORT = parseInt(process.env.STALWART_IMAP_PORT || '993', 10);
+
+/** Host and port for the test observer; each caller supplies its own account. */
+const STALWART_IMAP = {
+  host: STALWART_IMAP_HOST as string,
+  port: STALWART_IMAP_PORT,
+} satisfies Pick<ImapTestClientConfig, 'host' | 'port'>;
 const STALWART_JMAP_URL = process.env.STALWART_JMAP_URL;
 const STALWART_JMAP_USERNAME = process.env.STALWART_JMAP_USERNAME || 'target@dev.local';
 const STALWART_JMAP_PASSWORD = process.env.STALWART_JMAP_PASSWORD || 'target_password';
@@ -104,66 +115,25 @@ async function cleanTargetMailboxes(): Promise<void> {
     return;
   }
 
-  const config: ImapSimpleOptions = {
-    imap: {
-      user: TARGET_ACCOUNT,
-      password: TARGET_PASSWORD,
-      host: STALWART_IMAP_HOST,
-      port: STALWART_IMAP_PORT,
-      tls: true,
-      tlsOptions: { rejectUnauthorized: false },
-      authTimeout: 3000,
-    },
-  };
-
-  let conn: unknown = null;
-  
   try {
-    conn = await imap.connect(config);
-    
-    // Get all mailboxes
-    const mailboxes: Record<string, { name: string }> = await (conn as { getMailboxes: () => Promise<Record<string, { name: string }>> }).getMailboxes();
-    
-    // Delete all messages from each mailbox
-    for (const mailbox of Object.values(mailboxes)) {
-      try {
-        const mb = mailbox;
-        await (conn as { openBox: (name: string) => Promise<void> }).openBox(mb.name);
-        
-        // Fetch all messages
-        const searchCriteria = ['ALL'];
-        const fetchResults: Array<{ attributes: { uid: number } }> = await (conn as { search: (criteria: string[], opts: unknown) => Promise<Array<{ attributes: { uid: number } }>> }).search(searchCriteria, {
-          fields: ['ENVELOPE', 'RFC822.SIZE'],
-        });
-        
-        if (fetchResults.length > 0) {
-          // Get message UIDs for deletion
-          const uids = fetchResults.map((r) => r.attributes.uid);
-          
-          // Mark all messages as deleted
-          await (conn as { addFlags: (uids: number[], flags: string) => Promise<void> }).addFlags(uids, '\\Deleted');
-          
-          // Expunge to actually remove them
-          await (conn as { expunge: () => Promise<void> }).expunge();
-          
-          console.log(`[Cleanup] Deleted ${fetchResults.length} messages from ${mb.name}`);
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        const mbName = (mailbox as { name: string })?.name || 'unknown';
-        console.warn(`[Cleanup] Warning: Could not clean mailbox ${mbName}: ${msg}`);
-      }
+    const { purged, failed } = await withImapTestClient(
+      { ...STALWART_IMAP, user: TARGET_ACCOUNT, password: TARGET_PASSWORD },
+      (client) => purgeAllMailboxes(client),
+    );
+    for (const [mailbox, count] of Object.entries(purged)) {
+      if (count > 0) console.log(`[Cleanup] Deleted ${count} messages from ${mailbox}`);
     }
-    
+    for (const [mailbox, reason] of Object.entries(failed)) {
+      console.warn(`[Cleanup] Warning: Could not clean mailbox ${mailbox}: ${reason}`);
+    }
     console.log('[Cleanup] Target mailboxes cleaned');
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.warn(`[Cleanup] Warning: Could not clean mailboxes: ${msg}`);
-    // Don't fail the test if cleanup fails - just warn
-  } finally {
-    if (conn) {
-      (conn as { end: () => void }).end();
-    }
+    // Don't fail the test if cleanup fails - just warn. Carried over verbatim
+    // from the imap-simple version (workplan 0032 T3b): a cleanup that cannot
+    // reach the server has never failed this suite, and changing that here
+    // would be an unrelated behaviour change riding along with a client swap.
   }
 }
 
@@ -299,77 +269,69 @@ async function waitForImap(host: string, port: number): Promise<void> {
 }
 
 /**
- * Append options for IMAP append operation.
- */
-interface AppendOptions {
-  mailbox?: string;
-  flags?: string | string[];
-  date?: Date;
-}
-
-/**
  * Seed test messages to source account (IMAP).
  */
 async function seedReindex(): Promise<void> {
-  const config: ImapSimpleOptions = {
-    imap: {
-      user: SOURCE_ACCOUNT,
-      password: SOURCE_PASSWORD,
-      host: STALWART_IMAP_HOST,
-      port: STALWART_IMAP_PORT,
-      tls: true,
-      tlsOptions: { rejectUnauthorized: false },
-      authTimeout: 3000,
+  const messages = [
+    {
+      messageId: '<reindex-message-1@dev.local>',
+      subject: 'Reindex Message 1',
+      body: 'This is the first reindex test message.',
+      from: SOURCE_ACCOUNT,
+      to: TARGET_ACCOUNT,
     },
-  };
+    {
+      messageId: '<reindex-message-2@dev.local>',
+      subject: 'Reindex Message 2',
+      body: 'This is the second reindex test message.',
+      from: SOURCE_ACCOUNT,
+      to: TARGET_ACCOUNT,
+    },
+    {
+      messageId: '<reindex-message-3@dev.local>',
+      subject: 'Reindex Message 3',
+      body: 'This is the third reindex test message.',
+      from: SOURCE_ACCOUNT,
+      to: TARGET_ACCOUNT,
+    },
+  ];
 
-  const conn = await imap.connect(config);
+  await withImapTestClient(
+    { ...STALWART_IMAP, user: SOURCE_ACCOUNT, password: SOURCE_PASSWORD },
+    async (client) => {
+      // Purge first. These three Message-IDs are fixed, and `beforeEach` runs
+      // this before every test, so without a purge the source accumulated the
+      // same three ids four times over — 12 messages claiming to be 3. The
+      // shadow pass deduplicates by natural key so nothing downstream noticed,
+      // but a fixture whose comment says "3 messages" should hold 3.
+      await purgeMailbox(client, 'INBOX');
+      await seedMailbox(client, messages, 'INBOX');
+    },
+  );
 
-  try {
-    const messages = [
-      {
-        messageId: '<reindex-message-1@dev.local>',
-        subject: 'Reindex Message 1',
-        body: 'This is the first reindex test message.',
-      },
-      {
-        messageId: '<reindex-message-2@dev.local>',
-        subject: 'Reindex Message 2',
-        body: 'This is the second reindex test message.',
-      },
-      {
-        messageId: '<reindex-message-3@dev.local>',
-        subject: 'Reindex Message 3',
-        body: 'This is the third reindex test message.',
-      },
-    ];
-
-    for (const msg of messages) {
-      const rfc822 = `From: ${SOURCE_ACCOUNT}
-To: ${TARGET_ACCOUNT}
-Subject: ${msg.subject}
-Message-ID: ${msg.messageId}
-Date: ${new Date().toUTCString()}
-Content-Type: text/plain; charset=utf-8
-
-${msg.body}
-`;
-
-      await conn.append(rfc822, {
-        mailbox: 'INBOX',
-      } as AppendOptions);
-    }
-
-    console.log('[seedReindex] Seeded', messages.length, 'test messages to source');
-  } finally {
-    conn.end();
-  }
+  console.log('[seedReindex] Seeded', messages.length, 'test messages to source');
 }
+
+/**
+ * A writer with no snapshot of the account yet.
+ *
+ * Called per test rather than once, because `beforeEach` purges the target over
+ * IMAP and this writer caches what it saw. See the note in `beforeEach`.
+ */
+// An arrow const, not a function declaration: TypeScript preserves the
+// `STALWART_JMAP_URL` narrowing from the guard above into a closure created
+// after it, but not into a hoisted declaration that could run before it.
+const freshTarget = (): InstanceType<typeof JmapTargetWriter> =>
+  new JmapTargetWriter({
+    baseUrl: STALWART_JMAP_URL,
+    username: STALWART_JMAP_USERNAME,
+    password: STALWART_JMAP_PASSWORD,
+  });
 
 describe('JMAP Reindex Integration Tests', () => {
   let db: ReturnType<typeof createPgDb>;
   let ledger: InstanceType<typeof PgLedger>;
-  let source: InstanceType<typeof ImapSource>;
+  let source: InstanceType<typeof ImapFlowSource>;
   let target: InstanceType<typeof JmapTargetWriter>;
 
   beforeAll(async () => {
@@ -387,7 +349,7 @@ describe('JMAP Reindex Integration Tests', () => {
     ledger = new PgLedger(db);
     
     // Initialize source and target
-    source = new ImapSource({
+    source = new ImapFlowSource({
       host: STALWART_IMAP_HOST,
       port: STALWART_IMAP_PORT,
       tls: true,
@@ -397,12 +359,8 @@ describe('JMAP Reindex Integration Tests', () => {
       },
     });
     
-    target = new JmapTargetWriter({
-      baseUrl: STALWART_JMAP_URL,
-      username: STALWART_JMAP_USERNAME,
-      password: STALWART_JMAP_PASSWORD,
-    });
-    
+    target = freshTarget();
+
     console.log('[JMAP Reindex] Test setup complete');
   }, 30000);
 
@@ -414,6 +372,22 @@ describe('JMAP Reindex Integration Tests', () => {
     // Clean database state
     console.log('[JMAP Reindex] Cleaning database state...');
     await cleanDatabaseState();
+
+    // A FRESH WRITER, because the purge above went behind this one's back.
+    //
+    // `JmapTargetWriter` memoises a natural-key -> targetId snapshot of the
+    // account on first use (`keySnapshot ??= …`) and reuses it for the rest of
+    // its life. That is correct for production, where a writer is built per run
+    // and is the only thing writing; it is wrong for a test that empties the
+    // account over IMAP between cases. Reuse the instance and the second test
+    // consults a snapshot listing three messages that are no longer there,
+    // "adopts" all three without appending, and leaves the target empty — which
+    // is exactly how this surfaced: `scanned: 0` from `listEntries` on an
+    // account the shadow pass had just been asked to fill.
+    //
+    // Not a defect in the writer. A test that reaches around a component with a
+    // different protocol owes it a clean instance.
+    target = freshTarget();
 
     // NOTE: intentionally do NOT call target.connect() here. The production sync path
     // (runShadowPass/runDomainSync) never calls it — the TargetWriter interface has no
@@ -484,7 +458,14 @@ describe('JMAP Reindex Integration Tests', () => {
         ledger,
       });
       
-      // Should have processed entries but no new items to add
+      // Should have processed entries but no new items to add.
+      //
+      // `adopted === 0` on its own is also what a reindexer that listed NOTHING
+      // returns, which would be a passing test over an empty read. The two
+      // lines below are what make this say "it found the messages and
+      // recognised every one of them".
+      expect(result.scanned).toBeGreaterThanOrEqual(3);
+      expect(result.alreadyKnown).toBe(result.scanned);
       expect(result.adopted).toBe(0);
     });
 
@@ -556,7 +537,7 @@ This message was added directly to the target after the initial sync.
     });
 
     it('should be idempotent - re-running reindex should not add duplicates', async () => {
-      // Setup: sync messages from source to target
+      // Setup: sync messages from source to target, so the target is populated.
       await runShadowPass({
         source,
         target,
@@ -565,7 +546,25 @@ This message was added directly to the target after the initial sync.
         ledger,
       });
 
-      // Run reindex twice
+      // THEN WIPE THE LEDGER. This is not tidying — it is the scenario reindex
+      // exists for (ADR-0020): a fresh install whose ledger is empty against a
+      // target that already holds the data, where re-copying would duplicate
+      // every message. Without it there is nothing on the target the ledger
+      // does not already know, so the first pass has nothing to adopt.
+      //
+      // THIS ASSERTION USED TO PASS WITHOUT THIS LINE, and that was the bug.
+      // `cleanTargetMailboxes` in `beforeEach` called `conn.getMailboxes()` —
+      // a method `imap-simple` does not have (it is `getBoxes`) — so it threw a
+      // TypeError straight into its own catch and logged a warning. The target
+      // was therefore NEVER cleaned, while `cleanDatabaseState` did wipe the
+      // ledger, so this test read messages left behind by the three tests above
+      // it as "items the ledger does not know about". Porting the cleanup to
+      // imapflow (workplan 0032 T3b) made it work, the leak stopped, and
+      // `adopted` came back 0 — the test had been resting on the leak for its
+      // entire life. Fixed by constructing the scenario rather than inheriting
+      // it, so this passes for the reason it claims to.
+      await cleanDatabaseState();
+
       const result1 = await reindexFromTarget({
         tenantId: REINDEX_TENANT_ID,
         mappingId: REINDEX_MAPPING_ID,
@@ -580,11 +579,17 @@ This message was added directly to the target after the initial sync.
         ledger,
       });
 
-      // First run should adopt items
-      expect(result1.adopted).toBeGreaterThan(0);
+      // First run adopts everything it sees, because the ledger is empty.
+      expect(result1.scanned).toBeGreaterThanOrEqual(3);
+      expect(result1.adopted).toBe(result1.scanned);
 
-      // Second run should adopt nothing (already synced)
+      // Second run adopts nothing — and RECOGNISES everything, which is the
+      // assertion that matters. `adopted === 0` alone is satisfied by a
+      // reindexer that listed nothing at all, which is the same shape of
+      // vacuous pass this test was already guilty of.
       expect(result2.adopted).toBe(0);
+      expect(result2.scanned).toBe(result1.scanned);
+      expect(result2.alreadyKnown).toBe(result2.scanned);
     });
   });
 });

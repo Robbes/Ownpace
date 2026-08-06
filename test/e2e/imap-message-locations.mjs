@@ -17,7 +17,7 @@
 // builtins — test/e2e/no-workspace-imports.unit.test.ts enforces exactly that for
 // every root-level `.e2e.test.ts` file, on the theory that these are black-box
 // tests of a DEPLOYED appliance and should not partly become tests of this
-// checkout. `imap-simple` lives here instead, the same way it already does in
+// checkout. The IMAP client lives here instead, the same way it already does in
 // seed-imap-source.mjs and trash-imap-source.mjs.
 //
 // Used to verify, independently of the appliance's own JMAP view, where a message
@@ -28,7 +28,7 @@
 //   IMAP_HOST, IMAP_PORT, IMAP_TLS, IMAP_USER, IMAP_PASSWORD — connection details
 //   MESSAGE_ID — the Message-ID to search for (with or without angle brackets)
 
-import imaps from 'imap-simple';
+import { ImapFlow } from 'imapflow';
 
 const host = process.env.IMAP_HOST || '127.0.0.1';
 const port = Number(process.env.IMAP_PORT || '993');
@@ -42,63 +42,66 @@ if (!user || !password || !messageId) {
   process.exit(1);
 }
 
-/** Every mailbox in the account, flattened, with its LIST attributes. Matches trash-imap-source.mjs. */
-function flatten(boxes, prefix, delimiter, out) {
-  for (const [name, box] of Object.entries(boxes ?? {})) {
-    const path = prefix ? `${prefix}${delimiter}${name}` : name;
-    out.push({ path, attribs: box.attribs ?? [] });
-    if (box.children) flatten(box.children, path, box.delimiter ?? delimiter, out);
-  }
-  return out;
-}
-
 /** Trim + strip one surrounding pair of angle brackets, so `<foo>` and `foo` compare equal. */
 function normalizeMessageId(id) {
   return id.trim().replace(/^<(.*)>$/, '$1').trim();
 }
 
 /**
- * Whether the CURRENTLY OPEN mailbox holds a message with this Message-ID.
+ * Whether `mailbox` holds a message with this Message-ID.
  *
- * `SEARCH ALL` + a client-side header match, not `SEARCH HEADER MESSAGE-ID`. The
- * latter came back empty against a real Stalwart for a message that unambiguously
- * existed (run #63 of the self-host e2e; see trash-imap-source.mjs for the same
- * fix and the full account of why). `ALL` plus a `HEADER.FIELDS (...)` fetch are
- * baseline IMAP4rev1 operations; a HEADER search criterion evidently is not one to
- * lean on here.
+ * A full UID-range `HEADER.FIELDS (MESSAGE-ID)` fetch + a client-side match, not
+ * `SEARCH HEADER MESSAGE-ID`. The latter came back empty against a real Stalwart
+ * for a message that unambiguously existed (run #63 of the self-host e2e; see
+ * trash-imap-source.mjs for the same fix and the full account of why). A UID
+ * range plus a `HEADER.FIELDS (...)` fetch are baseline IMAP4rev1 operations; a
+ * HEADER search criterion evidently is not one to lean on here. The finding
+ * predates the imap-simple -> imapflow swap (workplan 0032) and was never about
+ * the client.
  */
-async function mailboxHasMessage(connection, wanted) {
-  const messages = await connection.search(['ALL'], {
-    bodies: ['HEADER.FIELDS (MESSAGE-ID)'],
-    struct: false,
-  });
-  for (const message of messages) {
-    const headerPart = message.parts.find((p) => String(p.which).toUpperCase().startsWith('HEADER'));
-    const values = headerPart?.body?.['message-id'];
-    const value = Array.isArray(values) ? values[0] : values;
-    if (value && normalizeMessageId(value) === wanted) return true;
+async function mailboxHasMessage(client, mailbox, wanted) {
+  const lock = await client.getMailboxLock(mailbox);
+  try {
+    for await (const message of client.fetch(
+      '1:*',
+      { uid: true, headers: ['message-id'] },
+      { uid: true },
+    )) {
+      const raw = message.headers ? message.headers.toString('utf-8') : '';
+      const match = raw.match(/^message-id:\s*(.+)$/im);
+      if (match && normalizeMessageId(match[1]) === wanted) return true;
+    }
+    return false;
+  } finally {
+    lock.release();
   }
-  return false;
 }
 
 async function main() {
-  const connection = await imaps.connect({
-    imap: { user, password, host, port, tls, authTimeout: 10000, tlsOptions: { rejectUnauthorized: false } },
+  const client = new ImapFlow({
+    host,
+    port,
+    secure: tls,
+    tls: { rejectUnauthorized: false },
+    auth: { user, pass: password },
+    logger: false,
   });
+  await client.connect();
 
   try {
     const wanted = normalizeMessageId(messageId);
-    const mailboxes = flatten(await connection.getBoxes(), '', '/', []);
     const found = [];
-    for (const mailbox of mailboxes) {
-      await connection.openBox(mailbox.path);
-      if (await mailboxHasMessage(connection, wanted)) {
-        found.push({ path: mailbox.path, attribs: mailbox.attribs ?? [] });
+    for (const mailbox of await client.list()) {
+      // `attribs` is kept as the output key: callers of this script parse that
+      // name, and renaming it to imapflow's `flags` would be an unrelated
+      // interface change riding along with a client swap.
+      if (await mailboxHasMessage(client, mailbox.path, wanted)) {
+        found.push({ path: mailbox.path, attribs: [...(mailbox.flags ?? [])] });
       }
     }
     process.stdout.write(JSON.stringify(found));
   } finally {
-    connection.end();
+    await client.logout().catch(() => client.close());
   }
 }
 

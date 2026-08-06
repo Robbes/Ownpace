@@ -1,9 +1,30 @@
 # ADR-0022: IMAP Dependency Security Strategy
 
-**Status:** Accepted  
-**Date:** 2026-07-08  
+**Status:** Accepted — and **the migration this deferred was carried out on 2026-08-06**  
+**Date:** 2026-07-08 (update: 2026-08-06)  
 **Authors:** OpenHands Agent  
 **Supersedes:** None
+
+> ## Update, 2026-08-06 — the workaround is no longer load-bearing
+>
+> This ADR chose a `pnpm` override over migrating, and listed as its own
+> negative consequence that *"if `imap-simple` or `utf7` are deprecated,
+> migration will still be needed"*, with `imapflow` named as the eventual
+> destination. Workplan 0032 did that migration; T3b removed the last
+> `imap-simple` declaration.
+>
+> **The dependency path this ADR is about no longer exists.** `imap-simple` →
+> `imap` → `utf7` → `semver@5.3.0` is gone from `pnpm-lock.yaml` entirely — the
+> lockfile carried three `utf7` entries before T3b and carries none after. The
+> vulnerability is now absent rather than overridden, which also removes the
+> scanner noise recorded above as the third negative.
+>
+> **The `semver: ^7.5.2` override stays.** It was never only about this chain,
+> and removing it is a separate decision with its own blast radius across every
+> transitive dependency in the workspace. Nothing here asks for that.
+>
+> Everything below stands as the record of the decision that was made in July,
+> and is deliberately not rewritten.
 
 ## Context
 

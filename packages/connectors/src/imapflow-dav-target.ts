@@ -71,8 +71,12 @@ import type {
   UpsertResult,
 } from '@openmig/shared';
 import { contentHash, log } from '@openmig/shared';
-import { mapImapSpecialUse } from './imap-source';
-import { KEYWORD_TO_FLAG, extractMessageIdFromRfc822, type ImapDavTargetConfig } from './imap-dav-target';
+import {
+  mapImapSpecialUse,
+  KEYWORD_TO_FLAG,
+  extractMessageIdFromRfc822,
+  type ImapDavTargetConfig,
+} from './imap-conventions';
 
 /**
  * The mail write path, on `imapflow`.
