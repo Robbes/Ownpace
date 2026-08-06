@@ -1096,12 +1096,21 @@ async function main(): Promise<number> {
             }).then((r) => r.text());
             console.log(`  read back (the file): ${fileBack.slice(0, 1200)}`);
             console.log(
-              `\n         COMPARE: size should be ${Buffer.byteLength(CONTENT)} (the bytes\n` +
-                `         uploaded) and type 'text/plain'. A node that stores the blob\n` +
-                `         but reports size: null cannot support a verification count,\n` +
-                `         which is a narrowing T3 must STATE rather than discover.\n` +
-                `         parentId should be ${fid} — the folder above — so the path\n` +
-                `         reconstruction has a real chain to walk.`,
+              `\n         ANSWERED 2026-08-06 — all three, cleanly.\n` +
+                `         blobId is ACCEPTED on create; the node reads back\n` +
+                `         nodeType 'file', size ${Buffer.byteLength(CONTENT)} matching the bytes\n` +
+                `         uploaded, type 'text/plain', and parentId nesting it under\n` +
+                `         the folder above. So verification CAN count bytes for this\n` +
+                `         domain and the path reconstruction has a real chain.\n` +
+                `\n` +
+                `         AND ONE THING NOBODY ASKED, which matters most: the blobId\n` +
+                `         READ BACK is NOT the one uploaded. Stalwart re-issues it\n` +
+                `         once the blob is attached to a node. Any code that keeps\n` +
+                `         the upload's blobId to fetch content later is holding a\n` +
+                `         handle the store does not use — read it off the NODE.\n` +
+                `\n` +
+                `         KEPT AS A REGRESSION CHECK: this is the rung that says\n` +
+                `         whether JMAP files can carry content at all.`,
             );
             await fetch(apiUrl, {
               method: 'POST',
