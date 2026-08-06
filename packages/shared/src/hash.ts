@@ -68,7 +68,21 @@ export function naturalKeyForContact(contact: Contact): string {
 
 /**
  * File natural key hash from path.
- * File paths are typically case-sensitive, but we normalize to handle case-insensitive filesystems.
+ *
+ * CORRECTED 2026-08-05: this said "we normalize to handle case-insensitive
+ * filesystems". **It does not, and never did** — it hashes the string it is
+ * given, verbatim. The claim mattered because it describes the natural key: a
+ * reader building a second producer of these paths (0031 T3's JMAP
+ * parent-chain reconstruction is the first) would fold case to match a
+ * normalisation that is not there, and every capitalised or accented path
+ * would then key differently per transport — silently, because a mismatched
+ * key is a re-copy and a re-copy is a successful write.
+ *
+ * The path handed in must already be in the ONE agreed shape: root-relative,
+ * percent-decoded, no leading or trailing slash, no case folding, no Unicode
+ * normalisation — whatever `webdav-source.ts`'s `toRelativePath` produces. See
+ * `jmap-file-path.ts` for the second producer and the test that pins them
+ * together.
  */
 export function fileNaturalKeyHash(path: string): string {
   return sha256Hex(`file:${path}`);
