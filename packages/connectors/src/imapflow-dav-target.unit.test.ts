@@ -47,6 +47,8 @@ let removalIsALie: boolean;
 let failNext: { count: number; error: Error } | null;
 /** Make the FETCH itself fail, which is a different branch from the lock. */
 let failFetch: Error | null;
+/** What `exists` was when each mailbox was first SELECTed — see getMailboxLock. */
+let selectedExists: Map<string, number>;
 
 vi.mock('imapflow', () => {
   class FakeImapFlow {
@@ -82,12 +84,21 @@ vi.mock('imapflow', () => {
       calls.push(`lock(${path})`);
       maybeFail();
       if (!boxes.has(path)) throw new Error(`NONEXISTENT ${path}`);
-      this.mailbox = { path, uidValidity, uidNext: nextUid, exists: boxes.get(path)!.length };
+      // **`exists` IS A SNAPSHOT FROM SELECT TIME, and this fake now says so.**
+      // imapflow does not re-SELECT a mailbox that is already open, so
+      // `client.mailbox.exists` keeps the count from the FIRST select for the
+      // life of the selection. The earlier fake refreshed it on every lock,
+      // which made a stale-`exists` short-circuit look correct in every unit
+      // test — and the parity harness then found it against a real Stalwart on
+      // its first run. A fake that is kinder than the library cannot catch what
+      // the library does.
+      if (!selectedExists.has(path)) selectedExists.set(path, boxes.get(path)!.length);
+      this.mailbox = { path, uidValidity, uidNext: nextUid, exists: selectedExists.get(path) };
       return { path, release: () => calls.push(`release(${path})`) };
     }
-    async fetchAll(range: string, query: Record<string, unknown>) {
+    async fetchAll(range: string, query: Record<string, unknown>, options?: Record<string, unknown>) {
       const box = (this.mailbox as { path: string }).path;
-      calls.push(`fetchAll(${box},${range},${Object.keys(query).sort().join('+')})`);
+      calls.push(`fetchAll(${box},${range},${Object.keys(query).sort().join('+')},uid=${String(options?.uid ?? false)})`);
       if (failFetch) throw failFetch;
       return (boxes.get(box) ?? []).map((m) => ({
         uid: m.uid,
@@ -193,6 +204,7 @@ beforeEach(() => {
   removalIsALie = false;
   failNext = null;
   failFetch = null;
+  selectedExists = new Map();
 });
 
 // =======================================================================
@@ -428,6 +440,34 @@ describe('findByNaturalKey', () => {
     // A ledger row can carry either form; a message that IS there reading as
     // absent gets appended again.
     expect(await t.findByNaturalKey('INBOX', '<m@dev.local>')).toBe('3');
+  });
+
+  it('finds a message appended AFTER the mailbox was selected while empty', async () => {
+    // THE BUG THE PARITY HARNESS FOUND, as a unit test.
+    //
+    // `upsertEmail` selects the mailbox (to read UIDVALIDITY) while it is
+    // still empty, then appends. imapflow does not re-SELECT an already-open
+    // mailbox, so `client.mailbox.exists` is still 0 — and a short-circuit on
+    // that value answers "not present" for a message that is right there,
+    // which `upsertEmail` turns into a duplicate APPEND on the next pass.
+    const t = target();
+    const first = await t.upsertEmail('INBOX', rawMessage(), []);
+    expect(first.created).toBe(true);
+
+    // Same instance, same open mailbox, stale `exists`.
+    expect(await t.findByNaturalKey('INBOX', 'msg-1@dev.local')).toBe(first.targetId);
+
+    const again = await t.upsertEmail('INBOX', rawMessage(), []);
+    expect(again.adopted).toBe(true);
+    expect(boxes.get('INBOX')).toHaveLength(1);
+  });
+
+  it('scans by UID range, which is what makes an empty mailbox safe to fetch', async () => {
+    // A sequence FETCH of `1:*` against an empty mailbox is an error on some
+    // servers; a UID FETCH matching nothing returns no data (RFC 3501). That
+    // is why there is no `exists` guard in front of it — the guard was the bug.
+    expect(await target().findByNaturalKey('INBOX', 'nobody@dev.local')).toBeUndefined();
+    expect(calls.some((c) => c.startsWith('fetchAll(INBOX,1:*') && c.includes('uid=true'))).toBe(true);
   });
 
   it('answers undefined only after a complete scan that matched nothing', async () => {

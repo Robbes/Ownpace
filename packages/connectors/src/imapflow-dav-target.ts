@@ -237,14 +237,26 @@ export class ImapFlowDavMailTarget implements TargetWriter, TargetReindexer, Tar
     }
 
     try {
-      const box = client.mailbox;
-      if (!box || typeof box === 'boolean') throw new Error('No mailbox opened');
-      if (box.exists === 0) return undefined;
-
       // ONE fetch for the whole mailbox. See the header for why this is
       // ENVELOPE rather than a per-message HEADER string scan, and what that
       // changes.
-      const messages = await client.fetchAll('1:*', { uid: true, envelope: true });
+      //
+      // A **UID** range (`{ uid: true }`), not a sequence range, and there is
+      // no `mailbox.exists === 0` short-circuit in front of it. Both details
+      // are the same bug, caught by the parity harness on its first real run:
+      // `client.mailbox.exists` is a SNAPSHOT taken when the mailbox was
+      // SELECTed, and imapflow's `getMailboxLock` does not re-SELECT one that
+      // is already open — so after `upsertEmail` appended into a mailbox first
+      // locked while empty, `exists` was still 0 and this returned `undefined`
+      // for messages that were right there. That is the exact shape hard rule 9
+      // forbids: a stale optimisation answering "not present", which
+      // `upsertEmail` turns into a duplicate APPEND.
+      //
+      // A UID range of `1:*` is also the reason the guard is not needed at all:
+      // RFC 3501 says a UID FETCH matching nothing returns no data rather than
+      // an error, unlike a sequence FETCH with an out-of-range number — which
+      // is what the guard was there to avoid in the first place.
+      const messages = await client.fetchAll('1:*', { uid: true, envelope: true }, { uid: true });
       for (const msg of messages) {
         const found = msg.envelope?.messageId;
         if (typeof found === 'string' && normaliseKey(found) === wanted) {
@@ -421,12 +433,13 @@ export class ImapFlowDavMailTarget implements TargetWriter, TargetReindexer, Tar
   private async entriesIn(client: ImapFlow, boxName: string): Promise<TargetEntry[]> {
     const lock = await client.getMailboxLock(boxName);
     try {
-      const box = client.mailbox;
-      if (!box || typeof box === 'boolean') throw new Error('No mailbox opened');
-      if (box.exists === 0) return [];
-
       const entries: TargetEntry[] = [];
-      for (const msg of await client.fetchAll('1:*', { uid: true, envelope: true, size: true })) {
+      // UID range, no `exists` short-circuit — see `findByNaturalKey` for why
+      // both matter. Here the stale-`exists` bug reindexes an account as EMPTY,
+      // which is worse than the lookup case: the rebuilt ledger looks complete
+      // and the next sync re-appends every message in it.
+      const listed = await client.fetchAll('1:*', { uid: true, envelope: true, size: true }, { uid: true });
+      for (const msg of listed) {
         const found = msg.envelope?.messageId;
         if (typeof found !== 'string' || found === '') {
           // Keying by UID instead would produce a ledger row that can never
