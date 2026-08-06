@@ -56,6 +56,69 @@ whole point of 0015 is that it should not.
 
 ---
 
+## What needs to be running, and where
+
+Short version: **Phases 1 and 2 need nothing but the laptop.** Phase 3's most
+valuable test needs a real source and target, and that is what the Spark is for.
+
+| Phase | Needs a source/target server? |
+|---|---|
+| 1 — does the payload run | **No.** `node start.mjs` boots PGlite, migrates itself and serves `/ui` with no mapping configured. That is the whole test. |
+| 2 — data directory | **No.** Same, from a different directory. |
+| 3 — Windows Service | Registration, boot survival and a clean `Stop-Service`: **no**. The *mid-sync shutdown* test: **yes** — you cannot interrupt a sync that is not running. |
+| 4 — installer | Not for the build. Yes for an end-to-end smoke after installing. |
+
+So do not stand anything up before Phase 1. If the payload does not boot, a
+Stalwart you provisioned first was wasted effort.
+
+### For the Phase 3 shutdown test, over NetBird
+
+Keep Stalwart (and Nextcloud, if you want the DAV domains) **on the Spark**,
+started the way they already are — `deploy/selfhost/setup-stalwart.sh` is
+idempotent — and run the appliance on the laptop, pointing its mapping at the
+Spark's NetBird address.
+
+That works without any change to the setup scripts, and it is worth knowing why:
+`setup-stalwart.sh` publishes with `-p "${JMAP_PORT}:8080"` and
+`-p "${IMAPS_PORT}:993"` and **no bind address**, so Docker publishes on
+`0.0.0.0` and both are already reachable from the NetBird network. Nothing to
+re-bind, nothing to open.
+
+- JMAP: `http://<spark-netbird-ip>:18080/.well-known/jmap`
+- IMAPS: `<spark-netbird-ip>:1993` (TLS, self-signed)
+- Accounts: `source@dev.local` / `source_password`, `target@dev.local` / `target_password`
+
+**Direction of traffic matters here and it is the reassuring part.** The
+appliance is a *client* of Stalwart — it makes outbound connections. Nothing has
+to reach the laptop, so there is no inbound firewall rule and no port to publish
+on Windows. The appliance's own `HOST` stays `127.0.0.1`: you browse its UI from
+the same machine it runs on, and it should stay off the network (it holds live
+mail credentials).
+
+Two things not to confuse:
+
+- `SELFHOST_BIND` in `deploy/selfhost/compose.yml` binds the *appliance's* port
+  to loopback in the Docker deployment. Irrelevant here — the Windows appliance
+  is not in Docker, and its equivalent is the `HOST` variable.
+- The self-signed certificate is expected. The connectors use
+  `rejectUnauthorized: false` on this dev path by design; if you see a TLS
+  rejection that is a finding, not something to work around.
+
+### What "mid-sync shutdown" actually means
+
+Seed the source, start a mapping, and while it is copying, `Stop-Service
+OpenMigrateAppliance`. Then start it again. The appliance must come back, the
+ledger must be intact, and a re-run must not duplicate what was already copied —
+that is hard rule 1, and it is the property `selfhost-restart-resume.e2e.test.ts`
+proves on Linux and nothing has ever proved on Windows.
+
+**This is the test I care most about**, because it is where the Windows-specific
+risk actually lives: Windows services receive no POSIX signals, so whether
+`start.mjs` gets to close PGlite cleanly depends entirely on how the wrapper
+stops it.
+
+---
+
 ## Phase 1 — does the payload run on Windows at all?
 
 **The one that matters.** Everything else is downstream of this answer.
