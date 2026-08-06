@@ -380,6 +380,31 @@ async function verifyDataType(
   // Generate issues
   const issues: DataTypeVerification['issues'] = [];
   
+  if (sourceCount > 0 && sourceSamples.length === 0) {
+    // NO sample was drawn at all, from a domain that holds items. Nothing was
+    // compared, so nothing contradicts parity, and `checksumMatchPercentage`
+    // falls back to 1 for want of contrary evidence — a checksum leg that never
+    // ran, scoring as a checksum leg that found nothing wrong.
+    //
+    // The neighbouring case (samples drawn, none comparable) has warned since
+    // 0009 T1. This one is its mirror and was silent, which is the asymmetry
+    // worth closing: an operator reading the §20 report has no way to tell "no
+    // content evidence" from "content evidence, all good".
+    //
+    // Not reachable through `createVerificationDeps` today — `countItems` and
+    // `getSamples` read the same rows through the same filter, so a non-zero
+    // count yields a non-zero sample. It guards hand-built deps and any future
+    // sample source that is not the ledger, and it costs one comparison.
+    issues.push({
+      id: `CHECKSUM_NOT_SAMPLED_${dataType}`,
+      severity: 'WARNING',
+      message:
+        `No ${dataType} item could be sampled for content verification, though ${sourceCount} ` +
+        `item(s) are recorded. The checksum half of the gate did not run at all — this is an ` +
+        `ABSENCE of content evidence, not evidence of a match. Count parity still applies.`,
+    });
+  }
+
   if (checksumUnavailable > 0) {
     // Surface, never silently pass (hard rule 9): the operator must know the
     // checksum half of the gate did not actually run for these items.
@@ -424,7 +449,15 @@ async function verifyDataType(
     matchedCount,
     missingOnTarget: missingOnTarget.length,
     extraOnTarget: extraOnTarget.length,
-    checksumSampleSize: sampleSize,
+    // What was actually compared, NOT what was asked for. The clamp in
+    // `calculateSampleSize` makes these agree for the ledger-backed deps, where
+    // `countItems` and `getSamples` read the same rows through the same filter.
+    // This is the belt to that brace: it holds the invariant
+    // `matches + mismatches + unavailable === checksumSampleSize` true by
+    // construction, whatever a `getSourceSamples` implementation hands back. A
+    // coverage number that can exceed what was examined is a number that can
+    // only ever overstate.
+    checksumSampleSize: sourceSamples.length,
     checksumMatches,
     checksumMismatches,
     checksumUnavailable,
@@ -439,12 +472,24 @@ async function verifyDataType(
  */
 function calculateSampleSize(totalCount: number, config: VerificationConfig): number {
   if (totalCount === 0) return 0;
-  
+
   const calculated = Math.floor(totalCount * (config.checksumSamplePercentage / 100));
-  return Math.max(
+  const wanted = Math.max(
     config.minSampleSize,
     Math.min(calculated, config.maxSampleSize)
   );
+  // **Never ask for more items than exist.** `minSampleSize` is a floor on the
+  // percentage, not a promise that many items are there to sample: with the
+  // default floor of 10 and a domain holding 8, this returned 10, the ledger
+  // returned the 8 it had, and the report published 10 as the sample size. The
+  // self-host e2e printed the result on 2026-08-06 —
+  //
+  //     mail checksums: 8 match, 0 mismatch, 0 unavailable of 10 sampled
+  //
+  // — where 8 + 0 + 0 does not reach 10, so the report overstated how much of
+  // the §20 gate's content leg had actually run. Nothing was mis-verified; the
+  // coverage figure was simply larger than the coverage.
+  return Math.min(wanted, totalCount);
 }
 
 /**
