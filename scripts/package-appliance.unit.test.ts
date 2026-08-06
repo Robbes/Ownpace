@@ -376,6 +376,73 @@ describe('the Postgres path survived bundling too', () => {
   }, 120_000);
 });
 
+describe('the UI build is wired to actually compile Tailwind', () => {
+  /**
+   * The appliance shipped with UNCOMPILED CSS, in both editions, until
+   * 2026-08-06 — found the first time anyone opened the UI in a browser rather
+   * than asserting a status code against it.
+   *
+   * `src/index.css` carried Tailwind v3's `@tailwind base/components/utilities`
+   * triple while Tailwind v4 was installed, with NO PostCSS config and NO Vite
+   * plugin to process either. Vite copied the file through verbatim, the
+   * browser ignored the at-rules, and every screen rendered with no utilities
+   * at all — 3 KB of `:root { --background: … }` and nothing else.
+   *
+   * Nothing caught it because nothing looked. The packaging test asserted
+   * `/ui/confirm` returns `<!doctype html>`; the e2e UI smoke asserts the
+   * screens boot. Both are true of a completely unstyled page.
+   *
+   * These assert the WIRING rather than the output, because this suite stages
+   * a stub UI on purpose (a Vite build per unit run would be minutes). Three
+   * things had to be true and none of them were; each is pinned here.
+   */
+  const web = join(REPO, 'apps', 'web');
+
+  it('uses the v4 entry, not the v3 directives that nothing processes', () => {
+    const css = readFileSync(join(web, 'src', 'index.css'), 'utf-8');
+    expect(css).toContain('@import "tailwindcss"');
+    // Anchored to a real directive — start of line, ending in a semicolon.
+    // A loose /@tailwind \w+/ also matches this file's own comment explaining
+    // what was removed, which is how the first version of this test failed.
+    expect(css, 'v3 directives are back; v4 does not understand them').not.toMatch(
+      /^\s*@tailwind\s+(base|components|utilities)\s*;/m,
+    );
+  });
+
+  it('runs Tailwind as a Vite plugin, or nothing processes the entry at all', () => {
+    const config = readFileSync(join(web, 'vite.config.ts'), 'utf-8');
+    expect(config).toContain('@tailwindcss/vite');
+    expect(config, 'the plugin is imported but never added to plugins[]').toMatch(
+      /plugins:\s*\[[^\]]*tailwindcss\(\)/,
+    );
+  });
+
+  it('declares the plugin, so a clean install still builds styles', () => {
+    const pkg = JSON.parse(readFileSync(join(web, 'package.json'), 'utf-8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    expect({ ...pkg.dependencies, ...pkg.devDependencies }).toHaveProperty(
+      '@tailwindcss/vite',
+    );
+  });
+
+  it('defines the design tokens in CSS, since the JS config never did', () => {
+    // `border-border`, `bg-background` and friends are shadcn-style tokens the
+    // components are written against. `tailwind.config.js` described a numeric
+    // primary/success/warning palette that a search of every .tsx and .css in
+    // the app finds ZERO uses of — so the config was not merely unprocessed, it
+    // described a palette nobody wrote against. With the build fixed, an
+    // undefined token now FAILS the build rather than being dropped silently,
+    // which is how the missing ones were found.
+    const css = readFileSync(join(web, 'src', 'index.css'), 'utf-8');
+    expect(css).toContain('@theme');
+    for (const token of ['--color-background', '--color-border', '--color-muted-foreground']) {
+      expect(css, `${token} is not mapped, so its utilities will not resolve`).toContain(token);
+    }
+  });
+});
+
 describe('the shipped Windows payload carries its own Node', () => {
   /**
    * Owner decision, 2026-08-06: the payload ships a Node runtime.

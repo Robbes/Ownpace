@@ -30,7 +30,7 @@ prediction is shaky, this document says so rather than sounding confident.
 
 ## What to send back
 
-Whatever happens, the useful artefact is the same. `scripts/windows/collect-evidence.ps1`
+Whatever happens, the useful artefact is the same. `scripts/windows/collect-evidence.cmd`
 writes one file with the versions, the console output, the listening ports and
 the data directory layout. Run it after whichever phase you reach and send
 `windows-evidence.txt`. That is enough to act on without a back-and-forth.
@@ -58,6 +58,28 @@ test of the requirement.
 | PowerShell 5.1 or 7 | already on the machine |
 
 That is the list.
+
+**Use PowerShell, not `cmd`.** Every command here is PowerShell — `cmd.exe` has
+no `Copy-Item`, and the first run of this runbook lost time to exactly that.
+
+**Windows blocks unsigned scripts by default**, so **use the `.cmd` wrappers**:
+
+```powershell
+.\collect-evidence.cmd -PayloadPath "C:\Program Files\OpenMigrateTest"
+.\run-appliance.cmd    -PayloadPath "C:\Program Files\OpenMigrateTest"
+```
+
+Calling the `.ps1` files directly fails under the stock `Restricted` policy with
+*"running scripts is disabled on this system"*. The wrappers pass
+`-ExecutionPolicy Bypass` for that one process only — they do **not** change the
+machine's stored policy, and you should not either: telling an owner to run
+`Set-ExecutionPolicy RemoteSigned` weakens their machine permanently in order to
+read a diagnostic file.
+
+This is worth noticing rather than only working around. **An MSI that shipped
+PowerShell scripts would hit the same wall on a customer's machine**, which is an
+argument for the installer doing its work natively — and a second, concrete
+reason for T4 code signing beyond SmartScreen.
 
 **Owner decision, 2026-08-06: the payload ships its own Node runtime.**
 `pnpm package:appliance --with-node win-x64` stages `node.exe` beside
@@ -170,8 +192,6 @@ because a named suspicion is faster to check than a blank error.
 
 ---
 
----
-
 ## What needs to be running, and where
 
 Short version: **Phases 1 and 2 need nothing but the laptop.** Phase 3's most
@@ -260,12 +280,21 @@ SELFHOST_PGLITE_DIR = C:\ProgramData\OpenMigrate\pglite
 CONFIG_DIR          = C:\ProgramData\OpenMigrate\config
 ```
 
-**To prove the problem exists** (worth ten minutes, because it justifies the fix):
+**To prove the problem exists** — this needs TWO shells, and that is the point:
+an installer runs elevated, the service does not.
+
+First, **an ADMINISTRATOR PowerShell**, only to place the files where an
+installer would:
 
 ```powershell
-# As a NORMAL user, not an admin shell.
 mkdir "C:\Program Files\OpenMigrateTest"
-Copy-Item -Recurse dist\appliance\* "C:\Program Files\OpenMigrateTest\"
+Copy-Item -Recurse <payload>\* "C:\Program Files\OpenMigrateTest\"
+```
+
+Then close it and open a **NORMAL PowerShell**, because running as an
+unprivileged account is the whole test:
+
+```powershell
 cd "C:\Program Files\OpenMigrateTest"
 .\node.exe start.mjs
 ```
@@ -296,7 +325,7 @@ account has non-default write access to Program Files, and the test says nothing
 **Then prove the fix works:**
 
 ```powershell
-..\..\scripts\windows\run-appliance.ps1 -PayloadPath "C:\Program Files\OpenMigrateTest"
+..\..\scripts\windows\run-appliance.cmd -PayloadPath "C:\Program Files\OpenMigrateTest"
 ```
 
 That script sets both variables to `C:\ProgramData\OpenMigrate\...`, creates the
