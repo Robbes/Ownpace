@@ -34,10 +34,10 @@ import {
   buildCalendarTarget,
   buildContactSource,
   buildFileSource,
-  buildFileTarget,
 } from './dav-factories';
 import { davEndpointFromCreds, fileEndpointFromCreds } from './dav-endpoint';
 import { buildContactTargetFor, contactTargetProtocol } from './contact-target-factory';
+import { buildFileTargetFor, fileTargetProtocol } from './file-target-factory';
 import { PgLedger, PgCursorStore, createPgDb, withTenant } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import { mailboxMapping } from '@openmig/ledger';
@@ -324,7 +324,12 @@ export async function buildDomainDepsFromMapping(
       {
         ...common,
         source: buildFileSource(fileSrcEndpoint),
-        target: buildFileTarget(fileTgtEndpoint, targetDeps),
+        // Files can go over JMAP where the target speaks it (0031 T3). Read
+        // off the connection's own `kind`, which has allowed `jmap` since the
+        // 0001 baseline, so this needs no migration and no new config field.
+        // Anything else stays on WebDAV, which is what every existing mapping
+        // is and must remain.
+        target: buildFileTargetFor(fileTargetProtocol(tgt.kind), fileTgtEndpoint, targetDeps),
       } satisfies FileSyncDeps,
       db,
     );

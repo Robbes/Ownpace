@@ -200,6 +200,8 @@ Once approved:
 | `apps/api/src/routes/tenants/members.integration.test.ts` | `5d2b` | ✅ Done | 14 passed |
 | `apps/api/src/routes/tenants/tenants.integration.test.ts` | `5e2b` | ✅ Done | 8 passed |
 | `packages/core/src/jmap-contact-sync.integration.test.ts` | `5a2b` | ✅ Added 2026-08-05 (0031 T2.3) | 3 cases |
+| `packages/core/src/jmap-file-sync.integration.test.ts` | `5b2b` | ✅ Added 2026-08-06 (0031 T3) | 3 cases |
+| `packages/connectors/src/jmap-file-target.integration.test.ts` | none — no UUIDs | ✅ Added 2026-08-06 (0031 T3) | 6 cases |
 
 ### Full Integration Suite Result
 

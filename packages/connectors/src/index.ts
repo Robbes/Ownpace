@@ -10,6 +10,10 @@ export * from './jmap-target';
 // theirs.
 export * from './jmap-contact-target';
 
+// Files as a JMAP target (0031 T3). Same reasoning as the contacts writer for
+// why it lives here rather than beside the WebDAV writer in @openmig/engines.
+export * from './jmap-file-target';
+
 // The imap-simple -> imapflow parity harness (0032 T0). Exported because T1/T2
 // wire it into an integration test, and because a harness nobody can reach is
 // a harness nobody runs.
