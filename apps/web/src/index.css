@@ -1,6 +1,61 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Tailwind v4 entry.
+ *
+ * What used to be here was the v3 triple `@tailwind base/components/utilities`
+ * — which v4 does not understand, and which nothing else understood either,
+ * because no PostCSS config and no Vite plugin existed to process it. It
+ * reached the browser as literal text, so every screen in BOTH editions
+ * rendered with no utilities at all. Found on 2026-08-06, the first time
+ * anyone opened the appliance UI in a browser.
+ */
+@import "tailwindcss";
+
+/* The design tokens the components actually use.
+ *
+ * `@theme inline` maps Tailwind colour names onto the CSS variables defined in
+ * `:root` below, so `bg-background`, `border-border`, `text-muted-foreground`
+ * and friends resolve — and keep resolving when `.dark` swaps the variables.
+ * That is the whole reason for `inline`: without it the values are frozen at
+ * build time and dark mode stops working.
+ *
+ * NOT loaded from `tailwind.config.js`. That file defines `primary`, `success`
+ * and `warning` as numeric 50–900 scales, and a search of every `.tsx` and
+ * `.css` in this app finds ZERO uses of them — no `bg-primary-600`, nothing.
+ * Every class in the codebase is one of the shadcn-style tokens below, which
+ * that config never defined. So the config was not merely unprocessed, it was
+ * describing a palette nobody wrote against; pointing `@config` at it would
+ * have re-imported dead weight and still left `border-border` unknown.
+ */
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  /* `bg-success` / `bg-warning` are used by the status badges. The old JS
+   * config defined `success` and `warning` only as numeric 50–900 scales, so
+   * the bare token never existed and these two rules were dead the whole time.
+   * Pinned to the 500 step of those scales, which is what the names meant. */
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
 
 @layer base {
   :root {

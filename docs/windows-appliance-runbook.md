@@ -59,6 +59,22 @@ test of the requirement.
 
 That is the list.
 
+**Use PowerShell, not `cmd`.** Every command here is PowerShell — `cmd.exe` has
+no `Copy-Item`, and the first run of this runbook lost time to exactly that.
+
+**Windows blocks unsigned scripts by default.** `collect-evidence.ps1` and
+`run-appliance.ps1` will not run under the stock `Restricted` policy; you get
+*"running scripts is disabled on this system"*. Invoke them as:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\collect-evidence.ps1 -PayloadPath <path>
+```
+
+This is worth noticing rather than working around: an MSI that shipped
+PowerShell scripts would hit the same wall on a customer's machine, which is an
+argument for the installer doing its work natively (and a second, concrete
+reason for T4 code signing beyond SmartScreen).
+
 **Owner decision, 2026-08-06: the payload ships its own Node runtime.**
 `pnpm package:appliance --with-node win-x64` stages `node.exe` beside
 `start.mjs`, and everything here runs it as `.\node.exe`. The alternative —
@@ -170,8 +186,6 @@ because a named suspicion is faster to check than a blank error.
 
 ---
 
----
-
 ## What needs to be running, and where
 
 Short version: **Phases 1 and 2 need nothing but the laptop.** Phase 3's most
@@ -260,12 +274,21 @@ SELFHOST_PGLITE_DIR = C:\ProgramData\OpenMigrate\pglite
 CONFIG_DIR          = C:\ProgramData\OpenMigrate\config
 ```
 
-**To prove the problem exists** (worth ten minutes, because it justifies the fix):
+**To prove the problem exists** — this needs TWO shells, and that is the point:
+an installer runs elevated, the service does not.
+
+First, **an ADMINISTRATOR PowerShell**, only to place the files where an
+installer would:
 
 ```powershell
-# As a NORMAL user, not an admin shell.
 mkdir "C:\Program Files\OpenMigrateTest"
-Copy-Item -Recurse dist\appliance\* "C:\Program Files\OpenMigrateTest\"
+Copy-Item -Recurse <payload>\* "C:\Program Files\OpenMigrateTest\"
+```
+
+Then close it and open a **NORMAL PowerShell**, because running as an
+unprivileged account is the whole test:
+
+```powershell
 cd "C:\Program Files\OpenMigrateTest"
 .\node.exe start.mjs
 ```

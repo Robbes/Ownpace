@@ -1,6 +1,7 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 
 // https://vitejs.dev/config/
@@ -15,7 +16,12 @@ export default defineConfig(({ mode }) => ({
       mode === 'selfhost' ? 'selfhost' : 'managed',
     ),
   },
-  plugins: [react()],
+  // Tailwind runs as a Vite plugin (v4's supported route). WITHOUT IT THE
+  // STYLESHEET SHIPS UNCOMPILED: `src/index.css` is passed through verbatim,
+  // the browser ignores `@import "tailwindcss"`, and every screen renders with
+  // no utilities at all — which is exactly what shipped until 2026-08-06, in
+  // both editions, because nothing asserted the CSS had been built.
+  plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
