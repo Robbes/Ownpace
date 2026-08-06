@@ -18,6 +18,10 @@ export * from './jmap-contact-target';
 // why it lives here rather than beside the WebDAV writer in @openmig/engines.
 export * from './jmap-file-target';
 
+// Which domains a JMAP server can actually carry (0031 T4) — the question the
+// per-domain target picker cannot be built without being able to ask.
+export * from './jmap-capabilities';
+
 // The imap-simple -> imapflow parity harness (0032 T0). Exported because T1/T2
 // wire it into an integration test, and because a harness nobody can reach is
 // a harness nobody runs.
