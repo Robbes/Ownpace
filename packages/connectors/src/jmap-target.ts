@@ -4,6 +4,7 @@
 // T3 from workplan 0001-first-slice-jmap-mail.
 
 import JamClient from "jmap-jam";
+import { loadJmapSession } from './jmap-session';
 import type {
   TargetWriter,
   TargetReindexer,
@@ -243,7 +244,13 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     const sessionUrl = `${this.config.baseUrl}${this.config.wellKnownPath || "/.well-known/jmap"}`;
 
     // Load the session directly
-    const session = await JamClient.loadSession(sessionUrl, this.authHeader) as JmapSession;
+    // `loadJmapSession`, NOT `JamClient.loadSession`. That helper never checks
+    // `response.ok`, so a 401 carrying a JSON body resolves as a session with no
+    // accounts — and the guard below then blames account resolution for what was
+    // only ever a rejected credential. No data was ever at risk (the guard does
+    // its job); the DIAGNOSIS was wrong, which costs the reader time exactly
+    // when a connection is broken. See `jmap-session.ts`.
+    const session = await loadJmapSession(sessionUrl, this.authHeader) as JmapSession;
     
     // Use the base URL + /jmap as the API URL
     // Stalwart's JMAP API is typically at /jmap endpoint

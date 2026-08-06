@@ -98,5 +98,39 @@ if (!BASE || !PASSWORD) {
         probeJmapCapabilities({ ...config, password: 'definitely-not-the-password' }),
       ).rejects.toThrow(/UNKNOWN — not "none"/);
     }, 60_000);
+
+    it('makes the WRITERS blame the credential too, not account resolution', async () => {
+      // The follow-up to the case above, against the real server that produced
+      // it. All four call sites share `loadJmapSession` now, so a rejected
+      // credential has to arrive as a rejected credential everywhere — but
+      // "everywhere" is a claim about four files, and only Stalwart can say
+      // whether its 401 really looks the way the unit fakes assume.
+      //
+      // Before the shared loader these threw `Could not resolve a JMAP contacts
+      // account…`, which is true of the parsed error document and useless to
+      // whoever reads it: nothing is wrong with account provisioning.
+      const wrong = { ...config, password: 'definitely-not-the-password' };
+      for (const connect of [
+        () => new JmapContactTarget(wrong).connect(),
+        () => new JmapFileTarget(wrong).connect(),
+      ]) {
+        const err = (await connect().then(
+          () => null,
+          (e: Error) => e,
+        )) as Error | null;
+        expect(err).toBeInstanceOf(Error);
+        // The load-bearing half: the old, wrong diagnosis is GONE, and what
+        // replaces it points at the session request that actually failed.
+        expect(err!.message).not.toMatch(/resolve a JMAP/);
+        expect(err!.message).toMatch(/\.well-known\/jmap/);
+        // 4xx rather than 401 specifically. Stalwart's exact status for a bad
+        // password has not been observed from here — no Docker on the author's
+        // machine, so this file is CI-only — and asserting a number nobody has
+        // seen would be pinning a guess. The unit tests pin every status's
+        // wording; this pins that a rejected credential reaches the operator as
+        // a rejected REQUEST rather than as a missing account.
+        expect(err!.message).toMatch(/returned HTTP 4\d\d/);
+      }
+    }, 60_000);
   });
 }

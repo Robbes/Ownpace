@@ -30,17 +30,31 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { RawContact } from '@openmig/shared';
 import { JmapContactTarget, extractUidFromVcard } from './jmap-contact-target';
 
-vi.mock('jmap-jam', () => ({
-  default: {
-    loadSession: async () => ({
-      accounts: { acct: { email: 'target@dev.local' } },
-      primaryAccounts: { 'urn:ietf:params:jmap:contacts': 'acct' },
-      // Deliberately unroutable, the way Stalwart really answers. If the
-      // writer ever starts trusting this, every test here fails.
-      apiUrl: 'https://0.0.0.0/jmap/',
-    }),
-  },
-}));
+/**
+ * The session document this writer connects against.
+ *
+ * Served through the fake `fetch` below rather than by mocking `jmap-jam`,
+ * which is how this file used to do it. That mock asserted something untrue:
+ * that session loading either succeeds or throws. `JamClient.loadSession` never
+ * checked `response.ok`, so a 401 RESOLVED with the error document, and no test
+ * built on a library mock could ever have seen it. Stub the transport; let the
+ * real loader run.
+ */
+const SESSION = {
+  accounts: { acct: { email: 'target@dev.local' } },
+  primaryAccounts: { 'urn:ietf:params:jmap:contacts': 'acct' },
+  // Deliberately unroutable, the way Stalwart really answers. If the writer
+  // ever starts trusting this, every test here fails.
+  apiUrl: 'https://0.0.0.0/jmap/',
+};
+
+/** The session response, for every stub in this file. */
+function sessionResponse(): Response {
+  return new Response(JSON.stringify(SESSION), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
 
 /** One JMAP method call, as the fake transport recorded it. */
 interface Call {
@@ -90,6 +104,7 @@ beforeEach(() => {
   responders = {};
 
   vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+    if (url.includes('/.well-known/jmap')) return sessionResponse();
     if (url.includes('/upload/')) {
       uploads.push(String(init.body));
       return new Response(JSON.stringify({ blobId: `blob-${uploads.length}` }), { status: 200 });
@@ -264,13 +279,15 @@ describe('failures that must never look like an empty result', () => {
     // HTTP 200. Handing `methodResponses[0][1]` back blindly turns that into
     // `{ list: undefined }`, so enumeration yields nothing and verification
     // reports the target as EMPTY — total data loss, from a working server.
-    vi.stubGlobal('fetch', async () =>
-      new Response(
-        JSON.stringify({
-          methodResponses: [['error', { type: 'unknownMethod', description: 'nope' }, 'c1']],
-        }),
-        { status: 200 },
-      ),
+    vi.stubGlobal('fetch', async (url: string) =>
+      url.includes('/.well-known/jmap')
+        ? sessionResponse()
+        : new Response(
+            JSON.stringify({
+              methodResponses: [['error', { type: 'unknownMethod', description: 'nope' }, 'c1']],
+            }),
+            { status: 200 },
+          ),
     );
     const entries = target().listEntries();
     await expect((async () => { for await (const _ of entries) { /* drain */ } })()).rejects.toThrow(

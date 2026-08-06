@@ -36,18 +36,24 @@ import type { RawFileItem, TargetEntry } from '@openmig/shared';
 import { fileNaturalKeyHash, fileContentHash } from '@openmig/shared';
 import { JmapFileTarget } from './jmap-file-target';
 
-vi.mock('jmap-jam', () => ({
-  default: {
-    loadSession: async () => ({
-      accounts: { acct: { email: 'target@dev.local' } },
-      primaryAccounts: { 'urn:ietf:params:jmap:filenode': 'acct' },
-      // Deliberately unroutable, the way Stalwart really answers. If the
-      // writer ever starts trusting either of these, tests here fail.
-      apiUrl: 'https://0.0.0.0/jmap/',
-      downloadUrl: 'https://0.0.0.0/jmap/download/{accountId}/{blobId}/{name}?accept={type}',
-    }),
-  },
-}));
+/**
+ * The session document this writer connects against.
+ *
+ * Served through the fake `fetch` below rather than by mocking `jmap-jam`,
+ * which is how this file used to do it. That mock asserted something untrue:
+ * that session loading either succeeds or throws. `JamClient.loadSession` never
+ * checked `response.ok`, so a 401 RESOLVED with the error document, and no test
+ * built on a library mock could ever have seen it. Stub the transport; let the
+ * real loader run.
+ */
+const SESSION = {
+  accounts: { acct: { email: 'target@dev.local' } },
+  primaryAccounts: { 'urn:ietf:params:jmap:filenode': 'acct' },
+  // Deliberately unroutable, the way Stalwart really answers. If the writer
+  // ever starts trusting either of these, tests here fail.
+  apiUrl: 'https://0.0.0.0/jmap/',
+  downloadUrl: 'https://0.0.0.0/jmap/download/{accountId}/{blobId}/{name}?accept={type}',
+};
 
 /** One JMAP method call, as the fake transport recorded it. */
 interface Call {
@@ -131,6 +137,12 @@ beforeEach(() => {
   responders = {};
 
   vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+    if (url.includes('/.well-known/jmap')) {
+      return new Response(JSON.stringify(SESSION), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
     if (url.includes('/upload/')) {
       const bytes = new Uint8Array(await new Response(init.body as Blob).arrayBuffer());
       const headers = (init.headers ?? {}) as Record<string, string>;
