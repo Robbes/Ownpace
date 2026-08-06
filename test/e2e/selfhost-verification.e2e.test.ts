@@ -191,6 +191,23 @@ describe('Verification gate against real servers', () => {
         `[e2e] ${key} checksums: ${d.checksumMatches} match, ${d.checksumMismatches} mismatch, ` +
           `${d.checksumUnavailable} unavailable of ${d.checksumSampleSize} sampled`,
       );
+
+      // The line above printed `8 match, 0 mismatch, 0 unavailable of 10
+      // sampled` on 2026-08-06 and this test passed, because nothing checked
+      // that the parts reach the whole. `checksumSampleSize` was the number
+      // REQUESTED — `minSampleSize` is a floor on the percentage, not a promise
+      // that many items exist — so a domain holding 8 reported 10, and the §20
+      // report an operator reads before authorising a cutover overstated how
+      // much of the content gate had run.
+      //
+      // Every sampled item lands in exactly one of the three counters, so this
+      // is an invariant and not a tolerance. Asserted at the e2e because that
+      // is where it surfaced: the unit tests all agreed with each other.
+      expect(
+        d.checksumMatches + d.checksumMismatches + d.checksumUnavailable,
+        `${key}: the checksum counters do not account for every sampled item, so the ` +
+          `reported coverage is not the coverage`,
+      ).toBe(d.checksumSampleSize);
     }
 
     const mail = report.mail;

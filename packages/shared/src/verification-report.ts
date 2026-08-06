@@ -44,6 +44,16 @@ export interface DataTypeVerification {
   extraOnTarget: number;
   
   // Content verification
+  /**
+   * How many items were actually EXAMINED, not how many were asked for.
+   *
+   * `checksumMatches + checksumMismatches + checksumUnavailable` always equals
+   * this. It used to carry the requested figure instead, which is a ceiling
+   * rather than a count: `minSampleSize` is a floor on the percentage and not a
+   * promise that many items exist, so a domain holding 8 items with a floor of
+   * 10 reported `checksumSampleSize: 10` over 8 examined rows. A coverage
+   * number that can exceed what was examined can only ever overstate.
+   */
   checksumSampleSize: number;
   checksumMatches: number;
   checksumMismatches: number;
