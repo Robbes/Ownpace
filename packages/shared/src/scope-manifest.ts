@@ -25,7 +25,7 @@ export interface ScopeManifest {
 }
 
 export const SCOPE_MANIFEST: ScopeManifest = {
-  version: '2026-08-05',
+  version: '2026-08-06',
   migrates: [
     { item: 'Email', detail: 'Folders incl. Sent / Drafts / Archive, flags/keywords, timestamps.' },
     { item: 'Calendar', detail: 'Events, recurrence, attendees (ICS).' },
@@ -39,7 +39,15 @@ export const SCOPE_MANIFEST: ScopeManifest = {
         'does not run and verification checks counts and presence instead. The report says so ' +
         'per run rather than leaving it to be inferred.',
     },
-    { item: 'Files', detail: 'OneDrive / SharePoint document libraries (files + folders).' },
+    {
+      item: 'Files',
+      detail:
+        'OneDrive / SharePoint document libraries (files + folders). Carried over WebDAV, or ' +
+        'over JMAP where the target speaks it — the same files either way, and unlike the ' +
+        'contacts row above there is no narrowing to state: a JMAP file node carries both its ' +
+        'byte count and a handle to its content, so verification checks counts, total bytes ' +
+        'AND content checksums on both paths.',
+    },
     {
       item: 'Shared mailboxes',
       detail:

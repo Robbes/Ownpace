@@ -44,9 +44,9 @@ import {
   buildCalendarTarget,
   buildContactSource,
   buildFileSource,
-  buildFileTarget,
 } from './dav-factories';
 import { buildContactTargetFor, contactTargetProtocol } from './contact-target-factory';
+import { buildFileTargetFor, fileTargetProtocol } from './file-target-factory';
 import { withClose, type WithClose } from './deps-lifecycle';
 
 /**
@@ -587,10 +587,20 @@ export function buildDomainDeps(
       );
       break;
     }
-    case 'file':
+    case 'file': {
       source = buildFileSource(davEndpoint(sourceConfig, 'webdav', 'source'));
-      target = buildFileTarget(davEndpoint(targetConfig, 'webdav', 'target'), targetDeps);
+      // Files can go over JMAP where the target speaks it (0031 T3). The
+      // config already expresses it: `TargetConfig` is a union that includes
+      // `JmapTarget`, so a files domain naming `type: 'jmap'` needs no new
+      // field — only a builder that stops insisting on WebDAV.
+      const protocol = fileTargetProtocol(targetConfig.type);
+      target = buildFileTargetFor(
+        protocol,
+        davEndpoint(targetConfig, protocol === 'jmap' ? 'jmap' : 'webdav', 'target'),
+        targetDeps,
+      );
       break;
+    }
   }
 
   return withClose(
