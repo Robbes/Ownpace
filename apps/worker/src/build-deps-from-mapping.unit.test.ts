@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { GraphMailSource, ImapSource, MailSourceWithGraphFallback } from '@openmig/connectors';
+import { GraphMailSource, ImapFlowSource, MailSourceWithGraphFallback } from '@openmig/connectors';
 import { buildSourceConnectorFromCredentials } from './build-deps-from-mapping';
 import type { SourceConfig } from '@openmig/shared';
 
@@ -55,7 +55,8 @@ describe('buildSourceConnectorFromCredentials', () => {
 
   it('still builds the IMAP source for imap-oauth2 (the existing path is untouched)', () => {
     const source = buildSourceConnectorFromCredentials(IMAP, { password: 'pw' });
-    expect(source).toBeInstanceOf(ImapSource);
+    // PINS THE CUTOVER (workplan 0032 T3, 2026-08-06).
+    expect(source).toBeInstanceOf(ImapFlowSource);
   });
 
   it('wraps imap-oauth2 in the Graph fallback when the credentials also carry a Graph set (0023 T3)', () => {
@@ -74,7 +75,8 @@ describe('buildSourceConnectorFromCredentials', () => {
       clientId: 'app-id',
       clientSecret: 'app-secret',
     });
-    expect(source).toBeInstanceOf(ImapSource);
+    // PINS THE CUTOVER (workplan 0032 T3, 2026-08-06).
+    expect(source).toBeInstanceOf(ImapFlowSource);
   });
 
   it('rejects a non-mail source type with an honest error', () => {

@@ -20,11 +20,11 @@ import {
 } from '@openmig/shared';
 import { connection as connectionTable } from '@openmig/ledger';
 import {
-  ImapSource,
+  ImapFlowSource,
   GraphMailSource,
   MailSourceWithGraphFallback,
   createTokenProvider,
-  ImapDavMailTarget,
+  ImapFlowDavMailTarget,
   type ImapDavTargetConfig,
 } from '@openmig/connectors';
 import { JmapTargetWriter } from '@openmig/connectors';
@@ -467,7 +467,9 @@ function buildImapSourceFromCredentials(
     throttleLimiter,
   };
 
-  const imap = new ImapSource(imapConfig);
+  // CUT OVER TO `imapflow` on 2026-08-06 (workplan 0032 T3). Same evidence as
+  // the self-host path in `build-deps.ts` — see the longer note there.
+  const imap = new ImapFlowSource(imapConfig);
 
   // The runtime IMAP-disabled fallback (workplan 0023 T3, ADR-0006): when the
   // connection's credential store ALSO carries Graph-capable credentials —
@@ -528,7 +530,8 @@ function buildTargetWriterFromCredentials(
         password,
       };
 
-      return new ImapDavMailTarget(imapConfig);
+      // CUT OVER on 2026-08-06 (workplan 0032 T3). See `build-deps.ts`.
+      return new ImapFlowDavMailTarget(imapConfig);
     }
 
     default:

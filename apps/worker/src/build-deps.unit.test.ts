@@ -9,7 +9,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { buildDeps } from './build-deps';
-import { GraphMailSource, MailSourceWithGraphFallback, ImapSource } from '@openmig/connectors';
+import { GraphMailSource, MailSourceWithGraphFallback, ImapFlowSource } from '@openmig/connectors';
 import type { MappingConfig, SourceAuth } from '@openmig/shared';
 
 interface ImapSourceInternals {
@@ -218,7 +218,11 @@ describe('buildDeps IMAP→Graph fallback wiring', () => {
     vi.stubEnv('OAUTH2_CLIENT_SECRET', 'app-secret');
     try {
       const deps = await buildDeps(configWith({ kind: 'login', passwordFromEnv: 'SRC_PASSWORD' }));
-      expect(deps.source).toBeInstanceOf(ImapSource);
+      // PINS THE CUTOVER (workplan 0032 T3, 2026-08-06). Production builds the
+      // imapflow source now; the imap-simple one survives only as the parity
+      // harness's reference implementation. If this ever reverts, it reverts
+      // loudly.
+      expect(deps.source).toBeInstanceOf(ImapFlowSource);
       await deps.close();
     } finally {
       vi.unstubAllEnvs();
