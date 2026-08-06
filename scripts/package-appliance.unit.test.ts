@@ -30,7 +30,14 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -229,6 +236,95 @@ describe('the staged payload, running', () => {
     const res = await fetch('http://127.0.0.1:18432/status');
     expect(((await res.json()) as { mappings: unknown[] }).mappings).toHaveLength(1);
   }, 180_000);
+});
+
+describe('an unwritable data directory fails as an unwritable data directory', () => {
+  /**
+   * The failure an INSTALLED payload hits and the one in `dist/appliance` never
+   * does. `start.mjs` defaults its database and config to inside the payload,
+   * which is right when you run it from a build directory and wrong the moment
+   * an installer puts it under `C:\Program Files\` or `/opt` — a service
+   * account cannot write there.
+   *
+   * Without a preflight that arrives as a permissions error from inside PGlite,
+   * naming a path the operator never chose, on an end user's machine, at first
+   * start. The bug is the same either way; what these pin is that the MESSAGE
+   * says which directory and which variable to set (hard rule 9).
+   *
+   * NEITHER CASE USES `chmod`. A `chmod 0500` directory is writable by root, and
+   * CI, containers and plenty of developer machines run as root — such a test
+   * would skip, or pass vacuously exactly where it is most needed. Both cases
+   * below fail for every user on every platform, Administrator included.
+   */
+
+  /** Run the payload to completion (or kill it), and return what it said. */
+  async function runPayload(env: Record<string, string>, ms = 25_000) {
+    const proc = spawn(process.execPath, ['start.mjs'], {
+      cwd: payload,
+      env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', ...env },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let out = '';
+    proc.stdout?.on('data', (b) => (out += b));
+    proc.stderr?.on('data', (b) => (out += b));
+    const exited = new Promise<number | null>((r) => proc.once('exit', (c) => r(c)));
+    const timer = new Promise<null>((r) => setTimeout(() => r(null), ms));
+    const code = await Promise.race([exited, timer]);
+    if (code === null) {
+      // Still running: it booted when it should have refused. Kill it, and let
+      // the assertions report that rather than hanging the suite.
+      proc.kill('SIGKILL');
+      await exited;
+    }
+    return { code, out };
+  }
+
+  it('cannot even create the directory: names it, and the variable to set', async () => {
+    // `mkdir` beneath a regular FILE is ENOTDIR for everyone, everywhere.
+    const dir = mkdtempSync(join(tmpdir(), 'openmig-notdir-'));
+    const blocker = join(dir, 'not-a-directory');
+    writeFileSync(blocker, 'a file, where a directory would have to be');
+    const wanted = join(blocker, 'pglite');
+    try {
+      const { code, out } = await runPayload({ PORT: '18435', SELFHOST_PGLITE_DIR: wanted });
+
+      expect(code).not.toBe(0);
+      // OUR formatting, not Node's. Asserting the bare path would pass on the
+      // underlying ENOTDIR message alone, which quotes the path too — so the
+      // test would survive deleting the path from the message we control.
+      expect(out).toContain(`cannot write its database directory:\n  ${wanted}`);
+      expect(out).toContain('SELFHOST_PGLITE_DIR');
+      expect(out).toContain('OUT of the install directory');
+      expect(out).not.toContain('listening on');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('can create it but not WRITE in it: still refuses, and does not serve', async () => {
+    // The Program Files case, which the one above does not reach: the directory
+    // exists and is creatable, and the write is what fails. Arranged by making
+    // the probe's own name a DIRECTORY, so `writeFileSync` gets EISDIR — again,
+    // for every user on every platform.
+    //
+    // This is the case that makes the write probe load-bearing. Reduce the
+    // preflight to a bare `mkdir` and this test boots the appliance instead of
+    // refusing; downgrade the throw to a warning and it does the same.
+    const dir = mkdtempSync(join(tmpdir(), 'openmig-eisdir-'));
+    mkdirSync(join(dir, '.openmig-write-probe'));
+    try {
+      const { code, out } = await runPayload({ PORT: '18436', SELFHOST_PGLITE_DIR: dir });
+
+      expect(code).not.toBe(0);
+      expect(out).toContain(`cannot write its database directory:\n  ${dir}`);
+      // The load-bearing half: it must not have started. A warning that let the
+      // boot continue would leave the appliance serving from a directory it
+      // cannot fully write, which is worse than refusing.
+      expect(out).not.toContain('listening on');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
 });
 
 describe('the Postgres path survived bundling too', () => {
