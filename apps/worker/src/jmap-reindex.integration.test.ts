@@ -11,16 +11,20 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
-import type { ImapSimpleOptions } from 'imap-simple';
 import { sql } from 'drizzle-orm';
 import { createPgDb } from '../../../packages/ledger/src/db';
 import { PgLedger } from '../../../packages/ledger/src/ledger';
-import { ImapSource } from '../../../packages/connectors/src/imap-source';
+import { ImapFlowSource } from '../../../packages/connectors/src/imapflow-source';
 import { JmapTargetWriter } from '../../../packages/connectors/src/jmap-target';
 import { runShadowPass } from '../../../packages/core/src/reconcile';
 import { reindexFromTarget } from '../../../packages/core/src/reindex';
 import { asTenantId, asMappingId, type MailItem } from '@openmig/shared';
-import imap from 'imap-simple';
+import {
+  withImapTestClient,
+  purgeAllMailboxes,
+  seedMailbox,
+  type ImapTestClientConfig,
+} from '../../../packages/testing/src/imap-test-client';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -37,6 +41,12 @@ if (!PG_CONNECTION_STRING) {
 // Stalwart configuration from Testcontainers (shared instance)
 const STALWART_IMAP_HOST = process.env.STALWART_IMAP_HOST;
 const STALWART_IMAP_PORT = parseInt(process.env.STALWART_IMAP_PORT || '993', 10);
+
+/** Host and port for the test observer; each caller supplies its own account. */
+const STALWART_IMAP = {
+  host: STALWART_IMAP_HOST as string,
+  port: STALWART_IMAP_PORT,
+} satisfies Pick<ImapTestClientConfig, 'host' | 'port'>;
 const STALWART_JMAP_URL = process.env.STALWART_JMAP_URL;
 const STALWART_JMAP_USERNAME = process.env.STALWART_JMAP_USERNAME || 'target@dev.local';
 const STALWART_JMAP_PASSWORD = process.env.STALWART_JMAP_PASSWORD || 'target_password';
@@ -104,66 +114,25 @@ async function cleanTargetMailboxes(): Promise<void> {
     return;
   }
 
-  const config: ImapSimpleOptions = {
-    imap: {
-      user: TARGET_ACCOUNT,
-      password: TARGET_PASSWORD,
-      host: STALWART_IMAP_HOST,
-      port: STALWART_IMAP_PORT,
-      tls: true,
-      tlsOptions: { rejectUnauthorized: false },
-      authTimeout: 3000,
-    },
-  };
-
-  let conn: unknown = null;
-  
   try {
-    conn = await imap.connect(config);
-    
-    // Get all mailboxes
-    const mailboxes: Record<string, { name: string }> = await (conn as { getMailboxes: () => Promise<Record<string, { name: string }>> }).getMailboxes();
-    
-    // Delete all messages from each mailbox
-    for (const mailbox of Object.values(mailboxes)) {
-      try {
-        const mb = mailbox;
-        await (conn as { openBox: (name: string) => Promise<void> }).openBox(mb.name);
-        
-        // Fetch all messages
-        const searchCriteria = ['ALL'];
-        const fetchResults: Array<{ attributes: { uid: number } }> = await (conn as { search: (criteria: string[], opts: unknown) => Promise<Array<{ attributes: { uid: number } }>> }).search(searchCriteria, {
-          fields: ['ENVELOPE', 'RFC822.SIZE'],
-        });
-        
-        if (fetchResults.length > 0) {
-          // Get message UIDs for deletion
-          const uids = fetchResults.map((r) => r.attributes.uid);
-          
-          // Mark all messages as deleted
-          await (conn as { addFlags: (uids: number[], flags: string) => Promise<void> }).addFlags(uids, '\\Deleted');
-          
-          // Expunge to actually remove them
-          await (conn as { expunge: () => Promise<void> }).expunge();
-          
-          console.log(`[Cleanup] Deleted ${fetchResults.length} messages from ${mb.name}`);
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        const mbName = (mailbox as { name: string })?.name || 'unknown';
-        console.warn(`[Cleanup] Warning: Could not clean mailbox ${mbName}: ${msg}`);
-      }
+    const { purged, failed } = await withImapTestClient(
+      { ...STALWART_IMAP, user: TARGET_ACCOUNT, password: TARGET_PASSWORD },
+      (client) => purgeAllMailboxes(client),
+    );
+    for (const [mailbox, count] of Object.entries(purged)) {
+      if (count > 0) console.log(`[Cleanup] Deleted ${count} messages from ${mailbox}`);
     }
-    
+    for (const [mailbox, reason] of Object.entries(failed)) {
+      console.warn(`[Cleanup] Warning: Could not clean mailbox ${mailbox}: ${reason}`);
+    }
     console.log('[Cleanup] Target mailboxes cleaned');
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.warn(`[Cleanup] Warning: Could not clean mailboxes: ${msg}`);
-    // Don't fail the test if cleanup fails - just warn
-  } finally {
-    if (conn) {
-      (conn as { end: () => void }).end();
-    }
+    // Don't fail the test if cleanup fails - just warn. Carried over verbatim
+    // from the imap-simple version (workplan 0032 T3b): a cleanup that cannot
+    // reach the server has never failed this suite, and changing that here
+    // would be an unrelated behaviour change riding along with a client swap.
   }
 }
 
@@ -299,77 +268,45 @@ async function waitForImap(host: string, port: number): Promise<void> {
 }
 
 /**
- * Append options for IMAP append operation.
- */
-interface AppendOptions {
-  mailbox?: string;
-  flags?: string | string[];
-  date?: Date;
-}
-
-/**
  * Seed test messages to source account (IMAP).
  */
 async function seedReindex(): Promise<void> {
-  const config: ImapSimpleOptions = {
-    imap: {
-      user: SOURCE_ACCOUNT,
-      password: SOURCE_PASSWORD,
-      host: STALWART_IMAP_HOST,
-      port: STALWART_IMAP_PORT,
-      tls: true,
-      tlsOptions: { rejectUnauthorized: false },
-      authTimeout: 3000,
+  const messages = [
+    {
+      messageId: '<reindex-message-1@dev.local>',
+      subject: 'Reindex Message 1',
+      body: 'This is the first reindex test message.',
+      from: SOURCE_ACCOUNT,
+      to: TARGET_ACCOUNT,
     },
-  };
+    {
+      messageId: '<reindex-message-2@dev.local>',
+      subject: 'Reindex Message 2',
+      body: 'This is the second reindex test message.',
+      from: SOURCE_ACCOUNT,
+      to: TARGET_ACCOUNT,
+    },
+    {
+      messageId: '<reindex-message-3@dev.local>',
+      subject: 'Reindex Message 3',
+      body: 'This is the third reindex test message.',
+      from: SOURCE_ACCOUNT,
+      to: TARGET_ACCOUNT,
+    },
+  ];
 
-  const conn = await imap.connect(config);
+  await withImapTestClient(
+    { ...STALWART_IMAP, user: SOURCE_ACCOUNT, password: SOURCE_PASSWORD },
+    (client) => seedMailbox(client, messages, 'INBOX'),
+  );
 
-  try {
-    const messages = [
-      {
-        messageId: '<reindex-message-1@dev.local>',
-        subject: 'Reindex Message 1',
-        body: 'This is the first reindex test message.',
-      },
-      {
-        messageId: '<reindex-message-2@dev.local>',
-        subject: 'Reindex Message 2',
-        body: 'This is the second reindex test message.',
-      },
-      {
-        messageId: '<reindex-message-3@dev.local>',
-        subject: 'Reindex Message 3',
-        body: 'This is the third reindex test message.',
-      },
-    ];
-
-    for (const msg of messages) {
-      const rfc822 = `From: ${SOURCE_ACCOUNT}
-To: ${TARGET_ACCOUNT}
-Subject: ${msg.subject}
-Message-ID: ${msg.messageId}
-Date: ${new Date().toUTCString()}
-Content-Type: text/plain; charset=utf-8
-
-${msg.body}
-`;
-
-      await conn.append(rfc822, {
-        mailbox: 'INBOX',
-      } as AppendOptions);
-    }
-
-    console.log('[seedReindex] Seeded', messages.length, 'test messages to source');
-  } finally {
-    conn.end();
-  }
+  console.log('[seedReindex] Seeded', messages.length, 'test messages to source');
 }
 
 describe('JMAP Reindex Integration Tests', () => {
   let db: ReturnType<typeof createPgDb>;
   let ledger: InstanceType<typeof PgLedger>;
-  let source: InstanceType<typeof ImapSource>;
+  let source: InstanceType<typeof ImapFlowSource>;
   let target: InstanceType<typeof JmapTargetWriter>;
 
   beforeAll(async () => {
@@ -387,7 +324,7 @@ describe('JMAP Reindex Integration Tests', () => {
     ledger = new PgLedger(db);
     
     // Initialize source and target
-    source = new ImapSource({
+    source = new ImapFlowSource({
       host: STALWART_IMAP_HOST,
       port: STALWART_IMAP_PORT,
       tls: true,

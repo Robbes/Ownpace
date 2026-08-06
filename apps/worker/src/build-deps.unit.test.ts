@@ -219,9 +219,10 @@ describe('buildDeps IMAP→Graph fallback wiring', () => {
     try {
       const deps = await buildDeps(configWith({ kind: 'login', passwordFromEnv: 'SRC_PASSWORD' }));
       // PINS THE CUTOVER (workplan 0032 T3, 2026-08-06). Production builds the
-      // imapflow source now; the imap-simple one survives only as the parity
-      // harness's reference implementation. If this ever reverts, it reverts
-      // loudly.
+      // imapflow source, and since T3b there is no other one to build — the
+      // `imap-simple` implementation and both parity harnesses are gone. That
+      // makes this assertion more load-bearing rather than less: it is now the
+      // only place a revert would be caught.
       expect(deps.source).toBeInstanceOf(ImapFlowSource);
       await deps.close();
     } finally {

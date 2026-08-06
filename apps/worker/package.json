@@ -16,8 +16,8 @@
   },
   "dependencies": {
     "@openmig/connectors": "workspace:*",
-    "@openmig/engines": "workspace:*",
     "@openmig/core": "workspace:*",
+    "@openmig/engines": "workspace:*",
     "@openmig/ledger": "workspace:*",
     "@openmig/scheduler": "workspace:*",
     "@openmig/shared": "workspace:*",
@@ -28,9 +28,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/imap-simple": "^4.2.10",
     "drizzle-orm": "catalog:",
-    "imap-simple": "^5.1.0",
+    "imapflow": "^1.6.5",
     "vitest": "^4.1.10"
   }
 }

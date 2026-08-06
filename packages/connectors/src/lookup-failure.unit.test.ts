@@ -15,7 +15,6 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { JmapTargetWriter } from './jmap-target';
-import { ImapDavMailTarget } from './imap-dav-target';
 
 describe('JmapTargetWriter.findByNaturalKey — lookup failure', () => {
   let writer: JmapTargetWriter;
@@ -127,63 +126,10 @@ describe('JmapTargetWriter.findByNaturalKey — lookup failure', () => {
   });
 });
 
-describe('ImapDavMailTarget.findByNaturalKey — lookup failure', () => {
-  let target: ImapDavMailTarget;
-
-  beforeEach(() => {
-    target = new ImapDavMailTarget({
-      host: 'imap.test',
-      port: 993,
-      tls: true,
-      username: 'user@test',
-      password: 'pw',
-    });
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('throws instead of returning undefined when the mailbox cannot be opened', async () => {
-    Object.assign(target, {
-      conn: {
-        openBox: vi.fn().mockRejectedValue(new Error('SELECT failed: mailbox is locked')),
-        search: vi.fn(),
-        imap: {},
-      },
-      connectPromise: Promise.resolve(),
-    });
-
-    await expect(target.findByNaturalKey('INBOX', '<msg-1@test>')).rejects.toThrow(
-      /refusing to treat this as "not present"/,
-    );
-  });
-
-  it('throws instead of returning undefined when the search itself fails', async () => {
-    Object.assign(target, {
-      conn: {
-        openBox: vi.fn().mockResolvedValue(undefined),
-        search: vi.fn().mockRejectedValue(new Error('connection reset by peer')),
-        imap: {},
-      },
-      connectPromise: Promise.resolve(),
-    });
-
-    await expect(target.findByNaturalKey('INBOX', '<msg-1@test>')).rejects.toThrow(
-      /connection reset by peer/,
-    );
-  });
-
-  it('still returns undefined when the mailbox is genuinely empty', async () => {
-    Object.assign(target, {
-      conn: {
-        openBox: vi.fn().mockResolvedValue(undefined),
-        search: vi.fn().mockResolvedValue([]),
-        imap: {},
-      },
-      connectPromise: Promise.resolve(),
-    });
-
-    await expect(target.findByNaturalKey('INBOX', '<msg-1@test>')).resolves.toBeUndefined();
-  });
-});
+// The IMAP half of this file used to live here, against `ImapDavMailTarget`.
+// That writer was removed by workplan 0032 T3b and its replacement carries the
+// same three cases plus two more, in `imapflow-dav-target.unit.test.ts` under
+// `findByNaturalKey`: the lock failure, the FETCH failure, a genuinely empty
+// mailbox, and — added after a mutation SURVIVED — the end-to-end consequence
+// that a swallowed lookup must not become a duplicate append. Nothing was lost
+// in the move; this note exists so nobody has to prove that again.

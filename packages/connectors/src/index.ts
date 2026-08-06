@@ -6,10 +6,10 @@ export const packageName = '@openmig/connectors';
 // message-id conventions, the cursor encoding. Client-neutral by design.
 export * from './imap-conventions';
 
-export * from './imap-source';
 
-// The imapflow read path (0032 T1), shipped BESIDE the proven client rather
-// than instead of it — `imap-parity.integration.test.ts` is what compares them.
+// The IMAP read path. `imap-parity.integration.test.ts` compared it field by
+// field against the `imap-simple` implementation on a real server before that
+// one was removed (0032 T3a/T3b).
 export * from './imapflow-source';
 
 // Session loading for every JMAP writer here (0031 T4 follow-up). Its own file
@@ -33,19 +33,10 @@ export * from './jmap-file-target';
 // per-domain target picker cannot be built without being able to ask.
 export * from './jmap-capabilities';
 
-// The imap-simple -> imapflow parity harness (0032 T0). Exported because T1/T2
-// wire it into an integration test, and because a harness nobody can reach is
-// a harness nobody runs.
-export * from './imap-parity';
-
-// The WRITE-path parity harness (0032 T2) — the half of T0's charter that was
-// left for whenever the write path was ported.
-export * from './imap-target-parity';
-export * from './imap-dav-target';
-
-// The imapflow WRITE path (0032 T2), shipped BESIDE the proven writer — the
-// half that can lose data, so nothing is cut over until the parity harness has
-// run against it.
+// The IMAP write path. Both parity harnesses — read and write — and the
+// `imap-simple` implementation they compared against were removed by 0032 T3b
+// once the e2e was green on this path twice. What that bought and what it cost
+// is written down in that workplan's T3b row rather than implied here.
 export * from './imapflow-dav-target';
 
 // DAV shared HTTP types

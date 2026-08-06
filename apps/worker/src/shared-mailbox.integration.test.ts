@@ -6,26 +6,24 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
-import type { ImapSimpleOptions } from 'imap-simple';
+import {
+  withImapTestClient,
+  seedMailbox,
+  countMessages,
+  listMailboxPaths,
+  ensureMailbox,
+  type ImapTestClientConfig,
+} from '../../../packages/testing/src/imap-test-client';
 import { createPgDb } from '../../../packages/ledger/src/db';
 import { PgLedger } from '../../../packages/ledger/src/ledger';
 import { PgCursorStore } from '../../../packages/ledger/src/cursor-store';
-import { ImapSource } from '../../../packages/connectors/src/imap-source';
+import { ImapFlowSource } from '../../../packages/connectors/src/imapflow-source';
 import { JmapTargetWriter } from '../../../packages/connectors/src/jmap-target';
 import { runShadowPass } from '../../../packages/core/src/reconcile';
 import { asTenantId, asMappingId } from '@openmig/shared';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-/**
- * Append options for IMAP append operation.
- */
-interface AppendOptions {
-  mailbox?: string;
-  flags?: string | string[];
-  date?: Date;
-}
 
 // Connection string from Testcontainers
 const PG_CONNECTION_STRING = process.env.TEST_DATABASE_URL;
@@ -130,134 +128,87 @@ const SHARED_MAPPING_ID = asMappingId('5f1b0000-e29b-41d4-a716-446655440012' as 
  */
 type DbClient = ReturnType<typeof createPgDb>;
 
+/** The shared account, as a test observer reaches it. */
+const SHARED_IMAP: ImapTestClientConfig = {
+  host: STALWART_IMAP_HOST,
+  port: STALWART_IMAP_PORT,
+  user: SHARED_ACCOUNT,
+  password: SHARED_PASSWORD,
+};
+
+/**
+ * The Sent folder's real name on this server, or the name to create.
+ *
+ * Stalwart calls it "Sent Items". Matched case-insensitively on the substring
+ * rather than assumed, because the whole point of this file is a folder OTHER
+ * than INBOX being mirrored, and a hard-coded name that the server spells
+ * differently would make that test pass against an empty folder it created
+ * itself.
+ */
+function sentFolderIn(paths: string[]): string | undefined {
+  return paths.find((p) => p.toLowerCase().includes('sent'));
+}
+
 /**
  * Seed test messages into the shared IMAP account, including Sent folder.
+ *
+ * Goes through `imap-test-client`, NOT through the connector under test — a
+ * connector that misreads a folder list would otherwise seed and verify through
+ * the same mistake. That independence is why this observer was ported to
+ * `imapflow` in workplan 0032 T3b rather than deleted with `imap-simple`.
  */
 async function seedSharedMessages(): Promise<void> {
-  const imap = await import('imap-simple');
+  await withImapTestClient(SHARED_IMAP, async (client) => {
+    const paths = await listMailboxPaths(client);
+    console.log('[seedShared] Existing folders:', paths);
 
-  const config: ImapSimpleOptions = {
-    imap: {
-      user: SHARED_ACCOUNT,
-      password: SHARED_PASSWORD,
-      host: STALWART_IMAP_HOST,
-      port: STALWART_IMAP_PORT,
-      tls: true,
-      tlsOptions: { rejectUnauthorized: false },
-    },
-  };
+    const sentFolder = sentFolderIn(paths) ?? 'Sent Items';
+    await ensureMailbox(client, sentFolder);
 
-  const conn = await imap.connect(config);
-
-  try {
-    // First, try to get existing folders
-    let existingFolders: Record<string, unknown> = {};
-    try {
-      const boxes = await conn.getBoxes();
-      // Convert to a simple record for checking existence
-      existingFolders = Object.keys(boxes).reduce((acc, key) => {
-        acc[key] = {};
-        return acc;
-      }, {} as Record<string, unknown>);
-      console.log('[seedShared] Existing folders:', Object.keys(existingFolders));
-    } catch (err) {
-      console.log('[seedShared] Could not list folders:', err instanceof Error ? err.message : String(err));
-    }
-
-    // Ensure INBOX exists by opening it
-    try {
-      await conn.openBox('INBOX');
-      console.log('[seedShared] INBOX is available');
-    } catch (err) {
-      console.log('[seedShared] INBOX error:', err instanceof Error ? err.message : String(err));
-      // Continue anyway - INBOX should exist by default
-    }
-
-    // Create Sent folder if it doesn't exist (Stalwart uses "Sent Items")
-    const sentFolderName = Object.keys(existingFolders).find(
-      (path) => path.toLowerCase().includes('sent')
-    ) || 'Sent Items';
-    
-    const sentExists = Object.keys(existingFolders).some(
-      (path) => path.toLowerCase().includes('sent')
+    await seedMailbox(
+      client,
+      [
+        {
+          messageId: '<shared-message-1@dev.local>',
+          subject: 'Shared Message 1',
+          body: 'This is the first shared message.',
+          from: 'shared@dev.local',
+          to: 'target-shared@dev.local',
+        },
+        {
+          messageId: '<shared-message-2@dev.local>',
+          subject: 'Shared Message 2',
+          body: 'This is the second shared message.',
+          from: 'shared@dev.local',
+          to: 'target-shared@dev.local',
+        },
+      ],
+      'INBOX',
     );
 
-    if (!sentExists) {
-      try {
-        await conn.addBox('Sent Items');
-        console.log('[seedShared] Created Sent Items folder');
-      } catch (err) {
-        console.log('[seedShared] Could not create Sent Items folder:', err instanceof Error ? err.message : String(err));
-        // Continue anyway - we'll try to append and the server might auto-create it
-      }
-    } else {
-      console.log('[seedShared] Sent folder already exists as:', sentFolderName);
-    }
+    await seedMailbox(
+      client,
+      [
+        {
+          messageId: '<shared-sent-1@dev.local>',
+          subject: 'Sent Message 1',
+          body: 'This is the first sent message.',
+          from: 'shared@dev.local',
+          to: 'recipient@example.com',
+        },
+        {
+          messageId: '<shared-sent-2@dev.local>',
+          subject: 'Sent Message 2',
+          body: 'This is the second sent message.',
+          from: 'shared@dev.local',
+          to: 'recipient@example.com',
+        },
+      ],
+      sentFolder,
+    );
 
-    // Seed test messages in INBOX
-    const inboxMessages = [
-      {
-        messageId: '<shared-message-1@dev.local>',
-        subject: 'Shared Message 1',
-        body: 'This is the first shared message.',
-      },
-      {
-        messageId: '<shared-message-2@dev.local>',
-        subject: 'Shared Message 2',
-        body: 'This is the second shared message.',
-      },
-    ];
-
-    for (const msg of inboxMessages) {
-      const rfc822 = `From: shared@dev.local
-To: target-shared@dev.local
-Subject: ${msg.subject}
-Message-ID: ${msg.messageId}
-Date: ${new Date().toUTCString()}
-Content-Type: text/plain; charset=utf-8
-
-${msg.body}
-`;
-
-      await conn.append(rfc822, {
-        mailbox: 'INBOX',
-      } as AppendOptions);
-    }
-
-    // Seed test messages in Sent folder (use the correct folder name)
-    const sentMessages = [
-      {
-        messageId: '<shared-sent-1@dev.local>',
-        subject: 'Sent Message 1',
-        body: 'This is the first sent message.',
-      },
-      {
-        messageId: '<shared-sent-2@dev.local>',
-        subject: 'Sent Message 2',
-        body: 'This is the second sent message.',
-      },
-    ];
-
-    for (const msg of sentMessages) {
-      const rfc822 = `From: shared@dev.local
-To: recipient@example.com
-Subject: ${msg.subject}
-Message-ID: ${msg.messageId}
-Date: ${new Date().toUTCString()}
-Content-Type: text/plain; charset=utf-8
-
-${msg.body}
-`;
-
-      await conn.append(rfc822, {
-        mailbox: sentFolderName,
-      } as AppendOptions);
-    }
-
-    console.log('[seedShared] Seeded messages in INBOX and', sentFolderName, 'folders');
-  } finally {
-    conn.end();
-  }
+    console.log('[seedShared] Seeded messages in INBOX and', sentFolder);
+  });
 }
 
 // Shared mailbox tests require Stalwart (JMAP/IMAP)
@@ -265,7 +216,7 @@ describe('Shared Mailbox Integration (Pattern-S, B-T5)', () => {
   let db: DbClient;
   let ledger: PgLedger;
   let cursorStore: PgCursorStore;
-  let source: ImapSource;
+  let source: ImapFlowSource;
   let target: JmapTargetWriter;
 
   beforeAll(async () => {
@@ -284,7 +235,7 @@ describe('Shared Mailbox Integration (Pattern-S, B-T5)', () => {
     console.log('[SharedMailbox] Cleanup complete.');
     
     // Setup connectors for shared mailbox
-    source = new ImapSource({
+    source = new ImapFlowSource({
       host: STALWART_IMAP_HOST,
       port: STALWART_IMAP_PORT,
       tls: true,
@@ -379,15 +330,14 @@ describe('Shared Mailbox Integration (Pattern-S, B-T5)', () => {
     });
 
     // First run should create every seeded message: 2 in INBOX, 2 in Sent Items.
-    // (Previously asserted 2 here, on the belief that `getBoxes()` returned
-    // undefined against this Stalwart account and `listFolders()` therefore only
-    // ever saw INBOX. That was a real bug in `ImapSource.listFolders()` itself —
-    // it called the raw callback-only node-imap `getBoxes(namespace, cb)` with
-    // zero arguments and cast the result to a promise, so it always awaited
-    // `undefined` regardless of the server. Fixed by calling `imap-simple`'s own
-    // already-promisified `getBoxes()` instead — the same method the "should
-    // mirror Sent folder correctly" test below has always used directly, and
-    // always gotten a real answer from.)
+    // (Previously asserted 2 here, on the belief that the source only ever saw
+    // INBOX. That was a real bug in the old `ImapSource.listFolders()`: it
+    // called the raw callback-only node-imap `getBoxes(namespace, cb)` with zero
+    // arguments and cast the result to a promise, so it always awaited
+    // `undefined` regardless of the server. That connector is gone (workplan
+    // 0032 T3b) and `ImapFlowSource` issues a real LIST, but the expectation is
+    // kept at 4 with its history, because a 4 that quietly became a 2 again is
+    // the thing worth noticing.)
     expect(result1.scanned).toBe(4);
     expect(result1.created).toBe(4);
     expect(result1.skipped).toBe(0);
@@ -412,35 +362,12 @@ describe('Shared Mailbox Integration (Pattern-S, B-T5)', () => {
   it('should mirror Sent folder correctly', async () => {
     // Verify that Sent folder exists in the source, directly over IMAP,
     // independent of the appliance's own `listFolders()`.
-    const imap = await import('imap-simple');
-    const config: ImapSimpleOptions = {
-      imap: {
-        user: SHARED_ACCOUNT,
-        password: SHARED_PASSWORD,
-        host: STALWART_IMAP_HOST,
-        port: STALWART_IMAP_PORT,
-        tls: true,
-        tlsOptions: { rejectUnauthorized: false },
-      },
-    };
-    const conn = await imap.connect(config);
-    try {
-      const boxes = await conn.getBoxes();
-      const sentFolderName = Object.keys(boxes).find(
-        (path) => path.toLowerCase().includes('sent')
-      );
-      expect(sentFolderName).toBeDefined();
-      expect(sentFolderName).toContain('Sent');
-      
-      // Verify messages exist in Sent folder
-      await conn.openBox(sentFolderName!);
-      const searchResults = await conn.search(['ALL'], { bodies: [''] });
-      // searchResults is Message[], check count
-      expect(Array.isArray(searchResults)).toBe(true);
-      expect(searchResults.length).toBeGreaterThanOrEqual(2);
-    } finally {
-      conn.end();
-    }
+    await withImapTestClient(SHARED_IMAP, async (client) => {
+      const sentFolder = sentFolderIn(await listMailboxPaths(client));
+      expect(sentFolder).toBeDefined();
+      expect(sentFolder).toContain('Sent');
+      expect(await countMessages(client, sentFolder!)).toBeGreaterThanOrEqual(2);
+    });
     
     // Run shadow pass - INBOX and Sent Items are both already fully synced by
     // the previous test's two passes, so this is just an idempotency check.
@@ -460,38 +387,21 @@ describe('Shared Mailbox Integration (Pattern-S, B-T5)', () => {
 
   it('should handle delta correctly for shared mailbox (adding one message creates exactly 1)', async () => {
     // Seed one more message in the shared account
-    const imap = await import('imap-simple');
-
-    const config: ImapSimpleOptions = {
-      imap: {
-        user: SHARED_ACCOUNT,
-        password: SHARED_PASSWORD,
-        host: STALWART_IMAP_HOST,
-        port: STALWART_IMAP_PORT,
-        tls: true,
-        tlsOptions: { rejectUnauthorized: false },
-      },
-    };
-
-    const conn = await imap.connect(config);
-
-    try {
-      const newMessage = `From: shared@dev.local
-To: target-shared@dev.local
-Subject: Shared Message 3 (Delta Test)
-Message-ID: <shared-message-3-delta@dev.local>
-Date: ${new Date().toUTCString()}
-Content-Type: text/plain; charset=utf-8
-
-This is the third shared message for delta testing.
-`;
-
-      await conn.append(newMessage, {
-        mailbox: 'INBOX',
-      } as AppendOptions);
-    } finally {
-      conn.end();
-    }
+    await withImapTestClient(SHARED_IMAP, (client) =>
+      seedMailbox(
+        client,
+        [
+          {
+            messageId: '<shared-message-3-delta@dev.local>',
+            subject: 'Shared Message 3 (Delta Test)',
+            body: 'This is the third shared message for delta testing.',
+            from: 'shared@dev.local',
+            to: 'target-shared@dev.local',
+          },
+        ],
+        'INBOX',
+      ),
+    );
 
     // Run shadow pass again - should only create the new message
     const result = await runShadowPass({

@@ -30,7 +30,6 @@
   "devDependencies": {
     "@cyclonedx/cyclonedx-npm": "^6.0.0",
     "@eslint/js": "10.0.1",
-    "@types/imap-simple": "^4.2.10",
     "@types/node": "^26.1.2",
     "@types/pg": "catalog:",
     "@types/supertest": "^7.2.1",
@@ -41,7 +40,7 @@
     "drizzle-orm": "catalog:",
     "esbuild": "^0.28.1",
     "eslint": "10.8.0",
-    "imap-simple": "^5.1.0",
+    "imapflow": "^1.6.5",
     "jsdom": "^30.0.1",
     "pg": "catalog:",
     "playwright-core": "^1.62.1",

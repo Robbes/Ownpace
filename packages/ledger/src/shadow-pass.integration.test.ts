@@ -6,30 +6,24 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
-import type { ImapSimpleOptions } from 'imap-simple';
+import {
+  withImapTestClient,
+  purgeMailbox,
+  seedMailbox,
+  countMessages,
+  mailboxState,
+  type ImapTestClientConfig,
+} from '../../testing/src/imap-test-client';
 import { createPgDb } from './db';
 import { PgLedger } from './ledger';
 import { PgCursorStore } from './cursor-store';
-import { ImapSource } from '../../connectors/src/imap-source';
+import { ImapFlowSource } from '../../connectors/src/imapflow-source';
 import { JmapTargetWriter } from '../../connectors/src/jmap-target';
 import { runShadowPass } from '../../core/src/reconcile';
 import { asTenantId, asMappingId } from '@openmig/shared';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-/**
- * Append options for IMAP append operation.
- * Defined locally to avoid direct dependency on @types/imap.
- */
-interface AppendOptions {
-  /** The name of the mailbox to append the message to. Default: the currently open mailbox */
-  mailbox?: string;
-  /** A single flag (e.g. 'Seen') or an array of flags (e.g. ['Seen', 'Flagged']) to append to the message. Default: (no flags) */
-  flags?: string | string[];
-  /** What to use for message arrival date/time. Default: (current date/time) */
-  date?: Date;
-}
 
 // Connection string from Testcontainers (set by vitest.global-setup.ts)
 // Fails loudly if TEST_DATABASE_URL is not set, rather than silently using wrong defaults.
@@ -68,25 +62,6 @@ const SOURCE_PASSWORD = 'source_password';
 const MAX_RETRIES = 10;
 const RETRY_DELAY_MS = 2000;
 
-/**
- * Box interface for IMAP mailbox (from node-imap types)
- */
-interface ImMapBox {
-  name: string;
-  readOnly?: boolean;
-  newKeywords: boolean;
-  uidvalidity: number;
-  uidnext: number;
-  flags: string[];
-  permFlags: string[];
-  persistentUIDs: boolean;
-  messages: {
-    total: number;
-    new: number;
-    unseen?: number;
-  };
-  highestmodseq?: string;
-}
 
 /**
  * Wait for IMAP server to be available with retry logic.
@@ -136,99 +111,55 @@ const TEST_MAPPING_ID = asMappingId('5b0b0000-e29b-41d4-a716-446655440002' as ne
  */
 type DbClient = ReturnType<typeof createPgDb>;
 
+/** The source account, as a test observer reaches it. */
+const SOURCE_IMAP: ImapTestClientConfig = {
+  host: STALWART_IMAP_HOST,
+  port: STALWART_IMAP_PORT,
+  user: SOURCE_ACCOUNT,
+  password: SOURCE_PASSWORD,
+};
+
+/** The three messages every test in this file starts from. */
+const SEED_MESSAGES = [
+  {
+    messageId: '<test-message-1@dev.local>',
+    subject: 'Test Message 1',
+    body: 'This is the first test message.',
+  },
+  {
+    messageId: '<test-message-2@dev.local>',
+    subject: 'Test Message 2',
+    body: 'This is the second test message.',
+  },
+  {
+    messageId: '<test-message-3@dev.local>',
+    subject: 'Test Message 3',
+    body: 'This is the third test message.',
+  },
+];
+
 /**
  * Seed test messages into the source IMAP account.
  * First cleans the INBOX to ensure test isolation.
+ *
+ * Goes through `imap-test-client` rather than through `ImapFlowSource` — the
+ * connector under test must not be the thing that says what is on the server,
+ * or a connector that misreads a mailbox agrees with itself and this file
+ * passes. That separation is why the observer was ported to `imapflow` in
+ * workplan 0032 T3b rather than deleted with `imap-simple`.
  */
 async function seedSourceMessages(): Promise<void> {
-  const imap = await import('imap-simple');
+  await withImapTestClient(SOURCE_IMAP, async (client) => {
+    const purged = await purgeMailbox(client, 'INBOX');
+    console.log(`[seedSource] Cleaned ${purged} existing message(s) from INBOX`);
+    await seedMailbox(client, SEED_MESSAGES, 'INBOX');
+    console.log(`[seedSource] Successfully seeded ${SEED_MESSAGES.length} messages to INBOX`);
+  });
+}
 
-  const config: ImapSimpleOptions = {
-    imap: {
-      user: SOURCE_ACCOUNT,
-      password: SOURCE_PASSWORD,
-      host: STALWART_IMAP_HOST,
-      port: STALWART_IMAP_PORT,
-      tls: true,
-      tlsOptions: { rejectUnauthorized: false }, // For self-signed test cert
-    },
-  };
-
-  const conn = await imap.connect(config);
-
-  try {
-    // Open INBOX
-    const inbox = await conn.openBox('INBOX') as unknown as ImMapBox;
-    
-    console.log(`[seedSource] INBOX has ${inbox.messages.total} messages before cleanup`);
-    
-    // Clean existing messages before seeding
-    if (inbox.messages.total > 0) {
-      const searchCriteria = ['ALL'];
-      const messages = await conn.search(searchCriteria, {
-        envelope: true,
-        size: true,
-      });
-      
-      console.log(`[seedSource] Search returned ${messages.length} messages`);
-      
-      if (messages.length > 0) {
-        const uids = messages.map((m: { attributes: { uid: number } }) => m.attributes.uid);
-        console.log(`[seedSource] Deleting messages with UIDs: ${uids.join(', ')}`);
-        await (conn as { addFlags: (uids: number[], flags: string) => Promise<void> }).addFlags(uids, '\\Deleted');
-        // Close the box with autoExpunge=true to remove deleted messages
-        // The closeBox method accepts autoExpunge parameter (defaults to true)
-        await conn.closeBox(true);
-        console.log(`[seedSource] Closed INBOX with autoExpunge, removed ${uids.length} deleted messages`);
-        // Reopen the box for seeding new messages
-        await conn.openBox('INBOX');
-        console.log(`[seedSource] Reopened INBOX, ready for new messages`);
-        console.log(`[seedSource] Cleaned ${uids.length} existing messages from INBOX`);
-      }
-    } else {
-      console.log('[seedSource] INBOX is already empty, no cleanup needed');
-    }
-
-    // Seed test messages with known Message-IDs
-    const testMessages = [
-      {
-        messageId: '<test-message-1@dev.local>',
-        subject: 'Test Message 1',
-        body: 'This is the first test message.',
-      },
-      {
-        messageId: '<test-message-2@dev.local>',
-        subject: 'Test Message 2',
-        body: 'This is the second test message.',
-      },
-      {
-        messageId: '<test-message-3@dev.local>',
-        subject: 'Test Message 3',
-        body: 'This is the third test message.',
-      },
-    ];
-
-    for (const msg of testMessages) {
-      const rfc822 = `From: source@dev.local
-To: target@dev.local
-Subject: ${msg.subject}
-Message-ID: ${msg.messageId}
-Date: ${new Date().toUTCString()}
-Content-Type: text/plain; charset=utf-8
-
-${msg.body}
-`;
-
-      await conn.append(rfc822, {
-        mailbox: 'INBOX',
-      } as AppendOptions);
-      console.log(`[seedSource] Appended message: ${msg.messageId}`);
-    }
-    
-    console.log(`[seedSource] Successfully seeded ${testMessages.length} messages to INBOX`);
-  } finally {
-    conn.end();
-  }
+/** Read the source INBOX's message count, from the server, not the connector. */
+async function sourceInboxCount(): Promise<number> {
+  return withImapTestClient(SOURCE_IMAP, (client) => countMessages(client, 'INBOX'));
 }
 
 // Shadow pass tests require Stalwart (JMAP/IMAP)
@@ -236,7 +167,7 @@ describe('Shadow Pass Integration (T4)', () => {
   let db: DbClient;
   let ledger: PgLedger;
   let cursorStore: PgCursorStore;
-  let source: ImapSource;
+  let source: ImapFlowSource;
   let target: JmapTargetWriter;
 
   beforeAll(async () => {
@@ -257,7 +188,7 @@ describe('Shadow Pass Integration (T4)', () => {
     console.log('[ShadowPass] Cursor cleanup complete.');
     
     // Setup connectors
-    source = new ImapSource({
+    source = new ImapFlowSource({
       host: STALWART_IMAP_HOST,
       port: STALWART_IMAP_PORT,
       tls: true,
@@ -372,25 +303,8 @@ describe('Shadow Pass Integration (T4)', () => {
     expect(result1.skipped).toBe(0);
 
     // REGRESSION GUARD: Verify source INBOX still has exactly 3 messages (no cross-account pollution)
-    const imap = await import('imap-simple');
-    const config1: ImapSimpleOptions = {
-      imap: {
-        user: SOURCE_ACCOUNT,
-        password: SOURCE_PASSWORD,
-        host: STALWART_IMAP_HOST,
-        port: STALWART_IMAP_PORT,
-        tls: true,
-        tlsOptions: { rejectUnauthorized: false },
-      },
-    };
-    const conn1 = await imap.connect(config1);
-    try {
-      const inbox1 = await conn1.openBox('INBOX') as unknown as ImMapBox;
-      expect(inbox1.messages.total).toBe(3);
-      console.log('[REGRESSION GUARD] Source INBOX count after first run: 3 ✓');
-    } finally {
-      conn1.end();
-    }
+    expect(await sourceInboxCount()).toBe(3);
+    console.log('[REGRESSION GUARD] Source INBOX count after first run: 3 ✓');
 
     // Second run should create 0 (idempotent)
     const result2 = await runShadowPass({
@@ -410,106 +324,43 @@ describe('Shadow Pass Integration (T4)', () => {
     expect(result2.skipped).toBe(0);
 
     // REGRESSION GUARD: Verify source INBOX still has exactly 3 messages after second run
-    const config2: ImapSimpleOptions = {
-      imap: {
-        user: SOURCE_ACCOUNT,
-        password: SOURCE_PASSWORD,
-        host: STALWART_IMAP_HOST,
-        port: STALWART_IMAP_PORT,
-        tls: true,
-        tlsOptions: { rejectUnauthorized: false },
-      },
-    };
-    const conn2 = await imap.connect(config2);
-    try {
-      const inbox2 = await conn2.openBox('INBOX') as unknown as ImMapBox;
-      expect(inbox2.messages.total).toBe(3);
-      console.log('[REGRESSION GUARD] Source INBOX count after second run: 3 ✓');
-    } finally {
-      conn2.end();
-    }
+    expect(await sourceInboxCount()).toBe(3);
+    console.log('[REGRESSION GUARD] Source INBOX count after second run: 3 ✓');
   }, 120000);
 
   it('should handle delta correctly (adding one more message creates exactly 1)', async () => {
     // The beforeEach re-seeded the messages with new UIDs.
     // We need to reset the cursor to match the re-seeded messages.
     // First, query the IMAP server to get the current UIDs.
-    const imap = await import('imap-simple');
+    const { uidValidity, maxUid } = await withImapTestClient(SOURCE_IMAP, (client) =>
+      mailboxState(client, 'INBOX'),
+    );
+    console.log(`[Delta Test] Re-seeded INBOX: uidValidity=${uidValidity}, maxUid=${maxUid}`);
 
-    const config: ImapSimpleOptions = {
-      imap: {
-        user: SOURCE_ACCOUNT,
-        password: SOURCE_PASSWORD,
-        host: STALWART_IMAP_HOST,
-        port: STALWART_IMAP_PORT,
-        tls: true,
-        tlsOptions: { rejectUnauthorized: false },
-      },
-    };
+    // Reset cursor to uidNext = maxUid + 1, so that only new messages will be processed
+    await cursorStore.set(TEST_TENANT_ID, TEST_MAPPING_ID, 'INBOX', {
+      value: `${uidValidity}:${maxUid + 1}`,
+    });
+    console.log(`[Delta Test] Cursor reset to uidNext=${maxUid + 1}`);
 
-    const conn = await imap.connect(config);
-    
-    try {
-      const inbox = await conn.openBox('INBOX') as unknown as ImMapBox;
-      const uidValidity = inbox.uidvalidity;
-      let maxUid = 0;
-      
-      // Get all messages to find the max UID
-      const searchCriteria = ['ALL'];
-      const fetchCriteria = {
-        envelope: true,
-        size: true,
-      };
-      const messages = await conn.search(searchCriteria, fetchCriteria);
-      
-      for (const msg of messages) {
-        const uid = msg.attributes?.uid;
-        if (uid && uid > maxUid) {
-          maxUid = uid;
-        }
-      }
-      
-      console.log(`[Delta Test] Re-seeded INBOX: uidValidity=${uidValidity}, maxUid=${maxUid}`);
-      
-      // Reset cursor to uidNext = maxUid + 1, so that only new messages will be processed
-      const newCursorValue = `${uidValidity}:${maxUid + 1}`;
-      await cursorStore.set(TEST_TENANT_ID, TEST_MAPPING_ID, 'INBOX', {
-        value: newCursorValue,
-      });
-      console.log(`[Delta Test] Cursor reset to uidNext=${maxUid + 1}`);
-    } finally {
-      conn.end();
-    }
-    
     // Now add one more message
-    const conn2 = await imap.connect(config);
-    try {
-      const newMessage = `From: source@dev.local
-To: target@dev.local
-Subject: Test Message 4 (Delta Test)
-Message-ID: <test-message-4-delta@dev.local>
-Date: ${new Date().toUTCString()}
-Content-Type: text/plain; charset=utf-8
-
-This is the fourth test message for delta testing.
-`;
-
-      await conn2.append(newMessage, {
-        mailbox: 'INBOX',
-      } as AppendOptions);
-    } finally {
-      conn2.end();
-    }
+    await withImapTestClient(SOURCE_IMAP, (client) =>
+      seedMailbox(
+        client,
+        [
+          {
+            messageId: '<test-message-4-delta@dev.local>',
+            subject: 'Test Message 4 (Delta Test)',
+            body: 'This is the fourth test message for delta testing.',
+          },
+        ],
+        'INBOX',
+      ),
+    );
 
     // REGRESSION GUARD: Verify source INBOX has exactly 4 messages before delta run
-    const connPre = await imap.connect(config);
-    try {
-      const inboxPre = await connPre.openBox('INBOX') as unknown as ImMapBox;
-      expect(inboxPre.messages.total).toBe(4);
-      console.log('[REGRESSION GUARD] Source INBOX count before delta run: 4 ✓');
-    } finally {
-      connPre.end();
-    }
+    expect(await sourceInboxCount()).toBe(4);
+    console.log('[REGRESSION GUARD] Source INBOX count before delta run: 4 ✓');
 
     // Run shadow pass again - should only create the new message
     const result = await runShadowPass({
@@ -527,14 +378,8 @@ This is the fourth test message for delta testing.
     expect(result.skipped).toBe(0);
 
     // REGRESSION GUARD: Verify source INBOX still has exactly 4 messages after delta (no cross-account pollution)
-    const connPost = await imap.connect(config);
-    try {
-      const inboxPost = await connPost.openBox('INBOX') as unknown as ImMapBox;
-      expect(inboxPost.messages.total).toBe(4);
-      console.log('[REGRESSION GUARD] Source INBOX count after delta run: 4 ✓');
-    } finally {
-      connPost.end();
-    }
+    expect(await sourceInboxCount()).toBe(4);
+    console.log('[REGRESSION GUARD] Source INBOX count after delta run: 4 ✓');
   }, 120000);
 });
 }

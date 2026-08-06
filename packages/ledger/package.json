@@ -19,7 +19,6 @@
     "pg": "catalog:"
   },
   "devDependencies": {
-    "@types/imap-simple": "^4.2.10",
-    "imap-simple": "^5.1.0"
+    "imapflow": "^1.6.5"
   }
 }
