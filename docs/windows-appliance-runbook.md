@@ -41,18 +41,130 @@ rather than mine.
 
 ---
 
-## Phase 0 — prerequisites
+## Phase 0 — prerequisites, and why there are so few
+
+**Only Node 22+.** Not pnpm, not Git, not the repository. An earlier version of
+this runbook told you to install all three; that was wrong, and worth correcting
+rather than quietly dropping, because the mistake is the interesting part: it
+made you install a *developer* toolchain to test a product whose entire premise
+(0015: *"end users never touching bash, a Linux filesystem or Docker"*) is that
+none of it is needed.
 
 | Need | Why | Check |
 |---|---|---|
-| **Node 22 or newer** | the bundle targets `node22`, and `start.mjs` uses top-level `await` | `node --version` |
-| **pnpm 11+** | to build the payload | `pnpm --version` |
-| **Git** | to clone the repo | `git --version` |
-| PowerShell 5.1 or 7 | the scripts here | `$PSVersionTable.PSVersion` |
+| **Node 22 or newer** | the bundle targets `node22` and `start.mjs` uses top-level `await` | `node --version` |
+| PowerShell 5.1 or 7 | the scripts here; already on the machine | `$PSVersionTable.PSVersion` |
 
-Nothing else. **No Docker, no WSL, no Postgres, no Visual Studio.** If any phase
-below turns out to need one of those, that is a finding worth reporting — the
-whole point of 0015 is that it should not.
+**No Docker, no WSL, no Postgres, no Visual Studio, no build toolchain.** If any
+phase turns out to need one, that is a finding worth reporting.
+
+### And you should not need Node either — this is the open question
+
+`package-appliance.mjs` produces a directory. Running it needs *a* Node; nothing
+says it has to be one **you** installed. Workplan 0015's open item —
+*"whether the payload ships its own Node runtime"* — is exactly this question,
+and it is not a packaging detail, it decides what the product is:
+
+- **Payload ships `node.exe`** (~50 MB more, ~78 MB total). The MSI installs and
+  the appliance runs. The end user has no idea Node exists. This is what "never
+  touching a terminal" actually requires.
+- **Payload requires Node** (~28 MB). The MSI has to detect it, prompt for it, or
+  bundle an installer for it — and every one of those is a terminal-shaped
+  problem wearing a dialog box.
+
+I think the answer is obviously the first, and that it should be settled before
+the MSI rather than during. It is an owner decision (size, and shipping a runtime
+you must then keep patched), so it is stated here rather than assumed.
+
+Until it is settled, use whatever Node you have to answer Phase 1 — the question
+"does this code run on Windows" is independent of who supplied the interpreter.
+
+---
+
+## Phase 1 — does the payload run on Windows at all?
+
+**The one that matters.** Everything else is downstream of this answer.
+
+### Option A (recommended) — build on the Spark, copy, run
+
+The payload is **platform-independent**: `package-appliance.mjs` only copies
+files, PGlite is WASM, and the bundle is plain JavaScript. Its own header says
+so, and CI has only ever built it on Linux. So build it where the repository
+already lives:
+
+```bash
+# On the Spark
+pnpm package:appliance          # produces dist/appliance
+tar -czf appliance.tgz -C dist appliance
+```
+
+Copy `appliance.tgz` to the laptop over NetBird (`scp`, or any file share), expand
+it, and:
+
+```powershell
+cd appliance
+node start.mjs
+```
+
+**This is the better test, not just the cheaper one.** An MSI will hand a Windows
+machine a directory built somewhere else — so building on the Spark and running
+on the laptop exercises the *relocatable* property the way the product actually
+uses it. Building on Windows and running in place does not.
+
+### Option B — build on Windows too
+
+Only if you also want to know whether the *build* works on Windows, which no
+product requirement depends on. It needs `git` and `pnpm` as well:
+
+```powershell
+git clone https://github.com/Robbes/open-migrate.git
+cd open-migrate
+pnpm install --frozen-lockfile
+pnpm package:appliance
+cd dist\appliance
+node start.mjs
+```
+
+Worth doing eventually — a contributor on Windows would hit it — but it is not on
+the path to an MSI, and a failure here would not block one.
+
+### Either way, what to expect
+
+It migrates itself on first start and prints
+`[appliance] listening on http://127.0.0.1:8080`. Open <http://127.0.0.1:8080/ui>
+and you should get the operating UI. Press `Ctrl+C` to stop; run it again and it
+should come back **without** re-migrating — that second start is the one that
+proves the database was written and closed properly, so do not skip it.
+
+### Where I expect this to break, and what each break means
+
+These are predictions from reading the code, not observed failures. Listed
+because a named suspicion is faster to check than a blank error.
+
+1. **PGlite's WASM assets.** The payload deliberately ships
+   `node_modules\@electric-sql\pglite` unbundled, because PGlite locates
+   `pglite.wasm` and `pglite.data` (~26 MB) with `new URL(..., import.meta.url)`.
+   If those lookups fail on Windows the error will name a missing file, and it
+   will happen at startup, before anything is listening. **This is the single
+   most likely Windows-specific failure** and the one that would most change the
+   plan — if PGlite can't boot from a relocated directory on Windows, the whole
+   no-Postgres premise (ADR-0023 → 0016) needs revisiting for this platform.
+
+2. **Path separators.** `start.mjs` builds every path with `node:path.join`, which
+   is correct on Windows, but the migration runner walks up from its own
+   `import.meta.url` to find `migrations/`. A `file:///C:/...` URL round-trip is a
+   classic place for this to go wrong. Symptom: it can't find the migration SQL,
+   or it finds nothing and reports zero migrations rather than failing.
+
+3. **Windows Defender / SmartScreen** may quarantine an unsigned `.exe`, though at
+   this phase there is no `.exe` — only `node.exe` running a script. If Defender
+   interferes here, say so; it changes T4's urgency.
+
+4. **Long paths.** `node_modules\@electric-sql\pglite\dist\...` under a deep clone
+   path can exceed 260 characters if long-path support is off. Symptom: `ENAMETOOLONG`
+   or a confusing `ENOENT` during `pnpm install`.
+
+---
 
 ---
 
@@ -119,61 +231,10 @@ stops it.
 
 ---
 
-## Phase 1 — does the payload run on Windows at all?
-
-**The one that matters.** Everything else is downstream of this answer.
-
-```powershell
-git clone https://github.com/Robbes/open-migrate.git
-cd open-migrate
-pnpm install --frozen-lockfile
-pnpm package:appliance
-```
-
-Expected: a `dist\appliance\` directory of roughly **27–28 MB**, and a final line
-reading `Run it with:  node start.mjs   (needs Node 22+; nothing else)`.
-
-Then run it:
-
-```powershell
-cd dist\appliance
-node start.mjs
-```
-
 **Expected:** it migrates itself on first start and prints
 `[appliance] listening on http://127.0.0.1:8080`. Open <http://127.0.0.1:8080/ui>
 and you should get the operating UI. Press `Ctrl+C` to stop; run `node start.mjs`
 again and it should come back **without** re-migrating.
-
-### Where I expect this to break, and what each break means
-
-These are predictions from reading the code, not observed failures. Listed
-because a named suspicion is faster to check than a blank error.
-
-1. **PGlite's WASM assets.** The payload deliberately ships
-   `node_modules\@electric-sql\pglite` unbundled, because PGlite locates
-   `pglite.wasm` and `pglite.data` (~26 MB) with `new URL(..., import.meta.url)`.
-   If those lookups fail on Windows the error will name a missing file, and it
-   will happen at startup, before anything is listening. **This is the single
-   most likely Windows-specific failure** and the one that would most change the
-   plan — if PGlite can't boot from a relocated directory on Windows, the whole
-   no-Postgres premise (ADR-0023 → 0016) needs revisiting for this platform.
-
-2. **Path separators.** `start.mjs` builds every path with `node:path.join`, which
-   is correct on Windows, but the migration runner walks up from its own
-   `import.meta.url` to find `migrations/`. A `file:///C:/...` URL round-trip is a
-   classic place for this to go wrong. Symptom: it can't find the migration SQL,
-   or it finds nothing and reports zero migrations rather than failing.
-
-3. **Windows Defender / SmartScreen** may quarantine an unsigned `.exe`, though at
-   this phase there is no `.exe` — only `node.exe` running a script. If Defender
-   interferes here, say so; it changes T4's urgency.
-
-4. **Long paths.** `node_modules\@electric-sql\pglite\dist\...` under a deep clone
-   path can exceed 260 characters if long-path support is off. Symptom: `ENAMETOOLONG`
-   or a confusing `ENOENT` during `pnpm install`.
-
----
 
 ## Phase 2 — the data directory problem, which is real and already known
 
@@ -210,9 +271,28 @@ cd "C:\Program Files\OpenMigrateTest"
 node start.mjs
 ```
 
-Expected: a permissions failure. If it instead *succeeds*, that is worth knowing
-too — it would mean your account has non-default write access to Program Files,
-and the test says nothing.
+Expected: it **refuses to start**, naming the directory and the variable to set:
+
+```
+The appliance cannot write its database directory:
+  C:\Program Files\OpenMigrateTest\data\pglite
+
+Reason: EPERM: operation not permitted, mkdir '...'
+
+This usually means the payload was installed somewhere read-only and
+SELFHOST_PGLITE_DIR was not set. Point it at a writable location the service
+account owns — on Windows C:\ProgramData\OpenMigrate\ — and keep it OUT of
+the install directory so an upgrade or uninstall cannot take the migration
+ledger with it.
+```
+
+That message is new (2026-08-06). Before it, this failed as a permissions error
+from inside PGlite naming a path nobody chose — the same failure, reported as
+something else. If you see the *old* behaviour, you are running a payload built
+before that change; rebuild.
+
+If it instead **succeeds**, that is worth knowing too — it would mean your
+account has non-default write access to Program Files, and the test says nothing.
 
 **Then prove the fix works:**
 
