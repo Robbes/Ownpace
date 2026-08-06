@@ -16,21 +16,15 @@
  *   3. **A failed probe** read as a definitive "speaks nothing". Hard rule 9.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { probeJmapCapabilities, usableJmapDomains } from './jmap-capabilities';
 
 let session: unknown;
+/** A transport-level failure — DNS, TLS, connection refused. */
 let loadError: Error | null;
-
-vi.mock('jmap-jam', () => ({
-  default: {
-    loadSession: async () => {
-      if (loadError) throw loadError;
-      return session;
-    },
-  },
-}));
-
-const { probeJmapCapabilities, usableJmapDomains } = await import('./jmap-capabilities');
+/** An HTTP status the server answered with, and the body it carried. */
+let httpStatus: number;
+let httpBody: string | null;
 
 const MAIL = 'urn:ietf:params:jmap:mail';
 const CONTACTS = 'urn:ietf:params:jmap:contacts';
@@ -63,7 +57,28 @@ function forDomain(report: Awaited<ReturnType<typeof probe>>, domain: string) {
 
 beforeEach(() => {
   loadError = null;
+  httpStatus = 200;
+  httpBody = null;
   session = sessionWith([MAIL, CONTACTS, PARSE, FILES, CALENDARS]);
+
+  // The transport is stubbed rather than `jmap-jam`, deliberately: the bug this
+  // file's integration test found lives in the gap between the two. Mocking the
+  // library would reinstate the assumption that turned out to be false — that a
+  // rejected credential arrives as a thrown error.
+  vi.stubGlobal('fetch', async () => {
+    if (loadError) throw loadError;
+    if (httpStatus !== 200) {
+      return new Response(httpBody ?? 'nope', { status: httpStatus });
+    }
+    return new Response(JSON.stringify(session), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe('what a fully-capable server yields', () => {
@@ -137,13 +152,41 @@ describe('an advertised capability is not enough', () => {
 });
 
 describe('a failed probe is never a negative answer', () => {
-  it('THROWS when the session cannot be read, rather than reporting nothing usable', async () => {
+  it('THROWS when the connection itself fails, rather than reporting nothing usable', async () => {
     loadError = new Error('ECONNREFUSED 127.0.0.1:443');
     // A report full of `false` is indistinguishable from a server that really
     // speaks nothing, and a picker would then quietly hide every JMAP option
-    // because a password was wrong. Hard rule 9.
+    // because a host was unreachable. Hard rule 9.
     await expect(probe()).rejects.toThrow(/UNKNOWN — not "none"/);
     await expect(probe()).rejects.toThrow(/ECONNREFUSED/);
+  });
+
+  it('THROWS on a REJECTED CREDENTIAL, which is where this first went wrong', async () => {
+    httpStatus = 401;
+    httpBody = '{"type":"about:blank","status":401,"detail":"Unauthorized"}';
+
+    // THE REGRESSION. This probe originally called `JamClient.loadSession`,
+    // whose whole body is `fetch(url, {headers}).then(r => r.json())` — it
+    // NEVER checks `response.ok`. A 401 carrying a JSON body parses happily, so
+    // the helper RESOLVED with the error document: no `capabilities`, no
+    // `primaryAccounts`. The probe then reported, with total confidence, that
+    // the server advertises nothing.
+    //
+    // A wrong password would have been shown to a picker as "this server speaks
+    // no JMAP", sending an operator off to configure a different protocol. The
+    // `try/catch` could never have caught it, because the library does not
+    // throw — which is why the transport is stubbed here rather than the
+    // library.
+    await expect(probe()).rejects.toThrow(/UNKNOWN — not "none"/);
+    await expect(probe()).rejects.toThrow(/HTTP 401/);
+  });
+
+  it('THROWS when the body is not JSON at all', async () => {
+    httpStatus = 502;
+    httpBody = '<html>bad gateway</html>';
+    // A proxy answering with HTML must report the STATUS, not a JSON parse
+    // error about a document nobody asked for.
+    await expect(probe()).rejects.toThrow(/HTTP 502/);
   });
 
   it('treats a session with no capabilities at all as a real negative', async () => {

@@ -46,8 +46,6 @@
  * @see scripts/jmap-target-spike.ts — where these URNs were established
  */
 
-import JamClient from 'jmap-jam';
-
 /** The four domains a mapping can carry. */
 export type JmapDomain = 'mail' | 'calendar' | 'contact' | 'file';
 
@@ -156,15 +154,57 @@ export async function probeJmapCapabilities(
   const authHeader = `Basic ${Buffer.from(`${config.username}:${config.password}`).toString('base64')}`;
   const sessionUrl = `${config.baseUrl}${config.wellKnownPath ?? '/.well-known/jmap'}`;
 
+  // **NOT `JamClient.loadSession`, and this is the whole reason the probe fetches
+  // for itself.** That helper is one line —
+  // `fetch(url, {headers}).then(r => r.json())` — and it NEVER CHECKS
+  // `response.ok`. A 401 or 404 carrying a JSON body parses perfectly happily,
+  // so it RESOLVES with the error document: an object with no `capabilities`
+  // and no `primaryAccounts`.
+  //
+  // Read through this function, that document said "the server advertises
+  // nothing" — the exact conflation (3) in the header exists to prevent,
+  // arriving by a route the `try/catch` could never see, because the library
+  // does not throw. A wrong password would have been reported to a picker as
+  // "this server speaks no JMAP", sending an operator off to configure a
+  // different protocol.
+  //
+  // Found by this file's own integration test on its first real run against
+  // Stalwart; the three tests that check what the server DOES say all passed.
+  //
+  // (The three JMAP writers call `loadSession` too. They are not at risk of a
+  // silent wrong answer — a session with no accounts makes their `connect()`
+  // refuse rather than guess — but the message they raise talks about
+  // resolving an account when the truth is a rejected credential. Recorded in
+  // workplan 0031 T4 as a follow-up rather than widened into this change.)
+  let response: Response;
+  try {
+    response = await fetch(sessionUrl, {
+      headers: { Authorization: authHeader, Accept: 'application/json' },
+      cache: 'no-cache',
+    });
+  } catch (err) {
+    throw unknownRatherThanNone(sessionUrl, err instanceof Error ? err.message : String(err), err);
+  }
+
+  if (!response.ok) {
+    // Read as TEXT first: a proxy or a rate limiter answers with HTML, and
+    // `response.json()` would then throw a parse error saying nothing about the
+    // status the server actually returned.
+    const body = await response.text().catch(() => '');
+    throw unknownRatherThanNone(
+      sessionUrl,
+      `HTTP ${response.status}${body ? ` - ${body.slice(0, 200)}` : ''}`,
+    );
+  }
+
   let session: JmapSession;
   try {
-    session = (await JamClient.loadSession(sessionUrl, authHeader)) as JmapSession;
+    session = (await response.json()) as JmapSession;
   } catch (err) {
-    throw new Error(
-      `Could not read the JMAP session at ${sessionUrl}, so which domains this server can carry ` +
-        `is UNKNOWN — not "none". Reporting it as none would present a connection failure as a ` +
-        `definitive answer about the server. Cause: ${err instanceof Error ? err.message : String(err)}`,
-      { cause: err },
+    throw unknownRatherThanNone(
+      sessionUrl,
+      `the response was not JSON: ${err instanceof Error ? err.message : String(err)}`,
+      err,
     );
   }
 
@@ -175,6 +215,23 @@ export async function probeJmapCapabilities(
     advertised,
     domains: DOMAIN_REQUIREMENTS.map((req) => describe(req, advertised, accounts)),
   };
+}
+
+/**
+ * The one error this function raises, so every route to "I could not look"
+ * says the same thing.
+ *
+ * The wording is load-bearing: a caller that renders this as "no JMAP here"
+ * has misread it, and the message says so rather than leaving the distinction
+ * to a comment nobody reads at 2am.
+ */
+function unknownRatherThanNone(sessionUrl: string, cause: string, err?: unknown): Error {
+  return new Error(
+    `Could not read the JMAP session at ${sessionUrl}, so which domains this server can carry ` +
+      `is UNKNOWN — not "none". Reporting it as none would present a connection failure as a ` +
+      `definitive answer about the server. Cause: ${cause}`,
+    err === undefined ? undefined : { cause: err },
+  );
 }
 
 function describe(
