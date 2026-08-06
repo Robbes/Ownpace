@@ -13,10 +13,6 @@ import type {
   SpecialUse,
 } from "@openmig/shared";
 
-// Type alias for IMAP FetchOptions - using 'any' due to type definition issues
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type FetchOptions = any;
-
 /**
  * Configuration for IMAP connection.
  */
@@ -64,8 +60,13 @@ export function decodeImapCursor(cursor: SyncCursor): {
 
 /**
  * Map IMAP system flags to our MailKeyword type.
+ *
+ * EXPORTED for `imapflow-source.ts` (workplan 0032 T1). Shared rather than
+ * transcribed: a second copy of this that drifted would show up as a lost flag
+ * on every message the two clients disagreed about, and the whole point of the
+ * migration is that the only thing that changes is the CLIENT.
  */
-function mapImapFlagsToKeywords(flags: string[]): MailKeyword[] {
+export function mapImapFlagsToKeywords(flags: string[]): MailKeyword[] {
   const keywords: MailKeyword[] = [];
   for (const flag of flags) {
     const lower = flag.toLowerCase();
@@ -91,6 +92,87 @@ export function mapImapSpecialUse(attributes: string[]): SpecialUse {
     if (lower === "\\trash" || lower === "\\deleted") return "trash";
   }
   return "normal";
+}
+
+/**
+ * What a listing FETCH asks the server for, and the reason it is a constant.
+ *
+ * **`size` was missing here until 2026-08-06, and nothing noticed for months.**
+ * node-imap only appends `RFC822.SIZE` to the FETCH when `options.size` is set
+ * (`Connection.js`: `if (options.size) fetching.push('RFC822.SIZE')`), so
+ * `attrs.size` was always `undefined` and every `MailItem.size` this connector
+ * produced was empty.
+ *
+ * That is not cosmetic. Pre-sync discovery sums exactly this field
+ * (`itemBytes` in `apps/worker/src/orchestration.ts`) to tell the owner how
+ * much data is about to move, on the §11.2 Review & confirm screen they
+ * approve before anything is copied — so the mail domain has been showing a
+ * count with no bytes behind it. (The SYNC path is unaffected: `reconcile.ts`
+ * deliberately uses the fetched message's own byte length rather than the
+ * listing's advertised size, which is why the ledger totals are right.)
+ *
+ * **It was found by the workplan 0032 parity harness on its first real run**,
+ * as `INBOX/items/INBOX:50 · size: '' vs 216` — `imapflow` populates the field
+ * and `imap-simple` did not. Worth recording because it is the argument for
+ * having built the harness at all: the difference it named was a defect in the
+ * PROVEN client, not in the candidate.
+ *
+ * A constant rather than an inline literal for the same reason
+ * `CARD_PROPERTIES` is one in `jmap-contact-target.ts`: a request list that
+ * silently loses an entry is a PASSING read returning less than the server
+ * holds, and `imap-source.unit.test.ts` pins this one.
+ */
+export const LISTING_FETCH_CRITERIA = {
+  bodies: '', // Headers only — the body comes from `fetch()`, per item.
+  struct: true, // BODYSTRUCTURE
+  envelope: true, // ENVELOPE, which carries the Message-ID
+  size: true, // RFC822.SIZE — see above.
+  markSeen: false, // Never modify the source (hard rule 2).
+} as const;
+
+/**
+ * An ENVELOPE's message-id as `MailItem.messageId` — angle brackets included.
+ *
+ * **The single most load-bearing line in the IMAP source, and the reason
+ * workplan 0032 has a parity harness at all.** `naturalKeyForItem()` hashes
+ * this string, so if two clients produce different forms of it, every message
+ * re-copies on the next pass and every write succeeds while it happens
+ * (hard rule 1). No count is wrong and no error is raised — the mailbox is
+ * simply twice its size.
+ *
+ * EXPORTED so `imapflow-source.ts` calls exactly this, rather than a
+ * transcription of it. Note what that does and does not buy: it removes the
+ * risk of OUR logic drifting between two files, and it deliberately does NOT
+ * paper over a difference in what the two CLIENTS hand in — different input
+ * still gives different output, which is precisely what the harness must be
+ * able to see. (`imapflow` trims the ENVELOPE value; `node-imap` does not. If
+ * a server ever emits a padded msg-id, that difference is real and this
+ * function will report it as one rather than hide it.)
+ *
+ * Returns null when the envelope carried nothing — the caller counts that as
+ * `unkeyable` and the sync derives an id from the body bytes.
+ */
+export function messageIdFromEnvelopeValue(raw: unknown): string | null {
+  if (typeof raw !== 'string' || raw === '') return null;
+  // Already bracketed: returned VERBATIM. Trimming here would be a silent
+  // normalisation and is exactly the class of change the harness exists to
+  // catch — the decision about whether a padded id should be trimmed belongs
+  // in one place, not smuggled into a helper.
+  if (raw.startsWith('<') && raw.endsWith('>')) return raw;
+  return `<${raw}>`;
+}
+
+/**
+ * The UID out of a `MailItem.sourceRef` (`"<folder>:<uid>"`).
+ *
+ * EXPORTED for the same reason as the two helpers above: a folder path may
+ * itself contain a colon, so the UID is the LAST segment, and two clients
+ * splitting that differently would fetch the wrong message rather than fail.
+ */
+export function uidFromSourceRef(sourceRef: string): number {
+  const parts = sourceRef.split(':');
+  const uid = parseInt(parts[parts.length - 1] || '0', 10);
+  return isNaN(uid) ? 0 : uid;
 }
 
 /** The shape node-imap's `getBoxes()` actually returns, per its own type declarations. */
@@ -340,14 +422,7 @@ export class ImapSource implements SourceConnector {
         }
       }
 
-      const fetchCriteria: FetchOptions = {
-        bodies: "", // Don't fetch body, just headers
-        struct: true, // Fetch message structure
-        envelope: true, // Fetch envelope (headers)
-        markSeen: false,
-      };
-
-      const results = await conn.search(searchCriteria, fetchCriteria);
+      const results = await conn.search(searchCriteria, LISTING_FETCH_CRITERIA);
 
       // Filter results by UID if we're using a cursor
       let filteredResults = results || [];
@@ -513,26 +588,16 @@ export class ImapSource implements SourceConnector {
     // The search result structure is: { attributes: { envelope: { messageId: ... } }, parts: [...] }
     // Try to get from envelope first (fetched with envelope: true)
     const envelope = msg.attributes?.envelope || msg.envelope;
-    if (envelope?.messageId) {
-      const messageId = envelope.messageId;
-      // Ensure it has angle brackets
-      if (messageId.startsWith("<") && messageId.endsWith(">")) {
-        return messageId;
-      }
-      // Add angle brackets if missing
-      return `<${messageId}>`;
-    }
-    return null;
+    // Delegates to the exported helper so the imapflow source produces the
+    // natural key through the SAME code rather than a copy of it (0032 T1).
+    return messageIdFromEnvelopeValue(envelope?.messageId);
   }
 
   /**
    * Extract UID from sourceRef (format: "folder:uid").
    */
   private extractUidFromSourceRef(sourceRef: string): number {
-    const parts = sourceRef.split(":");
-    const uidStr = parts[parts.length - 1];
-    const uid = parseInt(uidStr || "0", 10);
-    return isNaN(uid) ? 0 : uid;
+    return uidFromSourceRef(sourceRef);
   }
 
   /**

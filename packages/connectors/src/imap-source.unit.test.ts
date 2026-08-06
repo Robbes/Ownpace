@@ -9,6 +9,7 @@ import {
   encodeImapCursor,
   decodeImapCursor,
   mapImapSpecialUse,
+  LISTING_FETCH_CRITERIA,
   foldersFromImapMailboxTree,
   type RawImapMailbox,
 } from "../src/imap-source";
@@ -39,6 +40,26 @@ describe("ImapSource", () => {
       expect(() => decodeImapCursor(cursor)).toThrow(
         "Invalid IMAP cursor format",
       );
+    });
+  });
+
+  describe("LISTING_FETCH_CRITERIA", () => {
+    it("asks for RFC822.SIZE, which the confirm screen's byte total depends on", () => {
+      // node-imap only appends RFC822.SIZE when `options.size` is set, so
+      // dropping this makes `attrs.size` undefined for every message and
+      // `MailItem.size` empty for every item. Nothing throws: pre-sync
+      // discovery just sums nothing and the §11.2 Review & confirm screen
+      // shows the owner a mail count with no bytes behind it.
+      //
+      // That is exactly what this connector did until 2026-08-06, and it was
+      // the workplan 0032 parity harness that found it — as a difference
+      // between the two clients, where imapflow was the one telling the truth.
+      expect(LISTING_FETCH_CRITERIA.size).toBe(true);
+      // The rest of the list, pinned for the same reason: envelope carries the
+      // Message-ID the natural key is built from, and markSeen must stay off
+      // because hard rule 2 forbids modifying the source.
+      expect(LISTING_FETCH_CRITERIA.envelope).toBe(true);
+      expect(LISTING_FETCH_CRITERIA.markSeen).toBe(false);
     });
   });
 
