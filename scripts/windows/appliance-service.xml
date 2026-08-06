@@ -38,7 +38,13 @@
     copies the payload verbatim gets a working service with no path rewriting,
     which is the whole reason the payload is relocatable.
   -->
-  <executable>node</executable>
+  <!--
+    The payload's OWN node.exe, never a system one. The machine running this is
+    not expected to have Node installed at all — that is the point of building
+    the payload with `--with-node win-x64`. Naming a bare `node` here would work
+    on a developer's box and fail on a customer's, which is the worst way round.
+  -->
+  <executable>%BASE%\..\..\node.exe</executable>
   <arguments>"%BASE%\..\..\start.mjs"</arguments>
   <workingdirectory>%BASE%\..\..</workingdirectory>
 

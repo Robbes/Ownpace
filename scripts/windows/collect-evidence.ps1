@@ -67,6 +67,13 @@ if ($PayloadPath -and (Test-Path $PayloadPath)) {
     $out.Add('top level      :')
     Get-ChildItem $PayloadPath | ForEach-Object { $out.Add("  $($_.Name)") }
     $pglite = Join-Path $PayloadPath 'node_modules\@electric-sql\pglite'
+    $bundledNode = Join-Path $PayloadPath 'node.exe'
+    $out.Add("bundled node   : $(Test-Path $bundledNode)")
+    if (Test-Path $bundledNode) {
+        # The version of the runtime we SHIP, which is the one that matters --
+        # a system Node on PATH says nothing about what a customer would run.
+        Try-Run 'bundled node ver' { & $bundledNode --version }
+    }
     $out.Add("pglite present : $(Test-Path $pglite)")
     if (Test-Path $pglite) {
         # The two assets PGlite resolves via import.meta.url. If Phase 1 failed

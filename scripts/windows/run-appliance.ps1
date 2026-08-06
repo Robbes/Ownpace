@@ -35,13 +35,31 @@ if (-not (Test-Path $start)) {
           "`pnpm package:appliance` produced (dist\appliance), or at the installed copy."
 }
 
-# Fail early and in words if Node is too old, rather than letting the bundle
-# die on syntax it cannot parse.
-$nodeVersion = (& node --version) -replace '^v', ''
+# Prefer the payload's OWN node.exe. A payload built with `--with-node win-x64`
+# ships one, and the whole point is that this machine needs nothing installed.
+# Falling back to a system Node is a convenience for a half-built payload, not
+# the shipping configuration — so it says so rather than passing silently.
+$bundled = Join-Path $PayloadPath 'node.exe'
+if (Test-Path $bundled) {
+    $node = $bundled
+} else {
+    $node = 'node'
+    Write-Warning ("This payload has no node.exe, so a system Node will be used. That is NOT " +
+                   "how it ships: build with 'pnpm package:appliance --with-node win-x64' to " +
+                   "get a payload that runs on a machine with nothing installed.")
+    if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+        throw "No node.exe in the payload and no Node on PATH. Rebuild the payload with " +
+              "--with-node win-x64 (see docs/windows-appliance-runbook.md)."
+    }
+}
+
+# Fail early and in words if the runtime is too old, rather than letting the
+# bundle die on syntax it cannot parse.
+$nodeVersion = (& $node --version) -replace '^v', ''
 $major = [int]($nodeVersion -split '\.')[0]
 if ($major -lt 22) {
-    throw "Node $nodeVersion found; the appliance bundle targets node22 and start.mjs " +
-          "uses top-level await. Install Node 22 or newer."
+    throw "Node $nodeVersion found at '$node'; the appliance bundle targets node22 and " +
+          "start.mjs uses top-level await."
 }
 
 $pgliteDir = Join-Path $DataRoot 'pglite'
@@ -49,7 +67,7 @@ $configDir = Join-Path $DataRoot 'config'
 New-Item -ItemType Directory -Force -Path $pgliteDir, $configDir | Out-Null
 
 Write-Host "payload    : $PayloadPath"
-Write-Host "node       : v$nodeVersion"
+Write-Host "node       : v$nodeVersion  ($node)"
 Write-Host "pglite dir : $pgliteDir"
 Write-Host "config dir : $configDir"
 Write-Host "listening  : http://${BindHost}:${Port}/ui"
@@ -64,4 +82,4 @@ $env:PORT                 = "$Port"
 # Run in the foreground. Ctrl+C sends the interrupt start.mjs handles, which is
 # what closes PGlite cleanly — the database is the thing being written, so an
 # abrupt kill is the one failure mode worth avoiding while testing.
-& node $start
+& $node $start
