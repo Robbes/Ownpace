@@ -1003,6 +1003,119 @@ async function main(): Promise<number> {
           }),
         }).then((r) => r.text());
         console.log(`  read back: ${back.slice(0, 1200)}`);
+
+        // -------------------------------------------------------------------
+        // T3 rung 2 — a FILE, not a folder. The gate before the connector.
+        //
+        // Everything above created a DIRECTORY node, which settled the
+        // identity question (name + parentId, no path) and nothing else. It
+        // says nothing about the operation `upsertFile` actually performs:
+        // putting BYTES on the target.
+        //
+        // `webdav-target-writer.ts` PUTs the bytes to a URL and is done. JMAP
+        // has no such thing — content is a blob, so a file node must be
+        // created with a `blobId` pointing at an upload. That is an assumption
+        // until a server accepts it, and building the write path on an
+        // unverified assumption is exactly what T0's discipline exists to stop.
+        //
+        // WHAT TO LOOK FOR:
+        //   - does `FileNode/set` accept `blobId` on create at all?
+        //   - does the node read back with a `size` matching the bytes, and a
+        //     `type` matching the upload's content type? A node that stores
+        //     the blob but reports `size: null` cannot support a verification
+        //     count, which is a narrowing T3 would have to state.
+        //   - does `parentId` place it under the folder above, so the path
+        //     reconstruction (`packages/shared/src/jmap-file-path.ts`) has a
+        //     real chain to walk rather than a flat list?
+        // -------------------------------------------------------------------
+        const CONTENT = 'openmig spike file content\n';
+        const upload = await fetch(`${apiUrl}/upload/${filesAccount}`, {
+          method: 'POST',
+          headers: { Authorization: auth, 'Content-Type': 'text/plain' },
+          body: CONTENT,
+        });
+        const uploadBody = await upload.text();
+        console.log(`\n  Blob upload (file content): HTTP ${upload.status} ${uploadBody.slice(0, 300)}`);
+        const fileBlobId = (/"blobId":"([^"]+)"/.exec(uploadBody) ?? [])[1];
+
+        if (!fileBlobId) {
+          console.log(
+            `  FAIL  no blobId, so the FILE rung cannot run. NOT evidence that\n` +
+              `        FileNode/set refuses content — evidence that the upload did\n` +
+              `        not work, which is a different problem and must not be read\n` +
+              `        as the first.`,
+          );
+        } else {
+          const madeFile = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { Authorization: auth, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:filenode'],
+              methodCalls: [
+                [
+                  'FileNode/set',
+                  {
+                    accountId: filesAccount,
+                    create: {
+                      // Under the folder created above, so the parent chain is
+                      // real. No `@type` — that refusal is already recorded.
+                      d: {
+                        name: 'openmig-spike-file.txt',
+                        parentId: fid,
+                        blobId: fileBlobId,
+                        type: 'text/plain',
+                      },
+                    },
+                  },
+                  '0',
+                ],
+              ],
+            }),
+          }).then((r) => r.text());
+          console.log(`  FileNode/set (a file with content): ${madeFile.slice(0, 900)}`);
+
+          const docId = (/"created":\{"d":\{"id":"([^"]+)"/.exec(madeFile) ?? [])[1];
+          if (!docId) {
+            console.log(
+              `  The file node was REFUSED. Read notCreated above: a named property\n` +
+                `  is ours to fix (this spike has been wrong three times on this\n` +
+                `  surface and Stalwart zero). A refusal of blobId itself is the\n` +
+                `  finding — it would mean JMAP files cannot carry content here, and\n` +
+                `  T3 goes back to the owner rather than into code.`,
+            );
+          } else {
+            const fileBack = await fetch(apiUrl, {
+              method: 'POST',
+              headers: { Authorization: auth, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:filenode'],
+                methodCalls: [
+                  ['FileNode/get', { accountId: filesAccount, ids: [docId] }, '0'],
+                ],
+              }),
+            }).then((r) => r.text());
+            console.log(`  read back (the file): ${fileBack.slice(0, 1200)}`);
+            console.log(
+              `\n         COMPARE: size should be ${Buffer.byteLength(CONTENT)} (the bytes\n` +
+                `         uploaded) and type 'text/plain'. A node that stores the blob\n` +
+                `         but reports size: null cannot support a verification count,\n` +
+                `         which is a narrowing T3 must STATE rather than discover.\n` +
+                `         parentId should be ${fid} — the folder above — so the path\n` +
+                `         reconstruction has a real chain to walk.`,
+            );
+            await fetch(apiUrl, {
+              method: 'POST',
+              headers: { Authorization: auth, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:filenode'],
+                methodCalls: [
+                  ['FileNode/set', { accountId: filesAccount, destroy: [docId] }, '0'],
+                ],
+              }),
+            }).catch(() => undefined);
+          }
+        }
+
         await fetch(apiUrl, {
           method: 'POST',
           headers: { Authorization: auth, 'Content-Type': 'application/json' },
