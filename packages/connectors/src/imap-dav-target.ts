@@ -60,13 +60,42 @@ interface ImapBox {
 
 /**
  * Map our MailKeyword to IMAP flags.
+ *
+ * EXPORTED for `imapflow-dav-target.ts` (workplan 0032 T2). Shared rather than
+ * transcribed: a second copy that drifted would land messages on the target
+ * with the wrong flags, which is a silent fidelity loss — the message is there,
+ * the count is right, and the owner's unread state is wrong.
  */
-const KEYWORD_TO_FLAG: Record<MailKeyword, string> = {
+export const KEYWORD_TO_FLAG: Record<MailKeyword, string> = {
   "$seen": "\\Seen",
   "$flagged": "\\Flagged",
   "$draft": "\\Draft",
   "$answered": "\\Answered",
 };
+
+/**
+ * The Message-ID of a raw RFC822 message, WITHOUT angle brackets.
+ *
+ * **The bracket-stripping is the contract, not an implementation detail.** This
+ * value becomes `UpsertResult.targetId`'s lookup key and is what
+ * `findByNaturalKey` compares against, so both sides of the comparison must
+ * strip identically or a message that IS on the target reads as absent — and an
+ * absent message is APPENDED, which is a duplicate (hard rule 1). Note this is
+ * the OPPOSITE convention to `MailItem.messageId` on the source side, which
+ * keeps its brackets; the two never meet, and writing that down is cheaper than
+ * rediscovering it.
+ *
+ * EXPORTED for `imapflow-dav-target.ts` (workplan 0032 T2) so the two writers
+ * cannot disagree about it.
+ */
+export function extractMessageIdFromRfc822(raw: Uint8Array | string): string | null {
+  const content = typeof raw === 'string' ? raw : Buffer.from(raw).toString('utf-8');
+  const match = content.match(/Message-ID:\s*([^\r\n]+)/i);
+  if (match) {
+    return match[1]?.trim().replace(/[<>]/g, '') || null;
+  }
+  return null;
+}
 
 /**
  * IMAP/DAV mail target writer implementation.
@@ -462,12 +491,7 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer, TargetR
    * Extract Message-ID from raw RFC822 message.
    */
   private extractMessageId(raw: Uint8Array | string): string | null {
-    const content = typeof raw === 'string' ? raw : Buffer.from(raw).toString('utf-8');
-    const match = content.match(/Message-ID:\s*([^\r\n]+)/i);
-    if (match) {
-      return match[1]?.trim().replace(/[<>]/g, '') || null;
-    }
-    return null;
+    return extractMessageIdFromRfc822(raw);
   }
 
   /**
