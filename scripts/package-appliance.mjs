@@ -76,7 +76,7 @@ import {
 } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -404,4 +404,20 @@ async function main() {
   );
 }
 
-await main();
+/**
+ * Run only when INVOKED, never when imported.
+ *
+ * This file exports pure helpers (`shaFor`, `verifySha256`) that its unit test
+ * imports. Without this guard that import STAGES A WHOLE PAYLOAD as a side
+ * effect — and in CI, where `apps/web/dist-selfhost` has not been built, it
+ * throws before a single test runs. It passed locally only because a developer
+ * who has just built the UI cannot see the difference, which is as close to the
+ * definition of "works on my machine" as it gets.
+ *
+ * `process.argv[1]` through `pathToFileURL` rather than a string compare: the
+ * two spellings of the same path differ on Windows (`C:\...` versus
+ * `file:///C:/...`) and after any symlink.
+ */
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+  await main();
+}
