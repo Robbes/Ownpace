@@ -7,6 +7,13 @@ export * from './imap-source';
 // The imapflow read path (0032 T1), shipped BESIDE the proven client rather
 // than instead of it — `imap-parity.integration.test.ts` is what compares them.
 export * from './imapflow-source';
+
+// Session loading for every JMAP writer here (0031 T4 follow-up). Its own file
+// because all four call sites must share it: the moment one of them keeps
+// `JamClient.loadSession`, a rejected credential goes back to being reported as
+// a missing account on that one path only.
+export * from './jmap-session';
+
 export * from './jmap-target';
 // Contacts over JMAP (0031 T2). Beside the mail target rather than beside the
 // DAV writers in @openmig/engines: it shares this file's transport concerns —
