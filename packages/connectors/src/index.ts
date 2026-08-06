@@ -2,6 +2,10 @@
 // T1 contracts live in @openmig/shared (see ports.ts); implement impls per docs/workplans/0001-first-slice-jmap-mail.md.
 export const packageName = '@openmig/connectors';
 
+// The IMAP conventions both clients share — flag mapping both ways, the two
+// message-id conventions, the cursor encoding. Client-neutral by design.
+export * from './imap-conventions';
+
 export * from './imap-source';
 
 // The imapflow read path (0032 T1), shipped BESIDE the proven client rather

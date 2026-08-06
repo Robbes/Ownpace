@@ -18,18 +18,14 @@ import type {
 import { contentHash } from "@openmig/shared";
 import { log } from '@openmig/shared';
 import { foldersFromImapMailboxTree, type RawImapMailbox } from "./imap-source";
+import { KEYWORD_TO_FLAG, extractMessageIdFromRfc822 } from "./imap-conventions";
+import type { ImapDavTargetConfig } from "./imap-conventions";
 
-/**
- * Configuration for IMAP target connection.
- */
-export interface ImapDavTargetConfig {
-  host: string;
-  port: number;
-  tls: boolean;
-  username: string;
-  password: string;
-  rejectUnauthorized?: boolean; // For self-signed certs in dev
-}
+// Moved to `imap-conventions.ts` (workplan 0032 T3b) and re-exported here so
+// this file's own tests keep exercising them through the same path while it
+// still exists.
+export { KEYWORD_TO_FLAG, extractMessageIdFromRfc822 } from './imap-conventions';
+export type { ImapDavTargetConfig } from './imap-conventions';
 
 /**
  * IMAP search result entry.
@@ -59,21 +55,6 @@ interface ImapBox {
 }
 
 /**
- * Map our MailKeyword to IMAP flags.
- *
- * EXPORTED for `imapflow-dav-target.ts` (workplan 0032 T2). Shared rather than
- * transcribed: a second copy that drifted would land messages on the target
- * with the wrong flags, which is a silent fidelity loss — the message is there,
- * the count is right, and the owner's unread state is wrong.
- */
-export const KEYWORD_TO_FLAG: Record<MailKeyword, string> = {
-  "$seen": "\\Seen",
-  "$flagged": "\\Flagged",
-  "$draft": "\\Draft",
-  "$answered": "\\Answered",
-};
-
-/**
  * What the reindex FETCH asks the server for, and why it is a constant.
  *
  * **`size` was missing until 2026-08-06.** node-imap only appends RFC822.SIZE
@@ -95,30 +76,6 @@ export const REINDEX_FETCH_OPTIONS: { bodies: string[]; size: boolean } = {
   bodies: ['HEADER'],
   size: true, // RFC822.SIZE — see above.
 };
-
-/**
- * The Message-ID of a raw RFC822 message, WITHOUT angle brackets.
- *
- * **The bracket-stripping is the contract, not an implementation detail.** This
- * value becomes `UpsertResult.targetId`'s lookup key and is what
- * `findByNaturalKey` compares against, so both sides of the comparison must
- * strip identically or a message that IS on the target reads as absent — and an
- * absent message is APPENDED, which is a duplicate (hard rule 1). Note this is
- * the OPPOSITE convention to `MailItem.messageId` on the source side, which
- * keeps its brackets; the two never meet, and writing that down is cheaper than
- * rediscovering it.
- *
- * EXPORTED for `imapflow-dav-target.ts` (workplan 0032 T2) so the two writers
- * cannot disagree about it.
- */
-export function extractMessageIdFromRfc822(raw: Uint8Array | string): string | null {
-  const content = typeof raw === 'string' ? raw : Buffer.from(raw).toString('utf-8');
-  const match = content.match(/Message-ID:\s*([^\r\n]+)/i);
-  if (match) {
-    return match[1]?.trim().replace(/[<>]/g, '') || null;
-  }
-  return null;
-}
 
 /**
  * IMAP/DAV mail target writer implementation.

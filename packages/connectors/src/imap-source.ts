@@ -5,6 +5,15 @@
 
 import imap, { ImapSimple } from "imap-simple";
 import type { SourceConnector, SyncCursor, TokenProvider } from "@openmig/shared";
+import {
+  decodeImapCursor,
+  encodeImapCursor,
+  mapImapFlagsToKeywords,
+  mapImapSpecialUse,
+  messageIdFromEnvelopeValue,
+  uidFromSourceRef,
+} from "./imap-conventions";
+import type { ImapSourceConfigWithTokenProvider } from "./imap-conventions";
 import type {
   MailFolder,
   MailItem,
@@ -13,87 +22,18 @@ import type {
   SpecialUse,
 } from "@openmig/shared";
 
-/**
- * Configuration for IMAP connection.
- */
-export interface ImapSourceConfig {
-  host: string;
-  port: number;
-  tls: boolean;
-  auth: {
-    user: string;
-    password?: string;
-    accessToken?: string; // For XOAUTH2
-  };
-  authType?: "LOGIN" | "XOAUTH2";
-}
-
-/**
- * Extended configuration for IMAP connection with TokenProvider support.
- */
-export interface ImapSourceConfigWithTokenProvider extends ImapSourceConfig {
-  tokenProvider?: TokenProvider;
-}
-
-/**
- * Cursor encoding for IMAP: "UIDVALIDITY:UIDNEXT"
- */
-export function encodeImapCursor(uidValidity: number, uidNext: number): string {
-  return `${uidValidity}:${uidNext}`;
-}
-
-export function decodeImapCursor(cursor: SyncCursor): {
-  uidValidity: number;
-  uidNext: number;
-} {
-  const parts = cursor.value.split(":");
-  if (parts.length !== 2) {
-    throw new Error(`Invalid IMAP cursor format: ${cursor.value}`);
-  }
-  const uidValidity = parseInt(parts[0]!, 10);
-  const uidNext = parseInt(parts[1]!, 10);
-  if (isNaN(uidValidity) || isNaN(uidNext)) {
-    throw new Error(`Invalid IMAP cursor format: ${cursor.value}`);
-  }
-  return { uidValidity, uidNext };
-}
-
-/**
- * Map IMAP system flags to our MailKeyword type.
- *
- * EXPORTED for `imapflow-source.ts` (workplan 0032 T1). Shared rather than
- * transcribed: a second copy of this that drifted would show up as a lost flag
- * on every message the two clients disagreed about, and the whole point of the
- * migration is that the only thing that changes is the CLIENT.
- */
-export function mapImapFlagsToKeywords(flags: string[]): MailKeyword[] {
-  const keywords: MailKeyword[] = [];
-  for (const flag of flags) {
-    const lower = flag.toLowerCase();
-    if (lower === "\\seen") keywords.push("$seen");
-    else if (lower === "\\flagged") keywords.push("$flagged");
-    else if (lower === "\\draft") keywords.push("$draft");
-    else if (lower === "\\answered") keywords.push("$answered");
-  }
-  return keywords;
-}
-
-/**
- * Map IMAP special-use attributes to our SpecialUse type.
- */
-export function mapImapSpecialUse(attributes: string[]): SpecialUse {
-  for (const attr of attributes) {
-    const lower = attr.toLowerCase();
-    if (lower === "\\inbox") return "inbox";
-    if (lower === "\\sent") return "sent";
-    if (lower === "\\drafts") return "drafts";
-    if (lower === "\\archive") return "archive";
-    if (lower === "\\junk" || lower === "\\spam") return "junk";
-    if (lower === "\\trash" || lower === "\\deleted") return "trash";
-  }
-  return "normal";
-}
-
+// Moved to `imap-conventions.ts` (workplan 0032 T3b) and re-exported here so
+// this file's own tests keep exercising them through the same path while it
+// still exists. Nothing below defines them any more.
+export {
+  encodeImapCursor,
+  decodeImapCursor,
+  mapImapFlagsToKeywords,
+  mapImapSpecialUse,
+  messageIdFromEnvelopeValue,
+  uidFromSourceRef,
+} from './imap-conventions';
+export type { ImapSourceConfig, ImapSourceConfigWithTokenProvider } from './imap-conventions';
 /**
  * What a listing FETCH asks the server for, and the reason it is a constant.
  *
@@ -129,51 +69,6 @@ export const LISTING_FETCH_CRITERIA = {
   size: true, // RFC822.SIZE — see above.
   markSeen: false, // Never modify the source (hard rule 2).
 } as const;
-
-/**
- * An ENVELOPE's message-id as `MailItem.messageId` — angle brackets included.
- *
- * **The single most load-bearing line in the IMAP source, and the reason
- * workplan 0032 has a parity harness at all.** `naturalKeyForItem()` hashes
- * this string, so if two clients produce different forms of it, every message
- * re-copies on the next pass and every write succeeds while it happens
- * (hard rule 1). No count is wrong and no error is raised — the mailbox is
- * simply twice its size.
- *
- * EXPORTED so `imapflow-source.ts` calls exactly this, rather than a
- * transcription of it. Note what that does and does not buy: it removes the
- * risk of OUR logic drifting between two files, and it deliberately does NOT
- * paper over a difference in what the two CLIENTS hand in — different input
- * still gives different output, which is precisely what the harness must be
- * able to see. (`imapflow` trims the ENVELOPE value; `node-imap` does not. If
- * a server ever emits a padded msg-id, that difference is real and this
- * function will report it as one rather than hide it.)
- *
- * Returns null when the envelope carried nothing — the caller counts that as
- * `unkeyable` and the sync derives an id from the body bytes.
- */
-export function messageIdFromEnvelopeValue(raw: unknown): string | null {
-  if (typeof raw !== 'string' || raw === '') return null;
-  // Already bracketed: returned VERBATIM. Trimming here would be a silent
-  // normalisation and is exactly the class of change the harness exists to
-  // catch — the decision about whether a padded id should be trimmed belongs
-  // in one place, not smuggled into a helper.
-  if (raw.startsWith('<') && raw.endsWith('>')) return raw;
-  return `<${raw}>`;
-}
-
-/**
- * The UID out of a `MailItem.sourceRef` (`"<folder>:<uid>"`).
- *
- * EXPORTED for the same reason as the two helpers above: a folder path may
- * itself contain a colon, so the UID is the LAST segment, and two clients
- * splitting that differently would fetch the wrong message rather than fail.
- */
-export function uidFromSourceRef(sourceRef: string): number {
-  const parts = sourceRef.split(':');
-  const uid = parseInt(parts[parts.length - 1] || '0', 10);
-  return isNaN(uid) ? 0 : uid;
-}
 
 /** The shape node-imap's `getBoxes()` actually returns, per its own type declarations. */
 export interface RawImapMailbox {
