@@ -23,6 +23,7 @@
 
 import { EventEmitter } from 'node:events';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { REINDEX_FETCH_OPTIONS } from './imap-dav-target';
 
 interface FakeMailbox {
   uidvalidity: number;
@@ -406,5 +407,22 @@ describe('ImapDavMailTarget.upsertEmail', () => {
 
     expect(result).toMatchObject({ targetId: '10', created: false, adopted: true });
     expect(result.targetVersion).toBe('101');
+  });
+});
+
+describe('REINDEX_FETCH_OPTIONS', () => {
+  it('asks for RFC822.SIZE, which verification needs to measure target bytes', () => {
+    // node-imap only appends RFC822.SIZE when `options.size` is set, so
+    // dropping this makes `attrs.size` undefined for every message and every
+    // `TargetEntry` carries no `sizeBytes`. Nothing throws: §20 simply reports
+    // `totalBytesTarget` as unmeasurable, for every IMAP target, forever.
+    //
+    // That is what this connector did until 2026-08-06, and the workplan 0032
+    // WRITE-path parity harness is what found it — `entries · every entry
+    // carries a size: false vs true`, with the imapflow writer on the right
+    // side of the comparison.
+    expect(REINDEX_FETCH_OPTIONS.size).toBe(true);
+    // Headers only: the reindex reads Message-IDs, never bodies.
+    expect(REINDEX_FETCH_OPTIONS.bodies).toEqual(['HEADER']);
   });
 });

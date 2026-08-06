@@ -22,7 +22,16 @@ export * from './jmap-file-target';
 // wire it into an integration test, and because a harness nobody can reach is
 // a harness nobody runs.
 export * from './imap-parity';
+
+// The WRITE-path parity harness (0032 T2) — the half of T0's charter that was
+// left for whenever the write path was ported.
+export * from './imap-target-parity';
 export * from './imap-dav-target';
+
+// The imapflow WRITE path (0032 T2), shipped BESIDE the proven writer — the
+// half that can lose data, so nothing is cut over until the parity harness has
+// run against it.
+export * from './imapflow-dav-target';
 
 // DAV shared HTTP types
 export * from './dav-http.types';

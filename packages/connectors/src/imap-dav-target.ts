@@ -60,13 +60,65 @@ interface ImapBox {
 
 /**
  * Map our MailKeyword to IMAP flags.
+ *
+ * EXPORTED for `imapflow-dav-target.ts` (workplan 0032 T2). Shared rather than
+ * transcribed: a second copy that drifted would land messages on the target
+ * with the wrong flags, which is a silent fidelity loss — the message is there,
+ * the count is right, and the owner's unread state is wrong.
  */
-const KEYWORD_TO_FLAG: Record<MailKeyword, string> = {
+export const KEYWORD_TO_FLAG: Record<MailKeyword, string> = {
   "$seen": "\\Seen",
   "$flagged": "\\Flagged",
   "$draft": "\\Draft",
   "$answered": "\\Answered",
 };
+
+/**
+ * What the reindex FETCH asks the server for, and why it is a constant.
+ *
+ * **`size` was missing until 2026-08-06.** node-imap only appends RFC822.SIZE
+ * to a FETCH when `options.size` is set (`Connection.js`), so `attrs.size` was
+ * always `undefined` and every `TargetEntry` this reindexer produced carried no
+ * `sizeBytes` — leaving §20's `totalBytesTarget` unmeasurable for every IMAP
+ * target. Nothing threw; verification simply had nothing to compare.
+ *
+ * Found by the workplan 0032 WRITE-path parity harness on its first real run,
+ * as `entries · every entry carries a size: false vs true` — the imapflow
+ * writer populated it and this one did not. Exactly the same defect, and the
+ * same one-word fix, as the one the READ-path harness found in
+ * `imap-source.ts`'s listing criteria a few hours earlier.
+ *
+ * A constant so it can be pinned: a request list that silently loses an entry
+ * is a PASSING read returning less than the server holds.
+ */
+export const REINDEX_FETCH_OPTIONS: { bodies: string[]; size: boolean } = {
+  bodies: ['HEADER'],
+  size: true, // RFC822.SIZE — see above.
+};
+
+/**
+ * The Message-ID of a raw RFC822 message, WITHOUT angle brackets.
+ *
+ * **The bracket-stripping is the contract, not an implementation detail.** This
+ * value becomes `UpsertResult.targetId`'s lookup key and is what
+ * `findByNaturalKey` compares against, so both sides of the comparison must
+ * strip identically or a message that IS on the target reads as absent — and an
+ * absent message is APPENDED, which is a duplicate (hard rule 1). Note this is
+ * the OPPOSITE convention to `MailItem.messageId` on the source side, which
+ * keeps its brackets; the two never meet, and writing that down is cheaper than
+ * rediscovering it.
+ *
+ * EXPORTED for `imapflow-dav-target.ts` (workplan 0032 T2) so the two writers
+ * cannot disagree about it.
+ */
+export function extractMessageIdFromRfc822(raw: Uint8Array | string): string | null {
+  const content = typeof raw === 'string' ? raw : Buffer.from(raw).toString('utf-8');
+  const match = content.match(/Message-ID:\s*([^\r\n]+)/i);
+  if (match) {
+    return match[1]?.trim().replace(/[<>]/g, '') || null;
+  }
+  return null;
+}
 
 /**
  * IMAP/DAV mail target writer implementation.
@@ -462,12 +514,7 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer, TargetR
    * Extract Message-ID from raw RFC822 message.
    */
   private extractMessageId(raw: Uint8Array | string): string | null {
-    const content = typeof raw === 'string' ? raw : Buffer.from(raw).toString('utf-8');
-    const match = content.match(/Message-ID:\s*([^\r\n]+)/i);
-    if (match) {
-      return match[1]?.trim().replace(/[<>]/g, '') || null;
-    }
-    return null;
+    return extractMessageIdFromRfc822(raw);
   }
 
   /**
@@ -551,13 +598,26 @@ export class ImapDavMailTarget implements TargetWriter, TargetReindexer, TargetR
             let sizeBytes: number | undefined;
 
             await new Promise<void>((resolve, reject) => {
-              const fetch = imap.fetch([uid], { bodies: ['HEADER'] });
+              // `size: true` is REQUIRED, and its absence here was a real
+              // defect until 2026-08-06. node-imap only appends RFC822.SIZE to
+              // a FETCH when `options.size` is set (`Connection.js`), so
+              // `attrs.size` was always undefined and every entry this
+              // reindexer produced carried NO `sizeBytes` — leaving §20's
+              // `totalBytesTarget` unmeasurable for every IMAP target.
+              //
+              // Found by the workplan 0032 write-path parity harness on its
+              // first real run, as `entries · every entry carries a size:
+              // false vs true`. The comment below used to claim node-imap
+              // "reports RFC822.SIZE on every fetch"; it does not, and the
+              // measurement is what settled it. Same defect, same one-word
+              // fix, as the one the READ-path harness found in
+              // `imap-source.ts`'s listing criteria.
+              const fetch = imap.fetch([uid], REINDEX_FETCH_OPTIONS);
 
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               fetch.on('message', (msg: any) => {
-                // RFC822.SIZE, which node-imap reports on every fetch. Free
-                // here, and what lets verification report totalBytesTarget as a
-                // measurement rather than null.
+                // RFC822.SIZE, requested above. What lets verification report
+                // totalBytesTarget as a measurement rather than null.
                 msg.on('attributes', (attrs: { size?: number }) => {
                   if (typeof attrs?.size === 'number') sizeBytes = attrs.size;
                 });
