@@ -22,6 +22,7 @@ import { asTenantId, asMappingId, type MailItem } from '@openmig/shared';
 import {
   withImapTestClient,
   purgeAllMailboxes,
+  purgeMailbox,
   seedMailbox,
   type ImapTestClientConfig,
 } from '../../../packages/testing/src/imap-test-client';
@@ -297,7 +298,15 @@ async function seedReindex(): Promise<void> {
 
   await withImapTestClient(
     { ...STALWART_IMAP, user: SOURCE_ACCOUNT, password: SOURCE_PASSWORD },
-    (client) => seedMailbox(client, messages, 'INBOX'),
+    async (client) => {
+      // Purge first. These three Message-IDs are fixed, and `beforeEach` runs
+      // this before every test, so without a purge the source accumulated the
+      // same three ids four times over — 12 messages claiming to be 3. The
+      // shadow pass deduplicates by natural key so nothing downstream noticed,
+      // but a fixture whose comment says "3 messages" should hold 3.
+      await purgeMailbox(client, 'INBOX');
+      await seedMailbox(client, messages, 'INBOX');
+    },
   );
 
   console.log('[seedReindex] Seeded', messages.length, 'test messages to source');
@@ -421,7 +430,14 @@ describe('JMAP Reindex Integration Tests', () => {
         ledger,
       });
       
-      // Should have processed entries but no new items to add
+      // Should have processed entries but no new items to add.
+      //
+      // `adopted === 0` on its own is also what a reindexer that listed NOTHING
+      // returns, which would be a passing test over an empty read. The two
+      // lines below are what make this say "it found the messages and
+      // recognised every one of them".
+      expect(result.scanned).toBeGreaterThanOrEqual(3);
+      expect(result.alreadyKnown).toBe(result.scanned);
       expect(result.adopted).toBe(0);
     });
 
@@ -493,7 +509,7 @@ This message was added directly to the target after the initial sync.
     });
 
     it('should be idempotent - re-running reindex should not add duplicates', async () => {
-      // Setup: sync messages from source to target
+      // Setup: sync messages from source to target, so the target is populated.
       await runShadowPass({
         source,
         target,
@@ -502,7 +518,25 @@ This message was added directly to the target after the initial sync.
         ledger,
       });
 
-      // Run reindex twice
+      // THEN WIPE THE LEDGER. This is not tidying — it is the scenario reindex
+      // exists for (ADR-0020): a fresh install whose ledger is empty against a
+      // target that already holds the data, where re-copying would duplicate
+      // every message. Without it there is nothing on the target the ledger
+      // does not already know, so the first pass has nothing to adopt.
+      //
+      // THIS ASSERTION USED TO PASS WITHOUT THIS LINE, and that was the bug.
+      // `cleanTargetMailboxes` in `beforeEach` called `conn.getMailboxes()` —
+      // a method `imap-simple` does not have (it is `getBoxes`) — so it threw a
+      // TypeError straight into its own catch and logged a warning. The target
+      // was therefore NEVER cleaned, while `cleanDatabaseState` did wipe the
+      // ledger, so this test read messages left behind by the three tests above
+      // it as "items the ledger does not know about". Porting the cleanup to
+      // imapflow (workplan 0032 T3b) made it work, the leak stopped, and
+      // `adopted` came back 0 — the test had been resting on the leak for its
+      // entire life. Fixed by constructing the scenario rather than inheriting
+      // it, so this passes for the reason it claims to.
+      await cleanDatabaseState();
+
       const result1 = await reindexFromTarget({
         tenantId: REINDEX_TENANT_ID,
         mappingId: REINDEX_MAPPING_ID,
@@ -517,11 +551,17 @@ This message was added directly to the target after the initial sync.
         ledger,
       });
 
-      // First run should adopt items
-      expect(result1.adopted).toBeGreaterThan(0);
+      // First run adopts everything it sees, because the ledger is empty.
+      expect(result1.scanned).toBeGreaterThanOrEqual(3);
+      expect(result1.adopted).toBe(result1.scanned);
 
-      // Second run should adopt nothing (already synced)
+      // Second run adopts nothing — and RECOGNISES everything, which is the
+      // assertion that matters. `adopted === 0` alone is satisfied by a
+      // reindexer that listed nothing at all, which is the same shape of
+      // vacuous pass this test was already guilty of.
       expect(result2.adopted).toBe(0);
+      expect(result2.scanned).toBe(result1.scanned);
+      expect(result2.alreadyKnown).toBe(result2.scanned);
     });
   });
 });
