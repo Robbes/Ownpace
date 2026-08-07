@@ -67,20 +67,30 @@ jobs:
             --out "dist/openmig-appliance-${{ inputs.platform }}" \
             --with-node "${{ inputs.platform }}"
 
-      # Zip rather than tar.gz. Windows Explorer opens a zip with no extra tool,
-      # and the person running this is by definition on a machine where we have
-      # promised they need to install nothing.
-      - name: Zip it, with a checksum
+      # DO NOT ZIP HERE. `upload-artifact` zips whatever it is given, so zipping
+      # first produces a zip inside a zip: the download expands to a single
+      # .zip file rather than to the payload, and a `Copy-Item <dir>\*` then
+      # copies that ONE FILE into the install directory and reports success.
+      #
+      # That is not hypothetical. On 2026-08-07 run #1 was green, the copy ran
+      # clean, and the machine went on running the PREVIOUS payload — caught
+      # only because the build-stamp check that follows the copy found nothing.
+      # A silent no-op that looks exactly like a successful install.
+      #
+      # So the artefact is the DIRECTORY, and GitHub does the one zip.
+      - name: Checksums, inside the payload
         id: pack
         run: |
           set -euo pipefail
-          cd dist
           NAME="openmig-appliance-${{ inputs.platform }}"
-          zip -qr "${NAME}.zip" "${NAME}"
-          sha256sum "${NAME}.zip" > "${NAME}.zip.sha256"
+          # A manifest that survives the round trip. A hash of our own zip would
+          # not: GitHub discards that zip and makes its own.
+          ( cd "dist/${NAME}" && find . -type f ! -name SHA256SUMS.txt -print0 \
+              | sort -z | xargs -0 sha256sum > SHA256SUMS.txt )
           echo "name=${NAME}" >> "$GITHUB_OUTPUT"
-          echo "sha=$(cut -d' ' -f1 < "${NAME}.zip.sha256")" >> "$GITHUB_OUTPUT"
-          echo "size=$(du -h "${NAME}.zip" | cut -f1)" >> "$GITHUB_OUTPUT"
+          echo "files=$(find "dist/${NAME}" -type f | wc -l)" >> "$GITHUB_OUTPUT"
+          echo "size=$(du -sh "dist/${NAME}" | cut -f1)" >> "$GITHUB_OUTPUT"
+          echo "stamp=$(grep -o 'const BUILD = {[^}]*}' "dist/${NAME}/start.mjs")" >> "$GITHUB_OUTPUT"
 
       # The commit is in the artefact NAME as well as stamped inside start.mjs,
       # so two downloads sitting in the same Downloads folder can be told apart
@@ -88,9 +98,7 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.0
         with:
           name: ${{ steps.pack.outputs.name }}-${{ github.sha }}
-          path: |
-            dist/${{ steps.pack.outputs.name }}.zip
-            dist/${{ steps.pack.outputs.name }}.zip.sha256
+          path: dist/${{ steps.pack.outputs.name }}
           retention-days: 30
           if-no-files-found: error
 
@@ -102,23 +110,42 @@ jobs:
           | | |
           |---|---|
           | commit | \`${{ github.sha }}\` |
-          | zip | ${{ steps.pack.outputs.size }} |
-          | sha256 | \`${{ steps.pack.outputs.sha }}\` |
+          | size | ${{ steps.pack.outputs.size }}, ${{ steps.pack.outputs.files }} files |
+          | build stamp | \`${{ steps.pack.outputs.stamp }}\` |
 
-          Download the artefact below, extract it, then from the extracted
-          folder:
+          Download the artefact below and extract it. **It expands straight to
+          the payload** — \`start.mjs\`, \`node.exe\`, \`ui\`, \`migrations\`.
+          If you get a single \`.zip\` inside instead, you have an artefact from
+          before 2026-08-07 and it is double-zipped; extract that one too.
+
+          Before installing it anywhere, check you have what you think you have:
+
+          \`\`\`powershell
+          Select-String -Path .\\start.mjs -Pattern 'const BUILD ='
+          \`\`\`
+
+          That must match the build stamp above. Run it after copying the
+          payload as well — a copy that silently moved nothing looks exactly
+          like a copy that worked, and this is the only line that tells them
+          apart.
+
+          To run it from a writable folder:
 
           \`\`\`powershell
           .\\node.exe start.mjs
           \`\`\`
 
-          Nothing needs to be installed first — the payload carries its own
-          \`node.exe\`. (The \`scripts/windows/*.cmd\` helpers live in the
-          repository, not in the payload; you only need them for Phase 2/3.)
+          Installed under \`C:\\Program Files\\\`, that will REFUSE — the
+          database would land in a read-only directory. Use
+          \`scripts\\windows\\run-appliance.cmd -PayloadPath <dir>\` from the
+          repository, which points it at \`C:\\ProgramData\\OpenMigrate\\\`.
 
-          The first line it prints is \`[appliance] build <version> (<commit>)\`.
-          That commit should match the one in this table — that is how you tell
-          two payloads apart.
+          Nothing needs to be installed first — the payload carries its own
+          \`node.exe\`.
+
+          \`SHA256SUMS.txt\` inside the payload covers every file, and survives
+          GitHub's own zipping (a hash of our zip would not — GitHub discards it
+          and makes another).
 
           Verify what you downloaded, in PowerShell:
 

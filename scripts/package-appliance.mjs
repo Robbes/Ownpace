@@ -428,6 +428,30 @@ async function main() {
   console.log('  copying the operating UI …');
   cpSync(ui, join(out, 'ui'), { recursive: true });
 
+  // 5. The Windows operator scripts — install/uninstall the scheduled task, run
+  //    it in the foreground, collect evidence.
+  //
+  //    These used to live only in the repository, and Phase 3 of the runbook
+  //    therefore told a Windows operator to go and fetch four files from a
+  //    source checkout. That contradicts the entire premise: the product
+  //    promises a Windows machine needs nothing installed, and then the INSTALL
+  //    step asks for git. An MSI would ship them, so the payload does too.
+  //
+  //    Copied for every platform, not just `--with-node win-*`. A payload is
+  //    staged on Linux and RUN on Windows — that split is the whole point of
+  //    Phase 1 — so keying this off the bundled runtime would omit them from
+  //    exactly the builds that need them most.
+  //
+  //    `.ps1` and `.cmd` must land in the SAME directory: each `.cmd` is a
+  //    wrapper that invokes its `.ps1` sibling with -ExecutionPolicy Bypass,
+  //    because stock Windows policy is Restricted and refuses a `.ps1` outright.
+  const scriptsSrc = join(REPO, 'scripts/windows');
+  if (!existsSync(scriptsSrc)) {
+    throw new Error(`Windows operator scripts are missing: ${relative(REPO, scriptsSrc)}`);
+  }
+  console.log('  copying the Windows operator scripts …');
+  cpSync(scriptsSrc, join(out, 'scripts'), { recursive: true });
+
   let runtime = null;
   if (withNode) runtime = await stageNodeRuntime(out, withNode);
 

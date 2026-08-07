@@ -120,20 +120,38 @@ So there is no reason to build it by hand at all.
 3. When it finishes, download the artefact from the run's summary page and
    extract it on the laptop.
 
-The run summary prints the commit, the zip size and a SHA-256. Check it before
-you extract, because a half-downloaded zip fails in ways that look like product
-bugs:
+The download **expands straight to the payload** — `start.mjs`, `node.exe`,
+`ui`, `migrations`. Before you do anything with it, check you have what you
+think you have:
 
 ```powershell
-Get-FileHash .\openmig-appliance-win-x64.zip -Algorithm SHA256
+Select-String -Path .\start.mjs -Pattern 'const BUILD ='
 ```
 
-Then:
+That must match the build stamp in the run summary. **Run this again after every
+copy.** On 2026-08-07 the workflow double-zipped its own artefact, so the
+download contained a single `.zip` rather than the payload; `Copy-Item <dir>\*`
+copied that one file into the install directory, reported success, and the
+machine went on running the previous payload. A copy that silently moved nothing
+looks exactly like a copy that worked, and this line is the only thing that
+tells them apart.
+
+`SHA256SUMS.txt` inside the payload covers every file:
+
+```powershell
+# from the payload directory, if you have a sha256sum to hand
+sha256sum -c SHA256SUMS.txt
+```
+
+Then, **from a writable folder**:
 
 ```powershell
 cd openmig-appliance-win-x64
 .\node.exe start.mjs
 ```
+
+Under `C:\Program Files\` this REFUSES instead — see Phase 2. Use
+`run-appliance.cmd` there.
 
 Expected: a first line reading `[appliance] build <version> (<commit>)` — which
 should match the commit in the run summary — then the staging log, ending with
@@ -399,11 +417,39 @@ what makes a wrapper unnecessary rather than merely inconvenient.
 
 ### Install
 
+The scripts ship **inside the payload**, under `scripts\`. You do not need a
+checkout, git, or anything else on the Windows machine — that was true of Phases
+1 and 2 and is now true of Phase 3 as well.
+
 From an **elevated** prompt (both scripts declare `#Requires -RunAsAdministrator`):
 
 ```powershell
+cd "C:\Program Files\OpenMigrateTest\scripts"
 .\install-task.cmd -PayloadPath "C:\Program Files\OpenMigrateTest"
 ```
+
+Each `.cmd` is a wrapper that runs its `.ps1` sibling with
+`-ExecutionPolicy Bypass`, because stock Windows policy is `Restricted` and
+refuses a `.ps1` outright. They must stay in the same directory; the payload
+ships them that way and a test asserts it.
+
+<details>
+<summary>If you are on a payload from before 2026-08-07</summary>
+
+Those predate the scripts being staged. The repository is public, so fetch them
+without cloning:
+
+```powershell
+$dst  = "$env:USERPROFILE\openmig-scripts"
+$base = "https://raw.githubusercontent.com/Robbes/open-migrate/main/scripts/windows"
+New-Item -ItemType Directory -Force $dst | Out-Null
+foreach ($f in 'install-task.ps1','install-task.cmd','uninstall-task.ps1','uninstall-task.cmd',
+                'run-appliance.ps1','run-appliance.cmd','collect-evidence.ps1','collect-evidence.cmd') {
+  Invoke-WebRequest "$base/$f" -OutFile (Join-Path $dst $f)
+}
+```
+
+</details>
 
 It creates `C:\ProgramData\OpenMigrate\{pglite,config,logs}`, grants the run-as
 account Modify on them, writes a readable `service-launch.cmd` into the payload

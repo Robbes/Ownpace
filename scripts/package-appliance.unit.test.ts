@@ -37,6 +37,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -157,6 +158,13 @@ describe('the staged payload', () => {
       'ui/index.html',
       // Whole, not bundled — its WASM is loaded relative to its own location.
       'node_modules/@electric-sql/pglite/package.json',
+      // The operator scripts. Without these, Phase 3 of the Windows runbook
+      // tells somebody to fetch four files out of a source checkout — on a
+      // machine the product promises needs nothing installed.
+      'scripts/install-task.ps1',
+      'scripts/uninstall-task.ps1',
+      'scripts/run-appliance.ps1',
+      'scripts/collect-evidence.ps1',
     ]) {
       expect(existsSync(join(payload, path)), path).toBe(true);
     }
@@ -165,6 +173,29 @@ describe('the staged payload', () => {
     expect(JSON.parse(readFileSync(join(payload, 'package.json'), 'utf-8'))).toEqual({
       type: 'module',
     });
+  });
+
+  it('ships every .ps1 with its .cmd wrapper, in the same directory', () => {
+    // The pairing is the whole mechanism, not tidiness. Stock Windows
+    // PowerShell policy is Restricted and refuses a .ps1 outright; each .cmd
+    // exists solely to invoke its sibling with -ExecutionPolicy Bypass, and it
+    // resolves that sibling by `%~dp0`. A .ps1 shipped without its wrapper is
+    // an operator staring at "running scripts is disabled on this system", and
+    // a .cmd without its .ps1 fails naming a file that was never sent.
+    const dir = join(payload, 'scripts');
+    const names = readdirSync(dir);
+    const ps1 = names.filter((n) => n.endsWith('.ps1')).map((n) => n.slice(0, -4));
+    const cmd = names.filter((n) => n.endsWith('.cmd')).map((n) => n.slice(0, -4));
+
+    expect(ps1.length, 'no scripts were staged at all').toBeGreaterThan(0);
+    expect([...ps1].sort(), 'a .ps1 with no .cmd wrapper, or the reverse').toEqual(
+      [...cmd].sort(),
+    );
+    // And they are the four an operator actually needs, named rather than
+    // counted — a rename that silently drops one would pass a count.
+    expect([...ps1].sort()).toEqual(
+      ['collect-evidence', 'install-task', 'run-appliance', 'uninstall-task'],
+    );
   });
 
   it('ships the migration chain byte-identical to the container image', () => {
