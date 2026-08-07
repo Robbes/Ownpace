@@ -42,7 +42,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPT = join(REPO, 'scripts/package-appliance.mjs');
@@ -374,6 +374,87 @@ describe('the Postgres path survived bundling too', () => {
     // And the specific way bundling breaks this must not appear.
     expect(out).not.toMatch(/Dynamic require|Cannot find module|is not a function/i);
   }, 120_000);
+});
+
+describe('the payload says which build it is', () => {
+  /**
+   * Two copies of the appliance on one machine are indistinguishable by eye —
+   * an installed one under `C:\Program Files\` and a test one in a download
+   * folder — and until 2026-08-07 nothing in the startup log said which build
+   * was running. `loaded 0 mapping(s)` is about DATA, not about code. That cost
+   * an owner a confused half-hour re-testing a CSS fix against a payload copied
+   * before the fix existed, and it will happen again the moment there is an
+   * installed copy AND a test copy, which is every machine from here on.
+   */
+  it('stamps a version and commit into start.mjs', () => {
+    const start = readFileSync(join(payload, 'start.mjs'), 'utf-8');
+    // The placeholder must be SUBSTITUTED, not shipped.
+    expect(start).not.toContain('__BUILD_IDENTITY__');
+    expect(start).toMatch(/const BUILD = \{"version":"[^"]+","commit":"[^"]+"\}/);
+  });
+
+  it('prints it as the FIRST line, before anything can fail', async () => {
+    // Ordering is the point. A build stamp printed after the database opens is
+    // absent from exactly the logs where it is most needed — the ones where
+    // startup failed and somebody is asking which build produced them.
+    const { out } = await (async () => {
+      const proc = spawn(process.execPath, ['start.mjs'], {
+        cwd: payload,
+        env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', PORT: '18437' },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let text = '';
+      proc.stdout?.on('data', (b) => (text += b));
+      await new Promise<void>((r) => {
+        const done = setTimeout(r, 20_000);
+        const check = setInterval(() => {
+          if (text.includes('listening on')) {
+            clearTimeout(done);
+            clearInterval(check);
+            r();
+          }
+        }, 200);
+      });
+      proc.kill('SIGTERM');
+      return { out: text };
+    })();
+
+    expect(out.split('\n')[0]).toMatch(/^\[appliance\] build \S+ \(\S+\)$/);
+  }, 60_000);
+});
+
+describe('importing the script does not run it', () => {
+  /**
+   * This file imports `shaFor` and `verifySha256` from the packaging script.
+   * Until 2026-08-06 the script called `main()` at module scope, so that import
+   * STAGED A WHOLE PAYLOAD as a side effect — and in CI, where
+   * `apps/web/dist-selfhost` is not built, it threw before a single test ran.
+   *
+   * It passed locally because a developer who has just built the UI cannot see
+   * the difference. That is as close to the definition of "works on my machine"
+   * as it gets, and it merged red because I ran only the linter before pushing.
+   *
+   * Asserted in a CHILD PROCESS rather than by importing here: this file has
+   * already imported the module by the time any test runs, so an in-process
+   * check would pass no matter what the script does at import time.
+   */
+  it('imports cleanly, staging nothing', async () => {
+    const url = pathToFileURL(join(REPO, 'scripts', 'package-appliance.mjs')).href;
+    const proc = spawn(
+      process.execPath,
+      ['--input-type=module', '-e', `await import(${JSON.stringify(url)}); console.log('OK')`],
+      { cwd: REPO, stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    let out = '';
+    proc.stdout?.on('data', (b) => (out += b));
+    proc.stderr?.on('data', (b) => (out += b));
+    const code = await new Promise<number | null>((r) => proc.once('exit', (c) => r(c)));
+
+    expect(out).toContain('OK');
+    expect(code).toBe(0);
+    // The tell that `main()` ran: it announces itself before doing any work.
+    expect(out, 'importing the module staged a payload').not.toContain('Staging the appliance');
+  }, 60_000);
 });
 
 describe('the UI build is wired to actually compile Tailwind', () => {

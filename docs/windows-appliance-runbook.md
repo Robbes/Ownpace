@@ -288,8 +288,17 @@ installer would:
 
 ```powershell
 mkdir "C:\Program Files\OpenMigrateTest"
-Copy-Item -Recurse <payload>\* "C:\Program Files\OpenMigrateTest\"
+Copy-Item -Recurse -Exclude data <payload>\* "C:\Program Files\OpenMigrateTest\"
 ```
+
+**Note the `-Exclude data`.** If you have already run the payload in place it
+has a `data\` directory beside `start.mjs` holding a real PGlite database, and
+a plain recursive copy takes it with you — the first run of this on 2026-08-07
+put 157.2 MB into Program Files where the build had staged 117.3 MB, the
+difference being a database that should never have been there. A real installer
+copies a freshly built payload and never sees this, but it is worth knowing that
+the two directories are only separate *by convention* until the environment
+variables are set.
 
 Then close it and open a **NORMAL PowerShell**, because running as an
 unprivileged account is the whole test:
