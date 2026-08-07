@@ -231,6 +231,57 @@ describe('CalDAV overwrite', () => {
       writer.upsertCalendarEvent(collection, event('e1') as never, { overwrite: true }),
     ).rejects.toThrow(/refused with 412/);
   });
+
+  it('never claims the version of an object it did not write', async () => {
+    // Found by mutation on 2026-08-07: making the 412 branch return the
+    // response's ETag survived all 1920 tests. It survived because every 412
+    // fixture in this file answers `headers: {}` — no server here has ever
+    // offered one, so the one line that refuses it was never exercised.
+    //
+    // WHY IT MATTERS. A 412 on the create path means something was already at
+    // that href, and this writer does not know whose bytes they are. Record
+    // that object's ETag as `targetVersion` and the ledger now says *we wrote
+    // this, at this version* — so the next pass's `ownershipOf(recorded,
+    // current)` answers 'unchanged', the item becomes ours to replace, and a
+    // rewrite overwrites the destination's own copy. Hard rule 2, defeated by
+    // one optional response header.
+    //
+    // RFC 9110 does not forbid a 412 carrying representation metadata, and
+    // servers vary. The guarantee must not depend on which one a customer runs.
+    const recorded: Array<Record<string, unknown>> = [];
+    const client = {
+      async request(o: { method: string }) {
+        if (o.method === 'PUT') {
+          // The header that was never present in any fixture.
+          return { status: 412, body: '', headers: { etag: '"not-ours-7f3"' } };
+        }
+        return { status: 207, body: '<d:multistatus xmlns:d="DAV:"></d:multistatus>', headers: {} };
+      },
+    } as unknown as HttpClient;
+    const writer = new CalDAVTargetWriter(
+      { url: BASE, username: 'alice', password: 'pw' },
+      {
+        ledger: {
+          find: async () => undefined,
+          recordIfAbsent: async (row: Record<string, unknown>) => {
+            recorded.push(row);
+          },
+        } as unknown as Ledger,
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        httpClient: client,
+      },
+    );
+
+    const result = await writer.upsertCalendarEvent(collection, event('e1') as never);
+
+    expect(result.targetVersion, 'the writer claimed a version it did not produce').toBeUndefined();
+    expect(recorded).toHaveLength(1);
+    expect(
+      recorded[0]!.targetVersion,
+      'the ledger now believes we own bytes the destination already had',
+    ).toBeUndefined();
+  });
 });
 
 describe('CalDAV write cost', () => {
@@ -337,6 +388,45 @@ describe('CardDAV write cost', () => {
     );
     return { writer, calls };
   }
+
+  it('never claims the version of a contact it did not write', async () => {
+    // The CalDAV twin of this, and a separate line in a separate file — the
+    // three writers each carry their own copy of "its version is not ours to
+    // claim", so a test on one does not protect the others. See the CalDAV
+    // case for why an ETag lifted off a 412 defeats hard rule 2.
+    const recorded: Array<Record<string, unknown>> = [];
+    const client = {
+      async request(o: { method: string }) {
+        if (o.method === 'PUT') return { status: 412, body: '', headers: { etag: '"theirs-1"' } };
+        return { status: 207, body: '<d:multistatus xmlns:d="DAV:"></d:multistatus>', headers: {} };
+      },
+    } as unknown as HttpClient;
+    const writer = new CardDAVTargetWriter(
+      { url: BASE, username: 'alice', password: 'pw' },
+      {
+        ledger: {
+          find: async () => undefined,
+          recordIfAbsent: async (row: Record<string, unknown>) => {
+            recorded.push(row);
+          },
+        } as unknown as Ledger,
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        httpClient: client as never,
+      },
+    );
+
+    const result = await writer.upsertContact('/addressbooks/users/alice/contacts/', {
+      vcard: 'BEGIN:VCARD\r\nUID:c1\r\nFN:n\r\nEND:VCARD',
+    } as never);
+
+    expect(result.targetVersion).toBeUndefined();
+    expect(recorded).toHaveLength(1);
+    expect(
+      recorded[0]!.targetVersion,
+      'the ledger now believes we own a contact the destination already had',
+    ).toBeUndefined();
+  });
 
   it('asks the address book once, not once per contact', async () => {
     const { writer, calls } = cardServer();
