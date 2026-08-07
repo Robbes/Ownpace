@@ -248,6 +248,65 @@ describe('JmapTargetWriter.removeItem', () => {
     await expect(writer.removeItem('email-8')).rejects.toThrow(/did not actually take effect/);
   });
 
+  it('reads a cleared mailbox as cleared, however the server spells it', async () => {
+    // Found by mutation on 2026-08-07, the only survivor of seven against
+    // removeItem: dropping the truthiness filter from the read-back.
+    //
+    // RFC 8621 §4.1 makes `mailboxIds` a set — `{id: true}` — and a
+    // conforming server simply omits what was removed. Not every server does;
+    // some echo the cleared key with `false`. Read literally, that message is
+    // in two mailboxes and this throws, failing a move that in fact
+    // succeeded.
+    //
+    // The direction is worth saying plainly rather than overstating the find:
+    // WITHOUT the filter this code is over-strict, not permissive, so the
+    // failure it causes is a correct deletion reported as broken. That is the
+    // safe direction for the one operation in this product that destroys
+    // something — but it is still a false alarm on an operator's apply queue,
+    // and it depends on a detail of somebody else's server.
+    const calls = mockJmap({
+      'Mailbox/get': () => ({
+        accountId: 'a1',
+        list: [
+          { id: 'mb-inbox', name: 'Inbox', role: 'inbox' },
+          { id: 'mb-trash', name: 'Trash', role: 'trash' },
+        ],
+      }),
+      'Email/get': emailGetSequence(
+        { 'mb-inbox': true },
+        // The move worked. The server just still names the mailbox it emptied.
+        { 'mb-trash': true, 'mb-inbox': false },
+      ),
+      'Email/set': (args) => ({ accountId: 'a1', updated: args.update as Record<string, unknown> }),
+    });
+
+    const writer = new JmapTargetWriter(CONFIG as never);
+    await expect(writer.removeItem('email-9')).resolves.toEqual({ kind: 'binned' });
+    // And it really did go through the bin path, so this is not passing
+    // because the fixture quietly took the destroy branch instead.
+    expect(calls.some((c) => c.method === 'Email/set' && 'destroy' in c.args)).toBe(false);
+  });
+
+  it('still refuses when the message is genuinely left in another mailbox', async () => {
+    // The other half, without which the test above is satisfied by removing
+    // the read-back altogether — `false` and `true` must be told apart, not
+    // both ignored.
+    mockJmap({
+      'Mailbox/get': () => ({
+        accountId: 'a1',
+        list: [
+          { id: 'mb-inbox', name: 'Inbox', role: 'inbox' },
+          { id: 'mb-trash', name: 'Trash', role: 'trash' },
+        ],
+      }),
+      'Email/get': emailGetSequence({ 'mb-inbox': true }, { 'mb-trash': true, 'mb-inbox': true }),
+      'Email/set': (args) => ({ accountId: 'a1', updated: args.update as Record<string, unknown> }),
+    });
+
+    const writer = new JmapTargetWriter(CONFIG as never);
+    await expect(writer.removeItem('email-10')).rejects.toThrow(/did not actually take effect/);
+  });
+
   it('asks Mailbox/get for every mailbox (ids: null) rather than filtering by name', async () => {
     // A `Mailbox/query` filter on `role` is not universally supported, and
     // filtering by name would depend on the server's language. Requesting
