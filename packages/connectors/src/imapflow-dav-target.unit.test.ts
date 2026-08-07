@@ -318,6 +318,33 @@ describe('the guards around a UID', () => {
     );
   });
 
+  it('refuses "0" and negatives, which are numbers but never UIDs', async () => {
+    // Found by mutation on 2026-08-07, the only survivor of seven against this
+    // method: relaxing `uid <= 0` to a bare integer check. `'not-a-uid'` was
+    // covered; `'0'` was not, and they take different branches of the same
+    // condition.
+    //
+    // `"0"` is not hypothetical here. `upsertEmail` recorded the literal string
+    // "0" as `targetId` for every mail item ever migrated until 2026 — it read
+    // `Email/import`'s created map by our own creation-id key instead of the
+    // server's `.id` — and it went unnoticed until ADR-0024's apply path fed
+    // one back to a real Stalwart. A ledger written during that window still
+    // holds those rows. RFC 3501 §2.3.1.1 makes UIDs strictly positive, so on
+    // IMAP a "0" is the one value guaranteed to name nothing, and this is where
+    // it has to stop rather than reaching `messageMove`.
+    for (const bad of ['0', '-1', '-0']) {
+      await expect(
+        target().removeItem(bad, { collection: 'INBOX' }),
+        bad,
+      ).rejects.toThrow(/is not a UID/);
+    }
+    // Nothing was touched on the way to refusing.
+    expect(calls.some((c) => c.startsWith('messageDelete') || c.startsWith('messageMove'))).toBe(
+      false,
+    );
+    expect(boxes.get('INBOX')).toHaveLength(1);
+  });
+
   it('THROWS on a UIDVALIDITY change rather than reporting a conflict', async () => {
     await expect(
       target().removeItem('7', { collection: 'INBOX', expectedTargetVersion: '41' }),
