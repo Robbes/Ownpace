@@ -18,6 +18,43 @@ import {
   createThrottleLimiterFromMapping,
 } from './throttling';
 
+/** A config that only varies where a test says it does. */
+const FAST: ThrottleConfig = {
+  maxConcurrent: 10,
+  requestsPerSecond: 10,
+  maxRetries: 5,
+  baseBackoffMs: 1000,
+  maxBackoffMs: 60000,
+  jitterMs: 500,
+};
+
+/**
+ * Did this acquisition have to WAIT for a token?
+ *
+ * `waitForSlot` resolves when it gets one and otherwise sits in a `setTimeout`,
+ * so under fake timers "still pending after the microtask queue drains" is
+ * exactly "the bucket is empty". The slot is released either way so the
+ * concurrency gate is not left holding a count, and a blocked call is drained
+ * afterwards so it cannot leak a pending timer into the next assertion.
+ *
+ * Without this, every assertion available is "the call returned", which is true
+ * of a limiter that does not limit anything.
+ */
+async function blocks(limiter: ThrottleLimiter, tenant: string, provider: string): Promise<boolean> {
+  let done = false;
+  const p = limiter.waitForSlot(tenant, provider).then(() => {
+    done = true;
+    limiter.releaseSlot();
+  });
+  // Several turns, because `waitForSlot` awaits before it reaches the bucket.
+  for (let i = 0; i < 5; i++) await Promise.resolve();
+  if (done) return false;
+  // Let the pending wait finish so it does not outlive this call.
+  await vi.advanceTimersByTimeAsync(60_000);
+  await p;
+  return true;
+}
+
 describe('ThrottleLimiter', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -46,46 +83,85 @@ describe('ThrottleLimiter', () => {
     });
 
     it('should refill tokens over time', async () => {
-      const limiter = new ThrottleLimiter({
-        maxConcurrent: 10,
-        requestsPerSecond: 2, // 2 tokens per second
-        maxRetries: 5,
-        baseBackoffMs: 1000,
-        maxBackoffMs: 60000,
-        jitterMs: 500,
-      });
+      // Both of the tests in this pair contained NO `expect` at all until
+      // 2026-08-07. They called `waitForSlot`, released, and ended — so they
+      // passed if the bucket never refilled, if it had infinite capacity, or if
+      // `waitForSlot` were a no-op. Neither could fail except by throwing.
+      //
+      // A FRESH LIMITER PER ASSERTION. `blocks()` has to let a pending wait
+      // finish, which advances the clock and refills the bucket — so reusing
+      // one limiter would leave each later assertion measuring a state the
+      // previous one had already changed.
+      const drained = async (perSecond: number) => {
+        const l = new ThrottleLimiter({ ...FAST, requestsPerSecond: perSecond });
+        // Capacity equals the refill rate, so this empties it exactly.
+        for (let i = 0; i < perSecond; i++) {
+          await l.waitForSlot('t', 'p');
+          l.releaseSlot();
+        }
+        return l;
+      };
 
-      // Consume all tokens
-      await limiter.waitForSlot('tenant1', 'graph.microsoft.com');
-      limiter.releaseSlot();
+      // Empty, and no time has passed: the next one must WAIT. Asserting the
+      // wait is the whole point — a bucket that hands out tokens forever passes
+      // every "should be able to acquire" assertion ever written.
+      expect(await blocks(await drained(2), 't', 'p'), 'an empty bucket handed out a token').toBe(
+        true,
+      );
 
-      // Advance time by 1 second (should refill 2 tokens)
-      vi.advanceTimersByTime(1000);
+      // 500ms buys exactly one token at 2/s.
+      const refilled = await drained(2);
+      await vi.advanceTimersByTimeAsync(500);
+      expect(await blocks(refilled, 't', 'p'), 'no token after a full refill period').toBe(false);
 
-      // Should be able to acquire again
-      await limiter.waitForSlot('tenant1', 'graph.microsoft.com');
-      limiter.releaseSlot();
+      // …and 100ms buys 0.2 of one, which is not a token. Without this the
+      // assertion above is satisfied by a bucket that refills instantly.
+      const barely = await drained(2);
+      await vi.advanceTimersByTimeAsync(100);
+      expect(await blocks(barely, 't', 'p'), 'a fifth of a token was spent as a whole one').toBe(
+        true,
+      );
     });
 
     it('should create separate buckets per (tenant, provider)', async () => {
-      const limiter = new ThrottleLimiter({
-        maxConcurrent: 10,
-        requestsPerSecond: 10,
-        maxRetries: 5,
-        baseBackoffMs: 1000,
-        maxBackoffMs: 60000,
-        jitterMs: 500,
-      });
+      // THE TEST THAT COULD NOT SEE ITS OWN SUBJECT. It used to acquire once for
+      // tenant1, once for tenant2 and once for another provider, at 10 req/s —
+      // three calls against a bucket holding ten tokens. Every one succeeded
+      // whether the buckets were separate or a single global one, and on
+      // 2026-08-07 that was confirmed by mutation: keying every bucket to the
+      // literal 'GLOBAL' passed all 1920 tests.
+      //
+      // It matters. One global bucket means one tenant's migration spends the
+      // rate budget of every other tenant on the managed edition, and the
+      // separate limits Graph and a customer's own server need collapse into
+      // one number.
+      const limiter = new ThrottleLimiter({ ...FAST, requestsPerSecond: 1 });
 
-      // Both should work independently
+      // One token per bucket. Spend tenant1's, on graph.
       await limiter.waitForSlot('tenant1', 'graph.microsoft.com');
       limiter.releaseSlot();
 
-      await limiter.waitForSlot('tenant2', 'graph.microsoft.com');
-      limiter.releaseSlot();
+      // The two "not blocked" checks come FIRST, deliberately: `blocks()` has
+      // to let a pending wait finish, and that advances the clock enough to
+      // refill every bucket — so a `true` expectation placed before them would
+      // hand them the token they are supposed to have had all along.
+      expect(
+        await blocks(limiter, 'tenant2', 'graph.microsoft.com'),
+        'tenant2 is paying for tenant1 — the buckets are shared',
+      ).toBe(false);
 
-      await limiter.waitForSlot('tenant1', 'outlook.office365.com');
-      limiter.releaseSlot();
+      expect(
+        await blocks(limiter, 'tenant1', 'outlook.office365.com'),
+        'one provider is spending another provider’s budget',
+      ).toBe(false);
+
+      // …and tenant1/graph, the one that really was spent, still has to wait.
+      // Without this the two above are satisfied by a limiter with no buckets
+      // at all.
+      expect(
+        await blocks(limiter, 'tenant1', 'graph.microsoft.com'),
+        'the drained bucket handed out a token anyway',
+      ).toBe(true);
     });
   });
 

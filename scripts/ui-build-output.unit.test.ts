@@ -70,10 +70,24 @@ let html = '';
 
 beforeAll(() => {
   // The real script, from the repo root, exactly as `package:appliance` runs it.
-  execFileSync('pnpm', ['--filter', '@openmig/web', 'build:selfhost'], {
-    cwd: REPO,
-    stdio: ['ignore', 'ignore', 'pipe'],
-  });
+  //
+  // The output is re-thrown rather than dropped. `execFileSync`'s own error says
+  // only "Command failed: pnpm --filter @openmig/web build:selfhost", and this
+  // build is the one that runs `tsc` over the whole app — so the difference
+  // between a type error, a missing dependency and a Tailwind failure is
+  // entirely in the text this used to discard (hard rule 9).
+  try {
+    execFileSync('pnpm', ['--filter', '@openmig/web', 'build:selfhost'], {
+      cwd: REPO,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch (e) {
+    const err = e as { stdout?: Buffer; stderr?: Buffer };
+    throw new Error(
+      `the operating UI failed to build:\n${err.stdout ?? ''}${err.stderr ?? ''}`.trim(),
+      { cause: e },
+    );
+  }
 
   html = readFileSync(join(OUT, 'index.html'), 'utf-8');
   const assets = readdirSync(join(OUT, 'assets'));
