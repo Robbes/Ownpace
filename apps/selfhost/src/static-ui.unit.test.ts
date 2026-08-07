@@ -165,8 +165,27 @@ describe('the mount boundary', () => {
 });
 
 describe('serving', () => {
-  it('serves index.html at the mount root', async () => {
+  it('REDIRECTS the bare mount to its trailing-slash form', async () => {
+    // This test used to assert a 200 here, and in doing so it encoded the bug.
+    //
+    // The bundle is built with `--base=/ui/`, so React Router's basename
+    // carries a trailing slash, and its `stripBasename` begins with
+    // `pathname.startsWith(basename)`. `'/ui'` does not start with `'/ui/'`, so
+    // no route matched and the browser got a WHITE PAGE — with a 200, and a
+    // fully loaded bundle, which is why serving index.html here looked correct
+    // to everything except a person.
+    //
+    // `/ui` is also the one URL that matters most: it is what the runbook says
+    // to open and what ADR-0027's Start-menu shortcut points at. Found on
+    // Windows, 2026-08-07.
     const c = reqres(UI_MOUNT);
+    expect(await serveUi(c.req, c.res, { rootDir: root })).toBe(true);
+    expect(c.status).toBe(302);
+    expect(c.headers['location']).toBe(`${UI_MOUNT}/`);
+  });
+
+  it('serves index.html at the mount root WITH the slash', async () => {
+    const c = reqres(`${UI_MOUNT}/`);
     expect(await serveUi(c.req, c.res, { rootDir: root })).toBe(true);
     expect(c.status).toBe(200);
     expect(c.headers['content-type']).toBe('text/html; charset=utf-8');
@@ -197,7 +216,9 @@ describe('serving', () => {
 
     // index.html is not fingerprinted, so caching it would leave an upgraded
     // appliance serving the old bundle until somebody clears their cache.
-    const page = reqres(UI_MOUNT);
+    // The trailing-slash form, because the bare mount is a redirect now and a
+    // redirect carries no cache-control worth asserting.
+    const page = reqres(`${UI_MOUNT}/`);
     await serveUi(page.req, page.res, { rootDir: root });
     expect(page.headers['cache-control']).toBe('no-cache');
   });
@@ -217,7 +238,9 @@ describe('when the bundle has not been built', () => {
   it('says how to build it rather than answering a bare 404', async () => {
     // The appliance runs from source under tsx, so this is the likely state on
     // a dev checkout, and `build:selfhost` is not a command anyone would guess.
-    const c = reqres(UI_MOUNT);
+    // The slash form: `/ui` redirects here first, so this is where the message
+    // actually lands. A reader following the redirect sees it either way.
+    const c = reqres(`${UI_MOUNT}/`);
     expect(await serveUi(c.req, c.res, { rootDir: join(outside, 'nope') })).toBe(true);
     expect(c.status).toBe(404);
     expect(c.body).toContain('build:selfhost');

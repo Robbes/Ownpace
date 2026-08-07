@@ -2,8 +2,8 @@
 
 **Status:** written 2026-08-06 by someone who has never run any of it.
 **Owns:** workplan [0015](./workplans/0015-native-windows-installer.md) T3.
-**Read first:** [ADR-0027](./adr/0027-windows-packaging-shell.md) (why a service
-and a shortcut, not a native shell), [ADR-0019](./adr/0019-packaging-runtime-targets.md).
+**Read first:** [ADR-0027](./adr/0027-windows-packaging-shell.md) — and its
+**second update**, which replaces the Windows Service with a scheduled task, [ADR-0019](./adr/0019-packaging-runtime-targets.md).
 
 ---
 
@@ -249,9 +249,9 @@ that is hard rule 1, and it is the property `selfhost-restart-resume.e2e.test.ts
 proves on Linux and nothing has ever proved on Windows.
 
 **This is the test I care most about**, because it is where the Windows-specific
-risk actually lives: Windows services receive no POSIX signals, so whether
-`start.mjs` gets to close PGlite cleanly depends entirely on how the wrapper
-stops it.
+risk was thought to live. Windows services receive no POSIX signals, so a
+clean PGlite close looked like it needed a wrapper — until the crash test in
+Phase 3 showed an abrupt kill is survived anyway.
 
 ---
 
@@ -343,42 +343,95 @@ installer's requirements are settled and I can write that part with confidence.
 
 ---
 
-## Phase 3 — run it as a Windows Service
+## Phase 3 — start it on boot, with Task Scheduler
 
 Only once Phases 1 and 2 pass.
 
-Node cannot register itself as a service; something has to wrap it. ADR-0027
-picked "a Windows Service" without naming the mechanism, because that was T3's
-job. The three candidates:
+**Owner decision, 2026-08-07: a scheduled task, not a Windows Service.** The
+reasoning is in [ADR-0027](./adr/0027-windows-packaging-shell.md)'s second
+update; the short version is that Node cannot be a Service on its own, every
+wrapper that fixes that is a dormant third-party binary we would vendor and
+sign, and the one thing such a wrapper buys — a clean stop — **turned out not to
+be load-bearing**: the crash test below already passed.
 
-| Mechanism | For | Against |
-|---|---|---|
-| **WinSW** (recommended) | a single `.exe` + one XML file, both shipped inside the payload; no install step; MSI-friendly; handles stdout/stderr logging and restart-on-failure | one more vendored binary to keep current |
-| **nssm** | well known, interactive `nssm install` GUI | unmaintained since 2017; the GUI is wrong for an unattended MSI |
-| **`sc.exe` directly** | already on the machine, nothing to vendor | cannot supervise a plain `node.exe` properly; no log redirection; restart semantics are crude |
+### The crash test, which is why the rest of this is simple
 
-`scripts\windows\appliance-service.xml` is a ready-to-use WinSW configuration
-with the environment from Phase 2 already set. It expects `WinSW.exe` renamed to
-`appliance-service.exe` beside it.
+Worth doing first, and worth doing again on any machine you care about:
 
 ```powershell
-# Download WinSW v3 (net472 or net8 build) and place it next to the XML, renamed:
-#   scripts\windows\appliance-service.exe
-cd scripts\windows
-.\appliance-service.exe install
-.\appliance-service.exe start
-Get-Service OpenMigrateAppliance
+# Start it, then in a SECOND window kill it as hard as Windows can:
+Stop-Process -Name node -Force
+# Then start it again.
 ```
 
-**What to check:** it survives a reboot; `Stop-Service` shuts down cleanly rather
-than killing PGlite mid-write (`start.mjs` handles `SIGTERM`, but **Windows
-services do not receive POSIX signals** — this is the part I am least sure of,
-and WinSW's `stopparentprocessfirst` / `<onfailure>` behaviour is what to watch).
-A database corrupted by an abrupt stop would be the worst outcome here and is
-worth deliberately testing: stop the service while a sync is running, then start
-it again and confirm the appliance still boots and the ledger is intact.
+It should come back with `schema up to date` and serve the UI. **It did on
+2026-08-07.** PGlite is Postgres, and surviving abrupt termination is what
+Postgres does for a living — WAL recovery is its normal operating mode. That is
+what makes a wrapper unnecessary rather than merely inconvenient.
 
----
+### Install
+
+From an **elevated** prompt (both scripts declare `#Requires -RunAsAdministrator`):
+
+```powershell
+.\install-task.cmd -PayloadPath "C:\Program Files\OpenMigrateTest"
+```
+
+It creates `C:\ProgramData\OpenMigrate\{pglite,config,logs}`, grants the run-as
+account Modify on them, writes a readable `service-launch.cmd` into the payload
+(Task Scheduler actions carry no environment, and a generated launcher beats a
+quoting puzzle inside a task definition), registers an **At-Startup** task, and
+starts it.
+
+Runs as `NT AUTHORITY\LocalService` — the least-privileged account that can do
+this job. The appliance only makes *outbound* connections and authenticates to
+mail servers with its own configured credentials, so it needs no machine
+identity on the network. `SYSTEM` would also work and is over-privileged for
+something that talks to the internet all day.
+
+### What to check
+
+```powershell
+Get-ScheduledTask -TaskName OpenMigrateAppliance | Get-ScheduledTaskInfo
+type C:\ProgramData\OpenMigrate\logs\appliance.log
+```
+
+The log's first line names the build (`[appliance] build 0.1.0-rc.1 (…)`), which
+is how you tell an installed copy from a test copy without guessing.
+
+Then the things only a real machine can answer:
+
+1. **Does it survive a reboot?** Restart, wait, and load
+   <http://127.0.0.1:8080/ui/confirm> without logging in to anything first.
+2. **Does it stop and start cleanly?** `Stop-ScheduledTask` then
+   `Start-ScheduledTask`, and check the log picks up rather than re-migrating.
+3. **The mid-sync test.** Start Stalwart on the Spark, point a mapping at it over
+   NetBird, and stop the task while a sync is copying. Start it again. The ledger
+   must be intact and a re-run must not duplicate — hard rule 1. The crash test
+   makes this very likely to pass, but *likely* is not *tested*, and this is the
+   one that involves real data.
+
+### Two things worth knowing before they surprise you
+
+- **There is no Services panel entry.** That is the trade, stated in the ADR. An
+  administrator looking for one will not find it; the task lives in Task
+  Scheduler, under `OpenMigrateAppliance`.
+- **Task Scheduler's default `ExecutionTimeLimit` is three days**, after which it
+  would stop a perfectly healthy appliance. `install-task.ps1` sets it to zero
+  explicitly. If you ever create the task by hand, that is the setting that will
+  bite you three days later.
+
+### Uninstall
+
+```powershell
+.\uninstall-task.cmd -PayloadPath "C:\Program Files\OpenMigrateTest"
+```
+
+Stops and removes the task and its generated launcher, and **leaves
+`C:\ProgramData\OpenMigrate` alone** — that is the migration ledger, the record
+of what has already been copied, and deleting it is how a re-run duplicates a
+customer's mailbox (hard rule 2). `-IncludeData` exists for someone who means
+it, and prompts.
 
 ## Phase 4 — the installer
 
@@ -391,17 +444,20 @@ What it must do, all of which Phases 1–3 will have established:
 - Copy the payload verbatim to `C:\Program Files\OpenMigrate\`.
 - Create `C:\ProgramData\OpenMigrate\{pglite,config}` and grant the service
   account write access.
-- Register the service with the two environment variables set.
+- Run `install-task.ps1`, or do what it does: create the data directories,
+  grant the run-as account Modify, write the launcher, register the At-Startup
+  task with `ExecutionTimeLimit` zero.
 - Create a Start-menu shortcut to the operating UI — **and pick a port first,
   because there are currently two.** `apps/selfhost/src/index.ts` defaults to
   **8080** and so does the payload's `start.mjs`; the Docker deployments set
   `PORT=8081` (`deploy/selfhost/compose.yml`), and ADR-0027 wrote its shortcut
   against that convention. Neither is wrong, but a shortcut that points at a
   port nothing is listening on is a support ticket on day one. My suggestion:
-  the Windows service sets `PORT=8081` explicitly, matching the deployed
+  the scheduled task sets `PORT=8081` explicitly, matching the deployed
   convention rather than the library default, and the shortcut follows. Say if
-  you'd rather it were 8080 and I'll change the service XML — it is one line.
-- Uninstall: stop and remove the service, delete Program Files content, and
+  you'd rather it were 8080 and I'll change `install-task.ps1`'s default — it is
+  one line.
+- Uninstall: run `uninstall-task.ps1`, delete Program Files content, and
   **leave `C:\ProgramData\OpenMigrate` alone** — that is the customer's
   migration ledger, and hard rule 2 says we do not delete data the owner did not
   ask us to delete. Offer it as an explicit checkbox, defaulted off.

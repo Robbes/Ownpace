@@ -1,6 +1,6 @@
 # ADR-0027: The Windows appliance ships as a service with a shortcut, not a native shell
 
-- **Status:** Accepted
+- **Status:** Accepted — amended twice (2026-08-06 the payload ships its own Node runtime; 2026-08-07 the mechanism is a scheduled task, not a Windows Service). **The title below is left as written; read the second update before acting on it.**
 - **Date:** 2026-07-30
 - **Supersedes:** the "optional Tauri tray variant (planned)" in [ADR-0019](./0019-packaging-runtime-targets.md) §2, as the *first* packaging target. Tauri is not rejected — it is deferred, with a named revisit condition below.
 - **Relates to:** ADR-0023 (Postgres everywhere), [ADR-0026](./0026-one-operating-ui-one-contract.md) (one operating UI), workplans [0015](../workplans/0015-native-windows-installer.md) T2–T4 and [0016](../workplans/0016-pglite-adoption.md).
@@ -95,6 +95,61 @@ gets adopted by momentum rather than by decision.
 >
 > It stays **opt-in** at the flag: a Linux dev build has a Node already and
 > should not pay for a 93 MB download it will never run.
+
+> ## Second update, 2026-08-07 — Task Scheduler, not a Windows Service
+>
+> **This one changes what the decision above says**, so it is written as an
+> amendment rather than folded in. The heading still reads "ships as a service";
+> the mechanism is now a scheduled task, and the requirement it was chosen to
+> satisfy is unchanged.
+>
+> **What the ADR actually requires** is *"starts on boot and keeps syncing
+> whether or not anyone is logged in"*. A Task Scheduler task with an At-Startup
+> trigger, running as `NT AUTHORITY\LocalService`, delivers exactly that. What
+> it does not deliver is an entry in the Services panel, which is presentation
+> rather than requirement.
+>
+> **Why the change.** Node cannot be a Windows Service on its own — it never
+> answers the service control manager, so Windows reports a plain `node.exe` as
+> failing to start even while it runs. Something must wrap it, and every
+> candidate is a third-party binary we would vendor into a customer's machine,
+> sign, and then be responsible for patching:
+>
+> - **WinSW** — the v3 line has been in **alpha since 2021** (`v3.0.0-alpha.11`,
+>   2025-01-29); the newest stable, `v2.12.0` (2025-01-28), has had nothing since.
+> - **nssm** — unmaintained since 2017, and its install flow is an interactive
+>   GUI, which is the wrong shape for an unattended installer.
+>
+> The single thing such a wrapper buys is translating `SERVICE_CONTROL_STOP`
+> into something `start.mjs` can act on, since a service never receives a POSIX
+> signal — without which PGlite is killed mid-write.
+>
+> **That assumption was tested rather than trusted.** On 2026-08-07 the owner
+> ran `Stop-Process -Force` against the appliance — the hardest kill Windows
+> offers, no clean shutdown at all — and it came back with `schema up to date`.
+> PGlite is Postgres, and surviving abrupt termination is what Postgres does for
+> a living: WAL recovery is its normal operating mode, not an edge case. So the
+> requirement that justified the dependency is not load-bearing, and the
+> dependency goes.
+>
+> **What is given up, plainly.** No Services panel entry, so an administrator
+> looking for one will not find it — the task appears in Task Scheduler instead,
+> and the runbook says so. Task Scheduler also carries a default
+> `ExecutionTimeLimit` of three days, which would stop a healthy appliance;
+> `install-task.ps1` sets it to zero explicitly, and that is the single most
+> likely way for this to fail quietly.
+>
+> **What is gained:** nothing vendored, nothing extra to sign, no dormant
+> upstream to track, and one fewer binary in a payload that already ships a Node
+> runtime. `scripts/windows/appliance-service.xml` is deleted;
+> `install-task.ps1` and `uninstall-task.ps1` replace it, the second in the same
+> commit as the first because a thing that installs and cannot be removed is not
+> finished.
+>
+> **The uninstaller does not delete `C:\ProgramData\OpenMigrate`.** That is the
+> migration ledger — the record of what has already been copied, and the reason
+> a re-run converges instead of duplicating a customer's mailbox (hard rule 2).
+> `-IncludeData` exists for someone who means it, and prompts.
 
 - The bundled backend installs as a Windows Service, so it starts on boot and
   keeps syncing whether or not anyone is logged in. That is what a background

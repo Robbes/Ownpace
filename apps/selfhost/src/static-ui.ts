@@ -113,6 +113,27 @@ export async function serveUi(
   const path = url.split('?')[0] ?? '';
   if (path !== UI_MOUNT && !path.startsWith(`${UI_MOUNT}/`)) return false;
 
+  // `/ui` -> `/ui/`, and this is not cosmetic.
+  //
+  // The bundle is built with `--base=/ui/`, so `import.meta.env.BASE_URL` — and
+  // therefore React Router's `basename` — carries a TRAILING SLASH. Router's
+  // `stripBasename` starts with `pathname.startsWith(basename)`, and `'/ui'`
+  // does not start with `'/ui/'`. It returns null, no route matches, and the
+  // browser shows a WHITE PAGE with a 200 and a fully loaded bundle.
+  //
+  // `/ui/` and `/ui/confirm` both match, which is why this hid for so long: the
+  // one URL nobody types is the one the runbook and the Start-menu shortcut
+  // point at. Found on Windows, 2026-08-07.
+  //
+  // Fixed here rather than in the router because a directory URL without its
+  // trailing slash is a SERVER convention — every static server does this — and
+  // fixing it here also covers anything else that assumes the canonical form.
+  if (path === UI_MOUNT) {
+    res.writeHead(302, { location: `${UI_MOUNT}/` });
+    res.end();
+    return true;
+  }
+
   const rel = path.slice(UI_MOUNT.length) || '/';
   const file = resolveWithinRoot(options.rootDir, rel);
   if (file === null) {
