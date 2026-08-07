@@ -474,8 +474,17 @@ describe('the UI build is wired to actually compile Tailwind', () => {
    * screens boot. Both are true of a completely unstyled page.
    *
    * These assert the WIRING rather than the output, because this suite stages
-   * a stub UI on purpose (a Vite build per unit run would be minutes). Three
-   * things had to be true and none of them were; each is pinned here.
+   * a stub UI on purpose. Three things had to be true and none of them were;
+   * each is pinned here.
+   *
+   * The parenthetical that used to end that sentence — "a Vite build per unit
+   * run would be minutes" — was measured on 2026-08-07 and is **8.6 seconds**,
+   * `tsc` included. It was the only reason the SYMPTOM still had no test while
+   * three named causes did, and the class of causes is open: Tailwind v4
+   * detects its own content, so an upgrade that stops finding `src/**` emits a
+   * valid, tiny, useless stylesheet with every assertion below still true.
+   * `scripts/ui-build-output.unit.test.ts` now builds the real UI and looks at
+   * what comes out.
    */
   const web = join(REPO, 'apps', 'web');
 
