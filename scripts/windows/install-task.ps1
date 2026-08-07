@@ -84,6 +84,52 @@ Write-Host "granted Modify on $DataRoot to $RunAsUser"
 # `cmd /c set X=... && ...` one-liner with paths that contain spaces is a
 # quoting problem nobody should have to debug through the Task Scheduler UI.
 # A file you can open and read is worth the extra artefact.
+# CREDENTIALS, and why they are not in the launcher.
+#
+# A mapping names its secrets by ENVIRONMENT VARIABLE (`passwordFromEnv`,
+# `tokenFromEnv`) and never inline, so the appliance needs those variables set.
+# Task Scheduler actions carry no environment, which is what the launcher below
+# exists to fix — so the obvious move is to write the passwords into it.
+#
+# Do not. `C:\Program Files` is readable by every local user, so a mapping's
+# mail passwords would be world-readable on that machine. That is a bad trade in
+# a product whose entire job is holding somebody's mail credentials.
+#
+# Instead the launcher reads a file in the DATA directory, which install-task
+# has already ACL'd to the service account. `secrets.cmd` is created empty, with
+# an explicit ACL of its own, and the operator fills it in.
+$secretsFile = Join-Path $configDir 'secrets.cmd'
+if (-not (Test-Path $secretsFile)) {
+    @"
+@echo off
+REM Credentials for the mappings in this directory, one 'set' per line:
+REM
+REM   set TARGET_JMAP_PASSWORD=...
+REM   set SOURCE_IMAP_PASSWORD=...
+REM
+REM A mapping references these BY NAME (passwordFromEnv / tokenFromEnv) and
+REM never holds a secret itself. This file is read by service-launch.cmd at
+REM start-up. It lives here, not beside the payload, because Program Files is
+REM readable by every local user and this is not.
+"@ | Set-Content -Path $secretsFile -Encoding ascii
+    Write-Host "created $secretsFile (empty - put credentials there, not in the payload)"
+}
+
+# Administrators + SYSTEM + the run-as account, and nobody else.
+#
+# `icacls` rather than the .NET ACL object model on purpose: this script cannot
+# be syntax-checked or run anywhere but Windows, so the fewer moving parts the
+# better. /inheritance:r drops ProgramData's permissive defaults, which would
+# otherwise come straight back and undo the point of the file.
+& icacls $secretsFile /inheritance:r /grant:r `
+    'BUILTIN\Administrators:R' 'NT AUTHORITY\SYSTEM:R' "${RunAsUser}:R" | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    throw "Could not restrict permissions on $secretsFile (icacls exit $LASTEXITCODE). " +
+          'Refusing to continue: that file is about to hold mail passwords, and a ' +
+          'failure here would leave them readable by every local user.'
+}
+Write-Host "restricted $secretsFile to Administrators, SYSTEM and $RunAsUser"
+
 $launcher = Join-Path $PayloadPath 'service-launch.cmd'
 @"
 @echo off
@@ -94,6 +140,9 @@ set SELFHOST_PGLITE_DIR=$pgliteDir
 set CONFIG_DIR=$configDir
 set HOST=$BindHost
 set PORT=$Port
+REM Credentials, from the data directory rather than from here: this file sits
+REM in Program Files, which every local user can read.
+if exist "$secretsFile" call "$secretsFile"
 "$node" "$start" >> "$logDir\appliance.log" 2>&1
 "@ | Set-Content -Path $launcher -Encoding ascii
 Write-Host "wrote $launcher"

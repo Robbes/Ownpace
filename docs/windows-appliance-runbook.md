@@ -333,18 +333,41 @@ First, **an ADMINISTRATOR PowerShell**, only to place the files where an
 installer would:
 
 ```powershell
-mkdir "C:\Program Files\OpenMigrateTest"
-Copy-Item -Recurse -Exclude data <payload>\* "C:\Program Files\OpenMigrateTest\"
+robocopy "<payload>" "C:\Program Files\OpenMigrateTest" /MIR /XD data /NFL /NDL /NJH /NP
+Select-String -Path "C:\Program Files\OpenMigrateTest\start.mjs" -Pattern 'const BUILD ='
 ```
 
-**Note the `-Exclude data`.** If you have already run the payload in place it
-has a `data\` directory beside `start.mjs` holding a real PGlite database, and
-a plain recursive copy takes it with you — the first run of this on 2026-08-07
-put 157.2 MB into Program Files where the build had staged 117.3 MB, the
-difference being a database that should never have been there. A real installer
-copies a freshly built payload and never sees this, but it is worth knowing that
-the two directories are only separate *by convention* until the environment
-variables are set.
+Robocopy exit codes **0–7 are success**; 8 or above is a real failure. The
+`Select-String` must print a stamp matching the build you meant to install —
+run it after every copy, not once. A copy that silently moved nothing looks
+exactly like a copy that worked.
+
+**Why `robocopy /MIR` and not `Copy-Item -Recurse`.** Two reasons, and the
+first is the one that bites quietly:
+
+- `Copy-Item` only ever ADDS. A file that a later build stopped shipping stays
+  in the install directory forever, so an upgraded payload runs beside the
+  leftovers of the one before it. `/MIR` mirrors: gone from the source means
+  gone from the destination.
+- `Copy-Item -Path <dir>\* -Destination <dir> -Recurse` is unreliable when the
+  destination subdirectories already EXIST — it can copy into them rather than
+  merging, leaving `ui\ui` or `node_modules\node_modules`. If you have used it,
+  check before trusting the result:
+
+  ```powershell
+  Get-ChildItem "C:\Program Files\OpenMigrateTest" -Directory -Recurse -Depth 1 |
+    Where-Object { $_.Name -eq $_.Parent.Name } | Select-Object FullName
+  ```
+
+**Note the `/XD data`.** If you have already run the payload in place it has a
+`data\` directory beside `start.mjs` holding a real PGlite database, and a plain
+recursive copy takes it with you — the first run of this on 2026-08-07 put
+157.2 MB into Program Files where the build had staged 117.3 MB, the difference
+being a database that should never have been there. With `/MIR` the exclusion
+matters twice over: without it, mirroring would also DELETE that database when
+the source has no `data\`. A real installer copies a freshly built payload and
+never sees either problem, but it is worth knowing that the two directories are
+only separate *by convention* until the environment variables are set.
 
 Then close it and open a **NORMAL PowerShell**, because running as an
 unprivileged account is the whole test:
@@ -463,11 +486,56 @@ mail servers with its own configured credentials, so it needs no machine
 identity on the network. `SYSTEM` would also work and is over-privileged for
 something that talks to the internet all day.
 
+### Give it something to do
+
+A freshly installed task logs `loaded 0 mapping(s)` and syncs nothing, because
+`CONFIG_DIR` points at `C:\ProgramData\OpenMigrate\config` and that starts
+empty. Put a mapping there — `deploy/selfhost/config/mapping.json.example` is
+the template; any name ending `.json` is picked up, `.example` is not.
+
+**Credentials do not go in the mapping, and they do not go in the launcher.**
+A mapping names its secrets by environment variable (`passwordFromEnv`,
+`tokenFromEnv`). `service-launch.cmd` would be the obvious place to set those —
+and it is the wrong one, because it lives in `C:\Program Files`, which every
+local user can read. `install-task.ps1` therefore creates
+`C:\ProgramData\OpenMigrate\config\secrets.cmd`, ACL'd to Administrators,
+SYSTEM and the run-as account only, and the launcher `call`s it. Put them
+there:
+
+```bat
+set SOURCE_IMAP_PASSWORD=...
+set TARGET_JMAP_PASSWORD=...
+```
+
+Then restart the task and confirm the log says `loaded 1 mapping(s)`.
+
 ### What to check
 
 ```powershell
 Get-ScheduledTask -TaskName OpenMigrateAppliance | Get-ScheduledTaskInfo
-type C:\ProgramData\OpenMigrate\logs\appliance.log
+Get-Content C:\ProgramData\OpenMigrate\logs\appliance.log -Tail 20
+```
+
+Two things about that output surprise people:
+
+- **`Get-ScheduledTask` needs an ELEVATED shell.** From a normal one it reports
+  *"No MSFT_ScheduledTask objects found"* — the task exists, you just cannot see
+  it. `Invoke-WebRequest http://127.0.0.1:8080/ui` is the check that works
+  unprivileged, and is the better one anyway: a task in the Running state and an
+  appliance that actually serves are not the same claim.
+- **`LastTaskResult : 267009`** is `0x41301`, `SCHED_S_TASK_RUNNING`. It means
+  *currently running*, not *failed with an error code*.
+
+And when stopping and starting it, **pause before reading the log** — PGlite
+takes a few seconds to come up, so a `Get-Content` pasted immediately after
+`Start-ScheduledTask` shows the PREVIOUS run and looks like nothing happened:
+
+```powershell
+Stop-ScheduledTask -TaskName OpenMigrateAppliance
+Start-Sleep 3
+Start-ScheduledTask -TaskName OpenMigrateAppliance
+Start-Sleep 15
+Get-Content C:\ProgramData\OpenMigrate\logs\appliance.log -Tail 12
 ```
 
 The log's first line names the build (`[appliance] build 0.1.0-rc.1 (…)`), which
