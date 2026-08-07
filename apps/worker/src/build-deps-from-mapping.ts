@@ -17,6 +17,7 @@ import {
   type MappingId,
   type SourceConfig,
   type TargetConfig,
+  DEFAULT_CONCURRENCY,
 } from '@openmig/shared';
 import { connection as connectionTable } from '@openmig/ledger';
 import {
@@ -208,7 +209,12 @@ export async function buildDepsFromMapping(
       target,
       ledger,
       cursors,
-      concurrency: mappingConfig.concurrency ?? 4,
+      // The shared default, not a literal. This path is the MANAGED edition's,
+      // and its `?? 4` was written independently of the three other copies of
+      // the same number — so retuning the default anywhere else would have left
+      // the managed service pushing customers' servers at a different rate from
+      // the appliance, with nothing to say so (hard rule 5).
+      concurrency: mappingConfig.concurrency ?? DEFAULT_CONCURRENCY,
     },
     db,
   );

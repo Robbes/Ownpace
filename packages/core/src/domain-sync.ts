@@ -23,20 +23,11 @@ import {
   type UpsertOptions,
   type TenantId,
   type MappingId,
+  DEFAULT_CONCURRENCY,
 } from '@openmig/shared';
 import { log, isLevelEnabled, type PassMetrics } from '@openmig/shared';
 
 export type { PassMetrics };
-
-/**
- * Items processed in parallel per collection.
- *
- * See the note on `DEFAULT_CONCURRENCY` in `reconcile.ts`: 8 made a ~500-item
- * run rate-limit itself into failures against Stalwart. Kept at 4, the value
- * that has actually completed runs; raise it per mapping or per domain in the
- * config for a target known to tolerate more.
- */
-const DEFAULT_CONCURRENCY = 4;
 
 /**
  * Consecutive item failures that stop the pass.

@@ -88,12 +88,23 @@ describe('product code logs through the logger', () => {
     ).toEqual([]);
   });
 
-  it('actually scans a meaningful number of files', () => {
+  it('actually scans every root it claims to', () => {
     // Guards the guard. A path typo would make the check above pass by
     // examining nothing at all — the single most common way a lint-style test
     // becomes decorative.
+    //
+    // Per root, not in total. This asserted `> 100` across all eight roots
+    // until 2026-08-07, when the same assertion was copied into
+    // `one-concurrency-default.unit.test.ts` and mutation-tested: renaming ONE
+    // root to a path that does not exist removed an entire package from the
+    // scan and the total stayed over 100. The check could not tell "I looked
+    // everywhere" from "I looked almost everywhere".
     const repoRoot = resolve(__dirname, '../../..');
-    const scanned = ROOTS.flatMap((r) => tsFilesUnder(join(repoRoot, r)));
-    expect(scanned.length).toBeGreaterThan(100);
+    const empty = ROOTS.filter((r) => tsFilesUnder(join(repoRoot, r)).length === 0);
+    expect(empty, 'these roots resolved to nothing — stale paths scan nothing and pass').toEqual([]);
+
+    for (const r of ROOTS) {
+      expect(tsFilesUnder(join(repoRoot, r)).length, r).toBeGreaterThan(2);
+    }
   });
 });

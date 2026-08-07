@@ -670,10 +670,16 @@ actually left:
      to the chunked-upload path, which PUTs the same href repeatedly with `Content-Range`.
      A target that cannot be enumerated falls back to the old per-item check, so nothing becomes
      unmigratable — just slower.
-     Default concurrency **4 → 8** (`DEFAULT_CONCURRENCY`, shared by core and the worker so the
-     editions cannot drift). This is the one change that puts MORE load on a customer's target;
-     it is tunable down per mapping or per domain, and transient 5xx were already retried with
-     backoff.
+     Default concurrency **4 → 8** — *and back to 4 shortly afterwards*, which is where it
+     stands today. It was the one change that put MORE load on a customer's target, and a
+     ~500-item run against Stalwart showed the target answering 429 to blob uploads and to the
+     `Email/query` existence lookup, with eight messages failing rather than migrating. Speed
+     the target refuses to accept is not speed. Raise it per mapping or per domain once you know
+     a specific server tolerates it. The claim made here that `DEFAULT_CONCURRENCY` was "shared
+     by core and the worker so the editions cannot drift" was **not true when it was written**:
+     there were four independent copies of the number (two in core, one in the worker, and a
+     bare `?? 4` on the managed `build-deps-from-mapping` path). It is one exported constant in
+     `@openmig/shared` as of 2026-08-07, so the sentence is now accurate.
      `dav-write-round-trips.unit.test.ts` COUNTS requests rather than trusting the code to look
      right: 20 items → 1 REPORT + 20 PUTs, adoption still adopts without writing, the
      precondition is present, 412 is an adoption not an error, and an unlistable collection still

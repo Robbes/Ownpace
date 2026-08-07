@@ -12,6 +12,7 @@ import {
   ThrottleLimiter,
   type ThrottleConfig,
   createThrottleLimiterFromMapping,
+  DEFAULT_CONCURRENCY,
   type TenantId,
   type MappingId,
   type Ledger,
@@ -50,12 +51,19 @@ import { buildFileTargetFor, fileTargetProtocol } from './file-target-factory';
 import { withClose, type WithClose } from './deps-lifecycle';
 
 /**
- * Items in flight per collection when the config does not say. Matches
- * `DEFAULT_CONCURRENCY` in @openmig/core — kept in step deliberately, so the
- * managed and self-host paths do not quietly disagree about how hard they push
- * a customer's server. Override with `concurrency` per mapping or per domain.
+ * Items in flight per collection when the config does not say.
+ *
+ * Re-exported rather than re-declared. This used to be its own `= 4` with a
+ * comment saying it "matches `DEFAULT_CONCURRENCY` in @openmig/core — kept in
+ * step deliberately, so the managed and self-host paths do not quietly disagree
+ * about how hard they push a customer's server". Nothing kept it in step, and
+ * `build-deps-from-mapping.ts` — the MANAGED path — did not even use this one:
+ * it had a bare `?? 4` of its own. Hard rule 5 says the editions do not differ,
+ * so the value now comes from one module and the promise is an import.
+ *
+ * Override with `concurrency` per mapping or per domain.
  */
-export const DEFAULT_CONCURRENCY = 4;
+export { DEFAULT_CONCURRENCY };
 
 /**
  * Ledger connections per domain pass.
