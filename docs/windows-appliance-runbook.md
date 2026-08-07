@@ -108,36 +108,64 @@ phase turns out to need one, that is a finding worth reporting.
 
 **The one that matters.** Everything else is downstream of this answer.
 
-### Build on the Spark, copy, run
+### Get a payload: download it from Actions
 
 The payload is **platform-independent to build**: `package-appliance.mjs` only
 copies files, PGlite is WASM, the bundle is plain JavaScript, and `node.exe` is
 just a download. Its own header says so, and CI has only ever built it on Linux.
-So build it where the repository already lives:
+So there is no reason to build it by hand at all.
+
+1. GitHub → **Actions** → **Windows payload** → **Run workflow**.
+2. Leave the platform as `win-x64` (pick `win-arm64` only for an ARM laptop).
+3. When it finishes, download the artefact from the run's summary page and
+   extract it on the laptop.
+
+The run summary prints the commit, the zip size and a SHA-256. Check it before
+you extract, because a half-downloaded zip fails in ways that look like product
+bugs:
+
+```powershell
+Get-FileHash .\openmig-appliance-win-x64.zip -Algorithm SHA256
+```
+
+Then:
+
+```powershell
+cd openmig-appliance-win-x64
+.\node.exe start.mjs
+```
+
+Expected: a first line reading `[appliance] build <version> (<commit>)` — which
+should match the commit in the run summary — then the staging log, ending with
+`Run it with:  .\node.exe start.mjs   (nothing to install)`.
+
+**This is still the right test, not merely the convenient one.** An MSI hands a
+Windows machine a directory built somewhere else, so building on a Linux runner
+and running on the laptop exercises the *relocatable* property the way the
+product actually uses it — and running `.\node.exe` exercises the *shipped*
+configuration rather than a developer's environment. Building on Windows and
+running in place tests neither.
+
+**The build is not signed.** SmartScreen will warn the first time, and you will
+have to choose *More info → Run anyway*. Signing is workplan 0025 T6 / 0015 T4
+and needs a certificate; that decision has not been taken. Fine for Phases 1–3,
+not what you would hand a customer.
+
+<details>
+<summary>Building it by hand instead (on the Spark)</summary>
+
+Still works, and is what the workflow runs:
 
 ```bash
-# On the Spark
 pnpm package:appliance --with-node win-x64
 tar -czf appliance.tgz -C dist appliance
 ```
 
-Expected: `Staged 117.3 MB`, itemised, ending with
-`Run it with:  .\node.exe start.mjs   (nothing to install)`.
+Then copy `appliance.tgz` to the laptop over NetBird (`scp`, or any file share)
+and expand it. The only reason to do this is if you are changing the packaging
+script itself and want the loop to be seconds rather than a CI round trip.
 
-Copy `appliance.tgz` to the laptop over NetBird (`scp`, or any file share),
-expand it, and:
-
-```powershell
-cd appliance
-.\node.exe start.mjs
-```
-
-**This is the better test, not just the cheaper one.** An MSI hands a Windows
-machine a directory built somewhere else, so building on the Spark and running
-on the laptop exercises the *relocatable* property the way the product actually
-uses it — and running `.\node.exe` exercises the *shipped* configuration rather
-than a developer's environment. Building on Windows and running in place tests
-neither.
+</details>
 
 ### If you also want to know whether the build works on Windows
 

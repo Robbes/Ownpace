@@ -1,0 +1,134 @@
+# Build the Windows appliance payload on CI, so nobody has to build it by hand.
+#
+# WHY THIS EXISTS. Getting a payload onto the Windows laptop used to mean:
+# build it on the Spark, zip it, scp it across, and hope the two machines agreed
+# about what was in it. Every step of that is a place for "which build is this?"
+# to become unanswerable — and the payload's own start-up line exists precisely
+# because two copies on one machine look identical (see `buildIdentity()` in
+# scripts/package-appliance.mjs).
+#
+# Run this from the Actions tab, download the zip, extract, run. No toolchain on
+# the Windows machine, and no toolchain on the Spark either.
+#
+# WHAT IT IS NOT. This does not create a GitHub Release, push a tag, or sign
+# anything. Those are workplan 0025's, and the first tagged release and code
+# signing are both owner decisions that have not been taken. What comes out of
+# here is a build artefact for testing, and it says so on the tin.
+name: Windows payload
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Windows runtime to bundle'
+        type: choice
+        default: win-x64
+        options: [win-x64, win-arm64]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build ${{ inputs.platform }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
+
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - run: pnpm install --frozen-lockfile
+
+      # The operating UI is the one thing in the payload that is COMPILED —
+      # the @openmig/* packages ship TypeScript and run under tsx, but a browser
+      # cannot. `package-appliance.mjs` refuses to stage without it rather than
+      # producing a payload whose /ui is a build instruction.
+      #
+      # The `rm -rf` is load-bearing, not tidiness. That refusal is an EXISTENCE
+      # check (`existsSync`), so a `dist-selfhost` left over from an earlier
+      # build satisfies it — and a payload would then ship an old UI stamped
+      # with today's commit, which is worse than no stamp at all. A fresh
+      # checkout makes that unlikely rather than impossible (caches, reruns), so
+      # the only UI that can reach the payload is the one this job just built.
+      - name: Build the operating UI
+        run: |
+          rm -rf apps/web/dist-selfhost
+          pnpm --filter @openmig/web build:selfhost
+          test -f apps/web/dist-selfhost/index.html
+
+      # `--with-node` downloads the runtime from nodejs.org and verifies it
+      # against the release's own SHASUMS256.txt. A mismatch is a hard stop, not
+      # a warning: this is somebody else's binary that we ship to customers.
+      - name: Stage the payload
+        run: |
+          node scripts/package-appliance.mjs \
+            --out "dist/openmig-appliance-${{ inputs.platform }}" \
+            --with-node "${{ inputs.platform }}"
+
+      # Zip rather than tar.gz. Windows Explorer opens a zip with no extra tool,
+      # and the person running this is by definition on a machine where we have
+      # promised they need to install nothing.
+      - name: Zip it, with a checksum
+        id: pack
+        run: |
+          set -euo pipefail
+          cd dist
+          NAME="openmig-appliance-${{ inputs.platform }}"
+          zip -qr "${NAME}.zip" "${NAME}"
+          sha256sum "${NAME}.zip" > "${NAME}.zip.sha256"
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+          echo "sha=$(cut -d' ' -f1 < "${NAME}.zip.sha256")" >> "$GITHUB_OUTPUT"
+          echo "size=$(du -h "${NAME}.zip" | cut -f1)" >> "$GITHUB_OUTPUT"
+
+      # The commit is in the artefact NAME as well as stamped inside start.mjs,
+      # so two downloads sitting in the same Downloads folder can be told apart
+      # without opening either of them.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.0
+        with:
+          name: ${{ steps.pack.outputs.name }}-${{ github.sha }}
+          path: |
+            dist/${{ steps.pack.outputs.name }}.zip
+            dist/${{ steps.pack.outputs.name }}.zip.sha256
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Summary
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<SUMMARY
+          ## Windows payload — \`${{ inputs.platform }}\`
+
+          | | |
+          |---|---|
+          | commit | \`${{ github.sha }}\` |
+          | zip | ${{ steps.pack.outputs.size }} |
+          | sha256 | \`${{ steps.pack.outputs.sha }}\` |
+
+          Download the artefact below, extract it, then from the extracted
+          folder:
+
+          \`\`\`powershell
+          .\\node.exe start.mjs
+          \`\`\`
+
+          Nothing needs to be installed first — the payload carries its own
+          \`node.exe\`. (The \`scripts/windows/*.cmd\` helpers live in the
+          repository, not in the payload; you only need them for Phase 2/3.)
+
+          The first line it prints is \`[appliance] build <version> (<commit>)\`.
+          That commit should match the one in this table — that is how you tell
+          two payloads apart.
+
+          Verify what you downloaded, in PowerShell:
+
+          \`\`\`powershell
+          Get-FileHash .\\${{ steps.pack.outputs.name }}.zip -Algorithm SHA256
+          \`\`\`
+
+          **This build is NOT code-signed.** SmartScreen will warn on first run
+          and you will have to choose "More info" -> "Run anyway". Signing is
+          workplan 0025 T6 / 0015 T4 and needs a certificate, which is an owner
+          decision that has not been taken. An unsigned test build is fine for
+          Phase 1-3; it is not what you would hand to a customer.
+          SUMMARY

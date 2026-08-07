@@ -194,6 +194,26 @@ describe('tenant-membership gate (0020 T1)', () => {
     expect(res.status).toHaveBeenCalledWith(500);
   });
 
+  /**
+   * A NOTE ON WHAT THIS TEST CANNOT SEE, because the next person to mutate it
+   * deserves the answer rather than the puzzle.
+   *
+   * Deleting the `if (!membership) { next(); return; }` guard in `optionalAuth`
+   * does NOT fail this test, and no assertion here could make it. With the
+   * guard gone, `membership` is null, `role = membership.role` throws a
+   * TypeError, and `optionalAuth`'s blanket `catch (_error) { next(); }` turns
+   * that into the same observable outcome this test asserts: next() called
+   * once, no context attached. The two are externally identical.
+   *
+   * So it is an EQUIVALENT MUTANT, not a coverage gap — but only because that
+   * catch swallows everything. It is also the reason a genuine bug in
+   * `optionalAuth` (a typo, a null dereference) degrades silently to
+   * "unauthenticated" rather than surfacing, which is hard rule 9's shape on a
+   * security path. Narrowing the catch to verification failures would make
+   * this mutant detectable AND stop masking our own errors; it would also mean
+   * some requests that currently pass through anonymously become 500s, which
+   * is a behaviour change on an auth boundary and an owner's call.
+   */
   it('optionalAuth attaches NO context without membership — optional means absent, not weaker', async () => {
     __setMembershipLookupForTests(async () => null);
     const token = jwt.sign(claims(), SECRET, { algorithm: 'HS256' });
@@ -205,6 +225,101 @@ describe('tenant-membership gate (0020 T1)', () => {
     expect(next).toHaveBeenCalledTimes(1);
     expect((req as unknown as { userId?: string }).userId).toBeUndefined();
     expect((req as unknown as { tenantId?: string }).tenantId).toBeUndefined();
+  });
+
+  it('optionalAuth takes the role from the ROW too, not from the token', async () => {
+    // The gap the test above does not close. `authenticate` has had this
+    // assertion since 0020 T1; `optionalAuth` never did, and on 2026-08-07
+    // deleting its `role = membership.role` survived the whole suite.
+    //
+    // It is the same privilege escalation, on a path that is easy to think of
+    // as lower-stakes because the auth is "optional". It is not lower-stakes:
+    // a route using optionalAuth still reads `userRole` when a token IS
+    // present, and here the token would be setting it.
+    __setMembershipLookupForTests(async () => ({ role: 'viewer' }));
+    const token = jwt.sign(claims({ role: 'owner' }), SECRET, { algorithm: 'HS256' });
+    const req = reqWith(token);
+    const next = vi.fn();
+
+    await optionalAuth(req, mockRes(), next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect((req as unknown as { userRole?: string }).userRole).toBe('viewer');
+    expect((req as unknown as { tenantId?: string }).tenantId).toBe('tenant-1');
+  });
+});
+
+describe('the wiring around the gate', () => {
+  beforeEach(() => {
+    process.env.JWT_SECRET = SECRET;
+    delete process.env.JWT_ISSUER;
+    __setMembershipLookupForTests(async () => ({ role: 'admin' }));
+  });
+  afterEach(() => {
+    delete process.env.JWT_SECRET;
+    delete process.env.NODE_ENV;
+    __setMembershipLookupForTests(null);
+    vi.restoreAllMocks();
+  });
+
+  it('publishes the tenant on res.locals, which is what scopes RLS', async () => {
+    // `res.locals.tenantId` is how the request's tenant reaches the database
+    // layer to set `app.current_tenant`. Deleting that line survived the suite
+    // on 2026-08-07: every assertion was about the REQUEST object, and nothing
+    // looked at the channel the query path actually reads.
+    //
+    // Its absence does not fail loudly — RLS with no tenant set returns no
+    // rows, which reads as "this tenant has no data" rather than as a bug.
+    const token = jwt.sign(claims(), SECRET, { algorithm: 'HS256' });
+    const res = mockRes();
+
+    await authenticate(reqWith(token), res, vi.fn());
+
+    expect(res.locals.tenantId).toBe('tenant-1');
+  });
+
+  it('a server with no verifier configured is a 500 in production, not a 401', async () => {
+    // The distinction is the whole point. 401 says "your token is wrong" and
+    // sends an operator to look at the client; this is the SERVER being
+    // unconfigured, and it must say so (hard rule 9). Untested until now —
+    // reporting it as 401 survived the suite.
+    delete process.env.JWT_SECRET;
+    delete process.env.JWT_ISSUER;
+    process.env.NODE_ENV = 'production';
+    const token = jwt.sign(claims(), SECRET, { algorithm: 'HS256' });
+    const res = mockRes();
+    const next = vi.fn();
+
+    await authenticate(reqWith(token), res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect((res as { body?: { message?: string } }).body?.message).toMatch(/JWT_SECRET|JWT_ISSUER/);
+  });
+
+  it('requires the Bearer scheme, not merely some Authorization header', async () => {
+    // `authHeader.substring(7)` assumes exactly "Bearer ". Accepting any scheme
+    // meant slicing seven characters off whatever arrived and calling the
+    // remainder a token — which fails, but as "Invalid token" rather than as
+    // the malformed request it is. Relaxing the check to `!authHeader`
+    // survived the suite.
+    const token = jwt.sign(claims(), SECRET, { algorithm: 'HS256' });
+    for (const scheme of ['Basic', 'Token', 'bearer']) {
+      const res = mockRes();
+      const next = vi.fn();
+
+      await authenticate(
+        { headers: { authorization: `${scheme} ${token}` } } as unknown as Request,
+        res,
+        next,
+      );
+
+      expect(next, scheme).not.toHaveBeenCalled();
+      expect(res.status, scheme).toHaveBeenCalledWith(401);
+      expect((res as { body?: { message?: string } }).body?.message, scheme).toMatch(
+        /Missing or invalid Authorization header/,
+      );
+    }
   });
 });
 
