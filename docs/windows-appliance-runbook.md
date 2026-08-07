@@ -417,11 +417,39 @@ what makes a wrapper unnecessary rather than merely inconvenient.
 
 ### Install
 
+The scripts ship **inside the payload**, under `scripts\`. You do not need a
+checkout, git, or anything else on the Windows machine — that was true of Phases
+1 and 2 and is now true of Phase 3 as well.
+
 From an **elevated** prompt (both scripts declare `#Requires -RunAsAdministrator`):
 
 ```powershell
+cd "C:\Program Files\OpenMigrateTest\scripts"
 .\install-task.cmd -PayloadPath "C:\Program Files\OpenMigrateTest"
 ```
+
+Each `.cmd` is a wrapper that runs its `.ps1` sibling with
+`-ExecutionPolicy Bypass`, because stock Windows policy is `Restricted` and
+refuses a `.ps1` outright. They must stay in the same directory; the payload
+ships them that way and a test asserts it.
+
+<details>
+<summary>If you are on a payload from before 2026-08-07</summary>
+
+Those predate the scripts being staged. The repository is public, so fetch them
+without cloning:
+
+```powershell
+$dst  = "$env:USERPROFILE\openmig-scripts"
+$base = "https://raw.githubusercontent.com/Robbes/open-migrate/main/scripts/windows"
+New-Item -ItemType Directory -Force $dst | Out-Null
+foreach ($f in 'install-task.ps1','install-task.cmd','uninstall-task.ps1','uninstall-task.cmd',
+                'run-appliance.ps1','run-appliance.cmd','collect-evidence.ps1','collect-evidence.cmd') {
+  Invoke-WebRequest "$base/$f" -OutFile (Join-Path $dst $f)
+}
+```
+
+</details>
 
 It creates `C:\ProgramData\OpenMigrate\{pglite,config,logs}`, grants the run-as
 account Modify on them, writes a readable `service-launch.cmd` into the payload
