@@ -351,6 +351,59 @@ describe('the write order: target first, ledger second', () => {
     const row = await ledger.find(TENANT, MAPPING, 'calendar', 'nk-1');
     expect(row?.status).toBe('copied');
   });
+
+  it('does NOT report success when the copy is gone but the ledger refused to record it', async () => {
+    // The worst state this function can end in, and the only one it cannot
+    // undo: the target copy is deleted, and the row still says the item is
+    // there. Gate 7 re-checks evidence and ownership in SQL, so it can refuse
+    // after the removal has already happened — a concurrent `keep` decision, a
+    // row edited between the read and the write, an RLS context that changed.
+    //
+    // Found by mutation on 2026-08-07, the only survivor of seven against this
+    // function: deleting the `if (!recorded)` branch let it return
+    // `{ ok: true }`. The operator is told the deletion worked, §20 later
+    // reports the item MISSING ON TARGET, and nothing connects the two — the
+    // exact shape hard rule 9 forbids, in the one place where the damage is
+    // already done and only the reporting is left to get right.
+    const ledger = new MemoryLedger();
+    await ledger.recordIfAbsent(baseRow({ deletionReportedAt: new Date().toISOString() }));
+    const target = fakeRemover({ kind: 'deleted' });
+
+    // Everything else is a real MemoryLedger; only the final write refuses.
+    const refusing = new Proxy(ledger, {
+      get(t, prop, recv) {
+        if (prop === 'applyDeletion') return async () => false;
+        return Reflect.get(t, prop, recv) as unknown;
+      },
+    });
+
+    const outcome = await applyDeletion(
+      {
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        domain: 'calendar',
+        ledger: refusing,
+        target,
+        allowApplyDeletions: true,
+      },
+      'nk-1',
+    );
+
+    expect(outcome.ok, 'a removal the ledger did not record is not a success').toBe(false);
+    // The reason has to say the copy IS gone. "Could not apply" would send an
+    // operator to retry something that already happened.
+    expect(outcome).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining('removed from the target'),
+    });
+    expect(
+      (outcome as { reason: string }).reason,
+      'the operator is not told where this will resurface',
+    ).toMatch(/[Vv]erification/);
+    // And the removal really was attempted — otherwise this passes on a
+    // refusal that happened before the target was ever touched.
+    expect(target.calls).toHaveLength(1);
+  });
 });
 
 describe('not found and already applied', () => {
