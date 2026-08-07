@@ -1165,8 +1165,74 @@ describe('GraphDriveSource', () => {
       };
       const driveSourceWithThrottle = new GraphDriveSource(config, mockThrottleLimiter);
 
-      // Should not throw
-      await expect(driveSourceWithThrottle.listSince({ path: '/' })).resolves.toBeDefined();
+      const result = await driveSourceWithThrottle.listSince({ path: '/' });
+
+      // WHAT THIS TEST USED TO SAY, in full:
+      //
+      //     await expect(driveSourceWithThrottle.listSince({ path: '/' }))
+      //       .resolves.toBeDefined();   // "Should not throw"
+      //
+      // `listSince` returns `{ items, nextCursor }` whether it read a hundred
+      // files or gave up on the first 429, so that was true of every outcome
+      // this test could possibly produce. Mutation-checked on 2026-08-07:
+      // making the source stop recognising 429 ALTOGETHER — no retry,
+      // `handleRateLimited` never called, the error body handled as if it were
+      // data — passed all 39 tests in this file, including this one. So did
+      // ignoring `Retry-After` and retrying instantly against a server that had
+      // just asked us to wait.
+      //
+      // Silent data loss with a green test next to it, on a test named for the
+      // one behaviour it did not check.
+
+      // 1. The 429 was RECOGNISED as a rate limit, and the server's own
+      //    Retry-After was passed on rather than discarded for a default.
+      expect(mockThrottleLimiter.handleRateLimited).toHaveBeenCalledWith(429, '1');
+
+      // 2. The request was actually RETRIED. Without this, "recognised it" is
+      //    satisfied by a source that notices the 429 and then gives up.
+      expect(fetchMock.mock.calls.length).toBeGreaterThan(1);
+
+      // 3. The retry's DATA came back. This is the assertion that makes the
+      //    other two mean something: a 429 handled by returning an empty list
+      //    is a file the migration silently never copies, which is exactly what
+      //    §20 verification exists to catch and exactly what a unit test should
+      //    catch first.
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]?.item.path).toBe('/test.txt');
+      expect(result.items[0]?.item.sourceRef).toBe('file1');
+    });
+
+    it('without a throttle limiter, a 429 FAILS loudly instead of being retried or parsed', async () => {
+      // The other half of the same code, and the reason the asymmetry above is
+      // safe rather than a bug.
+      //
+      // `graphRequest` carries the 429/Retry-After logic TWICE — once in
+      // `executeRequest` and once in `doRequest` — and the first copy's
+      // condition is `(429 || 503) && this.throttleLimiter`, which is
+      // unreachable: `executeRequest` is only called when `this.throttleLimiter`
+      // is falsy. So a source built with no limiter has no backoff at all.
+      //
+      // That is survivable ONLY because every caller checks `status !== 200`
+      // and throws with the status and body attached, so the 429 arrives as an
+      // error naming itself rather than as an empty listing or as an error body
+      // parsed into items. Nothing asserted that, and it is the property the
+      // dead branch is quietly relying on.
+      fetchMock.mockResolvedValueOnce({
+        status: 429,
+        text: async () => '{"error": "Rate limit exceeded"}',
+        headers: new Map([['retry-after', '1']]),
+      });
+
+      const bare = new GraphDriveSource({
+        tokenProvider: mockTokenProvider,
+        tenantId: 'test-tenant-id',
+      });
+
+      // Loud, and carrying the server's own words (hard rule 9).
+      await expect(bare.listSince({ path: '/' })).rejects.toThrow(/429/);
+      // Exactly one attempt: no limiter means no backoff policy, so retrying
+      // would be guessing at a rate the caller never chose.
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     });
   });
 });
