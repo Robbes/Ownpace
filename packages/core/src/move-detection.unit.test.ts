@@ -76,6 +76,25 @@ describe('classifyKnownItem: topology', () => {
     );
   });
 
+  it('does not read an empty CURRENT collection as a move either', () => {
+    // The mirror of the case above, on the other operand.
+    //
+    // Found by mutation on 2026-08-07: deleting `collection !== ''` from the
+    // move guard survived all 1733 unit tests, the only survivor of 14
+    // mutations across this function. It survived for a defensible reason —
+    // `runDomainSync` computes `folder.path ? folder.path : folder.name ? ... :
+    // '/'`, so the one production call site can never pass `''` — which makes
+    // this a guard rather than a live defect, and it is recorded that way.
+    //
+    // Pinned anyway because the function is EXPORTED and the two halves are
+    // symmetric: an unknown collection is not evidence of a move whichever side
+    // it is unknown on, and the next caller should not have to rediscover which
+    // half was load-bearing.
+    expect(
+      classifyKnownItem({ status: 'copied', collection: 'Work', sourceVersion: 'e' }, 'e', ''),
+    ).toBe('skip');
+  });
+
   it('does not guess when the caller cannot say where the item is now', () => {
     // The parameter is optional so call sites written before move detection
     // keep their exact behaviour rather than acquiring a new one silently.

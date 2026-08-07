@@ -50,12 +50,51 @@ function message(id: string): { rfc822: Uint8Array } {
  * per-message lookups still work — the case that must fall back rather than
  * conclude the account is empty.
  */
-function jmapServer(existing: string[], opts: { enumerable?: boolean } = {}) {
+function jmapServer(
+  existing: string[],
+  opts: {
+    enumerable?: boolean;
+    /**
+     * Message-IDs the server refuses with `alreadyExists`, and the id it
+     * volunteers with the refusal (`null` to refuse without one).
+     *
+     * The refusal is the JMAP counterpart of `If-None-Match: *` on the DAV
+     * writes: the snapshot is taken once per pass, so the window between "not
+     * in the snapshot" and the import is a whole pass wide, and it is the
+     * SERVER, not our check, that actually holds hard rule 1 there.
+     */
+    refuse?: Map<string, string | null>;
+    /** Answer `Email/import` with a `created` entry that has no `id`. */
+    createdWithoutId?: boolean;
+    /**
+     * Message-IDs the account holds but the ENUMERATION does not list.
+     *
+     * This is the race the refusal exists for, modelled honestly: the snapshot
+     * is taken once per pass, so a message that arrives afterwards is absent
+     * from it and present on the server. A per-message lookup still finds it.
+     */
+    hiddenFromSnapshot?: string[];
+  } = {},
+) {
   const enumerable = opts.enumerable ?? true;
+  const refuse = opts.refuse ?? new Map<string, string | null>();
+  const hidden = new Set((opts.hiddenFromSnapshot ?? []).map((id) => `<${id}@dev.local>`));
   const methods: string[] = [];
   // Message-ID -> email id
   const present = new Map(existing.map((id, i) => [`<${id}@dev.local>`, `E${i}`]));
   let nextId = 1000;
+  /** Message-ID of the blob most recently uploaded. See the upload handler. */
+  let lastImported: string | undefined;
+  /**
+   * How many `alreadyExists` refusals this server actually issued.
+   *
+   * Exposed and ASSERTED by every test that asks for one. The upload body is a
+   * Blob, and the first version of the matching above stringified it — which is
+   * "[object Blob]", matches no Message-ID, and refuses nothing. Every refusal
+   * test passed anyway, for the wrong reason. A fixture that can quietly not
+   * fire is the same defect as the tests this sweep exists to find.
+   */
+  let refusalsIssued = 0;
 
   vi.stubGlobal(
     'fetch',
@@ -71,7 +110,26 @@ function jmapServer(existing: string[], opts: { enumerable?: boolean } = {}) {
         }) as unknown as Response;
 
       if (u.includes('.well-known/jmap')) return ok(SESSION);
-      if (u.includes('/upload/')) return ok({ blobId: `B${nextId++}` });
+      if (u.includes('/upload/')) {
+        // The import that follows carries only an opaque blobId, so the only
+        // place a fake server can tell WHICH message is being written is the
+        // upload body.
+        // `uploadBlob` sends a Blob, so this has to be read rather than
+        // stringified — `String(blob)` is "[object Blob]" and matches nothing,
+        // which is a silent no-op that would leave `refuse` never firing and
+        // every test below passing for the wrong reason.
+        const body = init?.body;
+        const raw =
+          typeof body === 'string'
+            ? body
+            : body instanceof Blob
+              ? await body.text()
+              : body instanceof Uint8Array
+                ? new TextDecoder().decode(body)
+                : '';
+        lastImported = /^Message-ID:\s*(\S+)/im.exec(raw)?.[1];
+        return ok({ blobId: `B${nextId++}` });
+      }
 
       const call = JSON.parse(String(init?.body)) as {
         methodCalls: Array<[string, Record<string, unknown>, string]>;
@@ -93,7 +151,10 @@ function jmapServer(existing: string[], opts: { enumerable?: boolean } = {}) {
           });
         }
         const position = Number(args.position ?? 0);
-        const ids = [...present.values()].slice(position, position + 100);
+        const visible = [...present.entries()]
+          .filter(([mid]) => !hidden.has(mid))
+          .map(([, id]) => id);
+        const ids = visible.slice(position, position + 100);
         return ok({ methodResponses: [['Email/query', { ids }, 'c1']] });
       }
 
@@ -116,6 +177,34 @@ function jmapServer(existing: string[], opts: { enumerable?: boolean } = {}) {
         // The blob is opaque here, so key the import off what the test asked
         // for: one created email per call.
         void emails;
+        if (lastImported !== undefined && refuse.has(lastImported)) {
+          const existingId = refuse.get(lastImported);
+          refusalsIssued += 1;
+          return ok({
+            methodResponses: [
+              [
+                'Email/import',
+                {
+                  notCreated: {
+                    '0': {
+                      type: 'alreadyExists',
+                      description: existingId
+                        ? `existingId: "${existingId}"`
+                        : 'the server already holds this message',
+                      ...(existingId !== null ? { existingId } : {}),
+                    },
+                  },
+                },
+                'c1',
+              ],
+            ],
+          });
+        }
+        if (opts.createdWithoutId) {
+          // RFC 8620 §5.3 says the server assigns `.id`; a server that answers
+          // without one has told us nothing we can record.
+          return ok({ methodResponses: [['Email/import', { created: { '0': { blobId: 'b' } } }, 'c1']] });
+        }
         return ok({ methodResponses: [['Email/import', { created: { '0': { id, blobId: 'b' } } }, 'c1']] });
       }
 
@@ -123,7 +212,7 @@ function jmapServer(existing: string[], opts: { enumerable?: boolean } = {}) {
     }),
   );
 
-  return { methods, present };
+  return { methods, present, refusals: () => refusalsIssued };
 }
 
 afterEach(() => {
@@ -261,5 +350,97 @@ describe('JMAP write cost', () => {
 
     expect(probe, 'no header-filtered Email/query was issued').toBeTruthy();
     expect(probe!.methodCalls[0]![1]).not.toHaveProperty('properties');
+  });
+});
+
+/**
+ * When the SERVER, not our snapshot, is what stops a duplicate.
+ *
+ * The account snapshot is taken once per pass, so the window between "not in
+ * the snapshot" and the import is a whole pass wide — long enough for a
+ * concurrent delivery, a second appliance, or a resumed run to put the message
+ * there first. `alreadyExists` is JMAP's answer to that, and handling it is the
+ * counterpart of `If-None-Match: *` on the DAV writes: the last thing standing
+ * between a re-run and a duplicated mailbox (hard rule 1).
+ *
+ * Found untested by mutation on 2026-08-07. Three separate mutations survived
+ * all 1922 tests:
+ *
+ *   - disable the `alreadyExists` branch, so the refusal becomes a hard failure
+ *     and the item never migrates;
+ *   - replace the lookup with a literal `'unknown'` id, writing a fabricated
+ *     targetId into the ledger — the exact thing the code comment says never to
+ *     do, because a row pointing at nothing is worse than a failed item;
+ *   - delete the missing-`id` guard, so a server that answers `created` without
+ *     one records `undefined` as a message's target id.
+ *
+ * The contacts and files JMAP targets each had an `alreadyExists` test. Mail,
+ * the domain the product is mostly about, had none.
+ */
+describe('the server refuses a duplicate', () => {
+  it('adopts the id the refusal names, instead of failing the item', async () => {
+    const { refusals } = jmapServer([], {
+      refuse: new Map([['<dup@dev.local>', 'E-SERVER-7']]),
+    });
+    const writer = new JmapTargetWriter(CONFIG as never);
+
+    const result = await writer.upsertEmail('m1', message('dup') as never, []);
+
+    // The fixture fired. Without this the whole block passes when the server
+    // never refuses anything — see `refusalsIssued`.
+    expect(refusals(), 'the fake server never issued the refusal').toBe(1);
+    expect(result.created, 'we did not create it — the server refused').toBe(false);
+    expect(result.adopted).toBe(true);
+    expect(result.targetId).toBe('E-SERVER-7');
+  });
+
+  it('asks for the id when the refusal does not name one', async () => {
+    // Stalwart supplies `existingId`; the spec does not require it. Without the
+    // lookup this item fails on a server that is merely less chatty.
+    const { refusals, methods } = jmapServer(['known'], {
+      // On the server, but not in the snapshot: it arrived after the
+      // enumeration, which is the whole reason the refusal exists.
+      hiddenFromSnapshot: ['known'],
+      refuse: new Map([['<known@dev.local>', null]]),
+    });
+    const writer = new JmapTargetWriter(CONFIG as never);
+
+    const result = await writer.upsertEmail('m1', message('known') as never, []);
+
+    expect(refusals(), 'the fake server never issued the refusal').toBe(1);
+    expect(result.adopted).toBe(true);
+    expect(result.targetId, 'the looked-up id, not an invented one').toBe('E0');
+    // It really did go and ASK: a header-filtered query after the import.
+    expect(methods.filter((m) => m === 'Email/query').length).toBeGreaterThan(1);
+  });
+
+  it('FAILS the item rather than inventing an id it cannot find', async () => {
+    // The one outcome that must not happen. A fabricated targetId in the ledger
+    // is worse than a failed item: the failure is visible in the queue and
+    // retried, while a row pointing at nothing is counted as migrated and only
+    // discovered when something tries to use it — which is how `targetId: "0"`
+    // survived every mail migration until ADR-0024's removeItem met a real
+    // Stalwart.
+    const { refusals } = jmapServer([], {
+      refuse: new Map([['<ghost@dev.local>', null]]),
+    });
+    const writer = new JmapTargetWriter(CONFIG as never);
+
+    await expect(
+      writer.upsertEmail('m1', message('ghost') as never, []),
+    ).rejects.toThrow(/alreadyExists/);
+    expect(refusals(), 'the fake server never issued the refusal').toBe(1);
+  });
+
+  it('refuses a created response that carries no server-assigned id', async () => {
+    // RFC 8620 §5.3: the server assigns `.id`. One that answers `created`
+    // without it has told us nothing to record, and recording `undefined` as a
+    // message's target id is the same class of defect as recording "0".
+    jmapServer([], { createdWithoutId: true });
+    const writer = new JmapTargetWriter(CONFIG as never);
+
+    await expect(
+      writer.upsertEmail('m1', message('nid') as never, []),
+    ).rejects.toThrow(/missing the server-assigned id/);
   });
 });

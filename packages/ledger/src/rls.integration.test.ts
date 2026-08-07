@@ -38,6 +38,15 @@ const TENANT_RLS_A = '5c2b0000-e29b-41d4-a716-446655441101';
 const TENANT_RLS_B = '5c2b0000-e29b-41d4-a716-446655441102';
 const CONNECTION_RLS_A = '5c2b0000-e29b-41d4-a716-446655441201';
 const CONNECTION_RLS_B = '5c2b0000-e29b-41d4-a716-446655441202';
+// The chain an `item` needs: mailbox -> mailbox_mapping -> item. Same 5c2b
+// prefix, which docs/test-fixture-uuid-collision-audit.md already registers to
+// this suite.
+const MAILBOX_RLS_A = '5c2b0000-e29b-41d4-a716-446655441301';
+const MAILBOX_RLS_B = '5c2b0000-e29b-41d4-a716-446655441302';
+const MAPPING_RLS_A = '5c2b0000-e29b-41d4-a716-446655441401';
+const MAPPING_RLS_B = '5c2b0000-e29b-41d4-a716-446655441402';
+const ITEM_RLS_A = '5c2b0000-e29b-41d4-a716-446655441501';
+const ITEM_RLS_B = '5c2b0000-e29b-41d4-a716-446655441502';
 
 // Connection string for app_user role (non-superuser for RLS testing)
 // Parses the TEST_DATABASE_URL and replaces the user/password with app_user credentials
@@ -101,10 +110,46 @@ describe('RLS Policies', () => {
       VALUES ($1, $2, 'source', 'o365', 'Tenant B RLS Source', '{}')
       ON CONFLICT (id) DO NOTHING
     `, [CONNECTION_RLS_B, TENANT_RLS_B]);
+
+    // A mailbox, a mapping and ONE item per tenant.
+    //
+    // Until 2026-08-07 there were none, which is why the "multiple table types"
+    // test below could only assert `COUNT(*) >= 0` — true of an empty table,
+    // and true with RLS switched off entirely. Its own comment admitted it:
+    // "(This test assumes there's actual data in the item table)".
+    for (const [tenant, connection, mailboxId, mappingId, itemId, key] of [
+      [TENANT_RLS_A, CONNECTION_RLS_A, MAILBOX_RLS_A, MAPPING_RLS_A, ITEM_RLS_A, 'a@rls.test'],
+      [TENANT_RLS_B, CONNECTION_RLS_B, MAILBOX_RLS_B, MAPPING_RLS_B, ITEM_RLS_B, 'b@rls.test'],
+    ] as const) {
+      await superuserPool.query(`
+        INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address)
+        VALUES ($1, $2, $3, 'user', $4)
+        ON CONFLICT (id) DO NOTHING
+      `, [mailboxId, tenant, connection, key]);
+
+      await superuserPool.query(`
+        INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (id) DO NOTHING
+      `, [mappingId, tenant, mailboxId]);
+
+      await superuserPool.query(`
+        INSERT INTO item (id, tenant_id, mapping_id, domain, collection, natural_key, natural_key_hash)
+        VALUES ($1, $2, $3, 'email', 'INBOX', $4, $5)
+        ON CONFLICT (id) DO NOTHING
+      `, [itemId, tenant, mappingId, `<${key}>`, `hash-${key}`]);
+    }
   }
   
   async function cleanupTestData() {
     // Clean up in reverse order (children first)
+    // `item`, `mailbox_mapping` and `mailbox` all cascade from tenant, but
+    // delete them explicitly anyway: a cascade that silently stopped working
+    // would leave rows behind, and the next run's ON CONFLICT DO NOTHING would
+    // then hide a failed insert behind a passing test.
+    await superuserPool.query('DELETE FROM item WHERE tenant_id IN ($1, $2)', [TENANT_RLS_A, TENANT_RLS_B]);
+    await superuserPool.query('DELETE FROM mailbox_mapping WHERE tenant_id IN ($1, $2)', [TENANT_RLS_A, TENANT_RLS_B]);
+    await superuserPool.query('DELETE FROM mailbox WHERE tenant_id IN ($1, $2)', [TENANT_RLS_A, TENANT_RLS_B]);
     await superuserPool.query('DELETE FROM connection WHERE tenant_id IN ($1, $2)', [TENANT_RLS_A, TENANT_RLS_B]);
     await superuserPool.query('DELETE FROM tenant WHERE id IN ($1, $2)', [TENANT_RLS_A, TENANT_RLS_B]);
   }
@@ -175,20 +220,53 @@ describe('RLS Policies', () => {
     }
   });
   
-  it('should work with multiple table types', async () => {
-    // Test with item table
+  it('isolates the item table too, not just connection', async () => {
+    // THIS TEST USED TO PROVE NOTHING. It counted `item` under each tenant and
+    // asserted `>= 0` — true of an empty table, and true with RLS switched off
+    // altogether. There were no item fixtures at all, so `>= 0` was the only
+    // assertion available, and its own comment said so: "(This test assumes
+    // there's actual data in the item table)". A vacuous test in the TENANT
+    // ISOLATION suite is worse than no test, because it counts as coverage of
+    // the property the whole managed edition rests on.
+    //
+    // Now each tenant owns exactly one item, and the assertions are about
+    // WHICH row comes back rather than how many are non-negative.
     await appPool!.query(`SET app.current_tenant = '${TENANT_RLS_A}'`);
-    
-    const result = await appPool!.query('SELECT COUNT(*) FROM item');
-    expect(parseInt(result.rows[0].count)).toBeGreaterThanOrEqual(0);
-    
-    // Should not see Tenant B's items
+    const asA = await appPool!.query('SELECT id, tenant_id FROM item');
+    expect(asA.rows).toHaveLength(1);
+    expect(asA.rows[0].id).toBe(ITEM_RLS_A);
+
     await appPool!.query(`SET app.current_tenant = '${TENANT_RLS_B}'`);
-    const resultB = await appPool!.query('SELECT COUNT(*) FROM item');
-    expect(parseInt(resultB.rows[0].count)).toBeGreaterThanOrEqual(0);
-    
-    // Counts should differ if data exists
-    // (This test assumes there's actual data in the item table)
+    const asB = await appPool!.query('SELECT id, tenant_id FROM item');
+    expect(asB.rows).toHaveLength(1);
+    expect(asB.rows[0].id).toBe(ITEM_RLS_B);
+
+    // Naming the other tenant's row explicitly is the case that matters: a
+    // policy that filtered only on a bare `SELECT *` but not on a predicate
+    // would pass everything above and leak here.
+    const reachAcross = await appPool!.query('SELECT id FROM item WHERE id = $1', [ITEM_RLS_A]);
+    expect(reachAcross.rows).toHaveLength(0);
+  });
+
+  it('isolates mailbox and mailbox_mapping, which sit between the two', async () => {
+    // The chain an item hangs from. Isolating `item` while leaking the mapping
+    // it belongs to would still expose which mailboxes a competitor migrates.
+    await appPool!.query(`SET app.current_tenant = '${TENANT_RLS_A}'`);
+
+    const mailboxes = await appPool!.query('SELECT id FROM mailbox');
+    expect(mailboxes.rows).toHaveLength(1);
+    expect(mailboxes.rows[0].id).toBe(MAILBOX_RLS_A);
+
+    const mappings = await appPool!.query('SELECT id FROM mailbox_mapping');
+    expect(mappings.rows).toHaveLength(1);
+    expect(mappings.rows[0].id).toBe(MAPPING_RLS_A);
+
+    expect(
+      (await appPool!.query('SELECT id FROM mailbox WHERE id = $1', [MAILBOX_RLS_B])).rows,
+    ).toHaveLength(0);
+    expect(
+      (await appPool!.query('SELECT id FROM mailbox_mapping WHERE id = $1', [MAPPING_RLS_B])).rows,
+    ).toHaveLength(0);
   });
 });
 

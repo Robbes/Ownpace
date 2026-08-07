@@ -37,11 +37,12 @@ describe('resolveMailConfig (finding #3)', () => {
     const r = resolveMailConfig(base);
     expect(r.source).toBe(topSource);
     expect(r.target).toBe(topTarget);
-    // The default, not a magic number: raised 4 -> 8 when the DAV domains were
-    // found to be latency-bound (203 events / 52 KB took 76 s). Asserting the
-    // shared constant rather than a literal keeps this test about the
-    // resolution rule — "no domains.mail means fall back to the default" — and
-    // stops it failing every time the default is retuned.
+    // The default, not a magic number. Asserting the shared constant rather
+    // than a literal keeps this test about the resolution rule — "no
+    // domains.mail means fall back to the default" — and stops it failing every
+    // time the default is retuned. It HAS been retuned: raised 4 -> 8 when the
+    // DAV domains looked latency-bound, then put back to 4 when a ~500-item
+    // Stalwart run answered 429 and lost eight messages.
     expect(r.concurrency).toBe(DEFAULT_CONCURRENCY);
   });
 

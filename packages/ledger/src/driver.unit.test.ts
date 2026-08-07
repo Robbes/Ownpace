@@ -92,7 +92,7 @@ describe('withTenant on a single-connection driver (PGlite’s shape)', () => {
     const d = singleConnectionDriver(journal);
 
     // Two mappings syncing at once — the ordinary case, since the sync path
-    // runs at DEFAULT_CONCURRENCY 8.
+    // runs several items in flight (DEFAULT_CONCURRENCY, currently 4).
     await Promise.all([
       withTenant(d.driver, 'tenant-a', async () => {
         // Yield inside the transaction, so an unserialised driver WOULD
