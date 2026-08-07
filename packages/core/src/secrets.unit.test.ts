@@ -1,16 +1,37 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+
 /**
- * Tests for secret encryption/decryption.
+ * AES-GCM envelope for every stored credential.
  *
- * These tests verify:
+ * These verify:
  * 1. Round-trip encryption/decryption preserves data
- * 2. Tampered ciphertext/authTag throws error
- * 3. Two encryptions of same plaintext produce DIFFERENT blobs (proves per-call nonce)
- * 4. Missing/short key causes startup failure
- * 5. RLS-scoped secrets (cross-tenant isolation)
+ * 2. Tampered ciphertext/authTag throws
+ * 3. Two encryptions of the same plaintext differ (per-call nonce)
+ * 4. A missing or short key fails at startup
+ *
+ * **This file was named `secrets.test.ts` until 2026-08-07, and no vitest
+ * project collected it.** The `unit` project matches only names carrying the
+ * `.unit.` infix; `integration` and `e2e` want their own. So 245 lines of tests
+ * over credential encryption ran in no suite, on no machine, in no CI job — and
+ * nothing said so, because an uncollected file reports nothing at all rather
+ * than reporting zero.
+ *
+ * Renamed, seven of twenty-two failed at once. None of them was a product
+ * defect; all were rot that a single run would have caught:
+ *
+ *   - the `validateSecretKey` block sets `SECRET_ENCRYPTION_KEY` to deliberately
+ *     BAD values and never restores it, so every test declared after it ran with
+ *     an 8-character key. It restores in `finally` now, and the key is set per
+ *     test rather than once for the file;
+ *   - two assertions matched `/must be exactly 32 bytes/`; the product says
+ *     "must be 32 bytes";
+ *   - `parseEncryptedSecret('')` was expected to complain that the input is not
+ *     an object. `''` is a string, so it goes to `JSON.parse` and fails as
+ *     malformed JSON — the not-an-object branch needs a non-object that is not
+ *     a string, e.g. `null`.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import {
   encryptSecret,
   decryptSecret,
@@ -18,13 +39,15 @@ import {
   parseEncryptedSecret,
   serializeEncryptedSecret,
   EncryptedSecret,
-} from '../src/secrets';
+} from './secrets';
 
 // Test encryption key (32 bytes / 256 bits in hex = 64 chars)
 const TEST_KEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
 describe('Secret Encryption', () => {
-  beforeAll(() => {
+  // Per test, not once for the file: the key-validation block below deliberately
+  // installs broken keys, and no test may decide what the next one is testing.
+  beforeEach(() => {
     process.env.SECRET_ENCRYPTION_KEY = TEST_KEY;
   });
 
@@ -175,13 +198,20 @@ describe('Secret Encryption', () => {
     });
 
     it('should throw if key is wrong length (hex)', () => {
-      process.env.SECRET_ENCRYPTION_KEY = '0123456789abcdef'; // 16 bytes = 32 hex chars
-      expect(() => validateSecretKey()).toThrow(/must be exactly 32 bytes/i);
+      process.env.SECRET_ENCRYPTION_KEY = '0123456789abcdef'; // 8 bytes = 16 hex chars
+      expect(() => validateSecretKey()).toThrow(/must be 32 bytes/i);
     });
 
     it('should throw if key is wrong length (base64)', () => {
       process.env.SECRET_ENCRYPTION_KEY = 'YWJjZGVm'; // 6 bytes = 8 base64 chars
-      expect(() => validateSecretKey()).toThrow(/must be exactly 32 bytes/i);
+      expect(() => validateSecretKey()).toThrow(/must be 32 bytes/i);
+    });
+
+    it('names the length it got, so an operator can see what is wrong', () => {
+      // Hard rule 9. "must be 32 bytes" alone leaves someone comparing an
+      // invisible env var against a spec; the count is the whole diagnosis.
+      process.env.SECRET_ENCRYPTION_KEY = 'abc';
+      expect(() => validateSecretKey()).toThrow(/Got 3 characters/);
     });
   });
 
@@ -205,7 +235,16 @@ describe('Secret Encryption', () => {
     });
 
     it('should throw on non-object input', () => {
-      expect(() => parseEncryptedSecret('' as unknown as object)).toThrow(/must be an object/i);
+      // Not `''`: a string goes to `JSON.parse` and fails as malformed JSON
+      // long before the not-an-object branch, so the original assertion here
+      // could never have passed. `null` and a bare number are the inputs that
+      // actually reach it — `null` in particular, because `typeof null` is
+      // 'object' and only the leading falsiness check catches it.
+      expect(() => parseEncryptedSecret(null as unknown as object)).toThrow(/must be an object/i);
+      expect(() => parseEncryptedSecret(7 as unknown as object)).toThrow(/must be an object/i);
+      // …and via the string path, where JSON.parse succeeds and yields a
+      // non-object. This is the case a stored column of `"null"` produces.
+      expect(() => parseEncryptedSecret('null')).toThrow(/must be an object/i);
     });
 
     it('should throw on missing fields', () => {
@@ -213,22 +252,35 @@ describe('Secret Encryption', () => {
     });
   });
 
-  describe('RLS-scoped secrets (cross-tenant isolation)', () => {
-    it('should encrypt/decrypt independently for different tenants', () => {
-      // Tenant A encrypts their secret
-      const tenantASecret = 'tenant-a-credential';
-      const encryptedA = encryptSecret(tenantASecret);
+  describe('what the envelope does NOT do: separate tenants', () => {
+    /**
+     * This block was called "RLS-scoped secrets (cross-tenant isolation)" and
+     * its one test encrypted two different strings, decrypted each, and
+     * asserted the blobs were not equal. That is true of ANY two encryptions of
+     * anything — no tenant is involved anywhere in it, and the per-call nonce
+     * test three blocks up already proves the blobs differ. It was a vacuous
+     * test wearing the name of the property the managed edition rests on.
+     *
+     * Worse than vacuous: actively misleading. `getEncryptionKey()` reads ONE
+     * `SECRET_ENCRYPTION_KEY` for the whole process, so every tenant's
+     * credentials are sealed under the same key and cryptography separates
+     * nothing here. Isolation is Postgres RLS's job — see
+     * `packages/ledger/src/rls.integration.test.ts`, which asserts it against a
+     * real database. Writing that down is the point of this block.
+     */
+    it('seals every tenant under the SAME key, by design', () => {
+      const a = encryptSecret('tenant-a-credential');
 
-      // Tenant B encrypts their secret
-      const tenantBSecret = 'tenant-b-credential';
-      const encryptedB = encryptSecret(tenantBSecret);
+      // Anyone holding the process key reads any tenant's blob. Demonstrated
+      // rather than described, because a reader who believes otherwise will
+      // build on a guarantee that is not here.
+      expect(decryptSecret(a)).toBe('tenant-a-credential');
 
-      // Each tenant can only decrypt their own
-      expect(decryptSecret(encryptedA)).toBe(tenantASecret);
-      expect(decryptSecret(encryptedB)).toBe(tenantBSecret);
-
-      // The encrypted blobs are completely different
-      expect(encryptedA).not.toEqual(encryptedB);
+      // Change the key and the same blob is unreadable — which is what makes
+      // the statement above about the KEY rather than about the blob.
+      process.env.SECRET_ENCRYPTION_KEY =
+        'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210';
+      expect(() => decryptSecret(a)).toThrow();
     });
   });
 
