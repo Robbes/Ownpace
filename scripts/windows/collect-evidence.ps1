@@ -67,6 +67,15 @@ if ($PayloadPath -and (Test-Path $PayloadPath)) {
     $out.Add('top level      :')
     Get-ChildItem $PayloadPath | ForEach-Object { $out.Add("  $($_.Name)") }
     $pglite = Join-Path $PayloadPath 'node_modules\@electric-sql\pglite'
+    # WHICH BUILD this payload is. Two copies on one machine look identical,
+    # and the answer to "did you test the fix or the copy you made before it"
+    # should not require re-reading a terminal scrollback.
+    $startMjs = Join-Path $PayloadPath 'start.mjs'
+    if (Test-Path $startMjs) {
+        $stamp = Select-String -Path $startMjs -Pattern 'const BUILD = (.+);' |
+            ForEach-Object { $_.Matches[0].Groups[1].Value }
+        $out.Add("build          : $(if ($stamp) { $stamp } else { 'not stamped - payload predates 2026-08-07' })")
+    }
     $bundledNode = Join-Path $PayloadPath 'node.exe'
     $out.Add("bundled node   : $(Test-Path $bundledNode)")
     if (Test-Path $bundledNode) {

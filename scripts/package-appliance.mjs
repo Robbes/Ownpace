@@ -68,6 +68,7 @@ import { createHash } from 'node:crypto';
 import {
   cpSync,
   existsSync,
+  readFileSync,
   mkdirSync,
   readdirSync,
   rmSync,
@@ -108,6 +109,38 @@ function packageDir(name, from = REPO) {
 }
 
 const esbuildBin = () => join(packageDir('esbuild'), 'bin', 'esbuild');
+
+/**
+ * What this payload IS, stamped in at staging time.
+ *
+ * Two copies of the appliance on one machine are indistinguishable by eye — an
+ * installed one under `C:\Program Files\` and a test one in a download
+ * folder — and nothing in the startup log said which build was running.
+ * `loaded 0 mapping(s)` is about DATA, not about code. On 2026-08-07 that cost
+ * an owner a confused half-hour re-testing a CSS fix against a payload copied
+ * before the fix existed.
+ *
+ * Version plus commit, and deliberately NO timestamp: the same commit must
+ * stage the same bytes, or "is this the build I think it is" becomes
+ * unanswerable in the other direction. `unknown` when there is no git — the
+ * payload has to build outside a checkout, and a missing commit is worth
+ * printing rather than worth failing over.
+ */
+function buildIdentity() {
+  const version = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf-8')).version ?? '0.0.0';
+  let commit = 'unknown';
+  try {
+    commit = execFileSync('git', ['rev-parse', '--short=12', 'HEAD'], {
+      cwd: REPO,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .toString()
+      .trim();
+  } catch {
+    // Not a checkout, or no git on PATH. Not a reason to refuse to build.
+  }
+  return { version, commit };
+}
 
 /**
  * The Node runtime the payload ships when asked to (workplan 0015 T3).
@@ -300,6 +333,12 @@ if ((process.env.SELFHOST_PERSISTENCE ?? 'pglite') === 'pglite') {
 }
 ensureWritable('config', configDir, 'CONFIG_DIR');
 
+// Stamped in by package-appliance.mjs. See buildIdentity() there for why this
+// exists: two payload copies on one machine look identical, and until this line
+// the startup log said nothing about WHICH build was running.
+const BUILD = __BUILD_IDENTITY__;
+console.log(\`[appliance] build \${BUILD.version} (\${BUILD.commit})\`);
+
 const handle = await start({
   // No DATABASE_URL, no server, no port to collide with, no initdb. Overridable
   // for an operator who already runs Postgres and would rather use it.
@@ -354,7 +393,11 @@ async function main() {
     { stdio: ['ignore', 'ignore', 'inherit'], cwd: REPO },
   );
 
-  writeFileSync(join(out, 'start.mjs'), START_MJS);
+  const build = buildIdentity();
+  writeFileSync(
+    join(out, 'start.mjs'),
+    START_MJS.replace('__BUILD_IDENTITY__', JSON.stringify(build)),
+  );
   // Node decides .mjs vs .cjs by extension, but the nearest package.json still
   // has to exist — without one, Node walks up out of the payload and can pick up
   // whatever it finds on the installing machine.
