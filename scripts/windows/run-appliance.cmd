@@ -12,5 +12,5 @@ REM
 REM Example:
 REM   run-appliance.cmd -PayloadPath "C:\Program Files\OpenMigrateTest"
 REM
-REM UNTESTED ON WINDOWS — written on Linux.
+REM UNTESTED ON WINDOWS -- written on Linux.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0run-appliance.ps1" %*

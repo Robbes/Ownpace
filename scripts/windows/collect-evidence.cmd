@@ -5,7 +5,7 @@ REM Run collect-evidence.ps1 without fighting the execution policy.
 REM
 REM Stock Windows ships PowerShell's policy as `Restricted`, so an unsigned
 REM .ps1 refuses to run at all: "running scripts is disabled on this system".
-REM That is not a misconfiguration to complain about — it is the default on
+REM That is not a misconfiguration to complain about -- it is the default on
 REM every machine this product will ever be installed on, and it was hit on the
 REM first real run of the runbook (2026-08-06).
 REM
@@ -19,5 +19,5 @@ REM `%~dp0` is this file's own directory, so the .ps1 is found wherever the
 REM pair is copied to. `%*` passes arguments through: -PayloadPath, -DataRoot,
 REM -OutFile all still work.
 REM
-REM UNTESTED ON WINDOWS — written on Linux, like everything else in here.
+REM UNTESTED ON WINDOWS -- written on Linux, like everything else in here.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0collect-evidence.ps1" %*
