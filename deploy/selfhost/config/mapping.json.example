@@ -1,4 +1,5 @@
 {
+  "_note_baseUrl": "target.baseUrl is the server ROOT - scheme, host, port, NO path. The session URL is built as ${baseUrl}/.well-known/jmap (RFC 8620 2.2), so a trailing /jmap here asks for /jmap/.well-known/jmap and 404s in a way that looks like the server is wrong. This example carried that mistake until 2026-08-08.",
   "_note": "Self-host mapping example (workplan 0010). Copy to a real name ending in .json in this directory (e.g. mapping.json) and edit. Files ending in .example are NOT loaded. Every *.json here is scheduled on startup. Credentials are referenced by ENV VAR NAME (tokenFromEnv / passwordFromEnv), never inline — set those variables in deploy/selfhost/.env.",
   "tenantId": "00000000-0000-4000-8000-000000000001",
   "mappingId": "11111111-1111-4111-8111-111111111111",
@@ -12,7 +13,7 @@
   },
   "target": {
     "type": "jmap",
-    "baseUrl": "https://mail.example.net/jmap",
+    "baseUrl": "https://mail.example.net",
     "user": "you@example.net",
     "auth": { "kind": "basic", "passwordFromEnv": "TARGET_JMAP_PASSWORD" }
   },
