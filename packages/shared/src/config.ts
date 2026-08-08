@@ -31,6 +31,18 @@ export type JmapAuth =
 /** JMAP target (primary family). */
 export interface JmapTarget {
   readonly type: 'jmap';
+  /**
+   * The server ROOT — scheme, host, port. No path.
+   *
+   * Every JMAP client here builds its session URL as
+   * `${baseUrl}/.well-known/jmap` (RFC 8620 §2.2), so a `baseUrl` carrying a
+   * path produces `https://host/jmap/.well-known/jmap` and a 404 that reads
+   * like the server is wrong rather than the config. `mapping.json.example`
+   * shipped exactly that mistake until 2026-08-08.
+   *
+   *   correct    https://mail.example.net
+   *   WRONG      https://mail.example.net/jmap
+   */
   readonly baseUrl: string;
   readonly user: string;
   readonly auth: JmapAuth;
