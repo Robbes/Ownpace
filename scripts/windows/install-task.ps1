@@ -117,12 +117,32 @@ REM readable by every local user and this is not.
 
 # Administrators + SYSTEM + the run-as account, and nobody else.
 #
+# BY SID, NOT BY NAME. Account names are LOCALISED; SIDs are not. The first
+# version of this passed 'BUILTIN\Administrators' and died on a Dutch Windows
+# with icacls 1332 (ERROR_NONE_MAPPED) — "geen toewijzing tussen accountnamen en
+# beveiligings-id's". S-1-5-32-544 is the Administrators group on every Windows
+# ever shipped, in every language.
+#
 # `icacls` rather than the .NET ACL object model on purpose: this script cannot
 # be syntax-checked or run anywhere but Windows, so the fewer moving parts the
 # better. /inheritance:r drops ProgramData's permissive defaults, which would
 # otherwise come straight back and undo the point of the file.
+$ADMINISTRATORS_SID = 'S-1-5-32-544'
+$LOCAL_SYSTEM_SID   = 'S-1-5-18'
+
+# The run-as account is a PARAMETER, so it has to be resolved rather than
+# assumed. Translate() handles the well-known names ('NT AUTHORITY\LocalService')
+# and any real account, and reports which name failed if it cannot.
+try {
+    $runAsSid = (New-Object System.Security.Principal.NTAccount($RunAsUser)).Translate(
+        [System.Security.Principal.SecurityIdentifier]).Value
+} catch {
+    throw "Cannot resolve '$RunAsUser' to a SID: $($_.Exception.Message). " +
+          'Pass -RunAsUser with an account that exists on this machine.'
+}
+
 & icacls $secretsFile /inheritance:r /grant:r `
-    'BUILTIN\Administrators:R' 'NT AUTHORITY\SYSTEM:R' "${RunAsUser}:R" | Out-Null
+    "*${ADMINISTRATORS_SID}:R" "*${LOCAL_SYSTEM_SID}:R" "*${runAsSid}:R" | Out-Null
 if ($LASTEXITCODE -ne 0) {
     throw "Could not restrict permissions on $secretsFile (icacls exit $LASTEXITCODE). " +
           'Refusing to continue: that file is about to hold mail passwords, and a ' +
