@@ -10,7 +10,7 @@
 # where a service account cannot write. This script is what the service will
 # do, so that the thing you test is the thing that ships.
 #
-# UNTESTED ON WINDOWS — written by reading the code, on Linux, with no Windows
+# UNTESTED ON WINDOWS -- written by reading the code, on Linux, with no Windows
 # available to run it. Read it before you run it; it is short on purpose.
 
 [CmdletBinding()]
@@ -38,7 +38,7 @@ if (-not (Test-Path $start)) {
 # Prefer the payload's OWN node.exe. A payload built with `--with-node win-x64`
 # ships one, and the whole point is that this machine needs nothing installed.
 # Falling back to a system Node is a convenience for a half-built payload, not
-# the shipping configuration — so it says so rather than passing silently.
+# the shipping configuration -- so it says so rather than passing silently.
 $bundled = Join-Path $PayloadPath 'node.exe'
 if (Test-Path $bundled) {
     $node = $bundled
@@ -80,6 +80,6 @@ $env:HOST                 = $BindHost
 $env:PORT                 = "$Port"
 
 # Run in the foreground. Ctrl+C sends the interrupt start.mjs handles, which is
-# what closes PGlite cleanly — the database is the thing being written, so an
+# what closes PGlite cleanly -- the database is the thing being written, so an
 # abrupt kill is the one failure mode worth avoiding while testing.
 & $node $start

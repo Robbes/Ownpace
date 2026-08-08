@@ -9,7 +9,7 @@
 #
 # It reads only. It starts nothing, changes nothing, and deletes nothing.
 #
-# UNTESTED ON WINDOWS — written on Linux with no Windows available.
+# UNTESTED ON WINDOWS -- written on Linux with no Windows available.
 
 [CmdletBinding()]
 param(
@@ -35,7 +35,7 @@ function Try-Run([string] $label, [scriptblock] $block) {
         $result = & $block 2>&1 | Out-String
         $out.Add("${label}: " + $result.Trim())
     } catch {
-        # Report the failure rather than omitting the line — an absent tool is
+        # Report the failure rather than omitting the line -- an absent tool is
         # itself a finding, and a silent gap reads as "fine".
         $out.Add("${label}: FAILED - $($_.Exception.Message)")
     }
@@ -103,10 +103,21 @@ if (Test-Path $DataRoot) {
         ForEach-Object { $out.Add("  $($_.FullName.Substring($DataRoot.Length))") }
 }
 
-Section 'service'
+Section 'scheduled task'
+# A TASK, not a Service. This asked `Get-Service` until 2026-08-09 and reported
+# "FAILED - Cannot find any service with service name 'OpenMigrateAppliance'"
+# on a machine where everything was working: there is no service BY DESIGN
+# (owner decision 2026-08-07, ADR-0027's second update). Evidence that reports a
+# failure for something deliberately absent is worse than no evidence - it sends
+# whoever reads it looking for a fault that is not there.
 Try-Run 'OpenMigrateAppliance' {
-    Get-Service -Name 'OpenMigrateAppliance' -ErrorAction Stop | Format-List Name, Status, StartType | Out-String
+    Get-ScheduledTask -TaskName 'OpenMigrateAppliance' -ErrorAction Stop |
+        Get-ScheduledTaskInfo |
+        Format-List TaskName, LastRunTime, LastTaskResult, NumberOfMissedRuns | Out-String
 }
+# 267009 is 0x41301, SCHED_S_TASK_RUNNING - "running now", not an error code.
+$out.Add('note           : LastTaskResult 267009 = 0x41301 SCHED_S_TASK_RUNNING (running, not failed)')
+$out.Add('note           : there is NO Windows Service by design - see ADR-0027')
 
 Section 'listening ports'
 Try-Run 'ports 8080/8081' {

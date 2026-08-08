@@ -8,13 +8,13 @@
 # not finished, and "we will write the uninstaller later" is how a machine ends
 # up with a task nobody can name pointing at a directory nobody remembers.
 #
-# WHAT IT WILL NOT DO. `C:\ProgramData\OpenMigrate` holds the migration ledger —
+# WHAT IT WILL NOT DO. `C:\ProgramData\OpenMigrate` holds the migration ledger --
 # the record of every item copied, which is what makes a re-run idempotent
 # rather than duplicating a customer's mailbox. Removing the software must never
 # remove that (hard rule 2: non-destructive by default). `-IncludeData` exists
 # for someone who genuinely means it, and it asks first.
 #
-# UNTESTED ON WINDOWS — written on Linux.
+# UNTESTED ON WINDOWS -- written on Linux.
 
 #Requires -RunAsAdministrator
 [CmdletBinding(SupportsShouldProcess = $true)]
@@ -44,7 +44,7 @@ if ($task) {
     # Say so rather than succeeding silently: "nothing happened" and "it was
     # already gone" look identical from the outside, and only one of them means
     # you were looking at the right machine.
-    Write-Host "no task named '$TaskName' — nothing to remove"
+    Write-Host "no task named '$TaskName' -- nothing to remove"
 }
 
 if ($PayloadPath) {

@@ -7,5 +7,5 @@ REM See collect-evidence.cmd for why these wrappers exist: stock Windows
 REM refuses unsigned .ps1 files, and that is the default on every machine this
 REM product will be installed on rather than a local misconfiguration.
 REM
-REM UNTESTED ON WINDOWS — written on Linux.
+REM UNTESTED ON WINDOWS -- written on Linux.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install-task.ps1" %*

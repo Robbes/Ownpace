@@ -198,6 +198,45 @@ describe('the staged payload', () => {
     );
   });
 
+  it('ships Windows scripts that are pure ASCII, or PowerShell 5.1 mis-parses them', () => {
+    // A REAL PARSE FAILURE, on a real machine, 2026-08-09:
+    //
+    //   uninstall-task.ps1:70 The string is missing the terminator: ".
+    //   uninstall-task.ps1:43 Missing closing '}' in statement block
+    //
+    // Neither line was wrong. Line 47 held `"no task named '$TaskName' - nothing
+    // to remove"` with an EM DASH, and the file is UTF-8 with no BOM. Windows
+    // PowerShell 5.1 reads a BOM-less file as Windows-1252, so the em dash's
+    // three bytes (E2 80 94) become three CP1252 characters ending in 0x94 -
+    // which is U+201D, a RIGHT DOUBLE QUOTATION MARK. PowerShell 5.1 accepts
+    // smart quotes as string delimiters, so the string ended early and the
+    // parse cascaded twenty lines down.
+    //
+    // install-task.ps1 has em dashes too and worked fine, because all of its
+    // are in `#` comments where the mangling is harmless. That is what makes
+    // this worth a test rather than a habit: the difference between a fatal
+    // occurrence and a harmless one is invisible when you are writing the line.
+    //
+    // A BOM would also fix it. ASCII is better: it cannot be misread by ANY
+    // encoding, on any machine, in any locale.
+    const dir = join(payload, 'scripts');
+    const offenders: string[] = [];
+    for (const name of readdirSync(dir)) {
+      const text = readFileSync(join(dir, name), 'utf-8');
+      text.split('\n').forEach((line, i) => {
+        // eslint-disable-next-line no-control-regex
+        const bad = line.match(/[^\x00-\x7F]/g);
+        if (bad) offenders.push(`${name}:${i + 1}: ${[...new Set(bad)].join(' ')}  ${line.trim().slice(0, 60)}`);
+      });
+    }
+    expect(
+      offenders,
+      'these shipped Windows scripts contain non-ASCII. Windows PowerShell 5.1 reads a ' +
+        'BOM-less file as Windows-1252 and an em dash can terminate a string early:\n' +
+        offenders.join('\n'),
+    ).toEqual([]);
+  });
+
   it('ships the migration chain byte-identical to the container image', () => {
     // Same bytes means the squash-equivalence proof still covers the appliance.
     // A payload that shipped subtly different SQL would diverge silently.
