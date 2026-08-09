@@ -20,7 +20,23 @@ import {
 import { useAuthStore } from '../stores/auth-store';
 import { isSelfHost } from '../services/edition';
 import { useLocale } from '../i18n';
+import type { StringKey } from '../i18n';
 import { LOCALES } from '../i18n/strings';
+import {
+  activeNavHref,
+  mappingRouteContext,
+  truncateMiddle,
+  type MappingScreen,
+} from './layout-context';
+
+/** Header titles for the per-mapping screens — the same words as the nav. */
+const SCREEN_TITLE_KEY: Record<MappingScreen, StringKey> = {
+  deletions: 'nav.deletions',
+  moves: 'nav.moves',
+  failures: 'nav.failures',
+  verify: 'nav.check',
+  finish: 'nav.finish',
+};
 
 const Layout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
@@ -98,10 +114,14 @@ const Layout: React.FC = () => {
             </button>
           </div>
 
-          {/* Navigation */}
+          {/* Navigation. The active entry comes from activeNavHref: plain
+              prefix matching went dark on per-mapping routes (0034 T3) —
+              on /mappings/acme/deletions the appliance's Deletions entry
+              lights up, and managed's Mappings entry stays lit. */}
           <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
             {navigation.map((item) => {
-              const isActive = location.pathname.startsWith(item.href);
+              const isActive =
+                activeNavHref(location.pathname, navigation.map((n) => n.href)) === item.href;
               return (
                 <Link
                   key={item.href}
@@ -120,25 +140,30 @@ const Layout: React.FC = () => {
             })}
           </nav>
 
-          {/* User section */}
+          {/* User section (0034 T2). The appliance has no accounts: rendering
+              an avatar "U", "user@example.com" and a Sign out that clears a
+              store nothing reads was fake identity chrome on a sovereignty
+              product. Selfhost keeps only the language switcher. On managed
+              the block renders the signed-in claims — no fallbacks: the store
+              always holds real claims after login, and if it ever does not,
+              an absent block is a bug made visible, not papered over. */}
           <div className="p-4 border-t border-gray-200">
-            <div className="flex items-center mb-4">
-              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                <span className="text-blue-700 font-semibold">
-                  {user?.name?.charAt(0).toUpperCase() || 'U'}
-                </span>
+            {!selfHost && user != null && (
+              <div className="flex items-center mb-4">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                  <span className="text-blue-700 font-semibold">
+                    {user.name?.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div className="ml-3 flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{user.name}</p>
+                  <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                </div>
               </div>
-              <div className="ml-3 flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
-                  {user?.name || 'User'}
-                </p>
-                <p className="text-xs text-gray-500 truncate">
-                  {user?.email || 'user@example.com'}
-                </p>
-              </div>
-            </div>
+            )}
             {/* Language switcher (ADR-0013 / workplan 0024): text-labelled
-                buttons, not an icon — WCAG 2.2 AA per SAD §23. */}
+                buttons, not an icon — WCAG 2.2 AA per SAD §23. Real on both
+                editions, so it stays on both. */}
             <div className="flex items-center gap-2 mb-3" aria-label={t('language.label')}>
               <span className="text-xs text-gray-500">{t('language.label')}:</span>
               {LOCALES.map((l) => (
@@ -156,13 +181,15 @@ const Layout: React.FC = () => {
                 </button>
               ))}
             </div>
-            <button
-              onClick={logout}
-              className="w-full flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <LogOut className="w-5 h-5 mr-3" />
-              {t('nav.signOut')}
-            </button>
+            {!selfHost && (
+              <button
+                onClick={logout}
+                className="w-full flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <LogOut className="w-5 h-5 mr-3" />
+                {t('nav.signOut')}
+              </button>
+            )}
           </div>
         </div>
       </aside>
@@ -178,9 +205,33 @@ const Layout: React.FC = () => {
             <Menu className="w-6 h-6" />
           </button>
           <div className="flex-1 ml-4">
-            <h1 className="text-xl font-semibold text-gray-900">
-              {navigation.find((n) => location.pathname.startsWith(n.href))?.name || 'Open Migrate'}
-            </h1>
+            {/* "Where am I" (0034 T3): a per-mapping route names its screen
+                AND its mapping — the id links back to the hub. Before this,
+                the title fell back to the brand (selfhost) or said only
+                "Mappings" (managed), and the id lived in body text alone. */}
+            {(() => {
+              const ctx = mappingRouteContext(location.pathname);
+              if (ctx) {
+                return (
+                  <h1 className="text-xl font-semibold text-gray-900">
+                    {ctx.screen && <>{t(SCREEN_TITLE_KEY[ctx.screen])} — </>}
+                    <Link
+                      to={`/mappings/${encodeURIComponent(ctx.mappingId)}`}
+                      className="font-mono text-lg text-blue-700 hover:underline"
+                      title={ctx.mappingId}
+                    >
+                      {truncateMiddle(ctx.mappingId)}
+                    </Link>
+                  </h1>
+                );
+              }
+              return (
+                <h1 className="text-xl font-semibold text-gray-900">
+                  {navigation.find((n) => location.pathname.startsWith(n.href))?.name ||
+                    'Open Migrate'}
+                </h1>
+              );
+            })()}
           </div>
         </header>
 

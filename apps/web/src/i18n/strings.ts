@@ -45,6 +45,8 @@ const en = {
   'lifecycle.paused':
     'This migration has not started, so nothing has been copied and nothing can have diverged.',
   'hub.fallbackTitle': 'Migration',
+  'hub.orderIntro':
+    'The five screens below are in the order a cutover runs — work the list top to bottom.',
   'hub.noId': 'No mapping id in the address.',
   'hub.detailError': "Could not read this migration's details — the screens below still work.",
   'hub.deletions.name': 'Deletions',
@@ -121,6 +123,7 @@ const en = {
   'billing.invoicesLoadFailed': 'Could not load the invoices.',
   'billing.loadFailedNotEmpty':
     'This is not the same as having none — data may exist that could not be read.',
+  'confirm.nextSteps': 'Next, in cutover order:',
   'confirm.title': 'Review & confirm your migration',
   'confirm.intro': 'Nothing has been copied yet. Review what will migrate, then start it.',
   'confirm.readError': 'Could not read the migrations.',
@@ -410,6 +413,8 @@ const nl: Record<keyof typeof en, string> = {
   'lifecycle.paused':
     'Deze migratie is nog niet gestart, dus er is niets gekopieerd en er kan niets zijn afgeweken.',
   'hub.fallbackTitle': 'Migratie',
+  'hub.orderIntro':
+    'De vijf schermen hieronder staan in de volgorde waarin een cutover verloopt — werk de lijst van boven naar beneden af.',
   'hub.noId': 'Geen koppelings-id in het adres.',
   'hub.detailError':
     'De details van deze migratie konden niet worden gelezen — de schermen hieronder werken nog.',
@@ -487,6 +492,7 @@ const nl: Record<keyof typeof en, string> = {
   'billing.invoicesLoadFailed': 'De facturen konden niet worden geladen.',
   'billing.loadFailedNotEmpty':
     'Dit is niet hetzelfde als geen gegevens — er kunnen gegevens bestaan die niet gelezen konden worden.',
+  'confirm.nextSteps': 'Hierna, in cutover-volgorde:',
   'confirm.title': 'Controleer en bevestig uw migratie',
   'confirm.intro': 'Er is nog niets gekopieerd. Controleer wat er migreert en start het daarna.',
   'confirm.readError': 'De migraties konden niet worden gelezen.',

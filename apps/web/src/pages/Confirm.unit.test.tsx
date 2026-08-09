@@ -239,3 +239,34 @@ describe('when the appliance cannot be read', () => {
     expect(screen.queryByText(/No mappings configured/)).not.toBeInTheDocument();
   });
 });
+
+describe('the mapping id goes somewhere (0034 T1)', () => {
+  it('links the card heading to the mapping hub', async () => {
+    fetchStatus.mockResolvedValue(status('paused'));
+    renderScreen();
+
+    const link = await screen.findByRole('link', { name: 'acme-mail' });
+    expect(link.getAttribute('href')).toBe('/mappings/acme-mail');
+  });
+});
+
+describe('the cutover order is shown, not just implied (0034 T4)', () => {
+  it('an active migration says what comes next, numbered, with links', async () => {
+    fetchStatus.mockResolvedValue(status('active'));
+    renderScreen();
+
+    expect(await screen.findByText(/Next, in cutover order/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '1. Deletions' }).getAttribute('href')).toBe(
+      '/deletions',
+    );
+    expect(screen.getByRole('link', { name: '5. Finish' }).getAttribute('href')).toBe('/finish');
+  });
+
+  it('a paused migration shows no next-steps strip -- nothing has started', async () => {
+    fetchStatus.mockResolvedValue(status('paused'));
+    renderScreen();
+
+    await screen.findByRole('link', { name: 'acme-mail' });
+    expect(screen.queryByText(/Next, in cutover order/)).not.toBeInTheDocument();
+  });
+});

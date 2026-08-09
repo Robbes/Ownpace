@@ -99,8 +99,14 @@ const MappingDetail: React.FC = () => {
         </div>
       )}
 
-      <ul className="mt-6 grid gap-3 sm:grid-cols-2">
-        {SCREENS.map((s) => (
+      {/* The list IS a sequence (0034 T4): the runbook's cutover order was a
+          real IA decision that no screen ever stated — a first-time operator
+          had no way to know the five links are steps, or where they were in
+          them. Numbered, with one intro sentence; no wizard, no gating — the
+          screens already gate themselves (Finish refuses over open failures). */}
+      <p className="mt-6 text-sm text-gray-600">{t('hub.orderIntro')}</p>
+      <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+        {SCREENS.map((s, i) => (
           <li key={s.path}>
             <Link
               to={`/mappings/${encodeURIComponent(id)}/${s.path}`}
@@ -108,7 +114,9 @@ const MappingDetail: React.FC = () => {
             >
               <s.icon className="w-5 h-5 mt-0.5 text-gray-500 flex-shrink-0" />
               <span>
-                <span className="block text-sm font-medium text-gray-900">{t(s.nameKey)}</span>
+                <span className="block text-sm font-medium text-gray-900">
+                  {i + 1}. {t(s.nameKey)}
+                </span>
                 <span className="block mt-0.5 text-sm text-gray-600">{t(s.blurbKey)}</span>
               </span>
             </Link>

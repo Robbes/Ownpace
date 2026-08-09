@@ -32,6 +32,7 @@ import SharedAddresses from '../components/confirm/SharedAddresses';
 // The live strip is shared with the managed hub (0033 T5) — one component,
 // two data sources, same DomainStatusReport rows underneath.
 import LiveProgress from '../components/LiveProgress';
+import MappingHubLink from '../components/MappingHubLink';
 import {
   fetchAllDiscovery,
   fetchScopeManifest,
@@ -112,13 +113,39 @@ const Confirm: React.FC = () => {
           2026-08-09 -- above a migration that had copied 1149 items. The
           sentence this screen exists to make true is only true before the
           first start, so it now follows the lifecycle. */}
-      <p className="mt-1 mb-6 text-sm text-gray-600">
+      <p className="mt-1 mb-2 text-sm text-gray-600">
         {t(
           mappings.some((m) => m.migrationStatus !== 'paused')
             ? 'confirm.introStarted'
             : 'confirm.intro',
         )}
       </p>
+
+      {/* Once something is running, say what comes next and in what order
+          (0034 T4) — the appliance nav lists these screens in cutover order,
+          but nothing ever said the list IS a sequence. Same numbered framing
+          as the hub. */}
+      {mappings.some((m) => m.migrationStatus !== 'paused') && (
+        <p className="mb-6 text-sm text-gray-600">
+          {t('confirm.nextSteps')}{' '}
+          {(
+            [
+              ['/deletions', 'nav.deletions'],
+              ['/moves', 'nav.moves'],
+              ['/failures', 'nav.failures'],
+              ['/verify', 'nav.check'],
+              ['/finish', 'nav.finish'],
+            ] as const
+          ).map(([href, key], i) => (
+            <span key={href}>
+              {i > 0 && ' → '}
+              <Link to={href} className="text-blue-700 hover:underline">
+                {i + 1}. {t(key)}
+              </Link>
+            </span>
+          ))}
+        </p>
+      )}
 
       {mappings.length === 0 && <p className="text-sm text-gray-500">{t('confirm.noMappings')}</p>}
 
@@ -131,7 +158,7 @@ const Confirm: React.FC = () => {
             className="mb-8 p-4 bg-white border border-gray-200 rounded-lg"
           >
             <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-              <h3 className="font-semibold text-gray-900">{m.mappingId}</h3>
+              <h3 className="font-semibold text-gray-900"><MappingHubLink mappingId={m.mappingId} /></h3>
               <span className="text-xs text-gray-500">{m.migrationStatus}</span>
             </div>
 

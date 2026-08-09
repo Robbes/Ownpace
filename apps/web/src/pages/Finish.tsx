@@ -44,6 +44,7 @@ import {
   FinishRefusedError,
 } from '../services/operating-service';
 import { useT } from '../i18n';
+import MappingHubLink from '../components/MappingHubLink';
 import PermissionsHandover from '../components/finish/PermissionsHandover';
 import type { StringKey } from '../i18n';
 
@@ -254,7 +255,7 @@ const Finish: React.FC = () => {
         return (
           <section key={id} className="mb-6 p-4 bg-white border border-gray-200 rounded-lg">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-semibold text-gray-900">{id}</h3>
+              <h3 className="font-semibold text-gray-900"><MappingHubLink mappingId={id} /></h3>
               <span className="text-xs text-gray-500">{m.lifecycle}</span>
             </div>
             <p className="mt-1 text-sm text-gray-600">{t(LIFECYCLE_NOTE_KEY[m.lifecycle])}</p>
