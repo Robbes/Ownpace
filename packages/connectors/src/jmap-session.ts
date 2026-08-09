@@ -38,6 +38,8 @@
  * @see docs/workplans/0031-jmap-full-target.md — T4
  */
 
+import { fetchWithRateLimitRetry } from './http-rate-limit';
+
 /** The fields every caller here reads off a session. */
 export interface JmapSessionLike {
   readonly accounts?: Record<string, { id?: string; name?: string; email?: string }>;
@@ -62,10 +64,24 @@ export async function loadJmapSession(
 ): Promise<JmapSessionLike> {
   let response: Response;
   try {
-    response = await fetch(sessionUrl, {
-      headers: { Authorization: authHeader, Accept: 'application/json' },
-      cache: 'no-cache',
-    });
+    // Rate-limit aware, like every other JMAP call. It was NOT, and on
+    // 2026-08-09 that produced, on a target that was merely busy:
+    //
+    //   [discovery] could not enumerate the email destination: The JMAP session
+    //   request to http://.../.well-known/jmap returned HTTP 429
+    //
+    // Uploads retried and rode the throttling out; discovery hit the same
+    // server one layer up and gave up on the first refusal. Every JMAP client
+    // here starts by loading this document, so an unretried session load makes
+    // the whole connector fail for a condition the rest of it handles.
+    response = await fetchWithRateLimitRetry(
+      sessionUrl,
+      {
+        headers: { Authorization: authHeader, Accept: 'application/json' },
+        cache: 'no-cache',
+      },
+      'jmap-session',
+    );
   } catch (err) {
     // DNS, TLS, connection refused — the request never reached a server.
     throw new Error(

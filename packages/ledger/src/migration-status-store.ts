@@ -81,6 +81,28 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
         state: 'completed',
         completedAt: sql`now()`,
         updatedAt: sql`now()`,
+        // The previous pass's error does not survive a clean one. Until
+        // 2026-08-09 it did, and `/status` on the Windows appliance answered:
+        //
+        //   "domain": "email", "state": "completed",
+        //   "itemsSynced": 500, "itemsFailed": 0,
+        //   "lastError": "JMAP target password/token not found in environment"
+        //
+        // 500 of 500 copied, nothing failed, and a credential error printed
+        // beside it -- from a pass hours earlier, before the credentials were
+        // set. Nothing in the report says the error is historical, so the only
+        // reading available to an operator is that something is still wrong.
+        // A stale error next to a success is worse than no error at all: it
+        // sends someone to fix what is already fixed (hard rule 9 -- a failure
+        // must be reported as itself, and this one was reporting as a live
+        // failure long after it stopped being one).
+        //
+        // Cleared HERE and not in markSkipped: 'completed' is the one state
+        // that positively asserts the domain finished, so 'there is no last
+        // error' is true rather than merely unknown. Per-item failures are
+        // unaffected -- they live in the failure queue and are counted in
+        // itemsFailed, not here.
+        lastError: null,
         // Only when the caller measured a pass. Writing nulls over a previous
         // pass's numbers would blank the dashboard on any path that completes
         // without measuring.

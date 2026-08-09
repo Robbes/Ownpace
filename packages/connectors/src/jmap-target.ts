@@ -5,6 +5,7 @@
 
 import JamClient from "jmap-jam";
 import { loadJmapSession } from './jmap-session';
+import { fetchWithRateLimitRetry } from './http-rate-limit';
 import type {
   TargetWriter,
   TargetReindexer,
@@ -15,19 +16,8 @@ import type {
   UpsertResult,
   RemovalResult,
 } from "@openmig/shared";
-import { contentHash, parseRetryAfterMs } from "@openmig/shared";
+import { contentHash } from "@openmig/shared";
 import { log } from '@openmig/shared';
-
-/**
- * How many times a rate-limited JMAP request is re-sent before it is allowed to
- * fail. Five attempts spanning ~1s + Retry-After waits is enough to ride out a
- * server briefly refusing a burst; beyond that the target is not merely busy
- * and the operator should hear about it rather than have us wait forever.
- */
-const RATE_LIMIT_ATTEMPTS = 5;
-
-/** Backoff when the server says "slow down" but does not say for how long. */
-const RATE_LIMIT_BASE_BACKOFF_MS = 1000;
 
 /**
  * Above this many messages already on the target, stop enumerating it up front
@@ -332,43 +322,16 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
    * all. A ~500-message run at concurrency 8 found the consequence: Stalwart
    * answered 429 to blob uploads and to the `Email/query` existence lookup, and
    * because the lookup is deliberately not allowed to fall back to "not
-   * present" (that would append a duplicate — hard rule 1), eight messages
+   * present" (that would append a duplicate -- hard rule 1), eight messages
    * failed outright. A 429 is the server asking for a pause, not an error; the
    * only correct response is to pause.
    *
-   * Retries the whole request, which is safe for the calls that use it:
-   * `Email/query`, `Email/get` and `Mailbox/*` are reads or are keyed, and a
-   * re-uploaded blob is content-addressed by the server and merely returns the
-   * same `blobId`. 503 is included for the same reason the DAV writers retry
-   * it — a target restarting mid-migration should cost seconds, not items.
-   *
-   * `Retry-After` is honoured when sent (RFC 9110 §10.2.3); otherwise the wait
-   * doubles per attempt with jitter, so a pool of concurrent workers that all
-   * got throttled at once does not resume in lockstep and throttle again.
+   * The waiting itself lives in `http-rate-limit.ts`, shared with the session
+   * loader -- see that file for why a server's `Retry-After` is treated as an
+   * upper bound on urgency rather than as a sleep instruction.
    */
   private async fetchWithRateLimitRetry(url: string, init: RequestInit): Promise<Response> {
-    for (let attempt = 0; ; attempt++) {
-      const response = await fetch(url, init);
-
-      const rateLimited = response.status === 429 || response.status === 503;
-      if (!rateLimited || attempt >= RATE_LIMIT_ATTEMPTS - 1) {
-        return response;
-      }
-
-      const header = response.headers.get('retry-after');
-      const waitMs = header
-        ? parseRetryAfterMs(header)
-        : RATE_LIMIT_BASE_BACKOFF_MS * 2 ** attempt + Math.random() * 500;
-
-      // Drain the body so the connection can be reused for the retry.
-      await response.text().catch(() => undefined);
-
-      log.warn(
-        `[jmap] ${response.status} from ${new URL(url).pathname}; ` +
-          `waiting ${Math.round(waitMs)}ms before retry ${attempt + 2}/${RATE_LIMIT_ATTEMPTS}`,
-      );
-      await new Promise((resolve) => setTimeout(resolve, waitMs));
-    }
+    return fetchWithRateLimitRetry(url, init, 'jmap');
   }
 
   /**

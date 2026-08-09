@@ -15,6 +15,30 @@ export type SourceAuth =
   | { readonly kind: 'xoauth2'; readonly tokenFromEnv: string }
   | { readonly kind: 'login'; readonly passwordFromEnv: string };
 
+/**
+ * Implicit TLS on connect, for the IMAP source and the IMAP/DAV target.
+ *
+ * **Defaults to `true`, and the port is not consulted.** Until 2026-08-09 there
+ * was no such field and the decision was `port === 993` — a literal comparison,
+ * in four places. Anyone whose IMAPS server listens anywhere else got a
+ * CLEARTEXT socket opened against a TLS listener, which is wrong twice over: it
+ * fails, and it fails in a way that reads like a network fault rather than a
+ * configuration one. Found on a dev Stalwart published on 1993.
+ *
+ * The default is `true` rather than "guess from the port" because the two
+ * mistakes are not symmetric. Defaulting to TLS and being wrong costs a
+ * connection error on the first attempt, in front of whoever just wrote the
+ * mapping. Defaulting to cleartext and being wrong puts a mailbox password on
+ * the wire in the clear. Only one of those is recoverable by reading an error
+ * message.
+ *
+ * So port 143 — cleartext, or STARTTLS negotiated after connect — is now an
+ * explicit `"tls": false`, which is the right shape anyway: choosing not to
+ * encrypt from the first byte should be something a mapping SAYS, not something
+ * a port number implies.
+ */
+export type ImapTlsSetting = boolean;
+
 /** O365 source over IMAP+OAuth2 (slice 0001). */
 export interface ImapOAuth2Source {
   readonly type: 'imap-oauth2';
@@ -22,6 +46,8 @@ export interface ImapOAuth2Source {
   readonly port: number;
   readonly user: string;
   readonly auth: SourceAuth;
+  /** See {@link ImapTlsSetting}. Unset means `true`. */
+  readonly tls?: ImapTlsSetting;
 }
 
 export type JmapAuth =
@@ -55,6 +81,8 @@ export interface ImapDavTarget {
   readonly port: number;
   readonly user: string;
   readonly auth: SourceAuth;
+  /** See {@link ImapTlsSetting}. Unset means `true`. */
+  readonly tls?: ImapTlsSetting;
 }
 
 /** CalDAV source for calendar data */
@@ -431,6 +459,10 @@ function parseSource(obj: Record<string, unknown>): SourceConfig {
       port: reqInt(obj, 'port', 'source.port'),
       user: reqString(obj, 'user', 'source.user'),
       auth: parseSourceAuth(asRecord(obj.auth, 'source.auth')),
+      // Omitted rather than defaulted here: the default belongs at the one
+      // place that builds the client, so there is a single answer to "what
+      // happens when tls is unset" instead of one per parser. See ImapTlsSetting.
+      ...(obj.tls === undefined ? {} : { tls: reqBoolean(obj, 'tls', 'source.tls') }),
     };
   }
   if (type === 'caldav') {
@@ -511,6 +543,7 @@ function parseTarget(obj: Record<string, unknown>): TargetConfig {
       port: reqInt(obj, 'port', 'target.port'),
       user: reqString(obj, 'user', 'target.user'),
       auth: parseSourceAuth(asRecord(obj.auth, 'target.auth')),
+      ...(obj.tls === undefined ? {} : { tls: reqBoolean(obj, 'tls', 'target.tls') }),
     };
   }
   if (type === 'caldav') {
