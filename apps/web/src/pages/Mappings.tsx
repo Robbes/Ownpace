@@ -2,22 +2,24 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { 
-  FolderGit2, 
-  Plus, 
+import {
+  FolderGit2,
+  Plus,
   MoreVertical as _MoreVertical,
   Play,
   Pause as _Pause,
   Trash2,
-  Edit
+  Edit,
+  AlertCircle
 } from 'lucide-react';
 import { mappingApi } from '../services/mapping-service';
+import { serverMessage } from '../services/api';
 import { useT, useFormatters } from '../i18n';
 
 const Mappings: React.FC = () => {
   const t = useT();
   const { relativeToNow } = useFormatters();
-  const { data: mappings, isLoading, refetch } = useQuery({
+  const { data: mappings, isLoading, error, refetch } = useQuery({
     queryKey: ['mappings'],
     queryFn: mappingApi.list,
   });
@@ -58,8 +60,21 @@ const Mappings: React.FC = () => {
         </Link>
       </div>
 
-      {/* Mappings List */}
-      {mappings?.length === 0 ? (
+      {/* Failed read ≠ empty list (hard rule 9 / 0033 T2). Before this branch
+          existed, a failed fetch fell through `mappings?.length === 0`
+          (undefined ≠ 0) into the table branch and rendered empty headers — "no
+          mappings" said about a list we could not read. That masking is what
+          hid the T1 schema break for as long as it existed. */}
+      {error != null ? (
+        <div className="flex items-start gap-2 p-4 rounded-lg bg-red-50 text-red-800 text-sm">
+          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="font-medium">{t('mappings.loadFailed')}</p>
+            <p className="mt-1">{serverMessage(error)}</p>
+            <p className="mt-1">{t('mappings.loadFailedNotEmpty')}</p>
+          </div>
+        </div>
+      ) : mappings?.length === 0 ? (
         <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
           <FolderGit2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No mappings yet</h3>

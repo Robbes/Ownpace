@@ -1,16 +1,37 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { CreditCard, TrendingUp, DollarSign, FileText } from 'lucide-react';
+import { CreditCard, TrendingUp, DollarSign, FileText, AlertCircle } from 'lucide-react';
 import { billingApi, type Invoice } from '../services/billing-service';
+import { serverMessage } from '../services/api';
+import { useT } from '../i18n';
+
+/** A failed read said as such (hard rule 9 / 0033 T2) — before this, a failed
+ *  usage read rendered "No usage data available yet" and a failed invoices
+ *  read rendered a silent blank, both on the screen where numbers are money. */
+const ReadFailed: React.FC<{ heading: string; error: unknown; footnote: string }> = ({
+  heading,
+  error,
+  footnote,
+}) => (
+  <div className="flex items-start gap-2 p-4 rounded-lg bg-red-50 text-red-800 text-sm">
+    <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+    <div>
+      <p className="font-medium">{heading}</p>
+      <p className="mt-1">{serverMessage(error)}</p>
+      <p className="mt-1">{footnote}</p>
+    </div>
+  </div>
+);
 
 const Billing: React.FC = () => {
-  const { data: usage, isLoading: usageLoading } = useQuery({
+  const t = useT();
+  const { data: usage, isLoading: usageLoading, error: usageError } = useQuery({
     queryKey: ['billing-usage'],
     queryFn: () => billingApi.getCurrentUsage(),
   });
 
-  const { data: invoices, isLoading: invoicesLoading } = useQuery({
+  const { data: invoices, isLoading: invoicesLoading, error: invoicesError } = useQuery({
     queryKey: ['billing-invoices'],
     queryFn: () => billingApi.listInvoices(),
   });
@@ -36,7 +57,13 @@ const Billing: React.FC = () => {
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Current Usage</h2>
         
-        {usage ? (
+        {usageError != null ? (
+          <ReadFailed
+            heading={t('billing.usageLoadFailed')}
+            error={usageError}
+            footnote={t('billing.loadFailedNotEmpty')}
+          />
+        ) : usage ? (
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="p-4 bg-blue-50 rounded-lg">
@@ -134,7 +161,13 @@ const Billing: React.FC = () => {
           <h2 className="text-lg font-semibold text-gray-900">Invoices</h2>
         </div>
         <div className="p-6">
-          {invoices?.invoices?.length === 0 ? (
+          {invoicesError != null ? (
+            <ReadFailed
+              heading={t('billing.invoicesLoadFailed')}
+              error={invoicesError}
+              footnote={t('billing.loadFailedNotEmpty')}
+            />
+          ) : invoices?.invoices?.length === 0 ? (
             <p className="text-gray-500 text-center py-8">No invoices yet</p>
           ) : (
             <div className="space-y-4">

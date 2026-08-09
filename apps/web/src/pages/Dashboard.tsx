@@ -12,6 +12,7 @@ import {
   Building2
 } from 'lucide-react';
 import { mappingApi } from '../services/mapping-service';
+import { serverMessage } from '../services/api';
 import { useT, useFormatters } from '../i18n';
 
 const Dashboard: React.FC = () => {
@@ -63,9 +64,9 @@ const Dashboard: React.FC = () => {
           <AlertCircle className="w-5 h-5 text-red-600 mr-2" />
           <div>
             <h3 className="text-sm font-medium text-red-800">Error loading dashboard</h3>
-            <p className="text-sm text-red-600 mt-1">
-              {error instanceof Error ? error.message : 'An unexpected error occurred'}
-            </p>
+            {/* The SERVER's words, not axios's "Request failed with status
+                code 500" wrapper (hard rule 9 / 0033 T2). */}
+            <p className="text-sm text-red-600 mt-1">{serverMessage(error)}</p>
           </div>
         </div>
       </div>

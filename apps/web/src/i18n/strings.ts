@@ -107,6 +107,14 @@ const en = {
   'common.loading': 'Loading…',
   'mappings.lastSync': 'Last sync:',
   'mappings.never': 'Never',
+  'mappings.loadFailed': 'Could not load the migrations list.',
+  'mappings.loadFailedNotEmpty':
+    'This is not the same as having no migrations — mappings may exist that could not be read.',
+  'mappings.syncFailed': 'The sync request did not complete.',
+  'billing.usageLoadFailed': 'Could not load the usage numbers.',
+  'billing.invoicesLoadFailed': 'Could not load the invoices.',
+  'billing.loadFailedNotEmpty':
+    'This is not the same as having none — data may exist that could not be read.',
   'confirm.title': 'Review & confirm your migration',
   'confirm.intro': 'Nothing has been copied yet. Review what will migrate, then start it.',
   'confirm.readError': 'Could not read the migrations.',
@@ -459,6 +467,14 @@ const nl: Record<keyof typeof en, string> = {
   'common.loading': 'Laden…',
   'mappings.lastSync': 'Laatste synchronisatie:',
   'mappings.never': 'Nooit',
+  'mappings.loadFailed': 'De migratielijst kon niet worden geladen.',
+  'mappings.loadFailedNotEmpty':
+    'Dit is niet hetzelfde als geen migraties — er kunnen koppelingen bestaan die niet gelezen konden worden.',
+  'mappings.syncFailed': 'Het synchronisatieverzoek is niet voltooid.',
+  'billing.usageLoadFailed': 'De verbruikscijfers konden niet worden geladen.',
+  'billing.invoicesLoadFailed': 'De facturen konden niet worden geladen.',
+  'billing.loadFailedNotEmpty':
+    'Dit is niet hetzelfde als geen gegevens — er kunnen gegevens bestaan die niet gelezen konden worden.',
   'confirm.title': 'Controleer en bevestig uw migratie',
   'confirm.intro': 'Er is nog niets gekopieerd. Controleer wat er migreert en start het daarna.',
   'confirm.readError': 'De migraties konden niet worden gelezen.',
