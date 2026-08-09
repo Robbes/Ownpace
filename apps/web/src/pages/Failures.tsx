@@ -144,6 +144,12 @@ const Failures: React.FC = () => {
           ))}
         </QueueSection>
 
+        {/* Why this queue has no "Already decided" section, said instead of
+            left as an asymmetry (0036 T2): accepted items genuinely leave the
+            ledger's failed set (resolveFailure sets left_behind; listFailures
+            filters status='failed'). */}
+        <p className="mt-2 text-xs text-gray-500">{t('failures.acceptedLeave')}</p>
+
         <GuidancePanel entries={queue.howToResolve} />
       </>
     )}

@@ -253,6 +253,8 @@ const en = {
   'failures.intro':
     'Items that did not make it across, what went wrong, and how many times we tried.',
   'failures.empty.needsDecision': 'Nothing is waiting on a decision.',
+  'failures.acceptedLeave':
+    'Accepted items no longer appear here — accepting migrates without the item, and the ledger stops counting it as failed.',
   'failures.stillTrying': 'Still trying',
   'failures.empty.retrying': 'Nothing is being retried.',
   'failures.retry': 'Try again',
@@ -801,6 +803,8 @@ const nl: Record<keyof typeof en, string> = {
   'failures.intro':
     'Items die niet zijn overgekomen, wat er misging, en hoe vaak we het hebben geprobeerd.',
   'failures.empty.needsDecision': 'Er wacht niets op een beslissing.',
+  'failures.acceptedLeave':
+    'Geaccepteerde items verschijnen hier niet meer — accepteren migreert zonder het item, en het grootboek telt het niet langer als mislukt.',
   'failures.stillTrying': 'Wordt nog geprobeerd',
   'failures.empty.retrying': 'Er wordt niets opnieuw geprobeerd.',
   'failures.retry': 'Probeer opnieuw',

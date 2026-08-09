@@ -42,6 +42,7 @@ const Decisions: React.FC = () => {
   const queryClient = useQueryClient();
   const [busyRow, setBusyRow] = React.useState<string | null>(null);
   const [rowErrors, setRowErrors] = React.useState<Record<string, string>>({});
+  const [rowEffects, setRowEffects] = React.useState<Record<string, string>>({});
   const { user } = useAuthStore();
   const canManage = user?.role === 'owner' || user?.role === 'admin';
   const [presetBusy, setPresetBusy] = React.useState(false);
@@ -95,25 +96,35 @@ const Decisions: React.FC = () => {
     setBusyRow(decision.id);
     setRowErrors((errors) => ({ ...errors, [decision.id]: '' }));
     try {
+      let effect: string | undefined;
       if (action === 'resolve') {
         // Two shapes of answer. Accepting a proposed default is the general
         // one; `shared_address_pattern` names WHICH pattern instead, because
         // it has no default — not knowing which of the two it is is the whole
         // reason it was asked. The server reads `pattern` and writes it back
         // to the discovered group.
-        await resolveDriftDecision(
-          decision.id,
-          pattern
-            ? { action: 'set_shared_address_pattern', pattern }
-            : {
-                action: 'accept_default',
-                ...(decision.proposedDefault
-                  ? { proposedDefault: decision.proposedDefault }
-                  : {}),
-              },
-        );
+        effect = (
+          await resolveDriftDecision(
+            decision.id,
+            pattern
+              ? { action: 'set_shared_address_pattern', pattern }
+              : {
+                  action: 'accept_default',
+                  ...(decision.proposedDefault
+                    ? { proposedDefault: decision.proposedDefault }
+                    : {}),
+                },
+          )
+        ).effect;
       } else {
-        await dismissDriftDecision(decision.id);
+        effect = (await dismissDriftDecision(decision.id)).effect;
+      }
+      // The server's effect sentence, verbatim (0036 T2) — the row moves to
+      // "Already decided" on the refetch, and this line under it says what
+      // the click actually did. Decisions was the one surface whose answers
+      // vanished silently.
+      if (effect) {
+        setRowEffects((prev) => ({ ...prev, [decision.id]: effect }));
       }
       await queryClient.invalidateQueries({ queryKey: ['drift-decisions'] });
     } catch (err) {
@@ -271,6 +282,10 @@ const Decisions: React.FC = () => {
                       )}
                     </div>
                     <p className="text-gray-600">{decision.summary}</p>
+                    {rowEffects[decision.id] && (
+                      // What the click DID — the server's sentence, verbatim.
+                      <p className="text-xs text-emerald-700">{rowEffects[decision.id]}</p>
+                    )}
                   </li>
                 ))}
               </ul>

@@ -93,3 +93,15 @@ describe('what retry costs (0036 T4)', () => {
     expect(screen.queryByText(/re-lists everything/)).not.toBeInTheDocument();
   });
 });
+
+describe('the aftermath asymmetry is stated (0036 T2)', () => {
+  it('says why this queue has no "Already decided" section', async () => {
+    fetchFailuresMock.mockResolvedValue(queue());
+    renderScreen();
+
+    expect(
+      await screen.findByText(/Accepted items no longer appear here/),
+    ).toBeInTheDocument();
+  });
+});
+

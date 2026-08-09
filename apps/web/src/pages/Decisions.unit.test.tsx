@@ -287,3 +287,32 @@ describe('the standing-answer control', () => {
     expect(await screen.findByText(new RegExp(PENDING.summary.slice(0, 30)))).toBeInTheDocument();
   });
 });
+
+describe('the effect of a completed action renders (0036 T2)', () => {
+  it("shows the server's dismiss effect under the answered row, verbatim", async () => {
+    fetchDecisions.mockResolvedValue({ decisions: [PENDING] });
+    dismissDecision.mockImplementation(async () => {
+      // The refetch after the action sees the row answered.
+      fetchDecisions.mockResolvedValue({
+        decisions: [{ ...PENDING, status: 'dismissed', resolvedAt: '2026-08-09T12:00:00Z' }],
+      });
+      return {
+        ...PENDING,
+        status: 'dismissed',
+        effect:
+          'Closed without acting; the detector may raise it again if the situation persists.',
+      };
+    });
+
+    renderScreen();
+    await userEvent.click(await screen.findByRole('button', { name: /Terzijde|Dismiss/ }));
+
+    // The row sits in "Already decided" with the effect sentence beneath it —
+    // Decisions was the one surface whose answers vanished silently (both
+    // editions' responses now carry the sentence).
+    expect(
+      await screen.findByText(/Closed without acting; the detector may raise it again/),
+    ).toBeInTheDocument();
+  });
+});
+

@@ -35,6 +35,7 @@ import { SCOPE_MANIFEST, DELETION_CONFIRMATIONS } from '@openmig/shared';
 // three cannot drift apart in the explanations that stop somebody destroying
 // data by accident.
 import {
+  DECISION_EFFECTS,
   MAPPING_LIFECYCLES,
   REPORTING_CLOSED,
   FAILURE_GUIDANCE,
@@ -1467,7 +1468,10 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             message: 'This decision does not exist or has already been answered.',
           });
         }
-        return sendJson(res, 200, closed!);
+        return sendJson(res, 200, {
+          ...closed!,
+          effect: action === 'resolve' ? DECISION_EFFECTS.resolved : DECISION_EFFECTS.dismissed,
+        });
       }
       // Gate 1 of the destructive path, as a readable fact (workplan 0019 T3).
       // The value lives in the mapping's CONFIG FILE on this edition, and

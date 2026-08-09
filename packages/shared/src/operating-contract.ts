@@ -249,6 +249,19 @@ export interface StatusReport {
   }>;
 }
 
+/**
+ * What closing a §11.1 drift decision actually DID — the one decision surface
+ * whose responses carried no effect sentence (0036 T2; the item queues'
+ * `DecisionAccepted.effect` predates it). Rendered verbatim by the UI, like
+ * all effect prose: it says what is now true, for the person who just
+ * clicked.
+ */
+export const DECISION_EFFECTS = {
+  resolved: 'Answer recorded — the migration acts on it from here on.',
+  dismissed:
+    'Closed without acting; the detector may raise it again if the situation persists.',
+} as const;
+
 /** The decisions an owner can make, across all three queues. */
 export type OperatingAction = 'keep' | 'apply' | 'retry' | 'accept';
 
