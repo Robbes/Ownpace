@@ -19,6 +19,9 @@ param(
 
     [string] $DataRoot = 'C:\ProgramData\OpenMigrate',
 
+    # Where the appliance serves its operating surface. Only ever GET.
+    [int] $Port = 8080,
+
     [string] $OutFile = 'windows-evidence.txt'
 )
 
@@ -123,6 +126,49 @@ Section 'listening ports'
 Try-Run 'ports 8080/8081' {
     Get-NetTCPConnection -State Listen -LocalPort 8080, 8081 -ErrorAction SilentlyContinue |
         Select-Object LocalAddress, LocalPort, OwningProcess | Format-Table | Out-String
+}
+
+# The three artefacts every diagnosis round on 2026-08-09 had to ask for in a
+# SEPARATE round trip, each one a day apart when the machine is not yours:
+# what the appliance said, what it reports about itself, and who can read the
+# credentials file. All reads. The point of this file is one paste.
+
+Section 'appliance log (last 60 lines)'
+# -Encoding UTF8 is load-bearing, not style. The appliance writes UTF-8;
+# PowerShell 5.1's Get-Content default reads a BOM-less file as the ANSI code
+# page, which turned "applying migrations..." into mojibake in every paste
+# until someone asked for the flag. The evidence must not need that knowledge.
+Try-Run 'log tail' {
+    $logFile = Join-Path $DataRoot 'logs\appliance.log'
+    if (Test-Path $logFile) {
+        Get-Content -Path $logFile -Tail 60 -Encoding UTF8 | Out-String
+    } else {
+        "no log file at $logFile"
+    }
+}
+
+Section 'status endpoint'
+# GET only -- this script starts nothing and changes nothing, and /status is
+# the one endpoint that is a pure read. A refused connection here IS evidence:
+# it means nothing is listening, which is a different diagnosis from a task
+# that reports itself running.
+Try-Run "GET /status on $Port" {
+    (Invoke-WebRequest -Uri "http://127.0.0.1:$Port/status" -UseBasicParsing -TimeoutSec 10).Content
+}
+
+Section 'secrets.cmd ACL'
+# The ACL and ONLY the ACL. The file holds mail passwords; its contents must
+# never enter an evidence file that gets pasted into chats and issues. What
+# the ACL answers: the 2026-08-09 failure where the operator told to fill the
+# file in could not write it (Administrators had :R), and the standing check
+# that no ordinary user group has crept onto a credentials file.
+Try-Run 'icacls' {
+    $secretsFile = Join-Path $DataRoot 'config\secrets.cmd'
+    if (Test-Path $secretsFile) {
+        & icacls $secretsFile | Out-String
+    } else {
+        "no secrets file at $secretsFile"
+    }
 }
 
 Section 'next'

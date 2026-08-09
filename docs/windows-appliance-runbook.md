@@ -31,9 +31,13 @@ prediction is shaky, this document says so rather than sounding confident.
 ## What to send back
 
 Whatever happens, the useful artefact is the same. `scripts/windows/collect-evidence.cmd`
-writes one file with the versions, the console output, the listening ports and
-the data directory layout. Run it after whichever phase you reach and send
-`windows-evidence.txt`. That is enough to act on without a back-and-forth.
+writes one file with the versions, the listening ports, the data directory
+layout, the last 60 lines of the appliance log (read as UTF-8, so no mojibake),
+a `GET /status` snapshot, and the ACL — never the contents — of `secrets.cmd`.
+Those last three were added on 2026-08-09 because every diagnosis round that
+night needed exactly them, one extra round trip each. Run it after whichever
+phase you reach and send `windows-evidence.txt`. That is enough to act on
+without a back-and-forth.
 
 If a phase fails, **stop there and send it** — the later phases assume the
 earlier ones worked, and diagnosing phase 3 on a broken phase 1 wastes your time
@@ -282,9 +286,14 @@ Two things not to confuse:
 - `SELFHOST_BIND` in `deploy/selfhost/compose.yml` binds the *appliance's* port
   to loopback in the Docker deployment. Irrelevant here — the Windows appliance
   is not in Docker, and its equivalent is the `HOST` variable.
-- The self-signed certificate is expected. The connectors use
-  `rejectUnauthorized: false` on this dev path by design; if you see a TLS
-  rejection that is a finding, not something to work around.
+- The self-signed certificate is expected, and since 2026-08-09 the mapping
+  must SAY so: put `"tlsVerify": false` on the source (and on an `imap-dav`
+  target, if you use one). Certificate verification now defaults ON — the
+  connectors used to skip it for everyone, dev and production alike, which
+  meant a production mailbox's credentials went to whatever answered the
+  socket. A TLS rejection against the dev Stalwart therefore means the mapping
+  is missing `"tlsVerify": false`; the error names the field. A TLS rejection
+  against a REAL mail server is a finding — do not work around it.
 
 ### What "mid-sync shutdown" actually means
 
@@ -510,7 +519,10 @@ something that talks to the internet all day.
 A freshly installed task logs `loaded 0 mapping(s)` and syncs nothing, because
 `CONFIG_DIR` points at `C:\ProgramData\OpenMigrate\config` and that starts
 empty. Put a mapping there — `deploy/selfhost/config/mapping.json.example` is
-the template; any name ending `.json` is picked up, `.example` is not.
+the template; any name ending `.json` is picked up, `.example` is not. Pointing
+it at the dev Stalwart? Its certificate is self-signed, so the source needs
+`"tlsVerify": false` (see the note in the example) — without it the pass
+refuses the certificate, naming the field.
 
 **Credentials do not go in the mapping, and they do not go in the launcher.**
 A mapping names its secrets by environment variable (`passwordFromEnv`,

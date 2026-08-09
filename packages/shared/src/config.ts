@@ -39,6 +39,21 @@ export type SourceAuth =
  */
 export type ImapTlsSetting = boolean;
 
+/**
+ * Verify the IMAP server's TLS certificate. Unset means TRUE.
+ *
+ * `false` exists for one situation: a dev or lab server with a self-signed
+ * certificate. It is a per-mapping, written-down decision — until 2026-08-09
+ * the source connector hardcoded verification OFF for everyone, a leftover
+ * from a parity harness that had itself been deleted, which meant every
+ * production connection would hand its password or OAuth token to whatever
+ * answered the socket first. The asymmetry argument is the same as
+ * {@link ImapTlsSetting}'s: verification failing wrongly costs a readable
+ * error naming this field; verification skipped wrongly costs the mailbox
+ * credentials.
+ */
+export type ImapTlsVerifySetting = boolean;
+
 /** O365 source over IMAP+OAuth2 (slice 0001). */
 export interface ImapOAuth2Source {
   readonly type: 'imap-oauth2';
@@ -48,6 +63,8 @@ export interface ImapOAuth2Source {
   readonly auth: SourceAuth;
   /** See {@link ImapTlsSetting}. Unset means `true`. */
   readonly tls?: ImapTlsSetting;
+  /** See {@link ImapTlsVerifySetting}. Unset means `true`. */
+  readonly tlsVerify?: ImapTlsVerifySetting;
 }
 
 export type JmapAuth =
@@ -83,6 +100,8 @@ export interface ImapDavTarget {
   readonly auth: SourceAuth;
   /** See {@link ImapTlsSetting}. Unset means `true`. */
   readonly tls?: ImapTlsSetting;
+  /** See {@link ImapTlsVerifySetting}. Unset means `true`. */
+  readonly tlsVerify?: ImapTlsVerifySetting;
 }
 
 /** CalDAV source for calendar data */
@@ -463,6 +482,9 @@ function parseSource(obj: Record<string, unknown>): SourceConfig {
       // place that builds the client, so there is a single answer to "what
       // happens when tls is unset" instead of one per parser. See ImapTlsSetting.
       ...(obj.tls === undefined ? {} : { tls: reqBoolean(obj, 'tls', 'source.tls') }),
+      ...(obj.tlsVerify === undefined
+        ? {}
+        : { tlsVerify: reqBoolean(obj, 'tlsVerify', 'source.tlsVerify') }),
     };
   }
   if (type === 'caldav') {
@@ -544,6 +566,9 @@ function parseTarget(obj: Record<string, unknown>): TargetConfig {
       user: reqString(obj, 'user', 'target.user'),
       auth: parseSourceAuth(asRecord(obj.auth, 'target.auth')),
       ...(obj.tls === undefined ? {} : { tls: reqBoolean(obj, 'tls', 'target.tls') }),
+      ...(obj.tlsVerify === undefined
+        ? {}
+        : { tlsVerify: reqBoolean(obj, 'tlsVerify', 'target.tlsVerify') }),
     };
   }
   if (type === 'caldav') {

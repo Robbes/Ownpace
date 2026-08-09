@@ -357,6 +357,8 @@ describe('JMAP Reindex Integration Tests', () => {
         user: SOURCE_ACCOUNT,
         password: SOURCE_PASSWORD,
       },
+      // Self-signed test container; see the note in shared-mailbox's fixture.
+      rejectUnauthorized: false,
     });
     
     target = freshTarget();

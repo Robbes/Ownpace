@@ -129,16 +129,46 @@ export class ImapFlowSource implements SourceConnector {
         this.config.authType === 'XOAUTH2'
           ? { user: this.config.auth.user, ...(accessToken ? { accessToken } : {}) }
           : { user: this.config.auth.user, pass: this.config.auth.password ?? '' },
-      // Self-signed certs in dev, matching `ImapSource`'s `tlsOptions`. Same
-      // posture, so a parity run is not comparing two different trust models.
-      tls: { rejectUnauthorized: false },
+      // VERIFIED BY DEFAULT. Until 2026-08-09 this was a hardcoded
+      // `rejectUnauthorized: false` — every production IMAP connection,
+      // including to a customer's O365 with their real credentials, accepted
+      // ANY certificate, so a machine in the middle could answer as the mail
+      // server and collect the password or the OAuth token. The comment beside
+      // it justified the hole as "matching ImapSource's tlsOptions" for the
+      // 0032 parity harness — a harness that was deleted when parity was
+      // proven, while the trust model it excused stayed behind.
+      //
+      // `ImapFlowDavTarget` already defaulted to true; this makes the source
+      // agree. Dev servers with self-signed certificates set `tlsVerify: false`
+      // in the mapping, which arrives here as `rejectUnauthorized: false` —
+      // a per-config decision an operator can read, never a default.
+      tls: { rejectUnauthorized: this.config.rejectUnauthorized ?? true },
       // imapflow logs every command at info level by default, which would put
       // mailbox names and message counts into the worker's log for every pass.
       logger: false,
       disableAutoIdle: true,
     });
 
-    await client.connect();
+    try {
+      await client.connect();
+    } catch (err) {
+      // A certificate refusal must say which knob exists, or it reads as a
+      // network fault (hard rule 9) — the exact misread the port-based TLS
+      // deduction produced before it. The original error stays as `cause`
+      // and its text is kept: the code path that recognises the error must
+      // never replace it.
+      if (isCertificateError(err)) {
+        throw new Error(
+          `The IMAP server at ${this.config.host}:${this.config.port} presented a ` +
+            `certificate that failed verification: ${err instanceof Error ? err.message : String(err)}. ` +
+            `If this is a dev server with a self-signed certificate, set "tlsVerify": false ` +
+            `on this source in the mapping — a deliberate, per-mapping choice. Do NOT do ` +
+            `that for a production mailbox: it hands the credentials to whoever answers.`,
+          { cause: err },
+        );
+      }
+      throw err;
+    }
     return client;
   }
 
@@ -426,5 +456,41 @@ export function isAuthError(error: unknown): boolean {
     message.includes('invalid token') ||
     message.includes('token expired') ||
     message.includes('401')
+  );
+}
+
+/**
+ * Is this Node's TLS layer refusing the server's certificate?
+ *
+ * Matched by `code` first — Node sets OpenSSL's verify-error names on the
+ * error object and those are stable API — with a message fallback because
+ * imapflow sometimes re-wraps the socket error. Deliberately NOT matching
+ * broad strings like 'certificate' alone: an IMAP server can say
+ * "certificate" in an auth banner, and misclassifying an auth failure as a
+ * TLS one would point the operator at exactly the wrong knob.
+ */
+export function isCertificateError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const code = (error as { code?: unknown }).code;
+  if (
+    typeof code === 'string' &&
+    [
+      'DEPTH_ZERO_SELF_SIGNED_CERT',
+      'SELF_SIGNED_CERT_IN_CHAIN',
+      'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+      'UNABLE_TO_GET_ISSUER_CERT',
+      'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+      'CERT_HAS_EXPIRED',
+      'ERR_TLS_CERT_ALTNAME_INVALID',
+    ].includes(code)
+  ) {
+    return true;
+  }
+  const message = error.message.toLowerCase();
+  return (
+    message.includes('self-signed certificate') ||
+    message.includes('self signed certificate') ||
+    message.includes('unable to verify the first certificate') ||
+    message.includes('certificate has expired')
   );
 }

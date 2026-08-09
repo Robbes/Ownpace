@@ -111,7 +111,9 @@ const DEMO_TENANTS: readonly DemoTenant[] = [
     domains: ['email'],
     source: {
       kind: 'imap',
-      config: { type: 'imap-oauth2', host: STALWART_MAIL.host, port: STALWART_MAIL.imapsPort, user: 'source@dev.local' },
+      // tlsVerify:false because the dev Stalwart's certificate is self-signed
+      // -- a demo opting out in writing, now that verification defaults ON.
+      config: { type: 'imap-oauth2', host: STALWART_MAIL.host, port: STALWART_MAIL.imapsPort, user: 'source@dev.local', tlsVerify: false },
       credentials: { password: 'source_password' },
     },
     target: {

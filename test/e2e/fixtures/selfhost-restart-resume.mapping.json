@@ -1,19 +1,29 @@
 {
   "tenantId": "00000000-0000-4000-8000-000000000001",
   "mappingId": "11111111-1111-4111-8111-111111111111",
-  "schedule": { "cron": "* * * * *" },
+  "schedule": {
+    "cron": "* * * * *"
+  },
+  "_note_tlsVerify": "source.tlsVerify:false because the e2e Stalwart's certificate is self-signed. Verification defaults ON since 2026-08-09 (the connector used to skip it for everyone); a fixture that relied on the ambient skip must now say so, exactly like a real mapping.",
   "source": {
     "type": "imap-oauth2",
     "host": "host.docker.internal",
     "port": 993,
     "user": "source@dev.local",
-    "auth": { "kind": "login", "passwordFromEnv": "SOURCE_IMAP_PASSWORD" }
+    "auth": {
+      "kind": "login",
+      "passwordFromEnv": "SOURCE_IMAP_PASSWORD"
+    },
+    "tlsVerify": false
   },
   "target": {
     "type": "jmap",
     "baseUrl": "http://host.docker.internal:18080",
     "user": "target@dev.local",
-    "auth": { "kind": "basic", "passwordFromEnv": "TARGET_JMAP_PASSWORD" }
+    "auth": {
+      "kind": "basic",
+      "passwordFromEnv": "TARGET_JMAP_PASSWORD"
+    }
   },
   "domains": {
     "mail": {
@@ -23,13 +33,20 @@
         "host": "host.docker.internal",
         "port": 993,
         "user": "source@dev.local",
-        "auth": { "kind": "login", "passwordFromEnv": "SOURCE_IMAP_PASSWORD" }
+        "auth": {
+          "kind": "login",
+          "passwordFromEnv": "SOURCE_IMAP_PASSWORD"
+        },
+        "tlsVerify": false
       },
       "target": {
         "type": "jmap",
         "baseUrl": "http://host.docker.internal:18080",
         "user": "target@dev.local",
-        "auth": { "kind": "basic", "passwordFromEnv": "TARGET_JMAP_PASSWORD" }
+        "auth": {
+          "kind": "basic",
+          "passwordFromEnv": "TARGET_JMAP_PASSWORD"
+        }
       }
     },
     "calendar": {
@@ -38,13 +55,19 @@
         "type": "caldav",
         "url": "http://host.docker.internal:8082/remote.php/dav",
         "user": "e2e-source",
-        "auth": { "kind": "login", "passwordFromEnv": "SOURCE_DAV_PASSWORD" }
+        "auth": {
+          "kind": "login",
+          "passwordFromEnv": "SOURCE_DAV_PASSWORD"
+        }
       },
       "target": {
         "type": "caldav",
         "url": "http://host.docker.internal:8082/remote.php/dav",
         "user": "e2e-target",
-        "auth": { "kind": "login", "passwordFromEnv": "TARGET_DAV_PASSWORD" }
+        "auth": {
+          "kind": "login",
+          "passwordFromEnv": "TARGET_DAV_PASSWORD"
+        }
       }
     },
     "contacts": {
@@ -53,13 +76,19 @@
         "type": "carddav",
         "url": "http://host.docker.internal:8082/remote.php/dav",
         "user": "e2e-source",
-        "auth": { "kind": "login", "passwordFromEnv": "SOURCE_DAV_PASSWORD" }
+        "auth": {
+          "kind": "login",
+          "passwordFromEnv": "SOURCE_DAV_PASSWORD"
+        }
       },
       "target": {
         "type": "carddav",
         "url": "http://host.docker.internal:8082/remote.php/dav",
         "user": "e2e-target",
-        "auth": { "kind": "login", "passwordFromEnv": "TARGET_DAV_PASSWORD" }
+        "auth": {
+          "kind": "login",
+          "passwordFromEnv": "TARGET_DAV_PASSWORD"
+        }
       }
     },
     "files": {
@@ -68,13 +97,19 @@
         "type": "webdav",
         "url": "http://host.docker.internal:8082/remote.php/dav/files/e2e-source/",
         "user": "e2e-source",
-        "auth": { "kind": "login", "passwordFromEnv": "SOURCE_DAV_PASSWORD" }
+        "auth": {
+          "kind": "login",
+          "passwordFromEnv": "SOURCE_DAV_PASSWORD"
+        }
       },
       "target": {
         "type": "webdav",
         "url": "http://host.docker.internal:8082/remote.php/dav/files/e2e-target/",
         "user": "e2e-target",
-        "auth": { "kind": "login", "passwordFromEnv": "TARGET_DAV_PASSWORD" }
+        "auth": {
+          "kind": "login",
+          "passwordFromEnv": "TARGET_DAV_PASSWORD"
+        }
       }
     }
   }

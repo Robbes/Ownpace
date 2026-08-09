@@ -45,6 +45,8 @@ let deleteSucceeds: boolean;
 /** Leave the message in place even though the server said OK. */
 let removalIsALie: boolean;
 let failNext: { count: number; error: Error } | null;
+/** Set to make connect() itself throw, e.g. a certificate refusal. */
+let connectError: Error | null = null;
 /** Make the FETCH itself fail, which is a different branch from the lock. */
 let failFetch: Error | null;
 /** What `exists` was when each mailbox was first SELECTed — see getMailboxLock. */
@@ -57,6 +59,7 @@ vi.mock('imapflow', () => {
     constructor(public readonly options: Record<string, unknown>) {}
     async connect(): Promise<void> {
       calls.push('connect');
+      if (connectError) throw connectError;
       for (const c of capabilities) this.capabilities.set(c, true);
     }
     async logout(): Promise<void> {
@@ -204,6 +207,7 @@ beforeEach(() => {
   removalIsALie = false;
   failNext = null;
   failFetch = null;
+  connectError = null;
   selectedExists = new Map();
 });
 
@@ -587,5 +591,31 @@ describe('ensureMailbox', () => {
     // no command to attach one afterwards. The old writer once called a
     // `setFlags` that existed on nothing and logged a warning about a real
     // limitation produced by a call that was never going to work.
+  });
+});
+
+// =======================================================================
+// Certificate refusal names the knob (same treatment as the source)
+// =======================================================================
+
+describe('certificate verification', () => {
+  it('has always verified by default, and now says which knob exists when it refuses', async () => {
+    connectError = Object.assign(new Error('self-signed certificate'), {
+      code: 'DEPTH_ZERO_SELF_SIGNED_CERT',
+    });
+    const err = await target().listEntries()[Symbol.asyncIterator]().next().then(
+      () => undefined,
+      (e: Error) => e,
+    );
+    expect(err).toBeDefined();
+    expect(err!.message).toContain('"tlsVerify": false');
+    // The original stays: recognising an error never replaces it (rule 9).
+    expect(err!.message).toContain('self-signed certificate');
+  });
+
+  it('leaves an ordinary refused connection alone', async () => {
+    connectError = new Error('connect ECONNREFUSED 127.0.0.1:993');
+    await expect(target().listEntries()[Symbol.asyncIterator]().next()).rejects.toThrow(/ECONNREFUSED/);
+    await expect(target().listEntries()[Symbol.asyncIterator]().next()).rejects.not.toThrow(/tlsVerify/);
   });
 });

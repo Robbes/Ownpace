@@ -125,6 +125,25 @@ describe('source.tls / target.tls', () => {
     ).toThrow(/source\.tls/);
   });
 
+  it('carries tlsVerify:false through, which is how a self-signed dev server opts out', () => {
+    // Verification itself defaults ON at the connector (2026-08-09 -- it was
+    // hardcoded OFF for everyone before that). The parser's job is only to
+    // carry the opt-out; silence stays silence so the connector owns the
+    // default.
+    const cfg = parseMappingConfig({
+      ...example,
+      source: { ...example.source, tlsVerify: false },
+    });
+    expect(cfg.source).toMatchObject({ tlsVerify: false });
+    expect(parseMappingConfig(example).source).not.toHaveProperty('tlsVerify');
+  });
+
+  it('refuses a non-boolean tlsVerify, naming the field', () => {
+    expect(() =>
+      parseMappingConfig({ ...example, source: { ...example.source, tlsVerify: 'false' } }),
+    ).toThrow(/source\.tlsVerify/);
+  });
+
   it('parses on the imap-dav target too', () => {
     const cfg = parseMappingConfig({
       ...example,
@@ -135,9 +154,10 @@ describe('source.tls / target.tls', () => {
         user: 'u@example.net',
         auth: { kind: 'login', passwordFromEnv: 'TGT' },
         tls: true,
+        tlsVerify: false,
       },
     });
-    expect(cfg.target).toMatchObject({ type: 'imap-dav', tls: true });
+    expect(cfg.target).toMatchObject({ type: 'imap-dav', tls: true, tlsVerify: false });
   });
 });
 
@@ -161,6 +181,26 @@ describe('parseMappingConfigJson', () => {
  * first real Windows install — the value I had given them by hand was copied
  * from this file, so the mistake propagated exactly as designed.
  */
+/**
+ * The e2e fixture syncs against a self-signed Stalwart, and since 2026-08-09
+ * certificate verification defaults ON. The workflow that turns the fixture
+ * into the live mapping only ADDS host/port fields, so if `tlsVerify: false`
+ * is ever dropped from the fixture the failure surfaces one lane too late --
+ * as a red nightly e2e with a TLS error deep in a sync log, instead of here.
+ */
+describe('the e2e fixture mapping', () => {
+  const fixturePath = resolve(
+    __dirname,
+    '../../../test/e2e/fixtures/selfhost-restart-resume.mapping.json',
+  );
+
+  it('parses, and opts its self-signed IMAP sources out of verification IN WRITING', () => {
+    const parsed = parseMappingConfigJson(readFileSync(fixturePath, 'utf8'));
+    expect(parsed.source).toMatchObject({ type: 'imap-oauth2', tlsVerify: false });
+    expect(parsed.domains?.mail?.source).toMatchObject({ type: 'imap-oauth2', tlsVerify: false });
+  });
+});
+
 describe('the shipped example mapping', () => {
   const examplePath = resolve(__dirname, '../../../deploy/selfhost/config/mapping.json.example');
 

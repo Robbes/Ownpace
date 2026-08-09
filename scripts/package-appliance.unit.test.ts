@@ -271,6 +271,23 @@ describe('the staged payload', () => {
     expect(grant![0]).toContain('${LOCAL_SYSTEM_SID}:R');
   });
 
+  it('install and uninstall agree, byte for byte, on the Start Menu shortcut', () => {
+    // install-task.ps1 writes it; uninstall-task.ps1 removes it. The failure
+    // mode is not either script being wrong — it is the two DISAGREEING: a
+    // rename on one side only leaves every uninstalled machine with a Start
+    // Menu entry pointing at a UI nobody serves, which is the classic
+    // uninstall leftover this pair exists to prevent. So the assertion is
+    // that one literal appears in both, not that each looks right alone.
+    const install = readFileSync(join(payload, 'scripts/install-task.ps1'), 'utf-8');
+    const uninstall = readFileSync(join(payload, 'scripts/uninstall-task.ps1'), 'utf-8');
+    const name = 'Open Migration Stack.url';
+    const menu = 'Microsoft\\Windows\\Start Menu\\Programs';
+    for (const [label, text] of [['install', install], ['uninstall', uninstall]] as const) {
+      expect(text, `${label}-task.ps1 lost the shortcut name`).toContain(name);
+      expect(text, `${label}-task.ps1 lost the Start Menu path`).toContain(menu);
+    }
+  });
+
   it('ships the migration chain byte-identical to the container image', () => {
     // Same bytes means the squash-equivalence proof still covers the appliance.
     // A payload that shipped subtly different SQL would diverge silently.

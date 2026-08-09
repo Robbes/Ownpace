@@ -77,6 +77,7 @@ import {
   extractMessageIdFromRfc822,
   type ImapDavTargetConfig,
 } from './imap-conventions';
+import { isCertificateError } from './imapflow-source';
 
 /**
  * The mail write path, on `imapflow`.
@@ -133,7 +134,25 @@ export class ImapFlowDavMailTarget implements TargetWriter, TargetReindexer, Tar
       logger: false,
       disableAutoIdle: true,
     });
-    await client.connect();
+    try {
+      await client.connect();
+    } catch (err) {
+      // Same treatment as ImapFlowSource, same reason (hard rule 9): a
+      // refused certificate must name the knob that exists for it, or it
+      // reads as a network fault. This writer has ALWAYS verified — the
+      // hint is new, the default is not.
+      if (isCertificateError(err)) {
+        throw new Error(
+          `The IMAP target at ${this.config.host}:${this.config.port} presented a ` +
+            `certificate that failed verification: ${err instanceof Error ? err.message : String(err)}. ` +
+            `If this is a dev server with a self-signed certificate, set "tlsVerify": false ` +
+            `on this target in the mapping — a deliberate, per-mapping choice. Do NOT do ` +
+            `that for a production mailbox: it hands the credentials to whoever answers.`,
+          { cause: err },
+        );
+      }
+      throw err;
+    }
     this.client = client;
   }
 

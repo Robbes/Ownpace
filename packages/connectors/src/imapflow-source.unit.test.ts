@@ -57,16 +57,22 @@ let connects: number;
 let logouts: number;
 /** Set to make the next N operations fail, e.g. to drive the auth-retry path. */
 let failNextOperations: { count: number; error: Error } | null;
+/** The options the LAST FakeImapFlow was constructed with, for TLS assertions. */
+let lastOptions: Record<string, unknown> | undefined;
+/** Set to make connect() itself throw, e.g. a certificate refusal. */
+let connectError: Error | null;
 
 vi.mock('imapflow', () => {
   class FakeImapFlow {
     mailbox: unknown = false;
     constructor(public readonly options: Record<string, unknown>) {
+      lastOptions = options;
       calls.push(`new(${String(options.host)}:${String(options.port)})`);
     }
     async connect(): Promise<void> {
       connects++;
       calls.push('connect');
+      if (connectError) throw connectError;
     }
     async logout(): Promise<void> {
       logouts++;
@@ -114,7 +120,7 @@ function maybeFail(): void {
 }
 
 // Imported AFTER the mock is declared, the way vitest hoisting requires.
-const { ImapFlowSource } = await import('./imapflow-source');
+const { ImapFlowSource, isCertificateError } = await import('./imapflow-source');
 
 function source(extra: Record<string, unknown> = {}) {
   return new ImapFlowSource({
@@ -134,6 +140,8 @@ beforeEach(() => {
   logouts = 0;
   openable = true;
   failNextOperations = null;
+  lastOptions = undefined;
+  connectError = null;
   mailboxes = [
     { path: 'INBOX', name: 'INBOX', flags: new Set(['\\HasNoChildren']) },
     { path: 'Sent', name: 'Sent', flags: new Set(['\\Sent']) },
@@ -423,5 +431,84 @@ describe('the connection', () => {
   it('passes the configured host, port and TLS through', async () => {
     await source().listFolders();
     expect(calls[0]).toBe('new(imap.test:993)');
+  });
+});
+
+// =======================================================================
+// 6. Certificate verification: on unless the mapping says otherwise
+// =======================================================================
+
+describe('certificate verification', () => {
+  /**
+   * Until 2026-08-09 the connector hardcoded `rejectUnauthorized: false` for
+   * EVERY connection — the comment beside it justified the hole as matching
+   * the 0032 parity reference's trust model, and the reference had already
+   * been deleted. A production IMAP connection carrying a customer's password
+   * or OAuth token accepted any certificate, so a machine in the middle could
+   * answer as outlook.office365.com and collect either.
+   *
+   * The dav-target already defaulted to `?? true`; these pin the source
+   * agreeing with it, and pin the opt-out being an opt-out rather than the
+   * ambient state.
+   */
+  it('verifies by default — no config, no opt-out', async () => {
+    await source().listFolders();
+    expect((lastOptions?.tls as { rejectUnauthorized?: boolean }).rejectUnauthorized).toBe(true);
+  });
+
+  it('honours an explicit rejectUnauthorized: false, which is how dev servers opt out', async () => {
+    await source({ rejectUnauthorized: false }).listFolders();
+    expect((lastOptions?.tls as { rejectUnauthorized?: boolean }).rejectUnauthorized).toBe(false);
+  });
+
+  it('names tlsVerify when the certificate is refused, keeping the original error', async () => {
+    // The rule-9 half: a verification failure against a self-signed dev box
+    // must point at the knob, or it reads as a network fault — the same
+    // misread the port-based TLS deduction produced.
+    const certErr = Object.assign(new Error('self-signed certificate'), {
+      code: 'DEPTH_ZERO_SELF_SIGNED_CERT',
+    });
+    connectError = certErr;
+    const err = await source().listFolders().then(
+      () => undefined,
+      (e: Error) => e,
+    );
+    expect(err).toBeDefined();
+    expect(err!.message).toContain('failed verification');
+    expect(err!.message).toContain('"tlsVerify": false');
+    // The original text survives inside the new message — recognising an
+    // error must never replace it (hard rule 9).
+    expect(err!.message).toContain('self-signed certificate');
+    expect((err as Error & { cause?: unknown }).cause).toBe(certErr);
+  });
+
+  it('does not dress an ordinary connect failure up as a certificate problem', async () => {
+    connectError = new Error('connect ECONNREFUSED 127.0.0.1:993');
+    await expect(source().listFolders()).rejects.toThrow(/ECONNREFUSED/);
+    // And specifically NOT the certificate wording, which would send the
+    // operator to a TLS knob for a server that simply is not there.
+    await expect(source().listFolders()).rejects.not.toThrow(/tlsVerify/);
+  });
+});
+
+describe('isCertificateError', () => {
+  it('recognises the OpenSSL verify codes', () => {
+    for (const code of ['DEPTH_ZERO_SELF_SIGNED_CERT', 'SELF_SIGNED_CERT_IN_CHAIN', 'CERT_HAS_EXPIRED']) {
+      expect(isCertificateError(Object.assign(new Error('x'), { code })), code).toBe(true);
+    }
+  });
+
+  it('recognises the message forms imapflow re-wraps', () => {
+    expect(isCertificateError(new Error('unable to verify the first certificate'))).toBe(true);
+    expect(isCertificateError(new Error('self signed certificate'))).toBe(true);
+  });
+
+  it('does NOT match auth failures or plain refusals', () => {
+    // An IMAP banner can contain the word "certificate"; matching broadly
+    // would point operators at the wrong knob. These are the two neighbours
+    // it must never absorb.
+    expect(isCertificateError(new Error('AUTHENTICATIONFAILED'))).toBe(false);
+    expect(isCertificateError(new Error('connect ECONNREFUSED'))).toBe(false);
+    expect(isCertificateError('not even an error')).toBe(false);
   });
 });
