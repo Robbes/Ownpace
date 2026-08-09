@@ -83,6 +83,11 @@ const Failures: React.FC = () => {
           count={queue.needsDecision.length}
           empty={t('failures.empty.needsDecision')}
         >
+          {/* What retry costs, said before it is pressed (0036 T4) — the
+              sentence tracks domain-sync.ts's cursor comment. */}
+          {queue.needsDecision.length > 0 && (
+            <p className="mb-2 text-xs text-gray-500">{t('failures.retryCost')}</p>
+          )}
           {queue.needsDecision.map((f) => {
             const pending = outcomes[f.naturalKeyHash]?.state === 'pending';
             return (
@@ -94,6 +99,7 @@ const Failures: React.FC = () => {
                   <>
                     <ActionButton
                       pending={pending}
+                      title={t('failures.retryCost')}
                       onClick={() =>
                         act(f.naturalKeyHash, () => retryFailure(mappingId, f.naturalKeyHash))
                       }

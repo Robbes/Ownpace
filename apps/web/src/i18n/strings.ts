@@ -256,6 +256,12 @@ const en = {
   'failures.stillTrying': 'Still trying',
   'failures.empty.retrying': 'Nothing is being retried.',
   'failures.retry': 'Try again',
+  'failures.retryCost':
+    // Sourced from domain-sync.ts's own cursor comment (~line 1158): an
+    // operator retry clears the mapping's cursors, forcing the full re-list
+    // that puts the item back in front of the loop. If the engine changes,
+    // change this sentence WITH it — the two must not disagree.
+    'Retrying clears this migration\u2019s sync cursors, so the next pass re-lists everything to reach this item again. That pass takes longer; nothing already copied is copied twice.',
   'failures.accept': 'Migrate without it',
   'failures.try.one': 'try',
   'failures.try.many': 'tries',
@@ -798,6 +804,8 @@ const nl: Record<keyof typeof en, string> = {
   'failures.stillTrying': 'Wordt nog geprobeerd',
   'failures.empty.retrying': 'Er wordt niets opnieuw geprobeerd.',
   'failures.retry': 'Probeer opnieuw',
+  'failures.retryCost':
+    'Opnieuw proberen wist de synchronisatiecursors van deze migratie, zodat de volgende ronde alles opnieuw doorloopt om dit item weer te bereiken. Die ronde duurt langer; er wordt niets dubbel gekopieerd.',
   'failures.accept': 'Migreer zonder dit item',
   'failures.try.one': 'poging',
   'failures.try.many': 'pogingen',
