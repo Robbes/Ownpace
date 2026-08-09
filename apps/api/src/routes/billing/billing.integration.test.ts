@@ -301,10 +301,10 @@ describe('Billing Route Isolation', () => {
       expect(Array.isArray(response.body.paymentMethods)).toBe(true);
     });
 
-    it('should create payment method for authenticated tenant', async () => {
+    it('should create payment method as an admin (writes are owner/admin since 0039 T1)', async () => {
       const response = await request
         .post('/api/billing/payment-methods')
-        .set('Authorization', `Bearer ${TOKEN_TENANT_A}`)
+        .set('Authorization', `Bearer ${TOKEN_ADMIN_A}`)
         .send({
           type: 'card',
           brand: 'visa',
