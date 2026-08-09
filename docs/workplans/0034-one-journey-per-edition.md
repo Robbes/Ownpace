@@ -4,11 +4,11 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T1 The appliance can reach its own per-mapping hub | ⬜ Planned | — |
-| T2 The appliance sidebar stops impersonating a login | ⬜ Planned | — |
-| T3 "Where am I" on per-mapping screens | ⬜ Planned | — |
-| T4 The cutover order is shown, not just implied | ⬜ Planned | — |
-| T5 Wrong-edition routes answer honestly | ⬜ Planned | — |
+| T1 The appliance can reach its own per-mapping hub | ✅ Done 2026-08-09 | `MappingHubLink`, applied at all four sites (Confirm card, QueueScreen heading, Verify + Finish per-mapping headings) — no edition fork, the hub route is real in both. All four pinned with href tests. This makes 0033 T5's selfhost strip clickable. |
+| T2 The appliance sidebar stops impersonating a login | ✅ Done 2026-08-09 | Selfhost: no avatar/name/email, no Sign out; language switcher stays. Managed renders the real claims with NO fallbacks (absent block > fake identity). Render tests per edition. |
+| T3 "Where am I" on per-mapping screens | ✅ Done 2026-08-09 | Header: `{screen} — {id}` with the id linking to the hub (middle-out truncation); highlight by SCREEN segment (selfhost) / `/mappings` (managed) — the corrected mechanism, in pure helpers (`layout-context.ts`) with their own tests plus Layout render tests. |
+| T4 The cutover order is shown, not just implied | ✅ Done 2026-08-09 | Hub cards numbered ("1. Deletions" … "5. Finish") + one intro sentence; Confirm's active state gets the numbered next-steps strip with links. EN/NL. Tests pin numbering, intro, and strip presence/absence by lifecycle. |
+| T5 Wrong-edition routes answer honestly | ✅ Done 2026-08-09 | Route table extracted to `AppRoutes.tsx` with ManagedOnly/SelfhostOnly gates; the full corrected lists both ways (incl. `/mappings/new` on the appliance and managed's flat operating routes). 16 route tests: wrong screen's marker ABSENT (never mounts), home present, per-mapping routes shared. |
 
 > **2026-08-09, second pass:** an adversarial fleet re-verified this plan. Every
 > load-bearing premise held (unreachable hub, fake login chrome, degrading

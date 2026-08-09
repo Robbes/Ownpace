@@ -113,13 +113,39 @@ const Confirm: React.FC = () => {
           2026-08-09 -- above a migration that had copied 1149 items. The
           sentence this screen exists to make true is only true before the
           first start, so it now follows the lifecycle. */}
-      <p className="mt-1 mb-6 text-sm text-gray-600">
+      <p className="mt-1 mb-2 text-sm text-gray-600">
         {t(
           mappings.some((m) => m.migrationStatus !== 'paused')
             ? 'confirm.introStarted'
             : 'confirm.intro',
         )}
       </p>
+
+      {/* Once something is running, say what comes next and in what order
+          (0034 T4) — the appliance nav lists these screens in cutover order,
+          but nothing ever said the list IS a sequence. Same numbered framing
+          as the hub. */}
+      {mappings.some((m) => m.migrationStatus !== 'paused') && (
+        <p className="mb-6 text-sm text-gray-600">
+          {t('confirm.nextSteps')}{' '}
+          {(
+            [
+              ['/deletions', 'nav.deletions'],
+              ['/moves', 'nav.moves'],
+              ['/failures', 'nav.failures'],
+              ['/verify', 'nav.check'],
+              ['/finish', 'nav.finish'],
+            ] as const
+          ).map(([href, key], i) => (
+            <span key={href}>
+              {i > 0 && ' → '}
+              <Link to={href} className="text-blue-700 hover:underline">
+                {i + 1}. {t(key)}
+              </Link>
+            </span>
+          ))}
+        </p>
+      )}
 
       {mappings.length === 0 && <p className="text-sm text-gray-500">{t('confirm.noMappings')}</p>}
 
