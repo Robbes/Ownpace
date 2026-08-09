@@ -397,6 +397,19 @@ const en = {
   'finish.step1.link': 'Run the check',
   'finish.step1.post': '. Reads the whole destination, so it takes minutes on a large mailbox.',
   'finish.step2.title': 'Clear the decision queues',
+  'finish.step1.passed': 'The check passed.',
+  'finish.step1.notPassed': 'The check did not pass:',
+  'finish.step1.noRun': 'No check has run yet.',
+  'finish.step1.running': 'A check is running now.',
+  'finish.step1.readFailed': 'Could not read the check status:',
+  'finish.step2.readFailed': 'Could not read a queue:',
+  'finish.step2.notSameAsClear': '— not the same as clear.',
+  'finish.step3.failedFramed':
+    'The request failed — a pass may still be running. Give it a moment, then re-check the queues above.',
+  'finish.retryButton': 'Try finishing again',
+  'finish.aftermath.title': 'What remains available',
+  'finish.aftermath.verify': 'Verification report',
+  'finish.aftermath.runs': 'Run history (on the migration page)',
   'finish.step2.reading': 'Reading…',
   'finish.step2.clear': 'Nothing is waiting on you.',
   'finish.step2.failures.one': 'could not be copied',
@@ -412,7 +425,6 @@ const en = {
   'finish.step3.finished': 'The pass has run and finished.',
   'finish.step3.queued':
     'Queued. The pass runs as a job and lands in the run history — give it a moment, then re-check the queues above.',
-  'finish.step3.failed': 'The pass request failed — nothing ran. Try again.',
   'finish.step4.title': 'Move delivery to the new system',
   'finish.step4.body':
     'Change MX/DNS and reconfigure clients so new mail arrives on the new system. This happens outside this tool, so it is the one step here nobody can check for you.',
@@ -954,6 +966,19 @@ const nl: Record<keyof typeof en, string> = {
   'finish.step1.post':
     '. Leest de volledige bestemming, dus bij een grote mailbox duurt dit minuten.',
   'finish.step2.title': 'Werk de beslissingswachtrijen weg',
+  'finish.step1.passed': 'De verificatie is geslaagd.',
+  'finish.step1.notPassed': 'De verificatie is niet geslaagd:',
+  'finish.step1.noRun': 'Er is nog geen verificatie uitgevoerd.',
+  'finish.step1.running': 'Er loopt nu een verificatie.',
+  'finish.step1.readFailed': 'De verificatiestatus kon niet worden gelezen:',
+  'finish.step2.readFailed': 'Een wachtrij kon niet worden gelezen:',
+  'finish.step2.notSameAsClear': '— niet hetzelfde als leeg.',
+  'finish.step3.failedFramed':
+    'Het verzoek is mislukt — mogelijk loopt er nog een ronde. Wacht even en controleer daarna de wachtrijen hierboven opnieuw.',
+  'finish.retryButton': 'Probeer opnieuw af te ronden',
+  'finish.aftermath.title': 'Wat beschikbaar blijft',
+  'finish.aftermath.verify': 'Verificatierapport',
+  'finish.aftermath.runs': 'Uitvoeringsgeschiedenis (op de migratiepagina)',
   'finish.step2.reading': 'Lezen…',
   'finish.step2.clear': 'Er wacht niets op u.',
   'finish.step2.failures.one': 'kon niet worden gekopieerd',
@@ -969,7 +994,6 @@ const nl: Record<keyof typeof en, string> = {
   'finish.step3.finished': 'De ronde is uitgevoerd en voltooid.',
   'finish.step3.queued':
     'In de wachtrij. De ronde draait als taak en verschijnt in de uitvoeringsgeschiedenis — geef het even, en controleer daarna de wachtrijen hierboven opnieuw.',
-  'finish.step3.failed': 'Het verzoek om een ronde is mislukt — er is niets uitgevoerd. Probeer opnieuw.',
   'finish.step4.title': 'Verplaats de bezorging naar het nieuwe systeem',
   'finish.step4.body':
     'Wijzig MX/DNS en configureer de clients opnieuw zodat nieuwe e-mail op het nieuwe systeem aankomt. Dit gebeurt buiten dit programma, dus dit is de ene stap die niemand hier voor u kan controleren.',

@@ -25,10 +25,11 @@ const {
   finishMigration,
   requestFinalPass,
   FinishRefusedError,
+  fetchVerifyReport,
 } = vi.hoisted(() => {
   class FinishRefusedError extends Error {
     constructor(
-      readonly refusal: { error: string; hint?: string },
+      readonly refusal: { error: string; hint?: string; code?: string },
       readonly httpStatus: number,
     ) {
       super(refusal.error);
@@ -40,6 +41,7 @@ const {
     fetchFailures: vi.fn(),
     fetchMoves: vi.fn(),
     fetchDeletions: vi.fn(),
+    fetchVerifyReport: vi.fn(),
     finishMigration: vi.fn(),
     requestFinalPass: vi.fn(),
     FinishRefusedError,
@@ -47,6 +49,7 @@ const {
 });
 
 vi.mock('../services/operating-service', () => ({
+  fetchVerifyReport,
   fetchStatus,
   fetchFailures,
   fetchMoves,
@@ -54,6 +57,7 @@ vi.mock('../services/operating-service', () => ({
   finishMigration,
   requestFinalPass,
   FinishRefusedError,
+  fetchVerifyReport,
 }));
 
 import Finish from './Finish';
@@ -111,6 +115,7 @@ beforeEach(() => {
   fetchFailures.mockResolvedValue(emptyQueue);
   fetchMoves.mockResolvedValue(emptyQueue);
   fetchDeletions.mockResolvedValue(emptyQueue);
+  fetchVerifyReport.mockResolvedValue({ state: 'never-run' });
 });
 
 describe('the cutover order', () => {
@@ -183,7 +188,8 @@ describe('the failure queue', () => {
       new FinishRefusedError(
         {
           error: '3 item(s) could not be migrated and are awaiting a decision',
-          hint: 'Resolve them at GET /failures, or re-send with ?force=true.',
+          hint: 'Resolve them first — retry each item, or accept it to leave it behind.',
+          code: 'unresolved_failures',
         },
         409,
       ),
@@ -296,3 +302,126 @@ describe('the mapping id goes somewhere (0034 T1)', () => {
     expect(link.getAttribute('href')).toBe('/mappings/acme-mail');
   });
 });
+
+describe('force is offered only when the refusal explained it (0038 T1)', () => {
+  it('a transport failure renders a plain error and a plain retry — NEVER force', async () => {
+    fetchStatus.mockResolvedValue(statusReport('active'));
+    finishMigration.mockRejectedValueOnce(new Error('network timeout'));
+    renderScreen();
+
+    fireEvent.click(await screen.findByLabelText(/Delivery now goes to the new system/));
+    fireEvent.click(screen.getByRole('button', { name: /Finish this migration/ }));
+
+    expect(await screen.findByText('network timeout')).toBeInTheDocument();
+    // The missing test the fleet named: clicking force after a timeout would
+    // retry with force=true and silently skip the informed-refusal gate.
+    expect(screen.queryByText(/Finish anyway/)).not.toBeInTheDocument();
+    // A plain retry, force=false.
+    finishMigration.mockResolvedValue({
+      status: 'ok',
+      action: 'finish',
+      mappingId: 'acme-mail',
+      effect: 'The migration is finished.',
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Try finishing again/ }));
+    await waitFor(() => expect(finishMigration).toHaveBeenLastCalledWith('acme-mail', false));
+  });
+
+  it('the paused refusal renders its hint WITHOUT a force button — force cannot start a migration', async () => {
+    fetchStatus.mockResolvedValue(statusReport('active'));
+    finishMigration.mockRejectedValueOnce(
+      new FinishRefusedError(
+        {
+          error: "Cannot finish a migration that was never started (it is 'paused')",
+          hint: 'Start it first — or remove the migration if it should not run at all.',
+          code: 'paused',
+        },
+        409,
+      ),
+    );
+    renderScreen();
+
+    fireEvent.click(await screen.findByLabelText(/Delivery now goes to the new system/));
+    fireEvent.click(screen.getByRole('button', { name: /Finish this migration/ }));
+
+    expect(
+      await screen.findByText(/Cannot finish a migration that was never started/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Start it first/)).toBeInTheDocument();
+    expect(screen.queryByText(/Finish anyway/)).not.toBeInTheDocument();
+  });
+});
+
+describe('a done mapping keeps its aftermath (0038 T2)', () => {
+  it('shows the handover and the take-away links on a done mapping', async () => {
+    fetchStatus.mockResolvedValue(statusReport('done'));
+    renderScreen();
+
+    expect(await screen.findByText('What remains available')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Verification report' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /Run history/ }).getAttribute('href'),
+    ).toBe('/mappings/acme-mail');
+  });
+
+  it('step 3 failure keeps the server message and stops claiming nothing ran', async () => {
+    fetchStatus.mockResolvedValue(statusReport('active'));
+    requestFinalPass.mockRejectedValue(new Error('upstream timeout after 30s'));
+    renderScreen();
+
+    fireEvent.click(await screen.findByRole('button', { name: /Run a pass now/ }));
+
+    expect(await screen.findByText(/a pass may still be running/)).toBeInTheDocument();
+    expect(screen.getByText('upstream timeout after 30s')).toBeInTheDocument();
+    expect(screen.queryByText(/nothing ran/)).not.toBeInTheDocument();
+  });
+});
+
+describe('the checklist checks what it claims to check (0038 T3)', () => {
+  it('step 1 renders PASSED from a done report that can proceed', async () => {
+    fetchStatus.mockResolvedValue(statusReport('active'));
+    fetchVerifyReport.mockResolvedValue({
+      state: 'done',
+      startedAt: '2026-08-09T10:00:00Z',
+      finishedAt: '2026-08-09T10:05:00Z',
+      report: { 'acme-mail': { overallStatus: 'PASS', canProceedToCutover: true } },
+    });
+    renderScreen();
+
+    expect(await screen.findByText('The check passed.')).toBeInTheDocument();
+  });
+
+  it('step 1 renders the failing status VERBATIM from a not-ready report', async () => {
+    fetchStatus.mockResolvedValue(statusReport('active'));
+    fetchVerifyReport.mockResolvedValue({
+      state: 'done',
+      startedAt: '2026-08-09T10:00:00Z',
+      finishedAt: '2026-08-09T10:05:00Z',
+      report: { 'acme-mail': { overallStatus: 'FAIL', canProceedToCutover: false } },
+    });
+    renderScreen();
+
+    expect(await screen.findByText(/The check did not pass:/)).toBeInTheDocument();
+    expect(screen.getByText(/FAIL/)).toBeInTheDocument();
+  });
+
+  it('step 1 says no check has run when none has', async () => {
+    fetchStatus.mockResolvedValue(statusReport('active'));
+    renderScreen();
+
+    expect(await screen.findByText('No check has run yet.')).toBeInTheDocument();
+  });
+
+  it('a failed moves read surfaces its error — never eternal "Reading…"', async () => {
+    fetchStatus.mockResolvedValue(statusReport('active'));
+    fetchMoves.mockRejectedValue(new Error('moves table unreachable'));
+    renderScreen();
+
+    expect(await screen.findByText(/moves table unreachable/)).toBeInTheDocument();
+    expect(screen.getByText(/not the same as clear/)).toBeInTheDocument();
+    expect(screen.queryByText('Reading…')).not.toBeInTheDocument();
+    // The finish button stays usable — the server re-checks anyway.
+    expect(screen.getByRole('button', { name: /Finish this migration/ })).toBeInTheDocument();
+  });
+});
+

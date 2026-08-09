@@ -39,11 +39,12 @@ import {
   fetchFailures,
   fetchMoves,
   fetchStatus,
+  fetchVerifyReport,
   finishMigration,
   requestFinalPass,
   FinishRefusedError,
 } from '../services/operating-service';
-import { useT } from '../i18n';
+import { useT, useFormatters } from '../i18n';
 import MappingHubLink from '../components/MappingHubLink';
 import PermissionsHandover from '../components/finish/PermissionsHandover';
 import type { StringKey } from '../i18n';
@@ -51,9 +52,15 @@ import type { StringKey } from '../i18n';
 type Outcome =
   | { readonly state: 'pending' }
   | { readonly state: 'done'; readonly result: FinishAccepted }
-  | { readonly state: 'blocked'; readonly error: string; readonly hint?: string };
+  /** The SERVER refused and said why; force renders only when the refusal is
+   *  one force can satisfy (0038 T1). */
+  | { readonly state: 'refused'; readonly error: string; readonly hint?: string; readonly forceable: boolean }
+  /** Transport/unknown failure — a plain error and a plain retry, never force:
+   *  clicking force after a timeout could silently skip the one gate the
+   *  refusal design exists to make informed. */
+  | { readonly state: 'failed'; readonly error: string };
 
-type PassState = 'running' | 'finished' | 'queued' | 'failed';
+type PassState = 'running' | 'finished' | 'queued' | { readonly failed: string };
 
 const LIFECYCLE_NOTE_KEY: Record<MappingLifecycle, StringKey> = {
   paused: 'finish.note.paused',
@@ -98,6 +105,7 @@ interface FinishRow {
 const Finish: React.FC = () => {
   const queryClient = useQueryClient();
   const t = useT();
+  const { dateTime } = useFormatters();
   const { mappingId: routeMappingId } = useParams<{ mappingId: string }>();
   const [outcomes, setOutcomes] = React.useState<Record<string, Outcome>>({});
   const [deliveryMoved, setDeliveryMoved] = React.useState<Record<string, boolean>>({});
@@ -127,6 +135,14 @@ const Finish: React.FC = () => {
     queryKey: ['deletions', routeMappingId],
     queryFn: () => fetchDeletions(routeMappingId),
   });
+  // Step 1's claim, finally checked (0038 T3): the report endpoint is a
+  // documented safe status read — it starts nothing. Both editions serve it.
+  const verifyOutcome = useQuery({
+    queryKey: ['verify-report', routeMappingId],
+    queryFn: () => fetchVerifyReport(routeMappingId),
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  });
 
   const finish = (mappingId: string, force: boolean) => {
     setOutcomes((o) => ({ ...o, [mappingId]: { state: 'pending' } }));
@@ -140,9 +156,14 @@ const Finish: React.FC = () => {
           setOutcomes((o) => ({
             ...o,
             [mappingId]: {
-              state: 'blocked',
+              state: 'refused',
               error: err.refusal.error,
               ...(err.refusal.hint ? { hint: err.refusal.hint } : {}),
+              // The stable discriminant, not sentence-matching: only the
+              // unresolved-failures refusal is one force can satisfy. The
+              // paused refusal gets no force button — force cannot start a
+              // migration, so offering it would lie about what force does.
+              forceable: err.refusal.code === 'unresolved_failures',
             },
           }));
           return;
@@ -150,7 +171,7 @@ const Finish: React.FC = () => {
         setOutcomes((o) => ({
           ...o,
           [mappingId]: {
-            state: 'blocked',
+            state: 'failed',
             error: err instanceof Error ? err.message : t('common.requestFailed'),
           },
         }));
@@ -161,7 +182,15 @@ const Finish: React.FC = () => {
     setPass((p) => ({ ...p, [mappingId]: 'running' }));
     void requestFinalPass(mappingId)
       .then((how) => setPass((p) => ({ ...p, [mappingId]: how })))
-      .catch(() => setPass((p) => ({ ...p, [mappingId]: 'failed' })))
+      .catch((err: unknown) =>
+        // Keep the server's words (0038 T2): on the appliance the request can
+        // time out while the single-flight pass keeps running, so "nothing
+        // ran" was a claim this catch could not make.
+        setPass((p) => ({
+          ...p,
+          [mappingId]: { failed: err instanceof Error ? err.message : t('common.requestFailed') },
+        })),
+      )
       .finally(() => {
         void queryClient.invalidateQueries();
       });
@@ -248,6 +277,13 @@ const Finish: React.FC = () => {
         const openMoves = moves.data?.[id]?.open.length ?? 0;
         const openDeletions = deletions.data?.[id]?.confirmed.length ?? 0;
         const queuesClear = needingDecision === 0 && openMoves === 0 && openDeletions === 0;
+        // Failed reads surface as failures, never as eternal "Reading…"
+        // (0038 T3) — a failed read shown as loading, at the moment the
+        // operator decides the queues are clear, is the masking hard rule 9
+        // forbids. The finish button stays usable: the server re-checks.
+        const queueReadErrors = [failures.error, moves.error, deletions.error].filter(
+          (e): e is Error => e != null,
+        );
         const queuesKnown =
           failures.data !== undefined && moves.data !== undefined && deletions.data !== undefined;
         const passState = pass[id];
@@ -259,6 +295,34 @@ const Finish: React.FC = () => {
               <span className="text-xs text-gray-500">{m.lifecycle}</span>
             </div>
             <p className="mt-1 text-sm text-gray-600">{t(LIFECYCLE_NOTE_KEY[m.lifecycle])}</p>
+
+            {/* The take-away documents survive the finish (0038 T2): the
+                handover names the post-cutover Monday morning as its purpose,
+                and until now it VANISHED the moment the migration reached
+                'done' — including on a reload right after success. */}
+            {(m.lifecycle === 'done' || outcome?.state === 'done') && (
+              <div className="mt-3">
+                <PermissionsHandover mappingId={id} />
+                <div className="mt-3 text-sm">
+                  <p className="font-medium text-gray-900">{t('finish.aftermath.title')}</p>
+                  <ul className="mt-1 list-disc pl-5 text-gray-600">
+                    <li>
+                      <Link to={`${linkBase}/verify`} className="text-blue-700 hover:underline">
+                        {t('finish.aftermath.verify')}
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to={`/mappings/${encodeURIComponent(id)}`}
+                        className="text-blue-700 hover:underline"
+                      >
+                        {t('finish.aftermath.runs')}
+                      </Link>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            )}
 
             {!finishable ? null : outcome?.state === 'done' ? (
               <div className="mt-3 text-sm">
@@ -291,16 +355,79 @@ const Finish: React.FC = () => {
               */}
               <PermissionsHandover mappingId={id} />
               <ol className="mt-4">
-                <Step n={1} title={t('finish.step1.title')}>
+                <Step
+                  n={1}
+                  title={t('finish.step1.title')}
+                  done={
+                    verifyOutcome.data?.state === 'done'
+                      ? (verifyOutcome.data.report[id]?.canProceedToCutover ?? undefined) === true
+                        ? true
+                        : verifyOutcome.data.report[id]
+                          ? false
+                          : undefined
+                      : undefined
+                  }
+                >
                   {t('finish.step1.pre')}{' '}
                   <Link to={`${linkBase}/verify`} className="text-blue-700 hover:underline">
                     {t('finish.step1.link')}
                   </Link>
                   {t('finish.step1.post')}
+                  {/* The verify OUTCOME, read instead of trusted (0038 T3):
+                      the header claims "checked, not taken on trust", and
+                      until now this circle stayed gray over a FAIL report. */}
+                  {verifyOutcome.error != null ? (
+                    <p className="mt-1 text-amber-800">
+                      {t('finish.step1.readFailed')}{' '}
+                      {verifyOutcome.error instanceof Error
+                        ? verifyOutcome.error.message
+                        : String(verifyOutcome.error)}
+                    </p>
+                  ) : verifyOutcome.data?.state === 'done' && verifyOutcome.data.report[id] ? (
+                    verifyOutcome.data.report[id]!.canProceedToCutover ? (
+                      <p className="mt-1 text-emerald-700">
+                        {t('finish.step1.passed')}
+                        {verifyOutcome.data.finishedAt && (
+                          <span className="text-gray-500">
+                            {' '}
+                            ({t('verify.checkedAt')} {dateTime(verifyOutcome.data.finishedAt)})
+                          </span>
+                        )}
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-amber-800">
+                        {/* The status word verbatim — a finding, not a frame. */}
+                        {t('finish.step1.notPassed')}{' '}
+                        {verifyOutcome.data.report[id]!.overallStatus}
+                        {verifyOutcome.data.finishedAt && (
+                          <span className="text-gray-500">
+                            {' '}
+                            ({t('verify.checkedAt')} {dateTime(verifyOutcome.data.finishedAt)})
+                          </span>
+                        )}
+                      </p>
+                    )
+                  ) : verifyOutcome.data?.state === 'running' ? (
+                    <p className="mt-1 text-gray-600">{t('finish.step1.running')}</p>
+                  ) : verifyOutcome.data ? (
+                    <p className="mt-1 text-gray-600">{t('finish.step1.noRun')}</p>
+                  ) : null}
                 </Step>
 
-                <Step n={2} title={t('finish.step2.title')} done={queuesKnown ? queuesClear : undefined}>
-                  {!queuesKnown ? (
+                <Step
+                  n={2}
+                  title={t('finish.step2.title')}
+                  done={queueReadErrors.length > 0 ? false : queuesKnown ? queuesClear : undefined}
+                >
+                  {queueReadErrors.length > 0 ? (
+                    <span className="text-amber-800">
+                      {queueReadErrors.map((e, i) => (
+                        <span key={i} className="block">
+                          {t('finish.step2.readFailed')} {e.message} {t('finish.step2.notSameAsClear')}
+                        </span>
+                      ))}
+                    </span>
+                  ) : !queuesKnown ? (
                     t('finish.step2.reading')
                   ) : queuesClear ? (
                     t('finish.step2.clear')
@@ -358,8 +485,11 @@ const Finish: React.FC = () => {
                   {passState === 'queued' && (
                     <p className="mt-1 text-gray-600">{t('finish.step3.queued')}</p>
                   )}
-                  {passState === 'failed' && (
-                    <p className="mt-1 text-amber-800">{t('finish.step3.failed')}</p>
+                  {typeof passState === 'object' && (
+                    <p className="mt-1 text-amber-800">
+                      {t('finish.step3.failedFramed')}{' '}
+                      <span className="font-mono text-xs">{passState.failed}</span>
+                    </p>
                   )}
                 </Step>
 
@@ -394,7 +524,7 @@ const Finish: React.FC = () => {
                     {t('finish.step5.nothingChanges.post')}
                   </p>
 
-                  {outcome?.state === 'blocked' ? (
+                  {outcome?.state === 'refused' ? (
                     <div>
                       <p className="flex items-start gap-2 text-amber-800">
                         <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -402,19 +532,30 @@ const Finish: React.FC = () => {
                       </p>
                       {outcome.hint && <p className="mt-1 text-gray-600">{outcome.hint}</p>}
                       {/*
-                        Offered only after the refusal has said what it costs.
-                        A "force" checkbox next to the first button would let
-                        somebody tick it before they knew what it meant.
+                        Offered only after the refusal has said what it costs —
+                        and only for the refusal force can SATISFY (0038 T1).
+                        The paused refusal renders its hint without this
+                        button: force cannot start a migration. A transport
+                        failure never reaches this branch at all.
                       */}
-                      <button
-                        onClick={() => finish(id, true)}
-                        className="mt-2 inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded border border-amber-600 text-amber-800 hover:bg-amber-50"
-                      >
-                        <Flag className="w-3 h-3" />
-                        {t('finish.forceButton')}
-                      </button>
+                      {outcome.forceable && (
+                        <button
+                          onClick={() => finish(id, true)}
+                          className="mt-2 inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded border border-amber-600 text-amber-800 hover:bg-amber-50"
+                        >
+                          <Flag className="w-3 h-3" />
+                          {t('finish.forceButton')}
+                        </button>
+                      )}
                     </div>
                   ) : (
+                    <>
+                    {outcome?.state === 'failed' && (
+                      <p className="mb-2 flex items-start gap-2 text-red-800">
+                        <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        {outcome.error}
+                      </p>
+                    )}
                     <button
                       onClick={() => finish(id, false)}
                       disabled={!deliveryMoved[id] || outcome?.state === 'pending'}
@@ -426,8 +567,9 @@ const Finish: React.FC = () => {
                       ) : (
                         <Flag className="w-4 h-4" />
                       )}
-                      {t('finish.button')}
+                      {outcome?.state === 'failed' ? t('finish.retryButton') : t('finish.button')}
                     </button>
+                    </>
                   )}
                 </Step>
               </ol>
