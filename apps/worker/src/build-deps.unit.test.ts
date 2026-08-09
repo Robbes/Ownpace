@@ -230,3 +230,67 @@ describe('buildDeps IMAP→Graph fallback wiring', () => {
     }
   });
 });
+
+describe('IMAP TLS is configured, not deduced from the port', () => {
+  /**
+   * Until 2026-08-09 this was `tls: sourceConfig.port === 993` — a literal port
+   * comparison, repeated in four places across both editions. A dev Stalwart
+   * published on 1993 therefore got a CLEARTEXT socket opened against a TLS
+   * listener, and the resulting failure reads like a network fault rather than
+   * a configuration one.
+   *
+   * The default is now `true` and the port is not consulted. That asymmetry is
+   * the point: defaulting to TLS and being wrong costs a connection error in
+   * front of whoever just wrote the mapping, while defaulting to cleartext and
+   * being wrong puts a mailbox password on the wire. Only one of those can be
+   * fixed by reading the error.
+   */
+  function sourceOn(port: number, tls?: boolean): MappingConfig {
+    const base = configWith({ kind: 'login', passwordFromEnv: 'SRC_PASSWORD' });
+    return {
+      ...base,
+      source: {
+        type: 'imap-oauth2',
+        host: 'stalwart',
+        port,
+        user: 'source@dev.local',
+        auth: { kind: 'login', passwordFromEnv: 'SRC_PASSWORD' },
+        ...(tls === undefined ? {} : { tls }),
+      },
+    };
+  }
+
+  async function tlsOf(config: MappingConfig): Promise<boolean | undefined> {
+    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
+    vi.stubEnv('SRC_PASSWORD', 'pw');
+    vi.stubEnv('TGT_PASSWORD', 'pw');
+    try {
+      const deps = await buildDeps(config);
+      const tls = (deps.source as unknown as { config: { tls?: boolean } }).config.tls;
+      await deps.close();
+      return tls;
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  }
+
+  it('uses TLS on a NON-standard IMAPS port, which the port rule got wrong', async () => {
+    // The exact case: Stalwart on 1993. Under the old rule this was `false`.
+    await expect(tlsOf(sourceOn(1993))).resolves.toBe(true);
+  });
+
+  it('uses TLS on 143 as well — the port carries no meaning any more', async () => {
+    // Deliberate, and a behaviour change: a cleartext/STARTTLS mapping must now
+    // SAY so. That is the right shape for a choice not to encrypt, and it fails
+    // loudly at connect rather than quietly on the wire.
+    await expect(tlsOf(sourceOn(143))).resolves.toBe(true);
+  });
+
+  it('obeys an explicit tls:false, which is how cleartext is now requested', async () => {
+    await expect(tlsOf(sourceOn(143, false))).resolves.toBe(false);
+  });
+
+  it('still uses TLS on 993, so no existing mapping changes behaviour', async () => {
+    await expect(tlsOf(sourceOn(993))).resolves.toBe(true);
+  });
+});

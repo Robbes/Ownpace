@@ -92,6 +92,55 @@ describe('parseMappingConfig', () => {
   });
 });
 
+describe('source.tls / target.tls', () => {
+  // Added 2026-08-09. Before it, TLS was `port === 993` in four places, so an
+  // IMAPS server on any other port got a cleartext socket -- found on a dev
+  // Stalwart published on 1993. The DEFAULT lives in build-deps, not here:
+  // omitting the key must leave it absent so there is one answer to "what
+  // happens when tls is unset" rather than one per parser.
+  it('leaves tls absent when the mapping does not mention it', () => {
+    const cfg = parseMappingConfig(example);
+    expect(cfg.source).not.toHaveProperty('tls');
+  });
+
+  it('carries an explicit false through, which is how cleartext is requested', () => {
+    const cfg = parseMappingConfig({
+      ...example,
+      source: { ...example.source, port: 143, tls: false },
+    });
+    expect(cfg.source).toMatchObject({ tls: false });
+  });
+
+  it('carries an explicit true through', () => {
+    const cfg = parseMappingConfig({ ...example, source: { ...example.source, tls: true } });
+    expect(cfg.source).toMatchObject({ tls: true });
+  });
+
+  it('refuses a non-boolean, naming the field', () => {
+    // "true" the string is the mistake somebody actually makes in JSON, and
+    // coercing it would silently accept "false" as truthy -- cleartext where
+    // the operator asked for TLS, or the reverse.
+    expect(() =>
+      parseMappingConfig({ ...example, source: { ...example.source, tls: 'true' } }),
+    ).toThrow(/source\.tls/);
+  });
+
+  it('parses on the imap-dav target too', () => {
+    const cfg = parseMappingConfig({
+      ...example,
+      target: {
+        type: 'imap-dav',
+        host: 'mail.example.net',
+        port: 1993,
+        user: 'u@example.net',
+        auth: { kind: 'login', passwordFromEnv: 'TGT' },
+        tls: true,
+      },
+    });
+    expect(cfg.target).toMatchObject({ type: 'imap-dav', tls: true });
+  });
+});
+
 describe('parseMappingConfigJson', () => {
   it('parses JSON text', () => {
     expect(parseMappingConfigJson(JSON.stringify(example)).mappingId).toBe('inbox-mail');

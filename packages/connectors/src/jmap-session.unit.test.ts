@@ -127,11 +127,21 @@ describe('a rejected credential is a rejected credential', () => {
   });
 
   it('invents no interpretation for a status it does not recognise', async () => {
-    respondWith(new Response('Service Unavailable', { status: 503 }));
+    // 500, not 503. This case used 503 until 2026-08-09, when the session load
+    // became rate-limit aware: 429 and 503 are now WAITED OUT rather than
+    // reported, because a target restarting mid-migration should cost seconds
+    // and not a failed discovery pass. So 503 no longer reaches this path at
+    // all, and a test that kept using it was asserting against a status the
+    // function deliberately handles elsewhere — it would have hung for the
+    // whole retry budget and then passed for the wrong reason.
+    //
+    // The SUBJECT is unchanged and is what matters: a status with no known
+    // meaning is reported as itself, because guessing at a cause here would be
+    // the same class of mistake as the bug this file exists for, in the other
+    // direction.
+    respondWith(new Response('Internal Server Error', { status: 500 }));
     const err = await loadJmapSession(URL_UNDER_TEST, AUTH).catch((e: Error) => e as Error);
-    // 503 is reported as itself. Guessing at a cause here would be the same
-    // class of mistake as the bug above, only in the other direction.
-    expect((err as Error).message).toMatch(/returned HTTP 503/);
+    expect((err as Error).message).toMatch(/returned HTTP 500/);
     expect((err as Error).message).not.toMatch(/REFUSED|FORBIDDEN|was found/);
   });
 });

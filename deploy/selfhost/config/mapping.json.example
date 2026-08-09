@@ -4,6 +4,7 @@
   "tenantId": "00000000-0000-4000-8000-000000000001",
   "mappingId": "11111111-1111-4111-8111-111111111111",
   "schedule": { "cron": "*/15 * * * *" },
+  "_note_tls": "source.tls (and target.tls on an imap-dav target) is OPTIONAL and defaults to TRUE - implicit TLS on connect, whatever the port. Until 2026-08-09 it was deduced as port === 993, so an IMAPS server on any other port got a cleartext socket and a failure that read like a network fault. Set \"tls\": false only for a port 143 style cleartext/STARTTLS connection, and know that you are choosing it.",
   "source": {
     "type": "imap-oauth2",
     "host": "outlook.office365.com",

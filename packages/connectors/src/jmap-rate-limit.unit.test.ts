@@ -15,6 +15,8 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { JmapTargetWriter } from './jmap-target';
+import { loadJmapSession } from './jmap-session';
+import { RATE_LIMIT_MAX_WAIT_MS, RATE_LIMIT_TOTAL_BUDGET_MS } from './http-rate-limit';
 
 const CONFIG = {
   baseUrl: 'https://mail.example.com',
@@ -109,10 +111,10 @@ describe('JMAP rate limiting', () => {
     expect(delays.length).toBeGreaterThan(0);
   });
 
-  it('honours Retry-After when the server says how long to wait', async () => {
+  it('honours a Retry-After it can satisfy inside the cap', async () => {
     const delays = captureDelays();
     scriptFetch([
-      { status: 429, headers: { 'retry-after': '7' }, body: {} },
+      { status: 429, headers: { 'retry-after': '3' }, body: {} },
       { status: 200, body: OK_QUERY },
     ]);
 
@@ -120,31 +122,77 @@ describe('JMAP rate limiting', () => {
     for await (const _e of writer.listEntries()) { /* drain */ }
 
     // Exactly what the server asked for — not a guess, and not zero.
-    expect(delays).toContain(7000);
+    expect(delays).toContain(3000);
+  });
+
+  it('caps a long Retry-After and probes sooner instead of sleeping through it', async () => {
+    // THE REAL ONE, 2026-08-09. Stalwart answered a blob upload with
+    // `Retry-After: 40` while its own body said "please try again in a few
+    // seconds", and the old code slept the full forty. Twice, from concurrent
+    // uploads. The prose was the accurate half: the pass resumed fine.
+    //
+    // Retry-After is advisory (RFC 9110 §10.2.3 — how long the service EXPECTS
+    // to be unavailable), so capping it is allowed. The trade is explicit: one
+    // extra request per probe against up to 35 seconds of migration window
+    // spent asleep after the server was already ready.
+    const delays = captureDelays();
+    scriptFetch([
+      { status: 429, headers: { 'retry-after': '40' }, body: {} },
+      { status: 200, body: OK_QUERY },
+    ]);
+
+    const writer = new JmapTargetWriter(CONFIG as never);
+    for await (const _e of writer.listEntries()) { /* drain */ }
+
+    expect(delays).toContain(RATE_LIMIT_MAX_WAIT_MS);
+    expect(delays, 'slept the full 40s the server asked for').not.toContain(40_000);
   });
 
   it('backs off further each time, with jitter, when no Retry-After is sent', async () => {
     const delays = captureDelays();
-    // Never recovers: drives the loop to its cap.
-    const { calls } = scriptFetch([{ status: 429, body: {} }]);
+    // Never recovers: drives the loop until the budget is spent.
+    scriptFetch([{ status: 429, body: {} }]);
 
     const writer = new JmapTargetWriter(CONFIG as never);
     const drain = async () => {
       for await (const _e of writer.listEntries()) { /* drain */ }
     };
-    // Giving up is correct — a target refusing five times running is not
-    // merely busy, and the operator needs to hear about it (hard rule 9).
     await expect(drain()).rejects.toThrow(/429/);
 
-    // 5 attempts, so 4 waits, each roughly double the last.
-    expect(calls).toHaveLength(5);
-    expect(delays).toHaveLength(4);
-    for (let i = 1; i < delays.length; i++) {
-      expect(delays[i]!).toBeGreaterThan(delays[i - 1]!);
+    // Rising, until it flattens out at the cap.
+    const rising = delays.slice(0, 4);
+    for (let i = 1; i < rising.length; i++) {
+      expect(rising[i]!).toBeGreaterThan(rising[i - 1]!);
     }
+    expect(Math.max(...delays)).toBe(RATE_LIMIT_MAX_WAIT_MS);
     // Jitter, so concurrent workers do not all resume in the same millisecond
     // and throttle the target again.
-    expect(delays.some((d) => !Number.isInteger(d / 1000))).toBe(true);
+    expect(delays.some((d) => !Number.isInteger(d / 100))).toBe(true);
+  });
+
+  it('gives up on a budget, not on an attempt count, and reports the 429', async () => {
+    // The old rule was "five attempts", which meant total patience swung
+    // between 15 seconds (exponential backoff, no header) and 160 (Stalwart's
+    // 40s header) with nothing deliberately choosing either. What an operator
+    // cares about is how long ONE request may stall a pass, so that is what is
+    // configured — and when it is spent the 429 is reported rather than
+    // swallowed, so the item lands in the failure queue for the next pass
+    // (hard rule 9).
+    const delays = captureDelays();
+    scriptFetch([{ status: 429, body: {} }]);
+
+    const writer = new JmapTargetWriter(CONFIG as never);
+    const drain = async () => {
+      for await (const _e of writer.listEntries()) { /* drain */ }
+    };
+    await expect(drain()).rejects.toThrow(/429/);
+
+    const total = delays.reduce((a, b) => a + b, 0);
+    expect(total).toBeLessThanOrEqual(RATE_LIMIT_TOTAL_BUDGET_MS);
+    // And it really did use the budget rather than stopping after a handful of
+    // tries — the mutation this kills is "cap the wait but keep 5 attempts",
+    // which would wait at most ~25s and give up while the server was recovering.
+    expect(total).toBeGreaterThan(RATE_LIMIT_TOTAL_BUDGET_MS * 0.9);
   });
 
   it('retries a 503 too — a target restarting should not cost items', async () => {
@@ -170,6 +218,41 @@ describe('JMAP rate limiting', () => {
     // Retrying bad credentials just delays the error by a minute.
     expect(calls).toHaveLength(1);
     expect(delays).toHaveLength(0);
+  });
+
+  it('waits out a throttled SESSION load, which discovery gave up on', async () => {
+    // 2026-08-09, on a target that was merely busy:
+    //
+    //   [discovery] could not enumerate the email destination: The JMAP session
+    //   request to http://.../.well-known/jmap returned HTTP 429
+    //
+    // Uploads rode the throttling out; discovery hit the same server one layer
+    // up and failed on the first refusal, because `loadJmapSession` called
+    // `fetch` directly. Every JMAP client here begins with this document, so
+    // one unretried GET made the whole connector fragile to a condition the
+    // rest of it already handled.
+    captureDelays();
+    const calls: string[] = [];
+    let n = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL) => {
+        calls.push(String(url));
+        const throttled = n++ === 0;
+        return {
+          ok: !throttled,
+          status: throttled ? 429 : 200,
+          json: async () => SESSION,
+          text: async () => JSON.stringify(SESSION),
+          headers: new Map(throttled ? [['retry-after', '40']] : []),
+        } as unknown as Response;
+      }),
+    );
+
+    const session = await loadJmapSession('https://mail.example.com/.well-known/jmap', 'Basic x');
+
+    expect(calls).toHaveLength(2);
+    expect(session.primaryAccounts).toEqual(SESSION.primaryAccounts);
   });
 
   it('reports the status when the error body is not JSON', async () => {

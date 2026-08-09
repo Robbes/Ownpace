@@ -458,7 +458,12 @@ function buildImapSourceFromCredentials(
   const imapConfig = {
     host: sourceConfig.host,
     port: sourceConfig.port,
-    tls: sourceConfig.port === 993,
+    // TLS unless the mapping says otherwise. Was `port === 993` -- a literal
+    // port comparison, so an IMAPS server on any other port got a CLEARTEXT
+    // socket. See ImapTlsSetting in packages/shared/src/config.ts for why the
+    // default is true rather than a guess: being wrong this way costs a
+    // connection error, being wrong the other way puts a password on the wire.
+    tls: sourceConfig.tls ?? true,
     auth: {
       user: sourceConfig.user,
       accessToken,
@@ -531,7 +536,8 @@ function buildTargetWriterFromCredentials(
       const imapConfig: ImapDavTargetConfig = {
         host: targetConfig.host,
         port: targetConfig.port,
-        tls: targetConfig.port === 993,
+        // Same rule as the source above; see ImapTlsSetting.
+        tls: targetConfig.tls ?? true,
         username: targetConfig.user,
         password,
       };
