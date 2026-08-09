@@ -76,11 +76,11 @@ the rest of the product is disciplined about (hard rule 9):
 - **Hard rule 9:** every fix here is in its service — a failed read must say
   so; this plan removes maskings, it must not add softer ones.
 - **The prose boundary (ADR-0024):** server refusal text renders verbatim.
-- These screens' body prose is EN-only **recorded debt** (0024 T5, owner-parked,
-  refined by workplan 0035 T4 — if the owner answers "fold", this guardrail is
-  amended and localization lands with these edits). Until then this plan does
-  not localize them — it must simply not ADD new hardcoded strings; new
-  strings go through the dictionary.
+- ~~These screens' body prose is EN-only recorded debt~~ **CLOSED 2026-08-09:
+  0035 T2/T4 executed the fold (this plan had already shipped, so the
+  localization landed in 0035's sweep rather than riding these edits) —
+  Dashboard/Mappings/Billing are fully bilingual and the i18n guard test
+  carries no allowlist entry for them.**
 
 ## Tasks
 

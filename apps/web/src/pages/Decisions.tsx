@@ -119,7 +119,7 @@ const Decisions: React.FC = () => {
     } catch (err) {
       setRowErrors((errors) => ({
         ...errors,
-        [decision.id]: errorText(err, t('decisions.requestFailed')),
+        [decision.id]: errorText(err, t('common.requestFailed')),
       }));
     } finally {
       setBusyRow(null);

@@ -122,7 +122,7 @@ const Tenants: React.FC = () => {
       setInviteRole('member');
       await refetchMembers();
     } catch (err) {
-      setInviteError(errorText(err, t('tenants.requestFailed')));
+      setInviteError(errorText(err, t('common.requestFailed')));
     } finally {
       setInviteBusy(false);
     }
@@ -148,7 +148,7 @@ const Tenants: React.FC = () => {
     } catch (err) {
       setRowErrors((errors) => ({
         ...errors,
-        [member.id]: errorText(err, t('tenants.requestFailed')),
+        [member.id]: errorText(err, t('common.requestFailed')),
       }));
     } finally {
       setBusyRow(null);
@@ -171,7 +171,7 @@ const Tenants: React.FC = () => {
     } catch (err) {
       setRowErrors((errors) => ({
         ...errors,
-        [member.id]: errorText(err, t('tenants.requestFailed')),
+        [member.id]: errorText(err, t('common.requestFailed')),
       }));
     } finally {
       setBusyRow(null);
@@ -185,7 +185,7 @@ const Tenants: React.FC = () => {
       setRenaming(false);
       await queryClient.invalidateQueries({ queryKey: ['tenant', tenantId] });
     } catch (err) {
-      setRenameError(errorText(err, t('tenants.requestFailed')));
+      setRenameError(errorText(err, t('common.requestFailed')));
     }
   };
 
@@ -219,7 +219,7 @@ const Tenants: React.FC = () => {
       // Back to what is actually stored: leaving the new value on screen
       // after a failed save would show a setting nobody has.
       setNotifyDraft(null);
-      setNotifyError(errorText(err, t('tenants.requestFailed')));
+      setNotifyError(errorText(err, t('common.requestFailed')));
     } finally {
       setNotifyBusy(false);
     }

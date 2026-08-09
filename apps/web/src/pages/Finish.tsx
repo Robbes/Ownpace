@@ -151,7 +151,7 @@ const Finish: React.FC = () => {
           ...o,
           [mappingId]: {
             state: 'blocked',
-            error: err instanceof Error ? err.message : t('deletions.requestFailed'),
+            error: err instanceof Error ? err.message : t('common.requestFailed'),
           },
         }));
       });

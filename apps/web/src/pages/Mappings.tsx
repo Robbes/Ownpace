@@ -64,17 +64,15 @@ const Mappings: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Mappings</h1>
-          <p className="text-gray-500 mt-1">
-            Manage your data migration configurations
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('mappings.title')}</h1>
+          <p className="text-gray-500 mt-1">{t('mappings.subtitle')}</p>
         </div>
         <Link
           to="/mappings/new"
           className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
           <Plus className="w-5 h-5 mr-2" />
-          New Mapping
+          {t('mappings.new')}
         </Link>
       </div>
 
@@ -95,16 +93,14 @@ const Mappings: React.FC = () => {
       ) : mappings?.length === 0 ? (
         <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
           <FolderGit2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No mappings yet</h3>
-          <p className="text-gray-500 mb-6">
-            Create your first migration to start syncing data between systems
-          </p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">{t('mappings.empty.title')}</h3>
+          <p className="text-gray-500 mb-6">{t('mappings.empty.hint')}</p>
           <Link
             to="/mappings/new"
             className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             <Plus className="w-5 h-5 mr-2" />
-            Create Your First Mapping
+            {t('mappings.empty.cta')}
           </Link>
         </div>
       ) : (
@@ -113,19 +109,19 @@ const Mappings: React.FC = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Name
+                  {t('mappings.th.name')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Source → Target
+                  {t('mappings.th.sourceTarget')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
+                  {t('mappings.th.status')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Last Sync
+                  {t('mappings.th.lastSync')}
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
+                  {t('mappings.th.actions')}
                 </th>
               </tr>
             </thead>
@@ -171,7 +167,7 @@ const Mappings: React.FC = () => {
                           onClick={() => handleSync(mapping.id, 'delta')}
                           disabled={syncOutcomes[mapping.id]?.state === 'pending'}
                           className="text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="Trigger sync"
+                          title={t('mappings.action.triggerSync')}
                         >
                           <Play className="w-5 h-5" />
                         </button>
@@ -180,7 +176,7 @@ const Mappings: React.FC = () => {
                           onClick={() => handleSync(mapping.id, 'full')}
                           disabled={syncOutcomes[mapping.id]?.state === 'pending'}
                           className="text-green-600 hover:text-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="Start sync"
+                          title={t('mappings.action.startSync')}
                         >
                           <Play className="w-5 h-5" />
                         </button>
@@ -193,7 +189,7 @@ const Mappings: React.FC = () => {
                       </Link>
                       <button
                         className="text-red-600 hover:text-red-800"
-                        title="Delete"
+                        title={t('mappings.action.delete')}
                       >
                         <Trash2 className="w-5 h-5" />
                       </button>

@@ -4,11 +4,11 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T1 One state vocabulary, one StateChip | ⬜ Planned | — |
-| T2 The i18n completion sweep (the unrecorded screens) | ⬜ Planned | — |
-| T3 One glossary: mapping/migration, and the NL feature names | ⬜ Planned | — |
-| T4 The 0024-T5 question, answered (owner) | ⬜ Owner decision | — |
-| T5 NL copy corrections (meaning drift found by the fleet) | ⬜ Planned | — |
+| T1 One state vocabulary, one StateChip | ✅ Done 2026-08-09 | `StateChip.tsx`: five entities, one word per state in both languages, prose-boundary rule in the header; four chip maps and five raw enum renders replaced; source-scan acceptance test (mutation-checked). NL pending unified on "In afwachting". |
+| T2 The i18n completion sweep (the unrecorded screens) | ✅ Done 2026-08-09 | QueueScreen scaffold, DiscoveryCounts (whole), ApplyDeletionsPanel, ScopeManifestPanel, Login, the six-step CreateMapping wizard (incl. protocol-card hints), Billing — all EN+NL; `requestFailed` triplicate consolidated to `common.requestFailed`. Guard test `hardcoded-text.unit.test.ts` scans pages/+components/ for sentence-shaped JSX text outside `t()` (annotation: `i18n-exempt`), mutation-checked against a seeded regression. |
+| T3 One glossary: mapping/migration, and the NL feature names | ✅ Done 2026-08-09 | `i18n/GLOSSARY.md` written; nav → Migrations/Migraties; NL koppeling→migratie for the managed thing; Review="Controleren en bevestigen" vs Check="Verificatie" families split; *ronde* standardized; *beslist* verbs standardized. |
+| T4 The 0024-T5 question, answered | ✅ Executed 2026-08-09 (recommended default, owner may veto by key edit) | 0033 had already shipped when the answer came due, so the fold landed in THIS plan's T2 sweep instead: Dashboard/Mappings/Billing fully bilingual, 0024 T5 closed in its status block, 0033's guardrail amended, and the guard carries NO allowlist entry for them. |
+| T5 NL copy corrections (meaning drift found by the fleet) | ✅ Done 2026-08-09 | All seven meaning-drift keys + grammar/calques applied as specified ("Kijker" kept, as the plan records); EN `moves.intro` comparator fixed; corrections pinned in `i18n.unit.test.tsx`. |
 
 > **2026-08-09, second pass:** an adversarial fleet re-verified this plan and
 > read the entire NL dictionary end-to-end. Corrections applied: raw

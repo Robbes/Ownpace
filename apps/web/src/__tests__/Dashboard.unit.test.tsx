@@ -69,7 +69,7 @@ describe('Dashboard', () => {
 
     renderDashboard();
 
-    expect(await screen.findByText('Total Mappings')).toBeInTheDocument();
+    expect(await screen.findByText('Total Migrations')).toBeInTheDocument();
     await waitFor(() => expect(listMock).toHaveBeenCalledTimes(1));
 
     // Mutation check (0033 T1 acceptance): the Done tile counts mappings in
@@ -77,7 +77,7 @@ describe('Dashboard', () => {
     // 'completed' (a word the DB CHECK forbids) makes this 2 a 0.
     const doneTile = screen.getByText('Done').closest('div')!;
     expect(doneTile.textContent).toContain('2');
-    const cutoverTile = screen.getByText('Cutover').closest('div')!;
+    const cutoverTile = screen.getByText('In cutover').closest('div')!;
     expect(cutoverTile.textContent).toContain('1');
     expect(screen.getByText('5')).toBeInTheDocument(); // total
   });

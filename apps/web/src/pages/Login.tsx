@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { LogIn } from 'lucide-react';
 import { useAuthStore } from '../stores/auth-store';
+import { useT } from '../i18n';
 
 interface TokenClaims {
   sub: string;
@@ -39,6 +40,7 @@ export function decodeTokenClaims(token: string): TokenClaims | null {
  * signature-verified server-side.
  */
 const Login: React.FC = () => {
+  const t = useT();
   const navigate = useNavigate();
   const loginToStore = useAuthStore((s) => s.login);
   const [token, setToken] = useState('');
@@ -50,7 +52,7 @@ const Login: React.FC = () => {
 
     const claims = decodeTokenClaims(token.trim());
     if (!claims) {
-      setError('That does not look like a valid access token (need sub, email, tenantId, role).');
+      setError(t('login.invalidToken'));
       return;
     }
 
@@ -77,17 +79,15 @@ const Login: React.FC = () => {
             </div>
           </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Sign in to Open Migrate
+            {t('login.title')}
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Sovereign data migration for families and SMBs
-          </p>
+          <p className="mt-2 text-center text-sm text-gray-600">{t('login.tagline')}</p>
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleLogin}>
           <div>
             <label htmlFor="token" className="block text-sm font-medium text-gray-700 mb-1">
-              Access token
+              {t('login.tokenLabel')}
             </label>
             <textarea
               id="token"
@@ -112,14 +112,14 @@ const Login: React.FC = () => {
               type="submit"
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
-              Sign in
+              {t('login.submit')}
             </button>
           </div>
 
           <div className="text-center text-sm text-gray-600">
             <p>
-              Paste the access token from the seed script
-              (<code>pnpm --filter @openmig/api seed:managed</code>) or your identity provider.
+              {t('login.help.pre')} (<code>pnpm --filter @openmig/api seed:managed</code>){' '}
+              {t('login.help.post')}
             </p>
           </div>
         </form>

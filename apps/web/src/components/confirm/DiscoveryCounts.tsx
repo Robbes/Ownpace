@@ -18,12 +18,16 @@
 
 import React from 'react';
 import type { DiscoveryDomain, DiscoveryRecord } from '@openmig/shared';
+import { useT } from '../../i18n';
+import type { StringKey } from '../../i18n';
 
-const DOMAIN_LABEL: Record<DiscoveryDomain, string> = {
-  email: 'Email',
-  calendar: 'Calendar',
-  contact: 'Contacts',
-  file: 'Files',
+// The dictionary's own domain words — the old local map silently bypassed
+// them, so the table said "Email" beside screens saying the translated word.
+const DOMAIN_KEY: Record<DiscoveryDomain, StringKey> = {
+  email: 'domain.email',
+  calendar: 'domain.calendar',
+  contact: 'domain.contact',
+  file: 'domain.file',
 };
 
 export function formatBytes(bytes?: number): string {
@@ -43,6 +47,7 @@ export const DiscoveryCounts: React.FC<{
   /** Shown instead of the table while the first pass has not landed. */
   scanning?: boolean;
 }> = ({ domains, scanning }) => {
+  const t = useT();
   // A subset of `items`: these ARE migrated. Shown because we modify them.
   const generatedId = domains.reduce((sum, d) => sum + (d.generatedIdItems ?? 0), 0);
   // Items the destination already holds under a key matching something in the
@@ -54,7 +59,7 @@ export const DiscoveryCounts: React.FC<{
   if (scanning || domains.length === 0) {
     return (
       <p className="text-sm text-gray-500" role="status">
-        Scanning your source (read-only)…
+        {t('discovery.scanning')}
       </p>
     );
   }
@@ -65,19 +70,19 @@ export const DiscoveryCounts: React.FC<{
         <table className="min-w-full text-sm">
           <thead>
             <tr className="text-left text-gray-500">
-              <th className="py-1 pr-4 font-medium">Type</th>
-              <th className="py-1 pr-4 font-medium">Collections</th>
-              <th className="py-1 pr-4 font-medium">Items</th>
-              <th className="py-1 pr-4 font-medium">Size</th>
-              <th className="py-1 pr-4 font-medium">Needs an ID</th>
-              <th className="py-1 pr-4 font-medium">Already on the destination</th>
+              <th className="py-1 pr-4 font-medium">{t('discovery.th.type')}</th>
+              <th className="py-1 pr-4 font-medium">{t('discovery.th.collections')}</th>
+              <th className="py-1 pr-4 font-medium">{t('discovery.th.items')}</th>
+              <th className="py-1 pr-4 font-medium">{t('discovery.th.size')}</th>
+              <th className="py-1 pr-4 font-medium">{t('discovery.th.needsId')}</th>
+              <th className="py-1 pr-4 font-medium">{t('discovery.th.existing')}</th>
               <th className="py-1 font-medium" />
             </tr>
           </thead>
           <tbody>
             {domains.map((d) => (
               <tr key={d.domain} className="border-t border-gray-100">
-                <td className="py-1 pr-4 font-medium text-gray-900">{DOMAIN_LABEL[d.domain]}</td>
+                <td className="py-1 pr-4 font-medium text-gray-900">{t(DOMAIN_KEY[d.domain])}</td>
                 <td className="py-1 pr-4">{d.collections}</td>
                 <td className="py-1 pr-4">{d.items}</td>
                 <td className="py-1 pr-4">{formatBytes(d.bytes)}</td>
@@ -99,7 +104,7 @@ export const DiscoveryCounts: React.FC<{
                     <span className="text-gray-400">&mdash;</span>
                   ) : d.targetColliding ? (
                     <span className="text-amber-700">
-                      {d.targetExisting} ({d.targetColliding} kept as-is)
+                      {d.targetExisting} ({d.targetColliding} {t('discovery.keptAsIs')})
                     </span>
                   ) : (
                     <span>{d.targetExisting}</span>
@@ -115,20 +120,19 @@ export const DiscoveryCounts: React.FC<{
 
       {generatedId > 0 && (
         <p className="mt-2 text-sm text-amber-700" role="note">
-          {generatedId} message{generatedId === 1 ? '' : 's'} arrived without a Message-ID, which is
-          what we use to copy each message exactly once. We will generate one and add it to{' '}
-          <strong>the copy on your new server</strong> — the original on your old server is not
-          changed. These messages <strong>are</strong> included in the counts above and will be
-          migrated.
+          {generatedId}{' '}
+          {t(generatedId === 1 ? 'discovery.generatedId.pre.one' : 'discovery.generatedId.pre.many')}{' '}
+          <strong>{t('discovery.generatedId.strong')}</strong>{' '}
+          {t('discovery.generatedId.post')}
         </p>
       )}
 
       {colliding > 0 && (
         <p className="mt-2 text-sm text-amber-700" role="note">
-          {colliding} item{colliding === 1 ? '' : 's'} already on your destination match
-          {colliding === 1 ? 'es' : ''} something in your source. We will{' '}
-          <strong>keep the destination&rsquo;s copy</strong> and not overwrite it. Anything else
-          already there is left untouched.
+          {colliding}{' '}
+          {t(colliding === 1 ? 'discovery.colliding.pre.one' : 'discovery.colliding.pre.many')}{' '}
+          <strong>{t('discovery.colliding.strong')}</strong>{' '}
+          {t('discovery.colliding.post')}
         </p>
       )}
     </div>

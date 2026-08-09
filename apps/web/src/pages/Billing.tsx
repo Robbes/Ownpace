@@ -11,8 +11,8 @@
  * hardcoded its empty state without ever performing the read, and the two
  * buttons on the screen did nothing at all.
  *
- * Body prose is EN-only recorded debt (0024 T5 / 0035 T2); everything NEW
- * goes through the dictionary.
+ * Fully bilingual since 0035 T2/T4 (the 0024-T5 fold executed) — every
+ * sentence goes through the dictionary.
  */
 import React from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -92,17 +92,15 @@ const Billing: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Billing</h1>
-        <p className="text-gray-500 mt-1">
-          Manage your subscription, usage, and payments
-        </p>
+        <h1 className="text-2xl font-bold text-gray-900">{t('billing.title')}</h1>
+        <p className="text-gray-500 mt-1">{t('billing.subtitle')}</p>
         {!canManage && <p className="text-sm text-gray-500 mt-1">{t('billing.readOnly')}</p>}
       </div>
 
       {/* Current Usage */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Current Usage</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{t('billing.currentUsage')}</h2>
           {usage && (
             // WHICH month, and how fresh — the served period and lastUpdated
             // were discarded before (0039 T2; 0036's as-of species).
@@ -126,7 +124,7 @@ const Billing: React.FC = () => {
                 <div className="flex items-center">
                   <TrendingUp className="w-5 h-5 text-blue-600 mr-2" />
                   <div>
-                    <p className="text-sm text-gray-600">Storage</p>
+                    <p className="text-sm text-gray-600">{t('billing.storage')}</p>
                     <p className="text-lg font-semibold text-gray-900">
                       {usage.usage.storageUsedGB.toFixed(1)} GB
                     </p>
@@ -138,7 +136,7 @@ const Billing: React.FC = () => {
                 <div className="flex items-center">
                   <DollarSign className="w-5 h-5 text-green-600 mr-2" />
                   <div>
-                    <p className="text-sm text-gray-600">Data Transfer</p>
+                    <p className="text-sm text-gray-600">{t('billing.dataTransfer')}</p>
                     <p className="text-lg font-semibold text-gray-900">
                       {usage.usage.egressGB.toFixed(1)} GB
                     </p>
@@ -150,9 +148,9 @@ const Billing: React.FC = () => {
                 <div className="flex items-center">
                   <CreditCard className="w-5 h-5 text-purple-600 mr-2" />
                   <div>
-                    <p className="text-sm text-gray-600">Compute Time</p>
+                    <p className="text-sm text-gray-600">{t('billing.computeTime')}</p>
                     <p className="text-lg font-semibold text-gray-900">
-                      {usage.usage.computeHours.toFixed(1)} hours
+                      {usage.usage.computeHours.toFixed(1)} {t('billing.hours')}
                     </p>
                   </div>
                 </div>
@@ -165,7 +163,7 @@ const Billing: React.FC = () => {
                     {/* Labeled what the metering actually writes here
                         (apiCallCount) — "Syncs" promised a count nothing
                         records (0039 T2). */}
-                    <p className="text-sm text-gray-600">API calls</p>
+                    <p className="text-sm text-gray-600">{t('billing.apiCalls')}</p>
                     <p className="text-lg font-semibold text-gray-900">
                       {usage.usage.syncCount}
                     </p>
@@ -179,52 +177,52 @@ const Billing: React.FC = () => {
                 the whole subtotal and the arithmetic on screen was wrong
                 by roughly 2x. Amounts via the locale currency formatter. */}
             <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-              <h3 className="font-medium text-gray-900 mb-3">Cost Breakdown</h3>
+              <h3 className="font-medium text-gray-900 mb-3">{t('billing.costBreakdown')}</h3>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Base Fee</span>
+                  <span className="text-gray-600">{t('billing.baseFee')}</span>
                   <span className="font-medium">{currency(usage.currentCost.baseFee, 'EUR')}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Storage Cost</span>
+                  <span className="text-gray-600">{t('billing.storageCost')}</span>
                   <span className="font-medium">{currency(usage.currentCost.storage, 'EUR')}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Data Transfer</span>
+                  <span className="text-gray-600">{t('billing.dataTransfer')}</span>
                   <span className="font-medium">{currency(usage.currentCost.egress, 'EUR')}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Compute</span>
+                  <span className="text-gray-600">{t('billing.compute')}</span>
                   <span className="font-medium">{currency(usage.currentCost.compute, 'EUR')}</span>
                 </div>
                 <div className="flex justify-between text-sm pt-2 border-t">
-                  <span className="font-medium">Subtotal</span>
+                  <span className="font-medium">{t('billing.subtotal')}</span>
                   <span className="font-medium">{currency(usage.currentCost.subtotal, 'EUR')}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   {/* The label derives from the served rate — one VAT
                       constant, said once (VAT_RATE server-side). */}
                   <span className="text-gray-600">
-                    VAT ({Math.round(usage.currentCost.taxRate * 100)}%)
+                    {t('billing.vat')} ({Math.round(usage.currentCost.taxRate * 100)}%)
                   </span>
                   <span className="font-medium">{currency(usage.currentCost.tax, 'EUR')}</span>
                 </div>
                 <div className="flex justify-between text-lg font-semibold pt-2 border-t">
-                  <span>Total</span>
+                  <span>{t('billing.total')}</span>
                   <span className="text-blue-600">{currency(usage.currentCost.total, 'EUR')}</span>
                 </div>
               </div>
             </div>
           </div>
         ) : (
-          <p className="text-gray-500">No usage data available yet</p>
+          <p className="text-gray-500">{t('billing.noUsage')}</p>
         )}
       </div>
 
       {/* Invoices */}
       <div className="bg-white rounded-lg border border-gray-200">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Invoices</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{t('billing.invoices')}</h2>
         </div>
         <div className="p-6">
           {invoicesError != null ? (
@@ -234,7 +232,7 @@ const Billing: React.FC = () => {
               footnote={t('billing.loadFailedNotEmpty')}
             />
           ) : invoices?.invoices?.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">No invoices yet</p>
+            <p className="text-gray-500 text-center py-8">{t('billing.noInvoices')}</p>
           ) : (
             <div className="space-y-4">
               {invoices?.invoices?.map((invoice: Invoice) => (
@@ -242,14 +240,14 @@ const Billing: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium text-gray-900">
-                        Invoice {invoice.id.slice(0, 8)}
+                        {t('billing.invoice')} {invoice.id.slice(0, 8)}
                       </p>
                       {/* The period the server actually serves —
                           periodStart/periodEnd. The old field ("period")
                           existed only in the client type, so this line
                           rendered "Period:" followed by nothing. */}
                       <p className="text-sm text-gray-500">
-                        Period: {invoice.periodStart} – {invoice.periodEnd}
+                        {t('billing.period')} {invoice.periodStart} – {invoice.periodEnd}
                       </p>
                     </div>
                     <div className="flex items-center space-x-4">
@@ -292,7 +290,7 @@ const Billing: React.FC = () => {
           does nothing on a billing screen reads as broken payments. */}
       <div className="bg-white rounded-lg border border-gray-200">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Payment Methods</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{t('billing.paymentMethods')}</h2>
         </div>
         <div className="p-6">
           {methodsError != null ? (
