@@ -55,6 +55,15 @@ if ($PayloadPath) {
     }
 }
 
+# The Start Menu shortcut install-task.ps1 wrote. Removed unconditionally --
+# it points at a UI that is no longer served, and a shortcut to nothing is the
+# classic uninstall leftover.
+$shortcut = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs\Open Migration Stack.url'
+if (Test-Path $shortcut) {
+    Remove-Item $shortcut
+    Write-Host "removed Start Menu shortcut '$shortcut'"
+}
+
 if ($IncludeData) {
     Write-Warning "$DataRoot holds the migration ledger: the record of what has already been"
     Write-Warning "copied. Without it, a re-run cannot tell a copied item from a new one and"

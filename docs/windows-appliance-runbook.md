@@ -31,9 +31,13 @@ prediction is shaky, this document says so rather than sounding confident.
 ## What to send back
 
 Whatever happens, the useful artefact is the same. `scripts/windows/collect-evidence.cmd`
-writes one file with the versions, the console output, the listening ports and
-the data directory layout. Run it after whichever phase you reach and send
-`windows-evidence.txt`. That is enough to act on without a back-and-forth.
+writes one file with the versions, the listening ports, the data directory
+layout, the last 60 lines of the appliance log (read as UTF-8, so no mojibake),
+a `GET /status` snapshot, and the ACL — never the contents — of `secrets.cmd`.
+Those last three were added on 2026-08-09 because every diagnosis round that
+night needed exactly them, one extra round trip each. Run it after whichever
+phase you reach and send `windows-evidence.txt`. That is enough to act on
+without a back-and-forth.
 
 If a phase fails, **stop there and send it** — the later phases assume the
 earlier ones worked, and diagnosing phase 3 on a broken phase 1 wastes your time

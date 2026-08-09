@@ -208,6 +208,21 @@ Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
     -Principal $principal -Settings $settings `
     -Description 'Open Migration Stack appliance. Serves the operating UI on http://127.0.0.1:8080/ui and runs scheduled syncs. Starts on boot.' | Out-Null
 
+# A Start Menu entry for the operating UI (workplan 0015 T3 -- the last piece
+# of the install story that still required typing a URL). A .url file, not a
+# .lnk: the UI is a web page served by the appliance itself (ADR-0026, one
+# operating UI), a .url is plain text this script can write without COM, and
+# double-clicking it opens the default browser exactly like the shortcut a
+# real installer would create. All-users Start Menu, because the task runs as
+# a service account and the person operating it is whoever logs in.
+$startMenuDir = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs'
+$shortcut = Join-Path $startMenuDir 'Open Migration Stack.url'
+@"
+[InternetShortcut]
+URL=http://${BindHost}:${Port}/ui
+"@ | Set-Content -Path $shortcut -Encoding ascii
+Write-Host "wrote Start Menu shortcut '$shortcut'"
+
 Start-ScheduledTask -TaskName $TaskName
 Write-Host ''
 Write-Host "registered and started '$TaskName'"
