@@ -180,7 +180,7 @@ const Verify: React.FC = () => {
   const [state, setState] = React.useState<
     | { kind: 'idle' }
     | { kind: 'running'; startedAt?: string }
-    | { kind: 'done'; report: VerifyResponse }
+    | { kind: 'done'; report: VerifyResponse; finishedAt?: string }
     | { kind: 'error'; message: string }
   >({ kind: 'idle' });
 
@@ -202,7 +202,10 @@ const Verify: React.FC = () => {
       .then((r) => {
         if (r.state === 'done') {
           stopPolling();
-          setState({ kind: 'done', report: r.report });
+          // finishedAt was served all along and discarded on the floor
+          // (0036 T1) — a report generated before a further pass read as
+          // current.
+          setState({ kind: 'done', report: r.report, finishedAt: r.finishedAt });
         } else if (r.state === 'failed') {
           stopPolling();
           setState({ kind: 'error', message: r.error });
@@ -286,6 +289,11 @@ const Verify: React.FC = () => {
         </div>
       )}
 
+      {state.kind === 'done' && state.finishedAt && (
+        <p className="mb-2 text-xs text-gray-500">
+          {t('verify.checkedAt')} {dateTime(state.finishedAt)}
+        </p>
+      )}
       {state.kind === 'done' &&
         Object.entries(state.report).map(([mappingId, r]) => (
           <Report key={mappingId} mappingId={mappingId} r={r} />

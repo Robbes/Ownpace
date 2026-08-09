@@ -27,6 +27,7 @@ import {
 import { useAuthStore } from '../stores/auth-store';
 import { useT, useFormatters } from '../i18n';
 import StateChip from '../components/StateChip';
+import AsOf from '../components/AsOf';
 import type { StringKey } from '../i18n';
 
 /** The server's message for a failed request, verbatim; dictionary fallback. */
@@ -49,6 +50,9 @@ const Decisions: React.FC = () => {
   const [presetSaved, setPresetSaved] = React.useState(false);
   const [presetDraft, setPresetDraft] = React.useState<'auto' | 'ask' | null>(null);
 
+  // No per-query staleTime: this screen inherits the app's 5-minute default,
+  // which made it the STALEST decision surface in the product — the as-of
+  // below is what makes that visible (0036 T1).
   const query = useQuery({
     queryKey: ['drift-decisions'],
     queryFn: fetchDriftDecisions,
@@ -144,7 +148,16 @@ const Decisions: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">{t('decisions.title')}</h1>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h1 className="text-2xl font-bold text-gray-900">{t('decisions.title')}</h1>
+          {query.dataUpdatedAt > 0 && (
+            <AsOf
+              timestamp={query.dataUpdatedAt}
+              onRefresh={() => void query.refetch()}
+              refreshing={query.isFetching}
+            />
+          )}
+        </div>
         <p className="text-gray-500 mt-1">{t('decisions.intro')}</p>
       </div>
 

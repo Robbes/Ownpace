@@ -395,3 +395,14 @@ describe('the mapping id goes somewhere (0034 T1)', () => {
     expect(link.getAttribute('href')).toBe('/mappings/acme-mail');
   });
 });
+
+describe('the as-of label (0036 T1)', () => {
+  it('says when the queue was read and offers a manual refresh', async () => {
+    fetchDeletions.mockResolvedValue(queue({}));
+    renderScreen();
+
+    expect(await screen.findByText(/^Updated/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Refresh/ })).toBeInTheDocument();
+  });
+});
+

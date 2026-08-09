@@ -27,6 +27,10 @@ const en = {
   'nav.signOut': 'Sign out',
   'language.label': 'Language',
   'common.requestFailed': 'The request did not complete.',
+  'asof.updated': 'Updated',
+  'asof.refresh': 'Refresh',
+  'confirm.progress.lastSynced': 'last synced',
+  'verify.checkedAt': 'Checked',
   'queue.loadFailed': 'Could not load this queue.',
   'queue.loadFailedNotEmpty':
     'This is not the same as an empty queue — items may be waiting that we could not read.',
@@ -577,6 +581,10 @@ const nl: Record<keyof typeof en, string> = {
   'nav.signOut': 'Uitloggen',
   'language.label': 'Taal',
   'common.requestFailed': 'Het verzoek is niet voltooid.',
+  'asof.updated': 'Bijgewerkt',
+  'asof.refresh': 'Vernieuwen',
+  'confirm.progress.lastSynced': 'laatst gesynchroniseerd',
+  'verify.checkedAt': 'Geverifieerd',
   'queue.loadFailed': 'Deze wachtrij kon niet worden geladen.',
   'queue.loadFailedNotEmpty':
     'Dit is niet hetzelfde als een lege wachtrij — er kunnen items wachten die niet gelezen konden worden.',

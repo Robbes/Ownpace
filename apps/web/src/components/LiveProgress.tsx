@@ -17,7 +17,7 @@
 
 import React from 'react';
 import type { DomainStatusReport } from '@openmig/shared';
-import { useT, useLocale } from '../i18n';
+import { useT, useLocale, useFormatters } from '../i18n';
 import StateChip from './StateChip';
 import { formatNumber } from '../i18n/datetime';
 import type { StringKey } from '../i18n';
@@ -44,6 +44,7 @@ export interface LiveProgressRow {
 const LiveProgress: React.FC<{ domains: readonly LiveProgressRow[] }> = ({ domains }) => {
   const t = useT();
   const { locale } = useLocale();
+  const { relativeToNow } = useFormatters();
   const running = domains.filter((d) => d.state !== 'skipped');
   if (running.length === 0) return null;
   return (
@@ -65,6 +66,14 @@ const LiveProgress: React.FC<{ domains: readonly LiveProgressRow[] }> = ({ domai
             {d.itemsRetrying > 0 && (
               <span className="text-amber-700">
                 {formatNumber(d.itemsRetrying, locale)} {t('confirm.progress.retrying')}
+              </span>
+            )}
+            {d.lastSyncedAt && (
+              // The as-of the payload always carried and the strip never
+              // showed (0036 T1) — both editions serve it via
+              // buildDomainStatusReports.
+              <span className="text-gray-500">
+                {t('confirm.progress.lastSynced')} {relativeToNow(d.lastSyncedAt)}
               </span>
             )}
             {d.lastError && (

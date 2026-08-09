@@ -99,6 +99,9 @@ describe('the Verify screen', () => {
     expect(screen.getByRole('link', { name: 'mapping-1' }).getAttribute('href')).toBe(
       '/mappings/mapping-1',
     );
+    // The report says WHEN it was generated (0036 T1) — finishedAt was
+    // served all along and discarded; a stale report read as current.
+    expect(screen.getByText(/^Checked/)).toBeInTheDocument();
 
     // The loop is DEAD after a terminal state: minutes later, no more reads.
     const callsAtDone = fetched.mock.calls.length;

@@ -316,3 +316,13 @@ describe('the effect of a completed action renders (0036 T2)', () => {
   });
 });
 
+describe('the as-of label (0036 T1)', () => {
+  it('states when the stalest decision surface was read', async () => {
+    fetchDecisions.mockResolvedValue({ decisions: [] });
+    renderScreen();
+
+    expect(await screen.findByText(/^Updated/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Refresh/ })).toBeInTheDocument();
+  });
+});
+
