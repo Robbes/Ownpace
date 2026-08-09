@@ -48,10 +48,10 @@ import { seedMembership } from '../../__tests__/seed-membership.js';
 const API_TENANT_A = '5f0b0000-e29b-41d4-a716-446655443101';
 const API_TENANT_B = '5f0b0000-e29b-41d4-a716-446655443102';
 
-function createTestToken(tenantId: string, role: string = 'member'): string {
+function createTestToken(tenantId: string, role: string = 'member', sub?: string): string {
   return jwt.sign(
     {
-      sub: `user-${tenantId}`,
+      sub: sub ?? `user-${tenantId}`,
       tenantId,
       role,
       email: `user@${tenantId}.test`,
@@ -62,6 +62,11 @@ function createTestToken(tenantId: string, role: string = 'member'): string {
 
 const TOKEN_TENANT_A = createTestToken(API_TENANT_A);
 const TOKEN_TENANT_B = createTestToken(API_TENANT_B);
+// Role-guard tokens (0039 T1). The role the API enforces is the MEMBERSHIP
+// row's, not the claim — see seed-membership.ts — so each token's sub gets
+// its own seeded row below.
+const TOKEN_VIEWER_A = createTestToken(API_TENANT_A, 'viewer', 'user-viewer-billing');
+const TOKEN_ADMIN_A = createTestToken(API_TENANT_A, 'admin', 'user-admin-billing');
 
 describe('Billing Route Isolation', () => {
   let superuserPool: Pool;
@@ -84,6 +89,9 @@ describe('Billing Route Isolation', () => {
     // Membership gate (0020 T1): the minted tokens must belong to their tenants.
     await seedMembership(superuserPool, API_TENANT_A, `user-${API_TENANT_A}`, 'member');
     await seedMembership(superuserPool, API_TENANT_B, `user-${API_TENANT_B}`, 'member');
+    // Role-guard rows (0039 T1) — cascade-delete with the tenant.
+    await seedMembership(superuserPool, API_TENANT_A, 'user-viewer-billing', 'viewer');
+    await seedMembership(superuserPool, API_TENANT_A, 'user-admin-billing', 'admin');
 
     request = supertest(app);
   });
@@ -317,4 +325,60 @@ describe('Billing Route Isolation', () => {
       expect(response.body.paymentMethods).toEqual([]);
     });
   });
+
+  describe('billing write guards (0039 T1)', () => {
+    // Until 2026-08-09 every billing route ran on `authenticate` alone -- a
+    // VIEWER could trigger a real Mollie payment. Writes are owner/admin now,
+    // mirroring the Tenants routes; reads stay member-visible (recorded
+    // decision: seeing money is not moving money).
+
+    it('refuses a viewer everywhere money moves', async () => {
+      const attempts = [
+        ['post', '/api/billing/invoices/generate', {}],
+        [
+          'post',
+          `/api/billing/invoices/${randomUUID()}/pay`,
+          { redirectUrl: 'https://example.test/billing' },
+        ],
+        ['post', '/api/billing/payment-methods', { type: 'card' }],
+        ['patch', `/api/billing/payment-methods/${randomUUID()}/default`, {}],
+      ] as const;
+      for (const [method, path, body] of attempts) {
+        const response = await (request as any)[method](path)
+          .set('Authorization', `Bearer ${TOKEN_VIEWER_A}`)
+          .send(body);
+        expect(response.status, `${method} ${path}`).toBe(403);
+      }
+    });
+
+    it('refuses a plain member too -- money writes are owner/admin only', async () => {
+      const response = await request
+        .post('/api/billing/invoices/generate')
+        .set('Authorization', `Bearer ${TOKEN_TENANT_A}`)
+        .send({});
+      expect(response.status).toBe(403);
+    });
+
+    it('an admin passes the guard (invoice generation)', async () => {
+      const response = await request
+        .post('/api/billing/invoices/generate')
+        .set('Authorization', `Bearer ${TOKEN_ADMIN_A}`)
+        .send({ period: '2026-06' });
+      expect(response.status).toBe(201);
+      expect(response.body.invoice).toBeDefined();
+    });
+
+    it('reads stay member-visible: a viewer can SEE usage and invoices (recorded decision)', async () => {
+      const usage = await request
+        .get('/api/billing/usage')
+        .set('Authorization', `Bearer ${TOKEN_VIEWER_A}`);
+      expect(usage.status).toBe(200);
+
+      const invoices = await request
+        .get('/api/billing/invoices')
+        .set('Authorization', `Bearer ${TOKEN_VIEWER_A}`);
+      expect(invoices.status).toBe(200);
+    });
+  });
+
 });
