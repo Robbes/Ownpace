@@ -371,6 +371,10 @@ function buildImapSource(sourceConfig: MappingConfig['source'], throttleLimiter?
     // default is true rather than a guess: being wrong this way costs a
     // connection error, being wrong the other way puts a password on the wire.
     tls: sourceConfig.tls ?? true,
+    // Certificate verification rides beside the tls flag, same default, same
+    // asymmetry argument -- see ImapTlsVerifySetting. Undefined here lets the
+    // connector's own `?? true` be the single place the default lives.
+    rejectUnauthorized: sourceConfig.tlsVerify,
     auth: {
       user: sourceConfig.user,
       accessToken: sourceConfig.auth.kind === 'xoauth2'
@@ -501,6 +505,7 @@ function buildTargetWriter(targetConfig: MappingConfig['target']): TargetWriter 
         port: targetConfig.port,
         // Same rule as the source above; see ImapTlsSetting.
         tls: targetConfig.tls ?? true,
+        rejectUnauthorized: targetConfig.tlsVerify,
         username: targetConfig.user,
         password,
       };

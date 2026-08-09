@@ -40,6 +40,15 @@ export interface ImapSourceConfig {
     accessToken?: string; // For XOAUTH2
   };
   authType?: 'LOGIN' | 'XOAUTH2';
+  /**
+   * Verify the server certificate. Unset means TRUE — same default as
+   * `ImapDavTargetConfig` below, and for the same reason: this connection
+   * carries a mailbox password or an OAuth token, and an unverified TLS
+   * socket hands both to whoever answers first. `false` is for a dev server
+   * with a self-signed certificate, and is a per-config decision, never a
+   * default.
+   */
+  rejectUnauthorized?: boolean;
 }
 
 /**

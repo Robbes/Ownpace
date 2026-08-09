@@ -125,6 +125,25 @@ describe('source.tls / target.tls', () => {
     ).toThrow(/source\.tls/);
   });
 
+  it('carries tlsVerify:false through, which is how a self-signed dev server opts out', () => {
+    // Verification itself defaults ON at the connector (2026-08-09 -- it was
+    // hardcoded OFF for everyone before that). The parser's job is only to
+    // carry the opt-out; silence stays silence so the connector owns the
+    // default.
+    const cfg = parseMappingConfig({
+      ...example,
+      source: { ...example.source, tlsVerify: false },
+    });
+    expect(cfg.source).toMatchObject({ tlsVerify: false });
+    expect(parseMappingConfig(example).source).not.toHaveProperty('tlsVerify');
+  });
+
+  it('refuses a non-boolean tlsVerify, naming the field', () => {
+    expect(() =>
+      parseMappingConfig({ ...example, source: { ...example.source, tlsVerify: 'false' } }),
+    ).toThrow(/source\.tlsVerify/);
+  });
+
   it('parses on the imap-dav target too', () => {
     const cfg = parseMappingConfig({
       ...example,
@@ -135,9 +154,10 @@ describe('source.tls / target.tls', () => {
         user: 'u@example.net',
         auth: { kind: 'login', passwordFromEnv: 'TGT' },
         tls: true,
+        tlsVerify: false,
       },
     });
-    expect(cfg.target).toMatchObject({ type: 'imap-dav', tls: true });
+    expect(cfg.target).toMatchObject({ type: 'imap-dav', tls: true, tlsVerify: false });
   });
 });
 

@@ -294,3 +294,52 @@ describe('IMAP TLS is configured, not deduced from the port', () => {
     await expect(tlsOf(sourceOn(993))).resolves.toBe(true);
   });
 });
+
+describe('IMAP certificate verification is configured, not ambient', () => {
+  /**
+   * The connector verifies by default since 2026-08-09 (it hardcoded
+   * `rejectUnauthorized: false` for everyone before that — see
+   * imapflow-source.unit.test.ts for the story). What THESE pin is the seam:
+   * the mapping's `tlsVerify` must actually arrive at the connector, because a
+   * dropped plumb here fails closed for dev servers (self-signed certs stop
+   * connecting, loudly) but would ALSO mean an operator writing
+   * `"tlsVerify": false` gets a config field that silently does nothing.
+   */
+  async function rejectUnauthorizedOf(config: MappingConfig): Promise<boolean | undefined> {
+    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
+    vi.stubEnv('SRC_PASSWORD', 'pw');
+    vi.stubEnv('TGT_PASSWORD', 'pw');
+    try {
+      const deps = await buildDeps(config);
+      const value = (deps.source as unknown as { config: { rejectUnauthorized?: boolean } })
+        .config.rejectUnauthorized;
+      await deps.close();
+      return value;
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  }
+
+  function sourceWithVerify(tlsVerify?: boolean): MappingConfig {
+    const base = configWith({ kind: 'login', passwordFromEnv: 'SRC_PASSWORD' });
+    return {
+      ...base,
+      source: {
+        type: 'imap-oauth2',
+        host: 'stalwart',
+        port: 993,
+        user: 'source@dev.local',
+        auth: { kind: 'login', passwordFromEnv: 'SRC_PASSWORD' },
+        ...(tlsVerify === undefined ? {} : { tlsVerify }),
+      },
+    };
+  }
+
+  it('leaves it undefined when the mapping is silent, so the connector default rules', async () => {
+    await expect(rejectUnauthorizedOf(sourceWithVerify())).resolves.toBeUndefined();
+  });
+
+  it('carries an explicit tlsVerify:false through to the connector', async () => {
+    await expect(rejectUnauthorizedOf(sourceWithVerify(false))).resolves.toBe(false);
+  });
+});

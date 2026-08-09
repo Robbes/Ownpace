@@ -244,6 +244,11 @@ describe('Shared Mailbox Integration (Pattern-S, B-T5)', () => {
         password: SHARED_PASSWORD,
       },
       authType: 'LOGIN',
+      // The test container's certificate is self-signed. Explicit since
+      // 2026-08-09, when the connector stopped skipping verification for
+      // everyone -- a test opting out is fine; production defaulting out was
+      // the bug.
+      rejectUnauthorized: false,
     });
     
     target = new JmapTargetWriter({

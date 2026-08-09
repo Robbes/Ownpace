@@ -282,9 +282,14 @@ Two things not to confuse:
 - `SELFHOST_BIND` in `deploy/selfhost/compose.yml` binds the *appliance's* port
   to loopback in the Docker deployment. Irrelevant here — the Windows appliance
   is not in Docker, and its equivalent is the `HOST` variable.
-- The self-signed certificate is expected. The connectors use
-  `rejectUnauthorized: false` on this dev path by design; if you see a TLS
-  rejection that is a finding, not something to work around.
+- The self-signed certificate is expected, and since 2026-08-09 the mapping
+  must SAY so: put `"tlsVerify": false` on the source (and on an `imap-dav`
+  target, if you use one). Certificate verification now defaults ON — the
+  connectors used to skip it for everyone, dev and production alike, which
+  meant a production mailbox's credentials went to whatever answered the
+  socket. A TLS rejection against the dev Stalwart therefore means the mapping
+  is missing `"tlsVerify": false`; the error names the field. A TLS rejection
+  against a REAL mail server is a finding — do not work around it.
 
 ### What "mid-sync shutdown" actually means
 
@@ -510,7 +515,10 @@ something that talks to the internet all day.
 A freshly installed task logs `loaded 0 mapping(s)` and syncs nothing, because
 `CONFIG_DIR` points at `C:\ProgramData\OpenMigrate\config` and that starts
 empty. Put a mapping there — `deploy/selfhost/config/mapping.json.example` is
-the template; any name ending `.json` is picked up, `.example` is not.
+the template; any name ending `.json` is picked up, `.example` is not. Pointing
+it at the dev Stalwart? Its certificate is self-signed, so the source needs
+`"tlsVerify": false` (see the note in the example) — without it the pass
+refuses the certificate, naming the field.
 
 **Credentials do not go in the mapping, and they do not go in the launcher.**
 A mapping names its secrets by environment variable (`passwordFromEnv`,
