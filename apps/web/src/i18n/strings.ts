@@ -344,6 +344,8 @@ const en = {
   'verify.run': 'Run the check',
   'verify.runAgain': 'Check again',
   'verify.durationHint': 'Reads the whole destination — on a large mailbox this takes minutes.',
+  'verify.applianceScope':
+    'On this appliance the check always covers every configured migration.',
   'verify.runningSince': 'Running since',
   'verify.didNotComplete': 'The check did not complete.',
   'verify.notAResult':
@@ -913,6 +915,8 @@ const nl: Record<keyof typeof en, string> = {
   'verify.runAgain': 'Verifieer opnieuw',
   'verify.durationHint':
     'Leest de volledige bestemming — bij een grote mailbox duurt dit minuten.',
+  'verify.applianceScope':
+    'Op deze appliance omvat de verificatie altijd elke geconfigureerde migratie.',
   'verify.runningSince': 'Bezig sinds',
   'verify.didNotComplete': 'De verificatie is niet voltooid.',
   'verify.notAResult':

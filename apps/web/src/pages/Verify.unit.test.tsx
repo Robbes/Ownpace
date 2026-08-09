@@ -11,8 +11,13 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
+const { editionFlag } = vi.hoisted(() => ({ editionFlag: { selfhost: false } }));
+vi.mock('../services/edition', () => ({
+  isSelfHost: () => editionFlag.selfhost,
+}));
+
 import Verify from './Verify';
 import * as service from '../services/operating-service';
 import type { VerificationResult } from '@openmig/shared';
@@ -55,6 +60,7 @@ const RESULT: VerificationResult = {
 };
 
 beforeEach(() => {
+  editionFlag.selfhost = false;
   vi.clearAllMocks();
 });
 
@@ -63,12 +69,32 @@ afterEach(() => {
 });
 
 describe('the Verify screen', () => {
-  it('touches NOTHING on mount — the scan is behind the button', () => {
+  it('STARTS nothing on mount — but reads the stored report once (0038 T6)', async () => {
+    fetched.mockResolvedValue({ state: 'never-run' });
     render(<MemoryRouter><Verify /></MemoryRouter>);
+    // The behind-a-button rationale applies to the SCAN, not to the safe
+    // status read: navigation must not cost a re-scan, so mount reads the
+    // report endpoint once (it starts nothing) and renders what is stored.
     expect(started).not.toHaveBeenCalled();
-    expect(fetched).not.toHaveBeenCalled();
+    await waitFor(() => expect(fetched).toHaveBeenCalledTimes(1));
     // And says what pressing it costs, before it is pressed.
     expect(screen.getByText(/takes minutes/i)).toBeInTheDocument();
+  });
+
+  it('renders a STORED done report on mount, labelled with its as-of', async () => {
+    fetched.mockResolvedValue({
+      state: 'done',
+      startedAt: '2026-07-31T12:00:00Z',
+      finishedAt: '2026-07-31T12:03:00Z',
+      report: { 'mapping-1': RESULT },
+    });
+    render(<MemoryRouter><Verify /></MemoryRouter>);
+
+    // The operator who ran the minutes-long check, visited Deletions, and
+    // came back used to find it GONE though both servers retain it.
+    expect(await screen.findByRole('link', { name: 'mapping-1' })).toBeInTheDocument();
+    expect(started).not.toHaveBeenCalled();
+    expect(screen.getByText(/^Checked/)).toBeInTheDocument();
   });
 
   it('starts on click, polls to done, renders the report, and STOPS polling', async () => {
@@ -218,3 +244,24 @@ describe('the Verify screen', () => {
     expect(fetched).toHaveBeenCalledWith('m-42');
   });
 });
+
+describe('the appliance-wide scope is stated (0038 T6)', () => {
+  it('selfhost says the check covers every configured migration', async () => {
+    editionFlag.selfhost = true;
+    fetched.mockResolvedValue({ state: 'never-run' });
+    render(<MemoryRouter><Verify /></MemoryRouter>);
+
+    expect(
+      await screen.findByText(/covers every configured migration/),
+    ).toBeInTheDocument();
+  });
+
+  it('managed says no such thing — its check IS per-mapping', async () => {
+    fetched.mockResolvedValue({ state: 'never-run' });
+    render(<MemoryRouter><Verify /></MemoryRouter>);
+
+    await screen.findByText(/takes minutes/i);
+    expect(screen.queryByText(/covers every configured migration/)).not.toBeInTheDocument();
+  });
+});
+
