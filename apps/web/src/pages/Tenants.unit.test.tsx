@@ -161,6 +161,9 @@ describe('changing a role', () => {
     await screen.findByText('collega@acme.nl');
 
     await userEvent.selectOptions(screen.getByLabelText('Role owner@acme.nl'), 'member');
+    // This is the owner's OWN row, so the change is armed first (0039 T5) —
+    // the server's refusal arrives after the confirm.
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm role change' }));
 
     expect(await screen.findByText('Cannot demote the last owner')).toBeInTheDocument();
     expect(memberUpdateRole).toHaveBeenCalledWith('acme', 'm-1', 'member');
@@ -309,3 +312,38 @@ describe('the email summary preference', () => {
     expect(screen.queryByLabelText('Summary')).not.toBeInTheDocument();
   });
 });
+
+describe('self-demotion is armed; other rows stay single-click (0039 T5)', () => {
+  it('lowering your OWN role takes a confirm; the first selection changes nothing', async () => {
+    memberUpdateRole.mockResolvedValue({ id: 'm-1', tenantId: 'acme', role: 'member', updatedAt: 'x' });
+    renderScreen();
+
+    await screen.findByText('collega@acme.nl');
+    await userEvent.selectOptions(screen.getByLabelText('Role owner@acme.nl'), 'member');
+
+    // Armed, not executed.
+    expect(memberUpdateRole).not.toHaveBeenCalled();
+    expect(
+      await screen.findByText(/lowers your own role/),
+    ).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm role change' }));
+    await waitFor(() =>
+      expect(memberUpdateRole).toHaveBeenCalledWith('acme', 'm-1', 'member'),
+    );
+  });
+
+  it("changing someone ELSE's role stays single-click", async () => {
+    memberUpdateRole.mockResolvedValue({ id: 'm-2', tenantId: 'acme', role: 'viewer', updatedAt: 'x' });
+    renderScreen();
+
+    await screen.findByText('collega@acme.nl');
+    await userEvent.selectOptions(screen.getByLabelText('Role collega@acme.nl'), 'viewer');
+
+    await waitFor(() =>
+      expect(memberUpdateRole).toHaveBeenCalledWith('acme', 'm-2', 'viewer'),
+    );
+    expect(screen.queryByText(/lowers your own role/)).not.toBeInTheDocument();
+  });
+});
+

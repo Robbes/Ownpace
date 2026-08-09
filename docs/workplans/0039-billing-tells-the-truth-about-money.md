@@ -4,12 +4,17 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T1 Role guards on the billing writes | ⬜ Planned | — |
-| T2 The numbers are the right numbers | ⬜ Planned | — |
-| T3 The invoice contract, reconciled | ⬜ Planned | — |
-| T4 Dead chrome: wire it or remove it | ⬜ Planned | — |
-| T5 Tenants keeps: duplicate invites, self-demotion | ⬜ Planned | — |
-| T6 A currency formatter for two locales | ⬜ Planned | — |
+| T1 Role guards on the billing writes | ✅ Done 2026-08-09 | `requireBillingWrite` (owner/admin) on pay/generate/payment-methods POST+PATCH. **Recorded decision: reads (and the estimate calculator) stay member-visible** — seeing money is not moving money; pinned by test. Integration: viewer 403 at all four writes, member 403, admin 201, viewer reads 200. |
+| T2 The numbers are the right numbers | ✅ Done 2026-08-09 | `calculateCost` serves `baseFee` + `taxRate` (one `VAT_RATE` constant); Base Fee line renders baseFee (was the entire subtotal); VAT label derives from the served rate; "Syncs"→"API calls"; period + lastUpdated render. Sum pinned with a non-trivial fixture (0036's AsOf may later restyle the as-of line). |
+| T3 The invoice contract, reconciled | ✅ Done 2026-08-09 | Client zod-parses literal route responses; DB enum (`sent`/`overdue`) with Stripe's words pinned as must-throw; periodStart/periodEnd render; money strings coerced explicitly; overdue red / sent blue. Dead surface deleted: client `recordUsage`+`estimateCost`, API-side Stripe-vocabulary types+schemas. Estimate's hardcoded 999 → `cost.baseFee`. |
+| T4 Dead chrome: wire it or remove it | ✅ Done 2026-08-09 | Pay button (draft/sent/overdue, canManage) → `createPayment` → checkout URL; failures verbatim at the row; Mollie redirectUrl → `/billing` (was a route the SPA doesn't define — blank page after paying); payment-methods card performs its read; View + Add Payment Method REMOVED rather than dormant. |
+| T5 Tenants keeps: duplicate invites, self-demotion | ✅ Done 2026-08-09 | Duplicate invite refused 409 naming the live row (invited vs active variants); exactly-one-live-row pinned. Self-demotion armed (Deletions pattern); other-row changes single-click; the last-owner test now goes through the confirm. |
+| T6 A currency formatter for two locales | ✅ Done 2026-08-09 | `useFormatters().currency(cents, code)`; en "€12.34" / nl "€ 12,34" pinned; `invoice.currency` feeds it; all hand-rolled `€{(x/100).toFixed(2)}` gone. |
+
+**Owner decisions queued below remain open** — T1's read-visibility line is
+recorded (member-visible) and reversible; "is Billing a real surface" was
+answered in the affirmative by wiring the existing server loop rather than
+adding new scope.
 
 ## Why this exists
 

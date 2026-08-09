@@ -116,8 +116,28 @@ router.post(
         });
       }
 
-      const [newMember] = await withTenantDb(tenantId, getSharedPool(), async (db) => {
-        return await db.insert(schema.tenantMember).values({
+      const result = await withTenantDb(tenantId, getSharedPool(), async (db) => {
+        // Refuse a duplicate BEFORE inserting (0039 T5): the pending:UUID
+        // placeholder below defeats the UNIQUE(tenant_id, user_id) constraint
+        // by design, so without this check a second invite for the same email
+        // silently created a second row — and which row's role wins on
+        // acceptance was undefined. The refusal names the row that exists;
+        // it renders verbatim through the screen's inviteError plumbing.
+        const existing = await db
+          .select({ status: schema.tenantMember.status, role: schema.tenantMember.role })
+          .from(schema.tenantMember)
+          .where(
+            and(
+              eq(schema.tenantMember.tenantId, tenantId),
+              eq(schema.tenantMember.email, body.email),
+            ),
+          );
+        const live = existing.find((m) => m.status === 'active' || m.status === 'invited');
+        if (live) {
+          return { duplicate: live } as const;
+        }
+
+        const inserted = await db.insert(schema.tenantMember).values({
           tenantId,
           // The invitee has no user id until they accept. user_id is NOT NULL and
           // UNIQUE(tenant_id, user_id), so use a unique placeholder (never the
@@ -129,9 +149,22 @@ router.post(
           status: 'invited',
           invitedAt: new Date(),
         }).returning();
+        return { inserted: inserted[0] } as const;
       });
 
-      res.status(201).json(newMember);
+      if ('duplicate' in result && result.duplicate) {
+        res.status(409).json({
+          error: 'Conflict',
+          message:
+            result.duplicate.status === 'invited'
+              ? `${body.email} already has an open invitation (as ${result.duplicate.role}). ` +
+                'Remove that invitation first if you want to send a new one.'
+              : `${body.email} is already a member of this organization (as ${result.duplicate.role}).`,
+        });
+        return;
+      }
+
+      res.status(201).json(result.inserted);
     } catch (error) {
       if (error instanceof z.ZodError) {
         res.status(400).json({

@@ -44,6 +44,10 @@ import type { StringKey } from '../i18n';
 
 const ROLES: ReadonlyArray<Member['role']> = ['owner', 'admin', 'member', 'viewer'];
 
+/** For the self-demotion gate only: is the chosen role LOWER than the held
+ *  one? (Access breadth, matching the server's own guard ordering.) */
+const ROLE_RANK: Record<Member['role'], number> = { owner: 3, admin: 2, member: 1, viewer: 0 };
+
 const STATUS_STYLE: Record<Member['status'], string> = {
   active: 'bg-green-50 text-green-700',
   invited: 'bg-blue-50 text-blue-700',
@@ -77,6 +81,10 @@ const Tenants: React.FC = () => {
   const [rowErrors, setRowErrors] = React.useState<Record<string, string>>({});
   const [busyRow, setBusyRow] = React.useState<string | null>(null);
   const [armedRemove, setArmedRemove] = React.useState<string | null>(null);
+  const [armedSelfDemotion, setArmedSelfDemotion] = React.useState<{
+    memberId: string;
+    role: Member['role'];
+  } | null>(null);
   const [notifyBusy, setNotifyBusy] = React.useState(false);
   const [notifyError, setNotifyError] = React.useState<string | null>(null);
   const [notifySaved, setNotifySaved] = React.useState(false);
@@ -120,7 +128,18 @@ const Tenants: React.FC = () => {
     }
   };
 
-  const changeRole = async (member: Member, role: Member['role']) => {
+  const changeRole = async (member: Member, role: Member['role'], isSelf = false) => {
+    // Lowering your OWN role is armed like the other access-revoking actions
+    // (the Deletions pattern this file already uses for remove): you may not
+    // be able to change it back yourself afterwards, which makes it one
+    // un-undoable click — while removing someone else takes two (0039 T5).
+    // Other-row changes and self-PROMOTION attempts stay single-click (the
+    // server refuses what it refuses, verbatim, as before).
+    if (isSelf && ROLE_RANK[role] < ROLE_RANK[member.role] && armedSelfDemotion?.role !== role) {
+      setArmedSelfDemotion({ memberId: member.id, role });
+      return;
+    }
+    setArmedSelfDemotion(null);
     setBusyRow(member.id);
     setRowErrors((errors) => ({ ...errors, [member.id]: '' }));
     try {
@@ -364,7 +383,7 @@ const Tenants: React.FC = () => {
                               aria-label={`${t('tenants.members.roleHeader')} ${member.email}`}
                               disabled={busyRow === member.id}
                               onChange={(e) =>
-                                changeRole(member, e.target.value as Member['role'])
+                                changeRole(member, e.target.value as Member['role'], isSelf)
                               }
                               className="px-2 py-1 border border-gray-300 rounded text-gray-900 bg-white"
                             >
@@ -419,6 +438,20 @@ const Tenants: React.FC = () => {
                           </td>
                         )}
                       </tr>
+                      {armedSelfDemotion?.memberId === member.id && (
+                        <tr>
+                          <td colSpan={canManage ? 6 : 5} className="pb-3 text-amber-700">
+                            {t('tenants.selfDemotionArmed')}{' '}
+                            <button
+                              onClick={() => changeRole(member, armedSelfDemotion.role, true)}
+                              disabled={busyRow === member.id}
+                              className="ml-2 px-3 py-1 text-sm font-medium rounded bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
+                            >
+                              {t('tenants.selfDemotionConfirm')}
+                            </button>
+                          </td>
+                        </tr>
+                      )}
                       {rowErrors[member.id] && (
                         <tr>
                           <td colSpan={canManage ? 6 : 5} className="pb-3 text-amber-700">
