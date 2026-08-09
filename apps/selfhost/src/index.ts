@@ -595,10 +595,10 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
 
       const results = await runAllDomains(configWithCorrectMappingId, statusStore, ledgerOptions);
       const created = results.reduce((n, r) => n + r.created, 0);
+      const failures = results.filter((r) => r.error);
 
       if (runId) {
         const id = runId;
-        const failures = results.filter((r) => r.error);
         try {
           await withTenant(persistenceBackend.driver, tenantId, async (tdb) => {
             const runs = new RunStore(tdb);
@@ -622,7 +622,23 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         }
       }
 
-      log.info(`[selfhost] ${m.config.mappingId}: pass complete (${created} created)`);
+      // "pass complete (0 created)" was ALL this said, on a pass whose email
+      // domain had just failed outright — real output, Windows, 2026-08-09:
+      //
+      //   [Worker] email sync failed: JMAP target password/token not found ...
+      //   [selfhost] ...: pass complete (0 created)
+      //
+      // Read on its own, the second line says the pass finished and there was
+      // nothing to copy. The run row and /status both had it right; the log,
+      // which is the artefact an operator actually pastes back, did not. Hard
+      // rule 9: the failure has to survive in the place people read.
+      log.info(
+        `[selfhost] ${m.config.mappingId}: pass complete (${created} created` +
+          (failures.length > 0
+            ? `, ${failures.length} domain(s) FAILED: ${failures.map((r) => r.domain).join(', ')}`
+            : '') +
+          ')',
+      );
 
       // A pass in which EVERY domain failed is the mapping failing, and the
       // same definition the run row uses — a partly failed pass is per-item

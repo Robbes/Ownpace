@@ -166,6 +166,32 @@ describe('PgMigrationStatusStore', () => {
       expect(rows[0]?.state).toBe('completed');
       expect(rows[0]?.completedAt).toBeDefined();
     });
+
+    it('clears the previous pass error, so a success does not report a dead one', async () => {
+      // FOUND ON A REAL MACHINE, 2026-08-09. The Windows appliance answered
+      // /status with a completed email domain, 500 of 500 items synced, zero
+      // failed -- and this, from a pass hours earlier:
+      //
+      //   "lastError": "JMAP target password/token not found in environment:
+      //                 check TARGET_JMAP_PASSWORD"
+      //
+      // The credentials had been fixed and the migration had fully succeeded.
+      // Nothing in the report marks the error as historical, so the only
+      // reading available is that the failure is current.
+      await statusStore.initDomainStatus(TENANT_ID, MAPPING_ID, 'email');
+      await statusStore.markFailed(TENANT_ID, MAPPING_ID, 'email', 'credentials missing');
+
+      // It really was recorded -- otherwise the assertion below passes for the
+      // wrong reason, on a column that was never written.
+      const failed = await getStatusRow();
+      expect(failed?.lastError).toBe('credentials missing');
+
+      await statusStore.markCompleted(TENANT_ID, MAPPING_ID, 'email');
+
+      const completed = await getStatusRow();
+      expect(completed?.state).toBe('completed');
+      expect(completed?.lastError).toBeNull();
+    });
   });
 
   describe('markFailed', () => {
