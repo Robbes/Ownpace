@@ -10,6 +10,13 @@
 | T4 The cutover order is shown, not just implied | ⬜ Planned | — |
 | T5 Wrong-edition routes answer honestly | ⬜ Planned | — |
 
+> **2026-08-09, second pass:** an adversarial fleet re-verified this plan. Every
+> load-bearing premise held (unreachable hub, fake login chrome, degrading
+> MappingDetail, wreckage routes), with four corrections applied below: the
+> brand-fallback header was attributed to the wrong edition; T3's highlight
+> mechanism could not satisfy its own acceptance; T5's redirect lists missed
+> `/mappings/new` (appliance) and the flat operating routes (managed).
+
 ## Why this exists
 
 The 2026-08-09 UX review walked both editions' navigation as their operators
@@ -30,10 +37,13 @@ self-inflicted:
   "user\@example.com", and a **Sign out** button — on an edition with no
   accounts, where sign-out can only clear a store nothing reads. Fake identity
   chrome on a sovereignty product is not neutral polish debt.
-- **Per-mapping screens don't say which mapping.** The header title comes from
-  `navigation.find(...)` by path prefix; on `/mappings/:id/...` (managed) it
-  falls back to the brand name, and the active-nav highlight goes dark. The
-  mapping id appears only in body text.
+- **Per-mapping screens don't say which mapping.** On managed, `/mappings/:id/...`
+  matches the nav's `/mappings` entry by `startsWith` (`Layout.tsx:104,182`),
+  so the header reads "Mappings" — lit, but naming no mapping. On selfhost
+  per-mapping routes (reachable once T1 lands) the selfhost nav has no
+  `/mappings` entry, so `navigation.find(...)` matches nothing, the title
+  falls back to the brand name, and no nav item is highlighted. Either way
+  the mapping id appears only in body text.
 - **The order is implied, never stated.** The appliance nav lists
   Review → Deletions → Moves → Failures → Check → Finish in the runbook's
   cutover order — a genuinely good IA decision that nothing on any screen
@@ -41,9 +51,16 @@ self-inflicted:
   or where they are in it. (The managed hub has the same five links with
   blurbs, which is most of the answer already.)
 - **Wrong-edition URLs render wreckage.** `/confirm` on managed calls the
-  appliance-only `/status` root and error-screens; `/billing`, `/tenants`,
-  `/dashboard`, `/login` on the appliance render against APIs that are not
-  there. None of it is linked, all of it is typeable.
+  appliance-only `/status` root and error-screens — and the flat operating
+  routes (`/deletions`, `/moves`, `/failures`, `/verify`, `/finish`) are
+  equally typeable on managed, where they mount their queries with no
+  mappingId and render `edition.ts`'s thrown developer string ("The managed
+  edition needs a mappingId to read the … queue") verbatim as an operator
+  error. On the appliance, `/billing`, `/tenants`, `/dashboard`, `/login`
+  render against APIs that are not there — and `/mappings/new` mounts the
+  managed six-step creation wizard on the edition whose config is read-only
+  BY DESIGN (standing decision 6). None of it is linked, all of it is
+  typeable.
 
 ## Guardrails
 
@@ -53,6 +70,14 @@ self-inflicted:
 - The appliance deliberately has **no Mappings list page**; T1 links to the
   hub from where mapping ids already appear, it does not build a list.
 - New strings are bilingual from birth (0024's standing rule).
+- **Edition-mode tests:** no test in apps/web currently renders "in selfhost
+  mode", and `edition.ts`'s doc comment says the build-time flag "cannot be
+  stubbed". In practice `vi.stubEnv('VITE_EDITION', 'selfhost')` works
+  because `env()` is read at call time — this plan blesses that mechanism for
+  component-level edition tests (and updates the `edition.ts` comment to say
+  so), OR extracts `navigationFor(edition)` / route gating as pure functions
+  per the file's own `*For(edition, ...)` pattern and tests those. Pick one
+  and state it in the status block; do not leave each task to rediscover it.
 
 ## Tasks
 
@@ -66,8 +91,11 @@ runs route exists since #353) — the hub's five links and the runs panel are th
 payoff.
 
 **Acceptance:** on a selfhost build, an operator can click from Review to a
-mapping's hub and see Run history; a unit test on `QueueScreen` and `Confirm`
-asserts the id renders as a link to the hub in selfhost mode.
+mapping's hub and see Run history; unit tests on ALL FOUR named sites —
+`QueueScreen`, `Confirm`, Verify's per-mapping heading (`Verify.tsx:102`) and
+Finish's (`Finish.tsx:257`) — assert the id renders as a link to the hub in
+selfhost mode (Finish is the screen where "see the pass that failed" matters
+most, and 0036 T3 depends on it being link-shaped).
 
 ### T2 — the appliance sidebar stops impersonating a login
 
@@ -85,9 +113,12 @@ identity; managed test asserts the signed-in email renders.
 The header shows the mapping context when one is in scope: on any
 `/mappings/:id/...` route, title becomes `{screen} — {mappingId}` (id
 truncated middle-out if long) with the id linking back to the hub, and the
-parent nav item stays highlighted (prefix-match on the nav href against the
-path *segments*, not the raw string). One small breadcrumb-ish component,
-both editions.
+parent nav item stays highlighted. **Highlight mechanism (corrected — plain
+prefix-matching cannot light `/deletions` from `/mappings/acme/deletions`):**
+on `/mappings/:id/:screen`, highlight the nav item whose href matches
+`'/' + :screen` (selfhost) or `/mappings` (managed); elsewhere keep
+first-segment prefix matching. One small breadcrumb-ish component, both
+editions.
 
 **Acceptance:** on `/mappings/acme/deletions` the header names Deletions and
 acme, Deletions (selfhost) / Mappings (managed) is highlighted; test pins both
@@ -107,13 +138,21 @@ after Check?" from the screen; strings EN/NL.
 
 ### T5 — wrong-edition routes answer honestly
 
-Route-level gating in `App.tsx` mirroring the nav's edition split: appliance
-builds redirect `/dashboard|/mappings$|/tenants|/billing|/login` → `/confirm`;
-managed builds redirect `/confirm` → `/dashboard`. A typed URL lands somewhere
-true instead of on a screen erroring against an API that does not exist.
-(Per-mapping routes stay shared — they are real in both editions.)
+Route-level gating in `App.tsx` mirroring the nav's edition split. Appliance
+builds redirect `/dashboard|/mappings$|/mappings/new|/tenants|/billing|/login`
+→ `/confirm` — `/mappings/new` matters most: it mounts the managed creation
+wizard against a missing API on the edition whose config is read-only by
+design (standing decision 6). Managed builds redirect `/confirm` AND the flat
+operating routes `/deletions|/moves|/failures|/verify|/finish` → `/dashboard`
+(they mount today with no mappingId and render internal exception text — the
+per-mapping `/mappings/:id/...` forms are the real managed routes). A typed
+URL lands somewhere true instead of on a screen erroring against an API that
+does not exist. (Per-mapping routes stay shared — they are real in both
+editions. Patterns should prefix-match so future sub-routes like
+`/billing/invoices/:id` stay caught.)
 
-**Acceptance:** render tests per edition assert the redirects; no screen in
+**Acceptance:** render tests per edition assert the redirects — including
+`/mappings/new` on the appliance and `/deletions` on managed; no screen in
 the wrong edition ever mounts its query.
 
 ## Owner decisions queued by this plan
