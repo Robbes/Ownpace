@@ -14,7 +14,9 @@ import { STRINGS, LOCALES } from '../i18n/strings';
 describe('the canonical state table', () => {
   it('resolves every entry in BOTH languages', () => {
     for (const [entity, states] of Object.entries(STATE_TABLE)) {
-      for (const [state, entry] of Object.entries(states)) {
+      for (const [state, entry] of Object.entries(states) as Array<
+        [string, { key: keyof (typeof STRINGS)['en'] }]
+      >) {
         for (const locale of LOCALES) {
           const label = STRINGS[locale][entry.key];
           expect(label, `${entity}.${state} in ${locale}`).toBeTruthy();

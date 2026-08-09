@@ -15,7 +15,7 @@
 
 const en = {
   'nav.dashboard': 'Dashboard',
-  'nav.mappings': 'Mappings',
+  'nav.mappings': 'Migrations',
   'nav.review': 'Review',
   'nav.deletions': 'Deletions',
   'nav.moves': 'Moves',
@@ -402,8 +402,8 @@ const en = {
 
 const nl: Record<keyof typeof en, string> = {
   'nav.dashboard': 'Overzicht',
-  'nav.mappings': 'Koppelingen',
-  'nav.review': 'Controleren',
+  'nav.mappings': 'Migraties',
+  'nav.review': 'Controleren en bevestigen',
   'nav.deletions': 'Verwijderingen',
   'nav.moves': 'Verplaatsingen',
   'nav.failures': 'Mislukkingen',
@@ -436,7 +436,7 @@ const nl: Record<keyof typeof en, string> = {
   'hub.fallbackTitle': 'Migratie',
   'hub.orderIntro':
     'De vijf schermen hieronder staan in de volgorde waarin een cutover verloopt — werk de lijst van boven naar beneden af.',
-  'hub.noId': 'Geen koppelings-id in het adres.',
+  'hub.noId': 'Geen mapping-id in het adres.',
   'hub.detailError':
     'De details van deze migratie konden niet worden gelezen — de schermen hieronder werken nog.',
   'hub.deletions.name': 'Verwijderingen',
@@ -477,12 +477,12 @@ const nl: Record<keyof typeof en, string> = {
   'runs.status.failed': 'Mislukt',
   'runs.status.cancelled': 'Geannuleerd',
   'queue.waitingOnYou': 'Wacht op u',
-  'queue.alreadyDecided': 'Al besloten',
+  'queue.alreadyDecided': 'Al beslist',
   'moves.title': 'Verplaatst op het oude systeem',
   'moves.intro':
     'Items die de eigenaar ergens anders heeft ondergebracht dan waar ze vandaan kwamen. Het nieuwe systeem heeft ze nog waar wij ze plaatsten; aan geen van beide kanten is iets veranderd.',
   'moves.empty.open': 'Er is niets verplaatst.',
-  'moves.empty.acknowledged': 'Er is nog niets besloten.',
+  'moves.empty.acknowledged': 'Er is nog niets beslist.',
   'moves.keep': 'Laat het waar het staat',
   'failures.title': 'Kon niet worden gekopieerd',
   'failures.intro':
@@ -500,7 +500,7 @@ const nl: Record<keyof typeof en, string> = {
   'deletions.empty.confirmed': 'Er wacht niets op een beslissing.',
   'deletions.watching': 'Wordt in de gaten gehouden',
   'deletions.empty.watching': 'Er wordt niets in de gaten gehouden.',
-  'deletions.empty.acknowledged': 'Er is nog niets besloten.',
+  'deletions.empty.acknowledged': 'Er is nog niets beslist.',
   'deletions.keep': 'Behoud onze kopie',
   'deletions.apply': 'Verwijder het hier ook',
   'deletions.applyArmed': 'Bevestig verwijderen',
@@ -510,7 +510,7 @@ const nl: Record<keyof typeof en, string> = {
   'mappings.never': 'Nooit',
   'mappings.loadFailed': 'De migratielijst kon niet worden geladen.',
   'mappings.loadFailedNotEmpty':
-    'Dit is niet hetzelfde als geen migraties — er kunnen koppelingen bestaan die niet gelezen konden worden.',
+    'Dit is niet hetzelfde als geen migraties — er kunnen migraties bestaan die niet gelezen konden worden.',
   'mappings.syncFailed': 'Het synchronisatieverzoek is niet voltooid.',
   'createMapping.createFailed':
     'De migratie is niet aangemaakt. Uw invoer staat er nog — herstel wat de melding noemt en probeer het opnieuw.',
@@ -534,7 +534,7 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.title': 'Controleer en bevestig uw migratie',
   'confirm.intro': 'Er is nog niets gekopieerd. Controleer wat er migreert en start het daarna.',
   'confirm.readError': 'De migraties konden niet worden gelezen.',
-  'confirm.noMappings': 'Geen koppelingen geconfigureerd.',
+  'confirm.noMappings': 'Geen migraties geconfigureerd.',
   'confirm.start': 'Start migratie',
   'confirm.startError': 'Kon niet starten:',
   'confirm.startErrorFallback': 'het verzoek is mislukt',
@@ -559,19 +559,19 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.state.skipped': 'Overgeslagen',
   'confirm.foundInSource': 'Wat we in uw bron hebben gevonden',
   'confirm.starting': 'Bezig met starten…',
-  'verify.title': 'Controleer de migratie',
+  'verify.title': 'Verifieer de migratie',
   'verify.intro':
     'Vergelijkt wat het oude systeem heeft met wat het nieuwe heeft, en controleert steekproeven van de inhoud. Alleen-lezen — er wordt aan geen van beide kanten iets geschreven.',
-  'verify.run': 'Voer de controle uit',
-  'verify.runAgain': 'Controleer opnieuw',
+  'verify.run': 'Voer de verificatie uit',
+  'verify.runAgain': 'Verifieer opnieuw',
   'verify.durationHint':
     'Leest de volledige bestemming — bij een grote mailbox duurt dit minuten.',
   'verify.runningSince': 'Bezig sinds',
-  'verify.didNotComplete': 'De controle is niet voltooid.',
+  'verify.didNotComplete': 'De verificatie is niet voltooid.',
   'verify.notAResult':
     'Er is in geen van beide richtingen iets bekend over de volledigheid van de migratie — dit is geen resultaat.',
-  'verify.restarted': 'De appliance is herstart terwijl de controle liep. Voer hem opnieuw uit.',
-  'verify.didNotStart': 'De controle is niet gestart.',
+  'verify.restarted': 'De appliance is herstart terwijl de verificatie liep. Voer hem opnieuw uit.',
+  'verify.didNotStart': 'De verificatie is niet gestart.',
   'verify.ready': 'Deze migratie is klaar voor cutover.',
   'verify.notReady': 'Nog niet klaar voor cutover. Zie de domeinen en problemen hieronder.',
   'verify.score': 'score',
@@ -613,7 +613,7 @@ const nl: Record<keyof typeof en, string> = {
     'Synchroniseert volgens schema. Items die nog op het oude systeem binnenkomen, worden gekopieerd.',
   'finish.note.cutover': 'In cutover. Synchroniseert nog totdat u afrondt.',
   'finish.note.done':
-    'Afgerond. Deze koppeling synchroniseert niet meer en er wordt niets meer voor gerapporteerd.',
+    'Afgerond. Deze migratie synchroniseert niet meer en er wordt niets meer voor gerapporteerd.',
   'finish.left.one': 'item niet gemigreerd achtergelaten.',
   'finish.left.many': 'items niet gemigreerd achtergelaten.',
   'finish.step1.title': 'Controleer of de kopie volledig is',
@@ -630,14 +630,14 @@ const nl: Record<keyof typeof en, string> = {
   'finish.step2.moves': 'verplaatst',
   'finish.step2.onlyFirstBlocks':
     '. Alleen de eerste hiervan blokkeert het afronden — de andere twee zijn al beantwoord doordat het nieuwe systeem zijn kopie behoudt.',
-  'finish.step3.title': 'Voer één laatste doorloop uit',
+  'finish.step3.title': 'Voer één laatste ronde uit',
   'finish.step3.body': 'Zodat het nieuwe systeem het oude weerspiegelt zoals het nu is.',
-  'finish.step3.run': 'Voer nu een doorloop uit',
+  'finish.step3.run': 'Voer nu een ronde uit',
   'finish.step3.runAgain': 'Voer er nog een uit',
-  'finish.step3.finished': 'De doorloop is uitgevoerd en voltooid.',
+  'finish.step3.finished': 'De ronde is uitgevoerd en voltooid.',
   'finish.step3.queued':
-    'In de wachtrij. De doorloop draait als taak en verschijnt in de uitvoeringsgeschiedenis — geef het even, en controleer daarna de wachtrijen hierboven opnieuw.',
-  'finish.step3.failed': 'Het doorloopverzoek is mislukt — er is niets uitgevoerd. Probeer opnieuw.',
+    'In de wachtrij. De ronde draait als taak en verschijnt in de uitvoeringsgeschiedenis — geef het even, en controleer daarna de wachtrijen hierboven opnieuw.',
+  'finish.step3.failed': 'Het verzoek om een ronde is mislukt — er is niets uitgevoerd. Probeer opnieuw.',
   'finish.step4.title': 'Verplaats de bezorging naar het nieuwe systeem',
   'finish.step4.body':
     'Wijzig MX/DNS en configureer de clients opnieuw zodat nieuwe e-mail op het nieuwe systeem aankomt. Dit gebeurt buiten dit programma, dus dit is de ene stap die niemand hier voor u kan controleren.',
