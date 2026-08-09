@@ -127,6 +127,39 @@ describe('before anything has started', () => {
   });
 });
 
+function activeStatusWithProgress(): StatusReport {
+  return {
+    status: 'ok',
+    mappings: [
+      {
+        mappingId: 'acme-mail',
+        migrationStatus: 'active',
+        domains: [
+          {
+            domain: 'email',
+            state: 'in_progress',
+            itemsSynced: 1149,
+            itemsFailed: 16,
+            bytesTransferred: 8359732,
+            itemsRetrying: 16,
+            itemsNeedingDecision: 0,
+            lastError: 'connect ECONNREFUSED 100.97.25.131:1993',
+          },
+          {
+            domain: 'calendar',
+            state: 'skipped',
+            itemsSynced: 0,
+            itemsFailed: 0,
+            bytesTransferred: 0,
+            itemsRetrying: 0,
+            itemsNeedingDecision: 0,
+          },
+        ],
+      },
+    ],
+  };
+}
+
 describe('once it is running', () => {
   it('offers no green light, and points at the console instead', async () => {
     // Pressing "start" on a running migration is meaningless; the operator's
@@ -136,6 +169,53 @@ describe('once it is running', () => {
 
     expect(await screen.findByText(/Open the migration console/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Start migration/ })).not.toBeInTheDocument();
+  });
+
+  it('stops claiming nothing has been copied, and shows the LEDGER speaking', async () => {
+    // 2026-08-09, on a real appliance: this page said "Nothing has been
+    // copied yet" above a migration that had copied 1149 items, and showed
+    // only the pre-start scan's 510 -- the operator compared the two numbers
+    // and reasonably asked which was lying. Neither was; the page was showing
+    // a snapshot as if it were a gauge.
+    fetchStatus.mockResolvedValue(activeStatusWithProgress());
+    renderScreen();
+
+    expect(await screen.findByText('Live progress')).toBeInTheDocument();
+    // The SAME numbers /status serves -- one source, so this screen and
+    // PowerShell cannot disagree.
+    expect(screen.getByText(/1,149|1\.149/)).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing has been copied yet/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Migrations here have started/)).toBeInTheDocument();
+    // A skipped domain earns no progress row.
+    expect(screen.queryByText('Skipped')).not.toBeInTheDocument();
+  });
+
+  it('shows the current failure VERBATIM in the progress row', async () => {
+    fetchStatus.mockResolvedValue(activeStatusWithProgress());
+    renderScreen();
+    expect(await screen.findByText('connect ECONNREFUSED 100.97.25.131:1993')).toBeInTheDocument();
+  });
+
+  it('demotes the pre-start scan to a labelled, dated, FOLDED snapshot', async () => {
+    fetchStatus.mockResolvedValue(activeStatusWithProgress());
+    renderScreen();
+
+    const summary = await screen.findByText(/Pre-start scan \(snapshot\)/);
+    // Dated, so "these numbers are old" is visible rather than inferable.
+    expect(summary.textContent).toMatch(/2026/);
+    // Folded by default: after the start the scan is history, and history
+    // must not sit above the live numbers dressed as their equal.
+    expect(summary.closest('details')?.hasAttribute('open')).toBe(false);
+  });
+
+  it('keeps the scan PROMINENT while the mapping is still paused', async () => {
+    // Before the start the scan is the decision input -- folding it there
+    // would hide exactly what the green light asks the operator to review.
+    fetchStatus.mockResolvedValue(status('paused'));
+    renderScreen();
+
+    expect(await screen.findByText('4812')).toBeInTheDocument();
+    expect(screen.queryByText(/Pre-start scan/)).not.toBeInTheDocument();
   });
 
   it('says a finished migration is finished', async () => {

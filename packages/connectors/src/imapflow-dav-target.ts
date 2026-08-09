@@ -134,6 +134,22 @@ export class ImapFlowDavMailTarget implements TargetWriter, TargetReindexer, Tar
       logger: false,
       disableAutoIdle: true,
     });
+    // See ImapFlowSource.connect() for the story (2026-08-09, lid-close,
+    // ECONNABORTED, appliance dead): an unlistened 'error' event is a process
+    // crash. This writer HOLDS its connection between calls, so a socket
+    // dying while idle is even more likely here than on the per-call source.
+    client.on('error', (err: Error) => {
+      log.warn(
+        `[imap-dav] connection error on ${this.config.host}:${this.config.port} ` +
+          `(handled; in-flight operations fail on their own): ${err.message}`,
+      );
+      // Drop the cached client so the next call reconnects instead of writing
+      // into a dead socket.
+      if (this.client === client) {
+        this.client = null;
+        this.connectPromise = null;
+      }
+    });
     try {
       await client.connect();
     } catch (err) {

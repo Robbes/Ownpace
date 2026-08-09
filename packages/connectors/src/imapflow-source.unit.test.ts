@@ -61,6 +61,8 @@ let failNextOperations: { count: number; error: Error } | null;
 let lastOptions: Record<string, unknown> | undefined;
 /** Set to make connect() itself throw, e.g. a certificate refusal. */
 let connectError: Error | null;
+/** The 'error' handler the connector registered on the LAST client, if any. */
+let lastErrorHandler: ((err: Error) => void) | undefined;
 
 vi.mock('imapflow', () => {
   class FakeImapFlow {
@@ -68,6 +70,10 @@ vi.mock('imapflow', () => {
     constructor(public readonly options: Record<string, unknown>) {
       lastOptions = options;
       calls.push(`new(${String(options.host)}:${String(options.port)})`);
+    }
+    on(event: string, handler: (err: Error) => void): void {
+      calls.push(`on(${event})`);
+      if (event === 'error') lastErrorHandler = handler;
     }
     async connect(): Promise<void> {
       connects++;
@@ -142,6 +148,7 @@ beforeEach(() => {
   failNextOperations = null;
   lastOptions = undefined;
   connectError = null;
+  lastErrorHandler = undefined;
   mailboxes = [
     { path: 'INBOX', name: 'INBOX', flags: new Set(['\\HasNoChildren']) },
     { path: 'Sent', name: 'Sent', flags: new Set(['\\Sent']) },
@@ -510,5 +517,38 @@ describe('isCertificateError', () => {
     expect(isCertificateError(new Error('AUTHENTICATIONFAILED'))).toBe(false);
     expect(isCertificateError(new Error('connect ECONNREFUSED'))).toBe(false);
     expect(isCertificateError('not even an error')).toBe(false);
+  });
+});
+
+// =======================================================================
+// 7. A dying socket must not take the process with it
+// =======================================================================
+
+describe('socket-level errors', () => {
+  /**
+   * 2026-08-09, 02:46, on a real laptop: the lid closed, the network died
+   * mid-write, imapflow emitted 'error' (ECONNABORTED) with no listener, and
+   * Node's rule for an unlistened 'error' event killed the whole appliance --
+   * exit 1, Task Scheduler's retries burned while the machine slept, dead
+   * until a human noticed. On a laptop a dropped socket is not an edge case;
+   * it is what closing the lid does.
+   */
+  it('registers an error listener on every connection it opens', async () => {
+    await source().listFolders();
+    // The listener existing IS the fix: with it, Node delivers the error to
+    // us instead of crashing the process.
+    expect(lastErrorHandler).toBeDefined();
+  });
+
+  it('survives the error firing, and keeps working afterwards', async () => {
+    const s = source();
+    await s.listFolders();
+    // The exact error from the crash log.
+    expect(() =>
+      lastErrorHandler!(Object.assign(new Error('write ECONNABORTED'), { code: 'ECONNABORTED' })),
+    ).not.toThrow();
+    // The connector is per-call, so the next call simply opens a new
+    // connection -- nothing latched into a broken state.
+    await expect(s.listFolders()).resolves.toHaveLength(2);
   });
 });

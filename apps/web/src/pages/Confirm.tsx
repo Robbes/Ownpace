@@ -22,8 +22,9 @@ import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Loader2, Play } from 'lucide-react';
 import { Link } from 'react-router';
-import type { MappingLifecycle } from '@openmig/shared';
-import { useT } from '../i18n';
+import type { MappingLifecycle, DomainStatusReport } from '@openmig/shared';
+import { useT, useLocale } from '../i18n';
+import { formatDateTime, formatNumber } from '../i18n/datetime';
 import type { StringKey } from '../i18n';
 import DiscoveryCounts from '../components/confirm/DiscoveryCounts';
 import ScopeManifestPanel from '../components/confirm/ScopeManifestPanel';
@@ -36,6 +37,75 @@ import {
   startMigration,
 } from '../services/operating-service';
 
+const DOMAIN_KEY: Record<DomainStatusReport['domain'], StringKey> = {
+  email: 'domain.email',
+  calendar: 'domain.calendar',
+  contact: 'domain.contact',
+  file: 'domain.file',
+};
+
+const STATE_KEY: Record<DomainStatusReport['state'], StringKey> = {
+  pending: 'confirm.state.pending',
+  in_progress: 'confirm.state.in_progress',
+  completed: 'confirm.state.completed',
+  failed: 'confirm.state.failed',
+  skipped: 'confirm.state.skipped',
+};
+
+const STATE_CLASS: Record<DomainStatusReport['state'], string> = {
+  pending: 'bg-gray-100 text-gray-700',
+  in_progress: 'bg-blue-100 text-blue-800',
+  completed: 'bg-green-100 text-green-800',
+  failed: 'bg-red-100 text-red-800',
+  skipped: 'bg-gray-100 text-gray-500',
+};
+
+/**
+ * What the migration is doing NOW, from the same /status payload PowerShell
+ * gets -- one source, so this screen and `Invoke-RestMethod .../status` can
+ * never disagree (2026-08-09: they did, because this page showed only the
+ * pre-start scan and an operator compared its 510 against the ledger's 1149).
+ */
+const LiveProgress: React.FC<{ domains: readonly DomainStatusReport[] }> = ({ domains }) => {
+  const t = useT();
+  const { locale } = useLocale();
+  const running = domains.filter((d) => d.state !== 'skipped');
+  if (running.length === 0) return null;
+  return (
+    <div className="mb-3">
+      <h4 className="text-sm font-medium text-gray-700 mb-1">{t('confirm.progress.heading')}</h4>
+      <ul className="space-y-1">
+        {running.map((d) => (
+          <li key={d.domain} className="text-sm text-gray-800 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span className="font-medium">{t(DOMAIN_KEY[d.domain])}</span>
+            <span className={`inline-block px-1.5 py-0.5 rounded text-xs ${STATE_CLASS[d.state]}`}>
+              {t(STATE_KEY[d.state])}
+            </span>
+            <span>
+              {formatNumber(d.itemsSynced, locale)} {t('confirm.progress.synced')}
+            </span>
+            {d.itemsFailed > 0 && (
+              <span className="text-red-700">
+                {formatNumber(d.itemsFailed, locale)} {t('confirm.progress.failed')}
+              </span>
+            )}
+            {d.itemsRetrying > 0 && (
+              <span className="text-amber-700">
+                {formatNumber(d.itemsRetrying, locale)} {t('confirm.progress.retrying')}
+              </span>
+            )}
+            {d.lastError && (
+              // Verbatim (the prose boundary): this is the line the operator
+              // acts on, and a paraphrase is a different claim.
+              <span className="basis-full font-mono text-xs text-red-800">{d.lastError}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
 const LIFECYCLE_NOTE_KEY: Record<MappingLifecycle, StringKey | null> = {
   paused: null,
   active: 'confirm.note.active',
@@ -46,8 +116,11 @@ const LIFECYCLE_NOTE_KEY: Record<MappingLifecycle, StringKey | null> = {
 const Confirm: React.FC = () => {
   const queryClient = useQueryClient();
   const t = useT();
+  const { locale } = useLocale();
 
-  const status = useQuery({ queryKey: ['status'], queryFn: fetchStatus });
+  // Refetched while the page is open: an operator watching an active
+  // migration should see the numbers move without pressing F5.
+  const status = useQuery({ queryKey: ['status'], queryFn: fetchStatus, refetchInterval: 15_000 });
   const discovery = useQuery({
     queryKey: ['discovery'],
     queryFn: fetchAllDiscovery,
@@ -101,7 +174,17 @@ const Confirm: React.FC = () => {
   return (
     <div>
       <h2 className="text-lg font-semibold text-gray-900">{t('confirm.title')}</h2>
-      <p className="mt-1 mb-6 text-sm text-gray-600">{t('confirm.intro')}</p>
+      {/* "Nothing has been copied yet" was rendered UNCONDITIONALLY until
+          2026-08-09 -- above a migration that had copied 1149 items. The
+          sentence this screen exists to make true is only true before the
+          first start, so it now follows the lifecycle. */}
+      <p className="mt-1 mb-6 text-sm text-gray-600">
+        {t(
+          mappings.some((m) => m.migrationStatus !== 'paused')
+            ? 'confirm.introStarted'
+            : 'confirm.intro',
+        )}
+      </p>
 
       {mappings.length === 0 && <p className="text-sm text-gray-500">{t('confirm.noMappings')}</p>}
 
@@ -118,7 +201,28 @@ const Confirm: React.FC = () => {
               <span className="text-xs text-gray-500">{m.migrationStatus}</span>
             </div>
 
-            <DiscoveryCounts domains={domains} scanning={domains.length === 0} />
+            {m.migrationStatus !== 'paused' && <LiveProgress domains={m.domains} />}
+
+            {m.migrationStatus === 'paused' ? (
+              // Before the start, the scan IS the decision input -- prominent.
+              <DiscoveryCounts domains={domains} scanning={domains.length === 0} />
+            ) : (
+              // After the start it is a historical snapshot: the source keeps
+              // changing and these numbers do not. Folded, labelled with WHEN
+              // it was taken, and explained -- an operator comparing it
+              // against live ledger counts (2026-08-09: 510 vs 1149) should
+              // find the answer here, not in a support round trip.
+              <details className="mt-1">
+                <summary className="cursor-pointer text-sm text-gray-500 select-none">
+                  {t('confirm.snapshot.heading')}
+                  {domains[0]?.discoveredAt
+                    ? ` — ${formatDateTime(domains[0].discoveredAt, locale)}`
+                    : ''}
+                </summary>
+                <p className="mt-1 mb-2 text-xs text-gray-500">{t('confirm.snapshot.note')}</p>
+                <DiscoveryCounts domains={domains} scanning={domains.length === 0} />
+              </details>
+            )}
 
             <div className="mt-4">
               {m.migrationStatus === 'paused' ? (
