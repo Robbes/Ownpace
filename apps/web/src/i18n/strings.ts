@@ -133,6 +133,8 @@ const en = {
   'confirm.state.completed': 'Completed',
   'confirm.state.failed': 'Failed',
   'confirm.state.skipped': 'Skipped',
+  'confirm.foundInSource': 'What we found in your source',
+  'confirm.starting': 'Starting…',
   'verify.title': 'Check the migration',
   'verify.intro':
     'Compares what the old system has against what the new one has, and samples the contents to confirm they match. Read-only — it never writes to either side.',
@@ -483,6 +485,8 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.state.completed': 'Voltooid',
   'confirm.state.failed': 'Mislukt',
   'confirm.state.skipped': 'Overgeslagen',
+  'confirm.foundInSource': 'Wat we in uw bron hebben gevonden',
+  'confirm.starting': 'Bezig met starten…',
   'verify.title': 'Controleer de migratie',
   'verify.intro':
     'Vergelijkt wat het oude systeem heeft met wat het nieuwe heeft, en controleert steekproeven van de inhoud. Alleen-lezen — er wordt aan geen van beide kanten iets geschreven.',
