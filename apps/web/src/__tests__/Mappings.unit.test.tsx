@@ -9,7 +9,7 @@
  * T1 schema break. The pattern pinned here is Confirm.unit.test.tsx's: the
  * failure text renders, the empty-state text does NOT.
  */
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -22,6 +22,7 @@ vi.mock('../services/mapping-service', () => ({
 }));
 
 const listMock = vi.mocked(mappingApi.list);
+const syncMock = vi.mocked(mappingApi.triggerSync);
 
 const renderMappings = () => {
   const queryClient = new QueryClient({
@@ -109,5 +110,41 @@ describe('Mappings — failed read ≠ empty list (hard rule 9)', () => {
 
     expect(await screen.findByText('No mappings yet')).toBeInTheDocument();
     expect(screen.queryByText('Could not load the migrations list.')).not.toBeInTheDocument();
+  });
+});
+
+describe('Mappings — a refused sync says so at the row (0033 T3)', () => {
+  beforeEach(() => {
+    listMock.mockReset();
+    syncMock.mockReset();
+  });
+
+  it("renders the server's refusal verbatim under the row; the old code console.error'd it away", async () => {
+    listMock.mockResolvedValue([sampleMapping({ id: 'p1', status: 'paused', name: 'Paused one' })]);
+    // The real 409 a paused mapping's Play button gets — its hint names the
+    // green-light route, and the operator must SEE it.
+    const err = new AxiosError('Request failed with status code 409');
+    err.response = {
+      status: 409,
+      statusText: 'Conflict',
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+      data: {
+        error: 'Conflict',
+        message:
+          'Mapping is paused — review the discovery counts and start it first (POST /start).',
+      },
+    };
+    syncMock.mockRejectedValue(err);
+
+    renderMappings();
+
+    fireEvent.click(await screen.findByTitle('Start sync'));
+
+    expect(
+      await screen.findByText(/Mapping is paused — review the discovery counts/),
+    ).toBeInTheDocument();
+    expect(screen.getByText('The sync request did not complete.')).toBeInTheDocument();
+    expect(screen.queryByText('Request failed with status code 409')).not.toBeInTheDocument();
   });
 });

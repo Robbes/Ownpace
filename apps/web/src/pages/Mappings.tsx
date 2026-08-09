@@ -24,12 +24,29 @@ const Mappings: React.FC = () => {
     queryFn: mappingApi.list,
   });
 
+  // Per-row sync outcome (0033 T3). The old handleSync caught failures with
+  // console.error only — the operator who clicked saw nothing. A refusal now
+  // renders under the row with the server's words verbatim (the 409 for a
+  // paused mapping names what to do); success clears the marker and the
+  // refetched row is the feedback.
+  const [syncOutcomes, setSyncOutcomes] = React.useState<
+    Record<string, { state: 'pending' } | { state: 'failed'; text: string }>
+  >({});
+
   const handleSync = async (mappingId: string, type: 'full' | 'delta') => {
+    setSyncOutcomes((o) => ({ ...o, [mappingId]: { state: 'pending' } }));
     try {
       await mappingApi.triggerSync(mappingId, type);
+      setSyncOutcomes((o) => {
+        const { [mappingId]: _done, ...rest } = o;
+        return rest;
+      });
       refetch();
     } catch (error) {
-      console.error('Failed to trigger sync:', error);
+      setSyncOutcomes((o) => ({
+        ...o,
+        [mappingId]: { state: 'failed', text: serverMessage(error) },
+      }));
     }
   };
 
@@ -113,7 +130,8 @@ const Mappings: React.FC = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {mappings?.map((mapping) => (
-                <tr key={mapping.id} className="hover:bg-gray-50">
+                <React.Fragment key={mapping.id}>
+                <tr className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -162,7 +180,8 @@ const Mappings: React.FC = () => {
                       {mapping.status === 'active' ? (
                         <button
                           onClick={() => handleSync(mapping.id, 'delta')}
-                          className="text-blue-600 hover:text-blue-800"
+                          disabled={syncOutcomes[mapping.id]?.state === 'pending'}
+                          className="text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Trigger sync"
                         >
                           <Play className="w-5 h-5" />
@@ -170,7 +189,8 @@ const Mappings: React.FC = () => {
                       ) : (
                         <button
                           onClick={() => handleSync(mapping.id, 'full')}
-                          className="text-green-600 hover:text-green-800"
+                          disabled={syncOutcomes[mapping.id]?.state === 'pending'}
+                          className="text-green-600 hover:text-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Start sync"
                         >
                           <Play className="w-5 h-5" />
@@ -191,6 +211,17 @@ const Mappings: React.FC = () => {
                     </div>
                   </td>
                 </tr>
+                {syncOutcomes[mapping.id]?.state === 'failed' && (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-2 bg-red-50 text-sm text-red-800">
+                      {/* The server's refusal verbatim — for a paused mapping
+                          the 409 names what to do next. */}
+                      <span className="font-medium">{t('mappings.syncFailed')}</span>{' '}
+                      {(syncOutcomes[mapping.id] as { text: string }).text}
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>

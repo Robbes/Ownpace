@@ -5,10 +5,10 @@ import React, { useState } from 'react';
 // candidate — but a new user-facing sentence does not get to add to that debt.
 import { useT } from '../i18n';
 import { useNavigate } from 'react-router';
-import { 
-  ArrowLeft, 
-  ArrowRight, 
-  Check, 
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
   Server,
   Database,
   Settings,
@@ -16,9 +16,11 @@ import {
   FileText,
   Calendar,
   Users,
-  Folder
+  Folder,
+  AlertCircle
 } from 'lucide-react';
 import { mappingApi } from '../services/mapping-service';
+import { serverMessage } from '../services/api';
 import { useMutation } from '@tanstack/react-query';
 import { ConfirmMigration } from '../components/ConfirmMigration';
 
@@ -148,14 +150,24 @@ const CreateMapping: React.FC = () => {
     }));
   };
 
+  // Each step's gate checks only fields that step RENDERS (0037 T1, pulled
+  // forward into 0033 T3 because no wizard test can exist without it): the
+  // old source/target gates required sourceUsername/targetUsername — inputs
+  // that render two steps later, on 'credentials' — so Next was disabled
+  // forever on the first screen, with no message, and the wizard could not
+  // be completed at all. The username requirement now lives on the step
+  // that shows the fields.
   const canProceed = () => {
     switch (steps[currentStep].id) {
       case 'source':
-        return formData.sourceHost && formData.sourcePort && formData.sourceUsername;
+        return Boolean(formData.sourceHost && formData.sourcePort);
       case 'target':
-        return formData.targetHost && formData.targetPort && formData.targetUsername;
+        return Boolean(formData.targetHost && formData.targetPort);
       case 'credentials':
-        return formData.name.trim() !== '';
+        return (
+          formData.name.trim() !== '' &&
+          Boolean(formData.sourceUsername && formData.targetUsername)
+        );
       case 'data-types':
         return formData.domains.length > 0;
       case 'schedule':
@@ -628,6 +640,21 @@ const CreateMapping: React.FC = () => {
       <div className="mt-8 bg-white rounded-lg border border-gray-200 p-6">
         {renderStep()}
       </div>
+
+      {/* A failed submit says so, with the SERVER's words (0033 T3). Before
+          this block, createMutation.isError rendered nothing anywhere: the
+          operator clicked "Create Migration" and the button simply returned
+          to rest. The form stays — no data loss — and the message names what
+          the server refused. */}
+      {createMutation.isError && (
+        <div className="mt-6 flex items-start gap-2 p-4 rounded-lg bg-red-50 text-red-800 text-sm">
+          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="font-medium">{t('createMapping.createFailed')}</p>
+            <p className="mt-1">{serverMessage(createMutation.error)}</p>
+          </div>
+        </div>
+      )}
 
       {/* Navigation Buttons */}
       <div className="mt-6 flex justify-between">

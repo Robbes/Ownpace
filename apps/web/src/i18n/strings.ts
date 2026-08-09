@@ -111,6 +111,8 @@ const en = {
   'mappings.loadFailedNotEmpty':
     'This is not the same as having no migrations — mappings may exist that could not be read.',
   'mappings.syncFailed': 'The sync request did not complete.',
+  'createMapping.createFailed':
+    'The migration was not created. Your entries are still here — fix what the message names and try again.',
   'billing.usageLoadFailed': 'Could not load the usage numbers.',
   'billing.invoicesLoadFailed': 'Could not load the invoices.',
   'billing.loadFailedNotEmpty':
@@ -471,6 +473,8 @@ const nl: Record<keyof typeof en, string> = {
   'mappings.loadFailedNotEmpty':
     'Dit is niet hetzelfde als geen migraties — er kunnen koppelingen bestaan die niet gelezen konden worden.',
   'mappings.syncFailed': 'Het synchronisatieverzoek is niet voltooid.',
+  'createMapping.createFailed':
+    'De migratie is niet aangemaakt. Uw invoer staat er nog — herstel wat de melding noemt en probeer het opnieuw.',
   'billing.usageLoadFailed': 'De verbruikscijfers konden niet worden geladen.',
   'billing.invoicesLoadFailed': 'De facturen konden niet worden geladen.',
   'billing.loadFailedNotEmpty':
