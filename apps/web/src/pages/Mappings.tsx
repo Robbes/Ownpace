@@ -107,7 +107,7 @@ const Mappings: React.FC = () => {
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">{mapping.name}</div>
                         <div className="text-sm text-gray-500">
-                          {mapping.syncConfig.domains.join(', ')}
+                          {mapping.domains.join(', ')}
                         </div>
                       </div>
                     </div>
@@ -120,15 +120,18 @@ const Mappings: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
+                    {/* The four REAL lifecycle states (active|paused|cutover|done —
+                        the DB CHECK's words). 'error' is not a mapping state and
+                        never arrives; failures live on the runs and failure queues. */}
                     <span
                       className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         mapping.status === 'active'
                           ? 'bg-green-100 text-green-800'
-                          : mapping.status === 'error'
-                          ? 'bg-red-100 text-red-800'
                           : mapping.status === 'paused'
                           ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-gray-100 text-gray-800'
+                          : mapping.status === 'cutover'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-emerald-100 text-emerald-800'
                       }`}
                     >
                       {mapping.status}

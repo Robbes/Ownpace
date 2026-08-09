@@ -22,14 +22,18 @@ const Dashboard: React.FC = () => {
     queryFn: mappingApi.list,
   });
 
+  // Tiles count the four REAL lifecycle states (active|paused|cutover|done).
+  // The old tiles filtered for 'completed' and 'error' — words the DB CHECK
+  // forbids — so they were permanently zero (0033 T1).
   const stats = React.useMemo(() => {
-    if (!mappings) return { total: 0, active: 0, completed: 0, errors: 0 };
-    
+    if (!mappings) return { total: 0, active: 0, paused: 0, cutover: 0, done: 0 };
+
     return {
       total: mappings.length,
       active: mappings.filter((m) => m.status === 'active').length,
-      completed: mappings.filter((m) => m.status === 'completed').length,
-      errors: mappings.filter((m) => m.status === 'error').length,
+      paused: mappings.filter((m) => m.status === 'paused').length,
+      cutover: mappings.filter((m) => m.status === 'cutover').length,
+      done: mappings.filter((m) => m.status === 'done').length,
     };
   }, [mappings]);
 
@@ -70,8 +74,11 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Stats */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Stats — one tile per real lifecycle state, plus the total. Paused is
+          the actionable one (a mapping waiting for its green light); cutover
+          and done are the ending every migration aims for, and the old tiles
+          could not count either. */}
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5">
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <div className="flex items-center">
             <div className="p-3 bg-blue-100 rounded-lg">
@@ -98,24 +105,36 @@ const Dashboard: React.FC = () => {
 
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <div className="flex items-center">
-            <div className="p-3 bg-emerald-100 rounded-lg">
-              <CheckCircle className="w-6 h-6 text-emerald-600" />
+            <div className="p-3 bg-yellow-100 rounded-lg">
+              <Clock className="w-6 h-6 text-yellow-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Completed</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.completed}</p>
+              <p className="text-sm font-medium text-gray-500">Paused</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.paused}</p>
             </div>
           </div>
         </div>
 
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <div className="flex items-center">
-            <div className="p-3 bg-red-100 rounded-lg">
-              <AlertCircle className="w-6 h-6 text-red-600" />
+            <div className="p-3 bg-blue-100 rounded-lg">
+              <AlertCircle className="w-6 h-6 text-blue-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Errors</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.errors}</p>
+              <p className="text-sm font-medium text-gray-500">Cutover</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.cutover}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="flex items-center">
+            <div className="p-3 bg-emerald-100 rounded-lg">
+              <CheckCircle className="w-6 h-6 text-emerald-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">Done</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.done}</p>
             </div>
           </div>
         </div>
@@ -152,7 +171,8 @@ const Dashboard: React.FC = () => {
                   <div className="flex items-center space-x-4">
                     <div className={`w-2 h-2 rounded-full ${
                       mapping.status === 'active' ? 'bg-green-500' :
-                      mapping.status === 'error' ? 'bg-red-500' :
+                      mapping.status === 'cutover' ? 'bg-blue-500' :
+                      mapping.status === 'done' ? 'bg-emerald-500' :
                       'bg-gray-400'
                     }`} />
                     <div>

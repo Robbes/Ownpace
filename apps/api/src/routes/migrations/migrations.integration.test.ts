@@ -150,10 +150,22 @@ describe('Migrations Routes - Tenant Isolation', () => {
       expect(response.status).toBe(200);
       expect(response.body.mappings).toBeDefined();
       expect(Array.isArray(response.body.mappings)).toBe(true);
-      
-      // All returned mappings should belong to tenant A
+
+      // All returned mappings should belong to tenant A. camelCase like the
+      // detail route (0026 T4 removed the snake_case duplicate there; 0033 T1
+      // brought the list in line — the web client's MappingListItemSchema
+      // requires tenantId, so a snake_case regression breaks the Mappings
+      // screen for every tenant with a mapping).
       response.body.mappings.forEach((m: any) => {
-        expect(m.tenant_id).toBe(MIG_TENANT_A);
+        expect(m.tenantId).toBe(MIG_TENANT_A);
+        expect(m).not.toHaveProperty('tenant_id');
+        // The list serves the REAL connection kinds (via mailbox -> connection),
+        // not the old hardcoded imap/jmap placeholders. The fixture's one
+        // connection is 'o365' and backs both mailboxes, so both sides say so.
+        expect(m.sourceType).toBe('o365');
+        expect(m.targetType).toBe('o365');
+        expect(Array.isArray(m.domains)).toBe(true);
+        expect(['active', 'paused', 'cutover', 'done']).toContain(m.status);
       });
     });
 
@@ -164,10 +176,11 @@ describe('Migrations Routes - Tenant Isolation', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.mappings).toBeDefined();
-      
+
       // All returned mappings should belong to tenant B
       response.body.mappings.forEach((m: any) => {
-        expect(m.tenant_id).toBe(MIG_TENANT_B);
+        expect(m.tenantId).toBe(MIG_TENANT_B);
+        expect(m).not.toHaveProperty('tenant_id');
       });
     });
   });
