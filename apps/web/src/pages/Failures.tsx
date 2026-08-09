@@ -14,7 +14,7 @@
  */
 
 import React from 'react';
-import { useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import type { FailuresQueue, ItemFailure } from '@openmig/shared';
 import { QueueScreen, type ItemOutcome } from '../components/queues/QueueScreen';
 import {
@@ -78,6 +78,16 @@ const Failures: React.FC = () => {
     fetcher={() => fetchFailures(mappingId)}
     renderMapping={(mappingId, queue, act, outcomes) => (
       <>
+        {/* Failure diagnosis is what the runs panel exists for — say so and
+            link the hub that carries it (0036 T3). */}
+        <p className="mb-3 text-sm">
+          <Link
+            to={`/mappings/${encodeURIComponent(mappingId)}`}
+            className="text-blue-700 hover:underline"
+          >
+            {t('failures.seeRuns')}
+          </Link>
+        </p>
         <QueueSection
           title={t('queue.waitingOnYou')}
           count={queue.needsDecision.length}

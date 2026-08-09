@@ -223,6 +223,8 @@ const en = {
   'runs.blurb':
     'Every sync pass this migration has made, newest first, with what each one said.',
   'runs.empty': 'No passes have run yet. History appears after the first sync.',
+  'runs.truncated': 'Showing the newest passes only — older ones exist but are not listed.',
+  'runs.eventsTruncated': 'Newest log entries only — earlier ones are not shown.',
   'runs.error': "Could not read this migration's run history.",
   'runs.items': 'Items',
   'runs.errors': 'Errors',
@@ -255,6 +257,7 @@ const en = {
   'failures.empty.needsDecision': 'Nothing is waiting on a decision.',
   'failures.acceptedLeave':
     'Accepted items no longer appear here — accepting migrates without the item, and the ledger stops counting it as failed.',
+  'failures.seeRuns': 'See the pass that failed (run history)',
   'failures.stillTrying': 'Still trying',
   'failures.empty.retrying': 'Nothing is being retried.',
   'failures.retry': 'Try again',
@@ -773,6 +776,8 @@ const nl: Record<keyof typeof en, string> = {
   'runs.blurb':
     'Elke synchronisatieronde van deze migratie, nieuwste eerst, met wat elke ronde meldde.',
   'runs.empty': 'Er zijn nog geen rondes uitgevoerd. Geschiedenis verschijnt na de eerste synchronisatie.',
+  'runs.truncated': 'Alleen de nieuwste rondes worden getoond — oudere bestaan, maar staan niet in de lijst.',
+  'runs.eventsTruncated': 'Alleen de nieuwste logregels — eerdere worden niet getoond.',
   'runs.error': 'Kon de uitvoeringsgeschiedenis van deze migratie niet lezen.',
   'runs.items': 'Items',
   'runs.errors': 'Fouten',
@@ -805,6 +810,7 @@ const nl: Record<keyof typeof en, string> = {
   'failures.empty.needsDecision': 'Er wacht niets op een beslissing.',
   'failures.acceptedLeave':
     'Geaccepteerde items verschijnen hier niet meer — accepteren migreert zonder het item, en het grootboek telt het niet langer als mislukt.',
+  'failures.seeRuns': 'Bekijk de mislukte ronde (uitvoeringsgeschiedenis)',
   'failures.stillTrying': 'Wordt nog geprobeerd',
   'failures.empty.retrying': 'Er wordt niets opnieuw geprobeerd.',
   'failures.retry': 'Probeer opnieuw',

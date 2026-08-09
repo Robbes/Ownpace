@@ -69,6 +69,9 @@ const RunRow: React.FC<{ run: RunReport }> = ({ run }) => {
               <EventLine key={i} event={e} />
             ))}
           </ul>
+          {run.eventsTruncated && (
+            <p className="mt-1 text-xs text-gray-500">{t('runs.eventsTruncated')}</p>
+          )}
         </details>
       )}
     </li>
@@ -96,11 +99,18 @@ const RunsPanel: React.FC<{ mappingId: string }> = ({ mappingId }) => {
         <p className="mt-3 text-sm text-gray-500">{t('runs.empty')}</p>
       )}
       {runs.data && runs.data.runs.length > 0 && (
-        <ul className="mt-3 space-y-2">
-          {runs.data.runs.map((r) => (
-            <RunRow key={r.id} run={r} />
-          ))}
-        </ul>
+        <>
+          <ul className="mt-3 space-y-2">
+            {runs.data.runs.map((r) => (
+              <RunRow key={r.id} run={r} />
+            ))}
+          </ul>
+          {/* Only when the server SAYS it truncated (0036 T3) — a label on an
+              exactly-20 history would be almost-honest. */}
+          {runs.data.truncated && (
+            <p className="mt-2 text-xs text-gray-500">{t('runs.truncated')}</p>
+          )}
+        </>
       )}
     </section>
   );

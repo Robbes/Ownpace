@@ -1699,7 +1699,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
         // The ledger keys runs by the mailbox_mapping row id, not the config
         // mappingId -- same translation every other read here makes.
-        const runs = await withTenant(
+        const { runs, truncated } = await withTenant(
           persistenceBackend.driver,
           m.config.tenantId as string,
           async (tdb) =>
@@ -1708,7 +1708,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
               m.mailboxMappingId as MappingId,
             ),
         );
-        return sendJson(res, 200, { runs });
+        return sendJson(res, 200, { runs, truncated });
       }
       if (req.method === 'GET' && req.url === '/discovery') {
         const out: Record<string, DiscoveryRecord[]> = {};

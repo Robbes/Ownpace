@@ -934,11 +934,11 @@ router.get(
       }
 
       const pool = getSharedPool();
-      const runs = await withTenantDb(tenantId, pool, async (db) =>
+      const { runs, truncated } = await withTenantDb(tenantId, pool, async (db) =>
         new RunStore(db).listRunsWithEvents(tenantId as TenantId, mappingId as MappingId),
       );
 
-      res.json({ runs });
+      res.json({ runs, truncated });
     } catch (error) {
       log.error('Error listing runs:', error);
       res.status(500).json({

@@ -121,3 +121,33 @@ describe('the runs panel', () => {
     expect(screen.queryByText(/No passes have run yet/)).not.toBeInTheDocument();
   });
 });
+
+describe('bounds honesty (0036 T3)', () => {
+  it('labels the list only when the server SAYS it truncated', async () => {
+    fetchRunsMock.mockResolvedValue({ runs: [run()], truncated: true });
+    renderPanel();
+
+    expect(
+      await screen.findByText(/Showing the newest passes only/),
+    ).toBeInTheDocument();
+  });
+
+  it('shows no label on a complete history — even one at the cap', async () => {
+    fetchRunsMock.mockResolvedValue({ runs: [run()], truncated: false });
+    renderPanel();
+
+    await screen.findByText(/Run history/);
+    expect(screen.queryByText(/Showing the newest passes only/)).not.toBeInTheDocument();
+  });
+
+  it('marks a run whose log was capped', async () => {
+    fetchRunsMock.mockResolvedValue({
+      runs: [run({ eventsTruncated: true, events: [{ level: 'error', message: 'boom', at: '2026-08-09T10:00:00Z' }] })],
+      truncated: false,
+    });
+    renderPanel();
+
+    expect(await screen.findByText(/Newest log entries only/)).toBeInTheDocument();
+  });
+});
+
