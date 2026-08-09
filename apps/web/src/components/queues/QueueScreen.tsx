@@ -18,6 +18,7 @@ import type { ApplyReceipt, QueueEnvelope } from '@openmig/shared';
 import { ClosedBanner, LIFECYCLE_NOTE_KEY } from './primitives';
 import MappingHubLink from '../MappingHubLink';
 import StateChip from '../StateChip';
+import AsOf from '../AsOf';
 import { useT } from '../../i18n';
 import { DecisionRefusedError } from '../../services/operating-service';
 
@@ -62,7 +63,7 @@ export function QueueScreen<T extends QueueEnvelope>({
   const t = useT();
   const [outcomes, setOutcomes] = React.useState<Record<string, ItemOutcome>>({});
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, dataUpdatedAt, refetch, isFetching } = useQuery({
     queryKey: [queryKey],
     queryFn: fetcher,
     // These queues change when a pass runs, which is minutes apart at best, so
@@ -146,7 +147,15 @@ export function QueueScreen<T extends QueueEnvelope>({
 
   return (
     <div>
-      <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+        {/* When this list was READ (0036 T1): the 30s-stale + refetch-on-focus
+            policy is good but was invisible — a fresh list and a half-minute-old
+            one looked identical on the screen where deletions are decided. */}
+        {dataUpdatedAt > 0 && (
+          <AsOf timestamp={dataUpdatedAt} onRefresh={() => void refetch()} refreshing={isFetching} />
+        )}
+      </div>
       <p className="mt-1 mb-6 text-sm text-gray-600">{intro}</p>
 
       {mappings.length === 0 && <p className="text-sm text-gray-500">{t('queue.noMappings')}</p>}

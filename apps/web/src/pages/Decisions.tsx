@@ -27,6 +27,7 @@ import {
 import { useAuthStore } from '../stores/auth-store';
 import { useT, useFormatters } from '../i18n';
 import StateChip from '../components/StateChip';
+import AsOf from '../components/AsOf';
 import type { StringKey } from '../i18n';
 
 /** The server's message for a failed request, verbatim; dictionary fallback. */
@@ -42,12 +43,16 @@ const Decisions: React.FC = () => {
   const queryClient = useQueryClient();
   const [busyRow, setBusyRow] = React.useState<string | null>(null);
   const [rowErrors, setRowErrors] = React.useState<Record<string, string>>({});
+  const [rowEffects, setRowEffects] = React.useState<Record<string, string>>({});
   const { user } = useAuthStore();
   const canManage = user?.role === 'owner' || user?.role === 'admin';
   const [presetBusy, setPresetBusy] = React.useState(false);
   const [presetSaved, setPresetSaved] = React.useState(false);
   const [presetDraft, setPresetDraft] = React.useState<'auto' | 'ask' | null>(null);
 
+  // No per-query staleTime: this screen inherits the app's 5-minute default,
+  // which made it the STALEST decision surface in the product — the as-of
+  // below is what makes that visible (0036 T1).
   const query = useQuery({
     queryKey: ['drift-decisions'],
     queryFn: fetchDriftDecisions,
@@ -95,25 +100,35 @@ const Decisions: React.FC = () => {
     setBusyRow(decision.id);
     setRowErrors((errors) => ({ ...errors, [decision.id]: '' }));
     try {
+      let effect: string | undefined;
       if (action === 'resolve') {
         // Two shapes of answer. Accepting a proposed default is the general
         // one; `shared_address_pattern` names WHICH pattern instead, because
         // it has no default — not knowing which of the two it is is the whole
         // reason it was asked. The server reads `pattern` and writes it back
         // to the discovered group.
-        await resolveDriftDecision(
-          decision.id,
-          pattern
-            ? { action: 'set_shared_address_pattern', pattern }
-            : {
-                action: 'accept_default',
-                ...(decision.proposedDefault
-                  ? { proposedDefault: decision.proposedDefault }
-                  : {}),
-              },
-        );
+        effect = (
+          await resolveDriftDecision(
+            decision.id,
+            pattern
+              ? { action: 'set_shared_address_pattern', pattern }
+              : {
+                  action: 'accept_default',
+                  ...(decision.proposedDefault
+                    ? { proposedDefault: decision.proposedDefault }
+                    : {}),
+                },
+          )
+        ).effect;
       } else {
-        await dismissDriftDecision(decision.id);
+        effect = (await dismissDriftDecision(decision.id)).effect;
+      }
+      // The server's effect sentence, verbatim (0036 T2) — the row moves to
+      // "Already decided" on the refetch, and this line under it says what
+      // the click actually did. Decisions was the one surface whose answers
+      // vanished silently.
+      if (effect) {
+        setRowEffects((prev) => ({ ...prev, [decision.id]: effect }));
       }
       await queryClient.invalidateQueries({ queryKey: ['drift-decisions'] });
     } catch (err) {
@@ -133,7 +148,16 @@ const Decisions: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">{t('decisions.title')}</h1>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h1 className="text-2xl font-bold text-gray-900">{t('decisions.title')}</h1>
+          {query.dataUpdatedAt > 0 && (
+            <AsOf
+              timestamp={query.dataUpdatedAt}
+              onRefresh={() => void query.refetch()}
+              refreshing={query.isFetching}
+            />
+          )}
+        </div>
         <p className="text-gray-500 mt-1">{t('decisions.intro')}</p>
       </div>
 
@@ -271,6 +295,10 @@ const Decisions: React.FC = () => {
                       )}
                     </div>
                     <p className="text-gray-600">{decision.summary}</p>
+                    {rowEffects[decision.id] && (
+                      // What the click DID — the server's sentence, verbatim.
+                      <p className="text-xs text-emerald-700">{rowEffects[decision.id]}</p>
+                    )}
                   </li>
                 ))}
               </ul>

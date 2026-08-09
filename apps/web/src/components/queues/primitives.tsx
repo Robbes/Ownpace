@@ -150,11 +150,13 @@ export const ItemRow: React.FC<{ children: React.ReactNode }> = ({ children }) =
 export const ActionButton: React.FC<{
   onClick: () => void;
   pending?: boolean;
+  title?: string;
   children: React.ReactNode;
-}> = ({ onClick, pending, children }) => (
+}> = ({ onClick, pending, title, children }) => (
   <button
     onClick={onClick}
     disabled={pending}
+    title={title}
     className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
   >
     {pending && <Loader2 className="w-3 h-3 animate-spin" />}

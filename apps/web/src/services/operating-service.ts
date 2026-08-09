@@ -165,17 +165,24 @@ export async function setDecisionPreset(
 export async function resolveDriftDecision(
   decisionId: string,
   resolution: Record<string, unknown>,
-): Promise<DecisionRow> {
+): Promise<DecisionRow & { effect?: string }> {
   return (
-    await client.post<DecisionRow>(`/decisions/${encodeURIComponent(decisionId)}/resolve`, {
-      resolution,
-    })
+    await client.post<DecisionRow & { effect?: string }>(
+      `/decisions/${encodeURIComponent(decisionId)}/resolve`,
+      { resolution },
+    )
   ).data;
 }
 
-export async function dismissDriftDecision(decisionId: string): Promise<DecisionRow> {
-  return (await client.post<DecisionRow>(`/decisions/${encodeURIComponent(decisionId)}/dismiss`, {}))
-    .data;
+export async function dismissDriftDecision(
+  decisionId: string,
+): Promise<DecisionRow & { effect?: string }> {
+  return (
+    await client.post<DecisionRow & { effect?: string }>(
+      `/decisions/${encodeURIComponent(decisionId)}/dismiss`,
+      {},
+    )
+  ).data;
 }
 
 /**

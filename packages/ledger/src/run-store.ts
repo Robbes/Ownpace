@@ -136,14 +136,19 @@ export class RunStore {
     tenantId: TenantId,
     mappingId: MappingId,
     { limit = 20, eventsPerRun = 25 }: { limit?: number; eventsPerRun?: number } = {},
-  ): Promise<RunReport[]> {
-    const runs = await this.db
+  ): Promise<{ runs: RunReport[]; truncated: boolean }> {
+    // Over-fetch by one (0036 T3): with exactly `limit` rows returned the
+    // caller could not distinguish "all of them" from "the newest limit of
+    // more", and a label based on length === cap would be almost-honest.
+    const fetched = await this.db
       .select()
       .from(schemaPg.run)
       .where(and(eq(schemaPg.run.tenantId, tenantId), eq(schemaPg.run.mappingId, mappingId)))
       .orderBy(desc(schemaPg.run.createdAt))
-      .limit(limit);
-    if (runs.length === 0) return [];
+      .limit(limit + 1);
+    const truncated = fetched.length > limit;
+    const runs = truncated ? fetched.slice(0, limit) : fetched;
+    if (runs.length === 0) return { runs: [], truncated: false };
 
     const events = await this.db
       .select({
@@ -165,7 +170,12 @@ export class RunStore {
       .orderBy(desc(schemaPg.runEvent.at));
 
     const byRun = new Map<string, RunEventReport[]>();
+    // All events for the listed runs are already fetched; the cap is applied
+    // here — so the exact per-run total is known and the truncation marker is
+    // a fact, not an inference.
+    const totalByRun = new Map<string, number>();
     for (const e of events) {
+      totalByRun.set(e.runId, (totalByRun.get(e.runId) ?? 0) + 1);
       const list = byRun.get(e.runId) ?? [];
       if (list.length < eventsPerRun) {
         list.push({
@@ -177,7 +187,15 @@ export class RunStore {
       }
     }
 
-    return runs.map((r) => toRunReport(r, (byRun.get(r.id) ?? []).reverse()));
+    return {
+      runs: runs.map((r) => {
+        const report = toRunReport(r, (byRun.get(r.id) ?? []).reverse());
+        return (totalByRun.get(r.id) ?? 0) > eventsPerRun
+          ? { ...report, eventsTruncated: true }
+          : report;
+      }),
+      truncated,
+    };
   }
 }
 

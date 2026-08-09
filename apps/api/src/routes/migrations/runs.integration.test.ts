@@ -136,6 +136,41 @@ describe('Real run-history endpoints', () => {
     expect(res.body.runs[1].events[0]).toMatchObject({ level: 'error', message: 'connector auth failed: 401' });
   });
 
+  it('reports truncation only when older runs actually exist (0036 T3)', async () => {
+    // With 2 seeded runs (under the 20 cap): NOT truncated.
+    const before = await request
+      .get(`/api/migrations/${MAPPING}/runs`)
+      .set('Authorization', `Bearer ${token(TENANT_A)}`);
+    expect(before.body.truncated).toBe(false);
+
+    // Seed to EXACTLY 20 runs total: still not truncated — a label on an
+    // exactly-20 history would be the almost-honest 0036 exists to end.
+    await pool.query(
+      `INSERT INTO run (id, tenant_id, mapping_id, kind, trigger, status, stats, created_at)
+       SELECT gen_random_uuid(), $1, $2, 'incremental', 'schedule', 'succeeded', '{"itemsProcessed":1,"errors":0}',
+              NOW() - (interval '1 day' * s)
+       FROM generate_series(3, 20) AS s`,
+      [TENANT_A, MAPPING],
+    );
+    const atCap = await request
+      .get(`/api/migrations/${MAPPING}/runs`)
+      .set('Authorization', `Bearer ${token(TENANT_A)}`);
+    expect(atCap.body.runs).toHaveLength(20);
+    expect(atCap.body.truncated).toBe(false);
+
+    // One more (21 total): truncated, and still exactly 20 listed.
+    await pool.query(
+      `INSERT INTO run (id, tenant_id, mapping_id, kind, trigger, status, stats, created_at)
+       VALUES (gen_random_uuid(), $1, $2, 'incremental', 'schedule', 'succeeded', '{"itemsProcessed":1,"errors":0}', NOW() - interval '30 day')`,
+      [TENANT_A, MAPPING],
+    );
+    const overCap = await request
+      .get(`/api/migrations/${MAPPING}/runs`)
+      .set('Authorization', `Bearer ${token(TENANT_A)}`);
+    expect(overCap.body.runs).toHaveLength(20);
+    expect(overCap.body.truncated).toBe(true);
+  });
+
   it('no longer serves the deleted per-run detail route', async () => {
     const res = await request
       .get(`/api/migrations/${MAPPING}/runs/${RUN_FULL}`)

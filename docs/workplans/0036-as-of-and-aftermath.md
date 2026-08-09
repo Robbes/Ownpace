@@ -4,10 +4,10 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T1 Every number says as-of when | ⬜ Planned | — |
-| T2 Aftermath parity across the queues | ⬜ Planned | — |
-| T3 Runs discoverability + bounds honesty | ⬜ Planned | — |
-| T4 What retry actually costs | ⬜ Planned | — |
+| T1 Every number says as-of when | ✅ Done 2026-08-09 | `AsOf` component (relativeToNow, minute tick, manual refresh) on the three queue screens (shared scaffold) AND Decisions (`dataUpdatedAt`, with the 5-minute-default staleness noted in code); Verify keeps `finishedAt` and renders "Checked {time}"; LiveProgress renders `lastSyncedAt` per domain — pinned on BOTH adapters (hard rule 5). |
+| T2 Aftermath parity across the queues | ✅ Done 2026-08-09 | Decisions INCLUDED via contract extension: shared `DECISION_EFFECTS` served by both editions' resolve/dismiss, rendered verbatim under the answered row. Failures states why accepted items leave (EN+NL). Per-screen pins: Moves got its first test file; Deletions/Decisions pins stand. |
+| T3 Runs discoverability + bounds honesty | ✅ Done 2026-08-09 | `listRunsWithEvents` over-fetches by one → `{runs, truncated}` + per-run `eventsTruncated` (exact totals, not inference); both editions serve it; labels render only when the server says so (21-vs-exactly-20 integration walk). Failures→hub "see the pass that failed" link. |
+| T4 What retry actually costs | ✅ Done 2026-08-09 | Bilingual sentence above the waiting list + on the button title; dictionary comment points at domain-sync.ts's cursor comment (~1158); pinned present-with-items / absent-without. |
 
 > **2026-08-09, second pass:** an adversarial fleet re-verified this plan.
 > Two substantive corrections: T2's headline directive ordered work that

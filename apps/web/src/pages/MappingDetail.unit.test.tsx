@@ -130,6 +130,9 @@ describe('the live progress strip', () => {
     expect(await screen.findByText('42 synced')).toBeInTheDocument();
     expect(screen.getByText('3 failed')).toBeInTheDocument();
     expect(screen.getByText('2 retrying')).toBeInTheDocument();
+    // The per-domain as-of (0036 T1) — must render from BOTH editions'
+    // payloads or the strip becomes a single-edition feature (hard rule 5).
+    expect(screen.getByText(/last synced/)).toBeInTheDocument();
     // The error verbatim — the prose boundary.
     expect(screen.getByText('IMAP LIST failed: connection reset')).toBeInTheDocument();
     expect(fetchStatusMock).not.toHaveBeenCalled();
@@ -147,6 +150,7 @@ describe('the live progress strip', () => {
     renderHub();
 
     expect(await screen.findByText('42 synced')).toBeInTheDocument();
+    expect(screen.getByText(/last synced/)).toBeInTheDocument();
     // The other mapping's numbers must not leak into this hub.
     expect(screen.queryByText('999 synced')).not.toBeInTheDocument();
     expect(mappingApiGet).not.toHaveBeenCalled();

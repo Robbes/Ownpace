@@ -14,7 +14,7 @@
  */
 
 import React from 'react';
-import { useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import type { FailuresQueue, ItemFailure } from '@openmig/shared';
 import { QueueScreen, type ItemOutcome } from '../components/queues/QueueScreen';
 import {
@@ -78,11 +78,26 @@ const Failures: React.FC = () => {
     fetcher={() => fetchFailures(mappingId)}
     renderMapping={(mappingId, queue, act, outcomes) => (
       <>
+        {/* Failure diagnosis is what the runs panel exists for — say so and
+            link the hub that carries it (0036 T3). */}
+        <p className="mb-3 text-sm">
+          <Link
+            to={`/mappings/${encodeURIComponent(mappingId)}`}
+            className="text-blue-700 hover:underline"
+          >
+            {t('failures.seeRuns')}
+          </Link>
+        </p>
         <QueueSection
           title={t('queue.waitingOnYou')}
           count={queue.needsDecision.length}
           empty={t('failures.empty.needsDecision')}
         >
+          {/* What retry costs, said before it is pressed (0036 T4) — the
+              sentence tracks domain-sync.ts's cursor comment. */}
+          {queue.needsDecision.length > 0 && (
+            <p className="mb-2 text-xs text-gray-500">{t('failures.retryCost')}</p>
+          )}
           {queue.needsDecision.map((f) => {
             const pending = outcomes[f.naturalKeyHash]?.state === 'pending';
             return (
@@ -94,6 +109,7 @@ const Failures: React.FC = () => {
                   <>
                     <ActionButton
                       pending={pending}
+                      title={t('failures.retryCost')}
                       onClick={() =>
                         act(f.naturalKeyHash, () => retryFailure(mappingId, f.naturalKeyHash))
                       }
@@ -137,6 +153,12 @@ const Failures: React.FC = () => {
             <Row key={f.naturalKeyHash} f={f} />
           ))}
         </QueueSection>
+
+        {/* Why this queue has no "Already decided" section, said instead of
+            left as an asymmetry (0036 T2): accepted items genuinely leave the
+            ledger's failed set (resolveFailure sets left_behind; listFailures
+            filters status='failed'). */}
+        <p className="mt-2 text-xs text-gray-500">{t('failures.acceptedLeave')}</p>
 
         <GuidancePanel entries={queue.howToResolve} />
       </>

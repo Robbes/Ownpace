@@ -249,6 +249,19 @@ export interface StatusReport {
   }>;
 }
 
+/**
+ * What closing a §11.1 drift decision actually DID — the one decision surface
+ * whose responses carried no effect sentence (0036 T2; the item queues'
+ * `DecisionAccepted.effect` predates it). Rendered verbatim by the UI, like
+ * all effect prose: it says what is now true, for the person who just
+ * clicked.
+ */
+export const DECISION_EFFECTS = {
+  resolved: 'Answer recorded — the migration acts on it from here on.',
+  dismissed:
+    'Closed without acting; the detector may raise it again if the situation persists.',
+} as const;
+
 /** The decisions an owner can make, across all three queues. */
 export type OperatingAction = 'keep' | 'apply' | 'retry' | 'accept';
 
@@ -634,9 +647,17 @@ export interface RunReport {
   readonly errors: number;
   readonly createdAt: string;
   readonly events: ReadonlyArray<RunEventReport>;
+  /** True when the events shown are the newest N of more (0036 T3) — silent
+   *  truncation reads as "covered everything". Absent when complete. */
+  readonly eventsTruncated?: boolean;
 }
 
 /** `GET {mappingPath}/runs` — newest first, bounded by the server. */
 export interface RunsResponse {
   readonly runs: ReadonlyArray<RunReport>;
+  /** True when older runs exist beyond the listed ones (0036 T3). The reader
+   *  computes it by over-fetching one — a client cannot distinguish "all 20"
+   *  from "20 of 21" on its own, and labelling whenever length === cap would
+   *  be the almost-honest this field exists to end. */
+  readonly truncated?: boolean;
 }

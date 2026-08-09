@@ -27,6 +27,10 @@ const en = {
   'nav.signOut': 'Sign out',
   'language.label': 'Language',
   'common.requestFailed': 'The request did not complete.',
+  'asof.updated': 'Updated',
+  'asof.refresh': 'Refresh',
+  'confirm.progress.lastSynced': 'last synced',
+  'verify.checkedAt': 'Checked',
   'queue.loadFailed': 'Could not load this queue.',
   'queue.loadFailedNotEmpty':
     'This is not the same as an empty queue — items may be waiting that we could not read.',
@@ -223,6 +227,8 @@ const en = {
   'runs.blurb':
     'Every sync pass this migration has made, newest first, with what each one said.',
   'runs.empty': 'No passes have run yet. History appears after the first sync.',
+  'runs.truncated': 'Showing the newest passes only — older ones exist but are not listed.',
+  'runs.eventsTruncated': 'Newest log entries only — earlier ones are not shown.',
   'runs.error': "Could not read this migration's run history.",
   'runs.items': 'Items',
   'runs.errors': 'Errors',
@@ -253,9 +259,18 @@ const en = {
   'failures.intro':
     'Items that did not make it across, what went wrong, and how many times we tried.',
   'failures.empty.needsDecision': 'Nothing is waiting on a decision.',
+  'failures.acceptedLeave':
+    'Accepted items no longer appear here — accepting migrates without the item, and the ledger stops counting it as failed.',
+  'failures.seeRuns': 'See the pass that failed (run history)',
   'failures.stillTrying': 'Still trying',
   'failures.empty.retrying': 'Nothing is being retried.',
   'failures.retry': 'Try again',
+  'failures.retryCost':
+    // Sourced from domain-sync.ts's own cursor comment (~line 1158): an
+    // operator retry clears the mapping's cursors, forcing the full re-list
+    // that puts the item back in front of the loop. If the engine changes,
+    // change this sentence WITH it — the two must not disagree.
+    'Retrying clears this migration\u2019s sync cursors, so the next pass re-lists everything to reach this item again. That pass takes longer; nothing already copied is copied twice.',
   'failures.accept': 'Migrate without it',
   'failures.try.one': 'try',
   'failures.try.many': 'tries',
@@ -566,6 +581,10 @@ const nl: Record<keyof typeof en, string> = {
   'nav.signOut': 'Uitloggen',
   'language.label': 'Taal',
   'common.requestFailed': 'Het verzoek is niet voltooid.',
+  'asof.updated': 'Bijgewerkt',
+  'asof.refresh': 'Vernieuwen',
+  'confirm.progress.lastSynced': 'laatst gesynchroniseerd',
+  'verify.checkedAt': 'Geverifieerd',
   'queue.loadFailed': 'Deze wachtrij kon niet worden geladen.',
   'queue.loadFailedNotEmpty':
     'Dit is niet hetzelfde als een lege wachtrij — er kunnen items wachten die niet gelezen konden worden.',
@@ -765,6 +784,8 @@ const nl: Record<keyof typeof en, string> = {
   'runs.blurb':
     'Elke synchronisatieronde van deze migratie, nieuwste eerst, met wat elke ronde meldde.',
   'runs.empty': 'Er zijn nog geen rondes uitgevoerd. Geschiedenis verschijnt na de eerste synchronisatie.',
+  'runs.truncated': 'Alleen de nieuwste rondes worden getoond — oudere bestaan, maar staan niet in de lijst.',
+  'runs.eventsTruncated': 'Alleen de nieuwste logregels — eerdere worden niet getoond.',
   'runs.error': 'Kon de uitvoeringsgeschiedenis van deze migratie niet lezen.',
   'runs.items': 'Items',
   'runs.errors': 'Fouten',
@@ -795,9 +816,14 @@ const nl: Record<keyof typeof en, string> = {
   'failures.intro':
     'Items die niet zijn overgekomen, wat er misging, en hoe vaak we het hebben geprobeerd.',
   'failures.empty.needsDecision': 'Er wacht niets op een beslissing.',
+  'failures.acceptedLeave':
+    'Geaccepteerde items verschijnen hier niet meer — accepteren migreert zonder het item, en het grootboek telt het niet langer als mislukt.',
+  'failures.seeRuns': 'Bekijk de mislukte ronde (uitvoeringsgeschiedenis)',
   'failures.stillTrying': 'Wordt nog geprobeerd',
   'failures.empty.retrying': 'Er wordt niets opnieuw geprobeerd.',
   'failures.retry': 'Probeer opnieuw',
+  'failures.retryCost':
+    'Opnieuw proberen wist de synchronisatiecursors van deze migratie, zodat de volgende ronde alles opnieuw doorloopt om dit item weer te bereiken. Die ronde duurt langer; er wordt niets dubbel gekopieerd.',
   'failures.accept': 'Migreer zonder dit item',
   'failures.try.one': 'poging',
   'failures.try.many': 'pogingen',

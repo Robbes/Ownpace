@@ -17,7 +17,7 @@ import { z } from 'zod';
 import { authenticate, requireRole, getDbPool, withTenantDb } from '../middleware/auth';
 import type { AuthenticatedRequest } from '../types/api';
 import { PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore } from '@openmig/ledger';
-import { asTenantId, asMappingId, log, type DecisionStatus } from '@openmig/shared';
+import { DECISION_EFFECTS, asTenantId, asMappingId, log, type DecisionStatus } from '@openmig/shared';
 import { sharedAddressAnswer } from '@openmig/core';
 
 const router = Router();
@@ -151,7 +151,7 @@ router.post(
         });
         return;
       }
-      res.json(resolved);
+      res.json({ ...resolved, effect: DECISION_EFFECTS.resolved });
     } catch (error) {
       if (error instanceof z.ZodError) {
         res.status(400).json({ error: 'Validation error', details: error.issues });
@@ -202,7 +202,7 @@ router.post(
         });
         return;
       }
-      res.json(dismissed);
+      res.json({ ...dismissed, effect: DECISION_EFFECTS.dismissed });
     } catch (error) {
       log.error('Error dismissing decision:', error);
       res.status(500).json({

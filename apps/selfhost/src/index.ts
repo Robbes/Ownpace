@@ -35,6 +35,7 @@ import { SCOPE_MANIFEST, DELETION_CONFIRMATIONS } from '@openmig/shared';
 // three cannot drift apart in the explanations that stop somebody destroying
 // data by accident.
 import {
+  DECISION_EFFECTS,
   MAPPING_LIFECYCLES,
   REPORTING_CLOSED,
   FAILURE_GUIDANCE,
@@ -1467,7 +1468,10 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             message: 'This decision does not exist or has already been answered.',
           });
         }
-        return sendJson(res, 200, closed!);
+        return sendJson(res, 200, {
+          ...closed!,
+          effect: action === 'resolve' ? DECISION_EFFECTS.resolved : DECISION_EFFECTS.dismissed,
+        });
       }
       // Gate 1 of the destructive path, as a readable fact (workplan 0019 T3).
       // The value lives in the mapping's CONFIG FILE on this edition, and
@@ -1695,7 +1699,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
         // The ledger keys runs by the mailbox_mapping row id, not the config
         // mappingId -- same translation every other read here makes.
-        const runs = await withTenant(
+        const { runs, truncated } = await withTenant(
           persistenceBackend.driver,
           m.config.tenantId as string,
           async (tdb) =>
@@ -1704,7 +1708,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
               m.mailboxMappingId as MappingId,
             ),
         );
-        return sendJson(res, 200, { runs });
+        return sendJson(res, 200, { runs, truncated });
       }
       if (req.method === 'GET' && req.url === '/discovery') {
         const out: Record<string, DiscoveryRecord[]> = {};
