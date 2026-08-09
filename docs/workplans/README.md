@@ -134,8 +134,13 @@ pushed.
 1. **Run the consent runbook** (`docs/o365-application-access.md`) on the test
    tenant. The code is waiting on it, not the other way round. It closes 0027
    T0 and lets 0028 T2's detector be proven against a real directory.
-2. **Push the `v0.1.0-rc.1` tag**, when you say so. Everything else is ready;
-   it unblocks 0025 T5's upgrade-path gate.
+2. ~~**Push the `v0.1.0-rc.1` tag**~~ — **DONE 2026-08-04**: tagged on the
+   owner's say-so, GitHub release published (prerelease), deliberately re-cut
+   from the post-CVE tree. This line outlived the event by five days and on
+   2026-08-09 cost the owner a "didn't we already do this?" — the exact
+   failure mode this index warns about in its own header. **What it unblocked
+   is now the open item: 0025 T5's N-1→N upgrade gate has had something to
+   upgrade FROM since this tag existed.**
 3. ~~**Run the appliance on your own Windows machine**~~ — **DONE, 2026-08-07
    through 2026-08-09, and it was exactly where the real Windows bugs were:
    seven of them, none visible to any CI gate.** Full migration, two hard
@@ -156,12 +161,16 @@ the owner, and one decision unblocks the most:**
    unblocks 0027's shared addresses, 0028's detectors (T2/T3/T5), all of 0029,
    and 0030's last unwired event. Nothing else in the numbering is waiting on
    as much.
-2. **The first tagged release** (0025 T2) — an owner decision plus execution.
-   It also unblocks 0025 T5's third §22.1 gate, the N-1→N upgrade path, which
-   cannot be tested without a release to upgrade FROM.
+2. **The first tagged release** (0025 T2) — done 2026-08-04 (`v0.1.0-rc.1`);
+   see the corrected item above.
 3. **The code-signing purchase** (0025 T6, shared with 0015 T4).
 4. **0026 T3 rows 7–8 and 10–25**, parked on 2026-08-02 at the owner's word.
-   Standing recommendation on rows 7–8 (sync directions): retract both.
+   ~~Standing recommendation on rows 7–8 (sync directions): retract both.~~
+   **All decided: rows 7–8 retracted 2026-08-03, rows 10–21 decided
+   2026-08-05, and the final six (14, 15, 22–25) on 2026-08-09 — the T3
+   table is closed.** The rows 7–8 line above had already been answered when
+   it was written, and it cost the owner a re-asked question TWICE (2026-08-05
+   and 2026-08-09) — stale action items in this file are not free.
    Row 23 has a standing recommendation too: build it as a panel on the
    existing operating screen for both editions, keeping `listRuns` and
    deleting `getRun` — or delete both and drop the "last run" claim from

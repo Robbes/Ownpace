@@ -17,6 +17,26 @@
 > disabled-IMAP from a bad credential. Also
 > historical: "imapsync"/"DavMail->vdirsyncer" in the decision text are
 > pre-ADR-0019 names — the real path is our own TypeScript connectors
+
+> **Update 2026-08-09 (workplan 0026 T3 row 14, owner decision): the
+> "one multi-tenant Entra app" half is RETIRED — the alternative this ADR
+> rejected is now the model.** Each customer registers their own single-tenant
+> app in their own tenant and consents to it there. What changed the weighing:
+> the consequence line below — "Requires Microsoft Publisher Verification" —
+> turned out to be the expensive part, an external Partner Center process with
+> lead time that gates every foreign tenant's consent, while the cost this ADR
+> originally held against per-customer registration ("more setup") had already
+> been paid by the code: the appliance takes the customer's own `OAUTH2_*`
+> values, and the managed edition stores `clientId`/`clientSecret` per
+> connection — there was never a central credential in the running system.
+> First-party consent has no verification wall, the credential never leaves
+> the customer's custody, and deleting the app registration is a customer-side
+> kill switch. Everything else in this ADR stands: application permissions +
+> Application Access Policy for org tenants, delegated for individuals, IMAP
+> primary with the Graph fallback. `docs/o365-setup.md` is retargeted to the
+> per-customer model (the multi-tenant consent-URL flow kept for the record),
+> and SAD §25 item 1's verification task is resolved by this decision rather
+> than by paperwork.
 > (IMAP+OAuth2 mail, Graph cal/contacts/files), and DavMail was never used
 > (ADR-0012 avoided it).
 
