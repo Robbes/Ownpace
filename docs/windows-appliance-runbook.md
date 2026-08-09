@@ -509,6 +509,20 @@ set TARGET_JMAP_PASSWORD=...
 
 Then restart the task and confirm the log says `loaded 1 mapping(s)`.
 
+**If you installed before 2026-08-09, that file is read-only even to you.** The
+ACL granted Administrators `R`, so editing the file the script had just told you
+to fill in failed with `Toegang tot het pad ... is geweigerd` from an elevated
+shell. Fixed in `install-task.ps1` (Administrators now get `M`), but an existing
+file keeps the ACL it was given. Repair it once, elevated:
+
+```powershell
+icacls 'C:\ProgramData\OpenMigrate\config\secrets.cmd' /grant '*S-1-5-32-544:(M)'
+```
+
+If that is itself refused, you are not the owner — `takeown /f` the file first.
+Read-only for Administrators never protected anything (an administrator can take
+ownership and re-grant at will); it only broke the documented workflow.
+
 ### What to check
 
 ```powershell

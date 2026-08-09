@@ -237,6 +237,40 @@ describe('the staged payload', () => {
     ).toEqual([]);
   });
 
+  it('leaves secrets.cmd writable by an administrator, since they must fill it in', () => {
+    // 2026-08-09, on a real machine, from an ELEVATED shell:
+    //
+    //   Set-Content : Toegang tot het pad
+    //   C:\ProgramData\OpenMigrate\config\secrets.cmd is geweigerd.
+    //
+    // install-task.ps1 creates that file, prints "put credentials there", and
+    // then locked it with `/inheritance:r /grant:r "*S-1-5-32-544:R"` -- read.
+    // So the documented next step could not be performed by anybody, including
+    // the account that had just created the file, by hand or by script.
+    //
+    // Read-only for Administrators protected nothing in the first place: a local
+    // administrator can take ownership and re-grant at will, so the ACL cost the
+    // operator a working instruction and bought no security. What the ACL is
+    // actually for is keeping every OTHER local user out of a file that holds
+    // mail passwords, and `M` for Administrators leaves that intact.
+    //
+    // Asserted on the script text because an ACL cannot be exercised off
+    // Windows. That makes this a weak test of a strong claim -- but the specific
+    // regression it pins (the grant silently going back to :R) is the one that
+    // actually happened, and it is invisible until somebody is standing at the
+    // machine at one in the morning.
+    const text = readFileSync(join(payload, 'scripts/install-task.ps1'), 'utf-8');
+    const grant = /icacls \$secretsFile[\s\S]{0,200}?\$\{runAsSid\}:R"/.exec(text);
+    expect(grant, 'the icacls grant on secrets.cmd is no longer recognisable').not.toBeNull();
+    expect(
+      grant![0],
+      'Administrators must get M on secrets.cmd -- with :R the operator cannot write ' +
+        'the credentials the script itself tells them to put there',
+    ).toContain('${ADMINISTRATORS_SID}:M');
+    // SYSTEM and the service account only ever `call` it.
+    expect(grant![0]).toContain('${LOCAL_SYSTEM_SID}:R');
+  });
+
   it('ships the migration chain byte-identical to the container image', () => {
     // Same bytes means the squash-equivalence proof still covers the appliance.
     // A payload that shipped subtly different SQL would diverge silently.

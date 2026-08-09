@@ -117,6 +117,23 @@ REM readable by every local user and this is not.
 
 # Administrators + SYSTEM + the run-as account, and nobody else.
 #
+# ADMINISTRATORS GET MODIFY, NOT READ. This file exists to be FILLED IN by an
+# operator: the message printed above says "put credentials there", the runbook
+# says the same, and until 2026-08-09 the very next thing anyone did was
+#
+#   Set-Content : Toegang tot het pad ...\secrets.cmd is geweigerd.
+#
+# from an ELEVATED shell, because /inheritance:r had dropped the inherited
+# write and the explicit grant was ':R'. An instruction the tool's own ACL
+# forbids is not a permission model, it is a bug that reads like one.
+#
+# Modify for Administrators costs nothing: a local administrator can take
+# ownership of any file and re-grant whatever they like, so read-only here
+# bought no protection at all -- it only made the documented workflow fail. The
+# thing this ACL actually defends against is every OTHER local user, and they
+# are still excluded. SYSTEM and the service account get R: they only ever
+# `call` this file, and neither of them should be editing credentials.
+#
 # BY SID, NOT BY NAME. Account names are LOCALISED; SIDs are not. The first
 # version of this passed 'BUILTIN\Administrators' and died on a Dutch Windows
 # with icacls 1332 (ERROR_NONE_MAPPED) -- "geen toewijzing tussen accountnamen en
@@ -142,13 +159,13 @@ try {
 }
 
 & icacls $secretsFile /inheritance:r /grant:r `
-    "*${ADMINISTRATORS_SID}:R" "*${LOCAL_SYSTEM_SID}:R" "*${runAsSid}:R" | Out-Null
+    "*${ADMINISTRATORS_SID}:M" "*${LOCAL_SYSTEM_SID}:R" "*${runAsSid}:R" | Out-Null
 if ($LASTEXITCODE -ne 0) {
     throw "Could not restrict permissions on $secretsFile (icacls exit $LASTEXITCODE). " +
           'Refusing to continue: that file is about to hold mail passwords, and a ' +
           'failure here would leave them readable by every local user.'
 }
-Write-Host "restricted $secretsFile to Administrators, SYSTEM and $RunAsUser"
+Write-Host "restricted $secretsFile to Administrators (modify), SYSTEM and $RunAsUser (read)"
 
 $launcher = Join-Path $PayloadPath 'service-launch.cmd'
 @"

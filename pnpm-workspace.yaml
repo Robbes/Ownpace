@@ -60,6 +60,17 @@ overrides:
   socket.io-parser@>=4.0.0 <4.2.7: ^4.2.7
   tar@<7.5.21: ^7.5.21
   undici@>=8.0.0 <8.9.0: ^8.9.0
+  # 2026-08-08. nanoid, two advisories with two different fix floors on the 3.x
+  # line — 3.3.16 for one and 3.3.17 for the other, so ONE bound is not enough
+  # unless it is the higher one. Both tree copies were below it:
+  #   3.3.8  PRODUCTION, via @trigger.dev/core (worker + scheduler runtime)
+  #   3.3.16 dev-only, via postcss -> vite/autoprefixer — already past the first
+  #          floor, still short of the second, which is exactly the case a
+  #          single "fixed in 3.3.16" reading would have missed.
+  #   CVE-2026-67214 (HIGH) infinite loop  — fixed 3.3.16 / 5.1.16
+  #   CVE-2026-67213 (HIGH)                — fixed 3.3.17 / 5.1.6
+  # <3.3.17 therefore satisfies both. No 5.x is in the tree; nothing to scope.
+  nanoid@<3.3.17: ^3.3.17
 minimumReleaseAgeExclude:
   - brace-expansion@2.1.4
   - brace-expansion@5.0.9
