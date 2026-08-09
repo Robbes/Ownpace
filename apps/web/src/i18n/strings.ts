@@ -81,7 +81,7 @@ const en = {
   'queue.alreadyDecided': 'Already decided',
   'moves.title': 'Moved on the old system',
   'moves.intro':
-    'Items the owner has filed somewhere else where they came from. The new system still has them where we put them, and nothing has been changed on either side.',
+    'Items the owner has filed somewhere other than where they came from. The new system still has them where we put them, and nothing has been changed on either side.',
   'moves.empty.open': 'Nothing has moved.',
   'moves.empty.acknowledged': 'Nothing has been decided yet.',
   'moves.keep': 'Leave it where it is',
@@ -221,7 +221,8 @@ const en = {
   'finish.step2.title': 'Clear the decision queues',
   'finish.step2.reading': 'Reading…',
   'finish.step2.clear': 'Nothing is waiting on you.',
-  'finish.step2.failures': 'could not be copied',
+  'finish.step2.failures.one': 'could not be copied',
+  'finish.step2.failures.many': 'could not be copied',
   'finish.step2.deletions': 'deleted on the old system',
   'finish.step2.moves': 'moved',
   'finish.step2.onlyFirstBlocks':
@@ -414,7 +415,7 @@ const nl: Record<keyof typeof en, string> = {
     'Het verscheen niet meer in opeenvolgende volledige scans. Een vermoeden, geen feit — dit kan nooit worden toegepast.',
   'guidance.summary': 'Wat dit betekent en wat u kunt doen',
   'receipt.queued':
-    'Verwijdering in de wachtrij — de taak controleert elke poort opnieuw voordat er iets wordt aangeraakt.',
+    'Verwijdering in de wachtrij — de taak controleert elk controlepunt opnieuw voordat er iets wordt aangeraakt.',
   'receipt.applied.binned':
     'Verwijderd — verplaatst naar de prullenbak van het doelsysteem; daar is mogelijk nog een kopie terug te halen.',
   'receipt.applied.deleted': 'Verwijderd — weg, zonder herstelmogelijkheid vanaf hier.',
@@ -440,10 +441,10 @@ const nl: Record<keyof typeof en, string> = {
     'Items die niet konden worden gekopieerd en nu op een persoon wachten. Deze blokkeren het afronden.',
   'hub.check.name': 'Verificatie',
   'hub.check.blurb':
-    'Vergelijk de twee systemen en controleer steekproeven van de inhoud — de §20-poort, achter één knop.',
+    'Vergelijk de twee systemen en controleer steekproeven van de inhoud — het §20-controlepunt, achter één knop.',
   'hub.finish.name': 'Afronden',
   'hub.finish.blurb':
-    'De cutover-checklist. Beëindigt de migratie — in volgorde, met de ene bevestigde stap.',
+    'De cutover-checklist. Beëindigt de migratie — in volgorde, met de ene stap die u zelf moet bevestigen.',
   'runs.title': 'Uitvoeringsgeschiedenis',
   'runs.blurb':
     'Elke synchronisatieronde van deze migratie, nieuwste eerst, met wat elke ronde meldde.',
@@ -479,8 +480,8 @@ const nl: Record<keyof typeof en, string> = {
   'deletions.intro':
     'Items die de eigenaar heeft verwijderd waar ze vandaan kwamen, maar die het nieuwe systeem nog heeft. Er is aan geen van beide kanten iets verwijderd.',
   'deletions.empty.confirmed': 'Er wacht niets op een beslissing.',
-  'deletions.watching': 'Onder observatie',
-  'deletions.empty.watching': 'Er wordt niets geobserveerd.',
+  'deletions.watching': 'Wordt in de gaten gehouden',
+  'deletions.empty.watching': 'Er wordt niets in de gaten gehouden.',
   'deletions.empty.acknowledged': 'Er is nog niets besloten.',
   'deletions.keep': 'Behoud onze kopie',
   'deletions.apply': 'Verwijder het hier ook',
@@ -529,7 +530,7 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.progress.heading': 'Live voortgang',
   'confirm.progress.synced': 'gesynchroniseerd',
   'confirm.progress.failed': 'mislukt',
-  'confirm.progress.retrying': 'opnieuw geprobeerd',
+  'confirm.progress.retrying': 'in nieuwe poging',
   'confirm.snapshot.heading': 'Scan van voor de start (momentopname)',
   'confirm.snapshot.note':
     'Eenmalig geteld, voor de start, om te tonen wat er zou migreren. De bron verandert daarna gewoon door en deze aantallen niet — de live voortgang hierboven komt uit het grootboek.',
@@ -605,7 +606,8 @@ const nl: Record<keyof typeof en, string> = {
   'finish.step2.title': 'Werk de beslissingswachtrijen weg',
   'finish.step2.reading': 'Lezen…',
   'finish.step2.clear': 'Er wacht niets op u.',
-  'finish.step2.failures': 'konden niet worden gekopieerd',
+  'finish.step2.failures.one': 'kon niet worden gekopieerd',
+  'finish.step2.failures.many': 'konden niet worden gekopieerd',
   'finish.step2.deletions': 'verwijderd op het oude systeem',
   'finish.step2.moves': 'verplaatst',
   'finish.step2.onlyFirstBlocks':
@@ -701,7 +703,7 @@ const nl: Record<keyof typeof en, string> = {
   'decisions.presets.intro':
     'Categorieën die zichzelf beantwoorden worden hier nog steeds vastgelegd — u ziet wat ' +
     'is opgemerkt en waardoor het is afgesloten — maar niemand wordt erover gestoord.',
-  'decisions.presets.newMailbox': 'Als er een postvak verschijnt dat niets migreert',
+  'decisions.presets.newMailbox': 'Als er een postvak verschijnt waarvoor niets migreert',
   'decisions.presets.ask': 'Vraag het mij',
   'decisions.presets.auto': 'Automatisch beantwoorden',
   'decisions.presets.saved': 'Opgeslagen.',
@@ -744,11 +746,11 @@ const nl: Record<keyof typeof en, string> = {
     'Veranderingen die de synchronisatie opmerkte en waarover alleen u kunt beslissen. Er gebeurt niets totdat u antwoordt.',
   'decisions.readError': 'De beslissingswachtrij kon niet worden gelezen.',
   'decisions.requestFailed': 'Het verzoek is niet voltooid.',
-  'decisions.dismiss': 'Afwijzen',
+  'decisions.dismiss': 'Terzijde leggen',
   'decisions.sharedAddress.shared_s': 'Eén gedeeld postvak',
   'decisions.sharedAddress.distribution_d': 'Een distributielijst',
   'decisions.empty.noDetectors':
-    'Er wacht niets. De wachters voor nieuwe postvakken en gedeelde adressen draaien eenmaal per ' +
+    'Er wacht niets. De detectoren voor nieuwe postvakken en gedeelde adressen draaien eenmaal per ' +
     'dag; een bron die zij niet konden lezen wordt gemeld als blinde vlek en niet geteld als ' +
     '"geen veranderingen".',
   'decisions.empty.answered': 'Er is nog niets beslist.',
@@ -763,8 +765,8 @@ const nl: Record<keyof typeof en, string> = {
   'decisionCategory.target_drift': 'Afwijking op het doel',
   'decisionCategory.other': 'Overig',
   'decisionStatus.resolved': 'Beslist',
-  'decisionStatus.auto_resolved': 'Beslist door voorkeuze',
-  'decisionStatus.dismissed': 'Afgewezen',
+  'decisionStatus.auto_resolved': 'Beslist door vast antwoord',
+  'decisionStatus.dismissed': 'Terzijde gelegd',
 };
 
 export type Locale = 'en' | 'nl';
