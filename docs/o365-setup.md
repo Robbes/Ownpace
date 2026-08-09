@@ -2,7 +2,24 @@
 
 **Reference:** ADR-0006 (O365 Access Model), Workplan 0008 T2
 
-This guide walks you through setting up a multi-tenant Microsoft Entra (formerly Azure AD) application for Open-Migrate to access O365 resources (mail, calendar, contacts, OneDrive).
+This guide walks you through setting up a Microsoft Entra (formerly Azure AD)
+application for Open-Migrate to access O365 resources (mail, calendar,
+contacts, OneDrive) — **in your own tenant, registered by you**.
+
+> **Model change, 2026-08-09 (owner decision — workplan 0026 T3 row 14).**
+> This document originally described ONE multi-tenant app, published by the
+> Open-Migrate project, that every customer tenant consented to. That model is
+> retired: **each customer registers their own single-tenant app in their own
+> tenant** and consents to it there. What that buys, concretely: consent to
+> your own first-party app has **no Microsoft publisher-verification wall**
+> (the multi-tenant model would have required a Partner Center verification
+> before any foreign tenant could consent); the credential never leaves your
+> custody — you put it in your own appliance's `secrets.cmd`/`.env` or the
+> managed edition's connection screen, so the "whitelisting" is credential
+> custody plus the Application Access Policy narrowing the app to named
+> mailboxes; and revocation is yours — delete the app registration and every
+> token dies. The multi-tenant consent-URL machinery below is kept only for
+> the record, marked as not the current model.
 
 ---
 
@@ -20,11 +37,15 @@ This guide walks you through setting up a multi-tenant Microsoft Entra (formerly
 
 ## Overview
 
-Open-Migrate uses **one multi-tenant Entra application** to access O365 resources across different tenants. This approach:
+Open-Migrate uses **an Entra application you register in your own tenant**.
+This approach:
 
-- **Centralizes trust**: One app registration serves all tenants
-- **Minimizes setup**: Admins only need to grant consent once per tenant
-- **Follows least-privilege**: Permissions are scoped to only what's needed
+- **Keeps trust at home**: the app, the consent and the credential all live in
+  the tenant being migrated — nothing is granted to an app someone else runs
+- **Needs no publisher verification**: that requirement only exists when a
+  foreign tenant consents to somebody else's multi-tenant app
+- **Follows least-privilege**: permissions are scoped to only what's needed,
+  and the Application Access Policy narrows mailbox access further
 
 ### Access Model (per ADR-0006)
 
@@ -71,7 +92,7 @@ Both paths use the same app registration but different permission configurations
 2. Click **+ New registration**
 3. Fill in the form:
    - **Name**: `Open-Migrate` (or your organization's preferred name)
-   - **Supported account types**: **Accounts in any organizational directory (Any Microsoft Entra ID tenant - Multitenant)**
+   - **Supported account types**: **Accounts in this organizational directory only (Single tenant)** — the per-customer model (2026-08-09); multi-tenant would only invite the publisher-verification wall this model exists to avoid
    - **Redirect URI**: Not required for application credentials; for delegated flow, you can use `http://localhost` for testing
 4. Click **Register**
 
@@ -113,7 +134,7 @@ For application permissions to work, an admin must grant consent:
 2. Click **Grant admin consent for [Your Tenant]**
 3. Confirm by clicking **Yes** in the dialog
 
-> **Note:** This step is required only once per tenant. For multi-tenant deployment, each tenant admin will need to grant consent separately (see [Consent Flow](#consent-flow)).
+> **Note:** Under the per-customer model this is the ONLY consent there is — your admin, your tenant, done. The cross-tenant consent flow further down is retained for the record and is not the current model.
 
 ### Step 5: Create Credentials
 
@@ -147,6 +168,11 @@ For certificate-based auth, you'll need the private key locally for the applicat
 ---
 
 ## Consent Flow
+
+> **Not the current model (2026-08-09).** Everything in this section exists
+> for onboarding foreign tenants to a shared multi-tenant app. Under the
+> per-customer model, consent is the in-tenant button in Step 4 and this
+> section is unnecessary — kept for the record.
 
 ### Admin Consent for Tenant Onboarding
 
@@ -260,7 +286,7 @@ Create a `.env.example` file (this is safe to commit):
 # O365 OAuth2 Configuration
 # Get these from Azure Portal → App registrations → Your app → Overview
 
-# Tenant ID (Directory ID) - Use 'common' for multi-tenant
+# Tenant ID (Directory ID) - YOUR tenant's ID; 'common' belongs to the retired multi-tenant model
 OAUTH2_TENANT_ID=your-tenant-id-here
 
 # Application (Client) ID from Azure Portal
@@ -408,7 +434,7 @@ Create a `.env.example` in your project root:
 # Copy this file to .env and fill in your values
 # NEVER commit .env to version control
 
-# Azure AD Tenant ID (use 'common' for multi-tenant)
+# Azure AD Tenant ID - YOUR tenant's ID ('common' belongs to the retired multi-tenant model)
 OAUTH2_TENANT_ID=
 
 # Application (Client) ID from Azure Portal
@@ -507,7 +533,7 @@ Then use the token with imapsync or similar IMAP clients.
 
 1. **Verify App Registration:**
    - [ ] App exists in Azure Portal
-   - [ ] Correct tenant type (multitenant)
+   - [ ] Correct tenant type (single tenant - per-customer model, 2026-08-09)
    - [ ] API permissions added correctly
 
 2. **Verify Permissions:**
