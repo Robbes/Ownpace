@@ -105,19 +105,24 @@ export const MappingListItemSchema = z.object({
  *  masks password as '***'; `domainStatus` is listed EXPLICITLY because
  *  z.object strips unknown keys — leaving it out would silently drop the
  *  live per-domain numbers the hub renders (see the discovery-schema comment
- *  below for the history of exactly that failure). */
+ *  below for the history of exactly that failure).
+ *
+ *  The rows are shared's `DomainStatusReport` — the SAME shape the
+ *  appliance's /status serves (both editions call
+ *  `buildDomainStatusReports`), so the LiveProgress strip renders either
+ *  edition's payload without an adapter fork. */
 export const MappingDomainStatusSchema = z.object({
   domain: DomainEnum,
   state: z.enum(['pending', 'in_progress', 'completed', 'failed', 'skipped']),
   itemsSynced: z.number(),
   itemsFailed: z.number(),
   bytesTransferred: z.number(),
-  startedAt: z.string(),
-  updatedAt: z.string(),
-  completedAt: z.string().nullish(),
-  lastError: z.string().nullish(),
+  itemsRetrying: z.number(),
+  itemsNeedingDecision: z.number(),
+  lastSyncedAt: z.string().optional(),
+  lastError: z.string().optional(),
   /** PassMetrics — counts and durations only, never names or addresses. */
-  lastPassMetrics: z.record(z.string(), z.number()).nullish(),
+  lastPass: z.record(z.string(), z.number()).optional(),
 });
 
 const MaskedConfigSchema = z.object({

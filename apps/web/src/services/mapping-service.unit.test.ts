@@ -66,21 +66,18 @@ const detailFixture = {
   pattern: null,
   domainStatus: [
     {
-      // getStatus rows carry id/tenantId/mappingId too; z.object strips them,
-      // which is fine — what must NOT be stripped is the block the hub renders.
-      id: 'status-1',
-      tenantId: 'tenant-1',
-      mappingId: 'mapping-0',
+      // buildDomainStatusReports output — the shared shape BOTH editions
+      // serve (the appliance via /status, managed via this route).
       domain: 'email',
       state: 'in_progress',
       itemsSynced: 42,
       itemsFailed: 3,
       bytesTransferred: 1024,
-      startedAt: '2026-08-09T09:00:00.000Z',
-      updatedAt: '2026-08-09T10:00:00.000Z',
-      completedAt: '2026-08-09T10:00:00.000Z',
+      itemsRetrying: 2,
+      itemsNeedingDecision: 1,
+      lastSyncedAt: '2026-08-09T10:00:00.000Z',
       lastError: 'IMAP LIST failed: connection reset',
-      lastPassMetrics: {
+      lastPass: {
         items: 42,
         wallMs: 1000,
         sourceFetchMs: 400,
@@ -165,8 +162,12 @@ describe('MappingSchema vs the detail route', () => {
       state: 'in_progress',
       itemsSynced: 42,
       itemsFailed: 3,
+      // The attention counts the managed payload used to LACK (raw
+      // MigrationStatus rows) — pinned so the DomainStatusReport shape stays.
+      itemsRetrying: 2,
+      itemsNeedingDecision: 1,
       lastError: 'IMAP LIST failed: connection reset',
-      completedAt: '2026-08-09T10:00:00.000Z',
+      lastSyncedAt: '2026-08-09T10:00:00.000Z',
     });
   });
 });

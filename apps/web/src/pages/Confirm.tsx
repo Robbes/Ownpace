@@ -22,13 +22,16 @@ import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Loader2, Play } from 'lucide-react';
 import { Link } from 'react-router';
-import type { MappingLifecycle, DomainStatusReport } from '@openmig/shared';
+import type { MappingLifecycle } from '@openmig/shared';
 import { useT, useLocale } from '../i18n';
-import { formatDateTime, formatNumber } from '../i18n/datetime';
+import { formatDateTime } from '../i18n/datetime';
 import type { StringKey } from '../i18n';
 import DiscoveryCounts from '../components/confirm/DiscoveryCounts';
 import ScopeManifestPanel from '../components/confirm/ScopeManifestPanel';
 import SharedAddresses from '../components/confirm/SharedAddresses';
+// The live strip is shared with the managed hub (0033 T5) — one component,
+// two data sources, same DomainStatusReport rows underneath.
+import LiveProgress from '../components/LiveProgress';
 import {
   fetchAllDiscovery,
   fetchScopeManifest,
@@ -36,75 +39,6 @@ import {
   fetchStatus,
   startMigration,
 } from '../services/operating-service';
-
-const DOMAIN_KEY: Record<DomainStatusReport['domain'], StringKey> = {
-  email: 'domain.email',
-  calendar: 'domain.calendar',
-  contact: 'domain.contact',
-  file: 'domain.file',
-};
-
-const STATE_KEY: Record<DomainStatusReport['state'], StringKey> = {
-  pending: 'confirm.state.pending',
-  in_progress: 'confirm.state.in_progress',
-  completed: 'confirm.state.completed',
-  failed: 'confirm.state.failed',
-  skipped: 'confirm.state.skipped',
-};
-
-const STATE_CLASS: Record<DomainStatusReport['state'], string> = {
-  pending: 'bg-gray-100 text-gray-700',
-  in_progress: 'bg-blue-100 text-blue-800',
-  completed: 'bg-green-100 text-green-800',
-  failed: 'bg-red-100 text-red-800',
-  skipped: 'bg-gray-100 text-gray-500',
-};
-
-/**
- * What the migration is doing NOW, from the same /status payload PowerShell
- * gets -- one source, so this screen and `Invoke-RestMethod .../status` can
- * never disagree (2026-08-09: they did, because this page showed only the
- * pre-start scan and an operator compared its 510 against the ledger's 1149).
- */
-const LiveProgress: React.FC<{ domains: readonly DomainStatusReport[] }> = ({ domains }) => {
-  const t = useT();
-  const { locale } = useLocale();
-  const running = domains.filter((d) => d.state !== 'skipped');
-  if (running.length === 0) return null;
-  return (
-    <div className="mb-3">
-      <h4 className="text-sm font-medium text-gray-700 mb-1">{t('confirm.progress.heading')}</h4>
-      <ul className="space-y-1">
-        {running.map((d) => (
-          <li key={d.domain} className="text-sm text-gray-800 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <span className="font-medium">{t(DOMAIN_KEY[d.domain])}</span>
-            <span className={`inline-block px-1.5 py-0.5 rounded text-xs ${STATE_CLASS[d.state]}`}>
-              {t(STATE_KEY[d.state])}
-            </span>
-            <span>
-              {formatNumber(d.itemsSynced, locale)} {t('confirm.progress.synced')}
-            </span>
-            {d.itemsFailed > 0 && (
-              <span className="text-red-700">
-                {formatNumber(d.itemsFailed, locale)} {t('confirm.progress.failed')}
-              </span>
-            )}
-            {d.itemsRetrying > 0 && (
-              <span className="text-amber-700">
-                {formatNumber(d.itemsRetrying, locale)} {t('confirm.progress.retrying')}
-              </span>
-            )}
-            {d.lastError && (
-              // Verbatim (the prose boundary): this is the line the operator
-              // acts on, and a paraphrase is a different claim.
-              <span className="basis-full font-mono text-xs text-red-800">{d.lastError}</span>
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-};
 
 const LIFECYCLE_NOTE_KEY: Record<MappingLifecycle, StringKey | null> = {
   paused: null,

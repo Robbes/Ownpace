@@ -15,6 +15,7 @@
 
 import type { ItemFailure, MigrationStatus, MappingLifecycle } from '@openmig/shared';
 import type { DomainStatusReport, StatusReport } from '@openmig/shared';
+import { buildDomainStatusReports } from '@openmig/shared';
 
 export type { DomainStatusReport, StatusReport };
 
@@ -33,21 +34,11 @@ export function buildStatusReport(inputs: readonly MappingStatusInput[]): Status
     mappings: inputs.map(({ mappingId, migrationStatus, statuses, failures = [] }) => ({
       mappingId,
       migrationStatus,
-      domains: statuses.map((s) => {
-        const mine = failures.filter((f) => f.domain === s.domain);
-        return {
-          domain: s.domain,
-          state: s.state,
-          itemsSynced: s.itemsSynced,
-          itemsFailed: s.itemsFailed,
-          bytesTransferred: s.bytesTransferred,
-          itemsRetrying: mine.filter((f) => !f.needsDecision).length,
-          itemsNeedingDecision: mine.filter((f) => f.needsDecision).length,
-          ...(s.completedAt ? { lastSyncedAt: s.completedAt } : {}),
-          ...(s.lastError ? { lastError: s.lastError } : {}),
-          ...(s.lastPassMetrics ? { lastPass: s.lastPassMetrics } : {}),
-        };
-      }),
+      // The row derivation moved to @openmig/shared (0033 T5) so the managed
+      // GET /migrations/{id} serves the SAME shape — before that, its raw
+      // MigrationStatus rows lacked itemsRetrying/itemsNeedingDecision and a
+      // UI reading them saw undefined where this edition served numbers.
+      domains: buildDomainStatusReports(statuses, failures),
     })),
   };
 }
