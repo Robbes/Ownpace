@@ -81,7 +81,7 @@ describe('Mappings — failed read ≠ empty list (hard rule 9)', () => {
     expect(screen.getByText('Could not load the migrations list.')).toBeInTheDocument();
     // Mutation check: removing the error branch would fall through to one of
     // these — both must be absent.
-    expect(screen.queryByText('No mappings yet')).not.toBeInTheDocument();
+    expect(screen.queryByText('No migrations yet')).not.toBeInTheDocument();
     expect(screen.queryByText('Name')).not.toBeInTheDocument();
     expect(screen.queryByText('Request failed with status code 500')).not.toBeInTheDocument();
   });
@@ -96,11 +96,12 @@ describe('Mappings — failed read ≠ empty list (hard rule 9)', () => {
 
     renderMappings();
 
-    expect(await screen.findByText('cutover')).toBeInTheDocument();
-    expect(screen.getByText('done')).toBeInTheDocument();
-    expect(screen.getByText('active')).toBeInTheDocument();
-    expect(screen.getByText('paused')).toBeInTheDocument();
-    expect(screen.queryByText('No mappings yet')).not.toBeInTheDocument();
+    // The canonical translated words (StateChip, 0035 T1) — never the raw enum.
+    expect(await screen.findByText('In cutover')).toBeInTheDocument();
+    expect(screen.getByText('Done')).toBeInTheDocument();
+    expect(screen.getByText('Active')).toBeInTheDocument();
+    expect(screen.getByText('Paused')).toBeInTheDocument();
+    expect(screen.queryByText('No migrations yet')).not.toBeInTheDocument();
   });
 
   it('still shows the true empty state when the tenant has no mappings', async () => {
@@ -108,7 +109,7 @@ describe('Mappings — failed read ≠ empty list (hard rule 9)', () => {
 
     renderMappings();
 
-    expect(await screen.findByText('No mappings yet')).toBeInTheDocument();
+    expect(await screen.findByText('No migrations yet')).toBeInTheDocument();
     expect(screen.queryByText('Could not load the migrations list.')).not.toBeInTheDocument();
   });
 });

@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 // translated). The rest of this wizard is still EN-only prose — a 0024 T5
 // candidate — but a new user-facing sentence does not get to add to that debt.
 import { useT } from '../i18n';
+import type { StringKey } from '../i18n';
 import { useNavigate } from 'react-router';
 import {
   ArrowLeft,
@@ -65,20 +66,25 @@ const initialFormData: FormData = {
   schedule: '',
 };
 
-const steps: { id: Step; name: string; icon: React.FC<React.SVGProps<SVGSVGElement>> }[] = [
-  { id: 'source', name: 'Source', icon: Server },
-  { id: 'target', name: 'Target', icon: Database },
-  { id: 'credentials', name: 'Credentials', icon: Settings },
-  { id: 'data-types', name: 'Data Types', icon: FileText },
-  { id: 'schedule', name: 'Schedule', icon: Clock },
-  { id: 'review', name: 'Review', icon: Check },
+const steps: { id: Step; nameKey: StringKey; icon: React.FC<React.SVGProps<SVGSVGElement>> }[] = [
+  { id: 'source', nameKey: 'wizard.step.source', icon: Server },
+  { id: 'target', nameKey: 'wizard.step.target', icon: Database },
+  { id: 'credentials', nameKey: 'wizard.step.credentials', icon: Settings },
+  { id: 'data-types', nameKey: 'wizard.step.dataTypes', icon: FileText },
+  { id: 'schedule', nameKey: 'wizard.step.schedule', icon: Clock },
+  { id: 'review', nameKey: 'wizard.step.review', icon: Check },
 ];
 
-const dataTypes: { id: Domain; name: string; icon: React.FC<React.SVGProps<SVGSVGElement>>; description: string }[] = [
-  { id: 'email', name: 'Email', icon: FileText, description: 'Email messages and folders' },
-  { id: 'calendar', name: 'Calendar', icon: Calendar, description: 'Events and appointments' },
-  { id: 'contact', name: 'Contacts', icon: Users, description: 'Address book entries' },
-  { id: 'file', name: 'Files', icon: Folder, description: 'Attachments and documents' },
+const dataTypes: {
+  id: Domain;
+  nameKey: StringKey;
+  icon: React.FC<React.SVGProps<SVGSVGElement>>;
+  hintKey: StringKey;
+}[] = [
+  { id: 'email', nameKey: 'domain.email', icon: FileText, hintKey: 'wizard.domain.email.hint' },
+  { id: 'calendar', nameKey: 'domain.calendar', icon: Calendar, hintKey: 'wizard.domain.calendar.hint' },
+  { id: 'contact', nameKey: 'domain.contact', icon: Users, hintKey: 'wizard.domain.contact.hint' },
+  { id: 'file', nameKey: 'domain.file', icon: Folder, hintKey: 'wizard.domain.file.hint' },
 ];
 
 const CreateMapping: React.FC = () => {
@@ -185,15 +191,15 @@ const CreateMapping: React.FC = () => {
         return (
           <div className="space-y-6">
             <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                Select Source System
-              </h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">{t('wizard.selectSource')}</h3>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                {[
-                  { id: 'imap', name: 'IMAP', description: 'Standard email protocol' },
-                  { id: 'oauth2', name: 'OAuth2', description: 'Modern authentication' },
-                  { id: 'graph', name: 'Microsoft Graph', description: 'Office 365 API' },
-                ].map((type) => (
+                {(
+                  [
+                    { id: 'imap', name: 'IMAP', hintKey: 'wizard.proto.imap.hint' },
+                    { id: 'oauth2', name: 'OAuth2', hintKey: 'wizard.proto.oauth2.hint' },
+                    { id: 'graph', name: 'Microsoft Graph', hintKey: 'wizard.proto.graph.hint' },
+                  ] as const
+                ).map((type) => (
                   <button
                     key={type.id}
                     onClick={() => updateField('sourceType', type.id)}
@@ -204,7 +210,7 @@ const CreateMapping: React.FC = () => {
                     }`}
                   >
                     <p className="font-medium text-gray-900">{type.name}</p>
-                    <p className="text-sm text-gray-500 mt-1">{type.description}</p>
+                    <p className="text-sm text-gray-500 mt-1">{t(type.hintKey)}</p>
                   </button>
                 ))}
               </div>
@@ -268,17 +274,17 @@ const CreateMapping: React.FC = () => {
         return (
           <div className="space-y-6">
             <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                Select Target System
-              </h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">{t('wizard.selectTarget')}</h3>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                {[
-                  { id: 'jmap', name: 'JMAP', description: 'Modern email protocol' },
-                  { id: 'imap', name: 'IMAP', description: 'Standard email protocol' },
-                  { id: 'caldav', name: 'CalDAV', description: 'Calendar protocol' },
-                  { id: 'carddav', name: 'CardDAV', description: 'Contact protocol' },
-                  { id: 'webdav', name: 'WebDAV', description: 'File storage' },
-                ].map((type) => (
+                {(
+                  [
+                    { id: 'jmap', name: 'JMAP', hintKey: 'wizard.proto.jmap.hint' },
+                    { id: 'imap', name: 'IMAP', hintKey: 'wizard.proto.imap.hint' },
+                    { id: 'caldav', name: 'CalDAV', hintKey: 'wizard.proto.caldav.hint' },
+                    { id: 'carddav', name: 'CardDAV', hintKey: 'wizard.proto.carddav.hint' },
+                    { id: 'webdav', name: 'WebDAV', hintKey: 'wizard.proto.webdav.hint' },
+                  ] as const
+                ).map((type) => (
                   <button
                     key={type.id}
                     onClick={() => updateField('targetType', type.id)}
@@ -289,7 +295,7 @@ const CreateMapping: React.FC = () => {
                     }`}
                   >
                     <p className="font-medium text-gray-900">{type.name}</p>
-                    <p className="text-sm text-gray-500 mt-1">{type.description}</p>
+                    <p className="text-sm text-gray-500 mt-1">{t(type.hintKey)}</p>
                   </button>
                 ))}
               </div>
@@ -345,7 +351,7 @@ const CreateMapping: React.FC = () => {
           <div className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Migration Name
+                {t('wizard.migrationName')}
               </label>
               <input
                 type="text"
@@ -354,17 +360,15 @@ const CreateMapping: React.FC = () => {
                 className="input w-full"
                 placeholder="My Migration"
               />
-              <p className="mt-1 text-sm text-gray-500">
-                A friendly name to identify this migration
-              </p>
+              <p className="mt-1 text-sm text-gray-500">{t('wizard.migrationNameHint')}</p>
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="font-medium text-blue-900 mb-2">Credentials</h4>
+              <h4 className="font-medium text-blue-900 mb-2">{t('wizard.credentials')}</h4>
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Source Username
+                    {t('wizard.sourceUsername')}
                   </label>
                   <input
                     type="text"
@@ -377,7 +381,7 @@ const CreateMapping: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Source Password
+                    {t('wizard.sourcePassword')}
                   </label>
                   <input
                     type="password"
@@ -390,7 +394,7 @@ const CreateMapping: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Target Username
+                    {t('wizard.targetUsername')}
                   </label>
                   <input
                     type="text"
@@ -403,7 +407,7 @@ const CreateMapping: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Target Password
+                    {t('wizard.targetPassword')}
                   </label>
                   <input
                     type="password"
@@ -422,11 +426,9 @@ const CreateMapping: React.FC = () => {
         return (
           <div className="space-y-4">
             <h3 className="text-lg font-medium text-gray-900">
-              Select Data Types to Migrate
+              {t('wizard.selectDataTypes')}
             </h3>
-            <p className="text-sm text-gray-500">
-              Choose which types of data you want to migrate
-            </p>
+            <p className="text-sm text-gray-500">{t('wizard.selectDataTypesHint')}</p>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {dataTypes.map((type) => (
@@ -448,8 +450,8 @@ const CreateMapping: React.FC = () => {
                       }`}
                     />
                     <div>
-                      <p className="font-medium text-gray-900">{type.name}</p>
-                      <p className="text-sm text-gray-500">{type.description}</p>
+                      <p className="font-medium text-gray-900">{t(type.nameKey)}</p>
+                      <p className="text-sm text-gray-500">{t(type.hintKey)}</p>
                     </div>
                   </div>
                 </button>
@@ -462,20 +464,18 @@ const CreateMapping: React.FC = () => {
         return (
           <div className="space-y-6">
             <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                Sync Schedule
-              </h3>
-              <p className="text-sm text-gray-500 mb-4">
-                Choose how often to sync data between source and target
-              </p>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">{t('wizard.schedule')}</h3>
+              <p className="text-sm text-gray-500 mb-4">{t('wizard.scheduleHint')}</p>
 
               <div className="space-y-3">
-                {[
-                  { value: '0 * * * *', label: 'Hourly', description: 'Every hour' },
-                  { value: '0 2 * * *', label: 'Daily', description: 'Every day at 2 AM' },
-                  { value: '0 */6 * * *', label: 'Every 6 hours', description: 'Six times per day' },
-                  { value: '*/15 * * * *', label: 'Every 15 minutes', description: 'Frequent sync' },
-                ].map((option) => (
+                {(
+                  [
+                    { value: '0 * * * *', labelKey: 'wizard.schedule.hourly', hintKey: 'wizard.schedule.hourly.hint' },
+                    { value: '0 2 * * *', labelKey: 'wizard.schedule.daily', hintKey: 'wizard.schedule.daily.hint' },
+                    { value: '0 */6 * * *', labelKey: 'wizard.schedule.sixHourly', hintKey: 'wizard.schedule.sixHourly.hint' },
+                    { value: '*/15 * * * *', labelKey: 'wizard.schedule.quarterHourly', hintKey: 'wizard.schedule.quarterHourly.hint' },
+                  ] as const
+                ).map((option) => (
                   <button
                     key={option.value}
                     onClick={() => updateField('schedule', option.value)}
@@ -485,15 +485,15 @@ const CreateMapping: React.FC = () => {
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
-                    <p className="font-medium text-gray-900">{option.label}</p>
-                    <p className="text-sm text-gray-500">{option.description}</p>
+                    <p className="font-medium text-gray-900">{t(option.labelKey)}</p>
+                    <p className="text-sm text-gray-500">{t(option.hintKey)}</p>
                   </button>
                 ))}
               </div>
 
               <div className="mt-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Custom Cron Expression (optional)
+                  {t('wizard.customCron')}
                 </label>
                 <input
                   type="text"
@@ -502,9 +502,7 @@ const CreateMapping: React.FC = () => {
                   className="input w-full"
                   placeholder="0 2 * * *"
                 />
-                <p className="mt-1 text-xs text-gray-500">
-                  Leave empty for default daily sync at 2 AM
-                </p>
+                <p className="mt-1 text-xs text-gray-500">{t('wizard.customCronHint')}</p>
               </div>
             </div>
           </div>
@@ -516,48 +514,48 @@ const CreateMapping: React.FC = () => {
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
               <div className="flex items-center">
                 <Check className="w-5 h-5 text-green-600 mr-2" />
-                <h3 className="font-medium text-green-900">Ready to create migration</h3>
+                <h3 className="font-medium text-green-900">{t('wizard.readyToCreate')}</h3>
               </div>
             </div>
 
             <div className="space-y-4">
               <div>
-                <h4 className="text-sm font-medium text-gray-900 mb-2">Migration Details</h4>
+                <h4 className="text-sm font-medium text-gray-900 mb-2">{t('wizard.reviewDetails')}</h4>
                 <dl className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
                   <div>
-                    <dt className="text-sm text-gray-500">Name</dt>
+                    <dt className="text-sm text-gray-500">{t('wizard.review.name')}</dt>
                     <dd className="text-sm font-medium text-gray-900">{formData.name}</dd>
                   </div>
                   <div>
-                    <dt className="text-sm text-gray-500">Source</dt>
+                    <dt className="text-sm text-gray-500">{t('wizard.review.source')}</dt>
                     <dd className="text-sm font-medium text-gray-900">
                       {formData.sourceType} ({formData.sourceHost}:{formData.sourcePort})
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-sm text-gray-500">Target</dt>
+                    <dt className="text-sm text-gray-500">{t('wizard.review.target')}</dt>
                     <dd className="text-sm font-medium text-gray-900">
                       {formData.targetType} ({formData.targetHost}:{formData.targetPort})
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-sm text-gray-500">Schedule</dt>
+                    <dt className="text-sm text-gray-500">{t('wizard.review.schedule')}</dt>
                     <dd className="text-sm font-medium text-gray-900">
-                      {formData.schedule || 'Daily at 2 AM'}
+                      {formData.schedule || t('wizard.review.scheduleDefault')}
                     </dd>
                   </div>
                 </dl>
               </div>
 
               <div>
-                <h4 className="text-sm font-medium text-gray-900 mb-2">Data Types</h4>
+                <h4 className="text-sm font-medium text-gray-900 mb-2">{t('wizard.review.dataTypes')}</h4>
                 <div className="flex flex-wrap gap-2">
                   {formData.domains.map((domain) => (
                     <span
                       key={domain}
                       className="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full"
                     >
-                      {domain}
+                      {t(`domain.${domain}` as StringKey)}
                     </span>
                   ))}
                 </div>
@@ -565,8 +563,7 @@ const CreateMapping: React.FC = () => {
 
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <p className="text-sm text-yellow-800">
-                  <strong>Note:</strong> The initial sync may take some time depending on the amount of data.
-                  Subsequent syncs will only transfer changes.
+                  <strong>{t('wizard.review.noteLead')}</strong> {t('wizard.review.note')}
                 </p>
               </div>
             </div>
@@ -590,10 +587,8 @@ const CreateMapping: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Create Migration</h1>
-        <p className="text-gray-500 mt-1">
-          Set up a new data migration between systems
-        </p>
+        <h1 className="text-2xl font-bold text-gray-900">{t('wizard.title')}</h1>
+        <p className="text-gray-500 mt-1">{t('wizard.subtitle')}</p>
       </div>
 
       {/* Progress Steps */}
@@ -621,7 +616,7 @@ const CreateMapping: React.FC = () => {
                     <step.icon className="w-5 h-5" />
                   )}
                 </div>
-                <span className="ml-2 text-sm font-medium">{step.name}</span>
+                <span className="ml-2 text-sm font-medium">{t(step.nameKey)}</span>
               </div>
               {index !== steps.length - 1 && (
                 <div
@@ -663,7 +658,7 @@ const CreateMapping: React.FC = () => {
           className="flex items-center px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
         >
           <ArrowLeft className="w-5 h-5 mr-2" />
-          {currentStep === 0 ? 'Cancel' : 'Back'}
+          {currentStep === 0 ? t('wizard.cancel') : t('wizard.back')}
         </button>
 
         <button
@@ -674,11 +669,11 @@ const CreateMapping: React.FC = () => {
           {createMutation.isPending ? (
             <>
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" />
-              Creating...
+              {t('wizard.creating')}
             </>
           ) : (
             <>
-              {currentStep === steps.length - 1 ? 'Create Migration' : 'Next'}
+              {currentStep === steps.length - 1 ? t('wizard.create') : t('wizard.next')}
               <ArrowRight className="w-5 h-5 ml-2" />
             </>
           )}

@@ -151,7 +151,7 @@ const Finish: React.FC = () => {
           ...o,
           [mappingId]: {
             state: 'blocked',
-            error: err instanceof Error ? err.message : t('deletions.requestFailed'),
+            error: err instanceof Error ? err.message : t('common.requestFailed'),
           },
         }));
       });
@@ -309,7 +309,8 @@ const Finish: React.FC = () => {
                       {needingDecision > 0 && (
                         <>
                           <Link to={`${linkBase}/failures`} className="text-blue-700 hover:underline">
-                            {needingDecision} {t('finish.step2.failures')}
+                            {needingDecision}{' '}
+                            {t(needingDecision === 1 ? 'finish.step2.failures.one' : 'finish.step2.failures.many')}
                           </Link>
                           {(openDeletions > 0 || openMoves > 0) && ', '}
                         </>

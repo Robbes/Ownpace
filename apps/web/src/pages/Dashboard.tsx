@@ -11,30 +11,11 @@ import {
   Plus,
   Building2
 } from 'lucide-react';
-import type { RunReport } from '@openmig/shared';
 import { mappingApi } from '../services/mapping-service';
 import { fetchRuns } from '../services/operating-service';
 import { serverMessage } from '../services/api';
 import { useT, useFormatters } from '../i18n';
-import type { StringKey } from '../i18n';
-
-// The same vocabulary RunsPanel uses — one entity, one set of words (0035 T1
-// will fold both maps into StateChip; until then they must at least agree).
-const RUN_STATUS_KEY: Record<RunReport['status'], StringKey> = {
-  pending: 'runs.status.pending',
-  running: 'runs.status.running',
-  success: 'runs.status.success',
-  failed: 'runs.status.failed',
-  cancelled: 'runs.status.cancelled',
-};
-
-const RUN_STATUS_DOT: Record<RunReport['status'], string> = {
-  pending: 'bg-gray-400',
-  running: 'bg-blue-500',
-  success: 'bg-green-500',
-  failed: 'bg-red-500',
-  cancelled: 'bg-gray-400',
-};
+import StateChip from '../components/StateChip';
 
 const Dashboard: React.FC = () => {
   const t = useT();
@@ -97,7 +78,7 @@ const Dashboard: React.FC = () => {
         <div className="flex items-center">
           <AlertCircle className="w-5 h-5 text-red-600 mr-2" />
           <div>
-            <h3 className="text-sm font-medium text-red-800">Error loading dashboard</h3>
+            <h3 className="text-sm font-medium text-red-800">{t('dashboard.errorLoading')}</h3>
             {/* The SERVER's words, not axios's "Request failed with status
                 code 500" wrapper (hard rule 9 / 0033 T2). */}
             <p className="text-sm text-red-600 mt-1">{serverMessage(error)}</p>
@@ -120,7 +101,7 @@ const Dashboard: React.FC = () => {
               <FolderGit2 className="w-6 h-6 text-blue-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Total Mappings</p>
+              <p className="text-sm font-medium text-gray-500">{t('dashboard.total')}</p>
               <p className="text-2xl font-semibold text-gray-900">{stats.total}</p>
             </div>
           </div>
@@ -132,7 +113,7 @@ const Dashboard: React.FC = () => {
               <ArrowRightLeft className="w-6 h-6 text-green-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Active</p>
+              <p className="text-sm font-medium text-gray-500">{t('state.lifecycle.active')}</p>
               <p className="text-2xl font-semibold text-gray-900">{stats.active}</p>
             </div>
           </div>
@@ -144,7 +125,7 @@ const Dashboard: React.FC = () => {
               <Clock className="w-6 h-6 text-yellow-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Paused</p>
+              <p className="text-sm font-medium text-gray-500">{t('state.lifecycle.paused')}</p>
               <p className="text-2xl font-semibold text-gray-900">{stats.paused}</p>
             </div>
           </div>
@@ -156,7 +137,7 @@ const Dashboard: React.FC = () => {
               <AlertCircle className="w-6 h-6 text-blue-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Cutover</p>
+              <p className="text-sm font-medium text-gray-500">{t('state.lifecycle.cutover')}</p>
               <p className="text-2xl font-semibold text-gray-900">{stats.cutover}</p>
             </div>
           </div>
@@ -168,7 +149,7 @@ const Dashboard: React.FC = () => {
               <CheckCircle className="w-6 h-6 text-emerald-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Done</p>
+              <p className="text-sm font-medium text-gray-500">{t('state.lifecycle.done')}</p>
               <p className="text-2xl font-semibold text-gray-900">{stats.done}</p>
             </div>
           </div>
@@ -178,22 +159,20 @@ const Dashboard: React.FC = () => {
       {/* Recent Activity */}
       <div className="bg-white rounded-lg border border-gray-200">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{t('dashboard.recentActivity')}</h2>
         </div>
         <div className="p-6">
           {recentMappings.length === 0 ? (
             <div className="text-center py-8">
               <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No activity yet</h3>
-              <p className="text-gray-500 mb-4">
-                Create your first migration to start syncing data
-              </p>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">{t('dashboard.noActivity')}</h3>
+              <p className="text-gray-500 mb-4">{t('dashboard.noActivityHint')}</p>
               <Link
                 to="/mappings/new"
                 className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 <Plus className="w-5 h-5 mr-2" />
-                Create Migration
+                {t('dashboard.createMigration')}
               </Link>
             </div>
           ) : (
@@ -207,13 +186,6 @@ const Dashboard: React.FC = () => {
                     className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                   >
                     <div className="flex items-center space-x-4">
-                      {/* The dot is the RUN's outcome — a failed run in the
-                          ledger is visibly a failed run here. */}
-                      <div
-                        className={`w-2 h-2 rounded-full ${
-                          latest ? RUN_STATUS_DOT[latest.status] : 'bg-gray-400'
-                        }`}
-                      />
                       <div>
                         <p className="font-medium text-gray-900">{mapping.name}</p>
                         <p className="text-sm text-gray-500">
@@ -230,7 +202,9 @@ const Dashboard: React.FC = () => {
                         </p>
                       ) : latest ? (
                         <p className="text-sm text-gray-600">
-                          <span className="font-medium">{t(RUN_STATUS_KEY[latest.status])}</span>
+                          {/* The RUN's outcome — a failed run in the ledger is
+                              visibly a failed run here (StateChip, 0035 T1). */}
+                          <StateChip entity="run" state={latest.status} />
                           {' · '}
                           {latest.itemsProcessed} {t('dashboard.runItems')}
                           {latest.errors > 0 && (
@@ -249,7 +223,7 @@ const Dashboard: React.FC = () => {
                         to={`/mappings/${mapping.id}`}
                         className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                       >
-                        View →
+                        {t('dashboard.view')}
                       </Link>
                     </div>
                   </div>
@@ -262,7 +236,7 @@ const Dashboard: React.FC = () => {
 
       {/* Quick Actions */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-blue-900 mb-4">Quick Actions</h3>
+        <h3 className="text-lg font-semibold text-blue-900 mb-4">{t('dashboard.quickActions')}</h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Link
             to="/mappings/new"
@@ -270,8 +244,8 @@ const Dashboard: React.FC = () => {
           >
             <Plus className="w-5 h-5 text-blue-600 mr-3" />
             <div>
-              <p className="font-medium text-gray-900">New Migration</p>
-              <p className="text-sm text-gray-500">Create a new data migration</p>
+              <p className="font-medium text-gray-900">{t('dashboard.newMigration')}</p>
+              <p className="text-sm text-gray-500">{t('dashboard.newMigrationHint')}</p>
             </div>
           </Link>
           
@@ -281,8 +255,8 @@ const Dashboard: React.FC = () => {
           >
             <FolderGit2 className="w-5 h-5 text-blue-600 mr-3" />
             <div>
-              <p className="font-medium text-gray-900">View All Mappings</p>
-              <p className="text-sm text-gray-500">Manage your migrations</p>
+              <p className="font-medium text-gray-900">{t('dashboard.viewAll')}</p>
+              <p className="text-sm text-gray-500">{t('dashboard.viewAllHint')}</p>
             </div>
           </Link>
           
@@ -292,8 +266,8 @@ const Dashboard: React.FC = () => {
           >
             <Building2 className="w-5 h-5 text-blue-600 mr-3" />
             <div>
-              <p className="font-medium text-gray-900">Team</p>
-              <p className="text-sm text-gray-500">Manage who has access</p>
+              <p className="font-medium text-gray-900">{t('dashboard.team')}</p>
+              <p className="text-sm text-gray-500">{t('dashboard.teamHint')}</p>
             </div>
           </Link>
         </div>

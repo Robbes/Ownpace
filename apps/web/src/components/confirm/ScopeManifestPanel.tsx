@@ -12,6 +12,7 @@
  */
 
 import React from 'react';
+import { useT } from '../../i18n';
 import type { ScopeManifest } from '@openmig/shared';
 
 const Column: React.FC<{
@@ -31,12 +32,21 @@ const Column: React.FC<{
   </div>
 );
 
-export const ScopeManifestPanel: React.FC<{ manifest: ScopeManifest }> = ({ manifest }) => (
-  <section aria-label="scope-manifest" className="grid gap-4 md:grid-cols-3">
-    <Column title="Migrates" tone="text-green-700" entries={manifest.migrates} />
-    <Column title="Partial" tone="text-amber-700" entries={manifest.partial} />
-    <Column title="Does not migrate" tone="text-gray-500" entries={manifest.doesNotMigrate} />
-  </section>
-);
+export const ScopeManifestPanel: React.FC<{ manifest: ScopeManifest }> = ({ manifest }) => {
+  // Column titles are CLIENT framing (translated); the entries inside the
+  // columns are server prose and render verbatim (the prose boundary).
+  const t = useT();
+  return (
+    <section aria-label="scope-manifest" className="grid gap-4 md:grid-cols-3">
+      <Column title={t('scope.migrates')} tone="text-green-700" entries={manifest.migrates} />
+      <Column title={t('scope.partial')} tone="text-amber-700" entries={manifest.partial} />
+      <Column
+        title={t('scope.doesNotMigrate')}
+        tone="text-gray-500"
+        entries={manifest.doesNotMigrate}
+      />
+    </section>
+  );
+};
 
 export default ScopeManifestPanel;

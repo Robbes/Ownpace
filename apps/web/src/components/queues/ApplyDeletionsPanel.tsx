@@ -19,7 +19,7 @@ import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ShieldCheck, ShieldOff } from 'lucide-react';
 import { APPLY_FLAG_WARNING, APPLY_FLAG_WARNING_NL } from '@openmig/shared';
-import { useLocale } from '../../i18n';
+import { useLocale, useT } from '../../i18n';
 import { ActionButton, DestructiveButton, Refused } from './primitives';
 import {
   DecisionRefusedError,
@@ -29,6 +29,7 @@ import {
 
 export const ApplyDeletionsPanel: React.FC<{ mappingId: string }> = ({ mappingId }) => {
   const queryClient = useQueryClient();
+  const t = useT();
   // The Dutch warning lives beside its English source in @openmig/shared
   // (ADR-0026: one source of truth for destructive-path prose) — the panel
   // only PICKS, it never rephrases (workplan 0024 T1).
@@ -56,7 +57,7 @@ export const ApplyDeletionsPanel: React.FC<{ mappingId: string }> = ({ mappingId
             ? (err.refusal.reason ?? err.refusal.hint ?? err.refusal.error)
             : err instanceof Error
               ? err.message
-              : 'The request did not complete.',
+              : t('common.requestFailed'),
         );
       })
       .finally(() => setPending(false));
@@ -67,7 +68,7 @@ export const ApplyDeletionsPanel: React.FC<{ mappingId: string }> = ({ mappingId
     // state is worth saying, not hiding (hard rule 9).
     return (
       <p className="mb-4 text-sm text-amber-800">
-        Could not read whether applying deletions is enabled:{' '}
+        {t('applyFlag.readFailed')}{' '}
         {error instanceof Error ? error.message : String(error)}
       </p>
     );
@@ -83,28 +84,24 @@ export const ApplyDeletionsPanel: React.FC<{ mappingId: string }> = ({ mappingId
           <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" />
         )}
         <span className="font-medium text-gray-900">
-          {data.allowApplyDeletions
-            ? 'Applying deletions is ON for this mapping.'
-            : 'Applying deletions is OFF for this mapping (the default).'}
+          {data.allowApplyDeletions ? t('applyFlag.on') : t('applyFlag.off')}
         </span>
         {data.source === 'mapping' && data.allowApplyDeletions && (
           <ActionButton pending={pending} onClick={() => change(false)}>
-            Turn off
+            {t('applyFlag.turnOff')}
           </ActionButton>
         )}
       </div>
 
       {!data.allowApplyDeletions && (
-        <p className="mt-1 text-gray-600">
-          The server refuses every delete button on this screen until it is turned on.
-        </p>
+        <p className="mt-1 text-gray-600">{t('applyFlag.refusesUntilOn')}</p>
       )}
 
       {data.source === 'config' ? (
         <p className="mt-2 text-gray-600">
-          On this appliance the value lives in the mapping&apos;s config file
-          (<code className="font-mono text-xs">allowApplyDeletions</code>); edit the file and
-          restart to change it. No API changes it.
+          {t('applyFlag.config.pre')}{' '}
+          (<code className="font-mono text-xs">allowApplyDeletions</code>)
+          {t('applyFlag.config.post')}
         </p>
       ) : (
         !data.allowApplyDeletions && (
@@ -118,8 +115,8 @@ export const ApplyDeletionsPanel: React.FC<{ mappingId: string }> = ({ mappingId
             <div className="mt-2">
               <DestructiveButton
                 pending={pending}
-                label="Turn on applying deletions"
-                armedLabel="Confirm: enable deletions"
+                label={t('applyFlag.turnOn')}
+                armedLabel={t('applyFlag.turnOnArmed')}
                 onClick={() => change(true)}
               />
             </div>

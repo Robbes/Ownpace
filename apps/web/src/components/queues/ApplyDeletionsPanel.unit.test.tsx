@@ -60,7 +60,7 @@ describe('the managed switch', () => {
     renderPanel();
 
     expect(
-      await screen.findByText('Applying deletions is OFF for this mapping (the default).'),
+      await screen.findByText('Applying deletions is OFF for this migration (the default).'),
     ).toBeInTheDocument();
     // The shared warning, verbatim, before any switch is touched.
     expect(screen.getByText(APPLY_FLAG_WARNING)).toBeInTheDocument();
@@ -79,7 +79,7 @@ describe('the managed switch', () => {
     renderPanel();
 
     expect(
-      await screen.findByText('Applying deletions is ON for this mapping.'),
+      await screen.findByText('Applying deletions is ON for this migration.'),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByText('Turn off'));
     await waitFor(() => expect(setApplyDeletionsFlag).toHaveBeenCalledWith('m1', false));
@@ -108,7 +108,7 @@ describe('the appliance (config-file-owned)', () => {
     renderPanel();
 
     expect(
-      await screen.findByText('Applying deletions is OFF for this mapping (the default).'),
+      await screen.findByText('Applying deletions is OFF for this migration (the default).'),
     ).toBeInTheDocument();
     expect(screen.getByText(/config file/)).toBeInTheDocument();
     expect(screen.getByText('allowApplyDeletions')).toBeInTheDocument();

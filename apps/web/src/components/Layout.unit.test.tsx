@@ -110,7 +110,8 @@ describe('the header on per-mapping routes (T3)', () => {
     expect(heading.textContent).toContain('acme-mail');
 
     const nav = screen.getByRole('navigation');
-    const mappingsEntry = within(nav).getByRole('link', { name: /Mappings/ });
+    // The nav says "Migrations" since the 0035 T3 glossary rename.
+    const mappingsEntry = within(nav).getByRole('link', { name: /Migrations/ });
     expect(mappingsEntry.className).toContain('bg-blue-50');
   });
 

@@ -160,7 +160,7 @@ const Deletions: React.FC<{
                 ? (err.refusal.reason ?? err.refusal.hint ?? err.refusal.error)
                 : err instanceof Error
                   ? err.message
-                  : t('deletions.requestFailed'),
+                  : t('common.requestFailed'),
           });
         });
     },

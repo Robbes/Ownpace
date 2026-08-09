@@ -17,6 +17,7 @@ import { AlertCircle, Loader2 } from 'lucide-react';
 import type { ApplyReceipt, QueueEnvelope } from '@openmig/shared';
 import { ClosedBanner, LIFECYCLE_NOTE_KEY } from './primitives';
 import MappingHubLink from '../MappingHubLink';
+import StateChip from '../StateChip';
 import { useT } from '../../i18n';
 import { DecisionRefusedError } from '../../services/operating-service';
 
@@ -108,7 +109,7 @@ export function QueueScreen<T extends QueueEnvelope>({
             ...o,
             [hash]: {
               state: 'refused',
-              text: err instanceof Error ? err.message : 'The request did not complete.',
+              text: err instanceof Error ? err.message : t('common.requestFailed'),
             },
           }));
         });
@@ -120,7 +121,7 @@ export function QueueScreen<T extends QueueEnvelope>({
     return (
       <div className="flex items-center gap-2 text-gray-500">
         <Loader2 className="w-4 h-4 animate-spin" />
-        Loading…
+        {t('common.loading')}
       </div>
     );
   }
@@ -133,11 +134,9 @@ export function QueueScreen<T extends QueueEnvelope>({
       <div className="flex items-start gap-2 p-4 rounded-lg bg-red-50 text-red-800 text-sm">
         <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
         <div>
-          <p className="font-medium">Could not load this queue.</p>
+          <p className="font-medium">{t('queue.loadFailed')}</p>
           <p className="mt-1">{error instanceof Error ? error.message : String(error)}</p>
-          <p className="mt-1">
-            This is not the same as an empty queue — items may be waiting that we could not read.
-          </p>
+          <p className="mt-1">{t('queue.loadFailedNotEmpty')}</p>
         </div>
       </div>
     );
@@ -150,7 +149,7 @@ export function QueueScreen<T extends QueueEnvelope>({
       <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
       <p className="mt-1 mb-6 text-sm text-gray-600">{intro}</p>
 
-      {mappings.length === 0 && <p className="text-sm text-gray-500">No mappings configured.</p>}
+      {mappings.length === 0 && <p className="text-sm text-gray-500">{t('queue.noMappings')}</p>}
 
       {mappings.map(([mappingId, queue]) => (
         <section key={mappingId} className="mb-8 p-4 bg-white border border-gray-200 rounded-lg">
@@ -158,7 +157,7 @@ export function QueueScreen<T extends QueueEnvelope>({
             {/* The id links to its hub (0034 T1) — run history and live
                 progress live there, in both editions. */}
             <h3 className="font-semibold text-gray-900"><MappingHubLink mappingId={mappingId} /></h3>
-            <span className="text-xs text-gray-500">{queue.migrationStatus}</span>
+            <StateChip entity="lifecycle" state={queue.migrationStatus} />
           </div>
           {queue.reportingClosed && <ClosedBanner text={queue.reportingClosed} />}
           {LIFECYCLE_NOTE_KEY[queue.migrationStatus] && (

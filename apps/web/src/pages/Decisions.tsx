@@ -26,6 +26,7 @@ import {
 } from '../services/operating-service';
 import { useAuthStore } from '../stores/auth-store';
 import { useT, useFormatters } from '../i18n';
+import StateChip from '../components/StateChip';
 import type { StringKey } from '../i18n';
 
 /** The server's message for a failed request, verbatim; dictionary fallback. */
@@ -118,7 +119,7 @@ const Decisions: React.FC = () => {
     } catch (err) {
       setRowErrors((errors) => ({
         ...errors,
-        [decision.id]: errorText(err, t('decisions.requestFailed')),
+        [decision.id]: errorText(err, t('common.requestFailed')),
       }));
     } finally {
       setBusyRow(null);
@@ -259,9 +260,10 @@ const Decisions: React.FC = () => {
                       <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
                         {t(`decisionCategory.${decision.category}` as StringKey)}
                       </span>
-                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700">
-                        {t(`decisionStatus.${decision.status}` as StringKey)}
-                      </span>
+                      <StateChip
+                        entity="decision"
+                        state={decision.status as 'resolved' | 'auto_resolved' | 'dismissed'}
+                      />
                       {decision.resolvedAt && (
                         <span className="text-xs text-gray-400">
                           {dateTime(decision.resolvedAt)}

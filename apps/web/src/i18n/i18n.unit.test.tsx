@@ -128,3 +128,27 @@ describe('LocaleProvider', () => {
     ).toBeTruthy();
   });
 });
+
+describe('the 0035 T5 copy corrections stay corrected', () => {
+  // Each of these was a MEANING drift found by the 2026-08-09 fleet's
+  // native-copy-editor pass; pinned so a future retranslation cannot
+  // silently reintroduce the wrong claim.
+  it('NL: the auto-answer preset names a mailbox nothing migrates FOR', () => {
+    expect(STRINGS.nl['decisions.presets.newMailbox']).toContain('waarvoor niets migreert');
+  });
+
+  it('NL: dismiss sets aside, it does not reject', () => {
+    expect(STRINGS.nl['decisions.dismiss']).toBe('Terzijde leggen');
+    expect(STRINGS.nl['decisionStatus.dismissed']).toBe('Terzijde gelegd');
+  });
+
+  it('NL: the failures count agrees in number (1 kon / 2 konden)', () => {
+    expect(STRINGS.nl['finish.step2.failures.one']).toBe('kon niet worden gekopieerd');
+    expect(STRINGS.nl['finish.step2.failures.many']).toBe('konden niet worden gekopieerd');
+  });
+
+  it('EN: moves.intro has its comparator back', () => {
+    expect(STRINGS.en['moves.intro']).toContain('somewhere other than where they came from');
+  });
+});
+
