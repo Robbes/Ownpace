@@ -148,6 +148,35 @@ describe('JMAP rate limiting', () => {
     expect(delays, 'slept the full 40s the server asked for').not.toContain(40_000);
   });
 
+  it('does NOT probe a server whose ask is longer than the budget', async () => {
+    // The half of the cap reasoning that was WRONG, corrected on the same
+    // machine an hour later. Stalwart puts two different mechanisms behind 429:
+    //
+    //   {"title":"Too Many Requests","detail":"…try again in a few seconds."}
+    //   {"title":"Quota exceeded","detail":"…quota of 1000 files or 50000000 bytes."}
+    //
+    // The first's Retry-After really is over-cautious. The second's is a QUOTA
+    // window counting down accurately — 441s, then 436, then 431 — and probing
+    // it every five seconds produced twenty-four guaranteed-failing requests
+    // and burned the entire budget per item before failing anyway.
+    //
+    // Magnitude tells them apart: nothing that asks for longer than we can wait
+    // can possibly recover inside the budget, so the only useful move is to
+    // stop and let the next scheduled pass have it.
+    const delays = captureDelays();
+    const { calls } = scriptFetch([{ status: 429, headers: { 'retry-after': '441' }, body: {} }]);
+
+    const writer = new JmapTargetWriter(CONFIG as never);
+    const drain = async () => {
+      for await (const _e of writer.listEntries()) { /* drain */ }
+    };
+    await expect(drain()).rejects.toThrow(/429/);
+
+    // One request, no waiting at all — not twenty-five and two minutes.
+    expect(calls).toHaveLength(1);
+    expect(delays).toEqual([]);
+  });
+
   it('backs off further each time, with jitter, when no Retry-After is sent', async () => {
     const delays = captureDelays();
     // Never recovers: drives the loop until the budget is spent.
@@ -192,6 +221,12 @@ describe('JMAP rate limiting', () => {
     // And it really did use the budget rather than stopping after a handful of
     // tries — the mutation this kills is "cap the wait but keep 5 attempts",
     // which would wait at most ~25s and give up while the server was recovering.
+    //
+    // It has already earned its keep once: when the "believe a long ask" exit
+    // above was first written it keyed on the wait NUMBER rather than on
+    // whether a header sent it, so the no-header backoff — which doubles, and
+    // so "asks" for 128s by attempt 9 — tripped it and abandoned the request
+    // after 28s of the 120s budget. This assertion is what noticed.
     expect(total).toBeGreaterThan(RATE_LIMIT_TOTAL_BUDGET_MS * 0.9);
   });
 

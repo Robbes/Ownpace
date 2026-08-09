@@ -35,6 +35,26 @@
  * seconds of a migration window, per throttled request, spent asleep after the
  * server was ready.
  *
+ * ## …and why the cap does not apply to a long ask
+ *
+ * That reasoning was then tested on the same server and found to be **half
+ * right**. Stalwart has two different mechanisms behind one status code:
+ *
+ * ```
+ * {"title":"Too Many Requests","detail":"…try again in a few seconds."}   Retry-After: 40
+ * {"title":"Quota exceeded",   "detail":"…quota of 1000 files or 50000000 bytes."}  Retry-After: 441
+ * ```
+ *
+ * The first is a burst limit and its header really is over-cautious. The second
+ * is a QUOTA, and its header counts down accurately to the window rollover —
+ * 441s, then 436, then 431. Probing it at five-second intervals produced
+ * twenty-four guaranteed-failing requests and burned the whole budget per item
+ * before failing anyway.
+ *
+ * So the cap applies only where it can pay off: when the server asks for longer
+ * than the budget, we believe it and stop immediately. Magnitude separates the
+ * two cases and nothing else needs to. See the `asked > remaining` branch.
+ *
  * ## Why a budget rather than an attempt count
  *
  * The old rule was five attempts, which meant total patience swung between 15
@@ -93,13 +113,6 @@ export async function fetchWithRateLimitRetry(
     const response = await fetch(url, init);
     if (!isRateLimited(response.status)) return response;
 
-    const header = response.headers.get('retry-after');
-    // Jitter on the no-header path so a pool of workers throttled in the same
-    // instant does not resume in lockstep and throttle the target again.
-    const asked = header
-      ? parseRetryAfterMs(header)
-      : RATE_LIMIT_BASE_BACKOFF_MS * 2 ** attempt + Math.random() * 250;
-
     const remaining = RATE_LIMIT_TOTAL_BUDGET_MS - waitedMs;
     if (remaining <= 0) {
       // Budget spent. Hand back the 429 itself rather than a synthesised error:
@@ -112,19 +125,76 @@ export async function fetchWithRateLimitRetry(
       return response;
     }
 
-    const waitMs = Math.min(asked, RATE_LIMIT_MAX_WAIT_MS, remaining);
+    // A HEADER IS A CLAIM BY THE SERVER. A BACKOFF IS A GUESS BY US.
+    //
+    // Keeping those apart is the whole of the branch below, and conflating them
+    // is a bug I wrote and the test caught: the no-header backoff doubles, so
+    // by attempt 9 it "asks" for 128s, and an early exit keyed on the number
+    // alone then fired on our own invention and abandoned the request after
+    // 28s of a 120s budget. Only the server's word is worth obeying; our own
+    // guess is only ever worth capping.
+    const header = response.headers.get('retry-after');
+    let waitMs: number;
+    let probingSooner = false;
+
+    if (header) {
+      const asked = parseRetryAfterMs(header);
+
+      // BELIEVE A SERVER THAT ASKS FOR LONGER THAN WE CAN WAIT.
+      //
+      // Probing early only pays off if the server might recover inside the
+      // budget. When it asks for longer, every probe is guaranteed to fail --
+      // and on 2026-08-09 that guarantee cost real time:
+      //
+      //   [jmap] 429 ... waiting 5000ms (server asked 441000ms; probing sooner)
+      //   ... twenty-four times ...
+      //   [jmap] 429 ... gave up after 120s of waiting
+      //
+      // per item, before failing anyway. That was not a burst limit at all:
+      //
+      //   {"title":"Quota exceeded","detail":"You have exceeded the blob upload
+      //    quota of 1000 files or 50000000 bytes."}
+      //
+      // A QUOTA, with Retry-After counting down accurately to the window
+      // rollover -- 441s, then 436, then 431. The assumption behind the cap,
+      // that a server asking for 40s while its body says "a few seconds" is
+      // being over-cautious, simply does not hold for it.
+      //
+      // Magnitude separates the two and nothing else needs to. "Wait 40s" from
+      // a busy server is worth testing early. "Wait 441s" when we can spare 120
+      // is a fact about a window we cannot outlast, so the useful move is to
+      // stop now: the item goes to the retry queue, the pass moves on, and the
+      // next scheduled run picks it up after the window has rolled over. One
+      // request instead of twenty-five, and none of the budget instead of all.
+      if (asked > remaining) {
+        await response.text().catch(() => undefined);
+        log.warn(
+          `[${label}] ${response.status} from ${pathOf(url)}; server asked for ` +
+            `${Math.round(asked / 1000)}s, longer than the ${Math.round(remaining / 1000)}s ` +
+            'left in the retry budget -- not waiting, the next pass will retry',
+        );
+        return response;
+      }
+
+      waitMs = Math.min(asked, RATE_LIMIT_MAX_WAIT_MS, remaining);
+      probingSooner = asked > waitMs;
+    } else {
+      // Jitter so a pool of workers throttled in the same instant does not
+      // resume in lockstep and throttle the target again.
+      const backoff = RATE_LIMIT_BASE_BACKOFF_MS * 2 ** attempt + Math.random() * 250;
+      waitMs = Math.min(backoff, RATE_LIMIT_MAX_WAIT_MS, remaining);
+    }
 
     // Drain the body so the connection can be reused for the retry.
     await response.text().catch(() => undefined);
 
-    // Say when we are deliberately probing sooner than asked, so a log that
-    // shows short waits against a server demanding long ones reads as a choice
+    // Say when we are deliberately probing sooner than asked, so a log showing
+    // short waits against a server demanding longer ones reads as a choice
     // rather than as a bug.
-    const capped = asked > waitMs;
     log.warn(
       `[${label}] ${response.status} from ${pathOf(url)}; waiting ${Math.round(waitMs)}ms` +
-        (capped ? ` (server asked ${Math.round(asked)}ms; probing sooner)` : '') +
-        ` — ${Math.round((RATE_LIMIT_TOTAL_BUDGET_MS - waitedMs - waitMs) / 1000)}s of budget left`,
+        (probingSooner ? ' (probing sooner than the server asked)' : '') +
+        ` -- ${Math.round((remaining - waitMs) / 1000)}s of budget left`,
     );
 
     await new Promise((resolve) => setTimeout(resolve, waitMs));

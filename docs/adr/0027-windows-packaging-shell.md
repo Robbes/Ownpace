@@ -1,6 +1,6 @@
 # ADR-0027: The Windows appliance ships as a service with a shortcut, not a native shell
 
-- **Status:** Accepted — amended twice (2026-08-06 the payload ships its own Node runtime; 2026-08-07 the mechanism is a scheduled task, not a Windows Service). **The title below is left as written; read the second update before acting on it.**
+- **Status:** Accepted — amended three times (2026-08-06 the payload ships its own Node runtime; 2026-08-07 the mechanism is a scheduled task, not a Windows Service; 2026-08-09 both premises verified on real Windows). **The title below is left as written; read the second update before acting on it.**
 - **Date:** 2026-07-30
 - **Supersedes:** the "optional Tauri tray variant (planned)" in [ADR-0019](./0019-packaging-runtime-targets.md) §2, as the *first* packaging target. Tauri is not rejected — it is deferred, with a named revisit condition below.
 - **Relates to:** ADR-0023 (Postgres everywhere), [ADR-0026](./0026-one-operating-ui-one-contract.md) (one operating UI), workplans [0015](../workplans/0015-native-windows-installer.md) T2–T4 and [0016](../workplans/0016-pglite-adoption.md).
@@ -150,6 +150,42 @@ gets adopted by momentum rather than by decision.
 > migration ledger — the record of what has already been copied, and the reason
 > a re-run converges instead of duplicating a customer's mailbox (hard rule 2).
 > `-IncludeData` exists for someone who means it, and prompts.
+
+> **Update, 2026-08-09 — both premises are now measured, not argued.**
+>
+> This ADR's second update rests on two claims that were, at the time, reasoning
+> rather than evidence: that an abruptly-killed appliance is safe, and that the
+> payload's own Node runtime is what actually runs. Both were exercised on the
+> target machine.
+>
+> **Crash safety, at the level that matters.** The 2026-08-07 test showed the
+> DATABASE survives `Stop-Process -Force`. On 2026-08-09 the LEDGER did too:
+> two hard kills mid-upload, 498 messages already copied, and the next pass
+> added exactly two — the target finished on 500, not 1000. That is the
+> property the whole no-wrapper decision turns on, because a ledger that lost
+> its partial rows would re-copy a customer's mailbox on every restart
+> (hard rule 1). It was verified at the target server, not only in our own
+> ledger.
+>
+> **The runtime.** The owner uninstalled Node from the laptop, rebooted, and
+> the scheduled task started itself and copied ten new messages. `where.exe
+> node` finds nothing; the appliance reports `bundled node ver: v24.19.0`.
+> Until then every run had used the bundled binary while a system Node sat on
+> PATH, so the claim was true but untested — and the evidence file said so
+> rather than reading as proven. It is now proven, and the proof is
+> `evidence-no-node.txt`, which cannot be reproduced once Node returns to that
+> machine.
+>
+> **What it cost to find out.** Five defects in the Windows shell, none of them
+> visible to any gate in this repository, every one found by a person standing
+> at the machine: an em dash that PowerShell 5.1 read as a string terminator; an
+> ACL that made the credentials file unwritable by the operator told to write
+> it; evidence collection that reported a missing Service — for something this
+> ADR deliberately does not create; `icacls` given a localised account name on a
+> Dutch Windows; and a completed migration still displaying the previous pass's
+> error. The pattern is worth stating plainly: **the gates here test the
+> artefact, and every one of these lives in what happens after somebody
+> downloads it.**
 
 - The bundled backend installs as a Windows Service, so it starts on boot and
   keeps syncing whether or not anyone is logged in. That is what a background
