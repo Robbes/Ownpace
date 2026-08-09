@@ -13,9 +13,9 @@
 // `status = 'failed'` with the real message in a run_event, never swallowed
 // into a silent success.
 
-import type { TenantId, MappingId } from '@openmig/shared';
+import type { TenantId, MappingId, RunReport, RunEventReport } from '@openmig/shared';
 import type { PgDatabase } from './db';
-import { eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import * as schemaPg from './schema-pg';
 
 /** What kind of work a run represents (mirrors the `run.kind` CHECK). */
@@ -114,4 +114,117 @@ export class RunStore {
       ...(detail ? { detail } : {}),
     });
   }
+
+  /**
+   * Runs for one mapping, newest first, each with its event log — the read
+   * side this store shipped without for its first week (the API queried the
+   * tables directly, and the appliance had no reader at all).
+   *
+   * ONE reader for both editions, same argument as `/metrics` sharing one
+   * renderer (0026 T3 row 19): two implementations of "what is a run report"
+   * would drift, and a panel built against one edition's shape would silently
+   * show less on the other. The managed route and the appliance route both
+   * call this and serve the result verbatim.
+   *
+   * Events are fetched for the LISTED runs only and capped per run — the log
+   * is append-only and unbounded, and a run that retried all night can carry
+   * hundreds of throttle warnings; the newest tell the story. The cap keeps
+   * order chronological within what it keeps (newest N, then re-sorted
+   * ascending) so a reader still sees cause before consequence.
+   */
+  async listRunsWithEvents(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    { limit = 20, eventsPerRun = 25 }: { limit?: number; eventsPerRun?: number } = {},
+  ): Promise<RunReport[]> {
+    const runs = await this.db
+      .select()
+      .from(schemaPg.run)
+      .where(and(eq(schemaPg.run.tenantId, tenantId), eq(schemaPg.run.mappingId, mappingId)))
+      .orderBy(desc(schemaPg.run.createdAt))
+      .limit(limit);
+    if (runs.length === 0) return [];
+
+    const events = await this.db
+      .select({
+        runId: schemaPg.runEvent.runId,
+        level: schemaPg.runEvent.level,
+        message: schemaPg.runEvent.message,
+        at: schemaPg.runEvent.at,
+      })
+      .from(schemaPg.runEvent)
+      .where(
+        and(
+          eq(schemaPg.runEvent.tenantId, tenantId),
+          inArray(
+            schemaPg.runEvent.runId,
+            runs.map((r) => r.id),
+          ),
+        ),
+      )
+      .orderBy(desc(schemaPg.runEvent.at));
+
+    const byRun = new Map<string, RunEventReport[]>();
+    for (const e of events) {
+      const list = byRun.get(e.runId) ?? [];
+      if (list.length < eventsPerRun) {
+        list.push({
+          level: e.level as RunEventReport['level'],
+          message: e.message,
+          at: e.at.toISOString(),
+        });
+        byRun.set(e.runId, list);
+      }
+    }
+
+    return runs.map((r) => toRunReport(r, (byRun.get(r.id) ?? []).reverse()));
+  }
 }
+
+/** A `run` row as drizzle returns it — only the fields the mapper reads. */
+interface RunRowLike {
+  id: string;
+  mappingId: string | null;
+  kind: string;
+  status: string;
+  startedAt: Date | null;
+  finishedAt: Date | null;
+  stats: unknown;
+  createdAt: Date;
+}
+
+/**
+ * The wire shape (`RunReport` in @openmig/shared), from a ledger row.
+ *
+ * Moved here from the managed API's private `toApiRun` so the appliance could
+ * not grow a second, slightly different one. The status collapse
+ * (`queued`->'pending', `succeeded`->'success') is the API's original public
+ * contract, kept — changing stored words is cheap, changing served ones
+ * breaks whoever reads them.
+ */
+export function toRunReport(r: RunRowLike, events: RunEventReport[]): RunReport {
+  const statusMap: Record<string, RunReport['status']> = {
+    queued: 'pending',
+    running: 'running',
+    succeeded: 'success',
+    failed: 'failed',
+    cancelled: 'cancelled',
+  };
+  const stats = (r.stats ?? {}) as { itemsProcessed?: number; errors?: number };
+  return {
+    id: r.id,
+    mappingId: r.mappingId,
+    // 'incremental' is the delta pass; every other kind is a full-scan shape.
+    // (The first draft of this mapper inverted that for cutover/verify/backup
+    // kinds -- caught against the original before it could serve anything.)
+    type: r.kind === 'incremental' ? 'delta' : 'full',
+    status: statusMap[r.status] ?? 'pending',
+    startedAt: r.startedAt ? r.startedAt.toISOString() : null,
+    finishedAt: r.finishedAt ? r.finishedAt.toISOString() : null,
+    itemsProcessed: stats.itemsProcessed ?? 0,
+    errors: stats.errors ?? 0,
+    createdAt: r.createdAt.toISOString(),
+    events,
+  };
+}
+

@@ -27,6 +27,7 @@ import {
 import { isSelfHost } from '../services/edition';
 import { mappingApi } from '../services/mapping-service';
 import { useT } from '../i18n';
+import RunsPanel from '../components/RunsPanel';
 import type { StringKey } from '../i18n';
 
 const SCREENS: ReadonlyArray<{
@@ -90,6 +91,11 @@ const MappingDetail: React.FC = () => {
           </li>
         ))}
       </ul>
+
+      {/* Run history (0026 T3 row 23) — what each pass did, errors verbatim.
+          Below the links on purpose: the queues are decisions, this is the
+          record. */}
+      <RunsPanel mappingId={id} />
     </div>
   );
 };

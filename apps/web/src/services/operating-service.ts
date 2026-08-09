@@ -10,6 +10,7 @@
 
 import axios, { type AxiosInstance } from 'axios';
 import type {
+  RunsResponse,
   ApplyDeletionsFlag,
   ApplyQueuedResponse,
   ApplyReceipt,
@@ -56,6 +57,15 @@ export async function fetchMoves(mappingId?: string): Promise<MovesResponse> {
 
 export async function fetchFailures(mappingId?: string): Promise<FailuresResponse> {
   return (await client.get<FailuresResponse>(queuePath('failures', mappingId))).data;
+}
+
+/**
+ * Run history for one mapping (0026 T3 row 23) — newest first, events inline.
+ * Per-mapping in BOTH editions, so `mappingPath` composes the whole URL and
+ * no new path logic exists to drift.
+ */
+export async function fetchRuns(mappingId: string): Promise<RunsResponse> {
+  return (await client.get<RunsResponse>(`${mappingPath(mappingId)}/runs`)).data;
 }
 
 // The §11.1 drift decision queue (workplan 0028 T1). TENANT-level, unlike the
