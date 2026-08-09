@@ -51,7 +51,11 @@ describe('finishTransition', () => {
     const result = finishTransition('active', 3);
     expect(result).toHaveProperty('refuse');
     expect((result as { refuse: string }).refuse).toContain('3');
-    expect((result as { hint: string }).hint).toMatch(/force=true/);
+    // Surface-neutral since 0038 T7 (the old hint spoke curl to UI
+    // operators); the STABLE part of the contract is the code, which is
+    // what a UI keys the force affordance on.
+    expect((result as { hint: string }).hint).toMatch(/leaves them unmigrated, knowingly/);
+    expect((result as { code: string }).code).toBe('unresolved_failures');
   });
 
   it('lets the operator force past unresolved failures once told', () => {
