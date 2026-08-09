@@ -333,9 +333,28 @@ First, **an ADMINISTRATOR PowerShell**, only to place the files where an
 installer would:
 
 ```powershell
+Stop-ScheduledTask -TaskName 'OpenMigrateAppliance' -ErrorAction SilentlyContinue
+Get-Process node -ErrorAction SilentlyContinue |
+  ForEach-Object { $_.Kill(); $_.WaitForExit(15000) | Out-Null }
 robocopy "<payload>" "C:\Program Files\OpenMigrateTest" /MIR /XD data /NFL /NDL /NJH /NP
 Select-String -Path "C:\Program Files\OpenMigrateTest\start.mjs" -Pattern 'const BUILD ='
 ```
+
+**The two lines before `robocopy` are not optional on an upgrade.** A running
+appliance holds `node.exe` open, and robocopy answers that with
+
+```
+ERROR 32 (0x00000020) Copying File ...\node.exe
+Het proces heeft geen toegang tot het bestand omdat het door een ander proces
+wordt gebruikt.
+Waiting 30 seconds... Retrying...
+```
+
+`Stop-ScheduledTask` on its own is **not enough** — it asks the task to stop and
+returns before the process is gone. `Stop-Process -Force` is closer but still
+returns before Windows has released the file handle, which cost a 30-second
+robocopy stall on 2026-08-09 even with it. `WaitForExit` is the part that
+actually waits.
 
 Robocopy exit codes **0–7 are success**; 8 or above is a real failure. The
 `Select-String` must print a stamp matching the build you meant to install —
