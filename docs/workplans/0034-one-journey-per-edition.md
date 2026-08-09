@@ -70,14 +70,16 @@ self-inflicted:
 - The appliance deliberately has **no Mappings list page**; T1 links to the
   hub from where mapping ids already appear, it does not build a list.
 - New strings are bilingual from birth (0024's standing rule).
-- **Edition-mode tests:** no test in apps/web currently renders "in selfhost
-  mode", and `edition.ts`'s doc comment says the build-time flag "cannot be
-  stubbed". In practice `vi.stubEnv('VITE_EDITION', 'selfhost')` works
-  because `env()` is read at call time — this plan blesses that mechanism for
-  component-level edition tests (and updates the `edition.ts` comment to say
-  so), OR extracts `navigationFor(edition)` / route gating as pure functions
-  per the file's own `*For(edition, ...)` pattern and tests those. Pick one
-  and state it in the status block; do not leave each task to rediscover it.
+- **Edition-mode tests (mechanism settled 2026-08-09, during 0033 T5):**
+  `vi.stubEnv('VITE_EDITION', ...)` does NOT work — the flag is baked in by
+  vite `define`, so it is a literal before any test runs (the first draft of
+  this guardrail claimed otherwise; `edition.unit.test.ts` documents the
+  reality). The sanctioned seams are: (a) mock the edition module in
+  component tests (`vi.mock('../services/edition', ...)` with a mutable flag
+  — `MappingDetail.unit.test.tsx` is the working example), or (b) extract
+  `navigationFor(edition)` / route gating as pure functions per the file's
+  own `*For(edition, ...)` pattern and test those. Prefer (b) for Layout/App
+  work in this plan.
 
 ## Tasks
 

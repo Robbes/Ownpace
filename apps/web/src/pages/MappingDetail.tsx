@@ -26,8 +26,10 @@ import {
 } from 'lucide-react';
 import { isSelfHost } from '../services/edition';
 import { mappingApi } from '../services/mapping-service';
+import { fetchStatus } from '../services/operating-service';
 import { useT } from '../i18n';
 import RunsPanel from '../components/RunsPanel';
+import LiveProgress from '../components/LiveProgress';
 import type { StringKey } from '../i18n';
 
 const SCREENS: ReadonlyArray<{
@@ -56,9 +58,25 @@ const MappingDetail: React.FC = () => {
     retry: false,
   });
 
+  // The live per-domain strip (0033 T5): one component, two data sources.
+  // Selfhost reads the appliance-wide /status and filters to this mapping;
+  // managed reads it off the detail payload above. Both are
+  // DomainStatusReport rows built by the same shared function, so the strip
+  // cannot mean different things per edition.
+  const status = useQuery({
+    queryKey: ['status'],
+    queryFn: fetchStatus,
+    enabled: Boolean(id) && isSelfHost(),
+    refetchInterval: 30_000,
+  });
+
   if (!id) {
     return <p className="text-sm text-amber-800">{t('hub.noId')}</p>;
   }
+
+  const progressDomains = isSelfHost()
+    ? status.data?.mappings.find((m) => m.mappingId === id)?.domains
+    : detail.data?.domainStatus;
 
   return (
     <div>
@@ -73,6 +91,12 @@ const MappingDetail: React.FC = () => {
       <p className="mt-1 text-sm text-gray-500 font-mono">{id}</p>
       {detail.error != null && (
         <p className="mt-1 text-sm text-amber-800">{t('hub.detailError')}</p>
+      )}
+
+      {progressDomains && progressDomains.length > 0 && (
+        <div className="mt-4">
+          <LiveProgress domains={progressDomains} />
+        </div>
       )}
 
       <ul className="mt-6 grid gap-3 sm:grid-cols-2">

@@ -197,6 +197,40 @@ export interface DomainStatusReport {
   readonly itemsNeedingDecision: number;
 }
 
+/**
+ * Build `DomainStatusReport` rows from ledger rows — the ONE place the
+ * derivation lives (0033 T5).
+ *
+ * `MigrationStatus` rows carry the pass state; the two attention counts
+ * (`itemsRetrying` / `itemsNeedingDecision`) come from the failure queue, and
+ * `completedAt` is renamed to the report's `lastSyncedAt`. The selfhost
+ * `/status` builder has done this since 0010; the managed
+ * `GET /migrations/{id}` used to serve raw `MigrationStatus` rows instead —
+ * so a UI reading `itemsRetrying` off the managed payload silently rendered
+ * nothing (`undefined > 0`), an invisible edition split of exactly the kind
+ * hard rule 5 forbids. Both editions now call this.
+ */
+export function buildDomainStatusReports(
+  statuses: readonly MigrationStatus[],
+  failures: readonly ItemFailure[],
+): DomainStatusReport[] {
+  return statuses.map((s) => {
+    const mine = failures.filter((f) => f.domain === s.domain);
+    return {
+      domain: s.domain,
+      state: s.state,
+      itemsSynced: s.itemsSynced,
+      itemsFailed: s.itemsFailed,
+      bytesTransferred: s.bytesTransferred,
+      itemsRetrying: mine.filter((f) => !f.needsDecision).length,
+      itemsNeedingDecision: mine.filter((f) => f.needsDecision).length,
+      ...(s.completedAt ? { lastSyncedAt: s.completedAt } : {}),
+      ...(s.lastError ? { lastError: s.lastError } : {}),
+      ...(s.lastPassMetrics ? { lastPass: s.lastPassMetrics } : {}),
+    };
+  });
+}
+
 export interface StatusReport {
   readonly status: 'ok';
   readonly mappings: ReadonlyArray<{

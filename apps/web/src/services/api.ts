@@ -51,4 +51,27 @@ apiClient.interceptors.response.use(
   }
 );
 
+/**
+ * The server's own words for a failed request (hard rule 9 / 0033 T2).
+ *
+ * The API routes answer failures with a JSON body — `{error, message}` — and
+ * axios puts it in `err.response.data`, while `err.message` is only the
+ * transport's generic "Request failed with status code 500". Screens that
+ * render `err.message` are showing the wrapper and discarding the sentence
+ * the server wrote for exactly this moment; this helper prefers the body and
+ * falls back to the transport message only when there is no body to show.
+ */
+export function serverMessage(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    const data: unknown = err.response?.data;
+    if (data && typeof data === 'object') {
+      const d = data as { message?: unknown; error?: unknown };
+      if (typeof d.message === 'string' && d.message) return d.message;
+      if (typeof d.error === 'string' && d.error) return d.error;
+    }
+    return err.message;
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
 export default apiClient;

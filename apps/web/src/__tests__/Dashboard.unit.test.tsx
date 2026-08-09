@@ -5,7 +5,8 @@ import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Dashboard from '../pages/Dashboard';
-import { mappingApi, type Mapping } from '../services/mapping-service';
+import { mappingApi, type MappingListItem } from '../services/mapping-service';
+import { fetchRuns } from '../services/operating-service';
 
 // The Dashboard loads data through the real service layer (mappingApi -> apiClient
 // -> /api). We mock the service so the test drives loading / data / error states
@@ -13,8 +14,12 @@ import { mappingApi, type Mapping } from '../services/mapping-service';
 vi.mock('../services/mapping-service', () => ({
   mappingApi: { list: vi.fn() },
 }));
+vi.mock('../services/operating-service', () => ({
+  fetchRuns: vi.fn(),
+}));
 
 const listMock = vi.mocked(mappingApi.list);
+const runsMock = vi.mocked(fetchRuns);
 
 const renderDashboard = () => {
   const queryClient = new QueryClient({
@@ -29,38 +34,96 @@ const renderDashboard = () => {
   );
 };
 
-const sampleMapping = (over: Partial<Mapping> = {}): Mapping => ({
+// The LIST shape (0033 T1): no configs — the list route never served them,
+// and the old fixture's configs let the test pass while production threw.
+const sampleMapping = (over: Partial<MappingListItem> = {}): MappingListItem => ({
   id: 'm1',
   tenantId: 't1',
   name: 'Inbox',
-  sourceType: 'imap',
+  sourceType: 'o365',
   targetType: 'jmap',
-  sourceConfig: { host: 's', port: 993, username: 'u' },
-  targetConfig: { host: 't', port: 993, username: 'u', password: 'p' },
-  syncConfig: { domains: ['email'] },
   status: 'active',
+  mode: 'mirror',
+  domains: ['email'],
   createdAt: '2026-07-01T00:00:00Z',
+  updatedAt: '2026-08-01T00:00:00Z',
   ...over,
 });
 
 describe('Dashboard', () => {
   beforeEach(() => {
     listMock.mockReset();
+    runsMock.mockReset();
+    // Default: no run history — individual tests override.
+    runsMock.mockResolvedValue({ runs: [] });
   });
 
-  it('renders mapping stats once the API resolves', async () => {
+  it('renders one tile per real lifecycle state and counts them', async () => {
     listMock.mockResolvedValue([
       sampleMapping({ id: 'a', status: 'active' }),
-      sampleMapping({ id: 'b', status: 'completed' }),
-      sampleMapping({ id: 'c', status: 'error' }),
+      sampleMapping({ id: 'b', status: 'paused' }),
+      sampleMapping({ id: 'c', status: 'cutover' }),
+      sampleMapping({ id: 'd', status: 'done' }),
+      sampleMapping({ id: 'e', status: 'done' }),
     ]);
 
     renderDashboard();
 
     expect(await screen.findByText('Total Mappings')).toBeInTheDocument();
-    // 3 total mappings derived from the API response.
     await waitFor(() => expect(listMock).toHaveBeenCalledTimes(1));
-    expect(screen.getByText('Active')).toBeInTheDocument();
+
+    // Mutation check (0033 T1 acceptance): the Done tile counts mappings in
+    // 'done' — the lifecycle's real happy ending. Reintroducing a filter for
+    // 'completed' (a word the DB CHECK forbids) makes this 2 a 0.
+    const doneTile = screen.getByText('Done').closest('div')!;
+    expect(doneTile.textContent).toContain('2');
+    const cutoverTile = screen.getByText('Cutover').closest('div')!;
+    expect(cutoverTile.textContent).toContain('1');
+    expect(screen.getByText('5')).toBeInTheDocument(); // total
+  });
+
+  it('Recent Activity is REAL run history: a failed run in the ledger is visibly failed (0033 T4)', async () => {
+    listMock.mockResolvedValue([
+      sampleMapping({ id: 'a', name: 'Acme mail', lastSyncAt: '2026-08-09T10:00:00Z' }),
+    ]);
+    runsMock.mockResolvedValue({
+      runs: [
+        {
+          id: 'run-1',
+          mappingId: 'a',
+          type: 'delta',
+          status: 'failed',
+          startedAt: '2026-08-09T10:00:00Z',
+          finishedAt: '2026-08-09T10:05:00Z',
+          itemsProcessed: 12,
+          errors: 3,
+          createdAt: '2026-08-09T10:00:00Z',
+          events: [],
+        },
+      ],
+    });
+
+    renderDashboard();
+
+    // The run's own outcome word (RunsPanel's vocabulary), not the mapping's
+    // lifecycle — the old section showed mappings-by-lastSyncAt dressed as
+    // activity, on which a failed run was invisible.
+    expect(await screen.findByText('Failed')).toBeInTheDocument();
+    expect(screen.getByText(/3 errors/)).toBeInTheDocument();
+    expect(runsMock).toHaveBeenCalledWith('a');
+  });
+
+  it('a failed run-history read says so instead of rendering as "no runs" (hard rule 9)', async () => {
+    listMock.mockResolvedValue([
+      sampleMapping({ id: 'a', name: 'Acme mail', lastSyncAt: '2026-08-09T10:00:00Z' }),
+    ]);
+    runsMock.mockRejectedValue(new Error('runs table unreachable'));
+
+    renderDashboard();
+
+    expect(await screen.findByText(/Could not read the run history/)).toBeInTheDocument();
+    expect(screen.getByText(/runs table unreachable/)).toBeInTheDocument();
+    expect(screen.queryByText('No passes yet')).not.toBeInTheDocument();
   });
 
   it('surfaces API errors verbatim (SAD §11.2)', async () => {

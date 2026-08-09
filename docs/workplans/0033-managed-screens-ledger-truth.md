@@ -4,11 +4,11 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T1 The client schema matches no payload the server sends | ⬜ Planned | — |
-| T2 A failed Mappings read renders as an empty table | ⬜ Planned | — |
-| T3 Silent failures on manual sync and wizard submit | ⬜ Planned | — |
-| T4 Dashboard tiles and "Recent Activity" count real things | ⬜ Planned | — |
-| T5 Live per-domain progress on the MappingDetail hub | ⬜ Planned | — |
+| T1 The client schema matches no payload the server sends | ✅ Done 2026-08-09 | One schema per response shape, each mirroring its route's literal mapper; lifecycle from shared `MAPPING_LIFECYCLES`; the list route serves real connection kinds + camelCase `tenantId` + `domains` + `lastSyncAt`; `mappingApi.update` deleted (no callers, unparseable response — 0026 T2 precedent). `mapping-service.unit.test.ts` fixtures are route-mapper copies; the OLD list shape pinned as a must-throw. |
+| T2 A failed Mappings read renders as an empty table | ✅ Done 2026-08-09 | Failed-read blocks on Mappings AND both Billing reads (audit found usage + invoices both masked); `serverMessage()` prefers the JSON body over axios's wrapper; Dashboard repinned to the server's words. Mutation-checked. |
+| T3 Silent failures on manual sync and wizard submit | ✅ Done 2026-08-09 | Create failure renders server words + form kept; sync refusal renders per row (the paused 409's hint finally visible); 0037 T1 pulled forward (step gates check only their own fields) because no wizard test could exist without it. Mutation-checked both renders. |
+| T4 Dashboard tiles and "Recent Activity" count real things | ✅ Done 2026-08-09 | Five tiles = the four real states + total; Recent Activity renders the newest RUN per recent mapping via `fetchRuns` (the preferred form, not the relabel fallback); a failed run is visibly failed; failed run-history reads say so (mutation-checked). |
+| T5 Live per-domain progress on the MappingDetail hub | ✅ Done 2026-08-09 | `LiveProgress` extracted to `components/LiveProgress.tsx`; the ROW DERIVATION moved to shared (`buildDomainStatusReports`) and the managed `GET /migrations/{id}` calls it (fetching failures in the same transaction), so both editions serve identical `DomainStatusReport` rows — the fleet's field-parity finding fixed at the root. Both adapters unit-tested. **Selfhost: URL-only until 0034 T1 lands the links.** Edition seam in component tests = mock the edition module (vite `define` bakes the flag; `vi.stubEnv` cannot reach it — 0034's guardrail corrected). |
 
 > **2026-08-09, second pass:** an adversarial review fleet re-verified every claim
 > in this plan against source and found the original framing UNDERSTATED the

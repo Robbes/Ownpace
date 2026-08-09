@@ -1,7 +1,8 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import apiClient from './api';
 import { z } from 'zod';
-import type { DiscoveryRecord } from '@openmig/shared';
+import { MAPPING_LIFECYCLES } from '@openmig/shared';
+import type { DiscoveryRecord, MappingLifecycle } from '@openmig/shared';
 
 // Schema definitions
 //
@@ -59,35 +60,146 @@ export const MemberRoleUpdateSchema = z.object({
   updatedAt: z.string(),
 });
 
+// Mapping schemas — reconciled against the ROUTES' literal responses (0033 T1).
+//
+// The previous single MappingSchema described a payload no route ever sent: it
+// required tenantId (the list sent tenant_id), the three config objects (the
+// list and the create 201 send none), and a status enum
+// (draft/completed/error) three-fifths of which the DB CHECK forbids
+// (`mailbox_mapping_status_check`: active|paused|cutover|done). The parse
+// threw on EVERY non-empty list — masked by the empty-table fallthrough T2
+// fixes — and on every successful create. One schema per response shape now,
+// each mirroring what its route actually returns; the fixtures in
+// mapping-service.unit.test.ts are copies of the route mappers' output and are
+// the drift alarm.
+
+/** The four states the server can actually serve; the value comes from shared
+ *  so this cannot drift from `mailbox_mapping_status_check` again. */
+const MappingLifecycleSchema = z.enum(
+  MAPPING_LIFECYCLES as [MappingLifecycle, ...MappingLifecycle[]],
+);
+
+const DomainEnum = z.enum(['email', 'calendar', 'contact', 'file']);
+
+/** GET /migrations list items. No configs — the list route doesn't serve
+ *  them; sourceType/targetType are CONNECTION KINDS (imap, o365, jmap, ...,
+ *  or 'unknown' when the connection row is missing), not the wizard's
+ *  imap/oauth2/graph vocabulary, so they stay strings for display. */
+export const MappingListItemSchema = z.object({
+  id: z.string(),
+  tenantId: z.string(),
+  name: z.string(),
+  sourceType: z.string(),
+  targetType: z.string(),
+  status: MappingLifecycleSchema,
+  mode: z.string(),
+  pattern: z.string().nullish(),
+  domains: z.array(DomainEnum),
+  lastSyncAt: z.string().nullish(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+/** GET /migrations/:id. Config fields are optional because the route spreads
+ *  the connection's config JSON (empty object when the row is missing) and
+ *  masks password as '***'; `domainStatus` is listed EXPLICITLY because
+ *  z.object strips unknown keys — leaving it out would silently drop the
+ *  live per-domain numbers the hub renders (see the discovery-schema comment
+ *  below for the history of exactly that failure).
+ *
+ *  The rows are shared's `DomainStatusReport` — the SAME shape the
+ *  appliance's /status serves (both editions call
+ *  `buildDomainStatusReports`), so the LiveProgress strip renders either
+ *  edition's payload without an adapter fork. */
+export const MappingDomainStatusSchema = z.object({
+  domain: DomainEnum,
+  state: z.enum(['pending', 'in_progress', 'completed', 'failed', 'skipped']),
+  itemsSynced: z.number(),
+  itemsFailed: z.number(),
+  bytesTransferred: z.number(),
+  itemsRetrying: z.number(),
+  itemsNeedingDecision: z.number(),
+  lastSyncedAt: z.string().optional(),
+  lastError: z.string().optional(),
+  /** PassMetrics — counts and durations only, never names or addresses. */
+  lastPass: z.record(z.string(), z.number()).optional(),
+});
+
+const MaskedConfigSchema = z.object({
+  host: z.string().optional(),
+  port: z.number().optional(),
+  username: z.string().optional(),
+  password: z.string().optional(),
+  useSsl: z.boolean().optional(),
+});
+
 export const MappingSchema = z.object({
+  id: z.string(),
+  tenantId: z.string(),
+  name: z.string(),
+  sourceType: z.string(),
+  targetType: z.string(),
+  sourceConfig: MaskedConfigSchema,
+  targetConfig: MaskedConfigSchema,
+  syncConfig: z.object({
+    domains: z.array(DomainEnum),
+    schedule: z.string().optional(),
+  }),
+  status: MappingLifecycleSchema,
+  mode: z.string(),
+  pattern: z.string().nullish(),
+  domainStatus: z.array(MappingDomainStatusSchema),
+  lastSyncAt: z.string().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+/** POST /migrations 201 body — no configs (secrets are stored encrypted and
+ *  not echoed); sourceType/targetType here ARE the wizard's own vocabulary,
+ *  echoed back from the request. Parsing the create response with the detail
+ *  schema was what made every SUCCESSFUL create throw client-side, so the
+ *  wizard's onSuccess never ran and a retry created a duplicate chain. */
+export const CreateMappingResponseSchema = z.object({
   id: z.string(),
   tenantId: z.string(),
   name: z.string(),
   sourceType: z.enum(['imap', 'oauth2', 'graph']),
   targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav']),
-  sourceConfig: z.object({
-    host: z.string(),
-    port: z.number(),
-    username: z.string(),
-    password: z.string().optional(),
-    useSsl: z.boolean().optional(),
-  }),
-  targetConfig: z.object({
-    host: z.string(),
-    port: z.number(),
-    username: z.string(),
-    password: z.string(),
-    useSsl: z.boolean().optional(),
-  }),
+  status: MappingLifecycleSchema,
+  mode: z.string(),
+  pattern: z.string().optional(),
   syncConfig: z.object({
-    domains: z.array(z.enum(['email', 'calendar', 'contact', 'file'])),
+    domains: z.array(DomainEnum),
     schedule: z.string().optional(),
   }),
-  status: z.enum(['draft', 'active', 'paused', 'completed', 'error']),
-  lastSyncAt: z.string().optional(),
   createdAt: z.string(),
-  updatedAt: z.string().optional(),
+  updatedAt: z.string(),
 });
+
+/** What the wizard posts — mirrors the server's CreateMappingSchema. */
+export interface CreateMappingInput {
+  name: string;
+  sourceType: 'imap' | 'oauth2' | 'graph';
+  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav';
+  sourceConfig: {
+    host: string;
+    port: number;
+    username: string;
+    password?: string;
+    useSsl?: boolean;
+  };
+  targetConfig: {
+    host: string;
+    port: number;
+    username: string;
+    password: string;
+    useSsl?: boolean;
+  };
+  syncConfig: {
+    domains: Array<'email' | 'calendar' | 'contact' | 'file'>;
+    schedule?: string;
+  };
+}
 
 // The run shapes live in @openmig/shared (`RunReport`/`RunsResponse`) and the
 // reader in operating-service (`fetchRuns`) -- 0026 T3 row 23. The zod schema
@@ -98,6 +210,7 @@ export const MappingSchema = z.object({
 export type Tenant = z.infer<typeof TenantSchema>;
 export type Member = z.infer<typeof MemberSchema>;
 export type Mapping = z.infer<typeof MappingSchema>;
+export type MappingListItem = z.infer<typeof MappingListItemSchema>;
 
 // Tenant API — only what the Tenants screen uses. `create` is gone because the
 // server answers it with a deliberate 501 (tenant creation is a cross-tenant
@@ -218,7 +331,7 @@ export const scopeManifestApi = {
 export const mappingApi = {
   list: async () => {
     const response = await apiClient.get('/migrations');
-    return z.array(MappingSchema).parse(response.data.mappings);
+    return z.array(MappingListItemSchema).parse(response.data.mappings);
   },
 
   /** Enqueue read-only discovery for a mapping (0013). */
@@ -242,9 +355,9 @@ export const mappingApi = {
     return response.data;
   },
 
-  create: async (data: Partial<Mapping>) => {
+  create: async (data: CreateMappingInput) => {
     const response = await apiClient.post('/migrations', data);
-    return MappingSchema.parse(response.data);
+    return CreateMappingResponseSchema.parse(response.data);
   },
 
   get: async (mappingId: string) => {
@@ -252,10 +365,11 @@ export const mappingApi = {
     return MappingSchema.parse(response.data);
   },
 
-  update: async (mappingId: string, data: Partial<Mapping>) => {
-    const response = await apiClient.put(`/migrations/${mappingId}`, data);
-    return MappingSchema.parse(response.data);
-  },
+  // `update` is gone (0033 T1): nothing called it, and its parse could never
+  // succeed — PUT answers `{id, ...body, updatedAt}`, which has none of the
+  // fields the detail schema requires. The 0026 T2 dead-surface precedent
+  // applies; when a screen needs to PUT a status, add it back with a schema
+  // that mirrors the real response.
 
   delete: async (mappingId: string) => {
     await apiClient.delete(`/migrations/${mappingId}`);

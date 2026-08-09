@@ -13,7 +13,8 @@ import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth';
 import type { AuthenticatedRequest } from '../../types/api';
 import { eq, and } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
-import { PgMigrationStatusStore, RunStore } from '@openmig/ledger';
+import { PgMigrationStatusStore, PgLedger, RunStore } from '@openmig/ledger';
+import { buildDomainStatusReports } from '@openmig/shared';
 import { SecretStore } from '@openmig/core/secret-store';
 import { getTriggerClient } from '@openmig/scheduler';
 import type { DiscoveryDomain, TenantId, MappingId } from '@openmig/shared';
@@ -173,25 +174,91 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
 
     const pool = getSharedPool();
 
-    // Query mappings with RLS enforcement via withTenantDb
-    const mappings = await withTenantDb(tenantId, pool, async (db) => {
-      // Use raw select since the query relations aren't fully set up
-      return await db
-        .select()
-        .from(schema.mailboxMapping)
-        .where(eq(schema.mailboxMapping.tenantId, tenantId));
-    });
+    // One tenant-scoped read for everything the list needs. The old mapper
+    // hardcoded sourceType 'imap' / targetType 'jmap' (misreporting the
+    // wizard's choices), sent tenant_id in snake case, and omitted the domains
+    // and lastSyncAt entirely — the client schema could never parse a single
+    // row (0033 T1). The real kinds live on the connection rows, reached via
+    // each mapping's mailboxes; domains live in scope_selection; lastSyncAt is
+    // the newest domain completion, same definition as GET /:mappingId.
+    const { mappings, mailboxes, connections, scopeRows, statusRows } = await withTenantDb(
+      tenantId,
+      pool,
+      async (db) => {
+        const mappings = await db
+          .select()
+          .from(schema.mailboxMapping)
+          .where(eq(schema.mailboxMapping.tenantId, tenantId));
+        if (mappings.length === 0) {
+          return { mappings, mailboxes: [], connections: [], scopeRows: [], statusRows: [] };
+        }
+        const [mailboxes, connections, scopeRows, statusRows] = await Promise.all([
+          db
+            .select({ id: schema.mailbox.id, connectionId: schema.mailbox.connectionId })
+            .from(schema.mailbox)
+            .where(eq(schema.mailbox.tenantId, tenantId)),
+          db
+            .select({ id: schema.connection.id, kind: schema.connection.kind })
+            .from(schema.connection)
+            .where(eq(schema.connection.tenantId, tenantId)),
+          db
+            .select({
+              mappingId: schema.scopeSelection.mappingId,
+              domain: schema.scopeSelection.domain,
+            })
+            .from(schema.scopeSelection)
+            .where(
+              and(
+                eq(schema.scopeSelection.tenantId, tenantId),
+                eq(schema.scopeSelection.included, true),
+              ),
+            )
+            .orderBy(schema.scopeSelection.domain),
+          db
+            .select({
+              mappingId: schema.migrationStatus.mappingId,
+              completedAt: schema.migrationStatus.completedAt,
+            })
+            .from(schema.migrationStatus)
+            .where(eq(schema.migrationStatus.tenantId, tenantId)),
+        ]);
+        return { mappings, mailboxes, connections, scopeRows, statusRows };
+      },
+    );
+
+    const kindByConnection = new Map(connections.map((c) => [c.id, c.kind]));
+    const kindByMailbox = new Map(
+      mailboxes.map((mb) => [mb.id, kindByConnection.get(mb.connectionId)]),
+    );
+    const domainsByMapping = new Map<string, string[]>();
+    for (const row of scopeRows) {
+      const list = domainsByMapping.get(row.mappingId) ?? [];
+      list.push(row.domain);
+      domainsByMapping.set(row.mappingId, list);
+    }
+    const lastSyncByMapping = new Map<string, string>();
+    for (const row of statusRows) {
+      if (!row.completedAt) continue;
+      const iso = row.completedAt.toISOString();
+      const prev = lastSyncByMapping.get(row.mappingId);
+      if (!prev || iso > prev) lastSyncByMapping.set(row.mappingId, iso);
+    }
 
     res.json({
       mappings: mappings.map((m) => ({
         id: m.id,
-        tenant_id: tenantId,
+        tenantId,
         name: m.name ?? m.mode, // real name (falls back to mode for legacy rows)
-        sourceType: 'imap',
-        targetType: 'jmap',
+        sourceType: kindByMailbox.get(m.sourceMailboxId) ?? 'unknown',
+        // targetMailboxId is nullable in the schema (a mapping can exist
+        // before its target mailbox does) — that is one honest 'unknown'.
+        targetType:
+          (m.targetMailboxId ? kindByMailbox.get(m.targetMailboxId) : undefined) ?? 'unknown',
         status: m.status,
         mode: m.mode,
         pattern: m.pattern,
+        domains: domainsByMapping.get(m.id) ?? [],
+        lastSyncAt: lastSyncByMapping.get(m.id),
         createdAt: m.createdAt,
         updatedAt: m.updatedAt,
       })),
@@ -377,7 +444,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
     // Previously this handler returned hardcoded placeholder data (imap.example.com,
     // a fixed lastSyncAt, domains: ['email']) regardless of the mapping's actual
     // config or sync state — this is the real fix, not a Docker/environment issue.
-    const { mapping, sourceConn, targetConn, scopeRows, domainStatus } = await withTenantDb(
+    const { mapping, sourceConn, targetConn, scopeRows, domainStatus, failures } = await withTenantDb(
       tenantId,
       pool,
       async (db) => {
@@ -392,10 +459,10 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
           );
         const mapping = mappings[0];
         if (!mapping) {
-          return { mapping: null, sourceConn: null, targetConn: null, scopeRows: [], domainStatus: [] };
+          return { mapping: null, sourceConn: null, targetConn: null, scopeRows: [], domainStatus: [], failures: [] };
         }
 
-        const [sourceRows, targetRows, scopeRows, domainStatus] = await Promise.all([
+        const [sourceRows, targetRows, scopeRows, domainStatus, failures] = await Promise.all([
           db
             .select()
             .from(schema.connection)
@@ -416,6 +483,9 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
             )
             .orderBy(schema.scopeSelection.domain),
           new PgMigrationStatusStore(db).getStatus(tenantId as TenantId, mappingId as MappingId),
+          // The failure queue feeds the attention counts — same derivation as
+          // the appliance's /status (see buildDomainStatusReports).
+          new PgLedger(db).listFailures(tenantId as TenantId, mappingId as MappingId),
         ]);
 
         return {
@@ -424,6 +494,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
           targetConn: targetRows[0] ?? null,
           scopeRows,
           domainStatus,
+          failures,
         };
       },
     );
@@ -482,7 +553,13 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
       status: mapping.status,
       mode: mapping.mode,
       pattern: mapping.pattern,
-      domainStatus,
+      // DomainStatusReport rows — the SAME shape the appliance's /status
+      // serves (ADR-0026: shared shapes), with itemsRetrying and
+      // itemsNeedingDecision derived from the failure queue and completedAt
+      // renamed lastSyncedAt. Raw MigrationStatus rows lacked both counts,
+      // so the hub's progress strip would have silently never shown a
+      // retrying count on this edition (0033 T5).
+      domainStatus: buildDomainStatusReports(domainStatus, failures),
       lastSyncAt,
       createdAt: mapping.createdAt,
       updatedAt: mapping.updatedAt,

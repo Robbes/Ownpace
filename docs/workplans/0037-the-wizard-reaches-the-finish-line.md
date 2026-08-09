@@ -4,7 +4,7 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T1 The wizard can be completed at all | ⬜ Planned | — |
+| T1 The wizard can be completed at all | ✅ Done 2026-08-09 (pulled forward into 0033 T3) | Step gates check only fields their step renders; usernames gate on the credentials step. `CreateMapping.unit.test.tsx` walks all six steps filling only visible fields and reaches submit — fails on the old gates at the first click. |
 | T2 A paused mapping can be green-lit after the wizard is gone | ⬜ Planned | — |
 | T3 Field-level honesty: validation, credentials, the closing note | ⬜ Planned | — |
 | T4 Choices that cannot work are refused, not stored | ⬜ Planned | — |
