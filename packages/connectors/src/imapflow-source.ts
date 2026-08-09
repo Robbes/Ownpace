@@ -64,6 +64,7 @@
  */
 
 import { ImapFlow } from 'imapflow';
+import { log } from '@openmig/shared';
 import type { SourceConnector, SyncCursor, TokenProvider } from '@openmig/shared';
 import type { MailFolder, MailItem, RawMessage, SpecialUse } from '@openmig/shared';
 import {
@@ -147,6 +148,27 @@ export class ImapFlowSource implements SourceConnector {
       // mailbox names and message counts into the worker's log for every pass.
       logger: false,
       disableAutoIdle: true,
+    });
+
+    // WITHOUT THIS LISTENER, A DROPPED SOCKET KILLS THE WHOLE APPLIANCE.
+    // Found on a real machine, 2026-08-09, 02:46: the laptop lid closed, the
+    // network died mid-IMAP-write, imapflow emitted 'error' (ECONNABORTED) on
+    // this client object, and Node's rule for an unlistened 'error' event is
+    // an uncaught exception -- process exit 1, Task Scheduler's three retries
+    // burned while the machine slept, appliance dead until a human noticed.
+    //
+    // Logging it IS the whole handler, and that is deliberate (hard rule 9:
+    // surface, never mask): any operation in flight on this connection still
+    // REJECTS through its own await -- imapflow fails pending commands when
+    // the socket dies -- so the pass's error handling sees the failure
+    // exactly as before. The only thing this listener removes is the
+    // process-wide crash for a socket that died while nobody was awaiting it,
+    // which on a laptop is not an edge case: it is what closing the lid does.
+    client.on('error', (err: Error) => {
+      log.warn(
+        `[imap] connection error on ${this.config.host}:${this.config.port} ` +
+          `(handled; in-flight operations fail on their own): ${err.message}`,
+      );
     });
 
     try {

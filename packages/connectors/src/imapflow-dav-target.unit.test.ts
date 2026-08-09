@@ -47,6 +47,8 @@ let removalIsALie: boolean;
 let failNext: { count: number; error: Error } | null;
 /** Set to make connect() itself throw, e.g. a certificate refusal. */
 let connectError: Error | null = null;
+/** The 'error' handler the writer registered on the LAST client, if any. */
+let lastErrorHandler: ((err: Error) => void) | undefined;
 /** Make the FETCH itself fail, which is a different branch from the lock. */
 let failFetch: Error | null;
 /** What `exists` was when each mailbox was first SELECTed — see getMailboxLock. */
@@ -57,6 +59,10 @@ vi.mock('imapflow', () => {
     mailbox: unknown = false;
     capabilities = new Map<string, boolean>();
     constructor(public readonly options: Record<string, unknown>) {}
+    on(event: string, handler: (err: Error) => void): void {
+      calls.push(`on(${event})`);
+      if (event === 'error') lastErrorHandler = handler;
+    }
     async connect(): Promise<void> {
       calls.push('connect');
       if (connectError) throw connectError;
@@ -208,6 +214,7 @@ beforeEach(() => {
   failNext = null;
   failFetch = null;
   connectError = null;
+  lastErrorHandler = undefined;
   selectedExists = new Map();
 });
 
@@ -617,5 +624,31 @@ describe('certificate verification', () => {
     connectError = new Error('connect ECONNREFUSED 127.0.0.1:993');
     await expect(target().listEntries()[Symbol.asyncIterator]().next()).rejects.toThrow(/ECONNREFUSED/);
     await expect(target().listEntries()[Symbol.asyncIterator]().next()).rejects.not.toThrow(/tlsVerify/);
+  });
+});
+
+// =======================================================================
+// A dying socket must not take the process with it (see the source's test)
+// =======================================================================
+
+describe('socket-level errors', () => {
+  it('registers an error listener, and a fired error drops the CACHED client', async () => {
+    // This writer HOLDS its connection between calls, so a socket dying while
+    // idle is even more likely here than on the per-call source. The handler
+    // must both absorb the event (no process crash) and un-cache the dead
+    // client, or the next write goes into a corpse.
+    const t = target();
+    await t.listEntries()[Symbol.asyncIterator]().next();
+    expect(lastErrorHandler).toBeDefined();
+
+    const connectsBefore = calls.filter((c) => c === 'connect').length;
+    expect(() =>
+      lastErrorHandler!(Object.assign(new Error('write ECONNABORTED'), { code: 'ECONNABORTED' })),
+    ).not.toThrow();
+
+    // The next operation RECONNECTS rather than reusing the dead socket.
+    await t.listEntries()[Symbol.asyncIterator]().next();
+    const connectsAfter = calls.filter((c) => c === 'connect').length;
+    expect(connectsAfter).toBe(connectsBefore + 1);
   });
 });
