@@ -10,7 +10,7 @@
 
 import React from 'react';
 import { STRINGS, type Locale, type StringKey } from './strings';
-import { formatRelativeToNow, formatDateTime, formatNumber } from './datetime';
+import { formatRelativeToNow, formatDateTime, formatNumber, formatCurrency } from './datetime';
 
 const STORAGE_KEY = 'openmig.locale';
 
@@ -83,6 +83,7 @@ export function useFormatters(): {
   relativeToNow: (when: string | Date) => string;
   dateTime: (when: string | Date) => string;
   number: (n: number) => string;
+  currency: (cents: number, currency: string) => string;
 } {
   const { locale } = useLocale();
   return React.useMemo(
@@ -90,6 +91,7 @@ export function useFormatters(): {
       relativeToNow: (when: string | Date) => formatRelativeToNow(when, locale),
       dateTime: (when: string | Date) => formatDateTime(when, locale),
       number: (n: number) => formatNumber(n, locale),
+      currency: (cents: number, currency: string) => formatCurrency(cents, currency, locale),
     }),
     [locale],
   );

@@ -95,5 +95,22 @@ describe('Billing Service', () => {
       expect(cost.tax).toBe(210); // 21% of 999 = 209.79, rounded to 210
       expect(cost.total).toBe(1209); // 999 + 210
     });
+  
+    it('serves baseFee and taxRate, and the itemized lines SUM to the subtotal (0039 T2)', () => {
+      // The acceptance the fleet demanded after "Base Fee" rendered the whole
+      // subtotal: baseFee + storage + egress + compute === subtotal, with a
+      // non-trivial usage fixture so the sum cannot pass vacuously.
+      const cost = calculateCost({
+        storageUsedGB: 50,
+        egressGB: 100,
+        computeHours: 20,
+        syncCount: 3,
+      });
+
+      expect(cost.baseFee).toBe(999);
+      expect(cost.baseFee + cost.storage + cost.egress + cost.compute).toBe(cost.subtotal);
+      expect(cost.taxRate).toBe(0.21);
+      expect(cost.tax).toBe(Math.round(cost.subtotal * cost.taxRate));
+    });
   });
 });

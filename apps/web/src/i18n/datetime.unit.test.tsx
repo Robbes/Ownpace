@@ -15,7 +15,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import React from 'react';
 import { render, screen, cleanup } from '@testing-library/react';
 import { LocaleProvider, useFormatters } from './index';
-import { formatRelativeToNow, formatDateTime, formatNumber } from './datetime';
+import { formatRelativeToNow, formatDateTime, formatNumber, formatCurrency } from './datetime';
 
 const NOW = new Date('2026-08-02T12:00:00Z');
 
@@ -100,3 +100,17 @@ describe('useFormatters', () => {
     expect(screen.getByTestId('r').textContent).toBe('2 hours ago');
   });
 });
+
+describe('formatCurrency (0039 T6)', () => {
+  it('renders cents as money in each language\u2019s conventions', () => {
+    // en: point decimal, no space -- nl: comma decimal, space after the sign.
+    expect(formatCurrency(1234, 'EUR', 'en')).toBe('\u20ac12.34');
+    expect(formatCurrency(1234, 'EUR', 'nl')).toBe('\u20ac\u00a012,34');
+  });
+
+  it('honours the served currency code instead of assuming euros', () => {
+    expect(formatCurrency(1234, 'USD', 'en')).toContain('12.34');
+    expect(formatCurrency(1234, 'USD', 'en')).not.toContain('\u20ac');
+  });
+});
+

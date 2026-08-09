@@ -12,7 +12,7 @@
 import { Router } from 'express';
 import type { Response } from 'express';
 import { z } from 'zod';
-import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth';
+import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middleware/auth';
 import type { AuthenticatedRequest } from '../../types/api';
 import { calculateCost } from '../../services/billing-service';
 import { generateInvoiceForPeriod } from '../../services/invoice-generation';
@@ -23,6 +23,16 @@ import { getUsageMetricsForPeriod } from '@openmig/ledger';
 import { log } from '@openmig/shared';
 
 const router = Router();
+
+// Role guards (0039 T1). Every write that moves money or changes how money
+// moves requires owner/admin, mirroring the Tenants routes' own pattern —
+// until 2026-08-09 all of these ran on `authenticate` alone, so a VIEWER
+// could trigger a real Mollie payment. The recorded read-visibility
+// decision: usage and invoice READS (and the estimate calculator, which
+// writes nothing) stay member-visible — seeing money is not moving money,
+// and the same codebase lets every member read the member list. The owner
+// can tighten this later; the tests pin the current line.
+const requireBillingWrite = requireRole('owner', 'admin');
 
 // Lazy pool initialization - created on first use, not at module load
 let _dbPool: ReturnType<typeof getDbPool> | null = null;
@@ -208,8 +218,10 @@ router.post('/estimate', authenticate, async (req: AuthenticatedRequest, res: Re
 
     res.json({
       estimate: cost.total,
+      // The breakdown tracks PricingConfig via calculateCost — the hardcoded
+      // 999 here survived a pricing change once already (0039 T3).
       breakdown: {
-        baseFee: 999,
+        baseFee: cost.baseFee,
         storage: cost.storage,
         egress: cost.egress,
         compute: cost.compute,
@@ -241,7 +253,7 @@ router.post('/estimate', authenticate, async (req: AuthenticatedRequest, res: Re
  * paid/void invoice is returned unchanged. Intended to be called by a
  * managed-mode scheduled job at period close (self-host never loads billing).
  */
-router.post('/invoices/generate', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/invoices/generate', authenticate, requireBillingWrite, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.tenantId;
     if (!tenantId) {
@@ -390,7 +402,7 @@ router.get('/invoices/:invoiceId', authenticate, async (req: AuthenticatedReques
  * 
  * Create payment for invoice using Mollie
  */
-router.post('/invoices/:invoiceId/pay', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/invoices/:invoiceId/pay', authenticate, requireBillingWrite, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const invoiceId = req.params.invoiceId;
     if (!invoiceId || Array.isArray(invoiceId)) {
@@ -445,7 +457,11 @@ router.post('/invoices/:invoiceId/pay', authenticate, async (req: AuthenticatedR
       tenantId,
       amount: Number(invoice.total), // Amount in cents
       description: `Invoice ${invoice.id} for period ${invoice.periodStart} to ${invoice.periodEnd}`,
-      redirectUrl: `${process.env.WEB_URL || 'http://localhost:3123'}/billing/invoices/${invoiceId}`,
+      // /billing, not /billing/invoices/:id — the SPA defines no invoice
+      // detail route, so the old value landed the customer on a BLANK PAGE
+      // immediately after paying (0039 T4). Point it at a route that renders
+      // until an invoice detail exists.
+      redirectUrl: `${process.env.WEB_URL || 'http://localhost:3123'}/billing`,
       webhookUrl: `${process.env.API_URL || 'http://localhost:3001'}/api/billing/webhooks/mollie`,
       // Round-trip the invoice + tenant so the webhook can correlate the payment
       // back to the exact invoice under the right RLS context.
@@ -541,7 +557,7 @@ router.get('/payment-methods', authenticate, async (req: AuthenticatedRequest, r
  * 
  * Add a new payment method
  */
-router.post('/payment-methods', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/payment-methods', authenticate, requireBillingWrite, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.tenantId;
     if (!tenantId) {
@@ -597,6 +613,7 @@ router.post('/payment-methods', authenticate, async (req: AuthenticatedRequest, 
 router.patch(
   '/payment-methods/:paymentMethodId/default',
   authenticate,
+  requireBillingWrite,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const paymentMethodId = req.params.paymentMethodId;

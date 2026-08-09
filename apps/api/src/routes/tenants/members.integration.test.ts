@@ -189,6 +189,35 @@ describe('Members Route Isolation', () => {
       expect(response.body.status).toBe('invited');
     });
 
+    it('refuses a duplicate invite in plain words (0039 T5)', async () => {
+      // First invite lands...
+      const first = await request
+        .post(`/api/tenants/${API_TENANT_A}/members`)
+        .set('Authorization', `Bearer ${TOKEN_ADMIN_A}`)
+        .send({ email: 'duplicate@example.com', role: 'member' });
+      expect(first.status).toBe(201);
+
+      // ...the second is refused, naming the row that exists. Before this
+      // check the pending:UUID placeholder defeated the unique constraint
+      // and a second row was silently created — which row's role won on
+      // acceptance was undefined.
+      const second = await request
+        .post(`/api/tenants/${API_TENANT_A}/members`)
+        .set('Authorization', `Bearer ${TOKEN_ADMIN_A}`)
+        .send({ email: 'duplicate@example.com', role: 'admin' });
+      expect(second.status).toBe(409);
+      expect(second.body.message).toContain('duplicate@example.com');
+      expect(second.body.message).toContain('open invitation');
+
+      // Exactly one live row exists.
+      const rows = await superuserPool.query(
+        `SELECT COUNT(*)::int AS n FROM tenant_member
+         WHERE tenant_id = $1 AND email = 'duplicate@example.com' AND status IN ('active','invited')`,
+        [API_TENANT_A],
+      );
+      expect(rows.rows[0].n).toBe(1);
+    });
+
     it('should prevent member role from inviting members', async () => {
       const response = await request
         .post(`/api/tenants/${API_TENANT_A}/members`)

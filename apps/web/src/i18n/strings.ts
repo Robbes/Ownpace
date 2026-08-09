@@ -120,6 +120,14 @@ const en = {
   'dashboard.runItems': 'items',
   'dashboard.runErrors': 'errors',
   'billing.usageLoadFailed': 'Could not load the usage numbers.',
+  'billing.pay': 'Pay',
+  'billing.payFailed': 'The payment could not be started.',
+  'billing.usagePeriod': 'Usage for',
+  'billing.asOf': 'as of',
+  'billing.noPaymentMethods': 'No payment methods stored.',
+  'billing.paymentMethodsLoadFailed': 'Could not load the payment methods.',
+  'billing.default': 'Default',
+  'billing.readOnly': 'You can view billing, but only an owner or admin can make changes.',
   'billing.invoicesLoadFailed': 'Could not load the invoices.',
   'billing.loadFailedNotEmpty':
     'This is not the same as having none — data may exist that could not be read.',
@@ -250,6 +258,9 @@ const en = {
     'Who can sign in to this organization, and what they are allowed to do. Changes apply immediately.',
   'tenants.noTenant': 'No organization in this session.',
   'tenants.requestFailed': 'The request did not complete.',
+  'tenants.selfDemotionArmed':
+    'This lowers your own role — you may not be able to change it back yourself.',
+  'tenants.selfDemotionConfirm': 'Confirm role change',
   'tenants.org.heading': 'Organization',
   'tenants.org.readError':
     "Could not read the organization's details — the member list below still works.",
@@ -489,6 +500,14 @@ const nl: Record<keyof typeof en, string> = {
   'dashboard.runItems': 'items',
   'dashboard.runErrors': 'fouten',
   'billing.usageLoadFailed': 'De verbruikscijfers konden niet worden geladen.',
+  'billing.pay': 'Betalen',
+  'billing.payFailed': 'De betaling kon niet worden gestart.',
+  'billing.usagePeriod': 'Verbruik voor',
+  'billing.asOf': 'per',
+  'billing.noPaymentMethods': 'Geen betaalmethoden opgeslagen.',
+  'billing.paymentMethodsLoadFailed': 'De betaalmethoden konden niet worden geladen.',
+  'billing.default': 'Standaard',
+  'billing.readOnly': 'U kunt de facturatie bekijken, maar alleen een eigenaar of beheerder kan wijzigingen doorvoeren.',
   'billing.invoicesLoadFailed': 'De facturen konden niet worden geladen.',
   'billing.loadFailedNotEmpty':
     'Dit is niet hetzelfde als geen gegevens — er kunnen gegevens bestaan die niet gelezen konden worden.',
@@ -625,6 +644,9 @@ const nl: Record<keyof typeof en, string> = {
     'Wie zich bij deze organisatie kan aanmelden, en wat ze mogen doen. Wijzigingen gelden direct.',
   'tenants.noTenant': 'Geen organisatie in deze sessie.',
   'tenants.requestFailed': 'Het verzoek is niet voltooid.',
+  'tenants.selfDemotionArmed':
+    'Hiermee verlaagt u uw eigen rol — u kunt dit mogelijk niet zelf terugdraaien.',
+  'tenants.selfDemotionConfirm': 'Bevestig rolwijziging',
   'tenants.org.heading': 'Organisatie',
   'tenants.org.readError':
     'De gegevens van de organisatie konden niet worden gelezen — de ledenlijst hieronder werkt nog.',

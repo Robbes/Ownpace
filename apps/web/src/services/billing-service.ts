@@ -1,84 +1,105 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 /**
- * Billing Service
- * 
- * API client for billing-related operations.
+ * Billing Service — API client, reconciled against the ROUTES' literal
+ * responses (0039 T3), the same discipline as mapping-service.ts (whose
+ * header documents exactly this drift failure mode).
+ *
+ * What the old file got wrong, all fixed here by parsing the real shapes:
+ * the invoice type spoke Stripe vocabulary (`period`, `open`/`uncollectible`)
+ * against a Mollie DB enum (`periodStart`/`periodEnd`,
+ * `sent`/`overdue`) — every row rendered "Period:" followed by nothing and
+ * the one status demanding action wore neutral gray; the money columns are
+ * NUMERIC in Postgres and arrive as STRINGS, which the old `number` types
+ * hid behind implicit coercion (z.coerce makes it explicit); and two
+ * phantom methods — `recordUsage` (POSTs an endpoint that does not exist)
+ * and `estimateCost` (types a shape the server does not send) — are deleted
+ * per the 0026 T2 dead-surface precedent.
  */
 
+import { z } from 'zod';
 import apiClient from './api';
 
-export interface UsageMetrics {
-  id: string;
-  tenantId: string;
-  period: string;
-  storageUsedGB: number;
-  egressGB: number;
-  computeHours: number;
-  syncCount: number;
-  lastUpdated: string;
-}
+/** calculateCost's breakdown — baseFee and taxRate included (0039 T2), so
+ *  the Base Fee line and the VAT label render served numbers, not guesses. */
+export const CurrentCostSchema = z.object({
+  baseFee: z.number(),
+  storage: z.number(),
+  egress: z.number(),
+  compute: z.number(),
+  subtotal: z.number(),
+  taxRate: z.number(),
+  tax: z.number(),
+  total: z.number(),
+});
 
-export interface CurrentCost {
-  storage: number;
-  egress: number;
-  compute: number;
-  subtotal: number;
-  tax: number;
-  total: number;
-}
+export const UsageResponseSchema = z.object({
+  usage: z.object({
+    tenantId: z.string(),
+    period: z.string(), // YYYY-MM
+    storageUsedGB: z.number(),
+    egressGB: z.number(),
+    computeHours: z.number(),
+    /** NAMED what it is upstream: the metering writes apiCallCount here. */
+    syncCount: z.number(),
+    lastUpdated: z.string(),
+  }),
+  currentCost: CurrentCostSchema,
+  period: z.string(),
+});
 
-export interface UsageResponse {
-  usage: UsageMetrics;
-  currentCost: CurrentCost;
-  period: string;
-}
+/** GET /billing/invoices rows — the DB enum's words (`mollie`, not Stripe),
+ *  money coerced explicitly (numeric columns arrive as strings). */
+export const InvoiceSchema = z.object({
+  id: z.string(),
+  tenantId: z.string(),
+  periodStart: z.string(),
+  periodEnd: z.string(),
+  status: z.enum(['draft', 'sent', 'paid', 'overdue', 'void']),
+  subtotal: z.coerce.number(),
+  taxRate: z.coerce.number(),
+  taxAmount: z.coerce.number(),
+  total: z.coerce.number(),
+  currency: z.string(),
+  paymentMethod: z.string().nullish(),
+  paymentId: z.string().nullish(),
+  paidAt: z.string().nullish(),
+  dueDate: z.string().nullish(),
+  sentAt: z.string().nullish(),
+  metadata: z.record(z.string(), z.unknown()).nullish(),
+  createdAt: z.string(),
+  updatedAt: z.string().nullish(),
+});
 
-export interface Invoice {
-  id: string;
-  tenantId: string;
-  period: string;
-  status: 'draft' | 'open' | 'paid' | 'uncollectible' | 'void';
-  subtotal: number;
-  tax: number;
-  total: number;
-  currency: string;
-  createdAt: string;
-  dueDate: string;
-  paidAt?: string;
-}
+export const PaymentMethodSchema = z.object({
+  id: z.string(),
+  tenantId: z.string(),
+  mollieId: z.string().nullish(),
+  type: z.string(),
+  brand: z.string().nullish(),
+  lastFour: z.string().nullish(),
+  expiryMonth: z.coerce.number().nullish(),
+  expiryYear: z.coerce.number().nullish(),
+  isDefault: z.boolean(),
+  status: z.string().nullish(),
+  createdAt: z.string(),
+  updatedAt: z.string().nullish(),
+});
 
-export interface PaymentMethod {
-  id: string;
-  tenantId: string;
-  type: 'card' | 'banktransfer' | 'other';
-  last4?: string;
-  brand?: string;
-  expiryMonth?: number;
-  expiryYear?: number;
-  isDefault: boolean;
-  createdAt: string;
-}
+export const PayResponseSchema = z.object({
+  paymentUrl: z.string(),
+  paymentId: z.string(),
+  status: z.string(),
+});
 
-export interface CostEstimate {
-  baseFee: number;
-  storage: number;
-  egress: number;
-  compute: number;
-  tax: number;
-  total: number;
-}
+export type UsageResponse = z.infer<typeof UsageResponseSchema>;
+export type Invoice = z.infer<typeof InvoiceSchema>;
+export type PaymentMethod = z.infer<typeof PaymentMethodSchema>;
 
 export const billingApi = {
   // Get current usage
   getCurrentUsage: async (): Promise<UsageResponse> => {
     const response = await apiClient.get('/billing/usage');
-    return response.data;
-  },
-
-  // Record usage (internal use)
-  recordUsage: async (metrics: Partial<UsageMetrics>) => {
-    const response = await apiClient.post('/billing/usage', metrics);
-    return response.data;
+    return UsageResponseSchema.parse(response.data);
   },
 
   // Get usage history
@@ -87,37 +108,32 @@ export const billingApi = {
     return response.data;
   },
 
-  // Estimate cost
-  estimateCost: async (metrics: Partial<UsageMetrics>): Promise<{ estimate: CostEstimate }> => {
-    const response = await apiClient.post('/billing/estimate', metrics);
-    return response.data;
-  },
-
   // List invoices
   listInvoices: async (): Promise<{ invoices: Invoice[] }> => {
     const response = await apiClient.get('/billing/invoices');
-    return response.data;
+    return { invoices: z.array(InvoiceSchema).parse(response.data.invoices) };
   },
 
   // Get invoice details
   getInvoice: async (invoiceId: string): Promise<{ invoice: Invoice }> => {
     const response = await apiClient.get(`/billing/invoices/${invoiceId}`);
-    return response.data;
+    return { invoice: InvoiceSchema.parse(response.data.invoice) };
   },
 
-  // Create payment for invoice
-  createPayment: async (invoiceId: string): Promise<{ paymentUrl: string; paymentId: string }> => {
+  /** Create a Mollie payment for an invoice; the caller follows `paymentUrl`.
+   *  Owner/admin only server-side (0039 T1). */
+  createPayment: async (invoiceId: string) => {
     const response = await apiClient.post(`/billing/invoices/${invoiceId}/pay`);
-    return response.data;
+    return PayResponseSchema.parse(response.data);
   },
 
   // List payment methods
   getPaymentMethods: async (): Promise<{ paymentMethods: PaymentMethod[] }> => {
     const response = await apiClient.get('/billing/payment-methods');
-    return response.data;
+    return { paymentMethods: z.array(PaymentMethodSchema).parse(response.data.paymentMethods) };
   },
 
-  // Add payment method
+  // Add payment method (owner/admin only server-side)
   addPaymentMethod: async (data: {
     type: 'card' | 'banktransfer' | 'other';
     last4?: string;
@@ -126,12 +142,12 @@ export const billingApi = {
     expiryYear?: number;
   }): Promise<{ paymentMethod: PaymentMethod }> => {
     const response = await apiClient.post('/billing/payment-methods', data);
-    return response.data;
+    return { paymentMethod: PaymentMethodSchema.parse(response.data.paymentMethod) };
   },
 
-  // Set default payment method
+  // Set default payment method (owner/admin only server-side)
   setDefaultPaymentMethod: async (paymentMethodId: string): Promise<{ paymentMethod: PaymentMethod }> => {
     const response = await apiClient.patch(`/billing/payment-methods/${paymentMethodId}/default`);
-    return response.data;
+    return { paymentMethod: PaymentMethodSchema.parse(response.data.paymentMethod) };
   },
 };
