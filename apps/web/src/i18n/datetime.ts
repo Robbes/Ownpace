@@ -68,3 +68,15 @@ export function formatDateTime(
 export function formatNumber(n: number, locale: Locale): string {
   return new Intl.NumberFormat(locale).format(n);
 }
+
+/**
+ * Money, in the active language (0039 T6): en "€12.34" — nl "€ 12,34".
+ *
+ * Takes CENTS (the integer the whole billing path carries, ADR-0014) and the
+ * currency CODE the server serves (`invoice.currency` — dead data until this
+ * existed, while every amount was a hardcoded `€{(x/100).toFixed(2)}` that
+ * would render EN-style punctuation on the NL screen).
+ */
+export function formatCurrency(cents: number, currency: string, locale: Locale): string {
+  return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(cents / 100);
+}

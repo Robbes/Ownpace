@@ -8,8 +8,6 @@
  * `billingApi` mock was removed once those moved to real persistence.
  */
 
-import { z } from 'zod';
-
 // Pricing configuration
 export interface PricingConfig {
   baseFee: number; // Monthly base fee in cents
@@ -37,88 +35,25 @@ export interface UsageMetrics {
   lastUpdated: string;
 }
 
-export const UsageMetricsSchema = z.object({
-  id: z.string(),
-  tenantId: z.string(),
-  period: z.string(),
-  storageUsedGB: z.number(),
-  egressGB: z.number(),
-  computeHours: z.number(),
-  syncCount: z.number(),
-  lastUpdated: z.string(),
-});
+// The dead zod half of this file — an Invoice type speaking Stripe vocabulary
+// (`open`/`uncollectible`) against a Mollie DB enum (`sent`/`overdue`), plus
+// schemas nothing imported — was deleted with 0039 T3. The DB CHECK owns the
+// enum; the routes serve rows straight from Drizzle; the client parses those
+// rows against its own literal-response schemas.
 
-export type UsageMetricsType = z.infer<typeof UsageMetricsSchema>;
-
-// Invoice
-export interface Invoice {
-  id: string;
-  tenantId: string;
-  period: string;
-  status: 'draft' | 'open' | 'paid' | 'uncollectible' | 'void';
-  subtotal: number;
-  tax: number;
-  total: number;
-  currency: string;
-  createdAt: string;
-  dueDate: string;
-  paidAt?: string;
-  mollieInvoiceId?: string;
-}
-
-export const InvoiceSchema = z.object({
-  id: z.string(),
-  tenantId: z.string(),
-  period: z.string(),
-  status: z.enum(['draft', 'open', 'paid', 'uncollectible', 'void']),
-  subtotal: z.number(),
-  tax: z.number(),
-  total: z.number(),
-  currency: z.string(),
-  createdAt: z.string(),
-  dueDate: z.string(),
-  paidAt: z.string().optional(),
-  mollieInvoiceId: z.string().optional(),
-});
-
-export type InvoiceType = z.infer<typeof InvoiceSchema>;
-
-// Payment method
-export interface PaymentMethod {
-  id: string;
-  tenantId: string;
-  mollieCustomerId?: string;
-  type: 'card' | 'banktransfer' | 'other';
-  last4?: string;
-  brand?: string;
-  expiryMonth?: number;
-  expiryYear?: number;
-  isDefault: boolean;
-  createdAt: string;
-}
-
-export const PaymentMethodSchema = z.object({
-  id: z.string(),
-  tenantId: z.string(),
-  mollieCustomerId: z.string().optional(),
-  type: z.enum(['card', 'banktransfer', 'other']),
-  last4: z.string().optional(),
-  brand: z.string().optional(),
-  expiryMonth: z.number().optional(),
-  expiryYear: z.number().optional(),
-  isDefault: z.boolean(),
-  createdAt: z.string(),
-});
-
-export type PaymentMethodType = z.infer<typeof PaymentMethodSchema>;
+/** One VAT rate, said once. The rate the UI shows derives from `taxRate` on
+ *  the served cost, so the label can never disagree with the arithmetic. */
+export const VAT_RATE = 0.21;
 
 // Cost calculation — integer cents throughout (each component is rounded, so no
 // floating-point drift reaches the invoice).
 export function calculateCost(metrics: Partial<UsageMetrics>, pricing: PricingConfig = defaultPricing): {
+  baseFee: number;
   storage: number;
   egress: number;
   compute: number;
   subtotal: number;
+  taxRate: number;
   tax: number;
   total: number;
 } {
@@ -127,14 +62,20 @@ export function calculateCost(metrics: Partial<UsageMetrics>, pricing: PricingCo
   const computeCost = Math.round((metrics.computeHours ?? 0) * pricing.computePricePerHour);
 
   const subtotal = pricing.baseFee + storageCost + egressCost + computeCost;
-  const tax = Math.round(subtotal * 0.21); // 21% VAT
+  const tax = Math.round(subtotal * VAT_RATE);
   const total = subtotal + tax;
 
+  // baseFee is IN the returned breakdown (0039 T2): without it the UI's
+  // "Base Fee" line had nothing true to render and showed the whole subtotal
+  // — itemized lines summing to double the printed subtotal, on a screen
+  // about money.
   return {
+    baseFee: pricing.baseFee,
     storage: storageCost,
     egress: egressCost,
     compute: computeCost,
     subtotal,
+    taxRate: VAT_RATE,
     tax,
     total,
   };

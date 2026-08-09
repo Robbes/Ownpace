@@ -1,10 +1,26 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+/**
+ * Billing — the screen where numbers become money (workplan 0039).
+ *
+ * Rebuilt from the fleet's findings: the Base Fee line rendered the entire
+ * subtotal (itemized lines summed to double the printed subtotal), the VAT
+ * label hardcoded 21% beside a served rate, every amount was hand-formatted
+ * EN-style, the invoice period rendered "Period:" followed by nothing (the
+ * client typed Stripe vocabulary against a Mollie enum), `overdue` — the one
+ * status demanding action — wore neutral gray, the Payment Methods card
+ * hardcoded its empty state without ever performing the read, and the two
+ * buttons on the screen did nothing at all.
+ *
+ * Body prose is EN-only recorded debt (0024 T5 / 0035 T2); everything NEW
+ * goes through the dictionary.
+ */
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { CreditCard, TrendingUp, DollarSign, FileText, AlertCircle } from 'lucide-react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { CreditCard, TrendingUp, DollarSign, FileText, AlertCircle, Loader2 } from 'lucide-react';
 import { billingApi, type Invoice } from '../services/billing-service';
 import { serverMessage } from '../services/api';
-import { useT } from '../i18n';
+import { useAuthStore } from '../stores/auth-store';
+import { useT, useFormatters } from '../i18n';
 
 /** A failed read said as such (hard rule 9 / 0033 T2) — before this, a failed
  *  usage read rendered "No usage data available yet" and a failed invoices
@@ -24,19 +40,58 @@ const ReadFailed: React.FC<{ heading: string; error: unknown; footnote: string }
   </div>
 );
 
+/** The DB enum's five states. `overdue` is the one demanding action and
+ *  dresses accordingly; `sent` (awaiting payment) is styled at all — the old
+ *  map only knew Stripe's words, so both fell to gray. */
+const INVOICE_STATUS_CLASS: Record<Invoice['status'], string> = {
+  draft: 'bg-gray-100 text-gray-800',
+  sent: 'bg-blue-100 text-blue-800',
+  paid: 'bg-green-100 text-green-800',
+  overdue: 'bg-red-100 text-red-800',
+  void: 'bg-gray-100 text-gray-500 line-through',
+};
+
 const Billing: React.FC = () => {
   const t = useT();
+  const { currency, dateTime } = useFormatters();
+  const { user } = useAuthStore();
+  // Mirrors the server's requireRole('owner','admin') on the billing writes
+  // (0039 T1), the same way Tenants gates its controls.
+  const canManage = user?.role === 'owner' || user?.role === 'admin';
+
   const { data: usage, isLoading: usageLoading, error: usageError } = useQuery({
     queryKey: ['billing-usage'],
     queryFn: () => billingApi.getCurrentUsage(),
   });
 
-  const { data: invoices, isLoading: invoicesLoading, error: invoicesError } = useQuery({
+  const { data: invoices, isLoading: invoicesLoading, error: invoicesError, refetch: refetchInvoices } = useQuery({
     queryKey: ['billing-invoices'],
     queryFn: () => billingApi.listInvoices(),
   });
 
-  if (usageLoading || invoicesLoading) {
+  // The Payment Methods read is PERFORMED now (0039 T4) — the old card
+  // hardcoded "no payment methods configured" without asking, so a tenant
+  // WITH stored methods was told they had none.
+  const { data: methods, isLoading: methodsLoading, error: methodsError } = useQuery({
+    queryKey: ['billing-payment-methods'],
+    queryFn: () => billingApi.getPaymentMethods(),
+  });
+
+  // The Mollie pay loop, finally reachable (0039 T4): create the payment,
+  // follow the checkout URL. Failures render at the row, verbatim.
+  const [payError, setPayError] = React.useState<{ invoiceId: string; text: string } | null>(null);
+  const payMutation = useMutation({
+    mutationFn: (invoiceId: string) => billingApi.createPayment(invoiceId),
+    onSuccess: (result) => {
+      window.location.href = result.paymentUrl;
+    },
+    onError: (error, invoiceId) => {
+      setPayError({ invoiceId, text: serverMessage(error) });
+      void refetchInvoices();
+    },
+  });
+
+  if (usageLoading || invoicesLoading || methodsLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -51,12 +106,23 @@ const Billing: React.FC = () => {
         <p className="text-gray-500 mt-1">
           Manage your subscription, usage, and payments
         </p>
+        {!canManage && <p className="text-sm text-gray-500 mt-1">{t('billing.readOnly')}</p>}
       </div>
 
       {/* Current Usage */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Current Usage</h2>
-        
+        <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">Current Usage</h2>
+          {usage && (
+            // WHICH month, and how fresh — the served period and lastUpdated
+            // were discarded before (0039 T2; 0036's as-of species).
+            <p className="text-sm text-gray-500">
+              {t('billing.usagePeriod')} {usage.usage.period} · {t('billing.asOf')}{' '}
+              {dateTime(usage.usage.lastUpdated)}
+            </p>
+          )}
+        </div>
+
         {usageError != null ? (
           <ReadFailed
             heading={t('billing.usageLoadFailed')}
@@ -106,7 +172,10 @@ const Billing: React.FC = () => {
                 <div className="flex items-center">
                   <FileText className="w-5 h-5 text-yellow-600 mr-2" />
                   <div>
-                    <p className="text-sm text-gray-600">Syncs</p>
+                    {/* Labeled what the metering actually writes here
+                        (apiCallCount) — "Syncs" promised a count nothing
+                        records (0039 T2). */}
+                    <p className="text-sm text-gray-600">API calls</p>
                     <p className="text-lg font-semibold text-gray-900">
                       {usage.usage.syncCount}
                     </p>
@@ -115,37 +184,44 @@ const Billing: React.FC = () => {
               </div>
             </div>
 
-            {/* Cost Breakdown */}
+            {/* Cost Breakdown — itemized lines that SUM to the subtotal:
+                baseFee is served now (0039 T2); before, this line rendered
+                the whole subtotal and the arithmetic on screen was wrong
+                by roughly 2x. Amounts via the locale currency formatter. */}
             <div className="mt-6 p-4 bg-gray-50 rounded-lg">
               <h3 className="font-medium text-gray-900 mb-3">Cost Breakdown</h3>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Base Fee</span>
-                  <span className="font-medium">€{(usage.currentCost.subtotal / 100).toFixed(2)}</span>
+                  <span className="font-medium">{currency(usage.currentCost.baseFee, 'EUR')}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Storage Cost</span>
-                  <span className="font-medium">€{(usage.currentCost.storage / 100).toFixed(2)}</span>
+                  <span className="font-medium">{currency(usage.currentCost.storage, 'EUR')}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Data Transfer</span>
-                  <span className="font-medium">€{(usage.currentCost.egress / 100).toFixed(2)}</span>
+                  <span className="font-medium">{currency(usage.currentCost.egress, 'EUR')}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Compute</span>
-                  <span className="font-medium">€{(usage.currentCost.compute / 100).toFixed(2)}</span>
+                  <span className="font-medium">{currency(usage.currentCost.compute, 'EUR')}</span>
                 </div>
                 <div className="flex justify-between text-sm pt-2 border-t">
                   <span className="font-medium">Subtotal</span>
-                  <span className="font-medium">€{(usage.currentCost.subtotal / 100).toFixed(2)}</span>
+                  <span className="font-medium">{currency(usage.currentCost.subtotal, 'EUR')}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">VAT (21%)</span>
-                  <span className="font-medium">€{(usage.currentCost.tax / 100).toFixed(2)}</span>
+                  {/* The label derives from the served rate — one VAT
+                      constant, said once (VAT_RATE server-side). */}
+                  <span className="text-gray-600">
+                    VAT ({Math.round(usage.currentCost.taxRate * 100)}%)
+                  </span>
+                  <span className="font-medium">{currency(usage.currentCost.tax, 'EUR')}</span>
                 </div>
                 <div className="flex justify-between text-lg font-semibold pt-2 border-t">
                   <span>Total</span>
-                  <span className="text-blue-600">€{(usage.currentCost.total / 100).toFixed(2)}</span>
+                  <span className="text-blue-600">{currency(usage.currentCost.total, 'EUR')}</span>
                 </div>
               </div>
             </div>
@@ -172,37 +248,51 @@ const Billing: React.FC = () => {
           ) : (
             <div className="space-y-4">
               {invoices?.invoices?.map((invoice: Invoice) => (
-                <div
-                  key={invoice.id}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
-                >
-                  <div>
-                    <p className="font-medium text-gray-900">
-                      Invoice {invoice.id}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Period: {invoice.period}
-                    </p>
+                <div key={invoice.id} className="p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        Invoice {invoice.id.slice(0, 8)}
+                      </p>
+                      {/* The period the server actually serves —
+                          periodStart/periodEnd. The old field ("period")
+                          existed only in the client type, so this line
+                          rendered "Period:" followed by nothing. */}
+                      <p className="text-sm text-gray-500">
+                        Period: {invoice.periodStart} – {invoice.periodEnd}
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <span
+                        className={`px-2 py-1 text-xs font-semibold rounded-full ${INVOICE_STATUS_CLASS[invoice.status]}`}
+                      >
+                        {invoice.status}
+                      </span>
+                      <span className="font-medium text-gray-900">
+                        {currency(invoice.total, invoice.currency)}
+                      </span>
+                      {canManage && (invoice.status === 'draft' || invoice.status === 'sent' || invoice.status === 'overdue') && (
+                        <button
+                          onClick={() => {
+                            setPayError(null);
+                            payMutation.mutate(invoice.id);
+                          }}
+                          disabled={payMutation.isPending}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
+                        >
+                          {payMutation.isPending && payMutation.variables === invoice.id && (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          )}
+                          {t('billing.pay')}
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-4">
-                    <span
-                      className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                        invoice.status === 'paid'
-                          ? 'bg-green-100 text-green-800'
-                          : invoice.status === 'open'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {invoice.status}
-                    </span>
-                    <span className="font-medium text-gray-900">
-                      €{(invoice.total / 100).toFixed(2)}
-                    </span>
-                    <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                      View
-                    </button>
-                  </div>
+                  {payError?.invoiceId === invoice.id && (
+                    <p className="mt-2 text-sm text-red-800">
+                      <span className="font-medium">{t('billing.payFailed')}</span> {payError.text}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>
@@ -210,18 +300,53 @@ const Billing: React.FC = () => {
         </div>
       </div>
 
-      {/* Payment Methods */}
+      {/* Payment Methods — served rows or an honest failure; the "Add
+          Payment Method" button is GONE rather than dead (0039 T4): adding
+          one requires a Mollie flow that is not built, and a button that
+          does nothing on a billing screen reads as broken payments. */}
       <div className="bg-white rounded-lg border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">Payment Methods</h2>
-          <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
-            Add Payment Method
-          </button>
         </div>
         <div className="p-6">
-          <p className="text-gray-500 text-center py-8">
-            No payment methods configured yet
-          </p>
+          {methodsError != null ? (
+            <ReadFailed
+              heading={t('billing.paymentMethodsLoadFailed')}
+              error={methodsError}
+              footnote={t('billing.loadFailedNotEmpty')}
+            />
+          ) : methods?.paymentMethods?.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">{t('billing.noPaymentMethods')}</p>
+          ) : (
+            <div className="space-y-3">
+              {methods?.paymentMethods?.map((method) => (
+                <div
+                  key={method.id}
+                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    <CreditCard className="w-5 h-5 text-gray-500" />
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {method.brand ?? method.type}
+                        {method.lastFour ? ` •••• ${method.lastFour}` : ''}
+                      </p>
+                      {method.expiryMonth != null && method.expiryYear != null && (
+                        <p className="text-sm text-gray-500">
+                          {String(method.expiryMonth).padStart(2, '0')}/{method.expiryYear}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {method.isDefault && (
+                    <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                      {t('billing.default')}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

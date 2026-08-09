@@ -218,8 +218,10 @@ router.post('/estimate', authenticate, async (req: AuthenticatedRequest, res: Re
 
     res.json({
       estimate: cost.total,
+      // The breakdown tracks PricingConfig via calculateCost — the hardcoded
+      // 999 here survived a pricing change once already (0039 T3).
       breakdown: {
-        baseFee: 999,
+        baseFee: cost.baseFee,
         storage: cost.storage,
         egress: cost.egress,
         compute: cost.compute,
@@ -455,7 +457,11 @@ router.post('/invoices/:invoiceId/pay', authenticate, requireBillingWrite, async
       tenantId,
       amount: Number(invoice.total), // Amount in cents
       description: `Invoice ${invoice.id} for period ${invoice.periodStart} to ${invoice.periodEnd}`,
-      redirectUrl: `${process.env.WEB_URL || 'http://localhost:3123'}/billing/invoices/${invoiceId}`,
+      // /billing, not /billing/invoices/:id — the SPA defines no invoice
+      // detail route, so the old value landed the customer on a BLANK PAGE
+      // immediately after paying (0039 T4). Point it at a route that renders
+      // until an invoice detail exists.
+      redirectUrl: `${process.env.WEB_URL || 'http://localhost:3123'}/billing`,
       webhookUrl: `${process.env.API_URL || 'http://localhost:3001'}/api/billing/webhooks/mollie`,
       // Round-trip the invoice + tenant so the webhook can correlate the payment
       // back to the exact invoice under the right RLS context.
