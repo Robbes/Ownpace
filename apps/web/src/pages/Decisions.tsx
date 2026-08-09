@@ -308,6 +308,36 @@ const Decisions: React.FC = () => {
                       )}
                     </div>
                     <p className="text-gray-600">{decision.summary}</p>
+                    {/* The whole story (0038 T5): the contract carries the
+                        recorded answer, who gave it, and the structured facts
+                        — the screen rendered none of them (its own header
+                        comment claimed detail renders; it never did). */}
+                    {decision.resolution && (
+                      <p className="text-xs text-gray-600">
+                        {t('decisions.answer')}{' '}
+                        <span className="font-mono">{JSON.stringify(decision.resolution)}</span>
+                        {decision.resolvedBy && (
+                          <span className="text-gray-500">
+                            {' '}
+                            {t('decisions.answeredBy')} {decision.resolvedBy}
+                          </span>
+                        )}
+                      </p>
+                    )}
+                    {Object.keys(decision.detail ?? {}).length > 0 && (
+                      <details className="text-xs">
+                        <summary className="cursor-pointer text-gray-500 select-none">
+                          {t('decisions.detailToggle')}
+                        </summary>
+                        <ul className="mt-1 pl-3 border-l-2 border-gray-100">
+                          {Object.entries(decision.detail).map(([k, v]) => (
+                            <li key={k} className="font-mono text-gray-600">
+                              {k}: {typeof v === 'string' ? v : JSON.stringify(v)}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
                     {rowEffects[decision.id] && (
                       // What the click DID — the server's sentence, verbatim.
                       <p className="text-xs text-emerald-700">{rowEffects[decision.id]}</p>

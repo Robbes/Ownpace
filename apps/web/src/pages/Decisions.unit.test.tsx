@@ -369,3 +369,44 @@ describe('the appliance operator is not locked out (0038 T4)', () => {
   });
 });
 
+describe('answered rows tell their whole story (0038 T5)', () => {
+  it('an auto-resolved row shows what was answered and by which preset, with detail behind a disclosure', async () => {
+    fetchDecisions.mockResolvedValue({
+      decisions: [
+        {
+          ...PENDING,
+          status: 'auto_resolved',
+          resolvedAt: '2026-08-09T08:00:00Z',
+          resolution: { action: 'accept_default' },
+          resolvedBy: 'preset:new_mailbox',
+        },
+      ],
+    });
+
+    renderScreen();
+
+    expect(await screen.findByText(/Answer:/)).toBeInTheDocument();
+    expect(screen.getByText(/accept_default/)).toBeInTheDocument();
+    expect(screen.getByText(/preset:new_mailbox/)).toBeInTheDocument();
+    // The structured facts render behind a per-row disclosure, verbatim.
+    expect(screen.getByText('Details')).toBeInTheDocument();
+    // The detail's key:value line (distinct from the summary, which also
+    // carries the address).
+    expect(screen.getByText(/address: nieuw@acme.nl/)).toBeInTheDocument();
+  });
+
+  it('dismissed is NOT green — set-aside wears a neutral chip', async () => {
+    fetchDecisions.mockResolvedValue({
+      decisions: [
+        { ...PENDING, status: 'dismissed', resolvedAt: '2026-08-09T08:00:00Z' },
+      ],
+    });
+
+    renderScreen();
+
+    const chip = await screen.findByText('Dismissed');
+    expect(chip.className).not.toContain('green');
+    expect(chip.className).toContain('bg-gray-100');
+  });
+});
+
