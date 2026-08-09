@@ -19,24 +19,8 @@ import { useQuery } from '@tanstack/react-query';
 import type { RunReport } from '@openmig/shared';
 import { fetchRuns } from '../services/operating-service';
 import { useT, useLocale } from '../i18n';
+import StateChip from './StateChip';
 import { formatDateTime, formatNumber } from '../i18n/datetime';
-import type { StringKey } from '../i18n';
-
-const STATUS_KEY: Record<RunReport['status'], StringKey> = {
-  pending: 'runs.status.pending',
-  running: 'runs.status.running',
-  success: 'runs.status.success',
-  failed: 'runs.status.failed',
-  cancelled: 'runs.status.cancelled',
-};
-
-const STATUS_CLASS: Record<RunReport['status'], string> = {
-  pending: 'bg-gray-100 text-gray-700',
-  running: 'bg-blue-100 text-blue-800',
-  success: 'bg-green-100 text-green-800',
-  failed: 'bg-red-100 text-red-800',
-  cancelled: 'bg-gray-100 text-gray-700',
-};
 
 const EventLine: React.FC<{ event: RunReport['events'][number] }> = ({ event }) => (
   <li
@@ -62,11 +46,7 @@ const RunRow: React.FC<{ run: RunReport }> = ({ run }) => {
   return (
     <li className="border border-gray-200 rounded-lg bg-white p-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span
-          className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_CLASS[run.status]}`}
-        >
-          {t(STATUS_KEY[run.status])}
-        </span>
+        <StateChip entity="run" state={run.status} />
         <span className="text-sm text-gray-700">
           {run.startedAt ? formatDateTime(run.startedAt, locale) : formatDateTime(run.createdAt, locale)}
         </span>

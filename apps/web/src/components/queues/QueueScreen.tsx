@@ -17,6 +17,7 @@ import { AlertCircle, Loader2 } from 'lucide-react';
 import type { ApplyReceipt, QueueEnvelope } from '@openmig/shared';
 import { ClosedBanner, LIFECYCLE_NOTE_KEY } from './primitives';
 import MappingHubLink from '../MappingHubLink';
+import StateChip from '../StateChip';
 import { useT } from '../../i18n';
 import { DecisionRefusedError } from '../../services/operating-service';
 
@@ -158,7 +159,7 @@ export function QueueScreen<T extends QueueEnvelope>({
             {/* The id links to its hub (0034 T1) — run history and live
                 progress live there, in both editions. */}
             <h3 className="font-semibold text-gray-900"><MappingHubLink mappingId={mappingId} /></h3>
-            <span className="text-xs text-gray-500">{queue.migrationStatus}</span>
+            <StateChip entity="lifecycle" state={queue.migrationStatus} />
           </div>
           {queue.reportingClosed && <ClosedBanner text={queue.reportingClosed} />}
           {LIFECYCLE_NOTE_KEY[queue.migrationStatus] && (

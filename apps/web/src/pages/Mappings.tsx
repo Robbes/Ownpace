@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { mappingApi } from '../services/mapping-service';
 import { serverMessage } from '../services/api';
+import StateChip from '../components/StateChip';
 import { useT, useFormatters } from '../i18n';
 
 const Mappings: React.FC = () => {
@@ -153,22 +154,10 @@ const Mappings: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {/* The four REAL lifecycle states (active|paused|cutover|done —
-                        the DB CHECK's words). 'error' is not a mapping state and
-                        never arrives; failures live on the runs and failure queues. */}
-                    <span
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        mapping.status === 'active'
-                          ? 'bg-green-100 text-green-800'
-                          : mapping.status === 'paused'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : mapping.status === 'cutover'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-emerald-100 text-emerald-800'
-                      }`}
-                    >
-                      {mapping.status}
-                    </span>
+                    {/* The canonical lifecycle words, translated — StateChip
+                        (0035 T1). 'error' is not a mapping state and never
+                        arrives; failures live on the runs and failure queues. */}
+                    <StateChip entity="lifecycle" state={mapping.status} />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {mapping.lastSyncAt

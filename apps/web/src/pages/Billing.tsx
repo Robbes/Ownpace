@@ -21,6 +21,7 @@ import { billingApi, type Invoice } from '../services/billing-service';
 import { serverMessage } from '../services/api';
 import { useAuthStore } from '../stores/auth-store';
 import { useT, useFormatters } from '../i18n';
+import StateChip from '../components/StateChip';
 
 /** A failed read said as such (hard rule 9 / 0033 T2) — before this, a failed
  *  usage read rendered "No usage data available yet" and a failed invoices
@@ -39,17 +40,6 @@ const ReadFailed: React.FC<{ heading: string; error: unknown; footnote: string }
     </div>
   </div>
 );
-
-/** The DB enum's five states. `overdue` is the one demanding action and
- *  dresses accordingly; `sent` (awaiting payment) is styled at all — the old
- *  map only knew Stripe's words, so both fell to gray. */
-const INVOICE_STATUS_CLASS: Record<Invoice['status'], string> = {
-  draft: 'bg-gray-100 text-gray-800',
-  sent: 'bg-blue-100 text-blue-800',
-  paid: 'bg-green-100 text-green-800',
-  overdue: 'bg-red-100 text-red-800',
-  void: 'bg-gray-100 text-gray-500 line-through',
-};
 
 const Billing: React.FC = () => {
   const t = useT();
@@ -263,11 +253,7 @@ const Billing: React.FC = () => {
                       </p>
                     </div>
                     <div className="flex items-center space-x-4">
-                      <span
-                        className={`px-2 py-1 text-xs font-semibold rounded-full ${INVOICE_STATUS_CLASS[invoice.status]}`}
-                      >
-                        {invoice.status}
-                      </span>
+                      <StateChip entity="invoice" state={invoice.status} />
                       <span className="font-medium text-gray-900">
                         {currency(invoice.total, invoice.currency)}
                       </span>

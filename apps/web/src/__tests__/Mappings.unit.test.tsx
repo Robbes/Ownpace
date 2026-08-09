@@ -96,10 +96,11 @@ describe('Mappings — failed read ≠ empty list (hard rule 9)', () => {
 
     renderMappings();
 
-    expect(await screen.findByText('cutover')).toBeInTheDocument();
-    expect(screen.getByText('done')).toBeInTheDocument();
-    expect(screen.getByText('active')).toBeInTheDocument();
-    expect(screen.getByText('paused')).toBeInTheDocument();
+    // The canonical translated words (StateChip, 0035 T1) — never the raw enum.
+    expect(await screen.findByText('In cutover')).toBeInTheDocument();
+    expect(screen.getByText('Done')).toBeInTheDocument();
+    expect(screen.getByText('Active')).toBeInTheDocument();
+    expect(screen.getByText('Paused')).toBeInTheDocument();
     expect(screen.queryByText('No mappings yet')).not.toBeInTheDocument();
   });
 

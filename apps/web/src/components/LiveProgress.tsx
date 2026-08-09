@@ -18,6 +18,7 @@
 import React from 'react';
 import type { DomainStatusReport } from '@openmig/shared';
 import { useT, useLocale } from '../i18n';
+import StateChip from './StateChip';
 import { formatNumber } from '../i18n/datetime';
 import type { StringKey } from '../i18n';
 
@@ -26,22 +27,6 @@ export const DOMAIN_KEY: Record<DomainStatusReport['domain'], StringKey> = {
   calendar: 'domain.calendar',
   contact: 'domain.contact',
   file: 'domain.file',
-};
-
-export const STATE_KEY: Record<DomainStatusReport['state'], StringKey> = {
-  pending: 'confirm.state.pending',
-  in_progress: 'confirm.state.in_progress',
-  completed: 'confirm.state.completed',
-  failed: 'confirm.state.failed',
-  skipped: 'confirm.state.skipped',
-};
-
-export const STATE_CLASS: Record<DomainStatusReport['state'], string> = {
-  pending: 'bg-gray-100 text-gray-700',
-  in_progress: 'bg-blue-100 text-blue-800',
-  completed: 'bg-green-100 text-green-800',
-  failed: 'bg-red-100 text-red-800',
-  skipped: 'bg-gray-100 text-gray-500',
 };
 
 /** Only what the strip renders — `DomainStatusReport` satisfies this, and so
@@ -68,9 +53,7 @@ const LiveProgress: React.FC<{ domains: readonly LiveProgressRow[] }> = ({ domai
         {running.map((d) => (
           <li key={d.domain} className="text-sm text-gray-800 flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="font-medium">{t(DOMAIN_KEY[d.domain])}</span>
-            <span className={`inline-block px-1.5 py-0.5 rounded text-xs ${STATE_CLASS[d.state]}`}>
-              {t(STATE_KEY[d.state])}
-            </span>
+            <StateChip entity="domain" state={d.state} />
             <span>
               {formatNumber(d.itemsSynced, locale)} {t('confirm.progress.synced')}
             </span>

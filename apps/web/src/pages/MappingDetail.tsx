@@ -30,6 +30,7 @@ import { fetchStatus } from '../services/operating-service';
 import { useT } from '../i18n';
 import RunsPanel from '../components/RunsPanel';
 import LiveProgress from '../components/LiveProgress';
+import StateChip from '../components/StateChip';
 import type { StringKey } from '../i18n';
 
 const SCREENS: ReadonlyArray<{
@@ -84,9 +85,7 @@ const MappingDetail: React.FC = () => {
         <h2 className="text-lg font-semibold text-gray-900">
           {detail.data?.name ?? t('hub.fallbackTitle')}
         </h2>
-        {detail.data?.status && (
-          <span className="text-xs text-gray-500">{detail.data.status}</span>
-        )}
+        {detail.data?.status && <StateChip entity="lifecycle" state={detail.data.status} />}
       </div>
       <p className="mt-1 text-sm text-gray-500 font-mono">{id}</p>
       {detail.error != null && (

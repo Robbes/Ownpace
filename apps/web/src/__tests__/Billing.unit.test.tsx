@@ -169,9 +169,10 @@ describe('the invoice contract is the server contract (0039 T3)', () => {
 
     // "Period:" followed by SOMETHING now — the served periodStart/periodEnd.
     expect(await screen.findByText('Period: 2026-07-01 – 2026-07-31')).toBeInTheDocument();
-    const overdueChip = screen.getByText('overdue');
+    // StateChip's canonical words (0035 T1), not the raw enum.
+    const overdueChip = screen.getByText('Overdue');
     expect(overdueChip.className).toContain('bg-red-100');
-    const sentChip = screen.getByText('sent');
+    const sentChip = screen.getByText('Sent');
     expect(sentChip.className).toContain('bg-blue-100');
   });
 });
@@ -204,7 +205,7 @@ describe('the pay loop is reachable and role-gated (0039 T1/T4)', () => {
 
     renderBilling();
 
-    await screen.findByText('overdue');
+    await screen.findByText('Overdue');
     expect(screen.queryByRole('button', { name: 'Pay' })).not.toBeInTheDocument();
     expect(screen.getByText(/only an owner or admin can make changes/)).toBeInTheDocument();
   });
@@ -214,7 +215,7 @@ describe('the pay loop is reachable and role-gated (0039 T1/T4)', () => {
 
     renderBilling();
 
-    await screen.findByText('paid');
+    await screen.findByText('Paid');
     expect(screen.queryByRole('button', { name: 'Pay' })).not.toBeInTheDocument();
   });
 

@@ -33,6 +33,7 @@ import SharedAddresses from '../components/confirm/SharedAddresses';
 // two data sources, same DomainStatusReport rows underneath.
 import LiveProgress from '../components/LiveProgress';
 import MappingHubLink from '../components/MappingHubLink';
+import StateChip from '../components/StateChip';
 import {
   fetchAllDiscovery,
   fetchScopeManifest,
@@ -159,7 +160,7 @@ const Confirm: React.FC = () => {
           >
             <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
               <h3 className="font-semibold text-gray-900"><MappingHubLink mappingId={m.mappingId} /></h3>
-              <span className="text-xs text-gray-500">{m.migrationStatus}</span>
+              <StateChip entity="lifecycle" state={m.migrationStatus} />
             </div>
 
             {m.migrationStatus !== 'paused' && <LiveProgress domains={m.domains} />}

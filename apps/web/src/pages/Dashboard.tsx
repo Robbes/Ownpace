@@ -11,30 +11,11 @@ import {
   Plus,
   Building2
 } from 'lucide-react';
-import type { RunReport } from '@openmig/shared';
 import { mappingApi } from '../services/mapping-service';
 import { fetchRuns } from '../services/operating-service';
 import { serverMessage } from '../services/api';
 import { useT, useFormatters } from '../i18n';
-import type { StringKey } from '../i18n';
-
-// The same vocabulary RunsPanel uses — one entity, one set of words (0035 T1
-// will fold both maps into StateChip; until then they must at least agree).
-const RUN_STATUS_KEY: Record<RunReport['status'], StringKey> = {
-  pending: 'runs.status.pending',
-  running: 'runs.status.running',
-  success: 'runs.status.success',
-  failed: 'runs.status.failed',
-  cancelled: 'runs.status.cancelled',
-};
-
-const RUN_STATUS_DOT: Record<RunReport['status'], string> = {
-  pending: 'bg-gray-400',
-  running: 'bg-blue-500',
-  success: 'bg-green-500',
-  failed: 'bg-red-500',
-  cancelled: 'bg-gray-400',
-};
+import StateChip from '../components/StateChip';
 
 const Dashboard: React.FC = () => {
   const t = useT();
@@ -207,13 +188,6 @@ const Dashboard: React.FC = () => {
                     className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                   >
                     <div className="flex items-center space-x-4">
-                      {/* The dot is the RUN's outcome — a failed run in the
-                          ledger is visibly a failed run here. */}
-                      <div
-                        className={`w-2 h-2 rounded-full ${
-                          latest ? RUN_STATUS_DOT[latest.status] : 'bg-gray-400'
-                        }`}
-                      />
                       <div>
                         <p className="font-medium text-gray-900">{mapping.name}</p>
                         <p className="text-sm text-gray-500">
@@ -230,7 +204,9 @@ const Dashboard: React.FC = () => {
                         </p>
                       ) : latest ? (
                         <p className="text-sm text-gray-600">
-                          <span className="font-medium">{t(RUN_STATUS_KEY[latest.status])}</span>
+                          {/* The RUN's outcome — a failed run in the ledger is
+                              visibly a failed run here (StateChip, 0035 T1). */}
+                          <StateChip entity="run" state={latest.status} />
                           {' · '}
                           {latest.itemsProcessed} {t('dashboard.runItems')}
                           {latest.errors > 0 && (
