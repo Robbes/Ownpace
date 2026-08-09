@@ -384,7 +384,7 @@ const en = {
   'finish.readError.one': 'Could not read the migration.',
   'finish.readError.many': 'Could not read the migrations.',
   'finish.note.paused':
-    'Never started, so there is nothing to finish. Remove it from the config directory to retire it.',
+    'Never started, so there is nothing to finish. Remove the migration to retire it.',
   'finish.note.active':
     'Syncing on a schedule. Items still arriving on the old system are being copied across.',
   'finish.note.cutover': 'In cutover. Still syncing until you finish it.',
@@ -952,7 +952,7 @@ const nl: Record<keyof typeof en, string> = {
   'finish.readError.one': 'De migratie kon niet worden gelezen.',
   'finish.readError.many': 'De migraties konden niet worden gelezen.',
   'finish.note.paused':
-    'Nooit gestart, dus er is niets af te ronden. Verwijder het uit de configuratiemap om het op te ruimen.',
+    'Nooit gestart, dus er is niets af te ronden. Verwijder de migratie om deze op te ruimen.',
   'finish.note.active':
     'Synchroniseert volgens schema. Items die nog op het oude systeem binnenkomen, worden gekopieerd.',
   'finish.note.cutover': 'In cutover. Synchroniseert nog totdat u afrondt.',

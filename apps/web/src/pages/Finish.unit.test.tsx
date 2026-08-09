@@ -57,7 +57,6 @@ vi.mock('../services/operating-service', () => ({
   finishMigration,
   requestFinalPass,
   FinishRefusedError,
-  fetchVerifyReport,
 }));
 
 import Finish from './Finish';

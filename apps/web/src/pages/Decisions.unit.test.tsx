@@ -35,6 +35,11 @@ vi.mock('../services/operating-service', () => ({
 
 vi.mock('../stores/auth-store', () => ({ useAuthStore: () => auth }));
 
+const { editionFlag } = vi.hoisted(() => ({ editionFlag: { selfhost: false } }));
+vi.mock('../services/edition', () => ({
+  isSelfHost: () => editionFlag.selfhost,
+}));
+
 import Decisions from './Decisions';
 
 const PENDING = {
@@ -59,6 +64,7 @@ function renderScreen() {
 }
 
 beforeEach(() => {
+  editionFlag.selfhost = false;
   vi.clearAllMocks();
   auth.user = { id: 'u', email: 'owner@acme.nl', name: 'Owner', role: 'owner' };
   // No preset expressed: the default, and what most tenants will have.
@@ -323,6 +329,43 @@ describe('the as-of label (0036 T1)', () => {
 
     expect(await screen.findByText(/^Updated/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Refresh/ })).toBeInTheDocument();
+  });
+});
+
+describe('the appliance operator is not locked out (0038 T4)', () => {
+  it('selfhost: the preset select is ENABLED with no role caption — one operator, no roles', async () => {
+    editionFlag.selfhost = true;
+    auth.user = null as never; // the appliance has no accounts
+    fetchDecisions.mockResolvedValue({ decisions: [] });
+    fetchPresets.mockResolvedValue({ presets: [], defaultAction: 'ask' });
+
+    renderScreen();
+
+    const select = await screen.findByRole('combobox');
+    // Enabled once the presets query resolves — the role gate is gone.
+    await waitFor(() => expect(select).toBeEnabled());
+    expect(screen.queryByText('An owner or admin sets these.')).not.toBeInTheDocument();
+  });
+
+  it('a failed preset save reverts to the stored value AND says why', async () => {
+    fetchDecisions.mockResolvedValue({ decisions: [] });
+    fetchPresets.mockResolvedValue({ presets: [], defaultAction: 'ask' });
+    setPreset.mockRejectedValue({
+      response: { data: { message: 'Only the owner can change standing answers.' } },
+    });
+
+    renderScreen();
+
+    const select = await screen.findByRole('combobox');
+    await waitFor(() => expect(select).toBeEnabled());
+    await userEvent.selectOptions(select, 'auto');
+
+    // The silent snap-back now names its reason (server words, verbatim)...
+    expect(
+      await screen.findByText('Only the owner can change standing answers.'),
+    ).toBeInTheDocument();
+    // ...and the dropdown shows what is actually stored.
+    expect((select as HTMLSelectElement).value).toBe('ask');
   });
 });
 
