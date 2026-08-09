@@ -1,7 +1,7 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import React from 'react';
 import { Link } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueries } from '@tanstack/react-query';
 import {
   FolderGit2,
   ArrowRightLeft,
@@ -11,9 +11,30 @@ import {
   Plus,
   Building2
 } from 'lucide-react';
+import type { RunReport } from '@openmig/shared';
 import { mappingApi } from '../services/mapping-service';
+import { fetchRuns } from '../services/operating-service';
 import { serverMessage } from '../services/api';
 import { useT, useFormatters } from '../i18n';
+import type { StringKey } from '../i18n';
+
+// The same vocabulary RunsPanel uses — one entity, one set of words (0035 T1
+// will fold both maps into StateChip; until then they must at least agree).
+const RUN_STATUS_KEY: Record<RunReport['status'], StringKey> = {
+  pending: 'runs.status.pending',
+  running: 'runs.status.running',
+  success: 'runs.status.success',
+  failed: 'runs.status.failed',
+  cancelled: 'runs.status.cancelled',
+};
+
+const RUN_STATUS_DOT: Record<RunReport['status'], string> = {
+  pending: 'bg-gray-400',
+  running: 'bg-blue-500',
+  success: 'bg-green-500',
+  failed: 'bg-red-500',
+  cancelled: 'bg-gray-400',
+};
 
 const Dashboard: React.FC = () => {
   const t = useT();
@@ -38,16 +59,29 @@ const Dashboard: React.FC = () => {
     };
   }, [mappings]);
 
-  const recentRuns = React.useMemo(() => {
+  // Recent Activity is REAL run history now (0033 T4): the newest run per
+  // recently-synced mapping, from the same GET /migrations/:id/runs the
+  // RunsPanel reads (#353). The old section was the mappings list sorted by
+  // lastSyncAt wearing a run-history heading — and until T1 the list never
+  // even served lastSyncAt, so it was permanently empty.
+  const recentMappings = React.useMemo(() => {
     if (!mappings) return [];
-    
+
     return mappings
       .filter((m) => m.lastSyncAt)
-      .sort((a, b) => 
+      .sort((a, b) =>
         new Date(b.lastSyncAt!).getTime() - new Date(a.lastSyncAt!).getTime()
       )
       .slice(0, 5);
   }, [mappings]);
+
+  const runQueries = useQueries({
+    queries: recentMappings.map((m) => ({
+      queryKey: ['runs', m.id],
+      queryFn: () => fetchRuns(m.id),
+      staleTime: 30_000,
+    })),
+  });
 
   if (isLoading) {
     return (
@@ -147,7 +181,7 @@ const Dashboard: React.FC = () => {
           <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
         </div>
         <div className="p-6">
-          {recentRuns.length === 0 ? (
+          {recentMappings.length === 0 ? (
             <div className="text-center py-8">
               <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No activity yet</h3>
@@ -164,38 +198,63 @@ const Dashboard: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {recentRuns.map((mapping) => (
-                <div
-                  key={mapping.id}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <div className="flex items-center space-x-4">
-                    <div className={`w-2 h-2 rounded-full ${
-                      mapping.status === 'active' ? 'bg-green-500' :
-                      mapping.status === 'cutover' ? 'bg-blue-500' :
-                      mapping.status === 'done' ? 'bg-emerald-500' :
-                      'bg-gray-400'
-                    }`} />
-                    <div>
-                      <p className="font-medium text-gray-900">{mapping.name}</p>
-                      <p className="text-sm text-gray-500">
-                        {mapping.sourceType} → {mapping.targetType}
-                      </p>
+              {recentMappings.map((mapping, i) => {
+                const runsQuery = runQueries[i];
+                const latest = runsQuery?.data?.runs[0];
+                return (
+                  <div
+                    key={mapping.id}
+                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center space-x-4">
+                      {/* The dot is the RUN's outcome — a failed run in the
+                          ledger is visibly a failed run here. */}
+                      <div
+                        className={`w-2 h-2 rounded-full ${
+                          latest ? RUN_STATUS_DOT[latest.status] : 'bg-gray-400'
+                        }`}
+                      />
+                      <div>
+                        <p className="font-medium text-gray-900">{mapping.name}</p>
+                        <p className="text-sm text-gray-500">
+                          {mapping.sourceType} → {mapping.targetType}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      {runsQuery?.error != null ? (
+                        // A failed run-history read says so (hard rule 9) —
+                        // it must not render as "no runs".
+                        <p className="text-sm text-red-700">
+                          {t('dashboard.runsReadFailed')} {serverMessage(runsQuery.error)}
+                        </p>
+                      ) : latest ? (
+                        <p className="text-sm text-gray-600">
+                          <span className="font-medium">{t(RUN_STATUS_KEY[latest.status])}</span>
+                          {' · '}
+                          {latest.itemsProcessed} {t('dashboard.runItems')}
+                          {latest.errors > 0 && (
+                            <span className="text-red-700">
+                              {' · '}{latest.errors} {t('dashboard.runErrors')}
+                            </span>
+                          )}
+                          {latest.finishedAt && <>{' · '}{relativeToNow(latest.finishedAt)}</>}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-gray-500">
+                          {runsQuery?.isLoading ? t('common.loading') : t('dashboard.noRunsYet')}
+                        </p>
+                      )}
+                      <Link
+                        to={`/mappings/${mapping.id}`}
+                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                      >
+                        View →
+                      </Link>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-4">
-                    <p className="text-sm text-gray-500">
-                      {t('mappings.lastSync')} {mapping.lastSyncAt ? relativeToNow(mapping.lastSyncAt) : t('mappings.never')}
-                    </p>
-                    <Link
-                      to={`/mappings/${mapping.id}`}
-                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                    >
-                      View →
-                    </Link>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
