@@ -32,6 +32,7 @@ import SharedAddresses from '../components/confirm/SharedAddresses';
 // The live strip is shared with the managed hub (0033 T5) — one component,
 // two data sources, same DomainStatusReport rows underneath.
 import LiveProgress from '../components/LiveProgress';
+import MappingHubLink from '../components/MappingHubLink';
 import {
   fetchAllDiscovery,
   fetchScopeManifest,
@@ -131,7 +132,7 @@ const Confirm: React.FC = () => {
             className="mb-8 p-4 bg-white border border-gray-200 rounded-lg"
           >
             <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-              <h3 className="font-semibold text-gray-900">{m.mappingId}</h3>
+              <h3 className="font-semibold text-gray-900"><MappingHubLink mappingId={m.mappingId} /></h3>
               <span className="text-xs text-gray-500">{m.migrationStatus}</span>
             </div>
 

@@ -12,6 +12,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { DeletionsResponse, ItemDeletion } from '@openmig/shared';
 import {
@@ -93,9 +94,11 @@ function queue(over: Partial<DeletionsResponse['x']> = {}): DeletionsResponse {
 function renderScreen() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
+    <MemoryRouter>
     <QueryClientProvider client={qc}>
       <Deletions receiptPollMs={10} />
-    </QueryClientProvider>,
+    </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 
@@ -380,5 +383,15 @@ describe('a finished migration', () => {
     expect(
       screen.getByRole('heading', { name: /Already decided\s*\(1\)/ }),
     ).toBeInTheDocument();
+  });
+});
+
+describe('the mapping id goes somewhere (0034 T1)', () => {
+  it('links the section heading to the mapping hub', async () => {
+    fetchDeletions.mockResolvedValue(queue({}));
+    renderScreen();
+
+    const link = await screen.findByRole('link', { name: 'acme-mail' });
+    expect(link.getAttribute('href')).toBe('/mappings/acme-mail');
   });
 });

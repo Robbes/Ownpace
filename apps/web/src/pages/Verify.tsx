@@ -26,6 +26,7 @@ import type {
 } from '@openmig/shared';
 import { startVerification, fetchVerifyReport } from '../services/operating-service';
 import { useT, useFormatters } from '../i18n';
+import MappingHubLink from '../components/MappingHubLink';
 import type { StringKey } from '../i18n';
 
 // The status WORD (PASS/FAIL/…) stays the server's vocabulary; the hover help
@@ -99,7 +100,7 @@ function Report({ mappingId, r }: { mappingId: string; r: VerificationResult }):
   return (
     <section className="mb-8 p-4 bg-white border border-gray-200 rounded-lg">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <h3 className="font-semibold text-gray-900">{mappingId}</h3>
+        <h3 className="font-semibold text-gray-900"><MappingHubLink mappingId={mappingId} /></h3>
         <div className="flex items-center gap-3 text-sm">
           <span className={STATUS_STYLE[r.overallStatus].className}>{r.overallStatus}</span>
           <span className="text-gray-500">{t('verify.score')} {(r.score * 100).toFixed(1)}%</span>

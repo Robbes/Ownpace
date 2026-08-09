@@ -16,6 +16,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import type { ApplyReceipt, QueueEnvelope } from '@openmig/shared';
 import { ClosedBanner, LIFECYCLE_NOTE_KEY } from './primitives';
+import MappingHubLink from '../MappingHubLink';
 import { useT } from '../../i18n';
 import { DecisionRefusedError } from '../../services/operating-service';
 
@@ -154,7 +155,9 @@ export function QueueScreen<T extends QueueEnvelope>({
       {mappings.map(([mappingId, queue]) => (
         <section key={mappingId} className="mb-8 p-4 bg-white border border-gray-200 rounded-lg">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-gray-900">{mappingId}</h3>
+            {/* The id links to its hub (0034 T1) — run history and live
+                progress live there, in both editions. */}
+            <h3 className="font-semibold text-gray-900"><MappingHubLink mappingId={mappingId} /></h3>
             <span className="text-xs text-gray-500">{queue.migrationStatus}</span>
           </div>
           {queue.reportingClosed && <ClosedBanner text={queue.reportingClosed} />}

@@ -64,7 +64,7 @@ afterEach(() => {
 
 describe('the Verify screen', () => {
   it('touches NOTHING on mount — the scan is behind the button', () => {
-    render(<Verify />);
+    render(<MemoryRouter><Verify /></MemoryRouter>);
     expect(started).not.toHaveBeenCalled();
     expect(fetched).not.toHaveBeenCalled();
     // And says what pressing it costs, before it is pressed.
@@ -86,7 +86,7 @@ describe('the Verify screen', () => {
         report: { 'mapping-1': RESULT },
       });
 
-    render(<Verify />);
+    render(<MemoryRouter><Verify /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: /run the check/i }));
     // Let the start promise settle and arm the interval, then run it once.
     await act(async () => {});
@@ -96,7 +96,9 @@ describe('the Verify screen', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3100);
     });
-    expect(screen.getByText('mapping-1')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'mapping-1' }).getAttribute('href')).toBe(
+      '/mappings/mapping-1',
+    );
 
     // The loop is DEAD after a terminal state: minutes later, no more reads.
     const callsAtDone = fetched.mock.calls.length;
@@ -118,7 +120,7 @@ describe('the Verify screen', () => {
       error: 'the scan fell over',
     });
 
-    render(<Verify />);
+    render(<MemoryRouter><Verify /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: /run the check/i }));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(100);
@@ -145,7 +147,7 @@ describe('the Verify screen', () => {
     // memory — the contract documents this instead of hiding it).
     fetched.mockResolvedValue({ state: 'never-run' });
 
-    render(<Verify />);
+    render(<MemoryRouter><Verify /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: /run the check/i }));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(100);
@@ -169,14 +171,16 @@ describe('the Verify screen', () => {
         report: { 'mapping-1': RESULT },
       });
 
-    render(<Verify />);
+    render(<MemoryRouter><Verify /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: /run the check/i }));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3100);
     });
 
     // The rejected first poll did not kill the loop or the run.
-    expect(screen.getByText('mapping-1')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'mapping-1' }).getAttribute('href')).toBe(
+      '/mappings/mapping-1',
+    );
   });
 
   it('hands the route mappingId to BOTH service calls on the managed per-mapping route', async () => {

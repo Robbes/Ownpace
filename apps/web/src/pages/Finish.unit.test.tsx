@@ -286,3 +286,13 @@ describe('the per-mapping mode (workplan 0019 T5)', () => {
     expect(await screen.findByText(/Queued\. The pass runs as a job/)).toBeInTheDocument();
   });
 });
+
+describe('the mapping id goes somewhere (0034 T1)', () => {
+  it('links the per-mapping heading to the hub', async () => {
+    fetchStatus.mockResolvedValue(statusReport('active'));
+    renderScreen();
+
+    const link = await screen.findByRole('link', { name: 'acme-mail' });
+    expect(link.getAttribute('href')).toBe('/mappings/acme-mail');
+  });
+});
