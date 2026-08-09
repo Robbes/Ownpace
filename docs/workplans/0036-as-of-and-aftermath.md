@@ -9,6 +9,14 @@
 | T3 Runs discoverability + bounds honesty | ⬜ Planned | — |
 | T4 What retry actually costs | ⬜ Planned | — |
 
+> **2026-08-09, second pass:** an adversarial fleet re-verified this plan.
+> Two substantive corrections: T2's headline directive ordered work that
+> already shipped (Moves has had its "Already decided" section since #274),
+> and T3's acceptance was unimplementable without a truncation signal the
+> contract lacks — both rewritten below. T1 gains Decisions.tsx (the stalest
+> decision surface was the one screen left out) and loses a hedge (the Verify
+> timestamps already exist server-side; the client discards them).
+
 ## Why this exists
 
 The Windows weekend's most expensive confusions were all one species: **a
@@ -27,11 +35,14 @@ species and found the pattern, not yet the discipline:
   domain but not `lastSyncedAt`, which the payload carries.
 - Verify renders a report with no timestamp — a report generated before a
   further pass reads as current.
-- Aftermath differs by queue: Deletions and Decisions have both
-  "Waiting on you" and "Already decided" sections; Moves and Failures have
-  only the waiting half (Failures adds "retrying", which is right for it), so
-  what "keep" did remains visible on one screen and vanishes on another —
-  partly data-model-driven, never stated.
+- Aftermath differs by queue: Deletions, Decisions AND Moves have both
+  "Waiting on you" and "Already decided" sections (the first draft claimed
+  Moves lacked one — wrong; `Moves.tsx:104-112` has rendered
+  `queue.acknowledged` since #274). Failures alone has only the waiting half
+  (plus "still trying", which is right for it) — because accepted items
+  genuinely leave the ledger's failed set (`resolveFailure` sets
+  `left_behind`; `listFailures` filters `status='failed'`). True, but never
+  stated on screen.
 - RunsPanel silently truncates at 20 runs / 25 events per run — correct
   bounds, invisible ("silent truncation reads as covered everything").
 - Failures' `retry` clears the mapping's cursors (a full re-list on the next
@@ -51,40 +62,85 @@ species and found the pattern, not yet the discipline:
 
 ### T1 — every number says as-of when
 
-One small `AsOf` component (bilingual, `formatRelativeToNow`, updating each
-minute): rendered by the three queue screens (react-query's `dataUpdatedAt`
-is the honest source) alongside a manual refresh affordance; by Verify at the
-top of each report (the report's own generation time — add it to the payload
-if absent, server-side, both editions' routes); and LiveProgress gains
-`lastSyncedAt` per domain where present. Discovery's snapshot date already
-renders (#355) — this task makes that the norm, not the exception.
+One small `AsOf` component (bilingual, `useFormatters().relativeToNow`,
+updating each minute): rendered by the three queue screens AND `Decisions.tsx`
+(react-query's `dataUpdatedAt` is the honest source — Decisions has no
+per-query `staleTime`, inherits the app's 5-minute default, and is therefore
+the STALEST decision surface in the product; the first draft left it out)
+alongside a manual refresh affordance; by Verify at the top of each report;
+and LiveProgress gains `lastSyncedAt` per domain where present. Discovery's
+snapshot date already renders (#355) — this task makes that the norm, not
+the exception.
 
-**Acceptance:** each listed screen shows an as-of; tests pin queue as-of
-rendering from `dataUpdatedAt` and Verify's report timestamp; nothing shows
-an as-of it cannot substantiate.
+**Verify needs no server work** (the first draft hedged "add it to the
+payload if absent" — it is present, twice): `VerificationRunReport`'s done
+state carries `startedAt`/`finishedAt` in both editions, and each per-mapping
+`VerificationResult` carries its own `timestamp`. The client is the sole gap:
+`Verify.tsx`'s poll handler does `setState({kind:'done', report: r.report})`,
+discarding `finishedAt` on the floor. Keep it in component state and render
+it at the top of each report.
+
+**Sequencing (LiveProgress):** 0033 T5 extracts this component to a shared
+file — extract first, then this task adds `lastSyncedAt` once; and the
+managed data adapter MUST map `domainStatus.completedAt → lastSyncedAt`
+(selfhost's `/status` route is what does that rename) so the as-of renders on
+both editions — test both adapters, or the strip silently becomes a
+selfhost-only feature, the invisible edition split hard rule 5 forbids.
+
+**Acceptance:** each listed screen (including Decisions) shows an as-of;
+tests pin queue as-of rendering from `dataUpdatedAt` and Verify's rendered
+`finishedAt`; both LiveProgress adapters produce the as-of; nothing shows an
+as-of it cannot substantiate.
 
 ### T2 — aftermath parity across the queues
 
-Bring Moves to the Deletions/Decisions shape ("Already decided" from whatever
-the server retains — `acknowledged` rows exist for it); for Failures, where
-accepted items genuinely leave the ledger's queue, say so in the empty-ish
-state ("accepted items no longer appear here") instead of leaving asymmetry
-unexplained. Verify every action's `effect` prose renders on every queue (the
-`act` bookkeeping does this — pin it per screen with a test, since one screen
-regressing to a silent success would be invisible).
+(Rewritten — the first draft ordered Moves work that shipped in #274.)
+For Failures, where accepted items genuinely leave the ledger's queue, say so
+in the empty-ish state ("accepted items no longer appear here") instead of
+leaving the asymmetry unexplained. Pin every existing "Already decided"
+section (Deletions, Decisions, Moves) with a per-screen test — one screen
+regressing to a silent success would be invisible.
+
+On effect prose, the fleet found the first draft's premise false for one
+screen: **the Decisions resolve/dismiss contract carries NO `effect`
+sentence** — both editions return the bare closed `DecisionRow`, and
+`Decisions.tsx`'s `act()` discards the response entirely. (The item queues'
+`DecisionAccepted.effect` is real and rendered; Decisions is the odd one
+out — nothing anywhere says what Dismiss actually did.) So: either add
+effect prose to the decision resolve/dismiss responses server-side (shared
+wording, both editions — e.g. dismiss: "Closed without acting; the detector
+may raise it again if the situation persists") and render it via the same
+outcome pattern the item queues use, or explicitly exclude Decisions from
+this task's acceptance and open the contract change separately. Do not mark
+this task done with the gap unstated.
 
 **Acceptance:** each queue either shows decided items or states why not;
-per-screen tests assert the effect text of a completed action renders.
+per-screen tests assert the effect text of a completed action renders — with
+Decisions either included (contract extended) or excluded by a recorded
+sentence.
 
 ### T3 — runs discoverability + bounds honesty
 
 RunsPanel states its bounds when it hits them ("latest 20 passes" / "latest 25
-entries" lines, only when truncated). Failures links each mapping section to
-its hub's Run history ("see the pass that failed") — the runs panel exists
-because failure diagnosis needed it; the failure screen should know that.
+entries" lines, only when truncated). **Missing scope the fleet caught: the
+client cannot know it was truncated.** The 20/25 caps are applied server-side
+(`listRunsWithEvents` defaults `limit = 20, eventsPerRun = 25`) and
+`RunsResponse` is just `{runs}` — with exactly 20 runs returned the client
+cannot distinguish "all 20" from "20 of 21". Extend `listRunsWithEvents` (one
+shared reader, so one change, both editions' routes serve its result) to
+report truncation — a `truncated`/`totalRuns` field on `RunsResponse` and a
+per-run events-truncated marker (or fetch limit+1 and drop one) — THEN the
+client label. (The fallback of labelling whenever `length === cap` is
+consciously rejected: a technically-true "latest 20 passes" line on an
+exactly-20 history is the species of almost-honest this plan exists to end.)
+
+Failures links each mapping section to its hub's Run history ("see the pass
+that failed") — the runs panel exists because failure diagnosis needed it;
+the failure screen should know that.
 
 **Acceptance:** truncation labels appear exactly when caps are hit (test with
-21 runs); the Failures→runs link navigates to `/mappings/:id` (works on both
+21 runs and with exactly 20 — label present in the first, absent in the
+second); the Failures→runs link navigates to `/mappings/:id` (works on both
 editions once 0034 T1 lands; sequence after it).
 
 ### T4 — what retry actually costs
