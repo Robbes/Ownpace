@@ -11,9 +11,9 @@ import type { Response } from 'express';
 import { z } from 'zod';
 import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth';
 import type { AuthenticatedRequest } from '../../types/api';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
-import { PgMigrationStatusStore } from '@openmig/ledger';
+import { PgMigrationStatusStore, RunStore } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import { getTriggerClient } from '@openmig/scheduler';
 import type { DiscoveryDomain, TenantId, MappingId } from '@openmig/shared';
@@ -38,40 +38,9 @@ function sourceKindFor(sourceType: 'imap' | 'oauth2' | 'graph'): 'imap' | 'o365'
   return sourceType === 'imap' ? 'imap' : 'o365';
 }
 
-/** Map a ledger `run` row to the API/web Run shape. */
-type LedgerRun = typeof schema.run.$inferSelect;
-function toApiRun(r: LedgerRun): {
-  id: string;
-  mappingId: string | null;
-  type: 'full' | 'delta';
-  status: 'pending' | 'running' | 'success' | 'failed' | 'cancelled';
-  startedAt: string | null;
-  finishedAt: string | null;
-  itemsProcessed: number;
-  errors: number;
-  createdAt: string;
-} {
-  const statusMap: Record<LedgerRun['status'], 'pending' | 'running' | 'success' | 'failed' | 'cancelled'> = {
-    queued: 'pending',
-    running: 'running',
-    succeeded: 'success',
-    failed: 'failed',
-    cancelled: 'cancelled',
-  };
-  const stats = (r.stats ?? {}) as { itemsProcessed?: number; errors?: number };
-  return {
-    id: r.id,
-    mappingId: r.mappingId,
-    // 'incremental' is the delta pass; everything else is a full-scan kind.
-    type: r.kind === 'incremental' ? 'delta' : 'full',
-    status: statusMap[r.status],
-    startedAt: r.startedAt ? r.startedAt.toISOString() : null,
-    finishedAt: r.finishedAt ? r.finishedAt.toISOString() : null,
-    itemsProcessed: Number(stats.itemsProcessed ?? 0),
-    errors: Number(stats.errors ?? 0),
-    createdAt: r.createdAt.toISOString(),
-  };
-}
+// The run wire shape and its mapper live in @openmig/ledger (`toRunReport`)
+// so the appliance cannot grow a second, slightly different one — see
+// RunStore.listRunsWithEvents.
 
 const router = Router();
 
@@ -857,9 +826,15 @@ router.post(
 );
 
 /**
- * GET /api/mappings/:mappingId/runs
- * 
- * List sync runs for a mapping
+ * GET /api/migrations/:mappingId/runs
+ *
+ * Run history for a mapping, newest first, events inline — the shared
+ * `RunReport` contract from @openmig/shared, produced by the ledger's own
+ * reader so both editions serve one shape (see RunStore.listRunsWithEvents).
+ *
+ * The per-run detail route (`/runs/:runId`) that used to sit beside this was
+ * DELETED with the 2026-08-09 row-23 decision: events arrive with the list,
+ * and a second route with no reader is surface waiting to drift.
  */
 router.get(
   '/:mappingId/runs',
@@ -881,124 +856,17 @@ router.get(
         return;
       }
 
-
       const pool = getSharedPool();
+      const runs = await withTenantDb(tenantId, pool, async (db) =>
+        new RunStore(db).listRunsWithEvents(tenantId as TenantId, mappingId as MappingId),
+      );
 
-      // Query the real run ledger, RLS-scoped, newest first.
-      const runs = await withTenantDb(tenantId, pool, async (db) => {
-        return await db
-          .select()
-          .from(schema.run)
-          .where(
-            and(
-              eq(schema.run.mappingId, mappingId),
-              eq(schema.run.tenantId, tenantId)
-            )
-          )
-          .orderBy(desc(schema.run.createdAt))
-          .limit(50);
-      });
-
-      res.json({ runs: runs.map(toApiRun) });
+      res.json({ runs });
     } catch (error) {
       log.error('Error listing runs:', error);
       res.status(500).json({
         error: 'Internal server error',
         message: 'Failed to list runs',
-      });
-    }
-  }
-);
-
-/**
- * GET /api/mappings/:mappingId/runs/:runId
- * 
- * Get run details and logs
- */
-router.get(
-  '/:mappingId/runs/:runId',
-  authenticate,
-  async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const mappingId = req.params.mappingId;
-      if (!mappingId || Array.isArray(mappingId)) {
-        res.status(400).json({ error: "mappingId is required" });
-        return;
-      }
-      const runId = req.params.runId;
-      const tenantId = req.tenantId;
-
-      if (!tenantId) {
-        res.status(401).json({
-          error: 'Unauthorized',
-          message: 'Tenant ID not found in authentication context',
-        });
-        return;
-      }
-
-      if (!mappingId || !runId || Array.isArray(runId)) {
-        res.status(400).json({
-          error: 'Bad request',
-          message: 'Mapping ID and Run ID are required',
-        });
-        return;
-      }
-
-      const pool = getSharedPool();
-
-      const result = await withTenantDb(tenantId, pool, async (db) => {
-        const runs = await db
-          .select()
-          .from(schema.run)
-          .where(
-            and(
-              eq(schema.run.id, runId),
-              eq(schema.run.mappingId, mappingId),
-              eq(schema.run.tenantId, tenantId)
-            )
-          );
-        const runRow = runs[0];
-        if (!runRow) {
-          return null;
-        }
-        // Its event log (errors surfaced verbatim — hard rule 9 / §11.2).
-        const events = await db
-          .select({
-            level: schema.runEvent.level,
-            message: schema.runEvent.message,
-            detail: schema.runEvent.detail,
-            at: schema.runEvent.at,
-          })
-          .from(schema.runEvent)
-          .where(
-            and(
-              eq(schema.runEvent.runId, runId),
-              eq(schema.runEvent.tenantId, tenantId)
-            )
-          )
-          .orderBy(schema.runEvent.at);
-        return { runRow, events };
-      });
-
-      if (!result) {
-        res.status(404).json({ error: 'Not found', message: 'Run not found' });
-        return;
-      }
-
-      res.json({
-        ...toApiRun(result.runRow),
-        events: result.events.map((e) => ({
-          level: e.level,
-          message: e.message,
-          detail: e.detail ?? undefined,
-          at: e.at.toISOString(),
-        })),
-      });
-    } catch (error) {
-      log.error('Error getting run:', error);
-      res.status(500).json({
-        error: 'Internal server error',
-        message: 'Failed to get run',
       });
     }
   }

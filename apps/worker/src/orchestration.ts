@@ -99,6 +99,16 @@ export interface DomainSyncResult {
    */
   updated?: number;
   /**
+   * This domain was not enabled for the mapping — the zeros are a placeholder
+   * so status pollers see every domain, NOT a clean pass. Consumers deciding
+   * "did this pass fail" must exclude these rows: counting them in the
+   * denominator made "every domain failed" unreachable for any mapping with a
+   * disabled domain (i.e. all of them), which put `succeeded` on a run whose
+   * only real domain failed outright and silenced the 0030 outage email.
+   * Found 2026-08-09 by the appliance runs-route test on its first execution.
+   */
+  disabled?: boolean;
+  /**
    * Changed on the source but left alone because the target copy is the
    * CUSTOMER'S (adopted), not ours. A real source/target divergence, and the
    * only place it is visible.
@@ -276,7 +286,7 @@ export async function runAllDomains(
     await statusStore.initDomainStatus(tenantId, mappingId, domain);
     if (!enabled) {
       await statusStore.markSkipped(tenantId, mappingId, domain);
-      results.push({ domain, scanned: 0, created: 0, skipped: 0, adopted: 0, failed: 0 });
+      results.push({ domain, scanned: 0, created: 0, skipped: 0, adopted: 0, failed: 0, disabled: true });
     }
   }
 

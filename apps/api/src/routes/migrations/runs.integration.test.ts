@@ -1,12 +1,18 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 
 /**
- * Integration tests for the real run-history endpoints
- * (GET /api/migrations/:mappingId/runs and .../runs/:runId).
+ * Integration tests for the run-history endpoint
+ * (GET /api/migrations/:mappingId/runs).
  *
- * Proves the endpoints return real ledger `run`/`run_event` data (not the former
- * fabricated mock), map ledger status/kind to the API shape, surface event logs
- * verbatim, and are RLS-scoped.
+ * Proves the endpoint returns real ledger `run`/`run_event` data, maps ledger
+ * status/kind to the shared RunReport shape, surfaces event logs verbatim
+ * INLINE with the list, and is RLS-scoped.
+ *
+ * The per-run detail route (`/runs/:runId`) was DELETED with the 2026-08-09
+ * row-23 decision -- events arrive with the list, and a route no screen reads
+ * is surface waiting to drift -- so this file now also pins its ABSENCE: a
+ * deleted route that quietly came back would be the exact promise-shape 0026
+ * exists to end.
  *
  * UUID Family: 5f3b0000-e29b-41d4-a716-44665544xxxx
  *
@@ -114,7 +120,7 @@ describe('Real run-history endpoints', () => {
     await pool.end();
   });
 
-  it('lists real runs newest-first with mapped kind/status', async () => {
+  it('lists real runs newest-first with mapped kind/status and events INLINE', async () => {
     const res = await request
       .get(`/api/migrations/${MAPPING}/runs`)
       .set('Authorization', `Bearer ${token(TENANT_A)}`);
@@ -122,23 +128,17 @@ describe('Real run-history endpoints', () => {
     expect(res.status).toBe(200);
     expect(res.body.runs).toHaveLength(2);
     expect(res.body.runs[0]).toMatchObject({ id: RUN_DELTA, type: 'delta', status: 'success', itemsProcessed: 45, errors: 0 });
+    expect(res.body.runs[0].events).toEqual([]);
+    // The failed run carries its error log with the list -- verbatim, since
+    // this line is what an operator diagnoses from (hard rule 9).
     expect(res.body.runs[1]).toMatchObject({ id: RUN_FULL, type: 'full', status: 'failed', itemsProcessed: 10, errors: 2 });
+    expect(res.body.runs[1].events).toHaveLength(1);
+    expect(res.body.runs[1].events[0]).toMatchObject({ level: 'error', message: 'connector auth failed: 401' });
   });
 
-  it('returns a single run with its event log (errors verbatim)', async () => {
+  it('no longer serves the deleted per-run detail route', async () => {
     const res = await request
       .get(`/api/migrations/${MAPPING}/runs/${RUN_FULL}`)
-      .set('Authorization', `Bearer ${token(TENANT_A)}`);
-
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ id: RUN_FULL, type: 'full', status: 'failed', errors: 2 });
-    expect(res.body.events).toHaveLength(1);
-    expect(res.body.events[0]).toMatchObject({ level: 'error', message: 'connector auth failed: 401' });
-  });
-
-  it('404s for an unknown run', async () => {
-    const res = await request
-      .get(`/api/migrations/${MAPPING}/runs/5f3b0000-e29b-41d4-a716-446655449999`)
       .set('Authorization', `Bearer ${token(TENANT_A)}`);
     expect(res.status).toBe(404);
   });

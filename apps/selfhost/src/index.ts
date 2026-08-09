@@ -595,15 +595,25 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
 
       const results = await runAllDomains(configWithCorrectMappingId, statusStore, ledgerOptions);
       const created = results.reduce((n, r) => n + r.created, 0);
-      const failures = results.filter((r) => r.error);
+      // Disabled domains report placeholder zeros so status pollers see every
+      // domain -- but they did not RUN, and every did-this-pass-fail decision
+      // below divides by the domains that did. With them counted, a mapping
+      // with any disabled domain (i.e. every real mapping) could never reach
+      // "all failed": the run row said `succeeded` over a total failure and
+      // the 0030 outage email could never fire. One variable feeds all three
+      // consumers so they cannot drift apart again.
+      const ran = results.filter((r) => !r.disabled);
+      const failures = ran.filter((r) => r.error);
 
       if (runId) {
         const id = runId;
         try {
           await withTenant(persistenceBackend.driver, tenantId, async (tdb) => {
             const runs = new RunStore(tdb);
-            for (const r of results) {
+            for (const r of ran) {
               // Failures carry the real message verbatim (hard rule 9).
+              // Disabled domains are skipped: "0 created" lines for domains
+              // this mapping does not have are noise wearing an info level.
               if (r.error) {
                 await runs.logEvent(tenantId, id, 'error', `${r.domain} sync failed: ${r.error}`, { domain: r.domain });
               } else {
@@ -612,8 +622,8 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
                   { domain: r.domain, created: r.created, skipped: r.skipped });
               }
             }
-            await runs.finishRun(id, failures.length > 0 && failures.length === results.length ? 'failed' : 'succeeded', {
-              itemsProcessed: results.reduce((n, r) => n + r.created + r.skipped, 0),
+            await runs.finishRun(id, failures.length > 0 && failures.length === ran.length ? 'failed' : 'succeeded', {
+              itemsProcessed: ran.reduce((n, r) => n + r.created + r.skipped, 0),
               errors: failures.length,
             });
           });
@@ -644,7 +654,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // same definition the run row uses — a partly failed pass is per-item
       // trouble that the queues already report to a person. The gate makes
       // this one email per outage rather than one per minute (0030 T2).
-      const allFailed = results.length > 0 && results.every((r) => r.error);
+      const allFailed = ran.length > 0 && ran.every((r) => r.error);
       await tell(
         failureStreak.record(
           m.config.mappingId,
@@ -1669,6 +1679,32 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
               ? 'Attempts reset and cursors cleared; the next scheduled pass will try again.'
               : 'Left behind for good: no further retries, and excluded from the verification gate.',
         });
+      }
+      // Run history for one mapping (workplan 0026 T3 row 23 -- the runs
+      // panel). Same RunReport contract as the managed edition, produced by
+      // the ledger's own reader, so the panel shows the same thing wherever
+      // it runs. The rows exist because runMapping() above opens one per
+      // pass; until this route, the appliance WROTE history nobody could
+      // read -- the 2026-08-09 session diagnosed a failed domain from log
+      // tails while these rows held the answer.
+      const runsMatch =
+        req.method === 'GET' && req.url ? /^\/mappings\/([^/]+)\/runs$/.exec(req.url) : null;
+      if (runsMatch) {
+        const id = decodeURIComponent(runsMatch[1]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+        // The ledger keys runs by the mailbox_mapping row id, not the config
+        // mappingId -- same translation every other read here makes.
+        const runs = await withTenant(
+          persistenceBackend.driver,
+          m.config.tenantId as string,
+          async (tdb) =>
+            new RunStore(tdb).listRunsWithEvents(
+              m.config.tenantId as TenantId,
+              m.mailboxMappingId as MappingId,
+            ),
+        );
+        return sendJson(res, 200, { runs });
       }
       if (req.method === 'GET' && req.url === '/discovery') {
         const out: Record<string, DiscoveryRecord[]> = {};

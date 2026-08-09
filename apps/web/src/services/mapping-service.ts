@@ -89,22 +89,15 @@ export const MappingSchema = z.object({
   updatedAt: z.string().optional(),
 });
 
-export const RunSchema = z.object({
-  id: z.string(),
-  mappingId: z.string(),
-  type: z.enum(['full', 'delta']),
-  status: z.enum(['pending', 'running', 'success', 'failed', 'cancelled']),
-  startedAt: z.string().optional(),
-  finishedAt: z.string().optional(),
-  itemsProcessed: z.number().optional(),
-  errors: z.number().optional(),
-  createdAt: z.string(),
-});
+// The run shapes live in @openmig/shared (`RunReport`/`RunsResponse`) and the
+// reader in operating-service (`fetchRuns`) -- 0026 T3 row 23. The zod schema
+// that sat here validated a response no screen requested, at a path
+// (`/migrations/.../runs` with no edition split) only the managed edition
+// could serve.
 
 export type Tenant = z.infer<typeof TenantSchema>;
 export type Member = z.infer<typeof MemberSchema>;
 export type Mapping = z.infer<typeof MappingSchema>;
-export type Run = z.infer<typeof RunSchema>;
 
 // Tenant API — only what the Tenants screen uses. `create` is gone because the
 // server answers it with a deliberate 501 (tenant creation is a cross-tenant
@@ -289,13 +282,4 @@ export const mappingApi = {
     return response.data;
   },
 
-  listRuns: async (mappingId: string) => {
-    const response = await apiClient.get(`/migrations/${mappingId}/runs`);
-    return z.array(RunSchema).parse(response.data.runs);
-  },
-
-  getRun: async (mappingId: string, runId: string) => {
-    const response = await apiClient.get(`/migrations/${mappingId}/runs/${runId}`);
-    return response.data;
-  },
 };

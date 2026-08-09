@@ -20,6 +20,12 @@ vi.mock('../services/mapping-service', () => ({
   mappingApi: { get: mappingApiGet },
 }));
 
+// The runs panel has its own tests (RunsPanel.unit.test.tsx); here it only
+// needs to not fetch over the network while the hub's links are asserted.
+vi.mock('../services/operating-service', () => ({
+  fetchRuns: vi.fn().mockResolvedValue({ runs: [] }),
+}));
+
 import MappingDetail from './MappingDetail';
 
 function renderHub(id = 'acme-mail') {

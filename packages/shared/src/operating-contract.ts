@@ -558,3 +558,51 @@ export const DELETION_GUIDANCE: DeletionGuidance = {
 export function mayOfferApply(deletion: ItemDeletion): boolean {
   return deletion.confirmed && deletion.evidence !== 'inferred';
 }
+
+// ---------------------------------------------------------------------------
+// Run history (workplan 0026 T3 row 23 — the runs panel).
+// ---------------------------------------------------------------------------
+
+/**
+ * One entry from a run's append-only event log, as the wire carries it.
+ *
+ * `message` is server prose and renders VERBATIM (the i18n prose boundary:
+ * translate the frame, never the finding) — it is where "email sync failed:
+ * JMAP target password/token not found …" lives, and rewording it is how an
+ * operator ends up debugging a paraphrase.
+ */
+export interface RunEventReport {
+  readonly level: 'debug' | 'info' | 'warn' | 'error';
+  readonly message: string;
+  readonly at: string;
+}
+
+/**
+ * One run, as both editions serve it.
+ *
+ * The shape follows the managed API's original `toApiRun` — `status` collapses
+ * the ledger's `queued`→`pending` and `succeeded`→`success` — and now carries
+ * the run's events INLINE. That is a decision, not a convenience: the panel
+ * exists because a pass whose email domain failed logged `pass complete
+ * (0 created)` while the truth sat in run_event rows nobody could see
+ * (2026-08-09). A separate per-run detail route was deliberately deleted with
+ * it — events either arrive with the list or, history shows, they arrive
+ * nowhere.
+ */
+export interface RunReport {
+  readonly id: string;
+  readonly mappingId: string | null;
+  readonly type: 'full' | 'delta';
+  readonly status: 'pending' | 'running' | 'success' | 'failed' | 'cancelled';
+  readonly startedAt: string | null;
+  readonly finishedAt: string | null;
+  readonly itemsProcessed: number;
+  readonly errors: number;
+  readonly createdAt: string;
+  readonly events: ReadonlyArray<RunEventReport>;
+}
+
+/** `GET {mappingPath}/runs` — newest first, bounded by the server. */
+export interface RunsResponse {
+  readonly runs: ReadonlyArray<RunReport>;
+}
