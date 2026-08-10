@@ -340,15 +340,6 @@ const CreateMapping: React.FC = () => {
                   {t('wizard.source.credsOnly')}
                 </p>
               )}
-              {/* ADR-0011's own consequence, and it belongs where the choice is
-                  made rather than in a doc nobody opens: whatever server the
-                  owner points this at is THEIRS. We migrate into it; we do not
-                  run it, monitor it, back it up, or carry an SLA for it. Said
-                  before the connection details are typed, not after. */}
-              <p className="mt-4 text-sm text-gray-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                {t('createMapping.target.userOperated')}
-              </p>
-
             </div>
 
             <div className="space-y-4">
@@ -431,6 +422,15 @@ const CreateMapping: React.FC = () => {
                   </button>
                 ))}
               </div>
+              {/* ADR-0011's consequence, on the step where the destination is
+                  chosen (owner decision 2026-08-10 — it previously rendered on
+                  the SOURCE step): whatever server the owner points this at is
+                  THEIRS. We migrate into it; we do not run it, monitor it,
+                  back it up, or carry an SLA for it. Said before the
+                  connection details are typed, not after. */}
+              <p className="mt-4 text-sm text-gray-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                {t('createMapping.target.userOperated')}
+              </p>
             </div>
 
             <div className="space-y-4">

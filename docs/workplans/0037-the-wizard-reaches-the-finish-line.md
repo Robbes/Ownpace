@@ -8,7 +8,7 @@
 | T2 A paused mapping can be green-lit after the wizard is gone | ✅ Done 2026-08-10 | `/mappings/:mappingId/confirm` is a real route (ManagedOnly — the appliance's own `/confirm` is where it redirects there); the wizard NAVIGATES on create success instead of swapping component state; a paused Mappings row renders "Review and start" linking there instead of the 409-destined Play. `ConfirmMapping.unit.test.tsx` pins the route renders ConfirmMigration from the URL param; `Mappings.unit.test.tsx` pins the link and the absence of Play on paused rows; `AppRoutes.unit.test.tsx` pins both editions' route behaviour. |
 | T3 Field-level honesty: validation, credentials, the closing note | ✅ Done 2026-08-10 | Required markers on gating fields; a `role="status"` line beside a disabled Next names what is missing (`wizard.missing.*`); ports are kept as the typed string and validated where the gate can name them (the NaN trap is gone, pinned by the cleared-port test). Credential inputs carry `autocomplete="username"`/`"new-password"`, a show/hide toggle, and the `wizard.credentials.storage` sentence (true per `SecretStore.encryptCredentials` + GET masking). `wizard.review.note` now states the 0013 truth: created paused, explicit start, nothing copied until then — the may-take-some-time claim is pinned absent. All strings bilingual. |
 | T4 Choices that cannot work are refused, not stored | ✅ Done 2026-08-10 | Shared matrix `TARGET_TYPE_DOMAINS` + `targetDomainRefusal` (packages/shared/src/target-domains.ts) mirrors the engines (jmap = email/contact/file — no calendar, 0031 T1 parked); the wizard disables unreachable data types (selected-but-incompatible stays deselectable) and the create API refuses the combination via `CreateMappingSchema.superRefine`, naming both sides, with the sentence in the 400 `message` where `serverMessage()` renders it. Cron: conservative shared validator `describeCronScheduleProblem` (subset of croner's grammar; containment pinned by `apps/worker/src/cron-schedule-parity.unit.test.ts` against the tick's own croner version); wizard validates live and echoes the next three firings via the same pinned croner; server refuses garbage naming the silent 15-minute fallback it prevents. Contract tests: `create-coherence.unit.test.ts` (schema) + wire-level 400s in `create-mapping.integration.test.ts` (whose own payload was the jmap+calendar incoherence — now email+contact). Appliance create path needs no twin: an unsupported pairing throws in the per-domain factories and an invalid cron throws in croner at startup — both already loud. |
-| T5 Small keeps: dead Delete, lost state, step naming | ✅ Done 2026-08-10 | Delete is wired through name-the-mapping arming (type the exact name to enable; refusal renders the server's words; row survives a failed delete) — tested both ways. Dirty wizard: `beforeunload` arms only while dirty, and Cancel asks via `confirm` (a full in-app navigation blocker needs a data router this app does not use — recorded, not silently skipped). Step 3 is labeled "Name & credentials" in both languages, matching what it renders and gates. |
+| T5 Small keeps: dead Delete, lost state, step naming | ✅ Done 2026-08-10 | Delete is wired through name-the-mapping arming (type the exact name to enable; refusal renders the server's words; row survives a failed delete) — tested both ways. Dirty wizard: `beforeunload` arms only while dirty, and Cancel asks via `confirm` (a full in-app navigation blocker needs a data router this app does not use — recorded, not silently skipped). Step 3 is labeled "Name & credentials" in both languages, matching what it renders and gates. **Sovereignty-notice sibling answered 2026-08-10 (owner): moved to the TARGET step**, where the destination is chosen — the source-step placement contradicted its own "where the choice is made" rationale. Placement pinned by test (absent on source, present on target). |
 | T6 Per-source-type credentials (owner scoping) | ⬜ Owner decision (interim honesty ✅ 2026-08-10) | Interim landed: selecting oauth2/graph renders `wizard.source.credsOnly` stating the wizard collects only username+password used to sign in directly, and that token/tenant/app-registration details cannot be entered yet — no source type collects fields it cannot use without saying so on screen. The owner question (what the o365 connector should collect per source type; row-14 consent runbook) remains queued below. |
 
 ## Why this exists
@@ -162,10 +162,15 @@ collects fields it cannot use without saying so on screen.
 
 ## Owner decisions queued by this plan
 
-- T6 (what oauth2/graph sources should collect; ties to the row-14 consent
-  runbook).
-- T5's sovereignty-notice sibling: the "destination server is yours to run"
+- ~~T6 (what oauth2/graph sources should collect; ties to the row-14 consent
+  runbook).~~ **Answered 2026-08-10 (owner): real OAuth via the per-customer
+  app registration** — the wizard collects tenant ID, client ID and client
+  secret for oauth2/graph sources (the ADR-0006 per-customer model, 0026 T3
+  row 14), replacing the direct username+password sign-in and the interim
+  on-screen note.
+- ~~T5's sovereignty-notice sibling: the "destination server is yours to run"
   notice renders on the SOURCE step (`createMapping.target.userOperated`,
   `CreateMapping.tsx:199-206`) with an in-code comment claiming deliberate
   placement — its own rationale ("where the choice is made") argues for the
-  target step. Move it, or bless the placement?
+  target step. Move it, or bless the placement?~~ **Answered 2026-08-10
+  (owner): moved to the target step.**

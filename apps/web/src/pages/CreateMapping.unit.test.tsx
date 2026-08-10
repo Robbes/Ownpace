@@ -355,6 +355,18 @@ describe('CreateMapping — a dirty wizard does not discard silently (0037 T5)',
     expect(confirmSpy).not.toHaveBeenCalled();
     expect(screen.getByText('mappings-list-route')).toBeInTheDocument();
   });
+
+  it('the sovereignty notice renders on the TARGET step, where the destination is chosen (owner decision 2026-08-10)', () => {
+    renderWizard();
+    // Source step: no destination talk here anymore.
+    expect(screen.queryByText(/destination server is yours to run/)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText('imap.example.com'), {
+      target: { value: 'mail.old-provider.example' },
+    });
+    fireEvent.click(nextButton());
+    expect(screen.getByText(/destination server is yours to run/)).toBeInTheDocument();
+  });
 });
 
 describe('CreateMapping — oauth2/graph honesty until the owner decides (0037 T6)', () => {
