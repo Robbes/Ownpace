@@ -35,6 +35,7 @@ vi.mock('./pages/Dashboard', () => ({ default: () => <div>screen:dashboard</div>
 vi.mock('./pages/Mappings', () => ({ default: () => <div>screen:mappings</div> }));
 vi.mock('./pages/MappingDetail', () => ({ default: () => <div>screen:mapping-detail</div> }));
 vi.mock('./pages/CreateMapping', () => ({ default: () => <div>screen:create-mapping</div> }));
+vi.mock('./pages/ConfirmMapping', () => ({ default: () => <div>screen:confirm-mapping</div> }));
 vi.mock('./pages/Tenants', () => ({ default: () => <div>screen:tenants</div> }));
 vi.mock('./pages/Billing', () => ({ default: () => <div>screen:billing</div> }));
 vi.mock('./pages/Login', () => ({ default: () => <div>screen:login</div> }));
@@ -64,6 +65,9 @@ describe('appliance builds redirect managed-only URLs to /confirm', () => {
     '/dashboard': 'screen:dashboard',
     '/mappings': 'screen:mappings',
     '/mappings/new': 'screen:create-mapping',
+    // The green light drives the managed discover/start API; the appliance's
+    // own /confirm is that edition's equivalent — exactly where this lands.
+    '/mappings/acme/confirm': 'screen:confirm-mapping',
     '/tenants': 'screen:tenants',
     '/billing': 'screen:billing',
     '/login': 'screen:login',
@@ -117,4 +121,13 @@ describe('per-mapping routes stay shared — real in both editions', () => {
       expect(await screen.findByText('screen:mapping-detail')).toBeInTheDocument();
     });
   }
+});
+
+describe('the confirm route is real on managed (0037 T2)', () => {
+  it('/mappings/acme/confirm mounts the green-light screen, not the hub', async () => {
+    renderAt('/mappings/acme/confirm');
+
+    expect(await screen.findByText('screen:confirm-mapping')).toBeInTheDocument();
+    expect(screen.queryByText('screen:mapping-detail')).not.toBeInTheDocument();
+  });
 });

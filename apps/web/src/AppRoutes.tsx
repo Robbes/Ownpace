@@ -20,6 +20,7 @@ import Dashboard from './pages/Dashboard';
 import Mappings from './pages/Mappings';
 import MappingDetail from './pages/MappingDetail';
 import CreateMapping from './pages/CreateMapping';
+import ConfirmMapping from './pages/ConfirmMapping';
 import Tenants from './pages/Tenants';
 import Billing from './pages/Billing';
 import Login from './pages/Login';
@@ -121,6 +122,18 @@ const AppRoutes: React.FC = () => {
           element={
             <ManagedOnly>
               <CreateMapping />
+            </ManagedOnly>
+          }
+        />
+        {/* The green light at a real URL (0037 T2): managed-only like the
+            wizard that leads here — it drives the managed discover/start
+            API — and the appliance's own /confirm is that edition's
+            equivalent, which is exactly where ManagedOnly redirects it. */}
+        <Route
+          path="mappings/:mappingId/confirm"
+          element={
+            <ManagedOnly>
+              <ConfirmMapping />
             </ManagedOnly>
           }
         />

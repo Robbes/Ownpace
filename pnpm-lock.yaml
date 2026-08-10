@@ -237,6 +237,9 @@ importers:
       axios:
         specifier: ^1.19.0
         version: 1.19.0
+      croner:
+        specifier: 10.0.1
+        version: 10.0.1
       lucide-react:
         specifier: ^1.28.0
         version: 1.28.0(react@19.2.8)

@@ -65,8 +65,18 @@ export function serverMessage(err: unknown): string {
   if (axios.isAxiosError(err)) {
     const data: unknown = err.response?.data;
     if (data && typeof data === 'object') {
-      const d = data as { message?: unknown; error?: unknown };
+      const d = data as { message?: unknown; error?: unknown; details?: unknown };
       if (typeof d.message === 'string' && d.message) return d.message;
+      // Zod refusals from routes that answer `{error, details}` without a
+      // message: the sentences the schema wrote live on the issues. Showing
+      // only the label 'Validation error' would discard exactly the words the
+      // refusal exists to deliver (0037 T4).
+      if (Array.isArray(d.details)) {
+        const sentences = d.details
+          .map((i) => (i && typeof i === 'object' ? (i as { message?: unknown }).message : undefined))
+          .filter((m): m is string => typeof m === 'string' && m !== '');
+        if (sentences.length > 0) return sentences.join(' ');
+      }
       if (typeof d.error === 'string' && d.error) return d.error;
     }
     return err.message;

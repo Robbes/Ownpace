@@ -1,9 +1,6 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import React, { useState } from 'react';
-// One bilingual string on a screen that had none (0024's rule: the FRAME is
-// translated). The rest of this wizard is still EN-only prose — a 0024 T5
-// candidate — but a new user-facing sentence does not get to add to that debt.
-import { useT } from '../i18n';
+import { useT, useFormatters } from '../i18n';
 import type { StringKey } from '../i18n';
 import { useNavigate } from 'react-router';
 import {
@@ -18,12 +15,22 @@ import {
   Calendar,
   Users,
   Folder,
-  AlertCircle
+  AlertCircle,
+  Eye,
+  EyeOff
 } from 'lucide-react';
+import {
+  TARGET_TYPE_DOMAINS,
+  targetDomainRefusal,
+  describeCronScheduleProblem,
+} from '@openmig/shared';
+// The SAME cron library — same pinned version — the managed tick evaluates
+// schedules with, so the "next syncs" echo below cannot disagree with what
+// the scheduler will actually do.
+import { Cron } from 'croner';
 import { mappingApi } from '../services/mapping-service';
 import { serverMessage } from '../services/api';
 import { useMutation } from '@tanstack/react-query';
-import { ConfirmMigration } from '../components/ConfirmMigration';
 
 type Step = 'source' | 'target' | 'credentials' | 'data-types' | 'schedule' | 'review';
 
@@ -35,12 +42,15 @@ interface FormData {
   sourceType: 'imap' | 'oauth2' | 'graph';
   targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav';
   sourceHost: string;
-  sourcePort: number;
+  /** Kept as the raw INPUT string (0037 T3): parseInt on change turned a
+   *  cleared field into NaN, which disabled Next with no clue — the honest
+   *  state is "what was typed", validated where the gate can name it. */
+  sourcePort: string;
   sourceUsername: string;
   sourcePassword: string;
   sourceSsl: boolean;
   targetHost: string;
-  targetPort: number;
+  targetPort: string;
   targetUsername: string;
   targetPassword: string;
   targetSsl: boolean;
@@ -53,12 +63,12 @@ const initialFormData: FormData = {
   sourceType: 'imap',
   targetType: 'jmap',
   sourceHost: '',
-  sourcePort: 993,
+  sourcePort: '993',
   sourceUsername: '',
   sourcePassword: '',
   sourceSsl: true,
   targetHost: '',
-  targetPort: 443,
+  targetPort: '443',
   targetUsername: '',
   targetPassword: '',
   targetSsl: true,
@@ -87,21 +97,56 @@ const dataTypes: {
   { id: 'file', nameKey: 'domain.file', icon: Folder, hintKey: 'wizard.domain.file.hint' },
 ];
 
+const isValidPort = (raw: string): boolean => {
+  if (!/^\d+$/.test(raw)) return false;
+  const n = Number(raw);
+  return n >= 1 && n <= 65535;
+};
+
+/** The red asterisk beside a gating field's label (0037 T3). */
+const Required: React.FC = () => (
+  <span className="text-red-500" aria-hidden="true">
+    {' '}
+    *
+  </span>
+);
+
 const CreateMapping: React.FC = () => {
   const t = useT();
+  const { dateTime } = useFormatters();
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<FormData>(initialFormData);
-  // 0013 T6: after the (paused) mapping is created, show the discovery + confirm screen
-  // instead of navigating away — the migration only starts on the explicit green light.
-  const [createdMappingId, setCreatedMappingId] = useState<string | null>(null);
+  const [showSourcePassword, setShowSourcePassword] = useState(false);
+  const [showTargetPassword, setShowTargetPassword] = useState(false);
 
   const createMutation = useMutation({
     mutationFn: mappingApi.create,
+    // 0013 T6 via a real URL (0037 T2): the confirm/green-light screen used
+    // to be swapped in as component state, which no route reached — a refresh
+    // stranded the paused mapping. Navigating gives the green light an
+    // address that survives the wizard.
     onSuccess: (mapping: { id: string }) => {
-      setCreatedMappingId(mapping.id);
+      navigate(`/mappings/${mapping.id}/confirm`);
     },
   });
+
+  // Leaving a dirty wizard is a question, not a silent discard (0037 T5).
+  // All wizard state is plain useState, so refresh/close throws away six
+  // steps of typed input; beforeunload covers those, and handleBack's
+  // confirm covers the in-app Cancel. (A full in-app navigation blocker
+  // needs a data router this app does not use yet.)
+  const dirty = JSON.stringify(formData) !== JSON.stringify(initialFormData);
+  React.useEffect(() => {
+    if (!dirty || createMutation.isSuccess) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Legacy engines ignore preventDefault without a returnValue.
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirty, createMutation.isSuccess]);
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
@@ -114,14 +159,14 @@ const CreateMapping: React.FC = () => {
         targetType: formData.targetType,
         sourceConfig: {
           host: formData.sourceHost,
-          port: formData.sourcePort,
+          port: Number(formData.sourcePort),
           username: formData.sourceUsername,
           password: formData.sourcePassword,
           useSsl: formData.sourceSsl,
         },
         targetConfig: {
           host: formData.targetHost,
-          port: formData.targetPort,
+          port: Number(formData.targetPort),
           username: formData.targetUsername,
           password: formData.targetPassword,
           useSsl: formData.targetSsl,
@@ -139,6 +184,7 @@ const CreateMapping: React.FC = () => {
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
     } else {
+      if (dirty && !window.confirm(t('wizard.leaveConfirm'))) return;
       navigate('/mappings');
     }
   };
@@ -156,6 +202,16 @@ const CreateMapping: React.FC = () => {
     }));
   };
 
+  // The data types the chosen target protocol can actually receive — the
+  // shared matrix the create API refuses against (0037 T4, ADR-0026's one
+  // contract): the wizard constrains the choice, the server refuses it
+  // verbatim for any other client.
+  const allowedDomains = TARGET_TYPE_DOMAINS[formData.targetType];
+
+  /** The problem with a non-empty custom cron, or null (empty = default). */
+  const cronProblem = (): string | null =>
+    formData.schedule.trim() === '' ? null : describeCronScheduleProblem(formData.schedule);
+
   // Each step's gate checks only fields that step RENDERS (0037 T1, pulled
   // forward into 0033 T3 because no wizard test can exist without it): the
   // old source/target gates required sourceUsername/targetUsername — inputs
@@ -166,22 +222,80 @@ const CreateMapping: React.FC = () => {
   const canProceed = () => {
     switch (steps[currentStep].id) {
       case 'source':
-        return Boolean(formData.sourceHost && formData.sourcePort);
+        return Boolean(formData.sourceHost) && isValidPort(formData.sourcePort);
       case 'target':
-        return Boolean(formData.targetHost && formData.targetPort);
+        return Boolean(formData.targetHost) && isValidPort(formData.targetPort);
       case 'credentials':
         return (
           formData.name.trim() !== '' &&
           Boolean(formData.sourceUsername && formData.targetUsername)
         );
       case 'data-types':
-        return formData.domains.length > 0;
+        return (
+          formData.domains.length > 0 &&
+          targetDomainRefusal(formData.targetType, formData.domains) === null
+        );
       case 'schedule':
-        return true; // Schedule is optional
+        return cronProblem() === null; // empty = the default cadence, fine
       case 'review':
         return true;
       default:
         return false;
+    }
+  };
+
+  /** Gating fields of the CURRENT step that are still missing, by label. */
+  const missingFields = (): string[] => {
+    const out: string[] = [];
+    switch (steps[currentStep].id) {
+      case 'source':
+        if (!formData.sourceHost) out.push(t('wizard.host'));
+        if (!isValidPort(formData.sourcePort)) out.push(t('wizard.port'));
+        break;
+      case 'target':
+        if (!formData.targetHost) out.push(t('wizard.host'));
+        if (!isValidPort(formData.targetPort)) out.push(t('wizard.port'));
+        break;
+      case 'credentials':
+        if (formData.name.trim() === '') out.push(t('wizard.migrationName'));
+        if (!formData.sourceUsername) out.push(t('wizard.sourceUsername'));
+        if (!formData.targetUsername) out.push(t('wizard.targetUsername'));
+        break;
+      case 'data-types':
+        if (formData.domains.length === 0) out.push(t('wizard.missing.dataTypes'));
+        break;
+    }
+    return out;
+  };
+
+  /**
+   * WHY Next is disabled, in words beside the button (0037 T3). The only
+   * feedback used to be the disabled state itself — no required markers, no
+   * message, nothing naming the field. Incoherent data types and a broken
+   * cron get their real sentences (shared prose, the same words the server
+   * refuses with); everything else gets the missing-field list.
+   */
+  const blockedReason = (): string | null => {
+    if (canProceed()) return null;
+    const stepId = steps[currentStep].id;
+    if (stepId === 'data-types' && formData.domains.length > 0) {
+      return targetDomainRefusal(formData.targetType, formData.domains);
+    }
+    if (stepId === 'schedule') {
+      const problem = cronProblem();
+      if (problem) return `${t('wizard.cron.invalidLead')} ${problem}`;
+    }
+    const fields = missingFields();
+    return fields.length > 0 ? `${t('wizard.missing.lead')} ${fields.join(', ')}` : null;
+  };
+
+  /** The next few firings of a VALID custom cron, so the admin can check
+   *  their expression says what they meant (0037 T4's human-readable echo). */
+  const nextRuns = (): Date[] => {
+    try {
+      return new Cron(formData.schedule.trim()).nextRuns(3);
+    } catch {
+      return [];
     }
   };
 
@@ -214,6 +328,18 @@ const CreateMapping: React.FC = () => {
                   </button>
                 ))}
               </div>
+              {/* 0037 T6 interim, until the owner decides what oauth2/graph
+                  should collect (the row-14 consent-runbook question): these
+                  types render the same host/port/username/password fields as
+                  IMAP and the server signs in with exactly those — no token,
+                  tenant id or app registration exists in this wizard. Saying
+                  so beats configuring the product's headline source by
+                  guesswork. */}
+              {formData.sourceType !== 'imap' && (
+                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  {t('wizard.source.credsOnly')}
+                </p>
+              )}
               {/* ADR-0011's own consequence, and it belongs where the choice is
                   made rather than in a doc nobody opens: whatever server the
                   owner points this at is THEIRS. We migrate into it; we do not
@@ -228,10 +354,12 @@ const CreateMapping: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Host
+                  {t('wizard.host')}
+                  <Required />
                 </label>
                 <input
                   type="text"
+                  required
                   value={formData.sourceHost}
                   onChange={(e) => updateField('sourceHost', e.target.value)}
                   className="input w-full"
@@ -242,12 +370,16 @@ const CreateMapping: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Port
+                    {t('wizard.port')}
+                    <Required />
                   </label>
                   <input
                     type="number"
+                    required
+                    min={1}
+                    max={65535}
                     value={formData.sourcePort}
-                    onChange={(e) => updateField('sourcePort', parseInt(e.target.value))}
+                    onChange={(e) => updateField('sourcePort', e.target.value)}
                     className="input w-full"
                     placeholder="993"
                   />
@@ -262,7 +394,7 @@ const CreateMapping: React.FC = () => {
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
                   <label htmlFor="sourceSsl" className="ml-2 block text-sm text-gray-700">
-                    Use SSL/TLS
+                    {t('wizard.useSsl')}
                   </label>
                 </div>
               </div>
@@ -304,10 +436,12 @@ const CreateMapping: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Host
+                  {t('wizard.host')}
+                  <Required />
                 </label>
                 <input
                   type="text"
+                  required
                   value={formData.targetHost}
                   onChange={(e) => updateField('targetHost', e.target.value)}
                   className="input w-full"
@@ -318,12 +452,16 @@ const CreateMapping: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Port
+                    {t('wizard.port')}
+                    <Required />
                   </label>
                   <input
                     type="number"
+                    required
+                    min={1}
+                    max={65535}
                     value={formData.targetPort}
-                    onChange={(e) => updateField('targetPort', parseInt(e.target.value))}
+                    onChange={(e) => updateField('targetPort', e.target.value)}
                     className="input w-full"
                     placeholder="443"
                   />
@@ -338,7 +476,7 @@ const CreateMapping: React.FC = () => {
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
                   <label htmlFor="targetSsl" className="ml-2 block text-sm text-gray-700">
-                    Use SSL/TLS
+                    {t('wizard.useSsl')}
                   </label>
                 </div>
               </div>
@@ -352,9 +490,11 @@ const CreateMapping: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('wizard.migrationName')}
+                <Required />
               </label>
               <input
                 type="text"
+                required
                 value={formData.name}
                 onChange={(e) => updateField('name', e.target.value)}
                 className="input w-full"
@@ -369,9 +509,15 @@ const CreateMapping: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('wizard.sourceUsername')}
+                    <Required />
                   </label>
+                  {/* autocomplete says what these fields ARE (0037 T3): the
+                      bare inputs invited the browser to autofill the admin's
+                      OWN login into the source mailbox's password field. */}
                   <input
                     type="text"
+                    required
+                    autoComplete="username"
                     value={formData.sourceUsername}
                     onChange={(e) => updateField('sourceUsername', e.target.value)}
                     className="input w-full"
@@ -383,21 +529,35 @@ const CreateMapping: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('wizard.sourcePassword')}
                   </label>
-                  <input
-                    type="password"
-                    value={formData.sourcePassword}
-                    onChange={(e) => updateField('sourcePassword', e.target.value)}
-                    className="input w-full"
-                    placeholder="••••••••"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showSourcePassword ? 'text' : 'password'}
+                      autoComplete="new-password"
+                      value={formData.sourcePassword}
+                      onChange={(e) => updateField('sourcePassword', e.target.value)}
+                      className="input w-full pr-10"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSourcePassword((v) => !v)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+                      aria-label={t(showSourcePassword ? 'wizard.hidePassword' : 'wizard.showPassword')}
+                    >
+                      {showSourcePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('wizard.targetUsername')}
+                    <Required />
                   </label>
                   <input
                     type="text"
+                    required
+                    autoComplete="username"
                     value={formData.targetUsername}
                     onChange={(e) => updateField('targetUsername', e.target.value)}
                     className="input w-full"
@@ -409,15 +569,29 @@ const CreateMapping: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('wizard.targetPassword')}
                   </label>
-                  <input
-                    type="password"
-                    value={formData.targetPassword}
-                    onChange={(e) => updateField('targetPassword', e.target.value)}
-                    className="input w-full"
-                    placeholder="••••••••"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showTargetPassword ? 'text' : 'password'}
+                      autoComplete="new-password"
+                      value={formData.targetPassword}
+                      onChange={(e) => updateField('targetPassword', e.target.value)}
+                      className="input w-full pr-10"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowTargetPassword((v) => !v)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+                      aria-label={t(showTargetPassword ? 'wizard.hidePassword' : 'wizard.showPassword')}
+                    >
+                      {showTargetPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
+              {/* What happens to these secrets — a claim the code already
+                  makes true (SecretStore.encryptCredentials; GET masks). */}
+              <p className="mt-4 text-sm text-blue-900">{t('wizard.credentials.storage')}</p>
             </div>
           </div>
         );
@@ -431,31 +605,44 @@ const CreateMapping: React.FC = () => {
             <p className="text-sm text-gray-500">{t('wizard.selectDataTypesHint')}</p>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {dataTypes.map((type) => (
-                <button
-                  key={type.id}
-                  onClick={() => toggleDomain(type.id)}
-                  className={`p-4 border-2 rounded-lg text-left transition-colors ${
-                    formData.domains.includes(type.id)
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="flex items-center">
-                    <type.icon
-                      className={`w-6 h-6 mr-3 ${
-                        formData.domains.includes(type.id)
-                          ? 'text-blue-600'
-                          : 'text-gray-400'
-                      }`}
-                    />
-                    <div>
-                      <p className="font-medium text-gray-900">{t(type.nameKey)}</p>
-                      <p className="text-sm text-gray-500">{t(type.hintKey)}</p>
+              {dataTypes.map((type) => {
+                const unavailable = !allowedDomains.includes(type.id);
+                // A selected-but-unavailable type stays clickable: it must be
+                // DESELECTABLE, or going back and changing the target would
+                // trap the wizard behind a button that cannot be un-pressed.
+                const locked = unavailable && !formData.domains.includes(type.id);
+                return (
+                  <button
+                    key={type.id}
+                    onClick={() => toggleDomain(type.id)}
+                    disabled={locked}
+                    className={`p-4 border-2 rounded-lg text-left transition-colors ${
+                      formData.domains.includes(type.id)
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    } ${locked ? 'opacity-50 cursor-not-allowed hover:border-gray-200' : ''}`}
+                  >
+                    <div className="flex items-center">
+                      <type.icon
+                        className={`w-6 h-6 mr-3 ${
+                          formData.domains.includes(type.id)
+                            ? 'text-blue-600'
+                            : 'text-gray-400'
+                        }`}
+                      />
+                      <div>
+                        <p className="font-medium text-gray-900">{t(type.nameKey)}</p>
+                        <p className="text-sm text-gray-500">{t(type.hintKey)}</p>
+                        {unavailable && (
+                          <p className="text-xs text-amber-700 mt-1">
+                            {t('wizard.domain.notForTarget')}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           </div>
         );
@@ -501,8 +688,21 @@ const CreateMapping: React.FC = () => {
                   onChange={(e) => updateField('schedule', e.target.value)}
                   className="input w-full"
                   placeholder="0 2 * * *"
+                  aria-invalid={cronProblem() !== null}
                 />
                 <p className="mt-1 text-xs text-gray-500">{t('wizard.customCronHint')}</p>
+                {/* The echo (0037 T4): a VALID expression shows its next
+                    firings — computed by the exact croner version the tick
+                    worker uses — so "did I say what I meant?" has an answer
+                    before the value is stored. */}
+                {formData.schedule.trim() !== '' && cronProblem() === null && (
+                  <p className="mt-2 text-xs text-gray-600" data-testid="cron-next-runs">
+                    {t('wizard.cron.nextRuns')}{' '}
+                    {nextRuns()
+                      .map((d) => dateTime(d))
+                      .join(' · ')}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -575,15 +775,6 @@ const CreateMapping: React.FC = () => {
     }
   };
 
-  // After create, the mapping exists but is PAUSED — show discovery + the green light.
-  if (createdMappingId) {
-    return (
-      <div className="max-w-4xl mx-auto">
-        <ConfirmMigration mappingId={createdMappingId} onStarted={() => navigate('/mappings')} />
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-8">
@@ -649,6 +840,13 @@ const CreateMapping: React.FC = () => {
             <p className="mt-1">{serverMessage(createMutation.error)}</p>
           </div>
         </div>
+      )}
+
+      {/* Why Next is disabled, said beside it (0037 T3/T4). */}
+      {blockedReason() !== null && (
+        <p className="mt-6 text-sm text-amber-800" role="status">
+          {blockedReason()}
+        </p>
       )}
 
       {/* Navigation Buttons */}

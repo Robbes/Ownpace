@@ -27,12 +27,33 @@ const Mappings: React.FC = () => {
 
   // Per-row sync outcome (0033 T3). The old handleSync caught failures with
   // console.error only — the operator who clicked saw nothing. A refusal now
-  // renders under the row with the server's words verbatim (the 409 for a
-  // paused mapping names what to do); success clears the marker and the
-  // refetched row is the feedback.
+  // renders under the row with the server's words verbatim; success clears
+  // the marker and the refetched row is the feedback.
   const [syncOutcomes, setSyncOutcomes] = React.useState<
     Record<string, { state: 'pending' } | { state: 'failed'; text: string }>
   >({});
+
+  // Delete arming (0037 T5). The Trash button used to have NO onClick — a
+  // dead control on the exact path an admin takes after a botched run.
+  // Mapping deletion destroys config and ledger linkage, so it arms with the
+  // mapping's own name (hard rule 2's posture) instead of firing on a click.
+  const [deleteArm, setDeleteArm] = React.useState<{ id: string; typed: string } | null>(null);
+  const [deleteFailed, setDeleteFailed] = React.useState<string | null>(null);
+  const [deletePending, setDeletePending] = React.useState(false);
+
+  const handleDelete = async (mappingId: string) => {
+    setDeletePending(true);
+    setDeleteFailed(null);
+    try {
+      await mappingApi.delete(mappingId);
+      setDeleteArm(null);
+      refetch();
+    } catch (error) {
+      setDeleteFailed(serverMessage(error));
+    } finally {
+      setDeletePending(false);
+    }
+  };
 
   const handleSync = async (mappingId: string, type: 'full' | 'delta') => {
     setSyncOutcomes((o) => ({ ...o, [mappingId]: { state: 'pending' } }));
@@ -171,6 +192,18 @@ const Mappings: React.FC = () => {
                         >
                           <Play className="w-5 h-5" />
                         </button>
+                      ) : mapping.status === 'paused' ? (
+                        /* A paused mapping's green light lives on the confirm
+                           screen (0037 T2). The Play button this row used to
+                           render sent a sync the server answers with a 409
+                           telling the operator to POST /start — a route no
+                           button could reach. */
+                        <Link
+                          to={`/mappings/${mapping.id}/confirm`}
+                          className="text-green-600 hover:text-green-800 text-sm font-medium"
+                        >
+                          {t('mappings.action.reviewAndStart')}
+                        </Link>
                       ) : (
                         <button
                           onClick={() => handleSync(mapping.id, 'full')}
@@ -188,6 +221,12 @@ const Mappings: React.FC = () => {
                         <Edit className="w-5 h-5" />
                       </Link>
                       <button
+                        onClick={() => {
+                          setDeleteFailed(null);
+                          setDeleteArm((arm) =>
+                            arm?.id === mapping.id ? null : { id: mapping.id, typed: '' },
+                          );
+                        }}
                         className="text-red-600 hover:text-red-800"
                         title={t('mappings.action.delete')}
                       >
@@ -196,6 +235,45 @@ const Mappings: React.FC = () => {
                     </div>
                   </td>
                 </tr>
+                {deleteArm?.id === mapping.id && (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-3 bg-red-50 text-sm text-red-900">
+                      <p>{t('mappings.delete.explain')}</p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={deleteArm.typed}
+                          onChange={(e) => setDeleteArm({ id: mapping.id, typed: e.target.value })}
+                          className="input"
+                          placeholder={mapping.name}
+                          aria-label={t('mappings.delete.explain')}
+                        />
+                        <button
+                          onClick={() => void handleDelete(mapping.id)}
+                          disabled={deleteArm.typed !== mapping.name || deletePending}
+                          className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {t('mappings.delete.confirm')}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setDeleteArm(null);
+                            setDeleteFailed(null);
+                          }}
+                          className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                        >
+                          {t('mappings.delete.cancel')}
+                        </button>
+                      </div>
+                      {deleteFailed !== null && (
+                        <p className="mt-2">
+                          <span className="font-medium">{t('mappings.delete.failed')}</span>{' '}
+                          {deleteFailed}
+                        </p>
+                      )}
+                    </td>
+                  </tr>
+                )}
                 {syncOutcomes[mapping.id]?.state === 'failed' && (
                   <tr>
                     <td colSpan={5} className="px-6 py-2 bg-red-50 text-sm text-red-800">

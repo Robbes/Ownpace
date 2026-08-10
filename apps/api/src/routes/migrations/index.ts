@@ -23,7 +23,12 @@ import { resolveSyncJob, resolveCutoverJob } from './job-resolution';
 // this same router so they sit under /api/migrations/:mappingId/... alongside
 // discovery and start, which is where the appliance's equivalents live too.
 import operatingRoutes from './operating-routes';
-import { log, DISTRIBUTION_D_NOT_A_MAPPING } from '@openmig/shared';
+import {
+  log,
+  DISTRIBUTION_D_NOT_A_MAPPING,
+  targetDomainRefusal,
+  describeCronScheduleProblem,
+} from '@openmig/shared';
 
 /** Take the first row of a RETURNING result or fail loudly (no silent nulls). */
 function firstOrThrow<T>(rows: T[], what: string): T {
@@ -65,7 +70,7 @@ function getSharedPool() {
  * asserted against — and a schema nothing tests is one careless widening away
  * from accepting `bidirectional` again in silence.
  */
-export const CreateMappingSchema = z.object({
+const CreateMappingBase = z.object({
   name: z.string().min(1).max(255),
   sourceType: z.enum(['imap', 'oauth2', 'graph']),
   targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav']),
@@ -137,7 +142,49 @@ export const CreateMappingSchema = z.object({
     .optional(),
 });
 
-const UpdateMappingSchema = CreateMappingSchema.partial();
+/**
+ * The cross-field refusals (0037 T4) ride on the base object so
+ * UpdateMappingSchema can stay `base.partial()`:
+ *
+ *  - **target/domain coherence.** The matrix lives in shared
+ *    (`TARGET_TYPE_DOMAINS`) because the wizard constrains the same choice
+ *    client-side; without this check a `carddav` target + `email` domain
+ *    sailed into scope_selection rows the target protocol can never receive,
+ *    failing later as sync errors the admin cannot connect to a wizard
+ *    choice. The refusal names both sides and renders verbatim.
+ *  - **cron schedule.** The schedule was stored verbatim; the tick worker
+ *    deliberately logs-and-falls-back to the default 15-minute cadence on an
+ *    invalid cron (hard rule 9 — never dead-stop a mapping), which keeps the
+ *    mapping syncing but silently ignores the admin's stated cadence. Refuse
+ *    garbage here, in front of whoever typed it, and say what the fallback
+ *    would have done.
+ */
+export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => {
+  const domainRefusal = targetDomainRefusal(body.targetType, body.syncConfig.domains);
+  if (domainRefusal) {
+    ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: domainRefusal });
+  }
+  if (body.syncConfig.schedule !== undefined) {
+    const cronProblem = describeCronScheduleProblem(body.syncConfig.schedule);
+    if (cronProblem) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['syncConfig', 'schedule'],
+        message:
+          `The sync schedule is not a valid cron expression: ${cronProblem}. ` +
+          'The scheduler could not evaluate it and would fall back to syncing every ' +
+          '15 minutes, silently ignoring the cadence you stated — so it is refused here instead.',
+      });
+    }
+  }
+});
+
+/** Exported for the retraction guard too: the update path must refuse the
+ *  withdrawn modes with the same words as create (sync-mode.unit.test.ts).
+ *  Built from the BASE object because zod refuses .partial() on a schema
+ *  carrying cross-field refinements — and the coherence checks read fields a
+ *  partial body may legitimately omit. */
+export const UpdateMappingSchema = CreateMappingBase.partial();
 
 const TriggerSyncSchema = z.object({
   type: z.enum(['full', 'delta']).optional(),
@@ -402,6 +449,12 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
     if (error instanceof z.ZodError) {
       res.status(400).json({
         error: 'Validation error',
+        // The sentences the schema wrote for exactly this refusal, where
+        // serverMessage() finds them — `details` alone left the wizard
+        // rendering the two words 'Validation error' while the refusal that
+        // names both sides of an incoherent choice sat unread in the issue
+        // list (0037 T4).
+        message: error.issues.map((i) => i.message).join(' '),
         details: error.issues,
       });
     } else {

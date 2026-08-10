@@ -28,7 +28,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { CreateMappingSchema } from './index';
+import { CreateMappingSchema, UpdateMappingSchema } from './index';
 
 /** The minimum a create body needs; every test varies only the mode. */
 function body(mode?: string) {
@@ -105,11 +105,10 @@ describe('the modes that were retracted', () => {
   }
 
   it('refuses them on UPDATE as well as create', () => {
-    // The update path is a partial of this schema. A retraction enforced on
-    // one verb only is not a retraction — it is a speed bump.
-    const partial = CreateMappingSchema.partial();
-    expect(partial.safeParse({ mode: 'bidirectional' }).success).toBe(false);
-    expect(partial.safeParse({ mode: 'mirror' }).success).toBe(true);
+    // The update path is a partial of the same base object. A retraction
+    // enforced on one verb only is not a retraction — it is a speed bump.
+    expect(UpdateMappingSchema.safeParse({ mode: 'bidirectional' }).success).toBe(false);
+    expect(UpdateMappingSchema.safeParse({ mode: 'mirror' }).success).toBe(true);
   });
 });
 

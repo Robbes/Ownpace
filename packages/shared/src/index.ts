@@ -26,6 +26,8 @@ export * from './specialUse';
 export * from './cursor';
 export * from './concurrency';
 export * from './config';
+export * from './target-domains';
+export * from './cron-schedule';
 export * from './throttling';
 export * from './logger';
 export * from './metrics';
