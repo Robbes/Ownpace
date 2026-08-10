@@ -17,7 +17,7 @@ const { editionFlag, authState } = vi.hoisted(() => ({
   editionFlag: { selfhost: false },
   authState: {
     isAuthenticated: true,
-    user: null as null | { name: string; email: string },
+    user: null as null | { name: string; email: string; role?: string },
     logout: () => {},
   },
 }));
@@ -120,5 +120,23 @@ describe('the header on per-mapping routes (T3)', () => {
     renderLayout('/deletions');
 
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Deletions');
+  });
+});
+
+describe('the Billing nav entry follows the billing-read guard (owner decision 2026-08-10)', () => {
+  it('managed admin sees Billing; viewer and member do not', () => {
+    authState.user = { name: 'A', email: 'a@acme.test', role: 'admin' };
+    const { unmount } = renderLayout('/dashboard');
+    expect(screen.getAllByRole('link', { name: /Billing/ }).length).toBeGreaterThan(0);
+    unmount();
+
+    for (const role of ['viewer', 'member']) {
+      authState.user = { name: 'V', email: 'v@acme.test', role };
+      const view = renderLayout('/dashboard');
+      // The server 403s a lesser role's billing reads — a nav entry that can
+      // only lead to a refusal is hidden, like the appliance hides Billing.
+      expect(screen.queryByRole('link', { name: /Billing/ })).not.toBeInTheDocument();
+      view.unmount();
+    }
   });
 });

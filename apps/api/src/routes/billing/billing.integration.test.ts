@@ -60,12 +60,17 @@ function createTestToken(tenantId: string, role: string = 'member', sub?: string
   );
 }
 
-const TOKEN_TENANT_A = createTestToken(API_TENANT_A);
-const TOKEN_TENANT_B = createTestToken(API_TENANT_B);
+// The workhorse tokens are ADMIN (owner decision 2026-08-10: billing READS
+// are owner/admin too, so a lesser role would 403 out of every functional
+// test below — the isolation tests still prove tenant B's admin sees none
+// of tenant A's money).
+const TOKEN_TENANT_A = createTestToken(API_TENANT_A, 'admin');
+const TOKEN_TENANT_B = createTestToken(API_TENANT_B, 'admin');
 // Role-guard tokens (0039 T1). The role the API enforces is the MEMBERSHIP
 // row's, not the claim — see seed-membership.ts — so each token's sub gets
 // its own seeded row below.
 const TOKEN_VIEWER_A = createTestToken(API_TENANT_A, 'viewer', 'user-viewer-billing');
+const TOKEN_MEMBER_A = createTestToken(API_TENANT_A, 'member', 'user-member-billing');
 const TOKEN_ADMIN_A = createTestToken(API_TENANT_A, 'admin', 'user-admin-billing');
 
 describe('Billing Route Isolation', () => {
@@ -86,11 +91,13 @@ describe('Billing Route Isolation', () => {
       API_TENANT_A, 'Billing Tenant A', 'active',
       API_TENANT_B, 'Billing Tenant B', 'active',
     ]);
-    // Membership gate (0020 T1): the minted tokens must belong to their tenants.
-    await seedMembership(superuserPool, API_TENANT_A, `user-${API_TENANT_A}`, 'member');
-    await seedMembership(superuserPool, API_TENANT_B, `user-${API_TENANT_B}`, 'member');
+    // Membership gate (0020 T1): the minted tokens must belong to their
+    // tenants — as ADMIN, since billing reads are owner/admin (2026-08-10).
+    await seedMembership(superuserPool, API_TENANT_A, `user-${API_TENANT_A}`, 'admin');
+    await seedMembership(superuserPool, API_TENANT_B, `user-${API_TENANT_B}`, 'admin');
     // Role-guard rows (0039 T1) — cascade-delete with the tenant.
     await seedMembership(superuserPool, API_TENANT_A, 'user-viewer-billing', 'viewer');
+    await seedMembership(superuserPool, API_TENANT_A, 'user-member-billing', 'member');
     await seedMembership(superuserPool, API_TENANT_A, 'user-admin-billing', 'admin');
 
     request = supertest(app);
@@ -326,11 +333,12 @@ describe('Billing Route Isolation', () => {
     });
   });
 
-  describe('billing write guards (0039 T1)', () => {
+  describe('billing role guards (0039 T1; reads tightened 2026-08-10)', () => {
     // Until 2026-08-09 every billing route ran on `authenticate` alone -- a
-    // VIEWER could trigger a real Mollie payment. Writes are owner/admin now,
-    // mirroring the Tenants routes; reads stay member-visible (recorded
-    // decision: seeing money is not moving money).
+    // VIEWER could trigger a real Mollie payment. Writes are owner/admin,
+    // mirroring the Tenants routes; on 2026-08-10 the owner overturned the
+    // recorded member-visible line for READS too -- billing is owner/admin
+    // in both directions now.
 
     it('refuses a viewer everywhere money moves', async () => {
       const attempts = [
@@ -354,7 +362,7 @@ describe('Billing Route Isolation', () => {
     it('refuses a plain member too -- money writes are owner/admin only', async () => {
       const response = await request
         .post('/api/billing/invoices/generate')
-        .set('Authorization', `Bearer ${TOKEN_TENANT_A}`)
+        .set('Authorization', `Bearer ${TOKEN_MEMBER_A}`)
         .send({});
       expect(response.status).toBe(403);
     });
@@ -368,16 +376,34 @@ describe('Billing Route Isolation', () => {
       expect(response.body.invoice).toBeDefined();
     });
 
-    it('reads stay member-visible: a viewer can SEE usage and invoices (recorded decision)', async () => {
+    it('reads are owner/admin too: viewers and members get 403 on every billing read (owner decision 2026-08-10)', async () => {
+      const reads = [
+        '/api/billing/usage',
+        '/api/billing/usage/history',
+        '/api/billing/invoices',
+        '/api/billing/payment-methods',
+      ] as const;
+      for (const lesserToken of [TOKEN_VIEWER_A, TOKEN_MEMBER_A]) {
+        for (const path of reads) {
+          const response = await request
+            .get(path)
+            .set('Authorization', `Bearer ${lesserToken}`);
+          expect(response.status, path).toBe(403);
+        }
+        // The estimate calculator writes nothing, but it prices financial
+        // data -- same fence.
+        const estimate = await request
+          .post('/api/billing/estimate')
+          .set('Authorization', `Bearer ${lesserToken}`)
+          .send({ storageUsedGB: 1 });
+        expect(estimate.status).toBe(403);
+      }
+
+      // An admin still reads everything the guard fences.
       const usage = await request
         .get('/api/billing/usage')
-        .set('Authorization', `Bearer ${TOKEN_VIEWER_A}`);
+        .set('Authorization', `Bearer ${TOKEN_ADMIN_A}`);
       expect(usage.status).toBe(200);
-
-      const invoices = await request
-        .get('/api/billing/invoices')
-        .set('Authorization', `Bearer ${TOKEN_VIEWER_A}`);
-      expect(invoices.status).toBe(200);
     });
   });
 

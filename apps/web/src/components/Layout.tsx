@@ -80,7 +80,13 @@ const Layout: React.FC = () => {
     // — a new mailbox belongs to no mapping, so it cannot live under one.
     { name: t('nav.decisions'), href: '/decisions', icon: ListTodo },
     ...(selfHost ? [] : [{ name: t('nav.tenants'), href: '/tenants', icon: Building2 }]),
-    ...(selfHost ? [] : [{ name: t('nav.billing'), href: '/billing', icon: CreditCard }]),
+    // Billing reads are owner/admin (owner decision 2026-08-10), so for a
+    // lesser role the entry would only lead to a "not for your role"
+    // sentence — hidden like the appliance hides what it cannot serve. The
+    // Billing screen itself still says the sentence for a typed URL.
+    ...(selfHost || !(user?.role === 'owner' || user?.role === 'admin')
+      ? []
+      : [{ name: t('nav.billing'), href: '/billing', icon: CreditCard }]),
   ];
 
   return (

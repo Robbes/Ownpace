@@ -199,15 +199,20 @@ describe('the pay loop is reachable and role-gated (0039 T1/T4)', () => {
     hrefSpy.mockRestore();
   });
 
-  it('a viewer sees no Pay button — mirroring the server guard', async () => {
+  it('a viewer gets the admin-only sentence and NO billing fetches — reads are owner/admin (owner decision 2026-08-10)', async () => {
     authState.user = { name: 'V', email: 'v@acme.test', role: 'viewer' };
     invoicesMock.mockResolvedValue({ invoices: [invoiceFixture({ status: 'overdue' })] });
 
     renderBilling();
 
-    await screen.findByText('Overdue');
-    expect(screen.queryByRole('button', { name: 'Pay' })).not.toBeInTheDocument();
-    expect(screen.getByText(/only an owner or admin can make changes/)).toBeInTheDocument();
+    // The clean sentence, not three fetches that can only 403 into red cards.
+    expect(
+      await screen.findByText(/available to owners and admins only/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Overdue')).not.toBeInTheDocument();
+    expect(usageMock).not.toHaveBeenCalled();
+    expect(invoicesMock).not.toHaveBeenCalled();
+    expect(methodsMock).not.toHaveBeenCalled();
   });
 
   it('a paid invoice offers no Pay button', async () => {

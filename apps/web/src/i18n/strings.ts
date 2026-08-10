@@ -350,7 +350,7 @@ const en = {
   'billing.noPaymentMethods': 'No payment methods stored.',
   'billing.paymentMethodsLoadFailed': 'Could not load the payment methods.',
   'billing.default': 'Default',
-  'billing.readOnly': 'You can view billing, but only an owner or admin can make changes.',
+  'billing.adminOnly': 'Billing is available to owners and admins only. Ask an owner or admin of this organization for usage or invoice details.',
   'billing.invoicesLoadFailed': 'Could not load the invoices.',
   'billing.loadFailedNotEmpty':
     'This is not the same as having none — data may exist that could not be read.',
@@ -948,7 +948,7 @@ const nl: Record<keyof typeof en, string> = {
   'billing.noPaymentMethods': 'Geen betaalmethoden opgeslagen.',
   'billing.paymentMethodsLoadFailed': 'De betaalmethoden konden niet worden geladen.',
   'billing.default': 'Standaard',
-  'billing.readOnly': 'U kunt de facturatie bekijken, maar alleen een eigenaar of beheerder kan wijzigingen doorvoeren.',
+  'billing.adminOnly': 'Facturatie is alleen beschikbaar voor eigenaren en beheerders. Vraag een eigenaar of beheerder van deze organisatie naar gebruiks- of factuurgegevens.',
   'billing.invoicesLoadFailed': 'De facturen konden niet worden geladen.',
   'billing.loadFailedNotEmpty':
     'Dit is niet hetzelfde als geen gegevens — er kunnen gegevens bestaan die niet gelezen konden worden.',

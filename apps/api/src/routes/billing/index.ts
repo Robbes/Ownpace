@@ -27,12 +27,16 @@ const router = Router();
 // Role guards (0039 T1). Every write that moves money or changes how money
 // moves requires owner/admin, mirroring the Tenants routes' own pattern —
 // until 2026-08-09 all of these ran on `authenticate` alone, so a VIEWER
-// could trigger a real Mollie payment. The recorded read-visibility
-// decision: usage and invoice READS (and the estimate calculator, which
-// writes nothing) stay member-visible — seeing money is not moving money,
-// and the same codebase lets every member read the member list. The owner
-// can tighten this later; the tests pin the current line.
+// could trigger a real Mollie payment.
+//
+// READS are owner/admin too (owner decision 2026-08-10, overturning the
+// 2026-08-09 recorded member-visible line): usage, invoices, payment
+// methods and the estimate calculator are financial data the owner chose
+// to keep with the roles that can act on it. Two names for one role set on
+// purpose — the day reads and writes diverge again, the seam already
+// exists and every route says which kind it is.
 const requireBillingWrite = requireRole('owner', 'admin');
+const requireBillingRead = requireRole('owner', 'admin');
 
 // Lazy pool initialization - created on first use, not at module load
 let _dbPool: ReturnType<typeof getDbPool> | null = null;
@@ -58,7 +62,7 @@ const EstimateCostSchema = z.object({
  * Uses T4's metering: storage/egress DERIVED from item ledger, compute/api_calls from upserts
  * Returns REAL usage from the actual migration runs - NOT from client input
  */
-router.get('/usage', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/usage', authenticate, requireBillingRead, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.tenantId;
     if (!tenantId) {
@@ -107,7 +111,7 @@ router.get('/usage', authenticate, async (req: AuthenticatedRequest, res: Respon
  * Get usage history for the tenant
  * Aggregates metrics by period
  */
-router.get('/usage/history', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/usage/history', authenticate, requireBillingRead, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.tenantId;
     if (!tenantId) {
@@ -201,7 +205,7 @@ router.get('/usage/history', authenticate, async (req: AuthenticatedRequest, res
  * Estimate cost based on projected usage
  * Pure calculation - no DB access needed
  */
-router.post('/estimate', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/estimate', authenticate, requireBillingRead, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.tenantId;
     if (!tenantId) {
@@ -288,7 +292,7 @@ router.post('/invoices/generate', authenticate, requireBillingWrite, async (req:
  *
  * List all invoices for the tenant
  */
-router.get('/invoices', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/invoices', authenticate, requireBillingRead, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.tenantId;
     if (!tenantId) {
@@ -338,7 +342,7 @@ router.get('/invoices', authenticate, async (req: AuthenticatedRequest, res: Res
  * 
  * Get invoice details
  */
-router.get('/invoices/:invoiceId', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/invoices/:invoiceId', authenticate, requireBillingRead, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const invoiceId = req.params.invoiceId;
     if (!invoiceId || Array.isArray(invoiceId)) {
@@ -514,7 +518,7 @@ router.post('/invoices/:invoiceId/pay', authenticate, requireBillingWrite, async
  * 
  * List payment methods for the tenant
  */
-router.get('/payment-methods', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/payment-methods', authenticate, requireBillingRead, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.tenantId;
     if (!tenantId) {
