@@ -369,20 +369,89 @@ describe('CreateMapping — a dirty wizard does not discard silently (0037 T5)',
   });
 });
 
-describe('CreateMapping — oauth2/graph honesty until the owner decides (0037 T6)', () => {
+describe('CreateMapping — oauth2/graph collect the app registration (0037 T6, owner decision 2026-08-10)', () => {
   beforeEach(() => createMock.mockReset());
 
-  it('selecting OAuth2 or Graph says the wizard collects only username+password', () => {
+  it('selecting Graph swaps host/port for tenant + client ID, explains the model, and gates by name', () => {
     renderWizard();
-    expect(screen.queryByText(/not fully configurable here yet/)).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: /OAuth2/ }));
-    expect(screen.getByText(/collects only a username and password/)).toBeInTheDocument();
+    expect(screen.queryByText(/app registration in your own tenant/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Microsoft Graph/ }));
-    expect(screen.getByText(/collects only a username and password/)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: /^IMAP/ }));
+    // The explainer replaces the retired collects-only-username confession.
+    expect(screen.getByText(/app registration in your own tenant/)).toBeInTheDocument();
     expect(screen.queryByText(/collects only a username and password/)).not.toBeInTheDocument();
+    // No server address to type; the registration gates instead, by name.
+    expect(screen.queryByPlaceholderText('imap.example.com')).not.toBeInTheDocument();
+    expect(nextButton()).toBeDisabled();
+    expect(screen.getByRole('status').textContent).toContain('Tenant ID');
+    expect(screen.getByRole('status').textContent).toContain('Client ID');
+
+    fireEvent.change(screen.getByPlaceholderText('contoso.onmicrosoft.com'), {
+      target: { value: 'acme.onmicrosoft.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('00000000-0000-0000-0000-000000000000'), {
+      target: { value: 'app-client-id' },
+    });
+    expect(nextButton()).toBeEnabled();
+
+    // Back to IMAP: the server fields return, the explainer leaves.
+    fireEvent.click(screen.getByRole('button', { name: /^IMAP/ }));
+    expect(screen.getByPlaceholderText('imap.example.com')).toBeInTheDocument();
+    expect(screen.queryByText(/app registration in your own tenant/)).not.toBeInTheDocument();
+  });
+
+  it('a graph mapping gates on the client secret and submits the app registration, not a host', async () => {
+    createMock.mockResolvedValue({ id: 'mapping-graph' } as never);
+    renderWizard();
+
+    fireEvent.click(screen.getByRole('button', { name: /Microsoft Graph/ }));
+    fireEvent.change(screen.getByPlaceholderText('contoso.onmicrosoft.com'), {
+      target: { value: 'acme.onmicrosoft.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('00000000-0000-0000-0000-000000000000'), {
+      target: { value: 'app-client-id' },
+    });
+    fireEvent.click(nextButton());
+
+    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+      target: { value: 'stalwart.acme.example' },
+    });
+    fireEvent.click(nextButton());
+
+    // Credentials: the source secret field is the CLIENT SECRET, required —
+    // filling everything else leaves Next blocked, naming it.
+    expect(screen.getByText('Source client secret')).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+      target: { value: 'Acme O365' },
+    });
+    const usernames = screen.getAllByPlaceholderText('user@example.com');
+    fireEvent.change(usernames[0]!, { target: { value: 'mailbox@acme.example' } });
+    fireEvent.change(usernames[1]!, { target: { value: 'target@acme.example' } });
+    expect(nextButton()).toBeDisabled();
+    expect(screen.getByRole('status').textContent).toContain('Source client secret');
+
+    const secrets = screen.getAllByPlaceholderText('••••••••');
+    fireEvent.change(secrets[0]!, { target: { value: 'shh-client-secret' } });
+    fireEvent.click(nextButton());
+
+    fireEvent.click(nextButton()); // data types (email preselected, jmap takes it)
+    fireEvent.click(nextButton()); // schedule (optional)
+
+    // Review echoes the tenant, not a host:port that was never asked.
+    expect(screen.getByText(/acme\.onmicrosoft\.com/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Create Migration/ }));
+
+    await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
+    expect(createMock.mock.calls[0]![0]).toMatchObject({
+      sourceType: 'graph',
+      sourceConfig: {
+        username: 'mailbox@acme.example',
+        tenantId: 'acme.onmicrosoft.com',
+        clientId: 'app-client-id',
+        clientSecret: 'shh-client-secret',
+      },
+    });
+    // No host/port smuggled along for a source that never asked for them.
+    expect(createMock.mock.calls[0]![0].sourceConfig).not.toHaveProperty('host');
   });
 });

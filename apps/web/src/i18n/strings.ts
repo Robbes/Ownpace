@@ -76,8 +76,8 @@ const en = {
   'login.help.pre': 'Paste the access token from the seed script',
   'login.help.post': 'or your identity provider.',
   'wizard.proto.imap.hint': 'Standard email protocol',
-  'wizard.proto.oauth2.hint': 'Modern authentication',
-  'wizard.proto.graph.hint': 'Office 365 API',
+  'wizard.proto.oauth2.hint': 'Office 365 over IMAP (app registration)',
+  'wizard.proto.graph.hint': 'Office 365 over the Graph API (app registration)',
   'wizard.proto.jmap.hint': 'Modern email protocol',
   'wizard.proto.caldav.hint': 'Calendar protocol',
   'wizard.proto.carddav.hint': 'Contact protocol',
@@ -153,13 +153,16 @@ const en = {
   'wizard.credentials.storage':
     'These sign-in details are encrypted at rest, used only to connect to your source and ' +
     'target, and never shown again after this step.',
-  // 0037 T6 interim, until the owner decides what oauth2/graph should
-  // collect: say on screen what these fields actually do.
-  'wizard.source.credsOnly':
-    'OAuth2 and Microsoft Graph sources are not fully configurable here yet: this wizard ' +
-    'collects only a username and password, which are used to sign in to the Office 365 ' +
-    'connection directly. The token, tenant and app-registration details these source types ' +
-    'normally need cannot be entered here yet.',
+  // 0037 T6, answered 2026-08-10: oauth2/graph collect the per-customer
+  // Entra app registration (ADR-0006's row-14 model).
+  'wizard.source.appRegistration':
+    'OAuth2 and Microsoft Graph sources use an Entra app registration in your own tenant: ' +
+    'enter its tenant ID and client ID here, and its client secret together with the mailbox ' +
+    'address on the credentials step. Register the app and grant admin consent in your own ' +
+    'tenant first — see the O365 setup guide (docs/o365-setup.md).',
+  'wizard.tenantId': 'Tenant ID',
+  'wizard.clientId': 'Client ID (application ID)',
+  'wizard.sourceClientSecret': 'Source client secret',
   // 0037 T4: the coherence hint on an unselectable data type; the full
   // refusal sentence comes from shared and renders verbatim.
   'wizard.domain.notForTarget': 'Not available over the selected target protocol.',
@@ -689,8 +692,8 @@ const nl: Record<keyof typeof en, string> = {
   'login.help.pre': 'Plak het toegangstoken uit het seedscript',
   'login.help.post': 'of van uw identiteitsprovider.',
   'wizard.proto.imap.hint': 'Standaard e-mailprotocol',
-  'wizard.proto.oauth2.hint': 'Moderne authenticatie',
-  'wizard.proto.graph.hint': 'Office 365-API',
+  'wizard.proto.oauth2.hint': 'Office 365 via IMAP (appregistratie)',
+  'wizard.proto.graph.hint': 'Office 365 via de Graph-API (appregistratie)',
   'wizard.proto.jmap.hint': 'Modern e-mailprotocol',
   'wizard.proto.caldav.hint': 'Agendaprotocol',
   'wizard.proto.carddav.hint': 'Contactenprotocol',
@@ -758,11 +761,14 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.credentials.storage':
     'Deze inloggegevens worden versleuteld opgeslagen, alleen gebruikt om verbinding te maken ' +
     'met uw bron en doel, en na deze stap nooit meer getoond.',
-  'wizard.source.credsOnly':
-    'OAuth2- en Microsoft Graph-bronnen zijn hier nog niet volledig te configureren: deze ' +
-    'wizard verzamelt alleen een gebruikersnaam en wachtwoord, waarmee rechtstreeks op de ' +
-    'Office 365-verbinding wordt ingelogd. De token-, tenant- en app-registratiegegevens die ' +
-    'deze brontypen normaal nodig hebben, kunnen hier nog niet worden ingevoerd.',
+  'wizard.source.appRegistration':
+    'OAuth2- en Microsoft Graph-bronnen gebruiken een Entra-appregistratie in uw eigen tenant: ' +
+    'vul hier de tenant-ID en client-ID in, en op de stap met inloggegevens het clientgeheim ' +
+    'samen met het mailboxadres. Registreer de app en verleen eerst beheerderstoestemming in ' +
+    'uw eigen tenant — zie de O365-handleiding (docs/o365-setup.md).',
+  'wizard.tenantId': 'Tenant-ID',
+  'wizard.clientId': 'Client-ID (applicatie-ID)',
+  'wizard.sourceClientSecret': 'Clientgeheim van de bron',
   'wizard.domain.notForTarget': 'Niet beschikbaar via het gekozen doelprotocol.',
   'wizard.cron.invalidLead': 'Geen geldig schema —',
   'wizard.cron.nextRuns': 'Met dit schema draaien de volgende synchronisaties op:',

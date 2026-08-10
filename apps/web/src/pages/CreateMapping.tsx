@@ -49,6 +49,13 @@ interface FormData {
   sourceUsername: string;
   sourcePassword: string;
   sourceSsl: boolean;
+  /** The per-customer Entra app registration (0037 T6, owner decision
+   *  2026-08-10; ADR-0006's row-14 model): oauth2/graph sources authenticate
+   *  with the customer's OWN app — tenant + client id here, the client
+   *  secret on the credentials step beside the mailbox address. */
+  sourceTenantId: string;
+  sourceClientId: string;
+  sourceClientSecret: string;
   targetHost: string;
   targetPort: string;
   targetUsername: string;
@@ -67,6 +74,9 @@ const initialFormData: FormData = {
   sourceUsername: '',
   sourcePassword: '',
   sourceSsl: true,
+  sourceTenantId: '',
+  sourceClientId: '',
+  sourceClientSecret: '',
   targetHost: '',
   targetPort: '443',
   targetUsername: '',
@@ -152,18 +162,27 @@ const CreateMapping: React.FC = () => {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      // Submit form
+      // Submit form. An oauth2/graph source posts its app registration
+      // instead of a server address — the server refuses the mismatch by
+      // name, so the shapes here mirror CreateMappingSchema's demands.
       const mappingData = {
         name: formData.name,
         sourceType: formData.sourceType,
         targetType: formData.targetType,
-        sourceConfig: {
-          host: formData.sourceHost,
-          port: Number(formData.sourcePort),
-          username: formData.sourceUsername,
-          password: formData.sourcePassword,
-          useSsl: formData.sourceSsl,
-        },
+        sourceConfig: isO365Source
+          ? {
+              username: formData.sourceUsername,
+              tenantId: formData.sourceTenantId,
+              clientId: formData.sourceClientId,
+              clientSecret: formData.sourceClientSecret,
+            }
+          : {
+              host: formData.sourceHost,
+              port: Number(formData.sourcePort),
+              username: formData.sourceUsername,
+              password: formData.sourcePassword,
+              useSsl: formData.sourceSsl,
+            },
         targetConfig: {
           host: formData.targetHost,
           port: Number(formData.targetPort),
@@ -208,6 +227,10 @@ const CreateMapping: React.FC = () => {
   // verbatim for any other client.
   const allowedDomains = TARGET_TYPE_DOMAINS[formData.targetType];
 
+  // oauth2/graph authenticate with the customer's own Entra app registration
+  // (0037 T6): no host/port to type, an app registration to enter instead.
+  const isO365Source = formData.sourceType !== 'imap';
+
   /** The problem with a non-empty custom cron, or null (empty = default). */
   const cronProblem = (): string | null =>
     formData.schedule.trim() === '' ? null : describeCronScheduleProblem(formData.schedule);
@@ -222,13 +245,16 @@ const CreateMapping: React.FC = () => {
   const canProceed = () => {
     switch (steps[currentStep].id) {
       case 'source':
-        return Boolean(formData.sourceHost) && isValidPort(formData.sourcePort);
+        return isO365Source
+          ? formData.sourceTenantId.trim() !== '' && formData.sourceClientId.trim() !== ''
+          : Boolean(formData.sourceHost) && isValidPort(formData.sourcePort);
       case 'target':
         return Boolean(formData.targetHost) && isValidPort(formData.targetPort);
       case 'credentials':
         return (
           formData.name.trim() !== '' &&
-          Boolean(formData.sourceUsername && formData.targetUsername)
+          Boolean(formData.sourceUsername && formData.targetUsername) &&
+          (!isO365Source || formData.sourceClientSecret !== '')
         );
       case 'data-types':
         return (
@@ -249,8 +275,13 @@ const CreateMapping: React.FC = () => {
     const out: string[] = [];
     switch (steps[currentStep].id) {
       case 'source':
-        if (!formData.sourceHost) out.push(t('wizard.host'));
-        if (!isValidPort(formData.sourcePort)) out.push(t('wizard.port'));
+        if (isO365Source) {
+          if (formData.sourceTenantId.trim() === '') out.push(t('wizard.tenantId'));
+          if (formData.sourceClientId.trim() === '') out.push(t('wizard.clientId'));
+        } else {
+          if (!formData.sourceHost) out.push(t('wizard.host'));
+          if (!isValidPort(formData.sourcePort)) out.push(t('wizard.port'));
+        }
         break;
       case 'target':
         if (!formData.targetHost) out.push(t('wizard.host'));
@@ -259,6 +290,7 @@ const CreateMapping: React.FC = () => {
       case 'credentials':
         if (formData.name.trim() === '') out.push(t('wizard.migrationName'));
         if (!formData.sourceUsername) out.push(t('wizard.sourceUsername'));
+        if (isO365Source && formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
         if (!formData.targetUsername) out.push(t('wizard.targetUsername'));
         break;
       case 'data-types':
@@ -328,68 +360,99 @@ const CreateMapping: React.FC = () => {
                   </button>
                 ))}
               </div>
-              {/* 0037 T6 interim, until the owner decides what oauth2/graph
-                  should collect (the row-14 consent-runbook question): these
-                  types render the same host/port/username/password fields as
-                  IMAP and the server signs in with exactly those — no token,
-                  tenant id or app registration exists in this wizard. Saying
-                  so beats configuring the product's headline source by
-                  guesswork. */}
-              {formData.sourceType !== 'imap' && (
+              {/* 0037 T6, answered 2026-08-10: oauth2/graph use the
+                  per-customer Entra app registration (ADR-0006's row-14
+                  model) — say what these fields ARE and where the rest of
+                  the registration goes, instead of the retired interim
+                  confession that only username+password were collected. */}
+              {isO365Source && (
                 <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  {t('wizard.source.credsOnly')}
+                  {t('wizard.source.appRegistration')}
                 </p>
               )}
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('wizard.host')}
-                  <Required />
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.sourceHost}
-                  onChange={(e) => updateField('sourceHost', e.target.value)}
-                  className="input w-full"
-                  placeholder="imap.example.com"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+            {isO365Source ? (
+              <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.port')}
+                    {t('wizard.tenantId')}
                     <Required />
                   </label>
                   <input
-                    type="number"
+                    type="text"
                     required
-                    min={1}
-                    max={65535}
-                    value={formData.sourcePort}
-                    onChange={(e) => updateField('sourcePort', e.target.value)}
+                    value={formData.sourceTenantId}
+                    onChange={(e) => updateField('sourceTenantId', e.target.value)}
                     className="input w-full"
-                    placeholder="993"
+                    placeholder="contoso.onmicrosoft.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.clientId')}
+                    <Required />
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.sourceClientId}
+                    onChange={(e) => updateField('sourceClientId', e.target.value)}
+                    className="input w-full"
+                    placeholder="00000000-0000-0000-0000-000000000000"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.host')}
+                    <Required />
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.sourceHost}
+                    onChange={(e) => updateField('sourceHost', e.target.value)}
+                    className="input w-full"
+                    placeholder="imap.example.com"
                   />
                 </div>
 
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="sourceSsl"
-                    checked={formData.sourceSsl}
-                    onChange={(e) => updateField('sourceSsl', e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="sourceSsl" className="ml-2 block text-sm text-gray-700">
-                    {t('wizard.useSsl')}
-                  </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {t('wizard.port')}
+                      <Required />
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      max={65535}
+                      value={formData.sourcePort}
+                      onChange={(e) => updateField('sourcePort', e.target.value)}
+                      className="input w-full"
+                      placeholder="993"
+                    />
+                  </div>
+
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="sourceSsl"
+                      checked={formData.sourceSsl}
+                      onChange={(e) => updateField('sourceSsl', e.target.checked)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="sourceSsl" className="ml-2 block text-sm text-gray-700">
+                      {t('wizard.useSsl')}
+                    </label>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         );
 
@@ -527,14 +590,25 @@ const CreateMapping: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.sourcePassword')}
+                    {/* For oauth2/graph the secret beside the mailbox is the
+                        app registration's CLIENT SECRET (0037 T6), not a
+                        mailbox password — labeled as what it is, and required:
+                        without it the client-credentials flow cannot mint a
+                        single token. */}
+                    {isO365Source ? t('wizard.sourceClientSecret') : t('wizard.sourcePassword')}
+                    {isO365Source && <Required />}
                   </label>
                   <div className="relative">
                     <input
                       type={showSourcePassword ? 'text' : 'password'}
                       autoComplete="new-password"
-                      value={formData.sourcePassword}
-                      onChange={(e) => updateField('sourcePassword', e.target.value)}
+                      value={isO365Source ? formData.sourceClientSecret : formData.sourcePassword}
+                      onChange={(e) =>
+                        updateField(
+                          isO365Source ? 'sourceClientSecret' : 'sourcePassword',
+                          e.target.value,
+                        )
+                      }
                       className="input w-full pr-10"
                       placeholder="••••••••"
                     />
@@ -729,7 +803,10 @@ const CreateMapping: React.FC = () => {
                   <div>
                     <dt className="text-sm text-gray-500">{t('wizard.review.source')}</dt>
                     <dd className="text-sm font-medium text-gray-900">
-                      {formData.sourceType} ({formData.sourceHost}:{formData.sourcePort})
+                      {formData.sourceType}{' '}
+                      {isO365Source
+                        ? `(${formData.sourceTenantId})`
+                        : `(${formData.sourceHost}:${formData.sourcePort})`}
                     </dd>
                   </div>
                   <div>

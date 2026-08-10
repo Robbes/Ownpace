@@ -59,6 +59,25 @@ describe('buildSourceConnectorFromCredentials', () => {
     expect(source).toBeInstanceOf(ImapFlowSource);
   });
 
+  it('builds an XOAUTH2 IMAP source from an app registration alone (0037 T6): tenantId + clientId + clientSecret, no token, no password', () => {
+    const source = buildSourceConnectorFromCredentials(IMAP, {
+      username: 'mailbox@contoso.example',
+      tenantId: 'contoso.example',
+      clientId: 'app-id',
+      clientSecret: 'app-secret',
+    });
+    // tenantId doubles as the Graph-fallback signal, so the registration-only
+    // credential set comes back wrapped — the IMAP source with minted tokens
+    // inside, Graph behind it (ADR-0006: IMAP primary, Graph fallback).
+    expect(source).toBeInstanceOf(MailSourceWithGraphFallback);
+  });
+
+  it('refuses imap-oauth2 credentials with no token, no password and no app registration, naming all three options', () => {
+    expect(() =>
+      buildSourceConnectorFromCredentials(IMAP, { username: 'mailbox@contoso.example' }),
+    ).toThrow(/access token.*password.*app registration/);
+  });
+
   it('wraps imap-oauth2 in the Graph fallback when the credentials also carry a Graph set (0023 T3)', () => {
     const source = buildSourceConnectorFromCredentials(IMAP, {
       password: 'pw',
