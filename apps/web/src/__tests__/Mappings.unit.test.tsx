@@ -9,7 +9,7 @@
  * T1 schema break. The pattern pinned here is Confirm.unit.test.tsx's: the
  * failure text renders, the empty-state text does NOT.
  */
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -18,11 +18,12 @@ import Mappings from '../pages/Mappings';
 import { mappingApi, type MappingListItem } from '../services/mapping-service';
 
 vi.mock('../services/mapping-service', () => ({
-  mappingApi: { list: vi.fn(), triggerSync: vi.fn() },
+  mappingApi: { list: vi.fn(), triggerSync: vi.fn(), delete: vi.fn() },
 }));
 
 const listMock = vi.mocked(mappingApi.list);
 const syncMock = vi.mocked(mappingApi.triggerSync);
+const deleteMock = vi.mocked(mappingApi.delete);
 
 const renderMappings = () => {
   const queryClient = new QueryClient({
@@ -121,9 +122,9 @@ describe('Mappings — a refused sync says so at the row (0033 T3)', () => {
   });
 
   it("renders the server's refusal verbatim under the row; the old code console.error'd it away", async () => {
-    listMock.mockResolvedValue([sampleMapping({ id: 'p1', status: 'paused', name: 'Paused one' })]);
-    // The real 409 a paused mapping's Play button gets — its hint names the
-    // green-light route, and the operator must SEE it.
+    // A cutover-state row: its Play still posts a sync the server may refuse.
+    // (The PAUSED row no longer has a Play at all — see the 0037 T2 test.)
+    listMock.mockResolvedValue([sampleMapping({ id: 'c1', status: 'cutover', name: 'Cutting over' })]);
     const err = new AxiosError('Request failed with status code 409');
     err.response = {
       status: 409,
@@ -132,8 +133,7 @@ describe('Mappings — a refused sync says so at the row (0033 T3)', () => {
       config: { headers: new AxiosHeaders() },
       data: {
         error: 'Conflict',
-        message:
-          'Mapping is paused — review the discovery counts and start it first (POST /start).',
+        message: 'Mapping is in cutover — the final sync is managed by the cutover task.',
       },
     };
     syncMock.mockRejectedValue(err);
@@ -143,9 +143,87 @@ describe('Mappings — a refused sync says so at the row (0033 T3)', () => {
     fireEvent.click(await screen.findByTitle('Start sync'));
 
     expect(
-      await screen.findByText(/Mapping is paused — review the discovery counts/),
+      await screen.findByText(/Mapping is in cutover — the final sync/),
     ).toBeInTheDocument();
     expect(screen.getByText('The sync request did not complete.')).toBeInTheDocument();
     expect(screen.queryByText('Request failed with status code 409')).not.toBeInTheDocument();
+  });
+});
+
+describe('Mappings — a paused row leads to the confirm screen, not to a 409 (0037 T2)', () => {
+  beforeEach(() => {
+    listMock.mockReset();
+    syncMock.mockReset();
+  });
+
+  it('renders "Review and start" linking to /mappings/:id/confirm and no Play button', async () => {
+    listMock.mockResolvedValue([sampleMapping({ id: 'p1', status: 'paused', name: 'Paused one' })]);
+
+    renderMappings();
+
+    const link = await screen.findByRole('link', { name: 'Review and start' });
+    expect(link).toHaveAttribute('href', '/mappings/p1/confirm');
+    // The 409-destined Play is gone from paused rows.
+    expect(screen.queryByTitle('Start sync')).not.toBeInTheDocument();
+    expect(syncMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('Mappings — Delete arms with the mapping name and works (0037 T5)', () => {
+  beforeEach(() => {
+    listMock.mockReset();
+    syncMock.mockReset();
+    deleteMock.mockReset();
+  });
+
+  it('stays disarmed until the typed name matches, then deletes and refreshes', async () => {
+    listMock.mockResolvedValue([sampleMapping({ id: 'm1', name: 'Inbox' })]);
+    deleteMock.mockResolvedValue(undefined);
+
+    renderMappings();
+
+    fireEvent.click(await screen.findByTitle('Delete'));
+    expect(screen.getByText(/Type the migration name to confirm/)).toBeInTheDocument();
+
+    const confirmButton = screen.getByRole('button', { name: 'Delete migration' });
+    expect(confirmButton).toBeDisabled();
+
+    // A wrong name keeps it disarmed — deliberate confirmation, not friction.
+    fireEvent.change(screen.getByPlaceholderText('Inbox'), { target: { value: 'inbox' } });
+    expect(confirmButton).toBeDisabled();
+
+    fireEvent.change(screen.getByPlaceholderText('Inbox'), { target: { value: 'Inbox' } });
+    expect(confirmButton).toBeEnabled();
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => expect(deleteMock).toHaveBeenCalledWith('m1'));
+    // The arming row closes after a successful delete.
+    await waitFor(() =>
+      expect(screen.queryByText(/Type the migration name to confirm/)).not.toBeInTheDocument(),
+    );
+  });
+
+  it('a refused delete renders the server words and keeps the row', async () => {
+    listMock.mockResolvedValue([sampleMapping({ id: 'm1', name: 'Inbox' })]);
+    const err = new AxiosError('Request failed with status code 500');
+    err.response = {
+      status: 500,
+      statusText: 'Internal Server Error',
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+      data: { error: 'Internal server error', message: 'Failed to delete mapping' },
+    };
+    deleteMock.mockRejectedValue(err);
+
+    renderMappings();
+
+    fireEvent.click(await screen.findByTitle('Delete'));
+    fireEvent.change(screen.getByPlaceholderText('Inbox'), { target: { value: 'Inbox' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Delete migration' }));
+
+    expect(await screen.findByText('The migration was not deleted.')).toBeInTheDocument();
+    expect(screen.getByText('Failed to delete mapping')).toBeInTheDocument();
+    // The mapping is still listed — nothing pretended to succeed.
+    expect(screen.getByText('Inbox')).toBeInTheDocument();
   });
 });

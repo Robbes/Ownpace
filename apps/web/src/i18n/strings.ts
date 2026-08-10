@@ -86,7 +86,10 @@ const en = {
   'wizard.subtitle': 'Set up a new data migration between systems',
   'wizard.step.source': 'Source',
   'wizard.step.target': 'Target',
-  'wizard.step.credentials': 'Credentials',
+  // "Name & credentials", because the step LEADS with — and gates on — the
+  // migration name (0037 T5): a label saying only "Credentials" promised a
+  // different step than the one that renders.
+  'wizard.step.credentials': 'Name & credentials',
   'wizard.step.dataTypes': 'Data Types',
   'wizard.step.schedule': 'Schedule',
   'wizard.step.review': 'Review',
@@ -128,14 +131,42 @@ const en = {
   'wizard.review.schedule': 'Schedule',
   'wizard.review.scheduleDefault': 'Daily at 2 AM',
   'wizard.review.dataTypes': 'Data Types',
+  // The truth of 0013 T5/T6 (0037 T3): creating starts NOTHING. The old note
+  // said "the initial sync may take some time" — an admin who navigated away
+  // believing migration was underway left it paused forever.
   'wizard.review.note':
-    'The initial sync may take some time depending on the amount of data. Subsequent syncs will only transfer changes.',
+    'Creating stores this configuration and starts nothing: the migration is created paused. ' +
+    'Next you review what a read-only scan finds in your source and give the explicit start — ' +
+    'nothing is copied until then.',
   'wizard.review.noteLead': 'Note:',
   'wizard.back': 'Back',
   'wizard.cancel': 'Cancel',
   'wizard.next': 'Next',
   'wizard.create': 'Create Migration',
   'wizard.creating': 'Creating…',
+  // Field-level honesty (0037 T3): the line beside a disabled Next names what
+  // is missing instead of leaving a silently dead button.
+  'wizard.missing.lead': 'To continue, fill in:',
+  'wizard.missing.dataTypes': 'select at least one data type',
+  'wizard.showPassword': 'Show password',
+  'wizard.hidePassword': 'Hide password',
+  'wizard.credentials.storage':
+    'These sign-in details are encrypted at rest, used only to connect to your source and ' +
+    'target, and never shown again after this step.',
+  // 0037 T6 interim, until the owner decides what oauth2/graph should
+  // collect: say on screen what these fields actually do.
+  'wizard.source.credsOnly':
+    'OAuth2 and Microsoft Graph sources are not fully configurable here yet: this wizard ' +
+    'collects only a username and password, which are used to sign in to the Office 365 ' +
+    'connection directly. The token, tenant and app-registration details these source types ' +
+    'normally need cannot be entered here yet.',
+  // 0037 T4: the coherence hint on an unselectable data type; the full
+  // refusal sentence comes from shared and renders verbatim.
+  'wizard.domain.notForTarget': 'Not available over the selected target protocol.',
+  'wizard.cron.invalidLead': 'Not a valid schedule —',
+  'wizard.cron.nextRuns': 'With this schedule, the next syncs would run:',
+  // 0037 T5: leaving a dirty wizard is a question, not a silent discard.
+  'wizard.leaveConfirm': 'Leave this wizard? Everything you typed here will be discarded.',
   'billing.title': 'Billing',
   'billing.subtitle': 'Manage your subscription, usage, and payments',
   'billing.currentUsage': 'Current Usage',
@@ -184,7 +215,18 @@ const en = {
   'mappings.th.actions': 'Actions',
   'mappings.action.triggerSync': 'Trigger sync',
   'mappings.action.startSync': 'Start sync',
+  // 0037 T2: a paused mapping's row leads to the confirm screen — the Play
+  // button it used to render could only earn a 409.
+  'mappings.action.reviewAndStart': 'Review and start',
   'mappings.action.delete': 'Delete',
+  // 0037 T5: mapping deletion destroys config and ledger linkage, so the
+  // button arms with the mapping's own name (hard rule 2's posture).
+  'mappings.delete.explain':
+    'Deleting this migration removes its configuration and its history linkage. ' +
+    'Type the migration name to confirm.',
+  'mappings.delete.confirm': 'Delete migration',
+  'mappings.delete.cancel': 'Cancel',
+  'mappings.delete.failed': 'The migration was not deleted.',
   'domain.email': 'Email',
   'domain.calendar': 'Calendar',
   'domain.contact': 'Contacts',
@@ -657,7 +699,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.subtitle': 'Stel een nieuwe datamigratie tussen systemen in',
   'wizard.step.source': 'Bron',
   'wizard.step.target': 'Doel',
-  'wizard.step.credentials': 'Inloggegevens',
+  'wizard.step.credentials': 'Naam & inloggegevens',
   'wizard.step.dataTypes': 'Gegevenstypen',
   'wizard.step.schedule': 'Schema',
   'wizard.step.review': 'Controleren',
@@ -700,13 +742,31 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.review.scheduleDefault': 'Dagelijks om 02:00',
   'wizard.review.dataTypes': 'Gegevenstypen',
   'wizard.review.note':
-    'De eerste synchronisatie kan enige tijd duren, afhankelijk van de hoeveelheid gegevens. Volgende rondes dragen alleen wijzigingen over.',
+    'Aanmaken slaat deze configuratie op en start niets: de migratie wordt gepauzeerd ' +
+    'aangemaakt. Daarna beoordeelt u wat een alleen-lezen scan in uw bron vindt en geeft u ' +
+    'expliciet het startsein — tot die tijd wordt er niets gekopieerd.',
   'wizard.review.noteLead': 'Let op:',
   'wizard.back': 'Terug',
   'wizard.cancel': 'Annuleren',
   'wizard.next': 'Volgende',
   'wizard.create': 'Migratie aanmaken',
   'wizard.creating': 'Aanmaken…',
+  'wizard.missing.lead': 'Vul om verder te gaan in:',
+  'wizard.missing.dataTypes': 'kies minstens één gegevenstype',
+  'wizard.showPassword': 'Toon wachtwoord',
+  'wizard.hidePassword': 'Verberg wachtwoord',
+  'wizard.credentials.storage':
+    'Deze inloggegevens worden versleuteld opgeslagen, alleen gebruikt om verbinding te maken ' +
+    'met uw bron en doel, en na deze stap nooit meer getoond.',
+  'wizard.source.credsOnly':
+    'OAuth2- en Microsoft Graph-bronnen zijn hier nog niet volledig te configureren: deze ' +
+    'wizard verzamelt alleen een gebruikersnaam en wachtwoord, waarmee rechtstreeks op de ' +
+    'Office 365-verbinding wordt ingelogd. De token-, tenant- en app-registratiegegevens die ' +
+    'deze brontypen normaal nodig hebben, kunnen hier nog niet worden ingevoerd.',
+  'wizard.domain.notForTarget': 'Niet beschikbaar via het gekozen doelprotocol.',
+  'wizard.cron.invalidLead': 'Geen geldig schema —',
+  'wizard.cron.nextRuns': 'Met dit schema draaien de volgende synchronisaties op:',
+  'wizard.leaveConfirm': 'Deze wizard verlaten? Alles wat u hier hebt ingevuld gaat verloren.',
   'billing.title': 'Facturatie',
   'billing.subtitle': 'Beheer uw abonnement, verbruik en betalingen',
   'billing.currentUsage': 'Huidig verbruik',
@@ -755,7 +815,14 @@ const nl: Record<keyof typeof en, string> = {
   'mappings.th.actions': 'Acties',
   'mappings.action.triggerSync': 'Synchroniseer nu',
   'mappings.action.startSync': 'Start synchronisatie',
+  'mappings.action.reviewAndStart': 'Controleren en starten',
   'mappings.action.delete': 'Verwijderen',
+  'mappings.delete.explain':
+    'Het verwijderen van deze migratie verwijdert de configuratie en de koppeling met de ' +
+    'historie. Typ de naam van de migratie om te bevestigen.',
+  'mappings.delete.confirm': 'Migratie verwijderen',
+  'mappings.delete.cancel': 'Annuleren',
+  'mappings.delete.failed': 'De migratie is niet verwijderd.',
   'domain.email': 'E-mail',
   'domain.calendar': 'Agenda',
   'domain.contact': 'Contacten',

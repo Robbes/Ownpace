@@ -58,7 +58,11 @@ const body = {
   targetType: 'jmap' as const,
   sourceConfig: { host: 'imap.src.test', port: 993, username: 'src@acme.test', password: SECRET_PASSWORD, useSsl: true },
   targetConfig: { host: 'jmap.tgt.test', port: 443, username: 'tgt@acme.test', password: SECRET_PASSWORD, useSsl: true },
-  syncConfig: { domains: ['email', 'calendar'] as const, schedule: '*/15 * * * *' },
+  // email + contact: a coherent JMAP pairing. This payload USED to say
+  // ['email', 'calendar'] — the exact incoherence 0037 T4 now refuses (there
+  // is deliberately no JMAP calendar target, 0031 T1), and it sailed into
+  // scope_selection unchallenged. The refusal has its own test below.
+  syncConfig: { domains: ['email', 'contact'] as const, schedule: '*/15 * * * *' },
 };
 
 describe('POST /api/migrations — real persistence', () => {
@@ -100,7 +104,7 @@ describe('POST /api/migrations — real persistence', () => {
       status: 'paused',
     });
     expect(res.body.id).toBeTruthy();
-    expect(res.body.syncConfig.domains).toEqual(['email', 'calendar']);
+    expect(res.body.syncConfig.domains).toEqual(['email', 'contact']);
     expect(res.body.syncConfig.schedule).toBe('*/15 * * * *');
     createdMappingId = res.body.id;
   });
@@ -119,7 +123,7 @@ describe('POST /api/migrations — real persistence', () => {
     expect(mapping.rows[0]).toMatchObject({ name: 'Acme mail migration', schedule: '*/15 * * * *', status: 'paused' });
 
     const scopes = await pool.query(`SELECT domain FROM scope_selection WHERE mapping_id = $1 ORDER BY domain`, [createdMappingId]);
-    expect(scopes.rows.map((r) => r.domain)).toEqual(['calendar', 'email']);
+    expect(scopes.rows.map((r) => r.domain)).toEqual(['contact', 'email']);
   });
 
   it('encrypts credentials: plaintext never hits secret_ref, and it round-trips', async () => {
@@ -149,7 +153,7 @@ describe('POST /api/migrations — real persistence', () => {
     expect(res.body.sourceConfig.password).toBe('***');
     expect(res.body.targetConfig.password).toBe('***');
     // Previously always ['email'] regardless of what was actually selected.
-    expect(res.body.syncConfig.domains).toEqual(['calendar', 'email']);
+    expect(res.body.syncConfig.domains).toEqual(['contact', 'email']);
     expect(res.body.syncConfig.schedule).toBe('*/15 * * * *');
     // Ledger-derived per-domain status — empty because no sync has run yet for this
     // mapping (previously this field didn't exist at all).
@@ -172,5 +176,33 @@ describe('POST /api/migrations — real persistence', () => {
       .set('Authorization', `Bearer ${token(TENANT_A)}`)
       .send({ name: '' });
     expect(res.status).toBe(400);
+  });
+
+  it('refuses an incoherent target/domain pairing over the wire, naming both sides (0037 T4)', async () => {
+    const res = await request
+      .post('/api/migrations')
+      .set('Authorization', `Bearer ${token(TENANT_A)}`)
+      .send({ ...body, syncConfig: { domains: ['email', 'calendar'], schedule: '*/15 * * * *' } });
+    expect(res.status).toBe(400);
+    // The refusal sentence sits in `message`, where the wizard's
+    // serverMessage() renders it — not only in the zod issue list.
+    expect(res.body.message).toContain('no JMAP calendar target');
+    expect(res.body.message).toContain('CalDAV');
+    // Nothing was stored: refused means refused, not stored-with-a-warning.
+    const scopes = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM scope_selection WHERE tenant_id = $1 AND domain = 'calendar'`,
+      [TENANT_A],
+    );
+    expect(scopes.rows[0].n).toBe(0);
+  });
+
+  it('refuses a garbage cron schedule over the wire, naming the silent fallback it prevents', async () => {
+    const res = await request
+      .post('/api/migrations')
+      .set('Authorization', `Bearer ${token(TENANT_A)}`)
+      .send({ ...body, syncConfig: { domains: ['email'], schedule: 'whenever you like' } });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain('five fields');
+    expect(res.body.message).toContain('every 15 minutes');
   });
 });
