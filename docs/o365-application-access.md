@@ -18,6 +18,11 @@ Application Access Policy to named mailboxes. Not tenant-wide.
 granted](#two-scopes-one-granted)* below; the short version is that the access
 policy in step 4 narrows the first and cannot narrow the second.
 
+**Practice on the coders' tenant first.** Every step here can be rehearsed
+consequence-free on a synthetic tenant where you are Global Administrator —
+see `docs/test-tenant.md` (owner decision 2026-08-10, two-tenant strategy).
+The run that closes 0027 T0 is the one on the real tenant.
+
 ---
 
 ## What you are granting, in plain terms
