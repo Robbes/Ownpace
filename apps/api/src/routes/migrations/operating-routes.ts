@@ -373,7 +373,7 @@ router.post('/:mappingId/finish', authenticate, async (req: AuthenticatedRequest
     const transition = finishTransition(s.lifecycle, unresolved, force);
 
     if ('refuse' in transition) {
-      return void res.status(409).json({ error: transition.refuse, hint: transition.hint });
+      return void res.status(409).json({ error: transition.refuse, hint: transition.hint, code: transition.code });
     }
     if (transition.finish === false) {
       const already: FinishAccepted = {

@@ -1788,7 +1788,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         const transition = finishTransition(status, unresolved, force);
 
         if ('refuse' in transition) {
-          return sendJson(res, 409, { error: transition.refuse, hint: transition.hint });
+          return sendJson(res, 409, { error: transition.refuse, hint: transition.hint, code: transition.code });
         }
         if (transition.finish === false) {
           const already: FinishAccepted = {

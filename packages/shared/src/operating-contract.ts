@@ -44,6 +44,7 @@ import {
   type PassMetrics,
 } from './ports';
 import type { VerificationResult } from './verification-report';
+import type { FinishRefuseCode } from './lifecycle';
 
 /**
  * Where a mapping is in its life, as the operating surface reports it.
@@ -507,6 +508,9 @@ export interface FinishAccepted {
 export interface FinishRefused {
   readonly error: string;
   readonly hint?: string;
+  /** Stable machine discriminant (0038 T1) — 'unresolved_failures' is the
+   *  only refusal `force` can satisfy; a UI must not offer force on others. */
+  readonly code?: FinishRefuseCode;
 }
 
 export type FinishOutcome = FinishAccepted | FinishRefused;

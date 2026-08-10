@@ -4,13 +4,13 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T1 Force is offered only when the refusal explained it | ⬜ Planned | — |
-| T2 A done mapping keeps its aftermath | ⬜ Planned | — |
-| T3 The checklist checks what it claims to check | ⬜ Planned | — |
-| T4 The appliance operator is not locked out or misled by managed chrome | ⬜ Planned | — |
-| T5 Decisions rows tell their whole story | ⬜ Planned | — |
-| T6 Verify keeps its report; scope said out loud | ⬜ Planned | — |
-| T7 Refusals reach the operator in operator words | ⬜ Planned / owner | — |
+| T1 Force is offered only when the refusal explained it | ✅ Done 2026-08-09 | Stable `code` on the refusal contract (both editions); force renders only on `unresolved_failures`; paused refusal = hint, no force; transport failure = plain error + force=false retry. The fleet's missing test (generic Error → no "Finish anyway") exists. |
+| T2 A done mapping keeps its aftermath | ✅ Done 2026-08-09 | Handover + "What remains available" (verify report, run history) render on done and after success; step 3's catch keeps the server message and stops claiming "nothing ran". |
+| T3 The checklist checks what it claims to check | ✅ Done 2026-08-09 | Step 1 reads the verify outcome (passed+as-of / status-word-verbatim+as-of / no-run); step 2 surfaces failed queue reads verbatim ("not the same as clear"), finish stays usable. |
+| T4 The appliance operator is not locked out or misled | ✅ Done 2026-08-09 | `canManage = isSelfHost() \|\| role` (named hard-rule-5 seam); no role caption on selfhost; failed preset save names its reason beside the reverted value; `finish.note.paused` reworded edition-neutral. |
+| T5 Decisions rows tell their whole story | ✅ Done 2026-08-09 | `resolution` + `resolvedBy` on answered rows; `detail` behind a per-row disclosure (verbatim key:value); dismissed's neutral chip (via 0035 StateChip) pinned. |
+| T6 Verify keeps its report; scope said out loud | ✅ Done 2026-08-09 | Mount reads the report once (starts nothing — the pinned test now asserts no START call): stored done report renders with its as-of, running scan is rejoined. Appliance scope sentence pinned present on selfhost / absent on managed. |
+| T7 Refusals reach the operator in operator words | ✅ Done 2026-08-09 | Transport: the text-request fetches parse string JSON error bodies (tested with the STRING shape axios actually delivers — the server sentences could never render before). Wording: lifecycle hints reworded surface-neutral in shared; **merging the PR is the owner approval this row queued** (the two sentences are called out in the PR body). |
 
 ## Why this exists
 

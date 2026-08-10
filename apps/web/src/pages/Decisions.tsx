@@ -25,6 +25,7 @@ import {
   setDecisionPreset,
 } from '../services/operating-service';
 import { useAuthStore } from '../stores/auth-store';
+import { isSelfHost } from '../services/edition';
 import { useT, useFormatters } from '../i18n';
 import StateChip from '../components/StateChip';
 import AsOf from '../components/AsOf';
@@ -45,9 +46,14 @@ const Decisions: React.FC = () => {
   const [rowErrors, setRowErrors] = React.useState<Record<string, string>>({});
   const [rowEffects, setRowEffects] = React.useState<Record<string, string>>({});
   const { user } = useAuthStore();
-  const canManage = user?.role === 'owner' || user?.role === 'admin';
+  // The appliance has ONE operator and no roles (a genuine edition seam,
+  // hard rule 5): its server accepts the preset PUT from that operator, but
+  // this managed-role check locked the standing-answers control forever and
+  // captioned it with roles that do not exist there (0038 T4).
+  const canManage = isSelfHost() || user?.role === 'owner' || user?.role === 'admin';
   const [presetBusy, setPresetBusy] = React.useState(false);
   const [presetSaved, setPresetSaved] = React.useState(false);
+  const [presetError, setPresetError] = React.useState<string | null>(null);
   const [presetDraft, setPresetDraft] = React.useState<'auto' | 'ask' | null>(null);
 
   // No per-query staleTime: this screen inherits the app's 5-minute default,
@@ -78,14 +84,17 @@ const Decisions: React.FC = () => {
     setPresetBusy(true);
     setPresetSaved(false);
     setPresetDraft(action);
+    setPresetError(null);
     try {
       setPresetDraft((await setDecisionPreset('new_mailbox', action)).action);
       setPresetSaved(true);
       await queryClient.invalidateQueries({ queryKey: ['decision-presets'] });
-    } catch {
+    } catch (err) {
       // Back to what is actually stored: leaving the new value on screen
-      // would show a standing answer nobody has.
+      // would show a standing answer nobody has. But say WHY it reverted —
+      // the silent snap-back read as a flaky dropdown (0038 T4).
       setPresetDraft(null);
+      setPresetError(errorText(err, t('common.requestFailed')));
     } finally {
       setPresetBusy(false);
     }
@@ -192,6 +201,10 @@ const Decisions: React.FC = () => {
             {presetSaved && (
               <span className="text-sm text-green-700">{t('decisions.presets.saved')}</span>
             )}
+            {presetError && (
+              // The server's words for why the dropdown snapped back.
+              <span className="text-sm text-amber-800">{presetError}</span>
+            )}
           </div>
         )}
       </div>
@@ -295,6 +308,36 @@ const Decisions: React.FC = () => {
                       )}
                     </div>
                     <p className="text-gray-600">{decision.summary}</p>
+                    {/* The whole story (0038 T5): the contract carries the
+                        recorded answer, who gave it, and the structured facts
+                        — the screen rendered none of them (its own header
+                        comment claimed detail renders; it never did). */}
+                    {decision.resolution && (
+                      <p className="text-xs text-gray-600">
+                        {t('decisions.answer')}{' '}
+                        <span className="font-mono">{JSON.stringify(decision.resolution)}</span>
+                        {decision.resolvedBy && (
+                          <span className="text-gray-500">
+                            {' '}
+                            {t('decisions.answeredBy')} {decision.resolvedBy}
+                          </span>
+                        )}
+                      </p>
+                    )}
+                    {Object.keys(decision.detail ?? {}).length > 0 && (
+                      <details className="text-xs">
+                        <summary className="cursor-pointer text-gray-500 select-none">
+                          {t('decisions.detailToggle')}
+                        </summary>
+                        <ul className="mt-1 pl-3 border-l-2 border-gray-100">
+                          {Object.entries(decision.detail).map(([k, v]) => (
+                            <li key={k} className="font-mono text-gray-600">
+                              {k}: {typeof v === 'string' ? v : JSON.stringify(v)}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
                     {rowEffects[decision.id] && (
                       // What the click DID — the server's sentence, verbatim.
                       <p className="text-xs text-emerald-700">{rowEffects[decision.id]}</p>

@@ -110,8 +110,35 @@ export async function fetchSharedAddresses(): Promise<{
  * like an empty runbook. Returned as text so the caller can hand it to the
  * browser as a file.
  */
+
+/**
+ * Re-throw a text-request failure with its JSON body PARSED (0038 T7).
+ *
+ * The two markdown fetches use `responseType: 'text'`, which makes axios
+ * hand error bodies over as unparsed strings — so the carefully-written
+ * server refusals ("This migration does not record which mailbox it
+ * reads…") arrived as a string nobody probed, and the components' `.message`
+ * / `.reason` reads got undefined. In production those sentences could NEVER
+ * render; the unit tests passed only because they mocked an already-parsed
+ * object. Parse here, fall through to the raw string when it is not JSON.
+ */
+function rethrowWithParsedBody(err: unknown): never {
+  if (axios.isAxiosError(err) && typeof err.response?.data === 'string') {
+    try {
+      err.response.data = JSON.parse(err.response.data);
+    } catch {
+      // Not JSON — keep the string; downstream fallbacks handle it.
+    }
+  }
+  throw err;
+}
+
 export async function fetchGroupRunbook(): Promise<string> {
-  return (await client.get<string>('/shared-addresses/runbook', { responseType: 'text' })).data;
+  try {
+    return (await client.get<string>('/shared-addresses/runbook', { responseType: 'text' })).data;
+  } catch (err) {
+    rethrowWithParsedBody(err);
+  }
 }
 
 /**
@@ -123,12 +150,16 @@ export async function fetchGroupRunbook(): Promise<string> {
  * it, and says which fact is missing when it cannot.
  */
 export async function fetchPermissionReport(mappingId: string): Promise<string> {
-  return (
-    await client.get<string>(
-      `/permissions/report?mappingId=${encodeURIComponent(mappingId)}`,
-      { responseType: 'text' },
-    )
-  ).data;
+  try {
+    return (
+      await client.get<string>(
+        `/permissions/report?mappingId=${encodeURIComponent(mappingId)}`,
+        { responseType: 'text' },
+      )
+    ).data;
+  } catch (err) {
+    rethrowWithParsedBody(err);
+  }
 }
 
 /**

@@ -26,6 +26,7 @@ import type {
 } from '@openmig/shared';
 import { startVerification, fetchVerifyReport } from '../services/operating-service';
 import { useT, useFormatters } from '../i18n';
+import { isSelfHost } from '../services/edition';
 import MappingHubLink from '../components/MappingHubLink';
 import type { StringKey } from '../i18n';
 
@@ -197,6 +198,33 @@ const Verify: React.FC = () => {
   };
   React.useEffect(() => stopPolling, []);
 
+  // Navigation must not cost a re-scan (0038 T6): both servers RETAIN the
+  // last run, and the report endpoint is a documented safe status read — it
+  // starts nothing. On mount, read it once: a stored done report renders
+  // (labelled with its as-of, which is what keeps that honest), a running
+  // scan is rejoined and polled. 'never-run' and a failed mount read stay
+  // idle — the screen still touches nothing the operator did not ask for.
+  React.useEffect(() => {
+    let cancelled = false;
+    void fetchVerifyReport(mappingId)
+      .then((r) => {
+        if (cancelled) return;
+        if (r.state === 'done') {
+          setState({ kind: 'done', report: r.report, finishedAt: r.finishedAt });
+        } else if (r.state === 'running') {
+          setState({ kind: 'running', ...(r.startedAt ? { startedAt: r.startedAt } : {}) });
+          stopPolling();
+          pollRef.current = setInterval(poll, 3000);
+        }
+      })
+      .catch(() => {
+        // A failed status read on mount changes nothing: idle is still true.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mappingId]);
+
   const poll = () => {
     void fetchVerifyReport(mappingId)
       .then((r) => {
@@ -267,6 +295,12 @@ const Verify: React.FC = () => {
         */}
         <span className="text-xs text-gray-500">
           {t('verify.durationHint')}
+          {isSelfHost() && (
+            // The per-mapping route runs the whole-appliance scan there
+            // (verifyPathFor ignores the id) — say so instead of letting a
+            // multi-mapping report surprise the operator (0038 T6).
+            <> {t('verify.applianceScope')}</>
+          )}
           {/*
             The server said when the run began (stored since the async rewrite,
             shown since 0024 T3). It matters for the same reason the hint does:

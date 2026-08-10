@@ -28,12 +28,18 @@ export function startTransition(status: string): StartTransition {
   return { activate: status !== 'active' };
 }
 
+/** Why a finish was refused — a STABLE discriminant beside the prose, so a
+ *  UI can decide what to offer without matching sentence text (0038 T1: only
+ *  the unresolved-failures refusal is one that `force` can satisfy, and the
+ *  force affordance must never render on the others). */
+export type FinishRefuseCode = 'paused' | 'unresolved_failures';
+
 /** What "Finish migration" does for a mapping currently in `status`. */
 export type FinishTransition =
   | { readonly finish: true }
   /** Already finished — say so without pretending work was done. */
   | { readonly finish: false; readonly alreadyDone: true }
-  | { readonly refuse: string; readonly hint: string };
+  | { readonly refuse: string; readonly hint: string; readonly code: FinishRefuseCode };
 
 /**
  * Decide whether a migration may be marked finished.
@@ -63,17 +69,25 @@ export function finishTransition(
 ): FinishTransition {
   if (status === 'done') return { finish: false, alreadyDone: true };
   if (status === 'paused') {
+    // Surface-neutral wording (0038 T7): the old hint said "remove it from
+    // the config directory" — an appliance instruction served verbatim to
+    // managed operators whose migrations live in no directory.
     return {
-      refuse: "Cannot finish a mapping that was never started (it is 'paused')",
-      hint: 'Start it first, or simply remove it from the config directory.',
+      refuse: "Cannot finish a migration that was never started (it is 'paused')",
+      hint: 'Start it first — or remove the migration if it should not run at all.',
+      code: 'paused',
     };
   }
   if (unresolvedFailures > 0 && !force) {
+    // Surface-neutral wording (0038 T7): the old hint spoke curl ("GET
+    // /failures", "re-send with ?force=true") beside a UI whose link and
+    // button already do those things.
     return {
       refuse: `${unresolvedFailures} item(s) could not be migrated and are awaiting a decision`,
       hint:
-        'Resolve them at GET /failures (retry, or accept to leave them behind), or re-send with ' +
-        '?force=true to finish anyway and knowingly leave them unmigrated.',
+        'Resolve them first — retry each item, or accept it to leave it behind; the failure ' +
+        'queue lists every one. Finishing anyway leaves them unmigrated, knowingly.',
+      code: 'unresolved_failures',
     };
   }
   return { finish: true };
