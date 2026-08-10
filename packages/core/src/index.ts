@@ -28,6 +28,8 @@ export * from './classify-shared-address';
 export * from './run-group-discovery';
 export * from './group-runbook';
 export * from './mapping-pattern';
+// Build identity for the /version endpoints (release-readiness, 2026-08-10).
+export * from './build-identity';
 // The permission inventory's judgement (0029 T2, SAD §14.2).
 export * from './permission-map';
 export * from './permission-report';

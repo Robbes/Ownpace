@@ -1,5 +1,7 @@
 # Per-Domain Sync Design Proposal
 
+> **Historical design document.** Written for workplan 0011 and kept as the reasoning trail (docs/README.md's rule); 0011 closed long ago and the status line below is the document's original state, not a live request — nothing here awaits anyone (banner added 2026-08-10).
+
 **Issue**: #37 (Part B2)  
 **Status**: Proposal — awaiting owner approval before implementation
 

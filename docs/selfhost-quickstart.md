@@ -23,7 +23,10 @@ no billing). Container-first per **ADR-0019**; Postgres-backed per **ADR-0023**.
 - Works on:
   - **Linux NAS / mini-PC** (Synology, Unraid, a spare box) — native `amd64`.
   - **Raspberry Pi 4/5 or other arm64 SBC** — the image is multi-arch (`arm64`).
-  - **Windows** via **Docker Desktop / WSL2** — supported today.
+  - **Windows** via **Docker Desktop / WSL2** — or **without Docker at all**:
+    the native appliance payload (bundled Node runtime, Task Scheduler
+    service) is the better fit for a machine that is not already running
+    containers — see [`windows-appliance-runbook.md`](./windows-appliance-runbook.md).
 - Source/target credentials (e.g. an app password or OAuth token for the source
   mailbox, a password for the JMAP/DAV target).
 
@@ -56,12 +59,17 @@ Edit `deploy/selfhost/.env`:
   (`tokenFromEnv` / `passwordFromEnv`), never inline. Add those variables here,
   e.g. `SOURCE_OAUTH_TOKEN=…`, `TARGET_JMAP_PASSWORD=…`, and match the names in
   your mapping (step 3).
-- Optional: `SELFHOST_BIND` (default `127.0.0.1` — localhost only; set to
-  `0.0.0.0` to reach `/status` from the LAN, behind your own firewall),
-  `SELFHOST_PORT` (the compose files default to `8081`), `SELFHOST_IMAGE` (pin
-  to a release tag or — until the first release exists — a verified `sha256`
-  digest for production; the procedure is in `deploy/selfhost/README.md`,
-  "Image channels").
+- Optional: `SELFHOST_BIND` (default `127.0.0.1` — localhost only).
+  ⚠️ Setting it to `0.0.0.0` exposes **the whole appliance** to the LAN, not
+  just `/status`: the UI, and with it the destructive routes — `apply` for
+  approved deletions and `finish`. The appliance has no authentication of its
+  own (by design; the bind IS the boundary), so only open it on a network
+  where everyone who can reach the port is allowed to press those buttons,
+  behind your own firewall.
+  Also optional: `SELFHOST_PORT` (the compose files default to `8081`),
+  `SELFHOST_IMAGE` (pin to a release tag, e.g. `0.1.0-rc.1`, or a verified
+  `sha256` digest for production; the procedure is in
+  `deploy/selfhost/README.md`, "Image channels").
   (Running the appliance straight from source with `pnpm` and no `PORT` set
   defaults to `8080` — the examples in this guide use the compose port, 8081.)
 

@@ -338,6 +338,10 @@ ensureWritable('config', configDir, 'CONFIG_DIR');
 // the startup log said nothing about WHICH build was running.
 const BUILD = __BUILD_IDENTITY__;
 console.log(\`[appliance] build \${BUILD.version} (\${BUILD.commit})\`);
+// The /version endpoint reads these (buildIdentity in @openmig/core) — the
+// stamp the packager burned in beats whatever package.json shipped.
+process.env.OPENMIG_VERSION ??= BUILD.version;
+process.env.OPENMIG_COMMIT ??= BUILD.commit;
 
 const handle = await start({
   // No DATABASE_URL, no server, no port to collide with, no initdb. Overridable

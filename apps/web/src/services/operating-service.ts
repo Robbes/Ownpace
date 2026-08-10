@@ -29,6 +29,7 @@ import type {
   DecisionRow,
 } from '@openmig/shared';
 import { isSelfHost, mappingPath, operatingBaseUrl, queuePath, verifyPath } from './edition';
+import { onUnauthorized } from './api';
 
 const client: AxiosInstance = axios.create({
   baseURL: operatingBaseUrl(),
@@ -44,6 +45,21 @@ client.interceptors.request.use((config) => {
   if (token && config.headers) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
+
+// Session expiry, same behaviour as services/api.ts (release-readiness,
+// 2026-08-10): without this, an expired token redirected Dashboard/Mappings
+// to login while every operating screen sat on a raw 401 error — half the
+// app logged out, half stranded. The appliance never answers 401, so this
+// only ever fires on the managed edition.
+client.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (!isSelfHost() && error.response?.status === 401) {
+      onUnauthorized();
+    }
+    return Promise.reject(error);
+  },
+);
 
 // `mappingId` is required by the managed edition and ignored by the appliance —
 // see `queuePath()` for why the two differ, and why the difference stops there.

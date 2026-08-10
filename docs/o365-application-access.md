@@ -36,11 +36,57 @@ product does not write to the source in any case (hard rule 2).
 
 ---
 
+## 0. Starting from zero: creating the registration
+
+*(The guide-from-zero section promised by the 2026-08-09 per-customer model
+decision — 0026 T3 row 14. Skip to §1 if your tenant already has an
+Open-Migrate registration. The owner validates this section against their own
+tenant; until that validation is recorded here, treat it as written-but-unproven.)*
+
+Under the per-customer model **you register the app in your own tenant** —
+there is no Open-Migrate-published app to consent to, no publisher
+verification wall, and the credential never leaves your custody. Deleting the
+registration is your kill switch.
+
+**Create it:** Azure portal → **Microsoft Entra ID** → **App registrations**
+→ **New registration**. Name it (e.g. `Open-Migrate`), choose **Accounts in
+this organizational directory only (single tenant)**, leave the redirect URI
+empty, and register. From the Overview page note the **Application (client)
+ID** and **Directory (tenant) ID**.
+
+**Two credential flows exist; grant only what your path uses:**
+
+1. **Application (client-credentials)** — the product signs in as the app
+   itself, no user present. This is what shared-mailbox reading (§2–§5) and
+   the managed edition's o365 sources use. Credential: **Certificates &
+   secrets → New client secret** — copy the value immediately, it is shown
+   once. Permissions: the application permissions in §2, narrowed by the
+   Application Access Policy in §4.
+2. **Delegated (a user signs in)** — the product acts as one signed-in user,
+   reading `/me/...`. Used for single-user migrations where no admin-consent
+   footprint is wanted. Permissions: **API permissions → Microsoft Graph →
+   Delegated** → `IMAP.AccessAsUser.All` (mail over IMAP with the user's
+   context) plus `offline_access` (the refresh token that keeps a headless
+   run signed in). No Application Access Policy applies — the user's own
+   mailbox boundary is the scope.
+
+**Where each value lands, per edition:**
+
+| Value | Managed edition | Self-host appliance |
+|---|---|---|
+| Tenant ID, Client ID | CreateMapping wizard, source step (oauth2/graph source types) | `OAUTH2_TENANT_ID` / `OAUTH2_CLIENT_ID` in `deploy/selfhost/.env` (Docker) or `C:\ProgramData\OpenMigrate\config\secrets.cmd` (Windows) |
+| Client secret | wizard, credentials step — encrypted at rest (`SecretStore`), masked on read-back | `OAUTH2_CLIENT_SECRET`, same files; mappings reference secrets **by env-var name**, never inline |
+| Refresh token (delegated flow) | not collected by the wizard yet (the wizard's o365 path is client-credentials) | `OAUTH2_REFRESH_TOKEN`, same files |
+
+Exact variable names and a from-scratch walkthrough with screenshots-level
+detail: `docs/o365-setup.md`. The rest of this document is the
+shared-mailbox/application-permissions half.
+
 ## 1. The app registration
 
-You almost certainly already have one — it is what the existing OAuth
-connection uses. Reuse it; a second registration means a second consent and a
-second set of credentials to rotate.
+If the tenant already has one — it is what an existing OAuth connection uses —
+reuse it; a second registration means a second consent and a second set of
+credentials to rotate. Starting cold, §0 above creates it.
 
 Azure portal → **Microsoft Entra ID** → **App registrations** → your app.
 Note the **Application (client) ID** and the **Directory (tenant) ID**.

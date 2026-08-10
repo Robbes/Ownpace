@@ -11,6 +11,8 @@ interface TokenClaims {
   email: string;
   tenantId: string;
   role: string;
+  /** Seconds since epoch; optional — a token without exp never expires here. */
+  exp?: number;
 }
 
 /**
@@ -53,6 +55,14 @@ const Login: React.FC = () => {
     const claims = decodeTokenClaims(token.trim());
     if (!claims) {
       setError(t('login.invalidToken'));
+      return;
+    }
+    // Say "expired" at paste time (release-readiness, 2026-08-10): an expired
+    // token used to "log in" here and then 401 on the first real call — the
+    // user saw a dashboard flash and a bounce back to this screen, with no
+    // sentence naming the actual problem. exp is seconds since epoch.
+    if (typeof claims.exp === 'number' && claims.exp * 1000 <= Date.now()) {
+      setError(t('login.expiredToken'));
       return;
     }
 

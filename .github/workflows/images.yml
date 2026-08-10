@@ -96,6 +96,9 @@ jobs:
         with:
           context: .
           file: apps/${{ matrix.image }}/Dockerfile
+          # The /version endpoints report this commit (build-identity.ts).
+          build-args: |
+            GIT_SHA=${{ github.sha }}
           # PRs prove the Dockerfile builds; the publish path proves multi-arch.
           platforms: ${{ github.event_name == 'pull_request' && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
           push: ${{ github.event_name != 'pull_request' }}

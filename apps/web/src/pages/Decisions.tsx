@@ -4,10 +4,10 @@
  * The drift decision queue (SAD §11.1/§11.2, workplan 0028 T1 — the skeleton).
  *
  * The mapping-level lifecycle queue above the item queues: drift the sync
- * notices becomes a question the owner answers here. This slice reads and
- * answers; NOTHING can raise yet — the two detectors (0028 T2/T3) are not
- * built — and the empty state says exactly that (rule 9): an empty queue that
- * cannot fill must not read as "no drift".
+ * notices becomes a question the owner answers here. Both detectors ship
+ * (0028 T2/T3 — managed-drift-detect and managed-group-discovery run daily);
+ * what they still lack is the tenant's admin consent to LOOK, and the empty
+ * state distinguishes "no drift" from "cannot look yet" (rule 9).
  *
  * The frame is the dictionary's (bilingual, 0024); `summary` and `detail` are
  * the server's words, verbatim — the prose boundary.

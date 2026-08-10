@@ -47,6 +47,18 @@ apiClient.interceptors.response.use(
       // Token expired or invalid — clear ALL auth state and redirect to login.
       onUnauthorized();
     }
+    // A DEAD membership is a dead session (release-readiness, 2026-08-10): a
+    // valid token whose subject has no active tenant_member row 403s on every
+    // route forever — the UI used to stay "logged in" rendering a wall of red
+    // reads. Only the membership gate's own sentence triggers this; a
+    // role-refusal 403 (e.g. a member opening Billing) passes through to the
+    // screen that knows how to say it.
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.message === 'No active membership for this tenant'
+    ) {
+      onUnauthorized();
+    }
     return Promise.reject(error);
   }
 );

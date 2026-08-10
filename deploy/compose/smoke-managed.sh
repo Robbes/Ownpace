@@ -95,6 +95,27 @@ if ! curl -sf "$API/health" >/dev/null; then
   echo "FATAL: API not reachable at $API/health"
   exit 1
 fi
+# WEB half (2026-08-10): the stack used to pass this smoke with a web
+# container whose nginx had no /api proxy — every browser API call got
+# index.html back. Assert both that the SPA serves AND that /api through the
+# web origin reaches the API (JSON, not the SPA fallback's HTML).
+WEB="${SMOKE_WEB:-http://localhost:3123}"
+if ! curl -sf "$WEB/" | grep -qi '<html'; then
+  echo "FATAL: web app not serving at $WEB/"
+  exit 1
+fi
+web_health="$(curl -sf "$WEB/api/health")" || {
+  echo "FATAL: $WEB/api/health unreachable — the web container's /api proxy is not working"
+  exit 1
+}
+case "$web_health" in
+  *'"status"'*) ;;
+  *)
+    echo "FATAL: $WEB/api/health returned something other than the API's health JSON —"
+    echo "       the /api proxy is falling through to the SPA fallback. Got: ${web_health:0:120}"
+    exit 1
+    ;;
+esac
 if ! docker exec "$DB_CONTAINER" true 2>/dev/null; then
   echo "FATAL: cannot exec into DB container '$DB_CONTAINER'"
   exit 1

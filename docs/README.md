@@ -20,7 +20,8 @@ All project documentation lives here.
 - **`performance.md`** — performance levers and guardrails (do not optimize speculatively).
 
 Operational how-tos already live at the docs root: the runbooks (`operator-runbook.md`,
-`cutover-runbook.md`, `selfhost-quickstart.md`, `TROUBLESHOOTING.md`), connector guides
+`cutover-runbook.md`, `selfhost-quickstart.md`, `windows-appliance-runbook.md`,
+`release.md`, `TROUBLESHOOTING.md`), connector guides
 (`dav-sync.md` — CalDAV, CardDAV and WebDAV in one), `o365-setup.md`,
 `o365-application-access.md` (the admin-consent + Application Access Policy steps
 that let the source read a mailbox other than the signed-in user's) and

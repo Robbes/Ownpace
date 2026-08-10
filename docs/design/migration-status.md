@@ -1,5 +1,7 @@
 # Durable Migration Status Tracking in the Ledger
 
+> **Historical design document.** Written for workplan 0011 and kept as the reasoning trail (docs/README.md's rule); 0011 closed long ago and the status line below is the document's original state, not a live request — nothing here awaits anyone (banner added 2026-08-10).
+
 > **Status**: Design Proposal — Awaiting Owner Approval  
 > **Related**: Issue #36 (orchestrator removal), New tracking issue for implementation  
 > **Author**: OpenHands agent (on behalf of the team)  

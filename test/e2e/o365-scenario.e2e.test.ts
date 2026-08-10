@@ -152,7 +152,7 @@ describe('O365 End-to-End Scenario', () => {
   });
 
   describe('24h Soak Test Variant', () => {
-    const soakEnabled = process.env.SOAKE_TEST_24H === 'true';
+    const soakEnabled = process.env.SOAK_TEST_24H === 'true';
     const soakDuration = parseInt(process.env.SOAKE_DURATION_MS || '86400000', 10); // Default 24h
 
     if (soakEnabled && !skipE2E) {
@@ -182,7 +182,7 @@ describe('O365 End-to-End Scenario', () => {
         expect(stats.length).toBeGreaterThan(0);
       }, soakDuration + 3600000); // Timeout = duration + 1 hour
     } else {
-      it.skip('24h soak test not enabled (set SOAKE_TEST_24H=true to enable)', () => {
+      it.skip('24h soak test not enabled (set SOAK_TEST_24H=true to enable)', () => {
         // Skip this test when soak is not enabled
       });
     }

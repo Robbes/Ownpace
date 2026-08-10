@@ -266,7 +266,10 @@ const Finish: React.FC = () => {
         </p>
       )}
       {!perMapping && rows.length === 0 && (
-        <p className="text-sm text-gray-500">{t('confirm.noMappings')}</p>
+        <div className="text-sm text-gray-500 space-y-2">
+          <p>{t('confirm.noMappings')}</p>
+          <p>{t('confirm.noMappings.how')}</p>
+        </div>
       )}
 
       {rows.map((m) => {

@@ -30,6 +30,8 @@ import billingRoutes from './routes/billing/index';
 import billingWebhookRoutes from './routes/billing/webhooks';
 import scopeManifestRoutes from './routes/scope-manifest';
 import { assertProductionAuthConfig } from './middleware/auth';
+import { assertProductionUrlConfig } from './config-guards';
+import { buildIdentity } from '@openmig/core';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
 import { log } from '@openmig/shared';
 
@@ -51,10 +53,21 @@ app.use(express.json());
 // Mollie posts webhooks as application/x-www-form-urlencoded (id=<paymentId>).
 app.use(express.urlencoded({ extended: false }));
 
-// Health check
-app.get('/health', (req: Request, res: Response) => {
+// Health check — also under /api so the web image's same-origin proxy (which
+// forwards only /api/*) can reach it; the smoke script asserts that path.
+const health = (req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+};
+app.get('/health', health);
+app.get('/api/health', health);
+
+// What build is this? Unauthenticated on purpose, like /health: version and
+// commit are on every release page; the answer starts support conversations.
+const version = (req: Request, res: Response) => {
+  res.json(buildIdentity());
+};
+app.get('/version', version);
+app.get('/api/version', version);
 
 /**
  * Prometheus metrics (0026 T3 row 19, owner decision 2026-08-05: option A).
@@ -114,6 +127,10 @@ if (process.env.NODE_ENV !== 'test') {
   // Fail-closed secrets (0020 T2): refuse to boot in production with a
   // known-placeholder JWT_SECRET rather than serve authenticated theater.
   assertProductionAuthConfig();
+  // Fail-closed URLs: a localhost API_URL/WEB_URL with billing live means
+  // unreachable Mollie webhooks and stranded redirects — refuse at boot,
+  // where the operator is looking, not at the first payment.
+  assertProductionUrlConfig((m) => log.warn(m));
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     throw new Error('DATABASE_URL is required');

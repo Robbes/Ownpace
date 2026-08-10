@@ -79,7 +79,20 @@ jobs:
           sarif_file: trivy.sarif
 
       - name: Generate CycloneDX SBOM
-        run: npx -y @cyclonedx/cyclonedx-npm --output-format JSON --output-file bom.json --ignore-npm-errors || echo "::warning::CycloneDX SBOM generation failed"
+        # On a release tag a missing bom.json would make the release-create
+        # step below silently not fire — the workflow would go green having
+        # published nothing (the 0025 T3 soft-fail shape). Fatal on tags,
+        # warning elsewhere.
+        env:
+          IS_RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          if ! npx -y @cyclonedx/cyclonedx-npm --output-format JSON --output-file bom.json --ignore-npm-errors; then
+            if [ "$IS_RELEASE_TAG" = "true" ]; then
+              echo "::error::SBOM generation failed on a release tag — without bom.json the release would silently not be created"
+              exit 1
+            fi
+            echo "::warning::CycloneDX SBOM generation failed"
+          fi
 
       - name: Upload SBOM artifact
         if: always() && hashFiles('bom.json') != ''
@@ -88,6 +101,41 @@ jobs:
           name: sbom-${{ github.sha }}
           path: bom.json
           retention-days: 90
+
+      - name: Compose release body
+        if: startsWith(github.ref, 'refs/tags/')
+        # Evergreen pointers only — the pull lines, the signature check, and
+        # where the real prose lives. NOT commit-derived notes: on a tag push
+        # `github.event.head_commit.message` is the pointed-at commit (a merge
+        # line), and generated notes would be a list of commit subjects. The
+        # human cutting the release edits prose in afterwards per
+        # docs/release.md; before this block the release page was an
+        # unlabelled SBOM with no body at all.
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          cat > release-body.md <<EOF
+          Open Migration Stack ${GITHUB_REF_NAME}. What changed: [CHANGELOG.md](https://github.com/Robbes/open-migrate/blob/${GITHUB_REF_NAME}/CHANGELOG.md).
+
+          **Container images** (multi-arch, cosign-signed):
+
+          \`\`\`
+          docker pull ghcr.io/robbes/open-migrate-selfhost:${VER}
+          docker pull ghcr.io/robbes/open-migrate-api:${VER}
+          docker pull ghcr.io/robbes/open-migrate-web:${VER}
+          \`\`\`
+
+          **Verify a signature** (keyless, against the public Sigstore log):
+
+          \`\`\`
+          cosign verify ghcr.io/robbes/open-migrate-selfhost:${VER} \
+            --certificate-identity-regexp '^https://github.com/Robbes/open-migrate/' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          \`\`\`
+
+          Install: see [docs/selfhost-quickstart.md](https://github.com/Robbes/open-migrate/blob/${GITHUB_REF_NAME}/docs/selfhost-quickstart.md); Windows without Docker: [docs/windows-appliance-runbook.md](https://github.com/Robbes/open-migrate/blob/${GITHUB_REF_NAME}/docs/windows-appliance-runbook.md).
+
+          The attached \`bom.json\` is this build's CycloneDX SBOM.
+          EOF
 
       - name: Attach SBOM to GitHub release
         if: startsWith(github.ref, 'refs/tags/') && hashFiles('bom.json') != ''
@@ -100,10 +148,7 @@ jobs:
           # action's `latest=auto` withholds `latest` from a pre-release, which
           # is why nothing here has to ask for that behaviour.
           prerelease: ${{ contains(github.ref_name, '-') }}
-          # No body is set, deliberately. The obvious candidates are both
-          # wrong: `github.event.head_commit.message` on a tag push is the
-          # commit the tag points at — here a "Merge pull request #294"
-          # line — not the tag's own annotation, and generated notes would be
-          # a list of commit subjects. The release is created so the SBOM has
-          # somewhere to attach; whoever cuts the release writes what it says,
-          # and CHANGELOG.md is where that text already lives.
+          body_path: release-body.md
+          # append_body keeps hand-written prose if the release already exists
+          # (the human may create it with notes before the workflow finishes).
+          append_body: true
