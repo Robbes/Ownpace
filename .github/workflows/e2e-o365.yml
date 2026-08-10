@@ -15,6 +15,9 @@ name: E2E O365 (Secret-Gated)
 # Required secrets:  O365_CLIENT_ID, O365_TENANT_ID
 # Optional secrets:  O365_CLIENT_SECRET (app-only), O365_SCOPE,
 #                    O365_REFRESH_TOKEN / O365_USERNAME / O365_PASSWORD (delegated)
+# All seven are documented in docs/test-tenant.md — the tenant they point at is
+# a REAL SMB's data (read-only, owner-held); experiments belong on the coders'
+# synthetic tenant described there, never here.
 #
 # Runs on the Spark arm64 self-hosted runner. Read-only is enforced by the test
 # itself (it asserts no write scopes in the token claims and aborts otherwise).
