@@ -21,7 +21,7 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
-    "@azure/msal-node": "^5.4.3",
+    "@azure/msal-node": "^5.5.0",
     "@trigger.dev/core": "4.5.9",
     "@trigger.dev/sdk": "4.5.9",
     "croner": "^10.0.1",
@@ -33,8 +33,8 @@
     "@types/node": "^26.1.2",
     "@types/pg": "catalog:",
     "@types/supertest": "^7.2.1",
-    "@typescript-eslint/eslint-plugin": "^8.65.0",
-    "@typescript-eslint/parser": "^8.65.0",
+    "@typescript-eslint/eslint-plugin": "^8.66.0",
+    "@typescript-eslint/parser": "^8.66.0",
     "@vitest/coverage-v8": "4.1.10",
     "drizzle-kit": "^0.31.10",
     "drizzle-orm": "catalog:",
@@ -46,10 +46,10 @@
     "playwright-core": "^1.62.1",
     "prettier": "3.9.6",
     "supertest": "^7.2.2",
-    "testcontainers": "^12.0.4",
+    "testcontainers": "^12.1.0",
     "tsx": "^4",
     "typescript": "6.0.3",
-    "typescript-eslint": "^8.65.0",
+    "typescript-eslint": "^8.66.0",
     "vitest": "4.1.10"
   }
 }
