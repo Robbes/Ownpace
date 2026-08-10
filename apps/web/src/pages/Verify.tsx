@@ -223,7 +223,6 @@ const Verify: React.FC = () => {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only read
   }, [mappingId]);
 
   const poll = () => {
