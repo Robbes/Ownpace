@@ -45,18 +45,22 @@ const Billing: React.FC = () => {
   const t = useT();
   const { currency, dateTime } = useFormatters();
   const { user } = useAuthStore();
-  // Mirrors the server's requireRole('owner','admin') on the billing writes
-  // (0039 T1), the same way Tenants gates its controls.
+  // Mirrors the server's requireRole('owner','admin') — which since the
+  // 2026-08-10 owner decision guards the billing READS as well as the
+  // writes. A lesser role gets a clean sentence instead of three fetches
+  // that can only come back 403 as red error cards.
   const canManage = user?.role === 'owner' || user?.role === 'admin';
 
   const { data: usage, isLoading: usageLoading, error: usageError } = useQuery({
     queryKey: ['billing-usage'],
     queryFn: () => billingApi.getCurrentUsage(),
+    enabled: canManage,
   });
 
   const { data: invoices, isLoading: invoicesLoading, error: invoicesError, refetch: refetchInvoices } = useQuery({
     queryKey: ['billing-invoices'],
     queryFn: () => billingApi.listInvoices(),
+    enabled: canManage,
   });
 
   // The Payment Methods read is PERFORMED now (0039 T4) — the old card
@@ -65,6 +69,7 @@ const Billing: React.FC = () => {
   const { data: methods, isLoading: methodsLoading, error: methodsError } = useQuery({
     queryKey: ['billing-payment-methods'],
     queryFn: () => billingApi.getPaymentMethods(),
+    enabled: canManage,
   });
 
   // The Mollie pay loop, finally reachable (0039 T4): create the payment,
@@ -81,6 +86,23 @@ const Billing: React.FC = () => {
     },
   });
 
+  // Billing is owner/admin territory in both directions (2026-08-10): for a
+  // lesser role, say so — the nav entry is hidden too, but a typed URL still
+  // lands here and deserves the sentence, not a spinner over three 403s.
+  if (!canManage) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{t('billing.title')}</h1>
+          <p className="text-gray-500 mt-1">{t('billing.subtitle')}</p>
+        </div>
+        <p className="text-sm text-gray-600 bg-amber-50 border border-amber-200 rounded-lg p-4">
+          {t('billing.adminOnly')}
+        </p>
+      </div>
+    );
+  }
+
   if (usageLoading || invoicesLoading || methodsLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -94,7 +116,6 @@ const Billing: React.FC = () => {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">{t('billing.title')}</h1>
         <p className="text-gray-500 mt-1">{t('billing.subtitle')}</p>
-        {!canManage && <p className="text-sm text-gray-500 mt-1">{t('billing.readOnly')}</p>}
       </div>
 
       {/* Current Usage */}

@@ -4,17 +4,17 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T1 Role guards on the billing writes | ✅ Done 2026-08-09 | `requireBillingWrite` (owner/admin) on pay/generate/payment-methods POST+PATCH. **Recorded decision: reads (and the estimate calculator) stay member-visible** — seeing money is not moving money; pinned by test. Integration: viewer 403 at all four writes, member 403, admin 201, viewer reads 200. |
+| T1 Role guards on the billing writes | ✅ Done 2026-08-09; reads tightened 2026-08-10 | `requireBillingWrite` (owner/admin) on pay/generate/payment-methods POST+PATCH. **The 2026-08-09 member-visible reads line was OVERTURNED by the owner on 2026-08-10: reads are owner/admin too.** `requireBillingRead` (same role set, separate name — the seam for a future divergence) guards usage, usage/history, invoices, invoice detail, payment-methods GET and the estimate calculator. Client: the Billing screen renders a clean admin-only sentence for lesser roles instead of three 403 error cards (queries disabled), and the nav entry hides for viewer/member. Integration: viewer AND member 403 on every read + estimate, admin 200; writes as before. UI pins: Billing.unit (viewer → sentence, zero fetches), Layout.unit (nav gating). `billing.readOnly` (now false) replaced by `billing.adminOnly`, both locales. |
 | T2 The numbers are the right numbers | ✅ Done 2026-08-09 | `calculateCost` serves `baseFee` + `taxRate` (one `VAT_RATE` constant); Base Fee line renders baseFee (was the entire subtotal); VAT label derives from the served rate; "Syncs"→"API calls"; period + lastUpdated render. Sum pinned with a non-trivial fixture (0036's AsOf may later restyle the as-of line). |
 | T3 The invoice contract, reconciled | ✅ Done 2026-08-09 | Client zod-parses literal route responses; DB enum (`sent`/`overdue`) with Stripe's words pinned as must-throw; periodStart/periodEnd render; money strings coerced explicitly; overdue red / sent blue. Dead surface deleted: client `recordUsage`+`estimateCost`, API-side Stripe-vocabulary types+schemas. Estimate's hardcoded 999 → `cost.baseFee`. |
 | T4 Dead chrome: wire it or remove it | ✅ Done 2026-08-09 | Pay button (draft/sent/overdue, canManage) → `createPayment` → checkout URL; failures verbatim at the row; Mollie redirectUrl → `/billing` (was a route the SPA doesn't define — blank page after paying); payment-methods card performs its read; View + Add Payment Method REMOVED rather than dormant. |
 | T5 Tenants keeps: duplicate invites, self-demotion | ✅ Done 2026-08-09 | Duplicate invite refused 409 naming the live row (invited vs active variants); exactly-one-live-row pinned. Self-demotion armed (Deletions pattern); other-row changes single-click; the last-owner test now goes through the confirm. |
 | T6 A currency formatter for two locales | ✅ Done 2026-08-09 | `useFormatters().currency(cents, code)`; en "€12.34" / nl "€ 12,34" pinned; `invoice.currency` feeds it; all hand-rolled `€{(x/100).toFixed(2)}` gone. |
 
-**Owner decisions queued below remain open** — T1's read-visibility line is
-recorded (member-visible) and reversible; "is Billing a real surface" was
-answered in the affirmative by wiring the existing server loop rather than
-adding new scope.
+**Owner decisions: both answered.** T1's read-visibility question was
+answered 2026-08-10 — reads are owner/admin, overturning the recorded
+member-visible line; "is Billing a real surface" was answered in the
+affirmative by wiring the existing server loop rather than adding new scope.
 
 ## Why this exists
 
@@ -150,6 +150,11 @@ framework.
 
 ## Owner decisions queued by this plan
 
-- T1's read-visibility question (do viewers see usage and invoices?).
-- Whether Billing is a real product surface yet at all — if not, T4's
-  honest alternative is saying so on-screen instead of wiring the loop.
+- ~~T1's read-visibility question (do viewers see usage and invoices?).~~
+  **Answered 2026-08-10 (owner): no — billing reads are owner/admin, like
+  the writes.** The 2026-08-09 recorded member-visible decision is
+  overturned; see the T1 status row for what enforces it.
+- ~~Whether Billing is a real product surface yet at all — if not, T4's
+  honest alternative is saying so on-screen instead of wiring the loop.~~
+  **Answered 2026-08-09 by T4 wiring the real loop** (and reaffirmed
+  2026-08-10 alongside the reads decision).

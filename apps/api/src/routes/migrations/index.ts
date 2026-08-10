@@ -44,6 +44,68 @@ function sourceKindFor(sourceType: 'imap' | 'oauth2' | 'graph'): 'imap' | 'o365'
   return sourceType === 'imap' ? 'imap' : 'o365';
 }
 
+/**
+ * The source connection's config JSONB, in the ENGINE's own shape —
+ * build-deps-from-mapping.ts casts this straight to shared's `SourceConfig`
+ * and branches on `type`. Until 2026-08-10 create stored `{host, port,
+ * useSsl}` with no `type` and no `user`, so the worker's mail path refused
+ * every wizard-created mapping at build time ("got: undefined"); only the dev
+ * seed script wrote a config a sync pass could open. host/port/useSsl remain
+ * present where they mean something because the GET detail route spreads this
+ * object (with the password masked) as its echo.
+ */
+function sourceConnectionConfig(body: z.infer<typeof CreateMappingSchema>): Record<string, unknown> {
+  const cfg = body.sourceConfig;
+  if (body.sourceType === 'graph') {
+    // Graph REST transport: the tenant + mailbox are the address — there is
+    // no host. The wizard's source username is the mailbox UPN; an app-only
+    // (client-credentials) token reads /users/{mailbox}, never /me.
+    return { type: 'graph-mail', tenantId: cfg.tenantId, mailbox: cfg.username };
+  }
+  if (body.sourceType === 'oauth2') {
+    // IMAP + XOAUTH2 against O365 (ADR-0006: IMAP primary, Graph fallback).
+    // O365's IMAP endpoint is fixed; asking the operator to type it would
+    // only invite typos, so it is a default, not a question.
+    return {
+      type: 'imap-oauth2',
+      host: cfg.host ?? 'outlook.office365.com',
+      port: cfg.port ?? 993,
+      user: cfg.username,
+      tls: true,
+      useSsl: true,
+    };
+  }
+  return {
+    type: 'imap-oauth2',
+    host: cfg.host,
+    port: cfg.port,
+    user: cfg.username,
+    tls: cfg.useSsl,
+    useSsl: cfg.useSsl,
+  };
+}
+
+/**
+ * The target connection's config JSONB — same reason as the source: the
+ * worker's mail path branches on `type` (jmap → baseUrl+user, imap →
+ * imap-dav). The DAV targets keep the plain shape: their domain path builds
+ * its URL from host/port/useSsl via `davUrl()` and never reads a `type`.
+ */
+function targetConnectionConfig(body: z.infer<typeof CreateMappingSchema>): Record<string, unknown> {
+  const cfg = body.targetConfig;
+  const base = { host: cfg.host, port: cfg.port, useSsl: cfg.useSsl };
+  if (body.targetType === 'jmap') {
+    // JmapTarget.baseUrl is the server ROOT — scheme+host+port, NO path: the
+    // JMAP clients append /.well-known/jmap themselves (see JmapTarget's doc).
+    const scheme = cfg.useSsl ? 'https' : 'http';
+    return { ...base, type: 'jmap', baseUrl: `${scheme}://${cfg.host}:${cfg.port}`, user: cfg.username };
+  }
+  if (body.targetType === 'imap') {
+    return { ...base, type: 'imap-dav', user: cfg.username, tls: cfg.useSsl };
+  }
+  return base;
+}
+
 // The run wire shape and its mapper live in @openmig/ledger (`toRunReport`)
 // so the appliance cannot grow a second, slightly different one — see
 // RunStore.listRunsWithEvents.
@@ -75,11 +137,19 @@ const CreateMappingBase = z.object({
   sourceType: z.enum(['imap', 'oauth2', 'graph']),
   targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav']),
   sourceConfig: z.object({
-    host: z.string(),
-    port: z.number(),
+    // host/port belong to an 'imap' source; tenantId/clientId/clientSecret to
+    // 'oauth2'/'graph' (the per-customer Entra app registration — ADR-0006,
+    // owner decision 0026 T3 row 14). Which set is REQUIRED depends on
+    // sourceType, so the demands live in CreateMappingSchema's superRefine
+    // where both fields are visible, not here.
+    host: z.string().optional(),
+    port: z.number().optional(),
     username: z.string(),
     password: z.string().optional(),
     useSsl: z.boolean().default(true),
+    tenantId: z.string().optional(),
+    clientId: z.string().optional(),
+    clientSecret: z.string().optional(),
   }),
   targetConfig: z.object({
     host: z.string(),
@@ -160,6 +230,36 @@ const CreateMappingBase = z.object({
  *    would have done.
  */
 export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => {
+  // Source-type / credential coherence (0037 T6, owner decision 2026-08-10):
+  // an 'imap' source signs in directly and needs a server to sign in TO;
+  // 'oauth2' and 'graph' authenticate with the customer's own Entra app
+  // registration (client-credentials — ADR-0006's row-14 model), so accepting
+  // them without tenantId/clientId/clientSecret would store a connection no
+  // sync pass can ever open.
+  if (body.sourceType === 'imap') {
+    const missing = (['host', 'port'] as const).filter((k) => body.sourceConfig[k] === undefined);
+    if (missing.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sourceConfig', missing[0]!],
+        message: `An 'imap' source connects to a server: sourceConfig is missing ${missing.join(' and ')}.`,
+      });
+    }
+  } else {
+    const missing = (['tenantId', 'clientId', 'clientSecret'] as const).filter(
+      (k) => !body.sourceConfig[k],
+    );
+    if (missing.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sourceConfig', missing[0]!],
+        message:
+          `A '${body.sourceType}' source authenticates with your own Entra app registration ` +
+          `(the client-credentials flow): sourceConfig is missing ${missing.join(', ')}. ` +
+          'Register the app in your own tenant and grant admin consent — see docs/o365-setup.md.',
+      });
+    }
+  }
   const domainRefusal = targetDomainRefusal(body.targetType, body.syncConfig.domains);
   if (domainRefusal) {
     ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: domainRefusal });
@@ -344,11 +444,26 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       // Never store plaintext secrets — encrypt via SecretStore. secret_ref is a
       // text column read back by decryptCredentials(string) → parseEncryptedSecret,
       // which expects the inner EncryptedSecret ({v,n,t,c}) JSON, so store `.encrypted`.
+      // What gets encrypted follows the source type (0037 T6): an 'imap'
+      // source signs in directly (username + password); 'oauth2'/'graph'
+      // carry the per-customer Entra app registration — tenantId/clientId/
+      // clientSecret are exactly the keys build-deps-from-mapping.ts reads
+      // (tenantId doubling as the Graph-fallback signal for the IMAP path).
+      // The superRefine above guarantees the registration fields are present.
       const sourceSecret = JSON.stringify(
-        SecretStore.encryptCredentials({
-          username: body.sourceConfig.username,
-          ...(body.sourceConfig.password ? { password: body.sourceConfig.password } : {}),
-        }).encrypted,
+        SecretStore.encryptCredentials(
+          body.sourceType === 'imap'
+            ? {
+                username: body.sourceConfig.username,
+                ...(body.sourceConfig.password ? { password: body.sourceConfig.password } : {}),
+              }
+            : {
+                username: body.sourceConfig.username,
+                tenantId: body.sourceConfig.tenantId!,
+                clientId: body.sourceConfig.clientId!,
+                clientSecret: body.sourceConfig.clientSecret!,
+              },
+        ).encrypted,
       );
       const targetSecret = JSON.stringify(
         SecretStore.encryptCredentials({
@@ -365,7 +480,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
             role: 'source',
             kind: sourceKindFor(body.sourceType),
             displayName: `${body.name} (source)`,
-            config: { host: body.sourceConfig.host, port: body.sourceConfig.port, useSsl: body.sourceConfig.useSsl },
+            config: sourceConnectionConfig(body),
             secretRef: sourceSecret,
           })
           .returning({ id: schema.connection.id }),
@@ -381,7 +496,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
             // targetType values (jmap/imap/caldav/carddav/webdav) are all valid connection kinds.
             kind: body.targetType,
             displayName: `${body.name} (target)`,
-            config: { host: body.targetConfig.host, port: body.targetConfig.port, useSsl: body.targetConfig.useSsl },
+            config: targetConnectionConfig(body),
             secretRef: targetSecret,
           })
           .returning({ id: schema.connection.id }),

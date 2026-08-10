@@ -182,11 +182,17 @@ export interface CreateMappingInput {
   sourceType: 'imap' | 'oauth2' | 'graph';
   targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav';
   sourceConfig: {
-    host: string;
-    port: number;
+    /** host/port for an 'imap' source; tenantId/clientId/clientSecret for
+     *  'oauth2'/'graph' (the per-customer Entra app registration, 0037 T6).
+     *  The server's CreateMappingSchema refuses the wrong set by name. */
+    host?: string;
+    port?: number;
     username: string;
     password?: string;
     useSsl?: boolean;
+    tenantId?: string;
+    clientId?: string;
+    clientSecret?: string;
   };
   targetConfig: {
     host: string;

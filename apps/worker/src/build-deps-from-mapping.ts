@@ -451,9 +451,48 @@ function buildImapSourceFromCredentials(
 
   const accessToken = credentials.accessToken || credentials.oauth2_token;
   const password = credentials.password;
-  if (!accessToken && !password) {
-    throw new Error('IMAP source credentials must include either an OAuth2 access token or a password');
+  // The per-customer Entra app registration (0037 T6, ADR-0006's row-14
+  // model): when the credential store carries tenantId + clientId +
+  // clientSecret — what the managed create path encrypts for an 'oauth2'
+  // source — and no direct credential, mint XOAUTH2 tokens at connect time
+  // via the same MsalTokenProvider the Graph path uses. A static accessToken
+  // or password, when present, keeps winning: those are the pre-existing
+  // contracts and a token that works needs no minting.
+  const appRegistration =
+    credentials.tenantId &&
+    credentials.clientId &&
+    (credentials.clientSecret || credentials.refreshToken)
+      ? {
+          tenantId: credentials.tenantId,
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+        }
+      : undefined;
+  if (!accessToken && !password && !appRegistration) {
+    throw new Error(
+      'IMAP source credentials must include an OAuth2 access token, a password, or an Entra ' +
+        'app registration (tenantId + clientId + clientSecret) for the client-credentials flow',
+    );
   }
+
+  const tokenProvider =
+    !accessToken && !password && appRegistration
+      ? createTokenProvider({
+          tokenEndpoint: `https://login.microsoftonline.com/${appRegistration.tenantId}/oauth2/v2.0/token`,
+          clientId: appRegistration.clientId,
+          clientSecret: appRegistration.clientSecret,
+          refreshToken: appRegistration.refreshToken,
+          tenantId: appRegistration.tenantId,
+          // MsalTokenProvider runs client-credentials whenever clientSecret is
+          // set, and app-only tokens must ask for the resource-wide .default
+          // scope; the named IMAP scope form is only valid for the delegated
+          // (refresh-token) flow.
+          scope: appRegistration.clientSecret
+            ? 'https://outlook.office365.com/.default'
+            : 'https://outlook.office.com/IMAP.AccessAsUser.All',
+        })
+      : undefined;
 
   const imapConfig = {
     host: sourceConfig.host,
@@ -477,8 +516,11 @@ function buildImapSourceFromCredentials(
     // XOAUTH2 here silently drops a configured password and IMAP servers
     // reject the resulting empty XOAUTH2 attempt with "No supported
     // authentication method(s)" (same bug class build-deps.ts's buildImapSource
-    // already fixed for the self-host path; see its comment).
-    authType: accessToken ? ('XOAUTH2' as const) : ('LOGIN' as const),
+    // already fixed for the self-host path; see its comment). A token
+    // provider counts as an XOAUTH2 credential: ImapFlowSource mints from it
+    // at connect time when no static token is given.
+    authType: accessToken || tokenProvider ? ('XOAUTH2' as const) : ('LOGIN' as const),
+    tokenProvider,
     throttleLimiter,
   };
 

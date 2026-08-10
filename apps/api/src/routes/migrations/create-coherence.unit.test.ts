@@ -69,6 +69,56 @@ describe('target/domain coherence — the server refuses, naming both sides', ()
   });
 });
 
+describe('source-type / credential coherence — the app registration is demanded by name (0037 T6)', () => {
+  it('refuses a graph source without its app registration, naming the missing fields and the fix', () => {
+    const msg = refusalText(
+      body({
+        sourceType: 'graph',
+        sourceConfig: { username: 'mailbox@example.nl' },
+      }),
+    );
+    expect(msg).toContain('Entra app registration');
+    expect(msg).toContain('tenantId, clientId, clientSecret');
+    expect(msg).toContain('docs/o365-setup.md');
+  });
+
+  it('refuses an oauth2 source missing only the client secret, naming exactly that', () => {
+    const msg = refusalText(
+      body({
+        sourceType: 'oauth2',
+        sourceConfig: {
+          username: 'mailbox@example.nl',
+          tenantId: 'contoso.example',
+          clientId: 'app-id',
+        },
+      }),
+    );
+    expect(msg).toContain('missing clientSecret');
+    expect(msg).not.toContain('tenantId,');
+  });
+
+  it('accepts a graph source carrying the full registration, with no host at all', () => {
+    const result = CreateMappingSchema.safeParse(
+      body({
+        sourceType: 'graph',
+        sourceConfig: {
+          username: 'mailbox@example.nl',
+          tenantId: 'contoso.example',
+          clientId: 'app-id',
+          clientSecret: 'shh',
+        },
+      }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it('refuses an imap source without a server, naming host and port', () => {
+    const msg = refusalText(body({ sourceConfig: { username: 'a@example.nl' } }));
+    expect(msg).toContain("An 'imap' source connects to a server");
+    expect(msg).toContain('host and port');
+  });
+});
+
 describe('cron schedule — garbage is refused with the reason and the fallback named', () => {
   it('refuses free text, naming the five fields and the silent fallback it prevents', () => {
     const msg = refusalText(body({ syncConfig: { domains: ['email'], schedule: 'every day' } }));

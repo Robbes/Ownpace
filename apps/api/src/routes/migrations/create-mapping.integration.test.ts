@@ -205,4 +205,59 @@ describe('POST /api/migrations — real persistence', () => {
     expect(res.body.message).toContain('five fields');
     expect(res.body.message).toContain('every 15 minutes');
   });
+
+  it('refuses a graph source without its app registration over the wire, naming the fields (0037 T6)', async () => {
+    const res = await request
+      .post('/api/migrations')
+      .set('Authorization', `Bearer ${token(TENANT_A)}`)
+      .send({ ...body, sourceType: 'graph', sourceConfig: { username: 'mailbox@acme.test' } });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain('Entra app registration');
+    expect(res.body.message).toContain('tenantId, clientId, clientSecret');
+  });
+
+  it('a graph create stores the ENGINE-shaped config and the encrypted registration (0037 T6)', async () => {
+    const res = await request
+      .post('/api/migrations')
+      .set('Authorization', `Bearer ${token(TENANT_B)}`)
+      .send({
+        ...body,
+        name: 'Acme O365 migration',
+        sourceType: 'graph',
+        sourceConfig: {
+          username: 'mailbox@acme.test',
+          tenantId: 'acme.onmicrosoft.test',
+          clientId: 'app-client-id',
+          clientSecret: SECRET_PASSWORD,
+        },
+        syncConfig: { domains: ['email'] },
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.sourceType).toBe('graph');
+
+    const conn = await pool.query(
+      `SELECT kind, config, secret_ref FROM connection WHERE tenant_id = $1 AND role = 'source'`,
+      [TENANT_B],
+    );
+    expect(conn.rows).toHaveLength(1);
+    expect(conn.rows[0].kind).toBe('o365');
+    // The config the WORKER builds from: build-deps-from-mapping.ts branches
+    // on `type` and reads tenantId + mailbox — until 2026-08-10 create stored
+    // {host, port, useSsl}, which the mail path refused as "got: undefined".
+    expect(conn.rows[0].config).toMatchObject({
+      type: 'graph-mail',
+      tenantId: 'acme.onmicrosoft.test',
+      mailbox: 'mailbox@acme.test',
+    });
+    // The registration is encrypted, never plaintext, and round-trips to the
+    // exact keys the worker's factories read.
+    expect(conn.rows[0].secret_ref).not.toContain(SECRET_PASSWORD);
+    const creds = SecretStore.decryptCredentials(conn.rows[0].secret_ref);
+    expect(creds).toMatchObject({
+      username: 'mailbox@acme.test',
+      tenantId: 'acme.onmicrosoft.test',
+      clientId: 'app-client-id',
+      clientSecret: SECRET_PASSWORD,
+    });
+  });
 });
