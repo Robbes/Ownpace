@@ -47,9 +47,12 @@ What `images.yml` actually publishes to ghcr (0025 T1/T3 — this section said
   appliance, not for unattended production.
 - **`sha-<commit>`** — every `edge` publish also lands under its commit, so
   any past build stays addressable.
-- **`X.Y.Z` + `latest`** — published when a release tag is cut. **No release
-  exists yet** (0025 T2, an owner decision), so until then `edge` is the only
-  moving channel and production pinning means a digest.
+- **`X.Y.Z`** — published when a release tag is cut. The first is
+  **`0.1.0-rc.1`** (2026-08-04, prerelease). **`latest`** appears only with
+  the first non-prerelease tag — SemVer's hyphen rule, enforced by
+  metadata-action's `latest=auto` — so as long as only rc tags exist there is
+  deliberately no `latest`, and production pinning means a version or a
+  digest.
 
 **Pin production to a digest**, so an upgrade is a deliberate act and the ref
 is immutable. Verify the signature first — the image is signed by this repo's

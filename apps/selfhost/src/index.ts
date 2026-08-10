@@ -103,6 +103,7 @@ import {
   sharedAddressAnswer,
   resolveCoverage,
   coverageIncompleteReason,
+  buildIdentity,
 } from '@openmig/core';
 
 /** Graph speaks plain JSON over fetch; the detector needs nothing more. */
@@ -1041,6 +1042,11 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       if (req.method === 'GET' && req.url === '/healthz') {
         return sendJson(res, 200, { status: 'ok' });
       }
+      // What build is this? Same trust posture as /healthz: localhost-bound
+      // by default, and the body is a version + commit, nothing else.
+      if (req.method === 'GET' && req.url === '/version') {
+        return sendJson(res, 200, buildIdentity());
+      }
       // Prometheus scrape target (§18 names Grafana/LGTM; §19 wants per-tenant
       // dashboards). Plain text, not JSON, and deliberately unauthenticated in
       // the same way /healthz is: the appliance binds to localhost by default
@@ -1903,6 +1909,17 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   await new Promise<void>((resolve) => server.listen(port, host, resolve));
   const boundPort = (server.address() as { port: number }).port;
   log.info(`[selfhost] status server on http://${host}:${boundPort}`);
+  // The bind IS the auth boundary (services/edition.ts): off localhost,
+  // everything is exposed — the UI and the destructive routes (apply,
+  // finish) alike. Deliberate LAN binds are legitimate; silent ones are how
+  // an appliance ends up operable by the whole office, so say it at boot.
+  if (host !== '127.0.0.1' && host !== '::1' && host !== 'localhost') {
+    log.warn(
+      `[selfhost] bound to ${host}: the appliance has NO authentication — ` +
+        `anyone who can reach port ${boundPort} can operate it, including ` +
+        `apply and finish. Keep this behind your own firewall.`,
+    );
+  }
 
   return {
     port: boundPort,

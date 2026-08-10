@@ -363,14 +363,16 @@ services:
   # started by the deployed `managed-sync-tick` scheduled task, and every job
   # executes as a Trigger.dev task via the supervisor. One execution plane.
 
-  # Web Application
+  # Web Application. VITE_API_URL is a BUILD arg (Vite bakes it into the
+  # static bundle); the default /api keeps browser calls same-origin, and the
+  # image's nginx proxies them to the api service (API_UPSTREAM env, default
+  # api:3001 — matches this stack's service name and port).
   web:
     build:
       context: ../..
       dockerfile: apps/web/Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-/api}
-        VITE_AUTH_URL: ${VITE_AUTH_URL:-/auth}
     container_name: open-migrate-web
     restart: unless-stopped
     ports:

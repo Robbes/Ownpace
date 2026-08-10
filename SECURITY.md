@@ -13,7 +13,7 @@ the only reporting channel. Do not open public issues for security reports.
 - **Tenant isolation** in the managed edition (Postgres RLS, per-tenant secret scope, per-tenant rate budgets).
 - **Trust boundary:** data-plane workers may briefly hold plaintext during copy - minimize at-rest staging, encrypt spool, short TTL, TLS everywhere. Proton Bridge (if used) is self-host/local only.
 - **Self-hosted CI runner:** trusted workflows only (docker socket + root = RCE risk).
-- **Supply chain:** dependencies pinned (every CI action by commit SHA) and kept current by Dependabot; published images are signed (cosign keyless, by digest — verifiable against this repo's workflow identity); a CycloneDX SBOM is generated per commit and attached to releases once tags exist.
+- **Supply chain:** dependencies pinned (every CI action by commit SHA) and kept current by Dependabot; published images are signed (cosign keyless, by digest — verifiable against this repo's workflow identity); a CycloneDX SBOM is generated per commit and attached to every release.
 
 A lightweight threat model lives in the architecture document
 (`docs/architecture/solution-architecture.md`, §17.1). A full threat-model

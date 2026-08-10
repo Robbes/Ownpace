@@ -1,5 +1,7 @@
 # Design: Workplan 0011 T4 — Usage Metering from Real Migration Runs
 
+> **Historical design document.** Written for workplan 0011 and kept as the reasoning trail (docs/README.md's rule); 0011 closed long ago and the status line below is the document's original state, not a live request — nothing here awaits anyone (banner added 2026-08-10).
+
 **Date:** 2026-07-19  
 **Status:** Draft — awaiting owner approval  
 **Branch:** `feat/0011-t4-metering`  

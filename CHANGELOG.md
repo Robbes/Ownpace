@@ -2,6 +2,88 @@
 
 All notable changes are documented here (Keep a Changelog format; SemVer once released).
 
+## [Unreleased]
+
+Everything since rc.1 — 209 commits, the review-fleet's UX overhaul, and the
+release-readiness pass. Grouped by what an operator would notice, not by
+workplan; the workplan status blocks in `docs/workplans/` remain the detailed
+record.
+
+### Added
+
+- **JMAP as a full target** (workplan 0031): contacts and files now migrate to
+  a JMAP server alongside mail — contacts split per the fidelity spike's
+  findings, files through JMAP's parent-chain model (no path, only a chain,
+  and the blobId you read back is not the one you uploaded). A capability
+  probe (`probeJmapCapabilities`) asks the server which domains it can carry
+  and reports a rejected credential as a rejected credential. **Calendar over
+  JMAP stays parked** by owner decision: Stalwart cannot yet store a
+  recurrence rule; the spike script re-runs on each Stalwart bump.
+- **The Windows appliance, end to end** (workplan 0015): the payload bundles
+  its own checksum-verified Node runtime (nothing to install), registers via
+  Task Scheduler with install/uninstall scripts and `.cmd` wrappers, keeps
+  secrets out of Program Files (ACLed `secrets.cmd`, granted by SID because
+  account names are localised), collects diagnosis-grade evidence, and prints
+  which build is running as its first line. Proven on real Windows 11:
+  510 messages, 0 failed, survived two force-kills and a reboot. Built on CI
+  (`windows-payload` workflow) — and now attached to release tags (unsigned;
+  SmartScreen will prompt until the code-signing decision is taken).
+- **The managed wizard reaches the finish line** (workplan 0037): completable
+  end to end, a confirm/green-light screen with a real URL that survives
+  refresh, incoherent target/domain combinations and garbage cron refused at
+  create with the same words the wizard shows, oauth2/graph sources collect
+  the customer's own Entra app registration (tenant ID, client ID, client
+  secret — the ADR-0006 per-customer model) instead of pretending to be IMAP.
+- **The operating screens tell the truth as a set** (workplans 0033–0036,
+  0038): real run history, LiveProgress on the mapping hub, one state
+  vocabulary and StateChip, every number stamped as-of when, aftermath parity
+  across the queues, a finish checklist that reads the real verify report and
+  refuses to show a failed read as "clear", and full EN/NL coverage with a
+  compile-time guard against hardcoded strings.
+- **Billing truth pass** (workplan 0039): role guards on billing writes *and*
+  reads (owner/admin), server-side money contract, duplicate invites refused,
+  self-demotion armed like the destructive action it is.
+- **`GET /version` on both editions** (and `/api/version` through the web
+  proxy): version + commit, so "what are you running" has an answer. The
+  container images stamp the commit at build; the Windows launcher's build
+  stamp feeds the same endpoint.
+- **imapflow replaces imap-simple** (workplan 0032): both the source and the
+  write path, behind a mutation-verified parity harness that caught a defect
+  in the *proven* client before retiring it (RFC822.SIZE was never asked
+  for). The old client and its advisories are gone from all four manifests.
+
+### Fixed
+
+- **IMAP certificate verification was hardcoded OFF for every connection** —
+  on, with a named `tlsVerify` opt-out per mapping and the knob named in the
+  refusal message. A dropped IMAP socket no longer kills the whole appliance.
+- **The managed web container can reach the API**: the nginx stage now
+  proxies `/api` to the api service (the SPA used to get `index.html` back as
+  JSON on every API call in a compose deploy); the compose env's
+  `VITE_API_URL` no longer points at the web port; the smoke script asserts
+  the proxy path. The api/web Dockerfiles lose their DRAFT banners:
+  digest-pinned bases, healthchecks on both.
+- **Localhost fallbacks fail closed**: in production with billing live, a
+  localhost/unset `API_URL` or `WEB_URL` refuses to boot naming the
+  consequence (unreachable Mollie webhooks / stranded redirects); a localhost
+  `CORS_ORIGIN` warns.
+- A successful status pass no longer reports the last failure; verification
+  reports the coverage that was measured, not requested; the confirm screen
+  stops calling a running migration unstarted; wrong-edition routes land
+  somewhere true; failed reads across Mappings/Dashboard/Billing say so
+  instead of rendering as empty.
+- Ten test-gap commits from the fleet's sweep: gates that passed while
+  proving nothing, credential-encryption suites that ran nowhere, the
+  unrevertable deletion outcome nobody was testing.
+
+### Release infrastructure
+
+- Release refs are test-gated (`ci.yml` now runs on `v*` tags); a failed SBOM
+  can no longer silently suppress release creation on a tag; releases get a
+  generated body (pull lines, cosign verify, changelog link) instead of an
+  empty page; the Windows payload attaches to the release. The release
+  procedure lives in `docs/release.md`.
+
 ## [0.1.0-rc.1] - 2026-08-04
 
 The first tagged artifact. A **release candidate**, deliberately: the pipeline

@@ -148,7 +148,16 @@ const Confirm: React.FC = () => {
         </p>
       )}
 
-      {mappings.length === 0 && <p className="text-sm text-gray-500">{t('confirm.noMappings')}</p>}
+      {/* The literal first screen of a fresh install (release-readiness,
+          2026-08-10): a bare "no mappings" here left a new operator with no
+          next step — the config-directory model is not guessable from a UI
+          that deliberately has no create form (standing decision 6). */}
+      {mappings.length === 0 && (
+        <div className="text-sm text-gray-500 space-y-2">
+          <p>{t('confirm.noMappings')}</p>
+          <p>{t('confirm.noMappings.how')}</p>
+        </div>
+      )}
 
       {mappings.map((m) => {
         const domains = discovery.data?.[m.mappingId] ?? [];

@@ -1,0 +1,27 @@
+# Rendered by the nginx image's envsubst entrypoint: ${API_UPSTREAM} is
+# substituted from the container environment (only defined env vars are
+# substituted, so nginx's own $host/$uri variables survive untouched).
+server {
+  listen 80;
+  root /usr/share/nginx/html;
+
+  # Docker's embedded DNS, re-resolved so an api-container restart cannot
+  # leave this process holding a stale IP.
+  resolver 127.0.0.11 valid=10s ipv6=off;
+
+  # The SPA is built with VITE_API_URL=/api (same origin), so the browser's
+  # API calls arrive HERE and must be proxied to the api service — without
+  # this block they fell through to the SPA fallback and got index.html back
+  # as JSON (the 0011 T7 DRAFT gotcha, resolved 2026-08-10).
+  location /api/ {
+    set $api_upstream http://${API_UPSTREAM};
+    proxy_pass $api_upstream;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 300s;
+  }
+
+  location / { try_files $uri $uri/ /index.html; }
+}

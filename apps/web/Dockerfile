@@ -1,17 +1,16 @@
 # syntax=docker/dockerfile:1
 #
-# DRAFT (workplan 0011 T7) — NOT YET VERIFIED on a Docker host. See
-# docs/design/0011-t7-dockerfiles-handoff.md.
-#
 # Builds the Vite React app to static assets and serves them with nginx on :80.
 #
-# GOTCHA: Vite bakes VITE_* vars at BUILD time. managed.yml currently passes
-# VITE_API_URL/VITE_AUTH_URL as runtime env on the web service, which a static
-# build ignores. Either pass them as build args here (shown) and set them at
-# build time, or switch to runtime config injection. The agent must reconcile
-# this with managed.yml.
+# Vite bakes VITE_* vars at BUILD time — managed.yml passes VITE_API_URL as a
+# build arg (never as runtime env, which a static build would ignore). The
+# default, /api, keeps API calls same-origin; nginx.conf.template proxies them
+# to the api service (override the target with API_UPSTREAM at runtime).
+# nginx master runs as root, its workers as the image's nginx user — the
+# official image's standard split.
 
-FROM node:24-slim AS build
+# Same node:24-slim digest the selfhost image pins (apps/selfhost/Dockerfile).
+FROM node@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d AS build
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable
@@ -20,13 +19,14 @@ COPY . .
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
 ARG VITE_API_URL=/api
-ARG VITE_AUTH_URL=/auth
 ENV VITE_API_URL=$VITE_API_URL
-ENV VITE_AUTH_URL=$VITE_AUTH_URL
 RUN pnpm --filter @openmig/web build
 
 FROM nginx:1.27-alpine AS runtime
+ENV API_UPSTREAM=api:3001
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
-# SPA history-fallback so client-side routes resolve to index.html.
-RUN printf 'server {\n  listen 80;\n  root /usr/share/nginx/html;\n  location / { try_files $uri $uri/ /index.html; }\n}\n' > /etc/nginx/conf.d/default.conf
+COPY apps/web/nginx.conf.template /etc/nginx/templates/default.conf.template
+RUN rm -f /etc/nginx/conf.d/default.conf
 EXPOSE 80
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD wget -qO /dev/null http://127.0.0.1:80/ || exit 1

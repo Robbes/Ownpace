@@ -11,6 +11,11 @@ on:
     branches: [main]
   push:
     branches: [main]
+    # Release refs are test-gated (release-readiness, 2026-08-10): before
+    # this, pushing a tag published signed images and a release with no lint,
+    # typecheck, unit or integration gate on that ref — only the images and
+    # security-scan workflows listened for tags.
+    tags: ['v*']
 
 concurrency:
   group: ci-${{ github.ref }}

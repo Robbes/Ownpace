@@ -60,6 +60,9 @@ RUN node scripts/package-appliance.mjs --out /payload
 # ---- runtime: non-root, health-checked ----
 FROM base AS runtime
 ENV NODE_ENV=production
+# Surfaced by GET /version (buildIdentity in @openmig/core).
+ARG GIT_SHA=unknown
+ENV OPENMIG_COMMIT=$GIT_SHA
 # Where the app reads mapping JSONs and stores state.
 ENV CONFIG_DIR=/data/config
 ENV PORT=8081

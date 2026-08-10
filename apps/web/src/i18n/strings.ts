@@ -72,6 +72,8 @@ const en = {
   'login.tokenLabel': 'Access token',
   'login.invalidToken':
     'That does not look like a valid access token (need sub, email, tenantId, role).',
+  'login.expiredToken':
+    'This token has expired. Mint a fresh one (seed script or your identity provider) and paste that instead.',
   'login.submit': 'Sign in',
   'login.help.pre': 'Paste the access token from the seed script',
   'login.help.post': 'or your identity provider.',
@@ -359,6 +361,8 @@ const en = {
   'confirm.intro': 'Nothing has been copied yet. Review what will migrate, then start it.',
   'confirm.readError': 'Could not read the migrations.',
   'confirm.noMappings': 'No mappings configured.',
+  'confirm.noMappings.how':
+    'The appliance reads mappings as JSON files from its config directory (on Docker the mounted config folder; on Windows C:\\ProgramData\\OpenMigrate\\config). Copy mapping.json.example, fill in your source and target, reference secrets by environment-variable name, and restart the appliance — it reads the directory once at start. The full walkthrough is docs/selfhost-quickstart.md, step 3.',
   'confirm.start': 'Start migration',
   'confirm.startError': 'Could not start it:',
   'confirm.startErrorFallback': 'the request failed',
@@ -688,6 +692,8 @@ const nl: Record<keyof typeof en, string> = {
   'login.tokenLabel': 'Toegangstoken',
   'login.invalidToken':
     'Dit lijkt geen geldig toegangstoken (sub, e-mail, tenantId en rol zijn vereist).',
+  'login.expiredToken':
+    'Dit token is verlopen. Maak een nieuw token aan (seedscript of uw identityprovider) en plak dat in plaats hiervan.',
   'login.submit': 'Aanmelden',
   'login.help.pre': 'Plak het toegangstoken uit het seedscript',
   'login.help.post': 'of van uw identiteitsprovider.',
@@ -957,6 +963,8 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.intro': 'Er is nog niets gekopieerd. Controleer wat er migreert en start het daarna.',
   'confirm.readError': 'De migraties konden niet worden gelezen.',
   'confirm.noMappings': 'Geen migraties geconfigureerd.',
+  'confirm.noMappings.how':
+    'De appliance leest migraties als JSON-bestanden uit de configuratiemap (op Docker de gekoppelde config-map; op Windows C:\\ProgramData\\OpenMigrate\\config). Kopieer mapping.json.example, vul uw bron en doel in, verwijs naar geheimen via de naam van een omgevingsvariabele en herstart de appliance — de map wordt eenmalig bij het starten gelezen. De volledige uitleg staat in docs/selfhost-quickstart.md, stap 3.',
   'confirm.start': 'Start migratie',
   'confirm.startError': 'Kon niet starten:',
   'confirm.startErrorFallback': 'het verzoek is mislukt',

@@ -1,5 +1,7 @@
 # Design: Trigger.dev Job Wiring (T3)
 
+> **Historical design document.** Written for workplan 0011 and kept as the reasoning trail (docs/README.md's rule); 0011 closed long ago and the status line below is the document's original state, not a live request — nothing here awaits anyone (banner added 2026-08-10).
+
 **Workplan 0011, Task 3** — Wire Trigger.dev jobs to call the REAL core engine
 
 **Status:** Design Proposal (awaiting owner approval before implementation)

@@ -47,7 +47,7 @@ The stack solves this with three core properties plus one ambition:
 5. **Scale = small (family to SMB).** ~25 mailboxes per tenant, a few shared mailboxes (§21).
 6. **Permissions: covered, not necessarily automated** — inventory + guidance, auto-apply only where mapping is clean (§14.2).
 7. **Source extraction prefers Graph** (+ IMAP+OAuth2 for mail); EWS/DavMail avoided because Microsoft is retiring EWS in 2026 (§13). [ADR-0012]
-8. **Language:** English for code/docs; end-user UI in English + Dutch — a promise not yet built (§23). [ADR-0013]
+8. **Language:** English for code/docs; end-user UI in English + Dutch — built (0024, 2026-08-02; vocabulary unified by 0035, 2026-08-09), with a compile-time guard against hardcoded strings (§23). [ADR-0013]
 9. **License Apache-2.0; orchestration Trigger.dev (managed) + in-process scheduler (self-host); TypeScript** (§24).
 
 ## 4. Actors
@@ -347,7 +347,7 @@ Family to SMB: ~25 mailboxes/tenant, a few shared mailboxes — small. Per tenan
 
 **Compatibility & rollback.** Breaking API/UI/config changes are SemVer **MAJOR** with a deprecation cycle and migration notes; `.env.example` updated when env vars change. Schema rollback is hard, so we **prefer roll-forward + backups**; write down-migrations only where cheap; **feature-flag** risky behavior to decouple deploy from release.
 
-**Supply chain (with §17.1).** Published images are **multi-arch (amd64+arm64) and signed (cosign keyless, GitHub OIDC — by digest, so one signature covers every tag)**; the SBOM is **CycloneDX** (generated per commit by `security-scan.yml`, attached to releases once tags exist), and **Dependabot** keeps dependencies current — this sentence said syft/Renovate until 2026-08-03 (0025 T3), which was the intent of 2026-06, not what runs. Consumers pin by digest. Build provenance beyond the signature (SLSA attestations) is not produced yet — an honest gap, not a promise.
+**Supply chain (with §17.1).** Published images are **multi-arch (amd64+arm64) and signed (cosign keyless, GitHub OIDC — by digest, so one signature covers every tag)**; the SBOM is **CycloneDX** (generated per commit by `security-scan.yml`, attached to every release), and **Dependabot** keeps dependencies current — this sentence said syft/Renovate until 2026-08-03 (0025 T3), which was the intent of 2026-06, not what runs. Consumers pin by digest. Build provenance beyond the signature (SLSA attestations) is not produced yet — an honest gap, not a promise.
 
 **Testing this concern (CI gates).**
 - **Fresh install** (empty -> latest) on **Postgres** (both editions; ADR-0023).
