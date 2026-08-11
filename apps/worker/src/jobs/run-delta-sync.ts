@@ -14,7 +14,7 @@ import { Pool } from 'pg';
 import { runShadowPass, runCalendarSync, runContactSync, runFileSync } from '@openmig/core';
 import type { TenantId, MappingId } from '@openmig/shared';
 import { buildDepsFromMapping, buildDomainDepsFromMapping } from '../build-deps-from-mapping';
-import { enabledDomains } from '../enabled-domains';
+import { enabledDomains, describeAbsentDomains } from '../enabled-domains';
 import {
   withTenant,
   PgMigrationStatusStore,
@@ -100,8 +100,11 @@ export const runDeltaSync = schemaTask({
     // cannot disagree (the #207 lesson, relearned live 2026-08-11: the API's
     // "run now" enqueue passes no domains, and the old all-four default built
     // calendar DAV deps from an email-only mapping's IMAP connection).
-    const domains =
-      typedPayload.domains ?? [...(await enabledDomains(pool, tenantId, mappingId))];
+    // Resolved even when the caller named its own domains, because the run log
+    // below has to tell "the owner did not select this" apart from "this run
+    // was asked for less", and only scope_selection knows which is which.
+    const selected = await enabledDomains(pool, tenantId, mappingId);
+    const domains = typedPayload.domains ?? [...selected];
     const { periodStart, periodEnd } = getCurrentPeriod();
 
     // Open the run-ledger row up front so an in-flight run is visible in the UI
@@ -128,6 +131,15 @@ export const runDeltaSync = schemaTask({
         await withTenant(pool, tenantId, async (db) => {
           await new RunStore(db).logEvent(tenantId, runId, 'info',
             'no domains are selected for this mapping (scope_selection is empty) — nothing to sync');
+        });
+      }
+
+      // Account for the domains that are NOT about to run, before any of them
+      // do. A run log that lists only what ran leaves the absences unexplained
+      // (see describeAbsentDomains).
+      for (const line of describeAbsentDomains(selected, domains)) {
+        await withTenant(pool, tenantId, async (db) => {
+          await new RunStore(db).logEvent(tenantId, runId, 'info', line);
         });
       }
       for (const domain of domains) {
