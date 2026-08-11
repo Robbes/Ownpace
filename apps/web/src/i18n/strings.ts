@@ -1082,13 +1082,13 @@ const nl: Record<keyof typeof en, string> = {
   'finish.step3.finished': 'De ronde is uitgevoerd en voltooid.',
   'finish.step3.queued':
     'In de wachtrij. De ronde draait als taak en verschijnt in de uitvoeringsgeschiedenis — geef het even, en controleer daarna de wachtrijen hierboven opnieuw.',
-  'finish.step4.title': 'Verplaats de bezorging naar het nieuwe systeem',
+  'finish.step4.title': 'Zet de e-mailbezorging om naar het nieuwe systeem',
   'finish.step4.body':
     'Wijzig MX/DNS en configureer de clients opnieuw zodat nieuwe e-mail op het nieuwe systeem aankomt. Dit gebeurt buiten dit programma, dus dit is de ene stap die niemand hier voor u kan controleren.',
   'finish.step4.warn.pre': 'Als u afrondt voordat dit is gedaan',
   'finish.step4.warn.post':
     ', wordt alles wat daarna op het oude systeem binnenkomt niet gekopieerd, en niets zal het melden — het programma kijkt niet meer mee.',
-  'finish.step4.checkbox': 'De bezorging gaat nu naar het nieuwe systeem.',
+  'finish.step4.checkbox': 'Nieuwe e-mail komt nu aan op het nieuwe systeem.',
   'finish.step5.title': 'Afronden',
   'finish.step5.nothingChanges.pre':
     'Er wordt aan geen van beide systemen iets toegevoegd of verwijderd.',
@@ -1097,7 +1097,7 @@ const nl: Record<keyof typeof en, string> = {
   'finish.forceButton': 'Rond toch af en laat ze achter',
   'finish.button': 'Rond deze migratie af',
   'finish.button.disabledTitle':
-    'Bevestig eerst stap 4 — afronden voordat de bezorging is verplaatst, verliest alles wat daarna binnenkomt.',
+    'Bevestig eerst stap 4 — afronden voordat de e-mailbezorging is omgezet, verliest alles wat daarna binnenkomt.',
   'createMapping.target.userOperated':
     'De doelserver beheert u zelf. Wij zetten uw gegevens erin over — wij beheren, ' +
     'bewaken of back-uppen hem niet, en er geldt van onze kant geen serviceniveau voor ' +
@@ -1172,11 +1172,11 @@ const nl: Record<keyof typeof en, string> = {
     'De vaste antwoorden konden niet worden gelezen; deze wachtrij beantwoordt mogelijk ' +
     'categorieën zonder te tonen welke.',
   'decisions.presets.readOnly': 'Een eigenaar of beheerder stelt dit in.',
-  'permissions.heading': 'Zet de rechten over voordat u de bezorging verplaatst',
+  'permissions.heading': 'Zet de rechten over voordat u de e-mailbezorging omzet',
   'permissions.body':
     'Wie wiens agenda kon zien, wie toegang had tot welke gedeelde bestanden — dat verhuist ' +
-    'niet mee met de post. Haal de lijst op, werk hem door op het nieuwe systeem, en doe dat ' +
-    'vóór de bezorging verhuist: rechten die daarna worden toegevoegd, ontbraken zolang dat ' +
+    'niet mee met de mail. Haal de lijst op, werk hem door op het nieuwe systeem, en doe dat ' +
+    'vóórdat u de e-mailbezorging omzet: rechten die daarna worden toegevoegd, ontbraken zolang dat ' +
     'duurde. Bovenaan de lijst staat wat er niet gelezen kon worden.',
   'permissions.blindSpot':
     'Twee dingen kan de lijst u mogelijk niet vertellen. Wie FullAccess of Send-As op een ' +

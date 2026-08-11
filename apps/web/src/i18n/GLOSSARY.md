@@ -37,6 +37,8 @@ Two kinds of words render; only the first belongs to this glossary:
 | The §11.2 detectors | detectors | **detectoren** | Not *wachters* (calque). |
 | The §20 gate (as a noun) | gate | **controlepunt** | Not *poort* (calque). |
 | Watching (deletions) | watching | **wordt in de gaten gehouden** | Not *onder observatie* (calque). |
+| Electronic mail | mail | **mail** / **e-mail** | Never **post** — Dutch *post* is paper mail (owner correction, 2026-08-11: "dat verhuist niet mee met de post" read as letters). *Postvak* stays for mailbox — it is Microsoft's own NL term. |
+| The MX/DNS switch (Finish step 4) | delivery | **e-mailbezorging**, verb **omzetten** | Not *verplaatsen*/*verhuizen* (same owner correction — bare *bezorging* + *verhuist* read as a house move). And not *migratie*: the migration is the copying that is already running; step 4 is the delivery cutover, a different event on the timeline. |
 
 ## States (the StateChip table — full list in `StateChip.tsx`)
 
