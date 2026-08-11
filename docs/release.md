@@ -26,6 +26,11 @@ stay `0.0.0` deliberately — they are never published individually). The
         release image, real volumes, swap to HEAD in place, healthy after a
         further restart. The drill says when it is vacuous (tag == HEAD) —
         a vacuous pass does not count.
+- [ ] **Before the first non-demo tenant** (not per release, but check it
+      here because this list is what gets read): CI and the live managed stack
+      are not on the same machine — see the operator runbook, "This box also
+      runs CI". Demo data makes it tolerable; a customer's mailbox
+      credentials do not.
 - [ ] Managed stack smoke if the release touches it:
       `deploy/compose/smoke-managed.sh` (includes the web `/api` proxy
       assertion).

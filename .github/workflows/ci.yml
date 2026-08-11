@@ -2,8 +2,36 @@
 #   detect-changes -> docs-hygiene (parallel) -> lint -> unit-tests -> integration-tests
 # E2E is a SEPARATE, manual workflow (e2e.yml). Runs on the self-hosted (Spark) runner.
 #
-# SECURITY: Self-hosted runner is ONLY used for push events to main.
-# Pull requests from forks run on GitHub-hosted runners to prevent arbitrary code execution.
+# ── Which machine runs untrusted code ────────────────────────────────────────
+#
+# SECURITY: the self-hosted runner is ONLY used for push events. Pull requests
+# — including from forks, and this repository is PUBLIC — run on GitHub-hosted
+# runners, so a stranger's branch never executes on the Spark. That box holds
+# the live managed stack, its .env, the encrypted connection credentials and
+# the trigger keys; `pnpm install` alone runs lifecycle scripts, which is all
+# an attacker needs. Every workflow with a `pull_request` trigger follows this:
+# ci.yml and security-scan.yml by the conditional below, and
+# no-committed-artifacts.yml since 2026-08-11, when it was found to be the one
+# exception. e2e.yml and e2e-o365.yml are schedule/dispatch only — no PR path
+# to abuse — which is why they can name the runner unconditionally.
+#
+# WHAT THE SPLIT COSTS, stated so it is a known limitation and not a surprise:
+# GitHub's hosted Linux runners are amd64, the Spark is arm64, so **a PR is
+# validated on an architecture we do not deploy to, and the one we do deploy to
+# is only exercised after merge.** This has bitten once already — task images
+# built for amd64 died at exec on the arm64 Spark in under a second, with
+# AutoRemove destroying the evidence (the 2026-08-01 hunt). A red main after a
+# green PR is therefore a designed-in outcome here, not an anomaly.
+#
+# It is now fixable rather than merely documentable: GitHub's arm64 hosted
+# runners (`ubuntu-24.04-arm`) went generally available for PUBLIC
+# repositories in August 2025, 4 vCPU, free — the same tier as the amd64 ones.
+# Moving the arch-sensitive jobs to a two-entry matrix would close the gap
+# without touching the Spark, and would also remove arm64 as a reason to keep
+# CI on the box that runs production. Not done here: it doubles the job count
+# for jobs that are almost all architecture-neutral TypeScript, and the honest
+# answer to "which of these are arch-sensitive" is "we have one data point".
+# Revisit when the second one arrives.
 name: CI
 
 on:

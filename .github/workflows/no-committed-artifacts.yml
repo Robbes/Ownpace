@@ -9,7 +9,20 @@ on:
 jobs:
   check-artifacts:
     name: Check for committed artifacts
-    runs-on: self-hosted
+    # GitHub-hosted, like every other pull_request job — see ci.yml's
+    # "Which machine runs untrusted code" header for the policy.
+    #
+    # This job said `self-hosted` unconditionally until 2026-08-11, which made
+    # it the ONE exception: a `pull_request` trigger on a PUBLIC repository,
+    # pointed at the box that also runs the live managed stack, its .env and
+    # the encrypted connection secrets. It was not exploitable as written — a
+    # checkout plus git diff, grep and echo, with no dependency install and no
+    # repository script executed — and it is fixed anyway, because the risk
+    # with a self-hosted runner is rarely the step somebody audited. It is the
+    # step added later to a workflow already pointed at the wrong machine.
+    #
+    # Nothing here wants the Spark regardless: no Docker, no arm64, no cache.
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
         with:
