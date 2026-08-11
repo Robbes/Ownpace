@@ -1,6 +1,6 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import React from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import {
   FolderGit2,
@@ -19,6 +19,7 @@ import { useT, useFormatters } from '../i18n';
 
 const Mappings: React.FC = () => {
   const t = useT();
+  const navigate = useNavigate();
   const { relativeToNow } = useFormatters();
   const { data: mappings, isLoading, error, refetch } = useQuery({
     queryKey: ['mappings'],
@@ -149,14 +150,28 @@ const Mappings: React.FC = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {mappings?.map((mapping) => (
                 <React.Fragment key={mapping.id}>
-                <tr className="hover:bg-gray-50">
+                {/* The whole row opens the migration (owner feedback 2026-08-11:
+                    a list where only a small icon navigates is a hunt). The name
+                    is ALSO a real link so middle-click/ctrl+click and keyboard
+                    focus work; the actions cell stops propagation so its own
+                    buttons never double as row navigation. */}
+                <tr
+                  className="hover:bg-gray-50 cursor-pointer"
+                  onClick={() => navigate(`/mappings/${mapping.id}`)}
+                >
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center">
                         <FolderGit2 className="w-6 h-6 text-blue-600" />
                       </div>
                       <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">{mapping.name}</div>
+                        <Link
+                          to={`/mappings/${mapping.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-sm font-medium text-gray-900 hover:underline"
+                        >
+                          {mapping.name}
+                        </Link>
                         <div className="text-sm text-gray-500">
                           {mapping.domains.join(', ')}
                         </div>
@@ -181,7 +196,10 @@ const Mappings: React.FC = () => {
                       ? relativeToNow(mapping.lastSyncAt)
                       : t('mappings.never')}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <td
+                    className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div className="flex items-center justify-end space-x-2">
                       {mapping.status === 'active' ? (
                         <button
