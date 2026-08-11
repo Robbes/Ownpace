@@ -291,11 +291,26 @@ jobs:
       #
       # CACHED because a hosted runner starts empty every time: the first run
       # of this job pulled 184 MiB of Chrome, 115 MiB of headless shell and
-      # 2 MiB of ffmpeg — ~10s of a 51s job, repeated on every PR. Keyed on the
-      # playwright-core version, which is what decides the browser build, so a
-      # dependency bump misses the cache and re-downloads exactly once.
-      # The self-hosted runner keeps ~/.cache/ms-playwright anyway; this makes
-      # the hosted path behave the same.
+      # 2 MiB of ffmpeg — ~10s of a 51s job, repeated on every PR.
+      #
+      # KEYED ON THE RESOLVED playwright-core VERSION, because that is what
+      # decides which browser build gets downloaded. The first attempt keyed on
+      # `hashFiles('pnpm-lock.yaml')` and was wrong in a way worth recording:
+      # every dependency change anywhere in the workspace threw away a 282 MiB
+      # browser cache that only playwright-core can invalidate. It missed on
+      # the very next pull request — one that added an unrelated devDependency
+      # — while a comment right here claimed it was keyed on the version. The
+      # comment described the design; the code did something looser.
+      #
+      # Read from the INSTALLED package rather than package.json's `^1.62.1`
+      # range: the range is what a human wrote, the installed version is what
+      # actually determines the browser on disk. A range would let a patch bump
+      # reuse a cache whose browser no longer matches — and since a cache hit
+      # skips the install step, that fails as a missing browser at launch
+      # rather than as a cache miss.
+      - name: Which browser build do we need?
+        id: pw
+        run: echo "version=$(node -p "require('playwright-core/package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Cache Chromium
         id: pw-cache
         # v6.1.0, not v4: every actions/cache v4 release (through v4.3.0) still
@@ -306,7 +321,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: ms-playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: ms-playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.pw.outputs.version }}
       - name: Install Chromium
         if: steps.pw-cache.outputs.cache-hit != 'true'
         run: node node_modules/playwright-core/cli.js install chromium
