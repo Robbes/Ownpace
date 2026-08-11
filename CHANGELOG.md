@@ -47,6 +47,14 @@ record.
   proxy): version + commit, so "what are you running" has an answer. The
   container images stamp the commit at build; the Windows launcher's build
   stamp feeds the same endpoint.
+- **A real browser now opens the managed UI on every PR** (`pnpm test:ui`).
+  The 2026-08-11 session found three defects that had shipped and that 2202
+  green unit tests could not see, because none of them had ever opened a page:
+  a stylesheet that never compiled, a bundle calling an absolute origin
+  instead of its own, and list rows with a hover state and no click handler.
+  Eight tests against the production build, served by a fixture server that
+  plays nginx's part — no API, no database, no Docker, ~20 seconds including
+  the build. All three defects were reproduced and confirmed caught.
 - **imapflow replaces imap-simple** (workplan 0032): both the source and the
   write path, behind a mutation-verified parity harness that caught a defect
   in the *proven* client before retiring it (RFC822.SIZE was never asked

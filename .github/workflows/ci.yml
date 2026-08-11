@@ -223,6 +223,40 @@ jobs:
           path: '**/coverage/'
           retention-days: 7
 
+  # The managed UI, in a real browser, on EVERY PR.
+  #
+  # Its own job rather than a step in unit-tests, because it needs a Chromium
+  # binary and a production build of the web app — neither of which the unit
+  # gate should have to wait for. It stays on the PR path (not the nightly e2e
+  # where the selfhost UI smoke lives) because the three defects it exists for
+  # — an uncompiled stylesheet, a bundle calling the wrong origin, a dead list
+  # row — all SHIPPED, and all of them are cheap to catch before merge.
+  #
+  # No services: the suite builds the bundle and serves it from an in-process
+  # http server that answers /api from fixtures, which is also what makes its
+  # same-origin assertion honest. Runtime is ~20s including the build.
+  ui-tests:
+    name: ui-tests
+    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-latest' }}
+    needs: lint
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # playwright-core ships no browsers (that is why it is the dependency —
+      # see test/e2e/selfhost-ui.e2e.test.ts). Installed explicitly, here,
+      # where it is needed; cached on the self-hosted runner.
+      - name: Install Chromium
+        run: node node_modules/playwright-core/cli.js install chromium
+      - name: Managed UI smoke (real browser)
+        # VITE_API_URL is deliberately NOT set: the suite builds the bundle
+        # with the shipped same-origin default and asserts it stays that way.
+        run: pnpm test:ui
+
   integration-tests:
     name: integration-tests
     runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-latest' }}

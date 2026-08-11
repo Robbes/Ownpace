@@ -100,7 +100,13 @@ async function runMigration(postgresUrl: string): Promise<void> {
  * `PgLedger` or `createPgDb`), three times per workflow run, and each boot put a
  * Docker Hub pull between the runner and the first assertion.
  */
-const CONTAINER_FREE_PROJECTS = new Set(['unit', 'unit-browser', 'e2e']);
+const CONTAINER_FREE_PROJECTS = new Set(['unit', 'unit-browser', 'e2e', 'ui']);
+
+// `ui` is here for the same reason as `e2e`: it brings its own world. The
+// managed browser smoke serves the built bundle from an in-process http
+// server and answers /api from fixtures, so a Testcontainers Postgres would be
+// booted, migrated and never read — and would make a suite whose whole point
+// is running cheaply on every PR depend on Docker Hub.
 
 /**
  * Does this run actually need containers?

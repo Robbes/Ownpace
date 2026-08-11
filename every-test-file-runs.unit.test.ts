@@ -4,7 +4,7 @@
  * Every test file this repository contains is collected by some project.
  *
  * `vitest.config.ts` splits the suite by an infix in the filename — `.unit.`,
- * `.integration.`, `.e2e.` — and a file that carries none of them matches no
+ * `.integration.`, `.e2e.`, `.ui.` — and a file that carries none of them matches no
  * project and is simply never run. **This is silent in a way almost nothing
  * else is**: a failing test is loud, a skipped test is reported as skipped, an
  * empty file is reported as having no tests. An uncollected file produces no
@@ -30,7 +30,10 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 /** The infixes `vitest.config.ts` splits projects on. */
-const COLLECTED = ['.unit.test.', '.integration.test.', '.e2e.test.'];
+// `.ui.` is the managed browser smoke (test/ui/, project 'ui'). Added here in
+// the same commit that introduced the infix — this guard caught it as an
+// orphan on the first run, which is the guard working.
+const COLLECTED = ['.unit.test.', '.integration.test.', '.e2e.test.', '.ui.test.'];
 
 /** Directories with no test files of ours in them. */
 const SKIP = new Set(['node_modules', '.git', 'dist', 'dist-selfhost', 'coverage', '.turbo']);
@@ -65,7 +68,7 @@ describe('the test suite runs every test file in the repository', () => {
       orphans,
       'these files end in .test.ts but carry none of the infixes vitest.config.ts ' +
         'splits on, so NO project collects them and they run nowhere. Rename to ' +
-        '*.unit.test.ts, *.integration.test.ts or *.e2e.test.ts:\n' +
+        '*.unit.test.ts, *.integration.test.ts, *.e2e.test.ts or *.ui.test.ts:\n' +
         orphans.join('\n'),
     ).toEqual([]);
   });
