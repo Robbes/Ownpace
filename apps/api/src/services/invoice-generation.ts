@@ -24,11 +24,14 @@
 
 import { and, eq, notInArray } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
-import { getUsageMetricsForPeriod, type PgDatabase } from '@openmig/ledger';
-import type { TenantId } from '@openmig/shared';
-import { calculateCost, defaultPricing, type PricingConfig } from './billing-service';
+import { getUsageMetricsForPeriod, resolveTenantPricing, type PgDatabase } from '@openmig/ledger';
+import { VAT_RATE, type TenantId } from '@openmig/shared';
+import { calculateCost, type PricingConfig } from './billing-service';
 
-const VAT_RATE = 0.21;
+// VAT_RATE is imported, not redeclared: this file used to carry its own
+// `const VAT_RATE = 0.21` — a third copy, and the one actually STAMPED ON THE
+// INVOICE ROW, so a rate change made elsewhere would have left issued invoices
+// claiming a rate the arithmetic never used.
 const BYTES_PER_GB = 1_000_000_000;
 
 export interface GeneratedInvoice {
@@ -55,8 +58,16 @@ export async function generateInvoiceForPeriod(
   tenantId: string,
   periodStart: string,
   periodEnd: string,
-  pricing: PricingConfig = defaultPricing,
+  pricing?: PricingConfig,
 ): Promise<GeneratedInvoice> {
+  // The prices THIS TENANT agreed to, resolved here rather than defaulted by
+  // the caller. The parameter used to default to the built-in template, so a
+  // caller that simply forgot it — every caller did — invoiced at whatever the
+  // product currently charges instead of at the customer's own rates. Now the
+  // only way to bill someone at a different price is to pass it deliberately
+  // (which the tests do), and forgetting produces the correct invoice.
+  const agreed = pricing ?? (await resolveTenantPricing(db, tenantId));
+
   // T4 read model: storage/egress derived from the item ledger, compute/api-calls
   // from the upserted usage_metric rows.
   const usage = await getUsageMetricsForPeriod(
@@ -73,14 +84,14 @@ export async function generateInvoiceForPeriod(
       computeHours: usage.computeHours,
       syncCount: usage.apiCallCount,
     },
-    pricing,
+    agreed,
   );
 
   const subtotal = cost.subtotal;
   const taxAmount = cost.tax;
   const total = cost.total;
   const costByDriver = {
-    base: pricing.baseFee,
+    base: agreed.baseFee,
     storage: cost.storage,
     egress: cost.egress,
     compute: cost.compute,

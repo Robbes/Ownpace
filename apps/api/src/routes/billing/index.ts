@@ -19,7 +19,7 @@ import { generateInvoiceForPeriod } from '../../services/invoice-generation';
 import { getMollieService } from '../../services/mollie/index';
 import { eq, and, desc } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
-import { getUsageMetricsForPeriod } from '@openmig/ledger';
+import { getUsageMetricsForPeriod, resolveTenantPricing } from '@openmig/ledger';
 import { log } from '@openmig/shared';
 
 const router = Router();
@@ -72,10 +72,12 @@ router.get('/usage', authenticate, requireBillingRead, async (req: Authenticated
     const periodStart = new Date().toISOString().slice(0, 7) + '-01'; // First day of current month
     const periodEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 10); // Last day of current month
 
-    // Get REAL usage via T4's metering - derive storage/egress from item ledger, read compute/api from upserts
-    const metrics = await withTenantDb(tenantId, getSharedPool(), async (db) => {
-      return await getUsageMetricsForPeriod(db, tenantId as never as import('@openmig/shared').TenantId, periodStart, periodEnd);
-    });
+    // Get REAL usage via T4's metering - derive storage/egress from item ledger, read compute/api from upserts,
+    // and this tenant's AGREED prices (never the operator's current template — see tenant-pricing.ts).
+    const { metrics, pricing } = await withTenantDb(tenantId, getSharedPool(), async (db) => ({
+      metrics: await getUsageMetricsForPeriod(db, tenantId as never as import('@openmig/shared').TenantId, periodStart, periodEnd),
+      pricing: await resolveTenantPricing(db, tenantId),
+    }));
 
     // Map T4's result to the UI response shape
     const usage = {
@@ -88,8 +90,8 @@ router.get('/usage', authenticate, requireBillingRead, async (req: Authenticated
       lastUpdated: new Date().toISOString(),
     };
 
-    // Calculate current cost
-    const cost = calculateCost(usage);
+    // Calculate current cost at the tenant's agreed prices
+    const cost = calculateCost(usage, pricing);
 
     res.json({
       usage,
@@ -118,9 +120,9 @@ router.get('/usage/history', authenticate, requireBillingRead, async (req: Authe
       return res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
     }
 
-    // Get all usage metrics grouped by period
-    const metrics = await withTenantDb(tenantId, getSharedPool(), async (db) => {
-      return await db.select({
+    // Get all usage metrics grouped by period, plus this tenant's agreed prices
+    const { metrics, pricing } = await withTenantDb(tenantId, getSharedPool(), async (db) => ({
+      metrics: await db.select({
         periodStart: schema.usageMetric.periodStart,
         periodEnd: schema.usageMetric.periodEnd,
         metricType: schema.usageMetric.metricType,
@@ -129,8 +131,9 @@ router.get('/usage/history', authenticate, requireBillingRead, async (req: Authe
       })
       .from(schema.usageMetric)
       .where(eq(schema.usageMetric.tenantId, tenantId))
-      .orderBy(desc(schema.usageMetric.periodStart));
-    });
+      .orderBy(desc(schema.usageMetric.periodStart)),
+      pricing: await resolveTenantPricing(db, tenantId),
+    }));
 
     // Aggregate metrics by period
     const periodMap = new Map<string, {
@@ -180,7 +183,7 @@ router.get('/usage/history', authenticate, requireBillingRead, async (req: Authe
         egressGB: u.egressGB,
         computeHours: u.computeHours,
         syncCount: u.syncCount,
-      });
+      }, pricing);
       return {
         ...u,
         cost,
@@ -213,12 +216,18 @@ router.post('/estimate', authenticate, requireBillingRead, async (req: Authentic
     }
     const body = EstimateCostSchema.parse(req.body);
 
+    // Estimated at what THIS tenant pays, not the current price list: an
+    // estimate that quietly used the template would tell an existing customer
+    // a number their own invoice will never show.
+    const pricing = await withTenantDb(tenantId, getSharedPool(), (db) =>
+      resolveTenantPricing(db, tenantId),
+    );
     const cost = calculateCost({
       storageUsedGB: body.storageUsedGB || 0,
       egressGB: body.egressGB || 0,
       computeHours: body.computeHours || 0,
       syncCount: body.syncCount || 0,
-    });
+    }, pricing);
 
     res.json({
       estimate: cost.total,
