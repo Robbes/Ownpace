@@ -298,7 +298,12 @@ jobs:
       # the hosted path behave the same.
       - name: Cache Chromium
         id: pw-cache
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        # v6.1.0, not v4: every actions/cache v4 release (through v4.3.0) still
+        # declares `using: node20`, so the runner forces it onto Node 24 and
+        # prints a deprecation warning on every run. Checked by reading each
+        # tag's action.yml rather than assuming the newest v4 had fixed it —
+        # it had not. v6.1.0 declares `node24` and is silent.
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: ms-playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
