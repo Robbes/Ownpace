@@ -72,6 +72,38 @@ record.
   stops calling a running migration unstarted; wrong-edition routes land
   somewhere true; failed reads across Mappings/Dashboard/Billing say so
   instead of rendering as empty.
+- **What the meter measured was the calendar, not the work** (workplan 0039
+  T7): billable compute time was `completedAt - startedAt` from a
+  `started_at` written once when the row was created and never again — the
+  age of the row, growing on its own. A demo that had done seconds of work
+  showed 24.3 billable hours. Alongside it, the managed sync's email path
+  never wrote that status row at all, so the mapping list reported "last
+  sync: 9 days ago" for a mapping syncing cleanly every 15 minutes. Both
+  fixed together, because giving email the row is what starts metering it.
+- **Prices are one number in one place, and a tenant keeps the one it
+  agreed to.** The API invoiced from one constant while the worker metered
+  against another, and a third VAT rate was the one stamped on invoice rows.
+  Now a single source in `@openmig/shared`, configurable per deployment via
+  `PRICING_*` (integer cents — a euros-shaped typo refuses to boot rather
+  than billing a hundredth of the intended amount). Each tenant's prices are
+  pinned when first billed and never follow the template again, so changing
+  what new customers pay cannot re-price an existing one. Operator controls
+  are `.env` plus a runbook section; there is no pricing screen to misclick.
+- **A run log accounts for the domains that did not run**, naming an
+  unselected domain as the owner's own scoping decision rather than leaving
+  its absence to be read as an oversight — the same courtesy the §20 verify
+  report already extended.
+- **A manual "run now" obeys the mapping's domain selection**: the API's
+  enqueue passes no domain list, and the job used to read that as "all
+  four", attempting a calendar sync against an email-only mapping's IMAP
+  credentials. `scope_selection` is the owner's call on every path now, not
+  just the scheduled one.
+- **The Migraties rows open the migration.** The list rendered rows that
+  looked clickable but weren't; the only way in was a small edit icon.
+- **Dutch that a Dutch speaker would use**: *post* is paper mail, so the
+  digital kind is *mail*, and the MX/DNS step is *de e-mailbezorging
+  omzetten* rather than language that reads like a house move. Recorded in
+  the UI glossary, not just fixed in place.
 - Ten test-gap commits from the fleet's sweep: gates that passed while
   proving nothing, credential-encryption suites that ran nowhere, the
   unrevertable deletion outcome nobody was testing.
