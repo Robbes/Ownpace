@@ -408,3 +408,73 @@ jobs:
           name: integration-reports
           path: '**/reports/'
           retention-days: 7
+
+  # ── The one check branch protection should require ──────────────────────────
+  #
+  # Required status checks are matched BY NAME, and this workflow's names are
+  # not stable: `integration-tests` became `integration-tests (ubuntu-24.04)`
+  # and `integration-tests (ubuntu-24.04-arm)` the day it gained a matrix, and
+  # every future leg added, renamed or removed does the same. A required check
+  # whose name no longer exists is not a failure — GitHub waits for a report
+  # that never arrives, so the pull request blocks forever on a gate that is
+  # actually green. Requiring THIS job instead makes the matrix free to change.
+  #
+  # `if: always()` is load-bearing. Without it a failure upstream SKIPS this
+  # job, and a skipped required check reports no failure at all — the gate
+  # would stop gating at exactly the moment something broke.
+  #
+  # `ci-complete-covers-every-job.unit.test.ts` fails if a job is added to this
+  # workflow and not added to `needs` below. That is the real long-term
+  # hazard: this job cannot notice a gate it was never told about, and it would
+  # go on reporting green while covering less than it used to.
+  #
+  # SCOPE: ci.yml only. `security-scan`, `Trivy` and `Check for committed
+  # artifacts` are separate workflows and produce their own checks — require
+  # those alongside this one.
+  ci-complete:
+    name: ci-complete
+    # Reads the other jobs' results and runs no repository code, so it is
+    # hosted unconditionally rather than taking a slot on the box that also
+    # serves production.
+    runs-on: ubuntu-24.04
+    if: always()
+    needs:
+      - detect-changes
+      - docs-hygiene
+      - fixture-uuid-check
+      - migration-lint
+      - lint
+      - unit-tests
+      - ui-tests
+      - integration-tests
+    steps:
+      # SKIPPED IS NOT PASSED (AGENTS.md hard rule 9). A docs-only pull request
+      # legitimately skips the test jobs, and this job legitimately goes green
+      # — but "green" must then say which gates did not run, or the check
+      # reports full coverage for a run that verified almost nothing.
+      - name: Say what ran, and what did not
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### CI gates"
+            echo
+            echo "| result | job |"
+            echo "| --- | --- |"
+            echo "$RESULTS" | jq -r 'to_entries[] | "| \(.value.result) | \(.key) |"' | sort -r
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+          skipped=$(echo "$RESULTS" | jq -r 'to_entries[] | select(.value.result == "skipped") | .key')
+          if [ -n "$skipped" ]; then
+            echo
+            echo "NOT RUN, therefore NOT verified by this check:"
+            echo "$skipped" | sed 's/^/  - /'
+            echo "(expected on a docs-only change, where detect-changes gates lint and everything below it)"
+          fi
+
+      - name: Fail if any gate failed or was cancelled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: |
+          echo "::error::a required gate did not pass — see the table above"
+          exit 1
