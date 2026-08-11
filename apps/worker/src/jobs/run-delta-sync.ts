@@ -14,6 +14,7 @@ import { Pool } from 'pg';
 import { runShadowPass, runCalendarSync, runContactSync, runFileSync } from '@openmig/core';
 import type { TenantId, MappingId } from '@openmig/shared';
 import { buildDepsFromMapping, buildDomainDepsFromMapping } from '../build-deps-from-mapping';
+import { enabledDomains } from '../enabled-domains';
 import {
   withTenant,
   PgMigrationStatusStore,
@@ -87,10 +88,16 @@ export const runDeltaSync = schemaTask({
       domains: typedPayload.domains,
     });
 
-    // Perform delta sync for each domain
-    const domains = typedPayload.domains ?? ['email', 'calendar', 'contact', 'file'];
     const tenantId = typedPayload.tenantId as TenantId;
     const mappingId = typedPayload.mappingId as MappingId;
+    // No explicit domain list means "the mapping's OWN selection", never "all
+    // four" — scope_selection is the owner's call, and enabledDomains is the
+    // same query the sync tick uses, so a manual run and a scheduled one
+    // cannot disagree (the #207 lesson, relearned live 2026-08-11: the API's
+    // "run now" enqueue passes no domains, and the old all-four default built
+    // calendar DAV deps from an email-only mapping's IMAP connection).
+    const domains =
+      typedPayload.domains ?? [...(await enabledDomains(pool, tenantId, mappingId))];
     const { periodStart, periodEnd } = getCurrentPeriod();
 
     // Open the run-ledger row up front so an in-flight run is visible in the UI
@@ -110,6 +117,15 @@ export const runDeltaSync = schemaTask({
     let itemsProcessed = 0;
 
     try {
+      if (domains.length === 0) {
+        // Mirrors the tick's rule: no scope_selection rows means "not
+        // selected", never "default to everything". Say so in the run log
+        // rather than closing a silent empty success.
+        await withTenant(pool, tenantId, async (db) => {
+          await new RunStore(db).logEvent(tenantId, runId, 'info',
+            'no domains are selected for this mapping (scope_selection is empty) — nothing to sync');
+        });
+      }
       for (const domain of domains) {
         log.info(`Running delta sync for domain: ${domain}`);
 
