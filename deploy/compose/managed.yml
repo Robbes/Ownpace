@@ -97,8 +97,9 @@ services:
     # version in apps/worker (0018 T0 — check package.json when bumping either;
     # the 4.5.x family is SDK-compatible, but "probably compatible" is not a
     # deploy story). The old hardcoded v4.5.4 pin claimed to match an SDK that
-    # had moved to 4.5.7.
-    image: ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.5.7}
+    # had moved to 4.5.7 — and the v4.5.7 pin then repeated the same drift
+    # when the SDK moved to 4.5.9.
+    image: ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.5.9}
     container_name: trigger-api
     restart: unless-stopped
     user: root
@@ -241,7 +242,7 @@ services:
   # deployed task is dequeued by nobody — which is exactly what this stack
   # was before 0018: bootstrap env vars with no consumer.
   trigger-supervisor:
-    image: ghcr.io/triggerdotdev/supervisor:${TRIGGER_IMAGE_TAG:-v4.5.7}
+    image: ghcr.io/triggerdotdev/supervisor:${TRIGGER_IMAGE_TAG:-v4.5.9}
     container_name: trigger-supervisor
     restart: unless-stopped
     environment:
@@ -320,6 +321,12 @@ services:
     build:
       context: ../..
       dockerfile: apps/api/Dockerfile
+      args:
+        # GET /version reports this commit (build-identity.ts). CI passes it
+        # (images.yml); a hand-built stack must pass it too or the endpoint
+        # answers commit "unknown" — build with:
+        #   GIT_SHA=$(git rev-parse HEAD) docker compose -f managed.yml build
+        GIT_SHA: ${GIT_SHA:-unknown}
     container_name: open-migrate-api
     restart: unless-stopped
     environment:

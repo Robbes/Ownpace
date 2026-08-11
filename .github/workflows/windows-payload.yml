@@ -125,9 +125,9 @@ jobs:
           | build stamp | \`${{ steps.pack.outputs.stamp }}\` |
 
           Download the artefact below and extract it. **It expands straight to
-          the payload** — \`start.mjs\`, \`node.exe\`, \`ui\`, \`migrations\`.
-          If you get a single \`.zip\` inside instead, you have an artefact from
-          before 2026-08-07 and it is double-zipped; extract that one too.
+          the payload**: \`start.mjs\`, \`appliance.mjs\`, \`node.exe\`, \`ui\`,
+          \`migrations\`, and the Windows operator scripts in \`scripts\\\` —
+          nothing to install first, nothing to fetch from the repository.
 
           Before installing it anywhere, check you have what you think you have:
 
@@ -138,7 +138,23 @@ jobs:
           That must match the build stamp above. Run it after copying the
           payload as well — a copy that silently moved nothing looks exactly
           like a copy that worked, and this is the only line that tells them
-          apart.
+          apart. (Once the appliance is running,
+          \`http://127.0.0.1:8080/version\` answers with the same version and
+          commit.)
+
+          \`SHA256SUMS.txt\` inside the payload covers every file, and survives
+          GitHub's own zipping (a hash of our zip would not — GitHub discards it
+          and makes another). To verify the extracted payload, from the payload
+          directory:
+
+          \`\`\`powershell
+          \$bad = 0
+          Get-Content .\\SHA256SUMS.txt | ForEach-Object {
+            \$hash, \$path = \$_ -split '  ', 2
+            if ((Get-FileHash \$path -Algorithm SHA256).Hash -ne \$hash) { "MISMATCH: \$path"; \$bad++ }
+          }
+          if (\$bad -eq 0) { 'SHA256SUMS.txt: all files verified' }
+          \`\`\`
 
           To run it from a writable folder:
 
@@ -147,28 +163,17 @@ jobs:
           \`\`\`
 
           Installed under \`C:\\Program Files\\\`, that will REFUSE — the
-          database would land in a read-only directory. Use
-          \`scripts\\windows\\run-appliance.cmd -PayloadPath <dir>\` from the
-          repository, which points it at \`C:\\ProgramData\\OpenMigrate\\\`.
-
-          Nothing needs to be installed first — the payload carries its own
-          \`node.exe\`.
-
-          \`SHA256SUMS.txt\` inside the payload covers every file, and survives
-          GitHub's own zipping (a hash of our zip would not — GitHub discards it
-          and makes another).
-
-          Verify what you downloaded, in PowerShell:
-
-          \`\`\`powershell
-          Get-FileHash .\\${{ steps.pack.outputs.name }}.zip -Algorithm SHA256
-          \`\`\`
+          database would land in a read-only directory. Use the payload's own
+          \`.\\scripts\\run-appliance.cmd -PayloadPath <dir>\`, which points it
+          at \`C:\\ProgramData\\OpenMigrate\\\` instead;
+          \`.\\scripts\\install-task.cmd\` registers the boot-time scheduled
+          task the same way.
 
           **This build is NOT code-signed.** SmartScreen will warn on first run
           and you will have to choose "More info" -> "Run anyway". Signing is
-          workplan 0025 T6 / 0015 T4 and needs a certificate, which is an owner
-          decision that has not been taken. An unsigned test build is fine for
-          Phase 1-3; it is not what you would hand to a customer.
+          workplan 0025 T6 / 0015 T4 — an owner decision still pending, to be
+          revisited before v0.1.0. An unsigned build is fine for testing; it is
+          not what you would hand to a customer.
           SUMMARY
 
       # Release assets are served byte-for-byte, so HERE zipping ourselves is
