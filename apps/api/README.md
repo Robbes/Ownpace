@@ -160,5 +160,9 @@ are no Helm charts in this repo.
 - [`docs/operator-runbook.md`](../../docs/operator-runbook.md) — the real bring-up
 - [`docs/rls-guide.md`](../../docs/rls-guide.md) — the enforcement model
 - [ADR-0026](../../docs/adr/0026-one-operating-ui-one-contract.md) — one contract, both editions
-- [OpenAPI spec](./docs/openapi.yaml) — descriptive, not generated; trust the
-  route pins and integration tests over it where they disagree
+- [OpenAPI spec](./docs/openapi.yaml) — a real OpenAPI 3.1 document (it was
+  markdown prose in a `.yaml` file until 2026-08-11). Hand-written, not
+  generated, but its SURFACE cannot drift: `openapi-spec.unit.test.ts` fails if
+  a documented path has no route, if a route is undocumented, or if a method
+  disagrees. Response bodies are pinned where verified and left as open objects
+  where they are not — an open object means "not pinned yet", not "empty".

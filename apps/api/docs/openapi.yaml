@@ -1,573 +1,1562 @@
-# Open Migration Stack API Specification
-
-OpenAPI 3.0 specification for the Open Migration Stack managed edition API.
-
-## Overview
-
-The Open Migration Stack API provides REST endpoints for:
-- Tenant management
-- Migration configuration and control
-- Billing and usage tracking
-- Job orchestration
-
-## Base URL
-
-```
-https://api.openmigrate.example.com/v1
-```
-
-## Authentication
-
-All API endpoints require JWT authentication via the `Authorization` header:
-
-```
-Authorization: Bearer <jwt_token>
-```
-
-The JWT token must contain the following claims:
-- `sub`: User ID
-- `email`: User email
-- `tenantId`: Current tenant ID
-- `role`: User role (owner, admin, member, viewer)
-
-## Common Response Codes
-
-- `200`: Success
-- `201`: Created
-- `204`: No Content (successful deletion)
-- `400`: Bad Request (validation error)
-- `401`: Unauthorized (missing or invalid token)
-- `403`: Forbidden (insufficient permissions)
-- `404`: Not Found
-- `500`: Internal Server Error
-
----
-
-## Tenants
-
-### List Tenants
-
-Get all tenants for the authenticated user.
-
-**GET** `/api/tenants`
-
-**Response:**
-```json
-{
-  "tenants": [
-    {
-      "id": "string",
-      "name": "string",
-      "slug": "string",
-      "createdAt": "2024-01-01T00:00:00Z"
-    }
-  ]
-}
-```
-
-### Create Tenant
-
-Create a new tenant.
-
-**POST** `/api/tenants`
-
-**Request Body:**
-```json
-{
-  "name": "My Company",
-  "slug": "my-company",
-  "settings": {
-    "maxMappings": 10,
-    "maxUsers": 5
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "id": "tenant-123",
-  "name": "My Company",
-  "slug": "my-company",
-  "ownerId": "user-123",
-  "settings": {
-    "maxMappings": 10,
-    "maxUsers": 5
-  },
-  "createdAt": "2024-01-01T00:00:00Z"
-}
-```
-
-### Get Tenant
-
-Get tenant details.
-
-**GET** `/api/tenants/:tenantId`
-
-**Response:**
-```json
-{
-  "id": "tenant-123",
-  "name": "My Company",
-  "slug": "my-company",
-  "settings": {
-    "maxMappings": 10,
-    "maxUsers": 5
-  },
-  "createdAt": "2024-01-01T00:00:00Z"
-}
-```
-
-### Update Tenant
-
-Update tenant settings.
-
-**PUT** `/api/tenants/:tenantId`
-
-**Request Body:**
-```json
-{
-  "name": "My Company Updated",
-  "settings": {
-    "maxMappings": 20
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "id": "tenant-123",
-  "name": "My Company Updated",
-  "updatedAt": "2024-01-02T00:00:00Z"
-}
-```
-
-### Delete Tenant
-
-Delete a tenant (owner only).
-
-**DELETE** `/api/tenants/:tenantId`
-
-**Response:** `204 No Content`
-
----
-
-## Tenant Members
-
-### List Members
-
-Get all members of a tenant.
-
-**GET** `/api/tenants/:tenantId/members`
-
-**Response:**
-```json
-{
-  "members": [
-    {
-      "id": "member-1",
-      "userId": "user-1",
-      "email": "owner@example.com",
-      "role": "owner",
-      "invitedAt": "2024-01-01T00:00:00Z"
-    }
-  ]
-}
-```
-
-### Invite Member
-
-Invite a new member to the tenant.
-
-**POST** `/api/tenants/:tenantId/members`
-
-**Request Body:**
-```json
-{
-  "email": "newmember@example.com",
-  "role": "admin"
-}
-```
-
-**Response:**
-```json
-{
-  "id": "member-2",
-  "tenantId": "tenant-123",
-  "email": "newmember@example.com",
-  "role": "admin",
-  "status": "pending",
-  "invitedAt": "2024-01-02T00:00:00Z",
-  "invitedBy": "user-123"
-}
-```
-
-### Update Member Role
-
-Update a member's role.
-
-**PATCH** `/api/tenants/:tenantId/members/:memberId`
-
-**Request Body:**
-```json
-{
-  "role": "admin"
-}
-```
-
-**Response:**
-```json
-{
-  "id": "member-2",
-  "tenantId": "tenant-123",
-  "role": "admin",
-  "updatedAt": "2024-01-02T00:00:00Z"
-}
-```
-
-### Remove Member
-
-Remove a member from the tenant.
-
-**DELETE** `/api/tenants/:tenantId/members/:memberId`
-
-**Response:** `204 No Content`
-
----
-
-## Migrations (Mappings)
-
-### List Mappings
-
-Get all mappings for the current tenant.
-
-**GET** `/api/mappings`
-
-**Response:**
-```json
-{
-  "mappings": [
-    {
-      "id": "mapping-1",
-      "tenantId": "tenant-123",
-      "name": "Demo Migration",
-      "sourceType": "imap",
-      "targetType": "jmap",
-      "status": "active",
-      "lastSyncAt": "2024-01-01T00:00:00Z",
-      "createdAt": "2024-01-01T00:00:00Z"
-    }
-  ]
-}
-```
-
-### Create Mapping
-
-Create a new migration mapping.
-
-**POST** `/api/mappings`
-
-**Request Body:**
-```json
-{
-  "name": "My Migration",
-  "sourceType": "imap",
-  "targetType": "jmap",
-  "sourceConfig": {
-    "host": "imap.example.com",
-    "port": 993,
-    "username": "user@example.com",
-    "useSsl": true
-  },
-  "targetConfig": {
-    "host": "jmap.example.com",
-    "port": 443,
-    "username": "user@example.com",
-    "password": "secret",
-    "useSsl": true
-  },
-  "syncConfig": {
-    "domains": ["email", "calendar"],
-    "schedule": "0 2 * * *"
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "id": "mapping-123",
-  "tenantId": "tenant-123",
-  "name": "My Migration",
-  "sourceType": "imap",
-  "targetType": "jmap",
-  "sourceConfig": {...},
-  "targetConfig": {...},
-  "syncConfig": {...},
-  "status": "draft",
-  "createdAt": "2024-01-01T00:00:00Z"
-}
-```
-
-### Get Mapping
-
-Get mapping details.
-
-**GET** `/api/mappings/:mappingId`
-
-**Response:**
-```json
-{
-  "id": "mapping-123",
-  "tenantId": "tenant-123",
-  "name": "My Migration",
-  "sourceType": "imap",
-  "targetType": "jmap",
-  "sourceConfig": {...},
-  "targetConfig": {...},
-  "syncConfig": {...},
-  "status": "active",
-  "lastSyncAt": "2024-01-01T00:00:00Z",
-  "createdAt": "2024-01-01T00:00:00Z"
-}
-```
-
-### Update Mapping
-
-Update mapping configuration.
-
-**PUT** `/api/mappings/:mappingId`
-
-**Request Body:** (all fields optional)
-```json
-{
-  "name": "Updated Migration Name",
-  "syncConfig": {
-    "schedule": "0 */6 * * *"
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "id": "mapping-123",
-  "name": "Updated Migration Name",
-  "syncConfig": {...},
-  "updatedAt": "2024-01-02T00:00:00Z"
-}
-```
-
-### Delete Mapping
-
-Delete a mapping.
-
-**DELETE** `/api/mappings/:mappingId`
-
-**Response:** `204 No Content`
-
-### Trigger Sync
-
-Trigger a sync for a mapping.
-
-**POST** `/api/mappings/:mappingId/sync`
-
-**Request Body:**
-```json
-{
-  "type": "full",
-  "forceFullScan": false
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "runId": "run-123",
-  "jobType": "full",
-  "triggeredAt": "2024-01-01T00:00:00Z"
-}
-```
-
-### Trigger Cutover
-
-Trigger cutover for a mapping.
-
-**POST** `/api/mappings/:mappingId/cutover`
-
-**Request Body:**
-```json
-{
-  "skipFinalSync": false,
-  "skipVerification": false,
-  "gracePeriodHours": 24
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "runId": "run-cutover-123",
-  "triggeredAt": "2024-01-01T00:00:00Z",
-  "gracePeriodEnd": "2024-01-02T00:00:00Z"
-}
-```
-
-### List Runs
-
-Get sync runs for a mapping.
-
-**GET** `/api/mappings/:mappingId/runs`
-
-**Response:**
-```json
-{
-  "runs": [
-    {
-      "id": "run-1",
-      "mappingId": "mapping-123",
-      "type": "full",
-      "status": "success",
-      "startedAt": "2024-01-01T00:00:00Z",
-      "finishedAt": "2024-01-01T01:00:00Z",
-      "itemsProcessed": 1250,
-      "errors": 0
-    }
-  ]
-}
-```
-
-### Get Run Details
-
-Get run details and logs.
-
-**GET** `/api/mappings/:mappingId/runs/:runId`
-
-**Response:**
-```json
-{
-  "id": "run-1",
-  "mappingId": "mapping-123",
-  "type": "full",
-  "status": "success",
-  "startedAt": "2024-01-01T00:00:00Z",
-  "finishedAt": "2024-01-01T01:00:00Z",
-  "itemsProcessed": 1250,
-  "errors": 0,
-  "events": [
-    {
-      "level": "info",
-      "message": "Starting full sync",
-      "at": "2024-01-01T00:00:00Z"
-    },
-    {
-      "level": "info",
-      "message": "Processed 1250 items",
-      "at": "2024-01-01T00:50:00Z"
-    },
-    {
-      "level": "info",
-      "message": "Sync completed successfully",
-      "at": "2024-01-01T01:00:00Z"
-    }
-  ]
-}
-```
-
----
-
-## Webhooks
-
-### Trigger.dev Webhook
-
-Receive job status updates from Trigger.dev.
-
-**POST** `/api/webhooks/trigger`
-
-**Headers:**
-```
-x-trigger-signature: <hmac-sha256-signature>
-```
-
-**Request Body:**
-```json
-{
-  "id": "webhook-123",
-  "eventType": "job.run.completed",
-  "job": {
-    "id": "run-full-sync",
-    "name": "Full Sync"
-  },
-  "run": {
-    "id": "run-123",
-    "status": "success",
-    "startedAt": "2024-01-01T00:00:00Z",
-    "finishedAt": "2024-01-01T01:00:00Z"
-  },
-  "payload": {
-    "tenantId": "tenant-123",
-    "mappingId": "mapping-123"
-  },
-  "createdAt": "2024-01-01T01:00:00Z"
-}
-```
-
-**Response:**
-```json
-{
-  "received": true
-}
-```
-
----
-
-## Error Responses
-
-All error responses follow this format:
-
-```json
-{
-  "error": "Error Type",
-  "message": "Human-readable error message",
-  "details": [
-    {
-      "field": "string",
-      "message": "Validation error message"
-    }
-  ]
-}
-```
-
-### Example Errors
-
-**400 Bad Request:**
-```json
-{
-  "error": "Validation error",
-  "details": [
-    {
-      "field": "email",
-      "message": "Invalid email format"
-    }
-  ]
-}
-```
-
-**401 Unauthorized:**
-```json
-{
-  "error": "Unauthorized",
-  "message": "Invalid token"
-}
-```
-
-**403 Forbidden:**
-```json
-{
-  "error": "Forbidden",
-  "message": "Insufficient permissions"
-}
-```
+openapi: 3.1.0
+
+# The managed edition's HTTP surface, as a machine-readable contract.
+#
+# THIS FILE USED TO BE MARKDOWN. It was named `openapi.yaml`, its first line
+# announced "OpenAPI 3.0 specification", and it contained none of `openapi:`,
+# `info:` or `paths:` — prose in a spec's clothing, which no client generator,
+# validator or agent could read, and which had drifted from the routes it
+# described (it documented `PUT /tenants/{id}/members/{id}` while the code
+# serves PATCH, and knew nothing of verify, apply-deletions, runs, discovery,
+# shared addresses or the permission report). A file that claims to be a
+# contract and is not one is worse than no file: it invites somebody to build
+# against it.
+#
+# WHAT IS GUARANTEED HERE. The SURFACE is verified against the Express routers
+# — every path, method, parameter and mount point below was read out of
+# apps/api/src/routes and is pinned by openapi-spec.unit.test.ts, which fails
+# if a documented path has no route or a documented method is not the one the
+# code registers.
+#
+# WHAT IS DELIBERATELY SHALLOW. Response bodies are described precisely where
+# the shape is verified (mappings, runs, verification, deletion receipts,
+# usage, cost, health, version) and left as open objects where it is not.
+# Inventing field names to make a document look complete is the same failure
+# this file is being rescued from, one level down: a generated client would
+# then be wrong in a way nothing catches. An open object says "there is a
+# body, and this spec does not pin its fields yet", which is true.
+#
+# The full narrative documentation lives in docs/ — the operator runbook, the
+# ADRs and the workplans. This file is the contract, not the manual.
+
+info:
+  title: Open Migration Stack — managed API
+  version: 0.1.0-rc.1
+  summary: Migrate mail, calendar, contacts and files off US cloud, on your own schedule.
+  description: |
+    The multi-tenant managed edition. Every request is scoped to one tenant by
+    the bearer token; the database enforces the same boundary again with
+    row-level security, so a token for tenant A cannot read tenant B even if a
+    route forgets to filter.
+
+    **Two ideas run through the whole surface and explain most of its shape:**
+
+    - *Nothing consequential happens without a person.* Deleting on the target,
+      finishing a migration and moving billing money are gated behind explicit
+      evidence, an owner/admin role, or both. Endpoints that could destroy data
+      refuse by default and say what is missing.
+    - *A failure is reported as itself.* Routes return the reason verbatim
+      rather than an empty success. "I found nothing" and "I could not look"
+      are different answers and never share a status code.
+
+    Long-running work (sync, cutover, verification, applying a deletion) is
+    enqueued, not performed in the request: those endpoints answer `202` with
+    an identifier, and a matching read endpoint polls the outcome.
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+  contact:
+    name: Open Migration Stack
+    url: https://github.com/Robbes/open-migrate
+
+servers:
+  - url: https://{host}
+    description: A managed deployment. There is no shared public instance — an operator runs their own.
+    variables:
+      host:
+        default: localhost:3001
+        description: Host and port of the API service (deploy/compose/managed.yml publishes 3001).
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Service
+    description: Liveness, build identity and metrics. No tenant, no token.
+  - name: Tenants
+    description: The tenant record and its members.
+  - name: Migrations
+    description: Creating, scoping, running and finishing a migration.
+  - name: Operating
+    description: The three decision queues, verification, and applying a deletion.
+  - name: Decisions
+    description: Drift decisions (§11.2) and the standing answers that resolve them automatically.
+  - name: Discovery
+    description: What the source holds, and the shared addresses and permissions that do not migrate with it.
+  - name: Billing
+    description: Usage, cost, invoices and payment methods. Owner/admin only, reads included.
+  - name: Webhooks
+    description: Called by the payment provider, not by clients.
+
+paths:
+  /health:
+    get:
+      tags: [Service]
+      summary: Liveness
+      description: Answers as soon as the process is serving. Does not check the database.
+      security: []
+      responses:
+        '200':
+          description: The service is up.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+
+  /api/health:
+    get:
+      tags: [Service]
+      summary: Liveness (same-origin path)
+      description: |
+        Identical to `/health`. Exists because the web front proxies `/api` to
+        this service, so a browser checking health same-origin needs the
+        prefixed path.
+      security: []
+      responses:
+        '200':
+          description: The service is up.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+
+  /version:
+    get:
+      tags: [Service]
+      summary: Which build is running
+      description: |
+        Version and commit, so "what are you running" has an answer during a
+        support conversation. The commit is stamped into the image at build
+        time; a hand-built image that was not given one reports `unknown`
+        rather than guessing.
+      security: []
+      responses:
+        '200':
+          description: The running build.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Version' }
+
+  /api/version:
+    get:
+      tags: [Service]
+      summary: Which build is running (same-origin path)
+      security: []
+      responses:
+        '200':
+          description: The running build.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Version' }
+
+  /metrics:
+    get:
+      tags: [Service]
+      summary: Prometheus metrics
+      description: |
+        Process and migration counters in Prometheus text format. Deliberately
+        without per-tenant dashboards or alert rules: thresholds chosen before
+        there is traffic to measure would be guesses wearing the costume of a
+        service level.
+      security: []
+      responses:
+        '200':
+          description: Metrics in Prometheus exposition format.
+          content:
+            text/plain:
+              schema: { type: string }
+
+  /api/tenants:
+    get:
+      tags: [Tenants]
+      summary: List the tenants this token may see
+      responses:
+        '200':
+          description: The caller's tenants.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Tenants]
+      summary: Create a tenant — NOT AVAILABLE HERE
+      description: |
+        Always `501`. Tenant creation is a cross-tenant bootstrap operation and
+        cannot run through a tenant-scoped request: the RLS insert policy
+        requires the new row's id to equal the current tenant, which a freshly
+        created tenant never satisfies. Documented rather than hidden, because
+        the honest refusal is the contract — tenants are provisioned by the
+        onboarding/seed path.
+      responses:
+        '501':
+          description: Not implemented, with the reason and the path that does work.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /api/tenants/{tenantId}:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    get:
+      tags: [Tenants]
+      summary: Get one tenant
+      responses:
+        '200':
+          description: The tenant.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Tenants]
+      summary: Update a tenant's name or settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, minLength: 1, maxLength: 255 }
+                settings: { type: object }
+      responses:
+        '200':
+          description: The updated tenant.
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Tenants]
+      summary: Delete a tenant
+      description: Offboarding (§17, right to erasure). See the operator runbook before using it.
+      responses:
+        '200': { description: Deleted. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/tenants/{tenantId}/notifications:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    put:
+      tags: [Tenants]
+      summary: Set this tenant's digest cadence
+      description: |
+        How often this tenant's owners and admins are mailed the "what needs
+        attention" digest — daily, weekly, or off. A summary with nothing in it
+        is never sent; silence means nothing is waiting.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200':
+          description: The stored preference.
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/tenants/{tenantId}/members:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    get:
+      tags: [Tenants]
+      summary: List members
+      responses:
+        '200':
+          description: The tenant's members.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Tenants]
+      summary: Invite a member
+      description: |
+        A second invitation for an address that already has a live row is
+        refused with `409` naming that row, rather than quietly creating a
+        duplicate whose role nobody can predict.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '201':
+          description: The invited member.
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: An invited or active row for this address already exists.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /api/tenants/{tenantId}/members/{memberId}:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - name: memberId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Tenants]
+      summary: Get one member
+      responses:
+        '200':
+          description: The member.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Tenants]
+      summary: Change a member's role
+      description: |
+        Owner/admin only. Removing your own last owner role is refused — the
+        last owner cannot demote themselves out of the tenant.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role: { $ref: '#/components/schemas/Role' }
+      responses:
+        '200':
+          description: The updated member.
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Refused — this change would leave the tenant without an owner.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      tags: [Tenants]
+      summary: Remove a member
+      responses:
+        '200': { description: Removed. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Refused — removing this member would leave the tenant without an owner.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /api/migrations:
+    get:
+      tags: [Migrations]
+      summary: List migrations
+      description: |
+        `lastSyncAt` is the newest domain completion for the mapping, or absent
+        when no domain has completed yet — absent means "never", not "today".
+      responses:
+        '200':
+          description: The tenant's migrations.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mappings:
+                    type: array
+                    items: { $ref: '#/components/schemas/Mapping' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Migrations]
+      summary: Create a migration
+      description: |
+        Stores the source and target connections with their credentials
+        encrypted at rest, and the domains to carry. Incoherent
+        target/domain combinations and an unparseable schedule are refused at
+        create with the same words the wizard shows, rather than accepted and
+        failed later by a job nobody is watching.
+
+        A created migration starts `paused`: it does not sync until the owner
+        reviews the discovery counts and green-lights it via `/start`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateMappingRequest' }
+      responses:
+        '201':
+          description: The created migration, credentials masked.
+          content:
+            application/json:
+              schema: { type: object }
+        '400':
+          description: Refused, naming what is incoherent or missing.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/migrations/{mappingId}:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    get:
+      tags: [Migrations]
+      summary: Get one migration
+      description: The stored config with the password masked — never the real secret.
+      responses:
+        '200':
+          description: The migration.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Migrations]
+      summary: Update a migration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200':
+          description: The updated migration.
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Migrations]
+      summary: Delete a migration
+      description: |
+        Destroys config and ledger linkage. The UI arms this by making the
+        operator type the migration's own name; the API itself does not
+        second-guess a deliberate call.
+      responses:
+        '200': { description: Deleted. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/migrations/{mappingId}/start:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    post:
+      tags: [Migrations]
+      summary: Green-light a paused migration
+      description: The owner's go-ahead after reviewing discovery. Until this, syncs are refused with `409`.
+      responses:
+        '200':
+          description: Started.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/migrations/{mappingId}/sync:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    post:
+      tags: [Migrations]
+      summary: Run a pass now
+      description: |
+        Enqueues a pass and returns immediately. Without a `domains` list the
+        job runs the domains the owner selected for this migration — never all
+        four by default, because no selection means "not selected", not
+        "everything".
+
+        A paused migration is refused with `409` naming `/start`.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [full, delta]
+                  description: A full pass ignores cursors and rescans everything.
+                forceFullScan: { type: boolean }
+      responses:
+        '202':
+          description: Enqueued.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EnqueuedRun' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The migration is paused — review discovery and start it first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /api/migrations/{mappingId}/cutover:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    post:
+      tags: [Migrations]
+      summary: Prepare a cutover
+      description: |
+        Prepares and verifies, then stops at `READY_FOR_CUTOVER`. It does not
+        execute a cutover: moving mail delivery is an MX/DNS change outside
+        this product, and the one step nobody here can perform for you.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                skipFinalSync: { type: boolean }
+                skipVerification: { type: boolean }
+      responses:
+        '202':
+          description: Enqueued.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EnqueuedRun' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/migrations/{mappingId}/runs:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    get:
+      tags: [Migrations]
+      summary: Run history
+      description: |
+        Newest first, with the per-domain events of each pass. A run whose
+        domains were narrower than the migration's selection says so in its
+        events rather than leaving the absence unexplained.
+      responses:
+        '200':
+          description: Recent runs.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runs:
+                    type: array
+                    items: { $ref: '#/components/schemas/Run' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/migrations/{mappingId}/discover:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    post:
+      tags: [Discovery]
+      summary: Count what the source holds
+      responses:
+        '202':
+          description: Enqueued.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/migrations/{mappingId}/discovery:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    get:
+      tags: [Discovery]
+      summary: The discovery counts
+      description: |
+        Per domain: collections, items and bytes, each stamped with when it was
+        measured. A domain that could not be read reports that, with the reason.
+      responses:
+        '200':
+          description: The counts.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/migrations/{mappingId}/deletions:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    get:
+      tags: [Operating]
+      summary: Items the source no longer has
+      description: |
+        Watched, not acted on. An item appears here when the source stopped
+        reporting it; nothing is deleted on the target until a person applies
+        it, and then only with evidence.
+      responses:
+        '200':
+          description: The deletion queue.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/migrations/{mappingId}/deletions/{hash}/keep:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+      - $ref: '#/components/parameters/Hash'
+    post:
+      tags: [Operating]
+      summary: Keep this item on the target
+      description: Decides the queue entry the safe way — the copy stays, and it stops being watched.
+      responses:
+        '200':
+          description: Kept.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/migrations/{mappingId}/deletions/{hash}/apply:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+      - $ref: '#/components/parameters/Hash'
+    post:
+      tags: [Operating]
+      summary: Delete this item on the target
+      description: |
+        The one destructive endpoint, and it refuses more often than it acts.
+        All of the following must hold, and the refusal names which one did
+        not: the migration allows applying deletions, the item carries recorded
+        deletion evidence, and the bytes are ours — an item that was already on
+        the target when we arrived (`adopted`) is refused as `not_ours`,
+        because deleting what we never copied is not this product's business.
+
+        Enqueues; poll `/receipt` for the outcome. `refused` is a legitimate
+        terminal state, not a failure.
+      responses:
+        '202':
+          description: Enqueued.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  queued: { type: boolean }
+                  receipt: { $ref: '#/components/schemas/DeletionReceipt' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Refused, naming the gate that said no.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/migrations/{mappingId}/deletions/{hash}/receipt:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+      - $ref: '#/components/parameters/Hash'
+    get:
+      tags: [Operating]
+      summary: What happened to an applied deletion
+      responses:
+        '200':
+          description: The receipt.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeletionReceipt' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/migrations/{mappingId}/apply-deletions:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    get:
+      tags: [Operating]
+      summary: Whether this migration may apply deletions at all
+      responses:
+        '200':
+          description: The flag and where it is set.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Operating]
+      summary: Turn applying deletions on or off
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                allowApplyDeletions: { type: boolean }
+      responses:
+        '200':
+          description: The stored flag.
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/migrations/{mappingId}/moves:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    get:
+      tags: [Operating]
+      summary: Items someone moved on the source
+      responses:
+        '200':
+          description: The move queue.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/migrations/{mappingId}/moves/{hash}/keep:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+      - $ref: '#/components/parameters/Hash'
+    post:
+      tags: [Operating]
+      summary: Leave the target copy where it is
+      responses:
+        '200':
+          description: Kept.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/migrations/{mappingId}/failures:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    get:
+      tags: [Operating]
+      summary: Items that would not migrate
+      description: Each carries the reason verbatim from the server that refused it.
+      responses:
+        '200':
+          description: The failure queue.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/migrations/{mappingId}/failures/{hash}/{action}:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+      - $ref: '#/components/parameters/Hash'
+      - name: action
+        in: path
+        required: true
+        description: |
+          `retry` queues the item again. `accept` records that this item is not
+          coming across — a decision, kept, so the finish checklist can count
+          it instead of pretending the queue is empty.
+        schema:
+          type: string
+          enum: [retry, accept]
+    post:
+      tags: [Operating]
+      summary: Retry or accept a failed item
+      responses:
+        '200':
+          description: Recorded.
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/migrations/{mappingId}/verify/start:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    post:
+      tags: [Operating]
+      summary: Start a verification scan
+      description: |
+        Reads the destination and compares it with the ledger. Enqueues; poll
+        `/verify/report`. A domain that was not enabled is reported `SKIPPED`
+        with the reason, never as a pass.
+      responses:
+        '202':
+          description: Enqueued.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  started: { type: boolean }
+                  report: { $ref: '#/components/schemas/VerificationRunReport' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '502':
+          description: The scan could not be enqueued; the run row is landed as failed with the reason.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /api/migrations/{mappingId}/verify/report:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    get:
+      tags: [Operating]
+      summary: The latest verification report
+      description: Reads the latest run row and triggers nothing — polling this is free.
+      responses:
+        '200':
+          description: The report.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VerificationRunReport' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/migrations/{mappingId}/finish:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    post:
+      tags: [Operating]
+      summary: Finish a migration
+      description: |
+        Stops watching the source. Adds and removes nothing on either system —
+        what is on the destination stays exactly as it is.
+
+        Refused while the queues still hold undecided items unless the caller
+        says explicitly to finish anyway, because finishing with items
+        outstanding leaves them behind silently.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                force:
+                  type: boolean
+                  description: Finish despite outstanding decisions, leaving them behind.
+      responses:
+        '200':
+          description: Finished.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Refused — decisions are still outstanding.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /api/decisions:
+    get:
+      tags: [Decisions]
+      summary: Drift decisions awaiting an answer
+      responses:
+        '200':
+          description: The decision queue.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/decisions/{decisionId}/resolve:
+    parameters:
+      - $ref: '#/components/parameters/DecisionId'
+    post:
+      tags: [Decisions]
+      summary: Answer a decision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200':
+          description: Resolved.
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/decisions/{decisionId}/dismiss:
+    parameters:
+      - $ref: '#/components/parameters/DecisionId'
+    post:
+      tags: [Decisions]
+      summary: Set a decision aside
+      description: |
+        Set aside, not rejected. The distinction is kept because "I am not
+        acting on this" and "this change was refused" are different claims
+        about what happened.
+      responses:
+        '200':
+          description: Dismissed.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/decisions/presets:
+    get:
+      tags: [Decisions]
+      summary: The standing answers
+      description: |
+        Per category, the answer applied automatically so the same question is
+        not asked twice. A decision resolved this way says so, rather than
+        appearing to have been considered by a person.
+      responses:
+        '200':
+          description: The presets.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/decisions/presets/{category}:
+    parameters:
+      - name: category
+        in: path
+        required: true
+        schema: { type: string }
+    put:
+      tags: [Decisions]
+      summary: Set the standing answer for one category
+      description: Owner/admin only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200':
+          description: Stored.
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/scope-manifest:
+    get:
+      tags: [Discovery]
+      summary: What this product carries, and what it does not
+      description: |
+        The per-domain manifest the confirm screen renders: what migrates, what
+        does not, and what is transformed on the way. Static truth about the
+        product, not about one tenant's data.
+      responses:
+        '200':
+          description: The manifest.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/shared-addresses:
+    get:
+      tags: [Discovery]
+      summary: Shared mailboxes and distribution lists found on the source
+      description: |
+        Classified per §14.1 — a shared mailbox is a store to copy, a
+        distribution list is a definition to recreate. An address the directory
+        did not classify is reported unclassified rather than guessed.
+      responses:
+        '200':
+          description: The discovered shared addresses.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/shared-addresses/runbook:
+    get:
+      tags: [Discovery]
+      summary: The shared-address runbook, as Markdown
+      description: A document to work through on the destination, not a status page.
+      responses:
+        '200':
+          description: Markdown.
+          content:
+            text/markdown:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/permissions/report:
+    get:
+      tags: [Discovery]
+      summary: The permission runbook, as Markdown
+      description: |
+        Who could see whose calendar, who had access to which shared files —
+        rights that do not travel with the data and must be re-granted by hand
+        on the destination.
+
+        **Blind spots are printed above the findings**, deliberately: mailbox
+        delegation (FullAccess, Send-As) is never in it because Graph does not
+        expose it, and OneDrive/SharePoint sharing appears only if this
+        deployment holds that permission. A section headed "could not be
+        inventoried" placed under two pages of successes gets skipped, and it
+        is the dangerous half.
+      responses:
+        '200':
+          description: Markdown.
+          content:
+            text/markdown:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/billing/usage:
+    get:
+      tags: [Billing]
+      summary: This period's usage and cost
+      description: |
+        Priced at **this tenant's agreed rates** — the snapshot pinned when the
+        tenant was first billed, not the operator's current price list. An
+        operator raising prices for new customers does not re-price an existing
+        one.
+      responses:
+        '200':
+          description: Usage and the cost it implies.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  usage: { $ref: '#/components/schemas/Usage' }
+                  currentCost: { $ref: '#/components/schemas/Cost' }
+                  period: { type: string, examples: ['2026-08'] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/billing/usage/history:
+    get:
+      tags: [Billing]
+      summary: Usage by period
+      responses:
+        '200':
+          description: One entry per period, newest first.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/billing/estimate:
+    post:
+      tags: [Billing]
+      summary: What projected usage would cost
+      description: Estimated at this tenant's agreed rates, so the number matches the invoice they will get.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                storageUsedGB: { type: number }
+                egressGB: { type: number }
+                computeHours: { type: number }
+                syncCount: { type: number }
+      responses:
+        '200':
+          description: The estimate, in integer cents.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  estimate: { type: integer }
+                  breakdown: { $ref: '#/components/schemas/Cost' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/billing/invoices:
+    get:
+      tags: [Billing]
+      summary: List invoices
+      responses:
+        '200':
+          description: The tenant's invoices.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/billing/invoices/generate:
+    post:
+      tags: [Billing]
+      summary: Generate or refresh a period's invoice
+      description: |
+        Owner/admin. An invoice already paid or void is left untouched rather
+        than regenerated — a settled document does not move because usage was
+        recounted.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                period: { type: string, pattern: '^\d{4}-\d{2}$', examples: ['2026-08'] }
+      responses:
+        '201':
+          description: The generated invoice.
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/billing/invoices/{invoiceId}:
+    parameters:
+      - name: invoiceId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Billing]
+      summary: Get one invoice
+      responses:
+        '200':
+          description: The invoice.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/billing/invoices/{invoiceId}/pay:
+    parameters:
+      - name: invoiceId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Billing]
+      summary: Start a payment
+      description: Owner/admin. Returns the provider's checkout URL to send the payer to.
+      responses:
+        '200':
+          description: The payment, with a checkout URL.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/billing/payment-methods:
+    get:
+      tags: [Billing]
+      summary: List payment methods
+      responses:
+        '200':
+          description: The tenant's payment methods.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Billing]
+      summary: Add a payment method
+      description: Owner/admin.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '201':
+          description: The stored method.
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/billing/payment-methods/{paymentMethodId}/default:
+    parameters:
+      - name: paymentMethodId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [Billing]
+      summary: Make this the default payment method
+      description: Owner/admin.
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/billing/webhooks/mollie:
+    post:
+      tags: [Webhooks]
+      summary: Payment status changed
+      description: |
+        Called by Mollie, not by clients. The body carries only a payment id;
+        the status is then fetched from the provider rather than trusted from
+        the request, because anyone can post here.
+
+        `application/x-www-form-urlencoded`, which is what the provider sends.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                id: { type: string, description: The provider's payment id. }
+      responses:
+        '200': { description: Acknowledged. }
+
+  /api/billing/webhooks/mollie/test:
+    get:
+      tags: [Webhooks]
+      summary: Webhook reachability check
+      description: Confirms this deployment's webhook URL is reachable from outside. Returns no tenant data.
+      security: []
+      responses:
+        '200':
+          description: Reachable.
+          content:
+            application/json:
+              schema: { type: object }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        A tenant-scoped JWT. Local deployments sign it with `JWT_SECRET`;
+        managed SSO validates against a JWKS instead.
+
+        The token's subject must be a MEMBER of the tenant it names — an
+        arbitrary subject with a valid signature is refused. Roles (`owner`,
+        `admin`, `member`, `viewer`) gate the routes marked owner/admin above,
+        for reads as well as writes on billing.
+
+  parameters:
+    TenantId:
+      name: tenantId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    MappingId:
+      name: mappingId
+      in: path
+      required: true
+      description: The migration's id.
+      schema: { type: string, format: uuid }
+    DecisionId:
+      name: decisionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Hash:
+      name: hash
+      in: path
+      required: true
+      description: The item's natural-key hash — stable across re-runs, which is what makes a re-run converge instead of duplicating.
+      schema: { type: string }
+
+  responses:
+    BadRequest:
+      description: The request was refused, with the reason.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Missing, invalid, or non-member token.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Authenticated, but this role may not do this.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: No such resource in this tenant.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Error:
+      type: object
+      description: Every refusal has this shape. `message` is meant to be shown to a person as-is.
+      properties:
+        error: { type: string, examples: ['Conflict'] }
+        message:
+          type: string
+          examples: ['Mapping is paused — review the discovery counts and start it first (POST /start).']
+      required: [error, message]
+
+    Health:
+      type: object
+      properties:
+        status: { type: string, enum: [ok] }
+        timestamp: { type: string, format: date-time }
+      required: [status, timestamp]
+
+    Version:
+      type: object
+      properties:
+        version: { type: string, examples: ['0.1.0-rc.1'] }
+        commit:
+          type: string
+          description: The build's commit, or `unknown` when the image was built without one.
+          examples: ['63d1414c9e2f…']
+      required: [version, commit]
+
+    Role:
+      type: string
+      enum: [owner, admin, member, viewer]
+
+    Domain:
+      type: string
+      description: The four data domains this product carries.
+      enum: [email, calendar, contact, file]
+
+    MappingStatus:
+      type: string
+      description: |
+        `paused` is a migration awaiting its owner's green light; `done` has
+        been finished and is no longer watched.
+      enum: [active, paused, cutover, done]
+
+    Mapping:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        name: { type: string }
+        sourceType: { type: string, examples: ['imap'] }
+        targetType: { type: string, examples: ['jmap'] }
+        status: { $ref: '#/components/schemas/MappingStatus' }
+        mode: { type: string, enum: [mirror, bidirectional, one_time, asymmetric] }
+        pattern:
+          type: [string, 'null']
+          enum: [shared_s, distribution_d, null]
+          description: Set when this migration carries a shared address rather than a user mailbox.
+        domains:
+          type: array
+          items: { $ref: '#/components/schemas/Domain' }
+        lastSyncAt:
+          type: [string, 'null']
+          format: date-time
+          description: The newest domain completion. Absent means no domain has ever completed.
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, tenantId, name, status, domains]
+
+    EnqueuedRun:
+      type: object
+      description: What an enqueue answers with. The work has not happened yet.
+      properties:
+        success: { type: boolean }
+        runId: { type: string }
+        jobType: { type: string, examples: ['run-delta-sync'] }
+        triggeredAt: { type: string, format: date-time }
+      required: [success, runId]
+
+    Run:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [pending, running, succeeded, failed, cancelled] }
+        kind: { type: string, examples: ['incremental'] }
+        trigger: { type: string, enum: [manual, schedule] }
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: [string, 'null'], format: date-time }
+        itemsProcessed: { type: integer }
+        errors: { type: integer }
+        events:
+          type: array
+          description: The per-domain lines of this pass, including the domains that did not run and why.
+          items: { type: object }
+      required: [id, status, startedAt]
+
+    DeletionReceipt:
+      type: object
+      description: |
+        `refused` is terminal and legitimate — a gate said no and said why. It
+        is not an error state.
+      properties:
+        state: { type: string, enum: [queued, running, applied, refused, failed] }
+        kind: { type: string, examples: ['deleted'] }
+        requestedAt: { type: string, format: date-time }
+        finishedAt: { type: [string, 'null'], format: date-time }
+        reason:
+          type: [string, 'null']
+          description: Present on `refused`/`failed`, verbatim.
+      required: [state, requestedAt]
+
+    VerificationRunReport:
+      type: object
+      properties:
+        state: { type: string, enum: [running, done, failed] }
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: [string, 'null'], format: date-time }
+        error: { type: [string, 'null'] }
+        report:
+          type: [object, 'null']
+          description: |
+            Keyed by mapping id; each carries a per-domain
+            `DomainVerification`, an `overallStatus`, `recommendations`, and
+            `canProceedToCutover`.
+          additionalProperties: { type: object }
+      required: [state, startedAt]
+
+    DomainVerification:
+      type: object
+      description: |
+        One domain's comparison. `SKIPPED` means the domain was not checked and
+        says so — it is never counted as a pass.
+      properties:
+        dataType: { $ref: '#/components/schemas/Domain' }
+        status: { type: string, enum: [PASS, FAIL, WARN, SKIPPED] }
+        sourceCount: { type: integer }
+        targetCount: { type: integer }
+        matchedCount: { type: integer }
+        missingOnTarget: { type: integer }
+        extraOnTarget: { type: integer }
+        checksumMatches: { type: integer }
+        checksumMismatches: { type: integer }
+        checksumSampleSize: { type: integer }
+        checksumUnavailable: { type: integer }
+        totalBytesSource: { type: integer }
+        totalBytesTarget: { type: [integer, 'null'] }
+        issues:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              severity: { type: string, enum: [INFO, WARNING, ERROR] }
+              message: { type: string }
+
+    Usage:
+      type: object
+      properties:
+        tenantId: { type: string, format: uuid }
+        period: { type: string, examples: ['2026-08'] }
+        storageUsedGB: { type: number }
+        egressGB: { type: number }
+        computeHours:
+          type: number
+          description: Time the passes actually took, summed from their own start and finish stamps.
+        syncCount: { type: integer }
+        lastUpdated: { type: string, format: date-time }
+
+    Cost:
+      type: object
+      description: Integer cents throughout — no float reaches an invoice.
+      properties:
+        baseFee: { type: integer }
+        storage: { type: integer }
+        egress: { type: integer }
+        compute: { type: integer }
+        subtotal: { type: integer }
+        taxRate: { type: number, examples: [0.21] }
+        tax: { type: integer }
+        total: { type: integer }
+      required: [baseFee, subtotal, taxRate, tax, total]
+
+    CreateMappingRequest:
+      type: object
+      description: |
+        The source and target this migration carries. Credentials are encrypted
+        at rest and masked on every read-back; the API never returns a stored
+        secret.
+      properties:
+        name: { type: string }
+        sourceConfig:
+          type: object
+          description: |
+            `username` is required. Which flow applies is decided by which
+            fields are present, not by a type flag: `password` for a source
+            that signs in directly; `tenantId` + `clientId` + `clientSecret`
+            for the customer's own Entra app registration.
+          properties:
+            type: { type: string, examples: ['imap-oauth2'] }
+            host: { type: string }
+            port: { type: integer }
+            useSsl: { type: boolean }
+            tlsVerify:
+              type: boolean
+              description: |
+                Defaults to true. Set false only for a lab server with a
+                self-signed certificate — a rejection against a real mail
+                server is a finding, not something to switch off.
+            username: { type: string }
+            password: { type: string, writeOnly: true }
+            tenantId: { type: string }
+            clientId: { type: string }
+            clientSecret: { type: string, writeOnly: true }
+          required: [username]
+        targetConfig:
+          type: object
+          properties:
+            type: { type: string, examples: ['jmap'] }
+            host: { type: string }
+            port: { type: integer }
+            baseUrl: { type: string }
+            username: { type: string }
+            password: { type: string, writeOnly: true }
+          required: [username, password]
+        domains:
+          type: array
+          items: { $ref: '#/components/schemas/Domain' }
+        schedule:
+          type: string
+          description: Five-field cron. An unparseable value is refused at create, not silently replaced by a default.
+          examples: ['*/15 * * * *']
+      required: [sourceConfig, targetConfig]
