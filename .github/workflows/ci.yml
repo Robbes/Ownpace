@@ -23,15 +23,20 @@
 # AutoRemove destroying the evidence (the 2026-08-01 hunt). A red main after a
 # green PR is therefore a designed-in outcome here, not an anomaly.
 #
-# It is now fixable rather than merely documentable: GitHub's arm64 hosted
-# runners (`ubuntu-24.04-arm`) went generally available for PUBLIC
-# repositories in August 2025, 4 vCPU, free — the same tier as the amd64 ones.
-# Moving the arch-sensitive jobs to a two-entry matrix would close the gap
-# without touching the Spark, and would also remove arm64 as a reason to keep
-# CI on the box that runs production. Not done here: it doubles the job count
-# for jobs that are almost all architecture-neutral TypeScript, and the honest
-# answer to "which of these are arch-sensitive" is "we have one data point".
-# Revisit when the second one arrives.
+# CLOSED for the job where it matters (2026-08-11). GitHub's arm64 hosted
+# runners (`ubuntu-24.04-arm`) are generally available for PUBLIC repositories,
+# 4 vCPU, free — the same tier as the amd64 ones — so `integration-tests` now
+# runs on BOTH architectures on every pull request, and arm64 is exercised
+# before merge rather than after. See that job for why it is the only one
+# matrixed: it is the only one that runs real containers, and the workspace
+# declares no native dependency that could make the others arch-sensitive.
+#
+# This also removes arm64 as a reason to keep CI on the box that runs
+# production — see the operator runbook, "This box also runs CI".
+#
+# Runner images are PINNED (`ubuntu-24.04`, not `ubuntu-latest`) for the same
+# reason every action here is pinned to a SHA: `-latest` moves under you, and
+# this repository does not accept a dependency it did not choose.
 name: CI
 
 on:
@@ -52,7 +57,7 @@ concurrency:
 jobs:
   detect-changes:
     name: detect-changes
-    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-latest' }}
+    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
     outputs:
       any_changed: ${{ steps.filter.outputs.any_changed }}
       migrations_changed: ${{ steps.migrations.outputs.any_changed }}
@@ -93,7 +98,7 @@ jobs:
 
   docs-hygiene:
     name: docs-hygiene
-    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-latest' }}
+    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
     # Quality gate for all changes (incl. docs-only)
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
@@ -143,7 +148,7 @@ jobs:
 
   fixture-uuid-check:
     name: fixture-uuid-check
-    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-latest' }}
+    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
     # Runs on all PRs — fast check before heavier jobs
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
@@ -153,7 +158,7 @@ jobs:
 
   migration-lint:
     name: migration-lint
-    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-latest' }}
+    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
     needs: detect-changes
     # ADR-0017's last unbuilt bullet, decided KEEP + BUILD by the owner
     # (2026-08-02, workplan 0021 T5): Atlas replays every migration against a
@@ -194,7 +199,7 @@ jobs:
 
   lint:
     name: lint
-    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-latest' }}
+    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.any_changed == 'true' }}
     steps:
@@ -203,6 +208,11 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
+          # This was the ONE node job without it (found 2026-08-11), and the
+          # worst one to be missing: everything downstream `needs: lint`, so a
+          # cold `pnpm install` here delayed the entire workflow, not just this
+          # job. Cached it is ~6s; cold it is tens of seconds, every PR.
+          cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Lint & typecheck
         run: |
@@ -211,7 +221,7 @@ jobs:
 
   unit-tests:
     name: unit-tests
-    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-latest' }}
+    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
     needs: lint
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
@@ -265,7 +275,7 @@ jobs:
   # same-origin assertion honest. Runtime is ~20s including the build.
   ui-tests:
     name: ui-tests
-    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-latest' }}
+    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
     needs: lint
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
@@ -276,18 +286,53 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # playwright-core ships no browsers (that is why it is the dependency —
-      # see test/e2e/selfhost-ui.e2e.test.ts). Installed explicitly, here,
-      # where it is needed; cached on the self-hosted runner.
+      # see test/e2e/selfhost-ui.e2e.test.ts), so Chromium is installed
+      # explicitly, here, where it is needed.
+      #
+      # CACHED because a hosted runner starts empty every time: the first run
+      # of this job pulled 184 MiB of Chrome, 115 MiB of headless shell and
+      # 2 MiB of ffmpeg — ~10s of a 51s job, repeated on every PR. Keyed on the
+      # playwright-core version, which is what decides the browser build, so a
+      # dependency bump misses the cache and re-downloads exactly once.
+      # The self-hosted runner keeps ~/.cache/ms-playwright anyway; this makes
+      # the hosted path behave the same.
+      - name: Cache Chromium
+        id: pw-cache
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ms-playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Install Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
         run: node node_modules/playwright-core/cli.js install chromium
       - name: Managed UI smoke (real browser)
         # VITE_API_URL is deliberately NOT set: the suite builds the bundle
         # with the shipped same-origin default and asserts it stays that way.
         run: pnpm test:ui
 
+  # THE arch-sensitive job, and now the one that closes the gap the header
+  # describes. Everything else in this workflow is architecture-neutral
+  # TypeScript — verified, not assumed: the workspace declares no native or
+  # prebuilt-binary dependency (no node-gyp, better-sqlite3, sharp, argon2,
+  # @napi-rs/*), so unit-tests and ui-tests would learn nothing from a second
+  # architecture. This job is different: it runs real Postgres, real Nextcloud
+  # and real Stalwart containers, which is the closest thing CI has to the
+  # arm64 Spark the product actually deploys to.
+  #
+  # On a PULL REQUEST it runs twice, amd64 and arm64, both free 4-vCPU hosted
+  # runners. On a PUSH it stays a single self-hosted run — the Spark is already
+  # arm64, and the matrix must not multiply work on a box that also serves
+  # production.
+  #
+  # `fail-fast: false` so an arm64-only failure still reports the amd64 result.
+  # Knowing WHICH architecture broke is the entire point of running both.
   integration-tests:
-    name: integration-tests
-    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-latest' }}
+    name: integration-tests (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: ${{ github.event_name == 'push' && fromJSON('["self-hosted"]') || fromJSON('["ubuntu-24.04","ubuntu-24.04-arm"]') }}
     needs: unit-tests
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0

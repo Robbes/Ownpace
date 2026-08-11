@@ -34,7 +34,7 @@ permissions:
 jobs:
   security-scan:
     name: security-scan
-    runs-on: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'self-hosted' || 'ubuntu-latest' }}
+    runs-on: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'self-hosted' || 'ubuntu-24.04' }}
     permissions:
       # `contents: write` for the SBOM attach on a tag: creating or updating a
       # release is a write, and the read-only token this job used would have
