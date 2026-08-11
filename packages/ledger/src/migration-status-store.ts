@@ -58,6 +58,16 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
       .update(schemaPg.migrationStatus)
       .set({
         state: 'in_progress',
+        // THIS PASS's start, not the row's. `initDomainStatus` writes
+        // started_at once (INSERT ... ON CONFLICT DO NOTHING) and until
+        // 2026-08-11 nothing ever wrote it again, so `completedAt -
+        // startedAt` — which is how usage-metering prices compute time —
+        // measured the AGE OF THE ROW instead of the duration of the pass.
+        // Live on the Spark that read as 24.3 billable hours for a demo
+        // that had done a few seconds of work. A number that grows on its
+        // own with the calendar is not a measurement, and this one had a
+        // price attached to it.
+        startedAt: sql`now()`,
         updatedAt: sql`now()`,
       })
       .where(

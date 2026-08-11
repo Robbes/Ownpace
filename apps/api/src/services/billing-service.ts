@@ -8,20 +8,19 @@
  * `billingApi` mock was removed once those moved to real persistence.
  */
 
-// Pricing configuration
-export interface PricingConfig {
-  baseFee: number; // Monthly base fee in cents
-  storagePricePerGB: number; // Price per GB per month in cents
-  egressPricePerGB: number; // Price per GB egress in cents
-  computePricePerHour: number; // Price per compute hour in cents
-}
-
-export const defaultPricing: PricingConfig = {
-  baseFee: 999, // €9.99/month
-  storagePricePerGB: 10, // €0.10/GB/month
-  egressPricePerGB: 20, // €0.20/GB
-  computePricePerHour: 5, // €0.05/hour
-};
+// Pricing lives in @openmig/shared (ONE copy — the worker meters against the
+// same numbers this file invoices from; they used to be two literals in two
+// packages). `defaultPricing` is the built-in template, kept as a named export
+// because it is a sensible last-resort default for the pure calculator; every
+// route that prices a REAL tenant passes that tenant's agreed prices instead
+// (resolveTenantPricing), which is what keeps an operator's price change off
+// an existing customer's invoice.
+export {
+  type PricingConfig,
+  DEFAULT_PRICING as defaultPricing,
+  VAT_RATE,
+} from '@openmig/shared';
+import { type PricingConfig, DEFAULT_PRICING, VAT_RATE } from '@openmig/shared';
 
 // Usage metrics
 export interface UsageMetrics {
@@ -41,13 +40,15 @@ export interface UsageMetrics {
 // enum; the routes serve rows straight from Drizzle; the client parses those
 // rows against its own literal-response schemas.
 
-/** One VAT rate, said once. The rate the UI shows derives from `taxRate` on
- *  the served cost, so the label can never disagree with the arithmetic. */
-export const VAT_RATE = 0.21;
+// VAT (one rate, said once — re-exported from @openmig/shared above) is NOT
+// part of a tenant's agreement: a tax rate is set by a government and changes
+// for everyone at once, so it is not pinned per tenant like the prices are.
+// The rate the UI shows derives from `taxRate` on the served cost, so the
+// label can never disagree with the arithmetic.
 
 // Cost calculation — integer cents throughout (each component is rounded, so no
 // floating-point drift reaches the invoice).
-export function calculateCost(metrics: Partial<UsageMetrics>, pricing: PricingConfig = defaultPricing): {
+export function calculateCost(metrics: Partial<UsageMetrics>, pricing: PricingConfig = DEFAULT_PRICING): {
   baseFee: number;
   storage: number;
   egress: number;

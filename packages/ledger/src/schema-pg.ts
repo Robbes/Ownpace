@@ -25,6 +25,10 @@ export const tenant = pgTable('tenant', {
     .notNull()
     .default('active'),
   settings: jsonb('settings').notNull().default({}),
+  // The prices this tenant AGREED to (migration 0007), integer cents. Pinned
+  // once from the operator's template and never following it again — see
+  // tenant-pricing.ts. Nullable: NULL is "no agreement yet", not "free".
+  pricing: jsonb('pricing'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

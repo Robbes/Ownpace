@@ -254,6 +254,62 @@ With no SMTP configured the task runs, logs `not sending — no SMTP settings co
 sends nothing. A tenant that is due a digest but has no active owner or admin is named in the log
 rather than silently skipped.
 
+## Prices
+
+Two things carry a price, and they are deliberately not the same thing:
+
+- **The template** — `PRICING_*` in `.env` (integer cents; see `managed.env.example`). What a
+  tenant is offered when it has agreed to nothing yet.
+- **The agreement** — `tenant.pricing`, a JSON snapshot pinned the first time that tenant's
+  money is computed. What the tenant is actually billed at, on every screen, every metered row
+  and every invoice, for as long as it exists.
+
+An agreement never follows the template. Raising the list price for new customers is an `.env`
+edit and an api restart; it does not reach into an existing customer's open invoice, and no
+amount of editing that file will re-price them. That is the property this split exists to give
+you, and the reason there is no "prices" screen to click by accident.
+
+VAT is neither: 21%, one constant in `@openmig/shared`, because a tax rate is set by a
+government and changes for everyone at once.
+
+**Change the template (new tenants):**
+
+```bash
+# deploy/compose/.env — integer CENTS. €12.50/month is 1250, never 12.50.
+PRICING_BASE_FEE_CENTS=1250
+docker compose -f managed.yml up -d api      # the api reads it at boot
+./set-task-env.sh                            # the worker meters against the same numbers
+```
+
+A malformed value (a decimal point, a negative, text) stops the api at boot and names the
+variable. That is on purpose — `9.99` where cents belong would bill a hundredth of the intended
+amount on every invoice until somebody checked the bank.
+
+**Read what one tenant actually pays:**
+
+```bash
+docker exec open-migrate-db psql -U openmigrate -d openmigrate -c \
+  "SELECT id, name, pricing FROM tenant ORDER BY created_at;"
+```
+
+`NULL` means no agreement yet — that tenant will be pinned to the current template the next time
+its billing page is opened or its metering runs.
+
+**Re-price ONE existing tenant** — deliberate, per customer, after you have agreed it with them:
+
+```bash
+docker exec open-migrate-db psql -U openmigrate -d openmigrate -c \
+  "UPDATE tenant SET pricing = jsonb_build_object(
+       'baseFee', 1250, 'storagePricePerGB', 10,
+       'egressPricePerGB', 20, 'computePricePerHour', 5)
+    WHERE id = '<tenant-uuid>';"
+```
+
+All four keys, all integer cents: a partial object reads as *no agreement* and gets re-pinned to
+the template on the next billing touch, rather than half-merging into a price nobody quoted.
+Already-issued invoices are unaffected — they carry the numbers they were generated with; the
+new rates apply to invoices generated from now on.
+
 ## Backup & restore (§22.1)
 
 **Back up the control-plane DB before every migration/upgrade.** Schema rollback is hard —
