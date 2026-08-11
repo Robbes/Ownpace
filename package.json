@@ -17,6 +17,7 @@
     "test": "vitest run --project unit --project unit-browser",
     "test:integration": "vitest run --project integration --no-file-parallelism",
     "test:e2e": "vitest run --project e2e",
+    "test:ui": "vitest run --project ui",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },

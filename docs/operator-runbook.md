@@ -310,6 +310,39 @@ the template on the next billing touch, rather than half-merging into a price no
 Already-issued invoices are unaffected — they carry the numbers they were generated with; the
 new rates apply to invoices generated from now on.
 
+## This box also runs CI — and that has to end before the first real tenant
+
+The Spark is currently four things at once: the live managed stack, the CI
+runner for pushes to `main`, the e2e runner, and the O365 e2e runner. That is a
+reasonable arrangement while the only data on it is the demo seed. It stops
+being reasonable the moment a customer's mailbox credentials live here, and the
+reason is not hypothetical — it has already nearly happened twice:
+
+- **A drill nearly took a live appliance down.** `container_name` in
+  `compose.yml` is a fixed string and `docker compose -p` does not namespace
+  it, so `upgrade-drill.sh` under its own project still tried to create a
+  container named `open-migrate-selfhost-app`. The first run only got away
+  with it because no appliance happened to be up. Fixed with
+  `compose.drill.yml`, but the class of problem is "CI and production share a
+  Docker daemon", and that is still true.
+- **The runs contend.** The two nightly e2e crons are staggered by two hours
+  for one reason: the runner is a single shared box, and a full stack bring-up
+  next to a live one is not free.
+
+**The gate:** before the first non-demo tenant is onboarded, CI and production
+must not share this machine. Two ways to get there, and the cheaper one only
+became available recently:
+
+1. **Move CI off.** The Spark was buying two things GitHub-hosted runners could
+   not: arm64 and a warm cache. Arm64 is no longer one of them — GitHub's
+   `ubuntu-24.04-arm` hosted runners are generally available and free for
+   public repositories. What remains is cache/speed, which is worth far less
+   than not sharing a Docker daemon with production.
+2. **Move production off**, onto a host that runs no CI at all.
+
+Either is fine. Doing neither, with real mail credentials on the box, is the
+one option that is not.
+
 ## Backup & restore (§22.1)
 
 **Back up the control-plane DB before every migration/upgrade.** Schema rollback is hard —

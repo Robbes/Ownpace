@@ -46,6 +46,23 @@ export default defineConfig({
     projects: [
       {
         test: {
+          // Real-browser smoke over the MANAGED bundle (test/ui/). Its own
+          // project because it needs two things the unit gate must not
+          // require: a Chromium binary, and a production `pnpm build` of the
+          // web app. Kept out of `pnpm test` for that reason and run as its
+          // own CI job — but on every PR, not nightly, because the defects it
+          // exists for (an uncompiled stylesheet, a bundle calling the wrong
+          // origin) ship silently and are cheap to catch before merge.
+          name: 'ui',
+          include: ['test/ui/**/*.ui.test.ts'],
+          // One browser, one build: parallel files would rebuild and relaunch.
+          fileParallelism: false,
+          testTimeout: 120000,
+          hookTimeout: 300000,
+        },
+      },
+      {
+        test: {
           name: 'unit-browser',
           // Include .tsx so web component tests (jsdom + testing-library) run in CI too.
           include: ['apps/web/**/*.unit.test.{ts,tsx}'],

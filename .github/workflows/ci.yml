@@ -2,8 +2,41 @@
 #   detect-changes -> docs-hygiene (parallel) -> lint -> unit-tests -> integration-tests
 # E2E is a SEPARATE, manual workflow (e2e.yml). Runs on the self-hosted (Spark) runner.
 #
-# SECURITY: Self-hosted runner is ONLY used for push events to main.
-# Pull requests from forks run on GitHub-hosted runners to prevent arbitrary code execution.
+# ── Which machine runs untrusted code ────────────────────────────────────────
+#
+# SECURITY: the self-hosted runner is ONLY used for push events. Pull requests
+# — including from forks, and this repository is PUBLIC — run on GitHub-hosted
+# runners, so a stranger's branch never executes on the Spark. That box holds
+# the live managed stack, its .env, the encrypted connection credentials and
+# the trigger keys; `pnpm install` alone runs lifecycle scripts, which is all
+# an attacker needs. Every workflow with a `pull_request` trigger follows this:
+# ci.yml and security-scan.yml by the conditional below, and
+# no-committed-artifacts.yml since 2026-08-11, when it was found to be the one
+# exception. e2e.yml and e2e-o365.yml are schedule/dispatch only — no PR path
+# to abuse — which is why they can name the runner unconditionally.
+#
+# WHAT THE SPLIT COSTS, stated so it is a known limitation and not a surprise:
+# GitHub's hosted Linux runners are amd64, the Spark is arm64, so **a PR is
+# validated on an architecture we do not deploy to, and the one we do deploy to
+# is only exercised after merge.** This has bitten once already — task images
+# built for amd64 died at exec on the arm64 Spark in under a second, with
+# AutoRemove destroying the evidence (the 2026-08-01 hunt). A red main after a
+# green PR is therefore a designed-in outcome here, not an anomaly.
+#
+# CLOSED for the job where it matters (2026-08-11). GitHub's arm64 hosted
+# runners (`ubuntu-24.04-arm`) are generally available for PUBLIC repositories,
+# 4 vCPU, free — the same tier as the amd64 ones — so `integration-tests` now
+# runs on BOTH architectures on every pull request, and arm64 is exercised
+# before merge rather than after. See that job for why it is the only one
+# matrixed: it is the only one that runs real containers, and the workspace
+# declares no native dependency that could make the others arch-sensitive.
+#
+# This also removes arm64 as a reason to keep CI on the box that runs
+# production — see the operator runbook, "This box also runs CI".
+#
+# Runner images are PINNED (`ubuntu-24.04`, not `ubuntu-latest`) for the same
+# reason every action here is pinned to a SHA: `-latest` moves under you, and
+# this repository does not accept a dependency it did not choose.
 name: CI
 
 on:
@@ -24,7 +57,7 @@ concurrency:
 jobs:
   detect-changes:
     name: detect-changes
-    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-latest' }}
+    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
     outputs:
       any_changed: ${{ steps.filter.outputs.any_changed }}
       migrations_changed: ${{ steps.migrations.outputs.any_changed }}
@@ -65,7 +98,7 @@ jobs:
 
   docs-hygiene:
     name: docs-hygiene
-    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-latest' }}
+    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
     # Quality gate for all changes (incl. docs-only)
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
@@ -115,7 +148,7 @@ jobs:
 
   fixture-uuid-check:
     name: fixture-uuid-check
-    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-latest' }}
+    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
     # Runs on all PRs — fast check before heavier jobs
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
@@ -125,7 +158,7 @@ jobs:
 
   migration-lint:
     name: migration-lint
-    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-latest' }}
+    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
     needs: detect-changes
     # ADR-0017's last unbuilt bullet, decided KEEP + BUILD by the owner
     # (2026-08-02, workplan 0021 T5): Atlas replays every migration against a
@@ -166,7 +199,7 @@ jobs:
 
   lint:
     name: lint
-    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-latest' }}
+    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.any_changed == 'true' }}
     steps:
@@ -175,6 +208,11 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
+          # This was the ONE node job without it (found 2026-08-11), and the
+          # worst one to be missing: everything downstream `needs: lint`, so a
+          # cold `pnpm install` here delayed the entire workflow, not just this
+          # job. Cached it is ~6s; cold it is tens of seconds, every PR.
+          cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Lint & typecheck
         run: |
@@ -183,7 +221,7 @@ jobs:
 
   unit-tests:
     name: unit-tests
-    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-latest' }}
+    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
     needs: lint
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
@@ -223,9 +261,83 @@ jobs:
           path: '**/coverage/'
           retention-days: 7
 
+  # The managed UI, in a real browser, on EVERY PR.
+  #
+  # Its own job rather than a step in unit-tests, because it needs a Chromium
+  # binary and a production build of the web app — neither of which the unit
+  # gate should have to wait for. It stays on the PR path (not the nightly e2e
+  # where the selfhost UI smoke lives) because the three defects it exists for
+  # — an uncompiled stylesheet, a bundle calling the wrong origin, a dead list
+  # row — all SHIPPED, and all of them are cheap to catch before merge.
+  #
+  # No services: the suite builds the bundle and serves it from an in-process
+  # http server that answers /api from fixtures, which is also what makes its
+  # same-origin assertion honest. Runtime is ~20s including the build.
+  ui-tests:
+    name: ui-tests
+    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
+    needs: lint
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # playwright-core ships no browsers (that is why it is the dependency —
+      # see test/e2e/selfhost-ui.e2e.test.ts), so Chromium is installed
+      # explicitly, here, where it is needed.
+      #
+      # CACHED because a hosted runner starts empty every time: the first run
+      # of this job pulled 184 MiB of Chrome, 115 MiB of headless shell and
+      # 2 MiB of ffmpeg — ~10s of a 51s job, repeated on every PR. Keyed on the
+      # playwright-core version, which is what decides the browser build, so a
+      # dependency bump misses the cache and re-downloads exactly once.
+      # The self-hosted runner keeps ~/.cache/ms-playwright anyway; this makes
+      # the hosted path behave the same.
+      - name: Cache Chromium
+        id: pw-cache
+        # v6.1.0, not v4: every actions/cache v4 release (through v4.3.0) still
+        # declares `using: node20`, so the runner forces it onto Node 24 and
+        # prints a deprecation warning on every run. Checked by reading each
+        # tag's action.yml rather than assuming the newest v4 had fixed it —
+        # it had not. v6.1.0 declares `node24` and is silent.
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ms-playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Install Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: node node_modules/playwright-core/cli.js install chromium
+      - name: Managed UI smoke (real browser)
+        # VITE_API_URL is deliberately NOT set: the suite builds the bundle
+        # with the shipped same-origin default and asserts it stays that way.
+        run: pnpm test:ui
+
+  # THE arch-sensitive job, and now the one that closes the gap the header
+  # describes. Everything else in this workflow is architecture-neutral
+  # TypeScript — verified, not assumed: the workspace declares no native or
+  # prebuilt-binary dependency (no node-gyp, better-sqlite3, sharp, argon2,
+  # @napi-rs/*), so unit-tests and ui-tests would learn nothing from a second
+  # architecture. This job is different: it runs real Postgres, real Nextcloud
+  # and real Stalwart containers, which is the closest thing CI has to the
+  # arm64 Spark the product actually deploys to.
+  #
+  # On a PULL REQUEST it runs twice, amd64 and arm64, both free 4-vCPU hosted
+  # runners. On a PUSH it stays a single self-hosted run — the Spark is already
+  # arm64, and the matrix must not multiply work on a box that also serves
+  # production.
+  #
+  # `fail-fast: false` so an arm64-only failure still reports the amd64 result.
+  # Knowing WHICH architecture broke is the entire point of running both.
   integration-tests:
-    name: integration-tests
-    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-latest' }}
+    name: integration-tests (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: ${{ github.event_name == 'push' && fromJSON('["self-hosted"]') || fromJSON('["ubuntu-24.04","ubuntu-24.04-arm"]') }}
     needs: unit-tests
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
