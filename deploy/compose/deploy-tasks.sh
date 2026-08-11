@@ -17,7 +17,7 @@ set -euo pipefail
 #      Then restart the api so it picks the key up:
 #        docker compose -f deploy/compose/managed.yml up -d api
 #   4. CLI login, once per machine:
-#        npx trigger.dev@<version> login -a http://localhost:${TRIGGER_PORT:-3090} --profile openmig
+#        npx -y trigger.dev@<version> login -a http://localhost:${TRIGGER_PORT:-3090} --profile openmig
 #      (this script prints the exact pinned command if you are not logged in)
 #
 # TASK RUNTIME ENV VARS — the deployed tasks run in their own containers on
@@ -59,9 +59,14 @@ if ! curl -fsS -o /dev/null "${TRIGGER_URL}"; then
   exit 1
 fi
 
-if ! npx "trigger.dev@${CLI_VERSION}" whoami --profile "${PROFILE}" >/dev/null 2>&1; then
+# `npx -y` everywhere: without it, the first run after a CLI version bump
+# stops at npx's "Ok to proceed?" install prompt — which the `whoami` line
+# below sends to /dev/null along with everything else, so the script just
+# sits at the version banner looking hung (observed live, 2026-08-11, on the
+# 4.5.7 -> 4.5.9 bump: 30+ minutes at the banner, twice).
+if ! npx -y "trigger.dev@${CLI_VERSION}" whoami --profile "${PROFILE}" >/dev/null 2>&1; then
   echo "[deploy-tasks] Not logged in. Run this once, then re-run this script:" >&2
-  echo "               npx trigger.dev@${CLI_VERSION} login -a ${TRIGGER_URL} --profile ${PROFILE}" >&2
+  echo "               npx -y trigger.dev@${CLI_VERSION} login -a ${TRIGGER_URL} --profile ${PROFILE}" >&2
   exit 1
 fi
 
@@ -102,7 +107,7 @@ fi
 echo "[deploy-tasks] deploying apps/worker tasks (project ${TRIGGER_PROJECT_REF})..."
 cd "${REPO_ROOT}/apps/worker"
 TRIGGER_PROJECT_REF="${TRIGGER_PROJECT_REF}" \
-  npx "trigger.dev@${CLI_VERSION}" deploy --profile "${PROFILE}"
+  npx -y "trigger.dev@${CLI_VERSION}" deploy --profile "${PROFILE}"
 
 echo "[deploy-tasks] deploy command finished. The CLI's own output above is the"
 echo "[deploy-tasks] registration evidence; the dashboard's Deployments page"
