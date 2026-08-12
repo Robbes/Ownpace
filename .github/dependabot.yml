@@ -12,6 +12,16 @@ updates:
       time: "06:00"
       timezone: Etc/UTC
     open-pull-requests-limit: 10
+    ignore:
+      # TypeScript 7 is unusable here, and not as a matter of taste: typescript-eslint
+      # hard-throws "does not support TS 7.0" at module load, and its tracking issue
+      # (#10940) targets TS >= 7.1 — so no 7.0.x release can ever be taken, and every
+      # one Dependabot offers costs a triage it cannot pass. `tsc` itself is fine; the
+      # linter is the blocker, and it is waiting on ESLint gaining async parser support.
+      # See workplan 0026 row 22 for the evidence and the revisit trigger.
+      # REMOVE THIS when TypeScript 7.1 ships and typescript-eslint#10940 closes.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
     groups:
       # One PR/week for routine minor+patch bumps across dev + prod deps.
       minor-and-patch:

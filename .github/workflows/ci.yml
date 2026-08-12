@@ -28,8 +28,7 @@
 # 4 vCPU, free — the same tier as the amd64 ones — so `integration-tests` now
 # runs on BOTH architectures on every pull request, and arm64 is exercised
 # before merge rather than after. See that job for why it is the only one
-# matrixed: it is the only one that runs real containers, and the workspace
-# declares no native dependency that could make the others arch-sensitive.
+# matrixed: it is the only one that runs real containers.
 #
 # This also removes arm64 as a reason to keep CI on the box that runs
 # production — see the operator runbook, "This box also runs CI".
@@ -331,13 +330,18 @@ jobs:
         run: pnpm test:ui
 
   # THE arch-sensitive job, and now the one that closes the gap the header
-  # describes. Everything else in this workflow is architecture-neutral
-  # TypeScript — verified, not assumed: the workspace declares no native or
-  # prebuilt-binary dependency (no node-gyp, better-sqlite3, sharp, argon2,
-  # @napi-rs/*), so unit-tests and ui-tests would learn nothing from a second
-  # architecture. This job is different: it runs real Postgres, real Nextcloud
-  # and real Stalwart containers, which is the closest thing CI has to the
-  # arm64 Spark the product actually deploys to.
+  # describes. It runs real Postgres, real Nextcloud and real Stalwart
+  # containers, which is the closest thing CI has to the arm64 Spark the
+  # product actually deploys to.
+  #
+  # The other jobs are not matrixed because their work is architecture-neutral
+  # TypeScript. Note what that claim is NOT: this file said until 2026-08-11
+  # that "the workspace declares no native dependency", which was true of the
+  # MANIFESTS and false of the TREE — `better-sqlite3` (via drizzle-orm) and
+  # `libxmljs2` (via the CycloneDX SBOM tool) are both installed and both
+  # native. They resolve arm64 prebuilds and the arm64 leg below passes, so the
+  # conclusion held; the evidence for it did not, and a reason that is wrong
+  # is worse than no reason. See workplan 0026 row 26.
   #
   # On a PULL REQUEST it runs twice, amd64 and arm64, both free 4-vCPU hosted
   # runners. On a PUSH it stays a single self-hosted run — the Spark is already
