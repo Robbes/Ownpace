@@ -8,6 +8,6 @@
     "./imap-test-client": "./src/imap-test-client.ts"
   },
   "dependencies": {
-    "imapflow": "^1.6.5"
+    "imapflow": "^1.6.6"
   }
 }
