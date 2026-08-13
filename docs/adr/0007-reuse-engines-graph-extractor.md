@@ -1,6 +1,6 @@
 # ADR-0007: Reuse proven engines + a Graph rich extractor; no commercial SharePoint tools
 
-- **Status:** Accepted
+- **Status:** Accepted 2026-06-20 — **both halves have since moved. Read the Update below before the Decision above.** The rich Graph extractor is **retracted 2026-08-02** (owner decision, workplan 0026 T3). The "reuse proven engines" half is **historical**: ADR-0019's update records that no shell-out engines remain and the runtime is pure JavaScript.
 - **Date:** 2026-06-20
 
 ## Context

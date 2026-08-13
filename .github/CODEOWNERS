@@ -1,0 +1,22 @@
+# Every change is reviewed by the repository owner. This file exists so GitHub
+# requests that review automatically rather than relying on someone remembering,
+# and so an outside contributor can see who will look at their pull request.
+#
+# Paths are listed individually rather than left to the catch-all where the
+# reviewer needs specific context to judge the change.
+
+*                               @Robbes
+
+# Decisions and the documents that describe the system. A change here is a change
+# to what the project has committed to, not just to prose.
+/docs/adr/                      @Robbes
+/docs/architecture/             @Robbes
+/AGENTS.md                      @Robbes
+/CLAUDE.md                      @Robbes
+
+# Anything that runs on the self-hosted runner, holds credentials, or ships to a
+# customer's machine.
+/.github/workflows/             @Robbes
+/scripts/windows/               @Robbes
+/deploy/                        @Robbes
+/packages/ledger/migrations/    @Robbes

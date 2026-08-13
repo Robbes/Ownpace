@@ -1,34 +1,11 @@
 import { defineConfig } from 'vitest/config';
-import { resolve } from 'path';
-
-const rootDir = resolve(__dirname);
+import { aliases } from './vitest.aliases.ts';
 
 export default defineConfig({
-  resolve: {
-    alias: {
-      // Subpath exports, listed FIRST because a bare '@openmig/core' alias is a
-      // prefix match and would otherwise rewrite '@openmig/core/cutover-state'
-      // to '<root>/packages/core/src/index.ts/cutover-state'.
-      //
-      // Without these, whether CutoverStore.transitionState's dynamic import of
-      // '@openmig/core/cutover-state' resolves depends on the Node version
-      // running vitest: it works on CI's Node 24 and throws "Cannot find
-      // package '@openmig/core/cutover-state'" on Node 22. Pinning every
-      // subpath makes the suite resolve the same way everywhere instead of
-      // leaning on the runtime's resolver.
-      '@openmig/core/cutover-state': resolve(rootDir, 'packages/core/src/cutover-state.ts'),
-      '@openmig/core/secret-store': resolve(rootDir, 'packages/core/src/secret-store.ts'),
-      '@openmig/core/secrets': resolve(rootDir, 'packages/core/src/secrets.ts'),
-      '@openmig/ledger/schema-pg': resolve(rootDir, 'packages/ledger/src/schema-pg.ts'),
-      '@openmig/scheduler/in-process': resolve(rootDir, 'packages/scheduler/src/scheduler.ts'),
-      '@openmig/shared': resolve(rootDir, 'packages/shared/src/index.ts'),
-      '@openmig/ledger': resolve(rootDir, 'packages/ledger/src/index.ts'),
-      '@openmig/core': resolve(rootDir, 'packages/core/src/index.ts'),
-      '@openmig/connectors': resolve(rootDir, 'packages/connectors/src/index.ts'),
-      '@openmig/scheduler': resolve(rootDir, 'packages/scheduler/src/index.ts'),
-      '@openmig/engines': resolve(rootDir, 'packages/engines/src/index.ts'),
-    },
-  },
+  // Declared once in vitest.aliases.ts and shared with every per-app config —
+  // see that file for why the ordering matters and what four divergent copies
+  // of this block cost.
+  resolve: { alias: aliases },
   test: {
     exclude: ['node_modules', 'dist'],
     globalSetup: './vitest.global-setup.ts',
