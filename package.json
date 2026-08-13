@@ -9,8 +9,6 @@
   },
   "scripts": {
     "lint": "eslint .",
-    "format": "prettier --check .",
-    "format:fix": "prettier --write .",
     "typecheck": "tsc --noEmit && pnpm --filter @openmig/web typecheck",
     "bench:pglite": "pnpm --filter @openmig/ledger exec tsx ../../scripts/bench-pglite-concurrency.mjs",
     "package:appliance": "pnpm --filter @openmig/web build:selfhost && node scripts/package-appliance.mjs",
@@ -45,7 +43,6 @@
     "jsdom": "^30.0.1",
     "pg": "catalog:",
     "playwright-core": "^1.62.1",
-    "prettier": "3.9.6",
     "supertest": "^7.2.2",
     "testcontainers": "^12.1.0",
     "tsx": "^4.23.12",

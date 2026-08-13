@@ -37,6 +37,13 @@ contacts, OneDrive) — **in your own tenant, registered by you**.
 
 ## Overview
 
+> **`/{tenant-id}/`, not `/common/`.** Every Microsoft endpoint below takes the customer's own
+> directory (tenant) ID. `/common/` is the multi-tenant endpoint, and per the owner decision of
+> 2026-08-09 (0026 T3 row 14) **there is no multi-tenant app**: each customer registers their own
+> Entra app in their own tenant and consents to it there. The code has always built the
+> tenant-specific form (`apps/api/src/routes/permissions.ts`, `apps/selfhost/src/index.ts`); this
+> document said `/common/` in four places until 2026-08-13.
+
 Open-Migrate uses **an Entra application you register in your own tenant**.
 This approach:
 
@@ -198,7 +205,7 @@ response_type=code
 
 **Example consent URL:**
 ```
-https://login.microsoftonline.com/common/adminconsent?client_id=12345678-1234-1234-1234-123456789abc&redirect_uri=https%3A%2F%2Fyourapp.com%2Fauth%2Fcallback&state=abc123xyz&response_type=code
+https://login.microsoftonline.com/{tenant-id}/adminconsent?client_id=12345678-1234-1234-1234-123456789abc&redirect_uri=https%3A%2F%2Fyourapp.com%2Fauth%2Fcallback&state=abc123xyz&response_type=code
 ```
 
 #### Admin Consent Process
@@ -308,81 +315,30 @@ OAUTH2_REFRESH_TOKEN=your-refresh-token-here
 OAUTH2_GRAPH_URL=https://graph.microsoft.com
 
 # OAuth2 Token Endpoint
-OAUTH2_TOKEN_URL=https://login.microsoftonline.com/common/oauth2/v2.0/token
+OAUTH2_TOKEN_URL=https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token
 ```
 
 ---
 
 ## Application Access Policy
 
-Application Access Policies (per ADR-0006) restrict which mailboxes your app can access, implementing least-privilege access.
+**This lives in one place: [`o365-application-access.md`](./o365-application-access.md) §4.**
 
-### What is an Application Access Policy?
+This section used to restate the whole procedure, and the copy was wrong in three ways that
+each cost an operator real time before the error made sense:
 
-An Application Access Policy scopes your app's access to specific mailboxes, even when using application permissions. This ensures your app can only access mailboxes you explicitly allow.
+- `New-ApplicationAccessPolicy` has **no `-Label` parameter** — it is `-Description`.
+- The scope group must be a **mail-enabled security group**. This copy passed a plain
+  distribution group, which the cmdlet accepts and the policy then fails to enforce as expected.
+- `Add-UnifiedGroupLinks -LinkType SamAccountName` is not valid: that cmdlet is for Microsoft 365
+  Groups and its `-LinkType` takes `Members`/`Owners`/`Subscribers`.
 
-### Creating an App Access Policy (Exchange Admin Center)
+It also omitted the one operational fact that makes testing meaningful: **the policy takes up to
+an hour to apply**, so a test run in the first minutes shows the pre-policy behaviour and reads
+as the policy having failed.
 
-1. Go to [https://admin.exchange.microsoft.com](https://admin.exchange.microsoft.com)
-2. Navigate to **Permissions** → **App permissions**
-3. Click **+ Add** to create a new policy
-4. Fill in:
-   - **Name**: `Open-Migrate Access Policy`
-   - **App ID**: Paste your Application (client) ID
-   - **Mailbox scope**: Select mailboxes or create a distribution group
-5. Click **Save**
-
-### Scoping to Specific Mailboxes
-
-**Option 1: Individual Mailboxes**
-- Add mailboxes one by one in the policy
-- Best for small deployments
-
-**Option 2: Distribution Group**
-1. Create a distribution group in the Microsoft 365 Admin Center
-2. Add all mailboxes that should be accessible to this group
-3. In the App Access Policy, select the distribution group
-4. Best for large deployments
-
-### PowerShell Commands
-
-Using Exchange Online PowerShell for more control:
-
-```powershell
-# Connect to Exchange Online
-Connect-ExchangeOnline
-
-# Create a new App Access Policy
-New-ApplicationAccessPolicy -AppId <your-client-id> -PolicyScopeGroupId <distribution-group@domain.com> -AccessRight RestrictAccess -Label "Open-Migrate Access Policy"
-
-# Verify the policy
-Get-ApplicationAccessPolicy -AppId <your-client-id>
-
-# Test the policy against a specific mailbox
-Test-ApplicationAccessPolicy -AppId <your-client-id> -UserId <user@domain.com>
-
-# Add mailboxes to a policy scope (using a security group)
-Add-UnifiedGroupLinks -Identity "Open-Migrate-Access" -LinkType SamAccountName -Links "mailbox1"
-
-# Remove a policy
-Remove-ApplicationAccessPolicy -Identity <PolicyId>
-
-# Disconnect when done
-Disconnect-ExchangeOnline
-```
-
-### Policy Verification
-
-After creating the policy, verify it's working:
-
-```powershell
-# Check if user is in scope
-Test-ApplicationAccessPolicy -AppId <your-client-id> -UserId <user@domain.com>
-
-# Expected output: Access is allowed (or denied if out of scope)
-```
-
----
+The dedicated runbook has all of it right, plus the from-zero registration walkthrough and the
+two proof steps. Removed here 2026-08-13 rather than corrected in both places.
 
 ## Configuration
 
@@ -465,7 +421,7 @@ OAUTH2_GRAPH_URL=https://graph.microsoft.com
 
 ```bash
 # Request access token
-curl -X POST https://login.microsoftonline.com/common/oauth2/v2.0/token \
+curl -X POST https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "client_id=YOUR_CLIENT_ID&client_secret=YOUR_CLIENT_SECRET&scope=https://graph.microsoft.com/.default&grant_type=client_credentials"
 ```
@@ -509,7 +465,7 @@ Test IMAP access using the access token:
 
 ```bash
 # Using curl to get IMAP token
-curl -X POST https://login.microsoftonline.com/common/oauth2/v2.0/token \
+curl -X POST https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "client_id=YOUR_CLIENT_ID&client_secret=YOUR_CLIENT_SECRET&scope=imap&grant_type=client_credentials"
 ```

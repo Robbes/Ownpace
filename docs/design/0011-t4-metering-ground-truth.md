@@ -1,5 +1,11 @@
 # Workplan 0011 T4 — Ground Truth Report
 
+> ⚠️ **HISTORICAL SNAPSHOT (2026-07-19) — DO NOT READ AS CURRENT STATE.** This documented the
+> state *before* T4 was designed, so its findings read as the inverse of reality now. Usage
+> metering shipped: `packages/ledger/src/usage-metering.ts` is what exists, and workplan 0039 T7
+> later corrected what it measures (the billable quantity had been the age of the
+> `migration_status` row rather than the work done). Kept for the reasoning trail per
+> `docs/README.md` (banner added 2026-08-13).
 **Date:** 2026-07-19  
 **Purpose:** Document the current state before designing T4 usage metering.  
 **Scope:** Report only. No changes to code or data.

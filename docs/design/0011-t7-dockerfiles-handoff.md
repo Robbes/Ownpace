@@ -1,5 +1,11 @@
 # Workplan 0011 T7 — App-tier Dockerfiles + live compose verification (handoff)
 
+> **Historical handoff document.** Written for workplan 0011 T7 and kept as the reasoning trail
+> (`docs/README.md`'s rule); 0011 T1-T7 are all done. The status line below ("not verified on a
+> Docker host"), the numbered steps and the request to paste evidence into the 0011 Status block
+> are the document's ORIGINAL state, not a live request — nothing here awaits anyone. The
+> managed compose stack has since been brought up and verified live; see
+> `docs/operator-runbook.md` (banner added 2026-08-13).
 **Status:** draft images + env wiring prepared on `feat/0011-t7-dockerfiles-prep`;
 **not verified** on a Docker host (the authoring environment has no Docker runtime).
 This note is the ground truth for whoever finishes T7.

@@ -31,7 +31,6 @@ const PKG_DIRS: Record<string, string> = {
   '@openmig/core': 'packages/core/src',
   '@openmig/connectors': 'packages/connectors/src',
   '@openmig/engines': 'packages/engines/src',
-  '@openmig/provisioner': 'packages/provisioner/src',
   '@openmig/scheduler': 'packages/scheduler/src',
   '@openmig/worker': 'apps/worker/src',
 };
