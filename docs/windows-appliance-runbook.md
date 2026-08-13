@@ -9,22 +9,31 @@
 
 ## Why this document exists
 
-0015 T3 says *"payload done; the MSI is not"*, and the reason the MSI is not
-done is not that it is hard — it is that **nobody has ever run the appliance on
-Windows at all.** `scripts/package-appliance.unit.test.ts` starts the payload as
-a real child process with the repository nowhere in its environment, and it
-passes; it passes **on Linux**, on CI, ten tests, every time. That proves the
-payload is relocatable. It proves nothing about Windows.
+This runbook was written when **nobody had ever run the appliance on Windows at
+all**, and it was ordered by what was unknown, cheapest and most load-bearing
+first. Much of that is now answered, and the header is corrected rather than
+left standing, because a stale "nobody has run this" sends the next reader off
+to re-prove settled things — which is exactly what it did on 2026-08-13.
 
-Writing an installer before knowing whether the thing it installs runs would be
-building the second floor first. So this runbook is ordered by **what is
-unknown**, cheapest and most load-bearing first, and each phase is written so
-that a failure is informative rather than just red.
+**What has actually been run, on real Windows 11 Home:**
 
-**You need a Windows machine for every phase.** There is no Windows in CI and
-none in the agent environment, so none of the commands below have been executed
-by anyone. Treat every "expected" as a prediction, not a promise — and where a
-prediction is shaky, this document says so rather than sounding confident.
+| | |
+|---|---|
+| Phases 1 & 2 — payload runs, data directory outside the payload | ✅ 2026-08-06 |
+| Phase 3 — Task Scheduler, boot survival, hard kill mid-sync, resume | ✅ 2026-08-09 — a 510-message migration, `itemsFailed: 0`, verified at the target |
+| Runs with **no Node installed** | ✅ 2026-08-09 — Node uninstalled, rebooted, task started itself and copied ten new messages |
+| Upgrade in place over a running install | ✅ 2026-08-13 — including a schema migration applied to a live database holding 1149 synced items |
+| Phase 4 — the MSI | ❌ not started |
+
+So the remaining unknown is the installer itself, plus whatever a clean VM says
+about a machine that has never had a developer toolchain on it. Everything
+above it has an evidence file behind it, not a prediction.
+
+**You still need a Windows machine for every phase.** There is no Windows in CI
+and none in the agent environment, so nothing here is covered by a gate — a
+change to `scripts/windows/` can only be verified by somebody running it. Where
+a phase has not been run, this document says so rather than sounding confident;
+where it has, the date and the result are stated so the difference is visible.
 
 ---
 
@@ -344,12 +353,51 @@ installer would:
 ```powershell
 Stop-ScheduledTask -TaskName 'OpenMigrateAppliance' -ErrorAction SilentlyContinue
 Get-Process node -ErrorAction SilentlyContinue |
+  Where-Object { $_.Path -eq 'C:\Program Files\OpenMigrateTest\node.exe' } |
   ForEach-Object { $_.Kill(); $_.WaitForExit(15000) | Out-Null }
-robocopy "<payload>" "C:\Program Files\OpenMigrateTest" /MIR /XD data /NFL /NDL /NJH /NP
+robocopy "<payload>" "C:\Program Files\OpenMigrateTest" /MIR /XD data /XF service-launch.cmd /NFL /NDL /NJH /NP
 Select-String -Path "C:\Program Files\OpenMigrateTest\start.mjs" -Pattern 'const BUILD ='
 ```
 
-**The two lines before `robocopy` are not optional on an upgrade.** A running
+**Then re-run the installer. This is part of the upgrade, not a recovery step:**
+
+```powershell
+cd "C:\Program Files\OpenMigrateTest\scripts"
+.\install-task.cmd -PayloadPath "C:\Program Files\OpenMigrateTest"
+```
+
+**`/XF service-launch.cmd` and the re-run are both load-bearing, and the reason
+is a defect this runbook caused on 2026-08-13.** `install-task.ps1` *generates*
+`service-launch.cmd` into the payload directory at install time — it carries
+`SELFHOST_PGLITE_DIR`, `CONFIG_DIR`, `HOST`, `PORT`, the call to `secrets.cmd`
+and the log redirect, because **a Task Scheduler action carries no environment
+of its own**. So it is a file that exists in every INSTALL and in no PAYLOAD,
+and `/MIR` deletes precisely those. The task's `Execute` target *is* that file:
+
+```
+Execute : C:\Program Files\OpenMigrateTest\service-launch.cmd
+```
+
+An upgrade run without `/XF` deleted it and left the task pointing at nothing —
+`Test-Path` on it returned `False` and the appliance could not start. Robocopy
+had announced the deletion, in the one line that matters among four lines of
+summary:
+
+```
+*EXTRA File                715        C:\Program Files\OpenMigrateTest\service-launch.cmd
+```
+
+**Read the `*EXTRA` list on the `/L` dry run before the real one.** With `/MIR`
+it is not a curiosity, it is the delete list — and the other two extras that day
+(`ui\assets\index-*.js` and `.css`) were stale hashed bundles that *should* go,
+which is what makes the third easy to skim past.
+
+`/XF` keeps the file; re-running `install-task.cmd` regenerates it against the
+new payload and re-registers the task. Both, not either — the launcher hard-codes
+absolute paths into the payload directory, so one preserved across an upgrade is
+only correct while those paths are.
+
+**The two steps before `robocopy` are not optional on an upgrade.** A running
 appliance holds `node.exe` open, and robocopy answers that with
 
 ```
@@ -364,6 +412,13 @@ returns before the process is gone. `Stop-Process -Force` is closer but still
 returns before Windows has released the file handle, which cost a 30-second
 robocopy stall on 2026-08-09 even with it. `WaitForExit` is the part that
 actually waits.
+
+**The `Where-Object` path filter matters too.** A bare `Get-Process node` returns
+every node process on the machine, including ones this upgrade has no business
+touching, and on 2026-08-13 `Kill()` threw `Toegang geweigerd` on one of them —
+alarming, and unrelated to the appliance, whose own node had already exited via
+`Stop-ScheduledTask`. Filtering on the payload's own `node.exe` kills what the
+upgrade is actually replacing and leaves the rest of the machine alone.
 
 Robocopy exit codes **0–7 are success**; 8 or above is a real failure. The
 `Select-String` must print a stamp matching the build you meant to install —
