@@ -24,8 +24,11 @@
 # what ADR-0027 actually asks for: "starts on boot and keeps syncing whether or
 # not anyone is logged in".
 #
-# UNTESTED ON WINDOWS -- written on Linux with no Windows available. Read it
-# before you run it. It is deliberately explicit rather than clever.
+# RUN ON REAL WINDOWS: 2026-08-09 (install, boot survival, a 510-message
+# migration) and 2026-08-13 (re-run over an in-place payload upgrade, which is
+# now part of the documented upgrade rather than a recovery step). Still
+# deliberately explicit rather than clever -- and there is no Windows in CI, so
+# a change here can only be verified by somebody running it.
 
 #Requires -RunAsAdministrator
 [CmdletBinding()]
@@ -167,6 +170,19 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host "restricted $secretsFile to Administrators (modify), SYSTEM and $RunAsUser (read)"
 
+# GENERATED INTO THE PAYLOAD DIRECTORY, which makes it the one installed file
+# that exists in no payload -- and therefore the one a mirror-style upgrade
+# deletes. On 2026-08-13 a `robocopy /MIR` of a new payload over a running
+# install removed it and left the task's Execute target pointing at nothing;
+# the appliance could not start until this script was re-run. The upgrade in
+# docs/windows-appliance-runbook.md now passes `/XF service-launch.cmd` AND
+# re-runs this script, because the paths written below are absolute: a launcher
+# preserved across an upgrade is only correct while the payload directory it
+# names is.
+#
+# It is not moved out to $DataRoot instead, which would survive the mirror,
+# because uninstall-task.ps1 deliberately does NOT delete $DataRoot -- that is
+# the migration ledger. A launcher there would outlive its own uninstall.
 $launcher = Join-Path $PayloadPath 'service-launch.cmd'
 @"
 @echo off

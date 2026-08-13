@@ -68,6 +68,17 @@ jobs:
         with:
           # Docs-only changes (docs/**, **.md) skip lint/tests
           # Integration tests run when DAV/ledger/testing packages change
+          #
+          # `scripts/**` added 2026-08-13. Its absence meant a change to
+          # scripts/windows/*.ps1 -- which we hand to customers -- ran no gate at
+          # all, including the ASCII check in package-appliance.unit.test.ts that
+          # exists because a UTF-8 em dash, read as Windows-1252 by PowerShell
+          # 5.1, once broke uninstall-task.ps1's parse twenty lines from the
+          # character. Same reasoning as ci.yml being in the migrations filter
+          # below: code we ship proves green on its own pull request.
+          #
+          # Comments belong HERE and not inside the block scalar below, where a
+          # `#` line is a PATTERN rather than a comment.
           files: |
             **.ts
             **.tsx
@@ -85,6 +96,7 @@ jobs:
             packages/scheduler/**
             apps/**
             deploy/**
+            scripts/**
       - name: Did the ledger migrations (or this workflow) change?
         id: migrations
         uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v44.5.7
