@@ -1,0 +1,44 @@
+name: Feature request or provider support
+description: Something the stack should do, or a mail/calendar/contacts/files provider it should reach
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Decisions here are recorded as [ADRs](../blob/main/docs/adr/) and executed through
+        [workplans](../blob/main/docs/workplans/). If your request is really a decision —
+        "should this project do X at all" — say so, and it may become an ADR rather than a
+        code change.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: >
+        The migration or sync you cannot complete today. Describe the goal, not a proposed
+        implementation — the shape of the fix is usually the easy part.
+    validations:
+      required: true
+
+  - type: input
+    id: provider
+    attributes:
+      label: Provider and protocol, if this is about reaching a new one
+      description: Which service, and what it speaks (JMAP, IMAP, CalDAV, CardDAV, WebDAV, Graph).
+      placeholder: "e.g. Fastmail — JMAP"
+
+  - type: textarea
+    id: today
+    attributes:
+      label: What happens today instead?
+      description: >
+        Whether it fails, is missing, or works but badly. If there is a workaround you are
+        using, that is useful to know.
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Does this hold?
+      options:
+        - label: This can be done without deleting anything at the source
+        - label: Re-running it should converge rather than duplicate

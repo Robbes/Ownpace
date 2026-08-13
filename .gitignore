@@ -59,3 +59,10 @@ deploy/selfhost/config/*.json
 # actively misleading. `/vitest.config.ts` and `/vitest.global-setup.ts` are the
 # real, tracked ones and do NOT match this pattern.
 /vitest.*.config.ts
+
+# Container data directories. `test-stalwart-data/config.json` was tracked and
+# unignored until 2026-08-13: it carried plaintext dev secrets, bound plaintext
+# IMAP on 0.0.0.0:143, and was referenced by nothing. Stalwart writes its state
+# into a directory like this on every local run, so the pattern is what stops a
+# second one arriving the same way.
+*-data/

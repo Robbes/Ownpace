@@ -434,6 +434,27 @@ so it isn't fighting `docker compose`'s single-service model. It also joins `dev
 needing a `stalwart` compose service to hang it off of. `e2e.yml`'s fixture and seed step moved to
 IMAPS 993, matching the Testcontainers path's already-proven doctrine instead of a second one.
 
+### Two survivors of that sweep, deleted 2026-08-13
+
+The sweep above deleted the files it knew about. A structural audit found two more that had
+outlived it, both tracked, both referenced by nothing (`git grep` returned zero hits for either):
+
+- **`test-stalwart-data/config.json`** — tracked and **not gitignored**, carrying plaintext
+  `devadmin123` / `source_password` / `target_password`, and binding plaintext IMAP on
+  `0.0.0.0:143` — a listener `docs/testing.md` states does not exist. It had `credentials` as an
+  array and a `dataStore` wrapper: the **identical structural defect** that made
+  `stalwart-config.json` invalid above, in a file the same sweep did not look for. `.gitignore`
+  now carries `*-data/` so a container state directory cannot arrive the same way again.
+- **`deploy/compose/setup-stalwart.py`** — drove Stalwart's first-run **setup wizard** over HTTP
+  with a hardcoded password, i.e. it automated bootstrap mode, which is the exact failure state
+  this whole document exists to diagnose. It was also the only tracked `.py` file in the repo, so
+  an agent grepping "stalwart setup" met it before the sanctioned
+  `deploy/selfhost/setup-stalwart.sh`.
+
+Worth recording as a gap rather than only a cleanup: `no-committed-artifacts.yml` inspects the
+files a pull request **adds**, so it is structurally blind to anything already committed. Neither
+file could ever have been caught by it, no matter how long they sat there.
+
 ## Round 3: getting a real e2e.yml run past Stalwart, into the appliance itself
 
 Fixing Stalwart (above) surfaced two more issues on the next attempt — both real, both now fixed,

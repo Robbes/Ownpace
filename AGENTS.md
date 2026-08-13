@@ -28,7 +28,7 @@ Nextcloud) — both in MVP (ADR-0018). The **O365 source stays IMAP+OAuth2/Graph
 - TypeScript, Node 24, pnpm workspaces monorepo (ADR-0002); Apache-2.0 (ADR-0001).
 - `Scheduler` interface: in-process croner (self-host) / Trigger.dev (managed) (ADR-0004).
 - Ledger: **Postgres everywhere** — managed Postgres+RLS (managed) / bundled small Postgres (self-host), one schema (ADR-0016, **ADR-0023** supersedes the SQLite option in ADR-0010); migrations via Drizzle Kit + Atlas lint (ADR-0017). **No SQLite** — do not reintroduce a second dialect.
-- Engines: JMAP writer (jmap-jam) for JMAP targets; imapsync/vdirsyncer/rclone shell-outs for IMAP/DAV; prefer JS-native where fidelity is equal (ADR-0007/0018/0019).
+- Engines: **JS-native, all of them. No Perl, no Python, no external binaries.** JMAP writer (jmap-jam) for JMAP; `imapflow` for IMAP; `webdav`/`ical.js` for DAV. The imapsync/vdirsyncer/rclone shell-outs this line used to name are **gone** — see ADR-0019's update note, "there are no shell-out engines left", and ADR-0007's status line (ADR-0007/0018/0019).
 - O365: one multi-tenant Entra app; IMAP+OAuth2 primary, Graph fallback (ADR-0006).
 - Target provisioning: RETRACTED (ADR-0008, owner decision 2026-08-02) — the owner supplies existing-account credentials; provisioning guidance lives in docs, not an interface.
 

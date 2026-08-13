@@ -1,0 +1,68 @@
+name: Bug report
+description: Something behaves differently from what the docs or the code say it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not paste credentials, access tokens, or real mailbox contents.** Redact
+        addresses and hostnames if they identify a person. If the issue *is* a security
+        vulnerability, stop here and follow [SECURITY.md](../blob/main/SECURITY.md)
+        instead — do not open a public issue.
+
+  - type: dropdown
+    id: edition
+    attributes:
+      label: Which edition?
+      options:
+        - Self-host appliance
+        - Managed control plane
+        - Neither / not sure
+        - Both
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Build
+      description: >
+        The appliance prints this as its first log line — `[appliance] build 0.1.0-rc.1 (abc123)`.
+        Otherwise the commit you are on.
+      placeholder: "0.1.0-rc.1 (fb6f757311bf)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: The commands or steps, in order. A mapping config with secrets removed helps.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs or output
+      description: >
+        Paste the actual error. On the Windows appliance,
+        `scripts\windows\collect-evidence.cmd` writes one file with versions, ports, the
+        data-directory layout and the last 60 log lines — that file answers most of what
+        would otherwise be a round trip.
+      render: shell
+
+  - type: dropdown
+    id: domains
+    attributes:
+      label: Which domains were involved?
+      multiple: true
+      options: [mail, calendar, contacts, files, none / not applicable]

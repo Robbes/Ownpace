@@ -10,13 +10,14 @@
   },
   "target": {
     "type": "jmap",
-    "baseUrl": "http://stalwart:8080",
-    "user": "target@dev.local",
+    "baseUrl": "https://jmap.example.net",
+    "user": "target@example.net",
     "auth": { "kind": "basic", "passwordFromEnv": "TARGET_PASSWORD" }
   },
   "schedule": { "cron": "*/15 * * * *" },
   "concurrency": 4,
   "_note": "Placeholders only. Never commit real credentials; secrets are read from the named env vars.",
+  "_note_baseUrl": "target.baseUrl is the server ROOT - scheme, host, port, NO path. The session URL is built as ${baseUrl}/.well-known/jmap (RFC 8620 2.2), so a trailing /jmap here asks for /jmap/.well-known/jmap and 404s in a way that looks like the server is wrong. This file carried internal dev-compose values (http://stalwart:8080, target@dev.local) until 2026-08-13; README.md carried the trailing-/jmap form until the same day.",
   "_note_multi_domain": "The optional 'domains' block enables multi-domain sync (calendar, contacts, files). When absent, only the root source/target is used (backward compatible).",
   "domains": {
     "mail": {
@@ -30,8 +31,8 @@
       },
       "target": {
         "type": "jmap",
-        "baseUrl": "http://stalwart:8080",
-        "user": "target@dev.local",
+        "baseUrl": "https://jmap.example.net",
+        "user": "target@example.net",
         "auth": { "kind": "basic", "passwordFromEnv": "TARGET_PASSWORD" }
       },
       "concurrency": 4
@@ -46,8 +47,8 @@
       },
       "target": {
         "type": "caldav",
-        "url": "https://caldav.target.com/dav/",
-        "user": "target@dev.local",
+        "url": "https://caldav.example.net/dav/",
+        "user": "target@example.net",
         "auth": { "kind": "basic", "passwordFromEnv": "TARGET_CALENDAR_PASSWORD" }
       },
       "concurrency": 2
@@ -62,8 +63,8 @@
       },
       "target": {
         "type": "carddav",
-        "url": "https://carddav.target.com/dav/",
-        "user": "target@dev.local",
+        "url": "https://carddav.example.net/dav/",
+        "user": "target@example.net",
         "auth": { "kind": "basic", "passwordFromEnv": "TARGET_CONTACTS_PASSWORD" }
       },
       "concurrency": 2
@@ -78,8 +79,8 @@
       },
       "target": {
         "type": "webdav",
-        "url": "https://webdav.target.com/dav/",
-        "user": "target@dev.local",
+        "url": "https://webdav.example.net/dav/",
+        "user": "target@example.net",
         "auth": { "kind": "basic", "passwordFromEnv": "TARGET_FILES_PASSWORD" }
       },
       "concurrency": 2

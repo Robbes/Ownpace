@@ -1,6 +1,6 @@
 # ADR-0021: Optional knowledge-enrichment add-in (OKF) — a parallel, opt-in `KnowledgeSink`
 
-- **Status:** Accepted — **planned / optional; NOT in the MVP**
+- **Status:** **Retracted 2026-08-05** (owner decision, workplan 0026 T3 row 16) — accepted 2026-06-22 as planned/optional, never built
 - **Date:** 2026-06-22
 - **Relates to:** ADR-0007 (reuse/engines), ADR-0009 (repo strategy), ADR-0011 (sovereignty), ADR-0015 (backup/data scope), ADR-0020 (rebuildable cache / natural-key idempotency).
 
@@ -24,7 +24,9 @@
 >
 > **Revisit condition, and it is a real trigger rather than a date:** somebody
 > asks for a knowledge side-output, with a use for it. Until then the scope
-> manifest does not name it and neither does the SAD.
+> manifest does not name it, and the SAD names it only as retracted — §24's
+> decision list and §25's backlog item 4 both carry the retraction, so a reader
+> arriving from either place is told the same thing.
 
 ## Context
 We already extract every item during migration (the `SourceConnector` reads content; the reconcile loop touches each one). A recurring ask is to produce, **in parallel**, an agent-readable knowledge bundle alongside the migrated data — "knowledge files with an ontology," as an add-in.

@@ -67,29 +67,22 @@ pnpm exec tsx apps/worker/src/index.ts --config ./mapping.example.json --once
 ```
 
 ### Configuration
-Create a mapping configuration file (see `mapping.example.json`):
-```json
-{
-  "tenantId": "your-tenant-id",
-  "mappingId": "inbox-mail",
-  "source": {
-    "type": "imap-oauth2",
-    "host": "outlook.office365.com",
-    "port": 993,
-    "user": "user@example.onmicrosoft.com",
-    "auth": { "kind": "xoauth2", "tokenFromEnv": "O365_ACCESS_TOKEN" }
-  },
-  "target": {
-    "type": "jmap",
-    "baseUrl": "https://your-jmap-provider.com/jmap",
-    "user": "target@domain.com",
-    "auth": { "kind": "basic", "passwordFromEnv": "TARGET_PASSWORD" }
-  },
-  "schedule": { "cron": "*/15 * * * *" }
-}
-```
+Copy [`mapping.example.json`](./mapping.example.json) and edit it. It is the single
+worked example — mail plus the optional `domains` block for calendar, contacts and
+files — and it carries inline `_note_*` keys explaining the fields that are easy to
+get wrong. Self-host operators start from
+[`deploy/selfhost/config/mapping.json.example`](./deploy/selfhost/config/mapping.json.example)
+instead, which documents the same fields plus the appliance's loading rules.
 
-Secrets should be stored in environment variables or a vault, never committed to the repository.
+This README deliberately does **not** restate the JSON. It used to, and the copy
+drifted: its `target.baseUrl` read `https://your-jmap-provider.com/jmap`, which is
+the one mistake the examples exist to prevent. **`baseUrl` is the server ROOT** —
+scheme, host, port, no path — because the session URL is built as
+`${baseUrl}/.well-known/jmap` (RFC 8620 §2.2), so a trailing `/jmap` asks for
+`/jmap/.well-known/jmap` and 404s in a way that looks like the server is broken.
+
+Secrets are referenced by **environment variable name** (`tokenFromEnv`,
+`passwordFromEnv`), never inline, and never committed.
 
 ## Documentation
 Everything lives in [`docs/`](./docs/). Start with the source of truth: [`docs/architecture/solution-architecture.md`](./docs/architecture/solution-architecture.md). Decisions are recorded in [`docs/adr/`](./docs/adr/).

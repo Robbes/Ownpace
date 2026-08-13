@@ -109,9 +109,20 @@ in-memory source** (isolating the leg under test) feeds seeded items through
 `runCalendarSync` / `runContactSync` / `runFileSync` into a **real**
 `CalDAVTargetWriter` / `CardDAVTargetWriter` / `WebDAVTargetWriter` writing
 to Nextcloud, with no manual `connect()` — the lazy-connect path is part of
-what is under test (it masked bugs #112/#113; see below). The IMAP/DAV mail
-equivalent is `apps/worker/src/imap-dav-target.integration.test.ts`'s
-"Idempotency property" suite.
+what is under test (it masked bugs #112/#113; see below).
+
+**The IMAP/DAV mail family has no integration-tier equivalent, and that is a
+real asymmetry rather than an oversight in this list.** Its idempotency property
+is asserted one tier down, in
+`packages/connectors/src/imapflow-dav-target.unit.test.ts` ("adopts on a second
+pass instead of appending a duplicate"), against a **fake imapflow client** —
+where the DAV domains assert the same property against a real Nextcloud. Real-
+server evidence for this family comes from the e2e gate instead
+(`test/e2e/selfhost-restart-resume.e2e.test.ts`,
+`test/e2e/selfhost-apply-deletion-mail.e2e.test.ts`, both against a real
+Stalwart). This list cited `apps/worker/src/imap-dav-target.integration.test.ts`
+until 2026-08-13; that file was deleted by commit `4cac2bd` when imap-simple was
+dropped, and its cases were carried into the unit suite above.
 
 Reindex/adoption (ADR-0020 — wiped ledger, target reindex, next pass adopts
 instead of duplicating) is covered by `apps/worker/src/jmap-reindex.integration.test.ts`
@@ -145,10 +156,20 @@ into a **real** `CalDAVTargetWriter` / `CardDAVTargetWriter` / `WebDAVTargetWrit
 Nextcloud, with **no manual `connect()`** (there's no `connect()` on the `*TargetWriter`
 interfaces — this is what masked #112/#113). Each domain asserts: first pass creates N (N>0),
 second pass creates 0, and the items are read back from Nextcloud via the real source connector.
-The IMAP/DAV mail equivalent (the second mail family, alongside JMAP) is
-`apps/worker/src/imap-dav-target.integration.test.ts`'s "Idempotency property" suite, exercising
-`ImapDavMailTarget` through the same lazy-connect path with the same N / 0-on-rerun assertion —
-proven as part of the #113 fix.
+The IMAP/DAV mail equivalent (the second mail family, alongside JMAP) is **not at this tier**, and
+the difference is worth stating rather than glossing. `packages/connectors/src/imapflow-dav-target.unit.test.ts`
+carries the same N / 0-on-rerun property — "adopts on a second pass instead of appending a
+duplicate", asserting `created: false`, `adopted: true`, and a mailbox still holding one message —
+but it runs against a **fake imapflow client**, not a real IMAP server. So for this one family the
+property is proven at the unit tier and against real infrastructure only by the e2e gate, whereas
+calendar, contacts and files prove it at the integration tier against a real Nextcloud.
+
+That is a consequence of workplan 0032. `apps/worker/src/imap-dav-target.integration.test.ts` was
+deleted by commit `4cac2bd` when imap-simple was dropped; its commit message records that the
+writer's cases were carried over "plus two more", which is true of the CASES and not of the TIER.
+Closing this means an `imapflow-dav-target.integration.test.ts` against the dev Stalwart, in the
+shape of `dav-sync.integration.test.ts`. Until that exists, this asymmetry is the honest
+description of the coverage.
 
 ### Native Connector Property Tests
 

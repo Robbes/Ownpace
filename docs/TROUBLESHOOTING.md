@@ -86,19 +86,37 @@ echo $DATABASE_URL
 ERROR: permission denied for table mappings
 ```
 
-**Solution:**
+**Diagnose first — and do not hand-enable RLS.** Row-level security here is owned entirely by
+migrations `0001`–`0004`, which `ENABLE` *and* `FORCE` it (see
+[`rls-guide.md`](./rls-guide.md), the authority on which tables carry which). Running a bare
+`ALTER TABLE … ENABLE ROW LEVEL SECURITY` by hand produces a table that is enabled but **not
+forced**, which looks fixed and still lets the owning role read every tenant's rows. That is a
+worse state than the one you started in, because it is silent.
+
 ```sql
--- Enable RLS on table
-ALTER TABLE mappings ENABLE ROW LEVEL SECURITY;
+-- Is the policy actually missing, and is it FORCED?
+SELECT relname, relrowsecurity, relforcerowsecurity
+FROM pg_class WHERE relname = 'mappings';
 
--- Verify policies exist
-SELECT schemaname, tablename, policyname, permissive, roles, cmd, qual
-FROM pg_policies
-WHERE tablename = 'mappings';
+SELECT policyname, permissive, roles, cmd, qual
+FROM pg_policies WHERE tablename = 'mappings';
 
--- Re-run migration script if policies are missing
-psql -U openmigrate -d openmigrate -f packages/ledger/migrations/enable-rls.sql
+-- Which migrations does this database think it has applied?
+SELECT * FROM schema_migrations ORDER BY version;
 ```
+
+**If policies are genuinely missing**, the remedy is to let the migrator run — there is no
+standalone RLS script, deliberately. The API applies `packages/ledger/migrations/` itself at
+boot, under an advisory lock and idempotently, so restarting the API re-runs anything the
+`schema_migrations` table says is outstanding. See the operator runbook's note on why the
+migration files are **not** mounted into `initdb`: doing so applies them without bookkeeping and
+the API's own migrator then re-applies the non-idempotent baseline and crashes.
+
+**If the policies are present and forced**, `permission denied for table mappings` is a *grants*
+problem, not an RLS one — check you are connecting as `app_user` (`APP_DATABASE_URL`) rather than
+the database owner. Note the inverse trap: the owner is a superuser in the postgres image and
+**bypasses RLS even under FORCE**, so a query that succeeds as the owner proves nothing about
+tenant isolation.
 
 ### Issue: Database migration fails
 
