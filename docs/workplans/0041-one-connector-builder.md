@@ -6,7 +6,7 @@
 |---|---|---|
 | T0 locate the duplication precisely | ✅ **Done** | Three matched builder pairs, by line number, in the table below. |
 | T1 normalise the two input shapes into one credential type | ✅ **Done (graph)** | `mail-source-factory.ts` — `GraphMailEndpoint` + `ResolvedGraphCreds`, no trace of file-vs-row origin. |
-| T2 collapse the two source builders (graph, imap) onto it | 🟨 **Graph done, IMAP not started** | Both editions' graph builders now call `buildGraphMailSourceFrom`. 26 existing tests pass **unchanged**; mutation of the shared builder fails **5 tests across BOTH suites** (3 self-host, 2 managed). |
+| T2 collapse the two source builders (graph, imap) onto it | ✅ **Done** | Graph and IMAP both collapsed. 26 existing tests pass **unchanged** throughout; three separate mutations of shared code each fail tests across **BOTH** suites (5, 14 and 3). |
 | T3 collapse the target writer | ⬜ Not started | — |
 
 ### T1/T2-graph, 2026-08-14
@@ -28,12 +28,24 @@ Both copies said exactly that beforehand, so carrying it over verbatim is what k
 refactor. It is now wrong in one place instead of two — which is the argument for the collapse,
 and a one-line follow-up rather than something to smuggle into a no-behaviour-change commit.
 
-**IMAP is next and is NOT the same shape.** `buildImapSource` reads `process.env` for the token
-provider *and* for the password/token itself, while `buildImapSourceFromCredentials` carries the
-0037 T6 app-registration path (`tenantId + clientId + clientSecret` minting XOAUTH2 at connect
-time) that the env version has no equivalent of. They are ~112/113 lines and look like a pair by
-length, but the managed one does strictly more. Read both fully before assuming the same cut
-works.
+### T2-imap, 2026-08-14
+
+The warning above held: the IMAP builders are ~112/113 lines and look like a matched pair by
+length, but only **part** of each is a copy. Three pieces were genuinely identical and collapsed;
+three are genuinely different and deliberately did not.
+
+| | collapsed? | why |
+|---|---|---|
+| TLS defaults + `imapConfig` assembly | ✅ `buildImapSourceFrom` | identical, comments verbatim in both — and the TLS default encodes an asymmetry argument that must not drift |
+| `new ImapFlowSource(...)` | ✅ same function | identical |
+| Graph-fallback **rule** | ✅ `withGraphFallback` | `tenantId && clientId && (secret \|\| refresh)`, written twice; an edition changing its mind about accepting a refresh token would have silently disagreed with the other about when a mailbox gets a second chance |
+| `authType` derivation | ❌ passed in | **self-host follows the DECLARED `auth.kind`; managed follows which credential is PRESENT.** Both defensible — a config file states intent, a credential store only has contents — and reconciling them is a behaviour change, not a refactor |
+| token provider | ❌ stays with caller | self-host: `/common/` endpoint, fixed IMAP scope, built only when `auth.kind === 'xoauth2'`. Managed: `/{tenantId}/`, scope varies by `clientSecret`, and the whole 0037 T6 app-registration path the env version has no equivalent of |
+| validation | ❌ stays with caller | managed refuses naming all three options; self-host does not validate here at all |
+
+Net **−45 lines** across the two callers. The `authType` split is the one worth revisiting
+deliberately some day — it is a real behavioural difference between the editions, not an accident
+of duplication, and it is now stated in one place instead of being implicit in two.
 
 ## What this is
 
