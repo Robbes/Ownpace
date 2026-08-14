@@ -690,15 +690,20 @@ What it must do, all of which Phases 1–3 will have established:
   grant the run-as account Modify, write the launcher, register the At-Startup
   task with `ExecutionTimeLimit` zero.
 - Create a Start-menu shortcut to the operating UI — **and pick a port first,
-  because there are currently two.** `apps/selfhost/src/index.ts` defaults to
-  **8080** and so does the payload's `start.mjs`; the Docker deployments set
-  `PORT=8081` (`deploy/selfhost/compose.yml`), and ADR-0027 wrote its shortcut
-  against that convention. Neither is wrong, but a shortcut that points at a
-  port nothing is listening on is a support ticket on day one. My suggestion:
-  the scheduled task sets `PORT=8081` explicitly, matching the deployed
-  convention rather than the library default, and the shortcut follows. Say if
-  you'd rather it were 8080 and I'll change `install-task.ps1`'s default — it is
-  one line.
+  because there are currently two.** **ANSWERED — and it went the other way from
+  the suggestion this paragraph used to make, which is why the paragraph is
+  rewritten rather than left standing.** The appliance uses **8080**:
+  `install-task.ps1` defaults `-Port 8080`, `apps/selfhost/src/index.ts` and the
+  payload's `start.mjs` default to 8080, and the Start-menu shortcut and the
+  task's description both follow that (they interpolate `$Port` now, so passing
+  `-Port` no longer produces a shortcut that lies). The **8081** in
+  `deploy/selfhost/compose.yml` is the DOCKER deployment's convention and stays
+  as it is — the two do not collide, because nobody runs both on one machine.
+  ADR-0027's `localhost:8081` example was written against the compose
+  convention, not the installer's.
+
+  Proven on the owner's machine 2026-08-13: `[appliance] listening on
+  http://127.0.0.1:8080`, with the shortcut and `GET /status` both reaching it.
 - Uninstall: run `uninstall-task.ps1`, delete Program Files content, and
   **leave `C:\ProgramData\OpenMigrate` alone** — that is the customer's
   migration ledger, and hard rule 2 says we do not delete data the owner did not

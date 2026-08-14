@@ -12,8 +12,6 @@
     "./carddav-source.types": "./src/carddav-source.types.ts",
     "./webdav-source": "./src/webdav-source.ts",
     "./webdav-source.types": "./src/webdav-source.types.ts",
-    "./imap-source": "./src/imap-source.ts",
-    "./imap-source.types": "./src/imap-source.types.ts",
     "./graph-calendar-source": "./src/graph-calendar-source.ts",
     "./graph-calendar-source.types": "./src/graph-calendar-source.types.ts",
     "./graph-contacts-source": "./src/graph-contacts-source.ts",

@@ -16,6 +16,13 @@ Canonical doc. Summarises the testing approach; full rationale in
   the ledger, the IMAP/JMAP/imap-dav mail path, and — since issue #114 — the CalDAV/CardDAV/WebDAV
   **target-write** path (see "Multi-domain target-write coverage" below), all with the
   idempotency + delta property (first pass creates N, second pass creates 0).
+- **UI** (vitest + real Chromium): a browser smoke over the **built** web bundle, served from an
+  in-process http server with `/api` answered from fixtures. It exists for defects that are
+  invisible to every tier above and ship silently — an uncompiled stylesheet, a bundle calling the
+  wrong origin, a dead row — each of which has actually reached production here. It runs on
+  **every pull request**, not nightly, because it is cheap and those defects are expensive.
+  Kept out of `pnpm test` because it needs two things the unit gate must not require: a Chromium
+  binary and a production `pnpm build` of the web app.
 - **E2E** (docker compose, manual): the real SMB O365 source (read-only, least-privilege) into a
   disposable target; full slice.
 
@@ -42,6 +49,14 @@ exploration, but the integration suite does not depend on it. `dev.yml` does **n
 Stalwart — its two-phase startup can't be expressed as one `docker compose` service; bring it up
 with `deploy/selfhost/setup-stalwart.sh` instead (joins `dev.yml`'s `openmig_dev-network`, so it's
 reachable from anything else on that network too).
+
+### UI smoke (requires Chromium, no Docker)
+```bash
+pnpm test:ui
+```
+Builds the web app and drives the real bundle in Chromium. `PLAYWRIGHT_BROWSERS_PATH` must point
+at a Chromium install; CI caches one by version. Because it builds first, a cold run is slower
+than the whole unit suite — but it is the only tier that sees what a user sees.
 
 ### E2E tests (manual, requires Docker and real O365 credentials)
 ```bash

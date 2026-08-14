@@ -15,7 +15,7 @@ Before any Stalwart or integration-test work: read `docs/stalwart-integration-fi
 
 ## Commands
 - Install: `pnpm install` · Lint: `pnpm lint` · Typecheck: `pnpm typecheck`
-- Unit: `pnpm test` · Integration: `pnpm test:integration` (self-manages its stack via Testcontainers) · E2E: `pnpm test:e2e`
+- Unit: `pnpm test` · Integration: `pnpm test:integration` (self-manages its stack via Testcontainers) · UI smoke: `pnpm test:ui` (real Chromium over the built bundle; runs on every PR) · E2E: `pnpm test:e2e`
 - Optional dev stack: `docker compose -f deploy/compose/dev.yml up -d` (Postgres + Nextcloud).
   Stalwart isn't part of it — its two-phase startup can't be expressed as one compose service —
   bring it up with `deploy/selfhost/setup-stalwart.sh` instead.
@@ -35,7 +35,9 @@ Nextcloud) — both in MVP (ADR-0018). The **O365 source stays IMAP+OAuth2/Graph
 ## Repo map (top level; don't trust paths blindly — verify before editing)
 - `docs/` — all documentation: `architecture/` (source of truth), `adr/`, `workplans/` (Status blocks), canonical docs incl. `stalwart-integration-fix.md`, `testing.md`.
 - `packages/` — `core` (reconcile+idempotency), `ledger`, `connectors`, `engines`, `scheduler`, `shared`, `testing`.
-- `apps/` — `api`, `web`, `worker`, `selfhost`. `deploy/` — `compose/` (dev stack), `helm/`, `homeassistant/`. `test/` — fixtures, integration, e2e.
+- `apps/` — `api`, `web`, `worker`, `selfhost`.
+- `deploy/` — `compose/` (managed control plane, plus the dev/CI stacks) and `selfhost/` (appliance compose, PGlite and drill overrides). There is no `helm/` or `homeassistant/`; this line named both until 2026-08-13 and neither has ever existed.
+- `test/` — `e2e/` and `ui/` only. **Integration tests colocate with their source** under `packages/`/`apps/`, as do unit tests; `test/` is for the two tiers that belong to no single package. (`test/fixtures/` and `test/integration/` were empty scaffolds and are gone.)
 
 ## Hard rules (each "don't" has its "do")
 1. **Idempotency is sacred.** Re-runs converge: no duplicates, no corruption. Keep the idempotency property tests green; extend them with new behavior.

@@ -222,7 +222,7 @@ $settings = New-ScheduledTaskSettingsSet `
 
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
     -Principal $principal -Settings $settings `
-    -Description 'Open Migration Stack appliance. Serves the operating UI on http://127.0.0.1:8080/ui and runs scheduled syncs. Starts on boot.' | Out-Null
+    -Description "Open Migration Stack appliance. Serves the operating UI on http://${BindHost}:${Port}/ui and runs scheduled syncs. Starts on boot." | Out-Null
 
 # A Start Menu entry for the operating UI (workplan 0015 T3 -- the last piece
 # of the install story that still required typing a URL). A .url file, not a

@@ -42,9 +42,14 @@ overrides:
   # that legitimately wants a different line is not forced off it.
   #
   # socket.io-parser is PRODUCTION, and the only one here that is: it arrives
-  # through @openmig/worker's own socket.io and again through
-  # @trigger.dev/sdk -> @trigger.dev/core, both runtime dependencies of the
+  # through @trigger.dev/sdk -> @trigger.dev/core, runtime dependencies of the
   # managed worker. Same path as the engine.io entry above.
+  #
+  # This comment also named "@openmig/worker's own socket.io" until 2026-08-13.
+  # It had one: `socket.io` and `engine.io` were declared in apps/worker's
+  # dependencies and imported by NOTHING — `git grep` found zero references
+  # outside the manifest. Both are removed; the overrides stay, because the
+  # @trigger.dev path is real and is the one that made these PRODUCTION CVEs.
   #   socket.io-parser CVE-2026-69185 (HIGH) zero-attachment memory exhaustion
   #
   # The rest are transitive under DEV tooling (testcontainers, cyclonedx-npm,

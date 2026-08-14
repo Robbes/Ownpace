@@ -1,5 +1,12 @@
 # Workplan 0010 T3 verify + T5 restart-resume — Docker-host handoff
 
+> **Historical handoff document.** Written for workplan 0010 T3/T5 and kept as the reasoning
+> trail (`docs/README.md`'s rule); 0010 closed long ago and everything below reading as pending
+> — "not verified on a Docker host", the "Gates before PR" list, the request to paste evidence
+> into the workplan — is the document's ORIGINAL state, not a live request. Nothing here awaits
+> anyone. The self-host edition is complete through 0010 including the restart-resume gate; the
+> commands below are from July and the appliance now serves on **8080**, not the 8080/8081 this
+> file predates the settling of (banner added 2026-08-13).
 **Status:** the self-host packaging (T3) is **scaffolded and gate-green** on
 `feat/0010-t3-packaging` (PR #62, stacked on #61 = T1+T2) but **not verified on a
 Docker host** — the authoring environment has no Docker runtime. This note is the

@@ -43,9 +43,13 @@ Two entry points, both driving the same persisted cutover state machine
 These are deliberate gaps, not bugs. Do not plan a cutover assuming otherwise.
 
 - **DNS records are not restored.** The owner decision of 2026-07-16 is **verify-only DNS**: the
-  stack reads and verifies DNS but never writes it (workplan 0009 T4 deferred; the deSEC adapter in
-  `packages/core/src/dns-provider-desec.ts` stays an unwired template). **Revert the MX record
-  manually**, then confirm with the verify-only checks — see
+  stack reads and verifies DNS but never writes it. This bullet said the deSEC adapter in
+  `packages/core/src/dns-provider-desec.ts` "stays an unwired template"; that file was **deleted**
+  on 2026-08-05 (commit `4f05136`, workplan 0026 T3 row 20), along with the ~950-line write path.
+  The conclusion is unchanged — DNS is not restored — but the reason is now *the code does not
+  exist* rather than *it exists and is unwired*, which matters to anyone who would otherwise go
+  looking for it to switch it on. **Revert the MX record manually**, then confirm with the
+  verify-only checks — see
   [`dns-management.md`](./dns-management.md) and the `runbook` CLI subcommand.
 - **End users are not notified.** The `notifyUsers` flag emails the addresses the notification
   channel is configured with — the operator/owner recipients — **not** the people whose mailboxes

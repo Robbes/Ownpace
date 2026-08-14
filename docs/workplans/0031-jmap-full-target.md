@@ -438,8 +438,6 @@ always sets the URL — so it guards someone running the file outside the
 harness and nothing else. Said plainly in the file, because a guard that cannot
 fire where it matters is not the protection it looks like.
 
-### T2.3 — what is STILL not done
-
 ### T2.3 — the LOOP over the connector (built 2026-08-05)
 
 `packages/core/src/jmap-contact-sync.integration.test.ts` — `runContactSync`
@@ -490,6 +488,11 @@ cannot start. CI is the first execution.
 - **Not in the scope manifest**, which is T4's job: the manifest should say
   which protocol carries which domain, and it does not yet.
 - **No §20 checksum leg**, permanently, for the reason in T2.1.
+
+### T3 — files as a JMAP target (BUILT 2026-08-06)
+
+Broken into T3.1-T3.3 below. The per-task verdict and its evidence live in the
+Status block at the top of this file; these sections carry the reasoning.
 
 ### T3.1 — the connector (built 2026-08-06)
 
@@ -613,6 +616,18 @@ claims and only one of them is true today.
   nothing has confirmed this server implements it; a paginating enumerator built
   on an unverified method fails by returning FEWER nodes than exist, which reads
   as data loss. Same bound, same reasoning, as `JmapContactTarget`.
+
+### T4 — surface + manifest truth
+
+The contacts slice landed 2026-08-05 and the files slice 2026-08-06; the capability
+probe (`packages/connectors/src/jmap-capabilities.ts`) landed with the latter. What
+remains is the **target picker offering JMAP per domain only where the server speaks
+it**, which is an owner decision about the shape of `CreateMapping.tsx` rather than a
+blocked task — the probe makes it buildable.
+
+Full evidence is in this file's Status block. This heading exists because T4 had a
+row in that table and no section here, so a reader scanning the `### T` headings for
+it concluded it had never been scoped.
 
 ## Hard rules that bite here
 

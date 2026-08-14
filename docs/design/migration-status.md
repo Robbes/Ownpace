@@ -326,7 +326,7 @@ export type MigrationState = 'pending' | 'in_progress' | 'completed' | 'failed' 
 
 ## References
 
-- [Ledger schema](../packages/ledger/src/schema-pg.ts)
-- [Cutover state pattern](../packages/core/src/cutover-state.ts)
+- [Ledger schema](../../packages/ledger/src/schema-pg.ts)
+- [Cutover state pattern](../../packages/core/src/cutover-state.ts)
 - [Workplan 0007](../workplans/0007-multi-domain-sync-completion.md)
 - ADR-0022: Stalwart integration decisions

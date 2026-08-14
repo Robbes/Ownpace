@@ -459,9 +459,42 @@ jobs:
   # hazard: this job cannot notice a gate it was never told about, and it would
   # go on reporting green while covering less than it used to.
   #
-  # SCOPE: ci.yml only. `security-scan`, `Trivy` and `Check for committed
-  # artifacts` are separate workflows and produce their own checks — require
-  # those alongside this one.
+  # SCOPE: ci.yml only. The checks produced OUTSIDE this file, which have to be
+  # required alongside this one, are:
+  #
+  #   security-scan                  (security-scan.yml)
+  #   Trivy                          (also security-scan.yml — the trivy-action
+  #                                   posts its own check, so this is NOT a
+  #                                   separate workflow; this comment used to
+  #                                   list it as one)
+  #   Check for committed artifacts  (no-committed-artifacts.yml)
+  #
+  # DO NOT REQUIRE `build (api|web|selfhost)` from images.yml, even though you
+  # will see those checks on some pull requests. That workflow's `pull_request`
+  # trigger carries a `paths:` filter — the three Dockerfiles, `deploy/**` and
+  # itself — so on a PR that touches none of them the workflow never runs and
+  # those contexts are never reported at all. Required, they would hang such a
+  # PR exactly the way the matrix contexts below do. (This comment listed them
+  # as requirable when it was rewritten on 2026-08-13; corrected the same day,
+  # after #383 showed the checks present on one PR and absent on the next.)
+  #
+  # `Windows payload` is workflow_dispatch only and never reports on a PR.
+  #
+  # REQUIRE THIS JOB, NOT THE INDIVIDUAL ci.yml JOBS — and specifically not
+  # `integration-tests (ubuntu-24.04)` / `(ubuntu-24.04-arm)`. Those are MATRIX
+  # jobs, and a skipped matrix job never expands: it reports once under the
+  # literal name `integration-tests (${{ matrix.runner }})`, so the per-runner
+  # contexts branch protection is waiting for are never reported at all. A
+  # docs-only pull request then sits at "Expected — Waiting for status to be
+  # reported" forever, with nothing queued in Actions to explain it. That
+  # happened on 2026-08-13 (#381) and cost a merge. Non-matrix jobs do not have
+  # this problem: skipped, they still report under their exact name, which
+  # branch protection counts as satisfied.
+  #
+  # This job exists precisely to be the single required check: `if: always()`,
+  # it needs every other job, it fails if any of them failed or was cancelled,
+  # and it prints which gates did not run so a green tick never claims coverage
+  # it does not have.
   ci-complete:
     name: ci-complete
     # Reads the other jobs' results and runs no repository code, so it is
