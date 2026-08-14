@@ -31,6 +31,8 @@
 // Idempotent: a file already in the bin is reported and not re-deleted, so a
 // re-dispatched workflow does not fail on a deletion it already made.
 
+import { davFetch } from './dav-retry.mjs';
+
 const baseUrl = (process.env.SEED_DAV_URL || 'http://127.0.0.1:8082').replace(/\/$/, '');
 const user = process.env.SEED_DAV_SOURCE_USER || 'e2e-source';
 const password = process.env.SEED_DAV_SOURCE_PASSWORD;
@@ -47,12 +49,19 @@ const authHeader = `Basic ${Buffer.from(`${user}:${password}`).toString('base64'
 const filesUrl = `${baseUrl}/remote.php/dav/files/${user}`;
 const trashUrl = `${baseUrl}/remote.php/dav/trashbin/${user}/trash/`;
 
+// Retries while the source Nextcloud is merely busy — its SQLite backend answers
+// 500 "database is locked" under concurrent access, and MOVE/DELETE below are
+// write paths. See dav-retry.mjs.
 const dav = (method, url, options = {}) =>
-  fetch(url, {
-    method,
-    headers: { Authorization: authHeader, ...(options.headers ?? {}) },
-    ...(options.body !== undefined ? { body: options.body } : {}),
-  });
+  davFetch(
+    url,
+    {
+      method,
+      headers: { Authorization: authHeader, ...(options.headers ?? {}) },
+      ...(options.body !== undefined ? { body: options.body } : {}),
+    },
+    { label: '[trash-dav]' },
+  );
 
 /** Percent-encode each path segment, as a DAV URL requires and the app does. */
 const encodePath = (path) => path.split('/').map(encodeURIComponent).join('/');
