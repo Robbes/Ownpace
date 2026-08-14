@@ -8,7 +8,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import Billing from '../pages/Billing';
+import Billing from './Billing';
 import { billingApi, type Invoice } from '../services/billing-service';
 
 const { authState } = vi.hoisted(() => ({

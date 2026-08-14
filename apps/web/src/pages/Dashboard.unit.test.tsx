@@ -4,7 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import Dashboard from '../pages/Dashboard';
+import Dashboard from './Dashboard';
 import { mappingApi, type MappingListItem } from '../services/mapping-service';
 import { fetchRuns } from '../services/operating-service';
 

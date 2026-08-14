@@ -1,7 +1,7 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import { describe, it, expect } from 'vitest';
-import type { UsageMetrics } from '../services/billing-service';
-import { calculateCost } from '../services/billing-service';
+import type { UsageMetrics } from './billing-service';
+import { calculateCost } from './billing-service';
 
 describe('Billing Service', () => {
   describe('calculateCost', () => {
