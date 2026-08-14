@@ -22,7 +22,7 @@ import { InProcessScheduler } from '@openmig/scheduler';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
-import { runAllDomains } from './orchestration';
+import { runAllDomains } from '@openmig/orchestration';
 import { PgLedger as _PgLedger, PgMigrationStatusStore, createPgDb } from '@openmig/ledger';
 import { log } from '@openmig/shared';
 

@@ -18,7 +18,7 @@ import { Pool } from 'pg';
 import { createPgDb, PgLedger, PgCursorStore, PgMigrationStatusStore } from '@openmig/ledger';
 import { runShadowPass } from '@openmig/core';
 import { SecretStore, initSecretStore } from '@openmig/core/secret-store';
-import { buildDepsFromMapping } from '../../../apps/worker/src/build-deps-from-mapping';
+import { buildDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { asTenantId, asMappingId } from '@openmig/shared';
 
 // Test database from environment

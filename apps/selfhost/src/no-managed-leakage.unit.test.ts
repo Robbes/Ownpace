@@ -32,7 +32,7 @@ const PKG_DIRS: Record<string, string> = {
   '@openmig/connectors': 'packages/connectors/src',
   '@openmig/engines': 'packages/engines/src',
   '@openmig/scheduler': 'packages/scheduler/src',
-  '@openmig/worker': 'apps/worker/src',
+  '@openmig/orchestration': 'packages/orchestration/src',
 };
 
 /** A specifier that must never be reachable from the self-host graph. */
@@ -53,10 +53,6 @@ function resolveToFile(spec: string, fromFile: string): string | null {
   if (spec === '@openmig/scheduler/in-process') {
     return join(ROOT, 'packages/scheduler/src/scheduler.ts');
   }
-  if (spec === '@openmig/worker/orchestration') {
-    return join(ROOT, 'apps/worker/src/orchestration.ts');
-  }
-
   let base: string | null = null;
   if (spec.startsWith('.')) {
     base = resolve(dirname(fromFile), spec);

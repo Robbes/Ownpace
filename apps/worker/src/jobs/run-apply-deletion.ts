@@ -30,8 +30,8 @@ import { applyDeletion, type ApplyDeletionOutcome } from '@openmig/core';
 import { withTenant } from '@openmig/ledger';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import type { MappingId, RemovalKind, TenantId } from '@openmig/shared';
-import { buildDomainDepsFromMapping } from '../build-deps-from-mapping';
-import { enabledDomains } from '../enabled-domains';
+import { buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
+import { enabledDomains } from '@openmig/orchestration/enabled-domains';
 
 const ApplyJobSchema = z.object({
   tenantId: z.string().uuid(),

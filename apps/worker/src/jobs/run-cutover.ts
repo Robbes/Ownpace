@@ -36,8 +36,8 @@ import {
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import * as schemaPg from '@openmig/ledger/schema-pg';
-import { buildDepsFromMapping } from '../build-deps-from-mapping';
-import { buildTargetReindexers } from '../build-reindexers';
+import { buildDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
+import { buildTargetReindexers } from '@openmig/orchestration/build-reindexers';
 import { log as appLog } from '@openmig/shared';
 
 // Job input schema

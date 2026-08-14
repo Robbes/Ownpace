@@ -8,8 +8,8 @@
  *
  *   - `packages/core/src/reconcile.ts`            — the mail pass
  *   - `packages/core/src/domain-sync.ts`          — calendar, contacts, files
- *   - `apps/worker/src/build-deps.ts`             — the worker's own copy
- *   - `apps/worker/src/build-deps-from-mapping.ts` — a bare `?? 4`
+ *   - `packages/orchestration/src/build-deps.ts`             — the worker's own copy
+ *   - `packages/orchestration/src/build-deps-from-mapping.ts` — a bare `?? 4`
  *
  * The third carried a comment reading "Matches `DEFAULT_CONCURRENCY` in
  * @openmig/core — kept in step deliberately, so the managed and self-host paths
@@ -40,6 +40,7 @@ const ROOTS = [
   'packages/engines/src',
   'packages/connectors/src',
   'packages/shared/src',
+  'packages/orchestration/src',
   'apps/worker/src',
   'apps/selfhost/src',
   'apps/api/src',

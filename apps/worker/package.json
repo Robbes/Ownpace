@@ -4,10 +4,6 @@
   "private": true,
   "type": "module",
   "main": "src/index.ts",
-  "exports": {
-    ".": "./src/index.ts",
-    "./orchestration": "./src/orchestration.ts"
-  },
   "bin": {
     "worker": "./src/index.ts"
   },
@@ -19,6 +15,7 @@
     "@openmig/core": "workspace:*",
     "@openmig/engines": "workspace:*",
     "@openmig/ledger": "workspace:*",
+    "@openmig/orchestration": "workspace:*",
     "@openmig/scheduler": "workspace:*",
     "@openmig/shared": "workspace:*",
     "@trigger.dev/sdk": "4.5.10",
