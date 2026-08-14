@@ -395,6 +395,19 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
 - `no-committed-artifacts.yml` — PR guard against committed `node_modules/`, build outputs, local
   DBs, and `.env`.
 
+**Required status checks** on `main` are four: `ci-complete`, `security-scan`, `Trivy`, and
+`Check for committed artifacts`. `ci-complete` aggregates every job in `ci.yml`, so require it
+rather than the individual jobs — but it can only `needs:` jobs in its own file, which is why the
+other three (from `security-scan.yml` and `no-committed-artifacts.yml`) have to be required
+separately. Requiring `ci-complete` alone silently un-gates them.
+
+Do **not** require `integration-tests (ubuntu-24.04)` / `(ubuntu-24.04-arm)`, nor
+`build (api|web|selfhost)` from `images.yml`. Neither is reported at all on some pull requests —
+a skipped matrix job reports once under the literal `integration-tests (${{ matrix.runner }})`,
+and `images.yml` has a `paths:` filter — so a docs-only PR blocks forever on "Expected — waiting
+for status to be reported", with nothing queued in Actions to explain it. Full rationale is the
+`SCOPE:` comment above `ci-complete` in `ci.yml`.
+
 Runners: GitHub-hosted for lint/unit/build and multi-arch image builds; the self-hosted arm64
 Spark runner for integration/e2e. The Spark runner executes trusted workflows only. Both the
 `integration-tests` job and `e2e.yml` install `stalwart-cli` as a host binary for their respective
