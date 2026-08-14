@@ -209,15 +209,15 @@ importers:
       '@openmig/ledger':
         specifier: workspace:*
         version: link:../../packages/ledger
+      '@openmig/orchestration':
+        specifier: workspace:*
+        version: link:../../packages/orchestration
       '@openmig/scheduler':
         specifier: workspace:*
         version: link:../../packages/scheduler
       '@openmig/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@openmig/worker':
-        specifier: workspace:*
-        version: link:../worker
     devDependencies:
       tsx:
         specifier: ^4.23.12
@@ -331,6 +331,9 @@ importers:
       '@openmig/ledger':
         specifier: workspace:*
         version: link:../../packages/ledger
+      '@openmig/orchestration':
+        specifier: workspace:*
+        version: link:../../packages/orchestration
       '@openmig/scheduler':
         specifier: workspace:*
         version: link:../../packages/scheduler
@@ -394,6 +397,9 @@ importers:
       '@openmig/ledger':
         specifier: workspace:*
         version: link:../ledger
+      '@openmig/orchestration':
+        specifier: workspace:*
+        version: link:../orchestration
 
   packages/engines:
     dependencies:
@@ -425,6 +431,24 @@ importers:
       imapflow:
         specifier: ^1.6.6
         version: 1.6.6
+
+  packages/orchestration:
+    dependencies:
+      '@openmig/connectors':
+        specifier: workspace:*
+        version: link:../connectors
+      '@openmig/core':
+        specifier: workspace:*
+        version: link:../core
+      '@openmig/engines':
+        specifier: workspace:*
+        version: link:../engines
+      '@openmig/ledger':
+        specifier: workspace:*
+        version: link:../ledger
+      '@openmig/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/scheduler:
     dependencies:

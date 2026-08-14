@@ -21,8 +21,8 @@ import type {
   MappingId,
 } from '@openmig/shared';
 import { withTenant, PgDiscoveryStore } from '@openmig/ledger';
-import { buildDomainDepsFromMapping } from '../build-deps-from-mapping';
-import { discoverDomains, type DomainDiscoveryTask } from '../discovery';
+import { buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
+import { discoverDomains, type DomainDiscoveryTask } from '@openmig/orchestration/discovery';
 import { log } from '@openmig/shared';
 
 const DiscoveryJobSchema = z.object({

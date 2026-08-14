@@ -1,22 +1,18 @@
 {
-  "name": "@openmig/core",
+  "name": "@openmig/orchestration",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "main": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./cutover-state": "./src/cutover-state.ts",
-    "./secret-store": "./src/secret-store.ts",
-    "./secrets": "./src/secrets.ts"
+    "./*": "./src/*.ts"
   },
   "dependencies": {
-    "@openmig/shared": "workspace:*"
-  },
-  "devDependencies": {
     "@openmig/connectors": "workspace:*",
+    "@openmig/core": "workspace:*",
     "@openmig/engines": "workspace:*",
     "@openmig/ledger": "workspace:*",
-    "@openmig/orchestration": "workspace:*"
+    "@openmig/shared": "workspace:*"
   }
 }

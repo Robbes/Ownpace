@@ -15,9 +15,9 @@
     "@openmig/connectors": "workspace:*",
     "@openmig/core": "workspace:*",
     "@openmig/ledger": "workspace:*",
+    "@openmig/orchestration": "workspace:*",
     "@openmig/scheduler": "workspace:*",
-    "@openmig/shared": "workspace:*",
-    "@openmig/worker": "workspace:*"
+    "@openmig/shared": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.23.12",

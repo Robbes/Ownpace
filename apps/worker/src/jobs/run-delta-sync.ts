@@ -13,8 +13,8 @@ import { schemaTask, queue } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
 import { runShadowPass, runCalendarSync, runContactSync, runFileSync } from '@openmig/core';
 import type { TenantId, MappingId } from '@openmig/shared';
-import { buildDepsFromMapping, buildDomainDepsFromMapping } from '../build-deps-from-mapping';
-import { enabledDomains, describeAbsentDomains } from '../enabled-domains';
+import { buildDepsFromMapping, buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
+import { enabledDomains, describeAbsentDomains } from '@openmig/orchestration/enabled-domains';
 import {
   withTenant,
   PgMigrationStatusStore,

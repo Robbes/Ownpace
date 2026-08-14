@@ -5,11 +5,11 @@
  *
  * **One number, in one place, on purpose.** It used to be four: a `const` in
  * `packages/core/src/reconcile.ts`, another in `packages/core/src/domain-sync.ts`,
- * a third in `apps/worker/src/build-deps.ts` — whose comment said "Matches
+ * a third in `packages/orchestration/src/build-deps.ts` — whose comment said "Matches
  * `DEFAULT_CONCURRENCY` in @openmig/core — kept in step deliberately, so the
  * managed and self-host paths do not quietly disagree about how hard they push
  * a customer's server" — and a bare `?? 4` in
- * `apps/worker/src/build-deps-from-mapping.ts`, which is the MANAGED path and
+ * `packages/orchestration/src/build-deps-from-mapping.ts`, which is the MANAGED path and
  * would not have moved with the others at all. Nothing checked the claim, and
  * hard rule 5 says the editions do not get to differ. A comment is not a
  * constraint; an import is.

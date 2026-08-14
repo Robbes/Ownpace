@@ -25,6 +25,7 @@ const ROOTS = [
   'packages/engines/src',
   'packages/shared/src',
   'apps/api/src',
+  'packages/orchestration/src',
   'apps/worker/src',
   'apps/selfhost/src',
 ];

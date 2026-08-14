@@ -22,8 +22,8 @@
 import { CutoverStore, createLedgerVerificationReader } from '@openmig/ledger';
 import { asTenantId, asMappingId, type TenantId, type MappingId } from '@openmig/shared';
 import { runVerification, createRealVerificationDeps, reindexFromTarget } from '@openmig/core';
-import { buildDepsFromMapping } from '../build-deps-from-mapping';
-import { buildTargetReindexers } from '../build-reindexers';
+import { buildDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
+import { buildTargetReindexers } from '@openmig/orchestration/build-reindexers';
 import {
   checkGraphAccess,
   renderAccessCheck,

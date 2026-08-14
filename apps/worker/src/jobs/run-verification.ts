@@ -29,8 +29,8 @@ import { createLedgerVerificationReader, withTenant } from '@openmig/ledger';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import { runVerification, createRealVerificationDeps } from '@openmig/core';
 import type { VerificationResult } from '@openmig/shared';
-import { enabledDomains } from '../enabled-domains';
-import { buildTargetReindexers } from '../build-reindexers';
+import { enabledDomains } from '@openmig/orchestration/enabled-domains';
+import { buildTargetReindexers } from '@openmig/orchestration/build-reindexers';
 
 const VerificationJobSchema = z.object({
   tenantId: z.string().uuid(),

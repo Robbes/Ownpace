@@ -34,8 +34,8 @@
 import { schedules, configure } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
 import { log } from '@openmig/shared';
-import { isSyncDue, DEFAULT_SYNC_SCHEDULE } from '../sync-due';
-import { enabledDomains } from '../enabled-domains';
+import { isSyncDue, DEFAULT_SYNC_SCHEDULE } from '@openmig/orchestration/sync-due';
+import { enabledDomains } from '@openmig/orchestration/enabled-domains';
 import { runDeltaSync } from './run-delta-sync';
 
 const DATABASE_URL = process.env.DATABASE_URL;

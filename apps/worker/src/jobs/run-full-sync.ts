@@ -22,7 +22,7 @@ import { schemaTask } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
 import { runShadowPass } from '@openmig/core';
 import type { TenantId, MappingId } from '@openmig/shared';
-import { buildDepsFromMapping } from '../build-deps-from-mapping';
+import { buildDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { withTenant, RunStore } from '@openmig/ledger';
 import { log } from '@openmig/shared';
 

@@ -28,7 +28,7 @@ import { runMigrations, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusS
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
 import { InProcessScheduler } from '@openmig/scheduler/in-process';
-import { runAllDomains, discoverAllDomains, verifyMapping, applyMappingDeletion } from '@openmig/worker/orchestration';
+import { runAllDomains, discoverAllDomains, verifyMapping, applyMappingDeletion } from '@openmig/orchestration';
 import { SCOPE_MANIFEST, DELETION_CONFIRMATIONS } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
