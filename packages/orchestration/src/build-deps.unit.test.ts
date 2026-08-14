@@ -9,7 +9,12 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { buildDeps } from './build-deps';
-import { GraphMailSource, MailSourceWithGraphFallback, ImapFlowSource } from '@openmig/connectors';
+import {
+  GraphMailSource,
+  MailSourceWithGraphFallback,
+  ImapFlowSource,
+  ImapFlowDavMailTarget,
+} from '@openmig/connectors';
 import type { MappingConfig, SourceAuth } from '@openmig/shared';
 
 interface ImapSourceInternals {
@@ -341,5 +346,59 @@ describe('IMAP certificate verification is configured, not ambient', () => {
 
   it('carries an explicit tlsVerify:false through to the connector', async () => {
     await expect(rejectUnauthorizedOf(sourceWithVerify(false))).resolves.toBe(false);
+  });
+});
+
+/**
+ * IMAP/DAV TARGET coverage, added 2026-08-14 (workplan 0041 T3).
+ *
+ * Every fixture above uses a `jmap` target, so the `imap-dav` branch of
+ * `buildTargetWriter` was never constructed by this suite. Breaking it failed
+ * nothing here — the same gap the managed suite had, in the same place, found
+ * the same way: by the workplan's mutation check refusing to fail.
+ */
+describe('buildDeps imap-dav target wiring', () => {
+  function imapDavTargetConfig(auth: { kind: 'login'; passwordFromEnv: string }): MappingConfig {
+    const base = configWith({ kind: 'login', passwordFromEnv: 'SRC_PASSWORD' });
+    return {
+      ...base,
+      target: {
+        type: 'imap-dav',
+        host: 'mail.example.net',
+        port: 993,
+        user: 'u@example.net',
+        auth,
+      },
+    } as MappingConfig;
+  }
+
+  it('builds an ImapFlowDavMailTarget from the named env var', async () => {
+    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
+    vi.stubEnv('SRC_PASSWORD', 'source_password');
+    vi.stubEnv('TGT_IMAP_PASSWORD', 'target_password');
+    try {
+      const deps = await buildDeps(
+        imapDavTargetConfig({ kind: 'login', passwordFromEnv: 'TGT_IMAP_PASSWORD' }),
+      );
+      // PINS THE CUTOVER (workplan 0032 T3, 2026-08-06) — the WRITE path.
+      expect(deps.target).toBeInstanceOf(ImapFlowDavMailTarget);
+      await deps.close();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('refuses at build time, naming the env var, when the target password is unset', async () => {
+    // Rule 9: name the variable. A target whose password is missing must say
+    // which one, not fail later against the server with an auth error.
+    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
+    vi.stubEnv('SRC_PASSWORD', 'source_password');
+    try {
+      await expect(
+        buildDeps(imapDavTargetConfig({ kind: 'login', passwordFromEnv: 'TGT_IMAP_PASSWORD' })),
+      ).rejects.toThrow(/TGT_IMAP_PASSWORD/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

@@ -7,7 +7,31 @@
 | T0 locate the duplication precisely | ✅ **Done** | Three matched builder pairs, by line number, in the table below. |
 | T1 normalise the two input shapes into one credential type | ✅ **Done (graph)** | `mail-source-factory.ts` — `GraphMailEndpoint` + `ResolvedGraphCreds`, no trace of file-vs-row origin. |
 | T2 collapse the two source builders (graph, imap) onto it | ✅ **Done** | Graph and IMAP both collapsed. 26 existing tests pass **unchanged** throughout; three separate mutations of shared code each fail tests across **BOTH** suites (5, 14 and 3). |
-| T3 collapse the target writer | ⬜ Not started | — |
+| T3 collapse the target writer | ✅ **Done** | `mail-target-factory.ts`. Collapse exposed that NEITHER suite covered the target path properly; coverage added, and both target mutations now fail **BOTH** suites. |
+
+### T3, 2026-08-14 — and the gap it found
+
+The construction collapsed (`buildJmapTargetFrom`, `buildImapDavTargetFrom`); the password
+resolution did not, for the same reason as T1/T2 — self-host branches on the declared auth kind
+and refuses naming the **environment variable**, managed reads one of a few credential keys and
+refuses naming the **credential store**.
+
+**The mutation check earned its place here.** Breaking the shared `imap-dav` construction failed
+*nothing*, and breaking the shared JMAP construction failed only the self-host suite. The cause
+was not the refactor:
+
+- `build-deps-from-mapping.unit.test.ts` had **no target coverage at all** —
+  `buildTargetWriterFromCredentials` was never exported, so nothing could reach it.
+- `build-deps.unit.test.ts` used a `jmap` target in every fixture, so its `imap-dav` branch was
+  never constructed.
+
+Both gaps pre-date this workplan and were invisible, because absence of coverage looks exactly
+like coverage that passes. Closed by exporting the managed builder (with the same
+"exported for unit tests" rationale its source-side sibling already carried) and adding **9 new
+tests**. No existing test was modified.
+
+Afterwards, each of the two target mutations fails **both** suites — which is what T3 was
+supposed to be able to demonstrate all along.
 
 ### T1/T2-graph, 2026-08-14
 
