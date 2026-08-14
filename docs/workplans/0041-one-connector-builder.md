@@ -5,9 +5,35 @@
 | Task | Status | Evidence |
 |---|---|---|
 | T0 locate the duplication precisely | ✅ **Done** | Three matched builder pairs, by line number, in the table below. |
-| T1 normalise the two input shapes into one credential type | ⬜ Not started | — |
-| T2 collapse the two source builders (graph, imap) onto it | ⬜ Not started | — |
+| T1 normalise the two input shapes into one credential type | ✅ **Done (graph)** | `mail-source-factory.ts` — `GraphMailEndpoint` + `ResolvedGraphCreds`, no trace of file-vs-row origin. |
+| T2 collapse the two source builders (graph, imap) onto it | 🟨 **Graph done, IMAP not started** | Both editions' graph builders now call `buildGraphMailSourceFrom`. 26 existing tests pass **unchanged**; mutation of the shared builder fails **5 tests across BOTH suites** (3 self-host, 2 managed). |
 | T3 collapse the target writer | ⬜ Not started | — |
+
+### T1/T2-graph, 2026-08-14
+
+The two graph builders were byte-identical from the mailbox refusal onward and differed only in
+where three values came from. That tail is now one function; the collapse deleted ~37 duplicated
+lines.
+
+**The validation deliberately did NOT collapse.** Each caller still checks presence itself and
+refuses in its own vocabulary: self-host names the environment variable an operator must set
+(`OAUTH2_CLIENT_ID`), managed names the missing credential field (`clientId`). Unifying those
+would tell a managed operator to set an env var that has no effect there — worse than the
+duplication it removes. Both suites assert on their own vocabulary (`/OAUTH2_CLIENT_ID/` and
+`/clientId/`), so this is also what let every test pass unchanged.
+
+**Found while collapsing, deliberately not fixed here.** The mailbox refusal names
+`OAUTH2_REFRESH_TOKEN` / `OAUTH2_CLIENT_SECRET` even on the managed path, where neither is read.
+Both copies said exactly that beforehand, so carrying it over verbatim is what keeps this a
+refactor. It is now wrong in one place instead of two — which is the argument for the collapse,
+and a one-line follow-up rather than something to smuggle into a no-behaviour-change commit.
+
+**IMAP is next and is NOT the same shape.** `buildImapSource` reads `process.env` for the token
+provider *and* for the password/token itself, while `buildImapSourceFromCredentials` carries the
+0037 T6 app-registration path (`tenantId + clientId + clientSecret` minting XOAUTH2 at connect
+time) that the env version has no equivalent of. They are ~112/113 lines and look like a pair by
+length, but the managed one does strictly more. Read both fully before assuming the same cut
+works.
 
 ## What this is
 

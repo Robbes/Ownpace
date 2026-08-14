@@ -22,7 +22,6 @@ import {
 import { connection as connectionTable } from '@openmig/ledger';
 import {
   ImapFlowSource,
-  GraphMailSource,
   MailSourceWithGraphFallback,
   createTokenProvider,
   ImapFlowDavMailTarget,
@@ -43,6 +42,7 @@ import { PgLedger, PgCursorStore, createPgDb, withTenant } from '@openmig/ledger
 import { SecretStore } from '@openmig/core/secret-store';
 import { mailboxMapping } from '@openmig/ledger';
 import { withClose, type WithClose } from './deps-lifecycle';
+import { buildGraphMailSourceFrom } from './mail-source-factory';
 
 /**
  * Build dependencies from database-stored connections with encrypted credentials.
@@ -398,42 +398,11 @@ function buildGraphMailSourceFromCredentials(
     );
   }
 
-  // A mailbox address is a /users/{address} read, and that is ONLY possible
-  // under the client-credentials (application-permission) flow. With a refresh
-  // token present the token provider asks for a delegated token, Graph answers
-  // 403 on /users, and the operator is left reading an access-denied error
-  // that says nothing about the cause. Refuse here instead, naming the fix
-  // (hard rule 9).
-  if (sourceConfig.mailbox !== undefined && refreshToken) {
-    throw new Error(
-      `graph-mail source: mailbox "${sourceConfig.mailbox}" names another user's ` +
-        'mailbox, which requires application permissions (the client-credentials ' +
-        'flow), but OAUTH2_REFRESH_TOKEN is set — that is the DELEGATED flow and ' +
-        'can only read the signed-in user (/me). Unset OAUTH2_REFRESH_TOKEN and ' +
-        'set OAUTH2_CLIENT_SECRET, having granted admin consent — see ' +
-        'docs/o365-application-access.md — or remove the mailbox to read /me.',
-    );
-  }
-
-  const tokenProvider = createTokenProvider({
-    tokenEndpoint: `https://login.microsoftonline.com/${sourceConfig.tenantId}/oauth2/v2.0/token`,
-    clientId,
-    clientSecret,
-    refreshToken,
-    tenantId: sourceConfig.tenantId,
-    scope: refreshToken
-      ? 'https://graph.microsoft.com/Mail.Read offline_access'
-      : 'https://graph.microsoft.com/.default',
-  });
-
-  return new GraphMailSource(tokenProvider, sourceConfig.tenantId, {
-    baseUrl: sourceConfig.baseUrl,
+  return buildGraphMailSourceFrom(
+    sourceConfig,
+    { clientId, clientSecret, refreshToken },
     throttleLimiter,
-    // Unset means /me, which is what every delegated mapping does. An address
-    // makes this a /users/{address} read — the shared-mailbox path (0027 T0),
-    // and it only works under the client-credentials flow above.
-    ...(sourceConfig.mailbox === undefined ? {} : { mailbox: sourceConfig.mailbox }),
-  });
+  );
 }
 
 /**

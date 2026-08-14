@@ -29,7 +29,6 @@ import {
 } from '@openmig/shared';
 import {
   ImapFlowSource,
-  GraphMailSource,
   MailSourceWithGraphFallback,
   ImapFlowDavMailTarget,
   type ImapDavTargetConfig,
@@ -49,6 +48,7 @@ import {
 import { buildContactTargetFor, contactTargetProtocol } from './contact-target-factory';
 import { buildFileTargetFor, fileTargetProtocol } from './file-target-factory';
 import { withClose, type WithClose } from './deps-lifecycle';
+import { buildGraphMailSourceFrom } from './mail-source-factory';
 
 /**
  * Items in flight per collection when the config does not say.
@@ -273,6 +273,12 @@ function buildSourceConnector(sourceConfig: MappingConfig['source'], throttleLim
  * refresh-token flow scoped to Mail.Read; otherwise OAUTH2_CLIENT_SECRET ->
  * client-credentials with .default (application permissions — needs admin
  * consent plus an Application Access Policy, ADR-0006).
+ *
+ * This function is now only the ENV-SPECIFIC half: read the variables, refuse
+ * naming them. The construction it hands off to is shared with the managed
+ * edition (`mail-source-factory.ts`, workplan 0041) — the two were byte-
+ * identical from the mailbox refusal onward, and a fix to one was silently not
+ * a fix to the other.
  */
 function buildGraphMailSource(sourceConfig: MappingConfig['source'], throttleLimiter?: ThrottleLimiter): SourceConnector {
   if (sourceConfig.type !== 'graph-mail') {
@@ -292,42 +298,11 @@ function buildGraphMailSource(sourceConfig: MappingConfig['source'], throttleLim
     );
   }
 
-  // A mailbox address is a /users/{address} read, and that is ONLY possible
-  // under the client-credentials (application-permission) flow. With a refresh
-  // token present the token provider asks for a delegated token, Graph answers
-  // 403 on /users, and the operator is left reading an access-denied error
-  // that says nothing about the cause. Refuse here instead, naming the fix
-  // (hard rule 9).
-  if (sourceConfig.mailbox !== undefined && refreshToken) {
-    throw new Error(
-      `graph-mail source: mailbox "${sourceConfig.mailbox}" names another user's ` +
-        'mailbox, which requires application permissions (the client-credentials ' +
-        'flow), but OAUTH2_REFRESH_TOKEN is set — that is the DELEGATED flow and ' +
-        'can only read the signed-in user (/me). Unset OAUTH2_REFRESH_TOKEN and ' +
-        'set OAUTH2_CLIENT_SECRET, having granted admin consent — see ' +
-        'docs/o365-application-access.md — or remove the mailbox to read /me.',
-    );
-  }
-
-  const tokenProvider = createTokenProvider({
-    tokenEndpoint: `https://login.microsoftonline.com/${sourceConfig.tenantId}/oauth2/v2.0/token`,
-    clientId,
-    clientSecret,
-    refreshToken,
-    tenantId: sourceConfig.tenantId,
-    scope: refreshToken
-      ? 'https://graph.microsoft.com/Mail.Read offline_access'
-      : 'https://graph.microsoft.com/.default',
-  });
-
-  return new GraphMailSource(tokenProvider, sourceConfig.tenantId, {
-    baseUrl: sourceConfig.baseUrl,
+  return buildGraphMailSourceFrom(
+    sourceConfig,
+    { clientId, clientSecret, refreshToken },
     throttleLimiter,
-    // Unset means /me, which is what every delegated mapping does. An address
-    // makes this a /users/{address} read — the shared-mailbox path (0027 T0),
-    // and it only works under the client-credentials flow above.
-    ...(sourceConfig.mailbox === undefined ? {} : { mailbox: sourceConfig.mailbox }),
-  });
+  );
 }
 
 /**
