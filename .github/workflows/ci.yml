@@ -92,6 +92,7 @@ jobs:
             packages/connectors/**
             packages/core/**
             packages/ledger/**
+            packages/orchestration/**
             packages/testing/**
             packages/scheduler/**
             apps/**
