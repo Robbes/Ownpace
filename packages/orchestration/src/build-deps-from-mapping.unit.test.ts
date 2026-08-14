@@ -11,8 +11,12 @@
 
 import { describe, it, expect } from 'vitest';
 import { GraphMailSource, ImapFlowSource, MailSourceWithGraphFallback } from '@openmig/connectors';
-import { buildSourceConnectorFromCredentials } from './build-deps-from-mapping';
-import type { SourceConfig } from '@openmig/shared';
+import { JmapTargetWriter, ImapFlowDavMailTarget } from '@openmig/connectors';
+import {
+  buildSourceConnectorFromCredentials,
+  buildTargetWriterFromCredentials,
+} from './build-deps-from-mapping';
+import type { SourceConfig, TargetConfig } from '@openmig/shared';
 
 const GRAPH_MAIL: SourceConfig = { type: 'graph-mail', tenantId: 'contoso.example' };
 
@@ -101,5 +105,75 @@ describe('buildSourceConnectorFromCredentials', () => {
   it('rejects a non-mail source type with an honest error', () => {
     const caldav = { type: 'caldav', url: 'https://dav.example.net', user: 'u', auth: { kind: 'login', passwordFromEnv: 'X' } } as unknown as SourceConfig;
     expect(() => buildSourceConnectorFromCredentials(caldav, {})).toThrow(/imap-oauth2 and graph-mail/);
+  });
+});
+
+/**
+ * TARGET coverage, added 2026-08-14 (workplan 0041 T3).
+ *
+ * This suite had none. `buildTargetWriterFromCredentials` was not exported, so
+ * nothing here could reach it, and breaking the managed target construction
+ * failed no test at all — the gap was invisible because absence of coverage
+ * looks exactly like coverage that passes.
+ *
+ * It surfaced from the workplan's mutation check: breaking the shared target
+ * builder was supposed to fail BOTH editions' tests and failed only self-host's.
+ */
+describe('buildTargetWriterFromCredentials', () => {
+  const JMAP_TARGET: TargetConfig = {
+    type: 'jmap',
+    baseUrl: 'https://jmap.example',
+    user: 'target@example',
+  } as TargetConfig;
+
+  const IMAP_DAV_TARGET: TargetConfig = {
+    type: 'imap-dav',
+    host: 'mail.example',
+    port: 993,
+    user: 'target@example',
+  } as TargetConfig;
+
+  it('builds a JmapTargetWriter from a password credential', () => {
+    expect(buildTargetWriterFromCredentials(JMAP_TARGET, { password: 'pw' })).toBeInstanceOf(
+      JmapTargetWriter,
+    );
+  });
+
+  it('accepts token or api_key in place of password for JMAP', () => {
+    // Three accepted key names is a contract, not an accident: connections
+    // created by different paths encrypt the same secret under different names.
+    expect(buildTargetWriterFromCredentials(JMAP_TARGET, { token: 'tk' })).toBeInstanceOf(
+      JmapTargetWriter,
+    );
+    expect(buildTargetWriterFromCredentials(JMAP_TARGET, { api_key: 'ak' })).toBeInstanceOf(
+      JmapTargetWriter,
+    );
+  });
+
+  it('refuses a JMAP target with no usable credential', () => {
+    expect(() => buildTargetWriterFromCredentials(JMAP_TARGET, {})).toThrow(/JMAP target/);
+  });
+
+  it('builds an ImapFlowDavMailTarget from a password credential', () => {
+    // PINS THE CUTOVER (workplan 0032 T3, 2026-08-06) — the WRITE path.
+    expect(buildTargetWriterFromCredentials(IMAP_DAV_TARGET, { password: 'pw' })).toBeInstanceOf(
+      ImapFlowDavMailTarget,
+    );
+  });
+
+  it('accepts access_token in place of password for imap-dav', () => {
+    expect(
+      buildTargetWriterFromCredentials(IMAP_DAV_TARGET, { access_token: 'tk' }),
+    ).toBeInstanceOf(ImapFlowDavMailTarget);
+  });
+
+  it('refuses an imap-dav target with no usable credential', () => {
+    expect(() => buildTargetWriterFromCredentials(IMAP_DAV_TARGET, {})).toThrow(/IMAP\/DAV target/);
+  });
+
+  it('refuses an unsupported target type', () => {
+    expect(() =>
+      buildTargetWriterFromCredentials({ type: 'caldav' } as unknown as TargetConfig, {}),
+    ).toThrow(/Unsupported target type/);
   });
 });

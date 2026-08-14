@@ -22,10 +22,7 @@ import {
 import { connection as connectionTable } from '@openmig/ledger';
 import {
   createTokenProvider,
-  ImapFlowDavMailTarget,
-  type ImapDavTargetConfig,
 } from '@openmig/connectors';
-import { JmapTargetWriter } from '@openmig/connectors';
 import type { CalendarSyncDeps, ContactSyncDeps, FileSyncDeps } from '@openmig/core';
 import {
   buildCalendarSource,
@@ -45,6 +42,7 @@ import {
   buildImapSourceFrom,
   withGraphFallback,
 } from './mail-source-factory';
+import { buildJmapTargetFrom, buildImapDavTargetFrom } from './mail-target-factory';
 
 /**
  * Build dependencies from database-stored connections with encrypted credentials.
@@ -506,8 +504,17 @@ function buildImapSourceFromCredentials(
 
 /**
  * Build target writer from config and decrypted credentials.
+ *
+ * Exported for unit tests, for the same reason
+ * `buildSourceConnectorFromCredentials` above is: the branch-per-type and its
+ * refusals are the behaviour worth pinning, and they need no database to prove.
+ *
+ * It was NOT exported until now, and the consequence was invisible: this suite
+ * had no target coverage at all, so breaking the managed target construction
+ * failed nothing. Found while collapsing it onto the shared builder (workplan
+ * 0041 T3) — the mutation check the workplan asks for is what surfaced it.
  */
-function buildTargetWriterFromCredentials(
+export function buildTargetWriterFromCredentials(
   targetConfig: TargetConfig,
   credentials: Record<string, string>
 ): TargetWriter {
@@ -518,13 +525,7 @@ function buildTargetWriterFromCredentials(
         throw new Error('JMAP target password/token not found in credentials');
       }
 
-      const jmapConfig = {
-        baseUrl: targetConfig.baseUrl,
-        username: targetConfig.user,
-        password,
-      };
-
-      return new JmapTargetWriter(jmapConfig);
+      return buildJmapTargetFrom(targetConfig, password);
     }
 
     case 'imap-dav': {
@@ -533,18 +534,7 @@ function buildTargetWriterFromCredentials(
         throw new Error('IMAP/DAV target password not found in credentials');
       }
 
-      const imapConfig: ImapDavTargetConfig = {
-        host: targetConfig.host,
-        port: targetConfig.port,
-        // Same rule as the source above; see ImapTlsSetting.
-        tls: targetConfig.tls ?? true,
-        rejectUnauthorized: targetConfig.tlsVerify,
-        username: targetConfig.user,
-        password,
-      };
-
-      // CUT OVER on 2026-08-06 (workplan 0032 T3). See `build-deps.ts`.
-      return new ImapFlowDavMailTarget(imapConfig);
+      return buildImapDavTargetFrom(targetConfig, password);
     }
 
     default:

@@ -28,11 +28,8 @@ import {
   type TargetConfig,
 } from '@openmig/shared';
 import {
-  ImapFlowDavMailTarget,
-  type ImapDavTargetConfig,
   createTokenProvider,
 } from '@openmig/connectors';
-import { JmapTargetWriter } from '@openmig/connectors';
 import { PgLedger } from '@openmig/ledger';
 import { PgCursorStore } from '@openmig/ledger';
 import { createPgDb, type PgDatabase } from '@openmig/ledger';
@@ -51,6 +48,7 @@ import {
   buildImapSourceFrom,
   withGraphFallback,
 } from './mail-source-factory';
+import { buildJmapTargetFrom, buildImapDavTargetFrom } from './mail-target-factory';
 
 /**
  * Items in flight per collection when the config does not say.
@@ -415,13 +413,7 @@ function buildTargetWriter(targetConfig: MappingConfig['target']): TargetWriter 
         );
       }
 
-      const jmapConfig = {
-        baseUrl: targetConfig.baseUrl,
-        username: targetConfig.user,
-        password,
-      };
-
-      return new JmapTargetWriter(jmapConfig);
+      return buildJmapTargetFrom(targetConfig, password);
     }
 
     case 'imap-dav': {
@@ -435,38 +427,17 @@ function buildTargetWriter(targetConfig: MappingConfig['target']): TargetWriter 
       } else {
         throw new Error(`Unsupported IMAP/DAV auth kind: ${(targetConfig.auth as {kind: string}).kind}`);
       }
-      
+
       if (!password) {
         throw new Error(
           `IMAP/DAV target credentials not found in environment: ` +
-          `check ${targetConfig.auth.kind === 'login' 
-            ? targetConfig.auth.passwordFromEnv 
+          `check ${targetConfig.auth.kind === 'login'
+            ? targetConfig.auth.passwordFromEnv
             : targetConfig.auth.tokenFromEnv}`
         );
       }
 
-      const imapConfig: ImapDavTargetConfig = {
-        host: targetConfig.host,
-        port: targetConfig.port,
-        // Same rule as the source above; see ImapTlsSetting.
-        tls: targetConfig.tls ?? true,
-        rejectUnauthorized: targetConfig.tlsVerify,
-        username: targetConfig.user,
-        password,
-      };
-
-      // CUT OVER TO `imapflow` on 2026-08-06 (workplan 0032 T3) — the WRITE
-      // path, and the half that can lose data. Rests on
-      // `imap-target-parity.integration.test.ts`, which drives both writers
-      // through the same script against a real Stalwart and compares the
-      // outcomes: ensureMailbox, every upsert's created/adopted/targetId shape,
-      // a SECOND pass, findByNaturalKey, listEntries (by COUNT, because a
-      // writer can report `adopted` and have appended anyway) and every content
-      // hash against the bytes that went in. Green.
-      //
-      // `ImapDavMailTarget` stays for the same reason `ImapSource` does — it is
-      // what the harness compares against.
-      return new ImapFlowDavMailTarget(imapConfig);
+      return buildImapDavTargetFrom(targetConfig, password);
     }
 
     default: {
