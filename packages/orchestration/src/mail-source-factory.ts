@@ -27,7 +27,12 @@
  */
 
 import type { SourceConnector, ThrottleLimiter } from '@openmig/shared';
-import { GraphMailSource, createTokenProvider } from '@openmig/connectors';
+import {
+  GraphMailSource,
+  ImapFlowSource,
+  MailSourceWithGraphFallback,
+  createTokenProvider,
+} from '@openmig/connectors';
 
 /**
  * Where the mailbox is, with no trace of whether a file or a database row said
@@ -110,4 +115,123 @@ export function buildGraphMailSourceFrom(
     // and it only works under the client-credentials flow above.
     ...(endpoint.mailbox === undefined ? {} : { mailbox: endpoint.mailbox }),
   });
+}
+
+// ---------------------------------------------------------------------------
+// IMAP (workplan 0041 T2, second pair)
+//
+// The IMAP builders are ~112/113 lines and look like a matched pair by length,
+// but only PART of them is a copy — the managed one does strictly more. What
+// follows is the part that is genuinely identical in both; the rest stays with
+// its caller, deliberately, and the reasons are recorded at each seam below.
+// ---------------------------------------------------------------------------
+
+/** Where the mailbox is, with no trace of whether a file or a row said so. */
+export interface ImapEndpoint {
+  readonly host: string;
+  readonly port: number;
+  readonly tls?: boolean;
+  readonly tlsVerify?: boolean;
+  /** Required, not optional: the connector's config type will not accept an absent user. */
+  readonly user: string;
+}
+
+/**
+ * The credential the connector will actually authenticate with.
+ *
+ * `authType` is passed IN rather than derived here, and that is deliberate: the
+ * two editions derive it differently and a shared derivation would change one of
+ * them. Self-host follows the mapping's DECLARED `auth.kind`; managed follows
+ * which credential is actually PRESENT. Both are defensible — a config file
+ * states intent, a credential store only has contents — and reconciling them is
+ * a behaviour change, not a refactor. See workplan 0041.
+ */
+export interface ResolvedImapAuth {
+  readonly accessToken?: string | undefined;
+  readonly password?: string | undefined;
+  readonly authType: 'XOAUTH2' | 'LOGIN';
+  readonly tokenProvider?: ReturnType<typeof createTokenProvider> | undefined;
+}
+
+/**
+ * Build the IMAP source from an endpoint and an already-resolved credential.
+ *
+ * The TLS defaults live here now, in one place, which is the point: they encode
+ * an asymmetry argument that must not drift between editions.
+ */
+export function buildImapSourceFrom(
+  endpoint: ImapEndpoint,
+  auth: ResolvedImapAuth,
+  throttleLimiter?: ThrottleLimiter,
+): SourceConnector {
+  const imapConfig = {
+    host: endpoint.host,
+    port: endpoint.port,
+    // TLS unless the mapping says otherwise. Was `port === 993` -- a literal
+    // port comparison, so an IMAPS server on any other port got a CLEARTEXT
+    // socket. See ImapTlsSetting in packages/shared/src/config.ts for why the
+    // default is true rather than a guess: being wrong this way costs a
+    // connection error, being wrong the other way puts a password on the wire.
+    tls: endpoint.tls ?? true,
+    // Certificate verification rides beside the tls flag, same default, same
+    // asymmetry argument -- see ImapTlsVerifySetting. Undefined here lets the
+    // connector's own `?? true` be the single place the default lives.
+    rejectUnauthorized: endpoint.tlsVerify,
+    auth: {
+      user: endpoint.user,
+      accessToken: auth.accessToken,
+      password: auth.password,
+    },
+    authType: auth.authType,
+    tokenProvider: auth.tokenProvider,
+    throttleLimiter,
+  };
+
+  // **CUT OVER TO `imapflow` on 2026-08-06 (workplan 0032 T3).**
+  //
+  // What it rests on, so a future reader can judge it rather than trust it:
+  // `imap-parity.integration.test.ts` ran `ImapSource` and `ImapFlowSource`
+  // against the same seeded Stalwart mailbox and reported any disagreement as a
+  // named field — folder set, per-folder path/name/specialUse, per message
+  // messageId/keywords/receivedAt/size/sourceRef, the resume cursor, the
+  // `unkeyable` count, and a bytewise body sample. The field that mattered is
+  // `messageId`: it is what `naturalKeyForItem()` hashes, so a difference there
+  // would re-copy every message on the next pass with every write succeeding.
+  return new ImapFlowSource(imapConfig);
+}
+
+/**
+ * Wrap an IMAP source in the Graph fallback when Graph credentials are also
+ * available (workplan 0023 T3, ADR-0006).
+ *
+ * `tenantId` is the signal, since the Graph token endpoint needs it and plain
+ * IMAP does not. Construction is LAZY inside the wrapper: a mapping whose IMAP
+ * works never touches these credentials.
+ *
+ * The RULE for when to wrap is what matters here. It was written twice —
+ * `tenantId && clientId && (clientSecret || refreshToken)`, once against
+ * `process.env` and once against a credential record — and an edition that
+ * changed its mind about, say, accepting a refresh token would have silently
+ * disagreed with the other about when a mailbox gets a second chance.
+ */
+export function withGraphFallback(
+  imap: SourceConnector,
+  graph: {
+    readonly tenantId?: string | undefined;
+    readonly clientId?: string | undefined;
+    readonly clientSecret?: string | undefined;
+    readonly refreshToken?: string | undefined;
+  },
+  throttleLimiter?: ThrottleLimiter,
+): SourceConnector {
+  const { tenantId, clientId, clientSecret, refreshToken } = graph;
+  if (!tenantId || !clientId || !(clientSecret || refreshToken)) return imap;
+
+  return new MailSourceWithGraphFallback(imap, () =>
+    buildGraphMailSourceFrom(
+      { tenantId },
+      { clientId, clientSecret, refreshToken },
+      throttleLimiter,
+    ),
+  );
 }

@@ -28,8 +28,6 @@ import {
   type TargetConfig,
 } from '@openmig/shared';
 import {
-  ImapFlowSource,
-  MailSourceWithGraphFallback,
   ImapFlowDavMailTarget,
   type ImapDavTargetConfig,
   createTokenProvider,
@@ -48,7 +46,11 @@ import {
 import { buildContactTargetFor, contactTargetProtocol } from './contact-target-factory';
 import { buildFileTargetFor, fileTargetProtocol } from './file-target-factory';
 import { withClose, type WithClose } from './deps-lifecycle';
-import { buildGraphMailSourceFrom } from './mail-source-factory';
+import {
+  buildGraphMailSourceFrom,
+  buildImapSourceFrom,
+  withGraphFallback,
+} from './mail-source-factory';
 
 /**
  * Items in flight per collection when the config does not say.
@@ -337,76 +339,44 @@ function buildImapSource(sourceConfig: MappingConfig['source'], throttleLimiter?
     }
   }
 
-  const imapConfig = {
-    host: sourceConfig.host,
-    port: sourceConfig.port,
-    // TLS unless the mapping says otherwise. Was `port === 993` -- a literal
-    // port comparison, so an IMAPS server on any other port got a CLEARTEXT
-    // socket. See ImapTlsSetting in packages/shared/src/config.ts for why the
-    // default is true rather than a guess: being wrong this way costs a
-    // connection error, being wrong the other way puts a password on the wire.
-    tls: sourceConfig.tls ?? true,
-    // Certificate verification rides beside the tls flag, same default, same
-    // asymmetry argument -- see ImapTlsVerifySetting. Undefined here lets the
-    // connector's own `?? true` be the single place the default lives.
-    rejectUnauthorized: sourceConfig.tlsVerify,
-    auth: {
-      user: sourceConfig.user,
+  const resolvedAuth = {
       accessToken: sourceConfig.auth.kind === 'xoauth2'
         ? process.env[sourceConfig.auth.tokenFromEnv]
         : undefined,
       password: sourceConfig.auth.kind === 'login'
         ? process.env[sourceConfig.auth.passwordFromEnv]
         : undefined,
-    },
     // authType must follow the configured auth kind — ImapSource.connect() branches on it
     // to decide xoauth2 vs password auth; hardcoding XOAUTH2 here silently dropped LOGIN
     // credentials (the password was never even read) and IMAP servers rejected the
     // resulting empty XOAUTH2 attempt with "No supported authentication method(s)".
+    //
+    // NOTE this derivation is NOT shared with the managed edition, which decides
+    // from which credential is actually present rather than from the declared
+    // kind. Both are defensible and reconciling them is a behaviour change; see
+    // `ResolvedImapAuth` in mail-source-factory.ts and workplan 0041.
     authType: sourceConfig.auth.kind === 'xoauth2' ? ('XOAUTH2' as const) : ('LOGIN' as const),
     tokenProvider: tokenProviderConfig ? createTokenProvider(tokenProviderConfig) : undefined,
-    throttleLimiter, // Pass throttle limiter if available
   };
 
-  // **CUT OVER TO `imapflow` on 2026-08-06 (workplan 0032 T3).** This line is
-  // the migration: everything before it was a port shipped beside the proven
-  // client, and nothing ran on it.
-  //
-  // What it rests on, so a future reader can judge it rather than trust it:
-  // `imap-parity.integration.test.ts` runs `ImapSource` and `ImapFlowSource`
-  // against the same seeded Stalwart mailbox on every push and reports any
-  // disagreement as a named field — folder set, per-folder path/name/
-  // specialUse, per message messageId/keywords/receivedAt/size/sourceRef, the
-  // resume cursor, the `unkeyable` count, and a bytewise body sample. It is
-  // green. The field that mattered is `messageId`: it is what
-  // `naturalKeyForItem()` hashes, so a difference there would re-copy every
-  // message on the next pass with every write succeeding.
-  //
-  // `ImapSource` is deliberately still here and still declared. It is the
-  // harness's reference implementation, and removing it would leave the
-  // comparison running imapflow against itself — which is where T0 started and
-  // what that file called "not evidence of parity". It goes when the nightly
-  // e2e has been green on this path (workplan 0032 T3b).
-  const imap = new ImapFlowSource(imapConfig);
+  const imap = buildImapSourceFrom(sourceConfig, resolvedAuth, throttleLimiter);
 
-  // The runtime IMAP-disabled fallback (workplan 0023 T3, ADR-0006): when the
-  // env ALSO carries Graph-capable credentials — OAUTH2_TENANT_ID is the
-  // signal, since graph needs it for the token endpoint and plain IMAP does
-  // not — wrap the source so an auth-refused mailbox is probed over Graph
-  // instead of dead-ending the run. Construction is LAZY inside the wrapper:
-  // a mapping whose IMAP works never touches these credentials.
-  const graphTenantId = process.env.OAUTH2_TENANT_ID;
-  const hasGraphCreds =
-    graphTenantId &&
-    process.env.OAUTH2_CLIENT_ID &&
-    (process.env.OAUTH2_CLIENT_SECRET || process.env.OAUTH2_REFRESH_TOKEN);
-  if (hasGraphCreds) {
-    return new MailSourceWithGraphFallback(imap, () =>
-      buildGraphMailSource({ type: 'graph-mail', tenantId: graphTenantId }, throttleLimiter),
-    );
-  }
-
-  return imap;
+  // The runtime IMAP-disabled fallback (workplan 0023 T3, ADR-0006): OAUTH2_TENANT_ID
+  // is the signal, since graph needs it for the token endpoint and plain IMAP does
+  // not. The rule for WHEN to wrap now lives in one place, shared with the managed
+  // edition — it was written twice and an edition changing its mind about, say,
+  // accepting a refresh token would have silently disagreed with the other about
+  // when a mailbox gets a second chance.
+  return withGraphFallback(
+    imap,
+    {
+      tenantId: process.env.OAUTH2_TENANT_ID,
+      clientId: process.env.OAUTH2_CLIENT_ID,
+      clientSecret: process.env.OAUTH2_CLIENT_SECRET,
+      refreshToken: process.env.OAUTH2_REFRESH_TOKEN,
+    },
+    throttleLimiter,
+  );
 }
 
 // NOTE: Microsoft Graph calendar/contacts sources are not wired into the

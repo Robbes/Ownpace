@@ -21,8 +21,6 @@ import {
 } from '@openmig/shared';
 import { connection as connectionTable } from '@openmig/ledger';
 import {
-  ImapFlowSource,
-  MailSourceWithGraphFallback,
   createTokenProvider,
   ImapFlowDavMailTarget,
   type ImapDavTargetConfig,
@@ -42,7 +40,11 @@ import { PgLedger, PgCursorStore, createPgDb, withTenant } from '@openmig/ledger
 import { SecretStore } from '@openmig/core/secret-store';
 import { mailboxMapping } from '@openmig/ledger';
 import { withClose, type WithClose } from './deps-lifecycle';
-import { buildGraphMailSourceFrom } from './mail-source-factory';
+import {
+  buildGraphMailSourceFrom,
+  buildImapSourceFrom,
+  withGraphFallback,
+} from './mail-source-factory';
 
 /**
  * Build dependencies from database-stored connections with encrypted credentials.
@@ -463,60 +465,43 @@ function buildImapSourceFromCredentials(
         })
       : undefined;
 
-  const imapConfig = {
-    host: sourceConfig.host,
-    port: sourceConfig.port,
-    // TLS unless the mapping says otherwise. Was `port === 993` -- a literal
-    // port comparison, so an IMAPS server on any other port got a CLEARTEXT
-    // socket. See ImapTlsSetting in packages/shared/src/config.ts for why the
-    // default is true rather than a guess: being wrong this way costs a
-    // connection error, being wrong the other way puts a password on the wire.
-    tls: sourceConfig.tls ?? true,
-    // Certificate verification rides beside the tls flag, same default, same
-    // asymmetry argument -- see ImapTlsVerifySetting. Undefined here lets the
-    // connector's own `?? true` be the single place the default lives.
-    rejectUnauthorized: sourceConfig.tlsVerify,
-    auth: {
-      user: sourceConfig.user,
+  const imap = buildImapSourceFrom(
+    sourceConfig,
+    {
       accessToken,
       password,
+      // authType must follow which credential is actually present — hardcoding
+      // XOAUTH2 here silently drops a configured password and IMAP servers
+      // reject the resulting empty XOAUTH2 attempt with "No supported
+      // authentication method(s)". A token provider counts as an XOAUTH2
+      // credential: ImapFlowSource mints from it at connect time when no static
+      // token is given.
+      //
+      // NOTE this derivation is NOT shared with the self-host edition, which
+      // decides from the mapping's DECLARED auth kind rather than from what is
+      // present. Both are defensible — a config file states intent, a credential
+      // store only has contents — and reconciling them is a behaviour change,
+      // not a refactor. See `ResolvedImapAuth` and workplan 0041.
+      authType: accessToken || tokenProvider ? ('XOAUTH2' as const) : ('LOGIN' as const),
+      tokenProvider,
     },
-    // authType must follow which credential is actually present — hardcoding
-    // XOAUTH2 here silently drops a configured password and IMAP servers
-    // reject the resulting empty XOAUTH2 attempt with "No supported
-    // authentication method(s)" (same bug class build-deps.ts's buildImapSource
-    // already fixed for the self-host path; see its comment). A token
-    // provider counts as an XOAUTH2 credential: ImapFlowSource mints from it
-    // at connect time when no static token is given.
-    authType: accessToken || tokenProvider ? ('XOAUTH2' as const) : ('LOGIN' as const),
-    tokenProvider,
     throttleLimiter,
-  };
+  );
 
-  // CUT OVER TO `imapflow` on 2026-08-06 (workplan 0032 T3). Same evidence as
-  // the self-host path in `build-deps.ts` — see the longer note there.
-  const imap = new ImapFlowSource(imapConfig);
-
-  // The runtime IMAP-disabled fallback (workplan 0023 T3, ADR-0006): when the
-  // connection's credential store ALSO carries Graph-capable credentials —
-  // tenantId is the signal, since the Graph token endpoint needs it and plain
-  // IMAP does not — wrap the source so an auth-refused mailbox is probed over
-  // Graph instead of dead-ending the run. Lazy: IMAP-working mailboxes never
-  // touch these credentials.
-  const graphTenantId = credentials.tenantId;
-  const hasGraphCreds =
-    graphTenantId && credentials.clientId && (credentials.clientSecret || credentials.refreshToken);
-  if (hasGraphCreds) {
-    return new MailSourceWithGraphFallback(imap, () =>
-      buildGraphMailSourceFromCredentials(
-        { type: 'graph-mail', tenantId: graphTenantId },
-        credentials,
-        throttleLimiter,
-      ),
-    );
-  }
-
-  return imap;
+  // The runtime IMAP-disabled fallback (workplan 0023 T3, ADR-0006): tenantId is
+  // the signal, since the Graph token endpoint needs it and plain IMAP does not.
+  // The rule for WHEN to wrap is shared with the self-host edition — see
+  // `withGraphFallback`.
+  return withGraphFallback(
+    imap,
+    {
+      tenantId: credentials.tenantId,
+      clientId: credentials.clientId,
+      clientSecret: credentials.clientSecret,
+      refreshToken: credentials.refreshToken,
+    },
+    throttleLimiter,
+  );
 }
 
 /**
