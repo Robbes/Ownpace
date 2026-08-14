@@ -17,7 +17,10 @@
 
 import { describe, it, expect } from 'vitest';
 import { GraphMailSource } from '@openmig/connectors';
-import { buildGraphMailSourceFrom } from './mail-source-factory';
+import {
+  STORED_CREDENTIAL_NAMES,
+  buildGraphMailSourceFrom,
+} from './mail-source-factory';
 
 const TENANT = { tenantId: 'contoso.example' };
 
@@ -68,5 +71,37 @@ describe('buildGraphMailSourceFrom', () => {
         refreshToken: 'a-delegated-refresh-token',
       }),
     ).not.toThrow();
+  });
+
+  it('names the CREDENTIAL FIELDS when the caller says the credentials are stored', () => {
+    // The refusal used to name OAUTH2_REFRESH_TOKEN on both paths, including the
+    // managed one, where no such variable is read and unsetting it changes
+    // nothing. Rule 9 says name the fix; a fix the operator cannot apply is not
+    // one. Duplication hid this — both copies were wrong identically.
+    const failure = () =>
+      buildGraphMailSourceFrom(
+        { ...TENANT, mailbox: 'gedeeld@contoso.nl' },
+        {
+          clientId: 'app-id',
+          refreshToken: 'a-delegated-refresh-token',
+          naming: STORED_CREDENTIAL_NAMES,
+        },
+      );
+
+    expect(failure).toThrow(/refreshToken is set/);
+    expect(failure).toThrow(/set clientSecret/);
+    // The point of the fix: no env-var advice on a path with no env vars.
+    expect(failure).not.toThrow(/OAUTH2_/);
+  });
+
+  it('still names the ENV VARS by default, which is what self-host needs', () => {
+    // Omitting `naming` must keep the pre-2026-08-14 behaviour exactly — that is
+    // what makes the default safe for the self-host caller, which passes none.
+    expect(() =>
+      buildGraphMailSourceFrom(
+        { ...TENANT, mailbox: 'gedeeld@contoso.nl' },
+        { clientId: 'app-id', refreshToken: 'a-delegated-refresh-token' },
+      ),
+    ).toThrow(/OAUTH2_REFRESH_TOKEN is set/);
   });
 });

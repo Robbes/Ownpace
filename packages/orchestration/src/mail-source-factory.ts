@@ -57,7 +57,44 @@ export interface ResolvedGraphCreds {
   readonly clientId: string;
   readonly clientSecret?: string;
   readonly refreshToken?: string;
+  /**
+   * How to NAME these credentials when refusing, in words the operator can act
+   * on. Not a credential itself, but determined by the same thing that supplies
+   * them — a config file's operator sets environment variables, a managed
+   * operator edits a connection record — so it travels with them.
+   *
+   * Defaults to the environment-variable names, which is what BOTH editions said
+   * before this was parameterised.
+   */
+  readonly naming?: GraphCredentialNaming;
 }
+
+/**
+ * The operator-facing names for the two credentials a refusal has to mention.
+ *
+ * Added 2026-08-14. The mailbox refusal below was written once and copied, so it
+ * named `OAUTH2_REFRESH_TOKEN` / `OAUTH2_CLIENT_SECRET` on BOTH paths — including
+ * the managed one, where neither variable is read and setting them changes
+ * nothing. The collapse in workplan 0041 made that visible by putting it in one
+ * place; this makes it correct. Hard rule 9 says name the fix, and a fix the
+ * operator cannot apply is not one.
+ */
+export interface GraphCredentialNaming {
+  readonly refreshToken: string;
+  readonly clientSecret: string;
+}
+
+/** Self-host: the operator sets environment variables. */
+export const ENV_CREDENTIAL_NAMES: GraphCredentialNaming = {
+  refreshToken: 'OAUTH2_REFRESH_TOKEN',
+  clientSecret: 'OAUTH2_CLIENT_SECRET',
+};
+
+/** Managed: the operator edits the connection's stored credentials. */
+export const STORED_CREDENTIAL_NAMES: GraphCredentialNaming = {
+  refreshToken: 'refreshToken',
+  clientSecret: 'clientSecret',
+};
 
 /**
  * Build the Graph mail source from an endpoint and already-validated credentials.
@@ -77,21 +114,16 @@ export function buildGraphMailSourceFrom(
   // token present the token provider asks for a delegated token, Graph answers
   // 403 on /users, and the operator is left reading an access-denied error
   // that says nothing about the cause. Refuse here instead, naming the fix
-  // (hard rule 9).
-  //
-  // NOTE, carried over verbatim rather than fixed here: this names the env vars
-  // `OAUTH2_REFRESH_TOKEN` / `OAUTH2_CLIENT_SECRET` even on the managed path,
-  // where neither is read. Both copies said exactly this before the collapse, so
-  // keeping it identical is what makes this commit a refactor rather than a
-  // behaviour change. It is now wrong in ONE place instead of two, which is the
-  // point — see workplan 0041.
+  // (hard rule 9) — in the vocabulary of whichever edition is asking, since a
+  // fix the operator cannot apply is not one. See GraphCredentialNaming.
   if (endpoint.mailbox !== undefined && creds.refreshToken) {
+    const naming = creds.naming ?? ENV_CREDENTIAL_NAMES;
     throw new Error(
       `graph-mail source: mailbox "${endpoint.mailbox}" names another user's ` +
         'mailbox, which requires application permissions (the client-credentials ' +
-        'flow), but OAUTH2_REFRESH_TOKEN is set — that is the DELEGATED flow and ' +
-        'can only read the signed-in user (/me). Unset OAUTH2_REFRESH_TOKEN and ' +
-        'set OAUTH2_CLIENT_SECRET, having granted admin consent — see ' +
+        `flow), but ${naming.refreshToken} is set — that is the DELEGATED flow and ` +
+        `can only read the signed-in user (/me). Unset ${naming.refreshToken} and ` +
+        `set ${naming.clientSecret}, having granted admin consent — see ` +
         'docs/o365-application-access.md — or remove the mailbox to read /me.',
     );
   }
