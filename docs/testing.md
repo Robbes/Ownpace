@@ -5,6 +5,24 @@ Canonical doc. Summarises the testing approach; full rationale in
 (two-phase startup, provisioning, TLS-only listeners, known traps) the authoritative reference is
 `docs/stalwart-integration-fix.md` — read it before changing the integration setup.
 
+## Where tests live
+
+**Tests colocate with their subject.** `billing-service.unit.test.ts` sits beside
+`billing-service.ts`; `Billing.unit.test.tsx` beside `Billing.tsx`. This holds for unit AND
+integration tests — `packages/ledger/src/rls.integration.test.ts` is next to the code it exercises.
+
+Two exceptions, both because the subject is not a single file:
+
+- **`test/`** at the repository root holds `e2e/` and `ui/` — the two tiers that belong to no
+  package. Nothing else lives there.
+- **A `__tests__/` directory is FIXTURES ONLY**, never tests. `apps/api/src/__tests__/` holds
+  `seed-membership.ts`, a shared seed helper (see `docs/rls-guide.md`).
+
+Stated here because it had drifted: until 2026-08-13, four of `apps/web`'s fifteen page tests sat
+in `src/__tests__/` while eleven were colocated, and the split was still spreading — one of the
+four was added the same day as a colocated sibling. A convention nobody has written down is a
+convention that is already half-abandoned.
+
 ## Test pyramid
 - **Unit** (vitest): pure logic — reconcile decisions, idempotency keying, special-use/folder
   mapping, Pattern S/D resolution. No I/O.

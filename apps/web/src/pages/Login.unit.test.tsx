@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import Login, { decodeTokenClaims } from '../pages/Login';
+import Login, { decodeTokenClaims } from './Login';
 import { useAuthStore } from '../stores/auth-store';
 
 const navigateMock = vi.fn();

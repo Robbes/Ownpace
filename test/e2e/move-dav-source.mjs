@@ -30,6 +30,8 @@
 // Idempotent: a second run finds the event already at the destination and exits 0, so
 // a re-dispatched workflow does not fail on a move it already made.
 
+import { davFetch } from './dav-retry.mjs';
+
 const baseUrl = (process.env.SEED_DAV_URL || 'http://127.0.0.1:8082').replace(/\/$/, '');
 const user = process.env.SEED_DAV_SOURCE_USER || 'e2e-source';
 const password = process.env.SEED_DAV_SOURCE_PASSWORD;
@@ -48,13 +50,19 @@ const objectName = `${uid}.ics`;
 const from = `${calendarsUrl}/personal/${objectName}`;
 const to = `${calendarsUrl}/${destCalendar}/${objectName}`;
 
+// Retries while the source Nextcloud is merely busy (SQLite "database is locked"
+// under concurrent access). MKCALENDAR/PUT/DELETE below are all write paths, which
+// is exactly what provokes it. See dav-retry.mjs.
 async function request(method, url, { headers = {}, body } = {}) {
-  const response = await fetch(url, {
-    method,
-    headers: { Authorization: authHeader, ...headers },
-    ...(body === undefined ? {} : { body }),
-  });
-  return response;
+  return davFetch(
+    url,
+    {
+      method,
+      headers: { Authorization: authHeader, ...headers },
+      ...(body === undefined ? {} : { body }),
+    },
+    { label: '[move-dav]' },
+  );
 }
 
 /**

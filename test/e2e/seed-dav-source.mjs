@@ -19,9 +19,7 @@
 // corpus. Exits non-zero on any failure so the workflow stops before the gate runs
 // against a source that was never actually seeded.
 
-// Imported rather than using the global: this file is linted without browser
-// globals, and the promise form is what the retry below wants anyway.
-import { setTimeout as sleep } from 'node:timers/promises';
+import { davFetch } from './dav-retry.mjs';
 
 const baseUrl = (process.env.SEED_DAV_URL || 'http://127.0.0.1:8082').replace(/\/$/, '');
 const user = process.env.SEED_DAV_SOURCE_USER || 'e2e-source';
@@ -142,49 +140,34 @@ function buildUtf8File(i) {
   return `Seed ${i}: naïve café — 日本語 — emoji 🐙 — ĝis la revido\n`;
 }
 
-/** Attempts per PUT before a seed failure is treated as real. */
-const PUT_ATTEMPTS = 5;
-
 /**
  * PUT one fixture, retrying while the server is merely busy.
  *
- * Nextcloud's default SQLite is a SINGLE-WRITER database. Under concurrent
- * writes it really does answer
+ * The retry policy — which statuses mean "come back", how long to wait, and why
+ * Nextcloud's single-writer SQLite provokes it at all — now lives in
+ * `dav-retry.mjs`, shared with the three other DAV scripts. It was written here
+ * first, after a lock killed a whole seed; it was moved out on 2026-08-14 when
+ * the same lock failed a DELETE in `trash-caldav-source.mjs`, which had no retry
+ * because the policy was not somewhere it could be reused from.
  *
- *   500 … SQLSTATE[HY000]: General error: 5 database is locked
- *
- * and it is transient by nature — the lock clears as soon as the other write
- * commits. That is exactly why `requestWithRetry` exists in the DAV target
- * writers. This script is a write path too and had none, so the first lock
- * killed the whole seed and with it the run.
- *
- * 423 (WebDAV Locked) and 429 are included for the same reason: the server is
- * telling us to come back, not that the request is wrong. Anything else — 401,
- * 403, 415, a malformed fixture — is a real failure and is raised immediately;
- * retrying those would only delay the error by a few seconds.
+ * What stays here is what is specific to seeding: 201/204 is success, and
+ * anything else after the retries are spent fails the seed loudly. A partial
+ * seed makes every later assertion meaningless.
  */
 async function put(url, body, contentType) {
-  for (let attempt = 1; ; attempt++) {
-    const response = await fetch(url, {
+  const response = await davFetch(
+    url,
+    {
       method: 'PUT',
       headers: { Authorization: authHeader, 'Content-Type': contentType },
       body,
-    });
-    if (response.status === 201 || response.status === 204) return;
+    },
+    { label: '[seed-dav]' },
+  );
+  if (response.status === 201 || response.status === 204) return;
 
-    const retryable = response.status >= 500 || response.status === 423 || response.status === 429;
-    const text = await response.text().catch(() => '');
-
-    if (!retryable || attempt === PUT_ATTEMPTS) {
-      throw new Error(
-        `PUT ${url} -> ${response.status} after ${attempt} attempt(s): ${text.slice(0, 300)}`,
-      );
-    }
-
-    // Backoff doubles, with jitter so the writers that collided do not all
-    // retry in the same millisecond and collide again.
-    await sleep(200 * 2 ** (attempt - 1) + Math.random() * 200);
-  }
+  const text = await response.text().catch(() => '');
+  throw new Error(`PUT ${url} -> ${response.status}: ${text.slice(0, 300)}`);
 }
 
 /**

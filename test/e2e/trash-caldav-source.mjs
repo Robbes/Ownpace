@@ -25,6 +25,8 @@
 // Idempotent: an event already gone is reported and not treated as an error, so a
 // re-dispatched workflow does not fail on a deletion it already made.
 
+import { davFetch } from './dav-retry.mjs';
+
 const baseUrl = (process.env.SEED_DAV_URL || 'http://127.0.0.1:8082').replace(/\/$/, '');
 const user = process.env.SEED_DAV_SOURCE_USER || 'e2e-source';
 const password = process.env.SEED_DAV_SOURCE_PASSWORD;
@@ -40,8 +42,11 @@ const authHeader = `Basic ${Buffer.from(`${user}:${password}`).toString('base64'
 // move-dav-source.mjs already relies on for the same calendar.
 const href = `${baseUrl}/remote.php/dav/calendars/${user}/personal/${uid}.ics`;
 
+// Retries while the source Nextcloud is merely busy — its SQLite backend answers
+// 500 "database is locked" under concurrent access, which is transient. See
+// dav-retry.mjs; this script is why that module exists.
 async function request(method, url) {
-  return fetch(url, { method, headers: { Authorization: authHeader } });
+  return davFetch(url, { method, headers: { Authorization: authHeader } }, { label: '[trash-caldav]' });
 }
 
 async function main() {

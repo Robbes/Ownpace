@@ -1,4 +1,11 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+//
+// THIS DIRECTORY IS FIXTURES, NOT TESTS. Tests in this repository colocate with
+// their subject -- `billing-service.unit.test.ts` sits next to `billing-service.ts`
+// in src/services/, and did not until 2026-08-13, when four web page tests and this
+// one were still in `__tests__/` while eleven of their siblings were colocated.
+// What is left here is a shared seed helper (documented in docs/rls-guide.md), which
+// belongs to no single subject. Do not add a *.test.ts file to this directory.
 
 /**
  * Integration-suite helper for the tenant-membership gate (workplan 0020 T1).
