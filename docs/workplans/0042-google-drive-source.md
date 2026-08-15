@@ -281,6 +281,24 @@ were not on it:
    schedule leaked one connection per attempt until Postgres refused, at which
    point the failure reads as "the database is down". Fixed and pinned.
 
+**The managed edition can now HOLD a Drive connection. Nothing in it creates one.** Found while
+checking T5's own claim, and worth stating so "wired in both editions" is not read as "usable in
+both editions":
+
+- The create-mapping wizard's `sourceType` is `imap | oauth2 | graph` — all MAIL sources — and
+  `sourceKindFor` maps them to `imap` / `o365`. There is no path through the API or the UI that
+  writes a `google_drive` connection; today it takes a hand-inserted row.
+- More structural: `loadDomainConnections` reads **one** `role = 'source'` row per tenant and
+  hands it to every enabled domain (the same single-connection assumption `fileEndpointFromCreds`
+  documents). So a managed tenant cannot have an O365 mail source *and* a Drive file source at
+  once, whatever the wizard offers.
+
+Neither is a Drive problem and neither is fixed by pretending otherwise. The appliance path is
+complete — a mapping file names `google-drive`, the env holds the credentials, it runs. **The
+managed path is complete up to the point where a person has to create the connection**, and
+finishing it is a wizard/schema change (per-domain source connections) that belongs to whoever
+owns the managed onboarding flow, not to this workplan.
+
 **What T5 does NOT prove, and nobody should read it as proving:** that any of this
 works against Google. Every test here drives a fake — a fake transport, a fake
 token endpoint, a stubbed `fetch`. The wiring is proven end to end *inside the

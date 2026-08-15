@@ -77,11 +77,19 @@ touched), the ETag re-check, the mass-deletion breaker, and the ledger's own con
 `UPDATE`.
 
 **A new gate joins them, specific to this class.** Before removing the old copy, the ledger is
-re-read for the arrival's row and it must say `status` is on the target and its `contentHash`
-matches the row being removed. If the new copy is not verifiably there — the arrival failed,
-was adopted, or has since been tombstoned — the apply is refused with `relocation_unconfirmed`
-rather than proceeding. The whole safety argument is "the bytes are still there"; it must be
-checked at the moment of acting, not inferred from a correlation made earlier in the pass.
+re-read for the arrival's row, and it must say the arrival is `copied` or `updated` — written
+by us — and carry the same `contentHash` as the row being removed. `adopted` does not qualify:
+an adopted row means the target already had something under that key, and its bytes are the
+account owner's rather than a copy we made, so it is not evidence that these bytes are there.
+If the new copy is not verifiably ours and present — the arrival failed, was adopted, or has
+since been tombstoned — the apply is refused with `relocation_unconfirmed`.
+
+Half of that check already exists at the other end: `createdThisPass` is populated only for
+genuinely created items (`domain-sync.ts`), explicitly excluding adopted and rewritten ones,
+so an adopted arrival cannot become a correlation in the first place. The gate is the same
+question asked again at the moment of acting, because an owner may press `apply` days later
+and the whole safety argument is "the bytes are still there" — which has to be true then, not
+merely when the correlation was made.
 
 **Deletion reporting for relocations stops.** A relocated row is no longer counted as absent,
 so the rename case stops producing a phantom deletion after two passes. What the owner sees is

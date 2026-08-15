@@ -54,6 +54,7 @@
 
 import {
   GoogleDriveSource,
+  NATIVE_EXPORT_TYPES,
   createGoogleTokenProvider,
   googleDriveTransport,
   isNativeEditorFile,
@@ -121,12 +122,17 @@ async function pickDocument(): Promise<DriveFile> {
     fail(`Drive answered ${response.status} listing ${ROOT}: ${await response.text()}`);
   }
   const found = ((await response.json()) as DriveFileList).files ?? [];
-  const native = found.find((f) => isNativeEditorFile(f.mimeType));
+  // Only the three types the policy can actually export. A Google Form or a
+  // Drawing is a native editor file with no export mapping, so picking one
+  // would refuse — correctly, and answering a question nobody asked.
+  const exportable = NATIVE_EXPORT_TYPES[POLICY as Exclude<GoogleNativeFilePolicy, 'refuse'>];
+  const native = found.find((f) => isNativeEditorFile(f.mimeType) && exportable[f.mimeType]);
   if (!native) {
     fail(
-      `No Google Doc, Sheet or Slide directly under ${ROOT === 'root' ? 'My Drive' : ROOT}. ` +
-        'Set DRIVE_FILE_ID to one, or run this against a folder that has one — the whole ' +
-        'question is about native editor files, so an ordinary file cannot answer it.',
+      `No Google Doc, Sheet or Slide directly under ${ROOT === 'root' ? 'My Drive' : ROOT} ` +
+        '(this listing is that folder only, not its subfolders). Set DRIVE_FILE_ID to one, or ' +
+        'point DRIVE_ROOT_FOLDER_ID at a folder that has one — the whole question is about ' +
+        'native editor files, so an ordinary file cannot answer it.',
     );
   }
   return native;
