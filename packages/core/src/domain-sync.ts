@@ -1681,6 +1681,54 @@ async function detectPathKeyedMoves(args: {
       continue;
     }
 
+    // ALREADY EXPLAINED, and therefore NOT a competitor for this pass's
+    // arrivals.
+    //
+    // The arrival only exists on the pass that first saw the move: by the next
+    // one the file at the new path is an ordinary known item, so nothing is
+    // created and there is nothing left to correlate against. Without this the
+    // move became permanent drift — reported once as a move and then, forever
+    // after, as a deletion of a file that is plainly still there. Correlation
+    // is how a move is DISCOVERED; the recorded move is how it is remembered.
+    //
+    // THIS RUNS BEFORE CORRELATION, and that ordering is the whole point. It
+    // used to run after, so a row that already knew where it went still tried
+    // to claim a fresh arrival carrying the same bytes — and won it, because
+    // the ledger's order decided. Two ways that went wrong:
+    //
+    //   - The file moved A→B on one pass and B→C on a later one. Row A is
+    //     still absent and still carries B's content hash, so it competed with
+    //     row B for the arrival at C. When A won, its own recorded move was
+    //     rewritten from B to C (an acknowledgement somebody had already given
+    //     silently re-opened, since `recordMove` clears the ack when the key
+    //     changes) and the REAL move, B→C, was left with nothing to explain it
+    //     — drift, and two clean scans later a reported deletion of a file
+    //     that is plainly still there.
+    //   - Any unrelated new file with the same bytes, months later, could be
+    //     consumed by a long-since-explained row and stop explaining whatever
+    //     it actually was.
+    //
+    // A row's own disappearance needs explaining exactly once: it cannot move
+    // again under this key, and if it comes BACK the branch above clears the
+    // move and correlation applies again from scratch.
+    if (row.movedToCollection !== undefined) {
+      if (row.moveAcknowledgedAt === undefined) {
+        moves.push({
+          domain,
+          naturalKeyHash: row.naturalKeyHash,
+          from: row.collection,
+          to: row.movedToCollection,
+          // Carried through on the remembered path too, or a relocation would
+          // become an ordinary move on its second pass and stop offering the
+          // one action that resolves it.
+          ...(row.movedToNaturalKeyHash !== undefined
+            ? { toNaturalKeyHash: row.movedToNaturalKeyHash }
+            : {}),
+        });
+      }
+      continue;
+    }
+
     // Gone from the source. Whether it moved or was deleted depends on whether
     // its content turned up elsewhere.
     //
@@ -1710,10 +1758,11 @@ async function detectPathKeyedMoves(args: {
       // holds this row under that key already, so `recordIfAbsent` would have
       // found it rather than creating one — which is why this needs no filter.
       const toNaturalKeyHash = match!.naturalKeyHash;
-      // Consume the arrival either way — it explains this disappearance whether
-      // or not anyone has decided about it yet. Leaving it in the pool would let
-      // the same new file account for a second, unrelated deletion.
-      if (decided(row, to, toNaturalKeyHash)) continue;
+      // No `decided()` check here any more, and none is possible: a row with a
+      // recorded move never reaches this line. It used to, and the call read as
+      // a live guard while being the mechanism of the bug above — the row
+      // consumed the arrival and reported nothing, so the file that had really
+      // moved lost its explanation silently.
       await ledger.recordMove(
         tenantId,
         mappingId,
@@ -1731,32 +1780,6 @@ async function detectPathKeyedMoves(args: {
         to,
         toNaturalKeyHash,
       });
-      continue;
-    }
-
-    // Gone, with no arrival THIS pass — but we already know where it went.
-    //
-    // The arrival only exists on the pass that first saw the move: by the next
-    // one the file at the new path is an ordinary known item, so nothing is
-    // created and there is nothing left to correlate against. Without this the
-    // move became permanent drift — reported once as a move and then, forever
-    // after, as a deletion of a file that is plainly still there. Correlation
-    // is how a move is DISCOVERED; the recorded move is how it is remembered.
-    if (row.movedToCollection !== undefined) {
-      if (row.moveAcknowledgedAt === undefined) {
-        moves.push({
-          domain,
-          naturalKeyHash: row.naturalKeyHash,
-          from: row.collection,
-          to: row.movedToCollection,
-          // Carried through on the remembered path too, or a relocation would
-          // become an ordinary move on its second pass and stop offering the
-          // one action that resolves it.
-          ...(row.movedToNaturalKeyHash !== undefined
-            ? { toNaturalKeyHash: row.movedToNaturalKeyHash }
-            : {}),
-        });
-      }
       continue;
     }
 

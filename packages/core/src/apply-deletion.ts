@@ -43,9 +43,10 @@
  *    match, which the writer checks at the moment of removal so there is no gap
  *    between reading and acting. An item the owner has changed in the new system
  *    is theirs now.
- * 6. **This does not look like a mass-deletion event.** See
- *    `MASS_DELETION_FRACTION`. The gate is about the EVIDENCE being wrong in
- *    bulk, not about an operator clicking too fast.
+ * 6. **This does not look like a mass event.** See `MASS_DELETION_FRACTION`.
+ *    The gate is about the EVIDENCE being wrong in bulk, not about an operator
+ *    clicking too fast. `applyRelocation` measures relocations as well as
+ *    deletions, because nothing else in this file can see past one item.
  * 7. **The ledger still agrees.** The row is flipped by a conditional UPDATE that
  *    re-checks 3 and 4 in SQL, so two concurrent applies cannot both succeed.
  *
@@ -113,6 +114,16 @@ export type ApplyRefusal =
   | 'already_applied'
   | 'edited_on_target'
   | 'mass_deletion_suspected'
+  /**
+   * So much of this domain has relocated at once that the correlation itself
+   * is in doubt (ADR-0030).
+   *
+   * Its own code rather than `mass_deletion_suspected` because an operator can
+   * act on it and the two actions differ: a mass deletion means check the
+   * SOURCE, a mass relocation means the paths this connector reports have
+   * changed wholesale, and the thing to check is why.
+   */
+  | 'mass_relocation_suspected'
   /** No relocation is recorded against this item (ADR-0030). */
   | 'not_relocated'
   /** A relocation is recorded, but the new copy is not verifiably on the target. */
@@ -407,7 +418,8 @@ export async function evaluateApplyRelocation(
   const ownership = ownershipCheck(row);
   if (ownership) return ownership;
 
-  const breaker = await massDeletionCheck(deps);
+  // Both halves of gate 6, in the same order as `applyRelocation`.
+  const breaker = (await massDeletionCheck(deps)) ?? (await massRelocationCheck(deps));
   if (breaker) return breaker;
 
   return { ok: true, domain };
@@ -435,8 +447,10 @@ export async function evaluateApplyRelocation(
  *
  * Everything else is identical and deliberately so: the per-mapping opt-in, the
  * target capability check, the ownership rule, the ETag re-check inside the
- * removal, the mass-deletion breaker, the remove-then-record ordering, and the
- * ledger's own conditional UPDATE having the final word.
+ * removal, the remove-then-record ordering, and the ledger's own conditional
+ * UPDATE having the final word. The mass breaker is the one gate that is WIDER
+ * here: it measures relocations as well as deletions, because the per-item
+ * argument above is exactly what a bulk correlation failure satisfies.
  *
  * IT SHARES `allowApplyDeletions` rather than adding a flag. This is the same
  * capability — removing our copy from the target — and a second switch would
@@ -484,12 +498,18 @@ export async function applyRelocation(
   const ownership = ownershipCheck(row);
   if (ownership) return ownership;
 
-  // GATE 6: does the queue look like an incident? Read before touching the
-  // target. A relocation is not a deletion and does not enter that count, but a
-  // mapping whose deletion evidence has gone wrong in bulk is one whose
-  // listings cannot be trusted — including the listing that produced this
-  // correlation.
-  const breaker = await massDeletionCheck(deps);
+  // GATE 6, BOTH HALVES: does the queue look like an incident?
+  //
+  // A relocation is not a deletion and does not enter that count, but a mapping
+  // whose deletion evidence has gone wrong in bulk is one whose listings cannot
+  // be trusted — including the listing that produced this correlation. So the
+  // deletion breaker still applies here.
+  //
+  // And relocations are counted in their own right, because until this they
+  // were measured by nothing at all: a whole corpus could relocate and every
+  // individual apply would sail through, each one truthfully reporting that the
+  // bytes are on the target under the new key.
+  const breaker = (await massDeletionCheck(deps)) ?? (await massRelocationCheck(deps));
   if (breaker) return breaker;
 
   // THE ARRIVAL, ASKED OF THE TARGET ITSELF (ADR-0030, amended).
@@ -831,5 +851,69 @@ async function massDeletionCheck(
       'that is true, no individual removal is trustworthy either, so all of them are refused. ' +
       'Check the source, let a pass run, and if the deletions are real, remove the items in the ' +
       'target system yourself.',
+  };
+}
+
+/**
+ * The same breaker for RELOCATIONS, which until now nothing measured.
+ *
+ * Every gate in front of `applyRelocation` reads one item. Each is satisfied by
+ * a correlation that is locally perfect — the bytes really are on the target
+ * under the new key — and none of them can see that the same thing just happened
+ * to the entire corpus. So a whole migration could relocate at once and every
+ * individual apply would sail through, truthfully reporting redundancy each time.
+ *
+ * WHAT THAT LOOKS LIKE WHEN IT IS WRONG, and it is not exotic: a connector
+ * change that alters how paths are normalised gives every file a new natural
+ * key, so every file "moves". Or a sync client on somebody's desktop renames
+ * ten thousand files and they are about to restore from backup. Applying the
+ * relocations removes the target's copies at the ORIGINAL paths — and restoring
+ * the source does not undo it, because the old rows are tombstoned and
+ * `classifyKnownItem` refuses to re-create a tombstone. The target is then
+ * permanently missing the files at the paths that were correct, which is a loss
+ * no later pass repairs.
+ *
+ * THE COST OF THIS GATE, said plainly because it is real: dragging one large
+ * folder to another place in a path-keyed source relocates every file under it,
+ * which is a legitimate thing to do and will trip this. The owner is not stuck —
+ * the refusal says what to do — but they are made to do it in the target system
+ * instead. That is the same trade ADR-0024 already accepts for a genuine mass
+ * deletion, and it is accepted here for the same reason: at the moment the share
+ * is that high, this code cannot tell the deliberate reorganisation from the
+ * accident, and only one of those is recoverable.
+ *
+ * The threshold and the floor are shared with the deletion breaker deliberately.
+ * Two numbers to tune would be two numbers to get wrong, and nothing about a
+ * relocation makes 20% mean something different from what it means for a
+ * deletion.
+ */
+async function massRelocationCheck(
+  deps: Omit<ApplyDeletionDeps, 'target'>,
+): Promise<Extract<ApplyDeletionOutcome, { ok: false }> | undefined> {
+  const { tenantId, mappingId, domain, ledger } = deps;
+
+  const placed = await ledger.placedItems(tenantId, mappingId, domain);
+  if (placed.length < MASS_DELETION_MIN_ITEMS) return undefined;
+
+  // RELOCATIONS only — a move that changed the natural key. A move recorded
+  // with a collection alone cannot be applied at all, so counting it would let
+  // a mail folder reorganisation refuse a file rename in the same mapping.
+  const pending = (await ledger.listMoves(tenantId, mappingId, domain)).filter(
+    (m) => m.toNaturalKeyHash !== undefined && m.acknowledgedAt === undefined,
+  );
+  const share = pending.length / placed.length;
+  if (share <= MASS_DELETION_FRACTION) return undefined;
+
+  const percent = Math.round(share * 100);
+  return {
+    ok: false,
+    code: 'mass_relocation_suspected',
+    reason:
+      `${pending.length} of ${placed.length} migrated ${domain} items (${percent}%) are recorded ` +
+      'as moved or renamed and still open. At that scale the correlation itself is in doubt — a ' +
+      'change in how this connector reports paths gives every file a new key, and looks exactly ' +
+      'like this. Removing the old copies is not undoable by a later pass, so all of them are ' +
+      'refused while it is true. If the reorganisation is real, close these entries with `keep` ' +
+      'and tidy the old copies in the target system yourself.',
   };
 }

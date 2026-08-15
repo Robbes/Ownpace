@@ -182,6 +182,35 @@ is verifiably elsewhere is still categorically safer than acting on a deletion. 
 the assumption that the correlation feeding it needed no scrutiny of its own. Detection may be
 optimistic, because it only reports. The gate in front of a removal may not.
 
+### The gate that saw only one item at a time, 2026-08-15
+
+Every gate in front of `applyRelocation` reads ONE row. Each is satisfied by a correlation that
+is locally perfect — the bytes really are on the target under the new key — and none of them can
+see that the same thing just happened to the whole corpus. `MASS_DELETION_FRACTION` was the one
+gate positioned to notice, and it counted pending DELETIONS only, which a relocation is not. So a
+whole migration could relocate at once and every individual apply would sail through, each one
+truthfully reporting redundancy.
+
+The bad case is not exotic and it is not recoverable. A connector change that alters how paths
+are normalised gives every file a new natural key, so every file "moves"; a desktop sync client
+misbehaving does the same to ten thousand files an owner is about to restore from backup.
+Applying removes the target's copies at the ORIGINAL paths — and restoring the source does not
+undo it, because the old rows are tombstoned and `classifyKnownItem` will not re-create a
+tombstone. The target is then permanently missing the files at the paths that were correct.
+
+So the breaker now has two halves, sharing one threshold and one floor: pending deletions, as
+before, and pending RELOCATIONS — moves that changed the natural key and are still open —
+against the same corpus. A collection-only move is not counted, because it cannot be applied at
+all and counting it would let a mail reorganisation refuse a file rename.
+
+**This has a cost and it is not hypothetical.** Dragging one large folder somewhere else
+relocates every file under it, which is a legitimate thing to do, and it will trip this. The
+owner is not stuck — the refusal says what to do, and closing the entries with `keep` clears the
+count — but they are made to tidy the old copies in the target system themselves. That is the
+same trade ADR-0024 already accepts for a genuine mass deletion, taken for the same reason: at
+the moment the share is that high, this code cannot tell the deliberate reorganisation from the
+accident, and only one of the two is recoverable.
+
 ## Consequences
 
 - **The target can converge.** For the first time, an owner whose source was reorganised has a

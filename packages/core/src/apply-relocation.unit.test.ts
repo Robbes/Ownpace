@@ -279,6 +279,102 @@ describe('the gates it shares with a deletion are still in front of it', () => {
   });
 });
 
+/**
+ * A corpus of `total` migrated files, `relocations` of which have moved.
+ *
+ * Each relocation is a PAIR of rows sharing one content hash — which is what a
+ * relocation is — and every pair gets its own hash, because three rows sharing
+ * one is separately refused as ambiguous and would prove nothing about the
+ * breaker.
+ */
+async function corpus(total: number, relocations: number): Promise<MemoryLedger> {
+  const ledger = new MemoryLedger();
+  for (let i = 0; i < relocations; i += 1) {
+    await ledger.recordIfAbsent(
+      row({ naturalKeyHash: `old-${i}`, contentHash: `h-${i}`, targetId: `t/old-${i}` }),
+    );
+    await ledger.recordIfAbsent(
+      row({ naturalKeyHash: `new-${i}`, contentHash: `h-${i}`, targetId: `t/new-${i}` }),
+    );
+    await ledger.recordMove(TENANT, MAPPING, 'file', `old-${i}`, 'Docs', `new-${i}`);
+  }
+  for (let i = relocations * 2; i < total; i += 1) {
+    await ledger.recordIfAbsent(
+      row({ naturalKeyHash: `still-${i}`, contentHash: `k-${i}`, targetId: `t/still-${i}` }),
+    );
+  }
+  return ledger;
+}
+
+describe('gate 6, the half nothing used to measure', () => {
+  it('refuses every relocation while a fifth of the domain has relocated at once', async () => {
+    // Each apply on its own is locally perfect — the bytes really are on the
+    // target under the new key — and no per-item gate can see that the same
+    // thing just happened to the whole corpus. That is what a change in how a
+    // connector normalises paths looks like, and applying through it removes
+    // the target's copies at the ORIGINAL paths for good: the old rows are
+    // tombstoned, and `classifyKnownItem` will not re-create a tombstone.
+    const ledger = await corpus(30, 8); // 8 of 30 = 27%
+    const target = fakeRemover();
+
+    const outcome = await applyRelocation(deps(ledger, target), 'old-0');
+
+    expect(outcome).toMatchObject({ ok: false, code: 'mass_relocation_suspected' });
+    expect(target.removeItem, 'refused before anything was touched').not.toHaveBeenCalled();
+    expect(String((outcome as { reason: string }).reason)).toContain('8 of 30');
+  });
+
+  it('does not fire at or under the threshold', async () => {
+    const ledger = await corpus(30, 6); // 6 of 30 = 20%, which is not MORE than 20%
+
+    expect(await applyRelocation(deps(ledger, fakeRemover()), 'old-0')).toMatchObject({ ok: true });
+  });
+
+  it('does not fire below the floor, however high the share', async () => {
+    // Two files, one relocated, is 50% and means nothing.
+    const ledger = await ledgerWithRelocation();
+
+    expect(await applyRelocation(deps(ledger, fakeRemover()), OLD_KEY)).toMatchObject({ ok: true });
+  });
+
+  it('counts RELOCATIONS, not every move', async () => {
+    // A move recorded with a collection alone cannot be applied at all — it is
+    // what every mail and calendar move looks like. Counting those would let a
+    // folder reorganisation in one domain refuse a file rename in another.
+    const ledger = await corpus(30, 1);
+    for (let i = 2; i < 14; i += 1) {
+      await ledger.recordMove(TENANT, MAPPING, 'file', `still-${i}`, 'Elsewhere');
+    }
+
+    expect(await applyRelocation(deps(ledger, fakeRemover()), 'old-0')).toMatchObject({ ok: true });
+  });
+
+  it('stops counting a relocation the owner has closed', async () => {
+    // Otherwise a bulk reorganisation stays "an incident" forever, and the
+    // breaker becomes a wall rather than a pause.
+    const ledger = await corpus(30, 8);
+    for (let i = 1; i < 8; i += 1) {
+      expect(await ledger.resolveMove(TENANT, MAPPING, `old-${i}`, 'keep')).toBe(true);
+    }
+
+    expect(await applyRelocation(deps(ledger, fakeRemover()), 'old-0')).toMatchObject({ ok: true });
+  });
+
+  it('still refuses on a mass DELETION, which says the listings cannot be trusted', async () => {
+    // A relocation is not a deletion and does not enter that count — but a
+    // mapping whose deletion evidence has gone wrong in bulk is one whose
+    // listings produced this correlation too.
+    const ledger = await corpus(30, 1);
+    for (let i = 2; i < 12; i += 1) {
+      await ledger.recordReportedDeletion(TENANT, MAPPING, 'file', `still-${i}`);
+    }
+
+    const outcome = await applyRelocation(deps(ledger, fakeRemover()), 'old-0');
+
+    expect(outcome).toMatchObject({ ok: false, code: 'mass_deletion_suspected' });
+  });
+});
+
 describe('an UNKNOWN hash is not a matching hash', () => {
   it('refuses when neither row recorded a content hash', async () => {
     // `LedgerRecord.contentHash` falls back to `''`, so two rows that say
