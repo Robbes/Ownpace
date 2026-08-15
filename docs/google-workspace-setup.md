@@ -146,6 +146,12 @@ So the recording pins that this product parses what Drive actually sends. It say
 about any particular document of yours — the byte-stability verdict above is the part that
 speaks to that, and it is printed rather than stored.
 
+**Point it at a folder that has a subfolder with files in it.** When capturing, the script
+also walks the folder tree and lists the first subfolder, because a Drive file has no path —
+only an id and a name — so the natural key the whole ledger turns on is *composed* by this
+product. That composition is the thing most likely to be wrong, and a recording of one flat
+listing of the root cannot gate it. The script says so if it finds no subfolder.
+
 ---
 
 ## What a Drive migration does not do yet

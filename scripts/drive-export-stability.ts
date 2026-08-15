@@ -161,6 +161,48 @@ async function pickDocument(): Promise<DriveFile> {
   return native;
 }
 
+/**
+ * Walk the folder tree once, so the recording covers the thing most likely to
+ * be wrong: PATH DERIVATION.
+ *
+ * A Drive file has no path — only an id and a name — so the natural key the
+ * whole ledger turns on is COMPOSED by this connector. That composition is what
+ * a replay should gate, and it cannot be gated by a recording of one flat
+ * listing of the root. So when a capture is being taken, this asks the
+ * connector for the folder tree and then lists the first subfolder, which is
+ * exactly the sequence a real pass makes.
+ *
+ * Only when capturing. Without `DRIVE_CAPTURE_FILE` this would be a handful of
+ * API calls spent on nothing, and the byte-stability question does not need
+ * them.
+ */
+async function maybeWalk(): Promise<void> {
+  if (!recorder) return;
+  const source = new GoogleDriveSource(transport, { rootFolderId: ROOT, nativeFilePolicy: POLICY });
+
+  const folders = await source.listFolders();
+  console.log(`  ✔ walked ${folders.length} folder(s) for the recording`);
+
+  // The first folder BELOW the root: `listFolders` always yields the root
+  // itself as `''`, and a listing of the root proves nothing about composing a
+  // path out of a folder name and a file name.
+  const nested = folders.find((f) => f.path !== '');
+  if (!nested) {
+    console.log(
+      '    ⚠ no subfolder under the root, so the recording cannot gate path derivation.',
+    );
+    console.log(
+      '      Point DRIVE_ROOT_FOLDER_ID at a folder that has one, or make a folder with a',
+    );
+    console.log('      file in it — the derived path is what the ledger keys on.');
+    return;
+  }
+
+  const { items } = await source.listSince(nested);
+  console.log(`  ✔ listed "${nested.path}" — ${items.length} item(s), paths derived
+`);
+}
+
 async function main(): Promise<void> {
   console.log('\n  Google Drive export byte-stability (workplan 0042 T0 Q3)');
   console.log('  ────────────────────────────────────────────────────────');
@@ -178,6 +220,8 @@ async function main(): Promise<void> {
         'which is worth knowing before a migration runs.',
     );
   }
+
+  await maybeWalk();
 
   const doc = await pickDocument();
   console.log(`  ✔ document: "${doc.name}" (${doc.mimeType})`);
