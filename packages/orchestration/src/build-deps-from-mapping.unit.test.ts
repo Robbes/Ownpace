@@ -10,9 +10,16 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { GraphMailSource, ImapFlowSource, MailSourceWithGraphFallback } from '@openmig/connectors';
+import {
+  GraphMailSource,
+  GoogleDriveSource,
+  ImapFlowSource,
+  MailSourceWithGraphFallback,
+  WebdavFileSource,
+} from '@openmig/connectors';
 import { JmapTargetWriter, ImapFlowDavMailTarget } from '@openmig/connectors';
 import {
+  buildFileSourceFromConnection,
   buildSourceConnectorFromCredentials,
   buildTargetWriterFromCredentials,
 } from './build-deps-from-mapping';
@@ -218,5 +225,82 @@ describe('buildSourceConnectorFromCredentials — named mailbox on the delegated
         clientSecret: 'app-secret',
       }),
     ).toBeInstanceOf(GraphMailSource);
+  });
+});
+
+/**
+ * The managed edition's FILE source (workplan 0042 T5).
+ *
+ * Same shape, same reason: the branch and its refusals are the behaviour worth
+ * pinning and they need no database. What is new here is that the two providers
+ * differ in KIND rather than in URL — a Drive connection has no url, username or
+ * password at all — so the wrong branch does not misconfigure the source, it
+ * refuses a perfectly good connection for missing fields that do not apply.
+ */
+describe('buildFileSourceFromConnection', () => {
+  const DRIVE_CREDS = {
+    clientId: 'client-1.apps.googleusercontent.com',
+    clientSecret: 'GOCSPX-secret',
+    refreshToken: '1//refresh',
+  };
+
+  it('builds a GoogleDriveSource for a google_drive connection', () => {
+    const source = buildFileSourceFromConnection({
+      kind: 'google_drive',
+      config: { rootFolderId: 'shared-drive-1' },
+      creds: DRIVE_CREDS,
+    });
+
+    expect(source).toBeInstanceOf(GoogleDriveSource);
+  });
+
+  it('does not ask a Drive connection for a username and password', () => {
+    // The failure this branch exists to prevent: `fileEndpointFromCreds` would
+    // refuse the connection for credentials Google does not use, and never look
+    // at the OAuth ones it does.
+    expect(() =>
+      buildFileSourceFromConnection({
+        kind: 'google_drive',
+        config: {},
+        creds: DRIVE_CREDS,
+      }),
+    ).not.toThrow();
+  });
+
+  it('still builds a WebdavFileSource for every other kind', () => {
+    // The existing managed mappings. A new provider must not move them.
+    const source = buildFileSourceFromConnection({
+      kind: 'nextcloud',
+      config: { url: 'https://cloud.example.net/remote.php/dav/' },
+      creds: { username: 'u', password: 'p' },
+    });
+
+    expect(source).toBeInstanceOf(WebdavFileSource);
+  });
+
+  it('refuses a Drive connection missing a credential, naming the STORED field', () => {
+    // Rule 9, in the managed operator's vocabulary: they edit a connection
+    // record, they do not set environment variables.
+    expect(() =>
+      buildFileSourceFromConnection({
+        kind: 'google_drive',
+        config: {},
+        creds: { clientId: 'id', clientSecret: 'secret' },
+      }),
+    ).toThrow(/refreshToken/);
+  });
+
+  it('validates the stored config the SAME way a mapping file is validated', () => {
+    // Hard rule 5. The `config` column is untyped JSON; without the shared
+    // validator a policy the appliance refuses would be accepted here and then
+    // silently ignored, and an owner would be told their Docs were refused
+    // while their connection says "export-office".
+    expect(() =>
+      buildFileSourceFromConnection({
+        kind: 'google_drive',
+        config: { nativeFilePolicy: 'export_office' },
+        creds: DRIVE_CREDS,
+      }),
+    ).toThrow(/nativeFilePolicy/);
   });
 });

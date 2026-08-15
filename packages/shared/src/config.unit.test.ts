@@ -161,6 +161,86 @@ describe('source.tls / target.tls', () => {
   });
 });
 
+/**
+ * Google Drive as a file source (workplan 0042 T5).
+ *
+ * The parser is where a Drive migration's two dangerous settings are decided:
+ * WHAT it is rooted at, and what happens to Google Docs. Both have a wrong
+ * answer that is silent — a root that quietly becomes all of My Drive, and a
+ * policy typo that quietly becomes "refuse" while the config says otherwise.
+ */
+describe('the google-drive file source', () => {
+  const driveMapping = (source: Record<string, unknown>) => ({
+    ...example,
+    domains: {
+      files: {
+        enabled: true,
+        source: { type: 'google-drive', ...source },
+        target: {
+          type: 'webdav',
+          url: 'https://cloud.example.net/remote.php/dav/files/target/',
+          user: 'target',
+          auth: { kind: 'login', passwordFromEnv: 'TARGET_PASSWORD' },
+        },
+      },
+    },
+  });
+
+  it('parses with nothing but a type, and carries NO credential fields', () => {
+    // The whole point of the shape: an OAuth client secret and refresh token
+    // never appear in a file that gets pasted into a support ticket. They come
+    // from the environment (appliance) or the encrypted store (managed).
+    const source = parseMappingConfig(driveMapping({})).domains?.files?.source;
+
+    expect(source).toEqual({ type: 'google-drive' });
+  });
+
+  it('defaults the native-file policy to ABSENT, which the connector reads as refuse', () => {
+    // Absent rather than defaulted here, matching `tls`: one place decides what
+    // unset means, and it is the place that builds the connector.
+    const source = parseMappingConfig(driveMapping({})).domains?.files?.source as {
+      nativeFilePolicy?: string;
+    };
+
+    expect(source.nativeFilePolicy).toBeUndefined();
+  });
+
+  it('carries each of the three policies through', () => {
+    for (const policy of ['refuse', 'export-office', 'export-pdf']) {
+      const source = parseMappingConfig(driveMapping({ nativeFilePolicy: policy })).domains?.files
+        ?.source as { nativeFilePolicy?: string };
+      expect(source.nativeFilePolicy).toBe(policy);
+    }
+  });
+
+  it('REFUSES an unrecognised policy instead of falling back to a default', () => {
+    // An underscore instead of a hyphen would otherwise mean the owner is told
+    // their Docs are un-migratable while their config says "export_office".
+    expect(() => parseMappingConfig(driveMapping({ nativeFilePolicy: 'export_office' }))).toThrow(
+      /nativeFilePolicy/,
+    );
+    // And the refusal names all three, plus the caveat that export is unmeasured.
+    expect(() => parseMappingConfig(driveMapping({ nativeFilePolicy: 'export_office' }))).toThrow(
+      /export-office/,
+    );
+  });
+
+  it('refuses an EMPTY rootFolderId rather than treating it as My Drive', () => {
+    // `""` reads as "unset" to a lenient parser, and unset means the whole of My
+    // Drive. An operator who meant one shared drive would migrate everything.
+    expect(() => parseMappingConfig(driveMapping({ rootFolderId: '' }))).toThrow(
+      /source\.rootFolderId/,
+    );
+  });
+
+  it('carries a shared drive id through as the root', () => {
+    const source = parseMappingConfig(driveMapping({ rootFolderId: '0AJx-sharedDriveId' })).domains
+      ?.files?.source as { rootFolderId?: string };
+
+    expect(source.rootFolderId).toBe('0AJx-sharedDriveId');
+  });
+});
+
 describe('parseMappingConfigJson', () => {
   it('parses JSON text', () => {
     expect(parseMappingConfigJson(JSON.stringify(example)).mappingId).toBe('inbox-mail');

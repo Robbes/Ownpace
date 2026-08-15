@@ -9,8 +9,8 @@
 | T2 identity: opaque fileId vs the path-shaped natural key | ⬜ Not started | — |
 | T3 native Google editor files: export, or refuse | 🟡 **Both paths built; the default is refuse, and byte-stability is still unmeasured** | `NativeFilePolicy` is `refuse` (default) / `export-office` / `export-pdf`, per migration as the owner chose. A refusal is thrown INSIDE the per-item boundary, so it lands in the failures queue with a verbatim reason and the rest of the folder still migrates — not skipped, which would report "migrated" for a file nobody copied. **The export paths must not be enabled for a real migration until `files.export` byte-stability is measured**: if it is not stable, `contentHash` sees a change every pass and every document is rewritten forever. |
 | T4 the connector itself, against a fake transport | ✅ **First slice done 2026-08-15** | `google-drive-source.ts` implements `FileSource`, modelled on **WebDAV rather than Graph** — full folder enumeration, no `changes.list`, `removed` never populated. 11 tests against a fake transport, no network. Mutation-verified: silently skipping native files, dropping `trashed=false`, and downloading a native file instead of exporting it each fail exactly one test. |
-| T5 wiring: config schema, both editions, credentials | ⬜ Not started | — |
-| T6 proof against a real Drive | ⬜ Not started | — |
+| T5 wiring: config schema, both editions, credentials | ✅ **Done 2026-08-15 — the connector is now REACHABLE** | `SourceConfig` has a `google-drive` variant with validation; both editions construct it through one shared factory (`drive-source-factory.ts`), each refusing in its own vocabulary — `GOOGLE_CLIENT_ID` for the appliance, `clientId` for a managed connection. Credentials: a **second `TokenProvider`**, because `createTokenProvider` is MSAL and would have posted a Google refresh token to `login.microsoftonline.com`; scope is `drive.readonly`, so the token cannot write. Managed needed a migration (`0008`) — `connection.kind` is a CHECK constraint, so without it the appliance could be pointed at a Drive and the managed edition could not represent one. 27 new tests. **Mutation-verified, 13 mutations, every one caught**: dropping the 401 retry, letting a caller override the Authorization header, removing single-flight, leaking the client secret into an error, defaulting a bad `nativeFilePolicy` to `refuse`, accepting an empty `rootFolderId`, routing Drive through the DAV resolver, deleting either edition's branch, using the wrong vocabulary in the managed refusal, dropping the pool close on a refusal, the factory inventing its own policy default, dropping `rootFolderId` on the way to the connector, and removing `google_drive` from the TS enum. |
+| T6 proof against a real Drive | ⬜ Not started — **and it is now the only thing between this and a customer** | Everything below the network is proven; nothing has spoken to Google. See T0 Q3: the export policies stay unmeasured until this runs. |
 
 ## What this is
 
@@ -228,6 +228,43 @@ The checklist the existing sources establish:
 4. `enabled-domains` / discovery surfaces, if a Drive mapping needs to appear in them.
 5. The guard tests that enumerate providers — check `no-managed-leakage`, `enabled-domains`, and
    the config round-trip tests for lists that need a new entry.
+
+### What T5 actually built, 2026-08-15
+
+The checklist above, item by item, plus the two things it turned out to need that
+were not on it:
+
+1. **`SourceConfig`** gained `GoogleDriveSource` (`type: "google-drive"`), with
+   `rootFolderId`, `nativeFilePolicy` and `baseUrl`. No `auth` block — credentials
+   never travel in a file that ends up in a support ticket.
+2. **Both editions** construct it through `drive-source-factory.ts`. The mail
+   factory (0041) keeps its validation with each caller because the editions
+   genuinely check different things; here they check the identical three values,
+   so the refusal is shared too and only the WORDS are a parameter.
+3. **Credentials.** `GoogleTokenProvider` is a second implementation of the
+   `TokenProvider` port. This was not optional: `createTokenProvider` is MSAL, and
+   the `tokenEndpoint` field on `TokenProviderConfig` that looks like it would
+   redirect it **is never read** — reusing it would have posted a Google refresh
+   token to Microsoft's token endpoint and presented as a login failure.
+4. **A migration (`0008`), which was not on the checklist.** `connection.kind` is
+   a database CHECK constraint, so a managed Drive connection could not be
+   inserted at all. An appliance that can be pointed at a Drive while the managed
+   edition cannot represent one is a difference between editions, which hard rule
+   5 forbids. `connection-kind-check.unit.test.ts` now reads the constraint out of
+   a real migrated database and compares it to the TypeScript enum, so the two
+   lists cannot drift again.
+5. **A pool leak, also not on the checklist,** found by adding a refusal to
+   `buildDomainDeps`: every refusal there happens *after* the ledger is open and
+   none of them closed it. An appliance retrying a misconfigured mapping on its
+   schedule leaked one connection per attempt until Postgres refused, at which
+   point the failure reads as "the database is down". Fixed and pinned.
+
+**What T5 does NOT prove, and nobody should read it as proving:** that any of this
+works against Google. Every test here drives a fake — a fake transport, a fake
+token endpoint, a stubbed `fetch`. The wiring is proven end to end *inside the
+process* (config → credentials → token → Bearer header → Drive URL), which is
+exactly the class of defect T5 could introduce. It is not evidence about Drive's
+API, and the export byte-stability question (T0 Q3) is untouched.
 
 ## T6 — proof against a real Drive
 

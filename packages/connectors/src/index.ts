@@ -87,3 +87,9 @@ export * from './graph-permission-scan';
 export * from './drive-sharing-availability';
 // Proving the consent runbook actually worked (0027 T0).
 export * from './graph-access-check';
+// Google Drive as a file source (workplan 0042): the connector, the OAuth flow
+// it deliberately knows nothing about, and the transport that joins them.
+export * from './google-drive-source';
+export * from './google-drive-source.types';
+export * from './google-drive-transport';
+export * from './google-token-provider';

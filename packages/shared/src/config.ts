@@ -128,6 +128,54 @@ export interface WebDAVSource {
   readonly auth: SourceAuth;
 }
 
+/**
+ * What to do with a Google Doc, Sheet or Slide (workplan 0042 T3).
+ *
+ * Native editor files are not files: they have no bytes, and reaching them means
+ * asking Drive to EXPORT a rendering in a format somebody chose. That is lossy —
+ * the original is not recoverable from a `.docx` — and, critically, it may not be
+ * byte-stable across calls. If it is not, `contentHash` sees a change on every
+ * pass and the migration rewrites every document forever.
+ *
+ * **The owner chooses per migration (0042 T0 Q3), and the default is `refuse`
+ * until byte-stability has been measured against a real tenant.** Of the two
+ * failure modes available here — "your Docs did not migrate, and here is why"
+ * and "your Docs are silently re-copied nightly, and their formatting changed" —
+ * only the first is one an owner can act on. Setting an export policy today is
+ * choosing an UNMEASURED behaviour; 0042 T6 is where that measurement goes.
+ *
+ * Defined here rather than beside the connector because it is a product
+ * decision that now appears in a mapping file, not part of Google's wire format.
+ * `@openmig/connectors` re-exports it as `NativeFilePolicy` so there is exactly
+ * one definition of the three values.
+ */
+export type GoogleNativeFilePolicy = 'refuse' | 'export-office' | 'export-pdf';
+
+/**
+ * Google Drive as a file source (workplan 0042).
+ *
+ * No `auth` block, and that is deliberate rather than an omission: the OAuth2
+ * client id, client secret and refresh token are credentials, so they arrive the
+ * way every other OAuth source's do — environment variables on the appliance, the
+ * encrypted `SecretStore` under the managed edition — and never through a file
+ * that lands in a support ticket.
+ */
+export interface GoogleDriveSource {
+  readonly type: 'google-drive';
+  /** Drive API base. Overridable for a proxy or a test; unset means Google's. */
+  readonly baseUrl?: string;
+  /**
+   * The folder id the migration is rooted at. Unset means `root` — My Drive.
+   *
+   * A SHARED DRIVE is named here by its own id, which is how a store owned by no
+   * single user becomes an ordinary mapping. What that does NOT do is enumerate
+   * shared drives for you (`drives.list`), which stays 0042 T0 scoping work.
+   */
+  readonly rootFolderId?: string;
+  /** See {@link GoogleNativeFilePolicy}. Unset means `refuse`. */
+  readonly nativeFilePolicy?: GoogleNativeFilePolicy;
+}
+
 /** Microsoft Graph Calendar source */
 export interface GraphCalendarSource {
   readonly type: 'graph-calendar';
@@ -250,7 +298,7 @@ export interface DomainsConfig {
   files?: DomainConfig;
 }
 
-export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphMailSource;
+export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphMailSource | GoogleDriveSource;
 export type TargetConfig = JmapTarget | ImapDavTarget | CalDAVTarget | CardDAVTarget | WebDAVTarget;
 
 export interface ScheduleConfig {
@@ -538,7 +586,61 @@ function parseSource(obj: Record<string, unknown>): SourceConfig {
       ...(obj['mailbox'] === undefined ? {} : { mailbox: String(obj['mailbox']) }),
     };
   }
-  throw new ConfigError(`source.type: unsupported "${type}" (expected "imap-oauth2", "caldav", "carddav", "webdav", "graph-calendar", "graph-contacts", or "graph-mail")`);
+  if (type === 'google-drive') {
+    return parseGoogleDriveSource(obj);
+  }
+  throw new ConfigError(`source.type: unsupported "${type}" (expected "imap-oauth2", "caldav", "carddav", "webdav", "graph-calendar", "graph-contacts", "graph-mail", or "google-drive")`);
+}
+
+/**
+ * Validate a Google Drive source's settings — from a mapping FILE or from a
+ * managed connection's stored `config` blob.
+ *
+ * Exported, and called by both editions, because hard rule 5 says they do not
+ * differ in behaviour: a `nativeFilePolicy` the appliance refuses must not be a
+ * `nativeFilePolicy` the managed edition silently accepts and then ignores. The
+ * managed `config` column is untyped JSON, so without this it would be read with
+ * casts and no validation at all.
+ *
+ * `type` is not required in the input — a stored connection carries its provider
+ * in its own `kind` column, not in the blob — and is always set on the way out.
+ */
+export function parseGoogleDriveSource(obj: Record<string, unknown>): GoogleDriveSource {
+  return {
+    type: 'google-drive',
+    ...(obj['baseUrl'] === undefined
+      ? {}
+      : { baseUrl: reqString(obj, 'baseUrl', 'source.baseUrl') }),
+    // Unset means `root` (My Drive). Present-but-empty is refused rather than
+    // silently treated as unset: an empty string here would migrate the whole
+    // of My Drive when the operator meant one shared drive.
+    ...(obj['rootFolderId'] === undefined
+      ? {}
+      : { rootFolderId: reqString(obj, 'rootFolderId', 'source.rootFolderId') }),
+    ...(obj['nativeFilePolicy'] === undefined
+      ? {}
+      : { nativeFilePolicy: parseNativeFilePolicy(obj['nativeFilePolicy']) }),
+  };
+}
+
+/**
+ * Validate the Google native-file policy, refusing anything else BY NAME.
+ *
+ * A typo here is not a typo: an unrecognised value silently falling back to a
+ * default would mean an operator who wrote `"export_office"` gets `refuse` and
+ * is told their Docs are un-migratable, with the config in front of them saying
+ * otherwise. See {@link GoogleNativeFilePolicy} for why the default is `refuse`
+ * and what choosing an export still leaves unproven.
+ */
+function parseNativeFilePolicy(value: unknown): GoogleNativeFilePolicy {
+  if (value === 'refuse' || value === 'export-office' || value === 'export-pdf') return value;
+  throw new ConfigError(
+    `source.nativeFilePolicy: unsupported ${JSON.stringify(value)} (expected "refuse", ` +
+      '"export-office", or "export-pdf"). "refuse" is the default and reports each Google Doc, ' +
+      'Sheet and Slide as un-migratable with a reason; the export policies ask Drive to render ' +
+      'one, which is lossy and whose byte-stability across passes is NOT yet measured ' +
+      '(workplan 0042 T6).',
+  );
 }
 
 function parseJmapAuth(obj: Record<string, unknown>): JmapAuth {

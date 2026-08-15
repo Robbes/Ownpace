@@ -5,8 +5,12 @@
  *
  * Kept beside the connector rather than in `@openmig/shared` for the same
  * reason `graph-drive-source.types.ts` is: these describe Google's wire format,
- * which is Google's business and nobody else's.
+ * which is Google's business and nobody else's. The one exception is
+ * `NativeFilePolicy`, which is a product decision an owner writes in a mapping —
+ * see its comment below.
  */
+
+import type { GoogleNativeFilePolicy } from '@openmig/shared';
 
 /** What a Drive file looks like on the wire, reduced to the fields used. */
 export interface DriveFile {
@@ -31,19 +35,14 @@ export interface DriveFileList {
 /**
  * What to do with a Google Doc, Sheet or Slide.
  *
- * Native editor files are not files: they have no bytes, and reaching them means
- * asking Drive to EXPORT a rendering in a format somebody chose. That is lossy —
- * the original is not recoverable from a `.docx` — and, critically, it may not be
- * byte-stable across calls. If it is not, `contentHash` sees a change on every
- * pass and the migration rewrites every document forever.
- *
- * The owner chose per-migration choice (0042 T0 Q3). The DEFAULT is `refuse`
- * until byte-stability has actually been measured against a real tenant, because
- * of the two failure modes available here — "your Docs did not migrate, and here
- * is why" and "your Docs are silently re-copied nightly, and their formatting
- * changed" — only the first is one an owner can act on.
+ * ONE definition, in `@openmig/shared` — see `GoogleNativeFilePolicy` there for
+ * why the default is `refuse` and what an export policy still leaves unproven.
+ * It lives there rather than here because it is a product decision that appears
+ * in a mapping file, unlike everything else in this file, which is Google's wire
+ * format. Two copies of three string literals is exactly how a config value comes
+ * to mean one thing to the parser and another to the connector.
  */
-export type NativeFilePolicy = 'refuse' | 'export-office' | 'export-pdf';
+export type NativeFilePolicy = GoogleNativeFilePolicy;
 
 /** Export MIME types, for when the policy is not `refuse`. */
 export const NATIVE_EXPORT_TYPES: Readonly<
@@ -83,13 +82,19 @@ export interface GoogleDriveSourceConfig {
 export type DriveTransport = (
   url: string,
   init?: { readonly headers?: Readonly<Record<string, string>> },
-) => Promise<{
+) => Promise<DriveResponse>;
+
+/**
+ * What a transport hands back. Structurally satisfied by a `fetch` `Response`,
+ * which is how the real one is built without the connector importing anything.
+ */
+export interface DriveResponse {
   readonly ok: boolean;
   readonly status: number;
   json(): Promise<unknown>;
   arrayBuffer(): Promise<ArrayBuffer>;
   text(): Promise<string>;
-}>;
+}
 
 /** Google's own name for the native-editor family, used to detect them. */
 export const GOOGLE_NATIVE_PREFIX = 'application/vnd.google-apps.';

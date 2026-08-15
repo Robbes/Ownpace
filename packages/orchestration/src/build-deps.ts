@@ -42,6 +42,10 @@ import {
 } from './dav-factories';
 import { buildContactTargetFor, contactTargetProtocol } from './contact-target-factory';
 import { buildFileTargetFor, fileTargetProtocol } from './file-target-factory';
+import {
+  ENV_GOOGLE_CREDENTIAL_NAMES,
+  buildGoogleDriveSourceFrom,
+} from './drive-source-factory';
 import { withClose, type WithClose } from './deps-lifecycle';
 import {
   buildGraphMailSourceFrom,
@@ -503,6 +507,35 @@ export function buildDomainDeps(
   concurrency?: number;
 }> {
   const { ledger, cursors, closable } = openLedger(options);
+  // Every refusal below happens AFTER the ledger is open — a domain that is not
+  // enabled, an endpoint missing credentials, and since 0042 T5 a Drive source
+  // with no OAuth values. Each one used to leak the pool it had just opened;
+  // an appliance retrying a misconfigured mapping on its schedule leaks one per
+  // attempt until Postgres refuses connections and the FAILURE looks like the
+  // database is down. The managed builder has had this guard since it was
+  // written (`build-deps-from-mapping.ts`); this is the same one.
+  try {
+    return buildDomainDepsWithLedger(config, domain, { ledger, cursors, closable });
+  } catch (err) {
+    void closable.close();
+    throw err;
+  }
+}
+
+function buildDomainDepsWithLedger(
+  config: MappingConfig,
+  domain: 'calendar' | 'contact' | 'file',
+  opened: { ledger: PgLedger; cursors: PgCursorStore; closable: { close: () => Promise<void> } },
+): WithClose<{
+  tenantId: TenantId;
+  mappingId: MappingId;
+  source: CalendarSource | ContactSource | FileSource;
+  target: CalendarTargetWriter | ContactTargetWriter | FileTargetWriter;
+  ledger: Ledger;
+  cursors?: CursorStore;
+  concurrency?: number;
+}> {
+  const { ledger, cursors, closable } = opened;
 
   // Get domain config
   let domainConfig;
@@ -553,7 +586,23 @@ export function buildDomainDeps(
       break;
     }
     case 'file': {
-      source = buildFileSource(davEndpoint(sourceConfig, 'webdav', 'source'));
+      // Google Drive is a file source that is not DAV (workplan 0042 T5):
+      // Google withdrew WebDAV years ago, so it cannot ride the endpoint
+      // resolver below — it has no url/user/password to resolve. Credentials
+      // come from the environment, named the way an appliance operator sets
+      // them; the refusal for a missing one lives in the shared factory.
+      source =
+        sourceConfig.type === 'google-drive'
+          ? buildGoogleDriveSourceFrom(
+              sourceConfig,
+              {
+                clientId: process.env.GOOGLE_CLIENT_ID,
+                clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+                refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
+              },
+              ENV_GOOGLE_CREDENTIAL_NAMES,
+            )
+          : buildFileSource(davEndpoint(sourceConfig, 'webdav', 'source'));
       // Files can go over JMAP where the target speaks it (0031 T3). The
       // config already expresses it: `TargetConfig` is a union that includes
       // `JmapTarget`, so a files domain naming `type: 'jmap'` needs no new

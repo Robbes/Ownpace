@@ -118,6 +118,60 @@ top-level `source`/`target`; to also sync calendar/contacts/files, add a
 `domains` block (see `packages/shared/src/config.ts` for the schema). Invalid or
 duplicate-`mappingId` files fail fast on startup with the offending path.
 
+### Google Drive as the file source
+
+The file domain can read from Google Drive instead of WebDAV. Google withdrew
+WebDAV years ago, so this is its own source type rather than a URL:
+
+```json
+"domains": {
+  "files": {
+    "enabled": true,
+    "source": { "type": "google-drive" },
+    "target": { "type": "webdav", "url": "…", "user": "…",
+                "auth": { "kind": "login", "passwordFromEnv": "TARGET_PASSWORD" } }
+  }
+}
+```
+
+Credentials are **not** in the mapping — they go in `.env`, like every other
+OAuth source:
+
+```sh
+GOOGLE_CLIENT_ID=…apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=…
+GOOGLE_REFRESH_TOKEN=…
+```
+
+The refresh token is a *delegated* one: the appliance reads the Drive of the
+person who consented, and the token it mints is **read-only**
+(`drive.readonly`) — this product never writes to a Drive. If any of the three
+is missing the mapping refuses at startup naming the variable, rather than
+failing with a `401` half-way through a pass.
+
+Two optional settings on the source:
+
+- `"rootFolderId"` — the folder the migration is rooted at. Unset means all of
+  My Drive; a **shared drive** is named here by its own id.
+- `"nativeFilePolicy"` — what to do with Google Docs, Sheets and Slides.
+  Defaults to `"refuse"`.
+
+**What is not there yet, stated plainly** (workplan 0042):
+
+- **Google Docs are reported as un-migratable, one by one, with the reason** —
+  they are not files and have no bytes. `"export-office"` / `"export-pdf"` ask
+  Drive to render one instead, and those paths are built but **unproven**: if
+  Google's export is not byte-for-byte stable between calls, every pass sees a
+  changed document and re-copies all of them. That is why the default refuses.
+- **No incremental delta.** Every pass lists every folder. The ledger still
+  makes the second pass copy nothing; it costs a listing, not a re-copy.
+- **Deletions are never reported by Drive here.** They are detected the slower,
+  corroborated way, the same as WebDAV — Google flags "removed" for losing
+  access and for sharing changes, which are not deletions.
+- **Two files with the same name in the same folder cannot both be migrated.**
+  The natural key is the path, and the ledger's unique index makes that a hard
+  stop rather than a setting.
+
 ## 4. Start it
 
 ```sh

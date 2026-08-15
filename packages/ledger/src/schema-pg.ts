@@ -52,6 +52,10 @@ export const connection = pgTable(
         // JMAP is the primary target protocol (Stalwart / La Suite / mosa.cloud).
         // The DB CHECK (0001_baseline.sql) already allows it; keep the TS enum in sync.
         'jmap',
+        // Google Drive as a file SOURCE (workplan 0042 T5). Underscored to match
+        // the rest of this column; a mapping file spells the same provider
+        // `google-drive`. Allowed by the CHECK since 0008.
+        'google_drive',
       ],
     }).notNull(),
     displayName: text('display_name').notNull(),
