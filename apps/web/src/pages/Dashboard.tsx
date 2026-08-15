@@ -15,6 +15,7 @@ import { mappingApi } from '../services/mapping-service';
 import { fetchRuns } from '../services/operating-service';
 import { serverMessage } from '../services/api';
 import { useT, useFormatters } from '../i18n';
+import { NotificationChannelBanner } from '../components/NotificationChannelBanner';
 import StateChip from '../components/StateChip';
 
 const Dashboard: React.FC = () => {
@@ -90,6 +91,7 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <NotificationChannelBanner />
       {/* Stats — one tile per real lifecycle state, plus the total. Paused is
           the actionable one (a mapping waiting for its green light); cutover
           and done are the ending every migration aims for, and the old tiles

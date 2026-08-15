@@ -195,6 +195,13 @@ const en = {
   'billing.paymentMethods': 'Payment Methods',
   'dashboard.total': 'Total Migrations',
   'dashboard.errorLoading': 'Error loading dashboard',
+  // The channel's state, shown only when it is OFF (0043 T3). "On" is not worth
+  // a banner; "off" is the state somebody has to act on, and until now it was
+  // visible only in a container log line written once at boot.
+  'notifications.off': 'Email notifications are off',
+  'notifications.offHint':
+    'Nobody will be emailed when this migration needs a decision. Configure SMTP to turn them on.',
+  'notifications.offReason': 'Reason given by the server:',
   'dashboard.recentActivity': 'Recent Activity',
   'dashboard.noActivity': 'No activity yet',
   'dashboard.noActivityHint': 'Create your first migration to start syncing data',
@@ -802,6 +809,10 @@ const nl: Record<keyof typeof en, string> = {
   'billing.paymentMethods': 'Betaalmethoden',
   'dashboard.total': 'Totaal migraties',
   'dashboard.errorLoading': 'Het dashboard kon niet worden geladen',
+  'notifications.off': 'E-mailmeldingen staan uit',
+  'notifications.offHint':
+    'Niemand krijgt een e-mail wanneer deze migratie een beslissing nodig heeft. Stel SMTP in om ze aan te zetten.',
+  'notifications.offReason': 'Reden van de server:',
   'dashboard.recentActivity': 'Recente activiteit',
   'dashboard.noActivity': 'Nog geen activiteit',
   'dashboard.noActivityHint': 'Maak uw eerste migratie aan om gegevens te synchroniseren',

@@ -16,6 +16,11 @@ vi.mock('../services/mapping-service', () => ({
 }));
 vi.mock('../services/operating-service', () => ({
   fetchRuns: vi.fn(),
+  // Added when the Dashboard grew a NotificationChannelBanner (0043 T3). The
+  // banner reads /status; a payload with no `notifications` field renders
+  // nothing, so these assertions are unaffected — the mock exists because the
+  // component tree gained a dependency, not because behaviour changed.
+  fetchStatus: vi.fn().mockResolvedValue({ status: 'ok', mappings: [] }),
 }));
 
 const listMock = vi.mocked(mappingApi.list);
