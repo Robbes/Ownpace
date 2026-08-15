@@ -170,6 +170,30 @@ describe('failures', () => {
     expect(String(error)).not.toContain(CREDS.refreshToken);
   });
 
+  it('parses a REAL-LENGTH token response, not just a short fake one', async () => {
+    // A `ya29.` access token runs to hundreds of characters. The first version
+    // of this file read the body through a 500-character cap meant for error
+    // messages, so every fake in this suite fitted and a real Google response
+    // would have failed to parse — the exact shape of bug a unit suite full of
+    // tidy fixtures cannot see.
+    const long = `ya29.${'a'.repeat(900)}`;
+    const { fetchImpl } = fakeEndpoint([
+      {
+        ok: true,
+        status: 200,
+        body: JSON.stringify({
+          access_token: long,
+          expires_in: 3599,
+          token_type: 'Bearer',
+          scope: DRIVE_READONLY_SCOPE,
+        }),
+      },
+    ]);
+    const provider = new GoogleTokenProvider(CREDS, { tokenEndpoint: ENDPOINT, fetchImpl });
+
+    expect((await provider.getToken()).accessToken).toBe(long);
+  });
+
   it('refuses a 200 that carries no access_token', async () => {
     // A proxy or a captive portal answering 200 with HTML would otherwise
     // become a Bearer header reading "undefined" and a 401 far from the cause.

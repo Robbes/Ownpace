@@ -172,13 +172,20 @@ export class GoogleTokenProvider implements TokenProvider {
       body,
     });
 
+    // Read in FULL. An earlier version truncated here for the error path's
+    // benefit and truncated the success path with it — a Google access token
+    // runs to hundreds of characters and `ya29.` tokens are routinely longer
+    // than any cap worth putting on an error message, so a real response would
+    // have failed to parse while every fake in the suite fitted. Truncation
+    // belongs at the point of building a message, not at the point of reading.
     const text = await safeText(response);
     if (!response.ok) {
       // Google's own words, verbatim (rule 9) — and NOT the request, which
       // carries the client secret and the refresh token. An error message ends
       // up in logs and in the failures queue an owner reads.
+      const shown = text.slice(0, 500);
       throw new Error(
-        `Google refused the token request (${response.status}): ${text}${hintFor(text)}`,
+        `Google refused the token request (${response.status}): ${shown}${hintFor(shown)}`,
       );
     }
 
@@ -231,7 +238,7 @@ function hintFor(body: string): string {
 
 async function safeText(response: { text(): Promise<string> }): Promise<string> {
   try {
-    return (await response.text()).slice(0, 500);
+    return await response.text();
   } catch {
     return '(no body)';
   }
