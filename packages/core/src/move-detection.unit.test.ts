@@ -985,9 +985,12 @@ describe('the old path after an applied relocation', () => {
     w.folders.set('a', [{ key: 'a/gone.txt', body: 'BYTES', version: 'e1' }]);
     await w.run(ledger);
 
-    // Reported deleted by the source, then applied by the owner.
-    const row = await ledger.find(TENANT, MAPPING, 'file', 'a/gone.txt');
-    await ledger.recordUpdate({ ...row!, deletionReportedAt: new Date().toISOString() });
+    // Reported deleted by the source, then applied by the owner. Seeded through
+    // the ledger's own method rather than by handing `recordUpdate` a row with
+    // the field set: `deletion_reported_at` is not in that statement's SET
+    // clause, so Postgres would ignore it and only the fake would appear to
+    // work — the exact fake-vs-SQL divergence this file is meant to catch.
+    expect(await ledger.recordReportedDeletion(TENANT, MAPPING, 'file', 'a/gone.txt')).toBe(true);
     expect(await ledger.applyDeletion(TENANT, MAPPING, 'file', 'a/gone.txt')).toBe(true);
 
     // The source lists it again.

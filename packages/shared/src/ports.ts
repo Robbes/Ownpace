@@ -1214,9 +1214,13 @@ export const MAX_ITEM_ATTEMPTS = 5;
  * did not; `left_behind` means the owner decided we never will. Both are rows,
  * and neither is a copy.
  *
- * `undefined` counts as migrated: rows predating the status column, and the
- * Postgres default is 'copied' anyway. Being generous there preserves old
- * behaviour; being generous about `failed` loses data.
+ * `undefined` counts as migrated, for rows predating the status column. That is
+ * generous, and deliberately so — being generous about `failed` is what loses
+ * data — but it is NOT a licence to destroy anything: the column is
+ * `NOT NULL DEFAULT 'pending'`, so a row read from Postgres always has a
+ * status, and the destructive path in `apply-deletion.ts` requires `copied` or
+ * `updated` explicitly rather than asking this. Read this as "do not report it
+ * missing", not as "we wrote it".
  */
 export function isOnTarget(status: LedgerRecord['status']): boolean {
   // `tombstoned` is the one status this product creates by destroying something:

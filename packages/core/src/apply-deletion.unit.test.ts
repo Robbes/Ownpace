@@ -240,6 +240,86 @@ describe('gate 4: only an item this tool wrote', () => {
 
     expect(outcome).toEqual({ ok: true, kind: 'deleted' });
   });
+
+  it.each(['pending', 'skipped', 'deleted_source'] as const)(
+    'refuses status %s BEFORE the removal — the ledger would not record it',
+    async (status) => {
+      // The gate used to be `isOnTarget(status) && status !== 'adopted'`, which
+      // is wider than the ledger's own `status IN ('copied','updated')`. These
+      // three statuses pass the wide version and are refused by the SQL, and
+      // because this file removes FIRST and records SECOND, that combination
+      // did not merely permit an extra refusal: the copy was destroyed and the
+      // conditional UPDATE then matched nothing, landing in
+      // `removed_not_recorded` — the one outcome with nothing left to retry.
+      // The old gate guaranteed that state rather than racing into it.
+      const ledger = new MemoryLedger();
+      await ledger.recordIfAbsent(baseRow({ status, deletionReportedAt: new Date().toISOString() }));
+      const target = fakeRemover({ kind: 'deleted' });
+
+      const outcome = await applyDeletion(
+        { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+        'nk-1',
+      );
+
+      expect(outcome).toMatchObject({ ok: false, code: 'not_ours' });
+      expect(target.removeItem, 'nothing may be destroyed for a row the SQL will refuse').not.toHaveBeenCalled();
+      // And the row is untouched, so the item is still actionable once whatever
+      // left it in this status is sorted out.
+      const row = await ledger.find(TENANT, MAPPING, 'calendar', 'nk-1');
+      expect(row?.status).toBe(status);
+      expect(row?.deletionAppliedAt).toBeUndefined();
+    },
+  );
+
+  it('refuses a row with NO status at all, for the same reason', async () => {
+    // `isOnTarget(undefined)` is true — deliberately, for rows predating the
+    // column — but the ledger's WHERE clause compares against two literals and
+    // a NULL matches neither. Whatever `undefined` means, it is not evidence
+    // that we wrote the bytes.
+    const ledger = new MemoryLedger();
+    const { status: _dropped, ...withoutStatus } = baseRow({
+      deletionReportedAt: new Date().toISOString(),
+    });
+    await ledger.recordIfAbsent(withoutStatus as LedgerRecord);
+    const target = fakeRemover({ kind: 'deleted' });
+
+    const outcome = await applyDeletion(
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      'nk-1',
+    );
+
+    expect(outcome).toMatchObject({ ok: false, code: 'not_ours' });
+    expect(target.removeItem).not.toHaveBeenCalled();
+  });
+
+  it('says WHICH refusal it is, so the two are not one undifferentiated wall', async () => {
+    // `adopted` and `pending` both answer `not_ours`, and an operator can do
+    // something about each — but only if told them apart. The adopted sentence
+    // is about ownership; this one is about the record.
+    const ledger = new MemoryLedger();
+    await ledger.recordIfAbsent(
+      baseRow({ status: 'pending', deletionReportedAt: new Date().toISOString() }),
+    );
+
+    const outcome = await applyDeletion(
+      {
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        domain: 'calendar',
+        ledger,
+        target: fakeRemover({ kind: 'deleted' }),
+        allowApplyDeletions: true,
+      },
+      'nk-1',
+    );
+
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) {
+      expect(outcome.reason).toContain('pending');
+      expect(outcome.reason).toContain('`copied`');
+      expect(outcome.reason, 'this is not the adopted-bytes case').not.toContain("account owner's");
+    }
+  });
 });
 
 describe('gate 5: an edit on the target refuses the removal', () => {

@@ -222,23 +222,8 @@ export async function evaluateApplyDeletion(
   }
 
   // GATE 4: it is ours to remove.
-  if (!isOnTarget(row.status)) {
-    return {
-      ok: false,
-      code: 'not_ours',
-      reason: `This item is not on the target (status ${row.status ?? 'unknown'}), so there is nothing to remove.`,
-    };
-  }
-  if (row.status === 'adopted') {
-    return {
-      ok: false,
-      code: 'not_ours',
-      reason:
-        'The copy on the target was already there before this migration ran — those bytes are ' +
-        'the account owner\'s, not ours to delete (hard rule 2). Remove it yourself if you want ' +
-        'it gone, then choose `keep`.',
-    };
-  }
+  const ownership = ownershipCheck(row);
+  if (ownership) return ownership;
 
   // GATE 6: does this look like a mass-deletion event?
   const breaker = await massDeletionCheck(deps);
@@ -320,23 +305,8 @@ export async function applyDeletion(
   }
 
   // GATE 4: it is ours to remove.
-  if (!isOnTarget(row.status)) {
-    return {
-      ok: false,
-      code: 'not_ours',
-      reason: `This item is not on the target (status ${row.status ?? 'unknown'}), so there is nothing to remove.`,
-    };
-  }
-  if (row.status === 'adopted') {
-    return {
-      ok: false,
-      code: 'not_ours',
-      reason:
-        'The copy on the target was already there before this migration ran — those bytes are ' +
-        'the account owner\'s, not ours to delete (hard rule 2). Remove it yourself if you want ' +
-        'it gone, then choose `keep`.',
-    };
-  }
+  const ownership = ownershipCheck(row);
+  if (ownership) return ownership;
 
   // GATE 6: does this look like a mass-deletion event? Read before touching the
   // target, since the point is to refuse while the evidence is in doubt.
@@ -622,10 +592,29 @@ function notEnabled(): Extract<ApplyDeletionOutcome, { ok: false }> {
   };
 }
 
-/** Gate 4, shared: only a copy this migration actually wrote may be removed. */
+/**
+ * Gate 4, shared: only a copy this migration actually wrote may be removed.
+ *
+ * MIRRORS THE LEDGER'S OWN WHERE CLAUSE — `status IN ('copied','updated')` —
+ * and this has to be an equality, not an approximation. It used to be
+ * `isOnTarget(status) && status !== 'adopted'`, which is WIDER: `pending`,
+ * `skipped`, `deleted_source` and a row with no status at all pass that and are
+ * refused by the SQL. The consequence was not a harmless extra refusal, because
+ * of the ordering this file insists on: the removal happens FIRST and the ledger
+ * records it second. So such a row went all the way to `target.removeItem`, the
+ * copy was destroyed, and the conditional UPDATE then matched nothing — landing
+ * in `removed_not_recorded`, the one outcome with nothing left to retry. The
+ * gate did not race into that state, it guaranteed it.
+ *
+ * `isOnTarget` is still consulted first, because "this item is not on the target"
+ * is a better sentence for `failed`/`left_behind`/`tombstoned` than the general
+ * one, and an operator reading a refusal deserves the specific reason.
+ */
 function ownershipCheck(row: {
   readonly status?: LedgerRecord['status'];
 }): Extract<ApplyDeletionOutcome, { ok: false }> | undefined {
+  if (row.status === 'copied' || row.status === 'updated') return undefined;
+
   if (!isOnTarget(row.status)) {
     return {
       ok: false,
@@ -643,7 +632,17 @@ function ownershipCheck(row: {
         'it gone, then choose `keep`.',
     };
   }
-  return undefined;
+  // Everything else: on the target as far as the status column is concerned,
+  // but not recorded as something we wrote. The ledger would refuse to record
+  // the removal, so it must not happen.
+  return {
+    ok: false,
+    code: 'not_ours',
+    reason:
+      `The ledger does not record this copy as one this migration wrote (status ` +
+      `${row.status ?? 'unknown'}). Only items recorded as \`copied\` or \`updated\` can be ` +
+      'removed. Delete it in the target system yourself if you want it gone, then choose `keep`.',
+  };
 }
 
 /**
