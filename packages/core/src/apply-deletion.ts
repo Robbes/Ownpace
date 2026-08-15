@@ -57,6 +57,7 @@
  */
 
 import {
+  canConfirmPresence,
   canRemove,
   isOnTarget,
   log,
@@ -115,7 +116,9 @@ export type ApplyRefusal =
   /** No relocation is recorded against this item (ADR-0030). */
   | 'not_relocated'
   /** A relocation is recorded, but the new copy is not verifiably on the target. */
-  | 'relocation_unconfirmed';
+  | 'relocation_unconfirmed'
+  /** The target cannot be asked whether the relocated copy is there (ADR-0030). */
+  | 'target_cannot_confirm';
 
 export interface ApplyDeletionDeps {
   readonly tenantId: TenantId;
@@ -509,6 +512,43 @@ export async function applyRelocation(
   // correlation.
   const breaker = await massDeletionCheck(deps);
   if (breaker) return breaker;
+
+  // THE ARRIVAL, ASKED OF THE TARGET ITSELF (ADR-0030, amended).
+  //
+  // Everything above this consulted the LEDGER, and the ledger is a claim.
+  // ADR-0024 deliberately removes-then-records, so a crash or a failed write
+  // between those two steps leaves a row saying `copied` for a copy that is
+  // already gone — and trusting such a row is exactly how the last copy of a
+  // file gets destroyed by an operation that reports the opposite.
+  //
+  // So the last thing before removing anything is to ask the target whether the
+  // NEW copy is really there. A target that cannot answer does not get to host
+  // this operation: the whole admissibility argument is presence, and an
+  // unanswerable question is not a yes.
+  const arrivalRow = await ledger.find(tenantId, mappingId, domain, row.movedToNaturalKeyHash!);
+  if (!canConfirmPresence(target)) {
+    return {
+      ok: false,
+      code: 'target_cannot_confirm',
+      reason:
+        `The ${domain} target cannot be asked whether the relocated copy is really there, and ` +
+        'removing this one is only safe if it is. Remove the old copy in the target system ' +
+        'yourself if you are sure, then choose `keep`.',
+    };
+  }
+  const present = await target.hasItem(arrivalRow!.targetId, {
+    ...(arrivalRow!.collection !== undefined ? { collection: arrivalRow!.collection } : {}),
+  });
+  if (!present) {
+    return {
+      ok: false,
+      code: 'relocation_unconfirmed',
+      reason:
+        'The target does not have the relocated copy, whatever the ledger says — so this is the ' +
+        'only copy left and it will not be removed. Verification will report the other one as ' +
+        'missing until that is reconciled.',
+    };
+  }
 
   // GATE 5 happens INSIDE the removal, where the ETag is.
   const removal = await target.removeItem(row.targetId, {

@@ -69,6 +69,7 @@ import type {
   UpsertResult,
   UpsertOptions,
   TargetReindexer,
+  TargetPresenceCheck,
   TargetEntry,
   RemovalResult,
   FileNodeRef,
@@ -156,7 +157,7 @@ interface TreeSnapshot {
   readonly directories: Map<string, FileNode>;
 }
 
-export class JmapFileTarget implements FileTargetWriter, TargetReindexer {
+export class JmapFileTarget implements FileTargetWriter, TargetReindexer, TargetPresenceCheck {
   private readonly config: JmapFileTargetConfig;
   private accountId: string | null = null;
   private apiUrl: string | null = null;
@@ -938,6 +939,35 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer {
       );
       return undefined;
     }
+  }
+
+  /**
+   * Is the node still there? (ADR-0030, amended.)
+   *
+   * `FileNode/get` for one id, and the ANSWER SHAPE is the whole point:
+   * `notFound` is the server saying confidently that it does not have this,
+   * which is what authorises a removal elsewhere. An empty `list` with the id
+   * absent from `notFound` is neither, and is refused rather than read as
+   * absence.
+   *
+   * Deliberately NOT sharing `storedNodeVersion`'s error handling: that one
+   * swallows a failure and returns undefined, because losing overwrite
+   * protection on one file is a smaller harm than failing a pass. Here a
+   * swallowed failure would authorise destroying a copy, so it throws.
+   */
+  async hasItem(targetId: string): Promise<boolean> {
+    await this.ensureConnected();
+    const response = await this.apiRequest<NodeGetResponse>('FileNode/get', {
+      accountId: this.accountId,
+      ids: [targetId],
+      properties: [...NODE_PROPERTIES],
+    });
+    if (response.list?.some((node) => node.id === targetId)) return true;
+    if (response.notFound?.includes(targetId)) return false;
+    throw new Error(
+      `FileNode/get said neither that ${targetId} exists nor that it does not, so the target ` +
+        'cannot confirm the copy is there. Nothing was removed.',
+    );
   }
 
   // ---------------------------------------------------------------------

@@ -208,6 +208,7 @@ function fileRow(overrides: Partial<LedgerRecord> = {}): LedgerRecord {
 
 async function bothRelocation(ledger: MemoryLedger, allow: boolean, hash = OLD) {
   const removeItem = vi.fn(async () => ({ kind: 'deleted' as const, conflicted: false }));
+  const hasItem = vi.fn(async () => true);
   const shared = {
     tenantId: RELOCATION_TENANT,
     mappingId: MAPPING,
@@ -216,7 +217,7 @@ async function bothRelocation(ledger: MemoryLedger, allow: boolean, hash = OLD) 
     allowApplyDeletions: allow,
   };
   const evaluated = await evaluateApplyRelocation(shared, hash);
-  const applied = await applyRelocation({ ...shared, target: { removeItem } }, hash);
+  const applied = await applyRelocation({ ...shared, target: { removeItem, hasItem } }, hash);
   return { evaluated, applied, removeItem };
 }
 
