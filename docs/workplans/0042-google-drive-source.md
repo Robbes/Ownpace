@@ -4,7 +4,7 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T0 decide the three questions that have no precedent here | ⬜ Not started | — |
+| T0 decide the FOUR questions that have no precedent here | ⬜ Not started | — |
 | T1 the delta shape: a per-drive changes feed behind a per-folder port | ⬜ Not started | — |
 | T2 identity: opaque fileId vs the path-shaped natural key | ⬜ Not started | — |
 | T3 native Google editor files: export, or refuse | ⬜ Not started | — |
@@ -18,11 +18,15 @@ A `GoogleDriveSource` implementing the existing `FileSource` port
 (`packages/shared/src/ports.ts:171`), so a Google Workspace tenant can be a **source** for the
 file domain the way OneDrive/SharePoint already is.
 
-**This is the second connector of its kind, not the first.** `packages/connectors/src/
-graph-drive-source.ts` (521 lines) is a delta-capable, OAuth2, opaque-id file source that already
-implements this port, and everything downstream of it — the sync loop, the ledger, the file
-targets, both editions' builders — is provider-neutral. So the seams exist and this workplan is
-mostly about the places where Google's model does **not** line up with the one those seams assume.
+`packages/connectors/src/graph-drive-source.ts` (521 lines) is a delta-capable, OAuth2, opaque-id
+file source that already implements this port, and it is the closest thing to a template.
+
+**Corrected 2026-08-15, after a read-only audit of this plan's own claims.** The first draft said
+"the seams exist" and called this "the second connector of its kind". That was too generous:
+`GraphDriveSource` is **wired into nothing** — `SourceConfig` has no drive variant, and neither
+edition's builder constructs it. It is a class with tests, not a working source. So T5 is not
+"follow the existing wiring"; there is no existing wiring for a file source of this shape, and
+whoever does T5 will be cutting that path for the first time.
 
 Answering the question that prompted this directly: **today there is no Google connector of any
 kind.** `SourceConfig` (`packages/shared/src/config.ts:253`) is
@@ -61,6 +65,12 @@ Drive has no folder-scoped changes feed. `changes.list` reports the whole drive.
 deliberately, in a connector written after the lesson. **T1 is a design decision, not an
 implementation detail**, and it must be made before any connector code is written.
 
+**And it cannot be papered over inside the connector.** The sync loop owns the cursor, not the
+source: it reads and writes one per folder (`domain-sync.ts:679`) against a store keyed
+`uk_cursor_tenant_mapping_folder` (`schema-pg.ts:743`). A connector is handed one cursor per folder
+and must hand one back per folder; there is no way for it to say "this source has a single
+cursor".
+
 ### Identity is the one that can duplicate customer data
 
 The file domain keys items by **normalized path** (§10; `graph-drive-source.ts` header calls it
@@ -76,12 +86,39 @@ The file domain keys items by **normalized path** (§10; `graph-drive-source.ts`
 2. Two files can hold the **same name in the same folder**. Drive permits it; a path-shaped key
    cannot express it, so one would silently overwrite or collide with the other.
 
-Note the port already carries the machinery for a better answer: `listSince` returns `removed`
-**source refs** rather than paths, matched through `Ledger.findBySourceRef`, precisely because
-*"a deleted delta entry is not guaranteed to carry usable path metadata, while its `id` always is
-present and never changes"* (`ports.ts:203-207`). The identity question for Drive is whether the
-natural key should follow that lead. **T2 owns this and it is the highest-risk decision in the
-workplan** — getting it wrong duplicates or loses customer files, and does so silently.
+The port does carry `removed` **source refs** rather than paths, matched through
+`Ledger.findBySourceRef` (`ports.ts:203-207`), and the first draft of this plan offered
+"`fileId`-anchored keying" as one of two free choices for T2.
+
+**It is not free, and the audit caught this.** ADR-0020 (Accepted) makes the ledger a *rebuildable
+cache*: the natural key is "intrinsic to each item and **preserved on the target**", and Decision 3
+is an auto-running reindex that rebuilds the ledger by enumerating the target. A Google `fileId`
+is not on the target and cannot be put there. **Keying files by `fileId` therefore requires
+superseding an accepted ADR**, which is an owner decision, not an implementation choice.
+
+Worse, the same-name-siblings case is not a design decision at all — it is a hard blocker.
+`fileNaturalKeyHash(path) = sha256('file:' + path)` (`hash.ts:87-89`) feeds a **database unique
+index**, `uk_item_tenant_mapping_natural_key_hash` on `(tenantId, mappingId, naturalKeyHash)`
+(`schema-pg.ts:282-286`). Two Drive files with the same name in one folder produce one key. They
+cannot both be represented, whatever the connector does.
+
+### `removed` does not mean deleted, and this repo treats it as proof
+
+**Found by the audit; the first draft of this plan missed it, and it is the most dangerous of the
+four.**
+
+`resolveReportedRemovals` (`domain-sync.ts:1410-1467`) describes itself as *"the only place in
+this product where a deletion is KNOWN rather than suspected… No corroboration is required and
+none would help."* Items arriving that way go straight into the owner's deletions queue with
+`confirmed: true, evidence: 'reported'`, and under ADR-0024 the owner can then **apply** that
+decision — the only destructive operation in the product.
+
+Google's `changes.list` sets `removed: true` for changes that are **not** deletions: losing access,
+a file leaving a shared drive's scope, a sharing change. Feeding those into this path would present
+an owner with confirmed deletion evidence for files that still exist, and offer to delete the
+target's copy. **This is a blocker, and it is a data-destruction blocker rather than a duplication
+one.** A Drive source must either not populate `removed` at all, or populate it only from a change
+class it can prove means deletion.
 
 ### Native editor files have no bytes
 
@@ -102,10 +139,11 @@ Refusing native files with a named reason is a legitimate outcome of T3, and a b
 silent lossy export. `imap-groups.ts` is the precedent for that shape: an honest, tested "no"
 rather than an empty result that reads as "there was nothing".
 
-## T0 — decide the three questions
+## T0 — decide the four questions
 
 No code. Write the answers into this file, with reasoning, so T1–T3 implement a decision rather
-than discover one:
+than discover one. **A fourth was added on 2026-08-15** — the audit of this plan found a blocker
+the first draft missed, and it is the one that can destroy data rather than duplicate it:
 
 1. **Delta**: one whole-drive poll shared across folders, or per-folder filtering, or a change to
    the `FileSource` port. Name the cost of each.
@@ -115,6 +153,12 @@ than discover one:
 3. **Native files**: export with a fixed format map, export with an owner-chosen map, or refuse
    with a reason. Measure export byte-stability before choosing, because two of the three options
    depend on it.
+4. **`removed` semantics**: whether a Drive source populates `removed` at all. It feeds the one
+   path in this product where a deletion is treated as KNOWN and becomes owner-actionable
+   destructive evidence, and Drive sets the flag for access and scope changes that are not
+   deletions. The safe default is to populate nothing and let the existing absence-based detector
+   do its slower, corroborated job; departing from that needs a change class provably meaning
+   deletion.
 
 ## T1 — the delta shape
 

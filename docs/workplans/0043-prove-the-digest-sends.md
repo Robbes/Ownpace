@@ -6,8 +6,8 @@
 |---|---|---|
 | T1 an end-to-end proof that mail leaves the building | ⬜ Not started | — |
 | T2 the managed cron task, tested like its self-host twin | ⬜ Not started | — |
-| T3 make "notifications are OFF" visible to somebody who is not reading logs | ⬜ Not started | — |
-| T4 the all-mappings-done hole 0030 recorded and left open | ⬜ Not started | — |
+| T3 make "notifications are OFF" visible to somebody who is not reading logs | 🟡 **Payload done 2026-08-15; the screen is not** | `StatusReport.notifications` carries enabled + the reason VERBATIM; `/status` supplies it (`index.ts`). 4 tests; mutation-verified — reporting a channel the caller did not supply, and summarising away the reason, each fail exactly one test. **No UI**: no page fetches `/status` today (Dashboard reads mappings), so a screen needs a new data path, not a line. |
+| T4 the all-mappings-done hole 0030 recorded and left open | ✅ **Done 2026-08-15 — both editions** | `renderDigest` takes `TenantAttention`; `organisation` is a new `DigestLines` key so EN/NL parity is a compile error, not a promise. Managed sends instead of warning; the appliance gets `collectTenantAttention`, a sibling of `collectAttention` rather than a reshape of it (which would have churned 14 tests to prove nothing). 10 tests. Mutation: restoring the old emptiness rule fails **5 tests across BOTH editions**. One existing test replaced deliberately — it pinned the log-only behaviour. |
 
 ## What this is
 
@@ -40,19 +40,35 @@ fail.
 
 ## T1 — an end-to-end proof
 
-**The materials already exist.** The integration harness starts a real **Stalwart** mail server
-(`vitest.global-setup.ts` exports `STALWART_JMAP_URL`, `STALWART_IMAP_HOST`, …) and the self-host
-e2e starts one too. Stalwart speaks SMTP. So a digest can be sent through the real
-`smtpTransport` to a real server and read back, without inventing any infrastructure.
+**Corrected 2026-08-15.** The first draft said the materials "already exist… without inventing any
+infrastructure". A read-only audit of this plan found three obstacles that make that false, and a
+task written from the original wording would have sent somebody down a dead end:
+
+1. **Stalwart binds SMTPS 465 only**, with a self-signed certificate, and `SmtpSettings` has **no
+   field that can carry `rejectUnauthorized: false`**. The IMAP client in the harness gets that
+   treatment; the mail transport has nowhere to put it. This needs a **production code change**,
+   and it is a security-adjacent one — a TLS-trust escape hatch that exists for tests is a
+   TLS-trust escape hatch that exists.
+2. **Neither harness publishes an SMTP port.** The testcontainers setup and the self-host e2e both
+   expose IMAP/JMAP; SMTP is not mapped out. That is a harness change.
+3. **`createTransport` is never even constructed today.** `smtpTransport()` returns a closure and
+   nodemailer is only reached inside a real send — so "no test references it" understates it: the
+   library is not loaded by the suite at all, including by the appliance-boot test that configures
+   SMTP.
+
+So T1 is a production change plus a harness change plus a test, not a test. That is still worth
+doing — it is the only way to learn whether this code has ever run — but it must be planned as
+three things. The anti-skip guard below does come free.
 
 Shape:
 
-1. Build a notifier from `readNotifierConfig` pointed at the harness's Stalwart (SMTPS 465 or
-   587/STARTTLS — Stalwart binds TLS listeners only; see `docs/stalwart-integration-fix.md`, and
-   the self-signed certificate needs the same `rejectUnauthorized: false` treatment the IMAP
-   client already uses).
-2. Send one digest with known contents.
-3. Read the delivered message back over IMAP/JMAP and assert on it: recipient, subject, and that
+1. Give `SmtpSettings` a way to express TLS trust, and publish Stalwart's SMTPS port from the
+   harness — obstacles (1) and (2) above. Scope the trust escape hatch as narrowly as it can be
+   made: it exists so a test can reach a self-signed container, and it must not become a
+   convenient way to turn off certificate checking in production.
+2. Build a notifier from `readNotifierConfig` pointed at that port.
+3. Send one digest with known contents.
+4. Read the delivered message back over IMAP/JMAP and assert on it: recipient, subject, and that
    the **body carries the counts the digest was built from** — not merely that a send resolved.
 
 The last point is what makes this worth writing. Asserting "send did not throw" would recreate the
@@ -87,7 +103,8 @@ When SMTP is unconfigured the channel is disabled, and it says so:
 apps/selfhost/src/index.ts:378 → log.info(`[selfhost] ${channel.announcement}`)
 ```
 
-A single `log.info` at boot. An owner who never reads container logs — which is most owners of an
+A single `log.info` at boot — and `disabledNotifier` says its piece exactly **once per process**,
+so an appliance up for a month said it once, a month ago. An owner who never reads container logs — which is most owners of an
 appliance, and the exact person 0030 describes as *"an SMB owner mid-shadow-sync [who] checks the
 UI weekly at best"* — has no way to tell "nothing needs my attention" from "notifications were
 never on".
