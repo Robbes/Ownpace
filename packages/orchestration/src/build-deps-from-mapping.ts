@@ -17,7 +17,9 @@ import {
   type MappingId,
   type SourceConfig,
   type TargetConfig,
+  type FileSource,
   DEFAULT_CONCURRENCY,
+  parseGoogleDriveSource,
 } from '@openmig/shared';
 import { connection as connectionTable } from '@openmig/ledger';
 import {
@@ -33,6 +35,11 @@ import {
 import { davEndpointFromCreds, fileEndpointFromCreds } from './dav-endpoint';
 import { buildContactTargetFor, contactTargetProtocol } from './contact-target-factory';
 import { buildFileTargetFor, fileTargetProtocol } from './file-target-factory';
+import {
+  GOOGLE_DRIVE_CONNECTION_KIND,
+  STORED_GOOGLE_CREDENTIAL_NAMES,
+  buildGoogleDriveSourceFrom,
+} from './drive-source-factory';
 import { PgLedger, PgCursorStore, createPgDb, withTenant } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import { mailboxMapping } from '@openmig/ledger';
@@ -325,12 +332,12 @@ export async function buildDomainDepsFromMapping(
         db,
       );
     }
-    const fileSrcEndpoint = fileEndpointFromCreds('source', src.config, src.creds, src.kind);
+    const fileSource = buildFileSourceFromConnection(src);
     const fileTgtEndpoint = fileEndpointFromCreds('target', tgt.config, tgt.creds, tgt.kind);
     return withClose(
       {
         ...common,
-        source: buildFileSource(fileSrcEndpoint),
+        source: fileSource,
         // Files can go over JMAP where the target speaks it (0031 T3). Read
         // off the connection's own `kind`, which has allowed `jmap` since the
         // 0001 baseline, so this needs no migration and no new config field.
@@ -344,6 +351,39 @@ export async function buildDomainDepsFromMapping(
     await db.close();
     throw err;
   }
+}
+
+/**
+ * Choose and build the FILE source a stored connection describes (0042 T5).
+ *
+ * Two providers, and the difference is not a URL — it is whether the connection
+ * has a URL at all. Google withdrew WebDAV support years ago, so a Drive
+ * connection has no url/username/password to resolve; handing it to
+ * `fileEndpointFromCreds` would refuse it for missing credentials that do not
+ * exist for this provider, and never look at the OAuth ones it does have.
+ *
+ * The stored `config` blob is untyped JSON, so it goes through the SAME
+ * validator the appliance's mapping file does. Hard rule 5: a
+ * `nativeFilePolicy` one edition refuses must not be one the other accepts and
+ * silently ignores.
+ *
+ * Exported for unit tests, on the precedent of
+ * `buildSourceConnectorFromCredentials` below: the branch and its refusals are
+ * the behaviour worth pinning, and they need no database to prove.
+ */
+export function buildFileSourceFromConnection(src: {
+  config: Record<string, unknown>;
+  creds: Record<string, string>;
+  kind: string;
+}): FileSource {
+  if (src.kind === GOOGLE_DRIVE_CONNECTION_KIND) {
+    return buildGoogleDriveSourceFrom(
+      parseGoogleDriveSource(src.config),
+      src.creds,
+      STORED_GOOGLE_CREDENTIAL_NAMES,
+    );
+  }
+  return buildFileSource(fileEndpointFromCreds('source', src.config, src.creds, src.kind));
 }
 
 /**

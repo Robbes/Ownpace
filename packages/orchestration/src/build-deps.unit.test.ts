@@ -8,12 +8,13 @@
 // "No supported authentication method(s) available".
 
 import { describe, it, expect, vi } from 'vitest';
-import { buildDeps } from './build-deps';
+import { buildDeps, buildDomainDeps } from './build-deps';
 import {
   GraphMailSource,
   MailSourceWithGraphFallback,
   ImapFlowSource,
   ImapFlowDavMailTarget,
+  GoogleDriveSource,
 } from '@openmig/connectors';
 import type { MappingConfig, SourceAuth } from '@openmig/shared';
 
@@ -397,6 +398,81 @@ describe('buildDeps imap-dav target wiring', () => {
       await expect(
         buildDeps(imapDavTargetConfig({ kind: 'login', passwordFromEnv: 'TGT_IMAP_PASSWORD' })),
       ).rejects.toThrow(/TGT_IMAP_PASSWORD/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});
+
+/**
+ * The file domain can be a Google Drive (workplan 0042 T5).
+ *
+ * Until this landed, `SourceConfig` had no Drive variant and neither builder
+ * constructed one: the connector was a tested class nothing could reach. These
+ * two cases are the reachability itself — the appliance path, from a mapping
+ * file plus environment credentials.
+ */
+describe('buildDomainDeps — a Google Drive file source', () => {
+  function driveMapping(): MappingConfig {
+    return {
+      tenantId: '00000000-0000-4000-8000-000000000001',
+      mappingId: '11111111-1111-4111-8111-111111111111',
+      source: {
+        type: 'imap-oauth2',
+        host: 'stalwart',
+        port: 993,
+        user: 'source@dev.local',
+        auth: { kind: 'login', passwordFromEnv: 'SRC_PASSWORD' },
+      },
+      target: {
+        type: 'jmap',
+        baseUrl: 'https://mail.example.net',
+        user: 'u@example.net',
+        auth: { kind: 'basic', passwordFromEnv: 'TGT_PASSWORD' },
+      },
+      domains: {
+        files: {
+          enabled: true,
+          source: { type: 'google-drive', rootFolderId: 'shared-drive-1' },
+          target: {
+            type: 'webdav',
+            url: 'https://cloud.example.net/remote.php/dav/files/target/',
+            user: 'target',
+            auth: { kind: 'login', passwordFromEnv: 'TGT_PASSWORD' },
+          },
+        },
+      },
+    } as MappingConfig;
+  }
+
+  it('builds a GoogleDriveSource, with no DAV credentials anywhere in sight', () => {
+    // Google withdrew WebDAV years ago, so a Drive source has no url/user/
+    // password to resolve. Reaching the DAV endpoint resolver would refuse for
+    // missing credentials that do not exist for this provider.
+    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
+    vi.stubEnv('GOOGLE_CLIENT_ID', 'client-1.apps.googleusercontent.com');
+    vi.stubEnv('GOOGLE_CLIENT_SECRET', 'GOCSPX-secret');
+    vi.stubEnv('GOOGLE_REFRESH_TOKEN', '1//refresh');
+    vi.stubEnv('TGT_PASSWORD', 'target_password');
+    try {
+      const deps = buildDomainDeps(driveMapping(), 'file');
+      expect(deps.source).toBeInstanceOf(GoogleDriveSource);
+      void deps.close();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('refuses at build time, naming the environment variable that is missing', () => {
+    // Rule 9. Without this the appliance builds a source that cannot mint a
+    // token, and the operator sees a 401 from Google in the middle of a pass.
+    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
+    vi.stubEnv('GOOGLE_CLIENT_ID', '');
+    vi.stubEnv('GOOGLE_CLIENT_SECRET', '');
+    vi.stubEnv('GOOGLE_REFRESH_TOKEN', '');
+    vi.stubEnv('TGT_PASSWORD', 'target_password');
+    try {
+      expect(() => buildDomainDeps(driveMapping(), 'file')).toThrow(/GOOGLE_CLIENT_ID/);
     } finally {
       vi.unstubAllEnvs();
     }

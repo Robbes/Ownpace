@@ -6,11 +6,11 @@
 |---|---|---|
 | T0 decide the FOUR questions that have no precedent here | ⬜ Not started | — |
 | T1 the delta shape: a per-drive changes feed behind a per-folder port | 🟢 **Sidestepped for the first slice** | The slice enumerates per folder like `WebdavFileSource` and lets the natural key + ledger give idempotency — a pass costs a listing per folder and creates zero on the second run. Slower than a delta, and correct, which is the right order. `changes.list` remains unbuilt and unneeded until someone measures that the listing cost hurts. |
-| T2 identity: opaque fileId vs the path-shaped natural key | ⬜ Not started | — |
+| T2 identity: opaque fileId vs the path-shaped natural key | 🟡 **Decided (keep the path key, no ADR change) — and the real gap turned out to be somewhere else** | Verified rather than reasoned about: a renamed file is not correlated at all (`detectPathKeyedMoves` requires a different collection), so it becomes an absence and, two clean passes later, a **deletion of a file that still exists** — with `inferred` evidence, which ADR-0024 gate 3 refuses to apply. A moved file *is* correlated, and its queue entry's only action is `keep`. **Either way the target keeps a stale copy that nothing in the product will remove.** Pinned in `move-detection.unit.test.ts`. The one-liner this plan proposed would have detected the rename and rendered "moved from a to a" without fixing any of that, so the fix is written up as **[ADR-0030](../adr/0030-relocation-is-positive-evidence.md), Proposed — awaiting an owner decision**, because it widens the product's only destructive path. |
 | T3 native Google editor files: export, or refuse | 🟡 **Both paths built; the default is refuse, and byte-stability is still unmeasured** | `NativeFilePolicy` is `refuse` (default) / `export-office` / `export-pdf`, per migration as the owner chose. A refusal is thrown INSIDE the per-item boundary, so it lands in the failures queue with a verbatim reason and the rest of the folder still migrates — not skipped, which would report "migrated" for a file nobody copied. **The export paths must not be enabled for a real migration until `files.export` byte-stability is measured**: if it is not stable, `contentHash` sees a change every pass and every document is rewritten forever. |
 | T4 the connector itself, against a fake transport | ✅ **First slice done 2026-08-15** | `google-drive-source.ts` implements `FileSource`, modelled on **WebDAV rather than Graph** — full folder enumeration, no `changes.list`, `removed` never populated. 11 tests against a fake transport, no network. Mutation-verified: silently skipping native files, dropping `trashed=false`, and downloading a native file instead of exporting it each fail exactly one test. |
-| T5 wiring: config schema, both editions, credentials | ⬜ Not started | — |
-| T6 proof against a real Drive | ⬜ Not started | — |
+| T5 wiring: config schema, both editions, credentials | ✅ **Done 2026-08-15 — the connector is now REACHABLE** | `SourceConfig` has a `google-drive` variant with validation; both editions construct it through one shared factory (`drive-source-factory.ts`), each refusing in its own vocabulary — `GOOGLE_CLIENT_ID` for the appliance, `clientId` for a managed connection. Credentials: a **second `TokenProvider`**, because `createTokenProvider` is MSAL and would have posted a Google refresh token to `login.microsoftonline.com`; scope is `drive.readonly`, so the token cannot write. Managed needed a migration (`0008`) — `connection.kind` is a CHECK constraint, so without it the appliance could be pointed at a Drive and the managed edition could not represent one. 27 new tests. **Mutation-verified, 13 mutations, every one caught**: dropping the 401 retry, letting a caller override the Authorization header, removing single-flight, leaking the client secret into an error, defaulting a bad `nativeFilePolicy` to `refuse`, accepting an empty `rootFolderId`, routing Drive through the DAV resolver, deleting either edition's branch, using the wrong vocabulary in the managed refusal, dropping the pool close on a refusal, the factory inventing its own policy default, dropping `rootFolderId` on the way to the connector, and removing `google_drive` from the TS enum. |
+| T6 proof against a real Drive | ⬜ Not started — **and it is now the only thing between this and a customer** | Everything below the network is proven; nothing has spoken to Google. See T0 Q3: the export policies stay unmeasured until this runs. |
 
 ## What this is
 
@@ -187,11 +187,33 @@ work", and it is two specific things:
    nearly a one-liner — and needs care, because same-folder-same-hash is also exactly what a
    genuine duplicate looks like. Whichever way it goes, pin it with a test.
 
-2. **Convergence waits on a human.** Detection reports a move or a deletion into the owner's
-   queue; the target only follows once the owner *applies* (ADR-0024). For a target nobody is
-   working in — the owner's stated case — that wait is the whole gap. A per-mapping **auto-apply**
-   would close it, and it is the only destructive path in the product, so it wants its own ADR
-   rather than a flag added here.
+   **Corrected 2026-08-15, after running it.** The one-liner is real and it is the wrong fix.
+   Two facts, both now pinned in `move-detection.unit.test.ts`:
+
+   - The rename's deletion report carries `inferred` evidence, and **ADR-0024 gate 3 refuses
+     `inferred` outright** (`weak_evidence`). So the owner is shown a deletion of a file that
+     still exists and cannot act on it.
+   - A *detected* move is no better: the moves queue has exactly one action, `keep`, which
+     acknowledges and changes nothing.
+
+   So every source-side reorganisation leaves the target holding a stale copy that the product
+   will not remove, and relaxing the filter alone would swap an unappliable deletion for an
+   unappliable move rendered as "moved from `a` to `a`" — `movedToCollection` cannot express a
+   rename, because what changed is the NAME.
+
+2. **Convergence waits on a human — and for a move, waiting does not help, because there is
+   nothing for the human to press.** Detection reports; the target only follows once the owner
+   *applies* (ADR-0024), and no apply exists for this class. For a target nobody is working in —
+   the owner's stated case — that is the whole gap.
+
+   **[ADR-0030](../adr/0030-relocation-is-positive-evidence.md) proposes the fix and is
+   Proposed, not Accepted**: record the relocation by natural key rather than by collection,
+   correlate on the key so a rename and a move are one event, and admit a correlated relocation
+   as a POSITIVE evidence class at gate 3 — on the specific ground that the bytes are, at the
+   moment of applying, verifiably on the target under the new key, so removing the old copy
+   cannot lose data. That argument is stronger than the `reported` evidence gate 3 already
+   accepts. Per-mapping **auto-apply** stays out of it deliberately: "safe to press once, having
+   looked" is not "safe unattended", and that is a separate decision.
 
 Two things stay true regardless and must be said out loud to the owner rather than discovered:
 
@@ -228,6 +250,61 @@ The checklist the existing sources establish:
 4. `enabled-domains` / discovery surfaces, if a Drive mapping needs to appear in them.
 5. The guard tests that enumerate providers — check `no-managed-leakage`, `enabled-domains`, and
    the config round-trip tests for lists that need a new entry.
+
+### What T5 actually built, 2026-08-15
+
+The checklist above, item by item, plus the two things it turned out to need that
+were not on it:
+
+1. **`SourceConfig`** gained `GoogleDriveSource` (`type: "google-drive"`), with
+   `rootFolderId`, `nativeFilePolicy` and `baseUrl`. No `auth` block — credentials
+   never travel in a file that ends up in a support ticket.
+2. **Both editions** construct it through `drive-source-factory.ts`. The mail
+   factory (0041) keeps its validation with each caller because the editions
+   genuinely check different things; here they check the identical three values,
+   so the refusal is shared too and only the WORDS are a parameter.
+3. **Credentials.** `GoogleTokenProvider` is a second implementation of the
+   `TokenProvider` port. This was not optional: `createTokenProvider` is MSAL, and
+   the `tokenEndpoint` field on `TokenProviderConfig` that looks like it would
+   redirect it **is never read** — reusing it would have posted a Google refresh
+   token to Microsoft's token endpoint and presented as a login failure.
+4. **A migration (`0008`), which was not on the checklist.** `connection.kind` is
+   a database CHECK constraint, so a managed Drive connection could not be
+   inserted at all. An appliance that can be pointed at a Drive while the managed
+   edition cannot represent one is a difference between editions, which hard rule
+   5 forbids. `connection-kind-check.unit.test.ts` now reads the constraint out of
+   a real migrated database and compares it to the TypeScript enum, so the two
+   lists cannot drift again.
+5. **A pool leak, also not on the checklist,** found by adding a refusal to
+   `buildDomainDeps`: every refusal there happens *after* the ledger is open and
+   none of them closed it. An appliance retrying a misconfigured mapping on its
+   schedule leaked one connection per attempt until Postgres refused, at which
+   point the failure reads as "the database is down". Fixed and pinned.
+
+**The managed edition can now HOLD a Drive connection. Nothing in it creates one.** Found while
+checking T5's own claim, and worth stating so "wired in both editions" is not read as "usable in
+both editions":
+
+- The create-mapping wizard's `sourceType` is `imap | oauth2 | graph` — all MAIL sources — and
+  `sourceKindFor` maps them to `imap` / `o365`. There is no path through the API or the UI that
+  writes a `google_drive` connection; today it takes a hand-inserted row.
+- More structural: `loadDomainConnections` reads **one** `role = 'source'` row per tenant and
+  hands it to every enabled domain (the same single-connection assumption `fileEndpointFromCreds`
+  documents). So a managed tenant cannot have an O365 mail source *and* a Drive file source at
+  once, whatever the wizard offers.
+
+Neither is a Drive problem and neither is fixed by pretending otherwise. The appliance path is
+complete — a mapping file names `google-drive`, the env holds the credentials, it runs. **The
+managed path is complete up to the point where a person has to create the connection**, and
+finishing it is a wizard/schema change (per-domain source connections) that belongs to whoever
+owns the managed onboarding flow, not to this workplan.
+
+**What T5 does NOT prove, and nobody should read it as proving:** that any of this
+works against Google. Every test here drives a fake — a fake transport, a fake
+token endpoint, a stubbed `fetch`. The wiring is proven end to end *inside the
+process* (config → credentials → token → Bearer header → Drive URL), which is
+exactly the class of defect T5 could introduce. It is not evidence about Drive's
+API, and the export byte-stability question (T0 Q3) is untouched.
 
 ## T6 — proof against a real Drive
 
