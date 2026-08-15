@@ -235,6 +235,22 @@ all: only `MemoryLedger` executed its `EXISTS` subquery and its deletion-closing
 mirroring a statement nobody executes proves the fake is self-consistent, which is not the claim.
 `ledger.integration.test.ts` now runs it.
 
+### The fourth audit, 2026-08-15: one claim, refuted
+
+A fourth adversarial pass ran over everything above after it merged. One finding reached full
+verification — that no test fails when `applyRelocation`'s `moved_to_natural_key_hash IS NOT NULL`
+clause is deleted — and verification REFUTED it as a defect: the clause is logically subsumed by
+the `EXISTS` conjunct, whose correlated key comparison is never true when the column is NULL, so
+its deletion is an equivalent mutant that no test could ever kill, by construction. The behaviour
+it states is enforced twice over and both enforcements have killing tests (core's `not_relocated`
+gate by three unit tests; the `EXISTS` conjunct by the arrival-gone and bytes-differ integration
+cases, confirmed by executing the real statement under PGlite). The clause now carries a comment
+saying it is known-redundant, so nobody counts it as independently tested — which is the whole
+finding, and the correct resolution of it.
+
+Recorded here because the refutation is itself the useful result: the destructive path has now
+survived an audit round without producing a defect, which is the first time that has been true.
+
 ## Consequences
 
 - **The target can converge.** For the first time, an owner whose source was reorganised has a

@@ -971,6 +971,16 @@ export class PgLedger implements Ledger {
           // it. No deletion evidence is required and none is expected — nothing
           // was deleted — so what stands in its place is this: the pass wrote
           // down where the item went, by key.
+          //
+          // KNOWN REDUNDANT, on purpose — do not count it as independently
+          // tested. The EXISTS below compares `arrival.natural_key_hash` to
+          // THIS row's `moved_to_natural_key_hash`; when that column is NULL
+          // the comparison is never true and the row cannot match anyway, so
+          // deleting this line changes no result for any database state. An
+          // audit proved exactly that (it is an equivalent mutant — no test
+          // can fail on its removal, by construction). It stays because the
+          // rule it states must survive any future edit that weakens the
+          // EXISTS, and because a reader should meet it before the subquery.
           isNotNull(schemaPg.item.movedToNaturalKeyHash),
           // Still open, so a second apply cannot move the audit date forward
           // and report a removal that did not happen.
