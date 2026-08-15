@@ -313,17 +313,31 @@ export class MemoryLedger implements Ledger {
     // would erase a collection we already knew and make the item's next move
     // undetectable. A fake that dropped it would hide exactly that.
     const existing = this.rows.get(k)!;
+    // MIRRORS PgLedger's SET LIST, column for column — it does not replace the
+    // row, and neither may this.
+    //
+    // The fake used to spread `record` over the existing row, so every column
+    // the caller did not happen to carry was DROPPED: the move record, the
+    // deletion evidence, the absent-pass count, the attempt count. Postgres
+    // keeps all of those, because they are simply not in its SET clause. A test
+    // could therefore watch a relocation or a confirmed deletion evaporate on
+    // an ordinary update and call that correct — or, worse, pass because the
+    // state it needed had quietly gone.
     const merged: LedgerRecord = {
-      ...record,
+      ...existing,
+      contentHash: record.contentHash,
+      sizeBytes: record.sizeBytes,
+      status: record.status ?? 'updated',
+      targetId: record.targetId,
+      sourceVersion: record.sourceVersion,
+      // Conditional exactly as the SQL is: a caller with nothing to say must
+      // not blank what we already knew.
+      ...(record.targetVersion !== undefined ? { targetVersion: record.targetVersion } : {}),
+      ...(record.collection !== undefined ? { collection: record.collection } : {}),
+      ...(record.sourceRef !== undefined ? { sourceRef: record.sourceRef } : {}),
+      // A fact about the ORIGINAL copy. Postgres keeps it because first_seen_at
+      // is not in the SET clause either.
       createdAt: existing.createdAt,
-      ...(record.collection === undefined && existing.collection !== undefined
-        ? { collection: existing.collection }
-        : {}),
-      // Same conditional survival as `collection`, and for the same reason: a
-      // caller with nothing to say must not erase the removal-report link.
-      ...(record.sourceRef === undefined && existing.sourceRef !== undefined
-        ? { sourceRef: existing.sourceRef }
-        : {}),
     };
     this.rows.set(k, merged);
     return Promise.resolve(merged);
@@ -804,6 +818,9 @@ export class MemoryLedger implements Ledger {
       if (r.movedToNaturalKeyHash === undefined) continue;
       // Still open.
       if (r.deletionAppliedAt !== undefined) continue;
+      // And not already answered the other way: `keep` and `apply` are the two
+      // answers to one question, and the first one written wins.
+      if (r.moveAcknowledgedAt !== undefined) continue;
       // Only a copy WE wrote.
       if (r.status !== 'copied' && r.status !== 'updated') continue;
       // THE ARRIVAL, re-checked under the write — the SQL's EXISTS clause, and

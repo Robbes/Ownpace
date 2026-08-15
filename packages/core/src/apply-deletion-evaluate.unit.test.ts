@@ -122,6 +122,16 @@ const CASES: Array<{
       l.recordIfAbsent(baseRow({ deletionReportedAt: new Date().toISOString(), status: 'adopted' })),
     expectCode: 'not_ours',
   },
+  {
+    // On the target as far as `isOnTarget` is concerned, and outside the set
+    // the ledger's own statement accepts. The two must refuse it identically,
+    // or the route promises what the job destroys and then cannot record.
+    name: 'gate 4: a status the ledger would refuse to record',
+    allow: true,
+    seed: (l) =>
+      l.recordIfAbsent(baseRow({ deletionReportedAt: new Date().toISOString(), status: 'pending' })),
+    expectCode: 'not_ours',
+  },
 ];
 
 describe('evaluate and apply agree on every ledger-side refusal', () => {
@@ -275,6 +285,50 @@ const RELOCATION_CASES: Array<{
       await l.recordMove(RELOCATION_TENANT, MAPPING, 'file', OLD, 'Docs', NEW);
     },
     expectCode: 'not_ours',
+  },
+  {
+    // The status set the SQL accepts, which is narrower than "on the target".
+    name: 'gate 4: a status the ledger would refuse to record',
+    allow: true,
+    seed: async (l) => {
+      await l.recordIfAbsent(fileRow({ status: 'pending' }));
+      await l.recordIfAbsent(fileRow({ naturalKeyHash: NEW, targetId: 'target/summary.pdf' }));
+      await l.recordMove(RELOCATION_TENANT, MAPPING, 'file', OLD, 'Docs', NEW);
+    },
+    expectCode: 'not_ours',
+  },
+  {
+    name: 'the owner already answered this one with `keep`',
+    allow: true,
+    seed: async (l) => {
+      await l.recordIfAbsent(fileRow());
+      await l.recordIfAbsent(fileRow({ naturalKeyHash: NEW, targetId: 'target/summary.pdf' }));
+      await l.recordMove(RELOCATION_TENANT, MAPPING, 'file', OLD, 'Docs', NEW);
+      await l.resolveMove(RELOCATION_TENANT, MAPPING, OLD, 'keep');
+    },
+    expectCode: 'already_kept',
+  },
+  {
+    // Gate 6's second half. The evaluator is what the managed route would call
+    // before enqueueing, so a breaker only `applyRelocation` knew about would
+    // promise an operator something the job then refuses.
+    name: 'gate 6: too much of the domain has relocated at once',
+    allow: true,
+    seed: async (l) => {
+      await l.recordIfAbsent(fileRow());
+      await l.recordIfAbsent(fileRow({ naturalKeyHash: NEW, targetId: 'target/summary.pdf' }));
+      await l.recordMove(RELOCATION_TENANT, MAPPING, 'file', OLD, 'Docs', NEW);
+      for (let i = 0; i < 9; i += 1) {
+        await l.recordIfAbsent(
+          fileRow({ naturalKeyHash: `o-${i}`, contentHash: `c-${i}`, targetId: `t/o-${i}` }),
+        );
+        await l.recordIfAbsent(
+          fileRow({ naturalKeyHash: `n-${i}`, contentHash: `c-${i}`, targetId: `t/n-${i}` }),
+        );
+        await l.recordMove(RELOCATION_TENANT, MAPPING, 'file', `o-${i}`, 'Docs', `n-${i}`);
+      }
+    },
+    expectCode: 'mass_relocation_suspected',
   },
 ];
 

@@ -182,6 +182,59 @@ is verifiably elsewhere is still categorically safer than acting on a deletion. 
 the assumption that the correlation feeding it needed no scrutiny of its own. Detection may be
 optimistic, because it only reports. The gate in front of a removal may not.
 
+### The gate that saw only one item at a time, 2026-08-15
+
+Every gate in front of `applyRelocation` reads ONE row. Each is satisfied by a correlation that
+is locally perfect — the bytes really are on the target under the new key — and none of them can
+see that the same thing just happened to the whole corpus. `MASS_DELETION_FRACTION` was the one
+gate positioned to notice, and it counted pending DELETIONS only, which a relocation is not. So a
+whole migration could relocate at once and every individual apply would sail through, each one
+truthfully reporting redundancy.
+
+The bad case is not exotic and it is not recoverable. A connector change that alters how paths
+are normalised gives every file a new natural key, so every file "moves"; a desktop sync client
+misbehaving does the same to ten thousand files an owner is about to restore from backup.
+Applying removes the target's copies at the ORIGINAL paths — and restoring the source does not
+undo it, because the old rows are tombstoned and `classifyKnownItem` will not re-create a
+tombstone. The target is then permanently missing the files at the paths that were correct.
+
+So the breaker now has two halves, sharing one threshold and one floor: pending deletions, as
+before, and pending RELOCATIONS — moves that changed the natural key and are still open —
+against the same corpus. A collection-only move is not counted, because it cannot be applied at
+all and counting it would let a mail reorganisation refuse a file rename.
+
+**This has a cost and it is not hypothetical.** Dragging one large folder somewhere else
+relocates every file under it, which is a legitimate thing to do, and it will trip this. The
+owner is not stuck — the refusal says what to do, and closing the entries with `keep` clears the
+count — but they are made to tidy the old copies in the target system themselves. That is the
+same trade ADR-0024 already accepts for a genuine mass deletion, taken for the same reason: at
+the moment the share is that high, this code cannot tell the deliberate reorganisation from the
+accident, and only one of the two is recoverable.
+
+### `keep` was enforced by a button, 2026-08-15
+
+`mayOfferRelocationApply` has always required an OPEN move, and said in its own documentation
+that the server enforced that and more. The server did not: neither `applyRelocation` nor the
+ledger's conditional `UPDATE` looked at `move_acknowledged_at`, so an apply on a move somebody had
+already answered with `keep` succeeded. The only thing between a recorded decision and a destroyed
+copy was a UI that happened not to render a button — and where nothing renders at all, two
+operators answering the same question at once both succeeded, and the copy went despite a decision
+on the row saying it should not.
+
+`keep` and `apply` are the two mutually exclusive answers to one question. Both halves now say so:
+core refuses with `already_kept` (distinct from `already_applied`, which means the copy is gone
+rather than still there on purpose), and gate 7's statement carries `move_acknowledged_at IS NULL`,
+which is what settles the race — first write wins, the loser is told what happened.
+
+**The cost:** an owner who chose `keep` and later changes their mind cannot undo it here. Nothing
+in this product re-opens a carried-out decision, and the refusal says what every other refusal on
+this path says — do it in the target system yourself.
+
+The same audit pass found that `applyRelocation`'s statement had never run against Postgres at
+all: only `MemoryLedger` executed its `EXISTS` subquery and its deletion-closing `CASE`. A fake
+mirroring a statement nobody executes proves the fake is self-consistent, which is not the claim.
+`ledger.integration.test.ts` now runs it.
+
 ## Consequences
 
 - **The target can converge.** For the first time, an owner whose source was reorganised has a

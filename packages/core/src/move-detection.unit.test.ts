@@ -926,6 +926,76 @@ describe('a removed copy takes no further part', () => {
     expect(third.moves.map((m) => m.naturalKeyHash)).toEqual(['a/two.txt']);
     expect(third.moves[0]?.toNaturalKeyHash).toBe('a/two-renamed.txt');
   });
+
+});
+
+describe('an explained disappearance takes no further part either', () => {
+  it('a row that already knows where it went does not claim a LATER arrival', async () => {
+    // The same theft as above, from a row that is merely explained rather than
+    // tombstoned — and this one needs no destructive decision to reach, only a
+    // file renamed twice.
+    //
+    // `a/one.txt` -> `a/two.txt` -> `a/three.txt`. On the third pass BOTH old
+    // rows are absent and both carry the same bytes, so both matched the single
+    // arrival — and the ledger's order decided it. The row for `a/one.txt` won,
+    // its recorded relocation was rewritten from `a/two.txt` to `a/three.txt`
+    // (a destination nothing ever moved to), and the move that actually
+    // happened was left with no explanation at all: drift, and two clean scans
+    // later a reported DELETION of a file plainly still there under a third
+    // name.
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    w.folders.set('a', [{ key: 'a/one.txt', body: 'BYTES', version: 'e1' }]);
+    await w.run(ledger);
+
+    w.folders.set('a', [{ key: 'a/two.txt', body: 'BYTES', version: 'e1' }]);
+    const second = await w.run(ledger);
+    expect(second.moves.map((m) => m.toNaturalKeyHash)).toEqual(['a/two.txt']);
+
+    // Renamed again. `a/two.txt` is the row whose disappearance this explains.
+    w.folders.set('a', [{ key: 'a/three.txt', body: 'BYTES', version: 'e1' }]);
+    const third = await w.run(ledger);
+
+    expect(
+      third.moves.map((m) => [m.naturalKeyHash, m.toNaturalKeyHash]),
+      'each disappearance keeps its own explanation',
+    ).toEqual([
+      ['a/one.txt', 'a/two.txt'],
+      ['a/two.txt', 'a/three.txt'],
+    ]);
+    expect(third.drift, 'nothing is left unexplained').toBe(0);
+
+    // And the first row still points where the file really went.
+    const first = await ledger.find(TENANT, MAPPING, 'file', 'a/one.txt');
+    expect(first?.movedToNaturalKeyHash).toBe('a/two.txt');
+  });
+
+  it('does not silently re-open a move the owner already closed', async () => {
+    // The second cost of the theft: `recordMove` clears the acknowledgement
+    // when the destination key changes, correctly — consent to one arrangement
+    // is not consent to another. So a row stealing a later arrival re-opened a
+    // queue entry somebody had already dealt with, pointing at a destination
+    // that had nothing to do with it.
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    w.folders.set('a', [{ key: 'a/one.txt', body: 'BYTES', version: 'e1' }]);
+    await w.run(ledger);
+
+    w.folders.set('a', [{ key: 'a/two.txt', body: 'BYTES', version: 'e1' }]);
+    await w.run(ledger);
+    expect(await ledger.resolveMove(TENANT, MAPPING, 'a/one.txt', 'keep')).toBe(true);
+
+    w.folders.set('a', [{ key: 'a/three.txt', body: 'BYTES', version: 'e1' }]);
+    const third = await w.run(ledger);
+
+    expect(
+      third.moves.map((m) => m.naturalKeyHash),
+      'the closed entry stays closed; only the new move is reported',
+    ).toEqual(['a/two.txt']);
+    const first = await ledger.find(TENANT, MAPPING, 'file', 'a/one.txt');
+    expect(first?.moveAcknowledgedAt, 'the decision survives').toBeDefined();
+    expect(first?.movedToNaturalKeyHash).toBe('a/two.txt');
+  });
 });
 
 describe('the old path after an applied relocation', () => {
@@ -985,9 +1055,12 @@ describe('the old path after an applied relocation', () => {
     w.folders.set('a', [{ key: 'a/gone.txt', body: 'BYTES', version: 'e1' }]);
     await w.run(ledger);
 
-    // Reported deleted by the source, then applied by the owner.
-    const row = await ledger.find(TENANT, MAPPING, 'file', 'a/gone.txt');
-    await ledger.recordUpdate({ ...row!, deletionReportedAt: new Date().toISOString() });
+    // Reported deleted by the source, then applied by the owner. Seeded through
+    // the ledger's own method rather than by handing `recordUpdate` a row with
+    // the field set: `deletion_reported_at` is not in that statement's SET
+    // clause, so Postgres would ignore it and only the fake would appear to
+    // work — the exact fake-vs-SQL divergence this file is meant to catch.
+    expect(await ledger.recordReportedDeletion(TENANT, MAPPING, 'file', 'a/gone.txt')).toBe(true);
     expect(await ledger.applyDeletion(TENANT, MAPPING, 'file', 'a/gone.txt')).toBe(true);
 
     // The source lists it again.

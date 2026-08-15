@@ -975,6 +975,12 @@ export class PgLedger implements Ledger {
           // Still open, so a second apply cannot move the audit date forward
           // and report a removal that did not happen.
           isNull(schemaPg.item.deletionAppliedAt),
+          // AND NOT ALREADY DECIDED THE OTHER WAY. `keep` and `apply` are the
+          // two answers to one question, and this is where that has to be
+          // settled: core checks it, but two operators answering at once both
+          // pass that check and only one of them can be right. The one that
+          // wrote first wins, and the other is told what happened.
+          isNull(schemaPg.item.moveAcknowledgedAt),
           // Only a copy WE wrote — the same ownership rule as applyDeletion.
           // `adopted` bytes were on the target before this migration existed.
           or(eq(schemaPg.item.status, 'copied'), eq(schemaPg.item.status, 'updated')),

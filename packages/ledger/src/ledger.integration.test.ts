@@ -1102,6 +1102,164 @@ describe('PgLedger (integration)', () => {
       });
     });
 
+    /**
+     * The OTHER destructive write, against a real database for the first time.
+     *
+     * `applyRelocation`'s statement carries conditions no other one does — an
+     * `EXISTS` subquery re-checking the arrival, and a `CASE` that closes any
+     * deletion entry the row also held — and until now the only thing that ran
+     * them was `MemoryLedger`. A fake mirroring a statement nobody executes
+     * proves that the fake is self-consistent, which is not the claim.
+     */
+    describe('applyRelocation — the second destructive write', () => {
+      /** The pair a relocation consists of: the old row and the arrival. */
+      const pair = async (old: string, arrival: string, hash: string) => {
+        await ledger.recordIfAbsent(at(old, 'Docs', hash));
+        await ledger.recordIfAbsent(at(arrival, 'Docs', hash));
+        await ledger.recordMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', old, 'Docs', arrival);
+      };
+
+      it('tombstones the old row and leaves the arrival alone', async () => {
+        await pair('rel-1', 'rel-1-new', 'hrel1');
+
+        expect(
+          await ledger.applyRelocation(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'rel-1'),
+        ).toBe(true);
+
+        const old = await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'rel-1');
+        expect(old?.status).toBe('tombstoned');
+        expect(old?.deletionAppliedAt).toBeDefined();
+        // The move entry closes with it: decided AND carried out.
+        expect(old?.moveAcknowledgedAt).toBeDefined();
+        expect(
+          (await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'rel-1-new'))?.status,
+          'the surviving copy must not be touched',
+        ).toBe('copied');
+      });
+
+      it('refuses a move with no relocation key — an ordinary move is not this', async () => {
+        await ledger.recordIfAbsent(at('rel-2', 'Docs', 'hrel2'));
+        await ledger.recordMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'rel-2', 'Archive');
+
+        expect(
+          await ledger.applyRelocation(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'rel-2'),
+        ).toBe(false);
+      });
+
+      it('refuses when the arrival is not on the target any more', async () => {
+        // The EXISTS clause, and the race it exists for: a concurrent
+        // `applyDeletion` on the arrival tombstones it between core's check and
+        // this write, and without this both copies would go.
+        await pair('rel-3', 'rel-3-new', 'hrel3');
+        await ledger.recordReportedDeletion(
+          TEST_TENANT_ID,
+          TEST_MAPPING_ID,
+          'file',
+          'rel-3-new',
+        );
+        expect(
+          await ledger.applyDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'rel-3-new'),
+        ).toBe(true);
+
+        expect(
+          await ledger.applyRelocation(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'rel-3'),
+        ).toBe(false);
+        expect(
+          (await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'rel-3'))?.status,
+          'the last remaining copy is untouched',
+        ).toBe('copied');
+      });
+
+      it('refuses when the arrival no longer carries the same bytes', async () => {
+        await ledger.recordIfAbsent(at('rel-4', 'Docs', 'hrel4'));
+        await ledger.recordIfAbsent(at('rel-4-new', 'Docs', 'something-else'));
+        await ledger.recordMove(
+          TEST_TENANT_ID,
+          TEST_MAPPING_ID,
+          'file',
+          'rel-4',
+          'Docs',
+          'rel-4-new',
+        );
+
+        expect(
+          await ledger.applyRelocation(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'rel-4'),
+        ).toBe(false);
+      });
+
+      it('refuses adopted bytes, which were never ours', async () => {
+        await ledger.recordIfAbsent({ ...at('rel-5', 'Docs', 'hrel5'), status: 'adopted' });
+        await ledger.recordIfAbsent(at('rel-5-new', 'Docs', 'hrel5'));
+        await ledger.recordMove(
+          TEST_TENANT_ID,
+          TEST_MAPPING_ID,
+          'file',
+          'rel-5',
+          'Docs',
+          'rel-5-new',
+        );
+
+        expect(
+          await ledger.applyRelocation(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'rel-5'),
+        ).toBe(false);
+      });
+
+      it('refuses a move the owner already answered with `keep`', async () => {
+        // `keep` and `apply` are the two answers to one question, and this is
+        // where two operators answering at once are settled: the first write
+        // wins and the second matches nothing.
+        await pair('rel-6', 'rel-6-new', 'hrel6');
+        expect(
+          await ledger.resolveMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'rel-6', 'keep'),
+        ).toBe(true);
+
+        expect(
+          await ledger.applyRelocation(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'rel-6'),
+        ).toBe(false);
+        expect(
+          (await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'rel-6'))?.status,
+        ).toBe('copied');
+      });
+
+      it('refuses a second apply on an already-tombstoned row', async () => {
+        await pair('rel-7', 'rel-7-new', 'hrel7');
+        expect(
+          await ledger.applyRelocation(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'rel-7'),
+        ).toBe(true);
+
+        expect(
+          await ledger.applyRelocation(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'rel-7'),
+        ).toBe(false);
+      });
+
+      it('closes a DELETION entry the same row was also carrying', async () => {
+        // Renamed, then absent often enough to bank a deletion entry too. A
+        // confirmed deletion left open on a tombstoned row never leaves the
+        // queue and goes on counting towards the mass-deletion breaker.
+        await pair('rel-8', 'rel-8-new', 'hrel8');
+        await ledger.recordReportedDeletion(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'rel-8');
+
+        expect(
+          await ledger.applyRelocation(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'rel-8'),
+        ).toBe(true);
+        expect(
+          (await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'rel-8'))
+            ?.deletionAcknowledgedAt,
+        ).toBeDefined();
+      });
+
+      it("will not let one tenant apply a relocation on another's row", async () => {
+        await pair('rel-9', 'rel-9-new', 'hrel9');
+
+        expect(
+          await ledger.applyRelocation(TEST_TENANT_2_ID, TEST_MAPPING_2_ID, 'file', 'rel-9'),
+        ).toBe(false);
+        expect(
+          (await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'rel-9'))?.status,
+        ).toBe('copied');
+      });
+    });
+
     it('does not cross domains, mappings or tenants', async () => {
       await ledger.recordIfAbsent(at('c-10', 'Shared', 'h10'));
       await ledger.recordIfAbsent({ ...at('c-11', 'Shared', 'h11'), itemType: 'calendar' });
