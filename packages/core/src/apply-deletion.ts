@@ -612,12 +612,28 @@ function ownershipCheck(row: {
 async function relocationCheck(
   deps: Omit<ApplyDeletionDeps, 'target'>,
   row: {
+    readonly naturalKeyHash: string;
     readonly movedToNaturalKeyHash?: string;
     readonly contentHash?: string;
+    readonly targetId?: string;
   },
 ): Promise<Extract<ApplyDeletionOutcome, { ok: false }> | undefined> {
   const { tenantId, mappingId, domain, ledger } = deps;
   const arrivalKey = row.movedToNaturalKeyHash;
+  if (arrivalKey !== undefined && arrivalKey === row.naturalKeyHash) {
+    // A row pointing at ITSELF would verify itself: the arrival lookup returns
+    // this same row, every check passes trivially, and the copy is removed on
+    // the strength of its own existence. Detection cannot produce one — an
+    // arrival is a key the ledger did not already hold — but this is the gate
+    // that must not be talked into it.
+    return {
+      ok: false,
+      code: 'relocation_unconfirmed',
+      reason:
+        'This item records a relocation to its own key, which cannot be evidence of anything. ' +
+        'Nothing was removed.',
+    };
+  }
   if (!arrivalKey) {
     return {
       ok: false,
@@ -640,14 +656,46 @@ async function relocationCheck(
         'confirmed present on the target. Nothing was removed.',
     };
   }
-  if (!isOnTarget(arrival.status) || arrival.status === 'adopted') {
+  // `copied` or `updated`, EXACTLY — not `isOnTarget`, which is a different and
+  // much weaker question. It admits `pending`, `skipped` and `deleted_source`,
+  // none of which means bytes were ever written; ADR-0030 says written by us,
+  // and this is the gate that has to mean it.
+  if (arrival.status !== 'copied' && arrival.status !== 'updated') {
     return {
       ok: false,
       code: 'relocation_unconfirmed',
       reason:
         `The relocated copy is not one we can vouch for (status ${arrival.status ?? 'unknown'}). ` +
         'Removing this copy is only safe while the same bytes are on the target under the new ' +
-        'key, written by this migration. Nothing was removed.',
+        'key, WRITTEN BY THIS MIGRATION. Nothing was removed.',
+    };
+  }
+  if (arrival.targetId && arrival.targetId === row.targetId) {
+    // Both keys resolved to ONE object on the target. Some writers derive a
+    // target id from something coarser than the natural key, and where they do,
+    // "remove the old copy" and "the new copy" name the same bytes — so the
+    // removal would take the survivor with it.
+    return {
+      ok: false,
+      code: 'relocation_unconfirmed',
+      reason:
+        'The old copy and the relocated copy are the same object on the target, so removing ' +
+        'one would remove both. Nothing was removed.',
+    };
+  }
+  // An UNKNOWN hash is not a matching hash. Both sides default to `''` when a
+  // row never recorded one, and `'' === ''` would sail through this gate on two
+  // rows that say nothing about each other — on the one path that destroys a
+  // copy. Detection cannot currently produce such a pair (it correlates only
+  // rows that have a hash), which is exactly why this belongs here: the gate has
+  // to hold on its own, for a caller that does not exist yet.
+  if (!row.contentHash || !arrival.contentHash) {
+    return {
+      ok: false,
+      code: 'relocation_unconfirmed',
+      reason:
+        'This item has no recorded content hash, so there is no way to confirm the relocated ' +
+        'copy holds the same bytes. Nothing was removed.',
     };
   }
   if (arrival.contentHash !== row.contentHash) {
@@ -658,6 +706,32 @@ async function relocationCheck(
         'The relocated copy no longer has the same content as this one, so removing this copy ' +
         'would lose something. The item was probably edited after it was moved. Nothing was ' +
         'removed.',
+    };
+  }
+
+  // AMBIGUITY. The correlation that produced this relocation is a content-hash
+  // match, and a content-hash match is not proof of a move — it is proof that
+  // two files hold the same bytes. Where a THIRD item shares the hash, the pass
+  // could have paired the wrong two: a folder briefly missing from a listing
+  // makes a live file look disappeared, an unrelated arrival with identical
+  // content explains it, and applying that removes the target's copy of a file
+  // nobody touched. It is not exotic — every empty file in a Drive has the same
+  // hash as every other.
+  //
+  // Detection is allowed to be optimistic; it only reports. This is the gate in
+  // front of a removal, so here the answer is no.
+  const sharing = (await ledger.placedItems(tenantId, mappingId, domain)).filter(
+    (item) => item.contentHash === row.contentHash,
+  );
+  if (sharing.length > 2) {
+    return {
+      ok: false,
+      code: 'relocation_unconfirmed',
+      reason:
+        `${sharing.length} items in this migration hold exactly these bytes, so which one moved ` +
+        'is a guess — and removing the wrong copy takes a file nobody touched. This is what an ' +
+        'empty file looks like, and what a duplicate looks like. Remove the old copy in the ' +
+        'target system yourself if you are sure, then choose `keep`.',
     };
   }
   return undefined;

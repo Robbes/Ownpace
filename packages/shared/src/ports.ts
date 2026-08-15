@@ -893,6 +893,17 @@ export interface Ledger {
       absentPasses?: number;
       /** Set once the owner has decided about its disappearance. */
       deletionAcknowledgedAt?: string;
+      /**
+       * Set once the target's copy was actually REMOVED by an apply.
+       *
+       * Carried because move detection must not let an already-removed row
+       * compete for arrivals: it would steal the correlation that explains a
+       * live rename, and re-open a destructive queue entry for a decision
+       * somebody already carried out. The rows stay in this listing for the
+       * mass-deletion breaker's denominator, which is why they have to be
+       * distinguishable rather than absent.
+       */
+      deletionAppliedAt?: string;
     }>
   >;
   /** Unresolved failures for a domain, newest attempt first. */

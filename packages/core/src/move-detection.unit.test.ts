@@ -868,3 +868,50 @@ describe('a file moved between source folders', () => {
     expect(second.drift).toBe(0);
   });
 });
+
+describe('a removed copy takes no further part', () => {
+  it('does not let an ALREADY-REMOVED row compete for arrivals', async () => {
+    // `placedItems` keeps tombstoned rows on purpose — the mass-deletion
+    // breaker's denominator needs them. Letting one compete here has it steal
+    // the correlation that explains a LIVE rename, and re-open a destructive
+    // queue entry for a decision somebody already carried out.
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    // DISTINCT bytes per file: identical content is refused by the apply's
+    // ambiguity gate, and rightly — which one moved would be a guess.
+    w.folders.set('a', [
+      { key: 'a/one.txt', body: 'ONE', version: 'e1' },
+      { key: 'a/two.txt', body: 'TWO', version: 'e1' },
+    ]);
+    await w.run(ledger);
+
+    // `one` is renamed; the owner applies the relocation, so its row is
+    // tombstoned and its copy is gone.
+    w.folders.set('a', [
+      { key: 'a/one-renamed.txt', body: 'ONE', version: 'e1' },
+      { key: 'a/two.txt', body: 'TWO', version: 'e1' },
+    ]);
+    await w.run(ledger);
+    await applyRelocation(
+      {
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        domain: 'file',
+        ledger,
+        target: { removeItem: async () => ({ kind: 'deleted' as const }) },
+        allowApplyDeletions: true,
+      },
+      'a/one.txt',
+    );
+
+    // Now `two` is renamed. The tombstoned row must not take that arrival.
+    w.folders.set('a', [
+      { key: 'a/one-renamed.txt', body: 'ONE', version: 'e1' },
+      { key: 'a/two-renamed.txt', body: 'TWO', version: 'e1' },
+    ]);
+    const third = await w.run(ledger);
+
+    expect(third.moves.map((m) => m.naturalKeyHash)).toEqual(['a/two.txt']);
+    expect(third.moves[0]?.toNaturalKeyHash).toBe('a/two-renamed.txt');
+  });
+});
