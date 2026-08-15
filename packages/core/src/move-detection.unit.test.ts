@@ -33,6 +33,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { classifyKnownItem, runDomainSync } from './domain-sync';
+import { applyRelocation } from './apply-deletion';
 import { MemoryLedger, MemoryCursorStore } from './__testing__/memory';
 import { asTenantId, asMappingId, type UpsertResult } from '@openmig/shared';
 
@@ -569,6 +570,47 @@ describe('a file moved between source folders', () => {
     const third = await w.run(ledger);
     expect(third.moved).toBe(0);
     expect(third.drift, 'a decided rename must not degrade into drift').toBe(0);
+  });
+
+  it('stops reporting a relocation once it has been APPLIED', async () => {
+    // The point of the whole feature, end to end: detect, apply, and the queue
+    // is empty. A row that kept reporting after its copy was removed would put
+    // an action in front of somebody that can only fail — and one that
+    // degraded into DRIFT instead would start counting towards a deletion of
+    // an item this product has already dealt with.
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    w.folders.set('a', [{ key: 'a/report.pdf', body: 'PDF', version: 'e1' }]);
+    await w.run(ledger);
+
+    w.folders.set('a', [{ key: 'a/summary.pdf', body: 'PDF', version: 'e1' }]);
+    expect((await w.run(ledger)).moved).toBe(1);
+
+    const outcome = await applyRelocation(
+      {
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        domain: 'file',
+        ledger,
+        target: { removeItem: async () => ({ kind: 'deleted' as const }) },
+        allowApplyDeletions: true,
+      },
+      'a/report.pdf',
+    );
+    expect(outcome).toEqual({ ok: true, kind: 'deleted' });
+
+    const third = await w.run(ledger);
+    expect(third.moved, 'the decision was carried out; there is nothing left to report').toBe(0);
+    expect(third.drift, 'and it must not become drift either').toBe(0);
+    expect(third.deletions).toEqual([]);
+
+    // The entry does not vanish — it becomes HISTORY, which is what the
+    // "already decided" half of the queue is for and what `keep` does too. The
+    // row is the audit trail: this item existed, it was relocated, and its old
+    // copy was removed on this date by this decision.
+    const moves = await ledger.listMoves(TENANT, MAPPING, 'file');
+    expect(moves).toHaveLength(1);
+    expect(moves[0]?.acknowledgedAt, 'closed, so no screen offers it again').toBeDefined();
   });
 
   it('reopens the decision when the file is renamed AGAIN in the same folder', async () => {
