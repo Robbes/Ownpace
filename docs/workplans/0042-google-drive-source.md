@@ -5,10 +5,10 @@
 | Task | Status | Evidence |
 |---|---|---|
 | T0 decide the FOUR questions that have no precedent here | ⬜ Not started | — |
-| T1 the delta shape: a per-drive changes feed behind a per-folder port | ⬜ Not started | — |
+| T1 the delta shape: a per-drive changes feed behind a per-folder port | 🟢 **Sidestepped for the first slice** | The slice enumerates per folder like `WebdavFileSource` and lets the natural key + ledger give idempotency — a pass costs a listing per folder and creates zero on the second run. Slower than a delta, and correct, which is the right order. `changes.list` remains unbuilt and unneeded until someone measures that the listing cost hurts. |
 | T2 identity: opaque fileId vs the path-shaped natural key | ⬜ Not started | — |
-| T3 native Google editor files: export, or refuse | ⬜ Not started | — |
-| T4 the connector itself, against a fake transport | ⬜ Not started | — |
+| T3 native Google editor files: export, or refuse | 🟡 **Both paths built; the default is refuse, and byte-stability is still unmeasured** | `NativeFilePolicy` is `refuse` (default) / `export-office` / `export-pdf`, per migration as the owner chose. A refusal is thrown INSIDE the per-item boundary, so it lands in the failures queue with a verbatim reason and the rest of the folder still migrates — not skipped, which would report "migrated" for a file nobody copied. **The export paths must not be enabled for a real migration until `files.export` byte-stability is measured**: if it is not stable, `contentHash` sees a change every pass and every document is rewritten forever. |
+| T4 the connector itself, against a fake transport | ✅ **First slice done 2026-08-15** | `google-drive-source.ts` implements `FileSource`, modelled on **WebDAV rather than Graph** — full folder enumeration, no `changes.list`, `removed` never populated. 11 tests against a fake transport, no network. Mutation-verified: silently skipping native files, dropping `trashed=false`, and downloading a native file instead of exporting it each fail exactly one test. |
 | T5 wiring: config schema, both editions, credentials | ⬜ Not started | — |
 | T6 proof against a real Drive | ⬜ Not started | — |
 
