@@ -758,7 +758,7 @@ tool never does on its own (hard rule 2).
 | `GET /moves` | `open` and `acknowledged`, each with `from` and `to` |
 | appliance log / task run log | one warning per domain per pass, with a count |
 
-Two answers, per item:
+Two answers for every move, and a third that exists only for one kind:
 
 - **keep** (`POST /mappings/{id}/moves/{hash}/keep`) — the target's layout is
   fine; stop reporting this one. If you want the target to match, move the item
@@ -766,10 +766,32 @@ Two answers, per item:
 - **nothing** — a move that is undone on the source drops off the list by itself
   on the next pass. Moving the same item somewhere *else* reopens it, because
   agreeing to one arrangement is not agreeing to the next.
+- **apply** (`POST /mappings/{id}/moves/{hash}/apply`) — offered on a
+  **relocation only**: a file whose move or rename changed its path-shaped
+  natural key, so the same bytes are already on the target under the new one
+  (ADR-0030). Applying removes the target's OLD copy — the second and last
+  destructive operation this product has, behind the same per-mapping
+  `allowApplyDeletions` switch and the same gates as a deletion apply, plus one
+  of its own: **the target itself is asked whether the new copy is really
+  there**, at the moment of acting, and a target that cannot answer is refused.
+  A mail or calendar move never shows this button — their keys survive a move,
+  so there is no second copy to point at and nothing here may be removed.
+  Appliance only for now: the managed edition's destructive path runs through a
+  queued job, and no such job exists yet for this action.
+
+  Refusals come back as sentences, and two are worth recognising rather than
+  re-asking about: **`already_kept`** means somebody answered `keep` first —
+  that decision holds, and is not re-opened here; **`mass_relocation_suspected`**
+  means more than a fifth of the domain's items have open relocations at once,
+  which is what a connector mis-deriving every path looks like, so every apply
+  is refused while it is true. If the reorganisation is real (you moved a big
+  folder), close the entries with `keep` and tidy the old copies in the target
+  system yourself.
 
 Two limits worth knowing. For **files** the item is keyed by its path, so the
 pass that first sees the move has already copied the file to its new path — the
-target then holds both, and the old one is what `from` points at. For **mail**, a
+target then holds both, and the old one is what `from` points at (and what
+**apply** removes, once you decide that). For **mail**, a
 message that genuinely lives in two folders looks exactly like one that moved;
 the pass cannot tell them apart, which is why it reports rather than acts.
 

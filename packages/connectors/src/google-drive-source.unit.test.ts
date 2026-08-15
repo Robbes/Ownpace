@@ -255,3 +255,91 @@ describe('errors carry what the other end said', () => {
     ).rejects.toThrow(/429[\s\S]*Rate Limit Exceeded/);
   });
 });
+
+describe('listKeys — the complete key set move detection turns on', () => {
+  // Route keys, by the query SHAPE the connector sends: `mimeType!=` (encoded
+  // `!%3D`) lists files, `mimeType=` lists folders. Substring matching means
+  // the more specific files key must be checked against a url that genuinely
+  // differs, and these do.
+  const ROOT_FOLDERS = `q='root'%20in%20parents%20and%20trashed%3Dfalse%20and%20mimeType%3D`;
+  const ROOT_FILES = `q='root'%20in%20parents%20and%20trashed%3Dfalse%20and%20mimeType!%3D`;
+  const SUB_FILES = `q='sub-1'%20in%20parents%20and%20trashed%3Dfalse%20and%20mimeType!%3D`;
+  const SUBFOLDER = { id: 'sub-1', name: 'a', mimeType: 'application/vnd.google-apps.folder' };
+
+  it('returns EXACTLY the paths listSince lists, native files included', async () => {
+    // Parity is the whole contract: the loop hashes both sides into the same
+    // natural key, and a composition that differs by so much as a prefix reads
+    // an entire folder as absent — which two clean scans later is a corpus of
+    // phantom deletions. The Doc matters too: listSince lists it (it fails at
+    // fetch, per item), so a key set without it would count it absent.
+    const { transport } = fakeDrive({
+      [ROOT_FOLDERS]: { files: [SUBFOLDER] },
+      [SUB_FILES]: { files: [BINARY, NATIVE_DOC] },
+    });
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE });
+
+    const { items } = await source.listSince({ path: 'a' });
+    const keys = await source.listKeys({ path: 'a' });
+
+    expect(keys).toEqual(items.map((i) => i.item.path));
+    expect(keys).toEqual(['a/report.pdf', 'a/Notes']);
+  });
+
+  it('answers from the listing listSince just made — no second files.list', async () => {
+    // The detector must not double the connector's dominant API cost. One
+    // files listing per folder per pass, with listKeys reading the memo.
+    const { transport, calls } = fakeDrive({ [ROOT_FILES]: { files: [BINARY] } });
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE });
+
+    await source.listSince({ path: '' });
+    await source.listKeys({ path: '' });
+
+    expect(calls.filter((c) => c.url.includes('mimeType!%3D'))).toHaveLength(1);
+  });
+
+  it('lists for itself when nothing was memoised, composing the same prefixed paths', async () => {
+    // The degradation path: a changed call order costs one extra request and
+    // must NOT cost the prefix — a bare name where a/`name` was recorded is
+    // the parity failure above by another route.
+    const { transport } = fakeDrive({
+      [ROOT_FOLDERS]: { files: [SUBFOLDER] },
+      [SUB_FILES]: { files: [BINARY] },
+    });
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE });
+
+    expect(await source.listKeys({ path: 'a' })).toEqual(['a/report.pdf']);
+  });
+
+  it('a consumed memo is GONE — a second listKeys asks Drive, not the cache', async () => {
+    // Consume-once is what bounds staleness. Without the clear, any calling
+    // pattern other than the loop's strict listSince-then-listKeys pairing
+    // could be answered with an old listing — and a stale key set reads a
+    // renamed file as still present, which is an absence swallowed silently.
+    const routes: Record<string, unknown> = { [ROOT_FILES]: { files: [BINARY] } };
+    const { transport } = fakeDrive(routes);
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE });
+
+    await source.listSince({ path: '' });
+    await source.listKeys({ path: '' }); // consumes the memo
+
+    routes[ROOT_FILES] = { files: [{ ...BINARY, name: 'renamed.pdf' }] };
+    expect(await source.listKeys({ path: '' }), 'fresh, not the cache').toEqual(['renamed.pdf']);
+  });
+
+  it('never serves one pass an earlier pass\'s files', async () => {
+    // The failure a listing cache invites. The memo is overwritten by every
+    // listSince and consumed by every listKeys, so a rename between passes is
+    // visible to the second pass's key set.
+    const routes: Record<string, unknown> = { [ROOT_FILES]: { files: [BINARY] } };
+    const { transport } = fakeDrive(routes);
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE });
+
+    await source.listSince({ path: '' });
+    await source.listKeys({ path: '' });
+
+    routes[ROOT_FILES] = { files: [{ ...BINARY, name: 'renamed.pdf' }] };
+    await source.listSince({ path: '' });
+
+    expect(await source.listKeys({ path: '' })).toEqual(['renamed.pdf']);
+  });
+});

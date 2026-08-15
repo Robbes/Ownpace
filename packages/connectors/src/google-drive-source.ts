@@ -77,6 +77,21 @@ export class GoogleDriveSource implements FileSource {
   private readonly baseUrl: string;
   private readonly rootFolderId: string;
   private readonly policy: NativeFilePolicy;
+  /**
+   * The listing `listSince` just made, held for `listKeys` to answer from.
+   *
+   * CONSUME-ONCE: `listKeys` clears it before doing anything else, and every
+   * `listSince` overwrites it — so the memo never survives two reads and never
+   * outlives the next listing. Under the sync loop's actual order (`listSince`,
+   * then `listKeys`, same folder) a stale answer is therefore impossible; under
+   * any other order the memo misses and `listKeys` lists for itself, costing
+   * one extra request. The one residue worth naming: if a future loop ever
+   * called `listKeys` FIRST, it could consume the previous pass's listing —
+   * one pass old, same folder — which can only ADD keys to the seen-set and
+   * so under-reports absences for a pass; it can never invent one. The safe
+   * direction, and the end-to-end test in core pins the real order anyway.
+   */
+  private lastListing?: { readonly path: string; readonly keys: ReadonlyArray<string> };
 
   constructor(
     private readonly transport: DriveTransport,
@@ -138,9 +153,12 @@ export class GoogleDriveSource implements FileSource {
     const items: RawFileItem[] = [];
 
     for (const file of await this.listChildren(folderId, false)) {
-      const path = folder.path ? `${folder.path}/${file.name}` : file.name;
-      items.push({ item: this.toFileItem(file, path) });
+      items.push({ item: this.toFileItem(file, this.childPath(folder.path, file.name)) });
     }
+
+    // For `listKeys`, which the loop asks immediately after this for the same
+    // folder. Same listing, so the two cannot disagree about what is there.
+    this.lastListing = { path: folder.path, keys: items.map((i) => i.item.path) };
 
     return {
       items,
@@ -149,6 +167,46 @@ export class GoogleDriveSource implements FileSource {
       // computes one.
       nextCursor: { value: `full-listing:${folder.path}` },
     };
+  }
+
+  /**
+   * Every file path currently in the folder — the complete key set
+   * (`FileSource.listKeys`).
+   *
+   * THIS METHOD IS WHY DRIVE MOVES ARE DETECTABLE AT ALL, and its absence was
+   * a bug that no test saw and an owner would have met as silence. The sync
+   * loop treats a listing as complete only when there was no cursor or the
+   * source can answer for its whole key set; production always configures
+   * cursors, and `listSince` above returns one (a sentinel, but the loop
+   * cannot know that). So without this, every pass after the first counted
+   * its key set incomplete, `detectPathKeyedMoves` never ran, and a rename, a
+   * move or a deletion in Drive surfaced NOWHERE — the ADR-0030 relocation
+   * path was unreachable through the one connector that motivated it, while
+   * every pass reported clean.
+   *
+   * Answers from the listing `listSince` just made when it can (consume-once
+   * — see `lastListing`), so the detector costs no second `files.list` per
+   * folder. Paths are composed by the same `childPath` the items go through,
+   * because the loop hashes both sides into the same natural key and two
+   * compositions that "should" agree is how a whole corpus reads as moved.
+   */
+  async listKeys(folder: FileFolder): Promise<ReadonlyArray<string>> {
+    const memo = this.lastListing;
+    this.lastListing = undefined;
+    if (memo && memo.path === folder.path) return memo.keys;
+
+    const folderId = await this.resolveFolderId(folder.path);
+    return (await this.listChildren(folderId, false)).map((f) =>
+      this.childPath(folder.path, f.name),
+    );
+  }
+
+  /**
+   * One composition for the path-shaped natural key, used by `listSince` and
+   * `listKeys` both — the derivation §10 keys the whole ledger on.
+   */
+  private childPath(folderPath: string, name: string): string {
+    return folderPath ? `${folderPath}/${name}` : name;
   }
 
   /**
