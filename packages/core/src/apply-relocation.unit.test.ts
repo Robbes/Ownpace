@@ -264,3 +264,32 @@ describe('the gates it shares with a deletion are still in front of it', () => {
     expect(outcome).toMatchObject({ ok: false, code: 'not_found' });
   });
 });
+
+describe('an UNKNOWN hash is not a matching hash', () => {
+  it('refuses when neither row recorded a content hash', async () => {
+    // `LedgerRecord.contentHash` falls back to `''`, so two rows that say
+    // nothing about each other compare EQUAL. On the one path that destroys a
+    // copy, that would have sailed through the gate carrying the whole safety
+    // argument.
+    //
+    // Detection cannot produce such a pair today — it correlates only rows that
+    // have a hash — which is precisely why this is pinned here: the gate has to
+    // hold on its own, for a caller that does not exist yet.
+    const ledger = await ledgerWithRelocation({ contentHash: '' }, { contentHash: '' });
+    const target = fakeRemover();
+
+    const outcome = await applyRelocation(deps(ledger, target), OLD_KEY);
+
+    expect(outcome).toMatchObject({ ok: false, code: 'relocation_unconfirmed' });
+    expect(String((outcome as { reason: string }).reason)).toMatch(/no recorded content hash/);
+    expect(target.removeItem).not.toHaveBeenCalled();
+  });
+
+  it('refuses when only the ARRIVAL has no hash', async () => {
+    const ledger = await ledgerWithRelocation({ contentHash: '' });
+
+    const outcome = await applyRelocation(deps(ledger, fakeRemover()), OLD_KEY);
+
+    expect(outcome).toMatchObject({ ok: false, code: 'relocation_unconfirmed' });
+  });
+});

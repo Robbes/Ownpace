@@ -650,6 +650,21 @@ async function relocationCheck(
         'key, written by this migration. Nothing was removed.',
     };
   }
+  // An UNKNOWN hash is not a matching hash. Both sides default to `''` when a
+  // row never recorded one, and `'' === ''` would sail through this gate on two
+  // rows that say nothing about each other — on the one path that destroys a
+  // copy. Detection cannot currently produce such a pair (it correlates only
+  // rows that have a hash), which is exactly why this belongs here: the gate has
+  // to hold on its own, for a caller that does not exist yet.
+  if (!row.contentHash || !arrival.contentHash) {
+    return {
+      ok: false,
+      code: 'relocation_unconfirmed',
+      reason:
+        'This item has no recorded content hash, so there is no way to confirm the relocated ' +
+        'copy holds the same bytes. Nothing was removed.',
+    };
+  }
   if (arrival.contentHash !== row.contentHash) {
     return {
       ok: false,
