@@ -118,7 +118,15 @@ export type ApplyRefusal =
   /** A relocation is recorded, but the new copy is not verifiably on the target. */
   | 'relocation_unconfirmed'
   /** The target cannot be asked whether the relocated copy is there (ADR-0030). */
-  | 'target_cannot_confirm';
+  | 'target_cannot_confirm'
+  /**
+   * The copy WAS removed and the ledger would not record it.
+   *
+   * Its own code because the alternative was `not_found`, which every caller
+   * maps to 404 "there is nothing here to act on" — the opposite of what
+   * happened. An operator reading that would believe their copy is still there.
+   */
+  | 'removed_not_recorded';
 
 export interface ApplyDeletionDeps {
   readonly tenantId: TenantId;
@@ -377,10 +385,11 @@ export async function applyDeletion(
     );
     return {
       ok: false,
-      code: 'not_found',
+      code: 'removed_not_recorded',
       reason:
-        'The copy was removed from the target, but the ledger could not record it. Verification ' +
-        'will report this item as missing on the target until that is reconciled.',
+        'The copy WAS removed from the target, and the ledger could not record it. Nothing is ' +
+        'left to retry: the removal happened. Verification will report this item as missing on ' +
+        'the target until that is reconciled by hand.',
     };
   }
 
@@ -585,10 +594,11 @@ export async function applyRelocation(
     );
     return {
       ok: false,
-      code: 'not_found',
+      code: 'removed_not_recorded',
       reason:
-        'The copy was removed from the target, but the ledger could not record it. Verification ' +
-        'will report this item as missing on the target until that is reconciled.',
+        "The old copy WAS removed from the target, and the ledger could not record it. Nothing " +
+        'is left to retry: the removal happened. Verification will report this item as missing ' +
+        'on the target until that is reconciled by hand.',
     };
   }
 

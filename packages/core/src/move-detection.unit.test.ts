@@ -927,3 +927,73 @@ describe('a removed copy takes no further part', () => {
     expect(third.moves[0]?.toNaturalKeyHash).toBe('a/two-renamed.txt');
   });
 });
+
+describe('the old path after an applied relocation', () => {
+  it('migrates a NEW file that later occupies it', async () => {
+    // The quiet, permanent loss the audit found. The file domain keys on the
+    // PATH, so once a rename was applied the row for the old path was
+    // tombstoned — and `classifyKnownItem` refuses to re-materialise a
+    // tombstone, because it cannot tell a change of mind from an erasure
+    // request. That reasoning is right for a DELETION and wrong here: nobody
+    // asked for anything to be erased, the item simply moved.
+    //
+    // Undistinguished, ANY file later landing on that path — a different file,
+    // with different content — matched the row and was never migrated, for the
+    // lifetime of the mapping.
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    w.folders.set('a', [{ key: 'a/report.pdf', body: 'ORIGINAL', version: 'e1' }]);
+    await w.run(ledger);
+
+    // Renamed, and the owner applies the relocation: a/report.pdf's copy goes.
+    w.folders.set('a', [{ key: 'a/summary.pdf', body: 'ORIGINAL', version: 'e1' }]);
+    await w.run(ledger);
+    expect(
+      await applyRelocation(
+        {
+          tenantId: TENANT,
+          mappingId: MAPPING,
+          domain: 'file',
+          ledger,
+          target: {
+            removeItem: async () => ({ kind: 'deleted' as const }),
+            hasItem: async () => true,
+          },
+          allowApplyDeletions: true,
+        },
+        'a/report.pdf',
+      ),
+    ).toMatchObject({ ok: true });
+
+    // Months later, an unrelated file is created at the old path.
+    w.folders.set('a', [
+      { key: 'a/summary.pdf', body: 'ORIGINAL', version: 'e1' },
+      { key: 'a/report.pdf', body: 'SOMETHING ENTIRELY ELSE', version: 'e2' },
+    ]);
+    const third = await w.run(ledger);
+
+    expect(third.reappearedAfterRemoval ?? 0, 'this is not a reappearance').toBe(0);
+    expect(w.target.get('t/a:a/report.pdf')).toBe('SOMETHING ENTIRELY ELSE');
+  });
+
+  it('still refuses to re-create a DELETION tombstone', async () => {
+    // The other half, and the one that must not move: an applied deletion may
+    // have been an erasure request, and restoring it would be a compliance
+    // failure this code cannot rule out.
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    w.folders.set('a', [{ key: 'a/gone.txt', body: 'BYTES', version: 'e1' }]);
+    await w.run(ledger);
+
+    // Reported deleted by the source, then applied by the owner.
+    const row = await ledger.find(TENANT, MAPPING, 'file', 'a/gone.txt');
+    await ledger.recordUpdate({ ...row!, deletionReportedAt: new Date().toISOString() });
+    expect(await ledger.applyDeletion(TENANT, MAPPING, 'file', 'a/gone.txt')).toBe(true);
+
+    // The source lists it again.
+    const second = await w.run(ledger);
+
+    expect(second.reappearedAfterRemoval).toBe(1);
+    expect(second.created).toBe(0);
+  });
+});

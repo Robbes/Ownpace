@@ -1617,12 +1617,19 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           // already_applied); 403 for "this exists but you may not remove it"
           // (everything else — not enabled, weak evidence, not ours, edited,
           // mass-deletion breaker, target incapable).
+          // `removed_not_recorded` is neither: the copy IS gone and the ledger
+          // would not say so. 404 would tell an operator there was nothing
+          // here to act on, which is the opposite of what happened, and 403
+          // would say they may not — so it answers 500 with the reason, which
+          // is what a state needing a human actually is.
           const status =
-            outcome.code === 'not_found' ||
-            outcome.code === 'not_confirmed' ||
-            outcome.code === 'already_applied'
-              ? 404
-              : 403;
+            outcome.code === 'removed_not_recorded'
+              ? 500
+              : outcome.code === 'not_found' ||
+                  outcome.code === 'not_confirmed' ||
+                  outcome.code === 'already_applied'
+                ? 404
+                : 403;
           return sendJson(res, status, { error: outcome.code, reason: outcome.reason });
         }
 
@@ -1675,12 +1682,14 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           // `not_relocated` is a 404 — an ordinary move genuinely has nothing
           // for this route to act on.
           const status =
-            outcome.code === 'not_found' ||
-            outcome.code === 'not_confirmed' ||
-            outcome.code === 'already_applied' ||
-            outcome.code === 'not_relocated'
-              ? 404
-              : 403;
+            outcome.code === 'removed_not_recorded'
+              ? 500
+              : outcome.code === 'not_found' ||
+                  outcome.code === 'not_confirmed' ||
+                  outcome.code === 'already_applied' ||
+                  outcome.code === 'not_relocated'
+                ? 404
+                : 403;
           return sendJson(res, status, { error: outcome.code, reason: outcome.reason });
         }
 
