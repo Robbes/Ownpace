@@ -122,6 +122,46 @@ The appliance — the edition with the customer waiting — is complete.
 *Auto-apply.* Unchanged from the proposal below: safe to press once, having
 looked, is not the same as safe unattended.
 
+## Amendment, 2026-08-15 (same day): the gates were weaker than this document said
+
+An adversarial audit of the shipped code — five independent readers, each finding then attacked
+by somebody trying to refute it — confirmed **19 defects**, several able to remove the last copy
+of a file. They are corrected, and the corrections belong in the record because three of them
+show this ADR's argument was stated more strongly than the code delivered it.
+
+1. **The arrival gate admitted statuses that mean "never written".** The code asked
+   `isOnTarget(status) && status !== 'adopted'`, which is a weaker question than this document's
+   "written by us": it lets `pending`, `skipped` and `deleted_source` through. Now `copied` or
+   `updated`, exactly.
+
+2. **Gate 7 could not see the arrival.** `applyRelocation`'s conditional `UPDATE` constrained
+   only the row being removed, so the check that carries the whole argument happened two ledger
+   round trips and a NETWORK CALL before the write. A concurrent `applyDeletion` on the arrival —
+   entirely reachable, since a renamed file whose new name is then deleted sits in both queues —
+   removed and tombstoned it in between, and both copies went. The arrival is now re-checked
+   inside the same statement, in SQL and in the in-memory fake.
+
+3. **A correlation is not proof, and this document said it did not need to be.** It argued the
+   safety case "does not depend on telling a rename from a copy: it depends only on the bytes
+   being present at the new key". That is true only when the pairing is right. Where a THIRD item
+   shares the content hash, a folder briefly missing from one listing makes a live file look
+   disappeared, an unrelated arrival explains it, and applying removes the target's copy of a file
+   nobody touched — after which `classifyKnownItem` refuses to re-copy it, because the row is
+   tombstoned. Every empty file in a Drive has the same hash as every other, so this is ordinary
+   rather than exotic. **An ambiguous pairing is now refused**, and the owner is told why.
+
+Also corrected: a relocation pointing at its own key (which would verify itself); an arrival
+sharing the removed copy's `targetId` (where both keys name one object and the removal takes the
+survivor); a tombstoned row still competing for arrivals and stealing the correlation that
+explains a live rename; and a confirmed deletion left open on a tombstoned row, which never
+leaves the queue and goes on counting towards the mass-deletion breaker until it refuses every
+apply in the domain.
+
+**What this says about the decision itself.** The decision stands — removing a copy whose content
+is verifiably elsewhere is still categorically safer than acting on a deletion. What was wrong was
+the assumption that the correlation feeding it needed no scrutiny of its own. Detection may be
+optimistic, because it only reports. The gate in front of a removal may not.
+
 ## Consequences
 
 - **The target can converge.** For the first time, an owner whose source was reorganised has a

@@ -306,6 +306,7 @@ export class PgLedger implements Ledger {
         moveAcknowledgedAt: schemaPg.item.moveAcknowledgedAt,
         absentPasses: schemaPg.item.absentPasses,
         deletionAcknowledgedAt: schemaPg.item.deletionAcknowledgedAt,
+        deletionAppliedAt: schemaPg.item.deletionAppliedAt,
       })
       .from(schemaPg.item)
       .where(
@@ -349,6 +350,14 @@ export class PgLedger implements Ledger {
               r.deletionAcknowledgedAt instanceof Date
                 ? r.deletionAcknowledgedAt.toISOString()
                 : String(r.deletionAcknowledgedAt),
+          }
+        : {}),
+      ...(r.deletionAppliedAt
+        ? {
+            deletionAppliedAt:
+              r.deletionAppliedAt instanceof Date
+                ? r.deletionAppliedAt.toISOString()
+                : String(r.deletionAppliedAt),
           }
         : {}),
     }));
@@ -936,10 +945,18 @@ export class PgLedger implements Ledger {
         // thing — our copy — and `isOnTarget` must stop counting it either way.
         status: 'tombstoned',
         deletionAppliedAt: sql`now()`,
-        // Closes the MOVE entry, not a deletion one: this row was never in the
-        // deletions queue, and stamping a deletion acknowledgement would record
-        // a decision about a deletion nobody reported.
         moveAcknowledgedAt: sql`now()`,
+        // And any DELETION entry the row also carried. A relocated item can be
+        // in both queues at once — renamed, then the new name deleted — and a
+        // confirmed deletion left open on a tombstoned row never leaves the
+        // queue. It also goes on counting towards the mass-deletion breaker,
+        // which would eventually refuse every apply in the domain on the
+        // strength of decisions already carried out.
+        deletionAcknowledgedAt: sql`CASE
+          WHEN ${schemaPg.item.deletionReportedAt} IS NOT NULL
+            OR ${schemaPg.item.deletionTrashedAt} IS NOT NULL
+            OR COALESCE(${schemaPg.item.absentPasses}, 0) > 0
+          THEN now() ELSE ${schemaPg.item.deletionAcknowledgedAt} END`,
         updatedAt: sql`now()`,
       })
       .where(
@@ -961,6 +978,29 @@ export class PgLedger implements Ledger {
           // Only a copy WE wrote — the same ownership rule as applyDeletion.
           // `adopted` bytes were on the target before this migration existed.
           or(eq(schemaPg.item.status, 'copied'), eq(schemaPg.item.status, 'updated')),
+          // THE ARRIVAL, RE-CHECKED UNDER THIS WRITE.
+          //
+          // Core checks it too, and that check is not enough on its own: it
+          // happens two ledger round trips and a network call before this, so a
+          // concurrent `applyDeletion` on the arrival can remove and tombstone
+          // it in between — and both copies go. Gate 7 is meant to be the last
+          // word, and it could only speak about the row being removed.
+          //
+          // Same conditions as core's: written by us, still on the target, same
+          // bytes, and not this row. Duplicated on purpose, in SQL, because a
+          // future caller that forgets one must not be able to reach this write.
+          sql`EXISTS (
+            SELECT 1 FROM ${schemaPg.item} AS arrival
+             WHERE arrival.tenant_id = ${tenantId}
+               AND arrival.mapping_id = ${mappingId}
+               AND arrival.domain = ${domain}
+               AND arrival.natural_key_hash = ${schemaPg.item.movedToNaturalKeyHash}
+               AND arrival.natural_key_hash <> ${schemaPg.item.naturalKeyHash}
+               AND arrival.status IN ('copied', 'updated')
+               AND arrival.content_hash IS NOT NULL
+               AND arrival.content_hash <> ''
+               AND arrival.content_hash = ${schemaPg.item.contentHash}
+          )`,
         ),
       )
       .returning({ naturalKeyHash: schemaPg.item.naturalKeyHash });

@@ -1626,6 +1626,13 @@ async function detectPathKeyedMoves(args: {
 
   const placed = await ledger.placedItems(tenantId, mappingId, domain);
   for (const row of placed) {
+    // A row whose copy has already been REMOVED takes no further part in this.
+    //
+    // `placedItems` keeps tombstoned rows deliberately, for the mass-deletion
+    // breaker's denominator. Letting one compete for arrivals here has it steal
+    // the correlation that explains a live rename — and re-open a destructive
+    // queue entry for a decision somebody already carried out.
+    if (row.deletionAppliedAt !== undefined) continue;
     // A collection the pass never scanned has an empty seen-set, so everything
     // the ledger holds under it counts as gone — which is exactly right for a
     // folder that was renamed or removed on the source.

@@ -381,6 +381,7 @@ export class MemoryLedger implements Ledger {
       moveAcknowledgedAt?: string;
       absentPasses?: number;
       deletionAcknowledgedAt?: string;
+      deletionAppliedAt?: string;
     }>
   > {
     const out: Array<{
@@ -392,6 +393,7 @@ export class MemoryLedger implements Ledger {
       moveAcknowledgedAt?: string;
       absentPasses?: number;
       deletionAcknowledgedAt?: string;
+      deletionAppliedAt?: string;
     }> = [];
     for (const r of this.rows.values()) {
       if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
@@ -411,6 +413,7 @@ export class MemoryLedger implements Ledger {
         ...(r.deletionAcknowledgedAt
           ? { deletionAcknowledgedAt: r.deletionAcknowledgedAt }
           : {}),
+        ...(r.deletionAppliedAt ? { deletionAppliedAt: r.deletionAppliedAt } : {}),
       });
     }
     return Promise.resolve(out);
@@ -803,13 +806,37 @@ export class MemoryLedger implements Ledger {
       if (r.deletionAppliedAt !== undefined) continue;
       // Only a copy WE wrote.
       if (r.status !== 'copied' && r.status !== 'updated') continue;
+      // THE ARRIVAL, re-checked under the write — the SQL's EXISTS clause, and
+      // the reason it exists: core's check happens before a network call, so a
+      // concurrent apply on the arrival can invalidate it in between. A fake
+      // without this would pass a test the database fails.
+      const arrival = this.rows.get(
+        this.key({
+          tenantId,
+          mappingId,
+          itemType: domain,
+          naturalKeyHash: r.movedToNaturalKeyHash,
+        }),
+      );
+      if (!arrival) continue;
+      if (arrival.naturalKeyHash === r.naturalKeyHash) continue;
+      if (arrival.status !== 'copied' && arrival.status !== 'updated') continue;
+      if (!arrival.contentHash || arrival.contentHash !== r.contentHash) continue;
 
       this.rows.set(k, {
         ...r,
         status: 'tombstoned',
         deletionAppliedAt: new Date().toISOString(),
-        // Closes the MOVE entry. This row was never in the deletions queue.
+        // Closes the MOVE entry, and any DELETION entry the row also had: a
+        // confirmed deletion left open on a tombstoned row never leaves the
+        // queue, and it goes on counting towards the mass-deletion breaker —
+        // which would eventually refuse every apply in the domain.
         moveAcknowledgedAt: new Date().toISOString(),
+        ...(r.deletionReportedAt !== undefined ||
+        r.deletionTrashedAt !== undefined ||
+        r.absentPasses
+          ? { deletionAcknowledgedAt: new Date().toISOString() }
+          : {}),
       });
       return Promise.resolve(true);
     }

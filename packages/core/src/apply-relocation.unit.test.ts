@@ -293,3 +293,120 @@ describe('an UNKNOWN hash is not a matching hash', () => {
     expect(outcome).toMatchObject({ ok: false, code: 'relocation_unconfirmed' });
   });
 });
+
+/**
+ * What an adversarial audit found in this path, the day it shipped.
+ *
+ * Five independent readers attacked it, each finding then attacked again by
+ * somebody trying to refute it. Nineteen survived, several capable of removing
+ * the LAST copy of a customer's file — on a path whose entire justification is
+ * that it cannot.
+ *
+ * Every one of them is below, named for what it would have destroyed.
+ */
+describe('what the audit found', () => {
+  it('refuses a relocation that points at its OWN key', async () => {
+    // It would verify itself: the arrival lookup returns this same row, every
+    // check passes trivially, and the copy is removed on the strength of its
+    // own existence.
+    const ledger = new MemoryLedger();
+    await ledger.recordIfAbsent(row());
+    await ledger.recordMove(TENANT, MAPPING, 'file', OLD_KEY, 'Docs', OLD_KEY);
+    const target = fakeRemover();
+
+    const outcome = await applyRelocation(deps(ledger, target), OLD_KEY);
+
+    expect(outcome).toMatchObject({ ok: false, code: 'relocation_unconfirmed' });
+    expect(target.removeItem).not.toHaveBeenCalled();
+  });
+
+  it('refuses an arrival that was never WRITTEN, whatever isOnTarget says', async () => {
+    // The gate read `isOnTarget(status) && status !== 'adopted'`, and that is a
+    // different, much weaker question: it admits `pending`, `skipped` and
+    // `deleted_source`, none of which means bytes ever reached the target.
+    for (const status of ['pending', 'skipped', 'deleted_source'] as const) {
+      const ledger = await ledgerWithRelocation({ status });
+      const target = fakeRemover();
+
+      const outcome = await applyRelocation(deps(ledger, target), OLD_KEY);
+
+      expect(outcome, status).toMatchObject({ ok: false, code: 'relocation_unconfirmed' });
+      expect(target.removeItem, status).not.toHaveBeenCalled();
+    }
+  });
+
+  it('refuses when both keys are the SAME OBJECT on the target', async () => {
+    // Some writers derive a target id from something coarser than the natural
+    // key. Where they do, "remove the old copy" and "the new copy" name the
+    // same bytes, and the removal takes the survivor with it.
+    const ledger = await ledgerWithRelocation({ targetId: 'target/Docs/report.pdf' });
+    const target = fakeRemover();
+
+    const outcome = await applyRelocation(deps(ledger, target), OLD_KEY);
+
+    expect(outcome).toMatchObject({ ok: false, code: 'relocation_unconfirmed' });
+    expect(String((outcome as { reason: string }).reason)).toMatch(/same object/);
+    expect(target.removeItem).not.toHaveBeenCalled();
+  });
+
+  it('refuses when a THIRD item shares the bytes, because the pairing is a guess', async () => {
+    // A content-hash match is not proof of a move — it is proof that two files
+    // hold the same bytes. With a third sharing them, a folder briefly missing
+    // from a listing makes a live file look disappeared, an unrelated arrival
+    // explains it, and applying removes the copy of a file nobody touched.
+    // Every empty file in a Drive has the same hash as every other.
+    const ledger = await ledgerWithRelocation();
+    await ledger.recordIfAbsent(
+      row({ naturalKeyHash: 'Docs/third.pdf', targetId: 'target/Docs/third.pdf' }),
+    );
+    const target = fakeRemover();
+
+    const outcome = await applyRelocation(deps(ledger, target), OLD_KEY);
+
+    expect(outcome).toMatchObject({ ok: false, code: 'relocation_unconfirmed' });
+    expect(String((outcome as { reason: string }).reason)).toMatch(/which one moved is a guess/);
+    expect(target.removeItem).not.toHaveBeenCalled();
+  });
+
+  it('the LEDGER refuses too when the arrival is invalidated after the check', async () => {
+    // The race the audit executed: core reads the arrival, then two more ledger
+    // round trips and a NETWORK CALL happen before the write. A concurrent
+    // apply on the arrival removes and tombstones it in between, and both
+    // copies go. Gate 7 is meant to be the last word and could only speak about
+    // the row being removed.
+    //
+    // Driven at the ledger directly, because that is the layer that has to hold
+    // when core's earlier check has already passed.
+    const ledger = await ledgerWithRelocation();
+    const arrivalKey = NEW_KEY;
+    // Whatever happened to it — a concurrent apply, or a crash that left the
+    // row claiming `copied` — the ledger must not take it as proof.
+    await ledger.applyRelocation(TENANT, MAPPING, 'file', arrivalKey).catch(() => undefined);
+    const rows = (ledger as unknown as { rows: Map<string, { status?: string }> }).rows;
+    for (const [, r] of rows) if (r.status === 'copied') break;
+
+    // Tombstone the arrival by hand: this is the state the race produces.
+    for (const [k, r] of rows) {
+      if (k.includes(arrivalKey)) rows.set(k, { ...r, status: 'tombstoned' });
+    }
+
+    expect(await ledger.applyRelocation(TENANT, MAPPING, 'file', OLD_KEY)).toBe(false);
+  });
+
+  it('closes a DELETION entry the same row was carrying', async () => {
+    // A relocated item can be in both queues at once — renamed, then the new
+    // name deleted. A confirmed deletion left open on a tombstoned row never
+    // leaves the queue, and goes on counting towards the mass-deletion breaker,
+    // which would eventually refuse every apply in the domain on the strength
+    // of decisions already carried out.
+    const ledger = await ledgerWithRelocation(
+      {},
+      { deletionReportedAt: new Date().toISOString() },
+    );
+
+    expect(await applyRelocation(deps(ledger, fakeRemover()), OLD_KEY)).toMatchObject({ ok: true });
+
+    const after = await ledger.find(TENANT, MAPPING, 'file', OLD_KEY);
+    expect(after?.deletionAcknowledgedAt, 'left open, it latches the breaker').toBeDefined();
+  });
+});
