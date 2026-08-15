@@ -38,6 +38,7 @@ import { SecretStore } from '@openmig/core/secret-store';
 import { mailboxMapping } from '@openmig/ledger';
 import { withClose, type WithClose } from './deps-lifecycle';
 import {
+  STORED_CREDENTIAL_NAMES,
   buildGraphMailSourceFrom,
   buildImapSourceFrom,
   withGraphFallback,
@@ -400,7 +401,10 @@ function buildGraphMailSourceFromCredentials(
 
   return buildGraphMailSourceFrom(
     sourceConfig,
-    { clientId, clientSecret, refreshToken },
+    // STORED_CREDENTIAL_NAMES, not the env-var names: a managed operator edits
+    // the connection's credentials and has no OAUTH2_* variables to unset. The
+    // refusal used to tell them to, which is advice they could not act on.
+    { clientId, clientSecret, refreshToken, naming: STORED_CREDENTIAL_NAMES },
     throttleLimiter,
   );
 }

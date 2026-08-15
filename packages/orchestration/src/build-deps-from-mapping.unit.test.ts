@@ -177,3 +177,46 @@ describe('buildTargetWriterFromCredentials', () => {
     ).toThrow(/Unsupported target type/);
   });
 });
+
+/**
+ * The mailbox refusal, through the MANAGED caller (2026-08-14).
+ *
+ * This suite never exercised it, so the refusal's wording was unconstrained on
+ * this path — and it was wrong: it told a managed operator to unset
+ * OAUTH2_REFRESH_TOKEN, an environment variable this edition never reads.
+ */
+describe('buildSourceConnectorFromCredentials — named mailbox on the delegated flow', () => {
+  const SHARED_MAILBOX: SourceConfig = {
+    type: 'graph-mail',
+    tenantId: 'contoso.example',
+    mailbox: 'gedeeld@contoso.nl',
+  } as SourceConfig;
+
+  it('refuses, naming the CREDENTIAL FIELDS the operator can actually change', () => {
+    const failure = () =>
+      buildSourceConnectorFromCredentials(SHARED_MAILBOX, {
+        clientId: 'app-id',
+        refreshToken: 'a-delegated-refresh-token',
+      });
+
+    expect(failure).toThrow(/gedeeld@contoso\.nl/);
+    expect(failure).toThrow(/refreshToken is set/);
+    expect(failure).toThrow(/set clientSecret/);
+    // A managed operator has no OAUTH2_* variables. Advice they cannot act on
+    // is worse than none: it sends them looking for a setting that is not there.
+    expect(failure).not.toThrow(/OAUTH2_/);
+    // Still points at the runbook rather than leaving them to guess.
+    expect(failure).toThrow(/o365-application-access\.md/);
+  });
+
+  it('allows a named mailbox on the client-credentials flow', () => {
+    // The other side of the refusal — /users/{address} is exactly what
+    // application permissions are for (0027 T0, the shared-mailbox path).
+    expect(
+      buildSourceConnectorFromCredentials(SHARED_MAILBOX, {
+        clientId: 'app-id',
+        clientSecret: 'app-secret',
+      }),
+    ).toBeInstanceOf(GraphMailSource);
+  });
+});

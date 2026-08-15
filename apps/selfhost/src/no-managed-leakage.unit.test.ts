@@ -124,6 +124,48 @@ describe('self-host has no managed-only leakage (hard rule 5)', () => {
     expect(visited.size).toBeGreaterThan(8);
   });
 
+  it('maps every package to a directory that exists', () => {
+    // `visited.size > 8` above is far too loose to catch the realistic failure.
+    // A one-character typo in ONE PKG_DIRS value — `src` -> `srcs` — makes that
+    // package unresolvable, so the walk silently skips it AND everything only
+    // reachable through it: measured at 19 files dropped, 137 -> 118. Still
+    // comfortably over 8, so the guard above passes and the leakage check runs
+    // against a graph with a whole package missing from it.
+    //
+    // Found on 2026-08-14 by mutating this file and watching it stay green.
+    const missing = Object.entries(PKG_DIRS)
+      .filter(([, dir]) => !existsSync(join(ROOT, dir)))
+      .map(([pkg, dir]) => `${pkg} -> ${dir}`);
+
+    expect(
+      missing,
+      'these PKG_DIRS entries point at directories that do not exist, so those ' +
+        'packages resolve to nothing and drop out of the leakage walk silently:\n' +
+        missing.map((m) => `  - ${m}`).join('\n'),
+    ).toEqual([]);
+  });
+
+  it('actually reaches the packages the appliance is built from', () => {
+    // The complement to the check above: a directory can exist and still go
+    // unwalked if the resolver or an import path changes. `@openmig/orchestration`
+    // is named explicitly because `build-deps.ts` — the SELF-HOST dependency
+    // builder — lives there. If the appliance's own builder is not in the graph,
+    // this test is not checking the thing its name claims to check.
+    const reachedPackages = new Set(
+      [...visited]
+        .map((f) => /packages\/([a-z]+)\/src\//.exec(f)?.[1])
+        .filter((p): p is string => Boolean(p)),
+    );
+
+    for (const pkg of ['shared', 'ledger', 'core', 'orchestration']) {
+      expect(
+        reachedPackages.has(pkg),
+        `no file from packages/${pkg}/src is reachable from the self-host ` +
+          'entrypoint, so nothing in it is covered by the leakage check below',
+      ).toBe(true);
+    }
+  });
+
   it('imports no Trigger.dev / billing / Mollie anywhere in its reachable graph', () => {
     expect(violations).toEqual([]);
   });
