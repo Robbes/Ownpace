@@ -7,19 +7,25 @@
  * screen regressing to a silent success would be visible: each queue either
  * shows decided items or states why not, and this is Moves' proof.
  */
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { MovesResponse } from '@openmig/shared';
 
-const { fetchMovesMock } = vi.hoisted(() => ({ fetchMovesMock: vi.fn() }));
+const { fetchMovesMock, applyMoveMock, isSelfHostMock } = vi.hoisted(() => ({
+  fetchMovesMock: vi.fn(),
+  applyMoveMock: vi.fn(),
+  isSelfHostMock: vi.fn(() => true),
+}));
 
 vi.mock('../services/operating-service', () => ({
   fetchMoves: fetchMovesMock,
   keepMove: vi.fn(),
+  applyMove: applyMoveMock,
   DecisionRefusedError: class extends Error {},
 }));
+vi.mock('../services/edition', () => ({ isSelfHost: isSelfHostMock }));
 
 import Moves from './Moves';
 
@@ -62,6 +68,7 @@ function renderScreen() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  isSelfHostMock.mockReturnValue(true);
 });
 
 describe('the aftermath section (0036 T2 pin)', () => {
@@ -84,5 +91,89 @@ describe('the aftermath section (0036 T2 pin)', () => {
     renderScreen();
 
     expect(await screen.findByText('Nothing has been decided yet.')).toBeInTheDocument();
+  });
+});
+
+/**
+ * The destructive action, and — mostly — its absence (ADR-0030).
+ *
+ * `apply` removes the target's OLD copy, and it is admissible only for a
+ * RELOCATION: a move that changed the item's natural key, so the same bytes are
+ * already on the target under the new one. Every other move must not offer it
+ * at all, because for those there is nothing to point at and removing the copy
+ * would simply destroy it.
+ */
+describe('the relocation apply button', () => {
+  const RELOCATION = {
+    naturalKeyHash: 'Docs/report.pdf',
+    domain: 'file' as const,
+    from: 'Docs',
+    to: 'Docs',
+    toNaturalKeyHash: 'Docs/summary.pdf',
+  };
+
+  it('is offered for a relocation', async () => {
+    fetchMovesMock.mockResolvedValue(queue({ open: [RELOCATION] }));
+    renderScreen();
+
+    expect(await screen.findByRole('button', { name: /Remove the old copy/ })).toBeInTheDocument();
+  });
+
+  it('is NOT offered for a move that kept its key — there is nothing to point at', async () => {
+    // Every mail and calendar move. Removing the target copy on the strength of
+    // one of these would destroy the only copy under our control.
+    fetchMovesMock.mockResolvedValue(queue({ open: [MOVE] }));
+    renderScreen();
+
+    expect(await screen.findByRole('button', { name: /Leave it where it is/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Remove the old copy/ })).not.toBeInTheDocument();
+  });
+
+  it('is NOT offered in the managed edition, where the action does not exist yet', async () => {
+    // Its destructive path runs through a queued job and a receipt, and there
+    // is no such job for this action. A button that 404s is worse than none.
+    isSelfHostMock.mockReturnValue(false);
+    fetchMovesMock.mockResolvedValue(queue({ open: [RELOCATION] }));
+    renderScreen();
+
+    expect(await screen.findByRole('button', { name: /Leave it where it is/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Remove the old copy/ })).not.toBeInTheDocument();
+  });
+
+  it('ARMS before it acts — one click never removes anything', async () => {
+    // The server's own words come back on the decision and are shown verbatim,
+    // so the mock resolves the real shape rather than `undefined`: a mock that
+    // does not answer what the caller awaits proves the wrong thing, and here
+    // it threw inside the click handler while the assertions still passed.
+    applyMoveMock.mockResolvedValue({
+      status: 'ok',
+      action: 'apply',
+      naturalKeyHash: 'Docs/report.pdf',
+      effect: 'The old copy has been removed from the target.',
+    });
+    fetchMovesMock.mockResolvedValue(queue({ open: [RELOCATION] }));
+    renderScreen();
+
+    const button = await screen.findByRole('button', { name: /Remove the old copy/ });
+    fireEvent.click(button);
+
+    expect(applyMoveMock, 'the first click only arms it').not.toHaveBeenCalled();
+    expect(await screen.findByRole('button', { name: /Confirm removal/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Confirm removal/ }));
+    expect(applyMoveMock).toHaveBeenCalledWith('acme-mail', 'Docs/report.pdf');
+    // And the outcome reaches the screen — the row stops offering the action
+    // and says what happened, in the server's words.
+    expect(
+      await screen.findByText('The old copy has been removed from the target.'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows the NEW KEY for a rename, where both folders read the same', async () => {
+    // "Docs → Docs" says nothing about what changed.
+    fetchMovesMock.mockResolvedValue(queue({ open: [RELOCATION] }));
+    renderScreen();
+
+    expect(await screen.findByText('Docs/summary.pdf')).toBeInTheDocument();
   });
 });

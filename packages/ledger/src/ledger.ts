@@ -302,6 +302,7 @@ export class PgLedger implements Ledger {
         contentHash: schemaPg.item.contentHash,
         collection: schemaPg.item.collection,
         movedToCollection: schemaPg.item.movedToCollection,
+        movedToNaturalKeyHash: schemaPg.item.movedToNaturalKeyHash,
         moveAcknowledgedAt: schemaPg.item.moveAcknowledgedAt,
         absentPasses: schemaPg.item.absentPasses,
         deletionAcknowledgedAt: schemaPg.item.deletionAcknowledgedAt,
@@ -329,6 +330,10 @@ export class PgLedger implements Ledger {
       contentHash: r.contentHash ?? '',
       collection: r.collection,
       ...(r.movedToCollection ? { movedToCollection: r.movedToCollection } : {}),
+      // Carried so a remembered RELOCATION can be re-reported with the key it
+      // went to on later passes, when the arrival is no longer new and there is
+      // nothing left to correlate against (ADR-0030).
+      ...(r.movedToNaturalKeyHash ? { movedToNaturalKeyHash: r.movedToNaturalKeyHash } : {}),
       ...(r.moveAcknowledgedAt
         ? {
             moveAcknowledgedAt:
@@ -427,17 +432,28 @@ export class PgLedger implements Ledger {
     domain: 'email' | 'calendar' | 'contact' | 'file',
     naturalKeyHash: string,
     toCollection: string,
+    toNaturalKeyHash?: string,
   ): Promise<void> {
+    const toKey = toNaturalKeyHash ?? null;
     await this.db
       .update(schemaPg.item)
       .set({
         movedToCollection: toCollection,
+        // Present only for a RELOCATION — a key-changing move (ADR-0030).
+        // Mail and calendar keep their key when they move and pass nothing.
+        movedToNaturalKeyHash: toKey,
         // Cleared only when the DESTINATION changed. A pass re-observing a move
         // somebody has already closed must not reopen it — that would make the
         // queue impossible to empty, and a queue that never empties is one
         // people stop reading. But a move to somewhere NEW is a new
         // arrangement, and consent to the old one says nothing about it.
+        //
+        // "Somewhere new" now means EITHER the folder or the key: a file
+        // renamed twice inside one folder never changes collection, so testing
+        // the collection alone would leave the owner's decision about the first
+        // name standing over a second one they have not seen.
         moveAcknowledgedAt: sql`CASE WHEN ${schemaPg.item.movedToCollection} IS DISTINCT FROM ${toCollection}
+             OR ${schemaPg.item.movedToNaturalKeyHash} IS DISTINCT FROM ${toKey}
           THEN NULL ELSE ${schemaPg.item.moveAcknowledgedAt} END`,
         updatedAt: sql`now()`,
       })
@@ -461,6 +477,11 @@ export class PgLedger implements Ledger {
       .update(schemaPg.item)
       .set({
         movedToCollection: null,
+        // The arrival key goes too, and this one matters: it is the
+        // precondition for `applyRelocation`, so leaving it behind would let an
+        // owner remove a target copy on the strength of a relocation the source
+        // has since undone.
+        movedToNaturalKeyHash: null,
         // Goes with it. There is no longer anything to have agreed to, and a
         // stale acknowledgement would quietly suppress the NEXT move to the
         // same place.
@@ -488,6 +509,7 @@ export class PgLedger implements Ledger {
         naturalKeyHash: schemaPg.item.naturalKeyHash,
         collection: schemaPg.item.collection,
         movedToCollection: schemaPg.item.movedToCollection,
+        movedToNaturalKeyHash: schemaPg.item.movedToNaturalKeyHash,
         moveAcknowledgedAt: schemaPg.item.moveAcknowledgedAt,
       })
       .from(schemaPg.item)
@@ -518,6 +540,9 @@ export class PgLedger implements Ledger {
       naturalKeyHash: r.naturalKeyHash,
       from: r.collection,
       to: r.movedToCollection ?? '',
+      // Present only for a relocation; its absence is what tells a caller this
+      // move cannot be applied (ADR-0030).
+      ...(r.movedToNaturalKeyHash ? { toNaturalKeyHash: r.movedToNaturalKeyHash } : {}),
       ...(r.moveAcknowledgedAt
         ? {
             acknowledgedAt:
@@ -898,6 +923,51 @@ export class PgLedger implements Ledger {
     return rows.length > 0;
   }
 
+  async applyRelocation(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: 'email' | 'calendar' | 'contact' | 'file',
+    naturalKeyHash: string,
+  ): Promise<boolean> {
+    const rows = await this.db
+      .update(schemaPg.item)
+      .set({
+        // The same headstone a deletion leaves. What was removed is the same
+        // thing — our copy — and `isOnTarget` must stop counting it either way.
+        status: 'tombstoned',
+        deletionAppliedAt: sql`now()`,
+        // Closes the MOVE entry, not a deletion one: this row was never in the
+        // deletions queue, and stamping a deletion acknowledgement would record
+        // a decision about a deletion nobody reported.
+        moveAcknowledgedAt: sql`now()`,
+        updatedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          eq(schemaPg.item.domain, domain),
+          eq(schemaPg.item.naturalKeyHash, naturalKeyHash),
+          // A RECORDED RELOCATION, enforced here as well as in core. This is
+          // the write that destroys the record of a copy being on the target,
+          // and a future caller that forgets a check must not be able to reach
+          // it. No deletion evidence is required and none is expected — nothing
+          // was deleted — so what stands in its place is this: the pass wrote
+          // down where the item went, by key.
+          isNotNull(schemaPg.item.movedToNaturalKeyHash),
+          // Still open, so a second apply cannot move the audit date forward
+          // and report a removal that did not happen.
+          isNull(schemaPg.item.deletionAppliedAt),
+          // Only a copy WE wrote — the same ownership rule as applyDeletion.
+          // `adopted` bytes were on the target before this migration existed.
+          or(eq(schemaPg.item.status, 'copied'), eq(schemaPg.item.status, 'updated')),
+        ),
+      )
+      .returning({ naturalKeyHash: schemaPg.item.naturalKeyHash });
+
+    return rows.length > 0;
+  }
+
   private mapRowToRecord(row: typeof schemaPg.item.$inferSelect): LedgerRecord {
     return {
       tenantId: row.tenantId as TenantId,
@@ -929,6 +999,9 @@ export class PgLedger implements Ledger {
       // distinguishable from "recorded as empty".
       ...(row.sourceRefHref ? { sourceRef: row.sourceRefHref } : {}),
       ...(row.movedToCollection ? { movedToCollection: row.movedToCollection } : {}),
+      ...(row.movedToNaturalKeyHash
+        ? { movedToNaturalKeyHash: row.movedToNaturalKeyHash }
+        : {}),
       ...(row.moveAcknowledgedAt
         ? {
             moveAcknowledgedAt:

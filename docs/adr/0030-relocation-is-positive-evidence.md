@@ -1,6 +1,6 @@
 # ADR-0030: A correlated relocation is positive evidence, and may be applied
 
-- **Status:** Proposed
+- **Status:** Accepted (owner decision, 2026-08-15) — built the same day
 - **Date:** 2026-08-15
 - **Deciders:** owner
 - **Relates to:** ADR-0024 (`apply` — the one destructive path, and its gate 3), ADR-0005 (non-destructive by default), ADR-0020 (natural keys preserved on the target). Arch doc §11.1. Workplan 0042 T2.
@@ -95,6 +95,33 @@ merely when the correlation was made.
 so the rename case stops producing a phantom deletion after two passes. What the owner sees is
 one relocation entry, immediately, on the pass it happened.
 
+## What was built, 2026-08-15
+
+Accepted by the owner and implemented in one change. Where each part landed:
+
+| the decision | where it lives |
+|---|---|
+| relocation recorded by key | `item.moved_to_natural_key_hash` (migration `0009`), `Ledger.recordMove`'s sixth argument, `ItemMove.toNaturalKeyHash` |
+| correlate on the key, not the collection | `detectPathKeyedMoves` in `domain-sync.ts` — the arrival filter is gone; a rename in place is now one move report instead of a phantom deletion two passes later |
+| `apply` on a relocation | `applyRelocation` / `evaluateApplyRelocation` (`apply-deletion.ts`, beside the deletion path deliberately), `Ledger.applyRelocation`, `applyMappingRelocation`, `POST /mappings/{id}/moves/{hash}/apply` |
+| the gate that carries the argument | `relocationCheck` — the arrival must exist, be `copied`/`updated` (never `adopted`), and still carry the same content hash |
+| what the UI offers | `mayOfferRelocationApply` in the contract; the Moves screen shows the destructive button only for a relocation, and arms before it acts |
+
+**Two things were deliberately NOT built, and both are stated rather than
+implied.**
+
+*The managed edition's route.* Its destructive path runs through a queued job
+and an apply receipt, keyed by natural key hash with no room for a second kind
+of apply against the same item. Building that properly means a second job, a
+receipt discriminator, and its own tests; doing it badly means a destructive
+job nobody has thought about carefully. So the managed UI does not offer the
+action at all (`isSelfHost()`), rather than offering a button that 404s, and
+`applyMove` in the web client refuses with the reason if it is somehow reached.
+The appliance — the edition with the customer waiting — is complete.
+
+*Auto-apply.* Unchanged from the proposal below: safe to press once, having
+looked, is not the same as safe unattended.
+
 ## Consequences
 
 - **The target can converge.** For the first time, an owner whose source was reorganised has a
@@ -117,6 +144,17 @@ one relocation entry, immediately, on the pass it happened.
   original in the same pass, that is indistinguishable from a rename — and the outcome is the
   same either way, because what the apply removes is a copy whose content is present under the
   other key. The report's wording must not claim to know which happened.
+- **One item can, in an unusual order of events, sit in BOTH queues.** Correlation normally
+  happens on the pass the arrival appears, so a relocated item never accumulates absences at
+  all. But if the arrival is missed once — a listing that was not fully enumerated — the old
+  row can bank an absence first and be correlated later, leaving an open deletion entry beside
+  an open relocation entry. Left as it is, deliberately: both paths are correctly gated (the
+  deletion is `inferred` and refuses; the relocation checks the arrival and permits), so the
+  worst case is that a person is asked the same question twice rather than that the wrong
+  thing is removed. **Clearing the absence run when a relocation is recorded would also clear
+  `deletionReportedAt`/`deletionTrashedAt`** — `clearAbsent` wipes the evidence with the count,
+  by design, for the "the item is back" case — and silently discarding a source's own deletion
+  report is a bigger change to the destructive path than the duplicate entry it would tidy up.
 
 ## Alternatives considered
 

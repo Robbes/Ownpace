@@ -28,7 +28,13 @@ import { runMigrations, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusS
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
 import { InProcessScheduler } from '@openmig/scheduler/in-process';
-import { runAllDomains, discoverAllDomains, verifyMapping, applyMappingDeletion } from '@openmig/orchestration';
+import {
+  runAllDomains,
+  discoverAllDomains,
+  verifyMapping,
+  applyMappingDeletion,
+  applyMappingRelocation,
+} from '@openmig/orchestration';
 import { SCOPE_MANIFEST, DELETION_CONFIRMATIONS } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
@@ -1635,6 +1641,67 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
                 'retention window that server keeps — this tool cannot restore it, but the ' +
                 'server might still be able to.'
               : 'Removed from the target with no recovery path from here.',
+        });
+      }
+      // THE SECOND DESTRUCTIVE ROUTE (ADR-0030). It removes the target's OLD
+      // copy of a file the source moved or renamed — and it is allowed to,
+      // where a deletion on the same evidence would not be, because the same
+      // bytes are already on the target under the new key. `applyRelocation`
+      // re-checks exactly that before touching anything, along with every gate
+      // the deletion path has: the per-mapping opt-in (the SAME
+      // `allowApplyDeletions` — this is the same capability), the target's
+      // ability to remove, ownership, the ETag, and the mass-deletion breaker.
+      const applyMoveMatch =
+        req.method === 'POST' && req.url
+          ? /^\/mappings\/([^/]+)\/moves\/([^/]+)\/(apply)$/.exec(req.url)
+          : null;
+      if (applyMoveMatch) {
+        await drain(req);
+        const id = decodeURIComponent(applyMoveMatch[1]!);
+        const hash = decodeURIComponent(applyMoveMatch[2]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+
+        const configWithCorrectMappingId = { ...m.config, mappingId: m.mailboxMappingId };
+        const outcome = await applyMappingRelocation(
+          configWithCorrectMappingId,
+          hash,
+          ledgerOptions,
+        );
+
+        if (!outcome.ok) {
+          // Same status mapping as the deletion route: 404 for "nothing here to
+          // act on", 403 for "this exists but you may not remove it".
+          // `not_relocated` is a 404 — an ordinary move genuinely has nothing
+          // for this route to act on.
+          const status =
+            outcome.code === 'not_found' ||
+            outcome.code === 'not_confirmed' ||
+            outcome.code === 'already_applied' ||
+            outcome.code === 'not_relocated'
+              ? 404
+              : 403;
+          return sendJson(res, status, { error: outcome.code, reason: outcome.reason });
+        }
+
+        log.warn(
+          `[selfhost] ${m.config.mappingId}: operator applied relocation of item ` +
+            `${hash.slice(0, 12)} (${outcome.kind}) — the old copy is gone and the same bytes ` +
+            'remain under the key the source moved it to.',
+        );
+        return sendJson(res, 200, {
+          status: 'ok',
+          action: 'apply',
+          naturalKeyHash: hash,
+          kind: outcome.kind,
+          effect:
+            'The old copy has been removed from the target. The file itself is still there, ' +
+            'under the name and folder the source moved it to — that copy was made before ' +
+            'this removal and was checked again just now.' +
+            (outcome.kind === 'binned'
+              ? " The target's own bin still holds the old copy for whatever retention window " +
+                'that server keeps.'
+              : ''),
         });
       }
       const moveMatch =

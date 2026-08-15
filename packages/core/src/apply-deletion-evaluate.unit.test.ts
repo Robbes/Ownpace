@@ -20,7 +20,13 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { applyDeletion, evaluateApplyDeletion, MASS_DELETION_MIN_ITEMS } from './apply-deletion';
+import {
+  applyDeletion,
+  applyRelocation,
+  evaluateApplyDeletion,
+  evaluateApplyRelocation,
+  MASS_DELETION_MIN_ITEMS,
+} from './apply-deletion';
 import { MemoryLedger } from './__testing__/memory';
 import { asTenantId, asMappingId, type LedgerRecord } from '@openmig/shared';
 
@@ -167,6 +173,136 @@ describe('evaluate and apply agree on every ledger-side refusal', () => {
 
     expect(evaluated).toEqual({ ok: true, domain: 'calendar' });
     // The prediction held: the full path went on to remove.
+    expect(applied.ok).toBe(true);
+    expect(removeItem).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * The same drift-lock, for the RELOCATION pair (ADR-0030).
+ *
+ * `evaluateApplyRelocation` duplicates `applyRelocation`'s ledger-side gates
+ * for the same reason and carries the same hazard, so it gets the same
+ * treatment: every case runs both against one ledger and demands the same
+ * refusal, with the target never reached when the evaluator can already say no.
+ */
+const RELOCATION_TENANT = TENANT;
+const OLD = 'Docs/report.pdf';
+const NEW = 'Docs/summary.pdf';
+
+function fileRow(overrides: Partial<LedgerRecord> = {}): LedgerRecord {
+  return {
+    tenantId: RELOCATION_TENANT,
+    mappingId: MAPPING,
+    itemType: 'file',
+    naturalKeyHash: OLD,
+    contentHash: 'h-same',
+    targetId: 'target/report.pdf',
+    createdAt: new Date().toISOString(),
+    sizeBytes: 10,
+    status: 'copied',
+    collection: 'Docs',
+    ...overrides,
+  };
+}
+
+async function bothRelocation(ledger: MemoryLedger, allow: boolean, hash = OLD) {
+  const removeItem = vi.fn(async () => ({ kind: 'deleted' as const, conflicted: false }));
+  const shared = {
+    tenantId: RELOCATION_TENANT,
+    mappingId: MAPPING,
+    domain: 'file' as const,
+    ledger,
+    allowApplyDeletions: allow,
+  };
+  const evaluated = await evaluateApplyRelocation(shared, hash);
+  const applied = await applyRelocation({ ...shared, target: { removeItem } }, hash);
+  return { evaluated, applied, removeItem };
+}
+
+const RELOCATION_CASES: Array<{
+  name: string;
+  allow: boolean;
+  seed: (l: MemoryLedger) => Promise<unknown>;
+  expectCode: string;
+}> = [
+  {
+    name: 'gate 1: the mapping has not opted in',
+    allow: false,
+    seed: (l) => l.recordIfAbsent(fileRow()),
+    expectCode: 'not_enabled',
+  },
+  {
+    name: 'no row at all',
+    allow: true,
+    seed: () => Promise.resolve(),
+    expectCode: 'not_found',
+  },
+  {
+    name: 'gate 3 (relocation form): nothing was relocated',
+    allow: true,
+    seed: (l) => l.recordIfAbsent(fileRow()),
+    expectCode: 'not_relocated',
+  },
+  {
+    name: 'gate 3 (relocation form): the arrival is not in the ledger',
+    allow: true,
+    seed: async (l) => {
+      await l.recordIfAbsent(fileRow());
+      await l.recordMove(RELOCATION_TENANT, MAPPING, 'file', OLD, 'Docs', NEW);
+    },
+    expectCode: 'relocation_unconfirmed',
+  },
+  {
+    name: 'gate 3 (relocation form): the arrival was adopted, not written by us',
+    allow: true,
+    seed: async (l) => {
+      await l.recordIfAbsent(fileRow());
+      await l.recordIfAbsent(
+        fileRow({ naturalKeyHash: NEW, targetId: 'target/summary.pdf', status: 'adopted' }),
+      );
+      await l.recordMove(RELOCATION_TENANT, MAPPING, 'file', OLD, 'Docs', NEW);
+    },
+    expectCode: 'relocation_unconfirmed',
+  },
+  {
+    name: 'gate 4: the copy to be removed is not ours',
+    allow: true,
+    seed: async (l) => {
+      await l.recordIfAbsent(fileRow({ status: 'adopted' }));
+      await l.recordIfAbsent(fileRow({ naturalKeyHash: NEW, targetId: 'target/summary.pdf' }));
+      await l.recordMove(RELOCATION_TENANT, MAPPING, 'file', OLD, 'Docs', NEW);
+    },
+    expectCode: 'not_ours',
+  },
+];
+
+describe('evaluate and apply agree on every ledger-side relocation refusal', () => {
+  for (const c of RELOCATION_CASES) {
+    it(c.name, async () => {
+      const ledger = new MemoryLedger();
+      await c.seed(ledger);
+      const { evaluated, applied, removeItem } = await bothRelocation(ledger, c.allow);
+
+      expect(evaluated.ok).toBe(false);
+      expect(applied.ok).toBe(false);
+      if (!evaluated.ok && !applied.ok) {
+        expect(evaluated.code).toBe(c.expectCode);
+        expect(applied.code).toBe(evaluated.code);
+      }
+      expect(removeItem).not.toHaveBeenCalled();
+    });
+  }
+
+  it('and when every ledger gate permits, the evaluator predicts the removal', async () => {
+    const ledger = new MemoryLedger();
+    await ledger.recordIfAbsent(fileRow());
+    await ledger.recordIfAbsent(fileRow({ naturalKeyHash: NEW, targetId: 'target/summary.pdf' }));
+    await ledger.recordMove(RELOCATION_TENANT, MAPPING, 'file', OLD, 'Docs', NEW);
+
+    const { evaluated, applied, removeItem } = await bothRelocation(ledger, true);
+
+    expect(evaluated).toEqual({ ok: true, domain: 'file' });
     expect(applied.ok).toBe(true);
     expect(removeItem).toHaveBeenCalledTimes(1);
   });

@@ -3,21 +3,32 @@
  * The moves queue (ADR-0026): items the source has relocated since we copied
  * them.
  *
- * One action, and it changes nothing on either side. Making the target follow a
- * move would mean deleting the copy from where it currently sits — the delete
- * half of a move, which hard rule 2 forbids outright — so the only thing on
- * offer is to accept the target's layout and stop being told about this one.
- * The screen says that rather than leaving somebody to wonder where the "apply"
- * button went.
+ * TWO ACTIONS, and only one of them is offered on most rows.
+ *
+ * `keep` accepts the target's layout and changes nothing on either side. It is
+ * the only thing available for a move that kept the item's natural key — every
+ * mail and calendar move — because making the target follow one of those would
+ * mean deleting the copy from where it sits, which hard rule 2 forbids.
+ *
+ * `apply` appears only on a RELOCATION: a file whose move or rename changed its
+ * key, whose bytes are therefore already on the target under the new one
+ * (ADR-0030). Removing the old copy there loses nothing, and that is checked
+ * again server-side at the moment of removal. `mayOfferRelocationApply` decides
+ * what is SHOWN; `applyRelocation` on the server decides what happens.
+ *
+ * A row with no apply button gets no disabled one either, for the reason
+ * Deletions records: a greyed-out button invites somebody to find out how to
+ * enable it, and here there is no answer to that question.
  */
 
 import React from 'react';
 import { useParams } from 'react-router';
 import { ArrowRight } from 'lucide-react';
-import type { ItemMove, MovesQueue } from '@openmig/shared';
+import { mayOfferRelocationApply, type ItemMove, type MovesQueue } from '@openmig/shared';
 import { QueueScreen, type ItemOutcome } from '../components/queues/QueueScreen';
 import {
   ActionButton,
+  DestructiveButton,
   DomainTag,
   GuidancePanel,
   HashChip,
@@ -26,7 +37,8 @@ import {
   Refused,
   Resolved,
 } from '../components/queues/primitives';
-import { fetchMoves, keepMove } from '../services/operating-service';
+import { applyMove, fetchMoves, keepMove } from '../services/operating-service';
+import { isSelfHost } from '../services/edition';
 import { useT } from '../i18n';
 
 const Row: React.FC<{
@@ -46,8 +58,13 @@ const Row: React.FC<{
         {mv.from}
       </span>
       <ArrowRight className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
-      <span className="truncate" title={mv.to}>
-        {mv.to}
+      {/*
+        For a RENAME the two folders are the same, and showing "Docs → Docs"
+        would say nothing about what changed. The key is what moved, so it is
+        what gets shown — truncated, because a file's natural key is its path.
+      */}
+      <span className="truncate" title={mv.toNaturalKeyHash ?? mv.to}>
+        {mv.toNaturalKeyHash && mv.to === mv.from ? mv.toNaturalKeyHash : mv.to}
       </span>
     </span>
     <HashChip hash={mv.naturalKeyHash} />
@@ -88,14 +105,33 @@ const Moves: React.FC = () => {
               mv={mv}
               outcome={outcomes[mv.naturalKeyHash]}
               actions={
-                <ActionButton
-                  pending={outcomes[mv.naturalKeyHash]?.state === 'pending'}
-                  onClick={() =>
-                    act(mv.naturalKeyHash, () => keepMove(mappingId, mv.naturalKeyHash))
-                  }
-                >
-                  {t('moves.keep')}
-                </ActionButton>
+                <>
+                  <ActionButton
+                    pending={outcomes[mv.naturalKeyHash]?.state === 'pending'}
+                    onClick={() =>
+                      act(mv.naturalKeyHash, () => keepMove(mappingId, mv.naturalKeyHash))
+                    }
+                  >
+                    {t('moves.keep')}
+                  </ActionButton>
+                  {/*
+                    Relocations only, and appliance only: the managed edition's
+                    destructive path runs through a queued job and a receipt,
+                    and there is no such job for this action yet (ADR-0030).
+                    Offering a button that 404s would be worse than not showing
+                    one.
+                  */}
+                  {mayOfferRelocationApply(mv) && isSelfHost() && (
+                    <DestructiveButton
+                      pending={outcomes[mv.naturalKeyHash]?.state === 'pending'}
+                      label={t('moves.apply')}
+                      armedLabel={t('moves.applyArmed')}
+                      onClick={() =>
+                        act(mv.naturalKeyHash, () => applyMove(mappingId, mv.naturalKeyHash))
+                      }
+                    />
+                  )}
+                </>
               }
             />
           ))}

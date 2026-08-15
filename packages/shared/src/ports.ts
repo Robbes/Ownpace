@@ -749,6 +749,17 @@ export interface LedgerRecord {
   readonly deletionAppliedAt?: string;
   readonly movedToCollection?: string;
   /**
+   * The natural key the item is listed under NOW, when that key changed too.
+   *
+   * Present only for a RELOCATION — a path-keyed item whose move or rename
+   * produced a new key, correlated by content hash (ADR-0030). A mail or
+   * calendar item keeps its key when it moves, so this stays absent for them,
+   * and that absence is load-bearing: `applyRelocation` is offered only where
+   * this is set, because the whole safety argument is that the same bytes are
+   * already on the target under THIS key.
+   */
+  readonly movedToNaturalKeyHash?: string;
+  /**
    * When the owner saw the move and chose to leave the target alone (§11.2).
    *
    * Absent while the move is still open. Cleared automatically if the item
@@ -869,6 +880,13 @@ export interface Ledger {
       collection: string;
       /** A move already recorded against this row, if any. See `recordMove`. */
       movedToCollection?: string;
+      /**
+       * The key it moved to, when the key itself changed — a RELOCATION
+       * (ADR-0030). Carried so a remembered one can be re-reported as such on
+       * later passes, once the arrival is no longer new and there is nothing
+       * left to correlate against.
+       */
+      movedToNaturalKeyHash?: string;
       /** Set once the owner has decided about that move. */
       moveAcknowledgedAt?: string;
       /** Consecutive complete scans that have failed to find it. */
@@ -909,6 +927,12 @@ export interface Ledger {
    * agreeing to one arrangement is not agreeing to every later one. Re-running
    * it with the same destination leaves the decision standing, so an ordinary
    * pass does not reopen something a person already closed.
+   *
+   * `toNaturalKeyHash` is what makes a RELOCATION distinguishable from a move
+   * (ADR-0030): set it when the item's own key changed — a file moved or
+   * renamed, correlated by content hash — and leave it unset when the key
+   * survived, which is every mail and calendar move. Only the first kind can
+   * be applied, because only there is there a new copy to point at.
    */
   recordMove(
     tenantId: TenantId,
@@ -916,6 +940,7 @@ export interface Ledger {
     domain: 'email' | 'calendar' | 'contact' | 'file',
     naturalKeyHash: string,
     toCollection: string,
+    toNaturalKeyHash?: string,
   ): Promise<void>;
   /**
    * Forget a recorded move, because the source lists the item where we copied
@@ -1085,6 +1110,28 @@ export interface Ledger {
     domain: 'email' | 'calendar' | 'contact' | 'file',
     naturalKeyHash: string,
   ): Promise<boolean>;
+  /**
+   * Record that the target's OLD copy of a relocated item has been removed
+   * (ADR-0030), after it actually has been.
+   *
+   * The sibling of `applyDeletion`, and deliberately a separate method rather
+   * than a flag on it: the two enforce DIFFERENT conditions in SQL. That one
+   * requires positive deletion evidence; this one requires a recorded
+   * relocation — `moved_to_natural_key_hash` set — and no deletion evidence is
+   * needed or expected, because nothing was deleted. Sharing one write with a
+   * parameter would put both sets of conditions one `if` away from each other
+   * on the path that destroys data.
+   *
+   * Same ordering rule, same tombstone, and it closes the MOVE queue entry
+   * rather than a deletion one. Returns false when the row was no longer
+   * eligible.
+   */
+  applyRelocation(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: 'email' | 'calendar' | 'contact' | 'file',
+    naturalKeyHash: string,
+  ): Promise<boolean>;
 }
 
 /** What an owner can do about an item that would not migrate (§11.2). */
@@ -1176,6 +1223,20 @@ export interface ItemMove {
   readonly from: string;
   /** The source collection it is listed in now. */
   readonly to: string;
+  /**
+   * The natural key it is listed under now — a RELOCATION rather than a move.
+   *
+   * Present only when the item's own key changed: a file that was moved or
+   * renamed, correlated by content hash (ADR-0030). Absent for every mail and
+   * calendar move, where the key survives.
+   *
+   * It is what makes a rename legible at all — `from` and `to` are both `Docs`
+   * when somebody renames a file inside one folder, and this is the field that
+   * says what actually changed — and it is the precondition for `apply`: the
+   * old copy may be removed only because the same bytes are already on the
+   * target under THIS key.
+   */
+  readonly toNaturalKeyHash?: string;
   /**
    * When the owner saw this move and chose to leave the target's layout alone.
    *
