@@ -144,6 +144,17 @@ looked, is not the same as safe unattended.
   original in the same pass, that is indistinguishable from a rename — and the outcome is the
   same either way, because what the apply removes is a copy whose content is present under the
   other key. The report's wording must not claim to know which happened.
+- **One item can, in an unusual order of events, sit in BOTH queues.** Correlation normally
+  happens on the pass the arrival appears, so a relocated item never accumulates absences at
+  all. But if the arrival is missed once — a listing that was not fully enumerated — the old
+  row can bank an absence first and be correlated later, leaving an open deletion entry beside
+  an open relocation entry. Left as it is, deliberately: both paths are correctly gated (the
+  deletion is `inferred` and refuses; the relocation checks the arrival and permits), so the
+  worst case is that a person is asked the same question twice rather than that the wrong
+  thing is removed. **Clearing the absence run when a relocation is recorded would also clear
+  `deletionReportedAt`/`deletionTrashedAt`** — `clearAbsent` wipes the evidence with the count,
+  by design, for the "the item is back" case — and silently discarding a source's own deletion
+  report is a bigger change to the destructive path than the duplicate entry it would tidy up.
 
 ## Alternatives considered
 
