@@ -924,8 +924,68 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
             ledger.find(tenantId, mappingId, domain, derivedKey),
           );
           if (knownAfterFetch) {
-            skipped += 1;
-            return;
+            // A ROW IS NOT PROOF OF A COPY. This branch used to be
+            // `skipped += 1; return`, which is precisely the bug
+            // `classifyKnownItem` was written to fix — see its comment: an item
+            // recorded `failed` was found by a fast path on every later pass,
+            // treated as already handled, and so never retried and never
+            // reported. Silent loss with a green count beside it.
+            //
+            // That fix reached the keyed path above and not this one, because
+            // nothing exercised it: `naturalKeyFromRaw` appeared in no unit
+            // test. Mail with no Message-ID — the only thing that comes down
+            // here — was the one shape it protected least.
+            //
+            // `undefined` for the version deliberately: for these items the key
+            // IS the content, so a changed item arrives as a NEW key rather
+            // than as a version bump. There is nothing to compare.
+            const action = classifyKnownItem(knownAfterFetch, undefined, collectionPath);
+
+            if (action === 'left-behind') {
+              // The owner already decided. Counted, never silent.
+              leftBehind += 1;
+              return;
+            }
+            if (action === 'tombstoned') {
+              // Explicitly removed via `apply`, and the source is listing it
+              // again. Not re-created — this code cannot tell a change of mind
+              // from an erasure request, so the tombstone stands and the
+              // reappearance is reported. Same reasoning as the keyed path.
+              reappearedAfterRemoval += 1;
+              log.warn(
+                `[sync] ${domain}: item ${derivedKey.slice(0, 12)} was explicitly removed from the ` +
+                  'target (apply) and the source is listing it again. NOT re-created — an operator ' +
+                  'decided this item should go, and the row is left as tombstoned.',
+              );
+              return;
+            }
+            if (action === 'needs-decision') {
+              // Out of automatic attempts. The fetch has already been paid on
+              // this path (the key required it), but the write is not retried.
+              needsDecision += 1;
+              failures.push({
+                domain,
+                naturalKeyHash: derivedKey,
+                attempts: knownAfterFetch.attemptCount ?? MAX_ITEM_ATTEMPTS,
+                lastError: knownAfterFetch.lastError ?? '(no error recorded)',
+                needsDecision: true,
+              });
+              return;
+            }
+            if (action !== 'retry-failed') {
+              // 'skip' — a healthy copy, which is the overwhelmingly common
+              // case and what keeps these items idempotent.
+              //
+              // 'moved' also lands here. Move REPORTING is deliberately not
+              // wired on this path: it stays exactly as it behaved before this
+              // change rather than being half-implemented under a fix aimed at
+              // something else. Worth doing separately.
+              skipped += 1;
+              return;
+            }
+            // 'retry-failed' falls through to the write below. The row exists,
+            // so the writer must update it rather than insert a second one.
+            hasExistingRow = true;
           }
         }
 
