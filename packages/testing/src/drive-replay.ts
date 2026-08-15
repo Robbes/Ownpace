@@ -24,6 +24,11 @@
  * always returned the first recording would replay a stability test that can
  * only pass. Each exchange is consumed once, in the order it was recorded.
  *
+ * A recorded FAILURE replays as one: the status comes back, and `text()` gives
+ * the reason Drive gave, scrubbed. That matters because the connector quotes it
+ * verbatim (rule 9), and a replay that answered an empty string would let a
+ * regression in that message pass unnoticed.
+ *
  * WHAT A REPLAY CANNOT DO, said here rather than discovered by somebody
  * asserting on it: reproduce document BYTES. A capture stores a sha256 and a
  * length, never the content — that is the point of the redaction. So a replayed
@@ -88,13 +93,16 @@ export function createReplayTransport(capture: DriveCapture): DriveReplay {
     const { exchange } = slot;
 
     return {
+      // From the recorded STATUS, and a recorded failure carries its reason in
+      // `text` rather than a body — which is what the connector quotes.
       ok: exchange.status < 400,
       status: exchange.status,
       json: async () => {
         if (exchange.json === undefined) {
           throw new Error(
-            `The recorded answer for ${url} is bytes, not JSON. Reading it as JSON means the ` +
-              'code has changed which kind of call this is.',
+            `The recorded answer for ${url} is ${exchange.text !== undefined ? 'an error' : 'bytes'}` +
+              ', not JSON. Reading it as JSON means the code has changed which kind of call ' +
+              'this is.',
           );
         }
         return exchange.json;
@@ -108,7 +116,9 @@ export function createReplayTransport(capture: DriveCapture): DriveReplay {
         }
         return fillerOf(exchange.bytes.byteLength);
       },
-      text: async () => '',
+      // What Drive said, for a recorded failure. Empty for a success, which is
+      // what the connector's own success path expects.
+      text: async () => exchange.text ?? '',
     };
   };
 
