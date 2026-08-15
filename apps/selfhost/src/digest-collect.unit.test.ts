@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { collectAttention, type CollectDeps } from './digest-collect';
+import { collectAttention, type CollectDeps, collectTenantAttention } from './digest-collect';
 import { wantsAttention } from '@openmig/shared';
 
 const MAPPING = { mappingId: 'm-1', tenantId: 't-1' };
@@ -181,3 +181,78 @@ describe('what it reports', () => {
     expect(await collectAttention(deps({ mappings: [] }))).toEqual([]);
   });
 });
+
+describe('collectTenantAttention (0043 T4)', () => {
+  // The appliance twin of the managed rule. It exists for parity as much as for
+  // correctness — hard rule 5 — and these assert the same things in the same
+  // words as managed's, which is the point rather than duplication.
+
+  it('counts a tenant decision even when every mapping is done', () => {
+    // The hole: `collectAttention` skips a `done` mapping BEFORE its reads, so
+    // an appliance whose migrations are finished never counted decisions at all.
+    return expect(
+      collectTenantAttention({
+        mappings: [{ mappingId: 'm-1', tenantId: 't-1' }],
+        status: async () => 'done',
+        listDeletions: async () => [],
+        listMoves: async () => [],
+        listFailures: async () => [],
+        countPendingDecisions: async () => 2,
+      }),
+    ).resolves.toEqual({ pendingDecisions: 2 });
+  });
+
+  it('counts each tenant once, however many mappings it has', () => {
+    // Several mappings must not each claim the same tenant-level decision, or
+    // the owner is told there are three when there is one.
+    let calls = 0;
+    return expect(
+      collectTenantAttention({
+        mappings: [
+          { mappingId: 'm-1', tenantId: 't-1' },
+          { mappingId: 'm-2', tenantId: 't-1' },
+        ],
+        status: async () => 'done',
+        listDeletions: async () => [],
+        listMoves: async () => [],
+        listFailures: async () => [],
+        countPendingDecisions: async () => {
+          calls += 1;
+          return 1;
+        },
+      }),
+    ).resolves.toEqual({ pendingDecisions: 1 }).then(() => expect(calls).toBe(1));
+  });
+
+  it('reports a decision queue it could not READ, rather than zero', async () => {
+    // "I could not look" is not "nothing is waiting" (rule 9).
+    const out = await collectTenantAttention({
+      mappings: [{ mappingId: 'm-1', tenantId: 't-1' }],
+      status: async () => 'done',
+      listDeletions: async () => [],
+      listMoves: async () => [],
+      listFailures: async () => [],
+      countPendingDecisions: async () => {
+        throw new Error('decisions table unreachable');
+      },
+    });
+
+    expect(out.pendingDecisions).toBeUndefined();
+    expect(out.blindSpots?.[0]).toContain('decisions table unreachable');
+  });
+
+  it('says nothing at all when there is genuinely nothing pending', async () => {
+    // Silence stays the signal: an empty result must render no email.
+    const out = await collectTenantAttention({
+      mappings: [{ mappingId: 'm-1', tenantId: 't-1' }],
+      status: async () => 'done',
+      listDeletions: async () => [],
+      listMoves: async () => [],
+      listFailures: async () => [],
+      countPendingDecisions: async () => 0,
+    });
+
+    expect(out).toEqual({});
+  });
+});
+

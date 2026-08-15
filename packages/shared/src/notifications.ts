@@ -263,6 +263,18 @@ const DIGEST_INTRO: Record<NotificationLocale, string> = {
  */
 interface DigestLines {
   readonly migration: string;
+  /**
+   * Heading for what belongs to the TENANT rather than to any one migration.
+   *
+   * A pending decision belongs to the organisation — a newly-discovered mailbox
+   * is not a fact about a mapping. Until 0043 T4 the digest was a list of
+   * mappings and had nowhere to put one, so a tenant whose migrations were all
+   * `done` had its decisions announced to the operator's log and to nobody
+   * else. Rather than invent a row with a mapping id nobody can open (which is
+   * what 0030 T4 rightly refused), the digest grew a section that is not a
+   * mapping.
+   */
+  readonly organisation: string;
   readonly decisions: string;
   readonly deletions: string;
   readonly moves: string;
@@ -275,6 +287,7 @@ interface DigestLines {
 const LINE: Record<NotificationLocale, DigestLines> = {
   en: {
     migration: 'Migration',
+    organisation: 'Your organisation',
     decisions: 'changes needing a decision',
     deletions: 'deletions to confirm',
     moves: 'moves to acknowledge',
@@ -287,6 +300,7 @@ const LINE: Record<NotificationLocale, DigestLines> = {
   },
   nl: {
     migration: 'Migratie',
+    organisation: 'Uw organisatie',
     decisions: 'wijzigingen die een beslissing vragen',
     deletions: 'verwijderingen om te bevestigen',
     moves: 'verplaatsingen om te bevestigen',
@@ -306,16 +320,49 @@ const LINE: Record<NotificationLocale, DigestLines> = {
  * between a channel an owner keeps reading and one they filter away. Callers
  * must treat it as "do not send", never as "send an empty one".
  */
+/**
+ * What is waiting on the TENANT rather than on any one migration (0043 T4).
+ *
+ * A pending decision belongs to the organisation: a newly-discovered mailbox is
+ * not a fact about a mapping, which is why the count was always taken once per
+ * tenant. The digest had no way to say so, so a tenant whose every migration was
+ * `done` — precisely the tenant nobody is watching — had its decisions written
+ * to the operator's log and to no one else.
+ */
+export interface TenantAttention {
+  readonly pendingDecisions?: number;
+  /** Queues that could not be READ. Verbatim, for the same reason as a mapping's. */
+  readonly blindSpots?: readonly string[];
+}
+
 export function renderDigest(
   mappings: readonly MappingAttention[],
   locale: NotificationLocale,
   cadence: DigestCadence,
+  tenant?: TenantAttention,
 ): NotificationMessage | undefined {
   const waiting = mappings.filter(wantsAttention);
-  if (waiting.length === 0) return undefined;
+  const tenantDecisions = tenant?.pendingDecisions ?? 0;
+  const tenantBlindSpots = tenant?.blindSpots ?? [];
+  const tenantWants = tenantDecisions > 0 || tenantBlindSpots.length > 0;
+
+  // Silence stays the signal — an empty digest still sends nothing. What
+  // changed is what counts as empty: tenant-level attention now keeps the
+  // email alive on its own, so a decision no longer needs a live mapping to
+  // ride along with.
+  if (waiting.length === 0 && !tenantWants) return undefined;
 
   const t = LINE[locale];
   const lines: string[] = [DIGEST_INTRO[locale], ''];
+
+  if (tenantWants) {
+    lines.push(t.organisation);
+    if (tenantDecisions > 0) lines.push(`  - ${tenantDecisions} ${t.decisions}`);
+    for (const blind of tenantBlindSpots) {
+      lines.push(`  - ${t.couldNotRead} ${blind}`);
+    }
+    lines.push('');
+  }
 
   for (const m of waiting) {
     lines.push(`${t.migration}: ${m.mappingId}`);

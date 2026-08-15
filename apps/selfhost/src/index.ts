@@ -113,7 +113,10 @@ const detectorHttpClient: HttpClient = {
     return { status: res.status, body: await res.text(), headers: {} };
   },
 };
-import { collectAttention as collectAttentionFrom } from './digest-collect';
+import {
+  collectAttention as collectAttentionFrom,
+  collectTenantAttention,
+} from './digest-collect';
 
 const DEFAULT_CONFIG_DIR = '/data/config';
 
@@ -420,8 +423,12 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
    * counted differently from the screen it points at would send somebody to
    * look for four things and show them three.
    */
-  const collectAttention = (): Promise<MappingAttention[]> =>
-    collectAttentionFrom({
+  /**
+   * Built once and shared, so the mapping collector and the tenant-level one
+   * (0043 T4) read through exactly the same seams. Two definitions would be two
+   * things free to drift, which is the shape 0041 spent three commits removing.
+   */
+  const collectDeps = (): Parameters<typeof collectAttentionFrom>[0] => ({
       mappings: mappings.map((m) => ({
         mappingId: m.config.mappingId,
         tenantId: m.config.tenantId,
@@ -444,12 +451,22 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         ),
       countPendingDecisions: async (tenantId) =>
         (await new PgDecisionStore(db).list(tenantId as TenantId, { status: 'pending' })).length,
-    });
+  });
+
+  const collectAttention = (): Promise<MappingAttention[]> => collectAttentionFrom(collectDeps());
 
   /** Send one digest, or nothing at all when nothing is waiting (0030 T3). */
   const sendDigest = async (cadence: DigestCadence): Promise<void> => {
     try {
-      const message = renderDigest(await collectAttention(), notifyLocale, cadence);
+      // A tenant-level decision (a newly-discovered mailbox, say) belongs to
+      // the organisation, not to a mapping — so an appliance whose migrations
+      // are all `done` used to have nowhere to carry it and sent nothing.
+      // Asked for only when no mapping reported, mirroring managed exactly:
+      // with live mappings the decisions already ride on the first one, and
+      // counting them twice would tell the owner there are twice as many.
+      const attention = await collectAttention();
+      const tenant = attention.length === 0 ? await collectTenantAttention(collectDeps()) : undefined;
+      const message = renderDigest(attention, notifyLocale, cadence, tenant);
       if (!message) {
         // The rule that makes this channel worth reading: no email at all.
         log.info(`[notify] ${cadence} digest: nothing needs attention — not sending`);
@@ -1081,7 +1098,21 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             failures,
           });
         }
-        return sendJson(res, 200, buildStatusReport(inputs));
+        // The channel's state travels with the status an owner already polls.
+        // Before this it existed only as a `log.info` at boot, which meant a
+        // quiet inbox and a switched-off channel were indistinguishable to
+        // anyone not reading container logs (0043 T3). The reason is the
+        // channel's own words — `readNotifierConfig` distinguishes nothing-set
+        // from half-set and names the missing variables, which is the whole
+        // point of showing it (rule 9).
+        return sendJson(
+          res,
+          200,
+          buildStatusReport(inputs, {
+            enabled: notifierConfig.enabled,
+            ...(notifierConfig.enabled ? {} : { reason: notifierConfig.reason }),
+          }),
+        );
       }
       // The §20 verification gate, in its two forms (workplan 0017 T2).
       //

@@ -14,10 +14,10 @@
  */
 
 import type { ItemFailure, MigrationStatus, MappingLifecycle } from '@openmig/shared';
-import type { DomainStatusReport, StatusReport } from '@openmig/shared';
+import type { DomainStatusReport, StatusReport, NotificationChannelReport } from '@openmig/shared';
 import { buildDomainStatusReports } from '@openmig/shared';
 
-export type { DomainStatusReport, StatusReport };
+export type { DomainStatusReport, StatusReport, NotificationChannelReport };
 
 export interface MappingStatusInput {
   readonly mappingId: string;
@@ -28,9 +28,26 @@ export interface MappingStatusInput {
   readonly failures?: readonly ItemFailure[];
 }
 
-export function buildStatusReport(inputs: readonly MappingStatusInput[]): StatusReport {
+/**
+ * Build the payload, optionally reporting the notification channel's state.
+ *
+ * The channel is passed IN rather than read from the environment here, for the
+ * same reason this file takes ledger rows rather than a database: it stays pure
+ * and testable without booting an appliance. The caller already holds the
+ * channel it built at startup.
+ *
+ * Omitting `notifications` is meaningful and not a default — see
+ * `NotificationChannelReport`. A caller with no channel says nothing rather
+ * than reporting `enabled: false`, which would send an owner hunting for a
+ * setting nobody had asked about.
+ */
+export function buildStatusReport(
+  inputs: readonly MappingStatusInput[],
+  notifications?: NotificationChannelReport,
+): StatusReport {
   return {
     status: 'ok',
+    ...(notifications ? { notifications } : {}),
     mappings: inputs.map(({ mappingId, migrationStatus, statuses, failures = [] }) => ({
       mappingId,
       migrationStatus,
