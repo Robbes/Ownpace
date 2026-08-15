@@ -460,6 +460,8 @@ export interface TestEnvironment {
   stalwart?: {
     imapHost: string;
     imapPort: number;
+    /** SMTPS (465). TLS-only, self-signed — see SmtpSettings.allowSelfSignedCertificate. */
+    smtpPort: number;
     jmapUrl: string;
     jmapUsername: string;
     jmapPassword: string;
@@ -483,6 +485,7 @@ async function startStalwart(): Promise<{
   jmapUrl: string;
   imapHost: string;
   imapPort: number;
+  smtpPort: number;
   container: StartedTestContainer;
 }> {
   // Ensure Docker volume exists for data persistence
@@ -730,7 +733,10 @@ async function startStalwart(): Promise<{
     .withEnvironment({
       STALWART_HOSTNAME: 'localhost',
     })
-    .withExposedPorts(8080, 993)
+    // 465 = SMTPS. Stalwart v0.16.10 auto-binds TLS listeners only, so there is
+    // no plaintext 25/587 to reach. Published so 0043 T1 can prove this product
+    // actually sends an email rather than proving its digest logic in isolation.
+    .withExposedPorts(8080, 993, 465)
     .withStartupTimeout(180000)
     .withUser('root')
     .withCommand(['--config', '/etc/stalwart/config.json'])
@@ -838,6 +844,7 @@ async function startStalwart(): Promise<{
   
   const stalwartHost = containerB.getHost();
   const imapsPort = containerB.getMappedPort(993);
+  const smtpsPort = containerB.getMappedPort(465);
   const jmapPort = containerB.getMappedPort(8080);
   const jmapUrl = `http://${stalwartHost}:${jmapPort}`;
   
@@ -853,6 +860,7 @@ async function startStalwart(): Promise<{
     jmapUrl,
     imapHost: stalwartHost,
     imapPort: imapsPort,
+    smtpPort: smtpsPort,
     container: containerB,
   };
 }
@@ -899,6 +907,7 @@ export async function startTestEnvironment(skipStalwart: boolean = false, skipNe
     stalwartEnv = {
       imapHost: stalwart.imapHost,
       imapPort: stalwart.imapPort,
+      smtpPort: stalwart.smtpPort,
       jmapUrl: stalwart.jmapUrl,
       jmapUsername: 'target@dev.local',
       jmapPassword: 'target_password',

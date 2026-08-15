@@ -77,24 +77,32 @@ The file domain keys items by **normalized path** (§10; `graph-drive-source.ts`
 "Path normalization as natural key"). A Drive file has no intrinsic path — it has a `fileId` and a
 `parents` array, and its path is a derived walk. Two consequences:
 
-1. A file **moved** between folders keeps its `fileId` and changes its derived path. The keyed
-   path in `domain-sync.ts` treats that as a new item and copies it again — the behaviour
-   `test/e2e/move-dav-source.mjs` documents for files: *"a moved FILE is keyed by its path, so the
-   pass copies it again under the new path and — nothing ever being deleted from a target — the
-   target legitimately ends up holding both."* Acceptable in WebDAV where moves are rare; Drive
-   users reorganise constantly.
+1. A file **moved** between folders keeps its `fileId` and changes its derived path, so it is
+   copied again under the new path while the old copy stays. What the move DETECTOR then does is
+   the part that matters, and it is covered below — the target converges through the deletions
+   queue rather than through the key.
 2. Two files can hold the **same name in the same folder**. Drive permits it; a path-shaped key
    cannot express it, so one would silently overwrite or collide with the other.
 
-The port does carry `removed` **source refs** rather than paths, matched through
-`Ledger.findBySourceRef` (`ports.ts:203-207`), and the first draft of this plan offered
-"`fileId`-anchored keying" as one of two free choices for T2.
+**Corrected again, 2026-08-15 — and this is the important correction.** The first draft offered
+"`fileId`-anchored keying" as a free choice; the audit said it required superseding ADR-0020. Both
+framings were wrong, because **moves are already correlated by CONTENT HASH, not by path.**
 
-**It is not free, and the audit caught this.** ADR-0020 (Accepted) makes the ledger a *rebuildable
-cache*: the natural key is "intrinsic to each item and **preserved on the target**", and Decision 3
-is an auto-running reindex that rebuilds the ledger by enumerating the target. A Google `fileId`
-is not on the target and cannot be put there. **Keying files by `fileId` therefore requires
-superseding an accepted ADR**, which is an owner decision, not an implementation choice.
+`detectPathKeyedMoves` (`domain-sync.ts:1588-1698`) takes a disappeared ledger row, looks up its
+`contentHash` among the arrivals of this pass, and pairs them — consuming each arrival so that
+three identical files deleted and one created is one move and two deletions, not three moves.
+
+That changes the whole question:
+
+- A Drive file moved between folders keeps its bytes. **Its move is detectable today**, with no
+  identity change at all.
+- A `fileId` is not merely barred by ADR-0020 — it is **unnecessary**. The correlation work is
+  already being done by something the target can produce.
+- And that is precisely why the ADR bars it: a content hash **is** recoverable from the target
+  (hash what is there), while a `fileId` never can be. ADR-0020's own **Decision 4** already
+  establishes content-hash as a legitimate anchor for items lacking an intrinsic id.
+
+**So T2 does not need an ADR change and should not have one.**
 
 Worse, the same-name-siblings case is not a design decision at all — it is a hard blocker.
 `fileNaturalKeyHash(path) = sha256('file:' + path)` (`hash.ts:87-89`) feeds a **database unique
@@ -167,13 +175,30 @@ acceptance property is the one 0026 T1 already paid for: **a pass over N folders
 every item on the drive N times.** Assert it directly — count transport calls in a unit test with
 a fake, the way the existing connector tests do.
 
-## T2 — identity
+## T2 — identity, and the two real gaps
 
-Implement the T0 decision. Whichever way it goes, two properties must be pinned by test:
+Keep the path-shaped natural key. No ADR change. What is left is narrower than "moves do not
+work", and it is two specific things:
 
-- A file **moved** between folders does not silently become a second copy on the target, or, if it
-  does, that is stated in the workplan as accepted behaviour with the reason.
-- Two files sharing a name in one folder both migrate, distinguishably.
+1. **A rename IN PLACE is not detected as a move.** `domain-sync.ts:1641` requires the arrival's
+   collection to differ: `candidates.findIndex((c) => c.collection !== row.collection)`. Same
+   folder, new name therefore degrades to a disappearance plus an unrelated arrival, and after
+   `DELETION_CONFIRMATIONS` clean passes it is reported as a deletion. Relaxing that condition is
+   nearly a one-liner — and needs care, because same-folder-same-hash is also exactly what a
+   genuine duplicate looks like. Whichever way it goes, pin it with a test.
+
+2. **Convergence waits on a human.** Detection reports a move or a deletion into the owner's
+   queue; the target only follows once the owner *applies* (ADR-0024). For a target nobody is
+   working in — the owner's stated case — that wait is the whole gap. A per-mapping **auto-apply**
+   would close it, and it is the only destructive path in the product, so it wants its own ADR
+   rather than a flag added here.
+
+Two things stay true regardless and must be said out loud to the owner rather than discovered:
+
+- Two files sharing a name in one folder **cannot both be represented** — the DB unique index on
+  `(tenantId, mappingId, naturalKeyHash)` makes that a hard stop, not a tuning question.
+- A file **edited and moved in the same pass** has a new hash and will not correlate: it appears as
+  a delete plus an add. Against an untouched target that still converges to the right end state.
 
 ## T3 — native editor files
 
@@ -224,6 +249,20 @@ An integration tier that silently skips when a credential is absent is the failu
 2. The idempotency property every other source is held to: **second pass creates 0.**
 3. The per-folder cost property from T1, asserted rather than assumed.
 4. The three T0 decisions written down here with their reasoning, including anything refused.
+
+## The first slice, approved 2026-08-15
+
+The owner has a real customer waiting and will test against a real Drive later, so the first slice
+is scoped to avoid every decision that can destroy or duplicate data:
+
+- **Binary files only.** Native Google editor files are reported un-migratable with a named reason.
+- **`removed` populated with nothing.** The absence-based detector does its slower, corroborated
+  job instead; nothing enters the owner's queue as *known* deletion evidence on Drive's say-so.
+- **Export format wired as a per-migration setting, defaulting to refuse.** The owner chose
+  per-migration choice (T0 Q3); the default stays `refuse` until byte-stability is measured.
+- **Path-keyed, no ADR change**, with the two limits above stated in the product's own words.
+
+That yields a usable Drive source without touching the two decisions that can lose customer data.
 
 ## Note on sequencing
 

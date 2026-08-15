@@ -44,6 +44,9 @@ export function smtpTransport(smtp: SmtpSettings): MailTransport {
       port: smtp.port,
       // Implicit TLS on 465; STARTTLS is negotiated automatically otherwise.
       secure: smtp.secure,
+      // Only ever reaches nodemailer when the setting survived
+      // `readNotifierConfig`, which refuses it outright in production.
+      ...(smtp.allowSelfSignedCertificate ? { tls: { rejectUnauthorized: false } } : {}),
       ...(smtp.user
         ? { auth: { user: smtp.user, ...(smtp.password ? { pass: smtp.password } : {}) } }
         : {}),

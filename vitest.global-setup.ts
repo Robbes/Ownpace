@@ -171,6 +171,7 @@ export default async function (ctx?: unknown) {
   if (testEnv.stalwart) {
     process.env.STALWART_IMAP_HOST = testEnv.stalwart.imapHost;
     process.env.STALWART_IMAP_PORT = String(testEnv.stalwart.imapPort);
+    process.env.STALWART_SMTP_PORT = String(testEnv.stalwart.smtpPort);
     process.env.STALWART_JMAP_URL = testEnv.stalwart.jmapUrl;
     process.env.STALWART_JMAP_USERNAME = testEnv.stalwart.jmapUsername;
     process.env.STALWART_JMAP_PASSWORD = testEnv.stalwart.jmapPassword;
