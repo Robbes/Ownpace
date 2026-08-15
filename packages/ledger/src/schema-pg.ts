@@ -271,6 +271,13 @@ export const item = pgTable(
     // pointing at where the TARGET's copy actually is, so the two together say
     // "we put it here, the source has since put it there". See migration 0022.
     movedToCollection: text('moved_to_collection'),
+    // The natural key the source lists this item under NOW, when the move
+    // changed the key itself — a file moved or renamed, correlated by content
+    // hash (ADR-0030, migration 0009). NULL for every mail and calendar move,
+    // where the key survives the move, and that difference is the whole point:
+    // an `apply` may remove the old copy only when this says where the new one
+    // is.
+    movedToNaturalKeyHash: text('moved_to_natural_key_hash'),
     // When the owner saw the move and chose to leave the target's layout
     // alone. NULL = still waiting on a decision. Cleared if the item moves
     // again somewhere else: a decision about one layout is not consent to

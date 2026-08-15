@@ -297,10 +297,24 @@ export function classifyKnownItem(
  * consent to the old one says nothing about it.
  */
 function decided(
-  row: { readonly movedToCollection?: string; readonly moveAcknowledgedAt?: string },
+  row: {
+    readonly movedToCollection?: string;
+    readonly movedToNaturalKeyHash?: string;
+    readonly moveAcknowledgedAt?: string;
+  },
   to: string,
+  toNaturalKeyHash?: string,
 ): boolean {
-  return row.movedToCollection === to && row.moveAcknowledgedAt !== undefined;
+  return (
+    row.movedToCollection === to &&
+    // For a RELOCATION the destination is the KEY as much as the folder: a file
+    // renamed twice inside one folder never changes collection, so comparing
+    // the folder alone would treat a decision about the first name as consent
+    // to a second nobody has seen (ADR-0030). Both are undefined for a
+    // key-preserving move, where this compares equal and changes nothing.
+    row.movedToNaturalKeyHash === toNaturalKeyHash &&
+    row.moveAcknowledgedAt !== undefined
+  );
 }
 
 /**
@@ -1638,16 +1652,49 @@ async function detectPathKeyedMoves(args: {
     // against every other blank would pair unrelated files. Counted as drift,
     // which is the weaker and therefore safer claim.
     const candidates = row.contentHash ? arrivals.get(row.contentHash) : undefined;
-    const at = candidates?.findIndex((c) => c.collection !== row.collection) ?? -1;
-    if (candidates && at >= 0) {
-      const [match] = candidates.splice(at, 1);
+    if (candidates && candidates.length > 0) {
+      // ANY arrival carrying these bytes, in any folder — including this one.
+      //
+      // Until ADR-0030 this required a DIFFERENT collection, and the effect was
+      // that the commonest reorganisation there is went undetected: renaming a
+      // file in place keeps the folder and changes the key, so it degraded to an
+      // unexplained absence and, two clean scans later, to a reported DELETION
+      // of a file that is plainly still there under another name.
+      //
+      // Same folder, same bytes, new name is admittedly also what a genuine
+      // DUPLICATE looks like — the owner copying `report.pdf` to `report (1).pdf`
+      // and deleting neither. Two things make that acceptable: the arrival is
+      // consumed (below), so one new file can never explain two disappearances;
+      // and nothing here acts on the target. What the owner is eventually
+      // offered — removing the old copy — rests on the bytes being present under
+      // the new key, which is equally true whichever of the two happened.
+      const [match] = candidates.splice(0, 1);
       const to = match!.collection;
+      // The arrival's own key. A same-key arrival is impossible — the ledger
+      // holds this row under that key already, so `recordIfAbsent` would have
+      // found it rather than creating one — which is why this needs no filter.
+      const toNaturalKeyHash = match!.naturalKeyHash;
       // Consume the arrival either way — it explains this disappearance whether
       // or not anyone has decided about it yet. Leaving it in the pool would let
       // the same new file account for a second, unrelated deletion.
-      if (decided(row, to)) continue;
-      await ledger.recordMove(tenantId, mappingId, domain, row.naturalKeyHash, to);
-      moves.push({ domain, naturalKeyHash: row.naturalKeyHash, from: row.collection, to });
+      if (decided(row, to, toNaturalKeyHash)) continue;
+      await ledger.recordMove(
+        tenantId,
+        mappingId,
+        domain,
+        row.naturalKeyHash,
+        to,
+        // Written down because an `apply` days later has to be able to check
+        // that the bytes really are on the target under this key (ADR-0030).
+        toNaturalKeyHash,
+      );
+      moves.push({
+        domain,
+        naturalKeyHash: row.naturalKeyHash,
+        from: row.collection,
+        to,
+        toNaturalKeyHash,
+      });
       continue;
     }
 
@@ -1666,6 +1713,12 @@ async function detectPathKeyedMoves(args: {
           naturalKeyHash: row.naturalKeyHash,
           from: row.collection,
           to: row.movedToCollection,
+          // Carried through on the remembered path too, or a relocation would
+          // become an ordinary move on its second pass and stop offering the
+          // one action that resolves it.
+          ...(row.movedToNaturalKeyHash !== undefined
+            ? { toNaturalKeyHash: row.movedToNaturalKeyHash }
+            : {}),
         });
       }
       continue;

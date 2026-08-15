@@ -386,7 +386,15 @@ describe('a file moved between source folders', () => {
     const second = await w.run(ledger);
     expect(second.moved).toBe(1);
     expect(second.moves).toEqual([
-      { domain: 'file', naturalKeyHash: 'a/report.pdf', from: 'a', to: 'b' },
+      {
+        domain: 'file',
+        naturalKeyHash: 'a/report.pdf',
+        from: 'a',
+        to: 'b',
+        // The key it went to, which is what makes this a RELOCATION rather than
+        // a move somebody can only acknowledge (ADR-0030).
+        toNaturalKeyHash: 'b/report.pdf',
+      },
     ]);
     // Honest about the cost of detecting it after the fact: the disappearance
     // is only knowable once every folder has been listed, and by then the copy
@@ -412,7 +420,13 @@ describe('a file moved between source folders', () => {
     expect((await w.run(ledger)).moved).toBe(1);
 
     expect(await ledger.listMoves(TENANT, MAPPING, 'file')).toEqual([
-      { domain: 'file', naturalKeyHash: 'a/report.pdf', from: 'a', to: 'b' },
+      {
+        domain: 'file',
+        naturalKeyHash: 'a/report.pdf',
+        from: 'a',
+        to: 'b',
+        toNaturalKeyHash: 'b/report.pdf',
+      },
     ]);
 
     expect(await ledger.resolveMove(TENANT, MAPPING, 'a/report.pdf', 'keep')).toBe(true);
@@ -495,21 +509,14 @@ describe('a file moved between source folders', () => {
     expect(second.drift).toBe(0);
   });
 
-  it('does NOT correlate a rename in place — it becomes a phantom deletion (ADR-0030)', async () => {
-    // Recorded, not endorsed. `detectPathKeyedMoves` requires the arrival to be
-    // in a DIFFERENT collection, so same-folder-new-name is not a move to it:
-    // the file becomes an unexplained absence, and two clean passes later the
-    // owner is told a file was deleted that is plainly still there under
-    // another name.
-    //
-    // And the report is not just wrong, it is unusable: `apply` refuses
-    // `inferred` evidence outright (ADR-0024 gate 3, `weak_evidence`), so the
-    // only supported action leaves the target holding BOTH copies forever.
-    //
-    // ADR-0030 proposes the fix — correlate by natural key rather than by
-    // collection, and admit a correlated relocation as positive evidence,
-    // because the bytes are demonstrably on the target under the new key. This
-    // test pins what happens until somebody decides.
+  it('sees a RENAME IN PLACE as a relocation, not a deletion (ADR-0030)', async () => {
+    // Until ADR-0030 the correlation required a DIFFERENT collection, so the
+    // commonest reorganisation there is went undetected: same folder, new name
+    // became an unexplained absence and — two clean scans later — a reported
+    // DELETION of a file plainly still there under another name. That report
+    // was not merely wrong, it was unusable: `apply` refuses `inferred`
+    // evidence outright (ADR-0024 gate 3), so the owner's only action left the
+    // target holding both copies forever.
     const ledger = new MemoryLedger();
     const w = world('file');
     w.folders.set('a', [{ key: 'a/report.pdf', body: 'PDF-BYTES', version: 'e1' }]);
@@ -519,26 +526,69 @@ describe('a file moved between source folders', () => {
     w.folders.set('a', [{ key: 'a/summary.pdf', body: 'PDF-BYTES', version: 'e1' }]);
 
     const second = await w.run(ledger);
-    expect(second.moved, 'a rename is not seen as a move').toBe(0);
-    expect(second.drift).toBe(1);
-    expect(second.created).toBe(1);
-
-    const third = await w.run(ledger);
-    expect(third.deletions).toEqual([
+    expect(second.moved).toBe(1);
+    expect(second.moves).toEqual([
       {
         domain: 'file',
         naturalKeyHash: 'a/report.pdf',
-        collection: 'a',
-        absentPasses: 2,
-        confirmed: true,
-        // The word that makes it unappliable, for a file nobody deleted.
-        evidence: 'inferred',
+        // Both ends of the FOLDER are the same, which is exactly why the
+        // collection could never describe this. The key is what changed.
+        from: 'a',
+        to: 'a',
+        toNaturalKeyHash: 'a/summary.pdf',
       },
     ]);
+    expect(second.drift, 'a rename is explained, so it is not drift').toBe(0);
 
-    // The state that matters to the person paying for this: two files where
-    // the source has one, and nothing in the product will remove either.
+    // And it stays explained. Nothing accumulates towards a phantom deletion,
+    // however many passes run.
+    const third = await w.run(ledger);
+    expect(third.deletions).toEqual([]);
+    expect(third.drift).toBe(0);
+
+    // The target still holds both — detection changes nothing there. What is
+    // new is that the owner now has something to press: the recorded arrival
+    // key is what `applyRelocation` checks before removing the old copy.
     expect([...w.target.keys()].sort()).toEqual(['t/a:a/report.pdf', 't/a:a/summary.pdf']);
+  });
+
+  it('still reports a rename ONCE, and stops when the owner has decided', async () => {
+    // The queue has to be emptiable, and the remembered-relocation path is a
+    // second place that could reopen it. A rename re-reported every pass after
+    // a `keep` would make this queue the thing people stop reading.
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    w.folders.set('a', [{ key: 'a/report.pdf', body: 'PDF', version: 'e1' }]);
+    await w.run(ledger);
+
+    w.folders.set('a', [{ key: 'a/summary.pdf', body: 'PDF', version: 'e1' }]);
+    expect((await w.run(ledger)).moved).toBe(1);
+
+    expect(await ledger.resolveMove(TENANT, MAPPING, 'a/report.pdf', 'keep')).toBe(true);
+
+    const third = await w.run(ledger);
+    expect(third.moved).toBe(0);
+    expect(third.drift, 'a decided rename must not degrade into drift').toBe(0);
+  });
+
+  it('reopens the decision when the file is renamed AGAIN in the same folder', async () => {
+    // The acknowledgement is per DESTINATION, and for a rename the destination
+    // is the key: the folder never changes. Comparing folders alone would let a
+    // decision about the first new name stand over a second nobody has seen.
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    w.folders.set('a', [{ key: 'a/v1.txt', body: 'SAME', version: 'e1' }]);
+    await w.run(ledger);
+
+    w.folders.set('a', [{ key: 'a/v2.txt', body: 'SAME', version: 'e1' }]);
+    await w.run(ledger);
+    expect(await ledger.resolveMove(TENANT, MAPPING, 'a/v1.txt', 'keep')).toBe(true);
+
+    // Renamed again. The original row's move now points somewhere else.
+    w.folders.set('a', [{ key: 'a/v3.txt', body: 'SAME', version: 'e1' }]);
+    const fourth = await w.run(ledger);
+
+    expect(fourth.moves.map((m) => m.toNaturalKeyHash)).toContain('a/v3.txt');
   });
 
   it('does not report rows that never recorded a collection as vanished', async () => {

@@ -99,9 +99,16 @@ export type FailureGuidance = {
   readonly doNothing: string;
 };
 
-/** Guidance shown with the move queue. */
+/**
+ * Guidance shown with the move queue.
+ *
+ * `apply` is the destructive one and is OPTIONAL, because it exists only for
+ * the moves that are relocations — see `mayOfferRelocationApply`. A queue with
+ * no relocation in it must not advertise an action none of its rows can offer.
+ */
 export type MoveGuidance = {
   readonly keep: string;
+  readonly apply?: string;
   readonly byHand: string;
   readonly doNothing: string;
 };
@@ -131,9 +138,12 @@ export interface FailuresQueue extends QueueEnvelope {
 /**
  * Items the source has relocated since we copied them.
  *
- * Nothing here has been acted on, and nothing will be: making the target follow
- * a move means deleting the copy from where it currently sits, which is the
- * delete half of a move and hard rule 2 forbids it outright.
+ * Nothing here has been acted on. Whether anything CAN be depends on the row:
+ * a move that kept the item's natural key — every mail and calendar move — is
+ * report-only, because making the target follow it would mean deleting the copy
+ * where it sits, which hard rule 2 forbids. A RELOCATION, where the key changed
+ * and the same bytes are already on the target under the new one, can be
+ * applied (ADR-0030): removing the old copy there loses nothing.
  */
 export interface MovesQueue extends QueueEnvelope {
   readonly open: readonly ItemMove[];
@@ -578,17 +588,29 @@ export const FAILURE_GUIDANCE: FailureGuidance = {
 
 export const MOVES_MEANING =
   'The item is on the target under "from". The source now lists it under "to". ' +
-  'Nothing was written, copied or deleted on either side.';
+  'Nothing was written, copied or deleted on either side. Where `toNaturalKeyHash` ' +
+  'is present the item was RELOCATED — a file moved or renamed, so its key changed ' +
+  'and the same bytes have already been copied to the target under the new one; ' +
+  'those are the rows an `apply` can finish.';
 
 export const MOVE_GUIDANCE: MoveGuidance = {
   keep:
     `POST /mappings/{mappingId}/moves/{naturalKeyHash}/keep — the target's layout ` +
     `is fine as it is; stop reporting this one. Reversible only in the sense that ` +
     `moving the item somewhere else again reopens it.`,
+  apply:
+    `POST /mappings/{mappingId}/moves/{naturalKeyHash}/apply — RELOCATIONS ONLY, ` +
+    `and it REMOVES the target's old copy. Allowed where the same operation on a ` +
+    `deletion would not be, for one reason: the same bytes are already on the ` +
+    `target under the key the source moved the item to, written by this migration, ` +
+    `and that is re-checked at the moment of removal. Off unless the mapping sets ` +
+    `allowApplyDeletions — the same switch, because it is the same capability — ` +
+    `and refused for a copy somebody has edited on the target, for one this ` +
+    `migration did not write, and while the mass-deletion breaker is up (ADR-0030).`,
   byHand:
-    'To make the target match, move the item there yourself in the target system, ' +
-    'then keep. Applying a move automatically would have to delete the copy that ' +
-    'is there now, which this tool never does on its own (hard rule 2).',
+    'To make the target match without using apply, move or delete the item there ' +
+    'yourself in the target system, then keep. This tool never removes anything ' +
+    'from a target without an explicit per-item decision (hard rule 2).',
   doNothing:
     'A move that is put back on the source disappears from this list by itself on ' +
     'the next pass.',
@@ -640,6 +662,23 @@ export const DELETION_GUIDANCE: DeletionGuidance = {
  */
 export function mayOfferApply(deletion: ItemDeletion): boolean {
   return deletion.confirmed && deletion.evidence !== 'inferred';
+}
+
+/**
+ * Whether this MOVE may be put in front of an `apply` button at all (ADR-0030).
+ *
+ * The relocation gate, exported for the same reason `mayOfferApply` is: so the
+ * UI does not re-derive it and get it subtly wrong. A move with no
+ * `toNaturalKeyHash` kept its natural key — every mail and calendar move, and
+ * every file move recorded before migration 0009 — and there is no new copy to
+ * point at, so nothing may be removed on its account.
+ *
+ * NECESSARY, not sufficient: `applyRelocation` on the server enforces the rest
+ * (the mapping's opt-in, that the arrival is really on the target with matching
+ * content, ownership, the ETag, the breaker) and is the only thing that decides.
+ */
+export function mayOfferRelocationApply(move: ItemMove): boolean {
+  return move.toNaturalKeyHash !== undefined && move.acknowledgedAt === undefined;
 }
 
 // ---------------------------------------------------------------------------

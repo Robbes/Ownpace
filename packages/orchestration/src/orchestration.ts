@@ -32,6 +32,7 @@ import {
   createRealVerificationDeps,
   type VerificationResult,
   applyDeletion,
+  applyRelocation,
   type ApplyDeletionOutcome,
 } from '@openmig/core';
 import { createLedgerVerificationReader } from '@openmig/ledger';
@@ -869,6 +870,65 @@ export async function applyMappingDeletion(
       if (!row) continue;
 
       return await applyDeletion(
+        {
+          tenantId,
+          mappingId,
+          domain,
+          ledger: deps.ledger,
+          target: deps.target,
+          allowApplyDeletions: config.allowApplyDeletions,
+        },
+        naturalKeyHash,
+      );
+    } finally {
+      await deps.close();
+    }
+  }
+
+  return {
+    ok: false,
+    code: 'not_found',
+    reason: 'No migrated item under that natural key in any of this mapping\'s enabled domains.',
+  };
+}
+
+/**
+ * Apply one owner decision to remove the OLD copy of a relocated item (ADR-0030).
+ *
+ * The sibling of `applyMappingDeletion`, doing the same narrow job — find which
+ * enabled domain holds the row, open that domain's real target writer, hand both
+ * to core — for the other destructive operation. The gates, and the argument for
+ * why this one is admissible at all, live in `applyRelocation`.
+ *
+ * Written as a second function rather than a parameter on the first because the
+ * two are chosen by DIFFERENT owner actions in the UI and API, and a boolean
+ * threaded through the appliance's route to pick between two destructive
+ * behaviours is one typo away from performing the other one.
+ */
+export async function applyMappingRelocation(
+  config: MappingConfig,
+  naturalKeyHash: string,
+  ledger?: LedgerOptions,
+): Promise<ApplyDeletionOutcome> {
+  const tenantId = config.tenantId as TenantId;
+  const mappingId = config.mappingId as MappingId;
+  const domains = enabledSyncDomains(config);
+
+  if (domains.length === 0) {
+    return {
+      ok: false,
+      code: 'not_found',
+      reason: 'This mapping has no enabled domains, so there is nothing to look up.',
+    };
+  }
+
+  for (const domain of domains) {
+    const deps = await openSyncDomainDeps(config, domain, ledger);
+    try {
+      const row = await deps.ledger.find(tenantId, mappingId, domain, naturalKeyHash);
+      if (!row) continue;
+
+      return await applyRelocation(
         {
           tenantId,
           mappingId,

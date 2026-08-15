@@ -309,6 +309,9 @@ const en = {
   'moves.empty.open': 'Nothing has moved.',
   'moves.empty.acknowledged': 'Nothing has been decided yet.',
   'moves.keep': 'Leave it where it is',
+  'moves.apply': 'Remove the old copy',
+  'moves.applyArmed': 'Confirm removal',
+  'moves.renamedTo': 'renamed',
   'failures.title': 'Could not be copied',
   'failures.intro':
     'Items that did not make it across, what went wrong, and how many times we tried.',
@@ -919,6 +922,9 @@ const nl: Record<keyof typeof en, string> = {
   'moves.empty.open': 'Er is niets verplaatst.',
   'moves.empty.acknowledged': 'Er is nog niets beslist.',
   'moves.keep': 'Laat het waar het staat',
+  'moves.apply': 'Verwijder de oude kopie',
+  'moves.applyArmed': 'Bevestig verwijdering',
+  'moves.renamedTo': 'hernoemd',
   'failures.title': 'Kon niet worden gekopieerd',
   'failures.intro':
     'Items die niet zijn overgekomen, wat er misging, en hoe vaak we het hebben geprobeerd.',

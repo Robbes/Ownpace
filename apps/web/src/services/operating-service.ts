@@ -361,6 +361,32 @@ export function keepMove(mappingId: string, hash: string): Promise<DecisionAccep
   return decide(`${mappingPath(mappingId)}/moves/${encodeURIComponent(hash)}/keep`);
 }
 
+/**
+ * Remove the target's OLD copy of a RELOCATED item (ADR-0030).
+ *
+ * The second destructive call in this client, and the same rules apply: every
+ * gate is on the server, and `mayOfferRelocationApply` decides only what the UI
+ * SHOWS. What makes this one admissible is checked server-side at the moment of
+ * removal — the same bytes must be on the target under the key the source moved
+ * the item to.
+ *
+ * **Appliance only, deliberately.** The managed edition's destructive path runs
+ * through a queued job and a receipt (`ApplyQueuedResponse`), and there is no
+ * such job for a relocation yet — see ADR-0030's Consequences. Rather than
+ * offering a button that 404s, the caller checks `isSelfHost()` and this throws
+ * if it is somehow reached anyway.
+ */
+export async function applyMove(mappingId: string, hash: string): Promise<DecisionAccepted> {
+  if (!isSelfHost()) {
+    throw new Error(
+      'Applying a relocation is not available in the managed edition yet: its destructive ' +
+        'path runs through a queued job and a receipt, which this action does not have one of. ' +
+        'Remove the old copy in the target system yourself, then choose keep.',
+    );
+  }
+  return decide(`${mappingPath(mappingId)}/moves/${encodeURIComponent(hash)}/apply`);
+}
+
 /** Try a failed item again on the next pass (also clears the mapping's cursors). */
 export function retryFailure(mappingId: string, hash: string): Promise<DecisionAccepted> {
   return decide(`${mappingPath(mappingId)}/failures/${encodeURIComponent(hash)}/retry`);

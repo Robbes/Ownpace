@@ -83,7 +83,7 @@ let db: ReturnType<typeof createPgDb>;
 interface QueueBody {
   readonly [mappingId: string]: {
     readonly confirmed?: { naturalKeyHash: string; acknowledgedAt?: string }[];
-    readonly open?: { to: string }[];
+    readonly open?: { to: string; toNaturalKeyHash?: string }[];
     readonly acknowledged?: unknown[];
     readonly needsDecision?: { lastError: string }[];
     readonly retrying?: unknown[];
@@ -103,6 +103,7 @@ async function seedItem(fields: {
   deletionReportedAt?: string | null;
   deletionAcknowledgedAt?: string | null;
   movedToCollection?: string | null;
+  movedToNaturalKeyHash?: string | null;
   moveAcknowledgedAt?: string | null;
 }): Promise<void> {
   await pool.query(
@@ -110,8 +111,8 @@ async function seedItem(fields: {
        tenant_id, mapping_id, domain, collection, natural_key, natural_key_hash,
        status, attempt_count, last_error,
        deletion_reported_at, deletion_acknowledged_at,
-       moved_to_collection, move_acknowledged_at
-     ) VALUES ($1, $2, 'email', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+       moved_to_collection, moved_to_natural_key_hash, move_acknowledged_at
+     ) VALUES ($1, $2, 'email', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
     [
       TENANT_ID,
       LEDGER_MAPPING_ID,
@@ -124,6 +125,7 @@ async function seedItem(fields: {
       fields.deletionReportedAt ?? null,
       fields.deletionAcknowledgedAt ?? null,
       fields.movedToCollection ?? null,
+      fields.movedToNaturalKeyHash ?? null,
       fields.moveAcknowledgedAt ?? null,
     ],
   );
@@ -192,6 +194,14 @@ beforeAll(async () => {
     deletionAcknowledgedAt: new Date().toISOString(),
   });
   await seedItem({ key: '<move-waiting@test>', movedToCollection: 'Archive' });
+  // A RELOCATION (ADR-0030): the key changed too, which is what makes it
+  // applicable. Seeded beside the ordinary move so the endpoint has to tell
+  // them apart rather than answering the same shape for both.
+  await seedItem({
+    key: '<relocation-waiting@test>',
+    movedToCollection: 'INBOX',
+    movedToNaturalKeyHash: 'the-new-key-hash',
+  });
   await seedItem({
     key: '<move-answered@test>',
     movedToCollection: 'Archive',
@@ -254,11 +264,26 @@ describe('the queue endpoints see the real rows', () => {
   it('splits moves into open and acknowledged', async () => {
     const queue = (await getQueue('/moves'))[MAPPING_ID];
 
-    expect(queue?.open).toHaveLength(1);
+    expect(queue?.open).toHaveLength(2);
     expect(queue?.acknowledged).toHaveLength(1);
     // The queue has to say WHERE, or "1 item moved" is not something anyone
     // can act on.
-    expect(queue?.open?.[0]?.to).toBe('Archive');
+    expect(queue?.open?.map((m) => m.to)).toContain('Archive');
+  });
+
+  it('carries the arrival KEY for a relocation, and omits it for a plain move', async () => {
+    // Proven against the real column rather than the in-memory fake: this
+    // field is what the UI uses to decide whether to offer a destructive
+    // button, and a select that forgot it would silently hide the action
+    // (ADR-0030). The fake and the SQL disagreeing is not hypothetical here —
+    // it is how the moves queue's ORDER BY bug was found.
+    const queue = (await getQueue('/moves'))[MAPPING_ID];
+
+    const relocation = queue?.open?.find((m) => m.toNaturalKeyHash !== undefined);
+    expect(relocation?.toNaturalKeyHash).toBe('the-new-key-hash');
+    // And the ordinary move must NOT acquire one.
+    const plain = queue?.open?.find((m) => m.to === 'Archive');
+    expect(plain?.toNaturalKeyHash).toBeUndefined();
   });
 
   it('splits failures into the ones that want a person and the ones still trying', async () => {
@@ -304,10 +329,12 @@ describe('the digest counts what the screens count', () => {
 
   it('does not count the answered, the retrying or the quiet', async () => {
     const [attention] = await collect();
-    // Seven rows are seeded; exactly three of them are waiting on a person.
+    // Eight rows are seeded; exactly four of them are waiting on a person —
+    // two of those in the moves queue, one an ordinary move and one a
+    // relocation.
     expect(attention).toMatchObject({
       deletionsWaiting: 1,
-      movesWaiting: 1,
+      movesWaiting: 2,
       failuresWaiting: 1,
     });
     expect(wantsAttention(attention!)).toBe(true);

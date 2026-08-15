@@ -377,6 +377,7 @@ export class MemoryLedger implements Ledger {
       contentHash: string;
       collection: string;
       movedToCollection?: string;
+      movedToNaturalKeyHash?: string;
       moveAcknowledgedAt?: string;
       absentPasses?: number;
       deletionAcknowledgedAt?: string;
@@ -387,6 +388,7 @@ export class MemoryLedger implements Ledger {
       contentHash: string;
       collection: string;
       movedToCollection?: string;
+      movedToNaturalKeyHash?: string;
       moveAcknowledgedAt?: string;
       absentPasses?: number;
       deletionAcknowledgedAt?: string;
@@ -401,6 +403,9 @@ export class MemoryLedger implements Ledger {
         contentHash: r.contentHash ?? '',
         collection: r.collection,
         ...(r.movedToCollection ? { movedToCollection: r.movedToCollection } : {}),
+        ...(r.movedToNaturalKeyHash
+          ? { movedToNaturalKeyHash: r.movedToNaturalKeyHash }
+          : {}),
         ...(r.moveAcknowledgedAt ? { moveAcknowledgedAt: r.moveAcknowledgedAt } : {}),
         ...(r.absentPasses ? { absentPasses: r.absentPasses } : {}),
         ...(r.deletionAcknowledgedAt
@@ -426,14 +431,22 @@ export class MemoryLedger implements Ledger {
     domain: LedgerRecord['itemType'],
     naturalKeyHash: string,
     toCollection: string,
+    toNaturalKeyHash?: string,
   ): Promise<void> {
     const k = this.key({ tenantId, mappingId, itemType: domain, naturalKeyHash });
     const existing = this.rows.get(k);
     if (!existing) return Promise.resolve();
-    const destinationChanged = existing.movedToCollection !== toCollection;
+    // "Somewhere new" is EITHER the folder or the key, matching the SQL: a file
+    // renamed twice inside one folder never changes collection, so testing the
+    // collection alone would leave a decision about the first name standing
+    // over a second nobody has seen (ADR-0030).
+    const destinationChanged =
+      existing.movedToCollection !== toCollection ||
+      existing.movedToNaturalKeyHash !== toNaturalKeyHash;
     this.rows.set(k, {
       ...existing,
       movedToCollection: toCollection,
+      movedToNaturalKeyHash: toNaturalKeyHash,
       ...(destinationChanged
         ? { moveAcknowledgedAt: undefined }
         : existing.moveAcknowledgedAt !== undefined
@@ -455,6 +468,10 @@ export class MemoryLedger implements Ledger {
     this.rows.set(k, {
       ...existing,
       movedToCollection: undefined,
+      // Goes with it: it is the precondition for applyRelocation, so leaving it
+      // would let an owner remove a copy on the strength of a relocation the
+      // source has since undone.
+      movedToNaturalKeyHash: undefined,
       moveAcknowledgedAt: undefined,
     });
     return Promise.resolve();
@@ -475,6 +492,7 @@ export class MemoryLedger implements Ledger {
         naturalKeyHash: r.naturalKeyHash,
         from: r.collection ?? '',
         to: r.movedToCollection,
+        ...(r.movedToNaturalKeyHash ? { toNaturalKeyHash: r.movedToNaturalKeyHash } : {}),
         ...(r.moveAcknowledgedAt ? { acknowledgedAt: r.moveAcknowledgedAt } : {}),
       });
     }
@@ -752,6 +770,46 @@ export class MemoryLedger implements Ledger {
         status: 'tombstoned',
         deletionAppliedAt: new Date().toISOString(),
         deletionAcknowledgedAt: new Date().toISOString(),
+      });
+      return Promise.resolve(true);
+    }
+    return Promise.resolve(false);
+  }
+
+  /**
+   * Mirrors `PgLedger.applyRelocation`, INCLUDING every one of its gates.
+   *
+   * The gates DIFFER from `applyDeletion`'s and that difference is the point:
+   * no deletion evidence is required or expected, because nothing was deleted.
+   * What stands in its place is a recorded relocation — the pass wrote down
+   * where the item went, by key. A fake that reused the deletion conditions
+   * would prove a safety argument the database does not make (ADR-0030).
+   */
+  applyRelocation(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    domain: LedgerRecord['itemType'],
+    naturalKeyHash: string,
+  ): Promise<boolean> {
+    for (const [k, r] of this.rows) {
+      if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
+      if (r.itemType !== domain) continue;
+      if (r.naturalKeyHash !== naturalKeyHash) continue;
+      // A RECORDED relocation, by key. A move with only a collection recorded
+      // (every mail and calendar move, and every file move from before
+      // migration 0009) cannot be applied.
+      if (r.movedToNaturalKeyHash === undefined) continue;
+      // Still open.
+      if (r.deletionAppliedAt !== undefined) continue;
+      // Only a copy WE wrote.
+      if (r.status !== 'copied' && r.status !== 'updated') continue;
+
+      this.rows.set(k, {
+        ...r,
+        status: 'tombstoned',
+        deletionAppliedAt: new Date().toISOString(),
+        // Closes the MOVE entry. This row was never in the deletions queue.
+        moveAcknowledgedAt: new Date().toISOString(),
       });
       return Promise.resolve(true);
     }

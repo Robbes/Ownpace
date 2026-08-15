@@ -26,6 +26,7 @@ export {
   discoverAllDomains,
   verifyMapping,
   applyMappingDeletion,
+  applyMappingRelocation,
   planDomainLanes,
   type DomainSyncResult,
   type SyncDomain,

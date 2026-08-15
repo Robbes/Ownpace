@@ -1,12 +1,20 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 
 /**
- * Removing the target's copy of an item the owner deleted on the source.
+ * Removing the target's copy of an item — the only place this product destroys
+ * anything.
  *
- * THE ONLY DESTRUCTIVE OPERATION IN THIS PRODUCT. Everything else reports:
+ * TWO REASONS TO REMOVE, IN ONE FILE, deliberately. `applyDeletion` acts on an
+ * item the owner deleted on the source. `applyRelocation` (ADR-0030) acts on the
+ * OLD copy of an item that moved or was renamed, once the same bytes are on the
+ * target under the new key. They share every gate but the evidence one, and
+ * keeping them together is what makes "the destructive path" a place a reviewer
+ * can read rather than a phrase. Everything else in this product reports:
  * failures, moves and deletions all go into queues that change nothing on either
- * side. This one takes something away, and it is worth being explicit about why it
- * is allowed to exist at all.
+ * side.
+ *
+ * The rest of this comment is about `applyDeletion`; `applyRelocation` states
+ * its own differences at its definition, and there are exactly two.
  *
  * Hard rule 2 forbids this tool deleting or overwriting on a target OF ITS OWN
  * ACCORD, and §11.1 says source deletions are never auto-propagated. Neither says
@@ -53,6 +61,7 @@ import {
   isOnTarget,
   log,
   type Ledger,
+  type LedgerRecord,
   type MappingId,
   type RemovalKind,
   type TenantId,
@@ -102,7 +111,11 @@ export type ApplyRefusal =
   | 'not_ours'
   | 'already_applied'
   | 'edited_on_target'
-  | 'mass_deletion_suspected';
+  | 'mass_deletion_suspected'
+  /** No relocation is recorded against this item (ADR-0030). */
+  | 'not_relocated'
+  /** A relocation is recorded, but the new copy is not verifiably on the target. */
+  | 'relocation_unconfirmed';
 
 export interface ApplyDeletionDeps {
   readonly tenantId: TenantId;
@@ -373,6 +386,281 @@ export async function applyDeletion(
       `(${removal.kind}), on ${evidence} evidence, by an explicit owner decision.`,
   );
   return { ok: true, kind: removal.kind };
+}
+
+/**
+ * The LEDGER-side gates for a relocation — no target, no removal (ADR-0030).
+ *
+ * The managed route's half, exactly as `evaluateApplyDeletion` is for a
+ * deletion, and duplicated from `applyRelocation` for the same reason: folding
+ * one into the other would reorder the target gate relative to the ledger reads
+ * on the path that destroys data. `apply-deletion-evaluate.unit.test.ts` runs
+ * both against the same ledger and fails on any divergence.
+ */
+export async function evaluateApplyRelocation(
+  deps: Omit<ApplyDeletionDeps, 'target'>,
+  naturalKeyHash: string,
+): Promise<
+  { ok: true; domain: ApplyDeletionDeps['domain'] } | Extract<ApplyDeletionOutcome, { ok: false }>
+> {
+  const { tenantId, mappingId, domain, ledger } = deps;
+
+  if (deps.allowApplyDeletions !== true) return notEnabled();
+
+  const row = await ledger.find(tenantId, mappingId, domain, naturalKeyHash);
+  if (!row) {
+    return { ok: false, code: 'not_found', reason: 'No migrated item under that natural key.' };
+  }
+  if (row.deletionAppliedAt !== undefined || row.status === 'tombstoned') {
+    return {
+      ok: false,
+      code: 'already_applied',
+      reason: 'The target copy of this item has already been removed.',
+    };
+  }
+
+  const relocation = await relocationCheck(deps, row);
+  if (relocation) return relocation;
+
+  const ownership = ownershipCheck(row);
+  if (ownership) return ownership;
+
+  const breaker = await massDeletionCheck(deps);
+  if (breaker) return breaker;
+
+  return { ok: true, domain };
+}
+
+/**
+ * Remove the target's OLD copy of an item the source moved or renamed (ADR-0030).
+ *
+ * TWO DIFFERENCES FROM `applyDeletion`, and no others.
+ *
+ * **1. The evidence.** A deletion needs `reported` or `trashed` — somebody must
+ * have SAID the item is gone, because absence alone has innocent causes that all
+ * look identical. A relocation needs neither, because nothing was deleted: what
+ * stands in place of the evidence is a recorded relocation, written by the pass
+ * that correlated the disappearance with an arrival carrying the same bytes.
+ *
+ * **2. What that buys, which is the whole argument for allowing this at all.**
+ * Applying a deletion destroys the last copy under this product's control.
+ * Applying a relocation destroys a copy that is, by construction, redundant —
+ * `relocationCheck` re-reads the ledger and refuses unless the arrival is on the
+ * target, was written BY US (`copied`/`updated`, never `adopted`), and carries
+ * the same content hash. So this is strictly safer than the operation ADR-0024
+ * already permits, which is why it is admitted on evidence a deletion could not
+ * use.
+ *
+ * Everything else is identical and deliberately so: the per-mapping opt-in, the
+ * target capability check, the ownership rule, the ETag re-check inside the
+ * removal, the mass-deletion breaker, the remove-then-record ordering, and the
+ * ledger's own conditional UPDATE having the final word.
+ *
+ * IT SHARES `allowApplyDeletions` rather than adding a flag. This is the same
+ * capability — removing our copy from the target — and a second switch would
+ * mean an owner who opted into the more dangerous operation is refused the safer
+ * one, which nobody would predict from the names.
+ */
+export async function applyRelocation(
+  deps: ApplyDeletionDeps,
+  naturalKeyHash: string,
+): Promise<ApplyDeletionOutcome> {
+  const { tenantId, mappingId, domain, ledger, target } = deps;
+
+  // GATE 1: switched on at all.
+  if (deps.allowApplyDeletions !== true) return notEnabled();
+
+  // GATE 2: the target is capable of it, checked before anything is read.
+  if (!canRemove(target)) {
+    return {
+      ok: false,
+      code: 'target_cannot_remove',
+      reason:
+        `The ${domain} target does not support removing items, so this cannot be carried out ` +
+        'automatically. Delete the old copy in the target system yourself, then choose `keep`.',
+    };
+  }
+
+  const row = await ledger.find(tenantId, mappingId, domain, naturalKeyHash);
+  if (!row) {
+    return { ok: false, code: 'not_found', reason: 'No migrated item under that natural key.' };
+  }
+  if (row.deletionAppliedAt !== undefined || row.status === 'tombstoned') {
+    return {
+      ok: false,
+      code: 'already_applied',
+      reason: 'The target copy of this item has already been removed.',
+    };
+  }
+
+  // GATE 3, in its relocation form: a recorded relocation whose arrival is
+  // verifiably on the target. See the note above on why this is admissible.
+  const relocation = await relocationCheck(deps, row);
+  if (relocation) return relocation;
+
+  // GATE 4: it is ours to remove.
+  const ownership = ownershipCheck(row);
+  if (ownership) return ownership;
+
+  // GATE 6: does the queue look like an incident? Read before touching the
+  // target. A relocation is not a deletion and does not enter that count, but a
+  // mapping whose deletion evidence has gone wrong in bulk is one whose
+  // listings cannot be trusted — including the listing that produced this
+  // correlation.
+  const breaker = await massDeletionCheck(deps);
+  if (breaker) return breaker;
+
+  // GATE 5 happens INSIDE the removal, where the ETag is.
+  const removal = await target.removeItem(row.targetId, {
+    ...(row.targetVersion !== undefined ? { expectedTargetVersion: row.targetVersion } : {}),
+    ...(row.collection !== undefined ? { collection: row.collection } : {}),
+  });
+
+  if (removal.conflicted) {
+    return {
+      ok: false,
+      code: 'edited_on_target',
+      reason:
+        'Somebody has edited this item in the new system since we copied it, so it was left ' +
+        'alone — those changes are theirs (hard rule 2). Nothing was removed.',
+    };
+  }
+  if (!removal.kind) {
+    return {
+      ok: false,
+      code: 'target_cannot_remove',
+      reason: 'The target reported no removal, so nothing has been changed.',
+    };
+  }
+
+  // GATE 7: the ledger re-checks the relocation and ownership in SQL. Recorded
+  // only now, after the copy is actually gone — same ordering, same reason.
+  const recorded = await ledger.applyRelocation(tenantId, mappingId, domain, naturalKeyHash);
+  if (!recorded) {
+    log.error(
+      `[apply] ${domain}: removed the target's old copy of relocated item ` +
+        `${naturalKeyHash.slice(0, 12)} but the ledger refused to record it — the row still ` +
+        'claims the item is on the target. Verification will report it as missing until this ' +
+        'is reconciled by hand.',
+    );
+    return {
+      ok: false,
+      code: 'not_found',
+      reason:
+        'The copy was removed from the target, but the ledger could not record it. Verification ' +
+        'will report this item as missing on the target until that is reconciled.',
+    };
+  }
+
+  log.warn(
+    `[apply] ${domain}: removed the target's OLD copy of relocated item ` +
+      `${naturalKeyHash.slice(0, 12)} (${removal.kind}) — the same bytes remain on the target ` +
+      'under the key the source moved it to, by an explicit owner decision.',
+  );
+  return { ok: true, kind: removal.kind };
+}
+
+/** Gate 1's refusal, written once so both paths say the same thing. */
+function notEnabled(): Extract<ApplyDeletionOutcome, { ok: false }> {
+  return {
+    ok: false,
+    code: 'not_enabled',
+    reason:
+      'Removing items from the target is switched off for this mapping. Set ' +
+      '`allowApplyDeletions: true` in its config to enable it, and read the runbook first — ' +
+      'this is the only operation here that destroys anything.',
+  };
+}
+
+/** Gate 4, shared: only a copy this migration actually wrote may be removed. */
+function ownershipCheck(row: {
+  readonly status?: LedgerRecord['status'];
+}): Extract<ApplyDeletionOutcome, { ok: false }> | undefined {
+  if (!isOnTarget(row.status)) {
+    return {
+      ok: false,
+      code: 'not_ours',
+      reason: `This item is not on the target (status ${row.status ?? 'unknown'}), so there is nothing to remove.`,
+    };
+  }
+  if (row.status === 'adopted') {
+    return {
+      ok: false,
+      code: 'not_ours',
+      reason:
+        'The copy on the target was already there before this migration ran — those bytes are ' +
+        "the account owner's, not ours to delete (hard rule 2). Remove it yourself if you want " +
+        'it gone, then choose `keep`.',
+    };
+  }
+  return undefined;
+}
+
+/**
+ * The gate that carries ADR-0030's whole safety argument.
+ *
+ * Removing the old copy of a relocated item is allowed BECAUSE the same bytes
+ * are already on the target under the new key. That has to be true at the moment
+ * of acting, not merely when the correlation was made — an owner may press this
+ * days later, and in between the arrival could have been tombstoned by another
+ * decision, or the row could turn out to be one the target already had.
+ *
+ * So all three are re-read here: the arrival exists, it is ON the target and was
+ * written by US (`adopted` bytes are the account owner's and prove nothing about
+ * ours), and its content hash still matches the copy about to be removed.
+ */
+async function relocationCheck(
+  deps: Omit<ApplyDeletionDeps, 'target'>,
+  row: {
+    readonly movedToNaturalKeyHash?: string;
+    readonly contentHash?: string;
+  },
+): Promise<Extract<ApplyDeletionOutcome, { ok: false }> | undefined> {
+  const { tenantId, mappingId, domain, ledger } = deps;
+  const arrivalKey = row.movedToNaturalKeyHash;
+  if (!arrivalKey) {
+    return {
+      ok: false,
+      code: 'not_relocated',
+      reason:
+        'No relocation is recorded for this item, so there is no new copy to point at and ' +
+        'nothing here may be removed. A move that only changed FOLDER on a source keyed by a ' +
+        'stable id — mail, calendar, contacts — is reported for you to look at, and the target ' +
+        'is left exactly as it is (§11.1).',
+    };
+  }
+
+  const arrival = await ledger.find(tenantId, mappingId, domain, arrivalKey);
+  if (!arrival) {
+    return {
+      ok: false,
+      code: 'relocation_unconfirmed',
+      reason:
+        'The item this one was relocated to is no longer in the ledger, so the bytes cannot be ' +
+        'confirmed present on the target. Nothing was removed.',
+    };
+  }
+  if (!isOnTarget(arrival.status) || arrival.status === 'adopted') {
+    return {
+      ok: false,
+      code: 'relocation_unconfirmed',
+      reason:
+        `The relocated copy is not one we can vouch for (status ${arrival.status ?? 'unknown'}). ` +
+        'Removing this copy is only safe while the same bytes are on the target under the new ' +
+        'key, written by this migration. Nothing was removed.',
+    };
+  }
+  if (arrival.contentHash !== row.contentHash) {
+    return {
+      ok: false,
+      code: 'relocation_unconfirmed',
+      reason:
+        'The relocated copy no longer has the same content as this one, so removing this copy ' +
+        'would lose something. The item was probably edited after it was moved. Nothing was ' +
+        'removed.',
+    };
+  }
+  return undefined;
 }
 
 /**
