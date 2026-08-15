@@ -251,23 +251,59 @@ describe('tenants are separate', () => {
 });
 
 describe('a decision with nowhere to go', () => {
-  it('is said in the log rather than dropped', async () => {
-    // The digest lists MAPPINGS; a pending decision belongs to the tenant. A
-    // tenant whose every mapping is finished has nowhere to carry it, and a
-    // pending decision reaching nobody is the failure this channel exists to
-    // prevent — so the hole is stated, not quiet.
+  // CHANGED DELIBERATELY, 0043 T4. This block used to assert that a decision
+  // belonging to a tenant with no live mapping was written to the OPERATOR'S
+  // LOG — 0030 T4's own recorded hole, and honest about being one. The log is
+  // not where the person who has to answer the decision is looking, so the
+  // digest grew a tenant-level section and the decision is now EMAILED.
+  //
+  // The old assertions are replaced rather than deleted: the property they
+  // protected — a pending decision must not vanish — is stronger here, because
+  // reaching the owner is a higher bar than reaching a log file.
+
+  it('is EMAILED to the tenant, not merely logged', async () => {
     const warn = vi.fn();
+    const sends: Array<{ to: readonly string[]; body: string }> = [];
     const d = deps({
       listMappings: async () => [{ id: 'm-1', status: 'done' }],
       countPendingDecisions: async () => 2,
       warn,
+      send: async (to, _locale, message) => {
+        sends.push({ to, body: message.body });
+      },
     });
     const summary = await runDigest(d);
 
-    expect(summary).toMatchObject({ sent: 0, quiet: 1 });
-    expect(warn).toHaveBeenCalledOnce();
-    expect(warn.mock.calls[0]?.[0]).toContain('2 pending decision(s)');
-    expect(warn.mock.calls[0]?.[0]).toContain('no active migration');
+    expect(summary, 'the tenant is sent to, not counted as quiet').toMatchObject({
+      sent: 1,
+      quiet: 0,
+    });
+    expect(sends).toHaveLength(1);
+    // The count reaches the reader, under a heading that is not a migration.
+    expect(sends[0]!.body).toContain('2');
+    expect(sends[0]!.body).toContain('Your organisation');
+    // And it does NOT invent a mapping row nobody can open — the thing 0030 T4
+    // refused to do, and the reason it left the hole open instead.
+    expect(sends[0]!.body).not.toContain('m-1');
+  });
+
+  it('carries a decision-queue blind spot to the tenant too', async () => {
+    // "I could not look" must not be reported as "nothing is waiting" — the
+    // rule the whole channel is built on (rule 9), now honoured on this path.
+    const sends: string[] = [];
+    const d = deps({
+      listMappings: async () => [{ id: 'm-1', status: 'done' }],
+      countPendingDecisions: async () => {
+        throw new Error('decision table unreachable');
+      },
+      send: async (_to, _locale, message) => {
+        sends.push(message.body);
+      },
+    });
+    const summary = await runDigest(d);
+
+    expect(summary).toMatchObject({ sent: 1 });
+    expect(sends[0]).toContain('decision table unreachable');
   });
 
   it('stays quiet when there is genuinely nothing pending', async () => {

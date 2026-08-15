@@ -232,8 +232,40 @@ export function buildDomainStatusReports(
   });
 }
 
+/**
+ * Whether the notification channel is on, and if not, why.
+ *
+ * On the status payload because the alternative is what shipped: a single
+ * `log.info` line at boot (0030 T1 promised this would be "said honestly in the
+ * UI"; it was said honestly in the logs). An owner who never opens a container
+ * log — which is the owner 0030 describes, the one who "checks the UI weekly at
+ * best" — has no way to tell "nothing needs my attention" from "the emails were
+ * never switched on". Those two look identical from the outside and mean
+ * opposite things.
+ *
+ * The reason travels VERBATIM. `readNotifierConfig` already distinguishes
+ * nothing-set (the ordinary default) from half-set (somebody tried and missed a
+ * variable, and it names which), and that distinction is the entire value of
+ * showing this at all — hard rule 9.
+ */
+export interface NotificationChannelReport {
+  readonly enabled: boolean;
+  /**
+   * Present only when disabled. The channel's own words, not a paraphrase: a
+   * summarised reason is one an operator cannot act on.
+   */
+  readonly reason?: string;
+}
+
 export interface StatusReport {
   readonly status: 'ok';
+  /**
+   * Absent on payloads built before this field existed, and by callers that
+   * have no channel to report — optional rather than defaulted to `false`,
+   * because "notifications are off" and "nobody asked" are different claims and
+   * only one of them should make an owner go looking for a setting.
+   */
+  readonly notifications?: NotificationChannelReport;
   readonly mappings: ReadonlyArray<{
     readonly mappingId: string;
     /**

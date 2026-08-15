@@ -209,3 +209,42 @@ describe('immediate events', () => {
     }
   });
 });
+
+describe('renderDigest — tenant-level attention (0043 T4)', () => {
+  it('sends for a tenant-level decision even with NO mappings at all', () => {
+    // The hole 0030 T4 recorded: the digest was a list of mappings, so a
+    // decision belonging to the tenant had nowhere to ride and reached nobody.
+    const message = renderDigest([], 'en', 'daily', { pendingDecisions: 3 });
+
+    expect(message, 'a pending decision must not be silence').toBeDefined();
+    expect(message!.body).toContain('Your organisation');
+    expect(message!.body).toContain('3');
+  });
+
+  it('keeps silence as the signal when nothing at all is waiting', () => {
+    // The rule that makes the channel worth reading survives the change: an
+    // empty digest is still no email.
+    expect(renderDigest([], 'en', 'daily', { pendingDecisions: 0 })).toBeUndefined();
+    expect(renderDigest([], 'en', 'daily', {})).toBeUndefined();
+    expect(renderDigest([], 'en', 'daily')).toBeUndefined();
+  });
+
+  it('carries a tenant-level blind spot verbatim', () => {
+    // "I could not look" is not "nothing is waiting" (rule 9).
+    const message = renderDigest([], 'en', 'weekly', {
+      blindSpots: ['the decision queue: connection refused'],
+    });
+
+    expect(message).toBeDefined();
+    expect(message!.body).toContain('connection refused');
+  });
+
+  it('says it in Dutch too', () => {
+    // EN/NL parity is a compile-time property for the KEYS; this pins that the
+    // Dutch heading actually reaches the body rather than falling back to EN.
+    const message = renderDigest([], 'nl', 'daily', { pendingDecisions: 1 });
+
+    expect(message!.body).toContain('Uw organisatie');
+    expect(message!.body).not.toContain('Your organisation');
+  });
+});

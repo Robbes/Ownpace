@@ -187,21 +187,26 @@ export async function runDigest(deps: DigestDeps): Promise<DigestSummary> {
       );
     }
 
-    // A tenant whose every mapping is `done` (or who has none) carries its
-    // decisions nowhere: the digest is a list of MAPPINGS, and a pending
-    // decision belongs to the tenant. Rather than invent a row with a mapping
-    // id nobody can open, say it in the operator's log — a pending decision
-    // that silently reaches nobody is the one failure this whole channel
-    // exists to prevent, and a known hole stated out loud beats a quiet one.
-    if (attention.length === 0 && ((decisionsPending ?? 0) > 0 || decisionsBlindSpot)) {
-      deps.warn(
-        `[digest] tenant ${tenant.id} (${tenant.name}) has ${
-          decisionsBlindSpot ?? `${decisionsPending} pending decision(s)`
-        } but no active migration to report them against — not in this digest`,
-      );
-    }
+    // A tenant whose every mapping is `done` (or who has none) used to carry
+    // its decisions nowhere: the digest was a list of MAPPINGS, and a pending
+    // decision belongs to the tenant. 0030 T4 recorded that as a known hole and
+    // wrote it to the operator's log — better than silence, but the operator is
+    // not the person who has to answer the decision.
+    //
+    // Closed in 0043 T4 by giving the digest a section that is NOT a mapping,
+    // rather than inventing a row with a mapping id nobody can open. The
+    // tenant-level counts ride along whether or not there are live mappings;
+    // when there are, they appear once at the top instead of being folded into
+    // the first mapping's row.
+    const tenantAttention =
+      attention.length === 0
+        ? {
+            ...(decisionsPending ? { pendingDecisions: decisionsPending } : {}),
+            ...(decisionsBlindSpot ? { blindSpots: [decisionsBlindSpot] } : {}),
+          }
+        : undefined;
 
-    const message = renderDigest(attention, prefs.locale, cadence);
+    const message = renderDigest(attention, prefs.locale, cadence, tenantAttention);
     if (!message) {
       // The rule that makes this channel worth reading: nothing waiting, no
       // email at all.

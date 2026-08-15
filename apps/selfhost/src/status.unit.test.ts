@@ -66,3 +66,51 @@ describe('buildStatusReport', () => {
     expect(d.lastSyncedAt).toBeUndefined();
   });
 });
+
+describe('buildStatusReport — the notification channel (0043 T3)', () => {
+  // Until this existed, the channel's state was one `log.info` at boot. An owner
+  // who does not read container logs could not distinguish "nothing needs my
+  // attention" from "the emails were never switched on" — two states that look
+  // identical from the outside and mean opposite things.
+
+  it('reports the channel as ON when it is enabled', () => {
+    const report = buildStatusReport([], { enabled: true });
+    expect(report.notifications).toEqual({ enabled: true });
+  });
+
+  it('reports OFF with the reason VERBATIM, not a paraphrase', () => {
+    // The reason is the actionable part. `readNotifierConfig` distinguishes
+    // nothing-set from half-set and names the missing variable; a summarised
+    // reason is one an operator cannot act on (rule 9).
+    const reason = 'SMTP_HOST is set but SMTP_FROM is missing';
+    const report = buildStatusReport([], { enabled: false, reason });
+
+    expect(report.notifications?.enabled).toBe(false);
+    expect(report.notifications?.reason).toBe(reason);
+  });
+
+  it('says NOTHING when the caller has no channel to report', () => {
+    // Deliberately absent rather than `enabled: false`. "Notifications are off"
+    // and "nobody asked about notifications" are different claims, and only one
+    // of them should send an owner hunting for a setting.
+    const report = buildStatusReport([]);
+    expect(report.notifications).toBeUndefined();
+    expect('notifications' in report).toBe(false);
+  });
+
+  it('leaves the rest of the payload alone', () => {
+    // The channel is additive: a caller that already read this payload must not
+    // find its mappings moved or missing.
+    const withChannel = buildStatusReport(
+      [{ mappingId: 'inbox', migrationStatus: 'active', statuses: [status({ itemsSynced: 7 })] }],
+      { enabled: true },
+    );
+    const without = buildStatusReport([
+      { mappingId: 'inbox', migrationStatus: 'active', statuses: [status({ itemsSynced: 7 })] },
+    ]);
+
+    expect(withChannel.mappings).toEqual(without.mappings);
+    expect(withChannel.status).toBe('ok');
+  });
+});
+

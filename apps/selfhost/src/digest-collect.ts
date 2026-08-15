@@ -25,6 +25,7 @@
  * test.
  */
 
+import type { TenantAttention } from '@openmig/shared';
 import {
   summariseQueues,
   reportsToDigest,
@@ -103,3 +104,44 @@ export async function collectAttention(deps: CollectDeps): Promise<MappingAttent
 
   return out;
 }
+
+/**
+ * What is waiting on the TENANT rather than on any one migration (0043 T4).
+ *
+ * The appliance's twin of the managed rule, and it exists for parity as much as
+ * for correctness: hard rule 5 says the editions do not differ, and a decision
+ * that reaches a managed customer's inbox while an appliance owner gets only a
+ * log line is exactly the kind of difference that rule forbids.
+ *
+ * Kept SEPARATE from `collectAttention` rather than folded into its return
+ * type. Reshaping that signature would have churned its fourteen tests to prove
+ * nothing new — the behaviour being added is not a change to how mappings are
+ * collected, and a diff that says so is easier to review.
+ *
+ * The caller decides when to ask: only when no mapping reported, mirroring
+ * managed. With live mappings the decisions already ride on the first one.
+ */
+export async function collectTenantAttention(deps: CollectDeps): Promise<TenantAttention> {
+  const seen = new Set<string>();
+  let pendingDecisions = 0;
+  const blindSpots: string[] = [];
+
+  for (const mapping of deps.mappings) {
+    if (seen.has(mapping.tenantId)) continue;
+    seen.add(mapping.tenantId);
+    try {
+      pendingDecisions += await deps.countPendingDecisions(mapping.tenantId);
+    } catch (err) {
+      // A queue that could not be READ is not a queue that is empty (rule 9).
+      blindSpots.push(
+        `the decision queue: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  return {
+    ...(pendingDecisions > 0 ? { pendingDecisions } : {}),
+    ...(blindSpots.length > 0 ? { blindSpots } : {}),
+  };
+}
+
