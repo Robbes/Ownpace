@@ -317,3 +317,57 @@ describe('one outage, one email (the failure streak gate)', () => {
     });
   });
 });
+
+describe('SMTP_ALLOW_SELF_SIGNED (0043 T1)', () => {
+  const base = {
+    SMTP_HOST: 'mail.example',
+    NOTIFY_FROM: 'openmig@example',
+    NOTIFY_TO: 'owner@example',
+  };
+
+  it('carries the setting through when it is explicitly true', () => {
+    // The reason it exists: the integration harness's Stalwart presents a
+    // self-signed certificate, and without this nothing could prove this
+    // product sends mail at all.
+    const config = readNotifierConfig({ ...base, SMTP_ALLOW_SELF_SIGNED: 'true' });
+    expect(config.enabled).toBe(true);
+    expect(config.enabled && config.smtp.allowSelfSignedCertificate).toBe(true);
+  });
+
+  it('is off unless the value is exactly "true"', () => {
+    // Nothing should switch certificate checking off by accident — not '1',
+    // not 'yes', not 'TRUE'.
+    for (const raw of ['1', 'yes', 'TRUE', 'on', '']) {
+      const config = readNotifierConfig({ ...base, SMTP_ALLOW_SELF_SIGNED: raw });
+      expect(config.enabled && config.smtp.allowSelfSignedCertificate).toBeUndefined();
+    }
+  });
+
+  it('is absent entirely when nobody asked', () => {
+    const config = readNotifierConfig(base);
+    expect(config.enabled && config.smtp.allowSelfSignedCertificate).toBeUndefined();
+  });
+
+  it('REFUSES the whole channel in production rather than trusting any certificate', () => {
+    // The guard that makes the escape hatch safe to ship. Losing notifications
+    // is the safer failure, and since T3 it is a visible one — /status reports
+    // the channel off with this reason.
+    const config = readNotifierConfig({
+      ...base,
+      SMTP_ALLOW_SELF_SIGNED: 'true',
+      NODE_ENV: 'production',
+    });
+
+    expect(config.enabled).toBe(false);
+    expect(!config.enabled && config.reason).toContain('SMTP_ALLOW_SELF_SIGNED');
+    expect(!config.enabled && config.reason).toContain('production');
+  });
+
+  it('leaves production alone when the switch is not set', () => {
+    // The guard must not cost anybody their notifications for being in
+    // production, which is the ordinary case.
+    const config = readNotifierConfig({ ...base, NODE_ENV: 'production' });
+    expect(config.enabled).toBe(true);
+  });
+});
+

@@ -391,6 +391,24 @@ export interface SmtpSettings {
   readonly secure: boolean;
   readonly user?: string;
   readonly password?: string;
+  /**
+   * Accept a certificate the system would otherwise reject — a self-signed one.
+   *
+   * EXISTS FOR ONE REASON (0043 T1): the integration harness's Stalwart binds
+   * TLS listeners only and presents a self-signed certificate, so without this
+   * there is no way to prove — against anything — that this product can send an
+   * email at all. Before it, `smtp-transport.ts` was referenced by no test and
+   * nodemailer was never even constructed by the suite.
+   *
+   * REFUSED IN PRODUCTION. `readNotifierConfig` turns the whole channel OFF, with
+   * the reason named, when this is set and `NODE_ENV === 'production'`. A
+   * migration tool that mails an owner about their data must not be talked into
+   * trusting any certificate presented to it, and an escape hatch that exists for
+   * tests is an escape hatch that exists — unless something stops it. Losing
+   * notifications is the safer failure, and since 0043 T3 it is a visible one:
+   * `/status` reports the channel as off, with this as the reason.
+   */
+  readonly allowSelfSignedCertificate?: boolean;
 }
 
 /** Configured and ready, or off — with the reason, always. */
@@ -579,6 +597,20 @@ export function readNotifierConfig(env: {
     };
   }
 
+  // Deliberately an exact string match, and deliberately not defaulted from
+  // anything else: nothing should switch certificate checking off by accident.
+  const allowSelfSigned = env.SMTP_ALLOW_SELF_SIGNED === 'true';
+  if (allowSelfSigned && env.NODE_ENV === 'production') {
+    return {
+      enabled: false,
+      reason:
+        'SMTP_ALLOW_SELF_SIGNED is set and NODE_ENV is production. That switch exists so ' +
+        'tests can reach a self-signed mail server, and accepting any certificate in ' +
+        'production would let anything that can answer on the SMTP port read what is sent ' +
+        'to it. Notifications are OFF until it is unset — unsetting it is the fix.',
+    };
+  }
+
   const secure = env.SMTP_SECURE === 'true';
   const parsedPort = Number.parseInt(env.SMTP_PORT ?? '', 10);
   const port = Number.isFinite(parsedPort) && parsedPort > 0 ? parsedPort : secure ? 465 : 587;
@@ -592,6 +624,7 @@ export function readNotifierConfig(env: {
       secure,
       ...(env.SMTP_USER ? { user: env.SMTP_USER } : {}),
       ...(env.SMTP_PASSWORD ? { password: env.SMTP_PASSWORD } : {}),
+      ...(allowSelfSigned ? { allowSelfSignedCertificate: true } : {}),
     },
     settings: { from: from!, to, locale },
     digests: parseDigests(env.NOTIFY_DIGEST),
