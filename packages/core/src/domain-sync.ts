@@ -172,6 +172,12 @@ export type KnownItemAction =
   | 'record-version'
   /** The source changed and we own the target copy: rewrite it. */
   | 'rewrite'
+  /**
+   * The copy was removed because the item RELOCATED, and something is at the
+   * old key again. Copy it: see `classifyKnownItem` for why this is not the
+   * same as a deletion tombstone.
+   */
+  | 'relocated-away'
   /** The source changed but the target copy is the CUSTOMER'S: leave it. */
   | 'leave-adopted'
   /**
@@ -230,7 +236,10 @@ export type KnownItemAction =
  * would answer the content question while silently ignoring the other one.
  */
 export function classifyKnownItem(
-  known: Pick<LedgerRecord, 'sourceVersion' | 'status' | 'attemptCount' | 'collection'>,
+  known: Pick<
+    LedgerRecord,
+    'sourceVersion' | 'status' | 'attemptCount' | 'collection' | 'movedToNaturalKeyHash'
+  >,
   sourceVersion: string | undefined,
   /**
    * The source collection the item is listed in NOW.
@@ -260,7 +269,24 @@ export function classifyKnownItem(
   // Ahead of every version rule because a tombstoned row has no meaningful version
   // question: there are no bytes on the target to compare against. Left to fall
   // through, it matched "versions equal → skip" and became invisible forever.
-  if (known.status === 'tombstoned') return 'tombstoned';
+  if (known.status === 'tombstoned') {
+    // TWO KINDS OF TOMBSTONE, and only one of them is an erasure.
+    //
+    // The rule above is about a DELETION applied on the owner's decision: this
+    // code cannot tell a change of mind from an erasure request, so it refuses
+    // to re-materialise the item and says so. That reasoning does not reach a
+    // RELOCATION (ADR-0030). Nobody asked for anything to be erased there — the
+    // item moved, its content is on the target under the new key, and the old
+    // copy was removed as redundant. `movedToNaturalKeyHash` is what tells the
+    // two apart, and it is set only by a relocation.
+    //
+    // Left undistinguished, the file domain's path key made this a quiet,
+    // permanent loss: after a rename was applied, ANY file later occupying the
+    // old path — a different file, with different content, that nobody deleted
+    // — matched the tombstoned row and was never migrated, for the lifetime of
+    // the mapping.
+    return known.movedToNaturalKeyHash !== undefined ? 'relocated-away' : 'tombstoned';
+  }
   if (known.status === 'failed') {
     return (known.attemptCount ?? 0) >= MAX_ITEM_ATTEMPTS ? 'needs-decision' : 'retry-failed';
   }
@@ -887,7 +913,10 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           }
           // 'retry-failed' falls through to the normal fetch-and-write path.
           // 'rewrite' does too, but carries the row so the write knows to
-          // overwrite the target. Either way the ledger row already exists.
+          // overwrite the target. So does 'relocated-away': the target has
+          // nothing at this key any more, so an ordinary write is right, and
+          // `recordUpdate` below turns the tombstone back into a live row.
+          // Either way the ledger row already exists.
           hasExistingRow = true;
           if (action === 'rewrite') rewriteOf = known;
         }
@@ -986,7 +1015,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
               });
               return;
             }
-            if (action !== 'retry-failed') {
+            if (action !== 'retry-failed' && action !== 'relocated-away') {
               // 'skip' — a healthy copy, which is the overwhelmingly common
               // case and what keeps these items idempotent.
               //

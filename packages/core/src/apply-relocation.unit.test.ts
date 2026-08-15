@@ -271,7 +271,11 @@ describe('the gates it shares with a deletion are still in front of it', () => {
     const outcome = await applyRelocation(deps(ledger, target), OLD_KEY);
 
     expect(target.removeItem, 'the removal happened').toHaveBeenCalled();
-    expect(outcome).toMatchObject({ ok: false, code: 'not_found' });
+    // NOT `not_found`, which every caller maps to 404 "nothing here to act on"
+    // — the opposite of what happened. An operator reading that would believe
+    // their copy is still there.
+    expect(outcome).toMatchObject({ ok: false, code: 'removed_not_recorded' });
+    expect(String((outcome as { reason: string }).reason)).toMatch(/WAS removed/);
   });
 });
 
