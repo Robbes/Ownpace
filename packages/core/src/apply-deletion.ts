@@ -124,6 +124,13 @@ export type ApplyRefusal =
    * changed wholesale, and the thing to check is why.
    */
   | 'mass_relocation_suspected'
+  /**
+   * The owner already saw this move and chose `keep` (ADR-0030).
+   *
+   * Distinct from `already_applied`, which means the copy is gone. This one
+   * means it is still there, on purpose.
+   */
+  | 'already_kept'
   /** No relocation is recorded against this item (ADR-0030). */
   | 'not_relocated'
   /** A relocation is recorded, but the new copy is not verifiably on the target. */
@@ -683,11 +690,42 @@ async function relocationCheck(
   row: {
     readonly naturalKeyHash: string;
     readonly movedToNaturalKeyHash?: string;
+    readonly moveAcknowledgedAt?: string;
     readonly contentHash?: string;
     readonly targetId?: string;
   },
 ): Promise<Extract<ApplyDeletionOutcome, { ok: false }> | undefined> {
   const { tenantId, mappingId, domain, ledger } = deps;
+
+  // THE OWNER ALREADY ANSWERED THIS QUESTION, and said leave it.
+  //
+  // `keep` and `apply` are the two mutually exclusive answers to one question,
+  // and until this the server accepted the second after recording the first.
+  // `mayOfferRelocationApply` refused to offer the button — and claimed, in its
+  // own documentation, that the server enforced this and more. It did not, so
+  // the only thing standing between a recorded `keep` and a destroyed copy was
+  // a UI that happened not to render a button.
+  //
+  // Which matters most where nothing renders at all: two operators, one
+  // choosing `keep` and the other `apply`, both succeeded, and the copy went
+  // despite a decision on the row saying it should not. Gate 7 is meant to be
+  // the last word under concurrency; it could not speak about this.
+  //
+  // THE COST: an owner who chose `keep` and later changes their mind cannot
+  // undo it here. That is deliberate — nothing in this product re-opens a
+  // carried-out decision — and the refusal says the same thing every other
+  // refusal in this file says: do it in the target system yourself.
+  if (row.moveAcknowledgedAt !== undefined) {
+    return {
+      ok: false,
+      code: 'already_kept',
+      reason:
+        'Somebody already looked at this move and chose to leave the old copy alone, so it will ' +
+        'not be removed now. If that was the wrong call, remove it in the target system ' +
+        'yourself — this decision is not re-opened here.',
+    };
+  }
+
   const arrivalKey = row.movedToNaturalKeyHash;
   if (arrivalKey !== undefined && arrivalKey === row.naturalKeyHash) {
     // A row pointing at ITSELF would verify itself: the arrival lookup returns

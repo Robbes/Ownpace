@@ -818,6 +818,9 @@ export class MemoryLedger implements Ledger {
       if (r.movedToNaturalKeyHash === undefined) continue;
       // Still open.
       if (r.deletionAppliedAt !== undefined) continue;
+      // And not already answered the other way: `keep` and `apply` are the two
+      // answers to one question, and the first one written wins.
+      if (r.moveAcknowledgedAt !== undefined) continue;
       // Only a copy WE wrote.
       if (r.status !== 'copied' && r.status !== 'updated') continue;
       // THE ARRIVAL, re-checked under the write — the SQL's EXISTS clause, and

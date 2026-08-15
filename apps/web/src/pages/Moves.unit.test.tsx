@@ -169,11 +169,36 @@ describe('the relocation apply button', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows the NEW KEY for a rename, where both folders read the same', async () => {
-    // "Docs → Docs" says nothing about what changed.
-    fetchMovesMock.mockResolvedValue(queue({ open: [RELOCATION] }));
+  it('says a rename is a rename, instead of printing a SHA-256 at the operator', async () => {
+    // "Docs → Docs" says nothing about what changed, so this row used to render
+    // `toNaturalKeyHash` in the destination's place. That is a sha256 of the new
+    // path — `fileNaturalKeyHash` — not the new path, so the row read
+    // `Docs → 9f2c…` and named nothing anybody could recognise.
+    //
+    // The old test could not see it, because its fixture put `Docs/summary.pdf`
+    // in that field: a hash-shaped hole filled with a path-shaped string, which
+    // made a row that prints a hex digest look like one that prints a filename.
+    // This one uses what the field actually carries.
+    const HASH = '9f2c1b6a4e7d0c3f8a5b2e9d6c1f4a7b0e3d6c9f2a5b8e1d4c7f0a3b6e9d2c5f';
+    fetchMovesMock.mockResolvedValue(
+      queue({ open: [{ ...RELOCATION, toNaturalKeyHash: HASH }] }),
+    );
     renderScreen();
 
-    expect(await screen.findByText('Docs/summary.pdf')).toBeInTheDocument();
+    expect(await screen.findByText('renamed')).toBeInTheDocument();
+    expect(screen.queryByText(HASH), 'never the digest').not.toBeInTheDocument();
+    expect(screen.queryByText(HASH.slice(0, 12), { exact: false })).not.toBeInTheDocument();
+  });
+
+  it('still shows the destination folder for a move that changed one', async () => {
+    // The other half: a real move has somewhere to point at, and hiding it
+    // would make the queue unusable for the case it was built for.
+    fetchMovesMock.mockResolvedValue(
+      queue({ open: [{ ...RELOCATION, to: 'Archive/2026', toNaturalKeyHash: 'h-new' }] }),
+    );
+    renderScreen();
+
+    expect(await screen.findByText('Archive/2026')).toBeInTheDocument();
+    expect(screen.queryByText('renamed')).not.toBeInTheDocument();
   });
 });

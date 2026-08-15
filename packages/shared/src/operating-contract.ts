@@ -680,6 +680,15 @@ export function mayOfferApply(deletion: ItemDeletion): boolean {
  * NECESSARY, not sufficient: `applyRelocation` on the server enforces the rest
  * (the mapping's opt-in, that the arrival is really on the target with matching
  * content, ownership, the ETag, the breaker) and is the only thing that decides.
+ *
+ * THE ACKNOWLEDGEMENT CLAUSE IS PART OF THAT CONTRACT, not a UI nicety. It is
+ * here because a move somebody already answered with `keep` must not be offered
+ * the opposite answer — and this sentence was false for a while: the server
+ * accepted an apply on a kept move, so the only thing between a recorded
+ * decision and a destroyed copy was a button that happened not to render.
+ * `applyRelocation` now refuses with `already_kept`, and the ledger's own
+ * conditional UPDATE refuses it too, which is what settles it when two people
+ * answer at once.
  */
 export function mayOfferRelocationApply(move: ItemMove): boolean {
   return move.toNaturalKeyHash !== undefined && move.acknowledgedAt === undefined;

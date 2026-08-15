@@ -306,6 +306,68 @@ async function corpus(total: number, relocations: number): Promise<MemoryLedger>
   return ledger;
 }
 
+describe('`keep` and `apply` are two answers to one question', () => {
+  it('refuses a move the owner already chose to keep', async () => {
+    // `mayOfferRelocationApply` has always refused to offer the button here,
+    // and its own documentation claimed the server enforced this and more. It
+    // did not: the only thing between a recorded decision and a destroyed copy
+    // was a button that happened not to render.
+    const ledger = await ledgerWithRelocation();
+    expect(await ledger.resolveMove(TENANT, MAPPING, OLD_KEY, 'keep')).toBe(true);
+    const target = fakeRemover();
+
+    const outcome = await applyRelocation(deps(ledger, target), OLD_KEY);
+
+    expect(outcome).toMatchObject({ ok: false, code: 'already_kept' });
+    expect(target.removeItem, 'and nothing was touched').not.toHaveBeenCalled();
+    expect((await ledger.find(TENANT, MAPPING, 'file', OLD_KEY))?.status).toBe('copied');
+  });
+
+  it('is a DIFFERENT answer from "already removed"', async () => {
+    // Both mean "not now", and an operator can tell them apart only if we do:
+    // one says the copy is gone, the other says it is still there on purpose.
+    const kept = await ledgerWithRelocation();
+    await kept.resolveMove(TENANT, MAPPING, OLD_KEY, 'keep');
+    const applied = await ledgerWithRelocation();
+    await applyRelocation(deps(applied, fakeRemover()), OLD_KEY);
+
+    expect(await applyRelocation(deps(kept, fakeRemover()), OLD_KEY)).toMatchObject({
+      code: 'already_kept',
+    });
+    expect(await applyRelocation(deps(applied, fakeRemover()), OLD_KEY)).toMatchObject({
+      code: 'already_applied',
+    });
+  });
+
+  it('the LEDGER settles it when both answers arrive at once', async () => {
+    // Core's check happens before a network call, so two operators answering
+    // together both pass it. Gate 7 is where that is decided: the `keep` lands
+    // while the removal is in flight, and the conditional UPDATE then matches
+    // nothing.
+    //
+    // The outcome is `removed_not_recorded` — the copy IS gone — and that is
+    // the honest report of this race under remove-then-record ordering, not a
+    // silent success. What the gate prevents is the second write claiming the
+    // removal was a decided, recorded action.
+    const ledger = await ledgerWithRelocation();
+    const target = {
+      hasItem: vi.fn(async () => true),
+      removeItem: vi.fn(async () => {
+        await ledger.resolveMove(TENANT, MAPPING, OLD_KEY, 'keep');
+        return { kind: 'deleted' as const };
+      }),
+    };
+
+    const outcome = await applyRelocation(deps(ledger, target), OLD_KEY);
+
+    expect(outcome).toMatchObject({ ok: false, code: 'removed_not_recorded' });
+    expect(
+      (await ledger.find(TENANT, MAPPING, 'file', OLD_KEY))?.status,
+      'the ledger refused the write, so the row is NOT tombstoned',
+    ).toBe('copied');
+  });
+});
+
 describe('gate 6, the half nothing used to measure', () => {
   it('refuses every relocation while a fifth of the domain has relocated at once', async () => {
     // Each apply on its own is locally perfect — the bytes really are on the

@@ -41,11 +41,23 @@ import { applyMove, fetchMoves, keepMove } from '../services/operating-service';
 import { isSelfHost } from '../services/edition';
 import { useT } from '../i18n';
 
+/**
+ * A move that changed the item's NAME without changing its folder.
+ *
+ * The two folders being equal is not enough on its own — a mail move within one
+ * mailbox would look the same — so the relocation key is what says the item's
+ * identity changed.
+ */
+const renamedInPlace = (mv: ItemMove): boolean =>
+  mv.toNaturalKeyHash !== undefined && mv.to === mv.from;
+
 const Row: React.FC<{
   mv: ItemMove;
   outcome?: ItemOutcome;
   actions?: React.ReactNode;
-}> = ({ mv, outcome, actions }) => (
+}> = ({ mv, outcome, actions }) => {
+  const t = useT();
+  return (
   <ItemRow>
     <DomainTag domain={mv.domain} />
     {/*
@@ -57,15 +69,26 @@ const Row: React.FC<{
       <span className="truncate" title={mv.from}>
         {mv.from}
       </span>
-      <ArrowRight className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
-      {/*
-        For a RENAME the two folders are the same, and showing "Docs → Docs"
-        would say nothing about what changed. The key is what moved, so it is
-        what gets shown — truncated, because a file's natural key is its path.
-      */}
-      <span className="truncate" title={mv.toNaturalKeyHash ?? mv.to}>
-        {mv.toNaturalKeyHash && mv.to === mv.from ? mv.toNaturalKeyHash : mv.to}
-      </span>
+      {renamedInPlace(mv) ? (
+        /*
+          A RENAME. "Docs → Docs" would say nothing about what changed, and the
+          only other thing this row holds is `toNaturalKeyHash` — which is a
+          SHA-256 of the new path, NOT the new path (see `fileNaturalKeyHash`).
+          It used to be rendered here, so the row read `Docs → 3f9a2b1c…`: a
+          destination nobody can recognise, in a queue whose whole job is to say
+          what happened. §17 keeps the path itself off this wire deliberately, so
+          the honest thing to show is that it was renamed and nothing more. The
+          item's own chip below is the handle every action takes.
+        */
+        <span className="text-gray-500 italic flex-shrink-0">{t('moves.renamedTo')}</span>
+      ) : (
+        <>
+          <ArrowRight className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
+          <span className="truncate" title={mv.to}>
+            {mv.to}
+          </span>
+        </>
+      )}
     </span>
     <HashChip hash={mv.naturalKeyHash} />
     <div className="flex items-center gap-2 ml-auto">
@@ -78,7 +101,8 @@ const Row: React.FC<{
       )}
     </div>
   </ItemRow>
-);
+  );
+};
 
 const Moves: React.FC = () => {
   // Undefined on the appliance, which answers for every configured mapping;

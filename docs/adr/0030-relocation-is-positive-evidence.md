@@ -211,6 +211,30 @@ same trade ADR-0024 already accepts for a genuine mass deletion, taken for the s
 the moment the share is that high, this code cannot tell the deliberate reorganisation from the
 accident, and only one of the two is recoverable.
 
+### `keep` was enforced by a button, 2026-08-15
+
+`mayOfferRelocationApply` has always required an OPEN move, and said in its own documentation
+that the server enforced that and more. The server did not: neither `applyRelocation` nor the
+ledger's conditional `UPDATE` looked at `move_acknowledged_at`, so an apply on a move somebody had
+already answered with `keep` succeeded. The only thing between a recorded decision and a destroyed
+copy was a UI that happened not to render a button — and where nothing renders at all, two
+operators answering the same question at once both succeeded, and the copy went despite a decision
+on the row saying it should not.
+
+`keep` and `apply` are the two mutually exclusive answers to one question. Both halves now say so:
+core refuses with `already_kept` (distinct from `already_applied`, which means the copy is gone
+rather than still there on purpose), and gate 7's statement carries `move_acknowledged_at IS NULL`,
+which is what settles the race — first write wins, the loser is told what happened.
+
+**The cost:** an owner who chose `keep` and later changes their mind cannot undo it here. Nothing
+in this product re-opens a carried-out decision, and the refusal says what every other refusal on
+this path says — do it in the target system yourself.
+
+The same audit pass found that `applyRelocation`'s statement had never run against Postgres at
+all: only `MemoryLedger` executed its `EXISTS` subquery and its deletion-closing `CASE`. A fake
+mirroring a statement nobody executes proves the fake is self-consistent, which is not the claim.
+`ledger.integration.test.ts` now runs it.
+
 ## Consequences
 
 - **The target can converge.** For the first time, an owner whose source was reorganised has a
