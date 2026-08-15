@@ -558,6 +558,47 @@ export function canRemove(target: unknown): target is TargetRemover {
   return typeof (target as TargetRemover | undefined)?.removeItem === 'function';
 }
 
+/**
+ * Ask the target whether a copy is REALLY there (ADR-0030, amended).
+ *
+ * OPTIONAL, and separate from `TargetRemover` for the same reason that one is
+ * separate: a writer opts in, and one that has not makes the caller refuse
+ * rather than assume.
+ *
+ * WHY IT EXISTS. `applyRelocation` removes the target's old copy of a moved
+ * file, and the only thing that makes that admissible is the same bytes being
+ * present under the new key. It was checked against the LEDGER — and the ledger
+ * is a claim, not the target. ADR-0024 deliberately removes-then-records, so a
+ * crash or a failed write between the two leaves a row saying `copied` for a
+ * copy that is already gone. Trusting such a row is how the last copy of a file
+ * gets destroyed by an operation that reports the opposite.
+ *
+ * So the destructive path asks. A writer that cannot answer does not get to
+ * host this operation.
+ */
+export interface TargetPresenceCheck {
+  /**
+   * Is `targetId` still on the target?
+   *
+   * `false` means confidently absent. THROW rather than answer `false` when the
+   * question could not be put — a network error, a permission problem, a
+   * timeout. The caller treats an exception as "do not proceed", and treating
+   * an outage as absence is how a removal gets authorised by a broken network.
+   *
+   * `collection` is passed for the same reason `removeItem` takes one: not
+   * every target id is meaningful on its own.
+   */
+  hasItem(
+    targetId: string,
+    options?: { readonly collection?: string },
+  ): Promise<boolean>;
+}
+
+/** Does this object implement {@link TargetPresenceCheck}? */
+export function canConfirmPresence(target: unknown): target is TargetPresenceCheck {
+  return typeof (target as TargetPresenceCheck | undefined)?.hasItem === 'function';
+}
+
 /** One existing item discovered on the target during reindex/adoption (ADR-0020). */
 export interface TargetEntry {
   /** Natural key as stored on the target (e.g. Message-ID). */

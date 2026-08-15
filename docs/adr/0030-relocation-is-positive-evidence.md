@@ -157,6 +157,26 @@ explains a live rename; and a confirmed deletion left open on a tombstoned row, 
 leaves the queue and goes on counting towards the mass-deletion breaker until it refuses every
 apply in the domain.
 
+### The owner's answer, 2026-08-15: ask the target
+
+The residual the amendment above could not close is that a LEDGER ROW IS A CLAIM. ADR-0024
+deliberately removes-then-records — the ordering is right, and it means a crash or a failed write
+between the two leaves a row saying `copied` for a copy that is already gone. `applyRelocation`
+was trusting exactly such a row as proof the bytes were safe.
+
+So the destructive path now ASKS THE TARGET, as the last thing before it removes anything:
+`TargetPresenceCheck.hasItem` on the ARRIVAL's target id. `WebDAVTargetWriter` answers with a
+HEAD, `JmapFileTarget` with a one-id `FileNode/get`; both treat "the server could not say" as a
+THROW rather than as absence, because a 503 is not evidence that a file is gone.
+
+**A target that cannot be asked does not get to host this operation.** The entire admissibility
+argument is presence, and an unanswerable question is not a yes — so a writer that has not
+implemented the check makes the apply refuse with `target_cannot_confirm`, naming itself.
+
+That closes the gap between what this ADR claims and what it can demonstrate: the bytes are not
+believed to be elsewhere, they are confirmed to be, at the moment of acting, by the system that
+holds them.
+
 **What this says about the decision itself.** The decision stands — removing a copy whose content
 is verifiably elsewhere is still categorically safer than acting on a deletion. What was wrong was
 the assumption that the correlation feeding it needed no scrutiny of its own. Detection may be

@@ -47,8 +47,18 @@ function row(overrides: Partial<LedgerRecord> = {}): LedgerRecord {
   };
 }
 
-function fakeRemover(answer: RemovalResult = { kind: 'deleted' }) {
-  return { removeItem: vi.fn(async () => answer) };
+/**
+ * A target that can both remove AND be asked whether something is there.
+ *
+ * `hasItem` defaults to true because most tests are about a different gate; the
+ * ones about presence pass their own answer. A target with no `hasItem` at all
+ * is a separate fixture below, and it must be REFUSED rather than trusted.
+ */
+function fakeRemover(answer: RemovalResult = { kind: 'deleted' }, present = true) {
+  return {
+    removeItem: vi.fn(async () => answer),
+    hasItem: vi.fn(async () => present),
+  };
 }
 
 /**
@@ -408,5 +418,61 @@ describe('what the audit found', () => {
 
     const after = await ledger.find(TENANT, MAPPING, 'file', OLD_KEY);
     expect(after?.deletionAcknowledgedAt, 'left open, it latches the breaker').toBeDefined();
+  });
+});
+
+describe('the target is asked, not just the ledger (ADR-0030, amended)', () => {
+  it('asks about the ARRIVAL, and removes only when the target says yes', async () => {
+    const ledger = await ledgerWithRelocation();
+    const target = fakeRemover();
+
+    expect(await applyRelocation(deps(ledger, target), OLD_KEY)).toMatchObject({ ok: true });
+
+    // The NEW copy's target id — asking about the old one would confirm the
+    // thing being removed, which proves nothing.
+    expect(target.hasItem).toHaveBeenCalledWith('target/Docs/summary.pdf', expect.anything());
+  });
+
+  it('refuses when the target does NOT have the relocated copy', async () => {
+    // The case the ledger cannot see: ADR-0024 removes-then-records, so a crash
+    // between those steps leaves a row claiming `copied` for a copy already
+    // gone. This is then the only copy left.
+    const ledger = await ledgerWithRelocation();
+    const target = fakeRemover({ kind: 'deleted' }, false);
+
+    const outcome = await applyRelocation(deps(ledger, target), OLD_KEY);
+
+    expect(outcome).toMatchObject({ ok: false, code: 'relocation_unconfirmed' });
+    expect(String((outcome as { reason: string }).reason)).toMatch(/only copy left/);
+    expect(target.removeItem).not.toHaveBeenCalled();
+  });
+
+  it('refuses a target that cannot be ASKED at all', async () => {
+    // An unanswerable question is not a yes. The whole admissibility argument
+    // is presence, so a writer that has not implemented the check does not get
+    // to host this operation.
+    const ledger = await ledgerWithRelocation();
+    const target = { removeItem: vi.fn(async () => ({ kind: 'deleted' as const })) };
+
+    const outcome = await applyRelocation(deps(ledger, target), OLD_KEY);
+
+    expect(outcome).toMatchObject({ ok: false, code: 'target_cannot_confirm' });
+    expect(target.removeItem).not.toHaveBeenCalled();
+  });
+
+  it('does not treat an ERROR from the target as absence', async () => {
+    // A 503 is not evidence that a file is gone. The port says throw rather
+    // than answer false, and the throw must reach the caller rather than be
+    // turned into a refusal that reads like a fact about the file.
+    const ledger = await ledgerWithRelocation();
+    const target = {
+      removeItem: vi.fn(async () => ({ kind: 'deleted' as const })),
+      hasItem: vi.fn(async () => {
+        throw new Error('503 from the target');
+      }),
+    };
+
+    await expect(applyRelocation(deps(ledger, target), OLD_KEY)).rejects.toThrow(/503/);
+    expect(target.removeItem).not.toHaveBeenCalled();
   });
 });

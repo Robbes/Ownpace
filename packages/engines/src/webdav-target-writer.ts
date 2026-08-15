@@ -17,6 +17,7 @@ import type {
   TenantId,
   MappingId,
   TargetReindexer,
+  TargetPresenceCheck,
   TargetEntry,
   RemovalResult,
 } from '@openmig/shared';
@@ -56,7 +57,7 @@ export interface WebDAVTargetConfig {
 /**
  * WebDAV target writer implementation
  */
-export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
+export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, TargetPresenceCheck {
   private readonly config: WebDAVTargetConfig;
   private readonly ledger: Ledger;
   private readonly tenantId: TenantId;
@@ -721,6 +722,33 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer {
         ? { expectedTargetVersion: options.expectedTargetVersion }
         : {}),
     });
+  }
+
+  /**
+   * Is the file still there? (ADR-0030, amended.)
+   *
+   * A HEAD, because the question is presence and nothing else — a GET would
+   * pull the bytes of a file this code has no business reading, and a PROPFIND
+   * asks a server for properties nobody wants.
+   *
+   * 404 is a confident NO. Anything else that is not a success THROWS, because
+   * the caller is about to destroy a copy on the strength of this answer and a
+   * 503 is not evidence of absence.
+   */
+  async hasItem(targetId: string): Promise<boolean> {
+    const response = await this.httpClient.request({
+      url: this.buildUrl(this.normalizeRelativePath(targetId)),
+      method: 'HEAD',
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
+      },
+    });
+    if (response.status === 404 || response.status === 410) return false;
+    if (response.status >= 200 && response.status < 300) return true;
+    throw new Error(
+      `The target could not say whether ${targetId} is still there (HTTP ${response.status}). ` +
+        'Nothing was removed.',
+    );
   }
 
   private buildUrl(path: string): string {

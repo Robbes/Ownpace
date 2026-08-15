@@ -592,7 +592,13 @@ describe('a file moved between source folders', () => {
         mappingId: MAPPING,
         domain: 'file',
         ledger,
-        target: { removeItem: async () => ({ kind: 'deleted' as const }) },
+        target: {
+          removeItem: async () => ({ kind: 'deleted' as const }),
+          // The destructive path asks the target whether the RELOCATED copy is
+          // really there before removing the old one (ADR-0030, amended); a
+          // target that cannot answer is refused.
+          hasItem: async () => true,
+        },
         allowApplyDeletions: true,
       },
       'a/report.pdf',
@@ -898,7 +904,13 @@ describe('a removed copy takes no further part', () => {
         mappingId: MAPPING,
         domain: 'file',
         ledger,
-        target: { removeItem: async () => ({ kind: 'deleted' as const }) },
+        target: {
+          removeItem: async () => ({ kind: 'deleted' as const }),
+          // The destructive path asks the target whether the RELOCATED copy is
+          // really there before removing the old one (ADR-0030, amended); a
+          // target that cannot answer is refused.
+          hasItem: async () => true,
+        },
         allowApplyDeletions: true,
       },
       'a/one.txt',
