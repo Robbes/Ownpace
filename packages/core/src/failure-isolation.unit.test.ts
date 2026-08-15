@@ -84,6 +84,53 @@ function pass(
   };
 }
 
+/**
+ * The DERIVED-key variant of `pass` above.
+ *
+ * `naturalKey` returns undefined — the shape of mail with no Message-ID — so the
+ * key can only be computed from the bytes, after the fetch. That sends the loop
+ * down a second, separate fast-path check inside the try block, which is a
+ * different piece of code from the one the tests above exercise.
+ */
+function derivedPass(
+  ledger: MemoryLedger,
+  items: Item[],
+  failing: ReadonlySet<string>,
+  reason = 'source item is unreadable',
+) {
+  const written: string[] = [];
+  return {
+    written,
+    run: () =>
+      runDomainSync<unknown, unknown, Item, { path: string }>({
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        domain: 'file',
+        source: {},
+        target: {},
+        ledger,
+        listFolders: async () => [{ path: 'f1' }],
+        listSince: async () => ({ items, nextCursor: { value: '1' } }),
+        // The fetch SUCCEEDS even for a failing item, deliberately. The key is
+        // derived from the bytes, so it does not exist until after the fetch —
+        // a fetch failure therefore never writes a row under the derived key,
+        // and could not reproduce the state this path mishandles. The UPSERT is
+        // what fails, which is what leaves a `failed` row keyed by the content.
+        fetchRaw: async (i) => ({ raw: i.body, sizeBytes: i.body.length }),
+        upsert: async (_c, raw, item): Promise<UpsertResult> => {
+          if (failing.has((item as Item).key)) throw new Error(reason);
+          written.push(raw as string);
+          return { targetId: 't', created: true };
+        },
+        // No key from the listing — the whole point of this variant.
+        naturalKey: () => undefined,
+        naturalKeyFromRaw: (_i, raw) => `d:${raw as string}`,
+        contentHash: (raw) => `h:${raw as string}`,
+        ensureCollection: async () => 'f1',
+      }),
+  };
+}
+
 describe('per-item failure isolation', () => {
   it('migrates everything else when one item is unreadable', async () => {
     const ledger = new MemoryLedger();
@@ -423,5 +470,73 @@ describe('classifyKnownItem, failure states', () => {
 
   it('still skips a healthy copy', () => {
     expect(classifyKnownItem({ status: 'copied', sourceVersion: 'e1' }, 'e1')).toBe('skip');
+  });
+});
+
+describe('per-item failure isolation, on the DERIVED-key path', () => {
+  // Mail with no Message-ID is keyed by a hash of its own bytes, which is only
+  // knowable after the fetch. That second fast-path check is a DIFFERENT branch
+  // from the one every test above covers, and `naturalKeyFromRaw` appeared in no
+  // unit test at all — which is how the fix that produced `classifyKnownItem`
+  // reached the keyed path and not this one.
+
+  it('retries a failed item on later passes instead of skipping it forever', async () => {
+    // The exact twin of the keyed-path test above. A `failed` row is not proof
+    // the item was copied — it is proof it was NOT. Skipping it makes the item
+    // permanently invisible: never retried, never reported.
+    const ledger = new MemoryLedger();
+    const items = [{ key: 'flaky', body: 'F' }];
+
+    const first = await derivedPass(ledger, items, new Set(['flaky'])).run();
+    expect(first.failed, 'the first pass should record a failure').toBe(1);
+
+    const second = derivedPass(ledger, items, new Set());
+    const r2 = await second.run();
+
+    expect(r2.created, 'a failed item must be attempted again').toBe(1);
+    expect(r2.failed).toBe(0);
+    expect(second.written).toEqual(['F']);
+    expect((await ledger.find(TENANT, MAPPING, 'file', 'd:F'))?.status).toBe('copied');
+  });
+
+  it('parks an item after MAX_ITEM_ATTEMPTS and reports it for a decision', async () => {
+    // The needs-decision branch of the same fix. Once the automatic attempts are
+    // spent the item stops being retried and starts being REPORTED, so it lands
+    // in the failures queue an owner actually looks at rather than being retried
+    // forever in silence.
+    const ledger = new MemoryLedger();
+    const items = [{ key: 'doomed', body: 'D' }];
+
+    let last;
+    for (let i = 0; i < MAX_ITEM_ATTEMPTS; i += 1) {
+      last = await derivedPass(ledger, items, new Set(['doomed'])).run();
+    }
+    expect(last!.failed, 'each pass should keep failing while attempts remain').toBe(1);
+
+    // One pass past the limit: no longer retried, now parked.
+    const parked = derivedPass(ledger, items, new Set(['doomed']));
+    const r = await parked.run();
+
+    expect(r.needsDecision, 'the item should be parked for an owner decision').toBe(1);
+    expect(r.failed, 'a parked item is not counted as a fresh failure').toBe(0);
+    expect(r.failures.some((f) => f.needsDecision), 'it must appear in the queue').toBe(true);
+    expect(parked.written, 'a parked item must not be written').toEqual([]);
+  });
+
+  it('still skips an item it has already copied', async () => {
+    // The other side of the same branch: the retry must not come at the cost of
+    // idempotency. A second pass over a healthy item writes nothing.
+    const ledger = new MemoryLedger();
+    const items = [{ key: 'steady', body: 'S' }];
+
+    const first = await derivedPass(ledger, items, new Set()).run();
+    expect(first.created).toBe(1);
+
+    const second = derivedPass(ledger, items, new Set());
+    const r2 = await second.run();
+
+    expect(r2.created, 'a copied item must not be written twice').toBe(0);
+    expect(r2.skipped).toBe(1);
+    expect(second.written, 'nothing should reach the target on a clean re-run').toEqual([]);
   });
 });
