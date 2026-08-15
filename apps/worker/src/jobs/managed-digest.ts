@@ -48,6 +48,24 @@ const db = drizzle(pool, { schema: schemaPg });
 const ledger = new PgLedger(db);
 const decisions = new PgDecisionStore(db);
 
+/**
+ * WHICH tenants are considered, and WHO receives the mail.
+ *
+ * Extracted from the query bodies and exported so they can be held to a test
+ * (0043 T2). Everything else in this file is wiring — a Pool, a cron string, a
+ * transport — where a mocked test would assert the mocks. These two are not
+ * wiring: they decide who gets emailed about a migration, and a wrong predicate
+ * here reaches a customer rather than a log.
+ *
+ * `status = 'active'` on both, and `role IN ('owner','admin')` on the second:
+ * a suspended tenant is not emailed, and a member who is neither owner nor
+ * admin does not receive other people's migration counts.
+ */
+export const ACTIVE_TENANTS_SQL = `SELECT id, name, settings FROM tenant WHERE status = 'active'`;
+
+export const DIGEST_RECIPIENTS_SQL = `SELECT email FROM tenant_member
+            WHERE tenant_id = $1 AND status = 'active' AND role IN ('owner', 'admin')`;
+
 export const managedDigest = schedules.task({
   id: 'managed-digest',
   // 08:00 UTC. Morning on purpose: a summary that lands at 03:00 is read
@@ -81,18 +99,12 @@ export const managedDigest = schedules.task({
       weekday: new Date().getDay(),
 
       listTenants: async () => {
-        const { rows } = await pool.query<DigestTenant>(
-          `SELECT id, name, settings FROM tenant WHERE status = 'active'`,
-        );
+        const { rows } = await pool.query<DigestTenant>(ACTIVE_TENANTS_SQL);
         return rows;
       },
 
       listRecipients: async (tenantId) => {
-        const { rows } = await pool.query<{ email: string }>(
-          `SELECT email FROM tenant_member
-            WHERE tenant_id = $1 AND status = 'active' AND role IN ('owner', 'admin')`,
-          [tenantId],
-        );
+        const { rows } = await pool.query<{ email: string }>(DIGEST_RECIPIENTS_SQL, [tenantId]);
         return rows.map((r) => r.email);
       },
 
