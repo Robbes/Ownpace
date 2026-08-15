@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/testcontainers-setup.ts",
     "./imap-test-client": "./src/imap-test-client.ts",
-    "./drive-capture": "./src/drive-capture.ts"
+    "./drive-capture": "./src/drive-capture.ts",
+    "./drive-replay": "./src/drive-replay.ts"
   },
   "dependencies": {
     "imapflow": "^1.6.6"

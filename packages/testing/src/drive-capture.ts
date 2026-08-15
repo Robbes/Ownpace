@@ -24,9 +24,14 @@
  *  - **Bodies of exports and downloads** become `{ sha256, byteLength }`. A
  *    contract test needs to know that the bytes arrived and whether two calls
  *    produced the same ones; it does not need the document.
- *  - Everything structural is kept verbatim: mime types, sizes, checksums,
- *    timestamps, pagination tokens, status codes, and the shape of every JSON
- *    envelope.
+ *  - **Checksums** become `checksum1000…`. An `md5Checksum` is not a name and is
+ *    still theirs: anybody holding a candidate file can confirm from it that
+ *    this Drive held that exact file. A replay needs a checksum to exist and be
+ *    stable, never its value.
+ *  - Everything structural IS kept verbatim: mime types, sizes, timestamps,
+ *    status codes, and the shape of every JSON envelope — including which
+ *    fields are absent, since a native file's missing size and checksum are
+ *    what make it native.
  *
  * So a recorded fixture answers "does our connector parse what Drive sends, and
  * derive the right paths from it". It cannot answer anything about a specific
@@ -82,6 +87,7 @@ export interface DriveCapture {
 class Pseudonyms {
   private readonly ids = new Map<string, string>();
   private readonly names = new Map<string, string>();
+  private readonly checksums = new Map<string, string>();
 
   id(real: string): string {
     // `root` is Google's own well-known folder id, not a customer's. Keeping it
@@ -106,8 +112,55 @@ class Pseudonyms {
     return made;
   }
 
-  /** Replace every recorded id wherever it appears in a URL. */
+  /**
+   * A content fingerprint, pseudonymised.
+   *
+   * `md5Checksum` is not a name, and it is still the customer's: it is a
+   * fingerprint of their file's contents, and anybody holding a candidate file
+   * can confirm from it that this Drive contained that exact file. A replay does
+   * not need the VALUE — it needs a checksum to exist, be stable, and map onto
+   * `contentHash` — so it gets a distinct, checksum-shaped stand-in.
+   */
+  checksum(real: string): string {
+    const seen = this.checksums.get(real);
+    if (seen) return seen;
+    // Same length as what it replaces, so a replay still exercises whatever
+    // reads one, and unmistakable to a human reading the fixture.
+    const made = `checksum${this.checksums.size + 1}`.padEnd(real.length, '0').slice(0, real.length);
+    this.checksums.set(real, made);
+    return made;
+  }
+
+  /**
+   * Pseudonymise a URL — REGISTERING the ids it carries, not merely replacing
+   * ones already seen.
+   *
+   * The registering half is the fix for a real leak. A URL is scrubbed at the
+   * moment the exchange is recorded, and an id reaches the id table only when it
+   * has appeared in a response BODY. Two ids never appear in a body at all:
+   *
+   *  - the ROOT the migration is scoped to (`'{id}' in parents` in every listing
+   *    query), which for a shared drive is the drive's own id, and which the
+   *    connector's field mask never asks Drive to echo back; and
+   *  - a `DRIVE_FILE_ID` the operator named, whose metadata call carries it in
+   *    the path before any body has been read.
+   *
+   * Both would have been written to the fixture verbatim. So ids are taken out
+   * of the URL itself — the `/files/{id}` path segment and every `'{id}' in
+   * parents` clause — and registered before replacement, which also keeps them
+   * consistent with the same ids when they later show up in a body.
+   */
   scrubUrl(url: string): string {
+    const decoded = decodeURIComponent(url);
+    // `/files/{id}` — the id is everything up to the next `/` or `?`.
+    for (const match of decoded.matchAll(/\/files\/([^/?#]+)/g)) {
+      this.id(match[1]!);
+    }
+    // `'{id}' in parents`, as the connector's query builds it.
+    for (const match of decoded.matchAll(/'([^']+)'\s+in\s+parents/g)) {
+      this.id(match[1]!);
+    }
+
     let out = url;
     for (const [real, fake] of this.ids) {
       if (real === 'root') continue;
@@ -133,6 +186,11 @@ function redactBody(body: unknown, names: Pseudonyms): unknown {
       out[key] = names.id(value);
     } else if (key === 'name' && typeof value === 'string') {
       out[key] = names.name(value, isFolder);
+    } else if (
+      (key === 'md5Checksum' || key === 'sha1Checksum' || key === 'sha256Checksum') &&
+      typeof value === 'string'
+    ) {
+      out[key] = names.checksum(value);
     } else if (key === 'parents' && Array.isArray(value)) {
       out[key] = value.map((p) => (typeof p === 'string' ? names.id(p) : p));
     } else if (key === 'nextPageToken') {

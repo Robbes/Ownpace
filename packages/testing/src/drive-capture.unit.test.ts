@@ -119,9 +119,12 @@ describe('what a replay still needs, and therefore survives', () => {
     expect(body.files[0]).toMatchObject({
       mimeType: 'application/pdf',
       size: '204813',
-      md5Checksum: 'd41d8cd98f00b204e9800998ecf8427e',
       modifiedTime: '2026-08-01T10:00:00Z',
     });
+    // The checksum is NOT among them — it fingerprints the customer's content.
+    // Its presence and its length are what a replay uses; see the leak tests.
+    expect(body.files[0]!.md5Checksum).not.toBe('d41d8cd98f00b204e9800998ecf8427e');
+    expect(body.files[0]!.md5Checksum).toHaveLength(32);
     // The native file's absent size and checksum are themselves the fact that
     // makes it native. A redactor that invented values would erase the case.
     expect(body.files[1]).not.toHaveProperty('size');
@@ -180,5 +183,90 @@ describe('what a replay still needs, and therefore survives', () => {
 
     expect(capture().note).toMatch(/REDACTED/);
     expect(capture().note).toMatch(/says nothing about any particular document/);
+  });
+});
+
+/**
+ * The two that got through the first draft, and how.
+ *
+ * Both were found by re-reading the order of operations rather than by a test
+ * failing, which is worth saying: a redactor's bugs do not announce themselves.
+ * The capture is written, it looks redacted, and the one field that is not sits
+ * in the middle of it.
+ */
+describe('the leaks that survived the first draft', () => {
+  it('does not write the ROOT folder id, which appears in no response body', async () => {
+    // The listing query carries `'{root}' in parents`, and when the owner points
+    // the migration at a SHARED DRIVE that root is the drive's own id. The
+    // connector's field mask never asks Drive to echo `parents` back, so the id
+    // reached no body, was never given a pseudonym, and went into the fixture's
+    // first URL verbatim.
+    const { transport, capture } = createRecordingTransport(
+      transportFor([{ json: { files: [] } }]),
+    );
+
+    await transport(
+      "https://www.googleapis.com/drive/v3/files?q=" +
+        encodeURIComponent("'0AJxRealSharedDriveId' in parents and trashed=false"),
+    );
+
+    expect(JSON.stringify(capture())).not.toContain('0AJxRealSharedDriveId');
+  });
+
+  it('does not write a file id named in the URL before its body arrives', async () => {
+    // `DRIVE_FILE_ID` points the probe at one document, and its metadata call
+    // carries the id in the PATH — recorded before the response that would have
+    // registered it.
+    const { transport, capture } = createRecordingTransport(
+      transportFor([{ json: { id: 'RealFileId123', name: 'x' } }]),
+    );
+
+    await transport('https://www.googleapis.com/drive/v3/files/RealFileId123?fields=id,name');
+
+    expect(JSON.stringify(capture())).not.toContain('RealFileId123');
+  });
+
+  it('gives a URL id and the SAME id in a later body one pseudonym', async () => {
+    // The registering fix must not create a second identity: if the URL's id
+    // and the body's id disagreed, the fixture would describe two files where
+    // Drive had one.
+    const { transport, capture } = createRecordingTransport(
+      transportFor([{ json: { id: 'RealFileId123', name: 'x' } }]),
+    );
+
+    await transport('https://www.googleapis.com/drive/v3/files/RealFileId123?fields=id,name');
+
+    const { exchanges } = capture();
+    const inBody = (exchanges[0]?.json as { id: string }).id;
+    expect(exchanges[0]?.url).toContain(inBody);
+  });
+
+  it('does not write a CHECKSUM, which fingerprints the customer’s content', async () => {
+    // Not a name, and still theirs: anybody holding a candidate file can
+    // confirm from an md5 that this Drive held that exact file. A replay needs a
+    // checksum to exist and be stable, never its value.
+    const { transport, capture } = createRecordingTransport(
+      transportFor([
+        {
+          json: {
+            files: [
+              { id: 'a', name: 'x.pdf', md5Checksum: 'd41d8cd98f00b204e9800998ecf8427e' },
+              { id: 'b', name: 'y.pdf', md5Checksum: 'd41d8cd98f00b204e9800998ecf8427e' },
+            ],
+          },
+        },
+      ]),
+    );
+
+    await transport('https://www.googleapis.com/drive/v3/files?q=x');
+
+    const recorded = JSON.stringify(capture());
+    expect(recorded).not.toContain('d41d8cd98f00b204e9800998ecf8427e');
+
+    const files = (capture().exchanges[0]?.json as { files: Array<{ md5Checksum: string }> }).files;
+    // Present, same LENGTH, and — the property a replay actually uses — two
+    // files with identical content still agree with each other.
+    expect(files[0]!.md5Checksum).toHaveLength(32);
+    expect(files[0]!.md5Checksum).toBe(files[1]!.md5Checksum);
   });
 });
