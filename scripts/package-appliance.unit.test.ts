@@ -82,6 +82,28 @@ let child: ChildProcess | undefined;
 let base: string;
 let log = '';
 
+/**
+ * Wait until the child has actually SAID something, not merely served a request.
+ *
+ * `waitForHealth` returns on the first 200, and the child's stdout arrives here
+ * through a pipe on a later tick — so a line the appliance printed BEFORE it
+ * started listening can still be unread when the health check succeeds. An
+ * assertion made at that moment reads an empty log and fails while the
+ * appliance did exactly the right thing.
+ *
+ * Seen on 2026-08-15 under heavy load: this file failed twice in a row on
+ * `schema up to date`, then passed unchanged once the machine was quiet. A gate
+ * that fails when the box is busy is one people learn to re-run, which is how a
+ * real regression eventually gets waved through.
+ */
+async function waitForLog(needle: string, deadlineMs = 30_000): Promise<void> {
+  const until = Date.now() + deadlineMs;
+  while (!log.includes(needle)) {
+    if (Date.now() > until) return; // Let the assertion report it, with the log.
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
 /** Wait for the child to answer, or for it to die and say why. */
 async function waitForHealth(url: string, deadlineMs = 90_000): Promise<void> {
   const until = Date.now() + deadlineMs;
@@ -319,6 +341,7 @@ describe('the staged payload, running', () => {
     child = launch(18_431);
     base = 'http://127.0.0.1:18431';
     await waitForHealth(`${base}/healthz`);
+    await waitForLog('persistence: pglite');
 
     // It migrated ITSELF, from the staged SQL, through the bundled seam.
     expect(log).toContain('applying 0001_baseline.sql');
@@ -353,6 +376,7 @@ describe('the staged payload, running', () => {
     child = launch(18_432);
     log = '';
     await waitForHealth('http://127.0.0.1:18432/healthz');
+    await waitForLog('schema up to date');
     expect(log).toContain('schema up to date');
     expect(log).not.toContain('applying 0001_baseline.sql');
 

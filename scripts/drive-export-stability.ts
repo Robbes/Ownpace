@@ -83,6 +83,13 @@ const POLICY = (process.env.DRIVE_EXPORT_POLICY || 'export-office') as GoogleNat
 const BASE = 'https://www.googleapis.com/drive/v3';
 
 function fail(message: string): never {
+  // The capture is written FIRST, and that ordering is the fix for a real hole:
+  // `fail()` exits the process rather than throwing, so every refusal reached
+  // from inside `main()` — a 404 for a named file, a folder with no Doc in it,
+  // a 403 for the wrong scope — used to pre-empt the `.catch()` that writes the
+  // recording. Those are the likeliest outcomes of a first run against a real
+  // tenant, and they are the ones whose recording is most worth having.
+  writeCapture({ partial: true });
   console.error(`\n  ✖ ${message}\n`);
   process.exit(1);
 }
@@ -224,8 +231,11 @@ async function main(): Promise<void> {
   await maybeWalk();
 
   const doc = await pickDocument();
-  console.log(`  ✔ document: "${doc.name}" (${doc.mimeType})`);
-  console.log(`    id ${doc.id}, last modified ${doc.modifiedTime ?? 'unknown'}\n`);
+  // The MIME type and the timestamp, not the name and the id. This output gets
+  // pasted into issues and workplans — the docs invite exactly that — and a
+  // document's name is the most identifying thing about it. Whoever ran this
+  // knows which document they pointed it at.
+  console.log(`  ✔ document: ${doc.mimeType}, last modified ${doc.modifiedTime ?? 'unknown'}\n`);
 
   // Through the connector, not through a hand-rolled request: the point is to
   // measure what a MIGRATION would store, and that is whatever `fetch` returns.
@@ -280,20 +290,32 @@ async function main(): Promise<void> {
  * export is the more interesting recording, because the replay tier is where
  * somebody will eventually ask what changed between two exports.
  */
-function writeCapture(): void {
-  if (!recorder || !CAPTURE_FILE) return;
-  writeFileSync(CAPTURE_FILE, `${JSON.stringify(recorder.capture(), null, 2)}\n`);
-  console.log(`  ✔ recorded ${recorder.capture().exchanges.length} exchanges to ${CAPTURE_FILE}`);
-  console.log('    Redacted: no names, ids, page tokens or document bytes. Read the top of');
-  console.log('    packages/testing/src/drive-capture.ts before committing it anyway.\n');
+let captureWritten = false;
+
+function writeCapture(options: { partial?: boolean } = {}): void {
+  if (!recorder || !CAPTURE_FILE || captureWritten) return;
+  captureWritten = true;
+  const recording = recorder.capture();
+  writeFileSync(CAPTURE_FILE, `${JSON.stringify(recording, null, 2)}\n`);
+  // A PARTIAL capture is labelled as one. A truncated recording written with a
+  // tick beside it is indistinguishable from a complete one, and the person who
+  // later replays it has no way to know the run stopped early.
+  const mark = options.partial ? '⚠ PARTIAL —' : '✔';
+  console.log(`\n  ${mark} recorded ${recording.exchanges.length} exchange(s) to ${CAPTURE_FILE}`);
+  if (options.partial) {
+    console.log('    The run did not finish, so this covers only the calls made before it');
+    console.log('    stopped. Useful for diagnosis; not a complete fixture.');
+  }
+  console.log('    Redacted — read the top of packages/testing/src/drive-capture.ts');
+  console.log('    before committing it anyway.\n');
 }
 
 main()
-  .then(writeCapture)
+  .then(() => writeCapture())
   .catch((error: unknown) => {
     // The exchanges up to the failure are worth keeping: a fixture of the calls
     // that DID work, plus the point where it stopped, is what makes a remote
     // failure diagnosable from here.
-    writeCapture();
+    writeCapture({ partial: true });
     fail(error instanceof Error ? error.message : String(error));
   });
