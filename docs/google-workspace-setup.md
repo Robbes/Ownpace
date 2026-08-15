@@ -125,6 +125,33 @@ Run it for `export-office` and for `export-pdf` — different renderers — and 
 Doc, a Sheet and a Slide. Then record what you found in
 [`workplans/0042-google-drive-source.md`](./workplans/0042-google-drive-source.md) (T3).
 
+### Recording a fixture while you are there
+
+Google Drive cannot be containerised, so the connector cannot be gated in CI the way the
+WebDAV one is. The substitute is a **recording** of what Drive really answered, replayed in
+CI forever. Add one variable and the same run produces it:
+
+```sh
+DRIVE_CAPTURE_FILE=./drive-capture.json pnpm exec tsx scripts/drive-export-stability.ts
+```
+
+**What lands in that file is redacted**, because a fixture ends up in a public repository:
+file and folder names, ids and page tokens become pseudonyms (`f1.pdf`, `folder-1`, `id-1`),
+and export bodies become a sha256 and a byte length. Mime types, sizes, checksums,
+timestamps, status codes and the shape of every response are kept exactly as Google sent
+them — that is what a replay checks. `packages/testing/src/drive-capture.ts` states the
+rule and its tests enforce it.
+
+So the recording pins that this product parses what Drive actually sends. It says nothing
+about any particular document of yours — the byte-stability verdict above is the part that
+speaks to that, and it is printed rather than stored.
+
+**Point it at a folder that has a subfolder with files in it.** When capturing, the script
+also walks the folder tree and lists the first subfolder, because a Drive file has no path —
+only an id and a name — so the natural key the whole ledger turns on is *composed* by this
+product. That composition is the thing most likely to be wrong, and a recording of one flat
+listing of the root cannot gate it. The script says so if it finds no subfolder.
+
 ---
 
 ## What a Drive migration does not do yet

@@ -43,7 +43,9 @@
       "@openmig/engines": ["./packages/engines/src/index.ts"],
       "@openmig/engines/*": ["./packages/engines/src/*"],
       "@openmig/scheduler": ["./packages/scheduler/src/index.ts"],
-      "@openmig/scheduler/*": ["./packages/scheduler/src/*"]
+      "@openmig/scheduler/*": ["./packages/scheduler/src/*"],
+      "@openmig/testing": ["./packages/testing/src/testcontainers-setup.ts"],
+      "@openmig/testing/*": ["./packages/testing/src/*"]
     }
   }
 }

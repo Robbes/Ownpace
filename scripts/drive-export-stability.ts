@@ -50,6 +50,12 @@
  *                           3000. A longer gap is a stronger test: an export
  *                           that is stable back-to-back because it was cached
  *                           for four seconds is not stable.
+ *   DRIVE_CAPTURE_FILE      optional — where to write a REDACTED recording of
+ *                           everything Drive answered, so this one run also
+ *                           produces the fixture the replay tier needs (T6).
+ *                           Off unless set. See
+ *                           `packages/testing/src/drive-capture.ts` for exactly
+ *                           what is kept and what is not.
  */
 
 import {
@@ -62,6 +68,8 @@ import {
   type DriveFileList,
 } from '@openmig/connectors';
 import { fileContentHash, type GoogleNativeFilePolicy } from '@openmig/shared';
+import { createRecordingTransport } from '@openmig/testing/drive-capture';
+import { writeFileSync } from 'node:fs';
 
 const CREDS = {
   clientId: process.env.GOOGLE_CLIENT_ID ?? '',
@@ -90,7 +98,22 @@ if (POLICY !== 'export-office' && POLICY !== 'export-pdf') {
 }
 
 const tokens = createGoogleTokenProvider(CREDS);
-const transport = googleDriveTransport(tokens);
+
+/**
+ * Optionally RECORD what Drive answers, so one run of this script produces both
+ * the verdict below and the fixture the replay tier needs (0042 T6).
+ *
+ * Off unless `DRIVE_CAPTURE_FILE` names a path, because recording somebody's
+ * Drive is not something a script should decide to do. What lands in the file
+ * is redacted — names, ids and page tokens become pseudonyms and document
+ * bytes become a sha256 and a length — and `drive-capture.ts` states exactly
+ * what that leaves and why.
+ */
+const CAPTURE_FILE = process.env.DRIVE_CAPTURE_FILE;
+const recorder = CAPTURE_FILE
+  ? createRecordingTransport(googleDriveTransport(tokens))
+  : undefined;
+const transport = recorder ? recorder.transport : googleDriveTransport(tokens);
 
 /** The first native editor file under the root, or the one that was named. */
 async function pickDocument(): Promise<DriveFile> {
@@ -138,6 +161,48 @@ async function pickDocument(): Promise<DriveFile> {
   return native;
 }
 
+/**
+ * Walk the folder tree once, so the recording covers the thing most likely to
+ * be wrong: PATH DERIVATION.
+ *
+ * A Drive file has no path — only an id and a name — so the natural key the
+ * whole ledger turns on is COMPOSED by this connector. That composition is what
+ * a replay should gate, and it cannot be gated by a recording of one flat
+ * listing of the root. So when a capture is being taken, this asks the
+ * connector for the folder tree and then lists the first subfolder, which is
+ * exactly the sequence a real pass makes.
+ *
+ * Only when capturing. Without `DRIVE_CAPTURE_FILE` this would be a handful of
+ * API calls spent on nothing, and the byte-stability question does not need
+ * them.
+ */
+async function maybeWalk(): Promise<void> {
+  if (!recorder) return;
+  const source = new GoogleDriveSource(transport, { rootFolderId: ROOT, nativeFilePolicy: POLICY });
+
+  const folders = await source.listFolders();
+  console.log(`  ✔ walked ${folders.length} folder(s) for the recording`);
+
+  // The first folder BELOW the root: `listFolders` always yields the root
+  // itself as `''`, and a listing of the root proves nothing about composing a
+  // path out of a folder name and a file name.
+  const nested = folders.find((f) => f.path !== '');
+  if (!nested) {
+    console.log(
+      '    ⚠ no subfolder under the root, so the recording cannot gate path derivation.',
+    );
+    console.log(
+      '      Point DRIVE_ROOT_FOLDER_ID at a folder that has one, or make a folder with a',
+    );
+    console.log('      file in it — the derived path is what the ledger keys on.');
+    return;
+  }
+
+  const { items } = await source.listSince(nested);
+  console.log(`  ✔ listed "${nested.path}" — ${items.length} item(s), paths derived
+`);
+}
+
 async function main(): Promise<void> {
   console.log('\n  Google Drive export byte-stability (workplan 0042 T0 Q3)');
   console.log('  ────────────────────────────────────────────────────────');
@@ -155,6 +220,8 @@ async function main(): Promise<void> {
         'which is worth knowing before a migration runs.',
     );
   }
+
+  await maybeWalk();
 
   const doc = await pickDocument();
   console.log(`  ✔ document: "${doc.name}" (${doc.mimeType})`);
@@ -208,6 +275,25 @@ async function main(): Promise<void> {
   process.exitCode = 2;
 }
 
-main().catch((error: unknown) => {
-  fail(error instanceof Error ? error.message : String(error));
-});
+/**
+ * Written even when the verdict is NOT STABLE, and especially then: an unstable
+ * export is the more interesting recording, because the replay tier is where
+ * somebody will eventually ask what changed between two exports.
+ */
+function writeCapture(): void {
+  if (!recorder || !CAPTURE_FILE) return;
+  writeFileSync(CAPTURE_FILE, `${JSON.stringify(recorder.capture(), null, 2)}\n`);
+  console.log(`  ✔ recorded ${recorder.capture().exchanges.length} exchanges to ${CAPTURE_FILE}`);
+  console.log('    Redacted: no names, ids, page tokens or document bytes. Read the top of');
+  console.log('    packages/testing/src/drive-capture.ts before committing it anyway.\n');
+}
+
+main()
+  .then(writeCapture)
+  .catch((error: unknown) => {
+    // The exchanges up to the failure are worth keeping: a fixture of the calls
+    // that DID work, plus the point where it stopped, is what makes a remote
+    // failure diagnosable from here.
+    writeCapture();
+    fail(error instanceof Error ? error.message : String(error));
+  });
