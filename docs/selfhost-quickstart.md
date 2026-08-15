@@ -149,6 +149,11 @@ person who consented, and the token it mints is **read-only**
 is missing the mapping refuses at startup naming the variable, rather than
 failing with a `401` half-way through a pass.
 
+Where those three come from — the Google Cloud project, the consent screen, the
+OAuth client and the refresh token — is
+[`docs/google-workspace-setup.md`](./google-workspace-setup.md), which ends with
+one read-only command that proves them before you migrate anything.
+
 Two optional settings on the source:
 
 - `"rootFolderId"` — the folder the migration is rooted at. Unset means all of
