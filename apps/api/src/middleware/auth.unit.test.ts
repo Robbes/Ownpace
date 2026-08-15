@@ -1,337 +1,316 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+
 /**
- * JWT Authentication Middleware Tests
- * 
- * Tests for the managed JWT verification using jose with JWKS.
- * Proves that forged tokens, unsigned tokens, expired tokens, etc. are rejected.
+ * The managed (JWKS) authentication path, tested through the middleware.
+ *
+ * WHAT THIS FILE USED TO BE, because it matters for trusting what it is now.
+ * Until 2026-08-15 this file never imported `./auth`. It imported `jose` and
+ * `jsonwebtoken`, generated a keypair, and asserted that `jwtVerify` rejects
+ * tokens signed with the wrong key — which is a test of jose, a library that has
+ * its own test suite. Its docblock claimed it "proves that forged tokens,
+ * unsigned tokens, expired tokens, etc. are rejected". It proved nothing of the
+ * sort about this repository.
+ *
+ * The consequence was measured, not guessed: replacing the `jwtVerify` call in
+ * `verifyManagedToken` (auth.ts:119) with a bare `decodeJwt` — so the production
+ * managed path accepts ANY token, forged or unsigned, with no signature, issuer
+ * or audience check — left the whole gate green. 32/32 in this directory, 2256
+ * across `pnpm test`. The case named "should reject a FORGED token claiming
+ * tenant A - proving the bypass is closed" passed with the bypass wide open.
+ *
+ * HOW THIS ONE IS DIFFERENT. Every case drives `authenticate` and asserts on the
+ * HTTP outcome, so it fails when the middleware stops verifying. Signature
+ * checking is REAL: only `createRemoteJWKSet` is stubbed, replacing the network
+ * fetch of the issuer's public keys with a local resolver. `jwtVerify` itself is
+ * the genuine jose implementation, checking a genuine RS256 signature, issuer,
+ * audience and claims.
+ *
+ * The stub also sidesteps a trap. `jwksCache` (auth.ts:68) is a module-level
+ * singleton that is never reset, so a per-test stub swapped by re-mocking would
+ * bleed between cases. Here the cached value is a stable wrapper that delegates
+ * to whichever resolver the current test installed, so the cache is harmless.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { SignJWT, jwtVerify } from 'jose';
-import crypto from 'crypto';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { Request, Response, NextFunction } from 'express';
 
-describe('JWT Authentication - Managed Path', () => {
-  // Generate a test keypair for signing using jose-compatible format
-  const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
-    modulusLength: 2048,
-    publicKeyEncoding: {
-      type: 'spki',
-      format: 'pem',
+// Hoisted so the `vi.mock` factory below can close over it: the mock is lifted
+// above the imports, so it cannot reference an ordinary module-level binding.
+const stub = vi.hoisted(() => ({
+  resolveKey: null as null | ((header: unknown, token: unknown) => Promise<unknown>),
+}));
+
+vi.mock('jose', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('jose')>();
+  return {
+    ...actual,
+    // The ONLY thing replaced. Returns a stable delegating resolver, so the
+    // module-level jwksCache can hold it forever and still see each test's key.
+    createRemoteJWKSet: () => (header: unknown, token: unknown) => {
+      if (!stub.resolveKey) throw new Error('test did not install a key resolver');
+      return stub.resolveKey(header, token);
     },
-    privateKeyEncoding: {
-      type: 'pkcs8',
-      format: 'pem',
-    },
-  });
+  };
+});
 
-  // Convert to KeyObject format that jose accepts
-  const publicKeyObj = crypto.createPublicKey(publicKey);
-  const privateKeyObj = crypto.createPrivateKey(privateKey);
+const { SignJWT, exportJWK, generateKeyPair, importJWK } = await import('jose');
+const { authenticate, __setMembershipLookupForTests } = await import('./auth');
 
-  const ISSUER = 'https://test-auth0.example.com/';
-  const AUDIENCE = 'https://api.example.com/';
+const ISSUER = 'https://issuer.example';
+const AUDIENCE = 'openmig-api';
 
-  describe('Valid token handling', () => {
-    it('should accept a validly-signed token with correct claims', async () => {
-      const validToken = await new SignJWT({
-        tenantId: 'test-tenant-123',
-        role: 'admin',
-        email: 'user@example.com',
-      })
-        .setProtectedHeader({ alg: 'RS256' })
-        .setIssuedAt()
-        .setIssuer(ISSUER)
-        .setAudience(AUDIENCE)
-        .setExpirationTime('2h')
-        .sign(privateKeyObj);
+/** The issuer's real keypair, and an attacker's — different keys, same algorithm. */
+let issuerKeys: { publicKey: CryptoKey; privateKey: CryptoKey };
+let attackerKeys: { publicKey: CryptoKey; privateKey: CryptoKey };
 
-      // Verify the token can be decoded and verified
-      const { payload } = await jwtVerify(validToken, publicKeyObj);
-      
-      expect(payload.tenantId).toBe('test-tenant-123');
-      expect(payload.role).toBe('admin');
-      expect(payload.iss).toBe(ISSUER);
-      expect(payload.aud).toBe(AUDIENCE);
-    });
-  });
+function claims(overrides: Record<string, unknown> = {}) {
+  return {
+    sub: 'user-1',
+    tenantId: 'tenant-1',
+    role: 'admin',
+    email: 'u@example.com',
+    ...overrides,
+  };
+}
 
-  describe('Forged token rejection', () => {
-    it('should reject a token signed with wrong key', async () => {
-      // Generate a different keypair
-      const { privateKey: wrongKey } = crypto.generateKeyPairSync('rsa', {
-        modulusLength: 2048,
-        publicKeyEncoding: {
-          type: 'spki',
-          format: 'pem',
-        },
-        privateKeyEncoding: {
-          type: 'pkcs8',
-          format: 'pem',
-        },
-      });
-      const wrongKeyObj = crypto.createPrivateKey(wrongKey);
+async function sign(
+  privateKey: CryptoKey,
+  payload: Record<string, unknown> = claims(),
+  opts: { issuer?: string; audience?: string; expiresIn?: string } = {},
+) {
+  return new SignJWT(payload)
+    .setProtectedHeader({ alg: 'RS256' })
+    .setIssuedAt()
+    .setIssuer(opts.issuer ?? ISSUER)
+    .setAudience(opts.audience ?? AUDIENCE)
+    .setExpirationTime(opts.expiresIn ?? '5m')
+    .sign(privateKey);
+}
 
-      const forgedToken = await new SignJWT({
-        tenantId: 'attacker-tenant',
-        role: 'admin',
-        email: 'attacker@example.com',
-      })
-        .setProtectedHeader({ alg: 'RS256' })
-        .setIssuedAt()
-        .setIssuer(ISSUER)
-        .setExpirationTime('2h')
-        .sign(wrongKeyObj);
+function mockRes() {
+  const res = { locals: {} } as unknown as Response & { statusCode?: number; body?: unknown };
+  res.status = vi.fn().mockImplementation((code: number) => {
+    (res as { statusCode?: number }).statusCode = code;
+    return res;
+  }) as unknown as Response['status'];
+  res.json = vi.fn().mockImplementation((b: unknown) => {
+    (res as { body?: unknown }).body = b;
+    return res;
+  }) as unknown as Response['json'];
+  return res;
+}
 
-      // Verify that the forged token cannot be verified with the correct public key
-      await expect(jwtVerify(forgedToken, publicKeyObj))
-        .rejects.toThrow();
-    });
+function reqWith(token?: string): Request {
+  return { headers: token ? { authorization: `Bearer ${token}` } : {} } as unknown as Request;
+}
 
-    it('should reject an unsigned token (alg:none)', async () => {
-      // Create a token with alg:none (security vulnerability attempt)
-      const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
-      const payload = Buffer.from(JSON.stringify({
-        sub: 'attacker',
-        tenantId: 'attacker-tenant',
-        role: 'admin',
-        email: 'attacker@example.com',
-      })).toString('base64url');
-      const unsignedToken = `${header}.${payload}.`;
+/** Run the middleware and report what it decided. */
+async function run(token?: string) {
+  const req = reqWith(token);
+  const res = mockRes();
+  const next = vi.fn() as unknown as NextFunction;
+  await authenticate(req, res, next);
+  return {
+    req: req as Request & { userId?: string; tenantId?: string; userRole?: string },
+    status: (res as { statusCode?: number }).statusCode,
+    body: (res as { body?: unknown }).body,
+    passed: (next as unknown as { mock: { calls: unknown[] } }).mock.calls.length === 1,
+  };
+}
 
-      // jose should reject alg:none
-      await expect(jwtVerify(unsignedToken, publicKeyObj))
-        .rejects.toThrow();
-    });
+beforeEach(async () => {
+  issuerKeys = (await generateKeyPair('RS256')) as typeof issuerKeys;
+  attackerKeys = (await generateKeyPair('RS256')) as typeof attackerKeys;
 
-    it('should reject a tampered payload', async () => {
-      // Create a valid token first
-      const validToken = await new SignJWT({
-        tenantId: 'legitimate-tenant',
-        role: 'member',
-        email: 'user@example.com',
-      })
-        .setProtectedHeader({ alg: 'RS256' })
-        .setIssuedAt()
-        .setIssuer(ISSUER)
-        .setAudience(AUDIENCE)
-        .setExpirationTime('2h')
-        .sign(privateKeyObj);
+  // The issuer publishes ONLY its own public key — exactly what a real JWKS
+  // endpoint serves. Anything signed by another key must fail to verify.
+  const jwk = await exportJWK(issuerKeys.publicKey);
+  stub.resolveKey = async () => importJWK(jwk, 'RS256');
 
-      // Tamper with the payload (replace tenantId)
-      const parts = validToken.split('.');
-      const tamperedPayload = Buffer.from(JSON.stringify({
-        sub: 'attacker',
-        tenantId: 'attacker-tenant',
-        role: 'admin',
-        email: 'attacker@example.com',
-      })).toString('base64url');
-      const tamperedToken = `${parts[0]}.${tamperedPayload}.${parts[2]}`;
+  process.env.JWT_ISSUER = ISSUER;
+  process.env.JWT_AUDIENCE = AUDIENCE;
+  delete process.env.JWT_SECRET;
 
-      // Verify that tampered token is rejected
-      await expect(jwtVerify(tamperedToken, publicKeyObj))
-        .rejects.toThrow();
-    });
-  });
+  // These cases exercise VERIFICATION; the membership gate gets a fake that
+  // admits the subject. The gate has its own cases at the bottom.
+  __setMembershipLookupForTests(async () => ({ role: 'admin' }));
+});
 
-  describe('Claim validation', () => {
-    it('should reject expired token', async () => {
-      const expiredToken = await new SignJWT({
-        tenantId: 'test-tenant',
-        role: 'admin',
-        email: 'user@example.com',
-      })
-        .setProtectedHeader({ alg: 'RS256' })
-        .setIssuedAt()
-        .setIssuer(ISSUER)
-        .setAudience(AUDIENCE)
-        .setExpirationTime('-1h') // Already expired
-        .sign(privateKeyObj);
+afterEach(() => {
+  delete process.env.JWT_ISSUER;
+  delete process.env.JWT_AUDIENCE;
+  __setMembershipLookupForTests(null);
+  stub.resolveKey = null;
+  vi.restoreAllMocks();
+});
 
-      await expect(jwtVerify(expiredToken, publicKeyObj))
-        .rejects.toThrow(/exp.*claim.*timestamp|expired/i);
-    });
+describe('authenticate — managed JWKS path, accepting a good token', () => {
+  it('accepts a token signed by the issuer and attaches the tenant context', async () => {
+    const { status, passed, req } = await run(await sign(issuerKeys.privateKey));
 
-    it('should reject token with wrong issuer', async () => {
-      const wrongIssuerToken = await new SignJWT({
-        tenantId: 'test-tenant',
-        role: 'admin',
-        email: 'user@example.com',
-      })
-        .setProtectedHeader({ alg: 'RS256' })
-        .setIssuedAt()
-        .setIssuer('https://wrong-issuer.example.com/')
-        .setAudience(AUDIENCE)
-        .setExpirationTime('2h')
-        .sign(privateKeyObj);
-
-      await expect(jwtVerify(wrongIssuerToken, publicKeyObj, {
-        issuer: ISSUER,
-      }))
-        .rejects.toThrow(/issuer|unexpected.*iss/i);
-    });
-
-    it('should reject token with wrong audience', async () => {
-      const wrongAudienceToken = await new SignJWT({
-        tenantId: 'test-tenant',
-        role: 'admin',
-        email: 'user@example.com',
-      })
-        .setProtectedHeader({ alg: 'RS256' })
-        .setIssuedAt()
-        .setIssuer(ISSUER)
-        .setAudience('https://wrong-audience.example.com/')
-        .setExpirationTime('2h')
-        .sign(privateKeyObj);
-
-      await expect(jwtVerify(wrongAudienceToken, publicKeyObj, {
-        audience: AUDIENCE,
-      }))
-        .rejects.toThrow(/audience|aud/i);
-    });
-
-    it('should reject token missing required claims', async () => {
-      const missingClaimsToken = await new SignJWT({
-        role: 'admin',
-        email: 'user@example.com',
-        // Missing tenantId
-      })
-        .setProtectedHeader({ alg: 'RS256' })
-        .setIssuedAt()
-        .setIssuer(ISSUER)
-        .setAudience(AUDIENCE)
-        .setExpirationTime('2h')
-        .sign(privateKeyObj);
-
-      // jose will verify the signature but our middleware should reject missing claims
-      const { payload } = await jwtVerify(missingClaimsToken, publicKeyObj);
-      
-      // The payload won't have tenantId
-      expect((payload as any).tenantId).toBeUndefined();
-    });
-  });
-
-  describe('End-to-end isolation test', () => {
-    it('should reject a FORGED token claiming tenant A - proving the bypass is closed', async () => {
-      // This is the critical security test:
-      // An attacker tries to forge a token claiming to be tenant A
-      // The system MUST reject it because the signature is invalid
-      
-      // Step 1: Create a forged token with attacker's own key
-      const { privateKey: attackerKey } = crypto.generateKeyPairSync('rsa', {
-        modulusLength: 2048,
-        publicKeyEncoding: {
-          type: 'spki',
-          format: 'pem',
-        },
-        privateKeyEncoding: {
-          type: 'pkcs8',
-          format: 'pem',
-        },
-      });
-      const attackerKeyObj = crypto.createPrivateKey(attackerKey);
-
-      const forgedToken = await new SignJWT({
-        sub: 'attacker-user',
-        tenantId: 'tenant-a-victim', // Claiming to be victim tenant
-        role: 'admin',
-        email: 'attacker@evil.com',
-      })
-        .setProtectedHeader({ alg: 'RS256' })
-        .setIssuedAt()
-        .setIssuer(ISSUER)
-        .setExpirationTime('2h')
-        .sign(attackerKeyObj); // Signed with attacker's key, not the trusted one
-
-      // Step 2: Try to verify with the legitimate public key
-      // This MUST fail - the signature doesn't match
-      await expect(jwtVerify(forgedToken, publicKeyObj))
-        .rejects.toThrow();
-
-      // Step 3: Verify the error is a signature verification failure
-      try {
-        await jwtVerify(forgedToken, publicKeyObj);
-        // If we get here, the test failed - the forged token was accepted
-        throw new Error('FORGED TOKEN WAS ACCEPTED - SECURITY BREACH!');
-      } catch (error: any) {
-        // Expected: signature verification failed
-        expect(error.message).toMatch(/signature|verification|invalid|unexpected/i);
-      }
-    });
-
-    it('should accept a valid token from the trusted issuer', async () => {
-      // This proves legitimate tokens still work
-      
-      const legitimateToken = await new SignJWT({
-        sub: 'legitimate-user',
-        tenantId: 'tenant-b-legit',
-        role: 'member',
-        email: 'user@legit.com',
-      })
-        .setProtectedHeader({ alg: 'RS256' })
-        .setIssuedAt()
-        .setIssuer(ISSUER)
-        .setAudience(AUDIENCE)
-        .setExpirationTime('2h')
-        .sign(privateKeyObj); // Signed with the legitimate private key
-
-      // This should succeed
-      const { payload } = await jwtVerify(legitimateToken, publicKeyObj);
-      
-      expect(payload.tenantId).toBe('tenant-b-legit');
-      expect(payload.role).toBe('member');
-      expect(payload.sub).toBe('legitimate-user');
-    });
+    expect(status, `rejected a legitimate token: ${status}`).toBeUndefined();
+    expect(passed).toBe(true);
+    expect(req.userId).toBe('user-1');
+    expect(req.tenantId).toBe('tenant-1');
   });
 });
 
-describe('Self-hosted path (JWT_SECRET)', () => {
-  const SECRET = 'test-secret-key-for-self-hosted-mode';
+describe('authenticate — managed JWKS path, refusing a bad token', () => {
+  // Each case below fails if the middleware stops verifying. That is the whole
+  // point: the previous version of this file passed with verification removed.
 
-  beforeEach(() => {
-    process.env.JWT_SECRET = SECRET;
-    delete process.env.JWT_ISSUER;
+  it('REJECTS a token signed with a key the issuer does not publish', async () => {
+    // The forgery case. An attacker with their own RSA key mints a token whose
+    // claims are perfectly well-formed; only the signature betrays it.
+    const forged = await sign(attackerKeys.privateKey);
+    const { status, passed } = await run(forged);
+
+    expect(status).toBe(401);
+    expect(passed).toBe(false);
   });
 
-  afterEach(() => {
+  it('REJECTS an unsigned token (alg: none)', async () => {
+    // jose will not mint one, so it is assembled by hand — which is precisely
+    // what an attacker does. The empty signature must not be treated as valid.
+    const b64 = (o: unknown) =>
+      Buffer.from(JSON.stringify(o)).toString('base64url');
+    const unsigned = `${b64({ alg: 'none', typ: 'JWT' })}.${b64({
+      ...claims(),
+      iss: ISSUER,
+      aud: AUDIENCE,
+      exp: Math.floor(Date.now() / 1000) + 300,
+    })}.`;
+
+    const { status, passed } = await run(unsigned);
+    expect(status).toBe(401);
+    expect(passed).toBe(false);
+  });
+
+  it('REJECTS a token whose payload was tampered with after signing', async () => {
+    // Privilege escalation by editing the claims of an otherwise valid token:
+    // the signature no longer matches the body.
+    const good = await sign(issuerKeys.privateKey);
+    const [header, , signature] = good.split('.');
+    const tampered = `${header}.${Buffer.from(
+      JSON.stringify({ ...claims({ role: 'owner', tenantId: 'tenant-victim' }), iss: ISSUER, aud: AUDIENCE, exp: Math.floor(Date.now() / 1000) + 300 }),
+    ).toString('base64url')}.${signature}`;
+
+    const { status, passed } = await run(tampered);
+    expect(status).toBe(401);
+    expect(passed).toBe(false);
+  });
+
+  it('REJECTS a token from a different issuer, even correctly signed', async () => {
+    // The signature is genuine — the resolver hands back the issuer's key — but
+    // `iss` names somebody else. Without the issuer check a token minted for a
+    // different tenant of the same IdP would be accepted here.
+    const wrongIssuer = await sign(issuerKeys.privateKey, claims(), {
+      issuer: 'https://evil.example',
+    });
+
+    const { status, passed } = await run(wrongIssuer);
+    expect(status).toBe(401);
+    expect(passed).toBe(false);
+  });
+
+  it('REJECTS a token minted for a different audience', async () => {
+    // A correctly signed token for ANOTHER service of the same issuer. Without
+    // the audience check, any sibling service's token opens this API.
+    const wrongAudience = await sign(issuerKeys.privateKey, claims(), {
+      audience: 'some-other-service',
+    });
+
+    const { status, passed } = await run(wrongAudience);
+    expect(status).toBe(401);
+    expect(passed).toBe(false);
+  });
+
+  it('REJECTS an expired token', async () => {
+    const expired = await sign(issuerKeys.privateKey, claims(), { expiresIn: '-1m' });
+
+    const { status, passed } = await run(expired);
+    expect(status).toBe(401);
+    expect(passed).toBe(false);
+  });
+
+  it('REJECTS a token missing a required claim', async () => {
+    // NOT "accepts it and notes the claim is absent", which is what the previous
+    // version of this test asserted — it awaited a SUCCESSFUL verification and
+    // then checked `payload.tenantId` was undefined.
+    const { tenantId: _dropped, ...withoutTenant } = claims();
+    const incomplete = await sign(issuerKeys.privateKey, withoutTenant);
+
+    const { status, passed } = await run(incomplete);
+    expect(status).toBe(401);
+    expect(passed).toBe(false);
+  });
+
+  it('REJECTS a request with no Authorization header at all', async () => {
+    const { status, passed } = await run(undefined);
+    expect(status).toBe(401);
+    expect(passed).toBe(false);
+  });
+});
+
+describe('authenticate — managed path, tenant isolation', () => {
+  it('refuses a forged token claiming another tenant, closing the bypass for real', async () => {
+    // The case the old file named "proving the bypass is closed" while proving
+    // nothing. An attacker forges a token naming a tenant they do not belong to;
+    // the signature is the only thing standing in the way, so this fails the
+    // moment signature verification is weakened.
+    const forged = await sign(attackerKeys.privateKey, claims({ tenantId: 'tenant-victim', role: 'owner' }));
+
+    const { status, passed, req } = await run(forged);
+
+    expect(status).toBe(401);
+    expect(passed).toBe(false);
+    expect(req.tenantId).toBeUndefined();
+  });
+
+  it('applies the membership gate on the managed path too (0020 T1)', async () => {
+    // A genuinely signed token is still not an authorization: the subject must
+    // belong to the tenant it names.
+    __setMembershipLookupForTests(async () => null);
+
+    const { status, passed } = await run(await sign(issuerKeys.privateKey));
+
+    expect(status).toBe(403);
+    expect(passed).toBe(false);
+  });
+
+  it('takes the role from the membership row, never from the token', async () => {
+    // The token says owner; the row says viewer. The row wins, or a self-issued
+    // role claim would be an escalation.
+    __setMembershipLookupForTests(async () => ({ role: 'viewer' }));
+
+    const { req, passed } = await run(
+      await sign(issuerKeys.privateKey, claims({ role: 'owner' })),
+    );
+
+    expect(passed).toBe(true);
+    expect(req.userRole).toBe('viewer');
+  });
+});
+
+describe('authenticate — a lingering JWT_SECRET cannot downgrade verification', () => {
+  it('still verifies against JWKS when JWT_SECRET is also set', async () => {
+    // selectAuthMode prefers managed, and the managed compose ships a known
+    // default secret — so a token signed with that secret must NOT be accepted
+    // while an issuer is configured. Proven through the middleware rather than
+    // through selectAuthMode alone, because it is the wiring that can regress.
+    process.env.JWT_SECRET = 'change-this-in-production';
+
+    const jwt = (await import('jsonwebtoken')).default;
+    const secretSigned = jwt.sign(
+      { ...claims(), iss: ISSUER, aud: AUDIENCE },
+      'change-this-in-production',
+      { algorithm: 'HS256' },
+    );
+
+    const { status, passed } = await run(secretSigned);
+    expect(status).toBe(401);
+    expect(passed).toBe(false);
+
     delete process.env.JWT_SECRET;
-  });
-
-  it('should still work with JWT_SECRET (existing behavior)', async () => {
-    const { sign, verify } = await import('jsonwebtoken');
-    
-    const token = sign(
-      {
-        sub: 'user-123',
-        tenantId: 'tenant-abc',
-        role: 'admin',
-        email: 'user@example.com',
-      },
-      SECRET
-    );
-
-    const decoded = verify(token, SECRET) as any;
-    
-    expect(decoded.tenantId).toBe('tenant-abc');
-    expect(decoded.role).toBe('admin');
-  });
-
-  it('should reject tampered tokens in self-hosted mode', async () => {
-    const { sign, verify } = await import('jsonwebtoken');
-    
-    const token = sign(
-      {
-        sub: 'user-123',
-        tenantId: 'tenant-abc',
-        role: 'admin',
-        email: 'user@example.com',
-      },
-      SECRET
-    );
-
-    // Tamper with the token
-    const parts = token.split('.');
-    const tamperedToken = `${parts[0]}.${parts[1]}.tampered`;
-
-    expect(() => verify(tamperedToken, SECRET)).toThrow();
   });
 });
