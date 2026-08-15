@@ -141,6 +141,16 @@ describe('the relocation apply button', () => {
   });
 
   it('ARMS before it acts — one click never removes anything', async () => {
+    // The server's own words come back on the decision and are shown verbatim,
+    // so the mock resolves the real shape rather than `undefined`: a mock that
+    // does not answer what the caller awaits proves the wrong thing, and here
+    // it threw inside the click handler while the assertions still passed.
+    applyMoveMock.mockResolvedValue({
+      status: 'ok',
+      action: 'apply',
+      naturalKeyHash: 'Docs/report.pdf',
+      effect: 'The old copy has been removed from the target.',
+    });
     fetchMovesMock.mockResolvedValue(queue({ open: [RELOCATION] }));
     renderScreen();
 
@@ -152,6 +162,11 @@ describe('the relocation apply button', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Confirm removal/ }));
     expect(applyMoveMock).toHaveBeenCalledWith('acme-mail', 'Docs/report.pdf');
+    // And the outcome reaches the screen — the row stops offering the action
+    // and says what happened, in the server's words.
+    expect(
+      await screen.findByText('The old copy has been removed from the target.'),
+    ).toBeInTheDocument();
   });
 
   it('shows the NEW KEY for a rename, where both folders read the same', async () => {
