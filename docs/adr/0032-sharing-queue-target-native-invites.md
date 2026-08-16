@@ -1,6 +1,8 @@
 # ADR-0032: The sharing queue — re-sharing on the target as an owner decision, invites through the target's own messaging
 
-- **Status:** Proposed (needs owner decision)
+- **Status:** Accepted (owner decision, 2026-08-16 — "yes, accepted") — first slice built
+  the same day, with the owner's own addition: **every manual step is a trackable
+  checklist row**, not only the applicable ones (workplan 0052)
 - **Date:** 2026-08-16
 - **Deciders:** owner
 - **Relates to:** workplan 0029 (the permission inventory — §14.2's read half; this is the
@@ -144,6 +146,21 @@ remaining), and the digest narrates counts, never addresses.
 3. The lifecycle gate, the per-row apply/skip/edit with attribution, audit + report +
    digest wiring.
 4. Grantee address proposal/confirm flow.
+
+## Build record (2026-08-16, workplan 0052)
+
+Built as accepted, with the checklist framing the owner added: migration 0016
+(`share_grant`, decisions surviving rescans by `grant_hash` identity), the ledger port
+trio (`upsertShareGrants` / `listShareGrants` / `decideShareGrant` — only an open row
+settles, every settled row keeps who and when), `share-queue.ts` in core (refresh /
+apply / mark, every gate of §§2–7 answering with its own sentence), the Nextcloud OCS
+client (origin-rooted endpoint, envelope-trusted answers, refusals verbatim), the three
+routes in both editions behind the parity and OpenAPI drift locks, and the Sharing
+checklist screen (progress line, per-row apply with editable owner-confirmed address /
+done-by-hand / skip, blind spots listed verbatim as the checklist items the tool cannot
+enumerate). Deferred within the decision, recorded in workplan 0052: the digest's
+sharing counts, the completion report's "access carried over" section, the
+confirm-once-apply-to-all-rows address flow, and a real-Nextcloud integration proof.
 
 ## What this ADR does not decide
 

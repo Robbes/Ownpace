@@ -27,6 +27,8 @@ import type {
   ScopeManifest,
   StatusReport,
   DecisionRow,
+  MappingLifecycle,
+  ShareGrantRow,
 } from '@openmig/shared';
 import { isSelfHost, mappingPath, operatingBaseUrl, queuePath, verifyPath } from './edition';
 import { onUnauthorized } from './api';
@@ -371,6 +373,65 @@ export async function fetchCompletionReport(
 /** Accept the target's layout for a moved item, and stop reporting it. */
 export function keepMove(mappingId: string, hash: string): Promise<DecisionAccepted> {
   return decide(`${mappingPath(mappingId)}/moves/${encodeURIComponent(hash)}/keep`);
+}
+
+// -------------------------------------------- the sharing checklist (ADR-0032)
+
+export interface SharingSummary {
+  readonly total: number;
+  readonly open: number;
+  readonly applied: number;
+  readonly doneManual: number;
+  readonly skipped: number;
+  readonly openManual: number;
+}
+
+export interface SharingResponse {
+  readonly migrationStatus: MappingLifecycle;
+  readonly summary: SharingSummary;
+  readonly grants: ReadonlyArray<ShareGrantRow>;
+  readonly reportingClosed?: string;
+}
+
+/** The checklist's rows and progress line — per mapping, both editions. */
+export async function fetchSharing(mappingId: string): Promise<SharingResponse> {
+  return (await client.get<SharingResponse>(`${mappingPath(mappingId)}/sharing`)).data;
+}
+
+/** Re-run the inventory scans; decisions survive (ADR-0032). */
+export async function rescanSharing(
+  mappingId: string,
+): Promise<{ open: number; blindSpots: ReadonlyArray<string> }> {
+  return (
+    await client.post<{ open: number; blindSpots: ReadonlyArray<string> }>(
+      `${mappingPath(mappingId)}/sharing/rescan`,
+    )
+  ).data;
+}
+
+/**
+ * Settle one checklist row. `apply` re-creates the grant on the target — the
+ * target then sends its own share invite (the invite IS the notification);
+ * `done` ticks the row off as handled by hand; `skip` records a deliberate
+ * not-carried-over. Refusals arrive as `DecisionRefusedError`, verbatim.
+ */
+export async function decideSharing(
+  mappingId: string,
+  grantId: string,
+  body: { action: 'apply' | 'done' | 'skip'; reason?: string; grantee?: string },
+): Promise<{ status: 'ok'; grant: ShareGrantRow }> {
+  try {
+    return (
+      await client.post<{ status: 'ok'; grant: ShareGrantRow }>(
+        `${mappingPath(mappingId)}/sharing/${encodeURIComponent(grantId)}/decision`,
+        body,
+      )
+    ).data;
+  } catch (err) {
+    const res = (err as { response?: { status: number; data?: DecisionRefused } }).response;
+    if (res?.data?.error) throw new DecisionRefusedError(res.data, res.status);
+    throw err;
+  }
 }
 
 /**

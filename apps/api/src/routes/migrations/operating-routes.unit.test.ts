@@ -66,6 +66,12 @@ describe('route registration', () => {
         'POST /:mappingId/finish',
         'POST /:mappingId/moves/:hash/apply',
         'POST /:mappingId/moves/:hash/keep',
+        // The sharing checklist (ADR-0032, workplan 0052) — same three
+        // verbs on both editions: read the queue, rescan the inventory,
+        // settle one row (apply / done-by-hand / skip).
+        'GET /:mappingId/sharing',
+        'POST /:mappingId/sharing/:grantId/decision',
+        'POST /:mappingId/sharing/rescan',
         'POST /:mappingId/verify/start',
       ].sort(),
     );

@@ -604,6 +604,39 @@ export const applyReceipt = pgTable(
   ],
 );
 
+/**
+ * The sharing queue's rows (ADR-0032, workplan 0052) — a grant discovered by
+ * the §14.2 inventory, held as a CHECKLIST item instead of only a rendered
+ * report line. `grantHash` is the grant's identity across rescans, so an
+ * owner's decision is never reset to open by looking again. No FK on
+ * mappingId, mirroring `item`: the appliance's mappings are config-born.
+ */
+export const shareGrant = pgTable(
+  'share_grant',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    mappingId: uuid('mapping_id').notNull(),
+    grantHash: text('grant_hash').notNull(),
+    subject: text('subject').notNull(),
+    onLabel: text('on_label').notNull(),
+    grantee: text('grantee'),
+    role: text('role').notNull(),
+    viaLink: boolean('via_link').notNull().default(false),
+    raw: text('raw').notNull(),
+    verdict: text('verdict', { enum: ['clean', 'manual'] }).notNull(),
+    verdictTarget: text('verdict_target').notNull(),
+    state: text('state', { enum: ['open', 'applied', 'done_manual', 'skipped'] })
+      .notNull()
+      .default('open'),
+    stateReason: text('state_reason'),
+    decidedBy: text('decided_by'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    scannedAt: timestamp('scanned_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('uk_share_grant_identity').on(t.tenantId, t.mappingId, t.grantHash)],
+);
+
 export const cutover = pgTable(
   'cutover',
   {

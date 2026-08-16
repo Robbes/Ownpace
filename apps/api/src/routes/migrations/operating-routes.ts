@@ -73,7 +73,18 @@ import type {
 } from '@openmig/shared';
 import { authenticate, getDbPool, requireRole, withTenantDb } from '../../middleware/auth';
 import { getTriggerClient } from '@openmig/scheduler';
-import { evaluateApplyDeletion, evaluateApplyRelocation } from '@openmig/core';
+import {
+  applyShareGrant,
+  evaluateApplyDeletion,
+  evaluateApplyRelocation,
+  markShareGrant,
+  refreshShareGrants,
+  summariseShareGrants,
+} from '@openmig/core';
+import { SecretStore } from '@openmig/core/secret-store';
+import { createNextcloudUserShare } from '@openmig/connectors';
+import type { ShareGrantRow } from '@openmig/shared';
+import { resolveMappingMailbox, tenantInventoryScans } from '../permissions';
 import type { AuthenticatedRequest } from '../../types/api';
 
 const router = Router({ mergeParams: true });
@@ -313,6 +324,196 @@ router.get('/:mappingId/failures', authenticate, async (req: AuthenticatedReques
 });
 
 // ------------------------------------------------------------- the decisions
+
+// ------------------------------------------------- the sharing queue (ADR-0032)
+
+/**
+ * The target's share capability for this mapping, when its target has one.
+ *
+ * Nextcloud (behind the `webdav` target kind) speaks OCS; nothing else does
+ * yet, and `undefined` here makes `applyShareGrant` refuse with the
+ * protocol-gap sentence rather than this file inventing its own. The share is
+ * created with the TARGET's credentials, at the path the copy actually lives
+ * at (`targetFolderPrefix` included) — and the target then notifies the
+ * grantee itself, which is the point (ADR-0032 §4).
+ */
+async function nextcloudCapabilityFor(
+  s: Scoped,
+  granteeOverride: string | undefined,
+): Promise<((row: ShareGrantRow) => Promise<{ ok: true } | { ok: false; reason: string }>) | undefined> {
+  const rows = await withTenantDb(s.tenantId, pool(), (db) =>
+    db
+      .select({
+        kind: schema.connection.kind,
+        config: schema.connection.config,
+        secretRef: schema.connection.secretRef,
+        prefix: schema.mailboxMapping.targetFolderPrefix,
+      })
+      .from(schema.mailboxMapping)
+      .innerJoin(schema.mailbox, eq(schema.mailbox.id, schema.mailboxMapping.targetMailboxId))
+      .innerJoin(schema.connection, eq(schema.connection.id, schema.mailbox.connectionId))
+      .where(
+        and(
+          eq(schema.mailboxMapping.id, s.mappingId),
+          eq(schema.mailboxMapping.tenantId, s.tenantId),
+        ),
+      ),
+  );
+  const target = rows[0];
+  if (!target || target.kind !== 'webdav') return undefined;
+
+  const config = (target.config ?? {}) as {
+    host?: string;
+    port?: number;
+    useSsl?: boolean;
+    credentials?: Record<string, string>;
+  };
+  const creds = target.secretRef
+    ? SecretStore.decryptCredentials(target.secretRef)
+    : (config.credentials ?? {});
+  const origin = `${config.useSsl === false ? 'http' : 'https'}://${config.host}${config.port ? `:${config.port}` : ''}`;
+
+  return async (row) => {
+    const shareWith = granteeOverride ?? row.grantee;
+    if (!shareWith) {
+      return {
+        ok: false,
+        reason:
+          'This grant names no grantee address (a link or domain share) — there is nobody ' +
+          'to share with. Handle it by hand and mark the row done.',
+      };
+    }
+    return createNextcloudUserShare(
+      {
+        webdavUrl: origin,
+        username: creds.username ?? '',
+        password: creds.password ?? '',
+        httpClient: { request: async ({ url, method, headers, body }) => {
+          const r = await fetch(url, {
+            method,
+            headers,
+            ...(typeof body === 'string' ? { body } : {}),
+          });
+          return { status: r.status, body: await r.text(), headers: {} };
+        } },
+      },
+      {
+        path: target.prefix ? `${target.prefix}/${row.onLabel}` : row.onLabel,
+        shareWith,
+        role: row.role,
+      },
+    );
+  };
+}
+
+router.get('/:mappingId/sharing', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const s = await scope(req, res);
+    if (!s) return;
+    const grants = await withLedger(s.tenantId, (l) =>
+      l.listShareGrants(s.tenantId as TenantId, s.mappingId as MappingId),
+    );
+    res.json({
+      migrationStatus: s.lifecycle,
+      summary: summariseShareGrants(grants),
+      grants,
+      ...closed(s.lifecycle),
+    });
+  } catch (error) {
+    serverError(res, 'read the sharing queue', error);
+  }
+});
+
+router.post(
+  '/:mappingId/sharing/rescan',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const s = await scope(req, res);
+      if (!s) return;
+      const mailbox = await resolveMappingMailbox(s.tenantId, s.mappingId);
+      if (!mailbox) {
+        // The same sentence the permission report answers with — one fact
+        // missing, named (rule 9).
+        return void res.status(409).json({
+          error: 'Conflict',
+          reason:
+            'This migration does not record which mailbox it reads, so its sharing cannot ' +
+            'be inventoried.',
+        });
+      }
+      const scans = await tenantInventoryScans(s.tenantId, mailbox);
+      const result = await withLedger(s.tenantId, (l) =>
+        refreshShareGrants({
+          tenantId: s.tenantId as TenantId,
+          mappingId: s.mappingId as MappingId,
+          ledger: l,
+          scans: [scans.scanCalendars, scans.scanDrive],
+        }),
+      );
+      res.json(result);
+    } catch (error) {
+      serverError(res, 'rescan sharing', error);
+    }
+  },
+);
+
+router.post(
+  '/:mappingId/sharing/:grantId/decision',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const s = await scope(req, res);
+      if (!s) return;
+      const grantId = String(req.params.grantId);
+      const body = (req.body ?? {}) as { action?: string; reason?: string; grantee?: string };
+      if (body.action !== 'apply' && body.action !== 'done' && body.action !== 'skip') {
+        return void res.status(400).json({
+          error: 'unknown action',
+          hint: "A sharing row can be applied ('apply'), ticked off as done by hand ('done'), or skipped ('skip').",
+        });
+      }
+      // The checklist has no anonymous ticks: attribution names the decider.
+      const decidedBy = req.userId ?? 'unknown';
+
+      const outcome = await withLedger(s.tenantId, async (l) => {
+        const deps = {
+          tenantId: s.tenantId as TenantId,
+          mappingId: s.mappingId as MappingId,
+          ledger: l,
+          decidedBy,
+          onError: (m: string, err: unknown) => log.error(m, err),
+        };
+        if (body.action === 'apply') {
+          const createShare = await nextcloudCapabilityFor(s, body.grantee?.trim() || undefined);
+          return applyShareGrant(
+            {
+              ...deps,
+              lifecycleDone: s.lifecycle === 'done',
+              ...(createShare ? { createShare } : {}),
+            },
+            grantId,
+          );
+        }
+        return markShareGrant(
+          deps,
+          grantId,
+          body.action === 'done' ? 'done_manual' : 'skipped',
+          body.reason,
+        );
+      });
+
+      if (!outcome.ok) {
+        return void res
+          .status(outcome.code === 'not_found' ? 404 : 409)
+          .json({ error: outcome.code, reason: outcome.reason });
+      }
+      res.json({ status: 'ok', grant: outcome.row });
+    } catch (error) {
+      serverError(res, 'record the sharing decision', error);
+    }
+  },
+);
 
 router.post(
   '/:mappingId/deletions/:hash/keep',

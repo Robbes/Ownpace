@@ -85,6 +85,7 @@ export * from './imap-groups';
 export * from './graph-permissions';
 export * from './graph-permission-scan';
 export * from './drive-sharing-availability';
+export * from './nextcloud-ocs';
 // Proving the consent runbook actually worked (0027 T0).
 export * from './graph-access-check';
 // Google Drive as a file source (workplan 0042): the connector, the OAuth flow

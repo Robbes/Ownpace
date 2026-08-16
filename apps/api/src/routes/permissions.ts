@@ -88,14 +88,7 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
     let mailbox = asked;
 
     if (mailbox === '' && mappingId !== '') {
-      const { rows: found } = await pool().query<{ primary_address: string | null }>(
-        `SELECT mb.primary_address
-           FROM mailbox_mapping mm
-           JOIN mailbox mb ON mb.id = mm.source_mailbox_id
-          WHERE mm.tenant_id = $1 AND mm.id = $2`,
-        [tenantId, mappingId],
-      );
-      mailbox = found[0]?.primary_address?.trim() ?? '';
+      mailbox = (await resolveMappingMailbox(tenantId, mappingId)) ?? '';
       if (mailbox === '') {
         // A mapping whose source address the ledger never recorded cannot be
         // inventoried, and saying which is missing beats a bare 400 (rule 9).
@@ -119,35 +112,11 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
       return;
     }
 
-    const { rows } = await pool().query<{ config: unknown }>(
-      `SELECT config FROM connection
-        WHERE tenant_id = $1 AND role = 'source' AND kind = 'o365' LIMIT 1`,
-      [tenantId],
-    );
-    const graphTenantId = (rows[0]?.config as { tenantId?: string } | undefined)?.tenantId;
-    const available = directoryAvailability(process.env, graphTenantId);
-
-    // A Google Drive source (workplan 0029, the Google half): its outbound
-    // shares are readable with the Drive scope the connection already holds —
-    // no extra consent decision, unlike Files.Read.All. When the tenant's
-    // file source is Drive, the drive section scans Drive; a tenant carrying
-    // BOTH an o365 and a google-drive source gets the Drive answer for the
-    // file section (its files are the ones migrating through this tool) and
-    // the Graph answer for calendars.
-    const { rows: driveRows } = await pool().query<{ secret_ref: string | null; config: unknown }>(
-      `SELECT secret_ref, config FROM connection
-        WHERE tenant_id = $1 AND role = 'source' AND kind = 'google-drive' LIMIT 1`,
-      [tenantId],
-    );
-    const googleDriveConnection = driveRows[0];
+    const scans = await tenantInventoryScans(tenantId, mailbox);
 
     // The delegation sentence is always in the report; the scans are only
     // attempted when the connection can actually make them.
     const delegation = mailboxDelegations();
-    const scanOptions = { applicationPermissions: true } as const;
-    // Asked once, so the report says the same thing about the drive section
-    // whether or not the connection could have made the request anyway.
-    const drive = driveSharingAvailability(process.env);
 
     const markdown = await runPermissionInventory({
       mappingLabel: mailbox,
@@ -160,64 +129,8 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
       // omitted dep falls back to the pass's generic "no reader is
       // configured", and these two are not unconfigured — each has a specific
       // reason a reader can act on, and they are different reasons.
-      scanCalendars: async () =>
-        available.ok
-          ? scanCalendarPermissions(
-              mailbox,
-              graphToken(available, graphTenantId!),
-              httpClient,
-              scanOptions,
-            )
-          : googleDriveConnection && !graphTenantId
-            ? {
-                // A Google tenant would otherwise get a Graph-worded reason
-                // about an app registration it never had — a wrong errand.
-                kind: 'not_discoverable' as const,
-                reason: permissionsNotDiscoverable(
-                  'Google Calendar sharing is not yet read by this tool — the Drive scan ' +
-                    'covers files only. Capture calendar sharing by hand before cutover',
-                ),
-              }
-            : { kind: 'not_discoverable' as const, reason: available.reason },
-      scanDrive: async () => {
-        if (googleDriveConnection) {
-          try {
-            const config = (googleDriveConnection.config ?? {}) as {
-              credentials?: Record<string, string>;
-            };
-            const creds = googleDriveConnection.secret_ref
-              ? SecretStore.decryptCredentials(googleDriveConnection.secret_ref)
-              : (config.credentials ?? {});
-            const source = buildGoogleDriveSourceFrom(
-              {},
-              creds,
-              STORED_GOOGLE_CREDENTIAL_NAMES,
-            ) as unknown as {
-              listOwnedShareGrants(): Promise<PermissionListing>;
-            };
-            return await source.listOwnedShareGrants();
-          } catch (err) {
-            return {
-              kind: 'not_discoverable' as const,
-              reason: permissionsNotDiscoverable(
-                err instanceof Error ? err.message : String(err),
-              ),
-            };
-          }
-        }
-        // The consent decision answers first, because it holds whatever the
-        // credentials say: a deployment without `Files.Read.All` would get a
-        // 403 here, and a 403 reads as a fault to fix rather than a choice.
-        if (!drive.ok) return { kind: 'not_discoverable' as const, reason: drive.reason };
-        if (!available.ok)
-          return { kind: 'not_discoverable' as const, reason: available.reason };
-        // `/drives/{id}` is the only addressing the sharing endpoints take, so
-        // the drive id is resolved first rather than built by concatenation.
-        const token = graphToken(available, graphTenantId!);
-        const found = await resolveUserDriveId(mailbox, token, httpClient, scanOptions);
-        if (!found.ok) return { kind: 'not_discoverable' as const, reason: found.reason };
-        return scanDrivePermissions(found.id, token, httpClient, scanOptions);
-      },
+      scanCalendars: scans.scanCalendars,
+      scanDrive: scans.scanDrive,
       error: (m, err) => log.error(m, err instanceof Error ? err.message : err),
     });
 
@@ -242,6 +155,126 @@ function graphToken(available: Available, graphTenantId: string): () => Promise<
     scope: 'https://graph.microsoft.com/.default',
   });
   return async () => (await provider.getToken()).accessToken;
+}
+
+/**
+ * The mailbox behind a mapping, when it recorded one — the same resolution
+ * the report route uses, exported so the sharing queue's rescan (ADR-0032)
+ * asks the identical question and refuses with the identical sentence.
+ */
+export async function resolveMappingMailbox(
+  tenantId: string,
+  mappingId: string,
+): Promise<string | undefined> {
+  const { rows } = await pool().query<{ primary_address: string | null }>(
+    `SELECT mb.primary_address
+       FROM mailbox_mapping mm
+       JOIN mailbox mb ON mb.id = mm.source_mailbox_id
+      WHERE mm.tenant_id = $1 AND mm.id = $2`,
+    [tenantId, mappingId],
+  );
+  const address = rows[0]?.primary_address?.trim() ?? '';
+  return address === '' ? undefined : address;
+}
+
+/**
+ * The two §14.2 scans for one tenant's mailbox, resolved from what the tenant
+ * actually connected (workplan 0029 T1/T5) — used by the report route above
+ * AND by the sharing queue's rescan (ADR-0032), so the queue can never know
+ * more or less than the report.
+ *
+ * A Google Drive source's outbound shares are readable with the Drive scope
+ * the connection already holds — no extra consent decision, unlike
+ * `Files.Read.All`. A tenant carrying BOTH an o365 and a google-drive source
+ * gets the Drive answer for the file section (its files are the ones
+ * migrating through this tool) and the Graph answer for calendars.
+ */
+export async function tenantInventoryScans(
+  tenantId: string,
+  mailbox: string,
+): Promise<{
+  scanCalendars: () => Promise<PermissionListing>;
+  scanDrive: () => Promise<PermissionListing>;
+}> {
+  const { rows } = await pool().query<{ config: unknown }>(
+    `SELECT config FROM connection
+      WHERE tenant_id = $1 AND role = 'source' AND kind = 'o365' LIMIT 1`,
+    [tenantId],
+  );
+  const graphTenantId = (rows[0]?.config as { tenantId?: string } | undefined)?.tenantId;
+  const available = directoryAvailability(process.env, graphTenantId);
+  const scanOptions = { applicationPermissions: true } as const;
+  // Asked once, so every caller says the same thing about the drive section
+  // whether or not the connection could have made the request anyway.
+  const drive = driveSharingAvailability(process.env);
+
+  const { rows: driveRows } = await pool().query<{ secret_ref: string | null; config: unknown }>(
+    `SELECT secret_ref, config FROM connection
+      WHERE tenant_id = $1 AND role = 'source' AND kind = 'google-drive' LIMIT 1`,
+    [tenantId],
+  );
+  const googleDriveConnection = driveRows[0];
+
+  return {
+    scanCalendars: async () =>
+      available.ok
+        ? scanCalendarPermissions(
+            mailbox,
+            graphToken(available, graphTenantId!),
+            httpClient,
+            scanOptions,
+          )
+        : googleDriveConnection && !graphTenantId
+          ? {
+              // A Google tenant would otherwise get a Graph-worded reason
+              // about an app registration it never had — a wrong errand.
+              kind: 'not_discoverable' as const,
+              reason: permissionsNotDiscoverable(
+                'Google Calendar sharing is not yet read by this tool — the Drive scan ' +
+                  'covers files only. Capture calendar sharing by hand before cutover',
+              ),
+            }
+          : { kind: 'not_discoverable' as const, reason: available.reason },
+    scanDrive: async () => {
+      if (googleDriveConnection) {
+        try {
+          const config = (googleDriveConnection.config ?? {}) as {
+            credentials?: Record<string, string>;
+          };
+          const creds = googleDriveConnection.secret_ref
+            ? SecretStore.decryptCredentials(googleDriveConnection.secret_ref)
+            : (config.credentials ?? {});
+          const source = buildGoogleDriveSourceFrom(
+            {},
+            creds,
+            STORED_GOOGLE_CREDENTIAL_NAMES,
+          ) as unknown as {
+            listOwnedShareGrants(): Promise<PermissionListing>;
+          };
+          return await source.listOwnedShareGrants();
+        } catch (err) {
+          return {
+            kind: 'not_discoverable' as const,
+            reason: permissionsNotDiscoverable(
+              err instanceof Error ? err.message : String(err),
+            ),
+          };
+        }
+      }
+      // The consent decision answers first, because it holds whatever the
+      // credentials say: a deployment without `Files.Read.All` would get a
+      // 403 here, and a 403 reads as a fault to fix rather than a choice.
+      if (!drive.ok) return { kind: 'not_discoverable' as const, reason: drive.reason };
+      if (!available.ok)
+        return { kind: 'not_discoverable' as const, reason: available.reason };
+      // `/drives/{id}` is the only addressing the sharing endpoints take, so
+      // the drive id is resolved first rather than built by concatenation.
+      const token = graphToken(available, graphTenantId!);
+      const found = await resolveUserDriveId(mailbox, token, httpClient, scanOptions);
+      if (!found.ok) return { kind: 'not_discoverable' as const, reason: found.reason };
+      return scanDrivePermissions(found.id, token, httpClient, scanOptions);
+    },
+  };
 }
 
 export default router;

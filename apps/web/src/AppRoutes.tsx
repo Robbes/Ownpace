@@ -27,6 +27,7 @@ import Login from './pages/Login';
 import Decisions from './pages/Decisions';
 import Deletions from './pages/Deletions';
 import Moves from './pages/Moves';
+import Sharing from './pages/Sharing';
 import Failures from './pages/Failures';
 import Verify from './pages/Verify';
 import Finish from './pages/Finish';
@@ -179,6 +180,9 @@ const AppRoutes: React.FC = () => {
         <Route path="mappings/:mappingId/deletions" element={<Deletions />} />
         <Route path="mappings/:mappingId/moves" element={<Moves />} />
         <Route path="mappings/:mappingId/failures" element={<Failures />} />
+        {/* The sharing checklist (ADR-0032): per-mapping in BOTH editions —
+            the queue's rows live in the ledger either way. */}
+        <Route path="mappings/:mappingId/sharing" element={<Sharing />} />
         {/* The §20 gate and the end of the shadow sync. Verify has the
             same two mount points as the queues and for the same reason:
             the appliance scans every configured mapping in one run, a

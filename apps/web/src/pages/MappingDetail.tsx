@@ -22,6 +22,7 @@ import {
   Flag,
   ListChecks,
   MoveRight,
+  Share2,
   Trash2,
 } from 'lucide-react';
 import { isSelfHost } from '../services/edition';
@@ -43,6 +44,7 @@ const SCREENS: ReadonlyArray<{
   { nameKey: 'hub.deletions.name', path: 'deletions', icon: Trash2, blurbKey: 'hub.deletions.blurb' },
   { nameKey: 'hub.moves.name', path: 'moves', icon: MoveRight, blurbKey: 'hub.moves.blurb' },
   { nameKey: 'hub.failures.name', path: 'failures', icon: AlertTriangle, blurbKey: 'hub.failures.blurb' },
+  { nameKey: 'hub.sharing.name', path: 'sharing', icon: Share2, blurbKey: 'hub.sharing.blurb' },
   { nameKey: 'hub.check.name', path: 'verify', icon: ListChecks, blurbKey: 'hub.check.blurb' },
   { nameKey: 'hub.finish.name', path: 'finish', icon: Flag, blurbKey: 'hub.finish.blurb' },
 ];

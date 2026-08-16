@@ -323,6 +323,31 @@ const en = {
   'hub.failures.name': 'Failures',
   'hub.failures.blurb':
     'Items that could not be copied and now wait on a person. These block finishing.',
+  'hub.sharing.name': 'Sharing',
+  'hub.sharing.blurb':
+    'Who could reach what on the old system — carried over, done by hand, or deliberately not. A checklist, worked after finishing.',
+  'sharing.title': 'Sharing checklist',
+  'sharing.intro':
+    'Everything somebody else could reach on the old system, one row per grant. Settle each row: create the share on the new system, tick it off as done by hand, or skip it on purpose — every settled row keeps who decided, and when.',
+  'sharing.progressSettled': 'settled',
+  'sharing.openManualNote':
+    'row(s) are marked manual — steps for you on the new system; tick them off here when done.',
+  'sharing.rescan': 'Refresh from the source…',
+  'sharing.blindSpots': 'Could not be inventoried — capture these by hand:',
+  'sharing.empty': 'No shares on the list yet. Refresh from the source to scan.',
+  'sharing.apply': 'Create share on new system',
+  'sharing.applyArmed': 'Click again — this shares AND invites',
+  'sharing.done': 'Mark done',
+  'sharing.skip': 'Skip',
+  'sharing.linkShare': 'link share',
+  'sharing.manualBadge': 'manual',
+  'sharing.granteeLabel': 'share with',
+  'sharing.inviteNote':
+    'Applying creates the share on the new system, which then sends its own invitation to this address — check the address first.',
+  'sharing.state.applied': 'shared on the new system',
+  'sharing.state.doneManual': 'done by hand',
+  'sharing.state.skipped': 'skipped',
+  'sharing.loadFailed': 'The sharing checklist could not be read.',
   'hub.check.name': 'Check',
   'hub.check.blurb':
     'Compare the two systems and sample the contents — the §20 gate, behind a button.',
@@ -990,6 +1015,31 @@ const nl: Record<keyof typeof en, string> = {
   'hub.failures.name': 'Mislukkingen',
   'hub.failures.blurb':
     'Items die niet konden worden gekopieerd en nu op een persoon wachten. Deze blokkeren het afronden.',
+  'hub.sharing.name': 'Delen',
+  'hub.sharing.blurb':
+    'Wie wat kon bereiken op het oude systeem — overgezet, handmatig gedaan, of bewust niet. Een checklist, af te werken na het afronden.',
+  'sharing.title': 'Deel-checklist',
+  'sharing.intro':
+    'Alles wat iemand anders kon bereiken op het oude systeem, één regel per recht. Werk elke regel af: maak het delen aan op het nieuwe systeem, vink af als handmatig gedaan, of sla bewust over — elke afgewerkte regel onthoudt wie besliste, en wanneer.',
+  'sharing.progressSettled': 'afgewerkt',
+  'sharing.openManualNote':
+    'regel(s) staan op handmatig — stappen voor u op het nieuwe systeem; vink ze hier af zodra gedaan.',
+  'sharing.rescan': 'Opnieuw inlezen van de bron…',
+  'sharing.blindSpots': 'Kon niet worden geïnventariseerd — leg deze handmatig vast:',
+  'sharing.empty': 'Nog geen gedeelde rechten op de lijst. Lees opnieuw in van de bron om te scannen.',
+  'sharing.apply': 'Delen aanmaken op nieuw systeem',
+  'sharing.applyArmed': 'Klik nogmaals — dit deelt ÉN nodigt uit',
+  'sharing.done': 'Afvinken',
+  'sharing.skip': 'Overslaan',
+  'sharing.linkShare': 'deel-link',
+  'sharing.manualBadge': 'handmatig',
+  'sharing.granteeLabel': 'delen met',
+  'sharing.inviteNote':
+    'Toepassen maakt het delen aan op het nieuwe systeem, dat vervolgens zelf de uitnodiging naar dit adres stuurt — controleer eerst het adres.',
+  'sharing.state.applied': 'gedeeld op het nieuwe systeem',
+  'sharing.state.doneManual': 'handmatig gedaan',
+  'sharing.state.skipped': 'overgeslagen',
+  'sharing.loadFailed': 'De deel-checklist kon niet worden gelezen.',
   'hub.check.name': 'Verificatie',
   'hub.check.blurb':
     'Vergelijk de twee systemen en controleer steekproeven van de inhoud — het §20-controlepunt, achter één knop.',
