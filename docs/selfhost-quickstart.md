@@ -118,6 +118,17 @@ top-level `source`/`target`; to also sync calendar/contacts/files, add a
 `domains` block (see `packages/shared/src/config.ts` for the schema). Invalid or
 duplicate-`mappingId` files fail fast on startup with the offending path.
 
+**Several sources into one target?** Two mappings sharing the target's
+credentials MERGE by default — one inbox, one tree, the new platform as the
+single place, which is this product's philosophy. If you would rather keep a
+subfolder per source, give each mapping a `"targetFolderPrefix"` (`"Gmail"`,
+`"O365"`): everything that mapping writes — mail folders and file directories —
+lands under it, and the destructive `apply` path knows to look there too.
+Calendars and contacts merge regardless: their items are UID-keyed and their
+collections are not trees. Set it when the mapping is created; changing it
+later strands nothing, but new items land under the new prefix while old
+copies stay where they were placed.
+
 ### Google Drive as the file source
 
 The file domain can read from Google Drive instead of WebDAV. Google withdrew

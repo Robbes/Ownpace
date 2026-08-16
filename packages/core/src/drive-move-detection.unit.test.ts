@@ -207,6 +207,29 @@ describe('a rename in Drive, seen by the pass AFTER the copy (the production cas
     expect(second.drift).toBe(1);
   });
 
+  it('a targetFolderPrefix lands every file under it, idempotently, without touching the ledger', async () => {
+    // The merge-or-subfolder choice (owner decision 2026-08-16), proven
+    // through the REAL runFileSync: the prefix changes where the TARGET
+    // creates directories and nothing else — the ledger's collection stays
+    // the source's, which move detection depends on.
+    const { state, transport } = fakeDrive([FILE]);
+    const target = memoryTarget();
+    const d = {
+      ...deps(new GoogleDriveSource(transport, { baseUrl: BASE }), target),
+      targetFolderPrefix: 'gdrive',
+    };
+
+    const first = await runFileSync(d);
+    expect(first.created).toBe(1);
+    expect([...target.stored.keys()]).toEqual(['t/gdrive:report.pdf']);
+
+    const second = await runFileSync(d);
+    expect(second.created, 'still idempotent under a prefix').toBe(0);
+    state.files = [{ ...FILE, name: 'summary.pdf' }];
+    const third = await runFileSync(d);
+    expect(third.moved, 'move detection unbothered by the prefix').toBe(1);
+  });
+
   it('does not cost a second Drive listing per folder', async () => {
     // `listKeys` answers from the listing `listSince` just made (consume-once,
     // so a changed call order degrades to one extra request rather than to a

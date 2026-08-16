@@ -197,3 +197,21 @@ describe('a google-drive source (workplan 0042) — the same doors, its own refu
     expect(msg).toContain("'file'");
   });
 });
+
+describe('targetFolderPrefix — refused in the shared parser\'s words (hard rule 5)', () => {
+  it('accepts a clean prefix and the empty default', () => {
+    expect(CreateMappingSchema.safeParse(body({ targetFolderPrefix: 'Gmail' })).success).toBe(true);
+    expect(CreateMappingSchema.safeParse(body()).success).toBe(true);
+  });
+
+  it("refuses '..' with the sentence the appliance's config loader uses", () => {
+    const msg = refusalText(body({ targetFolderPrefix: 'a/../b' }));
+    expect(msg).toContain('targetFolderPrefix');
+    expect(msg).toContain('escape');
+  });
+
+  it('refuses a backslash, naming the separator rule', () => {
+    const msg = refusalText(body({ targetFolderPrefix: 'Gmail\\INBOX' }));
+    expect(msg).toContain('separator');
+  });
+});

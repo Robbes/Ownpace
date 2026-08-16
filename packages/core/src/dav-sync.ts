@@ -6,7 +6,7 @@
  * The abstraction is at the function level, parameterizing the loop with domain-specific injections.
  */
 
-import {
+import { applyTargetFolderPrefix,
   type Ledger,
   type CursorStore,
   type CalendarSource,
@@ -45,6 +45,8 @@ export interface CalendarSyncDeps {
   readonly concurrency?: number;
   /** What to do when the destination already holds the item; `'skip'` (adopt) by default. */
   readonly onCollision?: 'skip' | 'fail';
+  /** Create every target directory under this folder — see `MappingConfig.targetFolderPrefix`. */
+  readonly targetFolderPrefix?: string;
 }
 
 /**
@@ -107,6 +109,8 @@ export interface ContactSyncDeps {
   readonly concurrency?: number;
   /** What to do when the destination already holds the item; `'skip'` (adopt) by default. */
   readonly onCollision?: 'skip' | 'fail';
+  /** Create every target directory under this folder — see `MappingConfig.targetFolderPrefix`. */
+  readonly targetFolderPrefix?: string;
 }
 
 /**
@@ -161,6 +165,8 @@ export interface FileSyncDeps {
   readonly concurrency?: number;
   /** What to do when the destination already holds the item; `'skip'` (adopt) by default. */
   readonly onCollision?: 'skip' | 'fail';
+  /** Create every target directory under this folder — see `MappingConfig.targetFolderPrefix`. */
+  readonly targetFolderPrefix?: string;
 }
 
 /**
@@ -249,7 +255,12 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
     // own, so a blank is never recorded as if it meant something.
     sourceRef: (item) => item.item.sourceRef || item.item.path,
     contentHash: (raw) => fileContentHash((raw as RawFileItem).content ?? new Uint8Array(0)),
-    ensureCollection: (folder) => target.ensureDirectory(folder),
+    ensureCollection: (folder) =>
+      target.ensureDirectory(
+        deps.targetFolderPrefix
+          ? { ...folder, path: applyTargetFolderPrefix(deps.targetFolderPrefix, folder.path) }
+          : folder,
+      ),
     ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
   });
 }

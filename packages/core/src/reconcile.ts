@@ -1,5 +1,5 @@
 // Copyright 2026 OpenHands Agent (Apache-2.0)
-import {
+import { applyTargetFolderPrefix,
   contentHash,
   ensureMessageId,
   naturalKeyHash,
@@ -176,7 +176,16 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     naturalKeyFromRaw: (_item, raw) =>
       naturalKeyHash(ensureMessageId((raw as RawMessage).rfc822).messageId),
     contentHash: (raw) => contentHash((raw as RawMessage).rfc822),
-    ensureCollection: (folder) => target.ensureMailbox(folder),
+    ensureCollection: (folder) =>
+      target.ensureMailbox(
+        // The one composition (`applyTargetFolderPrefix`), shared with the
+        // destructive path: the mailbox created here is the mailbox a removal
+        // must later open, and two spellings of it is how an IMAP UID gets
+        // looked up in the wrong one.
+        deps.targetFolderPrefix
+          ? { ...folder, path: applyTargetFolderPrefix(deps.targetFolderPrefix, folder.path) }
+          : folder,
+      ),
     ...(onCollision ? { onCollision } : {}),
   });
 
@@ -221,6 +230,13 @@ export interface ReconcileDeps {
   readonly concurrency?: number;
   /** What to do when the destination already holds the message; `'skip'` (adopt) by default. */
   readonly onCollision?: 'skip' | 'fail';
+  /**
+   * Create every target mailbox under this folder (`MappingConfig.
+   * targetFolderPrefix`). Absent = merge, which is the default and the point:
+   * see the config field for the choice this encodes. Source-side reading —
+   * folder listing, cursors, the ledger's `collection` — never sees it.
+   */
+  readonly targetFolderPrefix?: string;
   /**
    * Mail folders to leave behind, by RFC 6154 special-use role.
    *

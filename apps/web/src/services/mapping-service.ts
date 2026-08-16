@@ -209,6 +209,8 @@ export interface CreateMappingInput {
     domains: Array<'email' | 'calendar' | 'contact' | 'file'>;
     schedule?: string;
   };
+  /** Absent/empty = merge into the account root (the default). */
+  targetFolderPrefix?: string;
 }
 
 // The run shapes live in @openmig/shared (`RunReport`/`RunsResponse`) and the

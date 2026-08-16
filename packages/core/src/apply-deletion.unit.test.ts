@@ -322,6 +322,48 @@ describe('gate 4: only an item this tool wrote', () => {
   });
 });
 
+describe('the mapping\'s targetFolderPrefix names the mailbox a removal opens', () => {
+  it('prefixes the recorded SOURCE collection at the moment of acting', async () => {
+    // The ledger records `INBOX` (the source folder — move detection depends
+    // on that); under a prefix the COPY lives in `Gmail/INBOX`, and an IMAP
+    // removal opens exactly the mailbox it is handed. Without this the one
+    // destructive operation opened the unprefixed mailbox: a stale-handle
+    // refusal at best, a UID resolved in the wrong mailbox at worst.
+    const ledger = new MemoryLedger();
+    await ledger.recordIfAbsent(baseRow({ deletionReportedAt: new Date().toISOString() }));
+    const target = fakeRemover({ kind: 'deleted' });
+
+    const outcome = await applyDeletion(
+      {
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        domain: 'calendar',
+        ledger,
+        target,
+        allowApplyDeletions: true,
+        targetFolderPrefix: 'Gmail',
+      },
+      'nk-1',
+    );
+
+    expect(outcome).toEqual({ ok: true, kind: 'deleted' });
+    expect(target.calls[0]!.collection).toBe('Gmail/Personal');
+  });
+
+  it('no prefix, no change — the recorded collection passes through verbatim', async () => {
+    const ledger = new MemoryLedger();
+    await ledger.recordIfAbsent(baseRow({ deletionReportedAt: new Date().toISOString() }));
+    const target = fakeRemover({ kind: 'deleted' });
+
+    await applyDeletion(
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      'nk-1',
+    );
+
+    expect(target.calls[0]!.collection).toBe('Personal');
+  });
+});
+
 describe('gate 5: an edit on the target refuses the removal', () => {
   it('reports edited_on_target when the writer refuses with conflicted, and records nothing', async () => {
     const ledger = new MemoryLedger();

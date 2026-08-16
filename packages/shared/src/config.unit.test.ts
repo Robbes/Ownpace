@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { parseMappingConfig, parseMappingConfigJson, ConfigError } from './config';
+import { parseTargetFolderPrefix, applyTargetFolderPrefix, parseMappingConfig, parseMappingConfigJson, ConfigError } from './config';
 
 const example = {
   tenantId: 'tenant-1',
@@ -304,5 +304,36 @@ describe('the shipped example mapping', () => {
     expect(`${target.baseUrl}/.well-known/jmap`).toBe(
       `${url.origin}/.well-known/jmap`,
     );
+  });
+});
+
+describe('parseTargetFolderPrefix — one validator for both editions', () => {
+  it('absent, empty and bare slashes all mean MERGE (the default)', () => {
+    expect(parseTargetFolderPrefix(undefined)).toBeUndefined();
+    expect(parseTargetFolderPrefix('')).toBeUndefined();
+    expect(parseTargetFolderPrefix('/')).toBeUndefined();
+  });
+
+  it('trims surrounding slashes and keeps nested prefixes', () => {
+    expect(parseTargetFolderPrefix('/Gmail/')).toBe('Gmail');
+    expect(parseTargetFolderPrefix('archive/2026')).toBe('archive/2026');
+  });
+
+  it("refuses '..', '.' and empty segments — each escapes or mangles the account root", () => {
+    expect(() => parseTargetFolderPrefix('a/../b')).toThrow(/'\.' or '\.\.' segment/);
+    expect(() => parseTargetFolderPrefix('./x')).toThrow(ConfigError);
+    expect(() => parseTargetFolderPrefix('a//b')).toThrow(/empty/);
+  });
+
+  it('refuses a backslash, naming the separator rule', () => {
+    expect(() => parseTargetFolderPrefix('Gmail\\INBOX')).toThrow(/separator/);
+  });
+});
+
+describe('applyTargetFolderPrefix — the one composition', () => {
+  it('prefixes a path, stands alone for the root, and is identity without a prefix', () => {
+    expect(applyTargetFolderPrefix('Gmail', 'INBOX/Sub')).toBe('Gmail/INBOX/Sub');
+    expect(applyTargetFolderPrefix('Gmail', '')).toBe('Gmail');
+    expect(applyTargetFolderPrefix(undefined, 'INBOX')).toBe('INBOX');
   });
 });

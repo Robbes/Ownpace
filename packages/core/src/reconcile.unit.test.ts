@@ -94,3 +94,46 @@ describe('runShadowPass with incremental cursors', () => {
     expect(target.size()).toBe(3);
   });
 });
+
+describe('targetFolderPrefix — the merge-or-subfolder choice (owner decision 2026-08-16)', () => {
+  it('creates every target mailbox under the prefix, and stays idempotent there', async () => {
+    const source = seededSource();
+    const target = new MemoryTarget();
+    const ledger = new MemoryLedger();
+    const d = { ...deps(source, target, ledger), targetFolderPrefix: 'Gmail' };
+
+    const r1 = await runShadowPass(d);
+    expect(r1).toMatchObject({ created: 3 });
+    // The mailboxes exist ONLY under the prefix — a copy landing in the bare
+    // path would be the merge nobody asked for on this mapping.
+    expect(target.mailboxNames().sort()).toEqual(['Gmail/INBOX', 'Gmail/Sent']);
+
+    const r2 = await runShadowPass(d);
+    expect(r2, 'the second pass creates nothing under a prefix either').toMatchObject({
+      created: 0,
+      skipped: 3,
+    });
+  });
+
+  it('the DEFAULT is merge: no prefix, bare paths — the philosophy, not an accident', async () => {
+    const source = seededSource();
+    const target = new MemoryTarget();
+    await runShadowPass(deps(source, target, new MemoryLedger()));
+
+    expect(target.mailboxNames().sort()).toEqual(['INBOX', 'Sent']);
+  });
+
+  it('the ledger goes on recording SOURCE collections — move detection depends on it', async () => {
+    const source = seededSource();
+    const target = new MemoryTarget();
+    const ledger = new MemoryLedger();
+    await runShadowPass({ ...deps(source, target, ledger), targetFolderPrefix: 'Gmail' });
+
+    const row = await ledger.find(asTenantId('t1'), asMappingId('m1'), 'email', await (async () => {
+      const rows = await ledger.placedItems(asTenantId('t1'), asMappingId('m1'), 'email');
+      return rows[0]!.naturalKeyHash;
+    })());
+    expect(['INBOX', 'Sent']).toContain(row!.collection);
+    expect(row!.collection!.startsWith('Gmail'), 'never the target spelling').toBe(false);
+  });
+});

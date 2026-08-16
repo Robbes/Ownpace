@@ -388,6 +388,79 @@ export interface MappingConfig {
    * refused outright.
    */
   readonly allowApplyDeletions?: boolean;
+  /**
+   * Put everything this mapping writes under one folder on the TARGET.
+   *
+   * THE CHOICE THIS ENCODES (owner decision 2026-08-16): when several sources
+   * migrate into one target account, some owners want them MERGED — one inbox,
+   * one file tree, the new platform as the single place — and some want a
+   * subfolder per source (`Gmail/…`, `O365/…`). Merging is the default,
+   * because working in the new platform as one thing is this product's
+   * philosophy; the prefix is the opt-in for the other camp.
+   *
+   * Applies to the domains whose targets are PATH-SHAPED: mail folders and
+   * file directories. Calendars and contacts merge regardless — their items
+   * are UID-keyed and their collections are not trees, so a prefix would
+   * rename collections rather than organise them.
+   *
+   * The ledger keeps recording SOURCE collections (move detection depends on
+   * that), and the destructive path learns the prefix separately so an IMAP
+   * removal opens the mailbox the copy actually lives in. Root-relative, no
+   * leading or trailing slash, no `.`/`..` segments; absent or empty = merge.
+   *
+   * Set it when the mapping is created. Changing it later strands nothing —
+   * every existing copy stays tracked at its recorded target id — but NEW
+   * items land under the new prefix, so the target ends up with both layouts.
+   */
+  readonly targetFolderPrefix?: string;
+}
+
+/**
+ * Validate a mapping's `targetFolderPrefix`, or refuse with the reason.
+ *
+ * ONE definition for both editions (hard rule 5): the appliance's mapping file
+ * and the managed create API refuse the same shapes in the same words. The
+ * rules exist because every rejected shape is a real bug somewhere downstream:
+ * a leading slash makes a WebDAV path absolute and escapes the account root, a
+ * `..` climbs out of it, an empty segment writes `a//b`, and a backslash is a
+ * different separator on exactly the servers where that matters.
+ */
+export function parseTargetFolderPrefix(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') {
+    throw new ConfigError('targetFolderPrefix: must be a string when present');
+  }
+  const trimmed = value.replace(/^\/+|\/+$/g, '');
+  if (trimmed === '') return undefined; // '' and '/' both mean "merge"
+  if (trimmed.includes('\\')) {
+    throw new ConfigError(
+      "targetFolderPrefix: use '/' as the separator — a backslash is a literal character " +
+        'on the servers this writes to, not a path boundary.',
+    );
+  }
+  for (const segment of trimmed.split('/')) {
+    if (segment === '' || segment === '.' || segment === '..') {
+      throw new ConfigError(
+        `targetFolderPrefix: "${value}" contains an empty, '.' or '..' segment. The prefix is ` +
+          'a folder path under the target account root, and those segments would escape or ' +
+          'mangle it.',
+      );
+    }
+  }
+  return trimmed;
+}
+
+/**
+ * Compose a target collection path under the mapping's prefix.
+ *
+ * The one composition, used by the sync engines (creating folders) and the
+ * destructive path (naming the mailbox a removal must open). Two definitions
+ * that "should" agree is how an IMAP removal ends up opening `INBOX` while the
+ * copy lives in `Gmail/INBOX`.
+ */
+export function applyTargetFolderPrefix(prefix: string | undefined, path: string): string {
+  if (!prefix) return path;
+  return path ? `${prefix}/${path}` : prefix;
 }
 
 /**
@@ -716,6 +789,7 @@ export function parseMappingConfig(input: unknown): MappingConfig {
   const pattern = parsePattern(root.pattern);
   const excludeSpecialUse = parseExcludeSpecialUse(root.excludeSpecialUse);
   const domains = root.domains === undefined ? undefined : parseDomainsConfig(asRecord(root.domains, 'domains'));
+  const targetFolderPrefix = parseTargetFolderPrefix(root.targetFolderPrefix);
   const allowApplyDeletions =
     root.allowApplyDeletions === undefined
       ? undefined
@@ -733,6 +807,7 @@ export function parseMappingConfig(input: unknown): MappingConfig {
     ...(excludeSpecialUse !== undefined ? { excludeSpecialUse } : {}),
     ...(domains !== undefined ? { domains } : {}),
     ...(allowApplyDeletions !== undefined ? { allowApplyDeletions } : {}),
+    ...(targetFolderPrefix !== undefined ? { targetFolderPrefix } : {}),
   };
 }
 

@@ -194,6 +194,9 @@ export async function buildDeps(
       ...(config.excludeSpecialUse !== undefined
         ? { excludeSpecialUse: config.excludeSpecialUse }
         : {}),
+      ...(config.targetFolderPrefix !== undefined
+        ? { targetFolderPrefix: config.targetFolderPrefix }
+        : {}),
     },
     closable,
   );
@@ -632,6 +635,9 @@ function buildDomainDepsWithLedger(
       // legitimate for anyone who treats Deleted Items as an archive.
       ...(config.excludeSpecialUse !== undefined
         ? { excludeSpecialUse: config.excludeSpecialUse }
+        : {}),
+      ...(config.targetFolderPrefix !== undefined
+        ? { targetFolderPrefix: config.targetFolderPrefix }
         : {}),
     },
     closable,

@@ -58,6 +58,7 @@
  */
 
 import {
+  applyTargetFolderPrefix,
   canConfirmPresence,
   canRemove,
   isOnTarget,
@@ -160,6 +161,19 @@ export interface ApplyDeletionDeps {
    * somebody gets by accident.
    */
   readonly allowApplyDeletions?: boolean;
+  /**
+   * The mapping's `targetFolderPrefix`, when it has one.
+   *
+   * The ledger's `collection` records the SOURCE folder — move detection
+   * depends on that — but under a prefix the COPY lives at
+   * `prefix/collection`, and an IMAP removal opens the mailbox it is told.
+   * Without this, every mail apply on a prefixed mapping opened the
+   * unprefixed mailbox: at best a stale-handle refusal, at worst a UID
+   * belonging to a different message. Applied through the same
+   * `applyTargetFolderPrefix` the sync engines create folders with, so the
+   * two cannot drift.
+   */
+  readonly targetFolderPrefix?: string;
 }
 
 /**
@@ -339,7 +353,9 @@ export async function applyDeletion(
   // other writer's id stands on its own and ignores it.
   const removal = await target.removeItem(row.targetId, {
     ...(row.targetVersion !== undefined ? { expectedTargetVersion: row.targetVersion } : {}),
-    ...(row.collection !== undefined ? { collection: row.collection } : {}),
+    ...(row.collection !== undefined
+      ? { collection: applyTargetFolderPrefix(deps.targetFolderPrefix, row.collection) }
+      : {}),
   });
 
   if (removal.conflicted) {
@@ -543,7 +559,9 @@ export async function applyRelocation(
     };
   }
   const present = await target.hasItem(arrivalRow!.targetId, {
-    ...(arrivalRow!.collection !== undefined ? { collection: arrivalRow!.collection } : {}),
+    ...(arrivalRow!.collection !== undefined
+      ? { collection: applyTargetFolderPrefix(deps.targetFolderPrefix, arrivalRow!.collection) }
+      : {}),
   });
   if (!present) {
     return {
@@ -559,7 +577,9 @@ export async function applyRelocation(
   // GATE 5 happens INSIDE the removal, where the ETag is.
   const removal = await target.removeItem(row.targetId, {
     ...(row.targetVersion !== undefined ? { expectedTargetVersion: row.targetVersion } : {}),
-    ...(row.collection !== undefined ? { collection: row.collection } : {}),
+    ...(row.collection !== undefined
+      ? { collection: applyTargetFolderPrefix(deps.targetFolderPrefix, row.collection) }
+      : {}),
   });
 
   if (removal.conflicted) {
