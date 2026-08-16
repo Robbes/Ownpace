@@ -73,6 +73,24 @@ export function isNativeEditorFile(mimeType: string): boolean {
   return mimeType.startsWith(GOOGLE_NATIVE_PREFIX) && mimeType !== DRIVE_FOLDER_MIME;
 }
 
+/**
+ * Query parameters without which the Drive API PRETENDS a shared drive is
+ * empty.
+ *
+ * `files.list` scoped to a parent inside a shared drive answers 200 with an
+ * EMPTY `files` array unless `includeItemsFromAllDrives` and
+ * `supportsAllDrives` are both set — not an error, an empty folder. The shape
+ * of that failure is the worst one this connector can produce: a
+ * `rootFolderId` naming a shared drive (which the setup docs explicitly
+ * support) would discover zero files, list zero files, and complete every
+ * pass clean, having migrated nothing. `files.get` (metadata and `alt=media`)
+ * 404s on shared-drive items without `supportsAllDrives`. `files.export`
+ * takes neither parameter — an export is addressed by file id alone — which
+ * is why the export URL builder does not use these.
+ */
+const LIST_ALL_DRIVES = 'supportsAllDrives=true&includeItemsFromAllDrives=true';
+const GET_ALL_DRIVES = 'supportsAllDrives=true';
+
 export class GoogleDriveSource implements FileSource {
   private readonly baseUrl: string;
   private readonly rootFolderId: string;
@@ -229,7 +247,7 @@ export class GoogleDriveSource implements FileSource {
     // file is the honest cost; a heuristic ("no checksum, so probably native")
     // in a path that decides whether customer data is copied is not.
     const meta = (await this.getJson(
-      `${this.baseUrl}/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType`,
+      `${this.baseUrl}/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType&${GET_ALL_DRIVES}`,
     )) as DriveFile;
 
     const refusal = this.refusalFor(meta);
@@ -240,7 +258,9 @@ export class GoogleDriveSource implements FileSource {
       throw refusal;
     }
 
-    const url = this.exportUrlFor(meta) ?? `${this.baseUrl}/files/${encodeURIComponent(fileId)}?alt=media`;
+    const url =
+      this.exportUrlFor(meta) ??
+      `${this.baseUrl}/files/${encodeURIComponent(fileId)}?alt=media&${GET_ALL_DRIVES}`;
 
     const response = await this.transport(url);
     if (!response.ok) {
@@ -269,6 +289,7 @@ export class GoogleDriveSource implements FileSource {
     do {
       const url =
         `${this.baseUrl}/files?q=${encodeURIComponent(q)}&fields=${encodeURIComponent(fields)}` +
+        `&${LIST_ALL_DRIVES}` +
         (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '');
       const page = (await this.getJson(url)) as DriveFileList;
       found.push(...(page.files ?? []));

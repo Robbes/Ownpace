@@ -343,3 +343,82 @@ describe('listKeys — the complete key set move detection turns on', () => {
     expect(await source.listKeys({ path: '' })).toEqual(['renamed.pdf']);
   });
 });
+
+describe('shared drives are not silently empty', () => {
+  // Without `includeItemsFromAllDrives` + `supportsAllDrives`, a files.list
+  // scoped to a shared-drive parent answers 200 WITH AN EMPTY ARRAY — not an
+  // error. A rootFolderId naming a shared drive (which the setup docs
+  // explicitly support) would then discover zero files and complete every
+  // pass clean, having migrated nothing. These pin the parameters onto every
+  // call shape the connector makes, so removing one is a red test rather
+  // than a customer with an empty migration.
+
+  it('every LISTING asks for shared-drive items', async () => {
+    // Folder queries answer empty — a catch-all here feeds listFolders' walk
+    // the same child forever, which is an OOM, not a test.
+    const { transport, calls } = fakeDrive({
+      'mimeType!%3D': { files: [BINARY] },
+      'mimeType%3D': { files: [] },
+    });
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE });
+
+    await source.listFolders();
+    await source.listSince({ path: '' });
+    await source.listKeys({ path: '' });
+
+    const listings = calls.filter((c) => c.url.includes('/files?q='));
+    expect(listings.length).toBeGreaterThan(0);
+    for (const c of listings) {
+      expect(c.url, 'supportsAllDrives on every listing').toContain('supportsAllDrives=true');
+      expect(c.url, 'includeItemsFromAllDrives on every listing').toContain(
+        'includeItemsFromAllDrives=true',
+      );
+    }
+  });
+
+  it('the metadata read and the download carry supportsAllDrives — a shared-drive file 404s without it', async () => {
+    const { transport, calls } = fakeDrive(
+      { '?fields=id,name,mimeType': BINARY, 'alt=media': {} },
+      new Uint8Array([1, 2, 3]),
+    );
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE });
+
+    await source.fetch({
+      path: 'report.pdf',
+      isDirectory: false,
+      size: 3,
+      modifiedAt: '2026-08-01T10:00:00Z',
+      sourceRef: 'file-1',
+    });
+
+    const meta = calls.find((c) => c.url.includes('?fields=id,name,mimeType'));
+    const media = calls.find((c) => c.url.includes('alt=media'));
+    expect(meta!.url).toContain('supportsAllDrives=true');
+    expect(media!.url).toContain('supportsAllDrives=true');
+    // And NOT the listing-only parameter — files.get does not define it.
+    expect(media!.url).not.toContain('includeItemsFromAllDrives');
+  });
+
+  it('the EXPORT url carries neither — files.export is addressed by id alone', async () => {
+    const { transport, calls } = fakeDrive(
+      { '?fields=id,name,mimeType': NATIVE_DOC, '/export?mimeType=': {} },
+      new Uint8Array([1]),
+    );
+    const source = new GoogleDriveSource(transport, {
+      baseUrl: BASE,
+      nativeFilePolicy: 'export-pdf',
+    });
+
+    await source.fetch({
+      path: 'Notes',
+      isDirectory: false,
+      size: 0,
+      modifiedAt: '2026-08-01T10:00:00Z',
+      sourceRef: 'doc-1',
+    });
+
+    const exp = calls.find((c) => c.url.includes('/export'));
+    expect(exp, 'the export happened').toBeDefined();
+    expect(exp!.url).not.toContain('supportsAllDrives');
+  });
+});
