@@ -100,10 +100,15 @@ Then the mapping's file domain:
 ```
 
 `"rootFolderId"` roots the migration somewhere other than My Drive — a **shared drive** is
-named by its own id. To see the ids this credential can reach, run
-`pnpm exec tsx scripts/list-shared-drives.ts` (appliance) or use the wizard's
-**Browse shared drives** button on the credentials step (managed) — both are one read-only
-`drives.list` through the same connector a pass uses (workplan 0049). `"nativeFilePolicy"` decides what happens to Google Docs; read the next
+named by its own id, and so is a **folder somebody shared with this account** (workplan
+0051): "Shared with me" is a view, not a folder, so its contents never appear under My
+Drive's tree — rooting a separate mapping at the shared folder's id is how such a folder
+migrates. To see the ids this credential can reach, run
+`pnpm exec tsx scripts/list-shared-drives.ts` and `pnpm exec tsx scripts/list-shared-folders.ts`
+(appliance) or use the wizard's **Browse shared drives & folders** button on the
+credentials step (managed) — all read-only listings through the same connector a pass uses
+(workplans 0049, 0051). Loose shared *files* — shared with you but not inside a folder you
+can root at — stay out of scope, stated in `docs/feature-matrix.md`. `"nativeFilePolicy"` decides what happens to Google Docs; read the next
 section before setting it.
 
 ## 6. Prove it, before migrating anything

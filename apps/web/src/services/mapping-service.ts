@@ -387,6 +387,25 @@ export const mappingApi = {
   },
 
   /**
+   * The folders other accounts shared with the credential (workplan 0051) —
+   * the browse's second half; a shared folder migrates by rooting a mapping
+   * at its id. Read-only; nothing stored.
+   */
+  listSharedFolders: async (creds: {
+    clientId: string;
+    clientSecret: string;
+    refreshToken: string;
+  }): Promise<
+    | { ok: true; folders: Array<{ id: string; name: string; owner?: string }> }
+    | { ok: false; reason: string }
+  > => {
+    const response = await apiClient.post('/migrations/google-drive/shared-folders', creds);
+    return response.data as
+      | { ok: true; folders: Array<{ id: string; name: string; owner?: string }> }
+      | { ok: false; reason: string };
+  },
+
+  /**
    * Prove one side's credentials before create (workplan 0046). Read-only on
    * the server; a provider refusal comes back as `{ok:false, reason}` with
    * the provider's words — the same sentence the first pass would have

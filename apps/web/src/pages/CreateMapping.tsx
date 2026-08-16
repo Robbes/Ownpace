@@ -246,22 +246,40 @@ const CreateMapping: React.FC = () => {
   const [sharedDrives, setSharedDrives] = React.useState<
     Array<{ id: string; name: string }> | null
   >(null);
+  // Folders other accounts shared with the credential (workplan 0051) — the
+  // browse's second half, fetched by the same click: both lists answer the
+  // same onboarding question, "which id goes in rootFolderId?".
+  const [sharedFolders, setSharedFolders] = React.useState<
+    Array<{ id: string; name: string; owner?: string }> | null
+  >(null);
   const [sharedDrivesError, setSharedDrivesError] = React.useState<string | null>(null);
   const [browsing, setBrowsing] = React.useState(false);
   const browseSharedDrives = () => {
     setBrowsing(true);
     setSharedDrivesError(null);
-    mappingApi
-      .listSharedDrives({
-        clientId: formData.sourceClientId,
-        clientSecret: formData.sourceClientSecret,
-        refreshToken: formData.sourceRefreshToken,
+    const creds = {
+      clientId: formData.sourceClientId,
+      clientSecret: formData.sourceClientSecret,
+      refreshToken: formData.sourceRefreshToken,
+    };
+    Promise.allSettled([
+      mappingApi.listSharedDrives(creds),
+      mappingApi.listSharedFolders(creds),
+    ])
+      .then(([drives, folders]) => {
+        // A refusal on either half is shown verbatim; the half that answered
+        // still renders — one bad scope must not blank the whole picker.
+        const reasons: string[] = [];
+        if (drives.status === 'fulfilled') {
+          if (drives.value.ok) setSharedDrives([...drives.value.drives]);
+          else reasons.push(drives.value.reason);
+        } else reasons.push(serverMessage(drives.reason));
+        if (folders.status === 'fulfilled') {
+          if (folders.value.ok) setSharedFolders([...folders.value.folders]);
+          else reasons.push(folders.value.reason);
+        } else reasons.push(serverMessage(folders.reason));
+        if (reasons.length > 0) setSharedDrivesError(reasons.join(' '));
       })
-      .then((result) => {
-        if (result.ok) setSharedDrives([...result.drives]);
-        else setSharedDrivesError(result.reason);
-      })
-      .catch((err: unknown) => setSharedDrivesError(serverMessage(err)))
       .finally(() => setBrowsing(false));
   };
 
@@ -956,23 +974,40 @@ const CreateMapping: React.FC = () => {
                     {sharedDrivesError && (
                       <p className="mt-1 text-sm text-amber-800">{sharedDrivesError}</p>
                     )}
-                    {sharedDrives && sharedDrives.length === 0 && (
-                      <p className="mt-1 text-sm text-gray-500">
-                        {t('wizard.noSharedDrives')}
-                      </p>
-                    )}
-                    {sharedDrives && sharedDrives.length > 0 && (
+                    {sharedDrives &&
+                      sharedDrives.length === 0 &&
+                      sharedFolders &&
+                      sharedFolders.length === 0 && (
+                        <p className="mt-1 text-sm text-gray-500">
+                          {t('wizard.noSharedDrives')}
+                        </p>
+                      )}
+                    {((sharedDrives?.length ?? 0) > 0 || (sharedFolders?.length ?? 0) > 0) && (
                       <select
                         className="input w-full mt-2"
                         value={formData.sourceRootFolderId}
                         onChange={(e) => updateField('sourceRootFolderId', e.target.value)}
                       >
                         <option value="">{t('wizard.review.myDrive')}</option>
-                        {sharedDrives.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.name}
-                          </option>
-                        ))}
+                        {sharedDrives && sharedDrives.length > 0 && (
+                          <optgroup label={t('wizard.sharedDrivesGroup')}>
+                            {sharedDrives.map((d) => (
+                              <option key={d.id} value={d.id}>
+                                {d.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        {sharedFolders && sharedFolders.length > 0 && (
+                          <optgroup label={t('wizard.sharedFoldersGroup')}>
+                            {/* The owner disambiguates two shares named alike. */}
+                            {sharedFolders.map((f) => (
+                              <option key={f.id} value={f.id}>
+                                {f.owner ? `${f.name} — ${f.owner}` : f.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
                       </select>
                     )}
                   </div>

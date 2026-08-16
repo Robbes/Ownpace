@@ -404,6 +404,47 @@ paths:
                   reason: { type: string }
         '400': { description: The three credential fields were not all present. }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/migrations/google-drive/shared-folders:
+    post:
+      tags: [Migrations]
+      summary: List the folders other accounts shared with a Google credential
+      description: |
+        Read-only (`files.list` over the shared-with-me view, folders only),
+        the second half of the rootFolderId "browse": a shared folder migrates
+        by rooting a mapping at its id. Credentials travel like
+        shared-drives'; nothing is stored. A provider refusal is an answer
+        (`{ok:false, reason}`), verbatim.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clientId, clientSecret, refreshToken]
+              properties:
+                clientId: { type: string }
+                clientSecret: { type: string, writeOnly: true }
+                refreshToken: { type: string, writeOnly: true }
+      responses:
+        '200':
+          description: The folders (owner address included when Drive names one), or the refusal.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  folders:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        name: { type: string }
+                        owner: { type: string }
+                  reason: { type: string }
+        '400': { description: The three credential fields were not all present. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /api/migrations/test-connection:
     post:
       tags: [Migrations]

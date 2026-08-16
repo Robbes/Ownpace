@@ -95,7 +95,7 @@ Not (yet) migrated:
 
 | | generic WebDAV (Nextcloud, …) | Google Drive |
 |---|---|---|
-| **Source** | ✅ (`webdav`), incl. trash-bin read for deletion evidence | ✅ (`google-drive`, workplan 0042), My Drive or a **shared drive** by id — browsable since workplan 0049; bin read for evidence |
+| **Source** | ✅ (`webdav`), incl. trash-bin read for deletion evidence | ✅ (`google-drive`, workplan 0042), My Drive, a **shared drive** or a **folder shared with the account** by id — browsable since workplans 0049/0051; bin read for evidence |
 | **Target** | ✅ WebDAV | 🚫 never a target |
 
 Also a target: **JMAP files** (workplan 0031 T3).
@@ -144,13 +144,16 @@ rather than as one row:
 - ✅ **Received shares over WebDAV (Nextcloud and friends)** need no feature at all: the
   server mounts them into the account's tree, and the connector migrates whatever the tree
   presents. They arrive as ordinary content.
-- ⛔ **Drive "Shared with me"** is **not enumerated**: the listing walks parent links down
-  from the configured root, and Shared-with-me is a view, not a folder — its items have no
-  parent under any root this connector starts from. A **shortcut** the owner added to My
-  Drive surfaces as a per-item refusal in the failures queue (a pointer, not a file) — loud,
-  never a silent skip. Structurally the same listing call could root a mapping at a shared
-  *folder's* id, but only the shared-*drive* case is documented and guarded; treat
-  shared-with-me as not-yet until it earns its own workplan.
+- ✅ **A folder shared with the account (Drive)** migrates by rooting a **separate mapping**
+  at the folder's own id (workplan 0051) — the same parent-scoped, all-drives-guarded
+  listing every root uses. The browse (wizard button, `scripts/list-shared-folders.ts`)
+  lists these folders beside the shared drives, sharer's address included. "Shared with me"
+  itself is a view, not a folder — no walk from My Drive reaches it, which is why the root
+  is the mechanism.
+- ⛔ **Loose shared files (Drive)** — shared with the account but not inside a folder it can
+  root at — are still not enumerated by any pass. A **shortcut** the owner added to My
+  Drive surfaces as a per-item refusal in the failures queue (a pointer, not a file) —
+  loud, never a silent skip.
 - 🚫 **The share itself does not survive the copy, on purpose.** A migrated file is the new
   account's own bytes: the link to the original is severed, later edits flow nowhere, and
   two mappings migrating the same shared item produce two independent copies — one per
@@ -186,7 +189,7 @@ These hold across all object types, and are features rather than gaps:
 | Gmail / Google Calendar / Google Contacts against real Google endpoints | ⏳ built, unproven | Owner runbook Stages 5–6 |
 | Google-native file export (Docs/Sheets/Slides) | ⏳ measurement gates the policy | Stage 1; workplan 0042 T6 |
 | JMAP calendar target | 🚫 parked (recurrence round-trip) | workplan 0031 T1 |
-| Drive "Shared with me" content (shortcuts are refused loudly; shared *drives* work) | ⛔ not enumerated — needs its own workplan | Shared content section above; workplan 0042 |
+| Drive loose shared *files* (shared folders root a mapping since 0051; shortcuts are refused loudly) | ⛔ not enumerated | Shared content section above; workplan 0051 |
 | Whole-tenant Google migration (domain-wide delegation) | ⛔ needs an owner-scoped ADR first | noted in `google-workspace-setup.md` |
 | Managed per-mapping throttle config (the DAV limiter parameter is armed but unfed there) | ⛔ small follow-up | PR #416 notes |
 | Drive incremental delta (`changes.list`) | ⛔ deliberate cost/correctness trade | workplan 0042 T1 |
