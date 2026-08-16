@@ -370,6 +370,23 @@ export interface TestConnectionResult {
 
 export const mappingApi = {
   /**
+   * The shared drives a Google credential can see (workplan 0049) — the
+   * wizard's "browse" behind rootFolderId. Read-only; nothing stored.
+   */
+  listSharedDrives: async (creds: {
+    clientId: string;
+    clientSecret: string;
+    refreshToken: string;
+  }): Promise<
+    { ok: true; drives: Array<{ id: string; name: string }> } | { ok: false; reason: string }
+  > => {
+    const response = await apiClient.post('/migrations/google-drive/shared-drives', creds);
+    return response.data as
+      | { ok: true; drives: Array<{ id: string; name: string }> }
+      | { ok: false; reason: string };
+  },
+
+  /**
    * Prove one side's credentials before create (workplan 0046). Read-only on
    * the server; a provider refusal comes back as `{ok:false, reason}` with
    * the provider's words — the same sentence the first pass would have

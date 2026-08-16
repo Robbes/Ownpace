@@ -154,3 +154,26 @@ describe('the native-file policy travels from the mapping to the connector', () 
     expect(refusalFor(source, NATIVE_DOC)).toBeUndefined();
   });
 });
+
+describe('the shared-drive browse (workplan 0049)', () => {
+  it('pages drives.list and returns id+name — read-only, and never sent by a pass', async () => {
+    const calls = stubNetwork();
+    try {
+      const source = buildGoogleDriveSourceFrom({}, CREDS) as unknown as {
+        listSharedDrives(): Promise<ReadonlyArray<{ id: string; name: string }>>;
+      };
+      // The stub answers `{ files: [] }` to everything; drives.list reads
+      // `drives`, so the parse tolerating an unrelated body proves the
+      // paging loop terminates on an absent nextPageToken.
+      expect(await source.listSharedDrives()).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    // Token minted, then ONE listing call to /drives with the documented
+    // fields — a browse must never turn into a crawl.
+    expect(calls).toHaveLength(2);
+    expect(calls[1]!.url).toContain('/drives?pageSize=100');
+    expect(decodeURIComponent(calls[1]!.url)).toContain('drives(id,name),nextPageToken');
+    expect(calls[1]!.headers.Authorization).toBe('Bearer at-1');
+  });
+});

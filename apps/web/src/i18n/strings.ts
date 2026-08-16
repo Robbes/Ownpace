@@ -123,6 +123,8 @@ const en = {
     'https://www.googleapis.com/auth/carddav for Contacts. A token consented for another ' +
     'Google product will not work here. docs/google-workspace-setup.md walks through it.',
   'hub.completionReport': 'Download the completion report (Markdown)',
+  'wizard.browseSharedDrives': 'Browse shared drives…',
+  'wizard.noSharedDrives': 'This credential sees no shared drives — leaving the root empty migrates My Drive.',
   'wizard.testConnections': 'Test connections',
   'wizard.testing': 'Testing…',
   'wizard.testConnections.hint':
@@ -803,6 +805,8 @@ const nl: Record<keyof typeof en, string> = {
     'https://www.googleapis.com/auth/carddav voor Contacten. Een token dat voor een ander ' +
     'Google-product is toegestemd werkt hier niet. docs/google-workspace-setup.md behandelt dit.',
   'hub.completionReport': 'Download het opleveringsrapport (Markdown)',
+  'wizard.browseSharedDrives': 'Gedeelde Drives bekijken…',
+  'wizard.noSharedDrives': 'Deze inloggegevens zien geen gedeelde Drives — een lege hoofdmap migreert Mijn Drive.',
   'wizard.testConnections': 'Verbindingen testen',
   'wizard.testing': 'Testen…',
   'wizard.testConnections.hint':

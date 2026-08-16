@@ -20,6 +20,7 @@ import { getTriggerClient } from '@openmig/scheduler';
 import type { DiscoveryDomain, TenantId, MappingId } from '@openmig/shared';
 import { resolveSyncJob, resolveCutoverJob } from './job-resolution';
 import {
+  listGoogleSharedDrives,
   probeSourceConnection,
   probeTargetConnection,
 } from '@openmig/orchestration/probe-connection';
@@ -515,6 +516,41 @@ const TestConnectionSchema = z.object({
   targetType: CreateMappingBase.shape.targetType.optional(),
   targetConfig: CreateMappingBase.shape.targetConfig.optional(),
 });
+
+/**
+ * The shared drives a Google credential can see (workplan 0049): the wizard's
+ * "browse" behind the rootFolderId field, so a shared-drive migration does not
+ * require pasting an id out of the admin console. Read-only (`drives.list`),
+ * and the credentials travel in the request exactly as test-connection's do —
+ * nothing is stored.
+ */
+const SharedDrivesSchema = z.object({
+  clientId: z.string().min(1),
+  clientSecret: z.string().min(1),
+  refreshToken: z.string().min(1),
+});
+
+router.post(
+  '/google-drive/shared-drives',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const parsed = SharedDrivesSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return void res.status(400).json({
+          error: 'invalid_body',
+          reason:
+            'Send { clientId, clientSecret, refreshToken } — the same three values the Drive ' +
+            'source stores.',
+        });
+      }
+      res.json(await listGoogleSharedDrives(parsed.data));
+    } catch (error) {
+      log.error('[api] shared-drives listing failed unexpectedly:', error);
+      res.status(500).json({ error: 'listing_failed', reason: String(error) });
+    }
+  },
+);
 
 router.post('/test-connection', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {

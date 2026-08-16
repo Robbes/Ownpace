@@ -100,7 +100,10 @@ Then the mapping's file domain:
 ```
 
 `"rootFolderId"` roots the migration somewhere other than My Drive — a **shared drive** is
-named by its own id. `"nativeFilePolicy"` decides what happens to Google Docs; read the next
+named by its own id. To see the ids this credential can reach, run
+`pnpm exec tsx scripts/list-shared-drives.ts` (appliance) or use the wizard's
+**Browse shared drives** button on the credentials step (managed) — both are one read-only
+`drives.list` through the same connector a pass uses (workplan 0049). `"nativeFilePolicy"` decides what happens to Google Docs; read the next
 section before setting it.
 
 ## 6. Prove it, before migrating anything
