@@ -404,11 +404,11 @@ describe('apply evaluate-then-queue routes (0017 T4)', () => {
         .set(auth)
         .send({ allowApplyDeletions: false });
       expect(patched.status).toBe(200);
-      expect(patched.body).toEqual({ allowApplyDeletions: false, source: 'mapping' });
+      expect(patched.body).toEqual({ allowApplyDeletions: false, autoApplyRelocations: false, source: 'mapping' });
 
       const read = await request.get(`/api/migrations/${MAPPING}/apply-deletions`).set(auth);
       expect(read.status).toBe(200);
-      expect(read.body).toEqual({ allowApplyDeletions: false, source: 'mapping' });
+      expect(read.body).toEqual({ allowApplyDeletions: false, autoApplyRelocations: false, source: 'mapping' });
     });
 
     it('a viewer may READ the flag but not change it — role from the ROW, not the token', async () => {
