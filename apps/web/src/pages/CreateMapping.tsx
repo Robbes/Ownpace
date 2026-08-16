@@ -41,7 +41,7 @@ type Domain = 'email' | 'calendar' | 'contact' | 'file';
 
 interface FormData {
   name: string;
-  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail';
+  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts';
   targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav';
   sourceHost: string;
   /** Kept as the raw INPUT string (0037 T3): parseInt on change turned a
@@ -192,7 +192,7 @@ const CreateMapping: React.FC = () => {
                 ? { rootFolderId: formData.sourceRootFolderId.trim() }
                 : {}),
             }
-          : isGmailSource
+          : isGmailSource || isGoogleDavSource
           ? {
               username: formData.sourceUsername,
               clientId: formData.sourceClientId,
@@ -275,7 +275,11 @@ const CreateMapping: React.FC = () => {
   // client and a refresh token — but not its domain: the token is consented
   // with the mail scope, so the source serves email and nothing else.
   const isGmailSource = formData.sourceType === 'gmail';
-  const isGoogleSource = isDriveSource || isGmailSource;
+  // The Google DAV pair (workplan 0045): CalDAV/CardDAV transports, the same
+  // Google credential shape as Drive and Gmail, one pinned domain each.
+  const isGoogleDavSource =
+    formData.sourceType === 'google-calendar' || formData.sourceType === 'google-contacts';
+  const isGoogleSource = isDriveSource || isGmailSource || isGoogleDavSource;
 
   /** The problem with a non-empty custom cron, or null (empty = default). */
   const cronProblem = (): string | null =>
@@ -409,6 +413,16 @@ const CreateMapping: React.FC = () => {
                       hintKey: 'wizard.proto.googleDrive.hint',
                     },
                     { id: 'gmail', name: 'Gmail', hintKey: 'wizard.proto.gmail.hint' },
+                    {
+                      id: 'google-calendar',
+                      name: 'Google Calendar',
+                      hintKey: 'wizard.proto.googleCalendar.hint',
+                    },
+                    {
+                      id: 'google-contacts',
+                      name: 'Google Contacts',
+                      hintKey: 'wizard.proto.googleContacts.hint',
+                    },
                   ] as const
                 ).map((type) => (
                   <button
@@ -441,7 +455,26 @@ const CreateMapping: React.FC = () => {
                                   ? prev.targetType
                                   : 'jmap',
                             }))
-                          : updateField('sourceType', type.id)
+                          : type.id === 'google-calendar'
+                            ? setFormData((prev) => ({
+                                ...prev,
+                                sourceType: type.id,
+                                domains: ['calendar'],
+                                // The one calendar-capable target (JMAP calendar
+                                // is parked by owner decision, 0031 T1).
+                                targetType: 'caldav',
+                              }))
+                            : type.id === 'google-contacts'
+                              ? setFormData((prev) => ({
+                                  ...prev,
+                                  sourceType: type.id,
+                                  domains: ['contact'],
+                                  targetType:
+                                    prev.targetType === 'jmap' || prev.targetType === 'carddav'
+                                      ? prev.targetType
+                                      : 'carddav',
+                                }))
+                              : updateField('sourceType', type.id)
                     }
                     className={`p-4 border-2 rounded-lg text-left transition-colors ${
                       formData.sourceType === type.id
@@ -482,9 +515,17 @@ const CreateMapping: React.FC = () => {
                   {t('wizard.source.gmailSetup')}
                 </p>
               )}
+              {/* Workplan 0045: same OAuth client, per-product consent — the
+                  scope each token must carry is the mistake this box exists
+                  to prevent, exactly like Gmail's. */}
+              {isGoogleDavSource && (
+                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  {t('wizard.source.googleDavSetup')}
+                </p>
+              )}
             </div>
 
-            {isGmailSource ? (
+            {isGmailSource || isGoogleDavSource ? (
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1013,7 +1054,7 @@ const CreateMapping: React.FC = () => {
                         ? formData.sourceRootFolderId
                           ? `(${formData.sourceRootFolderId})`
                           : `(${t('wizard.review.myDrive')})`
-                        : isGmailSource
+                        : isGmailSource || isGoogleDavSource
                           ? `(${formData.sourceUsername})`
                           : isO365Source
                             ? `(${formData.sourceTenantId})`

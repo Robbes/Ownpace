@@ -94,7 +94,14 @@ export function targetDomainRefusal(
  * `gmail` (workplan 0044) constrains for the same reason: its refresh token is
  * consented with the mail scope, which reads mailboxes and nothing else.
  */
-export type WizardSourceType = 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail';
+export type WizardSourceType =
+  | 'imap'
+  | 'oauth2'
+  | 'graph'
+  | 'google-drive'
+  | 'gmail'
+  | 'google-calendar'
+  | 'google-contacts';
 
 /** Domains a wizard source can serve, where the source constrains it at all. */
 export const SOURCE_TYPE_DOMAINS: Partial<
@@ -102,6 +109,8 @@ export const SOURCE_TYPE_DOMAINS: Partial<
 > = {
   'google-drive': ['file'],
   gmail: ['email'],
+  'google-calendar': ['calendar'],
+  'google-contacts': ['contact'],
 };
 
 /**
@@ -115,6 +124,14 @@ const CONSTRAINED_SOURCE_PROSE: Partial<
 > = {
   'google-drive': { name: 'Google Drive', reads: 'the Drive API only' },
   gmail: { name: 'Gmail', reads: 'mail only (the https://mail.google.com/ scope)' },
+  'google-calendar': {
+    name: 'Google Calendar',
+    reads: 'calendars only (the https://www.googleapis.com/auth/calendar scope)',
+  },
+  'google-contacts': {
+    name: 'Google Contacts',
+    reads: 'contacts only (the https://www.googleapis.com/auth/carddav scope)',
+  },
 };
 
 /**

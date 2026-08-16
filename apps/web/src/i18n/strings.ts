@@ -91,6 +91,8 @@ const en = {
   'wizard.proto.graph.hint': 'Office 365 over the Graph API (app registration)',
   'wizard.proto.googleDrive.hint': 'Files from a Google Drive (read-only OAuth)',
   'wizard.proto.gmail.hint': 'Email from a Gmail mailbox (OAuth over IMAP)',
+  'wizard.proto.googleCalendar.hint': 'Calendars from a Google account (OAuth over CalDAV)',
+  'wizard.proto.googleContacts.hint': 'Contacts from a Google account (OAuth over CardDAV)',
   'wizard.refreshToken': 'Refresh token',
   'wizard.refreshToken.hint':
     'The delegated token for the account being migrated. Treat it as a password.',
@@ -114,6 +116,12 @@ const en = {
     'source uses — but its refresh token must be consented with the https://mail.google.com/ ' +
     'scope, the only one Google accepts for IMAP. A token consented for Drive will not work ' +
     'here. docs/google-workspace-setup.md walks through obtaining it.',
+  'wizard.source.googleDavSetup':
+    'This source uses your own Google Cloud OAuth client \u2014 the same one the other Google ' +
+    'sources use \u2014 but the refresh token must be consented with this product\u2019s own scope: ' +
+    'https://www.googleapis.com/auth/calendar for Calendar, ' +
+    'https://www.googleapis.com/auth/carddav for Contacts. A token consented for another ' +
+    'Google product will not work here. docs/google-workspace-setup.md walks through it.',
   'wizard.proto.jmap.hint': 'Modern email protocol',
   'wizard.proto.caldav.hint': 'Calendar protocol',
   'wizard.proto.carddav.hint': 'Contact protocol',
@@ -756,6 +764,8 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.proto.graph.hint': 'Office 365 via de Graph-API (appregistratie)',
   'wizard.proto.googleDrive.hint': 'Bestanden uit een Google Drive (alleen-lezen OAuth)',
   'wizard.proto.gmail.hint': 'E-mail uit een Gmail-postvak (OAuth via IMAP)',
+  'wizard.proto.googleCalendar.hint': "Agenda's uit een Google-account (OAuth via CalDAV)",
+  'wizard.proto.googleContacts.hint': 'Contacten uit een Google-account (OAuth via CardDAV)',
   'wizard.refreshToken': 'Refresh-token',
   'wizard.refreshToken.hint':
     'Het gedelegeerde token voor het account dat wordt gemigreerd. Behandel het als een wachtwoord.',
@@ -780,6 +790,12 @@ const nl: Record<keyof typeof en, string> = {
     'Drive-bron — maar het refresh-token moet zijn toegestemd met de scope ' +
     'https://mail.google.com/, de enige die Google voor IMAP accepteert. Een token dat voor ' +
     'Drive is toegestemd werkt hier niet. docs/google-workspace-setup.md behandelt het verkrijgen ervan.',
+  'wizard.source.googleDavSetup':
+    'Deze bron gebruikt uw eigen Google Cloud OAuth-client \u2014 dezelfde als de andere ' +
+    'Google-bronnen \u2014 maar het refresh-token moet zijn toegestemd met de eigen scope van dit ' +
+    'product: https://www.googleapis.com/auth/calendar voor Agenda, ' +
+    'https://www.googleapis.com/auth/carddav voor Contacten. Een token dat voor een ander ' +
+    'Google-product is toegestemd werkt hier niet. docs/google-workspace-setup.md behandelt dit.',
   'wizard.proto.jmap.hint': 'Modern e-mailprotocol',
   'wizard.proto.caldav.hint': 'Agendaprotocol',
   'wizard.proto.carddav.hint': 'Contactenprotocol',

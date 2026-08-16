@@ -60,6 +60,12 @@ export const connection = pgTable(
         // because the credential shape differs: a Google OAuth client + refresh
         // token, not a password or static token. Allowed by the CHECK since 0012.
         'gmail',
+        // Google Calendar / Contacts as SOURCES (workplan 0045). Their own
+        // kinds, not caldav/carddav, for gmail's reason: the credential shape
+        // is a Google OAuth client, and the kind routes the builder to it.
+        // Allowed by the CHECK since 0015.
+        'google_calendar',
+        'google_contacts',
       ],
     }).notNull(),
     displayName: text('display_name').notNull(),

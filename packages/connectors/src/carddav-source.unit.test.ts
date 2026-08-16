@@ -655,7 +655,7 @@ END:VCARD`;
   });
 
   describe('Authorization header', () => {
-    it('should build correct authorization header', () => {
+    it('should build correct authorization header', async () => {
       process.env.TEST_CARDAVV_PASSWORD = 'secret123';
       
       const source = new CarddavSource({
@@ -664,20 +664,36 @@ END:VCARD`;
         passwordEnv: 'TEST_CARDAVV_PASSWORD',
       });
 
-      const authHeader = (source as any).getAuthorizationHeader();
+      const authHeader = await (source as any).authorizationHeader();
       const expected = `Basic ${Buffer.from('testuser:secret123').toString('base64')}`;
       
       expect(authHeader).toBe(expected);
     });
 
-    it('should throw error when password env var not set', () => {
+    it('sends Bearer, minted by the provider, when a tokenProvider is configured (workplan 0045)', async () => {
+      // Google's CardDAV endpoint takes OAuth only; the token is minted per
+      // request (cached until expiry) so a pass outlives the one-hour token.
+      const source = new CarddavSource({
+        url: 'https://www.googleapis.com/carddav/v1/principals/owner@example.com/',
+        username: 'owner@example.com',
+        tokenProvider: {
+          getToken: async () => ({ accessToken: 'at-1', tokenType: 'Bearer', expiresAt: 0 }),
+          refresh: async () => ({ accessToken: 'at-2', tokenType: 'Bearer', expiresAt: 0 }),
+          isTokenValid: () => true,
+          getTokenStatus: () => ({ isValid: true, timeUntilExpiry: 3600 }),
+        },
+      });
+      expect(await (source as any).authorizationHeader()).toBe('Bearer at-1');
+    });
+
+    it('should throw error when password env var not set', async () => {
       const source = new CarddavSource({
         url: 'https://carddav.example.com/',
         username: 'testuser',
         passwordEnv: 'NONEXISTENT_PASSWORD_VAR',
       });
 
-      expect(() => (source as any).getAuthorizationHeader()).toThrow();
+      await expect((source as any).authorizationHeader()).rejects.toThrow();
     });
   });
 

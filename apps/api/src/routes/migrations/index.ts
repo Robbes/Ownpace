@@ -45,8 +45,8 @@ function firstOrThrow<T>(rows: T[], what: string): T {
 
 /** Map the web source type to a connection.kind (protocol-based). */
 function sourceKindFor(
-  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail',
-): 'imap' | 'o365' | 'google_drive' | 'gmail' {
+  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts',
+): 'imap' | 'o365' | 'google_drive' | 'gmail' | 'google_calendar' | 'google_contacts' {
   // 'google_drive' is the CHECK-constrained connection.kind migration 0008
   // added, and the literal build-deps-from-mapping branches on
   // (GOOGLE_DRIVE_CONNECTION_KIND) — underscore, unlike the wizard's hyphen,
@@ -56,6 +56,9 @@ function sourceKindFor(
   // although the transport is: the credential shape is a Google OAuth client,
   // and the row's kind is what tells the credential validation that.
   if (sourceType === 'gmail') return 'gmail';
+  // Same shape for the Google DAV pair (workplan 0045, migration 0015).
+  if (sourceType === 'google-calendar') return 'google_calendar';
+  if (sourceType === 'google-contacts') return 'google_contacts';
   return sourceType === 'imap' ? 'imap' : 'o365';
 }
 
@@ -90,6 +93,14 @@ function sourceConnectionConfig(body: z.infer<typeof CreateMappingSchema>): Reco
     // mailbox this is. Stored in the engine's own shape: the worker casts
     // this to shared's SourceConfig and branches on `type`.
     return { type: 'gmail', user: cfg.username };
+  }
+  if (body.sourceType === 'google-calendar') {
+    // Same one-field shape (workplan 0045): the CalDAV principal URL is
+    // derived from the address; credentials live encrypted on the connection.
+    return { type: 'google-calendar', user: cfg.username };
+  }
+  if (body.sourceType === 'google-contacts') {
+    return { type: 'google-contacts', user: cfg.username };
   }
   if (body.sourceType === 'graph') {
     // Graph REST transport: the tenant + mailbox are the address — there is
@@ -169,7 +180,7 @@ function getSharedPool() {
  */
 const CreateMappingBase = z.object({
   name: z.string().min(1).max(255),
-  sourceType: z.enum(['imap', 'oauth2', 'graph', 'google-drive', 'gmail']),
+  sourceType: z.enum(['imap', 'oauth2', 'graph', 'google-drive', 'gmail', 'google-calendar', 'google-contacts']),
   targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav']),
   sourceConfig: z.object({
     // host/port belong to an 'imap' source; tenantId/clientId/clientSecret to
@@ -323,6 +334,36 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
         path: ['sourceConfig', 'nativeFilePolicy'],
         message: err instanceof ConfigError ? err.message : String(err),
       });
+    }
+  } else if (
+    body.sourceType === 'google-calendar' ||
+    body.sourceType === 'google-contacts'
+  ) {
+    // The Drive/Gmail credential shape again (workplan 0045): a Google OAuth
+    // client and a refresh token — consented per product. The scope each
+    // token must carry is in the refusal, because "which consent is this"
+    // is the mistake waiting to happen with four Google sources sharing one
+    // OAuth client.
+    const scope =
+      body.sourceType === 'google-calendar'
+        ? 'https://www.googleapis.com/auth/calendar'
+        : 'https://www.googleapis.com/auth/carddav';
+    const missing = (['clientId', 'clientSecret', 'refreshToken'] as const).filter(
+      (k) => !body.sourceConfig[k],
+    );
+    if (missing.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sourceConfig', missing[0]!],
+        message:
+          `A '${body.sourceType}' source authenticates with your own Google Cloud OAuth client ` +
+          `and a refresh token consented with the ${scope} scope: sourceConfig is missing ` +
+          `${missing.join(', ')}. Where each comes from is docs/google-workspace-setup.md.`,
+      });
+    }
+    const sourceRefusal = sourceDomainRefusal(body.sourceType, body.syncConfig.domains);
+    if (sourceRefusal) {
+      ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: sourceRefusal });
     }
   } else if (body.sourceType === 'gmail') {
     // The same three fields as Drive — a Google OAuth client and a delegated
@@ -580,7 +621,10 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
                 username: body.sourceConfig.username,
                 ...(body.sourceConfig.password ? { password: body.sourceConfig.password } : {}),
               }
-            : body.sourceType === 'google-drive' || body.sourceType === 'gmail'
+            : body.sourceType === 'google-drive' ||
+                body.sourceType === 'gmail' ||
+                body.sourceType === 'google-calendar' ||
+                body.sourceType === 'google-contacts'
               ? {
                   // EXACTLY the keys STORED_GOOGLE_CREDENTIAL_NAMES /
                   // STORED_GMAIL_CREDENTIAL_NAMES read — the build refuses at

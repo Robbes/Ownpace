@@ -128,7 +128,7 @@ export class CalDAVSource implements CalendarSource {
         method: 'GET',
         url: wellKnownUrl,
         headers: {
-          Authorization: this.getAuthorizationHeader(),
+          Authorization: await this.authorizationHeader(),
         },
       });
 
@@ -188,7 +188,7 @@ export class CalDAVSource implements CalendarSource {
       headers: {
         'Content-Type': 'application/xml',
         Depth: '0',
-        Authorization: this.getAuthorizationHeader(),
+        Authorization: await this.authorizationHeader(),
       },
     });
 
@@ -230,7 +230,7 @@ export class CalDAVSource implements CalendarSource {
       headers: {
         'Content-Type': 'application/xml',
         Depth: '0',
-        Authorization: this.getAuthorizationHeader(),
+        Authorization: await this.authorizationHeader(),
       },
     });
 
@@ -264,7 +264,7 @@ export class CalDAVSource implements CalendarSource {
       headers: {
         'Content-Type': 'application/xml',
         Depth: '1',
-        Authorization: this.getAuthorizationHeader(),
+        Authorization: await this.authorizationHeader(),
       },
     });
 
@@ -318,7 +318,7 @@ export class CalDAVSource implements CalendarSource {
       body: report,
       headers: {
         'Content-Type': 'application/xml',
-        Authorization: this.getAuthorizationHeader(),
+        Authorization: await this.authorizationHeader(),
       },
     });
 
@@ -410,7 +410,7 @@ export class CalDAVSource implements CalendarSource {
       headers: {
         'Content-Type': 'application/xml',
         Depth: '0',
-        Authorization: this.getAuthorizationHeader(),
+        Authorization: await this.authorizationHeader(),
       },
     });
 
@@ -798,7 +798,14 @@ export class CalDAVSource implements CalendarSource {
    * Get authorization header value.
    * Password is read from environment variable.
    */
-  private getAuthorizationHeader(): string {
+  private async authorizationHeader(): Promise<string> {
+    // Bearer first (workplan 0045): a configured token provider mints per
+    // request — cached until expiry, so this is cheap — which is what keeps a
+    // pass alive past Google's one-hour token lifetime. Basic stays exactly as
+    // it was for every server that takes a password.
+    if (this.config.tokenProvider) {
+      return `Bearer ${(await this.config.tokenProvider.getToken()).accessToken}`;
+    }
     const password = this.config.password ?? (this.config.passwordEnv ? process.env[this.config.passwordEnv] : undefined);
     if (!password) {
       throw new Error(`No password configured (set config.password or config.passwordEnv)`);

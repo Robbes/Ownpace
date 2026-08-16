@@ -163,7 +163,20 @@ export const CreateMappingResponseSchema = z.object({
   id: z.string(),
   tenantId: z.string(),
   name: z.string(),
-  sourceType: z.enum(['imap', 'oauth2', 'graph']),
+  // ALL seven wizard vocabularies. This enum sat at the original three long
+  // after google-drive and gmail joined, which made every SUCCESSFUL Google
+  // create throw client-side — the exact wizard-never-navigates,
+  // retry-creates-a-duplicate failure documented above the create schema.
+  // The wizard's unit walks mock the service and cannot catch it.
+  sourceType: z.enum([
+    'imap',
+    'oauth2',
+    'graph',
+    'google-drive',
+    'gmail',
+    'google-calendar',
+    'google-contacts',
+  ]),
   targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav']),
   status: MappingLifecycleSchema,
   mode: z.string(),
@@ -179,7 +192,14 @@ export const CreateMappingResponseSchema = z.object({
 /** What the wizard posts — mirrors the server's CreateMappingSchema. */
 export interface CreateMappingInput {
   name: string;
-  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail';
+  sourceType:
+    | 'imap'
+    | 'oauth2'
+    | 'graph'
+    | 'google-drive'
+    | 'gmail'
+    | 'google-calendar'
+    | 'google-contacts';
   targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav';
   sourceConfig: {
     /** host/port for an 'imap' source; tenantId/clientId/clientSecret for

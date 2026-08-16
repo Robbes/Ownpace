@@ -195,6 +195,35 @@ export interface GmailSource {
   readonly user: string;
 }
 
+/**
+ * Google Calendar as a calendar source (workplan 0045).
+ *
+ * One field, like {@link GmailSource} and for the same reasons: the endpoint
+ * is fixed by Google (its CalDAV v2 principal for this address), the OAuth
+ * client + refresh token are credentials and never appear in a file, and the
+ * refresh token must be consented with the
+ * `https://www.googleapis.com/auth/calendar` scope — Google's CalDAV endpoint
+ * takes OAuth only.
+ */
+export interface GoogleCalendarSource {
+  readonly type: 'google-calendar';
+  /** The Google account whose calendars are read. */
+  readonly user: string;
+}
+
+/**
+ * Google Contacts as a contact source (workplan 0045).
+ *
+ * The CardDAV sibling of {@link GoogleCalendarSource}: fixed endpoint
+ * (Google's CardDAV v1 principal), credentials via env/SecretStore, and a
+ * refresh token consented with `https://www.googleapis.com/auth/carddav`.
+ */
+export interface GoogleContactsSource {
+  readonly type: 'google-contacts';
+  /** The Google account whose contacts are read. */
+  readonly user: string;
+}
+
 /** Microsoft Graph Calendar source */
 export interface GraphCalendarSource {
   readonly type: 'graph-calendar';
@@ -317,7 +346,7 @@ export interface DomainsConfig {
   files?: DomainConfig;
 }
 
-export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphMailSource | GoogleDriveSource | GmailSource;
+export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphMailSource | GoogleDriveSource | GmailSource | GoogleCalendarSource | GoogleContactsSource;
 export type TargetConfig = JmapTarget | ImapDavTarget | CalDAVTarget | CardDAVTarget | WebDAVTarget;
 
 export interface ScheduleConfig {
@@ -700,7 +729,19 @@ function parseSource(obj: Record<string, unknown>): SourceConfig {
       user: reqString(obj, 'user', 'source.user'),
     };
   }
-  throw new ConfigError(`source.type: unsupported "${type}" (expected "imap-oauth2", "caldav", "carddav", "webdav", "graph-calendar", "graph-contacts", "graph-mail", "google-drive", or "gmail")`);
+  if (type === 'google-calendar') {
+    return {
+      type: 'google-calendar',
+      user: reqString(obj, 'user', 'source.user'),
+    };
+  }
+  if (type === 'google-contacts') {
+    return {
+      type: 'google-contacts',
+      user: reqString(obj, 'user', 'source.user'),
+    };
+  }
+  throw new ConfigError(`source.type: unsupported "${type}" (expected "imap-oauth2", "caldav", "carddav", "webdav", "graph-calendar", "graph-contacts", "graph-mail", "google-drive", "gmail", "google-calendar", or "google-contacts")`);
 }
 
 /**
