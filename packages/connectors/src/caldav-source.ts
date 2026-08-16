@@ -124,7 +124,7 @@ export class CalDAVSource implements CalendarSource {
     // Step 1: Try RFC 6764 well-known URI discovery
     try {
       const wellKnownUrl = buildWellKnownUrl(this.config.url, 'caldav');
-      const response = await this.httpClient.request({
+      const response = await this.send({
         method: 'GET',
         url: wellKnownUrl,
         headers: {
@@ -181,7 +181,7 @@ export class CalDAVSource implements CalendarSource {
         </D:prop>
       </D:propfind>`;
 
-    const response = await this.httpClient.request({
+    const response = await this.send({
       method: 'PROPFIND',
       url: this.config.url,
       body: propfind,
@@ -223,7 +223,7 @@ export class CalDAVSource implements CalendarSource {
         </D:prop>
       </D:propfind>`;
 
-    const response = await this.httpClient.request({
+    const response = await this.send({
       method: 'PROPFIND',
       url: principalUrl,
       body: propfind,
@@ -257,7 +257,7 @@ export class CalDAVSource implements CalendarSource {
         </D:prop>
       </D:propfind>`;
 
-    const response = await this.httpClient.request({
+    const response = await this.send({
       method: 'PROPFIND',
       url: this.resolveHref(homeSet),
       body: propfind,
@@ -312,7 +312,7 @@ export class CalDAVSource implements CalendarSource {
 
     const report = this.buildSyncCollectionReport(collectionPath, syncToken, ctag);
 
-    const response = await this.httpClient.request({
+    const response = await this.send({
       method: 'REPORT',
       url: this.resolveHref(collectionPath),
       body: report,
@@ -403,7 +403,7 @@ export class CalDAVSource implements CalendarSource {
         </D:prop>
       </D:propfind>`;
 
-    const response = await this.httpClient.request({
+    const response = await this.send({
       method: 'PROPFIND',
       url,
       body: propfind,
@@ -798,6 +798,33 @@ export class CalDAVSource implements CalendarSource {
    * Get authorization header value.
    * Password is read from environment variable.
    */
+
+  /**
+   * The one place every request leaves through (workplan 0050): when the
+   * mapping carries a limiter, take a rate+concurrency slot first and release
+   * it after — the caps an owner configured, enforced. Without one this is
+   * exactly `httpClient.request`.
+   */
+  private async send(options: import('./dav-http.types').HttpRequestOptions): Promise<import('./dav-http.types').HttpResponse> {
+    const limiter = this.config.throttleLimiter;
+    if (!limiter) return this.httpClient.request(options);
+    await limiter.waitForSlot('dav', this.limiterHost());
+    try {
+      return await this.httpClient.request(options);
+    } finally {
+      limiter.releaseSlot();
+    }
+  }
+
+  /** Bucket key: the server, so several collections on one host share caps. */
+  private limiterHost(): string {
+    try {
+      return new URL(this.config.url).host;
+    } catch {
+      return this.config.url;
+    }
+  }
+
   private async authorizationHeader(): Promise<string> {
     // Bearer first (workplan 0045): a configured token provider mints per
     // request — cached until expiry, so this is cheap — which is what keeps a

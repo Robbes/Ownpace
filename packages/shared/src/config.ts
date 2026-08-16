@@ -327,13 +327,14 @@ export interface DomainConfig {
    * NOT per-domain in effect, despite where it sits (0026 T1 item 4): every
    * domain's block is merged into ONE shared limiter —
    * `createThrottleLimiterFromMapping` takes the most restrictive
-   * `maxConcurrent`/`requestsPerSecond` across domains — and that limiter is
-   * currently wired to the MAIL source only; the DAV/files connectors run
-   * without one. The most-restrictive merge errs in the safe direction
-   * (rule 4: no domain's cap is ever exceeded), but a lower cap on one
-   * domain slows all of them. True per-domain limiters are future work;
-   * until then, configure this as "the mapping's limiter", not a per-domain
-   * one.
+   * `maxConcurrent`/`requestsPerSecond` across domains. Since workplan 0050
+   * that limiter is enforced on the DAV/file SOURCE connectors as well as the
+   * mail source (every request takes a slot, keyed by host); the DAV target
+   * writers keep their own reactive protection (`dav-retry`). The
+   * most-restrictive merge errs in the safe direction (rule 4: no domain's
+   * cap is ever exceeded), but a lower cap on one domain slows all of them.
+   * True per-domain limiters are future work; until then, configure this as
+   * "the mapping's limiter", not a per-domain one.
    */
   readonly throttleConfig?: Partial<ThrottleConfig>;
 }

@@ -14,6 +14,7 @@
 import { CalDAVSource, CarddavSource, WebdavFileSource } from '@openmig/connectors';
 import { CalDAVTargetWriter, CardDAVTargetWriter, WebDAVTargetWriter } from '@openmig/engines';
 import type {
+  ThrottleLimiter,
   Ledger,
   TenantId,
   MappingId,
@@ -39,22 +40,37 @@ export interface DavTargetDeps {
   readonly mappingId: MappingId;
 }
 
-export function buildCalendarSource(e: DavEndpoint): CalendarSource {
-  return new CalDAVSource({ url: e.url, username: e.username, password: e.password });
+export function buildCalendarSource(e: DavEndpoint, throttleLimiter?: ThrottleLimiter): CalendarSource {
+  return new CalDAVSource({
+    url: e.url,
+    username: e.username,
+    password: e.password,
+    ...(throttleLimiter ? { throttleLimiter } : {}),
+  });
 }
 export function buildCalendarTarget(e: DavEndpoint, d: DavTargetDeps): CalendarTargetWriter {
   return new CalDAVTargetWriter({ url: e.url, username: e.username, password: e.password }, d);
 }
 
-export function buildContactSource(e: DavEndpoint): ContactSource {
-  return new CarddavSource({ url: e.url, username: e.username, password: e.password });
+export function buildContactSource(e: DavEndpoint, throttleLimiter?: ThrottleLimiter): ContactSource {
+  return new CarddavSource({
+    url: e.url,
+    username: e.username,
+    password: e.password,
+    ...(throttleLimiter ? { throttleLimiter } : {}),
+  });
 }
 export function buildContactTarget(e: DavEndpoint, d: DavTargetDeps): ContactTargetWriter {
   return new CardDAVTargetWriter({ url: e.url, username: e.username, password: e.password }, d);
 }
 
-export function buildFileSource(e: DavEndpoint): FileSource {
-  return new WebdavFileSource({ url: e.url, username: e.username, password: e.password });
+export function buildFileSource(e: DavEndpoint, throttleLimiter?: ThrottleLimiter): FileSource {
+  return new WebdavFileSource({
+    url: e.url,
+    username: e.username,
+    password: e.password,
+    ...(throttleLimiter ? { throttleLimiter } : {}),
+  });
 }
 export function buildFileTarget(e: DavEndpoint, d: DavTargetDeps): FileTargetWriter {
   return new WebDAVTargetWriter({ url: e.url, username: e.username, password: e.password }, d);
