@@ -1,0 +1,159 @@
+# Feature matrix — what migrates, per object type, and what does not (yet)
+
+**Ground truth, not aspiration.** Every row below mirrors the engines and the two shared
+coherence matrices (`SOURCE_TYPE_DOMAINS` / `TARGET_TYPE_DOMAINS` in
+`packages/shared/src/target-domains.ts`) — the same tables the wizard constrains with and
+the create API refuses against. When this document and the code disagree, the code is right
+and this file has a bug; the per-domain detail links the ADR or workplan that carries each
+decision. Last reconciled: 2026-08-16 (after PR #416).
+
+Legend: ✅ migrates · 🔁 detected & reported, owner decides (never acted on silently) ·
+⏳ built, awaiting first contact with reality (owner runbook stage named) ·
+⛔ not yet built · 🚫 deliberately not done, with the reason.
+
+---
+
+## Email
+
+| | generic IMAP | Microsoft 365 | Gmail |
+|---|---|---|---|
+| **Source** | ✅ password (`imap`) | ✅ IMAP+XOAUTH2 with your Entra app (`oauth2`), Graph fallback behind it; ✅ Graph REST (`graph`) | ⏳ IMAP+XOAUTH2 with your Google client (workplan 0044) — Stage 5 |
+| **Target** | ✅ IMAP half of `imap-dav` | — (targets are where you migrate *to*) | 🚫 never a target |
+
+Also a target: **JMAP** (Stalwart / La Suite / mosa.cloud).
+
+What migrates: messages as **verbatim RFC822 bytes**, the folder tree, and the four flags the
+engines map (`$seen`, `$flagged`, `$draft`, `$answered` — the last one absent from the Graph
+source, omitted rather than guessed). Idempotent on Message-ID: a re-run copies nothing
+twice, even after a wiped ledger. Trash and Junk are **left behind by default**
+(`excludeSpecialUse`; set `[]` to take them), while the trash is still read as deletion
+evidence. Gmail: labels arrive as folders; the All Mail / Starred / Important views are
+dropped by attribute so nothing duplicates; a multi-label message is copied once (first
+folder seen) and other placements can surface in the Moves queue as reports.
+
+Detected & reported, never auto-acted: 🔁 a message moved between folders (stable key —
+there is no old copy to remove, so `keep` is the only action); 🔁 a message the owner
+binned on the source (positive `trashed` evidence; `apply` may remove the target's copy
+behind ADR-0024's gates, per item, per decision).
+
+Not (yet) migrated:
+- 🚫 **Server-side rules/filters (sieve), signatures, auto-reply/out-of-office, delegation
+  and folder ACLs** — server configuration, not mailbox content; migrating them means
+  writing to the target's admin surface, which no engine here touches.
+- 🚫 **A shared mailbox as a by-product** — it is an ordinary mapping instead
+  (`pattern: shared_s`, `source.mailbox` on the Graph source; §14.1). A **distribution
+  list** is refused as a mapping outright: it has no message store, and a "successful,
+  empty migration" is the lie that refusal prevents (workplan 0027; manual runbook for the
+  definition + members).
+- ⛔ **Category/label colours and non-flag keywords** — only the four mapped flags travel.
+
+## Calendars
+
+| | generic CalDAV | Microsoft 365 | Google |
+|---|---|---|---|
+| **Source** | ✅ (`caldav`) | ✅ Graph (`graph-calendar`), incl. a shared mailbox's calendar via `source.mailbox` | ⏳ CalDAV with OAuth (workplan 0045) — Stage 6 |
+| **Target** | ✅ CalDAV only | — | 🚫 never a target |
+
+What migrates: events as **iCal objects**, with recurring series and their exceptions
+preserved over CalDAV; incremental sync via RFC 6578 sync-tokens (ctag fallback); the
+shadow-sync **update path** rewrites an event the source changed — unless the target's copy
+was edited there, which is detected and left alone (`conflicted`, hard rule 2). Deletions
+arrive as **`reported` evidence** (the DAV sync answer names the removed object), the
+strongest class, and `apply` may follow them through per owner decision.
+
+Not (yet) migrated:
+- 🚫 **JMAP as a calendar target** — parked by owner decision (workplan 0031 T1): recurring
+  events cannot round-trip over JMAP yet, and a target that flattens a series into single
+  events is data loss wearing a green checkmark. CalDAV is the calendar target until that
+  changes upstream.
+- 🚫 **Live invitation state** — events are copied as data; nobody is re-invited, no
+  organiser is re-pinged. That is the correct behaviour for a migration and it is stated
+  here so nobody expects otherwise.
+- ⛔ **Tasks (VTODO) and calendar sharing/ACLs, colours, notification defaults** — the
+  engines carry events; per-calendar server settings stay where they are.
+
+## Contacts
+
+| | generic CardDAV | Microsoft 365 | Google |
+|---|---|---|---|
+| **Source** | ✅ (`carddav`) | ✅ Graph (`graph-contacts`), incl. shared via `source.mailbox` | ⏳ CardDAV with OAuth (workplan 0045) — Stage 6 |
+| **Target** | ✅ CardDAV | — | 🚫 never a target |
+
+Also a target: **JMAP** (workplan 0031 T2).
+
+What migrates: contacts as **vCards** (photos ride inside), with the same
+update/conflict/adoption behaviour as calendars, incremental sync, and `reported` deletion
+evidence with the owner-decided `apply`.
+
+Not (yet) migrated:
+- 🚫 **Distribution lists / contact groups as mappings** — same refusal and reason as
+  mail's (workplan 0027); the group **definitions** are discovered and listed (managed
+  group discovery) so the manual step is a checklist, not archaeology.
+- ⛔ **Address-book sharing/ACLs** — server configuration.
+
+## Files
+
+| | generic WebDAV (Nextcloud, …) | Google Drive |
+|---|---|---|
+| **Source** | ✅ (`webdav`), incl. trash-bin read for deletion evidence | ✅ (`google-drive`, workplan 0042), My Drive or a **shared drive** by id — browsable since workplan 0049; bin read for evidence |
+| **Target** | ✅ WebDAV | 🚫 never a target |
+
+Also a target: **JMAP files** (workplan 0031 T3).
+
+What migrates: file **bytes, verbatim**, hashed (`contentHash`) so unchanged files are never
+re-sent and changed ones are updated (with the same edited-on-target conflict protection);
+the folder tree; optional `targetFolderPrefix` to merge several sources into one account
+(merge is the default — owner decision 2026-08-16) or keep a subfolder per source.
+
+The file domain is where **relocations** live, because its natural key is the path: a moved
+or renamed file is 🔁 detected by content-hash correlation and may be **applied** — the old
+copy removed only after the target itself confirms the bytes exist under the new key
+(ADR-0030 and its amendments) — and, per mapping opt-in, applied **unattended** behind four
+extra gates (ADR-0031: unique pairing, survived-a-pass, breaker-decides-for-the-pass,
+per-pass cap, `system:auto-apply` audit rows, digest narration). Deletions: a file in the
+source's **bin** is positive evidence, reported at once; an emptied bin falls back to
+absence-counting (`inferred`, two clean passes, and gate 3 bars applying it).
+
+Not (yet) migrated:
+- ⏳ **Google Docs / Sheets / Slides** — refused by default, each named with the reason:
+  they have no bytes, only lossy exports, and `nativeFilePolicy` stays `refuse` until
+  export **byte-stability is measured** against a real tenant (Stage 1,
+  `scripts/drive-export-stability.ts`). An unstable export would silently rewrite every
+  document every night. Drive **shortcuts** fall under the same refusal (they are pointers,
+  not files).
+- 🚫 **Sharing permissions / ACLs, version history, comments, stars** — the file's bytes
+  and place migrate; its social metadata does not. The Finish screen's **permissions
+  handover** document is the deliberate substitute for ACL migration.
+- 🚫 **Two same-named files in one folder** — the path is the natural key and the ledger's
+  unique index makes the second a hard stop, not a silent overwrite.
+- ⛔ **Incremental Drive delta** — every pass lists every folder (the ledger still copies
+  nothing twice; the cost is listing time, not correctness). `changes.list` is deliberately
+  unused for now (workplan 0042 T1 records why).
+
+## Everything, by design
+
+These hold across all object types, and are features rather than gaps:
+
+- **The source is never written to** (retracted `bidirectional`/`asymmetric` modes stay
+  retracted) and **the target is never overwritten or emptied by the machine**: collisions
+  adopt or fail (`onCollision`, no `overwrite` without an ADR), and the ONLY destructive
+  operation is `apply` on an individually evidenced deletion or relocation, behind its
+  gates, attributed — to a person, or to `system:auto-apply` where a mapping opted in.
+- **Accounts, passwords and server settings do not migrate.** Mappings copy data between
+  accounts that already exist; provisioning is out of scope on purpose.
+- **Both editions behave identically** (hard rule 5): every source and target above works
+  the same from a mapping file on the appliance and from the wizard on managed, refusing
+  the same mistakes in the same words.
+
+## The open gaps, in one place
+
+| Gap | Status | Where it is tracked |
+|---|---|---|
+| Gmail / Google Calendar / Google Contacts against real Google endpoints | ⏳ built, unproven | Owner runbook Stages 5–6 |
+| Google-native file export (Docs/Sheets/Slides) | ⏳ measurement gates the policy | Stage 1; workplan 0042 T6 |
+| JMAP calendar target | 🚫 parked (recurrence round-trip) | workplan 0031 T1 |
+| Whole-tenant Google migration (domain-wide delegation) | ⛔ needs an owner-scoped ADR first | noted in `google-workspace-setup.md` |
+| Managed per-mapping throttle config (the DAV limiter parameter is armed but unfed there) | ⛔ small follow-up | PR #416 notes |
+| Drive incremental delta (`changes.list`) | ⛔ deliberate cost/correctness trade | workplan 0042 T1 |
+| Per-domain throttle limiters (today: one merged limiter per mapping) | ⛔ future work | `DomainConfig.throttleConfig` |
+| Sieve rules, signatures, OOF, ACLs, invitation state, version history | 🚫 out of scope, stated per domain above | this document |
