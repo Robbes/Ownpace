@@ -55,8 +55,8 @@ beforeEach(() => {
 
 describe('the managed switch', () => {
   it('shows OFF with the warning IN FRONT of a two-step switch — the first click enables nothing', async () => {
-    fetchApplyDeletionsFlag.mockResolvedValue({ allowApplyDeletions: false, source: 'mapping' });
-    setApplyDeletionsFlag.mockResolvedValue({ allowApplyDeletions: true, source: 'mapping' });
+    fetchApplyDeletionsFlag.mockResolvedValue({ allowApplyDeletions: false, autoApplyRelocations: false, source: 'mapping' });
+    setApplyDeletionsFlag.mockResolvedValue({ allowApplyDeletions: true, autoApplyRelocations: false, source: 'mapping' });
     renderPanel();
 
     expect(
@@ -70,23 +70,23 @@ describe('the managed switch', () => {
     expect(setApplyDeletionsFlag).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText('Confirm: enable deletions'));
-    await waitFor(() => expect(setApplyDeletionsFlag).toHaveBeenCalledWith('m1', true));
+    await waitFor(() => expect(setApplyDeletionsFlag).toHaveBeenCalledWith('m1', { allowApplyDeletions: true }));
   });
 
   it('turning OFF is one click — reducing capability needs no ceremony', async () => {
-    fetchApplyDeletionsFlag.mockResolvedValue({ allowApplyDeletions: true, source: 'mapping' });
-    setApplyDeletionsFlag.mockResolvedValue({ allowApplyDeletions: false, source: 'mapping' });
+    fetchApplyDeletionsFlag.mockResolvedValue({ allowApplyDeletions: true, autoApplyRelocations: false, source: 'mapping' });
+    setApplyDeletionsFlag.mockResolvedValue({ allowApplyDeletions: false, autoApplyRelocations: false, source: 'mapping' });
     renderPanel();
 
     expect(
       await screen.findByText('Applying deletions is ON for this migration.'),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByText('Turn off'));
-    await waitFor(() => expect(setApplyDeletionsFlag).toHaveBeenCalledWith('m1', false));
+    await waitFor(() => expect(setApplyDeletionsFlag).toHaveBeenCalledWith('m1', { allowApplyDeletions: false }));
   });
 
   it("shows the server's refusal in its own words when the change is denied", async () => {
-    fetchApplyDeletionsFlag.mockResolvedValue({ allowApplyDeletions: false, source: 'mapping' });
+    fetchApplyDeletionsFlag.mockResolvedValue({ allowApplyDeletions: false, autoApplyRelocations: false, source: 'mapping' });
     setApplyDeletionsFlag.mockRejectedValue(
       new DecisionRefusedError(
         { error: 'Forbidden', reason: 'Only an owner can change this.' },
@@ -104,7 +104,7 @@ describe('the managed switch', () => {
 
 describe('the appliance (config-file-owned)', () => {
   it('is read-only and names the file instead of offering a switch', async () => {
-    fetchApplyDeletionsFlag.mockResolvedValue({ allowApplyDeletions: false, source: 'config' });
+    fetchApplyDeletionsFlag.mockResolvedValue({ allowApplyDeletions: false, autoApplyRelocations: false, source: 'config' });
     renderPanel();
 
     expect(

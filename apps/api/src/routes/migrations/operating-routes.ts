@@ -887,12 +887,16 @@ router.get(
       if (!s) return;
       const rows = await withTenantDb(s.tenantId, pool(), (db) =>
         db
-          .select({ allow: schema.mailboxMapping.allowApplyDeletions })
+          .select({
+            allow: schema.mailboxMapping.allowApplyDeletions,
+            auto: schema.mailboxMapping.autoApplyRelocations,
+          })
           .from(schema.mailboxMapping)
           .where(eq(schema.mailboxMapping.id, s.mappingId)),
       );
       const body: ApplyDeletionsFlag = {
         allowApplyDeletions: rows[0]?.allow === true,
+        autoApplyRelocations: rows[0]?.auto === true,
         source: 'mapping',
       };
       res.json(body);
@@ -919,26 +923,46 @@ router.patch(
     try {
       const s = await scope(req, res);
       if (!s) return;
-      const allow = (req.body as { allowApplyDeletions?: unknown } | undefined)
-        ?.allowApplyDeletions;
-      if (typeof allow !== 'boolean') {
+      const patch = req.body as
+        | { allowApplyDeletions?: unknown; autoApplyRelocations?: unknown }
+        | undefined;
+      const allow = patch?.allowApplyDeletions;
+      const auto = patch?.autoApplyRelocations;
+      // Either flag alone, or both — but each must be an actual boolean, and
+      // sending neither is a request to change nothing, which is refused
+      // rather than answered with an unchanged echo that reads like success.
+      if (
+        (allow === undefined && auto === undefined) ||
+        (allow !== undefined && typeof allow !== 'boolean') ||
+        (auto !== undefined && typeof auto !== 'boolean')
+      ) {
         return void res.status(400).json({
           error: 'invalid_body',
-          reason: 'Send { "allowApplyDeletions": true | false } — nothing else is accepted.',
+          reason:
+            'Send { "allowApplyDeletions": true | false } and/or ' +
+            '{ "autoApplyRelocations": true | false } — nothing else is accepted.',
         });
       }
       const updated = await withTenantDb(s.tenantId, pool(), (db) =>
         db
           .update(schema.mailboxMapping)
-          .set({ allowApplyDeletions: allow })
+          .set({
+            ...(typeof allow === 'boolean' ? { allowApplyDeletions: allow } : {}),
+            ...(typeof auto === 'boolean' ? { autoApplyRelocations: auto } : {}),
+          })
           .where(eq(schema.mailboxMapping.id, s.mappingId))
-          .returning({ allow: schema.mailboxMapping.allowApplyDeletions }),
+          .returning({
+            allow: schema.mailboxMapping.allowApplyDeletions,
+            auto: schema.mailboxMapping.autoApplyRelocations,
+          }),
       );
       log.warn(
-        `[api] ${s.mappingId}: apply-deletions flag set to ${allow} by ${req.userId ?? 'unknown'}`,
+        `[api] ${s.mappingId}: apply flags set (allowApplyDeletions=${updated[0]?.allow}, ` +
+          `autoApplyRelocations=${updated[0]?.auto}) by ${req.userId ?? 'unknown'}`,
       );
       const body: ApplyDeletionsFlag = {
         allowApplyDeletions: updated[0]?.allow === true,
+        autoApplyRelocations: updated[0]?.auto === true,
         source: 'mapping',
       };
       res.json(body);

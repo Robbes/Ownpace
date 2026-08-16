@@ -475,6 +475,12 @@ export interface ApplyQueuedResponse {
  */
 export interface ApplyDeletionsFlag {
   readonly allowApplyDeletions: boolean;
+  /**
+   * ADR-0031 (accepted 2026-08-16): apply open RELOCATIONS unattended at the
+   * end of each file pass. Default false; requires `allowApplyDeletions` too
+   * — the engine refuses every item without it. Deletions never auto-apply.
+   */
+  readonly autoApplyRelocations: boolean;
   readonly source: 'mapping' | 'config';
 }
 

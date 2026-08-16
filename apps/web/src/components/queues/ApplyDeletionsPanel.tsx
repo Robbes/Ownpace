@@ -46,10 +46,10 @@ export const ApplyDeletionsPanel: React.FC<{ mappingId: string }> = ({ mappingId
     staleTime: 30_000,
   });
 
-  const change = (allow: boolean) => {
+  const change = (flags: { allowApplyDeletions?: boolean; autoApplyRelocations?: boolean }) => {
     setChangeError(null);
     setPending(true);
-    setApplyDeletionsFlag(mappingId, allow)
+    setApplyDeletionsFlag(mappingId, flags)
       .then(() => queryClient.invalidateQueries({ queryKey }))
       .catch((err: unknown) => {
         setChangeError(
@@ -87,7 +87,7 @@ export const ApplyDeletionsPanel: React.FC<{ mappingId: string }> = ({ mappingId
           {data.allowApplyDeletions ? t('applyFlag.on') : t('applyFlag.off')}
         </span>
         {data.source === 'mapping' && data.allowApplyDeletions && (
-          <ActionButton pending={pending} onClick={() => change(false)}>
+          <ActionButton pending={pending} onClick={() => change({ allowApplyDeletions: false })}>
             {t('applyFlag.turnOff')}
           </ActionButton>
         )}
@@ -117,11 +117,53 @@ export const ApplyDeletionsPanel: React.FC<{ mappingId: string }> = ({ mappingId
                 pending={pending}
                 label={t('applyFlag.turnOn')}
                 armedLabel={t('applyFlag.turnOnArmed')}
-                onClick={() => change(true)}
+                onClick={() => change({ allowApplyDeletions: true })}
               />
             </div>
           </div>
         )
+      )}
+
+      {/* ADR-0031 (accepted 2026-08-16): unattended relocation apply. Only
+          meaningful once gate 1 is on — the engine refuses every item without
+          it — so the section renders only then, beside the switch it extends.
+          Same ceremony: two-step on, one-click off; read-only on the
+          appliance, where both flags are config-file-owned. */}
+      {data.allowApplyDeletions && (
+        <div className="mt-3 pt-3 border-t border-gray-200">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-gray-900">
+              {data.autoApplyRelocations ? t('autoApply.on') : t('autoApply.off')}
+            </span>
+            {data.source === 'mapping' && data.autoApplyRelocations && (
+              <ActionButton
+                pending={pending}
+                onClick={() => change({ autoApplyRelocations: false })}
+              >
+                {t('applyFlag.turnOff')}
+              </ActionButton>
+            )}
+          </div>
+          <p className="mt-1 text-gray-600">{t('autoApply.hint')}</p>
+          {data.source === 'config' ? (
+            <p className="mt-1 text-gray-600">
+              {t('applyFlag.config.pre')}{' '}
+              (<code className="font-mono text-xs">autoApplyRelocations</code>)
+              {t('applyFlag.config.post')}
+            </p>
+          ) : (
+            !data.autoApplyRelocations && (
+              <div className="mt-2">
+                <DestructiveButton
+                  pending={pending}
+                  label={t('autoApply.turnOn')}
+                  armedLabel={t('autoApply.turnOnArmed')}
+                  onClick={() => change({ autoApplyRelocations: true })}
+                />
+              </div>
+            )
+          )}
+        </div>
       )}
 
       {changeError && (

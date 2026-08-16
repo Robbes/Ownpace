@@ -1529,6 +1529,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
         const flag: ApplyDeletionsFlag = {
           allowApplyDeletions: m.config.allowApplyDeletions === true,
+          autoApplyRelocations: m.config.autoApplyRelocations === true,
           source: 'config',
         };
         return sendJson(res, 200, flag);
@@ -1541,9 +1542,9 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         return sendJson(res, 405, {
           error: 'config_owned',
           reason:
-            "The appliance's flag lives in the mapping's config file " +
-            '(`allowApplyDeletions`); edit the file and restart the appliance. ' +
-            'No API changes it.',
+            "The appliance's flags live in the mapping's config file " +
+            '(`allowApplyDeletions`, `autoApplyRelocations`); edit the file and ' +
+            'restart the appliance. No API changes them.',
         });
       }
       const deletionMatch =

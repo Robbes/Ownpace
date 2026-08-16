@@ -131,6 +131,11 @@ export const mailboxMapping = pgTable(
     // apply's gate 1 (0017 T4). DEFAULT FALSE: a mapping can remove nothing
     // from the target until somebody turns this on for it, deliberately.
     allowApplyDeletions: boolean('allow_apply_deletions').notNull().default(false),
+    // ADR-0031 (accepted 2026-08-16): apply open RELOCATIONS unattended at the
+    // end of each file pass. DEFAULT FALSE for the same reason — and it runs
+    // with nobody looking, so four extra gates stand in front of every item.
+    // Migration 0014.
+    autoApplyRelocations: boolean('auto_apply_relocations').notNull().default(false),
     // NULL = merge into the account root (the default; owner decision
     // 2026-08-16). See migration 0011 and MappingConfig.targetFolderPrefix.
     targetFolderPrefix: text('target_folder_prefix'),

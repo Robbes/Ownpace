@@ -64,6 +64,15 @@ const en = {
   'applyFlag.config.post': '; edit the file and restart to change it. No API changes it.',
   'applyFlag.turnOn': 'Turn on applying deletions',
   'applyFlag.turnOnArmed': 'Confirm: enable deletions',
+  'autoApply.on': 'Auto-applying relocations is ON for this migration.',
+  'autoApply.off': 'Auto-applying relocations is OFF for this migration (the default).',
+  'autoApply.hint':
+    'When on, each file pass removes the OLD copies of moved or renamed files by itself — ' +
+    'only where the same bytes are confirmed present under the new name, the pairing is ' +
+    'unique, the report survived a full pass, and no mass event is suspected. Everything it ' +
+    'refuses stays in this queue for you. Deletions are never applied automatically.',
+  'autoApply.turnOn': 'Enable auto-apply for relocations',
+  'autoApply.turnOnArmed': 'Confirm: auto-apply relocations unattended',
   'scope.migrates': 'Migrates',
   'scope.partial': 'Partial',
   'scope.doesNotMigrate': 'Does not migrate',
@@ -719,6 +728,16 @@ const nl: Record<keyof typeof en, string> = {
   'applyFlag.config.post': '; bewerk het bestand en herstart om dit te wijzigen. Geen enkele API past dit aan.',
   'applyFlag.turnOn': 'Toepassen van verwijderingen inschakelen',
   'applyFlag.turnOnArmed': 'Bevestig: verwijderingen inschakelen',
+  'autoApply.on': 'Automatisch toepassen van verplaatsingen staat AAN voor deze migratie.',
+  'autoApply.off': 'Automatisch toepassen van verplaatsingen staat UIT voor deze migratie (de standaard).',
+  'autoApply.hint':
+    'Indien ingeschakeld verwijdert elke bestandsronde zelf de OUDE kopieën van verplaatste of ' +
+    'hernoemde bestanden — alleen wanneer dezelfde bytes aantoonbaar onder de nieuwe naam ' +
+    'aanwezig zijn, de koppeling uniek is, de melding een volledige ronde heeft doorstaan en ' +
+    'er geen massale gebeurtenis wordt vermoed. Alles wat wordt geweigerd blijft in deze ' +
+    'wachtrij voor u staan. Verwijderingen worden nooit automatisch toegepast.',
+  'autoApply.turnOn': 'Automatisch toepassen van verplaatsingen inschakelen',
+  'autoApply.turnOnArmed': 'Bevestig: verplaatsingen onbeheerd automatisch toepassen',
   'scope.migrates': 'Migreert',
   'scope.partial': 'Gedeeltelijk',
   'scope.doesNotMigrate': 'Migreert niet',

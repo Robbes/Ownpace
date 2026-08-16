@@ -408,6 +408,19 @@ export interface MappingConfig {
    */
   readonly allowApplyDeletions?: boolean;
   /**
+   * Apply open RELOCATIONS unattended, at the end of each file pass
+   * (ADR-0031, accepted 2026-08-16).
+   *
+   * Defaults to `false`, like every destructive capability. Requires
+   * `allowApplyDeletions` too — this is the same capability (removing our
+   * copy from the target), run without a human pressing the button, which is
+   * why four EXTRA gates stand in front of it: the pairing must be unique,
+   * the relocation must have survived a pass, the mass breaker decides for
+   * the whole pass, and at most `AUTO_APPLY_RELOCATIONS_CAP` items go per
+   * pass. Deletions are never auto-applied.
+   */
+  readonly autoApplyRelocations?: boolean;
+  /**
    * Put everything this mapping writes under one folder on the TARGET.
    *
    * THE CHOICE THIS ENCODES (owner decision 2026-08-16): when several sources
@@ -819,6 +832,10 @@ export function parseMappingConfig(input: unknown): MappingConfig {
     root.allowApplyDeletions === undefined
       ? undefined
       : reqBoolean(root, 'allowApplyDeletions', 'allowApplyDeletions');
+  const autoApplyRelocations =
+    root.autoApplyRelocations === undefined
+      ? undefined
+      : reqBoolean(root, 'autoApplyRelocations', 'autoApplyRelocations');
 
   return {
     tenantId,
@@ -832,6 +849,7 @@ export function parseMappingConfig(input: unknown): MappingConfig {
     ...(excludeSpecialUse !== undefined ? { excludeSpecialUse } : {}),
     ...(domains !== undefined ? { domains } : {}),
     ...(allowApplyDeletions !== undefined ? { allowApplyDeletions } : {}),
+    ...(autoApplyRelocations !== undefined ? { autoApplyRelocations } : {}),
     ...(targetFolderPrefix !== undefined ? { targetFolderPrefix } : {}),
   };
 }

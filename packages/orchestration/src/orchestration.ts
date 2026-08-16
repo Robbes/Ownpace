@@ -33,6 +33,7 @@ import {
   type VerificationResult,
   applyDeletion,
   applyRelocation,
+  autoApplyRelocations,
   type ApplyDeletionOutcome,
 } from '@openmig/core';
 import { createLedgerVerificationReader } from '@openmig/ledger';
@@ -400,6 +401,10 @@ export async function runAllDomains(
         }
       } else {
         const deps = buildDomainDeps(config, 'file', ledger);
+        // Captured BEFORE the pass: ADR-0031's survived-a-pass gate compares
+        // each relocation's recording date against this, so a move this very
+        // pass records is never auto-applied by the same pass that made it.
+        const passStartedAt = new Date().toISOString();
         try {
           const result = await runFileSync({
             ...deps,
@@ -422,6 +427,27 @@ export async function runAllDomains(
             conflicted: result.conflicted,
             deletions: result.deletions.length,
           };
+          // Auto-apply (ADR-0031, accepted 2026-08-16): only after a completed
+          // pass, only when the mapping opted in, and only through the same
+          // applyRelocation a human's button presses — the function narrates
+          // itself in the log, which is the appliance's durable record.
+          if (config.autoApplyRelocations === true) {
+            await autoApplyRelocations(
+              {
+                tenantId,
+                mappingId,
+                domain: 'file',
+                ledger: deps.ledger,
+                target: deps.target,
+                allowApplyDeletions: config.allowApplyDeletions,
+                autoApplyRelocations: true,
+                ...(config.targetFolderPrefix !== undefined
+                  ? { targetFolderPrefix: config.targetFolderPrefix }
+                  : {}),
+              },
+              passStartedAt,
+            );
+          }
         } finally {
           await deps.close();
         }

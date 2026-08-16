@@ -71,13 +71,13 @@ describe('GET /mappings/{id}/apply-deletions', () => {
   it('reports an opted-in mapping as on, config-owned', async () => {
     const res = await fetch(`${base}/mappings/${MAPPING_ON}/apply-deletions`);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ allowApplyDeletions: true, source: 'config' });
+    expect(await res.json()).toEqual({ allowApplyDeletions: true, autoApplyRelocations: false, source: 'config' });
   });
 
   it('reports an absent flag as OFF — the default is the safe direction', async () => {
     const res = await fetch(`${base}/mappings/${MAPPING_OFF}/apply-deletions`);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ allowApplyDeletions: false, source: 'config' });
+    expect(await res.json()).toEqual({ allowApplyDeletions: false, autoApplyRelocations: false, source: 'config' });
   });
 
   it('404s an unknown mapping', async () => {

@@ -1,6 +1,6 @@
 # ADR-0031: Auto-applying relocations — what unattended would require
 
-- **Status:** Proposed (awaiting owner decision — **no code until accepted**)
+- **Status:** Accepted (owner decision, 2026-08-16 — "i accept item 2 (adr 0031)") — built the same day
 - **Date:** 2026-08-16
 - **Deciders:** owner
 - **Relates to:** ADR-0030 (relocation is positive evidence, and its amendments — every gate
@@ -94,3 +94,14 @@ event; and the operator-runbook section saying what turning it on means.
 If declined, the manual path is complete as built, and this document records why the button
 stays: **safe to press once, having looked, is not the same as safe unattended** — and the
 four gates above are the measured difference between those two sentences.
+
+## What was built, 2026-08-16 (accepted the same day)
+
+| the decision | where it lives |
+|---|---|
+| the age column it required | `item.moved_recorded_at` (migration `0013`) — stamped on recording, re-stamped when the destination changes (the same condition that clears the acknowledgement), cleared with the move; surfaced as `ItemMove.recordedAt` and rendered as the queue's age |
+| the per-mapping opt-in | `mailbox_mapping.auto_apply_relocations` (migration `0014`, default false); `MappingConfig.autoApplyRelocations` for the appliance's file; both flag routes (`GET`/`PATCH …/apply-deletions`) carry it beside `allowApplyDeletions`, and the Deletions panel offers the switch with the same two-step ceremony — rendered only once gate 1 is on, because the engine refuses every item without it |
+| gates 1–4 | `autoApplyRelocations` in `apply-deletion.ts`, in front of the EXISTING `applyRelocation` — no second destructive path. Unique pairing (exactly the pair holds the bytes; empty files never eligible), survived-a-pass (`recordedAt < passStartedAt`, captured before the pass), breaker-decides-for-the-pass (both halves, once, against the full open set — the cap cannot nibble), cap 50 (`AUTO_APPLY_RELOCATIONS_CAP`) |
+| both editions, one evaluator | appliance: `runAllDomains`' file branch calls it after a completed pass; managed: `run-delta-sync`'s file branch, flags read FRESH from the mapping row at execution time |
+| attribution | every removal logs `system:auto-apply`; the managed edition additionally lands an `apply_receipt` row (`action='relocation'`, so the Moves screen answers from it) and an `audit_log` row per item — the first writer that table has ever had — and a run-log summary line. The appliance's durable record is its run log; receipts are a managed construct and stay one |
+| the composition proof | `auto-apply-relocations.unit.test.ts` — 9 tests, including: auto ON with `allowApplyDeletions` OFF refuses every item (`not_enabled` — the flag extends the opt-in, never substitutes), the breaker stops the WHOLE pass, and only open relocations are ever candidates |

@@ -339,13 +339,11 @@ export async function fetchApplyDeletionsFlag(mappingId: string): Promise<ApplyD
  */
 export async function setApplyDeletionsFlag(
   mappingId: string,
-  allowApplyDeletions: boolean,
+  flags: { allowApplyDeletions?: boolean; autoApplyRelocations?: boolean },
 ): Promise<ApplyDeletionsFlag> {
   try {
     return (
-      await client.patch<ApplyDeletionsFlag>(`${mappingPath(mappingId)}/apply-deletions`, {
-        allowApplyDeletions,
-      })
+      await client.patch<ApplyDeletionsFlag>(`${mappingPath(mappingId)}/apply-deletions`, flags)
     ).data;
   } catch (err) {
     const res = (err as { response?: { status: number; data?: DecisionRefused } }).response;
