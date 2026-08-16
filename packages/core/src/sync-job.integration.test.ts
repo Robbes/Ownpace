@@ -18,7 +18,7 @@ import { Pool } from 'pg';
 import { createPgDb, PgLedger, PgCursorStore, PgMigrationStatusStore } from '@openmig/ledger';
 import { runShadowPass } from '@openmig/core';
 import { SecretStore, initSecretStore } from '@openmig/core/secret-store';
-import { buildDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
+import { buildDepsFromMapping, buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { asTenantId, asMappingId } from '@openmig/shared';
 
 // Test database from environment
@@ -331,6 +331,86 @@ describe('Sync Jobs with Encrypted Credentials (integration)', () => {
       expect(deps.mappingId).toBe(MAPPING_B_ID);
       expect(deps.source).toBeDefined();
       expect(deps.target).toBeDefined();
+    });
+
+    it("opens the MAPPING'S connection, not the tenant's first row, when a tenant has two providers", async () => {
+      // The configuration one wizard walk now creates: mail from O365, files
+      // from Google Drive, one tenant. Each loader used to take the tenant's
+      // first row for its role, with no ORDER BY — whichever mapping resolved
+      // second could open the WRONG PROVIDER'S credentials, by planner mood.
+      // Seeded here as a second (drive) source + (webdav) target pair with
+      // their own mailboxes and a file mapping, in the same tenant A.
+      const DRIVE_CONN = '5c0b0001-e29b-41d4-a716-4466554400d1';
+      const WEBDAV_CONN = '5c0b0001-e29b-41d4-a716-4466554400d2';
+      const DRIVE_MBOX = '5c0b0002-e29b-41d4-a716-4466554400d3';
+      const WEBDAV_MBOX = '5c0b0002-e29b-41d4-a716-4466554400d4';
+      const FILE_MAPPING = asMappingId('5c0b0003-e29b-41d4-a716-4466554400d5' as never);
+
+      const driveCreds = SecretStore.encryptCredentials({
+        clientId: 'cid.apps.googleusercontent.com',
+        clientSecret: 'cs',
+        refreshToken: 'rt',
+      });
+      await db.execute(sql`
+        INSERT INTO connection (id, tenant_id, role, kind, display_name, secret_ref, config, status)
+        VALUES (${DRIVE_CONN}, ${TENANT_A_ID}, 'source', 'google_drive', 'Drive A',
+                ${JSON.stringify(driveCreds.encrypted)}, ${JSON.stringify({ type: 'google-drive' })}, 'connected')
+        ON CONFLICT (id) DO NOTHING
+      `);
+      const webdavCreds = SecretStore.encryptCredentials({
+        username: 'files@target.example',
+        password: 'files-password',
+      });
+      await db.execute(sql`
+        INSERT INTO connection (id, tenant_id, role, kind, display_name, secret_ref, config, status)
+        VALUES (${WEBDAV_CONN}, ${TENANT_A_ID}, 'target', 'webdav', 'WebDAV A',
+                ${JSON.stringify(webdavCreds.encrypted)},
+                ${JSON.stringify({ url: 'https://nc.target.example/remote.php/dav/files/files' })}, 'connected')
+        ON CONFLICT (id) DO NOTHING
+      `);
+      await db.execute(sql`
+        INSERT INTO mailbox (id, tenant_id, connection_id, external_id, kind, status)
+        VALUES (${DRIVE_MBOX}, ${TENANT_A_ID}, ${DRIVE_CONN}, 'owner@drive.example', 'user', 'active'),
+               (${WEBDAV_MBOX}, ${TENANT_A_ID}, ${WEBDAV_CONN}, 'files@target.example', 'user', 'active')
+        ON CONFLICT (id) DO NOTHING
+      `);
+      await db.execute(sql`
+        INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, status, pattern, mode)
+        VALUES (${FILE_MAPPING}, ${TENANT_A_ID}, ${DRIVE_MBOX}, ${WEBDAV_MBOX}, 'active', 'shared_s', 'mirror')
+        ON CONFLICT (id) DO NOTHING
+      `);
+
+      try {
+        // The MAIL mapping still opens its O365 source. Under the old loaders
+        // this held only by row order; under a planner that returned the drive
+        // row first, buildSourceConnectorFromCredentials threw
+        // "got: google-drive" and mail sync for the tenant was dead.
+        const mailDeps = await buildDepsFromMapping(pool, TENANT_A_ID, MAPPING_A_ID);
+        expect(mailDeps.source.listFolders).toBeDefined();
+        expect(mailDeps.target.upsertEmail).toBeDefined();
+
+        // And the FILE mapping opens the Drive source — under the old loaders
+        // this one failed DETERMINISTICALLY here: the tenant's first source
+        // row is the O365 one (inserted first), whose credentials carry no
+        // username/password, so the DAV resolver refused before the Drive
+        // branch could run.
+        const fileDeps = await buildDomainDepsFromMapping(pool, TENANT_A_ID, FILE_MAPPING, 'file');
+        try {
+          expect(fileDeps.source.listSince).toBeDefined();
+          expect(fileDeps.source.listKeys, 'the real GoogleDriveSource, listKeys and all').toBeDefined();
+          expect(fileDeps.target.upsertFile).toBeDefined();
+        } finally {
+          await fileDeps.close();
+        }
+      } finally {
+        // Tenant A's fixtures outlive each test (afterAll deletes by tenant),
+        // but a second-provider pair left behind would change what OTHER tests
+        // in this file resolve through the fallback path. Remove what this
+        // test added, dependents first.
+        await db.execute(sql`DELETE FROM mailbox_mapping WHERE id = ${FILE_MAPPING}`);
+        await db.execute(sql`DELETE FROM mailbox WHERE id IN (${DRIVE_MBOX}, ${WEBDAV_MBOX})`);
+        await db.execute(sql`DELETE FROM connection WHERE id IN (${DRIVE_CONN}, ${WEBDAV_CONN})`);
+      }
     });
 
     it('should fail when tenantId is missing', async () => {
