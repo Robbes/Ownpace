@@ -13,16 +13,20 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { MovesResponse } from '@openmig/shared';
 
-const { fetchMovesMock, applyMoveMock, isSelfHostMock } = vi.hoisted(() => ({
-  fetchMovesMock: vi.fn(),
-  applyMoveMock: vi.fn(),
-  isSelfHostMock: vi.fn(() => true),
-}));
+const { fetchMovesMock, applyMoveMock, fetchMoveApplyReceiptMock, isSelfHostMock } = vi.hoisted(
+  () => ({
+    fetchMovesMock: vi.fn(),
+    applyMoveMock: vi.fn(),
+    fetchMoveApplyReceiptMock: vi.fn(),
+    isSelfHostMock: vi.fn(() => true),
+  }),
+);
 
 vi.mock('../services/operating-service', () => ({
   fetchMoves: fetchMovesMock,
   keepMove: vi.fn(),
   applyMove: applyMoveMock,
+  fetchMoveApplyReceipt: fetchMoveApplyReceiptMock,
   DecisionRefusedError: class extends Error {},
 }));
 vi.mock('../services/edition', () => ({ isSelfHost: isSelfHostMock }));
@@ -60,7 +64,7 @@ function renderScreen() {
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
-        <Moves />
+        <Moves receiptPollMs={10} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -129,15 +133,61 @@ describe('the relocation apply button', () => {
     expect(screen.queryByRole('button', { name: /Remove the old copy/ })).not.toBeInTheDocument();
   });
 
-  it('is NOT offered in the managed edition, where the action does not exist yet', async () => {
-    // Its destructive path runs through a queued job and a receipt, and there
-    // is no such job for this action. A button that 404s is worse than none.
+  it('is offered in the managed edition too, where the outcome arrives on a RECEIPT', async () => {
+    // The queued job (`run-apply-relocation`) exists now, so the button does
+    // too — and the row must track the receipt to its terminal state rather
+    // than pretend the 202 was an outcome. The removal has not happened when
+    // the response arrives; saying "removed" then would be a false report
+    // about the one thing this product destroys.
     isSelfHostMock.mockReturnValue(false);
     fetchMovesMock.mockResolvedValue(queue({ open: [RELOCATION] }));
+    applyMoveMock.mockResolvedValue({
+      mode: 'queued',
+      receipt: { state: 'queued', requestedAt: '2026-08-16T08:00:00Z' },
+    });
+    fetchMoveApplyReceiptMock.mockResolvedValue({
+      state: 'applied',
+      kind: 'deleted',
+      requestedAt: '2026-08-16T08:00:00Z',
+      finishedAt: '2026-08-16T08:00:02Z',
+    });
     renderScreen();
 
-    expect(await screen.findByRole('button', { name: /Leave it where it is/ })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Remove the old copy/ })).not.toBeInTheDocument();
+    const button = await screen.findByRole('button', { name: /Remove the old copy/ });
+    fireEvent.click(button);
+    fireEvent.click(await screen.findByRole('button', { name: /Confirm removal/ }));
+
+    // Queued first — the honest state — then the poll lands the outcome.
+    expect(await screen.findByText(/[Qq]ueued/)).toBeInTheDocument();
+    expect(await screen.findByText(/[Rr]emoved/)).toBeInTheDocument();
+    expect(fetchMoveApplyReceiptMock).toHaveBeenCalledWith('acme-mail', 'Docs/report.pdf');
+  });
+
+  it('a refused receipt reaches the row in the gate\'s own words', async () => {
+    // The refusals only the worker can produce (the target cannot confirm the
+    // arrival; the owner edited our copy) land on the receipt — and the row
+    // must show the sentence, not a generic failure.
+    isSelfHostMock.mockReturnValue(false);
+    fetchMovesMock.mockResolvedValue(queue({ open: [RELOCATION] }));
+    applyMoveMock.mockResolvedValue({
+      mode: 'queued',
+      receipt: { state: 'queued', requestedAt: '2026-08-16T08:00:00Z' },
+    });
+    fetchMoveApplyReceiptMock.mockResolvedValue({
+      state: 'refused',
+      code: 'relocation_unconfirmed',
+      reason: 'The target does not have the relocated copy, whatever the ledger says.',
+      requestedAt: '2026-08-16T08:00:00Z',
+      finishedAt: '2026-08-16T08:00:02Z',
+    });
+    renderScreen();
+
+    fireEvent.click(await screen.findByRole('button', { name: /Remove the old copy/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Confirm removal/ }));
+
+    expect(
+      await screen.findByText(/does not have the relocated copy/),
+    ).toBeInTheDocument();
   });
 
   it('ARMS before it acts — one click never removes anything', async () => {
@@ -146,10 +196,13 @@ describe('the relocation apply button', () => {
     // does not answer what the caller awaits proves the wrong thing, and here
     // it threw inside the click handler while the assertions still passed.
     applyMoveMock.mockResolvedValue({
-      status: 'ok',
-      action: 'apply',
-      naturalKeyHash: 'Docs/report.pdf',
-      effect: 'The old copy has been removed from the target.',
+      mode: 'immediate',
+      result: {
+        status: 'ok',
+        action: 'apply',
+        naturalKeyHash: 'Docs/report.pdf',
+        effect: 'The old copy has been removed from the target.',
+      },
     });
     fetchMovesMock.mockResolvedValue(queue({ open: [RELOCATION] }));
     renderScreen();

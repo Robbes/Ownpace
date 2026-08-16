@@ -776,8 +776,10 @@ Two answers for every move, and a third that exists only for one kind:
   there**, at the moment of acting, and a target that cannot answer is refused.
   A mail or calendar move never shows this button — their keys survive a move,
   so there is no second copy to point at and nothing here may be removed.
-  Appliance only for now: the managed edition's destructive path runs through a
-  queued job, and no such job exists yet for this action.
+  Both editions offer it: the appliance answers synchronously; the managed
+  edition queues `run-apply-relocation` and the outcome lands on the
+  relocation's own receipt, which the screen polls — its own, because the same
+  item can have a deletion receipt open at the same time.
 
   Refusals come back as sentences, and two are worth recognising rather than
   re-asking about: **`already_kept`** means somebody answered `keep` first —

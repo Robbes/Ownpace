@@ -16,6 +16,12 @@
  * again server-side at the moment of removal. `mayOfferRelocationApply` decides
  * what is SHOWN; `applyRelocation` on the server decides what happens.
  *
+ * BOTH EDITIONS offer it, with the same success-shape split as Deletions: the
+ * appliance answers synchronously, the managed edition queues a job
+ * (`run-apply-relocation`) and the outcome arrives on a RECEIPT this screen
+ * polls — the relocation's own receipt, because the same item can have a
+ * deletion receipt open at the same time (migration 0010).
+ *
  * A row with no apply button gets no disabled one either, for the reason
  * Deletions records: a greyed-out button invites somebody to find out how to
  * enable it, and here there is no answer to that question.
@@ -24,7 +30,12 @@
 import React from 'react';
 import { useParams } from 'react-router';
 import { ArrowRight } from 'lucide-react';
-import { mayOfferRelocationApply, type ItemMove, type MovesQueue } from '@openmig/shared';
+import {
+  mayOfferRelocationApply,
+  type ApplyReceipt,
+  type ItemMove,
+  type MovesQueue,
+} from '@openmig/shared';
 import { QueueScreen, type ItemOutcome } from '../components/queues/QueueScreen';
 import {
   ActionButton,
@@ -34,11 +45,17 @@ import {
   HashChip,
   ItemRow,
   QueueSection,
+  ReceiptStatus,
   Refused,
   Resolved,
 } from '../components/queues/primitives';
-import { applyMove, fetchMoves, keepMove } from '../services/operating-service';
-import { isSelfHost } from '../services/edition';
+import {
+  applyMove,
+  fetchMoveApplyReceipt,
+  fetchMoves,
+  keepMove,
+  DecisionRefusedError,
+} from '../services/operating-service';
 import { useT } from '../i18n';
 
 /**
@@ -96,6 +113,8 @@ const Row: React.FC<{
         <Resolved effect={outcome.effect} />
       ) : outcome?.state === 'refused' ? (
         <Refused text={outcome.text} />
+      ) : outcome?.state === 'receipt' ? (
+        <ReceiptStatus receipt={outcome.receipt} />
       ) : (
         actions
       )}
@@ -104,19 +123,102 @@ const Row: React.FC<{
   );
 };
 
-const Moves: React.FC = () => {
+const isTerminal = (r: ApplyReceipt): boolean =>
+  r.state === 'applied' || r.state === 'refused' || r.state === 'failed';
+
+const Moves: React.FC<{
+  /** Test seam: the receipt poll interval. Production uses the default. */
+  receiptPollMs?: number;
+}> = ({ receiptPollMs = 2000 }) => {
   // Undefined on the appliance, which answers for every configured mapping;
   // required by the managed edition, which scopes each queue to one. See
   // `queuePath()` — the shapes are shared, the URLs are not.
   const { mappingId } = useParams<{ mappingId: string }>();
   const t = useT();
+
+  // One timer per in-flight receipt; all cleared on unmount so an abandoned
+  // page never keeps polling. (Server-side nothing is lost — the receipt is a
+  // row, and reopening the page re-reads the queue.)
+  const pollers = React.useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  React.useEffect(() => {
+    const timers = pollers.current;
+    return () => {
+      for (const t of timers.values()) clearTimeout(t);
+      timers.clear();
+    };
+  }, []);
+
+  const trackReceipt = React.useCallback(
+    (
+      mapping: string,
+      hash: string,
+      receipt: ApplyReceipt,
+      setOutcome: (hash: string, outcome: ItemOutcome) => void,
+      refresh: () => void,
+    ) => {
+      setOutcome(hash, { state: 'receipt', receipt });
+      if (isTerminal(receipt)) {
+        pollers.current.delete(hash);
+        // An applied removal changes the queue itself; re-read rather than
+        // guess what the server did to it.
+        if (receipt.state === 'applied') refresh();
+        return;
+      }
+      // `queued` (or, defensively, `none`): poll on. A missed poll keeps
+      // polling — a transient read failure must not strand the outcome as
+      // forever-queued when the job may have finished.
+      const timer = setTimeout(() => {
+        fetchMoveApplyReceipt(mapping, hash)
+          .then((next) => trackReceipt(mapping, hash, next, setOutcome, refresh))
+          .catch(() => trackReceipt(mapping, hash, receipt, setOutcome, refresh));
+      }, receiptPollMs);
+      pollers.current.set(hash, timer);
+    },
+    [receiptPollMs],
+  );
+
+  const startApply = React.useCallback(
+    (
+      mapping: string,
+      hash: string,
+      setOutcome: (hash: string, outcome: ItemOutcome) => void,
+      refresh: () => void,
+    ) => {
+      setOutcome(hash, { state: 'pending' });
+      applyMove(mapping, hash)
+        .then((outcome) => {
+          if (outcome.mode === 'immediate') {
+            // The appliance's synchronous answer renders as it always has.
+            setOutcome(hash, { state: 'done', effect: outcome.result.effect });
+            refresh();
+            return;
+          }
+          trackReceipt(mapping, hash, outcome.receipt, setOutcome, refresh);
+        })
+        .catch((err: unknown) => {
+          // Same split as QueueScreen's act(): the gates' words when we have
+          // them, the transport error when we do not.
+          setOutcome(hash, {
+            state: 'refused',
+            text:
+              err instanceof DecisionRefusedError
+                ? (err.refusal.reason ?? err.refusal.hint ?? err.refusal.error)
+                : err instanceof Error
+                  ? err.message
+                  : t('common.requestFailed'),
+          });
+        });
+    },
+    [trackReceipt, t],
+  );
+
   return (
   <QueueScreen<MovesQueue>
     title={t('moves.title')}
     intro={t('moves.intro')}
     queryKey="moves"
     fetcher={() => fetchMoves(mappingId)}
-    renderMapping={(mappingId, queue, act, outcomes) => (
+    renderMapping={(mappingId, queue, act, outcomes, setOutcome, refresh) => (
       <>
         <QueueSection
           title={t('queue.waitingOnYou')}
@@ -138,20 +240,15 @@ const Moves: React.FC = () => {
                   >
                     {t('moves.keep')}
                   </ActionButton>
-                  {/*
-                    Relocations only, and appliance only: the managed edition's
-                    destructive path runs through a queued job and a receipt,
-                    and there is no such job for this action yet (ADR-0030).
-                    Offering a button that 404s would be worse than not showing
-                    one.
-                  */}
-                  {mayOfferRelocationApply(mv) && isSelfHost() && (
+                  {/* Relocations only — a key-preserving move has no second
+                      copy to point at, so nothing here may be removed. */}
+                  {mayOfferRelocationApply(mv) && (
                     <DestructiveButton
                       pending={outcomes[mv.naturalKeyHash]?.state === 'pending'}
                       label={t('moves.apply')}
                       armedLabel={t('moves.applyArmed')}
                       onClick={() =>
-                        act(mv.naturalKeyHash, () => applyMove(mappingId, mv.naturalKeyHash))
+                        startApply(mappingId, mv.naturalKeyHash, setOutcome, refresh)
                       }
                     />
                   )}
