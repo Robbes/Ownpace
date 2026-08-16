@@ -538,6 +538,38 @@ describe('PgLedger (integration)', () => {
       expect(row?.moveAcknowledgedAt).toBeUndefined();
     });
 
+    it('stamps WHEN the move was recorded, and a re-observing pass keeps the stamp (0013)', async () => {
+      // updated_at cannot serve as the queue's age — every pass touches it —
+      // so the recording date must survive re-observation, or the age always
+      // reads "just now" and ADR-0031's survived-a-pass gate never opens.
+      await ledger.recordIfAbsent(at('m-5', 'Q1', 'h5'));
+      await ledger.recordMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-5', 'Quarter-1');
+      const first = await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-5');
+      expect(first?.movedRecordedAt).toBeDefined();
+
+      await ledger.recordMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-5', 'Quarter-1');
+      const second = await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-5');
+      expect(second?.movedRecordedAt).toBe(first?.movedRecordedAt);
+
+      // A NEW destination is a new report and re-stamps — same condition as
+      // the acknowledgement clear, in the other direction.
+      await ledger.recordMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-5', 'Archive');
+      const third = await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-5');
+      expect(third?.movedRecordedAt).toBeDefined();
+      expect(third!.movedRecordedAt! >= first!.movedRecordedAt!).toBe(true);
+
+      // And the queue carries it out to whoever reads it.
+      const moves = await ledger.listMoves(TEST_TENANT_ID, TEST_MAPPING_ID, 'file');
+      expect(moves.find((m) => m.naturalKeyHash === 'm-5')?.recordedAt).toBe(
+        third?.movedRecordedAt,
+      );
+
+      // Put back: the date describes a move that no longer exists.
+      await ledger.clearMove(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-5');
+      const cleared = await ledger.find(TEST_TENANT_ID, TEST_MAPPING_ID, 'file', 'm-5');
+      expect(cleared?.movedRecordedAt).toBeUndefined();
+    });
+
     it('keeps a decision standing when a later pass sees the same move again', async () => {
       // The queue has to be emptyable. Reopening on every pass would make it
       // permanent noise, and a queue that never empties is one people stop

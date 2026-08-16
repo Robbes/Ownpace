@@ -271,7 +271,14 @@ describe('a stable-key item moved between source collections', () => {
     await w.run(ledger);
 
     expect(await ledger.listMoves(TENANT, MAPPING)).toEqual([
-      { domain: 'calendar', naturalKeyHash: 'uid-1', from: 'Work', to: 'Personal' },
+      {
+        domain: 'calendar',
+        naturalKeyHash: 'uid-1',
+        from: 'Work',
+        to: 'Personal',
+        // When the report was made (0013) — the queue's age column.
+        recordedAt: expect.any(String),
+      },
     ]);
   });
 
@@ -427,6 +434,8 @@ describe('a file moved between source folders', () => {
         from: 'a',
         to: 'b',
         toNaturalKeyHash: 'b/report.pdf',
+        // When the report was made (0013) — the queue's age column.
+        recordedAt: expect.any(String),
       },
     ]);
 
@@ -1068,5 +1077,55 @@ describe('the old path after an applied relocation', () => {
 
     expect(second.reappearedAfterRemoval).toBe(1);
     expect(second.created).toBe(0);
+  });
+});
+
+describe('the recording date (migration 0013): the queue can say how long a report has sat', () => {
+  const seed = async (ledger: MemoryLedger, key: string) => {
+    await ledger.recordIfAbsent({
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      itemType: 'file',
+      naturalKeyHash: key,
+      contentHash: `h:${key}`,
+      targetId: `t:${key}`,
+      createdAt: new Date().toISOString(),
+      sizeBytes: 1,
+      status: 'copied',
+      collection: 'Docs',
+    });
+  };
+
+  it('stamps on first recording, keeps the stamp when a pass re-observes, re-stamps on a NEW destination', async () => {
+    // updated_at cannot serve as the age — every pass touches it — so the
+    // recording date must survive re-observation, or the queue always reads
+    // "just now" and ADR-0031's survived-a-pass gate never opens.
+    const ledger = new MemoryLedger();
+    await seed(ledger, 'file:a.txt');
+
+    await ledger.recordMove(TENANT, MAPPING, 'file', 'file:a.txt', 'Archive');
+    const first = (await ledger.listMoves(TENANT, MAPPING))[0]!;
+    expect(first.recordedAt).toBeDefined();
+
+    await ledger.recordMove(TENANT, MAPPING, 'file', 'file:a.txt', 'Archive');
+    const second = (await ledger.listMoves(TENANT, MAPPING))[0]!;
+    expect(second.recordedAt).toBe(first.recordedAt);
+
+    // Somewhere new is a new report — the same condition that clears the
+    // acknowledgement re-stamps the date.
+    await ledger.recordMove(TENANT, MAPPING, 'file', 'file:a.txt', 'Elsewhere');
+    const third = (await ledger.listMoves(TENANT, MAPPING))[0]!;
+    expect(third.recordedAt! >= first.recordedAt!).toBe(true);
+  });
+
+  it('clears with the move: a NEXT move to the same place must read as fresh', async () => {
+    const ledger = new MemoryLedger();
+    await seed(ledger, 'file:b.txt');
+    await ledger.recordMove(TENANT, MAPPING, 'file', 'file:b.txt', 'Archive');
+    await ledger.clearMove(TENANT, MAPPING, 'file', 'file:b.txt');
+
+    expect(await ledger.listMoves(TENANT, MAPPING)).toEqual([]);
+    const row = await ledger.find(TENANT, MAPPING, 'file', 'file:b.txt');
+    expect(row?.movedRecordedAt).toBeUndefined();
   });
 });
