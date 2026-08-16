@@ -435,6 +435,50 @@ export class PgLedger implements Ledger {
     return rows.length > 0;
   }
 
+  async recordAuditEvent(
+    tenantId: TenantId,
+    event: {
+      readonly actor: string;
+      readonly action: string;
+      readonly entity?: string;
+      readonly detail?: Record<string, unknown>;
+    },
+  ): Promise<void> {
+    await this.db.insert(schemaPg.auditLog).values({
+      tenantId,
+      actor: event.actor,
+      action: event.action,
+      ...(event.entity ? { entity: event.entity } : {}),
+      ...(event.detail ? { detail: event.detail } : {}),
+    });
+  }
+
+  async countAuditEvents(
+    tenantId: TenantId,
+    filter: {
+      readonly actor: string;
+      readonly action: string;
+      readonly since: string;
+      readonly mappingId?: string;
+    },
+  ): Promise<number> {
+    const rows = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(schemaPg.auditLog)
+      .where(
+        and(
+          eq(schemaPg.auditLog.tenantId, tenantId),
+          eq(schemaPg.auditLog.actor, filter.actor),
+          eq(schemaPg.auditLog.action, filter.action),
+          sql`${schemaPg.auditLog.at} >= ${filter.since}`,
+          ...(filter.mappingId
+            ? [sql`${schemaPg.auditLog.detail} ->> 'mappingId' = ${filter.mappingId}`]
+            : []),
+        ),
+      );
+    return rows[0]?.n ?? 0;
+  }
+
   async recordMove(
     tenantId: TenantId,
     mappingId: MappingId,

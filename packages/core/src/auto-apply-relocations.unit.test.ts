@@ -228,3 +228,42 @@ describe('what never auto-applies', () => {
     expect(target.removeItem).not.toHaveBeenCalled();
   });
 });
+
+describe('the durable attribution (workplan 0048)', () => {
+  it('writes one audit row per removal, actor system:auto-apply, carrying the mapping id', async () => {
+    // Written by CORE, so both editions record identically — and the digest
+    // counts exactly these rows for "removed automatically since last summary".
+    const ledger = new MemoryLedger();
+    await seedPair(ledger, 'a.txt', 'b.txt', 'h-1');
+    const target = fakeRemover();
+
+    await autoApplyRelocations(deps(ledger, target), NEXT_PASS);
+
+    expect(ledger.auditEvents).toHaveLength(1);
+    expect(ledger.auditEvents[0]).toMatchObject({
+      tenantId: TENANT,
+      actor: 'system:auto-apply',
+      action: 'auto_apply_relocation',
+      detail: { mappingId: MAPPING, naturalKeyHash: 'a.txt', kind: 'deleted' },
+    });
+    // And the count the digest asks for finds it.
+    expect(
+      await ledger.countAuditEvents(TENANT, {
+        actor: 'system:auto-apply',
+        action: 'auto_apply_relocation',
+        since: '1970-01-01T00:00:00.000Z',
+        mappingId: MAPPING,
+      }),
+    ).toBe(1);
+  });
+
+  it('a refused item writes NO audit row — nothing was removed to attribute', async () => {
+    const ledger = new MemoryLedger();
+    await seedPair(ledger, 'a.txt', 'b.txt', 'h-1');
+    const target = fakeRemover();
+
+    await autoApplyRelocations(deps(ledger, target), SAME_PASS);
+
+    expect(ledger.auditEvents).toEqual([]);
+  });
+});

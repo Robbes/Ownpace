@@ -1143,6 +1143,26 @@ export async function autoApplyRelocations(
           'the same bytes remain on the target under the key the source moved it to ' +
           '(ADR-0031; this mapping opted in via autoApplyRelocations).',
       );
+      // The durable half of the attribution, written HERE so both editions
+      // record identically (workplan 0048): one audit row per removal, actor
+      // system:auto-apply, which is also what the digest counts. The removal
+      // has already happened, so a failed write is reported loudly rather
+      // than allowed to fail the pass — losing the record is bad, losing the
+      // pass over a record is worse.
+      try {
+        await ledger.recordAuditEvent(tenantId, {
+          actor: 'system:auto-apply',
+          action: 'auto_apply_relocation',
+          entity: 'item',
+          detail: { mappingId, naturalKeyHash: move.naturalKeyHash, kind: outcome.kind },
+        });
+      } catch (err) {
+        log.error(
+          `[auto-apply] ${domain}: removed ${move.naturalKeyHash.slice(0, 12)} but could not ` +
+            'write its audit row — the attribution for this removal exists only in this log.',
+          err,
+        );
+      }
       if (deps.onApplied) {
         await deps.onApplied({ naturalKeyHash: move.naturalKeyHash, kind: outcome.kind });
       }

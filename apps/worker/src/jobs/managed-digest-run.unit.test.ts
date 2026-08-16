@@ -34,6 +34,7 @@ function deps(overrides: Partial<DigestDeps> = {}): DigestDeps & { sent: SentMai
     listDeletions: async () => [],
     listMoves: async () => [{}],
     listFailures: async () => [],
+    countAutoApplied: async () => 0,
     countPendingDecisions: async () => 0,
     send: async (to, locale, message) => {
       sent.push({ to: [...to], locale, message });
@@ -163,6 +164,7 @@ describe('a blind spot is never a zero (hard rule 9)', () => {
   it('treats an unreadable decision queue the same way', async () => {
     const d = deps({
       listMoves: async () => [],
+      countAutoApplied: async () => 0,
       countPendingDecisions: async () => {
         throw new Error('permission denied for table decision');
       },
