@@ -361,7 +361,29 @@ export const scopeManifestApi = {
   },
 };
 
+/** One probe's outcome (workplan 0046) — the refusal arrives verbatim. */
+export interface TestConnectionResult {
+  ok: boolean;
+  detail?: string;
+  reason?: string;
+}
+
 export const mappingApi = {
+  /**
+   * Prove one side's credentials before create (workplan 0046). Read-only on
+   * the server; a provider refusal comes back as `{ok:false, reason}` with
+   * the provider's words — the same sentence the first pass would have
+   * failed with, shown before anything exists.
+   */
+  testConnection: async (
+    payload:
+      | { side: 'source'; sourceType: CreateMappingInput['sourceType']; sourceConfig: CreateMappingInput['sourceConfig'] }
+      | { side: 'target'; targetType: CreateMappingInput['targetType']; targetConfig: CreateMappingInput['targetConfig'] },
+  ): Promise<TestConnectionResult> => {
+    const response = await apiClient.post('/migrations/test-connection', payload);
+    return response.data as TestConnectionResult;
+  },
+
   list: async () => {
     const response = await apiClient.get('/migrations');
     return z.array(MappingListItemSchema).parse(response.data.mappings);

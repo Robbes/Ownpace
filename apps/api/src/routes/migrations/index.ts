@@ -19,6 +19,10 @@ import { SecretStore } from '@openmig/core/secret-store';
 import { getTriggerClient } from '@openmig/scheduler';
 import type { DiscoveryDomain, TenantId, MappingId } from '@openmig/shared';
 import { resolveSyncJob, resolveCutoverJob } from './job-resolution';
+import {
+  probeSourceConnection,
+  probeTargetConnection,
+} from '@openmig/orchestration/probe-connection';
 // The §11.2 decision queues and the decisions on them (ADR-0026). Mounted on
 // this same router so they sit under /api/migrations/:mappingId/... alongside
 // discovery and start, which is where the appliance's equivalents live too.
@@ -72,7 +76,9 @@ function sourceKindFor(
  * present where they mean something because the GET detail route spreads this
  * object (with the password masked) as its echo.
  */
-function sourceConnectionConfig(body: z.infer<typeof CreateMappingSchema>): Record<string, unknown> {
+function sourceConnectionConfig(
+  body: Pick<z.infer<typeof CreateMappingSchema>, 'sourceType' | 'sourceConfig'>,
+): Record<string, unknown> {
   const cfg = body.sourceConfig;
   if (body.sourceType === 'google-drive') {
     // Stored in the ENGINE's own shape and validated by the SAME parser the
@@ -137,7 +143,9 @@ function sourceConnectionConfig(body: z.infer<typeof CreateMappingSchema>): Reco
  * imap-dav). The DAV targets keep the plain shape: their domain path builds
  * its URL from host/port/useSsl via `davUrl()` and never reads a `type`.
  */
-function targetConnectionConfig(body: z.infer<typeof CreateMappingSchema>): Record<string, unknown> {
+function targetConnectionConfig(
+  body: Pick<z.infer<typeof CreateMappingSchema>, 'targetType' | 'targetConfig'>,
+): Record<string, unknown> {
   const cfg = body.targetConfig;
   const base = { host: cfg.host, port: cfg.port, useSsl: cfg.useSsl };
   if (body.targetType === 'jmap') {
@@ -150,6 +158,47 @@ function targetConnectionConfig(body: z.infer<typeof CreateMappingSchema>): Reco
     return { ...base, type: 'imap-dav', user: cfg.username, tls: cfg.useSsl };
   }
   return base;
+}
+
+/**
+ * The credential record create ENCRYPTS — factored so the connection-test
+ * probe (workplan 0046) can run on EXACTLY what would be stored: "test
+ * passed, create, first pass fails" must never be caused by the probe testing
+ * a different shape than the one saved.
+ *
+ * What goes in follows the source type (0037 T6): an 'imap' source signs in
+ * directly (username + password); 'oauth2'/'graph' carry the per-customer
+ * Entra app registration (tenantId doubling as the Graph-fallback signal);
+ * the four Google sources carry EXACTLY the keys the STORED_*_NAMES read —
+ * the build refuses at build time naming any that are missing.
+ */
+function sourceCredentialRecord(
+  body: Pick<z.infer<typeof CreateMappingSchema>, 'sourceType' | 'sourceConfig'>,
+): Record<string, string> {
+  if (body.sourceType === 'imap') {
+    return {
+      username: body.sourceConfig.username,
+      ...(body.sourceConfig.password ? { password: body.sourceConfig.password } : {}),
+    };
+  }
+  if (
+    body.sourceType === 'google-drive' ||
+    body.sourceType === 'gmail' ||
+    body.sourceType === 'google-calendar' ||
+    body.sourceType === 'google-contacts'
+  ) {
+    return {
+      clientId: body.sourceConfig.clientId!,
+      clientSecret: body.sourceConfig.clientSecret!,
+      refreshToken: body.sourceConfig.refreshToken!,
+    };
+  }
+  return {
+    username: body.sourceConfig.username,
+    tenantId: body.sourceConfig.tenantId!,
+    clientId: body.sourceConfig.clientId!,
+    clientSecret: body.sourceConfig.clientSecret!,
+  };
 }
 
 // The run wire shape and its mapper live in @openmig/ledger (`toRunReport`)
@@ -450,6 +499,68 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
  *  partial body may legitimately omit. */
 export const UpdateMappingSchema = CreateMappingBase.partial();
 
+/**
+ * Prove a connection before creating anything (workplan 0046).
+ *
+ * One side per call — the wizard collects the source and target on different
+ * steps and tests them as they are completed. The probe runs on EXACTLY the
+ * shapes create would store (`sourceConnectionConfig` + the credential record
+ * that would be encrypted), interpreted by the same builders a sync pass
+ * uses, so a passed test cannot diverge from what was saved.
+ */
+const TestConnectionSchema = z.object({
+  side: z.enum(['source', 'target']),
+  sourceType: CreateMappingBase.shape.sourceType.optional(),
+  sourceConfig: CreateMappingBase.shape.sourceConfig.optional(),
+  targetType: CreateMappingBase.shape.targetType.optional(),
+  targetConfig: CreateMappingBase.shape.targetConfig.optional(),
+});
+
+router.post('/test-connection', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const parsed = TestConnectionSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return void res.status(400).json({
+        error: 'invalid_body',
+        reason: parsed.error.issues.map((i) => i.message).join(' '),
+      });
+    }
+    const body = parsed.data;
+    if (body.side === 'source') {
+      if (!body.sourceType || !body.sourceConfig) {
+        return void res.status(400).json({
+          error: 'invalid_body',
+          reason: 'Testing the source needs sourceType and sourceConfig.',
+        });
+      }
+      const half = { sourceType: body.sourceType, sourceConfig: body.sourceConfig };
+      const result = await probeSourceConnection(
+        sourceKindFor(body.sourceType),
+        sourceConnectionConfig(half),
+        sourceCredentialRecord(half),
+      );
+      return void res.json(result);
+    }
+    if (!body.targetType || !body.targetConfig) {
+      return void res.status(400).json({
+        error: 'invalid_body',
+        reason: 'Testing the target needs targetType and targetConfig.',
+      });
+    }
+    const result = await probeTargetConnection(
+      body.targetType,
+      targetConnectionConfig({ targetType: body.targetType, targetConfig: body.targetConfig }),
+      { username: body.targetConfig.username, password: body.targetConfig.password },
+    );
+    return void res.json(result);
+  } catch (error) {
+    // Provider-side failures are ANSWERS ({ok:false, reason}) from the probe;
+    // only a genuine coding error lands here.
+    log.error('[api] test-connection failed unexpectedly:', error);
+    res.status(500).json({ error: 'probe_failed', reason: String(error) });
+  }
+});
+
 const TriggerSyncSchema = z.object({
   type: z.enum(['full', 'delta']).optional(),
   mode: z.string().optional(), // Accept legacy 'mode' field for tests
@@ -615,33 +726,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       // (tenantId doubling as the Graph-fallback signal for the IMAP path).
       // The superRefine above guarantees the registration fields are present.
       const sourceSecret = JSON.stringify(
-        SecretStore.encryptCredentials(
-          body.sourceType === 'imap'
-            ? {
-                username: body.sourceConfig.username,
-                ...(body.sourceConfig.password ? { password: body.sourceConfig.password } : {}),
-              }
-            : body.sourceType === 'google-drive' ||
-                body.sourceType === 'gmail' ||
-                body.sourceType === 'google-calendar' ||
-                body.sourceType === 'google-contacts'
-              ? {
-                  // EXACTLY the keys STORED_GOOGLE_CREDENTIAL_NAMES /
-                  // STORED_GMAIL_CREDENTIAL_NAMES read — the build refuses at
-                  // build time naming any that are missing, so a key
-                  // misspelled here would surface as that refusal on the
-                  // first pass, not as silence.
-                  clientId: body.sourceConfig.clientId!,
-                  clientSecret: body.sourceConfig.clientSecret!,
-                  refreshToken: body.sourceConfig.refreshToken!,
-                }
-              : {
-                  username: body.sourceConfig.username,
-                  tenantId: body.sourceConfig.tenantId!,
-                  clientId: body.sourceConfig.clientId!,
-                  clientSecret: body.sourceConfig.clientSecret!,
-                },
-        ).encrypted,
+        SecretStore.encryptCredentials(sourceCredentialRecord(body)).encrypted,
       );
       const targetSecret = JSON.stringify(
         SecretStore.encryptCredentials({

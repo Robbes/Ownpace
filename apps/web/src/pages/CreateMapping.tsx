@@ -30,7 +30,7 @@ import {
 // schedules with, so the "next syncs" echo below cannot disagree with what
 // the scheduler will actually do.
 import { Cron } from 'croner';
-import { mappingApi } from '../services/mapping-service';
+import { mappingApi, type TestConnectionResult } from '../services/mapping-service';
 import { serverMessage } from '../services/api';
 import { useMutation } from '@tanstack/react-query';
 
@@ -171,18 +171,11 @@ const CreateMapping: React.FC = () => {
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty, createMutation.isSuccess]);
 
-  const handleNext = () => {
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
-    } else {
-      // Submit form. An oauth2/graph source posts its app registration
-      // instead of a server address — the server refuses the mismatch by
-      // name, so the shapes here mirror CreateMappingSchema's demands.
-      const mappingData = {
-        name: formData.name,
-        sourceType: formData.sourceType,
-        targetType: formData.targetType,
-        sourceConfig: isDriveSource
+  // The config shapes, shared by submit AND the connection test (workplan
+  // 0046) — the probe must run on exactly what create would post, or "test
+  // passed, create failed" becomes possible by construction.
+  const builtSourceConfig = () =>
+    isDriveSource
           ? {
               username: formData.sourceUsername,
               clientId: formData.sourceClientId,
@@ -212,14 +205,28 @@ const CreateMapping: React.FC = () => {
               username: formData.sourceUsername,
               password: formData.sourcePassword,
               useSsl: formData.sourceSsl,
-            },
-        targetConfig: {
-          host: formData.targetHost,
-          port: Number(formData.targetPort),
-          username: formData.targetUsername,
-          password: formData.targetPassword,
-          useSsl: formData.targetSsl,
-        },
+            };
+  const builtTargetConfig = () => ({
+    host: formData.targetHost,
+    port: Number(formData.targetPort),
+    username: formData.targetUsername,
+    password: formData.targetPassword,
+    useSsl: formData.targetSsl,
+  });
+
+  const handleNext = () => {
+    if (currentStep < steps.length - 1) {
+      setCurrentStep(currentStep + 1);
+    } else {
+      // Submit form. An oauth2/graph source posts its app registration
+      // instead of a server address — the server refuses the mismatch by
+      // name, so the shapes here mirror CreateMappingSchema's demands.
+      const mappingData = {
+        name: formData.name,
+        sourceType: formData.sourceType,
+        targetType: formData.targetType,
+        sourceConfig: builtSourceConfig(),
+        targetConfig: builtTargetConfig(),
         syncConfig: {
           domains: formData.domains,
           schedule: formData.schedule || '0 2 * * *',
@@ -230,6 +237,37 @@ const CreateMapping: React.FC = () => {
       };
       createMutation.mutate(mappingData);
     }
+  };
+
+  // The connection test (workplan 0046): both sides probed in parallel,
+  // read-only, results shown verbatim — the same sentence the first pass
+  // would have failed with, before anything exists.
+  const [probing, setProbing] = React.useState(false);
+  const [probeResults, setProbeResults] = React.useState<{
+    source?: TestConnectionResult;
+    target?: TestConnectionResult;
+  }>({});
+  const runProbes = () => {
+    setProbing(true);
+    setProbeResults({});
+    const asResult = (settled: PromiseSettledResult<TestConnectionResult>): TestConnectionResult =>
+      settled.status === 'fulfilled'
+        ? settled.value
+        : { ok: false, reason: serverMessage(settled.reason) };
+    Promise.allSettled([
+      mappingApi.testConnection({
+        side: 'source',
+        sourceType: formData.sourceType,
+        sourceConfig: builtSourceConfig(),
+      }),
+      mappingApi.testConnection({
+        side: 'target',
+        targetType: formData.targetType,
+        targetConfig: builtTargetConfig(),
+      }),
+    ])
+      .then(([src, tgt]) => setProbeResults({ source: asResult(src), target: asResult(tgt) }))
+      .finally(() => setProbing(false));
   };
 
   const handleBack = () => {
@@ -912,6 +950,50 @@ const CreateMapping: React.FC = () => {
               {/* What happens to these secrets — a claim the code already
                   makes true (SecretStore.encryptCredentials; GET masks). */}
               <p className="mt-4 text-sm text-blue-900">{t('wizard.credentials.storage')}</p>
+            </div>
+
+            {/* The connection test (workplan 0046): the docs' "one read-only
+                command that proves the credentials", as a button — because a
+                managed operator has no shell. Optional: Next never gates on
+                it, a probe can time out on a slow provider and the create API
+                re-refuses everything anyway. */}
+            <div className="border border-gray-200 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={runProbes}
+                  disabled={probing}
+                  className="btn-secondary text-sm disabled:opacity-50"
+                >
+                  {probing ? t('wizard.testing') : t('wizard.testConnections')}
+                </button>
+                <p className="text-sm text-gray-500">{t('wizard.testConnections.hint')}</p>
+              </div>
+              {(probeResults.source || probeResults.target) && (
+                <dl className="mt-3 space-y-2 text-sm">
+                  {(['source', 'target'] as const).map((side) => {
+                    const r = probeResults[side];
+                    if (!r) return null;
+                    return (
+                      <div key={side} className="flex items-start gap-2">
+                        {r.ok ? (
+                          <Check className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
+                        )}
+                        <dt className="font-medium text-gray-900">
+                          {t(side === 'source' ? 'wizard.step.source' : 'wizard.step.target')}:
+                        </dt>
+                        {/* The provider's words, verbatim (rule 9) — the same
+                            sentence the first pass would have failed with. */}
+                        <dd className="text-gray-700 min-w-0 break-words">
+                          {r.ok ? r.detail : r.reason}
+                        </dd>
+                      </div>
+                    );
+                  })}
+                </dl>
+              )}
             </div>
           </div>
         );

@@ -139,6 +139,9 @@ importers:
       '@openmig/ledger':
         specifier: workspace:*
         version: link:../../packages/ledger
+      '@openmig/orchestration':
+        specifier: workspace:*
+        version: link:../../packages/orchestration
       '@openmig/scheduler':
         specifier: workspace:*
         version: link:../../packages/scheduler

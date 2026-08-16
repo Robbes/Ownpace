@@ -122,6 +122,11 @@ const en = {
     'https://www.googleapis.com/auth/calendar for Calendar, ' +
     'https://www.googleapis.com/auth/carddav for Contacts. A token consented for another ' +
     'Google product will not work here. docs/google-workspace-setup.md walks through it.',
+  'wizard.testConnections': 'Test connections',
+  'wizard.testing': 'Testing…',
+  'wizard.testConnections.hint':
+    'Read-only: signs in to both sides with what you typed and lists what it can see. ' +
+    'Nothing is created or written.',
   'wizard.proto.jmap.hint': 'Modern email protocol',
   'wizard.proto.caldav.hint': 'Calendar protocol',
   'wizard.proto.carddav.hint': 'Contact protocol',
@@ -796,6 +801,11 @@ const nl: Record<keyof typeof en, string> = {
     'product: https://www.googleapis.com/auth/calendar voor Agenda, ' +
     'https://www.googleapis.com/auth/carddav voor Contacten. Een token dat voor een ander ' +
     'Google-product is toegestemd werkt hier niet. docs/google-workspace-setup.md behandelt dit.',
+  'wizard.testConnections': 'Verbindingen testen',
+  'wizard.testing': 'Testen…',
+  'wizard.testConnections.hint':
+    'Alleen-lezen: meldt zich aan beide kanten aan met wat u hebt ingevuld en toont wat ' +
+    'zichtbaar is. Er wordt niets aangemaakt of geschreven.',
   'wizard.proto.jmap.hint': 'Modern e-mailprotocol',
   'wizard.proto.caldav.hint': 'Agendaprotocol',
   'wizard.proto.carddav.hint': 'Contactenprotocol',

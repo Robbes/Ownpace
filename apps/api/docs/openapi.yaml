@@ -365,6 +365,43 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /api/migrations/test-connection:
+    post:
+      tags: [Migrations]
+      summary: Prove a connection before creating anything
+      description: |
+        Runs a READ-ONLY probe with the credentials as typed — one side per
+        call — built exactly the way a sync pass would build the connector, so
+        a passed test cannot diverge from what create would store. A provider
+        refusal ("wrong password", "invalid scope") is an ANSWER, returned as
+        `{ok:false, reason}` with the provider's words verbatim, not an error
+        status.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [side]
+              properties:
+                side: { type: string, enum: [source, target] }
+                sourceType: { type: string }
+                sourceConfig: { type: object }
+                targetType: { type: string }
+                targetConfig: { type: object }
+      responses:
+        '200':
+          description: The probe's outcome, pass or refusal.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  detail: { type: string }
+                  reason: { type: string }
+        '400': { description: The body named neither side's shapes. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /api/migrations:
     get:
       tags: [Migrations]
