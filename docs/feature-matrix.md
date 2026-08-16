@@ -130,6 +130,40 @@ Not (yet) migrated:
   nothing twice; the cost is listing time, not correctness). `changes.list` is deliberately
   unused for now (workplan 0042 T1 records why).
 
+## Shared content
+
+"Shared" means a different thing per provider, so its migration state is stated per case
+rather than as one row:
+
+- ✅ **A shared drive (Google)** is a first-class root: `rootFolderId` names it by id
+  (browsable since workplan 0049), and the connector always sends the two query parameters
+  without which the Drive API *pretends a shared drive is empty* — the silent-empty-pass
+  failure that guard exists for is documented on the connector itself.
+- ✅ **A shared mailbox or a shared mailbox's calendar (M365)** is an ordinary mapping via
+  `source.mailbox` — see the Email and Calendars sections.
+- ✅ **Received shares over WebDAV (Nextcloud and friends)** need no feature at all: the
+  server mounts them into the account's tree, and the connector migrates whatever the tree
+  presents. They arrive as ordinary content.
+- ⛔ **Drive "Shared with me"** is **not enumerated**: the listing walks parent links down
+  from the configured root, and Shared-with-me is a view, not a folder — its items have no
+  parent under any root this connector starts from. A **shortcut** the owner added to My
+  Drive surfaces as a per-item refusal in the failures queue (a pointer, not a file) — loud,
+  never a silent skip. Structurally the same listing call could root a mapping at a shared
+  *folder's* id, but only the shared-*drive* case is documented and guarded; treat
+  shared-with-me as not-yet until it earns its own workplan.
+- 🚫 **The share itself does not survive the copy, on purpose.** A migrated file is the new
+  account's own bytes: the link to the original is severed, later edits flow nowhere, and
+  two mappings migrating the same shared item produce two independent copies — one per
+  account, exactly like every other item. A migration copies data; it does not re-plumb
+  collaboration.
+- 🔁 **The sharing state is inventoried, not recreated** (§14.2, workplan 0029): every
+  grant in the source's own words (`raw`, verbatim), link-grants flagged apart from
+  person-grants (`viaLink` — "anyone with the link can edit" is the one to catch before
+  cutover), and rights that *could not be read* named as such — `not_discoverable` is a
+  different value from "none found" (hard rule 9). It lands in the Finish screen's
+  **permissions handover** document, which is the deliberate substitute for automated ACL
+  migration across all four object types.
+
 ## Everything, by design
 
 These hold across all object types, and are features rather than gaps:
@@ -152,6 +186,7 @@ These hold across all object types, and are features rather than gaps:
 | Gmail / Google Calendar / Google Contacts against real Google endpoints | ⏳ built, unproven | Owner runbook Stages 5–6 |
 | Google-native file export (Docs/Sheets/Slides) | ⏳ measurement gates the policy | Stage 1; workplan 0042 T6 |
 | JMAP calendar target | 🚫 parked (recurrence round-trip) | workplan 0031 T1 |
+| Drive "Shared with me" content (shortcuts are refused loudly; shared *drives* work) | ⛔ not enumerated — needs its own workplan | Shared content section above; workplan 0042 |
 | Whole-tenant Google migration (domain-wide delegation) | ⛔ needs an owner-scoped ADR first | noted in `google-workspace-setup.md` |
 | Managed per-mapping throttle config (the DAV limiter parameter is armed but unfed there) | ⛔ small follow-up | PR #416 notes |
 | Drive incremental delta (`changes.list`) | ⛔ deliberate cost/correctness trade | workplan 0042 T1 |
