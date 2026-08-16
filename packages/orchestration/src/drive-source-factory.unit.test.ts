@@ -177,3 +177,28 @@ describe('the shared-drive browse (workplan 0049)', () => {
     expect(calls[1]!.headers.Authorization).toBe('Bearer at-1');
   });
 });
+
+describe('the shared-with-me folder browse (workplan 0051)', () => {
+  it('asks for FOLDERS in the shared-with-me view, untrashed, with the owner riding along', async () => {
+    const calls = stubNetwork();
+    try {
+      const source = buildGoogleDriveSourceFrom({}, CREDS) as unknown as {
+        listSharedWithMeFolders(): Promise<
+          ReadonlyArray<{ id: string; name: string; owner?: string }>
+        >;
+      };
+      expect(await source.listSharedWithMeFolders()).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(calls).toHaveLength(2);
+    const listing = decodeURIComponent(calls[1]!.url);
+    // The view, folders only, and never somebody's binned share.
+    expect(listing).toContain('sharedWithMe=true');
+    expect(listing).toContain("mimeType='application/vnd.google-apps.folder'");
+    expect(listing).toContain('trashed=false');
+    // The owner's address is what disambiguates two shares named alike.
+    expect(listing).toContain('owners(emailAddress)');
+    expect(calls[1]!.headers.Authorization).toBe('Bearer at-1');
+  });
+});

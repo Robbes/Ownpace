@@ -21,6 +21,7 @@ import type { DiscoveryDomain, TenantId, MappingId } from '@openmig/shared';
 import { resolveSyncJob, resolveCutoverJob } from './job-resolution';
 import {
   listGoogleSharedDrives,
+  listGoogleSharedFolders,
   probeSourceConnection,
   probeTargetConnection,
 } from '@openmig/orchestration/probe-connection';
@@ -547,6 +548,31 @@ router.post(
       res.json(await listGoogleSharedDrives(parsed.data));
     } catch (error) {
       log.error('[api] shared-drives listing failed unexpectedly:', error);
+      res.status(500).json({ error: 'listing_failed', reason: String(error) });
+    }
+  },
+);
+
+// The other half of the browse (workplan 0051): folders other accounts
+// shared with this credential — each migratable by rooting a mapping at its
+// id. Same credentials, same read-only posture as shared-drives above.
+router.post(
+  '/google-drive/shared-folders',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const parsed = SharedDrivesSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return void res.status(400).json({
+          error: 'invalid_body',
+          reason:
+            'Send { clientId, clientSecret, refreshToken } — the same three values the Drive ' +
+            'source stores.',
+        });
+      }
+      res.json(await listGoogleSharedFolders(parsed.data));
+    } catch (error) {
+      log.error('[api] shared-folders listing failed unexpectedly:', error);
       res.status(500).json({ error: 'listing_failed', reason: String(error) });
     }
   },

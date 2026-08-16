@@ -208,3 +208,38 @@ export async function listGoogleSharedDrives(
     return { ok: false, reason: err instanceof Error ? err.message : String(err) };
   }
 }
+
+/**
+ * The folders other accounts shared with this credential (workplan 0051) —
+ * the second half of the same browse: a shared FOLDER migrates by rooting a
+ * mapping at its id, and this answers "which id?" for folders exactly as
+ * `listGoogleSharedDrives` does for shared drives. Same factory, same
+ * stored-credential vocabulary, refusals verbatim.
+ */
+export async function listGoogleSharedFolders(
+  creds: Record<string, string>,
+): Promise<
+  | {
+      readonly ok: true;
+      readonly folders: ReadonlyArray<{ id: string; name: string; owner?: string }>;
+    }
+  | { readonly ok: false; readonly reason: string }
+> {
+  try {
+    const source = buildGoogleDriveSourceFrom({}, creds, STORED_GOOGLE_CREDENTIAL_NAMES) as {
+      listSharedWithMeFolders?: () => Promise<
+        ReadonlyArray<{ id: string; name: string; owner?: string }>
+      >;
+    };
+    if (typeof source.listSharedWithMeFolders !== 'function') {
+      return {
+        ok: false,
+        reason:
+          'This Drive source cannot enumerate shared folders. This is a wiring gap, not a credential problem.',
+      };
+    }
+    return { ok: true, folders: await source.listSharedWithMeFolders() };
+  } catch (err) {
+    return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+  }
+}

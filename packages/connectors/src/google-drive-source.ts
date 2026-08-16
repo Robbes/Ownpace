@@ -278,6 +278,46 @@ export class GoogleDriveSource implements FileSource {
     return drives;
   }
 
+  /**
+   * The FOLDERS other accounts shared with this one (workplan 0051) — the
+   * other half of the browse. "Shared with me" is a view, not a folder: its
+   * items carry no parent under any root, so no walk from `rootFolderId` can
+   * reach them. The supported move is to root a SEPARATE mapping at the
+   * shared folder's own id — the same parent-scoped listing every root uses —
+   * and this enumeration answers "which id?" exactly as `listSharedDrives`
+   * does for shared drives. Read-only; NOT used by any pass. Loose shared
+   * FILES (not inside a folder you root at) remain out of scope, and the
+   * feature matrix says so.
+   *
+   * The owner's address rides along because two people can each share a
+   * folder named "Administratie" — a picker showing the bare names would be
+   * a coin flip.
+   */
+  async listSharedWithMeFolders(): Promise<
+    ReadonlyArray<{ id: string; name: string; owner?: string }>
+  > {
+    const q = `sharedWithMe=true and mimeType='${DRIVE_FOLDER_MIME}' and trashed=false`;
+    const fields = 'nextPageToken,files(id,name,owners(emailAddress))';
+    const found: Array<{ id: string; name: string; owner?: string }> = [];
+    let pageToken: string | undefined;
+    do {
+      const url =
+        `${this.baseUrl}/files?q=${encodeURIComponent(q)}&pageSize=100` +
+        `&fields=${encodeURIComponent(fields)}` +
+        (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '');
+      const page = (await this.getJson(url)) as {
+        files?: Array<{ id: string; name: string; owners?: Array<{ emailAddress?: string }> }>;
+        nextPageToken?: string;
+      };
+      for (const f of page.files ?? []) {
+        const owner = f.owners?.[0]?.emailAddress;
+        found.push({ id: f.id, name: f.name, ...(owner ? { owner } : {}) });
+      }
+      pageToken = page.nextPageToken;
+    } while (pageToken);
+    return found;
+  }
+
   async listTrashedPaths(): Promise<ReadonlyArray<string>> {
     const q = `trashed=true and mimeType!='${DRIVE_FOLDER_MIME}'`;
     const fields = 'nextPageToken,files(id,name,parents)';
