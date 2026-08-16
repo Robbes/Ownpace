@@ -46,6 +46,7 @@ import {
   ENV_GOOGLE_CREDENTIAL_NAMES,
   buildGoogleDriveSourceFrom,
 } from './drive-source-factory';
+import { ENV_GMAIL_CREDENTIAL_NAMES, buildGmailSourceFrom } from './gmail-source-factory';
 import { withClose, type WithClose } from './deps-lifecycle';
 import {
   buildGraphMailSourceFrom,
@@ -261,6 +262,19 @@ function buildSourceConnector(sourceConfig: MappingConfig['source'], throttleLim
       return buildImapSource(sourceConfig, throttleLimiter);
     case 'graph-mail':
       return buildGraphMailSource(sourceConfig, throttleLimiter);
+    case 'gmail':
+      // The env-specific half only: read the three GOOGLE_* variables and hand
+      // off. The refusal naming missing ones lives in the shared factory, so
+      // both editions refuse in the same words (rule 5).
+      return buildGmailSourceFrom(
+        sourceConfig.user,
+        {
+          clientId: process.env[ENV_GMAIL_CREDENTIAL_NAMES.clientId],
+          clientSecret: process.env[ENV_GMAIL_CREDENTIAL_NAMES.clientSecret],
+          refreshToken: process.env[ENV_GMAIL_CREDENTIAL_NAMES.refreshToken],
+        },
+        ENV_GMAIL_CREDENTIAL_NAMES,
+      );
 
     default:
       throw new Error(`Unsupported source type for ReconcileDeps: ${(sourceConfig as {type: string}).type}. Use buildGraphCalendarSource or buildGraphContactsSource for graph cal/contact sources.`);

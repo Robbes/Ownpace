@@ -12,6 +12,19 @@ export interface MailFolder {
   readonly name?: string;
   /** Detected special-use role (RFC 6154); 'normal' if none. */
   readonly specialUse: SpecialUse;
+  /**
+   * The server's RAW LIST attributes, verbatim, when the connector has them.
+   *
+   * `specialUse` maps the six roles the product acts on and folds everything
+   * else to 'normal' — which erases attributes that are not roles but VIEWS.
+   * Gmail advertises `\All` (All Mail), `\Flagged` (Starred) and `\Important`
+   * on folders that re-present other folders' messages; a consumer that needs
+   * to recognise those (gmail-source-factory, workplan 0044) must see the
+   * attribute itself, because by name the folders are localised ("Alle
+   * berichten") and by role they are indistinguishable from a real folder.
+   * Optional: fakes and non-IMAP sources simply omit it.
+   */
+  readonly listAttributes?: ReadonlyArray<string>;
 }
 
 export interface MailAddress {

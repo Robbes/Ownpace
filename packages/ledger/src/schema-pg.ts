@@ -56,6 +56,10 @@ export const connection = pgTable(
         // the rest of this column; a mapping file spells the same provider
         // `google-drive`. Allowed by the CHECK since 0008.
         'google_drive',
+        // Gmail as a mail SOURCE (workplan 0044). Its own kind, not `imap`,
+        // because the credential shape differs: a Google OAuth client + refresh
+        // token, not a password or static token. Allowed by the CHECK since 0012.
+        'gmail',
       ],
     }).notNull(),
     displayName: text('display_name').notNull(),

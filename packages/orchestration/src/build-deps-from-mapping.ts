@@ -41,6 +41,7 @@ import {
   STORED_GOOGLE_CREDENTIAL_NAMES,
   buildGoogleDriveSourceFrom,
 } from './drive-source-factory';
+import { STORED_GMAIL_CREDENTIAL_NAMES, buildGmailSourceFrom } from './gmail-source-factory';
 import { PgLedger, PgCursorStore, createPgDb, withTenant } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import { mailboxMapping } from '@openmig/ledger';
@@ -485,8 +486,15 @@ export function buildSourceConnectorFromCredentials(
   if (sourceConfig.type === 'graph-mail') {
     return buildGraphMailSourceFromCredentials(sourceConfig, credentials, throttleLimiter);
   }
+  if (sourceConfig.type === 'gmail') {
+    // The credential-store half only: name the stored fields and hand off. The
+    // refusal for missing ones lives in the shared factory, so both editions
+    // refuse in the same words (rule 5) — here in the stored-credential
+    // vocabulary a managed operator can act on, not env-var names.
+    return buildGmailSourceFrom(sourceConfig.user, credentials, STORED_GMAIL_CREDENTIAL_NAMES);
+  }
   if (sourceConfig.type !== 'imap-oauth2') {
-    throw new Error(`buildDepsFromMapping only supports imap-oauth2 and graph-mail mail sources, got: ${sourceConfig.type}`);
+    throw new Error(`buildDepsFromMapping only supports imap-oauth2, graph-mail and gmail mail sources, got: ${sourceConfig.type}`);
   }
 
   return buildImapSourceFromCredentials(sourceConfig, credentials, throttleLimiter);

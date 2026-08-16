@@ -1,6 +1,7 @@
-# Google Workspace setup — Drive as a migration source
+# Google Workspace setup — Drive and Gmail as migration sources
 
-**Reference:** workplan 0042. The Microsoft equivalent is [`o365-setup.md`](./o365-setup.md).
+**Reference:** workplan 0042 (Drive), workplan 0044 (Gmail). The Microsoft equivalent is
+[`o365-setup.md`](./o365-setup.md).
 
 This is what an operator does once, in the customer's own Google Cloud project, to let
 Open-Migrate read a Google Drive. It ends with three values that go in `.env` (appliance) or
@@ -155,6 +156,58 @@ product. That composition is the thing most likely to be wrong, and a recording 
 listing of the root cannot gate it. The script says so if it finds no subfolder.
 
 ---
+
+## Gmail as a mail source (workplan 0044)
+
+The same project, the same consent screen, the same OAuth client — steps 1–3 above are done
+once and serve both. What differs is the **consent** the refresh token carries and the name
+it is stored under.
+
+**The scope is `https://mail.google.com/`, and there is no narrower choice.** Open-Migrate
+reads Gmail over IMAP (XOAUTH2 at `imap.gmail.com:993`), and that is the only scope Google's
+IMAP endpoint accepts — the granular `gmail.readonly` scopes belong to the REST API and are
+refused at the IMAP door. The scope *reads as* full mail access; this product never writes
+through it (the source connector has no write path, and Gmail is never a migration target),
+but unlike Drive's `drive.readonly` that is a property of the product, not one Google
+enforces. It is stated here because pretending otherwise is a lie an audit finds in a minute.
+
+Mint the refresh token exactly as in step 4, with two changes:
+
+1. The scope box gets `https://mail.google.com/` instead of the Drive scope.
+2. Sign in as the **Gmail account being migrated**.
+
+**A Drive-consented token will not work.** A refresh token carries the scopes it was
+consented with, and one minted for `drive.readonly` answers `invalid_scope` the first time a
+mail token is requested. That is why the appliance stores the mail token under its own name:
+
+```sh
+GOOGLE_CLIENT_ID=…apps.googleusercontent.com   # the same client as Drive
+GOOGLE_CLIENT_SECRET=…                          # the same secret as Drive
+GOOGLE_MAIL_REFRESH_TOKEN=…                     # the MAIL-consented token
+```
+
+Managed — the same three, entered in the create-mapping wizard (a **Gmail** source: client ID
+on the source step; client secret and refresh token on the credentials step). Stored
+encrypted on the source connection as `clientId`, `clientSecret`, `refreshToken`.
+
+The mapping needs only the address, because everything else is fixed by Google:
+
+```json
+"source": { "type": "gmail", "user": "owner@example.com" }
+```
+
+**What happens to labels.** Gmail's IMAP surface presents each label as a folder, and those
+migrate as folders. It also presents three *views* that contain other folders' messages
+again — All Mail, Starred and Important. Copying those would duplicate every message once
+per view it appears in, so Open-Migrate drops the three views (recognised by Google's own
+`\All`/`\Flagged`/`\Important` attributes, which survive localisation) and migrates
+everything real: INBOX, your labels, Sent, Drafts. Trash and Spam are excluded from the copy
+by default like every other IMAP source, while the bin is still read for deletion evidence.
+A message carrying several labels appears in several folders, but the ledger keys mail by
+Message-ID, so it is **copied once** — into the folder where a pass first sees it. A later
+sighting under another label is never re-copied; it can surface in the **Moves** queue as a
+source-side placement report, which is information, not action. If your labelling is heavy,
+expect that queue to describe Gmail's labels rather than anything you did.
 
 ## What a Drive migration does not do yet
 

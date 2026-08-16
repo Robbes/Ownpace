@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest';
 import {
   TARGET_TYPE_DOMAINS,
   incoherentTargetDomains,
+  sourceDomainRefusal,
   targetDomainRefusal,
 } from './target-domains';
 
@@ -56,5 +57,37 @@ describe('targetDomainRefusal', () => {
     const msg = targetDomainRefusal('imap', ['email', 'calendar', 'file']);
     expect(msg).toContain("'calendar', 'file'");
     expect(msg).toContain('data types');
+  });
+});
+
+describe('sourceDomainRefusal — the source-side matrix', () => {
+  it('places no constraint on the O365-family mail sources', () => {
+    // Their connection is the combined one the DAV domains discover against.
+    for (const type of ['imap', 'oauth2', 'graph'] as const) {
+      expect(sourceDomainRefusal(type, ['email', 'calendar', 'contact', 'file'])).toBeNull();
+    }
+  });
+
+  it('is null for every coherent Google combination', () => {
+    expect(sourceDomainRefusal('google-drive', ['file'])).toBeNull();
+    expect(sourceDomainRefusal('gmail', ['email'])).toBeNull();
+  });
+
+  it('drive + email keeps the wording the wizard and API render verbatim', () => {
+    const msg = sourceDomainRefusal('google-drive', ['file', 'email']);
+    expect(msg).toContain('Google Drive');
+    expect(msg).toContain('Drive API only');
+    expect(msg).toContain('separate mapping');
+  });
+
+  it('gmail + file names the mail scope, in its own honest sentence (workplan 0044)', () => {
+    // Not Drive's sentence with the name swapped: Gmail's credential is scoped
+    // to a mailbox, not an API, and the refusal says which consent it carries.
+    const msg = sourceDomainRefusal('gmail', ['email', 'file']);
+    expect(msg).toContain('Gmail');
+    expect(msg).toContain('mail only');
+    expect(msg).toContain('https://mail.google.com/');
+    expect(msg).toContain("'file'");
+    expect(msg).toContain('separate mapping');
   });
 });

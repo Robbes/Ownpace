@@ -86,19 +86,35 @@ export function targetDomainRefusal(
 /**
  * The wizard's SOURCE vocabulary (mirrors CreateMappingSchema.sourceType).
  *
- * Sources joined this file with `google-drive` (workplan 0042): the three mail
- * sources place no constraint here — their connection is the combined one the
- * DAV domains discover against, so any domain may ride it — but a Drive
- * connection holds OAuth credentials for exactly one API, and every other
- * domain would be aimed at a provider that does not serve it.
+ * Sources joined this file with `google-drive` (workplan 0042): the three
+ * O365-family mail sources place no constraint here — their connection is the
+ * combined one the DAV domains discover against, so any domain may ride it —
+ * but a Google connection holds OAuth credentials for exactly one API, and
+ * every other domain would be aimed at a provider that does not serve it.
+ * `gmail` (workplan 0044) constrains for the same reason: its refresh token is
+ * consented with the mail scope, which reads mailboxes and nothing else.
  */
-export type WizardSourceType = 'imap' | 'oauth2' | 'graph' | 'google-drive';
+export type WizardSourceType = 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail';
 
 /** Domains a wizard source can serve, where the source constrains it at all. */
 export const SOURCE_TYPE_DOMAINS: Partial<
   Record<WizardSourceType, ReadonlyArray<DiscoveryDomain>>
 > = {
   'google-drive': ['file'],
+  gmail: ['email'],
+};
+
+/**
+ * How each constrained source is named and explained in its refusal. The
+ * `reads` clause completes "its OAuth credential reads …" — per type, because
+ * the honest explanation differs: Drive's credential is scoped to an API,
+ * Gmail's to a mailbox.
+ */
+const CONSTRAINED_SOURCE_PROSE: Partial<
+  Record<WizardSourceType, { name: string; reads: string }>
+> = {
+  'google-drive': { name: 'Google Drive', reads: 'the Drive API only' },
+  gmail: { name: 'Gmail', reads: 'mail only (the https://mail.google.com/ scope)' },
 };
 
 /**
@@ -113,14 +129,15 @@ export function sourceDomainRefusal(
   domains: ReadonlyArray<DiscoveryDomain>,
 ): string | null {
   const allowed = SOURCE_TYPE_DOMAINS[sourceType];
-  if (!allowed) return null;
+  const prose = CONSTRAINED_SOURCE_PROSE[sourceType];
+  if (!allowed || !prose) return null;
   const bad = domains.filter((d) => !allowed.includes(d));
   if (bad.length === 0) return null;
   const badList = bad.map((d) => `'${d}'`).join(', ');
   const allowedList = allowed.map((d) => `'${d}'`).join(', ');
   return (
-    `A Google Drive source cannot provide the ${badList} data type${bad.length > 1 ? 's' : ''} — ` +
-    `its OAuth credential reads the Drive API only, which carries ${allowedList}. Create a ` +
+    `A ${prose.name} source cannot provide the ${badList} data type${bad.length > 1 ? 's' : ''} — ` +
+    `its OAuth credential reads ${prose.reads}, which carries ${allowedList}. Create a ` +
     'separate mapping for the other data types, with a source that serves them.'
   );
 }

@@ -551,3 +551,96 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
     expect(emailCard).toBeDisabled();
   });
 });
+
+describe('CreateMapping — a Gmail source (workplan 0044)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('selecting Gmail pins the email domain, keeps a mail-capable target, and walks to submit', async () => {
+    createMock.mockResolvedValue({ id: 'map-gmail' } as never);
+    renderWizard();
+
+    // Step 1 — Source: the fifth card. Choosing it pins email and a
+    // mail-capable target, and the setup note warns about the ONE mistake
+    // waiting to happen: a Drive-consented token does not mint mail tokens.
+    fireEvent.click(screen.getByRole('button', { name: /Gmail/ }));
+    expect(screen.getByText(/mail\.google\.com/)).toBeInTheDocument();
+    // No host/port — Gmail's endpoint is fixed; the OAuth client ID gates.
+    expect(screen.queryByPlaceholderText('imap.example.com')).not.toBeInTheDocument();
+    expect(nextButton()).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
+      target: { value: 'cid.apps.googleusercontent.com' },
+    });
+    fireEvent.click(nextButton());
+
+    // Step 2 — Target: the preselected jmap survives (it carries email).
+    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+      target: { value: 'stalwart.acme.example' },
+    });
+    fireEvent.click(nextButton());
+
+    // Step 3 — Name & credentials: client secret + refresh token gate, the
+    // same Google credential shape Drive collects.
+    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+      target: { value: 'Acme mail' },
+    });
+    const usernames = screen.getAllByPlaceholderText('user@example.com');
+    fireEvent.change(usernames[0]!, { target: { value: 'owner@gmail.com' } });
+    fireEvent.change(usernames[1]!, { target: { value: 'owner@acme.example' } });
+    const secrets = screen.getAllByPlaceholderText('••••••••');
+    fireEvent.change(secrets[0]!, { target: { value: 'client-secret' } });
+    expect(nextButton()).toBeDisabled(); // the refresh token still gates
+    fireEvent.change(screen.getByPlaceholderText('1//…'), {
+      target: { value: '1//mail-refresh' },
+    });
+    fireEvent.change(secrets[1]!, { target: { value: 'target-pass' } });
+    fireEvent.click(nextButton());
+
+    // Step 4 — Data types (email pinned), Step 5 — Schedule, Step 6 — Review.
+    fireEvent.click(nextButton());
+    fireEvent.click(nextButton());
+    fireEvent.click(nextButton());
+
+    await waitFor(() => expect(createMock).toHaveBeenCalled());
+    const posted = createMock.mock.calls[0]![0] as unknown as Record<string, unknown>;
+    expect(posted.sourceType).toBe('gmail');
+    expect(posted.targetType).toBe('jmap');
+    expect(posted.sourceConfig).toMatchObject({
+      username: 'owner@gmail.com',
+      clientId: 'cid.apps.googleusercontent.com',
+      clientSecret: 'client-secret',
+      refreshToken: '1//mail-refresh',
+    });
+    // No host fabricated, and no Drive-only root folder either.
+    expect(posted.sourceConfig).not.toHaveProperty('host');
+    expect(posted.sourceConfig).not.toHaveProperty('rootFolderId');
+    expect((posted.syncConfig as { domains: string[] }).domains).toEqual(['email']);
+  });
+
+  it('domains beyond email are not offerable for a Gmail source', () => {
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /Gmail/ }));
+    fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
+      target: { value: 'cid' },
+    });
+    fireEvent.click(nextButton());
+    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+      target: { value: 'stalwart.acme.example' },
+    });
+    fireEvent.click(nextButton());
+    fireEvent.change(screen.getByPlaceholderText('My Migration'), { target: { value: 'x' } });
+    const users = screen.getAllByPlaceholderText('user@example.com');
+    fireEvent.change(users[0]!, { target: { value: 'a@gmail.com' } });
+    fireEvent.change(users[1]!, { target: { value: 'd@e.f' } });
+    const secrets = screen.getAllByPlaceholderText('••••••••');
+    fireEvent.change(secrets[0]!, { target: { value: 's' } });
+    fireEvent.change(screen.getByPlaceholderText('1//…'), { target: { value: 'r' } });
+    fireEvent.click(nextButton());
+
+    // Files is ruled out by the SOURCE even though the target (jmap) carries
+    // it: the mail-scoped credential cannot read a Drive.
+    const fileCard = screen.getByRole('button', { name: /File/ });
+    expect(fileCard).toBeDisabled();
+  });
+});

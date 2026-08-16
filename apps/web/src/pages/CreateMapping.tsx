@@ -41,7 +41,7 @@ type Domain = 'email' | 'calendar' | 'contact' | 'file';
 
 interface FormData {
   name: string;
-  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive';
+  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail';
   targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav';
   sourceHost: string;
   /** Kept as the raw INPUT string (0037 T3): parseInt on change turned a
@@ -192,6 +192,13 @@ const CreateMapping: React.FC = () => {
                 ? { rootFolderId: formData.sourceRootFolderId.trim() }
                 : {}),
             }
+          : isGmailSource
+          ? {
+              username: formData.sourceUsername,
+              clientId: formData.sourceClientId,
+              clientSecret: formData.sourceClientSecret,
+              refreshToken: formData.sourceRefreshToken,
+            }
           : isO365Source
           ? {
               username: formData.sourceUsername,
@@ -264,6 +271,11 @@ const CreateMapping: React.FC = () => {
   // refresh token and no tenant.
   const isO365Source = formData.sourceType === 'oauth2' || formData.sourceType === 'graph';
   const isDriveSource = formData.sourceType === 'google-drive';
+  // gmail (workplan 0044) shares Drive's credential SHAPE — a Google OAuth
+  // client and a refresh token — but not its domain: the token is consented
+  // with the mail scope, so the source serves email and nothing else.
+  const isGmailSource = formData.sourceType === 'gmail';
+  const isGoogleSource = isDriveSource || isGmailSource;
 
   /** The problem with a non-empty custom cron, or null (empty = default). */
   const cronProblem = (): string | null =>
@@ -279,7 +291,7 @@ const CreateMapping: React.FC = () => {
   const canProceed = () => {
     switch (steps[currentStep].id) {
       case 'source':
-        if (isDriveSource) return formData.sourceClientId.trim() !== '';
+        if (isGoogleSource) return formData.sourceClientId.trim() !== '';
         return isO365Source
           ? formData.sourceTenantId.trim() !== '' && formData.sourceClientId.trim() !== ''
           : Boolean(formData.sourceHost) && isValidPort(formData.sourcePort);
@@ -290,7 +302,7 @@ const CreateMapping: React.FC = () => {
           formData.name.trim() !== '' &&
           Boolean(formData.sourceUsername && formData.targetUsername) &&
           (!isO365Source || formData.sourceClientSecret !== '') &&
-          (!isDriveSource ||
+          (!isGoogleSource ||
             (formData.sourceClientSecret !== '' && formData.sourceRefreshToken !== ''))
         );
       case 'data-types':
@@ -313,7 +325,7 @@ const CreateMapping: React.FC = () => {
     const out: string[] = [];
     switch (steps[currentStep].id) {
       case 'source':
-        if (isDriveSource) {
+        if (isGoogleSource) {
           if (formData.sourceClientId.trim() === '') out.push(t('wizard.clientId'));
         } else if (isO365Source) {
           if (formData.sourceTenantId.trim() === '') out.push(t('wizard.tenantId'));
@@ -331,7 +343,7 @@ const CreateMapping: React.FC = () => {
         if (formData.name.trim() === '') out.push(t('wizard.migrationName'));
         if (!formData.sourceUsername) out.push(t('wizard.sourceUsername'));
         if (isO365Source && formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
-        if (isDriveSource) {
+        if (isGoogleSource) {
           if (formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
           if (formData.sourceRefreshToken === '') out.push(t('wizard.refreshToken'));
         }
@@ -396,17 +408,19 @@ const CreateMapping: React.FC = () => {
                       name: 'Google Drive',
                       hintKey: 'wizard.proto.googleDrive.hint',
                     },
+                    { id: 'gmail', name: 'Gmail', hintKey: 'wizard.proto.gmail.hint' },
                   ] as const
                 ).map((type) => (
                   <button
                     key={type.id}
                     onClick={() =>
-                      // A Drive credential reads exactly one API, so choosing it
-                      // also chooses the file domain — the same constraint the
+                      // A Google credential reads exactly one API, so choosing
+                      // it also chooses that domain — the same constraint the
                       // server refuses by name (sourceDomainRefusal). Setting it
                       // here spares the data-types step a dead end; switching
                       // AWAY leaves the selection alone, which the matrices then
-                      // re-police.
+                      // re-police. Drive pins the file domain and a file-capable
+                      // target; Gmail pins email and a mail-capable one.
                       type.id === 'google-drive'
                         ? setFormData((prev) => ({
                             ...prev,
@@ -417,7 +431,17 @@ const CreateMapping: React.FC = () => {
                                 ? prev.targetType
                                 : 'webdav',
                           }))
-                        : updateField('sourceType', type.id)
+                        : type.id === 'gmail'
+                          ? setFormData((prev) => ({
+                              ...prev,
+                              sourceType: type.id,
+                              domains: ['email'],
+                              targetType:
+                                prev.targetType === 'jmap' || prev.targetType === 'imap'
+                                  ? prev.targetType
+                                  : 'jmap',
+                            }))
+                          : updateField('sourceType', type.id)
                     }
                     className={`p-4 border-2 rounded-lg text-left transition-colors ${
                       formData.sourceType === type.id
@@ -450,9 +474,34 @@ const CreateMapping: React.FC = () => {
                   {t('wizard.source.driveSetup')}
                 </p>
               )}
+              {/* Workplan 0044: the same Google OAuth client as Drive, but the
+                  refresh token must be consented with the mail scope — the one
+                  mistake this box exists to prevent. */}
+              {isGmailSource && (
+                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  {t('wizard.source.gmailSetup')}
+                </p>
+              )}
             </div>
 
-            {isDriveSource ? (
+            {isGmailSource ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.clientId')}
+                    <Required />
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.sourceClientId}
+                    onChange={(e) => updateField('sourceClientId', e.target.value)}
+                    className="input w-full"
+                    placeholder="…apps.googleusercontent.com"
+                  />
+                </div>
+              </div>
+            ) : isDriveSource ? (
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -723,23 +772,23 @@ const CreateMapping: React.FC = () => {
                         mailbox password — labeled as what it is, and required:
                         without it the client-credentials flow cannot mint a
                         single token. */}
-                    {isO365Source || isDriveSource
+                    {isO365Source || isGoogleSource
                       ? t('wizard.sourceClientSecret')
                       : t('wizard.sourcePassword')}
-                    {(isO365Source || isDriveSource) && <Required />}
+                    {(isO365Source || isGoogleSource) && <Required />}
                   </label>
                   <div className="relative">
                     <input
                       type={showSourcePassword ? 'text' : 'password'}
                       autoComplete="new-password"
                       value={
-                        isO365Source || isDriveSource
+                        isO365Source || isGoogleSource
                           ? formData.sourceClientSecret
                           : formData.sourcePassword
                       }
                       onChange={(e) =>
                         updateField(
-                          isO365Source || isDriveSource ? 'sourceClientSecret' : 'sourcePassword',
+                          isO365Source || isGoogleSource ? 'sourceClientSecret' : 'sourcePassword',
                           e.target.value,
                         )
                       }
@@ -757,7 +806,7 @@ const CreateMapping: React.FC = () => {
                   </div>
                 </div>
 
-                {isDriveSource && (
+                {isGoogleSource && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       {t('wizard.refreshToken')}
@@ -964,9 +1013,11 @@ const CreateMapping: React.FC = () => {
                         ? formData.sourceRootFolderId
                           ? `(${formData.sourceRootFolderId})`
                           : `(${t('wizard.review.myDrive')})`
-                        : isO365Source
-                          ? `(${formData.sourceTenantId})`
-                          : `(${formData.sourceHost}:${formData.sourcePort})`}
+                        : isGmailSource
+                          ? `(${formData.sourceUsername})`
+                          : isO365Source
+                            ? `(${formData.sourceTenantId})`
+                            : `(${formData.sourceHost}:${formData.sourcePort})`}
                     </dd>
                   </div>
                   <div>

@@ -229,6 +229,9 @@ export class ImapFlowSource implements SourceConnector {
       // see the header. `flags` is a Set here and an array in node-imap; the
       // contents are the same attributes.
       specialUse: mapImapSpecialUse([...(box.flags ?? [])]),
+      // And the attributes themselves, for consumers whose question is not one
+      // of the six roles — see MailFolder.listAttributes.
+      listAttributes: [...(box.flags ?? [])],
     }));
   }
 
