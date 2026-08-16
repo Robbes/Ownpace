@@ -41,7 +41,16 @@
  * natural key cannot represent at all).
  */
 
-import type { FileSource, FileFolder, FileItem, RawFileItem, SyncCursor } from '@openmig/shared';
+import {
+  permissionsNotDiscoverable,
+  type FileSource,
+  type FileFolder,
+  type FileItem,
+  type PermissionGrant,
+  type PermissionListing,
+  type RawFileItem,
+  type SyncCursor,
+} from '@openmig/shared';
 import {
   DRIVE_FOLDER_MIME,
   GOOGLE_NATIVE_PREFIX,
@@ -316,6 +325,108 @@ export class GoogleDriveSource implements FileSource {
       pageToken = page.nextPageToken;
     } while (pageToken);
     return found;
+  }
+
+  /**
+   * Everything this account OWNS that somebody else can reach (workplan 0029,
+   * the Google half) — the outbound-share inventory feeding the §14.2
+   * permission report.
+   *
+   * ONE paged `files.list` over `'me' in owners`, permissions riding along in
+   * the fields — Drive populates `permissions` on owned My-Drive files, so
+   * this never becomes a per-file crawl the way the Graph scan's second phase
+   * is. Scope is exactly that: files the account owns. A shared DRIVE's
+   * membership is drive-level and its files are owned by the drive, not the
+   * account, so nothing here speaks for shared drives — the report's
+   * blind-spot section and the docs say so rather than letting this listing
+   * read as the whole picture (hard rule 9).
+   *
+   * The owner's own permission row is skipped (it is not a share); an
+   * `anyone` grant is flagged `viaLink` — "anyone with the link" is the
+   * finding an owner most often does not know about. `raw` keeps Drive's own
+   * fields verbatim, exactly as the Graph scan keeps Graph's.
+   *
+   * Capped like the Graph scan, and a hit cap answers `not_discoverable`,
+   * never a short list dressed as the whole one.
+   */
+  async listOwnedShareGrants(options?: { maxSharedItems?: number }): Promise<PermissionListing> {
+    const maxItems = options?.maxSharedItems ?? 500;
+    const q = `'me' in owners and trashed=false`;
+    const fields =
+      'nextPageToken,files(id,name,shared,permissions(id,type,role,emailAddress,domain,displayName,allowFileDiscovery))';
+
+    const grants: PermissionGrant[] = [];
+    let sharedItems = 0;
+    let pageToken: string | undefined;
+    let pages = 0;
+    try {
+      do {
+        if (++pages > 100) {
+          return {
+            kind: 'not_discoverable',
+            reason: permissionsNotDiscoverable(
+              'the Drive listing did not stop paging after 100 pages — refusing to report a ' +
+                'partial set as complete',
+            ),
+          };
+        }
+        const url =
+          `${this.baseUrl}/files?q=${encodeURIComponent(q)}&pageSize=100` +
+          `&fields=${encodeURIComponent(fields)}` +
+          (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '');
+        const page = (await this.getJson(url)) as {
+          files?: Array<{
+            id: string;
+            name: string;
+            shared?: boolean;
+            permissions?: Array<{
+              type?: string;
+              role?: string;
+              emailAddress?: string;
+              domain?: string;
+              displayName?: string;
+              allowFileDiscovery?: boolean;
+            }>;
+          }>;
+          nextPageToken?: string;
+        };
+        for (const file of page.files ?? []) {
+          const shares = (file.permissions ?? []).filter((p) => p.role !== 'owner');
+          if (shares.length === 0) continue;
+          if (++sharedItems > maxItems) {
+            return {
+              kind: 'not_discoverable',
+              reason: permissionsNotDiscoverable(
+                `more than ${maxItems} owned items are shared, which is more than this report ` +
+                  'can inventory. The list would be partial, and a partial list read as ' +
+                  'complete is how a share nobody knew about survives a cutover',
+              ),
+            };
+          }
+          for (const perm of shares) {
+            const grantee =
+              perm.emailAddress ??
+              perm.domain ??
+              (perm.type === 'anyone' ? undefined : perm.displayName);
+            grants.push({
+              subject: 'drive_item',
+              on: file.name,
+              role: perm.role ?? 'unknown',
+              ...(grantee ? { grantee } : {}),
+              ...(perm.type === 'anyone' ? { viaLink: true } : {}),
+              raw: JSON.stringify({ fileId: file.id, ...perm }),
+            });
+          }
+        }
+        pageToken = page.nextPageToken;
+      } while (pageToken);
+    } catch (err) {
+      return {
+        kind: 'not_discoverable',
+        reason: permissionsNotDiscoverable(err instanceof Error ? err.message : String(err)),
+      };
+    }
+    return { kind: 'listed', grants };
   }
 
   async listTrashedPaths(): Promise<ReadonlyArray<string>> {

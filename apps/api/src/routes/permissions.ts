@@ -31,7 +31,7 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import { authenticate } from '../middleware/auth';
 import type { AuthenticatedRequest } from '../types/api';
-import { log } from '@openmig/shared';
+import { log, permissionsNotDiscoverable, type PermissionListing } from '@openmig/shared';
 import {
   createTokenProvider,
   directoryAvailability,
@@ -43,6 +43,11 @@ import {
   type HttpClient,
 } from '@openmig/connectors';
 import { runPermissionInventory } from '@openmig/core';
+import { SecretStore } from '@openmig/core/secret-store';
+import {
+  buildGoogleDriveSourceFrom,
+  STORED_GOOGLE_CREDENTIAL_NAMES,
+} from '@openmig/orchestration/drive-source-factory';
 import { Pool } from 'pg';
 
 const router = Router();
@@ -122,6 +127,20 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
     const graphTenantId = (rows[0]?.config as { tenantId?: string } | undefined)?.tenantId;
     const available = directoryAvailability(process.env, graphTenantId);
 
+    // A Google Drive source (workplan 0029, the Google half): its outbound
+    // shares are readable with the Drive scope the connection already holds —
+    // no extra consent decision, unlike Files.Read.All. When the tenant's
+    // file source is Drive, the drive section scans Drive; a tenant carrying
+    // BOTH an o365 and a google-drive source gets the Drive answer for the
+    // file section (its files are the ones migrating through this tool) and
+    // the Graph answer for calendars.
+    const { rows: driveRows } = await pool().query<{ secret_ref: string | null; config: unknown }>(
+      `SELECT secret_ref, config FROM connection
+        WHERE tenant_id = $1 AND role = 'source' AND kind = 'google-drive' LIMIT 1`,
+      [tenantId],
+    );
+    const googleDriveConnection = driveRows[0];
+
     // The delegation sentence is always in the report; the scans are only
     // attempted when the connection can actually make them.
     const delegation = mailboxDelegations();
@@ -149,8 +168,43 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
               httpClient,
               scanOptions,
             )
-          : { kind: 'not_discoverable' as const, reason: available.reason },
+          : googleDriveConnection && !graphTenantId
+            ? {
+                // A Google tenant would otherwise get a Graph-worded reason
+                // about an app registration it never had — a wrong errand.
+                kind: 'not_discoverable' as const,
+                reason: permissionsNotDiscoverable(
+                  'Google Calendar sharing is not yet read by this tool — the Drive scan ' +
+                    'covers files only. Capture calendar sharing by hand before cutover',
+                ),
+              }
+            : { kind: 'not_discoverable' as const, reason: available.reason },
       scanDrive: async () => {
+        if (googleDriveConnection) {
+          try {
+            const config = (googleDriveConnection.config ?? {}) as {
+              credentials?: Record<string, string>;
+            };
+            const creds = googleDriveConnection.secret_ref
+              ? SecretStore.decryptCredentials(googleDriveConnection.secret_ref)
+              : (config.credentials ?? {});
+            const source = buildGoogleDriveSourceFrom(
+              {},
+              creds,
+              STORED_GOOGLE_CREDENTIAL_NAMES,
+            ) as unknown as {
+              listOwnedShareGrants(): Promise<PermissionListing>;
+            };
+            return await source.listOwnedShareGrants();
+          } catch (err) {
+            return {
+              kind: 'not_discoverable' as const,
+              reason: permissionsNotDiscoverable(
+                err instanceof Error ? err.message : String(err),
+              ),
+            };
+          }
+        }
         // The consent decision answers first, because it holds whatever the
         // credentials say: a deployment without `Files.Read.All` would get a
         // 403 here, and a 403 reads as a fault to fix rather than a choice.

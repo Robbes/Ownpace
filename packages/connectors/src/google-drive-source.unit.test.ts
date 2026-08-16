@@ -490,3 +490,86 @@ describe('listTrashedPaths — the bin as positive deletion evidence', () => {
     expect(decodeURIComponent(listing.url)).toContain("trashed=true and mimeType!=");
   });
 });
+
+describe('listOwnedShareGrants (workplan 0029, the Google half)', () => {
+  const SHARES_LIST = "q='me'%20in%20owners";
+
+  it('maps Drive permissions to grants: owner row skipped, anyone flagged as a link', async () => {
+    const { transport, calls } = fakeDrive({
+      [SHARES_LIST]: {
+        files: [
+          {
+            id: 'f-1',
+            name: 'budget.xlsx',
+            shared: true,
+            permissions: [
+              { type: 'user', role: 'owner', emailAddress: 'me@example.nl' },
+              { type: 'user', role: 'writer', emailAddress: 'anna@example.nl' },
+              { type: 'anyone', role: 'reader', allowFileDiscovery: false },
+              { type: 'domain', role: 'commenter', domain: 'example.nl' },
+            ],
+          },
+          // Unshared: only the owner can reach it — nothing to act on.
+          { id: 'f-2', name: 'private.txt', permissions: [{ type: 'user', role: 'owner' }] },
+        ],
+      },
+    });
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE });
+
+    const listing = await source.listOwnedShareGrants();
+
+    expect(listing.kind).toBe('listed');
+    if (listing.kind !== 'listed') return;
+    expect(listing.grants).toHaveLength(3);
+    const [person, link, domain] = listing.grants;
+    expect(person).toMatchObject({
+      subject: 'drive_item',
+      on: 'budget.xlsx',
+      role: 'writer',
+      grantee: 'anna@example.nl',
+    });
+    expect(person!.viaLink).toBeUndefined();
+    // "Anyone with the link" is the finding an owner most often does not
+    // know about — it must never flatten into the list of names.
+    expect(link).toMatchObject({ role: 'reader', viaLink: true });
+    expect(link!.grantee).toBeUndefined();
+    expect(domain).toMatchObject({ role: 'commenter', grantee: 'example.nl' });
+    // raw keeps Drive's own fields verbatim, file id included.
+    expect(JSON.parse(person!.raw)).toMatchObject({ fileId: 'f-1', type: 'user', role: 'writer' });
+    // The query scopes to OWNED, untrashed files — outbound shares only.
+    const asked = decodeURIComponent(calls[0]!.url);
+    expect(asked).toContain("'me' in owners and trashed=false");
+    expect(asked).toContain('permissions(');
+  });
+
+  it('a hit cap answers not_discoverable — never a short list dressed as the whole one', async () => {
+    const shared = (n: number) => ({
+      id: `f-${n}`,
+      name: `file-${n}`,
+      shared: true,
+      permissions: [{ type: 'user', role: 'reader', emailAddress: 'x@example.nl' }],
+    });
+    const { transport } = fakeDrive({
+      [SHARES_LIST]: { files: [shared(1), shared(2), shared(3)] },
+    });
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE });
+
+    const listing = await source.listOwnedShareGrants({ maxSharedItems: 2 });
+
+    expect(listing.kind).toBe('not_discoverable');
+    if (listing.kind !== 'not_discoverable') return;
+    expect(listing.reason).toContain('more than 2');
+  });
+
+  it('a failed listing is a stated blind spot, not an empty inventory (hard rule 9)', async () => {
+    // fakeDrive answers 404 to anything without a route.
+    const { transport } = fakeDrive({});
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE });
+
+    const listing = await source.listOwnedShareGrants();
+
+    expect(listing.kind).toBe('not_discoverable');
+    if (listing.kind !== 'not_discoverable') return;
+    expect(listing.reason).toContain('not "no permissions');
+  });
+});

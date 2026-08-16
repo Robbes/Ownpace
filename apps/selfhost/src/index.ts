@@ -71,7 +71,11 @@ import { buildStatusReport, type MappingStatusInput } from './status';
 import { startTransition, finishTransition } from './lifecycle';
 import { serveUi, UI_MOUNT } from './static-ui';
 import { createVerifyRunner } from './verify-run';
-import { log } from '@openmig/shared';
+import { log, permissionsNotDiscoverable, type PermissionListing } from '@openmig/shared';
+import {
+  buildGoogleDriveSourceFrom,
+  ENV_GOOGLE_CREDENTIAL_NAMES,
+} from '@openmig/orchestration/drive-source-factory';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
 import {
   createFailureStreakGate,
@@ -1344,6 +1348,10 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         const graphSource = mappings
           .map((m) => m.config.source)
           .find((src) => src.type.startsWith('graph-')) as { tenantId?: string } | undefined;
+        // A Google Drive mapping (workplan 0029, the Google half): its
+        // outbound shares are readable with the scope the pass already uses —
+        // same env credential names, no extra consent decision.
+        const hasGoogleDriveSource = mappings.some((m) => m.config.source.type === 'google-drive');
         const available = directoryAvailability(process.env, graphSource?.tenantId);
         const delegation = mailboxDelegations();
         const scanOptions = { applicationPermissions: true } as const;
@@ -1370,8 +1378,41 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           scanCalendars: async () =>
             available.ok
               ? scanCalendarPermissions(mailbox, graphToken(), detectorHttpClient, scanOptions)
-              : { kind: 'not_discoverable' as const, reason: available.reason },
+              : hasGoogleDriveSource && !graphSource
+                ? {
+                    // A Google appliance would otherwise get a Graph-worded
+                    // reason about an app registration it never had.
+                    kind: 'not_discoverable' as const,
+                    reason: permissionsNotDiscoverable(
+                      'Google Calendar sharing is not yet read by this tool — the Drive ' +
+                        'scan covers files only. Capture calendar sharing by hand before cutover',
+                    ),
+                  }
+                : { kind: 'not_discoverable' as const, reason: available.reason },
           scanDrive: async () => {
+            if (hasGoogleDriveSource) {
+              // Same factory and env names as a pass; a refusal (missing
+              // variable, bad consent) arrives verbatim as the blind spot.
+              try {
+                const source = buildGoogleDriveSourceFrom(
+                  {},
+                  {
+                    clientId: process.env.GOOGLE_CLIENT_ID,
+                    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+                    refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
+                  },
+                  ENV_GOOGLE_CREDENTIAL_NAMES,
+                ) as unknown as { listOwnedShareGrants(): Promise<PermissionListing> };
+                return await source.listOwnedShareGrants();
+              } catch (err) {
+                return {
+                  kind: 'not_discoverable' as const,
+                  reason: permissionsNotDiscoverable(
+                    err instanceof Error ? err.message : String(err),
+                  ),
+                };
+              }
+            }
             // The consent decision answers before the credentials do; see
             // `drive-sharing-availability.ts` for why a 403 is the wrong
             // sentence to give somebody here.
