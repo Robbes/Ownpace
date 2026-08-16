@@ -8,10 +8,6 @@ import { applyTargetFolderPrefix,
   type RunShadowPass,
   type SourceConnector,
   type TargetWriter,
-  type Ledger,
-  type CursorStore,
-  type TenantId,
-  type MappingId,
   type ReconcileResult as _ReconcileResult,
   type MailItem,
   type MailFolder,
@@ -211,37 +207,14 @@ export const runShadowPass: RunShadowPass = async (deps) => {
 };
 
 /**
- * Dependency bundle for a shadow pass (DI for the T4 reconcile loop).
- * This is the original type for backward compatibility.
+ * Dependency bundle for a shadow pass — shared's `ReconcileDeps`, re-exported.
+ *
+ * This file carried a field-for-field DUPLICATE of the interface until
+ * 2026-08-16, labeled "the original type for backward compatibility". The
+ * authoritative one has always been shared's — it is what types
+ * `RunShadowPass`, the signature this file implements — and the twin's only
+ * remaining effect was that a field added to one had to be remembered on the
+ * other (targetFolderPrefix was nearly added to only this one). One
+ * definition, re-exported so `@openmig/core`'s surface is unchanged.
  */
-export interface ReconcileDeps {
-  readonly tenantId: TenantId;
-  readonly mappingId: MappingId;
-  readonly source: SourceConnector;
-  readonly target: TargetWriter;
-  readonly ledger: Ledger;
-  /**
-   * Optional cursor persistence: when provided, each folder pass lists only items changed since
-   * the stored cursor and persists the new cursor after the folder completes. Absent -> full scan
-   * (always correct via the ledger, just more work).
-   */
-  readonly cursors?: CursorStore;
-  /** Max messages processed in parallel per folder (default 4). Bounds throughput and peak memory. */
-  readonly concurrency?: number;
-  /** What to do when the destination already holds the message; `'skip'` (adopt) by default. */
-  readonly onCollision?: 'skip' | 'fail';
-  /**
-   * Create every target mailbox under this folder (`MappingConfig.
-   * targetFolderPrefix`). Absent = merge, which is the default and the point:
-   * see the config field for the choice this encodes. Source-side reading —
-   * folder listing, cursors, the ledger's `collection` — never sees it.
-   */
-  readonly targetFolderPrefix?: string;
-  /**
-   * Mail folders to leave behind, by RFC 6154 special-use role.
-   *
-   * Absent means `DEFAULT_EXCLUDE_SPECIAL_USE` — trash and junk. Pass `[]` to
-   * migrate everything. See `MappingConfig.excludeSpecialUse`.
-   */
-  readonly excludeSpecialUse?: ReadonlyArray<SpecialUse>;
-}
+export type { ReconcileDeps } from '@openmig/shared';

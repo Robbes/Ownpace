@@ -27,9 +27,17 @@ const CREDS = {
   refreshToken: '1//refresh',
 };
 
+const token = (accessToken: string) => ({
+  accessToken,
+  tokenType: 'Bearer',
+  expiresAt: Math.floor(Date.now() / 1000) + 3600,
+});
+
 const fakeProvider: TokenProvider = {
-  getToken: async () => 'at-1',
-  refresh: async () => 'at-2',
+  getToken: async () => token('at-1'),
+  refresh: async () => token('at-2'),
+  isTokenValid: () => true,
+  getTokenStatus: () => ({ isValid: true, timeUntilExpiry: 3600 }),
 };
 
 /** A folder as the imapflow source reports it — raw LIST attributes included. */
@@ -149,8 +157,14 @@ describe('the wrapper delegates, explicitly', () => {
   // behaviour under test.
   const inbox = folder('INBOX', []);
   const view = folder('[Gmail]/All Mail', ['\\All']);
-  const item = { messageId: '<m1@x>', folder: inbox, keywords: [], receivedAt: '2026-01-01T00:00:00Z' } as MailItem;
-  const raw = { raw: new Uint8Array([1]) } as unknown as RawMessage;
+  const item: MailItem = {
+    messageId: '<m1@x>',
+    folder: inbox,
+    keywords: [],
+    receivedAt: '2026-01-01T00:00:00Z',
+    sourceRef: 'INBOX:1',
+  };
+  const raw: RawMessage = { item, rfc822: new Uint8Array([1]) };
 
   const innerCalls: string[] = [];
   const inner: SourceConnector = {
@@ -159,8 +173,8 @@ describe('the wrapper delegates, explicitly', () => {
       return [inbox, view];
     },
     listSince: async (f, cursor) => {
-      innerCalls.push(`listSince:${f.path}:${String(cursor)}`);
-      return { items: [item], nextCursor: 'c-2' };
+      innerCalls.push(`listSince:${f.path}:${cursor?.value}`);
+      return { items: [item], nextCursor: { value: 'c-2' } };
     },
     fetch: async (i) => {
       innerCalls.push(`fetch:${i.messageId}`);
@@ -172,7 +186,10 @@ describe('the wrapper delegates, explicitly', () => {
     const wrapped = new GmailFolderView(inner);
 
     expect(await wrapped.listFolders()).toEqual([inbox]);
-    expect(await wrapped.listSince(inbox, 'c-1')).toEqual({ items: [item], nextCursor: 'c-2' });
+    expect(await wrapped.listSince(inbox, { value: 'c-1' })).toEqual({
+      items: [item],
+      nextCursor: { value: 'c-2' },
+    });
     expect(await wrapped.fetch(item)).toBe(raw);
     expect(innerCalls).toEqual(['listFolders', 'listSince:INBOX:c-1', `fetch:<m1@x>`]);
   });
