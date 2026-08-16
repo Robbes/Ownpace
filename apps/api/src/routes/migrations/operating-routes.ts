@@ -40,7 +40,7 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import { and, desc, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
-import { PgLedger, PgCursorStore } from '@openmig/ledger';
+import { PgLedger, PgCursorStore, PgMigrationStatusStore } from '@openmig/ledger';
 import {
   DELETIONS_MEANING,
   DELETION_GUIDANCE,
@@ -49,6 +49,9 @@ import {
   MOVE_GUIDANCE,
   REPORTING_CLOSED,
   MAPPING_LIFECYCLES,
+  buildCompletionReport,
+  buildDomainStatusReports,
+  renderCompletionReportMarkdown,
   finishTransition,
   log,
 } from '@openmig/shared';
@@ -197,6 +200,92 @@ router.get('/:mappingId/moves', authenticate, async (req: AuthenticatedRequest, 
     serverError(res, 'read the moves queue', error);
   }
 });
+
+/**
+ * The migration completion report (workplan 0047): one document saying what
+ * moved, what is waiting on a decision, and what was removed on whose
+ * decision — assembled by the SHARED builder both editions call (rule 5),
+ * from data every screen already shows. `markdown` is the deliverable an
+ * owner downloads and hands over.
+ */
+router.get(
+  '/:mappingId/completion-report',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const s = await scope(req, res);
+      if (!s) return;
+      const tenantId = s.tenantId as TenantId;
+      const mappingId = s.mappingId as MappingId;
+
+      const gathered = await withTenantDb(s.tenantId, pool(), async (db) => {
+        const ledger = new PgLedger(db);
+        const statuses = await new PgMigrationStatusStore(db).getStatus(tenantId, mappingId);
+        const failures = await ledger.listFailures(tenantId, mappingId);
+        const moves = await ledger.listMoves(tenantId, mappingId);
+        const deletions = await ledger.listDeletions(tenantId, mappingId);
+        const mappingRows = await db
+          .select({
+            name: schema.mailboxMapping.name,
+            sourceMailboxId: schema.mailboxMapping.sourceMailboxId,
+            targetMailboxId: schema.mailboxMapping.targetMailboxId,
+          })
+          .from(schema.mailboxMapping)
+          .where(eq(schema.mailboxMapping.id, s.mappingId));
+        const kindFor = async (mailboxId: string | null) => {
+          if (!mailboxId) return 'unknown';
+          const rows = await db
+            .select({ kind: schema.connection.kind })
+            .from(schema.connection)
+            .innerJoin(schema.mailbox, eq(schema.mailbox.connectionId, schema.connection.id))
+            .where(eq(schema.mailbox.id, mailboxId));
+          return rows[0]?.kind ?? 'unknown';
+        };
+        const receipts = await db
+          .select({ action: schema.applyReceipt.action, state: schema.applyReceipt.state })
+          .from(schema.applyReceipt)
+          .where(eq(schema.applyReceipt.mappingId, s.mappingId));
+        return {
+          statuses,
+          failures,
+          moves,
+          deletions,
+          name: mappingRows[0]?.name ?? undefined,
+          sourceType: await kindFor(mappingRows[0]?.sourceMailboxId ?? null),
+          targetType: await kindFor(mappingRows[0]?.targetMailboxId ?? null),
+          receipts,
+        };
+      });
+
+      const report = buildCompletionReport({
+        mappingId: s.mappingId,
+        ...(gathered.name ? { name: gathered.name } : {}),
+        sourceType: gathered.sourceType,
+        targetType: gathered.targetType,
+        lifecycle: s.lifecycle,
+        generatedAt: new Date().toISOString(),
+        domains: buildDomainStatusReports(gathered.statuses, gathered.failures),
+        moves: gathered.moves,
+        deletions: gathered.deletions,
+        failures: gathered.failures,
+        // The receipts ARE this edition's answer to "what was removed": every
+        // destructive outcome landed on one, human-pressed or auto-applied.
+        applied: {
+          deletionsApplied: gathered.receipts.filter(
+            (r) => r.action === 'deletion' && r.state === 'applied',
+          ).length,
+          relocationsApplied: gathered.receipts.filter(
+            (r) => r.action === 'relocation' && r.state === 'applied',
+          ).length,
+          refused: gathered.receipts.filter((r) => r.state === 'refused').length,
+        },
+      });
+      res.json({ report, markdown: renderCompletionReportMarkdown(report) });
+    } catch (error) {
+      serverError(res, 'assemble the completion report', error);
+    }
+  },
+);
 
 router.get('/:mappingId/failures', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {

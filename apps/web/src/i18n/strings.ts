@@ -122,6 +122,7 @@ const en = {
     'https://www.googleapis.com/auth/calendar for Calendar, ' +
     'https://www.googleapis.com/auth/carddav for Contacts. A token consented for another ' +
     'Google product will not work here. docs/google-workspace-setup.md walks through it.',
+  'hub.completionReport': 'Download the completion report (Markdown)',
   'wizard.testConnections': 'Test connections',
   'wizard.testing': 'Testing…',
   'wizard.testConnections.hint':
@@ -801,6 +802,7 @@ const nl: Record<keyof typeof en, string> = {
     'product: https://www.googleapis.com/auth/calendar voor Agenda, ' +
     'https://www.googleapis.com/auth/carddav voor Contacten. Een token dat voor een ander ' +
     'Google-product is toegestemd werkt hier niet. docs/google-workspace-setup.md behandelt dit.',
+  'hub.completionReport': 'Download het opleveringsrapport (Markdown)',
   'wizard.testConnections': 'Verbindingen testen',
   'wizard.testing': 'Testen…',
   'wizard.testConnections.hint':

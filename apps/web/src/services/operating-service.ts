@@ -354,6 +354,20 @@ export async function setApplyDeletionsFlag(
   }
 }
 
+/**
+ * The migration completion report (workplan 0047): the shared builder's
+ * output plus its Markdown rendering — the document an owner downloads.
+ */
+export async function fetchCompletionReport(
+  mappingId: string,
+): Promise<{ report: unknown; markdown: string }> {
+  return (
+    await client.get<{ report: unknown; markdown: string }>(
+      `${mappingPath(mappingId)}/completion-report`,
+    )
+  ).data;
+}
+
 /** Accept the target's layout for a moved item, and stop reporting it. */
 export function keepMove(mappingId: string, hash: string): Promise<DecisionAccepted> {
   return decide(`${mappingPath(mappingId)}/moves/${encodeURIComponent(hash)}/keep`);
