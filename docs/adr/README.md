@@ -49,7 +49,8 @@ first.
 | [0027](./0027-windows-packaging-shell.md) | The Windows appliance ships as a service with a shortcut, not a native shell | Accepted — amended three times (2026-08-06 the payload ships its own Node runtime; 2026-08-07 the mechanism is a sche… |
 | [0028](./0028-pglite-appliance-persistence.md) | PGlite as the appliance's embedded persistence (amends ADR-0023) | Accepted (2026-08-01, recording a decision executed in workplan 0016) |
 | [0029](./0029-public-site-is-server-rendered-and-legible.md) | The public site is server-rendered, and legible to assistants | Accepted |
-| [0030](./0030-relocation-is-positive-evidence.md) | A correlated relocation is positive evidence, and may be applied | **Accepted 2026-08-15** (owner decision) — built the same day for the APPLIANCE; the managed edition's queued-job route is deliberately not built, and its UI does not offer the action |
+| [0030](./0030-relocation-is-positive-evidence.md) | A correlated relocation is positive evidence, and may be applied | **Accepted 2026-08-15** (owner decision) — built the same day for the appliance; the managed edition's queued-job route followed 2026-08-16 (receipt discriminator, migration 0010), so both editions now offer the action |
+| [0031](./0031-auto-apply-relocations.md) | Auto-applying relocations — what unattended would require | **Proposed** (awaiting owner decision — no code until accepted) |
 
 ## Reading the statuses
 
