@@ -27,6 +27,7 @@ import {
   log,
   DISTRIBUTION_D_NOT_A_MAPPING,
   targetDomainRefusal,
+  parseTargetFolderPrefix,
   sourceDomainRefusal,
   parseGoogleDriveSource,
   ConfigError,
@@ -193,6 +194,15 @@ const CreateMappingBase = z.object({
     domains: z.array(z.enum(['email', 'calendar', 'contact', 'file'])).default(['email']),
     schedule: z.string().optional(), // Cron expression
   }).default({ domains: ['email'] }),
+  /**
+   * Put everything this mapping writes under one folder on the target (owner
+   * decision 2026-08-16): absent/empty = MERGE, the default and the product's
+   * philosophy; a per-source subfolder (`Gmail`, `O365/mail`) is the opt-in
+   * for owners consolidating several sources who want them kept apart.
+   * Validated by the shared parser, so the appliance's mapping file and this
+   * API refuse the same shapes in the same words.
+   */
+  targetFolderPrefix: z.string().optional(),
   // Mapping-specific fields (for mailbox_mapping table)
   status: z.enum(['active', 'paused', 'cutover', 'done']).optional(),
   /**
@@ -324,6 +334,17 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
           `A '${body.sourceType}' source authenticates with your own Entra app registration ` +
           `(the client-credentials flow): sourceConfig is missing ${missing.join(', ')}. ` +
           'Register the app in your own tenant and grant admin consent — see docs/o365-setup.md.',
+      });
+    }
+  }
+  if (body.targetFolderPrefix !== undefined) {
+    try {
+      parseTargetFolderPrefix(body.targetFolderPrefix);
+    } catch (err) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['targetFolderPrefix'],
+        message: err instanceof ConfigError ? err.message : String(err),
       });
     }
   }
@@ -610,6 +631,9 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
             pattern: body.pattern,
             name: body.name,
             schedule: body.syncConfig.schedule,
+            // Parsed, not raw: '/Gmail/' stores as 'Gmail', and '' as NULL —
+            // the same normalisation the appliance's config loader applies.
+            targetFolderPrefix: parseTargetFolderPrefix(body.targetFolderPrefix) ?? null,
           })
           .returning(),
         'mapping',

@@ -28,6 +28,7 @@ import {
   asTenantId,
   asMappingId,
   fileNaturalKeyHash,
+  mayOfferApply,
   type RawFileItem,
   type UpsertResult,
   type FileFolder,
@@ -44,6 +45,7 @@ interface FakeFile {
   name: string;
   size: string;
   md5Checksum: string;
+  parents?: string[];
 }
 
 /**
@@ -55,7 +57,7 @@ interface FakeFile {
  * how the connector asks shows up as a loud 404, not a silently wrong answer.
  */
 function fakeDrive(initial: FakeFile[]) {
-  const state = { files: initial, listings: 0 };
+  const state = { files: initial, trash: [] as FakeFile[], listings: 0 };
   const transport = async (url: string) => {
     const ok = (body: unknown, bytes?: Uint8Array) => ({
       ok: true,
@@ -65,6 +67,12 @@ function fakeDrive(initial: FakeFile[]) {
       text: async () => '',
     });
     const decoded = decodeURIComponent(url);
+    if (decoded.includes('trashed=true')) {
+      return ok({ files: state.trash });
+    }
+    if (url.includes('/files/root?fields=id')) {
+      return ok({ id: 'drive-root' });
+    }
     if (decoded.includes("mimeType='application/vnd.google-apps.folder'")) {
       return ok({ files: [] }); // a flat root: no subfolders
     }
@@ -156,6 +164,36 @@ describe('a rename in Drive, seen by the pass AFTER the copy (the production cas
     expect(second.drift, 'explained, so not drift').toBe(0);
   });
 
+  it('a file in the BIN is a confirmed deletion at once, with evidence an apply may act on', async () => {
+    // Until `listTrashedPaths` existed for Drive, this exact sequence produced
+    // an `inferred` report two passes later with the apply action permanently
+    // withheld (ADR-0024 gate 3: absence is never enough). The bin is the
+    // owner's own deletion, found where they put it — the same positive
+    // evidence the Nextcloud source has had all along, through the same
+    // capability-based wiring in `runFileSync`.
+    const { state, transport } = fakeDrive([FILE]);
+    const d = deps(new GoogleDriveSource(transport, { baseUrl: BASE }), memoryTarget());
+    await runFileSync(d);
+
+    // The owner bins it. Gone from the listing, present in the trash, parents
+    // intact — which is how Drive actually behaves.
+    state.files = [];
+    state.trash = [{ ...FILE, parents: ['drive-root'] }];
+    const second = await runFileSync(d);
+
+    expect(second.deletions).toHaveLength(1);
+    expect(second.deletions[0]).toMatchObject({
+      domain: 'file',
+      naturalKeyHash: fileNaturalKeyHash('report.pdf'),
+      evidence: 'trashed',
+      confirmed: true,
+    });
+    expect(
+      mayOfferApply(second.deletions[0]!),
+      'the queue may offer the destructive action on this evidence',
+    ).toBe(true);
+  });
+
   it('counts a plain deletion as drift on the following pass', async () => {
     // The other half the broken gate silenced: a file deleted in Drive was
     // never even counted absent, so the deletions queue could never fill.
@@ -167,6 +205,29 @@ describe('a rename in Drive, seen by the pass AFTER the copy (the production cas
     const second = await runFileSync(d);
 
     expect(second.drift).toBe(1);
+  });
+
+  it('a targetFolderPrefix lands every file under it, idempotently, without touching the ledger', async () => {
+    // The merge-or-subfolder choice (owner decision 2026-08-16), proven
+    // through the REAL runFileSync: the prefix changes where the TARGET
+    // creates directories and nothing else — the ledger's collection stays
+    // the source's, which move detection depends on.
+    const { state, transport } = fakeDrive([FILE]);
+    const target = memoryTarget();
+    const d = {
+      ...deps(new GoogleDriveSource(transport, { baseUrl: BASE }), target),
+      targetFolderPrefix: 'gdrive',
+    };
+
+    const first = await runFileSync(d);
+    expect(first.created).toBe(1);
+    expect([...target.stored.keys()]).toEqual(['t/gdrive:report.pdf']);
+
+    const second = await runFileSync(d);
+    expect(second.created, 'still idempotent under a prefix').toBe(0);
+    state.files = [{ ...FILE, name: 'summary.pdf' }];
+    const third = await runFileSync(d);
+    expect(third.moved, 'move detection unbothered by the prefix').toBe(1);
   });
 
   it('does not cost a second Drive listing per folder', async () => {

@@ -343,3 +343,150 @@ describe('listKeys — the complete key set move detection turns on', () => {
     expect(await source.listKeys({ path: '' })).toEqual(['renamed.pdf']);
   });
 });
+
+describe('shared drives are not silently empty', () => {
+  // Without `includeItemsFromAllDrives` + `supportsAllDrives`, a files.list
+  // scoped to a shared-drive parent answers 200 WITH AN EMPTY ARRAY — not an
+  // error. A rootFolderId naming a shared drive (which the setup docs
+  // explicitly support) would then discover zero files and complete every
+  // pass clean, having migrated nothing. These pin the parameters onto every
+  // call shape the connector makes, so removing one is a red test rather
+  // than a customer with an empty migration.
+
+  it('every LISTING asks for shared-drive items', async () => {
+    // Folder queries answer empty — a catch-all here feeds listFolders' walk
+    // the same child forever, which is an OOM, not a test.
+    const { transport, calls } = fakeDrive({
+      'mimeType!%3D': { files: [BINARY] },
+      'mimeType%3D': { files: [] },
+    });
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE });
+
+    await source.listFolders();
+    await source.listSince({ path: '' });
+    await source.listKeys({ path: '' });
+
+    const listings = calls.filter((c) => c.url.includes('/files?q='));
+    expect(listings.length).toBeGreaterThan(0);
+    for (const c of listings) {
+      expect(c.url, 'supportsAllDrives on every listing').toContain('supportsAllDrives=true');
+      expect(c.url, 'includeItemsFromAllDrives on every listing').toContain(
+        'includeItemsFromAllDrives=true',
+      );
+    }
+  });
+
+  it('the metadata read and the download carry supportsAllDrives — a shared-drive file 404s without it', async () => {
+    const { transport, calls } = fakeDrive(
+      { '?fields=id,name,mimeType': BINARY, 'alt=media': {} },
+      new Uint8Array([1, 2, 3]),
+    );
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE });
+
+    await source.fetch({
+      path: 'report.pdf',
+      isDirectory: false,
+      size: 3,
+      modifiedAt: '2026-08-01T10:00:00Z',
+      sourceRef: 'file-1',
+    });
+
+    const meta = calls.find((c) => c.url.includes('?fields=id,name,mimeType'));
+    const media = calls.find((c) => c.url.includes('alt=media'));
+    expect(meta!.url).toContain('supportsAllDrives=true');
+    expect(media!.url).toContain('supportsAllDrives=true');
+    // And NOT the listing-only parameter — files.get does not define it.
+    expect(media!.url).not.toContain('includeItemsFromAllDrives');
+  });
+
+  it('the EXPORT url carries neither — files.export is addressed by id alone', async () => {
+    const { transport, calls } = fakeDrive(
+      { '?fields=id,name,mimeType': NATIVE_DOC, '/export?mimeType=': {} },
+      new Uint8Array([1]),
+    );
+    const source = new GoogleDriveSource(transport, {
+      baseUrl: BASE,
+      nativeFilePolicy: 'export-pdf',
+    });
+
+    await source.fetch({
+      path: 'Notes',
+      isDirectory: false,
+      size: 0,
+      modifiedAt: '2026-08-01T10:00:00Z',
+      sourceRef: 'doc-1',
+    });
+
+    const exp = calls.find((c) => c.url.includes('/export'));
+    expect(exp, 'the export happened').toBeDefined();
+    expect(exp!.url).not.toContain('supportsAllDrives');
+  });
+});
+
+describe('listTrashedPaths — the bin as positive deletion evidence', () => {
+  const ROOT_META = '/files/root?fields=id';
+  const TRASH_LIST = 'trashed%3Dtrue%20and%20mimeType!%3D';
+
+  it('names the ORIGINAL root-relative path, nested folders walked and cached', async () => {
+    const { transport, calls } = fakeDrive({
+      [ROOT_META]: { id: 'root-real' },
+      [TRASH_LIST]: {
+        files: [
+          { id: 'f1', name: 'gone.pdf', parents: ['dir-b'] },
+          { id: 'f2', name: 'also-gone.pdf', parents: ['dir-b'] },
+          { id: 'f3', name: 'top.txt', parents: ['root-real'] },
+        ],
+      },
+      '/files/dir-b?fields=id,name,parents': { id: 'dir-b', name: 'b', parents: ['dir-a'] },
+      '/files/dir-a?fields=id,name,parents': { id: 'dir-a', name: 'a', parents: ['root-real'] },
+    });
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE });
+
+    const paths = await source.listTrashedPaths();
+
+    expect([...paths].sort()).toEqual(['a/b/also-gone.pdf', 'a/b/gone.pdf', 'top.txt']);
+    // The shared ancestry was walked ONCE: two files under dir-b, one lookup.
+    expect(calls.filter((c) => c.url.includes('/files/dir-b?')).length).toBe(1);
+  });
+
+  it('excludes a file whose chain tops out somewhere other than the migration root', async () => {
+    // Another drive, or above a scoped rootFolderId: never in this
+    // migration's scope, so its disappearance is not this mapping's to report.
+    const { transport } = fakeDrive({
+      [TRASH_LIST]: { files: [{ id: 'f1', name: 'other.pdf', parents: ['elsewhere'] }] },
+      '/files/elsewhere?fields=id,name,parents': { id: 'elsewhere', name: 'x' }, // no parents
+    });
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE, rootFolderId: 'scoped-id' });
+
+    expect(await source.listTrashedPaths()).toEqual([]);
+  });
+
+  it('skips ONLY the file behind a permanently-deleted ancestor — one orphan cannot silence the bin', async () => {
+    const { transport } = fakeDrive({
+      [ROOT_META]: { id: 'root-real' },
+      [TRASH_LIST]: {
+        files: [
+          { id: 'f1', name: 'orphan.pdf', parents: ['vanished-dir'] },
+          { id: 'f2', name: 'fine.pdf', parents: ['root-real'] },
+        ],
+      },
+      // no route for vanished-dir → 404 → that chain is unresolvable
+    });
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE });
+
+    expect(await source.listTrashedPaths()).toEqual(['fine.pdf']);
+  });
+
+  it('asks with the all-drives parameters and excludes folders in the QUERY', async () => {
+    const { transport, calls } = fakeDrive({
+      [ROOT_META]: { id: 'root-real' },
+      [TRASH_LIST]: { files: [] },
+    });
+    await new GoogleDriveSource(transport, { baseUrl: BASE }).listTrashedPaths();
+
+    const listing = calls.find((c) => c.url.includes(TRASH_LIST))!;
+    expect(listing.url).toContain('supportsAllDrives=true');
+    expect(listing.url).toContain('includeItemsFromAllDrives=true');
+    expect(decodeURIComponent(listing.url)).toContain("trashed=true and mimeType!=");
+  });
+});

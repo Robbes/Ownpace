@@ -164,10 +164,12 @@ Stated here rather than discovered:
   pass copy nothing — it costs a listing, not a re-copy. (Drive's `changes.list` reports the
   whole drive, and using it per folder would reproduce a defect this product has already paid
   for once; workplan 0042 T1.)
-- **Deletions are never taken from Drive's own signal.** Google sets `removed` for losing
+- **Deletions are never taken from Drive's `removed` signal.** Google sets it for losing
   access and for sharing changes, which are not deletions, and this product treats a reported
-  removal as *known* rather than suspected. So a Drive source reports none, and deletions are
-  detected the slower, corroborated way instead.
+  removal as *known* rather than suspected — so a Drive source still reports none of those.
+  What it DOES read is the owner's **bin**: a file found trashed is a deletion the owner
+  performed, reported at once with positive evidence, and the Deletions queue may offer
+  removing the target's copy on it. An emptied bin falls back to absence-counting.
 - **A moved or renamed file leaves the old copy on the target.** It is detected and reported;
   making the target follow it is [ADR-0030](./adr/0030-relocation-is-positive-evidence.md),
   which is proposed and not yet decided.

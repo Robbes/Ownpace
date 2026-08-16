@@ -188,6 +188,11 @@ export class MemoryTarget implements TargetWriter, TargetReindexer {
     return `${mailboxId}\u0000${messageId}`;
   }
 
+  /** Test window: every mailbox path this target was asked to create. */
+  mailboxNames(): string[] {
+    return [...this.mailboxes.keys()];
+  }
+
   ensureMailbox(folder: MailFolder): Promise<string> {
     const existing = this.mailboxes.get(folder.path);
     if (existing) return Promise.resolve(existing);

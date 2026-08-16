@@ -1493,6 +1493,13 @@ export interface ReconcileDeps {
   /** What to do when the destination already holds the item; `'skip'` (adopt) by default. */
   readonly onCollision?: 'skip' | 'fail';
   /**
+   * Create every target mailbox under this folder — see
+   * `MappingConfig.targetFolderPrefix` for the choice this encodes (merge by
+   * default; a subfolder per source on request). Source-side reading — folder
+   * listing, cursors, the ledger's `collection` — never sees it.
+   */
+  readonly targetFolderPrefix?: string;
+  /**
    * Mail folders to leave behind, by RFC 6154 special-use role.
    *
    * Absent means trash and junk (`DEFAULT_EXCLUDE_SPECIAL_USE`). Pass `[]` to

@@ -225,6 +225,9 @@ export async function buildDepsFromMapping(
     {
       tenantId: tenantId as ReconcileDeps['tenantId'],
       mappingId: mappingId as ReconcileDeps['mappingId'],
+      ...(mappings[0]!.targetFolderPrefix
+        ? { targetFolderPrefix: mappings[0]!.targetFolderPrefix }
+        : {}),
       source,
       target,
       ledger,
@@ -263,12 +266,14 @@ async function loadDomainConnections(
 ): Promise<{
   source: { config: Record<string, unknown>; creds: Record<string, string>; kind: string };
   target: { config: Record<string, unknown>; creds: Record<string, string>; kind: string };
+  targetFolderPrefix?: string;
 }> {
   return withTenant(pool, tenantId, async (txDb) => {
     const mappingRows = await txDb
       .select({
         sourceMailboxId: mailboxMapping.sourceMailboxId,
         targetMailboxId: mailboxMapping.targetMailboxId,
+        targetFolderPrefix: mailboxMapping.targetFolderPrefix,
       })
       .from(mailboxMapping)
       .where(and(eq(mailboxMapping.tenantId, tenantId), eq(mailboxMapping.id, mappingId)));
@@ -316,7 +321,11 @@ async function loadDomainConnections(
       }
       return { config, creds, kind: conn.kind };
     };
-    return { source: await load('source'), target: await load('target') };
+    return {
+      source: await load('source'),
+      target: await load('target'),
+      ...(mapping.targetFolderPrefix ? { targetFolderPrefix: mapping.targetFolderPrefix } : {}),
+    };
   });
 }
 
@@ -355,7 +364,11 @@ export async function buildDomainDepsFromMapping(
     const tId = tenantId as TenantId;
     const mId = mappingId as MappingId;
 
-    const { source: src, target: tgt } = await loadDomainConnections(pool, tenantId, mappingId);
+    const {
+      source: src,
+      target: tgt,
+      targetFolderPrefix,
+    } = await loadDomainConnections(pool, tenantId, mappingId);
     const common = { tenantId: tId, mappingId: mId, ledger, cursors };
     const targetDeps = { ledger, tenantId: tId, mappingId: mId };
 
@@ -404,6 +417,7 @@ export async function buildDomainDepsFromMapping(
       {
         ...common,
         source: fileSource,
+        ...(targetFolderPrefix ? { targetFolderPrefix } : {}),
         // Files can go over JMAP where the target speaks it (0031 T3). Read
         // off the connection's own `kind`, which has allowed `jmap` since the
         // 0001 baseline, so this needs no migration and no new config field.

@@ -118,11 +118,18 @@ export const runApplyDeletionTask = schemaTask({
       // switched off in that window must win.
       const allowRows = await withTenant(pool, tenantId, (db) =>
         db
-          .select({ allow: schemaPg.mailboxMapping.allowApplyDeletions })
+          .select({
+            allow: schemaPg.mailboxMapping.allowApplyDeletions,
+            prefix: schemaPg.mailboxMapping.targetFolderPrefix,
+          })
           .from(schemaPg.mailboxMapping)
           .where(eq(schemaPg.mailboxMapping.id, mappingId)),
       );
       const allowApplyDeletions = allowRows[0]?.allow === true;
+      // Under a prefix the copy lives at prefix/collection while the ledger
+      // records the SOURCE collection — the removal must open the mailbox the
+      // copy is actually in. Same fresh read as the flag, same reason.
+      const targetFolderPrefix = allowRows[0]?.prefix ?? undefined;
 
       // Only the domains the owner SELECTED are probed. Opening deps for a
       // domain the mapping does not migrate is not a harmless no-op: the
@@ -155,6 +162,7 @@ export const runApplyDeletionTask = schemaTask({
               ledger: deps.ledger,
               target: deps.target,
               allowApplyDeletions,
+              ...(targetFolderPrefix ? { targetFolderPrefix } : {}),
             },
             naturalKeyHash,
           );

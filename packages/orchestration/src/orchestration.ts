@@ -384,7 +384,12 @@ export async function runAllDomains(
       } else {
         const deps = buildDomainDeps(config, 'file', ledger);
         try {
-          const result = await runFileSync(deps);
+          const result = await runFileSync({
+            ...deps,
+            ...(config.targetFolderPrefix !== undefined
+              ? { targetFolderPrefix: config.targetFolderPrefix }
+              : {}),
+          });
           outcome = {
             domain,
             scanned: result.scanned,
@@ -877,6 +882,9 @@ export async function applyMappingDeletion(
           ledger: deps.ledger,
           target: deps.target,
           allowApplyDeletions: config.allowApplyDeletions,
+          ...(config.targetFolderPrefix !== undefined
+            ? { targetFolderPrefix: config.targetFolderPrefix }
+            : {}),
         },
         naturalKeyHash,
       );
@@ -936,6 +944,9 @@ export async function applyMappingRelocation(
           ledger: deps.ledger,
           target: deps.target,
           allowApplyDeletions: config.allowApplyDeletions,
+          ...(config.targetFolderPrefix !== undefined
+            ? { targetFolderPrefix: config.targetFolderPrefix }
+            : {}),
         },
         naturalKeyHash,
       );

@@ -69,6 +69,8 @@ interface FormData {
   targetUsername: string;
   targetPassword: string;
   targetSsl: boolean;
+  /** '' = merge into the account root (the default). See wizard.targetPrefix.hint. */
+  targetFolderPrefix: string;
   domains: Domain[];
   schedule: string;
 }
@@ -92,6 +94,7 @@ const initialFormData: FormData = {
   targetUsername: '',
   targetPassword: '',
   targetSsl: true,
+  targetFolderPrefix: '',
   domains: ['email'],
   schedule: '',
 };
@@ -214,6 +217,9 @@ const CreateMapping: React.FC = () => {
           domains: formData.domains,
           schedule: formData.schedule || '0 2 * * *',
         },
+        ...(formData.targetFolderPrefix.trim()
+          ? { targetFolderPrefix: formData.targetFolderPrefix.trim() }
+          : {}),
       };
       createMutation.mutate(mappingData);
     }
@@ -645,6 +651,25 @@ const CreateMapping: React.FC = () => {
                     {t('wizard.useSsl')}
                   </label>
                 </div>
+              </div>
+
+              {/* The merge-or-subfolder choice (owner decision 2026-08-16),
+                  made where the destination is chosen. Empty means MERGE —
+                  the default on purpose — and the hint says what the other
+                  answer is for, so consolidating owners find it here rather
+                  than in a source step that cannot know it is one of two. */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('wizard.targetPrefix')}
+                </label>
+                <input
+                  type="text"
+                  value={formData.targetFolderPrefix}
+                  onChange={(e) => updateField('targetFolderPrefix', e.target.value)}
+                  className="input w-full"
+                  placeholder={t('wizard.targetPrefix.placeholder')}
+                />
+                <p className="mt-1 text-sm text-gray-500">{t('wizard.targetPrefix.hint')}</p>
               </div>
             </div>
           </div>
