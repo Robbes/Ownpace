@@ -210,9 +210,19 @@ export async function buildDepsFromMapping(
       }
     }
   }
-  const throttleLimiter = Object.keys(throttleConfigMapping).length > 0
-    ? createThrottleLimiterFromMapping(throttleConfigMapping)
-    : undefined;
+  // The STORED per-mapping choice (migration 0017) answers first: this
+  // edition's create path never writes `domains`, so until that column
+  // existed the limiter parameter was armed and never fed. The shape is the
+  // appliance's `throttleConfig`, validated by the shared parser at create.
+  const storedThrottle = mappings[0]?.throttleConfig as
+    | Partial<import('@openmig/shared').ThrottleConfig>
+    | null
+    | undefined;
+  const throttleLimiter = storedThrottle
+    ? createThrottleLimiterFromMapping({ mapping: storedThrottle })
+    : Object.keys(throttleConfigMapping).length > 0
+      ? createThrottleLimiterFromMapping(throttleConfigMapping)
+      : undefined;
   
   // Build source connector with decrypted credentials
   const source = buildSourceConnectorFromCredentials(

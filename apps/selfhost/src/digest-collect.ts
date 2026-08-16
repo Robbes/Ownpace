@@ -52,6 +52,8 @@ export interface CollectDeps {
   listFailures(mapping: CollectMapping): Promise<readonly FailureRow[]>;
   /** Relocations auto-applied for this mapping in the digest window (ADR-0031, 0048). */
   countAutoApplied(mapping: CollectMapping): Promise<number>;
+  /** Open sharing-checklist rows for this mapping (ADR-0032, 0052 T6a). */
+  countSharingOpen(mapping: CollectMapping): Promise<number>;
   countPendingDecisions(tenantId: string): Promise<number>;
 }
 
@@ -88,6 +90,11 @@ export async function collectAttention(deps: CollectDeps): Promise<MappingAttent
       () => deps.countAutoApplied(mapping),
       0,
     );
+    const sharingOpen = await guarded(
+      'the sharing checklist',
+      () => deps.countSharingOpen(mapping),
+      0,
+    );
 
     // Once per tenant. The FIRST reportable mapping of a tenant carries the
     // count; the rest report zero rather than repeating it.
@@ -105,6 +112,7 @@ export async function collectAttention(deps: CollectDeps): Promise<MappingAttent
         pendingDecisions,
         status,
         autoApplied,
+        sharingOpen,
         blindSpots,
       }),
     );

@@ -21,8 +21,8 @@ is a stronger guarantee than a promise in a document — it is enforced by Googl
 
 It is a **delegated** credential: it reads the Drive of the person who consents, including the
 shared drives that person can see. There is no service-account / domain-wide-delegation path
-yet; that would read every user's Drive from one credential and needs the same explicit
-scoping decision `o365-setup.md` records for Microsoft's equivalent.
+yet; that would read every user's Drive from one credential, and whether to offer it is now
+**ADR-0033 (Proposed)** — per-user tokens stay the default either way.
 
 ---
 

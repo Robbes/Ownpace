@@ -151,6 +151,13 @@ export interface MappingAttention {
    */
   readonly autoApplied: number;
   /**
+   * Sharing-checklist rows still waiting on a decision (ADR-0032, workplan
+   * 0052 T6a). The checklist is worked AFTER finishing, so these do not block
+   * anything — but a list with open rows the owner forgot is exactly what the
+   * digest exists to prevent.
+   */
+  readonly sharingOpen: number;
+  /**
    * Anything this summary could NOT read, in the server's own words.
    *
    * Present means the digest is INCOMPLETE, and rule 2 above makes that
@@ -204,6 +211,8 @@ export interface QueueReads {
   readonly status: string | undefined;
   /** Relocations auto-applied in the digest window; absent = zero. */
   readonly autoApplied?: number;
+  /** Open sharing-checklist rows; absent = zero. */
+  readonly sharingOpen?: number;
   /** Whatever could not be read, in the server's own words. */
   readonly blindSpots: readonly string[];
 }
@@ -233,6 +242,7 @@ export function summariseQueues(mappingId: string, reads: QueueReads): MappingAt
     failuresWaiting: reads.failures.filter((f) => f.needsDecision).length,
     readyForCutover: reads.status === 'cutover',
     autoApplied: reads.autoApplied ?? 0,
+    sharingOpen: reads.sharingOpen ?? 0,
     ...(reads.blindSpots.length > 0 ? { blindSpots: reads.blindSpots } : {}),
   };
 }
@@ -248,6 +258,7 @@ export function wantsAttention(m: MappingAttention): boolean {
     // Auto-applied removals keep the email alive on their own: an owner whose
     // only news is "3 old copies removed automatically" must receive it.
     m.autoApplied > 0 ||
+    m.sharingOpen > 0 ||
     (m.blindSpots?.length ?? 0) > 0
   );
 }
@@ -294,6 +305,7 @@ interface DigestLines {
   readonly failures: string;
   readonly readyForCutover: string;
   readonly autoApplied: string;
+  readonly sharingOpen: string;
   readonly couldNotRead: string;
   readonly footer: string;
 }
@@ -309,6 +321,7 @@ const LINE: Record<NotificationLocale, DigestLines> = {
     readyForCutover: 'checked and ready to finish',
     autoApplied:
       'old copies of moved or renamed files removed automatically (auto-apply — each is recorded)',
+    sharingOpen: 'rows open on the sharing checklist',
     couldNotRead: 'COULD NOT BE READ — this summary is incomplete:',
     footer:
       'You are receiving this because Open Migrate is configured to send you a summary. ' +
@@ -324,6 +337,7 @@ const LINE: Record<NotificationLocale, DigestLines> = {
     readyForCutover: 'gecontroleerd en klaar om af te ronden',
     autoApplied:
       'oude kopieën van verplaatste of hernoemde bestanden automatisch verwijderd (automatisch toepassen — elk is vastgelegd)',
+    sharingOpen: 'regels open op de deel-checklist',
     couldNotRead: 'KON NIET GELEZEN WORDEN — deze samenvatting is onvolledig:',
     footer:
       'U ontvangt dit omdat Open Migrate is ingesteld om u een samenvatting te sturen. ' +
@@ -390,6 +404,7 @@ export function renderDigest(
     if (m.failuresWaiting > 0) lines.push(`  - ${m.failuresWaiting} ${t.failures}`);
     if (m.readyForCutover) lines.push(`  - ${t.readyForCutover}`);
     if (m.autoApplied > 0) lines.push(`  - ${m.autoApplied} ${t.autoApplied}`);
+    if (m.sharingOpen > 0) lines.push(`  - ${m.sharingOpen} ${t.sharingOpen}`);
     for (const blind of m.blindSpots ?? []) {
       // Verbatim: this is the server's own reason, and paraphrasing the one
       // line that says "I could not look" would defeat its purpose.

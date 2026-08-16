@@ -31,6 +31,7 @@ const quiet: MappingAttention = {
   failuresWaiting: 0,
   readyForCutover: false,
   autoApplied: 0,
+  sharingOpen: 0,
 };
 
 describe('when NOT to send', () => {
@@ -265,5 +266,16 @@ describe('auto-applied removals are narrated (ADR-0031, workplan 0048)', () => {
     const nl = renderDigest([{ ...quiet, autoApplied: 1 }], 'nl', 'weekly');
     expect(nl?.body).toContain('automatisch verwijderd');
     expect(renderDigest([quiet], 'en', 'daily')).toBeUndefined();
+  });
+});
+
+describe('open sharing-checklist rows are narrated (ADR-0032, workplan 0052 T6a)', () => {
+  it('keep the email alive on their own — a forgotten checklist is what the digest prevents', () => {
+    const m: MappingAttention = { ...quiet, sharingOpen: 4 };
+    expect(wantsAttention(m)).toBe(true);
+    const en = renderDigest([m], 'en', 'daily');
+    expect(en?.body).toContain('4 rows open on the sharing checklist');
+    const nl = renderDigest([m], 'nl', 'weekly');
+    expect(nl?.body).toContain('4 regels open op de deel-checklist');
   });
 });

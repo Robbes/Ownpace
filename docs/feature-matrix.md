@@ -17,10 +17,10 @@ Legend: ✅ migrates · 🔁 detected & reported, owner decides (never acted on 
 
 | | generic IMAP | Microsoft 365 | Gmail |
 |---|---|---|---|
-| **Source** | ✅ password (`imap`) | ✅ IMAP+XOAUTH2 with your Entra app (`oauth2`), Graph fallback behind it; ✅ Graph REST (`graph`) | ⏳ IMAP+XOAUTH2 with your Google client (workplan 0044) — Stage 5 |
+| **Source** | ✅ password (`imap`) | ✅ IMAP+XOAUTH2 with your Entra app (`oauth2`), Graph fallback behind it; ✅ Graph REST (`graph`) | ⏳ IMAP+XOAUTH2 with your Google client (`gmail`, workplan 0044) — Stage 5 |
 | **Target** | ✅ IMAP half of `imap-dav` | — (targets are where you migrate *to*) | 🚫 never a target |
 
-Also a target: **JMAP** (Stalwart / La Suite / mosa.cloud).
+Also a target: **JMAP** (`jmap` — Stalwart / La Suite / mosa.cloud).
 
 What migrates: messages as **verbatim RFC822 bytes**, the folder tree, and the four flags the
 engines map (`$seen`, `$flagged`, `$draft`, `$answered` — the last one absent from the Graph
@@ -51,7 +51,7 @@ Not (yet) migrated:
 
 | | generic CalDAV | Microsoft 365 | Google |
 |---|---|---|---|
-| **Source** | ✅ (`caldav`) | ✅ Graph (`graph-calendar`), incl. a shared mailbox's calendar via `source.mailbox` | ⏳ CalDAV with OAuth (workplan 0045) — Stage 6 |
+| **Source** | ✅ (`caldav`) | ✅ Graph (`graph-calendar`), incl. a shared mailbox's calendar via `source.mailbox` | ⏳ CalDAV with OAuth (`google-calendar`, workplan 0045) — Stage 6 |
 | **Target** | ✅ CalDAV only | — | 🚫 never a target |
 
 What migrates: events as **iCal objects**, with recurring series and their exceptions
@@ -76,7 +76,7 @@ Not (yet) migrated:
 
 | | generic CardDAV | Microsoft 365 | Google |
 |---|---|---|---|
-| **Source** | ✅ (`carddav`) | ✅ Graph (`graph-contacts`), incl. shared via `source.mailbox` | ⏳ CardDAV with OAuth (workplan 0045) — Stage 6 |
+| **Source** | ✅ (`carddav`) | ✅ Graph (`graph-contacts`), incl. shared via `source.mailbox` | ⏳ CardDAV with OAuth (`google-contacts`, workplan 0045) — Stage 6 |
 | **Target** | ✅ CardDAV | — | 🚫 never a target |
 
 Also a target: **JMAP** (workplan 0031 T2).
@@ -206,9 +206,8 @@ These hold across all object types, and are features rather than gaps:
 | Google-native file export (Docs/Sheets/Slides) | ⏳ measurement gates the policy | Stage 1; workplan 0042 T6 |
 | JMAP calendar target | 🚫 parked (recurrence round-trip) | workplan 0031 T1 |
 | Drive loose shared *files* (shared folders root a mapping since 0051; shortcuts are refused loudly) | ⛔ not enumerated | Shared content section above; workplan 0051 |
-| Sharing checklist: digest counts, completion-report section, confirm-once address mapping, live Nextcloud proof | ⛔ deferred within the accepted decision | ADR-0032; workplan 0052 T6 |
-| Whole-tenant Google migration (domain-wide delegation) | ⛔ needs an owner-scoped ADR first | noted in `google-workspace-setup.md` |
-| Managed per-mapping throttle config (the DAV limiter parameter is armed but unfed there) | ⛔ small follow-up | PR #416 notes |
+| Sharing checklist: live Nextcloud OCS proof (digest counts, report section and confirm-once addresses shipped) | ⏳ rides the owner runbook | ADR-0032; workplan 0052 T6 |
+| Whole-tenant Google migration (domain-wide delegation) | ⛔ ADR proposed, awaiting owner decision | ADR-0033 |
 | Drive incremental delta (`changes.list`) | ⛔ deliberate cost/correctness trade | workplan 0042 T1 |
 | Per-domain throttle limiters (today: one merged limiter per mapping) | ⛔ future work | `DomainConfig.throttleConfig` |
 | Sieve rules, signatures, OOF, ACLs, invitation state, version history | 🚫 out of scope, stated per domain above | this document |

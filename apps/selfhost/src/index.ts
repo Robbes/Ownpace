@@ -472,15 +472,33 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // The digest window: what happened since the LAST summary of this
       // cadence. Counted from the audit rows core writes per auto-applied
       // relocation (ADR-0031, workplan 0048) — same source managed counts.
-      countAutoApplied: (c) =>
-        ledger.countAuditEvents(byId(c).config.tenantId as TenantId, {
+      countAutoApplied: async (c) => {
+        // Since the last digest that ACTUALLY went out (recorded per send);
+        // the cadence-sized window is only the first-ever/unreadable fallback.
+        const fallback = new Date(
+          Date.now() - (cadence === 'weekly' ? 7 : 1) * 24 * 60 * 60 * 1000,
+        ).toISOString();
+        const since =
+          (await ledger.latestAuditEventAt(byId(c).config.tenantId as TenantId, {
+            actor: 'system:digest',
+            action: `digest_sent_${cadence}`,
+          })) ?? fallback;
+        return ledger.countAuditEvents(byId(c).config.tenantId as TenantId, {
           actor: 'system:auto-apply',
           action: 'auto_apply_relocation',
-          since: new Date(
-            Date.now() - (cadence === 'weekly' ? 7 : 1) * 24 * 60 * 60 * 1000,
-          ).toISOString(),
+          since,
           mappingId: byId(c).config.mappingId,
-        }),
+        });
+      },
+      // Open checklist rows, from the same table the Sharing screen reads
+      // (ADR-0032) — the digest and the page cannot disagree.
+      countSharingOpen: async (c) =>
+        (
+          await ledger.listShareGrants(
+            byId(c).config.tenantId as TenantId,
+            byId(c).mailboxMappingId as MappingId,
+          )
+        ).filter((g) => g.state === 'open').length,
       countPendingDecisions: async (tenantId) =>
         (await new PgDecisionStore(db).list(tenantId as TenantId, { status: 'pending' })).length,
   });
@@ -507,6 +525,21 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       }
       await notifier.notify(message);
       log.info(`[notify] ${cadence} digest sent`);
+      // Recorded AFTER the send, per tenant, so the next window starts here —
+      // a failure to record only widens the window back to cadence-sized.
+      for (const t of [...new Set(mappings.map((m) => m.config.tenantId))]) {
+        try {
+          await ledger.recordAuditEvent(t as TenantId, {
+            actor: 'system:digest',
+            action: `digest_sent_${cadence}`,
+          });
+        } catch (err) {
+          log.error(
+            `[notify] recording the ${cadence} digest send time failed:`,
+            err instanceof Error ? err.message : err,
+          );
+        }
+      }
     } catch (err) {
       log.error(
         `[notify] ${cadence} digest failed:`,
@@ -1776,6 +1809,15 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           moves: await ledger.listMoves(tId, mId),
           deletions: await ledger.listDeletions(tId, mId),
           failures,
+          // The checklist's closing state (ADR-0032, 0052 T6b) — same rows
+          // the Sharing screen shows, so document and page cannot disagree.
+          sharing: (({ applied, doneManual, skipped, open, openManual }) => ({
+            applied,
+            doneManual,
+            skipped,
+            open,
+            openManual,
+          }))(summariseShareGrants(await ledger.listShareGrants(tId, mId))),
         });
         return sendJson(res, 200, {
           report,

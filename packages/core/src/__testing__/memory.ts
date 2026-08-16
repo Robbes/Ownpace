@@ -492,6 +492,17 @@ export class MemoryLedger implements Ledger {
     );
   }
 
+  latestAuditEventAt(
+    tenantId: LedgerRecord['tenantId'],
+    filter: { readonly actor: string; readonly action: string },
+  ): Promise<string | undefined> {
+    const mine = this.auditEvents
+      .filter((e) => e.tenantId === tenantId && e.actor === filter.actor && e.action === filter.action)
+      .map((e) => e.at)
+      .sort();
+    return Promise.resolve(mine[mine.length - 1]);
+  }
+
   /** The sharing queue's rows (ADR-0032), visible to tests. */
   readonly shareGrants: Array<
     { tenantId: string; mappingId: string } & {

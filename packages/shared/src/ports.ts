@@ -1062,6 +1062,16 @@ export interface Ledger {
     },
   ): Promise<number>;
   /**
+   * When the newest matching audit row was written (undefined = never) — the
+   * digest's "when did I last actually send": a window computed as
+   * now-minus-cadence double-counts after a late run and under-counts after a
+   * missed one; the recorded send time does neither.
+   */
+  latestAuditEventAt(
+    tenantId: TenantId,
+    filter: { readonly actor: string; readonly action: string },
+  ): Promise<string | undefined>;
+  /**
    * Upsert the sharing queue's rows from a fresh inventory scan (ADR-0032,
    * workplan 0052). Identity is `grantHash`; a known row only refreshes
    * `scannedAt` — an owner's decision is NEVER reset to open by looking

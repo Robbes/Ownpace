@@ -145,6 +145,11 @@ export const mailboxMapping = pgTable(
     // NULL = merge into the account root (the default; owner decision
     // 2026-08-16). See migration 0011 and MappingConfig.targetFolderPrefix.
     targetFolderPrefix: text('target_folder_prefix'),
+    /**
+     * The mapping's throttle choice (migration 0017) — same shape and same
+     * shared parser as the appliance's `throttleConfig`. NULL = no throttling.
+     */
+    throttleConfig: jsonb('throttle_config'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -172,3 +172,35 @@ describe('the Markdown document', () => {
     expect(withReceipts).toContain('system:auto-apply');
   });
 });
+
+describe('the sharing checklist closes on the document (ADR-0032, 0052 T6b)', () => {
+  it('renders the carried-over counts, and open rows get the retirement warning', () => {
+    const md = renderCompletionReportMarkdown(
+      buildCompletionReport(
+        inputs({
+          sharing: { applied: 3, doneManual: 2, skipped: 1, open: 2, openManual: 1 },
+        }),
+      ),
+    );
+    expect(md).toContain('Access carried over');
+    expect(md).toContain('Shares re-created on the target (its own invitation sent): **3**');
+    expect(md).toContain('Done by hand and ticked off: **2**');
+    expect(md).toContain('Deliberately not carried over: **1**');
+    expect(md).toContain('Still open: **2** (of which manual steps for the owner: 1)');
+    // Open rows warn but never block: the checklist is worked after finishing.
+    expect(md).toContain('stops working when the source is retired');
+  });
+
+  it('open sharing rows do NOT hold the verdict — the checklist is post-finish work', () => {
+    const report = buildCompletionReport(
+      inputs({ sharing: { applied: 0, doneManual: 0, skipped: 0, open: 5, openManual: 5 } }),
+    );
+    expect(report.verdict).toBe('complete');
+  });
+
+  it('a report without the summary simply has no section — absence is not zero', () => {
+    expect(renderCompletionReportMarkdown(buildCompletionReport(inputs()))).not.toContain(
+      'Access carried over',
+    );
+  });
+});

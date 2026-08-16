@@ -35,6 +35,9 @@ function deps(overrides: Partial<DigestDeps> = {}): DigestDeps & { sent: SentMai
     listMoves: async () => [{}],
     listFailures: async () => [],
     countAutoApplied: async () => 0,
+    countSharingOpen: async () => 0,
+    lastDigestSentAt: async () => undefined,
+    recordDigestSent: async () => {},
     countPendingDecisions: async () => 0,
     send: async (to, locale, message) => {
       sent.push({ to: [...to], locale, message });
@@ -165,6 +168,9 @@ describe('a blind spot is never a zero (hard rule 9)', () => {
     const d = deps({
       listMoves: async () => [],
       countAutoApplied: async () => 0,
+    countSharingOpen: async () => 0,
+    lastDigestSentAt: async () => undefined,
+    recordDigestSent: async () => {},
       countPendingDecisions: async () => {
         throw new Error('permission denied for table decision');
       },
@@ -331,5 +337,43 @@ describe('an unreadable preference', () => {
       ],
     });
     expect(await runDigest(d)).toMatchObject({ sent: 1 });
+  });
+});
+
+describe('the digest window starts where the last one ended', () => {
+  it('uses the RECORDED send time as `since`, and records a new one after sending', async () => {
+    const asked: string[] = [];
+    const recorded: string[] = [];
+    const d = deps({
+      lastDigestSentAt: async () => '2026-08-10T06:00:00.000Z',
+      recordDigestSent: async (tenantId, cadence) => {
+        recorded.push(`${tenantId}:${cadence}`);
+      },
+      countAutoApplied: async (_t, _m, since) => {
+        asked.push(since);
+        return 0;
+      },
+    });
+    await runDigest(d);
+
+    // A late run must not double-count and a missed one must not drop events:
+    // the window is the recorded send, not now-minus-cadence.
+    expect(asked).toEqual(['2026-08-10T06:00:00.000Z']);
+    expect(recorded).toEqual(['t-1:daily']);
+  });
+
+  it('a failed send records nothing — the next attempt covers the same span', async () => {
+    const recorded: string[] = [];
+    const d = deps({
+      send: async () => {
+        throw new Error('smtp down');
+      },
+      recordDigestSent: async (tenantId, cadence) => {
+        recorded.push(`${tenantId}:${cadence}`);
+      },
+    });
+    const summary = await runDigest(d);
+    expect(summary.failed).toBe(1);
+    expect(recorded).toEqual([]);
   });
 });

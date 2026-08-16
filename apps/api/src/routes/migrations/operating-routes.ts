@@ -152,6 +152,18 @@ function withLedger<T>(tenantId: string, fn: (ledger: PgLedger) => Promise<T>): 
   return withTenantDb(tenantId, pool(), (db) => fn(new PgLedger(db)));
 }
 
+/** The sharing checklist's closing counts, for the completion report (0052 T6b). */
+function summariseSharing(rows: ReadonlyArray<ShareGrantRow>) {
+  const summary = summariseShareGrants(rows);
+  return {
+    applied: summary.applied,
+    doneManual: summary.doneManual,
+    skipped: summary.skipped,
+    open: summary.open,
+    openManual: summary.openManual,
+  };
+}
+
 /** A finished migration keeps its history but stops presenting it as work to do. */
 function closed(lifecycle: MappingLifecycle) {
   return lifecycle === 'done' ? { reportingClosed: REPORTING_CLOSED } : {};
@@ -290,6 +302,13 @@ router.get(
           ).length,
           refused: gathered.receipts.filter((r) => r.state === 'refused').length,
         },
+        // The checklist's closing state (ADR-0032, 0052 T6b) — same rows the
+        // Sharing screen shows, so the document and the page cannot disagree.
+        sharing: summariseSharing(
+          await withLedger(s.tenantId, (l) =>
+            l.listShareGrants(s.tenantId as TenantId, s.mappingId as MappingId),
+          ),
+        ),
       });
       res.json({ report, markdown: renderCompletionReportMarkdown(report) });
     } catch (error) {
