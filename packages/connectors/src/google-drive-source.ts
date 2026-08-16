@@ -110,6 +110,8 @@ export class GoogleDriveSource implements FileSource {
    * direction, and the end-to-end test in core pins the real order anyway.
    */
   private lastListing?: { readonly path: string; readonly keys: ReadonlyArray<string> };
+  /** The ACTUAL id behind a `rootFolderId` of `'root'` — see `actualRootId`. */
+  private rootIdResolved?: string;
 
   constructor(
     private readonly transport: DriveTransport,
@@ -225,6 +227,114 @@ export class GoogleDriveSource implements FileSource {
    */
   private childPath(folderPath: string, name: string): string {
     return folderPath ? `${folderPath}/${name}` : name;
+  }
+
+  /**
+   * Original root-relative paths of files in the owner's Drive bin
+   * (`FileSource.listTrashedPaths`).
+   *
+   * THE EVIDENCE THIS BUYS is the point (ADR-0024 gate 3): absence is never
+   * enough to remove anything, so until this existed every Drive deletion was
+   * `inferred` — reported, but with the apply action permanently withheld. A
+   * file in the bin is the owner's own deletion, found where they put it: the
+   * same positive `trashed` evidence the Nextcloud source has had all along,
+   * and the file domain's Deletions queue works identically for both.
+   *
+   * `trashed=true` is answered for implicitly-trashed descendants too — trash
+   * a folder and Drive marks everything under it trashed, `explicitlyTrashed`
+   * only on the folder — so one whole-account listing sees the entire bin.
+   * Whole-account is the port's contract: entries the ledger never held
+   * resolve to nothing downstream.
+   *
+   * A trashed file keeps its `parents`, so the ORIGINAL path — the natural
+   * key — is recovered by walking parents up to the migration root, folder
+   * metadata cached per call. Two honest exclusions, both per-file so one
+   * unresolvable entry cannot silence the bin: a chain that tops out without
+   * meeting the root was never inside this migration's scope, and a chain
+   * broken by a permanently-deleted ancestor has no nameable path — that file
+   * stays on absence-counting, which still works and says less.
+   */
+  async listTrashedPaths(): Promise<ReadonlyArray<string>> {
+    const q = `trashed=true and mimeType!='${DRIVE_FOLDER_MIME}'`;
+    const fields = 'nextPageToken,files(id,name,parents)';
+
+    const binned: DriveFile[] = [];
+    let pageToken: string | undefined;
+    do {
+      const url =
+        `${this.baseUrl}/files?q=${encodeURIComponent(q)}&fields=${encodeURIComponent(fields)}` +
+        `&${LIST_ALL_DRIVES}` +
+        (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '');
+      const page = (await this.getJson(url)) as DriveFileList;
+      binned.push(...(page.files ?? []));
+      pageToken = page.nextPageToken;
+    } while (pageToken);
+    if (binned.length === 0) return [];
+
+    const rootId = await this.actualRootId();
+    // Folder metadata, cached: bins hold cohorts (a folder trashed whole), and
+    // re-walking the shared ancestry per file would ask Drive the same
+    // questions N times.
+    const folders = new Map<string, { name: string; parent?: string }>();
+    const out = new Set<string>();
+
+    for (const file of binned) {
+      const path = await this.originalPathOf(file, rootId, folders);
+      if (path !== undefined) out.add(path);
+    }
+    return [...out];
+  }
+
+  /** Walk `file`'s parents up to the root; undefined = out of scope or unresolvable. */
+  private async originalPathOf(
+    file: DriveFile,
+    rootId: string,
+    folders: Map<string, { name: string; parent?: string }>,
+  ): Promise<string | undefined> {
+    const segments: string[] = [];
+    let current = file.parents?.[0];
+    // A parent chain deeper than this is a cycle, not a Drive.
+    for (let depth = 0; depth < 64; depth += 1) {
+      if (current === undefined) return undefined; // topped out ≠ our root
+      if (current === rootId) {
+        // Pushed child-upward; the path reads root-downward.
+        return this.childPath([...segments].reverse().join('/'), file.name);
+      }
+      let meta = folders.get(current);
+      if (!meta) {
+        try {
+          const got = (await this.getJson(
+            `${this.baseUrl}/files/${encodeURIComponent(current)}?fields=id,name,parents&${GET_ALL_DRIVES}`,
+          )) as DriveFile;
+          meta = { name: got.name, ...(got.parents?.[0] ? { parent: got.parents[0] } : {}) };
+          folders.set(current, meta);
+        } catch {
+          // A permanently-deleted ancestor: this file's original path cannot
+          // be named, so it cannot be reported — absence-counting covers it.
+          return undefined;
+        }
+      }
+      segments.push(meta.name);
+      current = meta.parent;
+    }
+    return undefined;
+  }
+
+  /**
+   * The real id behind the configured root. `'root'` is an API alias the
+   * caller may configure, but a trashed file's `parents` carry the ACTUAL id,
+   * so comparing against the alias would walk past the root and read every
+   * in-scope file as out of scope — the whole bin, silently ignored.
+   */
+  private async actualRootId(): Promise<string> {
+    if (this.rootFolderId !== 'root') return this.rootFolderId;
+    if (this.rootIdResolved === undefined) {
+      const got = (await this.getJson(
+        `${this.baseUrl}/files/root?fields=id&${GET_ALL_DRIVES}`,
+      )) as DriveFile;
+      this.rootIdResolved = got.id;
+    }
+    return this.rootIdResolved;
   }
 
   /**

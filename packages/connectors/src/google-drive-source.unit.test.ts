@@ -422,3 +422,71 @@ describe('shared drives are not silently empty', () => {
     expect(exp!.url).not.toContain('supportsAllDrives');
   });
 });
+
+describe('listTrashedPaths — the bin as positive deletion evidence', () => {
+  const ROOT_META = '/files/root?fields=id';
+  const TRASH_LIST = 'trashed%3Dtrue%20and%20mimeType!%3D';
+
+  it('names the ORIGINAL root-relative path, nested folders walked and cached', async () => {
+    const { transport, calls } = fakeDrive({
+      [ROOT_META]: { id: 'root-real' },
+      [TRASH_LIST]: {
+        files: [
+          { id: 'f1', name: 'gone.pdf', parents: ['dir-b'] },
+          { id: 'f2', name: 'also-gone.pdf', parents: ['dir-b'] },
+          { id: 'f3', name: 'top.txt', parents: ['root-real'] },
+        ],
+      },
+      '/files/dir-b?fields=id,name,parents': { id: 'dir-b', name: 'b', parents: ['dir-a'] },
+      '/files/dir-a?fields=id,name,parents': { id: 'dir-a', name: 'a', parents: ['root-real'] },
+    });
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE });
+
+    const paths = await source.listTrashedPaths();
+
+    expect([...paths].sort()).toEqual(['a/b/also-gone.pdf', 'a/b/gone.pdf', 'top.txt']);
+    // The shared ancestry was walked ONCE: two files under dir-b, one lookup.
+    expect(calls.filter((c) => c.url.includes('/files/dir-b?')).length).toBe(1);
+  });
+
+  it('excludes a file whose chain tops out somewhere other than the migration root', async () => {
+    // Another drive, or above a scoped rootFolderId: never in this
+    // migration's scope, so its disappearance is not this mapping's to report.
+    const { transport } = fakeDrive({
+      [TRASH_LIST]: { files: [{ id: 'f1', name: 'other.pdf', parents: ['elsewhere'] }] },
+      '/files/elsewhere?fields=id,name,parents': { id: 'elsewhere', name: 'x' }, // no parents
+    });
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE, rootFolderId: 'scoped-id' });
+
+    expect(await source.listTrashedPaths()).toEqual([]);
+  });
+
+  it('skips ONLY the file behind a permanently-deleted ancestor — one orphan cannot silence the bin', async () => {
+    const { transport } = fakeDrive({
+      [ROOT_META]: { id: 'root-real' },
+      [TRASH_LIST]: {
+        files: [
+          { id: 'f1', name: 'orphan.pdf', parents: ['vanished-dir'] },
+          { id: 'f2', name: 'fine.pdf', parents: ['root-real'] },
+        ],
+      },
+      // no route for vanished-dir → 404 → that chain is unresolvable
+    });
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE });
+
+    expect(await source.listTrashedPaths()).toEqual(['fine.pdf']);
+  });
+
+  it('asks with the all-drives parameters and excludes folders in the QUERY', async () => {
+    const { transport, calls } = fakeDrive({
+      [ROOT_META]: { id: 'root-real' },
+      [TRASH_LIST]: { files: [] },
+    });
+    await new GoogleDriveSource(transport, { baseUrl: BASE }).listTrashedPaths();
+
+    const listing = calls.find((c) => c.url.includes(TRASH_LIST))!;
+    expect(listing.url).toContain('supportsAllDrives=true');
+    expect(listing.url).toContain('includeItemsFromAllDrives=true');
+    expect(decodeURIComponent(listing.url)).toContain("trashed=true and mimeType!=");
+  });
+});

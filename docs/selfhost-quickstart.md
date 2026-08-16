@@ -170,9 +170,13 @@ Two optional settings on the source:
   changed document and re-copies all of them. That is why the default refuses.
 - **No incremental delta.** Every pass lists every folder. The ledger still
   makes the second pass copy nothing; it costs a listing, not a re-copy.
-- **Deletions are never reported by Drive here.** They are detected the slower,
-  corroborated way, the same as WebDAV — Google flags "removed" for losing
-  access and for sharing changes, which are not deletions.
+- **Drive's `removed` flag is never trusted** — Google sets it for losing
+  access and for sharing changes, which are not deletions. What IS read is the
+  owner's **bin**: a file found trashed is a deletion the owner performed,
+  reported at once with positive evidence — the same as Nextcloud's trashbin —
+  and the Deletions queue may offer removing the target's copy on it. A bin
+  the owner has emptied falls back to absence-counting, which still works and
+  claims less.
 - **Two files with the same name in the same folder cannot both be migrated.**
   The natural key is the path, and the ledger's unique index makes that a hard
   stop rather than a setting.
