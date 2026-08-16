@@ -241,6 +241,28 @@ describe('the google-drive file source', () => {
   });
 });
 
+/**
+ * Gmail as a mail source (workplan 0044). One field, because everything else
+ * is fixed by Google or is a credential — and credentials never appear in a
+ * mapping file (the same argument the Drive shape records).
+ */
+describe('the gmail mail source', () => {
+  it('parses with a type and the account address, and carries NO credential fields', () => {
+    const cfg = parseMappingConfig({
+      ...example,
+      source: { type: 'gmail', user: 'owner@gmail.com' },
+    });
+
+    expect(cfg.source).toEqual({ type: 'gmail', user: 'owner@gmail.com' });
+  });
+
+  it('refuses a missing account address: XOAUTH2 authenticates a token FOR an address', () => {
+    expect(() => parseMappingConfig({ ...example, source: { type: 'gmail' } })).toThrow(
+      /source\.user/,
+    );
+  });
+});
+
 describe('parseMappingConfigJson', () => {
   it('parses JSON text', () => {
     expect(parseMappingConfigJson(JSON.stringify(example)).mappingId).toBe('inbox-mail');

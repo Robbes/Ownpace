@@ -45,13 +45,17 @@ function firstOrThrow<T>(rows: T[], what: string): T {
 
 /** Map the web source type to a connection.kind (protocol-based). */
 function sourceKindFor(
-  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive',
-): 'imap' | 'o365' | 'google_drive' {
+  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail',
+): 'imap' | 'o365' | 'google_drive' | 'gmail' {
   // 'google_drive' is the CHECK-constrained connection.kind migration 0008
   // added, and the literal build-deps-from-mapping branches on
   // (GOOGLE_DRIVE_CONNECTION_KIND) — underscore, unlike the wizard's hyphen,
   // because connection.kind predates the wizard vocabulary.
   if (sourceType === 'google-drive') return 'google_drive';
+  // 'gmail' joined the CHECK in migration 0012 (workplan 0044). Not 'imap',
+  // although the transport is: the credential shape is a Google OAuth client,
+  // and the row's kind is what tells the credential validation that.
+  if (sourceType === 'gmail') return 'gmail';
   return sourceType === 'imap' ? 'imap' : 'o365';
 }
 
@@ -79,6 +83,13 @@ function sourceConnectionConfig(body: z.infer<typeof CreateMappingSchema>): Reco
       ...(cfg.rootFolderId ? { rootFolderId: cfg.rootFolderId } : {}),
       ...(cfg.nativeFilePolicy ? { nativeFilePolicy: cfg.nativeFilePolicy } : {}),
     }) as unknown as Record<string, unknown>;
+  }
+  if (body.sourceType === 'gmail') {
+    // Everything else is fixed by Google (imap.gmail.com:993, XOAUTH2) or
+    // lives in the encrypted credentials — the config carries only WHOSE
+    // mailbox this is. Stored in the engine's own shape: the worker casts
+    // this to shared's SourceConfig and branches on `type`.
+    return { type: 'gmail', user: cfg.username };
   }
   if (body.sourceType === 'graph') {
     // Graph REST transport: the tenant + mailbox are the address — there is
@@ -158,7 +169,7 @@ function getSharedPool() {
  */
 const CreateMappingBase = z.object({
   name: z.string().min(1).max(255),
-  sourceType: z.enum(['imap', 'oauth2', 'graph', 'google-drive']),
+  sourceType: z.enum(['imap', 'oauth2', 'graph', 'google-drive', 'gmail']),
   targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav']),
   sourceConfig: z.object({
     // host/port belong to an 'imap' source; tenantId/clientId/clientSecret to
@@ -312,6 +323,30 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
         path: ['sourceConfig', 'nativeFilePolicy'],
         message: err instanceof ConfigError ? err.message : String(err),
       });
+    }
+  } else if (body.sourceType === 'gmail') {
+    // The same three fields as Drive — a Google OAuth client and a delegated
+    // refresh token — but the CONSENT differs: the token must be minted with
+    // the https://mail.google.com/ scope (the only one Google's IMAP endpoint
+    // accepts), and a Drive-consented token answers invalid_scope. Refused
+    // here so the mistake surfaces in front of whoever pasted the token, not
+    // as a mid-pass auth failure.
+    const missing = (['clientId', 'clientSecret', 'refreshToken'] as const).filter(
+      (k) => !body.sourceConfig[k],
+    );
+    if (missing.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sourceConfig', missing[0]!],
+        message:
+          "A 'gmail' source authenticates with your own Google Cloud OAuth client and a " +
+          `refresh token consented with the https://mail.google.com/ scope: sourceConfig is ` +
+          `missing ${missing.join(', ')}. Where each comes from is docs/google-workspace-setup.md.`,
+      });
+    }
+    const sourceRefusal = sourceDomainRefusal('gmail', body.syncConfig.domains);
+    if (sourceRefusal) {
+      ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: sourceRefusal });
     }
   } else if (body.sourceType === 'imap') {
     const missing = (['host', 'port'] as const).filter((k) => body.sourceConfig[k] === undefined);
@@ -545,12 +580,13 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
                 username: body.sourceConfig.username,
                 ...(body.sourceConfig.password ? { password: body.sourceConfig.password } : {}),
               }
-            : body.sourceType === 'google-drive'
+            : body.sourceType === 'google-drive' || body.sourceType === 'gmail'
               ? {
-                  // EXACTLY the keys STORED_GOOGLE_CREDENTIAL_NAMES reads —
-                  // buildGoogleDriveSourceFrom refuses at build time naming any
-                  // that are missing, so a key misspelled here would surface as
-                  // that refusal on the first pass, not as silence.
+                  // EXACTLY the keys STORED_GOOGLE_CREDENTIAL_NAMES /
+                  // STORED_GMAIL_CREDENTIAL_NAMES read — the build refuses at
+                  // build time naming any that are missing, so a key
+                  // misspelled here would surface as that refusal on the
+                  // first pass, not as silence.
                   clientId: body.sourceConfig.clientId!,
                   clientSecret: body.sourceConfig.clientSecret!,
                   refreshToken: body.sourceConfig.refreshToken!,

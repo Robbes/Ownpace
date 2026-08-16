@@ -176,6 +176,25 @@ export interface GoogleDriveSource {
   readonly nativeFilePolicy?: GoogleNativeFilePolicy;
 }
 
+/**
+ * Gmail as a MAIL source (workplan 0044).
+ *
+ * One field, because everything else is fixed by Google: the transport is IMAP
+ * over XOAUTH2 at `imap.gmail.com:993` (so no host/port to mistype — the same
+ * argument the O365 IMAP path records for its fixed endpoint), and the OAuth2
+ * client id, secret and refresh token are credentials, so — exactly as
+ * {@link GoogleDriveSource} explains — they arrive via environment variables on
+ * the appliance or the encrypted `SecretStore` under the managed edition, never
+ * through a file. The refresh token must be consented with the
+ * `https://mail.google.com/` scope: it is the only scope Google's IMAP endpoint
+ * accepts, and a Drive-consented token answers `invalid_scope` at mint time.
+ */
+export interface GmailSource {
+  readonly type: 'gmail';
+  /** The Gmail address the migration reads — XOAUTH2 authenticates a token FOR an address. */
+  readonly user: string;
+}
+
 /** Microsoft Graph Calendar source */
 export interface GraphCalendarSource {
   readonly type: 'graph-calendar';
@@ -298,7 +317,7 @@ export interface DomainsConfig {
   files?: DomainConfig;
 }
 
-export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphMailSource | GoogleDriveSource;
+export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphMailSource | GoogleDriveSource | GmailSource;
 export type TargetConfig = JmapTarget | ImapDavTarget | CalDAVTarget | CardDAVTarget | WebDAVTarget;
 
 export interface ScheduleConfig {
@@ -662,7 +681,13 @@ function parseSource(obj: Record<string, unknown>): SourceConfig {
   if (type === 'google-drive') {
     return parseGoogleDriveSource(obj);
   }
-  throw new ConfigError(`source.type: unsupported "${type}" (expected "imap-oauth2", "caldav", "carddav", "webdav", "graph-calendar", "graph-contacts", "graph-mail", or "google-drive")`);
+  if (type === 'gmail') {
+    return {
+      type: 'gmail',
+      user: reqString(obj, 'user', 'source.user'),
+    };
+  }
+  throw new ConfigError(`source.type: unsupported "${type}" (expected "imap-oauth2", "caldav", "carddav", "webdav", "graph-calendar", "graph-contacts", "graph-mail", "google-drive", or "gmail")`);
 }
 
 /**

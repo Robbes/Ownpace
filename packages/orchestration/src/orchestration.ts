@@ -255,6 +255,23 @@ export function planDomainLanes(
   return lanes.filter((l) => l.length > 0);
 }
 
+/**
+ * Is this top-level source one the MAIL engine can open directly?
+ *
+ * The backward-compatibility rule ("no domains block → mail-only") predates
+ * the domains block itself, when `imap-oauth2` was the only source there was.
+ * `gmail` (workplan 0044) joins it because it is the same situation for a new
+ * owner: a minimal mapping file naming a Gmail source and a mail target would
+ * otherwise run NOTHING — every domain disabled, all passes skipped — which is
+ * a silent no-op where the owner asked for a migration. (`graph-mail` is
+ * deliberately not here: it shipped after the domains block and its docs have
+ * always configured it under `domains.mail`, so widening it now would change
+ * the behaviour of existing files rather than define a new one's.)
+ */
+function isTopLevelMailSource(type: MappingConfig['source']['type']): boolean {
+  return type === 'imap-oauth2' || type === 'gmail';
+}
+
 /** Run all enabled domains for one mapping config, with status tracking. */
 export async function runAllDomains(
   config: MappingConfig,
@@ -272,7 +289,7 @@ export async function runAllDomains(
   // Backward compatibility: a config with no domains block but an IMAP source
   // runs mail only.
   const hasDomainConfig = config.domains && Object.values(config.domains).some((d) => d?.enabled);
-  const runMailOnly = !hasDomainConfig && config.source.type === 'imap-oauth2';
+  const runMailOnly = !hasDomainConfig && isTopLevelMailSource(config.source.type);
   if (runMailOnly) {
     domains[0]!.enabled = true;
   }
@@ -522,7 +539,7 @@ export async function discoverAllDomains(
   ledger?: LedgerOptions,
 ): Promise<DomainDiscoveryOutcome[]> {
   const hasDomainConfig = config.domains && Object.values(config.domains).some((d) => d?.enabled);
-  const runMailOnly = !hasDomainConfig && config.source.type === 'imap-oauth2';
+  const runMailOnly = !hasDomainConfig && isTopLevelMailSource(config.source.type);
 
   type Opened = { source: unknown; target: unknown; close: () => Promise<void> };
   const enabled: Array<{ domain: DiscoveryDomain; open: () => Promise<Opened> }> = [];
@@ -713,7 +730,7 @@ export async function verifyMapping(
     closers.push(() => opened.close());
   };
 
-  if (config.domains?.mail?.enabled ?? config.source.type === 'imap-oauth2') {
+  if (config.domains?.mail?.enabled ?? isTopLevelMailSource(config.source.type)) {
     await collect('mail', async () => {
       const d = await buildDeps(config, ledger);
       return { target: d.target, close: d.close };
@@ -757,7 +774,7 @@ export async function verifyMapping(
           // Only what this mapping actually syncs. A domain switched off here
           // reports SKIPPED; one that is on but unreadable reports
           // NOT_VERIFIABLE and blocks — neither is silently passed.
-          verifyMail: config.domains?.mail?.enabled ?? config.source.type === 'imap-oauth2',
+          verifyMail: config.domains?.mail?.enabled ?? isTopLevelMailSource(config.source.type),
           verifyCalendar: config.domains?.calendar?.enabled ?? false,
           verifyContacts: config.domains?.contacts?.enabled ?? false,
           verifyFiles: config.domains?.files?.enabled ?? false,
@@ -794,7 +811,7 @@ export async function verifyMapping(
 function enabledSyncDomains(config: MappingConfig): SyncDomain[] {
   const hasDomainConfig = config.domains && Object.values(config.domains).some((d) => d?.enabled);
   const mailEnabled =
-    config.domains?.mail?.enabled ?? (!hasDomainConfig && config.source.type === 'imap-oauth2');
+    config.domains?.mail?.enabled ?? (!hasDomainConfig && isTopLevelMailSource(config.source.type));
 
   const domains: SyncDomain[] = [];
   if (mailEnabled) domains.push('email');

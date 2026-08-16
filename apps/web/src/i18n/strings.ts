@@ -81,9 +81,10 @@ const en = {
   'wizard.proto.oauth2.hint': 'Office 365 over IMAP (app registration)',
   'wizard.proto.graph.hint': 'Office 365 over the Graph API (app registration)',
   'wizard.proto.googleDrive.hint': 'Files from a Google Drive (read-only OAuth)',
+  'wizard.proto.gmail.hint': 'Email from a Gmail mailbox (OAuth over IMAP)',
   'wizard.refreshToken': 'Refresh token',
   'wizard.refreshToken.hint':
-    'The delegated, read-only token for the Drive being migrated. Treat it as a password.',
+    'The delegated token for the account being migrated. Treat it as a password.',
   'wizard.rootFolderId': 'Root folder ID (optional)',
   'wizard.rootFolderId.placeholder': 'Empty = all of My Drive; a shared drive by its own ID',
   'wizard.review.myDrive': 'My Drive',
@@ -99,6 +100,11 @@ const en = {
     'with one read-only command that proves them. The token cannot write to the Drive. Google ' +
     'Docs, Sheets and Slides are reported as un-migratable, one by one, with the reason: they ' +
     'have no file to copy, and rendering them is not enabled until export stability is measured.',
+  'wizard.source.gmailSetup':
+    'A Gmail source uses your own Google Cloud OAuth client — the same one a Google Drive ' +
+    'source uses — but its refresh token must be consented with the https://mail.google.com/ ' +
+    'scope, the only one Google accepts for IMAP. A token consented for Drive will not work ' +
+    'here. docs/google-workspace-setup.md walks through obtaining it.',
   'wizard.proto.jmap.hint': 'Modern email protocol',
   'wizard.proto.caldav.hint': 'Calendar protocol',
   'wizard.proto.carddav.hint': 'Contact protocol',
@@ -730,9 +736,10 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.proto.oauth2.hint': 'Office 365 via IMAP (appregistratie)',
   'wizard.proto.graph.hint': 'Office 365 via de Graph-API (appregistratie)',
   'wizard.proto.googleDrive.hint': 'Bestanden uit een Google Drive (alleen-lezen OAuth)',
+  'wizard.proto.gmail.hint': 'E-mail uit een Gmail-postvak (OAuth via IMAP)',
   'wizard.refreshToken': 'Refresh-token',
   'wizard.refreshToken.hint':
-    'Het gedelegeerde, alleen-lezen token voor de Drive die wordt gemigreerd. Behandel het als een wachtwoord.',
+    'Het gedelegeerde token voor het account dat wordt gemigreerd. Behandel het als een wachtwoord.',
   'wizard.rootFolderId': 'Hoofdmap-ID (optioneel)',
   'wizard.rootFolderId.placeholder': 'Leeg = heel Mijn Drive; een gedeelde Drive via het eigen ID',
   'wizard.review.myDrive': 'Mijn Drive',
@@ -749,6 +756,11 @@ const nl: Record<keyof typeof en, string> = {
     'schrijven. Google Documenten, Spreadsheets en Presentaties worden één voor één als ' +
     'niet-migreerbaar gemeld, met de reden: er is geen bestand om te kopiëren, en renderen ' +
     'staat uit totdat de exportstabiliteit is gemeten.',
+  'wizard.source.gmailSetup':
+    'Een Gmail-bron gebruikt uw eigen Google Cloud OAuth-client — dezelfde als een Google ' +
+    'Drive-bron — maar het refresh-token moet zijn toegestemd met de scope ' +
+    'https://mail.google.com/, de enige die Google voor IMAP accepteert. Een token dat voor ' +
+    'Drive is toegestemd werkt hier niet. docs/google-workspace-setup.md behandelt het verkrijgen ervan.',
   'wizard.proto.jmap.hint': 'Modern e-mailprotocol',
   'wizard.proto.caldav.hint': 'Agendaprotocol',
   'wizard.proto.carddav.hint': 'Contactenprotocol',

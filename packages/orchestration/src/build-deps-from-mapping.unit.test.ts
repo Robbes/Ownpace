@@ -23,6 +23,7 @@ import {
   buildSourceConnectorFromCredentials,
   buildTargetWriterFromCredentials,
 } from './build-deps-from-mapping';
+import { GmailFolderView } from './gmail-source-factory';
 import type { SourceConfig, TargetConfig } from '@openmig/shared';
 
 const GRAPH_MAIL: SourceConfig = { type: 'graph-mail', tenantId: 'contoso.example' };
@@ -70,6 +71,33 @@ describe('buildSourceConnectorFromCredentials', () => {
     expect(source).toBeInstanceOf(ImapFlowSource);
   });
 
+  it('builds a gmail source from the three stored Google credentials (workplan 0044)', () => {
+    const source = buildSourceConnectorFromCredentials(
+      { type: 'gmail', user: 'owner@gmail.com' },
+      { clientId: 'cid', clientSecret: 'cs', refreshToken: 'rt' },
+    );
+    // The wrapper that hides Gmail's view-folders, an imapflow source inside.
+    expect(source).toBeInstanceOf(GmailFolderView);
+  });
+
+  it('refuses gmail credentials in the STORED vocabulary, never an env var this edition ignores', () => {
+    const failure = (() => {
+      try {
+        buildSourceConnectorFromCredentials(
+          { type: 'gmail', user: 'owner@gmail.com' },
+          { clientId: 'cid' },
+        );
+        return undefined;
+      } catch (e) {
+        return e as Error;
+      }
+    })();
+    expect(failure?.message).toContain('clientSecret');
+    expect(failure?.message).toContain('refreshToken');
+    expect(failure?.message).toContain("connection's stored credentials");
+    expect(failure?.message).not.toContain('GOOGLE_MAIL_REFRESH_TOKEN');
+  });
+
   it('builds an XOAUTH2 IMAP source from an app registration alone (0037 T6): tenantId + clientId + clientSecret, no token, no password', () => {
     const source = buildSourceConnectorFromCredentials(IMAP, {
       username: 'mailbox@contoso.example',
@@ -111,7 +139,7 @@ describe('buildSourceConnectorFromCredentials', () => {
 
   it('rejects a non-mail source type with an honest error', () => {
     const caldav = { type: 'caldav', url: 'https://dav.example.net', user: 'u', auth: { kind: 'login', passwordFromEnv: 'X' } } as unknown as SourceConfig;
-    expect(() => buildSourceConnectorFromCredentials(caldav, {})).toThrow(/imap-oauth2 and graph-mail/);
+    expect(() => buildSourceConnectorFromCredentials(caldav, {})).toThrow(/imap-oauth2, graph-mail and gmail/);
   });
 });
 

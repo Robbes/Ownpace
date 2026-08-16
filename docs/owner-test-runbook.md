@@ -236,6 +236,34 @@ Stage 2's drills through the managed journey:
 applied relocation the receipt JSON from
 `GET /api/migrations/<id>/moves/<hash>/receipt`.
 
+## Stage 5 — Gmail (workplan 0044): the two things only reality can prove
+
+The Gmail source reuses the proven IMAP read path; what no unit test can prove
+is Google's half of the conversation. Two specific questions, ~30 minutes with
+a real Gmail account (a disposable one is fine and better):
+
+1. **Mint the mail token** — `docs/google-workspace-setup.md`, Gmail section:
+   same OAuth client as Drive, scope `https://mail.google.com/`, sign in as the
+   Gmail account. Configure either edition (appliance:
+   `GOOGLE_MAIL_REFRESH_TOKEN` + a mapping with
+   `"source": { "type": "gmail", "user": "you@gmail.com" }`; managed: the
+   **Gmail** wizard card).
+2. **Question one — the handshake**: does the first pass connect and list?
+   A failure here is scope consent or client config, and the error should name
+   which; if it does not, that sentence is the bug to send back.
+3. **Question two — the view filter**: after one pass, the target must have
+   INBOX, your labels, Sent and Drafts — and must NOT have All Mail, Starred
+   or Important (in any language). If All Mail migrated, the filter missed
+   Google's `\All` attribute in the real LIST response: send back the folder
+   list from the run log.
+4. Worth one look while there: label a single message with TWO labels before
+   the first pass. It should land ONCE on the target (under whichever label
+   listed first), with the other placement surfacing in the Moves queue as a
+   report at most — not as a duplicate copy.
+
+**Send back:** the run summary (folder count, created count), and the target's
+folder list.
+
 ---
 
 ## The safety rails, all in one place

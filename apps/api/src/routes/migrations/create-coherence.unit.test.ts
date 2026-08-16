@@ -198,6 +198,49 @@ describe('a google-drive source (workplan 0042) — the same doors, its own refu
   });
 });
 
+describe('a gmail source (workplan 0044) — the Drive credential shape, the mail domain', () => {
+  const gmail = (over: Record<string, unknown> = {}) =>
+    body({
+      sourceType: 'gmail',
+      targetType: 'jmap',
+      sourceConfig: {
+        username: 'owner@gmail.com',
+        clientId: 'cid.apps.googleusercontent.com',
+        clientSecret: 'cs',
+        refreshToken: 'rt',
+        ...((over.sourceConfig as Record<string, unknown>) ?? {}),
+      },
+      syncConfig: { domains: ['email'] },
+      ...Object.fromEntries(Object.entries(over).filter(([k]) => k !== 'sourceConfig')),
+    });
+
+  it('accepts the coherent shape: gmail → jmap, email domain, three credentials', () => {
+    expect(CreateMappingSchema.safeParse(gmail()).success).toBe(true);
+  });
+
+  it('refuses a missing refresh token, naming the MAIL scope the consent must carry', () => {
+    // The operator most likely here already set up Drive with the same OAuth
+    // client — and a Drive-consented token answers invalid_scope at mint time.
+    const msg = refusalText(gmail({ sourceConfig: { refreshToken: undefined } }));
+    expect(msg).toContain('refreshToken');
+    expect(msg).toContain('https://mail.google.com/');
+    expect(msg).toContain('google-workspace-setup.md');
+  });
+
+  it('refuses non-email domains — the credential reads mail only', () => {
+    const msg = refusalText(gmail({ syncConfig: { domains: ['email', 'file'] } }));
+    expect(msg).toContain("'file'");
+    expect(msg).toContain('mail only');
+    expect(msg).toContain('separate mapping');
+  });
+
+  it('still refuses an incoherent TARGET for the email domain', () => {
+    const msg = refusalText(gmail({ targetType: 'webdav' }));
+    expect(msg).toContain('WebDAV');
+    expect(msg).toContain("'email'");
+  });
+});
+
 describe('targetFolderPrefix — refused in the shared parser\'s words (hard rule 5)', () => {
   it('accepts a clean prefix and the empty default', () => {
     expect(CreateMappingSchema.safeParse(body({ targetFolderPrefix: 'Gmail' })).success).toBe(true);
