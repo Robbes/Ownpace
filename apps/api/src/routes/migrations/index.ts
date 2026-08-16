@@ -27,6 +27,9 @@ import {
   log,
   DISTRIBUTION_D_NOT_A_MAPPING,
   targetDomainRefusal,
+  sourceDomainRefusal,
+  parseGoogleDriveSource,
+  ConfigError,
   describeCronScheduleProblem,
 } from '@openmig/shared';
 
@@ -40,7 +43,14 @@ function firstOrThrow<T>(rows: T[], what: string): T {
 }
 
 /** Map the web source type to a connection.kind (protocol-based). */
-function sourceKindFor(sourceType: 'imap' | 'oauth2' | 'graph'): 'imap' | 'o365' {
+function sourceKindFor(
+  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive',
+): 'imap' | 'o365' | 'google_drive' {
+  // 'google_drive' is the CHECK-constrained connection.kind migration 0008
+  // added, and the literal build-deps-from-mapping branches on
+  // (GOOGLE_DRIVE_CONNECTION_KIND) — underscore, unlike the wizard's hyphen,
+  // because connection.kind predates the wizard vocabulary.
+  if (sourceType === 'google-drive') return 'google_drive';
   return sourceType === 'imap' ? 'imap' : 'o365';
 }
 
@@ -56,6 +66,19 @@ function sourceKindFor(sourceType: 'imap' | 'oauth2' | 'graph'): 'imap' | 'o365'
  */
 function sourceConnectionConfig(body: z.infer<typeof CreateMappingSchema>): Record<string, unknown> {
   const cfg = body.sourceConfig;
+  if (body.sourceType === 'google-drive') {
+    // Stored in the ENGINE's own shape and validated by the SAME parser the
+    // appliance's mapping file goes through (hard rule 5): a nativeFilePolicy
+    // one edition refuses must not be one the other stores and ignores.
+    // parseGoogleDriveSource throws ConfigError on garbage; the route's
+    // superRefine has already refused it with a field-anchored message, so a
+    // throw here would be a coding error, not an input error.
+    return parseGoogleDriveSource({
+      type: 'google-drive',
+      ...(cfg.rootFolderId ? { rootFolderId: cfg.rootFolderId } : {}),
+      ...(cfg.nativeFilePolicy ? { nativeFilePolicy: cfg.nativeFilePolicy } : {}),
+    }) as unknown as Record<string, unknown>;
+  }
   if (body.sourceType === 'graph') {
     // Graph REST transport: the tenant + mailbox are the address — there is
     // no host. The wizard's source username is the mailbox UPN; an app-only
@@ -134,7 +157,7 @@ function getSharedPool() {
  */
 const CreateMappingBase = z.object({
   name: z.string().min(1).max(255),
-  sourceType: z.enum(['imap', 'oauth2', 'graph']),
+  sourceType: z.enum(['imap', 'oauth2', 'graph', 'google-drive']),
   targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav']),
   sourceConfig: z.object({
     // host/port belong to an 'imap' source; tenantId/clientId/clientSecret to
@@ -150,6 +173,14 @@ const CreateMappingBase = z.object({
     tenantId: z.string().optional(),
     clientId: z.string().optional(),
     clientSecret: z.string().optional(),
+    /** Google Drive only (workplan 0042): the delegated OAuth refresh token. */
+    refreshToken: z.string().optional(),
+    /** Google Drive only: root the migration somewhere other than My Drive. */
+    rootFolderId: z.string().optional(),
+    /** Google Drive only: what happens to Docs/Sheets/Slides. The VALUES are
+     *  validated by the shared parser in the superRefine, not re-enumerated
+     *  here — one authority, both editions. */
+    nativeFilePolicy: z.string().optional(),
   }),
   targetConfig: z.object({
     host: z.string(),
@@ -236,7 +267,43 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
   // registration (client-credentials — ADR-0006's row-14 model), so accepting
   // them without tenantId/clientId/clientSecret would store a connection no
   // sync pass can ever open.
-  if (body.sourceType === 'imap') {
+  if (body.sourceType === 'google-drive') {
+    const missing = (['clientId', 'clientSecret', 'refreshToken'] as const).filter(
+      (k) => !body.sourceConfig[k],
+    );
+    if (missing.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sourceConfig', missing[0]!],
+        message:
+          "A 'google-drive' source authenticates with your own Google Cloud OAuth client and a " +
+          `delegated refresh token: sourceConfig is missing ${missing.join(', ')}. ` +
+          'Where each comes from is docs/google-workspace-setup.md, which ends with one ' +
+          'read-only command that proves all three before anything migrates.',
+      });
+    }
+    const sourceRefusal = sourceDomainRefusal('google-drive', body.syncConfig.domains);
+    if (sourceRefusal) {
+      ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: sourceRefusal });
+    }
+    try {
+      parseGoogleDriveSource({
+        type: 'google-drive',
+        ...(body.sourceConfig.rootFolderId ? { rootFolderId: body.sourceConfig.rootFolderId } : {}),
+        ...(body.sourceConfig.nativeFilePolicy
+          ? { nativeFilePolicy: body.sourceConfig.nativeFilePolicy }
+          : {}),
+      });
+    } catch (err) {
+      // The shared parser's own words (hard rule 5): the same sentence the
+      // appliance prints for the same mistake in a mapping file.
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sourceConfig', 'nativeFilePolicy'],
+        message: err instanceof ConfigError ? err.message : String(err),
+      });
+    }
+  } else if (body.sourceType === 'imap') {
     const missing = (['host', 'port'] as const).filter((k) => body.sourceConfig[k] === undefined);
     if (missing.length > 0) {
       ctx.addIssue({
@@ -457,12 +524,22 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
                 username: body.sourceConfig.username,
                 ...(body.sourceConfig.password ? { password: body.sourceConfig.password } : {}),
               }
-            : {
-                username: body.sourceConfig.username,
-                tenantId: body.sourceConfig.tenantId!,
-                clientId: body.sourceConfig.clientId!,
-                clientSecret: body.sourceConfig.clientSecret!,
-              },
+            : body.sourceType === 'google-drive'
+              ? {
+                  // EXACTLY the keys STORED_GOOGLE_CREDENTIAL_NAMES reads —
+                  // buildGoogleDriveSourceFrom refuses at build time naming any
+                  // that are missing, so a key misspelled here would surface as
+                  // that refusal on the first pass, not as silence.
+                  clientId: body.sourceConfig.clientId!,
+                  clientSecret: body.sourceConfig.clientSecret!,
+                  refreshToken: body.sourceConfig.refreshToken!,
+                }
+              : {
+                  username: body.sourceConfig.username,
+                  tenantId: body.sourceConfig.tenantId!,
+                  clientId: body.sourceConfig.clientId!,
+                  clientSecret: body.sourceConfig.clientSecret!,
+                },
         ).encrypted,
       );
       const targetSecret = JSON.stringify(

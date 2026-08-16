@@ -81,8 +81,10 @@ GOOGLE_CLIENT_SECRET=…
 GOOGLE_REFRESH_TOKEN=…
 ```
 
-Managed — the same three, as the source connection's stored credentials, under exactly these
-names: `clientId`, `clientSecret`, `refreshToken`.
+Managed — the same three, entered in the create-mapping wizard (a **Google Drive** source:
+client ID on the source step; client secret and refresh token on the credentials step). They
+are stored encrypted on the source connection under exactly these names: `clientId`,
+`clientSecret`, `refreshToken`.
 
 Then the mapping's file domain:
 

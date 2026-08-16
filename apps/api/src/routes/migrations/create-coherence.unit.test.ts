@@ -145,3 +145,55 @@ describe('cron schedule — garbage is refused with the reason and the fallback 
     expect(CreateMappingSchema.safeParse(body()).success).toBe(true);
   });
 });
+
+describe('a google-drive source (workplan 0042) — the same doors, its own refusals', () => {
+  const drive = (over: Record<string, unknown> = {}) =>
+    body({
+      sourceType: 'google-drive',
+      targetType: 'webdav',
+      sourceConfig: {
+        username: 'owner@example.nl',
+        clientId: 'cid.apps.googleusercontent.com',
+        clientSecret: 'cs',
+        refreshToken: 'rt',
+        ...((over.sourceConfig as Record<string, unknown>) ?? {}),
+      },
+      syncConfig: { domains: ['file'] },
+      ...Object.fromEntries(Object.entries(over).filter(([k]) => k !== 'sourceConfig')),
+    });
+
+  it('accepts the coherent shape: drive → webdav, file domain, three credentials', () => {
+    expect(CreateMappingSchema.safeParse(drive()).success).toBe(true);
+  });
+
+  it('refuses a missing refresh token, pointing at the setup doc', () => {
+    const msg = refusalText(
+      drive({ sourceConfig: { refreshToken: undefined } }),
+    );
+    expect(msg).toContain('refreshToken');
+    expect(msg).toContain('google-workspace-setup.md');
+  });
+
+  it('refuses non-file domains — the credential reads the Drive API only', () => {
+    const msg = refusalText(drive({ syncConfig: { domains: ['file', 'email'] } }));
+    expect(msg).toContain("'email'");
+    expect(msg).toContain('Drive API only');
+    expect(msg).toContain('separate mapping');
+  });
+
+  it('refuses a nativeFilePolicy the shared parser refuses, in ITS words (hard rule 5)', () => {
+    // The exact sentence the appliance prints for the same mistake in a
+    // mapping file — one authority, both editions.
+    const msg = refusalText(
+      drive({ sourceConfig: { nativeFilePolicy: 'export-html' } }),
+    );
+    expect(msg).toContain('nativeFilePolicy');
+    expect(msg).toMatch(/refuse|export-office|export-pdf/);
+  });
+
+  it('still refuses an incoherent TARGET for the file domain', () => {
+    const msg = refusalText(drive({ targetType: 'caldav' }));
+    expect(msg).toContain('CalDAV');
+    expect(msg).toContain("'file'");
+  });
+});

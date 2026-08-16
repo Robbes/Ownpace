@@ -206,19 +206,35 @@ surprised you.
 
 ---
 
-## Stage 4 — managed on the Spark: worth doing only after I build two things
+## Stage 4 — managed on the Spark: now a real test
 
-Testing managed today would **not** test this round's work: managed has no Drive
-onboarding (no UI to create a `google-drive` connection) and no relocation-apply
-route — the apply button deliberately does not render there, because its
-destructive path must run through a queued job with a receipt, and that job does
-not exist yet. Both are known, deliberate gaps (workplan 0042; ADR-0030).
+Both gaps this stage used to wait on are built: the wizard creates a
+`google-drive` source connection, and the relocation apply runs through its own
+queued job (`run-apply-relocation`) landing on its own receipt. So Stage 4 is
+Stage 2's drills through the managed journey:
 
-So: run managed on the Spark when you want to exercise the **managed journey for
-mail/DAV** (wizard, digest, receipts — `deploy/compose/managed.yml`), but for
-Drive and relocations it can only show you the buttons *not* being there. Say the
-word and I build the managed relocation job + receipt and the Drive connection
-onboarding; Stage 4 then becomes a real test.
+1. Bring up `deploy/compose/managed.yml` on the Spark (worker included — the
+   destructive path runs through Trigger.dev there, so a missing worker shows
+   up as receipts stuck `queued`, which is itself worth seeing once).
+2. Walk the wizard: source **Google Drive** (client ID + root folder on the
+   source step; client secret + refresh token on the credentials step — the
+   same three values Stage 1 proved), target your Nextcloud/Stalwart, and note
+   the wizard pins the **file** data type and refuses the others in the same
+   sentence the API would.
+3. Confirm the mapping (it lands paused, by design), start it, and run drills
+   A–E from Stage 2 at `/mappings/<id>/moves` and `/mappings/<id>/deletions`.
+   The one visible difference from the appliance: **apply answers with a
+   queued receipt** the row polls to its outcome, instead of a synchronous
+   sentence — refusals arrive in the same words either way.
+4. The drill worth doing here that Stage 2 cannot: rename a file in Drive,
+   let it correlate, then delete the NEW name in Drive and wait two passes —
+   the same item now sits in BOTH queues. Decide each side; each answers from
+   its own receipt. That is migration 0010's discriminator working in front
+   of you.
+
+**Send back:** the wizard step where any sentence read wrong, and for one
+applied relocation the receipt JSON from
+`GET /api/migrations/<id>/moves/<hash>/receipt`.
 
 ---
 

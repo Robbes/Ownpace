@@ -21,7 +21,7 @@ import {
   DEFAULT_CONCURRENCY,
   parseGoogleDriveSource,
 } from '@openmig/shared';
-import { connection as connectionTable } from '@openmig/ledger';
+import { connection as connectionTable, mailbox as mailboxTable } from '@openmig/ledger';
 import {
   createTokenProvider,
 } from '@openmig/connectors';
@@ -228,21 +228,61 @@ export async function buildDepsFromMapping(
   );
 }
 
-/** Load source + target connection config/credentials/kind for a tenant (RLS-enforced). */
+/**
+ * Load source + target connection config/credentials/kind — THE MAPPING'S OWN
+ * connections, resolved mapping → mailbox → connection (RLS-enforced).
+ *
+ * It used to take the tenant's first row per role, with no ORDER BY. One
+ * mapping per tenant made that look correct; the moment a tenant has two —
+ * mail from O365 and files from Google Drive is the shape that forced this —
+ * "first" is whichever row the planner returns, and a pass could open the
+ * WRONG PROVIDER'S credentials. The mapping has named its connections since
+ * the 0001 baseline (via its mailboxes); this finally reads them.
+ *
+ * The tenant-role row remains as a FALLBACK, not a preference: legacy rows
+ * created before mailboxes carried a connection id would otherwise stop
+ * building at all, and a fallback that only fires when the mapping cannot
+ * answer is exactly as safe as what every one of those tenants runs today.
+ */
 async function loadDomainConnections(
   pool: Pool,
   tenantId: string,
+  mappingId: string,
 ): Promise<{
   source: { config: Record<string, unknown>; creds: Record<string, string>; kind: string };
   target: { config: Record<string, unknown>; creds: Record<string, string>; kind: string };
 }> {
   return withTenant(pool, tenantId, async (txDb) => {
+    const mappingRows = await txDb
+      .select({
+        sourceMailboxId: mailboxMapping.sourceMailboxId,
+        targetMailboxId: mailboxMapping.targetMailboxId,
+      })
+      .from(mailboxMapping)
+      .where(and(eq(mailboxMapping.tenantId, tenantId), eq(mailboxMapping.id, mappingId)));
+    const mapping = mappingRows[0];
+    if (!mapping) {
+      throw new Error(`Mapping not found or access denied: ${mappingId}`);
+    }
+
     const load = async (role: 'source' | 'target') => {
-      const rows = await txDb
-        .select()
-        .from(connectionTable)
-        .where(and(eq(connectionTable.tenantId, tenantId), eq(connectionTable.role, role)));
-      const conn = rows[0];
+      const mailboxId = role === 'source' ? mapping.sourceMailboxId : mapping.targetMailboxId;
+      let conn;
+      if (mailboxId) {
+        const viaMapping = await txDb
+          .select()
+          .from(connectionTable)
+          .innerJoin(mailboxTable, eq(mailboxTable.connectionId, connectionTable.id))
+          .where(and(eq(mailboxTable.id, mailboxId), eq(connectionTable.tenantId, tenantId)));
+        conn = viaMapping[0]?.connection;
+      }
+      if (!conn) {
+        const rows = await txDb
+          .select()
+          .from(connectionTable)
+          .where(and(eq(connectionTable.tenantId, tenantId), eq(connectionTable.role, role)));
+        conn = rows[0];
+      }
       if (!conn) {
         throw new Error(`${role} connection not found for tenant: ${tenantId}`);
       }
@@ -296,19 +336,26 @@ export async function buildDomainDepsFromMapping(
     const tId = tenantId as TenantId;
     const mId = mappingId as MappingId;
 
-    const { source: src, target: tgt } = await loadDomainConnections(pool, tenantId);
+    const { source: src, target: tgt } = await loadDomainConnections(pool, tenantId, mappingId);
     const common = { tenantId: tId, mappingId: mId, ledger, cursors };
     const targetDeps = { ledger, tenantId: tId, mappingId: mId };
-    const srcEndpoint = davEndpointFromCreds('source', src.config, src.creds);
-    const tgtEndpoint = davEndpointFromCreds('target', tgt.config, tgt.creds);
 
+    // DAV endpoints are resolved INSIDE the branches that are DAV-shaped, not
+    // hoisted above them. Hoisting was a live bug, not a style point: a
+    // `google_drive` source has OAuth credentials and no username/password, so
+    // the eager source resolution threw "missing credentials" before the file
+    // branch — the one that knows how to build a Drive source — could run at
+    // all. The managed Drive path was wired (T5) and unreachable.
     // Attach close() so the caller releases the pool after the pass (never leak it).
     if (domain === 'calendar') {
       return withClose(
         {
           ...common,
-          source: buildCalendarSource(srcEndpoint),
-          target: buildCalendarTarget(tgtEndpoint, targetDeps),
+          source: buildCalendarSource(davEndpointFromCreds('source', src.config, src.creds)),
+          target: buildCalendarTarget(
+            davEndpointFromCreds('target', tgt.config, tgt.creds),
+            targetDeps,
+          ),
         } satisfies CalendarSyncDeps,
         db,
       );
@@ -317,7 +364,7 @@ export async function buildDomainDepsFromMapping(
       return withClose(
         {
           ...common,
-          source: buildContactSource(srcEndpoint),
+          source: buildContactSource(davEndpointFromCreds('source', src.config, src.creds)),
           // Contacts can go over JMAP where the target speaks it (0031 T2).
           // Read off the connection's own `kind`, which has allowed `jmap`
           // since the 0001 baseline, so this needs no migration and no new
@@ -325,7 +372,7 @@ export async function buildDomainDepsFromMapping(
           // existing mapping is and must remain.
           target: buildContactTargetFor(
             contactTargetProtocol(tgt.kind),
-            tgtEndpoint,
+            davEndpointFromCreds('target', tgt.config, tgt.creds),
             targetDeps,
           ),
         } satisfies ContactSyncDeps,
