@@ -165,7 +165,14 @@ rather than as one row:
   cutover), and rights that *could not be read* named as such — `not_discoverable` is a
   different value from "none found" (hard rule 9). It lands in the Finish screen's
   **permissions handover** document, which is the deliberate substitute for automated ACL
-  migration across all four object types.
+  migration across all four object types. Coverage, honestly, per source: **M365**
+  calendar sharing is scanned (application permissions required); OneDrive/SharePoint
+  sharing sits behind the deliberately-unconsented `Files.Read.All` flag; mailbox
+  delegation can never be read through Graph and is always a stated blind spot. **Google
+  Drive** outbound shares on files the account owns are scanned with the Drive scope the
+  pass already holds (workplan 0029 T5) — shared-drive membership and Google
+  Calendar/Contacts sharing are stated blind spots. Every other source states its blind
+  spots rather than omitting the section.
 
 ## Everything, by design
 
@@ -190,6 +197,7 @@ These hold across all object types, and are features rather than gaps:
 | Google-native file export (Docs/Sheets/Slides) | ⏳ measurement gates the policy | Stage 1; workplan 0042 T6 |
 | JMAP calendar target | 🚫 parked (recurrence round-trip) | workplan 0031 T1 |
 | Drive loose shared *files* (shared folders root a mapping since 0051; shortcuts are refused loudly) | ⛔ not enumerated | Shared content section above; workplan 0051 |
+| Re-creating shares on the target, invites via its own messaging (sharing queue) | ⛔ ADR proposed, awaiting owner decision | ADR-0032 |
 | Whole-tenant Google migration (domain-wide delegation) | ⛔ needs an owner-scoped ADR first | noted in `google-workspace-setup.md` |
 | Managed per-mapping throttle config (the DAV limiter parameter is armed but unfed there) | ⛔ small follow-up | PR #416 notes |
 | Drive incremental delta (`changes.list`) | ⛔ deliberate cost/correctness trade | workplan 0042 T1 |
