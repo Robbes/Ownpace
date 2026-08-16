@@ -47,6 +47,7 @@ import {
 import { useT, useFormatters } from '../i18n';
 import MappingHubLink from '../components/MappingHubLink';
 import PermissionsHandover from '../components/finish/PermissionsHandover';
+import CompletionReportDownload from '../components/CompletionReportDownload';
 import type { StringKey } from '../i18n';
 
 type Outcome =
@@ -321,6 +322,12 @@ const Finish: React.FC = () => {
                       >
                         {t('finish.aftermath.runs')}
                       </Link>
+                    </li>
+                    <li>
+                      {/* The closing document (workplan 0047), where closing
+                          happens: generated NOW, with the verdict the queues
+                          allow — which after a finish is the whole point. */}
+                      <CompletionReportDownload mappingId={id} />
                     </li>
                   </ul>
                 </div>
