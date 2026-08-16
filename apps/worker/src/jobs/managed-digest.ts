@@ -125,6 +125,13 @@ export const managedDigest = schedules.task({
         ledger.listMoves(asTenantId(tenantId), asMappingId(mappingId)),
       listFailures: (tenantId, mappingId) =>
         ledger.listFailures(asTenantId(tenantId), asMappingId(mappingId)),
+      countAutoApplied: (tenantId, mappingId, since) =>
+        ledger.countAuditEvents(asTenantId(tenantId), {
+          actor: 'system:auto-apply',
+          action: 'auto_apply_relocation',
+          since,
+          mappingId,
+        }),
       countPendingDecisions: async (tenantId) =>
         (await decisions.list(asTenantId(tenantId), { status: 'pending' })).length,
 

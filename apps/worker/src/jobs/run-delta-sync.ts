@@ -78,6 +78,8 @@ async function autoApplyOpenRelocations(
       ...(rows[0]?.prefix ? { targetFolderPrefix: rows[0].prefix } : {}),
       onApplied: async ({ naturalKeyHash, kind }) => {
         await withTenant(pool, tenantId, async (db) => {
+          // The receipt only: the audit row is written by core itself now
+          // (workplan 0048), one writer for both editions.
           await db.insert(schemaPg.applyReceipt).values({
             tenantId,
             mappingId,
@@ -87,13 +89,6 @@ async function autoApplyOpenRelocations(
             finishedAt: new Date(),
             kind,
             reason: 'auto-applied by system:auto-apply (ADR-0031; this mapping opted in)',
-          });
-          await db.insert(schemaPg.auditLog).values({
-            tenantId,
-            actor: 'system:auto-apply',
-            action: 'auto_apply_relocation',
-            entity: 'item',
-            detail: { mappingId, naturalKeyHash, kind },
           });
         });
       },

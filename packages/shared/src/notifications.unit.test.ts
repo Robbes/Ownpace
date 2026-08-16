@@ -30,6 +30,7 @@ const quiet: MappingAttention = {
   movesWaiting: 0,
   failuresWaiting: 0,
   readyForCutover: false,
+  autoApplied: 0,
 };
 
 describe('when NOT to send', () => {
@@ -246,5 +247,23 @@ describe('renderDigest — tenant-level attention (0043 T4)', () => {
 
     expect(message!.body).toContain('Uw organisatie');
     expect(message!.body).not.toContain('Your organisation');
+  });
+});
+
+describe('auto-applied removals are narrated (ADR-0031, workplan 0048)', () => {
+  it('keeps the email alive on their own — silent tidying is the one forbidden mode', () => {
+    const m: MappingAttention = { ...quiet, autoApplied: 3 };
+    expect(wantsAttention(m)).toBe(true);
+    const digest = renderDigest([m], 'en', 'daily');
+    expect(digest?.body).toContain('3 old copies of moved or renamed files removed automatically');
+    // And each is recorded — the sentence says so, because an owner reading
+    // this must know there is an audit row per removal, not a bulk note.
+    expect(digest?.body).toContain('each is recorded');
+  });
+
+  it('says it in Dutch too, and stays silent at zero', () => {
+    const nl = renderDigest([{ ...quiet, autoApplied: 1 }], 'nl', 'weekly');
+    expect(nl?.body).toContain('automatisch verwijderd');
+    expect(renderDigest([quiet], 'en', 'daily')).toBeUndefined();
   });
 });

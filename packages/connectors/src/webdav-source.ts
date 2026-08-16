@@ -33,6 +33,33 @@ import {
  * WebDAV source connector implementation.
  */
 export class WebdavFileSource implements FileSource {
+
+  /**
+   * The one place every request leaves through (workplan 0050): when the
+   * mapping carries a limiter, take a rate+concurrency slot first and release
+   * it after — the caps an owner configured, enforced. Without one this is
+   * exactly `httpClient.request`.
+   */
+  private async send(options: import('./dav-http.types').HttpRequestOptions): Promise<import('./dav-http.types').HttpResponse> {
+    const limiter = this.config.throttleLimiter;
+    if (!limiter) return this.httpClient.request(options);
+    await limiter.waitForSlot('dav', this.limiterHost());
+    try {
+      return await this.httpClient.request(options);
+    } finally {
+      limiter.releaseSlot();
+    }
+  }
+
+  /** Bucket key: the server, so several collections on one host share caps. */
+  private limiterHost(): string {
+    try {
+      return new URL(this.config.url).host;
+    } catch {
+      return this.config.url;
+    }
+  }
+
   private readonly config: WebDAVSourceConfig;
   private readonly httpClient: HttpClient;
 
@@ -179,7 +206,7 @@ export class WebdavFileSource implements FileSource {
     const url = nextcloudTrashbinUrl(this.config.url);
     if (!url) return [];
 
-    const response = await this.httpClient.request({
+    const response = await this.send({
       method: 'PROPFIND',
       url,
       body: TRASHBIN_PROPFIND_BODY,
@@ -232,7 +259,7 @@ export class WebdavFileSource implements FileSource {
    * The url should already be fully resolved (caller handles resolution).
    */
   async fetchFileContent(url: string): Promise<Uint8Array> {
-    const response = await this.httpClient.request({
+    const response = await this.send({
       method: 'GET',
       url,
       headers: {
@@ -294,7 +321,7 @@ export class WebdavFileSource implements FileSource {
     // Use resolveHref for server-returned paths, buildUrl for config-derived
     const url = useResolveHref ? this.resolveHref(path) : this.buildUrl(path);
     
-    const response = await this.httpClient.request({
+    const response = await this.send({
       method: 'PROPFIND',
       url,
       body: propfindXml,

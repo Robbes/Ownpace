@@ -700,3 +700,84 @@ END:VCALENDAR`;
     });
   });
 });
+
+describe('the throttle limiter (workplan 0050)', () => {
+  it('takes a slot before every request and releases it after — the caps are enforced, not decorative', async () => {
+    // The gap DomainConfig.throttleConfig documented since 0026 T1: the
+    // mapping's limiter was merged and handed to the MAIL source only, and
+    // the DAV connectors ran uncapped against servers (a default Nextcloud's
+    // single-writer SQLite) that genuinely lock under concurrency.
+    const order: string[] = [];
+    const limiter = {
+      waitForSlot: async (_tenant: string, host: string) => {
+        order.push(`acquire:${host}`);
+      },
+      releaseSlot: () => {
+        order.push('release');
+      },
+    };
+    const httpClient = {
+      request: async () => {
+        order.push('request');
+        return { status: 207, headers: {}, body: '<d:multistatus xmlns:d="DAV:"></d:multistatus>' };
+      },
+    };
+    const source = new CalDAVSource(
+      {
+        url: 'https://cloud.example.net/remote.php/dav/',
+        username: 'u',
+        password: 'p',
+        throttleLimiter: limiter as unknown as import('@openmig/shared').ThrottleLimiter,
+      },
+      { httpClient },
+    );
+
+    await (source as any).send({ method: 'PROPFIND', url: 'https://cloud.example.net/remote.php/dav/' });
+
+    // Acquire, THEN the request, THEN release — keyed by host, so several
+    // collections on one server share the caps.
+    expect(order).toEqual(['acquire:cloud.example.net', 'request', 'release']);
+  });
+
+  it('releases the slot when the request THROWS — a failed call must not leak capacity', async () => {
+    const order: string[] = [];
+    const limiter = {
+      waitForSlot: async () => {
+        order.push('acquire');
+      },
+      releaseSlot: () => {
+        order.push('release');
+      },
+    };
+    const httpClient = {
+      request: async () => {
+        order.push('request');
+        throw new Error('socket hang up');
+      },
+    };
+    const source = new CalDAVSource(
+      {
+        url: 'https://cloud.example.net/remote.php/dav/',
+        username: 'u',
+        password: 'p',
+        throttleLimiter: limiter as unknown as import('@openmig/shared').ThrottleLimiter,
+      },
+      { httpClient },
+    );
+
+    await expect(
+      (source as any).send({ method: 'GET', url: 'https://cloud.example.net/x' }),
+    ).rejects.toThrow('socket hang up');
+    expect(order).toEqual(['acquire', 'request', 'release']);
+  });
+
+  it('without a limiter, send IS the http client — no behaviour change for existing mappings', async () => {
+    const httpClient = { request: vi.fn(async () => ({ status: 200, headers: {}, body: '' })) };
+    const source = new CalDAVSource(
+      { url: 'https://caldav.example.com/', username: 'u', password: 'p' },
+      { httpClient },
+    );
+    await (source as any).send({ method: 'GET', url: 'https://caldav.example.com/x' });
+    expect(httpClient.request).toHaveBeenCalledTimes(1);
+  });
+});

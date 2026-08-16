@@ -64,6 +64,8 @@ export interface DigestDeps {
   listDeletions(tenantId: string, mappingId: string): Promise<readonly DeletionRow[]>;
   listMoves(tenantId: string, mappingId: string): Promise<readonly MoveRow[]>;
   listFailures(tenantId: string, mappingId: string): Promise<readonly FailureRow[]>;
+  /** Relocations auto-applied for this mapping since `since` (ADR-0031, 0048). */
+  countAutoApplied(tenantId: string, mappingId: string, since: string): Promise<number>;
   countPendingDecisions(tenantId: string): Promise<number>;
   send(
     to: readonly string[],
@@ -90,6 +92,7 @@ async function attentionFor(
   tenantId: string,
   mapping: DigestMapping,
   pendingDecisions: number | undefined,
+  since: string,
 ): Promise<MappingAttention> {
   const blindSpots: string[] = [];
   const guarded = async <T>(what: string, read: () => Promise<T>, fallback: T): Promise<T> => {
@@ -114,6 +117,11 @@ async function attentionFor(
     () => deps.listFailures(tenantId, mapping.id),
     [],
   );
+  const autoApplied = await guarded(
+    'the auto-apply record',
+    () => deps.countAutoApplied(tenantId, mapping.id, since),
+    0,
+  );
 
   return summariseQueues(mapping.id, {
     deletions,
@@ -121,6 +129,7 @@ async function attentionFor(
     failures,
     pendingDecisions: pendingDecisions ?? 0,
     status: mapping.status,
+    autoApplied,
     blindSpots,
   });
 }
@@ -174,11 +183,17 @@ export async function runDigest(deps: DigestDeps): Promise<DigestSummary> {
       // A finished migration keeps its history but stops nagging — the same
       // rule the queue endpoints apply, checked before any read.
       if (!reportsToDigest(mapping.status)) continue;
+      // The digest window: what happened since the LAST summary of this
+      // cadence — a day or a week ago.
+      const since = new Date(
+        Date.now() - (cadence === 'weekly' ? 7 : 1) * 24 * 60 * 60 * 1000,
+      ).toISOString();
       const one = await attentionFor(
         deps,
         tenant.id,
         mapping,
         attention.length === 0 ? decisionsPending : 0,
+        since,
       );
       attention.push(
         attention.length === 0 && decisionsBlindSpot

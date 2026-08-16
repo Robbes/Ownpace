@@ -447,6 +447,50 @@ export class MemoryLedger implements Ledger {
    * one arrangement is not agreeing to every later one. A fake that always
    * cleared, or never did, would prove the opposite of whichever is true.
    */
+  /** The audit rows this fake has been asked to write, oldest first. */
+  readonly auditEvents: Array<{
+    tenantId: string;
+    actor: string;
+    action: string;
+    entity?: string;
+    detail?: Record<string, unknown>;
+    at: string;
+  }> = [];
+
+  recordAuditEvent(
+    tenantId: LedgerRecord['tenantId'],
+    event: {
+      readonly actor: string;
+      readonly action: string;
+      readonly entity?: string;
+      readonly detail?: Record<string, unknown>;
+    },
+  ): Promise<void> {
+    this.auditEvents.push({ tenantId, ...event, at: new Date().toISOString() });
+    return Promise.resolve();
+  }
+
+  countAuditEvents(
+    tenantId: LedgerRecord['tenantId'],
+    filter: {
+      readonly actor: string;
+      readonly action: string;
+      readonly since: string;
+      readonly mappingId?: string;
+    },
+  ): Promise<number> {
+    return Promise.resolve(
+      this.auditEvents.filter(
+        (e) =>
+          e.tenantId === tenantId &&
+          e.actor === filter.actor &&
+          e.action === filter.action &&
+          e.at >= filter.since &&
+          (!filter.mappingId || e.detail?.mappingId === filter.mappingId),
+      ).length,
+    );
+  }
+
   recordMove(
     tenantId: LedgerRecord['tenantId'],
     mappingId: LedgerRecord['mappingId'],

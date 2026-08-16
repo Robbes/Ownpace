@@ -254,6 +254,30 @@ export class GoogleDriveSource implements FileSource {
    * broken by a permanently-deleted ancestor has no nameable path — that file
    * stays on absence-counting, which still works and says less.
    */
+  /**
+   * The shared drives this credential can see (workplan 0049) — `drives.list`,
+   * paged, read-only. This is the onboarding question ("which id do I put in
+   * rootFolderId?") answered by the API instead of by a walk through the
+   * Google admin console. NOT used by any pass: a migration's root is a
+   * written-down decision, never an enumeration.
+   */
+  async listSharedDrives(): Promise<ReadonlyArray<{ id: string; name: string }>> {
+    const drives: Array<{ id: string; name: string }> = [];
+    let pageToken: string | undefined;
+    do {
+      const url =
+        `${this.baseUrl}/drives?pageSize=100&fields=${encodeURIComponent('drives(id,name),nextPageToken')}` +
+        (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '');
+      const page = (await this.getJson(url)) as {
+        drives?: Array<{ id: string; name: string }>;
+        nextPageToken?: string;
+      };
+      drives.push(...(page.drives ?? []));
+      pageToken = page.nextPageToken;
+    } while (pageToken);
+    return drives;
+  }
+
   async listTrashedPaths(): Promise<ReadonlyArray<string>> {
     const q = `trashed=true and mimeType!='${DRIVE_FOLDER_MIME}'`;
     const fields = 'nextPageToken,files(id,name,parents)';

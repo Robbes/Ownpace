@@ -144,6 +144,13 @@ export interface MappingAttention {
   /** Verified and waiting for the owner to finish the migration. */
   readonly readyForCutover: boolean;
   /**
+   * Old copies of relocated items removed UNATTENDED since the last digest
+   * (ADR-0031, workplan 0048). Not a queue — nothing is waiting — but the one
+   * thing that feature must never be is silent, and the digest is where an
+   * owner who opted in reads what happened overnight.
+   */
+  readonly autoApplied: number;
+  /**
    * Anything this summary could NOT read, in the server's own words.
    *
    * Present means the digest is INCOMPLETE, and rule 2 above makes that
@@ -195,6 +202,8 @@ export interface QueueReads {
   readonly pendingDecisions: number;
   /** The mapping's own status, or undefined when even that could not be read. */
   readonly status: string | undefined;
+  /** Relocations auto-applied in the digest window; absent = zero. */
+  readonly autoApplied?: number;
   /** Whatever could not be read, in the server's own words. */
   readonly blindSpots: readonly string[];
 }
@@ -223,6 +232,7 @@ export function summariseQueues(mappingId: string, reads: QueueReads): MappingAt
     // budget is the machine's problem, not the owner's.
     failuresWaiting: reads.failures.filter((f) => f.needsDecision).length,
     readyForCutover: reads.status === 'cutover',
+    autoApplied: reads.autoApplied ?? 0,
     ...(reads.blindSpots.length > 0 ? { blindSpots: reads.blindSpots } : {}),
   };
 }
@@ -235,6 +245,9 @@ export function wantsAttention(m: MappingAttention): boolean {
     m.movesWaiting > 0 ||
     m.failuresWaiting > 0 ||
     m.readyForCutover ||
+    // Auto-applied removals keep the email alive on their own: an owner whose
+    // only news is "3 old copies removed automatically" must receive it.
+    m.autoApplied > 0 ||
     (m.blindSpots?.length ?? 0) > 0
   );
 }
@@ -280,6 +293,7 @@ interface DigestLines {
   readonly moves: string;
   readonly failures: string;
   readonly readyForCutover: string;
+  readonly autoApplied: string;
   readonly couldNotRead: string;
   readonly footer: string;
 }
@@ -293,6 +307,8 @@ const LINE: Record<NotificationLocale, DigestLines> = {
     moves: 'moves to acknowledge',
     failures: 'items that could not be copied',
     readyForCutover: 'checked and ready to finish',
+    autoApplied:
+      'old copies of moved or renamed files removed automatically (auto-apply — each is recorded)',
     couldNotRead: 'COULD NOT BE READ — this summary is incomplete:',
     footer:
       'You are receiving this because Open Migrate is configured to send you a summary. ' +
@@ -306,6 +322,8 @@ const LINE: Record<NotificationLocale, DigestLines> = {
     moves: 'verplaatsingen om te bevestigen',
     failures: 'items die niet gekopieerd konden worden',
     readyForCutover: 'gecontroleerd en klaar om af te ronden',
+    autoApplied:
+      'oude kopieën van verplaatste of hernoemde bestanden automatisch verwijderd (automatisch toepassen — elk is vastgelegd)',
     couldNotRead: 'KON NIET GELEZEN WORDEN — deze samenvatting is onvolledig:',
     footer:
       'U ontvangt dit omdat Open Migrate is ingesteld om u een samenvatting te sturen. ' +
@@ -371,6 +389,7 @@ export function renderDigest(
     if (m.movesWaiting > 0) lines.push(`  - ${m.movesWaiting} ${t.moves}`);
     if (m.failuresWaiting > 0) lines.push(`  - ${m.failuresWaiting} ${t.failures}`);
     if (m.readyForCutover) lines.push(`  - ${t.readyForCutover}`);
+    if (m.autoApplied > 0) lines.push(`  - ${m.autoApplied} ${t.autoApplied}`);
     for (const blind of m.blindSpots ?? []) {
       // Verbatim: this is the server's own reason, and paraphrasing the one
       // line that says "I could not look" would defeat its purpose.

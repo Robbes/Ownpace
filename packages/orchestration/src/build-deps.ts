@@ -578,6 +578,9 @@ function buildDomainDepsWithLedger(
     throw new Error(`Domain ${domain} is not enabled in config`);
   }
 
+  // The mapping's merged limiter (see DomainConfig.throttleConfig): now
+  // enforced on the DAV/file sources too, not only handed to mail (0050).
+  const domainThrottleLimiter = buildThrottleLimiter(config);
   // Build source connector based on domain type
   const sourceConfig = domainConfig.source;
   const targetConfig = domainConfig.target;
@@ -606,7 +609,7 @@ function buildDomainDepsWithLedger(
               },
               ENV_GOOGLE_CALENDAR_CREDENTIAL_NAMES,
             )
-          : buildCalendarSource(davEndpoint(sourceConfig, 'caldav', 'source'));
+          : buildCalendarSource(davEndpoint(sourceConfig, 'caldav', 'source'), domainThrottleLimiter);
       target = buildCalendarTarget(davEndpoint(targetConfig, 'caldav', 'target'), targetDeps);
       break;
     case 'contact': {
@@ -622,7 +625,7 @@ function buildDomainDepsWithLedger(
               },
               ENV_GOOGLE_CONTACTS_CREDENTIAL_NAMES,
             )
-          : buildContactSource(davEndpoint(sourceConfig, 'carddav', 'source'));
+          : buildContactSource(davEndpoint(sourceConfig, 'carddav', 'source'), domainThrottleLimiter);
       // Contacts can go over JMAP where the target speaks it (0031 T2). The
       // config already expresses it: `TargetConfig` is a union that includes
       // `JmapTarget`, so a contacts domain naming `type: 'jmap'` needs no new
@@ -652,7 +655,7 @@ function buildDomainDepsWithLedger(
               },
               ENV_GOOGLE_CREDENTIAL_NAMES,
             )
-          : buildFileSource(davEndpoint(sourceConfig, 'webdav', 'source'));
+          : buildFileSource(davEndpoint(sourceConfig, 'webdav', 'source'), domainThrottleLimiter);
       // Files can go over JMAP where the target speaks it (0031 T3). The
       // config already expresses it: `TargetConfig` is a union that includes
       // `JmapTarget`, so a files domain naming `type: 'jmap'` needs no new

@@ -20,6 +20,15 @@ export interface WebDAVSourceConfig {
   passwordEnv?: string;
   /** Direct password/token (managed path — credentials decrypted from the DB at runtime). */
   password?: string;
+  /**
+   * The mapping's shared rate/concurrency limiter (workplan 0050). Optional —
+   * absent means unlimited, which is what every mapping without a
+   * `throttleConfig` has always had. When set, every request first takes a
+   * slot: the caps an owner wrote down are enforced here, not merely merged
+   * and handed to the mail source alone (the gap `DomainConfig.throttleConfig`
+   * has documented since 0026 T1).
+   */
+  throttleLimiter?: import('@openmig/shared').ThrottleLimiter;
   /** Root path for file storage (optional) */
   rootPath?: string;
 }

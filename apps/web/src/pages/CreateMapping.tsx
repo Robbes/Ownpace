@@ -239,7 +239,33 @@ const CreateMapping: React.FC = () => {
     }
   };
 
-  // The connection test (workplan 0046): both sides probed in parallel,
+  // The shared-drive browse (workplan 0049): fills rootFolderId from
+  // drives.list instead of a paste out of the admin console. Lives on the
+  // credentials step because that is where the three values it needs are
+  // typed; the id it picks lands in the same field the source step shows.
+  const [sharedDrives, setSharedDrives] = React.useState<
+    Array<{ id: string; name: string }> | null
+  >(null);
+  const [sharedDrivesError, setSharedDrivesError] = React.useState<string | null>(null);
+  const [browsing, setBrowsing] = React.useState(false);
+  const browseSharedDrives = () => {
+    setBrowsing(true);
+    setSharedDrivesError(null);
+    mappingApi
+      .listSharedDrives({
+        clientId: formData.sourceClientId,
+        clientSecret: formData.sourceClientSecret,
+        refreshToken: formData.sourceRefreshToken,
+      })
+      .then((result) => {
+        if (result.ok) setSharedDrives([...result.drives]);
+        else setSharedDrivesError(result.reason);
+      })
+      .catch((err: unknown) => setSharedDrivesError(serverMessage(err)))
+      .finally(() => setBrowsing(false));
+  };
+
+    // The connection test (workplan 0046): both sides probed in parallel,
   // read-only, results shown verbatim — the same sentence the first pass
   // would have failed with, before anything exists.
   const [probing, setProbing] = React.useState(false);
@@ -904,6 +930,51 @@ const CreateMapping: React.FC = () => {
                       placeholder="1//…"
                     />
                     <p className="mt-1 text-sm text-gray-500">{t('wizard.refreshToken.hint')}</p>
+                  </div>
+                )}
+
+                {/* Workplan 0049: once the three values above are typed, the
+                    shared drives they can see are one click away — and picking
+                    one fills rootFolderId, the field an operator otherwise
+                    fetches from the admin console by hand. Drive only: the
+                    other Google sources have no root to choose. */}
+                {isDriveSource && (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={browseSharedDrives}
+                      disabled={
+                        browsing ||
+                        !formData.sourceClientId ||
+                        !formData.sourceClientSecret ||
+                        !formData.sourceRefreshToken
+                      }
+                      className="text-sm text-blue-700 hover:underline disabled:opacity-50"
+                    >
+                      {browsing ? t('wizard.testing') : t('wizard.browseSharedDrives')}
+                    </button>
+                    {sharedDrivesError && (
+                      <p className="mt-1 text-sm text-amber-800">{sharedDrivesError}</p>
+                    )}
+                    {sharedDrives && sharedDrives.length === 0 && (
+                      <p className="mt-1 text-sm text-gray-500">
+                        {t('wizard.noSharedDrives')}
+                      </p>
+                    )}
+                    {sharedDrives && sharedDrives.length > 0 && (
+                      <select
+                        className="input w-full mt-2"
+                        value={formData.sourceRootFolderId}
+                        onChange={(e) => updateField('sourceRootFolderId', e.target.value)}
+                      >
+                        <option value="">{t('wizard.review.myDrive')}</option>
+                        {sharedDrives.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 )}
 

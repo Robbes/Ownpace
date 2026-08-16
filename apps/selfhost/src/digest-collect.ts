@@ -50,6 +50,8 @@ export interface CollectDeps {
   listDeletions(mapping: CollectMapping): Promise<readonly DeletionRow[]>;
   listMoves(mapping: CollectMapping): Promise<readonly MoveRow[]>;
   listFailures(mapping: CollectMapping): Promise<readonly FailureRow[]>;
+  /** Relocations auto-applied for this mapping in the digest window (ADR-0031, 0048). */
+  countAutoApplied(mapping: CollectMapping): Promise<number>;
   countPendingDecisions(tenantId: string): Promise<number>;
 }
 
@@ -81,6 +83,11 @@ export async function collectAttention(deps: CollectDeps): Promise<MappingAttent
     const deletions = await guarded('the deletions queue', () => deps.listDeletions(mapping), []);
     const moves = await guarded('the moves queue', () => deps.listMoves(mapping), []);
     const failures = await guarded('the failures queue', () => deps.listFailures(mapping), []);
+    const autoApplied = await guarded(
+      'the auto-apply record',
+      () => deps.countAutoApplied(mapping),
+      0,
+    );
 
     // Once per tenant. The FIRST reportable mapping of a tenant carries the
     // count; the rest report zero rather than repeating it.
@@ -97,6 +104,7 @@ export async function collectAttention(deps: CollectDeps): Promise<MappingAttent
         failures,
         pendingDecisions,
         status,
+        autoApplied,
         blindSpots,
       }),
     );

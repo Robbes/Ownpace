@@ -307,6 +307,7 @@ describe('the digest counts what the screens count', () => {
       listMoves: () => ledger.listMoves(asTenantId(TENANT_ID), asMappingId(LEDGER_MAPPING_ID)),
       listFailures: () =>
         ledger.listFailures(asTenantId(TENANT_ID), asMappingId(LEDGER_MAPPING_ID)),
+      countAutoApplied: async () => 0,
       countPendingDecisions: async (tenantId) =>
         (await decisions.list(asTenantId(tenantId), { status: 'pending' })).length,
     });

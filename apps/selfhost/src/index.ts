@@ -434,7 +434,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
    * (0043 T4) read through exactly the same seams. Two definitions would be two
    * things free to drift, which is the shape 0041 spent three commits removing.
    */
-  const collectDeps = (): Parameters<typeof collectAttentionFrom>[0] => ({
+  const collectDeps = (cadence: DigestCadence = 'daily'): Parameters<typeof collectAttentionFrom>[0] => ({
       mappings: mappings.map((m) => ({
         mappingId: m.config.mappingId,
         tenantId: m.config.tenantId,
@@ -455,11 +455,24 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           byId(c).config.tenantId as TenantId,
           byId(c).mailboxMappingId as MappingId,
         ),
+      // The digest window: what happened since the LAST summary of this
+      // cadence. Counted from the audit rows core writes per auto-applied
+      // relocation (ADR-0031, workplan 0048) — same source managed counts.
+      countAutoApplied: (c) =>
+        ledger.countAuditEvents(byId(c).config.tenantId as TenantId, {
+          actor: 'system:auto-apply',
+          action: 'auto_apply_relocation',
+          since: new Date(
+            Date.now() - (cadence === 'weekly' ? 7 : 1) * 24 * 60 * 60 * 1000,
+          ).toISOString(),
+          mappingId: byId(c).config.mappingId,
+        }),
       countPendingDecisions: async (tenantId) =>
         (await new PgDecisionStore(db).list(tenantId as TenantId, { status: 'pending' })).length,
   });
 
-  const collectAttention = (): Promise<MappingAttention[]> => collectAttentionFrom(collectDeps());
+  const collectAttention = (cadence: DigestCadence = 'daily'): Promise<MappingAttention[]> =>
+    collectAttentionFrom(collectDeps(cadence));
 
   /** Send one digest, or nothing at all when nothing is waiting (0030 T3). */
   const sendDigest = async (cadence: DigestCadence): Promise<void> => {
@@ -470,7 +483,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // Asked for only when no mapping reported, mirroring managed exactly:
       // with live mappings the decisions already ride on the first one, and
       // counting them twice would tell the owner there are twice as many.
-      const attention = await collectAttention();
+      const attention = await collectAttention(cadence);
       const tenant = attention.length === 0 ? await collectTenantAttention(collectDeps()) : undefined;
       const message = renderDigest(attention, notifyLocale, cadence, tenant);
       if (!message) {

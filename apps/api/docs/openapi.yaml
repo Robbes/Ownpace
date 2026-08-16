@@ -365,6 +365,45 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /api/migrations/google-drive/shared-drives:
+    post:
+      tags: [Migrations]
+      summary: List the shared drives a Google credential can see
+      description: |
+        Read-only (`drives.list`), for the wizard's rootFolderId "browse".
+        Credentials travel in the request like test-connection's; nothing is
+        stored. A provider refusal is an answer (`{ok:false, reason}`),
+        verbatim.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clientId, clientSecret, refreshToken]
+              properties:
+                clientId: { type: string }
+                clientSecret: { type: string, writeOnly: true }
+                refreshToken: { type: string, writeOnly: true }
+      responses:
+        '200':
+          description: The drives, or the refusal.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  drives:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        name: { type: string }
+                  reason: { type: string }
+        '400': { description: The three credential fields were not all present. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /api/migrations/test-connection:
     post:
       tags: [Migrations]

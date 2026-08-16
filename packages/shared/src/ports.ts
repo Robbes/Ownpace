@@ -1003,6 +1003,38 @@ export interface Ledger {
     toNaturalKeyHash?: string,
   ): Promise<void>;
   /**
+   * Write one attribution row to the audit log (workplan 0048).
+   *
+   * Grown for ADR-0031's auto-apply — the first thing in the product that
+   * REMOVES data with nobody watching, and therefore the first that needs a
+   * durable "who did this" both editions can answer. `audit_log` has existed
+   * since the baseline with no writer; this is its writer, behind the port so
+   * the appliance's PGlite and managed Postgres record identically.
+   */
+  recordAuditEvent(
+    tenantId: TenantId,
+    event: {
+      readonly actor: string;
+      readonly action: string;
+      readonly entity?: string;
+      readonly detail?: Record<string, unknown>;
+    },
+  ): Promise<void>;
+  /**
+   * How many audit rows match — the digest's "removed automatically since the
+   * last summary" count. `since` is inclusive ISO time; `mappingId` filters on
+   * the detail blob, where attribution rows record it.
+   */
+  countAuditEvents(
+    tenantId: TenantId,
+    filter: {
+      readonly actor: string;
+      readonly action: string;
+      readonly since: string;
+      readonly mappingId?: string;
+    },
+  ): Promise<number>;
+  /**
    * Forget a recorded move, because the source lists the item where we copied
    * it from again.
    *
