@@ -7,7 +7,7 @@
  * screen regressing to a silent success would be visible: each queue either
  * shows decided items or states why not, and this is Moves' proof.
  */
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -145,20 +145,32 @@ describe('the relocation apply button', () => {
       mode: 'queued',
       receipt: { state: 'queued', requestedAt: '2026-08-16T08:00:00Z' },
     });
-    fetchMoveApplyReceiptMock.mockResolvedValue({
-      state: 'applied',
-      kind: 'deleted',
-      requestedAt: '2026-08-16T08:00:00Z',
-      finishedAt: '2026-08-16T08:00:02Z',
-    });
+    // DETERMINISTIC, not fast: the poll's answer is held until the queued
+    // state has been asserted. A resolved mock raced testing-library's own
+    // 50ms polling on a slow runner — the 10ms queued window slipped between
+    // its ticks and the assertion found only the terminal state (CI-only
+    // flake, first seen on this test's first CI run).
+    let releaseReceipt!: (r: unknown) => void;
+    fetchMoveApplyReceiptMock.mockImplementation(
+      () => new Promise((resolve) => { releaseReceipt = resolve as (r: unknown) => void; }),
+    );
     renderScreen();
 
     const button = await screen.findByRole('button', { name: /Remove the old copy/ });
     fireEvent.click(button);
     fireEvent.click(await screen.findByRole('button', { name: /Confirm removal/ }));
 
-    // Queued first — the honest state — then the poll lands the outcome.
+    // Queued first — the honest state, held visible until asserted. The badge
+    // renders from the 202 itself; the first POLL only fires after the seam's
+    // 10ms, so wait for it before releasing its answer.
     expect(await screen.findByText(/[Qq]ueued/)).toBeInTheDocument();
+    await waitFor(() => expect(fetchMoveApplyReceiptMock).toHaveBeenCalled());
+    releaseReceipt({
+      state: 'applied',
+      kind: 'deleted',
+      requestedAt: '2026-08-16T08:00:00Z',
+      finishedAt: '2026-08-16T08:00:02Z',
+    });
     expect(await screen.findByText(/[Rr]emoved/)).toBeInTheDocument();
     expect(fetchMoveApplyReceiptMock).toHaveBeenCalledWith('acme-mail', 'Docs/report.pdf');
   });
