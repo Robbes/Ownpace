@@ -838,6 +838,113 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /api/migrations/{mappingId}/sharing:
+    get:
+      tags: [Migrations]
+      summary: The sharing checklist
+      description: |
+        Every grant the §14.2 inventory discovered for this migration, held as
+        checklist rows (ADR-0032): `open` rows wait on the owner; settled rows
+        (`applied` / `done_manual` / `skipped`) keep who decided and when. The
+        summary is the progress line. Decisions survive rescans.
+      parameters:
+        - { name: mappingId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: The rows and the progress summary.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  migrationStatus: { type: string }
+                  summary:
+                    type: object
+                    properties:
+                      total: { type: integer }
+                      open: { type: integer }
+                      applied: { type: integer }
+                      doneManual: { type: integer }
+                      skipped: { type: integer }
+                      openManual: { type: integer }
+                  grants:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        subject: { type: string }
+                        onLabel: { type: string }
+                        grantee: { type: string }
+                        role: { type: string }
+                        viaLink: { type: boolean }
+                        raw: { type: string }
+                        verdict: { type: string, enum: [clean, manual] }
+                        verdictTarget: { type: string }
+                        state: { type: string, enum: [open, applied, done_manual, skipped] }
+                        stateReason: { type: string }
+                        decidedBy: { type: string }
+                        decidedAt: { type: string }
+                        scannedAt: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Unknown mapping. }
+  /api/migrations/{mappingId}/sharing/rescan:
+    post:
+      tags: [Migrations]
+      summary: Refresh the sharing checklist from the inventory scans
+      description: |
+        Runs the same scans the permission report composes and upserts the
+        queue's rows. A known row only refreshes its scan time — an owner's
+        decision is never reset to open by looking again. What could not be
+        read comes back as `blindSpots`, verbatim.
+      parameters:
+        - { name: mappingId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: How many rows now wait, and what could not be read.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  open: { type: integer }
+                  blindSpots: { type: array, items: { type: string } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Unknown mapping. }
+        '409': { description: The mapping records no mailbox to inventory. }
+  /api/migrations/{mappingId}/sharing/{grantId}/decision:
+    post:
+      tags: [Migrations]
+      summary: Settle one sharing-checklist row
+      description: |
+        `apply` re-creates the grant on the target through its own share API —
+        the target then notifies the grantee itself (the invite IS the
+        notification, ADR-0032 §4) — and is gated: only after the migration is
+        finished, only clean verdicts, never link shares, and only on a target
+        with a share API. `done` ticks the row off as handled by hand; `skip`
+        records that it deliberately does not carry over. Every refusal is an
+        answer with the reason verbatim; every settled row keeps who and when.
+      parameters:
+        - { name: mappingId, in: path, required: true, schema: { type: string } }
+        - { name: grantId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [apply, done, skip] }
+                reason: { type: string }
+                grantee: { type: string, description: Overrides the grant's address on apply (the owner-confirmed target identity). }
+      responses:
+        '200':
+          description: The settled row.
+        '400': { description: Unknown action. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Unknown mapping or row. }
+        '409': { description: The refusal, with its reason verbatim. }
   /api/migrations/{mappingId}/completion-report:
     get:
       tags: [Migrations]

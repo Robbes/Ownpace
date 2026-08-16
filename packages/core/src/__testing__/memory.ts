@@ -13,6 +13,7 @@ import type {
   MailItem,
   MailKeyword,
   RawMessage,
+  ShareGrantRow,
   SourceConnector,
   SyncCursor,
   TargetEntry,
@@ -489,6 +490,104 @@ export class MemoryLedger implements Ledger {
           (!filter.mappingId || e.detail?.mappingId === filter.mappingId),
       ).length,
     );
+  }
+
+  /** The sharing queue's rows (ADR-0032), visible to tests. */
+  readonly shareGrants: Array<
+    { tenantId: string; mappingId: string } & {
+      -readonly [K in keyof ShareGrantRow]: ShareGrantRow[K];
+    }
+  > = [];
+  private shareGrantSeq = 0;
+
+  upsertShareGrants(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    grants: ReadonlyArray<{
+      readonly grantHash: string;
+      readonly subject: string;
+      readonly onLabel: string;
+      readonly grantee?: string;
+      readonly role: string;
+      readonly viaLink: boolean;
+      readonly raw: string;
+      readonly verdict: 'clean' | 'manual';
+      readonly verdictTarget: string;
+    }>,
+  ): Promise<number> {
+    let open = 0;
+    for (const g of grants) {
+      const existing = this.shareGrants.find(
+        (r) =>
+          r.tenantId === tenantId && r.mappingId === mappingId && r.grantHash === g.grantHash,
+      );
+      if (existing) {
+        // A rescan only refreshes the timestamp — never a decision (ADR-0032).
+        existing.scannedAt = new Date().toISOString();
+        if (existing.state === 'open') open += 1;
+        continue;
+      }
+      this.shareGrants.push({
+        tenantId,
+        mappingId,
+        id: `share-grant-${++this.shareGrantSeq}`,
+        grantHash: g.grantHash,
+        subject: g.subject,
+        onLabel: g.onLabel,
+        ...(g.grantee ? { grantee: g.grantee } : {}),
+        role: g.role,
+        viaLink: g.viaLink,
+        raw: g.raw,
+        verdict: g.verdict,
+        verdictTarget: g.verdictTarget,
+        state: 'open',
+        scannedAt: new Date().toISOString(),
+      });
+      open += 1;
+    }
+    return Promise.resolve(open);
+  }
+
+  listShareGrants(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+  ): Promise<ReadonlyArray<ShareGrantRow>> {
+    const mine = this.shareGrants.filter(
+      (r) => r.tenantId === tenantId && r.mappingId === mappingId,
+    );
+    // Same checklist order as the Pg implementation: open first, then label.
+    const sorted = [...mine].sort((a, b) => {
+      const stateOrder = (s: string) => (s === 'open' ? 0 : 1);
+      return (
+        stateOrder(a.state) - stateOrder(b.state) ||
+        a.onLabel.localeCompare(b.onLabel) ||
+        a.role.localeCompare(b.role)
+      );
+    });
+    return Promise.resolve(sorted.map(({ tenantId: _t, mappingId: _m, ...row }) => ({ ...row })));
+  }
+
+  decideShareGrant(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    grantId: string,
+    decision: {
+      readonly state: 'applied' | 'done_manual' | 'skipped';
+      readonly decidedBy: string;
+      readonly reason?: string;
+    },
+  ): Promise<ShareGrantRow | undefined> {
+    const row = this.shareGrants.find(
+      (r) => r.tenantId === tenantId && r.mappingId === mappingId && r.id === grantId,
+    );
+    // Only an open row settles — a settled row stays settled (the Pg WHERE).
+    if (!row || row.state !== 'open') return Promise.resolve(undefined);
+    row.state = decision.state;
+    row.decidedBy = decision.decidedBy;
+    row.decidedAt = new Date().toISOString();
+    if (decision.reason) row.stateReason = decision.reason;
+    const { tenantId: _t, mappingId: _m, ...out } = row;
+    return Promise.resolve({ ...out });
   }
 
   recordMove(

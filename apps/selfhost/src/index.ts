@@ -71,7 +71,12 @@ import { buildStatusReport, type MappingStatusInput } from './status';
 import { startTransition, finishTransition } from './lifecycle';
 import { serveUi, UI_MOUNT } from './static-ui';
 import { createVerifyRunner } from './verify-run';
-import { log, permissionsNotDiscoverable, type PermissionListing } from '@openmig/shared';
+import {
+  log,
+  permissionsNotDiscoverable,
+  type PermissionListing,
+  type ShareGrantRow,
+} from '@openmig/shared';
 import {
   buildGoogleDriveSourceFrom,
   ENV_GOOGLE_CREDENTIAL_NAMES,
@@ -101,6 +106,7 @@ import {
   directoryNotEnumerable,
   directoryAvailability,
   driveSharingAvailability,
+  createNextcloudUserShare,
   type HttpClient,
 } from '@openmig/connectors';
 import {
@@ -114,6 +120,10 @@ import {
   resolveCoverage,
   coverageIncompleteReason,
   buildIdentity,
+  applyShareGrant,
+  markShareGrant,
+  refreshShareGrants,
+  summariseShareGrants,
 } from '@openmig/core';
 
 /** Graph speaks plain JSON over fetch; the detector needs nothing more. */
@@ -1297,6 +1307,251 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         }
         return sendJson(res, 200, { addresses });
       }
+      // The two §14.2 scans for one mailbox, resolved from what this
+      // appliance's mappings actually configure (workplan 0029 T1/T5) — used
+      // by the permission report below AND by the sharing queue's rescan
+      // (ADR-0032), so the queue can never know more or less than the report.
+      const inventoryScansFor = (mailbox: string) => {
+        // The Graph tenant, from whichever mapping has a Graph source. An
+        // appliance migrating only IMAP has none, which is a legitimate
+        // configuration — every category then says so.
+        const graphSource = mappings
+          .map((m) => m.config.source)
+          .find((src) => src.type.startsWith('graph-')) as { tenantId?: string } | undefined;
+        // A Google Drive mapping (workplan 0029, the Google half): its
+        // outbound shares are readable with the scope the pass already uses —
+        // same env credential names, no extra consent decision.
+        const hasGoogleDriveSource = mappings.some((m) => m.config.source.type === 'google-drive');
+        const available = directoryAvailability(process.env, graphSource?.tenantId);
+        const scanOptions = { applicationPermissions: true } as const;
+        const driveSharing = driveSharingAvailability(process.env);
+        const graphToken = () => {
+          const provider = createTokenProvider({
+            tokenEndpoint: `https://login.microsoftonline.com/${graphSource!.tenantId!}/oauth2/v2.0/token`,
+            clientId: (available as { clientId: string }).clientId,
+            clientSecret: (available as { clientSecret: string }).clientSecret,
+            tenantId: graphSource!.tenantId!,
+            scope: 'https://graph.microsoft.com/.default',
+          });
+          return async () => (await provider.getToken()).accessToken;
+        };
+        return {
+          scanCalendars: async (): Promise<PermissionListing> =>
+            available.ok
+              ? scanCalendarPermissions(mailbox, graphToken(), detectorHttpClient, scanOptions)
+              : hasGoogleDriveSource && !graphSource
+                ? {
+                    // A Google appliance would otherwise get a Graph-worded
+                    // reason about an app registration it never had.
+                    kind: 'not_discoverable' as const,
+                    reason: permissionsNotDiscoverable(
+                      'Google Calendar sharing is not yet read by this tool — the Drive ' +
+                        'scan covers files only. Capture calendar sharing by hand before cutover',
+                    ),
+                  }
+                : { kind: 'not_discoverable' as const, reason: available.reason },
+          scanDrive: async (): Promise<PermissionListing> => {
+            if (hasGoogleDriveSource) {
+              // Same factory and env names as a pass; a refusal (missing
+              // variable, bad consent) arrives verbatim as the blind spot.
+              try {
+                const source = buildGoogleDriveSourceFrom(
+                  {},
+                  {
+                    clientId: process.env.GOOGLE_CLIENT_ID,
+                    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+                    refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
+                  },
+                  ENV_GOOGLE_CREDENTIAL_NAMES,
+                ) as unknown as { listOwnedShareGrants(): Promise<PermissionListing> };
+                return await source.listOwnedShareGrants();
+              } catch (err) {
+                return {
+                  kind: 'not_discoverable' as const,
+                  reason: permissionsNotDiscoverable(
+                    err instanceof Error ? err.message : String(err),
+                  ),
+                };
+              }
+            }
+            // The consent decision answers before the credentials do; see
+            // `drive-sharing-availability.ts` for why a 403 is the wrong
+            // sentence to give somebody here.
+            if (!driveSharing.ok)
+              return { kind: 'not_discoverable' as const, reason: driveSharing.reason };
+            if (!available.ok)
+              return { kind: 'not_discoverable' as const, reason: available.reason };
+            const token = graphToken();
+            const drive = await resolveUserDriveId(
+              mailbox,
+              token,
+              detectorHttpClient,
+              scanOptions,
+            );
+            if (!drive.ok) return { kind: 'not_discoverable' as const, reason: drive.reason };
+            return scanDrivePermissions(drive.id, token, detectorHttpClient, scanOptions);
+          },
+        };
+      };
+      // The target's share capability for one mapping (ADR-0032 §3-4):
+      // Nextcloud behind the `webdav` target speaks OCS; nothing else does
+      // yet, and undefined makes `applyShareGrant` refuse with the
+      // protocol-gap sentence. The target notifies the grantee itself —
+      // that is the point.
+      const nextcloudCapabilityFor = (
+        m: (typeof mappings)[number],
+        granteeOverride: string | undefined,
+      ) => {
+        const t = m.config.domains?.files?.target ?? m.config.target;
+        if (!t || t.type !== 'webdav') return undefined;
+        const passwordFromEnv = (t.auth as { passwordFromEnv?: string } | undefined)
+          ?.passwordFromEnv;
+        const password = passwordFromEnv ? (process.env[passwordFromEnv] ?? '') : '';
+        return async (row: ShareGrantRow) => {
+          const shareWith = granteeOverride ?? row.grantee;
+          if (!shareWith) {
+            return {
+              ok: false as const,
+              reason:
+                'This grant names no grantee address (a link or domain share) — there is ' +
+                'nobody to share with. Handle it by hand and mark the row done.',
+            };
+          }
+          return createNextcloudUserShare(
+            {
+              webdavUrl: t.url,
+              username: t.user,
+              password,
+              httpClient: {
+                async request({ url, method, headers, body }) {
+                  const r = await fetch(url, {
+                    method,
+                    headers,
+                    ...(typeof body === 'string' ? { body } : {}),
+                  });
+                  return { status: r.status, body: await r.text(), headers: {} };
+                },
+              },
+            },
+            {
+              path: m.config.targetFolderPrefix
+                ? `${m.config.targetFolderPrefix}/${row.onLabel}`
+                : row.onLabel,
+              shareWith,
+              role: row.role,
+            },
+          );
+        };
+      };
+      // ------------------------------------------ the sharing queue (ADR-0032)
+      const sharingGetMatch =
+        req.method === 'GET' && req.url ? /^\/mappings\/([^/]+)\/sharing$/.exec(req.url) : null;
+      if (sharingGetMatch) {
+        const id = decodeURIComponent(sharingGetMatch[1]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+        const lifecycle = await mappingStatus(m);
+        const grants = await ledger.listShareGrants(
+          m.config.tenantId as TenantId,
+          m.mailboxMappingId as MappingId,
+        );
+        return sendJson(res, 200, {
+          migrationStatus: lifecycle,
+          summary: summariseShareGrants(grants),
+          grants,
+          ...(lifecycle === 'done' ? { reportingClosed: REPORTING_CLOSED } : {}),
+        });
+      }
+      const sharingRescanMatch =
+        req.method === 'POST' && req.url
+          ? /^\/mappings\/([^/]+)\/sharing\/rescan$/.exec(req.url)
+          : null;
+      if (sharingRescanMatch) {
+        await drain(req);
+        const id = decodeURIComponent(sharingRescanMatch[1]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+        const coverage = resolveCoverage([
+          { mappingId: m.config.mappingId, source: m.config.source },
+        ]);
+        const mailbox = coverage.addresses[0];
+        if (!mailbox) {
+          // The same fact the permission report refuses over, named (rule 9).
+          return sendJson(res, 409, {
+            error: 'address_unstated',
+            reason:
+              'This mapping does not state which mailbox it reads, so its sharing cannot ' +
+              'be inventoried.',
+          });
+        }
+        const scans = inventoryScansFor(mailbox);
+        const result = await refreshShareGrants({
+          tenantId: m.config.tenantId as TenantId,
+          mappingId: m.mailboxMappingId as MappingId,
+          ledger,
+          scans: [scans.scanCalendars, scans.scanDrive],
+        });
+        return sendJson(res, 200, result);
+      }
+      const sharingDecisionMatch =
+        req.method === 'POST' && req.url
+          ? /^\/mappings\/([^/]+)\/sharing\/([^/]+)\/decision$/.exec(req.url)
+          : null;
+      if (sharingDecisionMatch) {
+        const id = decodeURIComponent(sharingDecisionMatch[1]!);
+        const grantId = decodeURIComponent(sharingDecisionMatch[2]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+        const body = ((await readJson(req).catch(() => ({}))) ?? {}) as {
+          action?: string;
+          reason?: string;
+          grantee?: string;
+        };
+        if (body.action !== 'apply' && body.action !== 'done' && body.action !== 'skip') {
+          return sendJson(res, 400, {
+            error: 'unknown action',
+            hint:
+              "A sharing row can be applied ('apply'), ticked off as done by hand " +
+              "('done'), or skipped ('skip').",
+          });
+        }
+        const deps = {
+          tenantId: m.config.tenantId as TenantId,
+          mappingId: m.mailboxMappingId as MappingId,
+          ledger,
+          // The appliance is operated by one person with the config file in
+          // their hands — 'operator' is that person, the run log's word.
+          decidedBy: 'operator',
+          onError: (msg: string, err: unknown) => log.error(msg, err),
+        };
+        const outcome =
+          body.action === 'apply'
+            ? await (async () => {
+                const lifecycle = await mappingStatus(m);
+                const createShare = nextcloudCapabilityFor(m, body.grantee?.trim() || undefined);
+                return applyShareGrant(
+                  {
+                    ...deps,
+                    lifecycleDone: lifecycle === 'done',
+                    ...(createShare ? { createShare } : {}),
+                  },
+                  grantId,
+                );
+              })()
+            : await markShareGrant(
+                deps,
+                grantId,
+                body.action === 'done' ? 'done_manual' : 'skipped',
+                body.reason,
+              );
+        if (!outcome.ok) {
+          return sendJson(res, outcome.code === 'not_found' ? 404 : 409, {
+            error: outcome.code,
+            reason: outcome.reason,
+          });
+        }
+        return sendJson(res, 200, { status: 'ok', grant: outcome.row });
+      }
       // The §14.2 permission inventory (workplan 0029 T1/T3/T4). Markdown,
       // same shape and same words as managed (ADR-0026), derived on every
       // read — a permission granted this morning belongs in the report this
@@ -1342,30 +1597,8 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
               '(or ?mappingId=… to resolve it from a migration)',
           });
         }
-        // The Graph tenant, from whichever mapping has a Graph source. An
-        // appliance migrating only IMAP has none, which is a legitimate
-        // configuration — the report then says so for every category.
-        const graphSource = mappings
-          .map((m) => m.config.source)
-          .find((src) => src.type.startsWith('graph-')) as { tenantId?: string } | undefined;
-        // A Google Drive mapping (workplan 0029, the Google half): its
-        // outbound shares are readable with the scope the pass already uses —
-        // same env credential names, no extra consent decision.
-        const hasGoogleDriveSource = mappings.some((m) => m.config.source.type === 'google-drive');
-        const available = directoryAvailability(process.env, graphSource?.tenantId);
         const delegation = mailboxDelegations();
-        const scanOptions = { applicationPermissions: true } as const;
-        const driveSharing = driveSharingAvailability(process.env);
-        const graphToken = () => {
-          const provider = createTokenProvider({
-            tokenEndpoint: `https://login.microsoftonline.com/${graphSource!.tenantId!}/oauth2/v2.0/token`,
-            clientId: (available as { clientId: string }).clientId,
-            clientSecret: (available as { clientSecret: string }).clientSecret,
-            tenantId: graphSource!.tenantId!,
-            scope: 'https://graph.microsoft.com/.default',
-          });
-          return async () => (await provider.getToken()).accessToken;
-        };
+        const scans = inventoryScansFor(mailbox);
 
         const markdown = await runPermissionInventory({
           mappingLabel: mailbox,
@@ -1375,61 +1608,8 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           // Both scans always passed, never omitted: an absent dep falls back
           // to the pass's generic "no reader is configured", and neither of
           // these is unconfigured — each has its own reason, and they differ.
-          scanCalendars: async () =>
-            available.ok
-              ? scanCalendarPermissions(mailbox, graphToken(), detectorHttpClient, scanOptions)
-              : hasGoogleDriveSource && !graphSource
-                ? {
-                    // A Google appliance would otherwise get a Graph-worded
-                    // reason about an app registration it never had.
-                    kind: 'not_discoverable' as const,
-                    reason: permissionsNotDiscoverable(
-                      'Google Calendar sharing is not yet read by this tool — the Drive ' +
-                        'scan covers files only. Capture calendar sharing by hand before cutover',
-                    ),
-                  }
-                : { kind: 'not_discoverable' as const, reason: available.reason },
-          scanDrive: async () => {
-            if (hasGoogleDriveSource) {
-              // Same factory and env names as a pass; a refusal (missing
-              // variable, bad consent) arrives verbatim as the blind spot.
-              try {
-                const source = buildGoogleDriveSourceFrom(
-                  {},
-                  {
-                    clientId: process.env.GOOGLE_CLIENT_ID,
-                    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-                    refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
-                  },
-                  ENV_GOOGLE_CREDENTIAL_NAMES,
-                ) as unknown as { listOwnedShareGrants(): Promise<PermissionListing> };
-                return await source.listOwnedShareGrants();
-              } catch (err) {
-                return {
-                  kind: 'not_discoverable' as const,
-                  reason: permissionsNotDiscoverable(
-                    err instanceof Error ? err.message : String(err),
-                  ),
-                };
-              }
-            }
-            // The consent decision answers before the credentials do; see
-            // `drive-sharing-availability.ts` for why a 403 is the wrong
-            // sentence to give somebody here.
-            if (!driveSharing.ok)
-              return { kind: 'not_discoverable' as const, reason: driveSharing.reason };
-            if (!available.ok)
-              return { kind: 'not_discoverable' as const, reason: available.reason };
-            const token = graphToken();
-            const drive = await resolveUserDriveId(
-              mailbox,
-              token,
-              detectorHttpClient,
-              scanOptions,
-            );
-            if (!drive.ok) return { kind: 'not_discoverable' as const, reason: drive.reason };
-            return scanDrivePermissions(drive.id, token, detectorHttpClient, scanOptions);
-          },
+          scanCalendars: scans.scanCalendars,
+          scanDrive: scans.scanDrive,
           error: (m, err) => log.error(m, err instanceof Error ? err.message : err),
         });
         res.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8' });

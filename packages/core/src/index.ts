@@ -34,3 +34,4 @@ export * from './build-identity';
 export * from './permission-map';
 export * from './permission-report';
 export * from './run-permission-inventory';
+export * from './share-queue';

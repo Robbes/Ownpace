@@ -855,6 +855,33 @@ export interface LedgerRecord {
   readonly sourceVersion?: string;
 }
 
+/**
+ * One sharing-queue row (ADR-0032): a grant the §14.2 inventory discovered,
+ * held as a checklist item. `open` is the only state without a decider —
+ * every settled row answers who and when, which is what makes the queue a
+ * checklist rather than a report.
+ */
+export interface ShareGrantRow {
+  readonly id: string;
+  readonly grantHash: string;
+  readonly subject: string;
+  readonly onLabel: string;
+  readonly grantee?: string;
+  readonly role: string;
+  readonly viaLink: boolean;
+  /** The grant verbatim, in the source's own words — evidence, never parsed. */
+  readonly raw: string;
+  /** mapGrant's two verdicts: a clean target equivalent exists, or a person decides. */
+  readonly verdict: 'clean' | 'manual';
+  /** What it corresponds to on the target / what to do instead. */
+  readonly verdictTarget: string;
+  readonly state: 'open' | 'applied' | 'done_manual' | 'skipped';
+  readonly stateReason?: string;
+  readonly decidedBy?: string;
+  readonly decidedAt?: string;
+  readonly scannedAt: string;
+}
+
 /** Idempotency ledger. UNIQUE(tenantId, mappingId, itemType, naturalKeyHash). Non-destructive. */
 export interface Ledger {
   /** Look up an existing record by natural key. */
@@ -1034,6 +1061,45 @@ export interface Ledger {
       readonly mappingId?: string;
     },
   ): Promise<number>;
+  /**
+   * Upsert the sharing queue's rows from a fresh inventory scan (ADR-0032,
+   * workplan 0052). Identity is `grantHash`; a known row only refreshes
+   * `scannedAt` — an owner's decision is NEVER reset to open by looking
+   * again. Returns how many rows are new.
+   */
+  upsertShareGrants(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    grants: ReadonlyArray<{
+      readonly grantHash: string;
+      readonly subject: string;
+      readonly onLabel: string;
+      readonly grantee?: string;
+      readonly role: string;
+      readonly viaLink: boolean;
+      readonly raw: string;
+      readonly verdict: 'clean' | 'manual';
+      readonly verdictTarget: string;
+    }>,
+  ): Promise<number>;
+  /** Every sharing-queue row for one mapping, checklist order (open first, then by label). */
+  listShareGrants(tenantId: TenantId, mappingId: MappingId): Promise<ReadonlyArray<ShareGrantRow>>;
+  /**
+   * Settle one sharing-queue row. Only an `open` row can be settled and only
+   * with a decider named — the checklist's whole point is that "done" always
+   * has a who and a when. Returns the updated row, or undefined when the row
+   * does not exist or was already settled (the caller words the refusal).
+   */
+  decideShareGrant(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    grantId: string,
+    decision: {
+      readonly state: 'applied' | 'done_manual' | 'skipped';
+      readonly decidedBy: string;
+      readonly reason?: string;
+    },
+  ): Promise<ShareGrantRow | undefined>;
   /**
    * Forget a recorded move, because the source lists the item where we copied
    * it from again.

@@ -12,6 +12,7 @@ import {
   DELETION_CONFIRMATIONS,
   type TenantId,
   type MappingId,
+  type ShareGrantRow,
 } from '@openmig/shared';
 import type { PgDatabase } from './db';
 import { eq, and, ne, gt, gte, isNull, isNotNull, or, desc, sql } from 'drizzle-orm';
@@ -477,6 +478,151 @@ export class PgLedger implements Ledger {
         ),
       );
     return rows[0]?.n ?? 0;
+  }
+
+  async upsertShareGrants(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    grants: ReadonlyArray<{
+      readonly grantHash: string;
+      readonly subject: string;
+      readonly onLabel: string;
+      readonly grantee?: string;
+      readonly role: string;
+      readonly viaLink: boolean;
+      readonly raw: string;
+      readonly verdict: 'clean' | 'manual';
+      readonly verdictTarget: string;
+    }>,
+  ): Promise<number> {
+    let created = 0;
+    for (const g of grants) {
+      // Insert-or-touch, one grant at a time: identity is the hash, and a
+      // known row only refreshes scannedAt — a decision is never reset by a
+      // rescan (ADR-0032). Row counts are small (the scan itself is capped),
+      // so per-row statements beat a values() batch that would need the
+      // "which were new" answer teased back out of it.
+      const inserted = await this.db
+        .insert(schemaPg.shareGrant)
+        .values({
+          tenantId,
+          mappingId,
+          grantHash: g.grantHash,
+          subject: g.subject,
+          onLabel: g.onLabel,
+          ...(g.grantee ? { grantee: g.grantee } : {}),
+          role: g.role,
+          viaLink: g.viaLink,
+          raw: g.raw,
+          verdict: g.verdict,
+          verdictTarget: g.verdictTarget,
+        })
+        .onConflictDoUpdate({
+          target: [
+            schemaPg.shareGrant.tenantId,
+            schemaPg.shareGrant.mappingId,
+            schemaPg.shareGrant.grantHash,
+          ],
+          set: { scannedAt: new Date() },
+        })
+        .returning({ state: schemaPg.shareGrant.state, decidedAt: schemaPg.shareGrant.decidedAt });
+      if (inserted[0] && inserted[0].state === 'open' && inserted[0].decidedAt === null) {
+        // Both fresh inserts and touched still-open rows look like this; the
+        // caller only uses the count for narration, so "new or still waiting"
+        // is the honest number to give it.
+        created += 1;
+      }
+    }
+    return created;
+  }
+
+  async listShareGrants(
+    tenantId: TenantId,
+    mappingId: MappingId,
+  ): Promise<ReadonlyArray<ShareGrantRow>> {
+    const rows = await this.db
+      .select()
+      .from(schemaPg.shareGrant)
+      .where(
+        and(
+          eq(schemaPg.shareGrant.tenantId, tenantId),
+          eq(schemaPg.shareGrant.mappingId, mappingId),
+        ),
+      )
+      // Checklist order: what still needs a decision first, then by what it
+      // is on, so the same file's grants sit together.
+      .orderBy(
+        sql`CASE WHEN ${schemaPg.shareGrant.state} = 'open' THEN 0 ELSE 1 END`,
+        schemaPg.shareGrant.onLabel,
+        schemaPg.shareGrant.role,
+      );
+    return rows.map((r) => ({
+      id: r.id,
+      grantHash: r.grantHash,
+      subject: r.subject,
+      onLabel: r.onLabel,
+      ...(r.grantee ? { grantee: r.grantee } : {}),
+      role: r.role,
+      viaLink: r.viaLink,
+      raw: r.raw,
+      verdict: r.verdict,
+      verdictTarget: r.verdictTarget,
+      state: r.state,
+      ...(r.stateReason ? { stateReason: r.stateReason } : {}),
+      ...(r.decidedBy ? { decidedBy: r.decidedBy } : {}),
+      ...(r.decidedAt ? { decidedAt: r.decidedAt.toISOString() } : {}),
+      scannedAt: r.scannedAt.toISOString(),
+    }));
+  }
+
+  async decideShareGrant(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    grantId: string,
+    decision: {
+      readonly state: 'applied' | 'done_manual' | 'skipped';
+      readonly decidedBy: string;
+      readonly reason?: string;
+    },
+  ): Promise<ShareGrantRow | undefined> {
+    // state = 'open' in the WHERE is the guard: a settled row stays settled,
+    // and two concurrent deciders cannot both win.
+    const updated = await this.db
+      .update(schemaPg.shareGrant)
+      .set({
+        state: decision.state,
+        decidedBy: decision.decidedBy,
+        decidedAt: new Date(),
+        ...(decision.reason ? { stateReason: decision.reason } : {}),
+      })
+      .where(
+        and(
+          eq(schemaPg.shareGrant.id, grantId),
+          eq(schemaPg.shareGrant.tenantId, tenantId),
+          eq(schemaPg.shareGrant.mappingId, mappingId),
+          eq(schemaPg.shareGrant.state, 'open'),
+        ),
+      )
+      .returning();
+    const r = updated[0];
+    if (!r) return undefined;
+    return {
+      id: r.id,
+      grantHash: r.grantHash,
+      subject: r.subject,
+      onLabel: r.onLabel,
+      ...(r.grantee ? { grantee: r.grantee } : {}),
+      role: r.role,
+      viaLink: r.viaLink,
+      raw: r.raw,
+      verdict: r.verdict,
+      verdictTarget: r.verdictTarget,
+      state: r.state,
+      ...(r.stateReason ? { stateReason: r.stateReason } : {}),
+      ...(r.decidedBy ? { decidedBy: r.decidedBy } : {}),
+      ...(r.decidedAt ? { decidedAt: r.decidedAt.toISOString() } : {}),
+      scannedAt: r.scannedAt.toISOString(),
+    };
   }
 
   async recordMove(

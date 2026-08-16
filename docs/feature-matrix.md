@@ -159,13 +159,22 @@ rather than as one row:
   two mappings migrating the same shared item produce two independent copies — one per
   account, exactly like every other item. A migration copies data; it does not re-plumb
   collaboration.
-- 🔁 **The sharing state is inventoried, not recreated** (§14.2, workplan 0029): every
+- ✅ **Re-creating a share on the target is now an owner decision, per grant** (ADR-0032,
+  accepted; workplan 0052): every inventoried grant is a row on the **Sharing checklist**
+  — apply it through the target's own share API (Nextcloud OCS first; the target then
+  sends its own invitation, so the invite IS the notification and open-migrate never
+  mails third parties), tick it off as done by hand, or skip it deliberately. Applies are
+  gated behind cutover, link shares are never auto-recreated, the grantee address is
+  confirmed by a person, and every settled row keeps who decided and when. Targets
+  without a share API keep their rows as manual steps, said per row.
+- 🔁 **The sharing state is inventoried first** (§14.2, workplan 0029): every
   grant in the source's own words (`raw`, verbatim), link-grants flagged apart from
   person-grants (`viaLink` — "anyone with the link can edit" is the one to catch before
   cutover), and rights that *could not be read* named as such — `not_discoverable` is a
   different value from "none found" (hard rule 9). It lands in the Finish screen's
-  **permissions handover** document, which is the deliberate substitute for automated ACL
-  migration across all four object types. Coverage, honestly, per source: **M365**
+  **permissions handover** document and, since ADR-0032, feeds the Sharing checklist's
+  rows — the handover stays the substitute for a full ACL translator, which remains
+  deliberately unbuilt. Coverage, honestly, per source: **M365**
   calendar sharing is scanned (application permissions required); OneDrive/SharePoint
   sharing sits behind the deliberately-unconsented `Files.Read.All` flag; mailbox
   delegation can never be read through Graph and is always a stated blind spot. **Google
@@ -197,7 +206,7 @@ These hold across all object types, and are features rather than gaps:
 | Google-native file export (Docs/Sheets/Slides) | ⏳ measurement gates the policy | Stage 1; workplan 0042 T6 |
 | JMAP calendar target | 🚫 parked (recurrence round-trip) | workplan 0031 T1 |
 | Drive loose shared *files* (shared folders root a mapping since 0051; shortcuts are refused loudly) | ⛔ not enumerated | Shared content section above; workplan 0051 |
-| Re-creating shares on the target, invites via its own messaging (sharing queue) | ⛔ ADR proposed, awaiting owner decision | ADR-0032 |
+| Sharing checklist: digest counts, completion-report section, confirm-once address mapping, live Nextcloud proof | ⛔ deferred within the accepted decision | ADR-0032; workplan 0052 T6 |
 | Whole-tenant Google migration (domain-wide delegation) | ⛔ needs an owner-scoped ADR first | noted in `google-workspace-setup.md` |
 | Managed per-mapping throttle config (the DAV limiter parameter is armed but unfed there) | ⛔ small follow-up | PR #416 notes |
 | Drive incremental delta (`changes.list`) | ⛔ deliberate cost/correctness trade | workplan 0042 T1 |
