@@ -254,6 +254,121 @@ describe('apply evaluate-then-queue routes (0017 T4)', () => {
     });
   });
 
+  describe('the RELOCATION pair (ADR-0030): same shape, its own receipts', () => {
+    // A relocated file: the old row knows where the item went, by key, and the
+    // arrival carries the same bytes. Plus the refusal shapes that are this
+    // route's own: an ordinary move (no key), and a move the owner already
+    // answered with keep.
+    const R_OLD = '1'.repeat(64);
+    const R_NEW = '2'.repeat(64);
+    const R_MOVEONLY = '3'.repeat(64);
+    const R_KEPT = '4'.repeat(64);
+
+    async function seedFileItem(
+      hash: string,
+      // contentHash is per-case on purpose: the ambiguity gate refuses a hash
+      // more than TWO items share, so only the genuine pair may share one.
+      contentHash: string,
+      opts: { movedToKey?: string; movedToCollection?: string; kept?: boolean } = {},
+    ): Promise<void> {
+      await pool.query(
+        `INSERT INTO item (tenant_id, mapping_id, domain, collection, natural_key, natural_key_hash,
+                           status, content_hash, target_ref, moved_to_collection,
+                           moved_to_natural_key_hash, move_acknowledged_at)
+         VALUES ($1, $2, 'file', 'Docs', $3, $3, 'copied', $4, jsonb_build_object('id', 't-' || left($3, 8)),
+                 $5, $6, ${opts.kept ? 'now()' : 'NULL'})
+         ON CONFLICT DO NOTHING`,
+        [TENANT, MAPPING, hash, contentHash, opts.movedToCollection ?? null, opts.movedToKey ?? null],
+      );
+    }
+
+    beforeAll(async () => {
+      // Self-contained: the flag tests below drive this to states of their
+      // own, so this block asserts the one it needs rather than inheriting.
+      await pool.query(`UPDATE mailbox_mapping SET allow_apply_deletions = true WHERE id = $1`, [
+        MAPPING,
+      ]);
+      await seedFileItem(R_OLD, 'h-pair', { movedToKey: R_NEW, movedToCollection: 'Docs' });
+      await seedFileItem(R_NEW, 'h-pair');
+      await seedFileItem(R_MOVEONLY, 'h-moveonly', { movedToCollection: 'Archive' });
+      await seedFileItem(R_KEPT, 'h-kept', { movedToKey: R_NEW, movedToCollection: 'Docs', kept: true });
+    });
+
+    it('404s an ordinary move as not_relocated — there is no second copy to point at', async () => {
+      const res = await request
+        .post(`/api/migrations/${MAPPING}/moves/${R_MOVEONLY}/apply`)
+        .set(auth);
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('not_relocated');
+    });
+
+    it("403s a move the owner already answered with keep — that decision holds", async () => {
+      const res = await request
+        .post(`/api/migrations/${MAPPING}/moves/${R_KEPT}/apply`)
+        .set(auth);
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe('already_kept');
+      expect(res.body.reason).toMatch(/leave the old copy alone/i);
+    });
+
+    it('a queued DELETION receipt on the same item is NOT joined — different question', async () => {
+      // One item can be in both destructive queues at once (renamed, then the
+      // new name deleted). Before migration 0010 this join would have answered
+      // the relocation request with the deletion's receipt.
+      await pool.query(
+        `INSERT INTO apply_receipt (tenant_id, mapping_id, natural_key_hash, action, state)
+         VALUES ($1, $2, $3, 'deletion', 'queued')`,
+        [TENANT, MAPPING, R_OLD],
+      );
+      // Not joined ⇒ the route evaluates and tries to enqueue — which this
+      // file's Trigger.dev mock makes die. A 502 here IS the proof: a joined
+      // receipt would have answered 200 before ever reaching the enqueue.
+      const res = await request
+        .post(`/api/migrations/${MAPPING}/moves/${R_OLD}/apply`)
+        .set(auth);
+      expect(res.status).toBe(502);
+
+      // And each poller is answered about the question IT asked.
+      const moveReceipt = await request
+        .get(`/api/migrations/${MAPPING}/moves/${R_OLD}/receipt`)
+        .set(auth);
+      expect(moveReceipt.body.state).toBe('failed');
+      const delReceipt = await request
+        .get(`/api/migrations/${MAPPING}/deletions/${R_OLD}/receipt`)
+        .set(auth);
+      expect(delReceipt.body.state).toBe('queued');
+    });
+
+    it('a queued RELOCATION receipt is joined — 200, queued: false', async () => {
+      await pool.query(
+        `INSERT INTO apply_receipt (tenant_id, mapping_id, natural_key_hash, action, state, requested_at)
+         VALUES ($1, $2, $3, 'relocation', 'queued', now() + interval '1 second')`,
+        [TENANT, MAPPING, R_OLD],
+      );
+      const res = await request
+        .post(`/api/migrations/${MAPPING}/moves/${R_OLD}/apply`)
+        .set(auth);
+      expect(res.status).toBe(200);
+      expect(res.body.queued).toBe(false);
+      expect(res.body.receipt.state).toBe('queued');
+    });
+
+    it('gate 1 still guards this route: flag off refuses even a real relocation', async () => {
+      await pool.query(`UPDATE mailbox_mapping SET allow_apply_deletions = false WHERE id = $1`, [
+        MAPPING,
+      ]);
+      // A fresh relocated pair, so the joined-receipt short-circuit above
+      // cannot answer first.
+      const R_FLAGGED = '5'.repeat(64);
+      await seedFileItem(R_FLAGGED, 'h-flagged', { movedToKey: R_NEW, movedToCollection: 'Docs' });
+      const res = await request
+        .post(`/api/migrations/${MAPPING}/moves/${R_FLAGGED}/apply`)
+        .set(auth);
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe('not_enabled');
+    });
+  });
+
   it('404s an unknown mapping and 401s a missing token', async () => {
     expect(
       (await request.post(`/api/migrations/${NO_SUCH}/deletions/${HASH_NONE}/apply`).set(auth))

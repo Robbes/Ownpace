@@ -20,7 +20,9 @@ import {
   EyeOff
 } from 'lucide-react';
 import {
+  SOURCE_TYPE_DOMAINS,
   TARGET_TYPE_DOMAINS,
+  sourceDomainRefusal,
   targetDomainRefusal,
   describeCronScheduleProblem,
 } from '@openmig/shared';
@@ -39,7 +41,7 @@ type Domain = 'email' | 'calendar' | 'contact' | 'file';
 
 interface FormData {
   name: string;
-  sourceType: 'imap' | 'oauth2' | 'graph';
+  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive';
   targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav';
   sourceHost: string;
   /** Kept as the raw INPUT string (0037 T3): parseInt on change turned a
@@ -56,6 +58,12 @@ interface FormData {
   sourceTenantId: string;
   sourceClientId: string;
   sourceClientSecret: string;
+  /** Google Drive (workplan 0042): the delegated, read-only refresh token —
+   *  docs/google-workspace-setup.md is where all three of its values come
+   *  from, and the wizard says so beside the fields. */
+  sourceRefreshToken: string;
+  /** Google Drive: root the migration somewhere other than My Drive. */
+  sourceRootFolderId: string;
   targetHost: string;
   targetPort: string;
   targetUsername: string;
@@ -77,6 +85,8 @@ const initialFormData: FormData = {
   sourceTenantId: '',
   sourceClientId: '',
   sourceClientSecret: '',
+  sourceRefreshToken: '',
+  sourceRootFolderId: '',
   targetHost: '',
   targetPort: '443',
   targetUsername: '',
@@ -169,7 +179,17 @@ const CreateMapping: React.FC = () => {
         name: formData.name,
         sourceType: formData.sourceType,
         targetType: formData.targetType,
-        sourceConfig: isO365Source
+        sourceConfig: isDriveSource
+          ? {
+              username: formData.sourceUsername,
+              clientId: formData.sourceClientId,
+              clientSecret: formData.sourceClientSecret,
+              refreshToken: formData.sourceRefreshToken,
+              ...(formData.sourceRootFolderId.trim()
+                ? { rootFolderId: formData.sourceRootFolderId.trim() }
+                : {}),
+            }
+          : isO365Source
           ? {
               username: formData.sourceUsername,
               tenantId: formData.sourceTenantId,
@@ -221,15 +241,23 @@ const CreateMapping: React.FC = () => {
     }));
   };
 
-  // The data types the chosen target protocol can actually receive — the
-  // shared matrix the create API refuses against (0037 T4, ADR-0026's one
-  // contract): the wizard constrains the choice, the server refuses it
-  // verbatim for any other client.
-  const allowedDomains = TARGET_TYPE_DOMAINS[formData.targetType];
+  // The data types the chosen target protocol can actually receive AND the
+  // chosen source can provide — the shared matrices the create API refuses
+  // against (0037 T4; 0042 for the source side; ADR-0026's one contract): the
+  // wizard constrains the choice, the server refuses it verbatim for any
+  // other client.
+  const sourceAllowed = SOURCE_TYPE_DOMAINS[formData.sourceType];
+  const allowedDomains = TARGET_TYPE_DOMAINS[formData.targetType].filter(
+    (d) => !sourceAllowed || sourceAllowed.includes(d),
+  );
 
   // oauth2/graph authenticate with the customer's own Entra app registration
   // (0037 T6): no host/port to type, an app registration to enter instead.
-  const isO365Source = formData.sourceType !== 'imap';
+  // google-drive authenticates with the customer's own Google OAuth client
+  // (workplan 0042) — a THIRD shape, not a variant of the O365 one: it has a
+  // refresh token and no tenant.
+  const isO365Source = formData.sourceType === 'oauth2' || formData.sourceType === 'graph';
+  const isDriveSource = formData.sourceType === 'google-drive';
 
   /** The problem with a non-empty custom cron, or null (empty = default). */
   const cronProblem = (): string | null =>
@@ -245,6 +273,7 @@ const CreateMapping: React.FC = () => {
   const canProceed = () => {
     switch (steps[currentStep].id) {
       case 'source':
+        if (isDriveSource) return formData.sourceClientId.trim() !== '';
         return isO365Source
           ? formData.sourceTenantId.trim() !== '' && formData.sourceClientId.trim() !== ''
           : Boolean(formData.sourceHost) && isValidPort(formData.sourcePort);
@@ -254,12 +283,15 @@ const CreateMapping: React.FC = () => {
         return (
           formData.name.trim() !== '' &&
           Boolean(formData.sourceUsername && formData.targetUsername) &&
-          (!isO365Source || formData.sourceClientSecret !== '')
+          (!isO365Source || formData.sourceClientSecret !== '') &&
+          (!isDriveSource ||
+            (formData.sourceClientSecret !== '' && formData.sourceRefreshToken !== ''))
         );
       case 'data-types':
         return (
           formData.domains.length > 0 &&
-          targetDomainRefusal(formData.targetType, formData.domains) === null
+          targetDomainRefusal(formData.targetType, formData.domains) === null &&
+          sourceDomainRefusal(formData.sourceType, formData.domains) === null
         );
       case 'schedule':
         return cronProblem() === null; // empty = the default cadence, fine
@@ -275,7 +307,9 @@ const CreateMapping: React.FC = () => {
     const out: string[] = [];
     switch (steps[currentStep].id) {
       case 'source':
-        if (isO365Source) {
+        if (isDriveSource) {
+          if (formData.sourceClientId.trim() === '') out.push(t('wizard.clientId'));
+        } else if (isO365Source) {
           if (formData.sourceTenantId.trim() === '') out.push(t('wizard.tenantId'));
           if (formData.sourceClientId.trim() === '') out.push(t('wizard.clientId'));
         } else {
@@ -291,6 +325,10 @@ const CreateMapping: React.FC = () => {
         if (formData.name.trim() === '') out.push(t('wizard.migrationName'));
         if (!formData.sourceUsername) out.push(t('wizard.sourceUsername'));
         if (isO365Source && formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
+        if (isDriveSource) {
+          if (formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
+          if (formData.sourceRefreshToken === '') out.push(t('wizard.refreshToken'));
+        }
         if (!formData.targetUsername) out.push(t('wizard.targetUsername'));
         break;
       case 'data-types':
@@ -311,7 +349,10 @@ const CreateMapping: React.FC = () => {
     if (canProceed()) return null;
     const stepId = steps[currentStep].id;
     if (stepId === 'data-types' && formData.domains.length > 0) {
-      return targetDomainRefusal(formData.targetType, formData.domains);
+      return (
+        targetDomainRefusal(formData.targetType, formData.domains) ??
+        sourceDomainRefusal(formData.sourceType, formData.domains)
+      );
     }
     if (stepId === 'schedule') {
       const problem = cronProblem();
@@ -338,17 +379,40 @@ const CreateMapping: React.FC = () => {
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-medium text-gray-900 mb-4">{t('wizard.selectSource')}</h3>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {(
                   [
                     { id: 'imap', name: 'IMAP', hintKey: 'wizard.proto.imap.hint' },
                     { id: 'oauth2', name: 'OAuth2', hintKey: 'wizard.proto.oauth2.hint' },
                     { id: 'graph', name: 'Microsoft Graph', hintKey: 'wizard.proto.graph.hint' },
+                    {
+                      id: 'google-drive',
+                      name: 'Google Drive',
+                      hintKey: 'wizard.proto.googleDrive.hint',
+                    },
                   ] as const
                 ).map((type) => (
                   <button
                     key={type.id}
-                    onClick={() => updateField('sourceType', type.id)}
+                    onClick={() =>
+                      // A Drive credential reads exactly one API, so choosing it
+                      // also chooses the file domain — the same constraint the
+                      // server refuses by name (sourceDomainRefusal). Setting it
+                      // here spares the data-types step a dead end; switching
+                      // AWAY leaves the selection alone, which the matrices then
+                      // re-police.
+                      type.id === 'google-drive'
+                        ? setFormData((prev) => ({
+                            ...prev,
+                            sourceType: type.id,
+                            domains: ['file'],
+                            targetType:
+                              prev.targetType === 'jmap' || prev.targetType === 'webdav'
+                                ? prev.targetType
+                                : 'webdav',
+                          }))
+                        : updateField('sourceType', type.id)
+                    }
                     className={`p-4 border-2 rounded-lg text-left transition-colors ${
                       formData.sourceType === type.id
                         ? 'border-blue-500 bg-blue-50'
@@ -370,9 +434,48 @@ const CreateMapping: React.FC = () => {
                   {t('wizard.source.appRegistration')}
                 </p>
               )}
+              {/* Workplan 0042: the customer's own Google OAuth client, a
+                  delegated read-only token, and the doc that walks all of it.
+                  Also the one place to say what happens to Google Docs —
+                  reported un-migratable one by one, by design, until export
+                  byte-stability is measured (T3). */}
+              {isDriveSource && (
+                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  {t('wizard.source.driveSetup')}
+                </p>
+              )}
             </div>
 
-            {isO365Source ? (
+            {isDriveSource ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.clientId')}
+                    <Required />
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.sourceClientId}
+                    onChange={(e) => updateField('sourceClientId', e.target.value)}
+                    className="input w-full"
+                    placeholder="…apps.googleusercontent.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.rootFolderId')}
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.sourceRootFolderId}
+                    onChange={(e) => updateField('sourceRootFolderId', e.target.value)}
+                    className="input w-full"
+                    placeholder={t('wizard.rootFolderId.placeholder')}
+                  />
+                </div>
+              </div>
+            ) : isO365Source ? (
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -595,17 +698,23 @@ const CreateMapping: React.FC = () => {
                         mailbox password — labeled as what it is, and required:
                         without it the client-credentials flow cannot mint a
                         single token. */}
-                    {isO365Source ? t('wizard.sourceClientSecret') : t('wizard.sourcePassword')}
-                    {isO365Source && <Required />}
+                    {isO365Source || isDriveSource
+                      ? t('wizard.sourceClientSecret')
+                      : t('wizard.sourcePassword')}
+                    {(isO365Source || isDriveSource) && <Required />}
                   </label>
                   <div className="relative">
                     <input
                       type={showSourcePassword ? 'text' : 'password'}
                       autoComplete="new-password"
-                      value={isO365Source ? formData.sourceClientSecret : formData.sourcePassword}
+                      value={
+                        isO365Source || isDriveSource
+                          ? formData.sourceClientSecret
+                          : formData.sourcePassword
+                      }
                       onChange={(e) =>
                         updateField(
-                          isO365Source ? 'sourceClientSecret' : 'sourcePassword',
+                          isO365Source || isDriveSource ? 'sourceClientSecret' : 'sourcePassword',
                           e.target.value,
                         )
                       }
@@ -622,6 +731,28 @@ const CreateMapping: React.FC = () => {
                     </button>
                   </div>
                 </div>
+
+                {isDriveSource && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {t('wizard.refreshToken')}
+                      <Required />
+                    </label>
+                    {/* A password in every way that matters: it grants read
+                        access to that Drive until revoked. Rendered masked,
+                        never echoed back by the API. */}
+                    <input
+                      type="password"
+                      required
+                      autoComplete="off"
+                      value={formData.sourceRefreshToken}
+                      onChange={(e) => updateField('sourceRefreshToken', e.target.value)}
+                      className="input w-full"
+                      placeholder="1//…"
+                    />
+                    <p className="mt-1 text-sm text-gray-500">{t('wizard.refreshToken.hint')}</p>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -804,9 +935,13 @@ const CreateMapping: React.FC = () => {
                     <dt className="text-sm text-gray-500">{t('wizard.review.source')}</dt>
                     <dd className="text-sm font-medium text-gray-900">
                       {formData.sourceType}{' '}
-                      {isO365Source
-                        ? `(${formData.sourceTenantId})`
-                        : `(${formData.sourceHost}:${formData.sourcePort})`}
+                      {isDriveSource
+                        ? formData.sourceRootFolderId
+                          ? `(${formData.sourceRootFolderId})`
+                          : `(${t('wizard.review.myDrive')})`
+                        : isO365Source
+                          ? `(${formData.sourceTenantId})`
+                          : `(${formData.sourceHost}:${formData.sourcePort})`}
                     </dd>
                   </div>
                   <div>

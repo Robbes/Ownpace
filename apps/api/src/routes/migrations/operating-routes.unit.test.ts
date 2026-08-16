@@ -59,7 +59,9 @@ describe('route registration', () => {
         'POST /:mappingId/deletions/:hash/apply',
         'POST /:mappingId/deletions/:hash/keep',
         'POST /:mappingId/failures/:hash/:action',
+        'GET /:mappingId/moves/:hash/receipt',
         'POST /:mappingId/finish',
+        'POST /:mappingId/moves/:hash/apply',
         'POST /:mappingId/moves/:hash/keep',
         'POST /:mappingId/verify/start',
       ].sort(),
@@ -78,8 +80,12 @@ describe('route registration', () => {
       // The flag pair (0019 T3) reads/flips gate 1 — it never removes anything.
       'GET /:mappingId/apply-deletions',
       'GET /:mappingId/deletions/:hash/receipt',
+      // The relocation pair (ADR-0030, migration 0010): the same
+      // evaluate-then-queue shape, on the relocation's OWN receipt.
+      'GET /:mappingId/moves/:hash/receipt',
       'PATCH /:mappingId/apply-deletions',
       'POST /:mappingId/deletions/:hash/apply',
+      'POST /:mappingId/moves/:hash/apply',
     ]);
   });
 

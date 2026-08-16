@@ -565,6 +565,10 @@ export const applyReceipt = pgTable(
     tenantId: uuid('tenant_id').notNull().references(() => tenant.id),
     mappingId: uuid('mapping_id').notNull().references(() => mailboxMapping.id),
     naturalKeyHash: text('natural_key_hash').notNull(),
+    // Which destructive action this receipt records. One item can be in BOTH
+    // queues at once (renamed, then the new name deleted), so a receipt must
+    // say which question it answers — see migration 0010.
+    action: text('action', { enum: ['deletion', 'relocation'] }).notNull().default('deletion'),
     state: text('state', { enum: ['queued', 'applied', 'refused', 'failed'] }).notNull(),
     requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
     finishedAt: timestamp('finished_at', { withTimezone: true }),

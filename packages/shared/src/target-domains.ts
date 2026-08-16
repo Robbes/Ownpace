@@ -82,3 +82,45 @@ export function targetDomainRefusal(
     `type, or drop the ones it cannot receive.${jmapCalendarNote}`
   );
 }
+
+/**
+ * The wizard's SOURCE vocabulary (mirrors CreateMappingSchema.sourceType).
+ *
+ * Sources joined this file with `google-drive` (workplan 0042): the three mail
+ * sources place no constraint here — their connection is the combined one the
+ * DAV domains discover against, so any domain may ride it — but a Drive
+ * connection holds OAuth credentials for exactly one API, and every other
+ * domain would be aimed at a provider that does not serve it.
+ */
+export type WizardSourceType = 'imap' | 'oauth2' | 'graph' | 'google-drive';
+
+/** Domains a wizard source can serve, where the source constrains it at all. */
+export const SOURCE_TYPE_DOMAINS: Partial<
+  Record<WizardSourceType, ReadonlyArray<DiscoveryDomain>>
+> = {
+  'google-drive': ['file'],
+};
+
+/**
+ * The refusal for an incoherent source/domain combination — the source-side
+ * sibling of `targetDomainRefusal`, in shared for the same reason: the wizard
+ * constrains the choice as it is made, the create API refuses it verbatim for
+ * any other client, and one matrix per door is one drift away from the client
+ * offering what the server refuses.
+ */
+export function sourceDomainRefusal(
+  sourceType: WizardSourceType,
+  domains: ReadonlyArray<DiscoveryDomain>,
+): string | null {
+  const allowed = SOURCE_TYPE_DOMAINS[sourceType];
+  if (!allowed) return null;
+  const bad = domains.filter((d) => !allowed.includes(d));
+  if (bad.length === 0) return null;
+  const badList = bad.map((d) => `'${d}'`).join(', ');
+  const allowedList = allowed.map((d) => `'${d}'`).join(', ');
+  return (
+    `A Google Drive source cannot provide the ${badList} data type${bad.length > 1 ? 's' : ''} — ` +
+    `its OAuth credential reads the Drive API only, which carries ${allowedList}. Create a ` +
+    'separate mapping for the other data types, with a source that serves them.'
+  );
+}

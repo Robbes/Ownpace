@@ -368,23 +368,43 @@ export function keepMove(mappingId: string, hash: string): Promise<DecisionAccep
  * gate is on the server, and `mayOfferRelocationApply` decides only what the UI
  * SHOWS. What makes this one admissible is checked server-side at the moment of
  * removal — the same bytes must be on the target under the key the source moved
- * the item to.
+ * the item to, and the managed worker asks the TARGET itself before acting.
  *
- * **Appliance only, deliberately.** The managed edition's destructive path runs
- * through a queued job and a receipt (`ApplyQueuedResponse`), and there is no
- * such job for a relocation yet — see ADR-0030's Consequences. Rather than
- * offering a button that 404s, the caller checks `isSelfHost()` and this throws
- * if it is somehow reached anyway.
+ * Same success-shape split as `applyDeletion`, same reason: the appliance
+ * answers synchronously; the managed edition answers 202 with a receipt,
+ * because the target's half belongs to the worker (`run-apply-relocation`).
  */
-export async function applyMove(mappingId: string, hash: string): Promise<DecisionAccepted> {
-  if (!isSelfHost()) {
-    throw new Error(
-      'Applying a relocation is not available in the managed edition yet: its destructive ' +
-        'path runs through a queued job and a receipt, which this action does not have one of. ' +
-        'Remove the old copy in the target system yourself, then choose keep.',
-    );
+export async function applyMove(mappingId: string, hash: string): Promise<ApplyOutcome> {
+  const path = `${mappingPath(mappingId)}/moves/${encodeURIComponent(hash)}/apply`;
+  if (isSelfHost()) {
+    return { mode: 'immediate', result: await decide(path) };
   }
-  return decide(`${mappingPath(mappingId)}/moves/${encodeURIComponent(hash)}/apply`);
+  try {
+    const { data } = await client.post<ApplyQueuedResponse>(path);
+    return { mode: 'queued', receipt: data.receipt };
+  } catch (err) {
+    const res = (err as { response?: { status: number; data?: DecisionRefused } }).response;
+    if (res?.data?.error) throw new DecisionRefusedError(res.data, res.status);
+    throw err;
+  }
+}
+
+/**
+ * The receipt a relocation apply's job lands its outcome on (managed only).
+ *
+ * Deliberately a separate path from the deletion receipt: one item can be in
+ * BOTH destructive queues at once, and each poller must be answered about the
+ * question it asked (migration 0010's `action` discriminator).
+ */
+export async function fetchMoveApplyReceipt(
+  mappingId: string,
+  hash: string,
+): Promise<ApplyReceipt> {
+  return (
+    await client.get<ApplyReceipt>(
+      `${mappingPath(mappingId)}/moves/${encodeURIComponent(hash)}/receipt`,
+    )
+  ).data;
 }
 
 /** Try a failed item again on the next pass (also clears the mapping's cursors). */

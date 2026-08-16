@@ -119,6 +119,22 @@ action at all (`isSelfHost()`), rather than offering a button that 404s, and
 `applyMove` in the web client refuses with the reason if it is somehow reached.
 The appliance — the edition with the customer waiting — is complete.
 
+> **Built, 2026-08-16 — properly, as the paragraph above demanded.** The
+> receipt discriminator is migration `0010` (`apply_receipt.action`,
+> `'deletion' | 'relocation'`, defaulted to the only value any existing row
+> can honestly claim), because one item can be in BOTH destructive queues at
+> once — renamed, then the new name deleted — and a poller must be answered
+> about the question it asked. The route
+> (`POST /:mappingId/moves/:hash/apply`) answers every ledger-side gate on the
+> request via `evaluateApplyRelocation` — which this gave its first production
+> caller — and the second job (`run-apply-relocation`) re-runs every gate
+> freshly, asks the target for the arrival, and lands the outcome on the
+> relocation's own receipt. The Moves screen now offers the action in both
+> editions and polls the receipt to terminal, exactly as Deletions does. The
+> join-don't-stack check is action-scoped, pinned by an integration test in
+> which a queued deletion receipt on the same item is NOT joined by a
+> relocation apply.
+
 *Auto-apply.* Unchanged from the proposal below: safe to press once, having
 looked, is not the same as safe unattended.
 

@@ -70,7 +70,7 @@ import type {
 } from '@openmig/shared';
 import { authenticate, getDbPool, requireRole, withTenantDb } from '../../middleware/auth';
 import { getTriggerClient } from '@openmig/scheduler';
-import { evaluateApplyDeletion } from '@openmig/core';
+import { evaluateApplyDeletion, evaluateApplyRelocation } from '@openmig/core';
 import type { AuthenticatedRequest } from '../../types/api';
 
 const router = Router({ mergeParams: true });
@@ -570,7 +570,17 @@ function receiptFromRow(row: {
   return { state: 'failed', requestedAt, finishedAt, error: row.reason ?? 'The job failed with no recorded reason.' };
 }
 
-async function latestReceipt(s: Scoped, hash: string): Promise<ApplyReceipt> {
+/**
+ * The latest receipt FOR ONE ACTION. One item can be in both destructive
+ * queues at once — renamed, then the new name deleted — and a poller asking
+ * about the relocation must never be answered with the deletion's outcome
+ * (migration 0010).
+ */
+async function latestReceipt(
+  s: Scoped,
+  hash: string,
+  action: 'deletion' | 'relocation',
+): Promise<ApplyReceipt> {
   const rows = await withTenantDb(s.tenantId, pool(), (db) =>
     db
       .select()
@@ -580,6 +590,7 @@ async function latestReceipt(s: Scoped, hash: string): Promise<ApplyReceipt> {
           eq(schema.applyReceipt.tenantId, s.tenantId),
           eq(schema.applyReceipt.mappingId, s.mappingId),
           eq(schema.applyReceipt.naturalKeyHash, hash),
+          eq(schema.applyReceipt.action, action),
         ),
       )
       .orderBy(desc(schema.applyReceipt.requestedAt))
@@ -601,7 +612,7 @@ router.post(
       // Joined, not stacked: an open receipt for this item means the job is
       // already on its way, and §11.2's "one item, one decision, one call"
       // does not multiply because somebody double-clicked.
-      const existing = await latestReceipt(s, hash);
+      const existing = await latestReceipt(s, hash, 'deletion');
       if (existing.state === 'queued') {
         const body: ApplyQueuedResponse = { queued: false, receipt: existing };
         return void res.status(200).json(body);
@@ -660,6 +671,7 @@ router.post(
             tenantId: s.tenantId,
             mappingId: s.mappingId,
             naturalKeyHash: hash,
+            action: 'deletion',
             state: 'queued',
           })
           .returning({ id: schema.applyReceipt.id, requestedAt: schema.applyReceipt.requestedAt }),
@@ -710,7 +722,149 @@ router.get(
       if (!s) return;
       const hash = String(req.params.hash ?? '');
       if (!hash) return void res.status(400).json({ error: 'hash is required' });
-      res.json(await latestReceipt(s, hash));
+      res.json(await latestReceipt(s, hash, 'deletion'));
+    } catch (error) {
+      serverError(res, 'read the removal receipt', error);
+    }
+  },
+);
+
+/**
+ * THE SECOND DESTRUCTIVE ROUTE (ADR-0030): remove the target's OLD copy of a
+ * file the source moved or renamed, once the same bytes are on the target
+ * under the new key.
+ *
+ * The same two-step shape as the deletion apply, deliberately: every
+ * ledger-side gate is answered ON THIS REQUEST via `evaluateApplyRelocation`
+ * (a refusal is an answer to the operator's question, not "check back later"),
+ * and the target-side gates — capability, the ETag, and ADR-0030's own "ask
+ * the target whether the new copy is really there" — belong to the worker and
+ * land on the receipt. `evaluate` is a PREDICTION: the job re-runs every gate
+ * freshly and gate 7's conditional UPDATE stays the last word.
+ *
+ * Shares `allowApplyDeletions` with the deletion route because it is the same
+ * capability — removing our copy from the target — and a second switch would
+ * imply one can be on without the other.
+ */
+router.post(
+  '/:mappingId/moves/:hash/apply',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const s = await scope(req, res);
+      if (!s) return;
+      const hash = String(req.params.hash ?? '');
+      if (!hash) return void res.status(400).json({ error: 'hash is required' });
+
+      // Joined, not stacked — scoped to THIS action: a queued DELETION on the
+      // same item (renamed, then the new name deleted) is a different question
+      // and must not be joined as if it answered this one.
+      const existing = await latestReceipt(s, hash, 'relocation');
+      if (existing.state === 'queued') {
+        const body: ApplyQueuedResponse = { queued: false, receipt: existing };
+        return void res.status(200).json(body);
+      }
+
+      const verdict = await withTenantDb(s.tenantId, pool(), async (db) => {
+        const flagRows = await db
+          .select({ allow: schema.mailboxMapping.allowApplyDeletions })
+          .from(schema.mailboxMapping)
+          .where(eq(schema.mailboxMapping.id, s.mappingId));
+        const ledger = new PgLedger(db);
+        for (const domain of ['email', 'calendar', 'contact', 'file'] as const) {
+          const outcome = await evaluateApplyRelocation(
+            {
+              tenantId: s.tenantId as TenantId,
+              mappingId: s.mappingId as MappingId,
+              domain,
+              ledger,
+              allowApplyDeletions: flagRows[0]?.allow === true,
+            },
+            hash,
+          );
+          if (outcome.ok || outcome.code !== 'not_found') return outcome;
+        }
+        return {
+          ok: false as const,
+          code: 'not_found' as const,
+          reason:
+            "No migrated item under that natural key in any of this mapping's enabled domains.",
+        };
+      });
+
+      if (!verdict.ok) {
+        // The appliance's status mapping, verbatim — including `not_relocated`
+        // as a 404, because an ordinary move genuinely has nothing for this
+        // route to act on.
+        const status =
+          verdict.code === 'not_found' ||
+          verdict.code === 'not_confirmed' ||
+          verdict.code === 'already_applied' ||
+          verdict.code === 'not_relocated'
+            ? 404
+            : 403;
+        return void res.status(status).json({ error: verdict.code, reason: verdict.reason });
+      }
+
+      const inserted = await withTenantDb(s.tenantId, pool(), (db) =>
+        db
+          .insert(schema.applyReceipt)
+          .values({
+            tenantId: s.tenantId,
+            mappingId: s.mappingId,
+            naturalKeyHash: hash,
+            action: 'relocation',
+            state: 'queued',
+          })
+          .returning({ id: schema.applyReceipt.id, requestedAt: schema.applyReceipt.requestedAt }),
+      );
+      const receipt = inserted[0]!;
+
+      try {
+        await getTriggerClient().tasks.trigger(
+          'run-apply-relocation',
+          { tenantId: s.tenantId, mappingId: s.mappingId, naturalKeyHash: hash, receiptId: receipt.id },
+          { tags: [`tenant:${s.tenantId}`, `mapping:${s.mappingId}`] },
+        );
+      } catch (err) {
+        // Never leave a queued receipt pointing at a job that was never
+        // enqueued — a poller would wait on nothing, about a REMOVAL.
+        const message = err instanceof Error ? err.message : String(err);
+        await withTenantDb(s.tenantId, pool(), (db) =>
+          db
+            .update(schema.applyReceipt)
+            .set({ state: 'failed', finishedAt: new Date(), reason: `Could not enqueue the removal: ${message}` })
+            .where(eq(schema.applyReceipt.id, receipt.id)),
+        );
+        log.error(`[api] ${s.mappingId}: could not enqueue run-apply-relocation:`, err);
+        return void res.status(502).json({ error: 'Could not queue the removal', message });
+      }
+
+      log.warn(
+        `[api] ${s.mappingId}: operator queued removal of relocated item ${hash.slice(0, 12)}'s ` +
+          'old copy — every ledger gate permits; the target-side gates decide on the receipt.',
+      );
+      const body: ApplyQueuedResponse = {
+        queued: true,
+        receipt: { state: 'queued', requestedAt: receipt.requestedAt.toISOString() },
+      };
+      res.status(202).json(body);
+    } catch (error) {
+      serverError(res, 'queue the removal', error);
+    }
+  },
+);
+
+router.get(
+  '/:mappingId/moves/:hash/receipt',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const s = await scope(req, res);
+      if (!s) return;
+      const hash = String(req.params.hash ?? '');
+      if (!hash) return void res.status(400).json({ error: 'hash is required' });
+      res.json(await latestReceipt(s, hash, 'relocation'));
     } catch (error) {
       serverError(res, 'read the removal receipt', error);
     }

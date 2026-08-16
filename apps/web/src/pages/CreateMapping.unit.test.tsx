@@ -455,3 +455,99 @@ describe('CreateMapping — oauth2/graph collect the app registration (0037 T6, 
     expect(createMock.mock.calls[0]![0].sourceConfig).not.toHaveProperty('host');
   });
 });
+
+describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('selecting Google Drive pins the file domain, keeps a file-capable target, and walks to submit', async () => {
+    createMock.mockResolvedValue({ id: 'map-drive' } as never);
+    renderWizard();
+
+    // Step 1 — Source: the fourth card. Choosing it also chooses the file
+    // domain and a file-capable target — the same constraint the server
+    // refuses by name, spared as a dead end three steps later.
+    fireEvent.click(screen.getByRole('button', { name: /Google Drive/ }));
+    expect(screen.getByText(/google-workspace-setup\.md/)).toBeInTheDocument();
+    // No host/port for a Drive — the OAuth client ID gates instead.
+    expect(screen.queryByPlaceholderText('imap.example.com')).not.toBeInTheDocument();
+    expect(nextButton()).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
+      target: { value: 'cid.apps.googleusercontent.com' },
+    });
+    fireEvent.click(nextButton());
+
+    // Step 2 — Target: the preselected jmap SURVIVES the source switch — it
+    // carries files — so only its host is needed. (An incapable selection
+    // would have been swapped to webdav.)
+    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+      target: { value: 'nextcloud.acme.example' },
+    });
+    fireEvent.click(nextButton());
+
+    // Step 3 — Name & credentials: the secret is labeled a CLIENT SECRET, and
+    // the refresh token renders masked with its own gate.
+    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+      target: { value: 'Acme files' },
+    });
+    const usernames = screen.getAllByPlaceholderText('user@example.com');
+    fireEvent.change(usernames[0]!, { target: { value: 'owner@acme.example' } });
+    fireEvent.change(usernames[1]!, { target: { value: 'files@acme.example' } });
+    const secrets = screen.getAllByPlaceholderText('••••••••');
+    fireEvent.change(secrets[0]!, { target: { value: 'client-secret' } });
+    expect(nextButton()).toBeDisabled(); // the refresh token still gates
+    fireEvent.change(screen.getByPlaceholderText('1//…'), {
+      target: { value: '1//refresh' },
+    });
+    fireEvent.change(secrets[1]!, { target: { value: 'target-pass' } });
+    fireEvent.click(nextButton());
+
+    // Step 4 — Data types: file is selected; the mail-shaped ones cannot be.
+    fireEvent.click(nextButton());
+    // Step 5 — Schedule (default), Step 6 — Review.
+    fireEvent.click(nextButton());
+    fireEvent.click(nextButton());
+
+    await waitFor(() => expect(createMock).toHaveBeenCalled());
+    const posted = createMock.mock.calls[0]![0] as unknown as Record<string, unknown>;
+    expect(posted.sourceType).toBe('google-drive');
+    expect(posted.targetType).toBe('jmap');
+    expect(posted.sourceConfig).toMatchObject({
+      username: 'owner@acme.example',
+      clientId: 'cid.apps.googleusercontent.com',
+      clientSecret: 'client-secret',
+      refreshToken: '1//refresh',
+    });
+    // No host/port fabricated for a source that has neither.
+    expect(posted.sourceConfig).not.toHaveProperty('host');
+    expect((posted.syncConfig as { domains: string[] }).domains).toEqual(['file']);
+  });
+
+  it('domains beyond file are not offerable for a Drive source', () => {
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /Google Drive/ }));
+    fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
+      target: { value: 'cid' },
+    });
+    fireEvent.click(nextButton());
+    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+      target: { value: 'nc.acme.example' },
+    });
+    fireEvent.click(nextButton());
+    fireEvent.change(screen.getByPlaceholderText('My Migration'), { target: { value: 'x' } });
+    const users = screen.getAllByPlaceholderText('user@example.com');
+    fireEvent.change(users[0]!, { target: { value: 'a@b.c' } });
+    fireEvent.change(users[1]!, { target: { value: 'd@e.f' } });
+    const secrets = screen.getAllByPlaceholderText('••••••••');
+    fireEvent.change(secrets[0]!, { target: { value: 's' } });
+    fireEvent.change(screen.getByPlaceholderText('1//…'), { target: { value: 'r' } });
+    fireEvent.click(nextButton());
+
+    // The Email card is disabled: the target (webdav) and the source (drive)
+    // both rule it out, and the wizard constrains rather than letting the
+    // server refuse three steps later.
+    const emailCard = screen.getByRole('button', { name: /Email/ });
+    expect(emailCard).toBeDisabled();
+  });
+});

@@ -179,12 +179,14 @@ export const CreateMappingResponseSchema = z.object({
 /** What the wizard posts — mirrors the server's CreateMappingSchema. */
 export interface CreateMappingInput {
   name: string;
-  sourceType: 'imap' | 'oauth2' | 'graph';
+  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive';
   targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav';
   sourceConfig: {
     /** host/port for an 'imap' source; tenantId/clientId/clientSecret for
-     *  'oauth2'/'graph' (the per-customer Entra app registration, 0037 T6).
-     *  The server's CreateMappingSchema refuses the wrong set by name. */
+     *  'oauth2'/'graph' (the per-customer Entra app registration, 0037 T6);
+     *  clientId/clientSecret/refreshToken (+ optional rootFolderId) for
+     *  'google-drive' (workplan 0042). The server's CreateMappingSchema
+     *  refuses the wrong set by name. */
     host?: string;
     port?: number;
     username: string;
@@ -193,6 +195,8 @@ export interface CreateMappingInput {
     tenantId?: string;
     clientId?: string;
     clientSecret?: string;
+    refreshToken?: string;
+    rootFolderId?: string;
   };
   targetConfig: {
     host: string;
