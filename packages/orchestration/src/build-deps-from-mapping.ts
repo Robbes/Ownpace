@@ -20,6 +20,7 @@ import {
   type FileSource,
   DEFAULT_CONCURRENCY,
   parseGoogleDriveSource,
+  log,
 } from '@openmig/shared';
 import { connection as connectionTable, mailbox as mailboxTable } from '@openmig/ledger';
 import {
@@ -101,37 +102,48 @@ export async function buildDepsFromMapping(
 
   // Load connections and credentials WITHIN tenant context (RLS enforced)
   const { sourceConfig, targetConfig, sourceCredentials, targetCredentials } = await withTenant(pool, tenantId, async (txDb) => {
-    // Load source connection (RLS-enforced)
-    const sourceConnections = await txDb.select()
-      .from(connectionTable)
-      .where(
-        and(
-          eq(connectionTable.tenantId, tenantId),
-          eq(connectionTable.role, 'source')
-        )
-      );
-    
-    if (sourceConnections.length === 0) {
+    // THE MAPPING'S OWN connections, mailbox → connection (RLS-enforced), with
+    // the tenant-role row only as a logged fallback for legacy rows whose
+    // mailboxes carry no connection id. "The tenant's first source row" was
+    // survivable while a tenant could only hold one; the moment the wizard can
+    // also create a `google_drive` source connection, an unordered first row
+    // can be the wrong PROVIDER, and the mail pass would open Drive
+    // credentials and refuse — nondeterministically, by planner mood.
+    const viaMailbox = async (mailboxId: string | null) => {
+      if (!mailboxId) return undefined;
+      const rows = await txDb
+        .select()
+        .from(connectionTable)
+        .innerJoin(mailboxTable, eq(mailboxTable.connectionId, connectionTable.id))
+        .where(and(eq(mailboxTable.id, mailboxId), eq(connectionTable.tenantId, tenantId)));
+      return rows[0]?.connection;
+    };
+    const byRole = async (role: 'source' | 'target') => {
+      const rows = await txDb
+        .select()
+        .from(connectionTable)
+        .where(and(eq(connectionTable.tenantId, tenantId), eq(connectionTable.role, role)));
+      if (rows[0]) {
+        log.warn(
+          `[deps] mapping ${mappingId}: its ${role} mailbox names no connection; falling back ` +
+            `to the tenant's first ${role} connection row. Fine for a single-connection ` +
+            'tenant; ambiguous the moment there are two.',
+        );
+      }
+      return rows[0];
+    };
+
+    const mapping = mappings[0]!;
+    const sourceConnection =
+      (await viaMailbox(mapping.sourceMailboxId)) ?? (await byRole('source'));
+    if (!sourceConnection) {
       throw new Error(`Source connection not found for tenant: ${tenantId}`);
     }
-    
-    const sourceConnection = sourceConnections[0]!;
-    
-    // Load target connection (RLS-enforced)
-    const targetConnections = await txDb.select()
-      .from(connectionTable)
-      .where(
-        and(
-          eq(connectionTable.tenantId, tenantId),
-          eq(connectionTable.role, 'target')
-        )
-      );
-    
-    if (targetConnections.length === 0) {
+    const targetConnection =
+      (await viaMailbox(mapping.targetMailboxId)) ?? (await byRole('target'));
+    if (!targetConnection) {
       throw new Error(`Target connection not found for tenant: ${tenantId}`);
     }
-    
-    const targetConnection = targetConnections[0]!;
     
     // Parse connector configs from the connection config JSONB
     const sourceConfig = sourceConnection.config as unknown as SourceConfig;
@@ -282,6 +294,13 @@ async function loadDomainConnections(
           .from(connectionTable)
           .where(and(eq(connectionTable.tenantId, tenantId), eq(connectionTable.role, role)));
         conn = rows[0];
+        if (conn) {
+          log.warn(
+            `[deps] mapping ${mappingId}: its ${role} mailbox names no connection; falling ` +
+              `back to the tenant's first ${role} connection row. Fine for a ` +
+              'single-connection tenant; ambiguous the moment there are two.',
+          );
+        }
       }
       if (!conn) {
         throw new Error(`${role} connection not found for tenant: ${tenantId}`);
