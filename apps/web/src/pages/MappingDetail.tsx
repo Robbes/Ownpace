@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { isSelfHost } from '../services/edition';
 import { mappingApi } from '../services/mapping-service';
-import { fetchStatus } from '../services/operating-service';
+import { fetchCompletionReport, fetchStatus } from '../services/operating-service';
 import { useT } from '../i18n';
 import RunsPanel from '../components/RunsPanel';
 import LiveProgress from '../components/LiveProgress';
@@ -47,6 +47,7 @@ const SCREENS: ReadonlyArray<{
 ];
 
 const MappingDetail: React.FC = () => {
+  const [reportBusy, setReportBusy] = React.useState(false);
   const { id } = useParams<{ id: string }>();
   const t = useT();
 
@@ -88,6 +89,34 @@ const MappingDetail: React.FC = () => {
         {detail.data?.status && <StateChip entity="lifecycle" state={detail.data.status} />}
       </div>
       <p className="mt-1 text-sm text-gray-500 font-mono">{id}</p>
+      {/* The completion report (workplan 0047): every number on it already
+          lives on some screen below — this is the ONE document version, for
+          handing over. Client-side download; the server never learns where
+          it was saved. */}
+      <button
+        type="button"
+        className="mt-2 text-sm text-blue-700 hover:underline disabled:opacity-50"
+        disabled={reportBusy}
+        onClick={() => {
+          setReportBusy(true);
+          fetchCompletionReport(id)
+            .then(({ markdown }) => {
+              const blob = new Blob([markdown], { type: 'text/markdown' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `completion-report-${id}.md`;
+              a.click();
+              URL.revokeObjectURL(url);
+            })
+            .catch(() => {
+              /* the hub's detailError line already reports fetch trouble */
+            })
+            .finally(() => setReportBusy(false));
+        }}
+      >
+        {t('hub.completionReport')}
+      </button>
       {detail.error != null && (
         <p className="mt-1 text-sm text-amber-800">{t('hub.detailError')}</p>
       )}

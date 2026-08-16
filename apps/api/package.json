@@ -18,6 +18,7 @@
     "@openmig/connectors": "workspace:*",
     "@openmig/core": "workspace:*",
     "@openmig/ledger": "workspace:*",
+    "@openmig/orchestration": "workspace:*",
     "@openmig/scheduler": "workspace:*",
     "@openmig/shared": "workspace:*",
     "cors": "^2.8.5",

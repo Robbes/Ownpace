@@ -56,7 +56,7 @@ import {
   keepMove,
   DecisionRefusedError,
 } from '../services/operating-service';
-import { useT } from '../i18n';
+import { useT, useFormatters } from '../i18n';
 
 /**
  * A move that changed the item's NAME without changing its folder.
@@ -74,6 +74,7 @@ const Row: React.FC<{
   actions?: React.ReactNode;
 }> = ({ mv, outcome, actions }) => {
   const t = useT();
+  const { relativeToNow, dateTime } = useFormatters();
   return (
   <ItemRow>
     <DomainTag domain={mv.domain} />
@@ -108,6 +109,20 @@ const Row: React.FC<{
       )}
     </span>
     <HashChip hash={mv.naturalKeyHash} />
+    {/*
+      How long this report has sat (migration 0013) — the triage column. A
+      report from five minutes ago is probably still in motion; one from three
+      weeks ago is a decision nobody has made. Absent only for rows recorded
+      before the column existed.
+    */}
+    {mv.recordedAt && (
+      <span
+        className="text-xs text-gray-400 flex-shrink-0"
+        title={dateTime(mv.recordedAt)}
+      >
+        {relativeToNow(mv.recordedAt)}
+      </span>
+    )}
     <div className="flex items-center gap-2 ml-auto">
       {outcome?.state === 'done' ? (
         <Resolved effect={outcome.effect} />

@@ -339,13 +339,11 @@ export async function fetchApplyDeletionsFlag(mappingId: string): Promise<ApplyD
  */
 export async function setApplyDeletionsFlag(
   mappingId: string,
-  allowApplyDeletions: boolean,
+  flags: { allowApplyDeletions?: boolean; autoApplyRelocations?: boolean },
 ): Promise<ApplyDeletionsFlag> {
   try {
     return (
-      await client.patch<ApplyDeletionsFlag>(`${mappingPath(mappingId)}/apply-deletions`, {
-        allowApplyDeletions,
-      })
+      await client.patch<ApplyDeletionsFlag>(`${mappingPath(mappingId)}/apply-deletions`, flags)
     ).data;
   } catch (err) {
     const res = (err as { response?: { status: number; data?: DecisionRefused } }).response;
@@ -354,6 +352,20 @@ export async function setApplyDeletionsFlag(
     if (res?.data?.error) throw new DecisionRefusedError(res.data, res.status);
     throw err;
   }
+}
+
+/**
+ * The migration completion report (workplan 0047): the shared builder's
+ * output plus its Markdown rendering — the document an owner downloads.
+ */
+export async function fetchCompletionReport(
+  mappingId: string,
+): Promise<{ report: unknown; markdown: string }> {
+  return (
+    await client.get<{ report: unknown; markdown: string }>(
+      `${mappingPath(mappingId)}/completion-report`,
+    )
+  ).data;
 }
 
 /** Accept the target's layout for a moved item, and stop reporting it. */

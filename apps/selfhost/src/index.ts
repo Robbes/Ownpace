@@ -35,7 +35,7 @@ import {
   applyMappingDeletion,
   applyMappingRelocation,
 } from '@openmig/orchestration';
-import { SCOPE_MANIFEST, DELETION_CONFIRMATIONS } from '@openmig/shared';
+import { SCOPE_MANIFEST, DELETION_CONFIRMATIONS, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
 // three cannot drift apart in the explanations that stop somebody destroying
@@ -1516,6 +1516,38 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           effect: action === 'resolve' ? DECISION_EFFECTS.resolved : DECISION_EFFECTS.dismissed,
         });
       }
+      // The migration completion report (workplan 0047): the SAME shared
+      // builder the managed route calls (rule 5), on this edition's stores.
+      // No `applied` summary — the appliance answers applies synchronously and
+      // records them in its run log; the report says so instead of showing
+      // zeros that would read as "nothing was ever removed".
+      const completionMatch = req.url
+        ? /^\/mappings\/([^/]+)\/completion-report$/.exec(req.url)
+        : null;
+      if (completionMatch && req.method === 'GET') {
+        const id = decodeURIComponent(completionMatch[1]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+        const tId = m.config.tenantId as TenantId;
+        const mId = m.mailboxMappingId as MappingId;
+        const statuses = await statusStore.getStatus(tId, mId);
+        const failures = await ledger.listFailures(tId, mId);
+        const report = buildCompletionReport({
+          mappingId: m.config.mappingId,
+          sourceType: m.config.source.type,
+          targetType: m.config.target.type,
+          lifecycle: await mappingStatus(m),
+          generatedAt: new Date().toISOString(),
+          domains: buildDomainStatusReports(statuses, failures),
+          moves: await ledger.listMoves(tId, mId),
+          deletions: await ledger.listDeletions(tId, mId),
+          failures,
+        });
+        return sendJson(res, 200, {
+          report,
+          markdown: renderCompletionReportMarkdown(report),
+        });
+      }
       // Gate 1 of the destructive path, as a readable fact (workplan 0019 T3).
       // The value lives in the mapping's CONFIG FILE on this edition, and
       // `source: 'config'` says so — the same screen that offers a switch on
@@ -1529,6 +1561,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
         const flag: ApplyDeletionsFlag = {
           allowApplyDeletions: m.config.allowApplyDeletions === true,
+          autoApplyRelocations: m.config.autoApplyRelocations === true,
           source: 'config',
         };
         return sendJson(res, 200, flag);
@@ -1541,9 +1574,9 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         return sendJson(res, 405, {
           error: 'config_owned',
           reason:
-            "The appliance's flag lives in the mapping's config file " +
-            '(`allowApplyDeletions`); edit the file and restart the appliance. ' +
-            'No API changes it.',
+            "The appliance's flags live in the mapping's config file " +
+            '(`allowApplyDeletions`, `autoApplyRelocations`); edit the file and ' +
+            'restart the appliance. No API changes them.',
         });
       }
       const deletionMatch =

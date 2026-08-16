@@ -11,7 +11,15 @@
 import { z } from 'zod';
 import { schemaTask, queue } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
-import { runShadowPass, runCalendarSync, runContactSync, runFileSync } from '@openmig/core';
+import { eq } from 'drizzle-orm';
+import {
+  autoApplyRelocations,
+  runShadowPass,
+  runCalendarSync,
+  runContactSync,
+  runFileSync,
+  type FileSyncDeps,
+} from '@openmig/core';
 import type { TenantId, MappingId } from '@openmig/shared';
 import { buildDepsFromMapping, buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { enabledDomains, describeAbsentDomains } from '@openmig/orchestration/enabled-domains';
@@ -23,7 +31,90 @@ import {
   recordApiCallForRun,
   resolveTenantPricing,
 } from '@openmig/ledger';
+import * as schemaPg from '@openmig/ledger/schema-pg';
 import { log } from '@openmig/shared';
+
+/**
+ * ADR-0031 (accepted 2026-08-16): apply open relocations unattended, after a
+ * completed file pass, on mappings that opted in.
+ *
+ * The flags are read FRESH from the mapping row at execution time — the pass
+ * is a window, and the mapping being switched off during it must win. All of
+ * the deciding happens in core's `autoApplyRelocations` (the four ADR gates in
+ * front of the same `applyRelocation` a human's button presses); this function
+ * is the managed edition's attribution half: every removal lands an
+ * `apply_receipt` row (action `relocation`, so the Moves screen answers from
+ * it like any other apply) and an `audit_log` row, both naming
+ * `system:auto-apply` — never a human who did not act.
+ */
+async function autoApplyOpenRelocations(
+  tenantId: string,
+  mappingId: string,
+  runId: string,
+  deps: Pick<FileSyncDeps, 'ledger' | 'target'>,
+  passStartedAt: string,
+): Promise<void> {
+  const rows = await withTenant(pool, tenantId, (db) =>
+    db
+      .select({
+        auto: schemaPg.mailboxMapping.autoApplyRelocations,
+        allow: schemaPg.mailboxMapping.allowApplyDeletions,
+        prefix: schemaPg.mailboxMapping.targetFolderPrefix,
+      })
+      .from(schemaPg.mailboxMapping)
+      .where(eq(schemaPg.mailboxMapping.id, mappingId)),
+  );
+  if (rows[0]?.auto !== true) return;
+
+  const report = await autoApplyRelocations(
+    {
+      tenantId: tenantId as TenantId,
+      mappingId: mappingId as MappingId,
+      domain: 'file',
+      ledger: deps.ledger,
+      target: deps.target,
+      allowApplyDeletions: rows[0]?.allow === true,
+      autoApplyRelocations: true,
+      ...(rows[0]?.prefix ? { targetFolderPrefix: rows[0].prefix } : {}),
+      onApplied: async ({ naturalKeyHash, kind }) => {
+        await withTenant(pool, tenantId, async (db) => {
+          await db.insert(schemaPg.applyReceipt).values({
+            tenantId,
+            mappingId,
+            naturalKeyHash,
+            action: 'relocation',
+            state: 'applied',
+            finishedAt: new Date(),
+            kind,
+            reason: 'auto-applied by system:auto-apply (ADR-0031; this mapping opted in)',
+          });
+          await db.insert(schemaPg.auditLog).values({
+            tenantId,
+            actor: 'system:auto-apply',
+            action: 'auto_apply_relocation',
+            entity: 'item',
+            detail: { mappingId, naturalKeyHash, kind },
+          });
+        });
+      },
+    },
+    passStartedAt,
+  );
+
+  // The run log is where an owner reads what a pass did; silence here would
+  // be exactly the silent tidying ADR-0031 forbids.
+  const line = report.stopped
+    ? `relocation auto-apply: ${report.considered} open, 0 applied — stopped: ${report.stopped}`
+    : `relocation auto-apply: ${report.applied.length} old copies removed automatically ` +
+      `(system:auto-apply), ${report.leftForReview.length} left for review`;
+  await withTenant(pool, tenantId, async (db) => {
+    await new RunStore(db).logEvent(tenantId as TenantId, runId, 'info', line, {
+      domain: 'file',
+      autoApplied: report.applied.length,
+      leftForReview: report.leftForReview.length,
+    });
+  });
+}
 
 // Job input schema
 const DeltaSyncJobSchema = z.object({
@@ -184,7 +275,13 @@ export const runDeltaSync = schemaTask({
             try { result = await runContactSync(deps); } finally { await deps.close(); }
           } else {
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'file');
-            try { result = await runFileSync(deps); } finally { await deps.close(); }
+            // Captured BEFORE the pass: ADR-0031's survived-a-pass gate keeps
+            // a move this pass records from being auto-applied by this pass.
+            const passStartedAt = new Date().toISOString();
+            try {
+              result = await runFileSync(deps);
+              await autoApplyOpenRelocations(tenantId, mappingId, runId, deps, passStartedAt);
+            } finally { await deps.close(); }
           }
 
           await withTenant(pool, tenantId, async (db) => {

@@ -50,6 +50,9 @@ describe('route registration', () => {
     expect(got).toEqual(
       [
         'GET /:mappingId/apply-deletions',
+        // The completion report (workplan 0047) — served by both editions
+        // from the same shared builder.
+        'GET /:mappingId/completion-report',
         'GET /:mappingId/deletions',
         'GET /:mappingId/deletions/:hash/receipt',
         'GET /:mappingId/failures',

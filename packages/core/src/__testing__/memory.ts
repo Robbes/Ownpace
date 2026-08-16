@@ -469,6 +469,12 @@ export class MemoryLedger implements Ledger {
       ...existing,
       movedToCollection: toCollection,
       movedToNaturalKeyHash: toNaturalKeyHash,
+      // Same condition as the acknowledgement clear, in the other direction:
+      // a new destination is a new report and re-stamps; a pass re-observing
+      // keeps the original recording date (migration 0013).
+      movedRecordedAt: destinationChanged
+        ? new Date().toISOString()
+        : (existing.movedRecordedAt ?? new Date().toISOString()),
       ...(destinationChanged
         ? { moveAcknowledgedAt: undefined }
         : existing.moveAcknowledgedAt !== undefined
@@ -494,6 +500,7 @@ export class MemoryLedger implements Ledger {
       // would let an owner remove a copy on the strength of a relocation the
       // source has since undone.
       movedToNaturalKeyHash: undefined,
+      movedRecordedAt: undefined,
       moveAcknowledgedAt: undefined,
     });
     return Promise.resolve();
@@ -515,6 +522,7 @@ export class MemoryLedger implements Ledger {
         from: r.collection ?? '',
         to: r.movedToCollection,
         ...(r.movedToNaturalKeyHash ? { toNaturalKeyHash: r.movedToNaturalKeyHash } : {}),
+        ...(r.movedRecordedAt ? { recordedAt: r.movedRecordedAt } : {}),
         ...(r.moveAcknowledgedAt ? { acknowledgedAt: r.moveAcknowledgedAt } : {}),
       });
     }

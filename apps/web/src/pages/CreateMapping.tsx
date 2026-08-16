@@ -30,7 +30,7 @@ import {
 // schedules with, so the "next syncs" echo below cannot disagree with what
 // the scheduler will actually do.
 import { Cron } from 'croner';
-import { mappingApi } from '../services/mapping-service';
+import { mappingApi, type TestConnectionResult } from '../services/mapping-service';
 import { serverMessage } from '../services/api';
 import { useMutation } from '@tanstack/react-query';
 
@@ -41,7 +41,7 @@ type Domain = 'email' | 'calendar' | 'contact' | 'file';
 
 interface FormData {
   name: string;
-  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail';
+  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts';
   targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav';
   sourceHost: string;
   /** Kept as the raw INPUT string (0037 T3): parseInt on change turned a
@@ -171,18 +171,11 @@ const CreateMapping: React.FC = () => {
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty, createMutation.isSuccess]);
 
-  const handleNext = () => {
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
-    } else {
-      // Submit form. An oauth2/graph source posts its app registration
-      // instead of a server address — the server refuses the mismatch by
-      // name, so the shapes here mirror CreateMappingSchema's demands.
-      const mappingData = {
-        name: formData.name,
-        sourceType: formData.sourceType,
-        targetType: formData.targetType,
-        sourceConfig: isDriveSource
+  // The config shapes, shared by submit AND the connection test (workplan
+  // 0046) — the probe must run on exactly what create would post, or "test
+  // passed, create failed" becomes possible by construction.
+  const builtSourceConfig = () =>
+    isDriveSource
           ? {
               username: formData.sourceUsername,
               clientId: formData.sourceClientId,
@@ -192,7 +185,7 @@ const CreateMapping: React.FC = () => {
                 ? { rootFolderId: formData.sourceRootFolderId.trim() }
                 : {}),
             }
-          : isGmailSource
+          : isGmailSource || isGoogleDavSource
           ? {
               username: formData.sourceUsername,
               clientId: formData.sourceClientId,
@@ -212,14 +205,28 @@ const CreateMapping: React.FC = () => {
               username: formData.sourceUsername,
               password: formData.sourcePassword,
               useSsl: formData.sourceSsl,
-            },
-        targetConfig: {
-          host: formData.targetHost,
-          port: Number(formData.targetPort),
-          username: formData.targetUsername,
-          password: formData.targetPassword,
-          useSsl: formData.targetSsl,
-        },
+            };
+  const builtTargetConfig = () => ({
+    host: formData.targetHost,
+    port: Number(formData.targetPort),
+    username: formData.targetUsername,
+    password: formData.targetPassword,
+    useSsl: formData.targetSsl,
+  });
+
+  const handleNext = () => {
+    if (currentStep < steps.length - 1) {
+      setCurrentStep(currentStep + 1);
+    } else {
+      // Submit form. An oauth2/graph source posts its app registration
+      // instead of a server address — the server refuses the mismatch by
+      // name, so the shapes here mirror CreateMappingSchema's demands.
+      const mappingData = {
+        name: formData.name,
+        sourceType: formData.sourceType,
+        targetType: formData.targetType,
+        sourceConfig: builtSourceConfig(),
+        targetConfig: builtTargetConfig(),
         syncConfig: {
           domains: formData.domains,
           schedule: formData.schedule || '0 2 * * *',
@@ -230,6 +237,37 @@ const CreateMapping: React.FC = () => {
       };
       createMutation.mutate(mappingData);
     }
+  };
+
+  // The connection test (workplan 0046): both sides probed in parallel,
+  // read-only, results shown verbatim — the same sentence the first pass
+  // would have failed with, before anything exists.
+  const [probing, setProbing] = React.useState(false);
+  const [probeResults, setProbeResults] = React.useState<{
+    source?: TestConnectionResult;
+    target?: TestConnectionResult;
+  }>({});
+  const runProbes = () => {
+    setProbing(true);
+    setProbeResults({});
+    const asResult = (settled: PromiseSettledResult<TestConnectionResult>): TestConnectionResult =>
+      settled.status === 'fulfilled'
+        ? settled.value
+        : { ok: false, reason: serverMessage(settled.reason) };
+    Promise.allSettled([
+      mappingApi.testConnection({
+        side: 'source',
+        sourceType: formData.sourceType,
+        sourceConfig: builtSourceConfig(),
+      }),
+      mappingApi.testConnection({
+        side: 'target',
+        targetType: formData.targetType,
+        targetConfig: builtTargetConfig(),
+      }),
+    ])
+      .then(([src, tgt]) => setProbeResults({ source: asResult(src), target: asResult(tgt) }))
+      .finally(() => setProbing(false));
   };
 
   const handleBack = () => {
@@ -275,7 +313,11 @@ const CreateMapping: React.FC = () => {
   // client and a refresh token — but not its domain: the token is consented
   // with the mail scope, so the source serves email and nothing else.
   const isGmailSource = formData.sourceType === 'gmail';
-  const isGoogleSource = isDriveSource || isGmailSource;
+  // The Google DAV pair (workplan 0045): CalDAV/CardDAV transports, the same
+  // Google credential shape as Drive and Gmail, one pinned domain each.
+  const isGoogleDavSource =
+    formData.sourceType === 'google-calendar' || formData.sourceType === 'google-contacts';
+  const isGoogleSource = isDriveSource || isGmailSource || isGoogleDavSource;
 
   /** The problem with a non-empty custom cron, or null (empty = default). */
   const cronProblem = (): string | null =>
@@ -409,6 +451,16 @@ const CreateMapping: React.FC = () => {
                       hintKey: 'wizard.proto.googleDrive.hint',
                     },
                     { id: 'gmail', name: 'Gmail', hintKey: 'wizard.proto.gmail.hint' },
+                    {
+                      id: 'google-calendar',
+                      name: 'Google Calendar',
+                      hintKey: 'wizard.proto.googleCalendar.hint',
+                    },
+                    {
+                      id: 'google-contacts',
+                      name: 'Google Contacts',
+                      hintKey: 'wizard.proto.googleContacts.hint',
+                    },
                   ] as const
                 ).map((type) => (
                   <button
@@ -441,7 +493,26 @@ const CreateMapping: React.FC = () => {
                                   ? prev.targetType
                                   : 'jmap',
                             }))
-                          : updateField('sourceType', type.id)
+                          : type.id === 'google-calendar'
+                            ? setFormData((prev) => ({
+                                ...prev,
+                                sourceType: type.id,
+                                domains: ['calendar'],
+                                // The one calendar-capable target (JMAP calendar
+                                // is parked by owner decision, 0031 T1).
+                                targetType: 'caldav',
+                              }))
+                            : type.id === 'google-contacts'
+                              ? setFormData((prev) => ({
+                                  ...prev,
+                                  sourceType: type.id,
+                                  domains: ['contact'],
+                                  targetType:
+                                    prev.targetType === 'jmap' || prev.targetType === 'carddav'
+                                      ? prev.targetType
+                                      : 'carddav',
+                                }))
+                              : updateField('sourceType', type.id)
                     }
                     className={`p-4 border-2 rounded-lg text-left transition-colors ${
                       formData.sourceType === type.id
@@ -482,9 +553,17 @@ const CreateMapping: React.FC = () => {
                   {t('wizard.source.gmailSetup')}
                 </p>
               )}
+              {/* Workplan 0045: same OAuth client, per-product consent — the
+                  scope each token must carry is the mistake this box exists
+                  to prevent, exactly like Gmail's. */}
+              {isGoogleDavSource && (
+                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  {t('wizard.source.googleDavSetup')}
+                </p>
+              )}
             </div>
 
-            {isGmailSource ? (
+            {isGmailSource || isGoogleDavSource ? (
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -872,6 +951,50 @@ const CreateMapping: React.FC = () => {
                   makes true (SecretStore.encryptCredentials; GET masks). */}
               <p className="mt-4 text-sm text-blue-900">{t('wizard.credentials.storage')}</p>
             </div>
+
+            {/* The connection test (workplan 0046): the docs' "one read-only
+                command that proves the credentials", as a button — because a
+                managed operator has no shell. Optional: Next never gates on
+                it, a probe can time out on a slow provider and the create API
+                re-refuses everything anyway. */}
+            <div className="border border-gray-200 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={runProbes}
+                  disabled={probing}
+                  className="btn-secondary text-sm disabled:opacity-50"
+                >
+                  {probing ? t('wizard.testing') : t('wizard.testConnections')}
+                </button>
+                <p className="text-sm text-gray-500">{t('wizard.testConnections.hint')}</p>
+              </div>
+              {(probeResults.source || probeResults.target) && (
+                <dl className="mt-3 space-y-2 text-sm">
+                  {(['source', 'target'] as const).map((side) => {
+                    const r = probeResults[side];
+                    if (!r) return null;
+                    return (
+                      <div key={side} className="flex items-start gap-2">
+                        {r.ok ? (
+                          <Check className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
+                        )}
+                        <dt className="font-medium text-gray-900">
+                          {t(side === 'source' ? 'wizard.step.source' : 'wizard.step.target')}:
+                        </dt>
+                        {/* The provider's words, verbatim (rule 9) — the same
+                            sentence the first pass would have failed with. */}
+                        <dd className="text-gray-700 min-w-0 break-words">
+                          {r.ok ? r.detail : r.reason}
+                        </dd>
+                      </div>
+                    );
+                  })}
+                </dl>
+              )}
+            </div>
           </div>
         );
 
@@ -1013,7 +1136,7 @@ const CreateMapping: React.FC = () => {
                         ? formData.sourceRootFolderId
                           ? `(${formData.sourceRootFolderId})`
                           : `(${t('wizard.review.myDrive')})`
-                        : isGmailSource
+                        : isGmailSource || isGoogleDavSource
                           ? `(${formData.sourceUsername})`
                           : isO365Source
                             ? `(${formData.sourceTenantId})`

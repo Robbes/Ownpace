@@ -47,6 +47,12 @@ import {
   buildGoogleDriveSourceFrom,
 } from './drive-source-factory';
 import { ENV_GMAIL_CREDENTIAL_NAMES, buildGmailSourceFrom } from './gmail-source-factory';
+import {
+  ENV_GOOGLE_CALENDAR_CREDENTIAL_NAMES,
+  ENV_GOOGLE_CONTACTS_CREDENTIAL_NAMES,
+  buildGoogleCalendarDavSourceFrom,
+  buildGoogleContactsDavSourceFrom,
+} from './google-dav-source-factory';
 import { withClose, type WithClose } from './deps-lifecycle';
 import {
   buildGraphMailSourceFrom,
@@ -585,11 +591,38 @@ function buildDomainDepsWithLedger(
   let target: CalendarTargetWriter | ContactTargetWriter | FileTargetWriter;
   switch (domain) {
     case 'calendar':
-      source = buildCalendarSource(davEndpoint(sourceConfig, 'caldav', 'source'));
+      // Google Calendar (workplan 0045) is CalDAV with OAuth: the same
+      // connector, aimed at Google's fixed principal, on a Bearer token
+      // minted from env credentials — so it must not ride the endpoint
+      // resolver, which would demand a password Google does not take.
+      source =
+        sourceConfig.type === 'google-calendar'
+          ? buildGoogleCalendarDavSourceFrom(
+              sourceConfig.user,
+              {
+                clientId: process.env.GOOGLE_CLIENT_ID,
+                clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+                refreshToken: process.env.GOOGLE_CALENDAR_REFRESH_TOKEN,
+              },
+              ENV_GOOGLE_CALENDAR_CREDENTIAL_NAMES,
+            )
+          : buildCalendarSource(davEndpoint(sourceConfig, 'caldav', 'source'));
       target = buildCalendarTarget(davEndpoint(targetConfig, 'caldav', 'target'), targetDeps);
       break;
     case 'contact': {
-      source = buildContactSource(davEndpoint(sourceConfig, 'carddav', 'source'));
+      // Google Contacts (workplan 0045): CardDAV with OAuth, same argument.
+      source =
+        sourceConfig.type === 'google-contacts'
+          ? buildGoogleContactsDavSourceFrom(
+              sourceConfig.user,
+              {
+                clientId: process.env.GOOGLE_CLIENT_ID,
+                clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+                refreshToken: process.env.GOOGLE_CONTACTS_REFRESH_TOKEN,
+              },
+              ENV_GOOGLE_CONTACTS_CREDENTIAL_NAMES,
+            )
+          : buildContactSource(davEndpoint(sourceConfig, 'carddav', 'source'));
       // Contacts can go over JMAP where the target speaks it (0031 T2). The
       // config already expresses it: `TargetConfig` is a union that includes
       // `JmapTarget`, so a contacts domain naming `type: 'jmap'` needs no new

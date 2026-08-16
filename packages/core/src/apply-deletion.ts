@@ -975,3 +975,190 @@ async function massRelocationCheck(
       'and tidy the old copies in the target system yourself.',
   };
 }
+
+// ---------------------------------------------------------------------------
+// Auto-apply (ADR-0031, accepted 2026-08-16)
+// ---------------------------------------------------------------------------
+
+/**
+ * At most this many auto-applies per mapping per pass (ADR-0031 gate 4).
+ *
+ * A number for the owner to move, not a law: it bounds the worst wrong batch,
+ * and makes a runaway visible across several passes rather than complete in
+ * one. Deliberately NOT a way to proceed under a mass event — the breaker is
+ * evaluated against the FULL open set before the batch starts, so the cap
+ * cannot nibble through something a human was supposed to look at.
+ */
+export const AUTO_APPLY_RELOCATIONS_CAP = 50;
+
+/** What one auto-apply pass did, for the caller to record and narrate. */
+export interface AutoApplyRelocationsReport {
+  /** False = the mapping has not opted in; nothing was read or attempted. */
+  readonly enabled: boolean;
+  /** Open relocations found (the candidates). */
+  readonly considered: number;
+  /** Removed old copies — each one also re-passed every manual gate. */
+  readonly applied: ReadonlyArray<{ naturalKeyHash: string; kind: RemovalKind }>;
+  /** Candidates left in the queue, with the gate that said no. */
+  readonly leftForReview: ReadonlyArray<{
+    naturalKeyHash: string;
+    code: string;
+    reason: string;
+  }>;
+  /** Set when the mass breaker stopped the WHOLE pass before any item. */
+  readonly stopped?: string;
+}
+
+/**
+ * Apply open relocations unattended — ADR-0031's four gates in front of the
+ * existing `applyRelocation`, never a second destructive path.
+ *
+ * The manual path's gates all run again per item (opt-in, capability,
+ * ownership, ambiguity, the ask-the-target presence check, the ETag, the
+ * ledger's conditional UPDATE). What this adds is what replaces the human who
+ * is no longer looking:
+ *
+ *  1. UNIQUE pairing — no other placed item shares the content hash at all.
+ *     The manual ambiguity gate refuses a third sharer too; it is re-asked
+ *     here BEFORE the removal machinery is engaged, and named separately
+ *     because under auto-apply the pairing IS the decision — nobody sees the
+ *     from/to paths who could notice nonsense.
+ *  2. SURVIVED A PASS — `recordedAt` must predate `passStartedAt`, so a
+ *     correlation born of a flaky listing (a folder that answered one pass
+ *     empty) self-corrects on the next pass instead of being acted on in the
+ *     seconds the illusion lasts. Manual apply is protected by human latency;
+ *     this is that latency, restored.
+ *  3. The BREAKER DECIDES FOR THE PASS — both halves evaluated once against
+ *     the full open set before anything runs. If the share would trip it,
+ *     auto-apply does nothing this pass, rather than applying a polite number
+ *     under the cap and trying again tomorrow.
+ *  4. The CAP, and attribution: every removal is logged as performed by
+ *     `system:auto-apply` — the caller lands the durable half (receipts and
+ *     audit rows where that edition has them) via `onApplied`.
+ *
+ * DELETIONS NEVER AUTO-APPLY. This function reads the moves queue only.
+ */
+export async function autoApplyRelocations(
+  deps: ApplyDeletionDeps & {
+    /** ADR-0031's per-mapping opt-in. Defaults to FALSE, like every destructive capability. */
+    readonly autoApplyRelocations?: boolean;
+    /** Durable attribution, where the edition has somewhere to put it. */
+    readonly onApplied?: (applied: {
+      naturalKeyHash: string;
+      kind: RemovalKind;
+    }) => Promise<void>;
+  },
+  passStartedAt: string,
+  cap: number = AUTO_APPLY_RELOCATIONS_CAP,
+): Promise<AutoApplyRelocationsReport> {
+  const { tenantId, mappingId, domain, ledger } = deps;
+
+  if (deps.autoApplyRelocations !== true) {
+    return { enabled: false, considered: 0, applied: [], leftForReview: [] };
+  }
+
+  const open = (await ledger.listMoves(tenantId, mappingId, domain)).filter(
+    (m) => m.toNaturalKeyHash !== undefined && m.acknowledgedAt === undefined,
+  );
+  if (open.length === 0) {
+    return { enabled: true, considered: 0, applied: [], leftForReview: [] };
+  }
+
+  // Gate 3: the breaker sees the WHOLE open set, once, before any item runs.
+  const breaker = (await massDeletionCheck(deps)) ?? (await massRelocationCheck(deps));
+  if (breaker) {
+    log.warn(
+      `[auto-apply] ${domain}: ${open.length} open relocation(s) NOT auto-applied — ` +
+        `${breaker.code}. A human decides: ${breaker.reason}`,
+    );
+    return {
+      enabled: true,
+      considered: open.length,
+      applied: [],
+      leftForReview: [],
+      stopped: breaker.reason,
+    };
+  }
+
+  // Gate 1's corpus view, computed once: how many placed items hold each hash.
+  const hashCount = new Map<string, number>();
+  for (const item of await ledger.placedItems(tenantId, mappingId, domain)) {
+    hashCount.set(item.contentHash, (hashCount.get(item.contentHash) ?? 0) + 1);
+  }
+
+  const applied: Array<{ naturalKeyHash: string; kind: RemovalKind }> = [];
+  const leftForReview: Array<{ naturalKeyHash: string; code: string; reason: string }> = [];
+
+  for (const move of open) {
+    if (applied.length >= cap) {
+      leftForReview.push({
+        naturalKeyHash: move.naturalKeyHash,
+        code: 'cap_reached',
+        reason:
+          `This pass already auto-applied ${cap} relocations (the per-pass cap). ` +
+          'The rest stay in the queue and the next pass continues.',
+      });
+      continue;
+    }
+
+    // Gate 2: survived a pass. A missing recordedAt is a row from before
+    // migration 0013 whose backfill has not run — not evidence of age.
+    if (!move.recordedAt || move.recordedAt >= passStartedAt) {
+      leftForReview.push({
+        naturalKeyHash: move.naturalKeyHash,
+        code: 'not_survived_pass',
+        reason:
+          'This relocation was recorded during the current pass. Unattended apply waits one ' +
+          'further pass so a correlation born of a flaky listing can self-correct first.',
+      });
+      continue;
+    }
+
+    // Gate 1: the pair must be the ONLY holders of these bytes. Exactly two —
+    // the disappeared row and its arrival. Every empty file in a corpus shares
+    // a hash with every other, so under auto-apply they are simply never
+    // eligible; a human can still apply one, looking.
+    const row = await ledger.find(tenantId, mappingId, domain, move.naturalKeyHash);
+    const sharers = row?.contentHash ? (hashCount.get(row.contentHash) ?? 0) : 0;
+    if (sharers !== 2) {
+      leftForReview.push({
+        naturalKeyHash: move.naturalKeyHash,
+        code: 'hash_not_unique',
+        reason:
+          `${sharers} items in this migration hold these bytes, and unattended apply requires ` +
+          'exactly the pair — the pairing is the whole decision when nobody is looking at the ' +
+          'paths. Review it in the Moves queue.',
+      });
+      continue;
+    }
+
+    // Every manual gate, again, per item — this is the same applyRelocation a
+    // human's button presses, including the ask-the-target presence check.
+    const outcome = await applyRelocation(deps, move.naturalKeyHash);
+    if (outcome.ok) {
+      applied.push({ naturalKeyHash: move.naturalKeyHash, kind: outcome.kind });
+      log.warn(
+        `[auto-apply] ${domain}: removed the target's OLD copy of relocated item ` +
+          `${move.naturalKeyHash.slice(0, 12)} (${outcome.kind}) by system:auto-apply — ` +
+          'the same bytes remain on the target under the key the source moved it to ' +
+          '(ADR-0031; this mapping opted in via autoApplyRelocations).',
+      );
+      if (deps.onApplied) {
+        await deps.onApplied({ naturalKeyHash: move.naturalKeyHash, kind: outcome.kind });
+      }
+    } else {
+      leftForReview.push({
+        naturalKeyHash: move.naturalKeyHash,
+        code: outcome.code,
+        reason: outcome.reason,
+      });
+    }
+  }
+
+  log.info(
+    `[auto-apply] ${domain}: ${applied.length} old cop${applied.length === 1 ? 'y' : 'ies'} ` +
+      `removed automatically (system:auto-apply), ${leftForReview.length} left for review, ` +
+      `of ${open.length} open relocation(s).`,
+  );
+  return { enabled: true, considered: open.length, applied, leftForReview };
+}

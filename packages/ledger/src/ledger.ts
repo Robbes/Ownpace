@@ -464,6 +464,15 @@ export class PgLedger implements Ledger {
         moveAcknowledgedAt: sql`CASE WHEN ${schemaPg.item.movedToCollection} IS DISTINCT FROM ${toCollection}
              OR ${schemaPg.item.movedToNaturalKeyHash} IS DISTINCT FROM ${toKey}
           THEN NULL ELSE ${schemaPg.item.moveAcknowledgedAt} END`,
+        // Stamped on first recording, RE-stamped when the destination changed
+        // (the same condition as the acknowledgement clear: a move somewhere
+        // new is a new report), kept when a pass merely re-observes. This is
+        // what lets the queue say how long a report has sat — updated_at
+        // cannot, every pass touches it — and what ADR-0031's survived-a-pass
+        // gate reads before an unattended apply.
+        movedRecordedAt: sql`CASE WHEN ${schemaPg.item.movedToCollection} IS DISTINCT FROM ${toCollection}
+             OR ${schemaPg.item.movedToNaturalKeyHash} IS DISTINCT FROM ${toKey}
+          THEN now() ELSE COALESCE(${schemaPg.item.movedRecordedAt}, now()) END`,
         updatedAt: sql`now()`,
       })
       .where(
@@ -491,6 +500,10 @@ export class PgLedger implements Ledger {
         // owner remove a target copy on the strength of a relocation the source
         // has since undone.
         movedToNaturalKeyHash: null,
+        // The recording date describes the move that just ceased to exist; a
+        // NEXT move to the same place must read as fresh, not pre-aged past
+        // ADR-0031's gate.
+        movedRecordedAt: null,
         // Goes with it. There is no longer anything to have agreed to, and a
         // stale acknowledgement would quietly suppress the NEXT move to the
         // same place.
@@ -519,6 +532,7 @@ export class PgLedger implements Ledger {
         collection: schemaPg.item.collection,
         movedToCollection: schemaPg.item.movedToCollection,
         movedToNaturalKeyHash: schemaPg.item.movedToNaturalKeyHash,
+        movedRecordedAt: schemaPg.item.movedRecordedAt,
         moveAcknowledgedAt: schemaPg.item.moveAcknowledgedAt,
       })
       .from(schemaPg.item)
@@ -552,6 +566,14 @@ export class PgLedger implements Ledger {
       // Present only for a relocation; its absence is what tells a caller this
       // move cannot be applied (ADR-0030).
       ...(r.movedToNaturalKeyHash ? { toNaturalKeyHash: r.movedToNaturalKeyHash } : {}),
+      ...(r.movedRecordedAt
+        ? {
+            recordedAt:
+              r.movedRecordedAt instanceof Date
+                ? r.movedRecordedAt.toISOString()
+                : String(r.movedRecordedAt),
+          }
+        : {}),
       ...(r.moveAcknowledgedAt
         ? {
             acknowledgedAt:
@@ -1057,6 +1079,14 @@ export class PgLedger implements Ledger {
       ...(row.movedToCollection ? { movedToCollection: row.movedToCollection } : {}),
       ...(row.movedToNaturalKeyHash
         ? { movedToNaturalKeyHash: row.movedToNaturalKeyHash }
+        : {}),
+      ...(row.movedRecordedAt
+        ? {
+            movedRecordedAt:
+              row.movedRecordedAt instanceof Date
+                ? row.movedRecordedAt.toISOString()
+                : String(row.movedRecordedAt),
+          }
         : {}),
       ...(row.moveAcknowledgedAt
         ? {

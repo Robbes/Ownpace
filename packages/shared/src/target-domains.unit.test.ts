@@ -71,6 +71,17 @@ describe('sourceDomainRefusal — the source-side matrix', () => {
   it('is null for every coherent Google combination', () => {
     expect(sourceDomainRefusal('google-drive', ['file'])).toBeNull();
     expect(sourceDomainRefusal('gmail', ['email'])).toBeNull();
+    expect(sourceDomainRefusal('google-calendar', ['calendar'])).toBeNull();
+    expect(sourceDomainRefusal('google-contacts', ['contact'])).toBeNull();
+  });
+
+  it('the Google DAV pair each name their own scope (workplan 0045)', () => {
+    const cal = sourceDomainRefusal('google-calendar', ['calendar', 'email']);
+    expect(cal).toContain('Google Calendar');
+    expect(cal).toContain('auth/calendar');
+    const card = sourceDomainRefusal('google-contacts', ['contact', 'file']);
+    expect(card).toContain('Google Contacts');
+    expect(card).toContain('auth/carddav');
   });
 
   it('drive + email keeps the wording the wizard and API render verbatim', () => {

@@ -263,6 +263,26 @@ describe('the gmail mail source', () => {
   });
 });
 
+/**
+ * The Google DAV pair (workplan 0045): the same one-field shape as gmail, for
+ * the same reasons — fixed endpoints derived from the address, credentials
+ * never in a file.
+ */
+describe('the google-calendar and google-contacts sources', () => {
+  it('parse with a type and the account address only', () => {
+    for (const type of ['google-calendar', 'google-contacts'] as const) {
+      const cfg = parseMappingConfig({ ...example, source: { type, user: 'owner@example.com' } });
+      expect(cfg.source).toEqual({ type, user: 'owner@example.com' });
+    }
+  });
+
+  it('refuse a missing account address: the principal URL is derived from it', () => {
+    for (const type of ['google-calendar', 'google-contacts'] as const) {
+      expect(() => parseMappingConfig({ ...example, source: { type } })).toThrow(/source\.user/);
+    }
+  });
+});
+
 describe('parseMappingConfigJson', () => {
   it('parses JSON text', () => {
     expect(parseMappingConfigJson(JSON.stringify(example)).mappingId).toBe('inbox-mail');

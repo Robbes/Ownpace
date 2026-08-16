@@ -241,6 +241,45 @@ describe('a gmail source (workplan 0044) — the Drive credential shape, the mai
   });
 });
 
+describe('the google-calendar and google-contacts sources (workplan 0045)', () => {
+  const googleDav = (
+    sourceType: 'google-calendar' | 'google-contacts',
+    over: Record<string, unknown> = {},
+  ) =>
+    body({
+      sourceType,
+      targetType: sourceType === 'google-calendar' ? 'caldav' : 'carddav',
+      sourceConfig: {
+        username: 'owner@example.com',
+        clientId: 'cid.apps.googleusercontent.com',
+        clientSecret: 'cs',
+        refreshToken: 'rt',
+        ...((over.sourceConfig as Record<string, unknown>) ?? {}),
+      },
+      syncConfig: { domains: [sourceType === 'google-calendar' ? 'calendar' : 'contact'] },
+      ...Object.fromEntries(Object.entries(over).filter(([k]) => k !== 'sourceConfig')),
+    });
+
+  it('accepts the coherent shapes: calendar → caldav, contacts → carddav', () => {
+    expect(CreateMappingSchema.safeParse(googleDav('google-calendar')).success).toBe(true);
+    expect(CreateMappingSchema.safeParse(googleDav('google-contacts')).success).toBe(true);
+  });
+
+  it('refuses a missing refresh token naming the product\'s OWN scope', () => {
+    const cal = refusalText(googleDav('google-calendar', { sourceConfig: { refreshToken: undefined } }));
+    expect(cal).toContain('auth/calendar');
+    const card = refusalText(googleDav('google-contacts', { sourceConfig: { refreshToken: undefined } }));
+    expect(card).toContain('auth/carddav');
+  });
+
+  it('refuses domains beyond the pinned one — the consent reads one product', () => {
+    const msg = refusalText(googleDav('google-calendar', { syncConfig: { domains: ['calendar', 'email'] } }));
+    expect(msg).toContain('Google Calendar');
+    expect(msg).toContain("'email'");
+    expect(msg).toContain('separate mapping');
+  });
+});
+
 describe('targetFolderPrefix — refused in the shared parser\'s words (hard rule 5)', () => {
   it('accepts a clean prefix and the empty default', () => {
     expect(CreateMappingSchema.safeParse(body({ targetFolderPrefix: 'Gmail' })).success).toBe(true);

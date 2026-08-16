@@ -18,6 +18,13 @@ export interface CardDAVSourceConfig {
   passwordEnv?: string;
   /** Direct password/token (managed path — credentials decrypted from the DB at runtime). */
   password?: string;
+  /**
+   * OAuth2 token provider — when set, requests authenticate with
+   * `Bearer <token>` minted per request instead of Basic (workplan 0045:
+   * Google's CalDAV/CardDAV endpoints take OAuth only, and a static token
+   * would die mid-pass; the provider caches until expiry and re-mints).
+   */
+  tokenProvider?: import('@openmig/shared').TokenProvider;
   /** Optional address book home set path (if known, otherwise discovered via PROPFIND) */
   addressBookHomeSet?: string;
 }

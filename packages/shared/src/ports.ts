@@ -801,6 +801,12 @@ export interface LedgerRecord {
    */
   readonly movedToNaturalKeyHash?: string;
   /**
+   * When the move above was RECORDED (migration 0013). Re-stamped when the
+   * destination changes — a move somewhere new is a new report — and cleared
+   * with the move. The queue's age, and ADR-0031's survived-a-pass gate.
+   */
+  readonly movedRecordedAt?: string;
+  /**
    * When the owner saw the move and chose to leave the target alone (§11.2).
    *
    * Absent while the move is still open. Cleared automatically if the item
@@ -928,6 +934,8 @@ export interface Ledger {
        * left to correlate against.
        */
       movedToNaturalKeyHash?: string;
+      /** When the move was recorded; re-stamped when the destination changes. */
+      movedRecordedAt?: string;
       /** Set once the owner has decided about that move. */
       moveAcknowledgedAt?: string;
       /** Consecutive complete scans that have failed to find it. */
@@ -1293,6 +1301,15 @@ export interface ItemMove {
    * target under THIS key.
    */
   readonly toNaturalKeyHash?: string;
+  /**
+   * When this move was RECORDED (migration 0013). Re-stamped when the
+   * destination changes — a move somewhere new is a new report.
+   *
+   * The queue's age column: `updatedAt` cannot serve, because every pass
+   * touches it and the answer always reads "just now". Absent only for a row
+   * recorded before the column existed whose backfill has not run.
+   */
+  readonly recordedAt?: string;
   /**
    * When the owner saw this move and chose to leave the target's layout alone.
    *

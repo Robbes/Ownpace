@@ -60,6 +60,12 @@ export const connection = pgTable(
         // because the credential shape differs: a Google OAuth client + refresh
         // token, not a password or static token. Allowed by the CHECK since 0012.
         'gmail',
+        // Google Calendar / Contacts as SOURCES (workplan 0045). Their own
+        // kinds, not caldav/carddav, for gmail's reason: the credential shape
+        // is a Google OAuth client, and the kind routes the builder to it.
+        // Allowed by the CHECK since 0015.
+        'google_calendar',
+        'google_contacts',
       ],
     }).notNull(),
     displayName: text('display_name').notNull(),
@@ -131,6 +137,11 @@ export const mailboxMapping = pgTable(
     // apply's gate 1 (0017 T4). DEFAULT FALSE: a mapping can remove nothing
     // from the target until somebody turns this on for it, deliberately.
     allowApplyDeletions: boolean('allow_apply_deletions').notNull().default(false),
+    // ADR-0031 (accepted 2026-08-16): apply open RELOCATIONS unattended at the
+    // end of each file pass. DEFAULT FALSE for the same reason — and it runs
+    // with nobody looking, so four extra gates stand in front of every item.
+    // Migration 0014.
+    autoApplyRelocations: boolean('auto_apply_relocations').notNull().default(false),
     // NULL = merge into the account root (the default; owner decision
     // 2026-08-16). See migration 0011 and MappingConfig.targetFolderPrefix.
     targetFolderPrefix: text('target_folder_prefix'),
@@ -285,6 +296,11 @@ export const item = pgTable(
     // an `apply` may remove the old copy only when this says where the new one
     // is.
     movedToNaturalKeyHash: text('moved_to_natural_key_hash'),
+    // When the move above was RECORDED (migration 0013). Re-stamped when the
+    // destination changes — a move somewhere new is a new report — and cleared
+    // with the move. What lets the queue say how long a report has sat, and
+    // what ADR-0031's survived-a-pass gate reads before auto-applying.
+    movedRecordedAt: timestamp('moved_recorded_at', { withTimezone: true }),
     // When the owner saw the move and chose to leave the target's layout
     // alone. NULL = still waiting on a decision. Cleared if the item moves
     // again somewhere else: a decision about one layout is not consent to

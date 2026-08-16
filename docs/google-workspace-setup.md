@@ -1,7 +1,7 @@
-# Google Workspace setup — Drive and Gmail as migration sources
+# Google Workspace setup — Drive, Gmail, Calendar and Contacts as migration sources
 
-**Reference:** workplan 0042 (Drive), workplan 0044 (Gmail). The Microsoft equivalent is
-[`o365-setup.md`](./o365-setup.md).
+**Reference:** workplan 0042 (Drive), workplan 0044 (Gmail), workplan 0045 (Calendar &
+Contacts). The Microsoft equivalent is [`o365-setup.md`](./o365-setup.md).
 
 This is what an operator does once, in the customer's own Google Cloud project, to let
 Open-Migrate read a Google Drive. It ends with three values that go in `.env` (appliance) or
@@ -208,6 +208,48 @@ Message-ID, so it is **copied once** — into the folder where a pass first sees
 sighting under another label is never re-copied; it can surface in the **Moves** queue as a
 source-side placement report, which is information, not action. If your labelling is heavy,
 expect that queue to describe Gmail's labels rather than anything you did.
+
+## Calendar and Contacts as sources (workplan 0045)
+
+The same project, consent screen and OAuth client again. Google still speaks the protocols
+this product already implements — CalDAV for calendars, CardDAV for contacts — so these
+sources are the ordinary DAV connectors aimed at Google's endpoints, with one difference:
+**Google's DAV endpoints take OAuth only**, so requests carry a Bearer token minted from your
+refresh token instead of a password.
+
+Each product has its own scope, and the refresh token must be consented with it:
+
+| source | scope | appliance variable |
+|---|---|---|
+| Google Calendar | `https://www.googleapis.com/auth/calendar` | `GOOGLE_CALENDAR_REFRESH_TOKEN` |
+| Google Contacts | `https://www.googleapis.com/auth/carddav` | `GOOGLE_CONTACTS_REFRESH_TOKEN` |
+
+Mint each token exactly as in step 4, entering the scope above. One consent CAN carry
+several scopes — if you authorize calendar and carddav together, the same refresh token
+value goes in both variables — but the variables stay separate so "which consent is this"
+is visible in the config. A token consented for Drive or mail answers `invalid_scope` here.
+
+The mapping needs only the address, like Gmail:
+
+```json
+"domains": {
+  "calendar": {
+    "enabled": true,
+    "source": { "type": "google-calendar", "user": "owner@example.com" },
+    "target": { "…": "your CalDAV target" }
+  }
+}
+```
+
+(`"type": "google-contacts"` for the contacts domain, with a CardDAV or JMAP target.)
+Managed — the **Google Calendar** / **Google Contacts** wizard cards: client ID on the source
+step, client secret and refresh token on the credentials step, stored encrypted as
+`clientId`, `clientSecret`, `refreshToken`.
+
+**What only a real account can prove** (owner runbook, Stage 6): that Google's principal
+URLs answer this connector's discovery walk and that its sync-token behaviour matches the
+RFC 6578 path this product uses everywhere else. The connectors are proven against
+RFC-shaped servers; Google's dialect is the thing to verify once before trusting a schedule.
 
 ## What a Drive migration does not do yet
 

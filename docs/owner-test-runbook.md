@@ -264,6 +264,35 @@ a real Gmail account (a disposable one is fine and better):
 **Send back:** the run summary (folder count, created count), and the target's
 folder list.
 
+## Stage 6 — Google Calendar & Contacts (workplan 0045): does Google's DAV dialect answer?
+
+The connectors are the proven CalDAV/CardDAV read paths; what no unit test can
+prove is that GOOGLE's endpoints answer their discovery walk and sync-token
+polling the way RFC-shaped servers do. ~30 minutes, same disposable Google
+account as Stage 5:
+
+1. Mint the tokens — setup doc, Calendar & Contacts section: scope
+   `https://www.googleapis.com/auth/calendar` (Calendar) and
+   `https://www.googleapis.com/auth/carddav` (Contacts). Configure either
+   edition (appliance: `GOOGLE_CALENDAR_REFRESH_TOKEN` /
+   `GOOGLE_CONTACTS_REFRESH_TOKEN` + a calendar/contacts domain naming
+   `"type": "google-calendar"` / `"google-contacts"`; managed: the two wizard
+   cards).
+2. **Question one — discovery**: does the first pass list your calendars /
+   address book? A failure here is Google's principal URL not answering the
+   PROPFIND walk — send back the error verbatim, it names the URL it tried.
+3. **Question two — the second pass**: run two passes, add one event and one
+   contact between them. The second pass must copy exactly the additions
+   (sync-token behaviour); a second pass that re-scans everything is worth
+   reporting but not wrong — the ledger still makes it copy nothing twice.
+4. Worth one look: a recurring event with an exception (a moved instance).
+   It should arrive as ONE event on the target with the exception intact —
+   that is the round-trip CalDAV preserves and JMAP cannot yet, and why the
+   calendar target is CalDAV only.
+
+**Send back:** both run summaries and, if anything refused, the sentence it
+refused with.
+
 ---
 
 ## The safety rails, all in one place

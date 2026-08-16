@@ -631,7 +631,7 @@ END:VCALENDAR`;
   });
 
   describe('Authorization header', () => {
-    it('should build correct authorization header', () => {
+    it('should build correct authorization header', async () => {
       process.env.TEST_CALENDAR_PASSWORD = 'secret123';
       
       const source = new CalDAVSource({
@@ -640,23 +640,23 @@ END:VCALENDAR`;
         passwordEnv: 'TEST_CALENDAR_PASSWORD',
       });
 
-      const authHeader = (source as any).getAuthorizationHeader();
+      const authHeader = await (source as any).authorizationHeader();
       const expected = `Basic ${Buffer.from('testuser:secret123').toString('base64')}`;
       
       expect(authHeader).toBe(expected);
     });
 
-    it('should throw error when password env var not set', () => {
+    it('should throw error when password env var not set', async () => {
       const source = new CalDAVSource({
         url: 'https://caldav.example.com/',
         username: 'testuser',
         passwordEnv: 'NONEXISTENT_PASSWORD_VAR',
       });
 
-      expect(() => (source as any).getAuthorizationHeader()).toThrow();
+      await expect((source as any).authorizationHeader()).rejects.toThrow();
     });
 
-    it('prefers a direct password over passwordEnv (managed path)', () => {
+    it('prefers a direct password over passwordEnv (managed path)', async () => {
       process.env.SHOULD_NOT_BE_USED = 'env-password';
       const source = new CalDAVSource({
         url: 'https://caldav.example.com/',
@@ -664,21 +664,39 @@ END:VCALENDAR`;
         password: 'direct-password',
         passwordEnv: 'SHOULD_NOT_BE_USED',
       });
-      const header = (source as any).getAuthorizationHeader();
+      const header = await (source as any).authorizationHeader();
       expect(header).toBe(`Basic ${Buffer.from('testuser:direct-password').toString('base64')}`);
       delete process.env.SHOULD_NOT_BE_USED;
     });
 
-    it('falls back to passwordEnv when no direct password (self-host path)', () => {
+    it('falls back to passwordEnv when no direct password (self-host path)', async () => {
       process.env.CALDAV_TEST_PW = 'env-password';
       const source = new CalDAVSource({
         url: 'https://caldav.example.com/',
         username: 'testuser',
         passwordEnv: 'CALDAV_TEST_PW',
       });
-      const header = (source as any).getAuthorizationHeader();
+      const header = await (source as any).authorizationHeader();
       expect(header).toBe(`Basic ${Buffer.from('testuser:env-password').toString('base64')}`);
       delete process.env.CALDAV_TEST_PW;
+    });
+
+    it('sends Bearer, minted by the provider, when a tokenProvider is configured (workplan 0045)', async () => {
+      // The Google door: CalDAV/CardDAV there take OAuth only, and the token
+      // must be MINTED per request (cached until expiry) rather than pasted —
+      // a static token dies mid-pass at the one-hour mark.
+      const source = new CalDAVSource({
+        url: 'https://apidata.googleusercontent.com/caldav/v2/owner@example.com/user/',
+        username: 'owner@example.com',
+        tokenProvider: {
+          getToken: async () => ({ accessToken: 'at-1', tokenType: 'Bearer', expiresAt: 0 }),
+          refresh: async () => ({ accessToken: 'at-2', tokenType: 'Bearer', expiresAt: 0 }),
+          isTokenValid: () => true,
+          getTokenStatus: () => ({ isValid: true, timeUntilExpiry: 3600 }),
+        },
+      });
+      const header = await (source as any).authorizationHeader();
+      expect(header).toBe('Bearer at-1');
     });
   });
 });

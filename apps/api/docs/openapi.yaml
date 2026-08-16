@@ -365,6 +365,43 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /api/migrations/test-connection:
+    post:
+      tags: [Migrations]
+      summary: Prove a connection before creating anything
+      description: |
+        Runs a READ-ONLY probe with the credentials as typed — one side per
+        call — built exactly the way a sync pass would build the connector, so
+        a passed test cannot diverge from what create would store. A provider
+        refusal ("wrong password", "invalid scope") is an ANSWER, returned as
+        `{ok:false, reason}` with the provider's words verbatim, not an error
+        status.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [side]
+              properties:
+                side: { type: string, enum: [source, target] }
+                sourceType: { type: string }
+                sourceConfig: { type: object }
+                targetType: { type: string }
+                targetConfig: { type: object }
+      responses:
+        '200':
+          description: The probe's outcome, pass or refusal.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  detail: { type: string }
+                  reason: { type: string }
+        '400': { description: The body named neither side's shapes. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /api/migrations:
     get:
       tags: [Migrations]
@@ -721,6 +758,30 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /api/migrations/{mappingId}/completion-report:
+    get:
+      tags: [Migrations]
+      summary: The migration completion report
+      description: |
+        One document saying what moved, what is waiting on a decision, and
+        what was removed on whose decision — assembled by the shared builder
+        both editions serve, from data every screen already shows. `markdown`
+        is the deliverable an owner downloads and hands over; `report` is the
+        same content as data.
+      parameters:
+        - { name: mappingId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: The report and its Markdown rendering.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  report: { type: object }
+                  markdown: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Unknown mapping. }
   /api/migrations/{mappingId}/moves:
     parameters:
       - $ref: '#/components/parameters/MappingId'

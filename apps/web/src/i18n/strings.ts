@@ -64,6 +64,15 @@ const en = {
   'applyFlag.config.post': '; edit the file and restart to change it. No API changes it.',
   'applyFlag.turnOn': 'Turn on applying deletions',
   'applyFlag.turnOnArmed': 'Confirm: enable deletions',
+  'autoApply.on': 'Auto-applying relocations is ON for this migration.',
+  'autoApply.off': 'Auto-applying relocations is OFF for this migration (the default).',
+  'autoApply.hint':
+    'When on, each file pass removes the OLD copies of moved or renamed files by itself — ' +
+    'only where the same bytes are confirmed present under the new name, the pairing is ' +
+    'unique, the report survived a full pass, and no mass event is suspected. Everything it ' +
+    'refuses stays in this queue for you. Deletions are never applied automatically.',
+  'autoApply.turnOn': 'Enable auto-apply for relocations',
+  'autoApply.turnOnArmed': 'Confirm: auto-apply relocations unattended',
   'scope.migrates': 'Migrates',
   'scope.partial': 'Partial',
   'scope.doesNotMigrate': 'Does not migrate',
@@ -82,6 +91,8 @@ const en = {
   'wizard.proto.graph.hint': 'Office 365 over the Graph API (app registration)',
   'wizard.proto.googleDrive.hint': 'Files from a Google Drive (read-only OAuth)',
   'wizard.proto.gmail.hint': 'Email from a Gmail mailbox (OAuth over IMAP)',
+  'wizard.proto.googleCalendar.hint': 'Calendars from a Google account (OAuth over CalDAV)',
+  'wizard.proto.googleContacts.hint': 'Contacts from a Google account (OAuth over CardDAV)',
   'wizard.refreshToken': 'Refresh token',
   'wizard.refreshToken.hint':
     'The delegated token for the account being migrated. Treat it as a password.',
@@ -105,6 +116,18 @@ const en = {
     'source uses — but its refresh token must be consented with the https://mail.google.com/ ' +
     'scope, the only one Google accepts for IMAP. A token consented for Drive will not work ' +
     'here. docs/google-workspace-setup.md walks through obtaining it.',
+  'wizard.source.googleDavSetup':
+    'This source uses your own Google Cloud OAuth client \u2014 the same one the other Google ' +
+    'sources use \u2014 but the refresh token must be consented with this product\u2019s own scope: ' +
+    'https://www.googleapis.com/auth/calendar for Calendar, ' +
+    'https://www.googleapis.com/auth/carddav for Contacts. A token consented for another ' +
+    'Google product will not work here. docs/google-workspace-setup.md walks through it.',
+  'hub.completionReport': 'Download the completion report (Markdown)',
+  'wizard.testConnections': 'Test connections',
+  'wizard.testing': 'Testing…',
+  'wizard.testConnections.hint':
+    'Read-only: signs in to both sides with what you typed and lists what it can see. ' +
+    'Nothing is created or written.',
   'wizard.proto.jmap.hint': 'Modern email protocol',
   'wizard.proto.caldav.hint': 'Calendar protocol',
   'wizard.proto.carddav.hint': 'Contact protocol',
@@ -719,6 +742,16 @@ const nl: Record<keyof typeof en, string> = {
   'applyFlag.config.post': '; bewerk het bestand en herstart om dit te wijzigen. Geen enkele API past dit aan.',
   'applyFlag.turnOn': 'Toepassen van verwijderingen inschakelen',
   'applyFlag.turnOnArmed': 'Bevestig: verwijderingen inschakelen',
+  'autoApply.on': 'Automatisch toepassen van verplaatsingen staat AAN voor deze migratie.',
+  'autoApply.off': 'Automatisch toepassen van verplaatsingen staat UIT voor deze migratie (de standaard).',
+  'autoApply.hint':
+    'Indien ingeschakeld verwijdert elke bestandsronde zelf de OUDE kopieën van verplaatste of ' +
+    'hernoemde bestanden — alleen wanneer dezelfde bytes aantoonbaar onder de nieuwe naam ' +
+    'aanwezig zijn, de koppeling uniek is, de melding een volledige ronde heeft doorstaan en ' +
+    'er geen massale gebeurtenis wordt vermoed. Alles wat wordt geweigerd blijft in deze ' +
+    'wachtrij voor u staan. Verwijderingen worden nooit automatisch toegepast.',
+  'autoApply.turnOn': 'Automatisch toepassen van verplaatsingen inschakelen',
+  'autoApply.turnOnArmed': 'Bevestig: verplaatsingen onbeheerd automatisch toepassen',
   'scope.migrates': 'Migreert',
   'scope.partial': 'Gedeeltelijk',
   'scope.doesNotMigrate': 'Migreert niet',
@@ -737,6 +770,8 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.proto.graph.hint': 'Office 365 via de Graph-API (appregistratie)',
   'wizard.proto.googleDrive.hint': 'Bestanden uit een Google Drive (alleen-lezen OAuth)',
   'wizard.proto.gmail.hint': 'E-mail uit een Gmail-postvak (OAuth via IMAP)',
+  'wizard.proto.googleCalendar.hint': "Agenda's uit een Google-account (OAuth via CalDAV)",
+  'wizard.proto.googleContacts.hint': 'Contacten uit een Google-account (OAuth via CardDAV)',
   'wizard.refreshToken': 'Refresh-token',
   'wizard.refreshToken.hint':
     'Het gedelegeerde token voor het account dat wordt gemigreerd. Behandel het als een wachtwoord.',
@@ -761,6 +796,18 @@ const nl: Record<keyof typeof en, string> = {
     'Drive-bron — maar het refresh-token moet zijn toegestemd met de scope ' +
     'https://mail.google.com/, de enige die Google voor IMAP accepteert. Een token dat voor ' +
     'Drive is toegestemd werkt hier niet. docs/google-workspace-setup.md behandelt het verkrijgen ervan.',
+  'wizard.source.googleDavSetup':
+    'Deze bron gebruikt uw eigen Google Cloud OAuth-client \u2014 dezelfde als de andere ' +
+    'Google-bronnen \u2014 maar het refresh-token moet zijn toegestemd met de eigen scope van dit ' +
+    'product: https://www.googleapis.com/auth/calendar voor Agenda, ' +
+    'https://www.googleapis.com/auth/carddav voor Contacten. Een token dat voor een ander ' +
+    'Google-product is toegestemd werkt hier niet. docs/google-workspace-setup.md behandelt dit.',
+  'hub.completionReport': 'Download het opleveringsrapport (Markdown)',
+  'wizard.testConnections': 'Verbindingen testen',
+  'wizard.testing': 'Testen…',
+  'wizard.testConnections.hint':
+    'Alleen-lezen: meldt zich aan beide kanten aan met wat u hebt ingevuld en toont wat ' +
+    'zichtbaar is. Er wordt niets aangemaakt of geschreven.',
   'wizard.proto.jmap.hint': 'Modern e-mailprotocol',
   'wizard.proto.caldav.hint': 'Agendaprotocol',
   'wizard.proto.carddav.hint': 'Contactenprotocol',

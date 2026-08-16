@@ -42,6 +42,13 @@ import {
   buildGoogleDriveSourceFrom,
 } from './drive-source-factory';
 import { STORED_GMAIL_CREDENTIAL_NAMES, buildGmailSourceFrom } from './gmail-source-factory';
+import {
+  GOOGLE_CALENDAR_CONNECTION_KIND,
+  GOOGLE_CONTACTS_CONNECTION_KIND,
+  STORED_GOOGLE_DAV_CREDENTIAL_NAMES,
+  buildGoogleCalendarDavSourceFrom,
+  buildGoogleContactsDavSourceFrom,
+} from './google-dav-source-factory';
 import { PgLedger, PgCursorStore, createPgDb, withTenant } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import { mailboxMapping } from '@openmig/ledger';
@@ -384,7 +391,18 @@ export async function buildDomainDepsFromMapping(
       return withClose(
         {
           ...common,
-          source: buildCalendarSource(davEndpointFromCreds('source', src.config, src.creds)),
+          // Google Calendar (workplan 0045): CalDAV with OAuth — the stored
+          // Google client + refresh token mint Bearer tokens, and the fixed
+          // principal URL is derived from the config's `user`, so it must not
+          // ride the credential resolver (no password exists to resolve).
+          source:
+            src.kind === GOOGLE_CALENDAR_CONNECTION_KIND
+              ? buildGoogleCalendarDavSourceFrom(
+                  String((src.config as { user?: unknown }).user ?? ''),
+                  src.creds,
+                  STORED_GOOGLE_DAV_CREDENTIAL_NAMES,
+                )
+              : buildCalendarSource(davEndpointFromCreds('source', src.config, src.creds)),
           target: buildCalendarTarget(
             davEndpointFromCreds('target', tgt.config, tgt.creds),
             targetDeps,
@@ -397,7 +415,15 @@ export async function buildDomainDepsFromMapping(
       return withClose(
         {
           ...common,
-          source: buildContactSource(davEndpointFromCreds('source', src.config, src.creds)),
+          // Google Contacts (workplan 0045): CardDAV with OAuth, same argument.
+          source:
+            src.kind === GOOGLE_CONTACTS_CONNECTION_KIND
+              ? buildGoogleContactsDavSourceFrom(
+                  String((src.config as { user?: unknown }).user ?? ''),
+                  src.creds,
+                  STORED_GOOGLE_DAV_CREDENTIAL_NAMES,
+                )
+              : buildContactSource(davEndpointFromCreds('source', src.config, src.creds)),
           // Contacts can go over JMAP where the target speaks it (0031 T2).
           // Read off the connection's own `kind`, which has allowed `jmap`
           // since the 0001 baseline, so this needs no migration and no new
