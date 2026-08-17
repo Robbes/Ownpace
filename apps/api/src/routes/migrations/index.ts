@@ -20,6 +20,7 @@ import { getTriggerClient } from '@openmig/scheduler';
 import type { DiscoveryDomain, TenantId, MappingId } from '@openmig/shared';
 import { resolveSyncJob, resolveCutoverJob } from './job-resolution';
 import {
+  listDropboxSharedFolders,
   listGoogleSharedDrives,
   listGoogleSharedFolders,
   probeSourceConnection,
@@ -662,6 +663,35 @@ router.post(
       res.json(await listGoogleSharedFolders(parsed.data));
     } catch (error) {
       log.error('[api] shared-folders listing failed unexpectedly:', error);
+      res.status(500).json({ error: 'listing_failed', reason: String(error) });
+    }
+  },
+);
+
+// Dropbox's turn at the same browse (workplan 0055 follow-up): the shared
+// folders this credential can see. A MOUNTED folder's path is what goes in
+// rootPath; an unmounted one is shown so the owner knows it exists —
+// mounting happens in Dropbox itself, never here. The trio keys are the
+// shared OAuth shape; Dropbox's App Console words for the first two are
+// "App key" and "App secret". Needs the `sharing.read` scope beside the
+// files scopes — an app created without it gets Dropbox's refusal verbatim.
+router.post(
+  '/dropbox/shared-folders',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const parsed = SharedDrivesSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return void res.status(400).json({
+          error: 'invalid_body',
+          reason:
+            'Send { clientId, clientSecret, refreshToken } — the App key, App secret and ' +
+            'refresh token, under the same three keys the Dropbox source stores.',
+        });
+      }
+      res.json(await listDropboxSharedFolders(parsed.data));
+    } catch (error) {
+      log.error('[api] dropbox shared-folders listing failed unexpectedly:', error);
       res.status(500).json({ error: 'listing_failed', reason: String(error) });
     }
   },

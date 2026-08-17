@@ -66,6 +66,8 @@ interface FormData {
   sourceServiceAccountKey: string;
   /** Google Drive: root the migration somewhere other than My Drive. */
   sourceRootFolderId: string;
+  /** Dropbox: root the migration at a folder ('' = the whole Dropbox). */
+  sourceRootPath: string;
   targetHost: string;
   targetPort: string;
   targetUsername: string;
@@ -92,6 +94,7 @@ const initialFormData: FormData = {
   sourceRefreshToken: '',
   sourceServiceAccountKey: '',
   sourceRootFolderId: '',
+  sourceRootPath: '',
   targetHost: '',
   targetPort: '443',
   targetUsername: '',
@@ -184,6 +187,9 @@ const CreateMapping: React.FC = () => {
               clientId: formData.sourceClientId,
               clientSecret: formData.sourceClientSecret,
               refreshToken: formData.sourceRefreshToken,
+              ...(formData.sourceRootPath.trim()
+                ? { rootPath: formData.sourceRootPath.trim() }
+                : {}),
             }
           : isDriveSource
           ? {
@@ -296,6 +302,33 @@ const CreateMapping: React.FC = () => {
         } else reasons.push(serverMessage(folders.reason));
         if (reasons.length > 0) setSharedDrivesError(reasons.join(' '));
       })
+      .finally(() => setBrowsing(false));
+  };
+
+  // Dropbox's turn at the same browse (workplan 0055 follow-up): the shared
+  // folders the credential can see, from sharing/list_folders. Only a MOUNTED
+  // folder has a path to put in rootPath; an unmounted one is listed disabled
+  // so the owner knows it exists — mounting happens in Dropbox itself.
+  const [dropboxFolders, setDropboxFolders] = React.useState<
+    Array<{ id: string; name: string; path?: string }> | null
+  >(null);
+  const [dropboxFoldersError, setDropboxFoldersError] = React.useState<string | null>(null);
+  const browseDropboxFolders = () => {
+    setBrowsing(true);
+    setDropboxFoldersError(null);
+    mappingApi
+      .listDropboxSharedFolders({
+        clientId: formData.sourceClientId,
+        clientSecret: formData.sourceClientSecret,
+        refreshToken: formData.sourceRefreshToken,
+      })
+      .then((result) => {
+        // A refusal (a missing sharing.read scope, most likely) arrives in
+        // Dropbox's own words and is shown verbatim.
+        if (result.ok) setDropboxFolders([...result.folders]);
+        else setDropboxFoldersError(result.reason);
+      })
+      .catch((err) => setDropboxFoldersError(serverMessage(err)))
       .finally(() => setBrowsing(false));
   };
 
@@ -657,6 +690,20 @@ const CreateMapping: React.FC = () => {
                     value={formData.sourceClientId}
                     onChange={(e) => updateField('sourceClientId', e.target.value)}
                     className="input w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.dropboxRootPath')}
+                  </label>
+                  {/* '' = the whole Dropbox. The credentials step offers a
+                      browse over sharing/list_folders that fills this. */}
+                  <input
+                    type="text"
+                    value={formData.sourceRootPath}
+                    onChange={(e) => updateField('sourceRootPath', e.target.value)}
+                    className="input w-full"
+                    placeholder={t('wizard.dropboxRootPath.placeholder')}
                   />
                 </div>
               </div>
@@ -1104,6 +1151,50 @@ const CreateMapping: React.FC = () => {
                   </div>
                 )}
 
+                {/* The same one-click browse for Dropbox (0055 follow-up):
+                    picking a MOUNTED shared folder fills rootPath with its
+                    path; an unmounted one renders disabled — it has no path
+                    until the account mounts it in Dropbox. */}
+                {isDropboxSource && (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={browseDropboxFolders}
+                      disabled={
+                        browsing ||
+                        !formData.sourceClientId ||
+                        !formData.sourceClientSecret ||
+                        !formData.sourceRefreshToken
+                      }
+                      className="text-sm text-blue-700 hover:underline disabled:opacity-50"
+                    >
+                      {browsing ? t('wizard.testing') : t('wizard.browseDropboxFolders')}
+                    </button>
+                    {dropboxFoldersError && (
+                      <p className="mt-1 text-sm text-amber-800">{dropboxFoldersError}</p>
+                    )}
+                    {dropboxFolders && dropboxFolders.length === 0 && (
+                      <p className="mt-1 text-sm text-gray-500">
+                        {t('wizard.noDropboxSharedFolders')}
+                      </p>
+                    )}
+                    {dropboxFolders && dropboxFolders.length > 0 && (
+                      <select
+                        className="input w-full mt-2"
+                        value={formData.sourceRootPath}
+                        onChange={(e) => updateField('sourceRootPath', e.target.value)}
+                      >
+                        <option value="">{t('wizard.review.wholeDropbox')}</option>
+                        {dropboxFolders.map((f) => (
+                          <option key={f.id} value={f.path ?? ''} disabled={!f.path}>
+                            {f.path ? f.name : `${f.name} — ${t('wizard.dropboxUnmounted')}`}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('wizard.targetUsername')}
@@ -1333,6 +1424,10 @@ const CreateMapping: React.FC = () => {
                         ? formData.sourceRootFolderId
                           ? `(${formData.sourceRootFolderId})`
                           : `(${t('wizard.review.myDrive')})`
+                        : isDropboxSource
+                          ? formData.sourceRootPath
+                            ? `(${formData.sourceRootPath})`
+                            : `(${t('wizard.review.wholeDropbox')})`
                         : isGmailSource || isGoogleDavSource
                           ? `(${formData.sourceUsername})`
                           : isO365Source

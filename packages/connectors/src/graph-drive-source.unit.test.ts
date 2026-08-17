@@ -177,6 +177,39 @@ describe('GraphDriveSource', () => {
   });
 
   describe('listSince - Delta Query', () => {
+    it('carries DELETED delta entries up as `removed` ids — the reported evidence class', async () => {
+      // The delta answer states outright that items are gone (files AND
+      // folders); dropping either here would make a recorded item silently
+      // unreportable — the exact silence ADR-0024's evidence classes exist
+      // to prevent.
+      fetchMock.mockResolvedValueOnce({
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            value: [
+              { id: 'gone-file', name: 'old.docx', deleted: {}, file: {} },
+              { id: 'gone-folder', name: 'Old', deleted: {}, folder: {} },
+              {
+                id: 'still-here',
+                name: 'kept.txt',
+                path: '/kept.txt',
+                file: { mimeType: 'text/plain' },
+                lastModifiedDateTime: '2024-01-15T00:00:00Z',
+                size: 10,
+              },
+            ],
+            '@odata.deltaLink': 'https://graph.microsoft.com/v1.0/delta?deltatoken=next',
+          }),
+        headers: new Map(),
+      });
+
+      const source = new GraphDriveSource({ tokenProvider: mockTokenProvider, tenantId: 't' });
+      const result = await source.listSince({ path: '' });
+
+      expect(result.removed).toEqual(['gone-file', 'gone-folder']);
+      expect(result.items.map((i) => i.item.path)).toEqual(['/kept.txt']);
+    });
+
     it('should perform full sync when no cursor provided', async () => {
       const mockDeltaResponse = {
         value: [

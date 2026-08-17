@@ -30,7 +30,11 @@ import {
   buildSourceConnectorFromCredentials,
 } from './build-deps-from-mapping';
 import { GMAIL_CONNECTION_KIND, STORED_GMAIL_CREDENTIAL_NAMES, buildGmailSourceFrom } from './gmail-source-factory';
-import { DROPBOX_CONNECTION_KIND } from './dropbox-source-factory';
+import {
+  DROPBOX_CONNECTION_KIND,
+  STORED_DROPBOX_CREDENTIAL_NAMES,
+  buildDropboxSourceFrom,
+} from './dropbox-source-factory';
 import {
   GOOGLE_DRIVE_CONNECTION_KIND,
   STORED_GOOGLE_CREDENTIAL_NAMES,
@@ -209,6 +213,43 @@ export async function listGoogleSharedDrives(
       };
     }
     return { ok: true, drives: await source.listSharedDrives() };
+  } catch (err) {
+    return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * The shared folders a Dropbox credential can see (the 0049/0051 browse,
+ * Dropbox's turn) — same factory a pass uses, refusals verbatim. A mounted
+ * folder's `path` is what goes in `rootPath`; an unmounted one is shown so
+ * the owner knows it exists (mountable only from Dropbox itself).
+ */
+export async function listDropboxSharedFolders(
+  creds: Record<string, string>,
+): Promise<
+  | {
+      readonly ok: true;
+      readonly folders: ReadonlyArray<{ id: string; name: string; path?: string }>;
+    }
+  | { readonly ok: false; readonly reason: string }
+> {
+  try {
+    const source = buildDropboxSourceFrom(
+      {},
+      {
+        appKey: creds[STORED_DROPBOX_CREDENTIAL_NAMES.appKey],
+        appSecret: creds[STORED_DROPBOX_CREDENTIAL_NAMES.appSecret],
+        refreshToken: creds[STORED_DROPBOX_CREDENTIAL_NAMES.refreshToken],
+      },
+      STORED_DROPBOX_CREDENTIAL_NAMES,
+    ) as { listSharedFolders?: () => Promise<ReadonlyArray<{ id: string; name: string; path?: string }>> };
+    if (typeof source.listSharedFolders !== 'function') {
+      return {
+        ok: false,
+        reason: 'This Dropbox source cannot enumerate shared folders. This is a wiring gap, not a credential problem.',
+      };
+    }
+    return { ok: true, folders: await source.listSharedFolders() };
   } catch (err) {
     return { ok: false, reason: err instanceof Error ? err.message : String(err) };
   }
