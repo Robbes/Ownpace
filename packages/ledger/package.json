@@ -11,7 +11,7 @@
     "./usage-metering": "./src/usage-metering.ts"
   },
   "dependencies": {
-    "@electric-sql/pglite": "^0.5.4",
+    "@electric-sql/pglite": "^0.5.5",
     "@openmig/core": "workspace:*",
     "@openmig/shared": "workspace:*",
     "@types/pg": "catalog:",
@@ -19,6 +19,6 @@
     "pg": "catalog:"
   },
   "devDependencies": {
-    "imapflow": "^1.6.6"
+    "imapflow": "^1.7.0"
   }
 }
