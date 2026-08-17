@@ -278,6 +278,9 @@ function buildSourceConnector(sourceConfig: MappingConfig['source'], throttleLim
           clientId: process.env[ENV_GMAIL_CREDENTIAL_NAMES.clientId],
           clientSecret: process.env[ENV_GMAIL_CREDENTIAL_NAMES.clientSecret],
           refreshToken: process.env[ENV_GMAIL_CREDENTIAL_NAMES.refreshToken],
+          // Domain-wide delegation (ADR-0033): a key here selects the
+          // JWT-bearer flow; the mapping's user is the impersonated subject.
+          serviceAccountKey: process.env.GOOGLE_SERVICE_ACCOUNT_KEY,
         },
         ENV_GMAIL_CREDENTIAL_NAMES,
       );
@@ -606,6 +609,7 @@ function buildDomainDepsWithLedger(
                 clientId: process.env.GOOGLE_CLIENT_ID,
                 clientSecret: process.env.GOOGLE_CLIENT_SECRET,
                 refreshToken: process.env.GOOGLE_CALENDAR_REFRESH_TOKEN,
+                serviceAccountKey: process.env.GOOGLE_SERVICE_ACCOUNT_KEY,
               },
               ENV_GOOGLE_CALENDAR_CREDENTIAL_NAMES,
             )
@@ -622,6 +626,7 @@ function buildDomainDepsWithLedger(
                 clientId: process.env.GOOGLE_CLIENT_ID,
                 clientSecret: process.env.GOOGLE_CLIENT_SECRET,
                 refreshToken: process.env.GOOGLE_CONTACTS_REFRESH_TOKEN,
+                serviceAccountKey: process.env.GOOGLE_SERVICE_ACCOUNT_KEY,
               },
               ENV_GOOGLE_CONTACTS_CREDENTIAL_NAMES,
             )
@@ -652,6 +657,10 @@ function buildDomainDepsWithLedger(
                 clientId: process.env.GOOGLE_CLIENT_ID,
                 clientSecret: process.env.GOOGLE_CLIENT_SECRET,
                 refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
+                serviceAccountKey: process.env.GOOGLE_SERVICE_ACCOUNT_KEY,
+                // Drive has no user parameter; under DWD the mapping states
+                // its subject as `source.user` (ADR-0033).
+                subject: sourceConfig.user,
               },
               ENV_GOOGLE_CREDENTIAL_NAMES,
             )

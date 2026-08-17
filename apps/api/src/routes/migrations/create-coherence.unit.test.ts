@@ -313,3 +313,44 @@ describe("throttleConfig — refused in the shared parser's words (hard rule 5)"
     expect(msg).toContain('maxConcurrent');
   });
 });
+
+describe('domain-wide delegation (ADR-0033) — a key selects the second flow', () => {
+  const KEY = '{"type":"service_account","client_email":"m@p.iam.gserviceaccount.com","private_key":"---"}';
+
+  it('accepts a google source with ONLY a service-account key and a username — no OAuth trio', () => {
+    const result = CreateMappingSchema.safeParse(
+      body({
+        sourceType: 'gmail',
+        targetType: 'jmap',
+        sourceConfig: { username: 'anna@example.nl', serviceAccountKey: KEY },
+        syncConfig: { domains: ['email'] },
+      }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it('a drive DWD source without a username is refused — one subject per mapping', () => {
+    const msg = refusalText(
+      body({
+        sourceType: 'google-drive',
+        targetType: 'webdav',
+        sourceConfig: { username: '', serviceAccountKey: KEY },
+        syncConfig: { domains: ['file'] },
+      }),
+    );
+    expect(msg).toContain('NAMED user');
+    expect(msg).toContain('one subject per mapping');
+  });
+
+  it('without a key, the refresh-token refusals still fire unchanged', () => {
+    const msg = refusalText(
+      body({
+        sourceType: 'gmail',
+        targetType: 'jmap',
+        sourceConfig: { username: 'anna@example.nl' },
+        syncConfig: { domains: ['email'] },
+      }),
+    );
+    expect(msg).toContain('refreshToken');
+  });
+});

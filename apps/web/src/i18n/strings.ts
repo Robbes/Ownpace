@@ -123,6 +123,9 @@ const en = {
     'https://www.googleapis.com/auth/carddav for Contacts. A token consented for another ' +
     'Google product will not work here. docs/google-workspace-setup.md walks through it.',
   'hub.completionReport': 'Download the completion report (Markdown)',
+  'wizard.serviceAccountKey': 'Service account key (domain-wide delegation, optional)',
+  'wizard.serviceAccountKey.width':
+    'This key can read every user in the Workspace domain. Each migration still names one account. Authorise only the scopes you need in the Admin console, and revoke the delegation at cutover.',
   'wizard.browseSharedDrives': 'Browse shared drives & folders…',
   'wizard.noSharedDrives': 'This credential sees no shared drives or shared folders — leaving the root empty migrates My Drive.',
   'wizard.sharedDrivesGroup': 'Shared drives',
@@ -832,6 +835,9 @@ const nl: Record<keyof typeof en, string> = {
     'https://www.googleapis.com/auth/carddav voor Contacten. Een token dat voor een ander ' +
     'Google-product is toegestemd werkt hier niet. docs/google-workspace-setup.md behandelt dit.',
   'hub.completionReport': 'Download het opleveringsrapport (Markdown)',
+  'wizard.serviceAccountKey': 'Serviceaccount-sleutel (domeinbrede delegatie, optioneel)',
+  'wizard.serviceAccountKey.width':
+    'Deze sleutel kan elke gebruiker in het Workspace-domein lezen. Elke migratie benoemt nog steeds één account. Autoriseer alleen de benodigde scopes in de Admin-console, en trek de delegatie bij de overstap weer in.',
   'wizard.browseSharedDrives': 'Gedeelde Drives en mappen bekijken…',
   'wizard.noSharedDrives': 'Deze inloggegevens zien geen gedeelde Drives of gedeelde mappen — een lege hoofdmap migreert Mijn Drive.',
   'wizard.sharedDrivesGroup': 'Gedeelde Drives',

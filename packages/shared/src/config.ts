@@ -174,6 +174,12 @@ export interface GoogleDriveSource {
   readonly rootFolderId?: string;
   /** See {@link GoogleNativeFilePolicy}. Unset means `refuse`. */
   readonly nativeFilePolicy?: GoogleNativeFilePolicy;
+  /**
+   * The account whose Drive this is — required only under domain-wide
+   * delegation (ADR-0033), where it is the impersonated SUBJECT. The
+   * refresh-token flow carries the identity inside the token and ignores it.
+   */
+  readonly user?: string;
 }
 
 /**
@@ -770,6 +776,7 @@ export function parseGoogleDriveSource(obj: Record<string, unknown>): GoogleDriv
     ...(obj['rootFolderId'] === undefined
       ? {}
       : { rootFolderId: reqString(obj, 'rootFolderId', 'source.rootFolderId') }),
+    ...(obj['user'] === undefined ? {} : { user: reqString(obj, 'user', 'source.user') }),
     ...(obj['nativeFilePolicy'] === undefined
       ? {}
       : { nativeFilePolicy: parseNativeFilePolicy(obj['nativeFilePolicy']) }),

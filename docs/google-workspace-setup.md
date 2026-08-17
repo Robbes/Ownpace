@@ -20,9 +20,45 @@ token this product mints cannot create, modify or delete anything in the source 
 is a stronger guarantee than a promise in a document — it is enforced by Google.
 
 It is a **delegated** credential: it reads the Drive of the person who consents, including the
-shared drives that person can see. There is no service-account / domain-wide-delegation path
-yet; that would read every user's Drive from one credential, and whether to offer it is now
-**ADR-0033 (Proposed)** — per-user tokens stay the default either way.
+shared drives that person can see. For a whole Workspace there is a second, opt-in path —
+**domain-wide delegation** (ADR-0033, accepted) — described in its own section below.
+Per-user tokens stay the default: smallest access, revocable per person, no admin needed.
+
+## Domain-wide delegation (ADR-0033) — one admin action instead of N consents
+
+A Workspace admin can authorise a **service account** to impersonate users, once, for an
+enumerated list of scopes. Use it when per-user consent ceremonies do not scale; skip it
+for a handful of accounts. **Read the width before choosing it: the key can read every
+user in the domain for the authorised scopes.** Each mapping still names exactly one
+account (the subject); what widens is the credential, not any mapping.
+
+1. **Create a dedicated service account** (IAM → service accounts) in any Google Cloud
+   project — no roles, nothing else on it. Its only job is this migration.
+2. **Generate a JSON key** (keys → add key → JSON). This file is now the most sensitive
+   secret in the migration; treat it like one.
+3. **Authorise it in the Admin console**: Admin → Security → Access and data control →
+   API controls → **Domain-wide delegation** → add the service account's *client id* with
+   ONLY the scopes the chosen products need — never a superset "to be safe":
+
+   | product | scope |
+   |---|---|
+   | Drive | `https://www.googleapis.com/auth/drive.readonly` |
+   | Gmail | `https://mail.google.com/` |
+   | Calendar | `https://www.googleapis.com/auth/calendar` |
+   | Contacts | `https://www.googleapis.com/auth/carddav` |
+
+4. **Configure it**: on the appliance, put the whole key file in
+   `GOOGLE_SERVICE_ACCOUNT_KEY` and state each mapping's account (`user` — for Drive too);
+   on managed, paste the key file into the wizard's "Service account key" field. The
+   refresh-token fields stop being required; the refusals will say so if something is
+   missing.
+5. **Revoke at cutover.** Delete the Admin-console delegation entry (and the key) when the
+   migration finishes — the credential's lifetime is the migration's, and this step is as
+   much part of the runbook as step 3.
+
+A mint-time `unauthorized_client` means step 3 is missing or lists the wrong scope — the
+error names the client id and scope to add. An `invalid_grant` usually means the subject
+is not a user in the domain.
 
 ---
 

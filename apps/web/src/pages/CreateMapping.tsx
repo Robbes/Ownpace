@@ -62,6 +62,8 @@ interface FormData {
    *  docs/google-workspace-setup.md is where all three of its values come
    *  from, and the wizard says so beside the fields. */
   sourceRefreshToken: string;
+  /** ADR-0033: a pasted key file selects domain-wide delegation. */
+  sourceServiceAccountKey: string;
   /** Google Drive: root the migration somewhere other than My Drive. */
   sourceRootFolderId: string;
   targetHost: string;
@@ -88,6 +90,7 @@ const initialFormData: FormData = {
   sourceClientId: '',
   sourceClientSecret: '',
   sourceRefreshToken: '',
+  sourceServiceAccountKey: '',
   sourceRootFolderId: '',
   targetHost: '',
   targetPort: '443',
@@ -181,6 +184,9 @@ const CreateMapping: React.FC = () => {
               clientId: formData.sourceClientId,
               clientSecret: formData.sourceClientSecret,
               refreshToken: formData.sourceRefreshToken,
+              ...(formData.sourceServiceAccountKey.trim()
+                ? { serviceAccountKey: formData.sourceServiceAccountKey }
+                : {}),
               ...(formData.sourceRootFolderId.trim()
                 ? { rootFolderId: formData.sourceRootFolderId.trim() }
                 : {}),
@@ -191,6 +197,9 @@ const CreateMapping: React.FC = () => {
               clientId: formData.sourceClientId,
               clientSecret: formData.sourceClientSecret,
               refreshToken: formData.sourceRefreshToken,
+              ...(formData.sourceServiceAccountKey.trim()
+                ? { serviceAccountKey: formData.sourceServiceAccountKey }
+                : {}),
             }
           : isO365Source
           ? {
@@ -377,7 +386,12 @@ const CreateMapping: React.FC = () => {
   const canProceed = () => {
     switch (steps[currentStep].id) {
       case 'source':
-        if (isGoogleSource) return formData.sourceClientId.trim() !== '';
+        if (isGoogleSource)
+          // Either flow (ADR-0033): an OAuth client, or a service-account key.
+          return (
+            formData.sourceClientId.trim() !== '' ||
+            formData.sourceServiceAccountKey.trim() !== ''
+          );
         return isO365Source
           ? formData.sourceTenantId.trim() !== '' && formData.sourceClientId.trim() !== ''
           : Boolean(formData.sourceHost) && isValidPort(formData.sourcePort);
@@ -389,6 +403,7 @@ const CreateMapping: React.FC = () => {
           Boolean(formData.sourceUsername && formData.targetUsername) &&
           (!isO365Source || formData.sourceClientSecret !== '') &&
           (!isGoogleSource ||
+            formData.sourceServiceAccountKey.trim() !== '' ||
             (formData.sourceClientSecret !== '' && formData.sourceRefreshToken !== ''))
         );
       case 'data-types':
@@ -412,7 +427,11 @@ const CreateMapping: React.FC = () => {
     switch (steps[currentStep].id) {
       case 'source':
         if (isGoogleSource) {
-          if (formData.sourceClientId.trim() === '') out.push(t('wizard.clientId'));
+          if (
+            formData.sourceClientId.trim() === '' &&
+            formData.sourceServiceAccountKey.trim() === ''
+          )
+            out.push(t('wizard.clientId'));
         } else if (isO365Source) {
           if (formData.sourceTenantId.trim() === '') out.push(t('wizard.tenantId'));
           if (formData.sourceClientId.trim() === '') out.push(t('wizard.clientId'));
@@ -429,7 +448,7 @@ const CreateMapping: React.FC = () => {
         if (formData.name.trim() === '') out.push(t('wizard.migrationName'));
         if (!formData.sourceUsername) out.push(t('wizard.sourceUsername'));
         if (isO365Source && formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
-        if (isGoogleSource) {
+        if (isGoogleSource && formData.sourceServiceAccountKey.trim() === '') {
           if (formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
           if (formData.sourceRefreshToken === '') out.push(t('wizard.refreshToken'));
         }
@@ -623,6 +642,25 @@ const CreateMapping: React.FC = () => {
                     placeholder="…apps.googleusercontent.com"
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.serviceAccountKey')}
+                  </label>
+                  {/* ADR-0033: pasting the key FILE selects domain-wide
+                      delegation — the OAuth client and refresh token stop
+                      being required. The copy under the field states the
+                      grant's width; the mapping still names one subject. */}
+                  <textarea
+                    value={formData.sourceServiceAccountKey}
+                    onChange={(e) => updateField('sourceServiceAccountKey', e.target.value)}
+                    className="input w-full font-mono text-xs"
+                    rows={4}
+                    placeholder='{"type": "service_account", …}'
+                  />
+                  <p className="mt-1 text-xs text-amber-800">
+                    {t('wizard.serviceAccountKey.width')}
+                  </p>
+                </div>
               </div>
             ) : isDriveSource ? (
               <div className="space-y-4">
@@ -651,6 +689,25 @@ const CreateMapping: React.FC = () => {
                     className="input w-full"
                     placeholder={t('wizard.rootFolderId.placeholder')}
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.serviceAccountKey')}
+                  </label>
+                  {/* ADR-0033: pasting the key FILE selects domain-wide
+                      delegation — the OAuth client and refresh token stop
+                      being required. The copy under the field states the
+                      grant's width; the mapping still names one subject. */}
+                  <textarea
+                    value={formData.sourceServiceAccountKey}
+                    onChange={(e) => updateField('sourceServiceAccountKey', e.target.value)}
+                    className="input w-full font-mono text-xs"
+                    rows={4}
+                    placeholder='{"type": "service_account", …}'
+                  />
+                  <p className="mt-1 text-xs text-amber-800">
+                    {t('wizard.serviceAccountKey.width')}
+                  </p>
                 </div>
               </div>
             ) : isO365Source ? (

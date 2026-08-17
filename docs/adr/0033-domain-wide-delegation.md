@@ -1,6 +1,7 @@
 # ADR-0033: Whole-tenant Google migration — domain-wide delegation, opt-in and stated
 
-- **Status:** Proposed (needs owner decision)
+- **Status:** Accepted (owner decision, 2026-08-17 — "accept, proceed") — first slice
+  built the same day
 - **Date:** 2026-08-16
 - **Deciders:** owner
 - **Relates to:** ADR-0006 (the O365 access model — this is its Google twin, and the
@@ -94,6 +95,19 @@ consent story (Pattern D's discovery-then-person idiom is the likely shape).
 2. `buildGoogle*SourceFrom` branches on credential mode; config + create API + wizard
    accept the DWD shape (admin-facing copy stating the grant's width).
 3. The setup-doc runbook (§2), including the revoke-at-cutover step.
+
+## Build record (2026-08-17, workplan 0053)
+
+Built as accepted: `GoogleJwtBearerProvider` (RS256 assertion with `sub`, refusals at
+construction naming what is wrong with the paste, `unauthorized_client`/`invalid_grant`
+translated to the Admin-console action with Google's words verbatim beside them); one
+shared mode-selector (`google-dwd.ts`) used by all four source factories, so per-user
+refresh tokens stay the untouched default and a `serviceAccountKey` selects DWD; the
+appliance reads `GOOGLE_SERVICE_ACCOUNT_KEY` (Drive states its subject as `source.user`);
+managed create accepts the key with the one-subject refusal, stores it encrypted with the
+subject riding along; the wizard's Google sources gained the key field with the
+grant's-width copy; the setup doc carries the five-step runbook, revoke-at-cutover
+included. Real-endpoint proof rides the owner runbook like everything Google-shaped.
 
 ## What this ADR does not decide
 

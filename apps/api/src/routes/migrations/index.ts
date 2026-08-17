@@ -190,6 +190,21 @@ function sourceCredentialRecord(
     body.sourceType === 'google-calendar' ||
     body.sourceType === 'google-contacts'
   ) {
+    // Either flow's values (ADR-0033): a service-account key selects
+    // domain-wide delegation, and the SUBJECT rides along so the factories
+    // impersonate exactly this mapping's account — the drive factory has no
+    // user parameter to learn it from otherwise.
+    if (body.sourceConfig.serviceAccountKey) {
+      return {
+        serviceAccountKey: body.sourceConfig.serviceAccountKey,
+        subject: body.sourceConfig.username ?? '',
+        // The trio may ride along when ALSO provided; harmless, and it keeps
+        // a later switch back to per-user tokens from losing them.
+        ...(body.sourceConfig.clientId ? { clientId: body.sourceConfig.clientId } : {}),
+        ...(body.sourceConfig.clientSecret ? { clientSecret: body.sourceConfig.clientSecret } : {}),
+        ...(body.sourceConfig.refreshToken ? { refreshToken: body.sourceConfig.refreshToken } : {}),
+      };
+    }
     return {
       clientId: body.sourceConfig.clientId!,
       clientSecret: body.sourceConfig.clientSecret!,
@@ -250,6 +265,9 @@ const CreateMappingBase = z.object({
     clientSecret: z.string().optional(),
     /** Google Drive only (workplan 0042): the delegated OAuth refresh token. */
     refreshToken: z.string().optional(),
+    /** The four Google sources (ADR-0033): a service-account key FILE selects
+     *  domain-wide delegation instead of a per-user refresh token. */
+    serviceAccountKey: z.string().optional(),
     /** Google Drive only: root the migration somewhere other than My Drive. */
     rootFolderId: z.string().optional(),
     /** Google Drive only: what happens to Docs/Sheets/Slides. The VALUES are
@@ -355,9 +373,25 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
   // them without tenantId/clientId/clientSecret would store a connection no
   // sync pass can ever open.
   if (body.sourceType === 'google-drive') {
-    const missing = (['clientId', 'clientSecret', 'refreshToken'] as const).filter(
-      (k) => !body.sourceConfig[k],
-    );
+    // A service-account key selects domain-wide delegation (ADR-0033): the
+    // refresh-token trio is not required, but a SUBJECT is — the username
+    // names the one account this mapping impersonates.
+    const dwd = Boolean(body.sourceConfig.serviceAccountKey);
+    if (dwd && !body.sourceConfig.username) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sourceConfig', 'username'],
+        message:
+          'Domain-wide delegation impersonates a NAMED user: sourceConfig.username must be ' +
+          "the migrated account's address (ADR-0033 — one subject per mapping, however wide " +
+          'the credential).',
+      });
+    }
+    const missing = dwd
+      ? []
+      : (['clientId', 'clientSecret', 'refreshToken'] as const).filter(
+          (k) => !body.sourceConfig[k],
+        );
     if (missing.length > 0) {
       ctx.addIssue({
         code: 'custom',
@@ -403,9 +437,13 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
       body.sourceType === 'google-calendar'
         ? 'https://www.googleapis.com/auth/calendar'
         : 'https://www.googleapis.com/auth/carddav';
-    const missing = (['clientId', 'clientSecret', 'refreshToken'] as const).filter(
-      (k) => !body.sourceConfig[k],
-    );
+    // A service-account key selects domain-wide delegation (ADR-0033); the
+    // subject is the username these sources already require.
+    const missing = body.sourceConfig.serviceAccountKey
+      ? []
+      : (['clientId', 'clientSecret', 'refreshToken'] as const).filter(
+          (k) => !body.sourceConfig[k],
+        );
     if (missing.length > 0) {
       ctx.addIssue({
         code: 'custom',
@@ -427,9 +465,11 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
     // accepts), and a Drive-consented token answers invalid_scope. Refused
     // here so the mistake surfaces in front of whoever pasted the token, not
     // as a mid-pass auth failure.
-    const missing = (['clientId', 'clientSecret', 'refreshToken'] as const).filter(
-      (k) => !body.sourceConfig[k],
-    );
+    const missing = body.sourceConfig.serviceAccountKey
+      ? []
+      : (['clientId', 'clientSecret', 'refreshToken'] as const).filter(
+          (k) => !body.sourceConfig[k],
+        );
     if (missing.length > 0) {
       ctx.addIssue({
         code: 'custom',
