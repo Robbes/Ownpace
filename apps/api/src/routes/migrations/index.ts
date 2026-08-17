@@ -52,7 +52,7 @@ function firstOrThrow<T>(rows: T[], what: string): T {
 }
 
 /** Map the web source type to a connection.kind (protocol-based). */
-function sourceKindFor(
+export function sourceKindFor(
   sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'dropbox' | 'box',
 ): 'imap' | 'o365' | 'google_drive' | 'gmail' | 'google_calendar' | 'google_contacts' | 'dropbox' | 'box' {
   // 'google_drive' is the CHECK-constrained connection.kind migration 0008
@@ -84,7 +84,7 @@ function sourceKindFor(
  * present where they mean something because the GET detail route spreads this
  * object (with the password masked) as its echo.
  */
-function sourceConnectionConfig(
+export function sourceConnectionConfig(
   body: Pick<z.infer<typeof CreateMappingSchema>, 'sourceType' | 'sourceConfig'>,
 ): Record<string, unknown> {
   const cfg = body.sourceConfig;
@@ -165,7 +165,7 @@ function sourceConnectionConfig(
  * imap-dav). The DAV targets keep the plain shape: their domain path builds
  * its URL from host/port/useSsl via `davUrl()` and never reads a `type`.
  */
-function targetConnectionConfig(
+export function targetConnectionConfig(
   body: Pick<z.infer<typeof CreateMappingSchema>, 'targetType' | 'targetConfig'>,
 ): Record<string, unknown> {
   const cfg = body.targetConfig;
@@ -194,7 +194,7 @@ function targetConnectionConfig(
  * the four Google sources carry EXACTLY the keys the STORED_*_NAMES read —
  * the build refuses at build time naming any that are missing.
  */
-function sourceCredentialRecord(
+export function sourceCredentialRecord(
   body: Pick<z.infer<typeof CreateMappingSchema>, 'sourceType' | 'sourceConfig'>,
 ): Record<string, string> {
   if (body.sourceType === 'imap') {
@@ -276,7 +276,10 @@ function getSharedPool() {
  * asserted against — and a schema nothing tests is one careless widening away
  * from accepting `bidirectional` again in silence.
  */
-const CreateMappingBase = z.object({
+/** Exported for the credential-descriptor coverage lock (workplan 0063):
+ *  a form that collects a field this schema has never heard of stores
+ *  nothing, and neither side errors at runtime. */
+export const CreateMappingBase = z.object({
   name: z.string().min(1).max(255),
   sourceType: z.enum(['imap', 'oauth2', 'graph', 'google-drive', 'gmail', 'google-calendar', 'google-contacts', 'dropbox', 'box']),
   targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav']),

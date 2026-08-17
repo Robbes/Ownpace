@@ -522,6 +522,48 @@ paths:
                           type: integer
                           description: How many mailboxes depend on this connection.
         '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Connections]
+      summary: Add a connection on its own, without creating a mapping
+      description: |
+        Which fields a provider needs comes from the shared credential
+        descriptor, so a form and this route cannot disagree about them; the
+        stored config and encrypted credential record are built by the same
+        functions the create-mapping route uses, so what is saved here is what
+        a sync pass reads. Probed before it is stored, and stored either way
+        with the outcome on `status` — a credential that does not work yet is
+        worth keeping (somebody is mid-setup) but must not look healthy.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role, type, displayName, values]
+              properties:
+                role: { type: string, enum: [source, target] }
+                type:
+                  type: string
+                  description: A wizard source or target type, e.g. box or webdav.
+                displayName: { type: string }
+                values:
+                  type: object
+                  additionalProperties: { type: string }
+                  description: Field key to what the person typed. Secrets included; never echoed back.
+      responses:
+        '201':
+          description: Created, with what the probe found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  ok: { type: boolean }
+                  detail: { type: string }
+                  reason: { type: string }
+        '400': { description: Unknown type, a missing required field, or a value the schema refuses. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /api/connections/{id}/test:
     post:
       tags: [Connections]

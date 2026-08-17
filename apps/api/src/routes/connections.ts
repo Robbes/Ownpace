@@ -31,8 +31,20 @@ import {
   probeSourceConnection,
   probeTargetConnection,
 } from '@openmig/orchestration/probe-connection';
+import { z } from 'zod';
+import { credentialFieldsFor } from '@openmig/shared';
 import { authenticate, getDbPool, withTenantDb } from '../middleware/auth';
 import type { AuthenticatedRequest } from '../types/api';
+// The SHAPE builders stay the create route's, deliberately: what a connection
+// stores must match what a sync pass reads, and one authority for that is the
+// whole point of workplan 0063's descriptor only describing INPUTS.
+import {
+  CreateMappingBase,
+  sourceConnectionConfig,
+  sourceCredentialRecord,
+  sourceKindFor,
+  targetConnectionConfig,
+} from './migrations/index';
 
 const router = Router();
 
@@ -95,6 +107,115 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
   } catch (error) {
     log.error('[api] listing connections failed:', error);
     res.status(500).json({ error: 'list_failed', reason: String(error) });
+  }
+});
+
+const AddSchema = z.object({
+  role: z.enum(['source', 'target']),
+  type: z.string().min(1),
+  displayName: z.string().min(1).max(255),
+  /** Field key → what the person typed. Which keys are expected comes from
+   *  the shared descriptor, so a form and this route cannot disagree. */
+  values: z.record(z.string(), z.string()),
+});
+
+/**
+ * Add a connection on its own, without creating a mapping (workplan 0063).
+ *
+ * PROBED BEFORE IT IS STORED, and stored either way with the outcome on
+ * `status`: a credential that does not work yet is worth keeping (somebody is
+ * mid-setup and an admin has not authorised the app), but it must not look
+ * healthy. The provider's own words come back so the person can act on them.
+ */
+router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.tenantId) {
+      return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found' });
+    }
+    const tenantId = req.tenantId;
+    const parsed = AddSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return void res.status(400).json({
+        error: 'invalid_body',
+        reason: 'Send { role, type, displayName, values }.',
+      });
+    }
+    const { role, type, displayName, values } = parsed.data;
+
+    const fields = credentialFieldsFor(role, type);
+    if (fields.length === 0) {
+      return void res.status(400).json({
+        error: 'unknown_type',
+        reason: `'${type}' is not a ${role} this product connects to.`,
+      });
+    }
+    const missing = fields.filter((f) => f.required && !values[f.key]?.trim()).map((f) => f.key);
+    if (missing.length > 0) {
+      return void res.status(400).json({
+        error: 'missing_fields',
+        reason: `Still needed: ${missing.join(', ')}.`,
+      });
+    }
+
+    // Through the SAME zod object the create route validates, so a value this
+    // accepts is one create would accept — port coerced because a form sends
+    // strings and the schema wants a number.
+    const shaped = { ...values, ...(values.port ? { port: Number(values.port) } : {}) };
+    const configShape =
+      role === 'source' ? CreateMappingBase.shape.sourceConfig : CreateMappingBase.shape.targetConfig;
+    const checked = configShape.safeParse(shaped);
+    if (!checked.success) {
+      return void res.status(400).json({
+        error: 'invalid_values',
+        reason: checked.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(' '),
+      });
+    }
+
+    const half = checked.data as never;
+    const config =
+      role === 'source'
+        ? sourceConnectionConfig({ sourceType: type as never, sourceConfig: half })
+        : targetConnectionConfig({ targetConfig: half } as never);
+    const creds =
+      role === 'source'
+        ? sourceCredentialRecord({ sourceType: type as never, sourceConfig: half })
+        : { username: values.username ?? '', password: values.password ?? '' };
+
+    const probe =
+      role === 'target'
+        ? await probeTargetConnection(
+            (TARGET_KINDS as ReadonlyArray<string>).includes(type) ? (type as TargetKind) : 'webdav',
+            config,
+            creds as Record<string, string>,
+          )
+        : await probeSourceConnection(
+            sourceKindFor(type as never),
+            config,
+            creds as Record<string, string>,
+          );
+
+    const kind = role === 'source' ? sourceKindFor(type as never) : type;
+    const inserted = await withTenantDb(tenantId, pool(), (db) =>
+      db
+        .insert(schema.connection)
+        .values({
+          tenantId,
+          role,
+          kind: kind as never,
+          displayName,
+          config,
+          secretRef: JSON.stringify(
+            SecretStore.encryptCredentials(creds as Record<string, string>).encrypted,
+          ),
+          status: probe.ok ? 'connected' : 'error',
+        })
+        .returning({ id: schema.connection.id }),
+    );
+
+    res.status(201).json({ id: inserted[0]!.id, ...probe });
+  } catch (error) {
+    log.error('[api] adding a connection failed:', error);
+    res.status(500).json({ error: 'add_failed', reason: String(error) });
   }
 });
 

@@ -46,6 +46,7 @@ vi.mock('./pages/Failures', () => ({ default: () => <div>screen:failures</div> }
 vi.mock('./pages/Sharing', () => ({ default: () => <div>screen:sharing</div> }));
 vi.mock('./pages/Setup', () => ({ default: () => <div>screen:setup</div> }));
 vi.mock('./pages/Connections', () => ({ default: () => <div>screen:connections</div> }));
+vi.mock('./pages/Docs', () => ({ default: () => <div>screen:docs</div> }));
 vi.mock('./pages/Verify', () => ({ default: () => <div>screen:verify</div> }));
 vi.mock('./pages/Finish', () => ({ default: () => <div>screen:finish</div> }));
 vi.mock('./pages/Confirm', () => ({ default: () => <div>screen:confirm</div> }));

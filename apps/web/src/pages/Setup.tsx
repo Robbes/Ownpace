@@ -108,6 +108,16 @@ const StepRow: React.FC<{
   );
 };
 
+/**
+ * Which shipped guide covers this provider. The four Google source types share
+ * one document, exactly as they share one setup profile.
+ */
+function guideSlug(provider: string): string {
+  if (provider.startsWith('google') || provider === 'gmail') return 'google-workspace-setup';
+  if (provider === 'oauth2' || provider === 'graph') return 'o365-setup';
+  return `${provider}-setup`;
+}
+
 const Setup: React.FC = () => {
   const t = useT();
   const { side, provider } = useParams<{ side: string; provider: string }>();
@@ -141,9 +151,16 @@ const Setup: React.FC = () => {
 
   return (
     <div className="p-6 max-w-3xl">
-      <Link to="/mappings/new" className="text-sm text-blue-700 hover:underline">
-        {t('setup.backToWizard')}
-      </Link>
+      <div className="flex flex-wrap gap-4">
+        <Link to="/mappings/new" className="text-sm text-blue-700 hover:underline">
+          {t('setup.backToWizard')}
+        </Link>
+        {/* The long-form guide, in the app rather than as a filename nobody
+            in a browser can open (workplan 0063). */}
+        <Link to={`/docs/${guideSlug(data.provider)}`} className="text-sm text-blue-700 hover:underline">
+          {t('setup.fullGuide')}
+        </Link>
+      </div>
 
       <h2 className="mt-2 text-xl font-semibold text-gray-900">
         {t('setup.title')} — {data.provider}

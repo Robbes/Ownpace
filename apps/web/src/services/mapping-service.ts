@@ -582,6 +582,20 @@ export interface ConnectionSummary {
 }
 
 export const connectionsApi = {
+  /**
+   * Add a connection without creating a mapping. Which fields to send comes
+   * from the shared descriptor (`credentialFieldsFor`), so the form and the
+   * server cannot disagree about what a provider needs.
+   */
+  add: async (payload: {
+    role: 'source' | 'target';
+    type: string;
+    displayName: string;
+    values: Record<string, string>;
+  }): Promise<TestConnectionResult & { id: string }> => {
+    const response = await apiClient.post('/connections', payload);
+    return response.data as TestConnectionResult & { id: string };
+  },
   list: async (): Promise<ConnectionSummary[]> => {
     const response = await apiClient.get('/connections');
     return (response.data as { connections: ConnectionSummary[] }).connections;
