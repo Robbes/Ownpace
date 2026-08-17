@@ -246,6 +246,49 @@ describe('GraphCalendarSource', () => {
       expect(result.nextCursor.value).toContain('xyz789');
     });
 
+it('follows nextLink to the SECOND page instead of re-requesting the first', async () => {
+      // The regression this pins: the delta loop used to request a `const url`
+      // computed once, so a calendar answering more than one page re-fetched
+      // page ONE forever. The old mock could not see it — it answered by call
+      // order, handing back page two for a repeat of the same request, which no
+      // server does. This mock answers by URL, like a server.
+      const NEXT = 'https://graph.microsoft.com/v1.0/me/calendars/cal1/events/delta?$skiptoken=p2';
+      const page1 = {
+        value: [{ id: 'evt1', subject: 'Event 1', isAllDay: false, isCancelled: false }],
+        '@odata.nextLink': NEXT,
+      };
+      const page2 = {
+        value: [{ id: 'evt2', subject: 'Event 2', isAllDay: false, isCancelled: false }],
+        '@odata.deltaLink': 'https://graph.microsoft.com/v1.0/me/calendars/cal1/events/delta?$deltatoken=final',
+      };
+      const urls: string[] = [];
+      const mockClient: HttpClient = {
+        request: vi.fn().mockImplementation((options: { url: string }) => {
+          urls.push(options.url);
+          if (options.url === NEXT) {
+            return Promise.resolve({ status: 200, body: JSON.stringify(page2), headers: {} });
+          }
+          if (options.url.includes('/events/delta')) {
+            return Promise.resolve({ status: 200, body: JSON.stringify(page1), headers: {} });
+          }
+          // The per-event iCal fetches, which this test does not exercise.
+          return Promise.resolve({ status: 404, body: '', headers: {} });
+        }),
+      };
+
+      const source = new GraphCalendarSource(
+        createMockTokenProvider(),
+        'test-tenant-id',
+        undefined,
+        { httpClient: mockClient },
+      );
+
+      const result = await source.listSince({ path: '/calendars/cal1', name: 'Calendar' });
+
+      expect(urls[1], 'the second request must go to nextLink').toBe(NEXT);
+      expect(result.nextCursor.value).toContain('final');
+    });
+
     it('should handle pagination in delta query', async () => {
       const tokenProvider = createMockTokenProvider();
       const mockClient = createMockHttpClient([
