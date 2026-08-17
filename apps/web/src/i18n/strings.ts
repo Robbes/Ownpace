@@ -441,6 +441,10 @@ const en = {
   'deletions.apply': 'Delete it here too',
   'deletions.applyArmed': 'Confirm delete',
   'common.loading': 'Loading…',
+  'common.cancel': 'Cancel',
+  'docs.title': 'Setup guides',
+  'docs.all': '← All setup guides',
+  'docs.notFound': 'There is no guide by that name. These are the ones that ship with this version:',
   'mappings.lastSync': 'Last sync:',
   'mappings.never': 'Never',
   'mappings.loadFailed': 'Could not load the migrations list.',
@@ -740,6 +744,141 @@ const en = {
   'decisionStatus.resolved': 'Decided',
   'decisionStatus.auto_resolved': 'Decided by preset',
   'decisionStatus.dismissed': 'Dismissed',
+  'nav.connections': 'Connections',
+  'nav.setup': 'Setup checklist',
+  'nav.docs': 'Setup guides',
+  'wizard.reuseSource': 'Use a source connection you already have',
+  'wizard.reuseTarget': 'Use a target connection you already have',
+  'wizard.reuseNone': 'No — enter new credentials below',
+  'wizard.reuse.hint':
+    'Picking one reuses its saved credentials, so you do not paste the same secret twice. The credential fields below disappear when you do.',
+  'connections.delete': 'Delete',
+  'connections.rotate': 'Replace credentials',
+  'connections.rotate.hint':
+    'Paste the new values. They are checked before they replace the old ones — if the check fails, nothing changes and your migrations keep whatever was working.',
+  'connections.rotate.save': 'Check and replace',
+  'connections.add': 'Add a connection',
+  'connections.addAndTest': 'Add and test',
+  'connections.role': 'Is this a source or a target?',
+  'connections.type': 'Provider',
+  'connections.name': 'Name it (so you recognise it later)',
+  'connections.title': 'Connections',
+  'connections.intro':
+    'The source and target accounts your migrations sign in with. Test one to check its credentials are still good — that runs the same read-only check a migration would, and shows exactly what the provider says.',
+  'connections.none': 'No connections yet. Creating your first migration adds them.',
+  'connections.sources': 'Sources',
+  'connections.targets': 'Targets',
+  'connections.test': 'Test',
+  'connections.testing': 'Testing…',
+  'connections.usedBy': 'mailbox(es) use this',
+  'connections.setupSteps': 'Setup steps',
+  'connections.ok': 'Reached it. The credentials still work.',
+  'connections.failed': 'Could not reach it.',
+  // ---- Provider setup checklist (workplan 0061) ----
+  'setup.title': 'What to set up in the provider',
+  'setup.intro':
+    'These steps happen in the provider\u2019s own console, not here. Tick each one off as you go — this list is saved for your whole organisation, so you can stop and come back, and a colleague can pick up where you left off.',
+  'setup.backToWizard': '← Back to the migration wizard',
+  'setup.fullGuide': 'Read the full setup guide',
+  'setup.settled': 'settled',
+  'setup.stillOpen': 'still to do',
+  'setup.waitingOnOthers': 'waiting on an administrator',
+  'setup.allDone': 'Everything here is settled — you can complete the wizard.',
+  'setup.nothingToDo': 'This provider needs nothing set up in advance. Go straight to the wizard.',
+  'setup.yields': 'You get:',
+  'setup.tick': 'Mark this step done',
+  'setup.untick': 'Mark this step not done',
+  'setup.skip': 'Skip',
+  'setup.unskip': 'Un-skip',
+  'setup.state.done': 'Done',
+  'setup.state.skipped': 'Skipped — deliberately not needed',
+  'setup.needsAnotherPerson': 'needs an administrator',
+  'setup.needsAnotherPerson.hint':
+    'Somebody with admin rights has to do this, so it is the step most likely to make you wait.',
+  'setup.openChecklist': 'Open the setup checklist for this provider',
+  'setup.box.create_app.title': 'Create a Box platform app',
+  'setup.box.create_app.detail':
+    'Box Developer Console → Create Platform App → Custom App, and choose Client Credentials Grant (Server Authentication).',
+  'setup.box.create_app.yields': 'a Client ID and a Client Secret.',
+  'setup.box.configure_access.title': 'Give it read-only access',
+  'setup.box.configure_access.detail':
+    'On the app\u2019s Configuration tab set App Access Level to "App + Enterprise Access", tick only the read scope for files and folders, and enable "Generate user access tokens".',
+  'setup.box.admin_authorize.title': 'Have a Box admin authorise the app',
+  'setup.box.admin_authorize.detail':
+    'Admin Console → Apps → Custom Apps Manager → Add app by Client ID, then authorise it. Until this is done Box refuses every token with "unauthorized_client".',
+  'setup.box.subject_user_id.title': 'Find the numeric user id being migrated',
+  'setup.box.subject_user_id.detail':
+    'Admin Console → Users & Groups → the account you are migrating. Box wants the number, not the email address.',
+  'setup.box.subject_user_id.yields': 'the Box user id (a number).',
+  'setup.dropbox.create_app.title': 'Create a Dropbox app',
+  'setup.dropbox.create_app.detail':
+    'Dropbox App Console → Create app → Scoped access → Full Dropbox (or App folder if the migration should only ever see one folder).',
+  'setup.dropbox.create_app.yields': 'an App key and an App secret.',
+  'setup.dropbox.scopes.title': 'Give it read-only permissions',
+  'setup.dropbox.scopes.detail':
+    'On the Permissions tab enable files.metadata.read and files.content.read, and nothing that writes. Add sharing.read as well if you want to browse shared folders here.',
+  'setup.dropbox.consent.title': 'Have the account owner consent once',
+  'setup.dropbox.consent.detail':
+    'Send the person whose Dropbox is being migrated through the authorisation URL for this app, with token_access_type=offline so Dropbox returns a refresh token.',
+  'setup.dropbox.exchange_code.title': 'Exchange the code for a refresh token',
+  'setup.dropbox.exchange_code.detail':
+    'Swap the code from the previous step at Dropbox\u2019s token endpoint, once. Access tokens are minted from the result per run; nothing else long-lived is stored.',
+  'setup.dropbox.exchange_code.yields': 'a refresh token.',
+  'setup.google.create_oauth_client.title': 'Create a Google OAuth client',
+  'setup.google.create_oauth_client.detail':
+    'Google Cloud console → APIs & Services → Credentials → Create credentials → OAuth client ID, as a Desktop or Web application.',
+  'setup.google.create_oauth_client.yields': 'a Client ID and a Client Secret.',
+  'setup.google.enable_api.title': 'Enable the API for the product you are migrating',
+  'setup.google.enable_api.detail':
+    'In the same project, enable the API that matches the source you picked — Drive, Gmail, Calendar or People. A client without it fails on the first call.',
+  'setup.google.consent_scope.title': 'Consent a read-only refresh token',
+  'setup.google.consent_scope.detail':
+    'Have the account owner consent with the scope for THAT product; a token consented for one Google product does not work for another. Alternatively use a service account with domain-wide delegation, which an admin authorises once for the whole domain.',
+  'setup.google.consent_scope.yields': 'a refresh token (or a service-account key file).',
+  'setup.graph.app_registration.title': 'Register an app in Microsoft Entra',
+  'setup.graph.app_registration.detail':
+    'Entra admin centre → App registrations → New registration, in the tenant whose mailboxes you are migrating.',
+  'setup.graph.app_registration.yields': 'a Tenant ID and a Client ID.',
+  'setup.graph.api_permissions.title': 'Add the read permissions and get admin consent',
+  'setup.graph.api_permissions.detail':
+    'Add the Graph permissions for what you are migrating (mail, calendar, contacts or files), then have a tenant administrator grant consent. Reading another user\u2019s mailbox or drive needs application permissions, which always require consent.',
+  'setup.graph.client_secret.title': 'Create a client secret',
+  'setup.graph.client_secret.detail':
+    'Certificates & secrets → New client secret. Copy it immediately — Entra shows the value once.',
+  'setup.graph.client_secret.yields': 'a Client Secret.',
+  'setup.imap.server_address.title': 'Find the IMAP server address',
+  'setup.imap.server_address.detail':
+    'The host and port your mail provider documents for IMAP, and whether it uses SSL. Usually port 993 with SSL.',
+  'setup.imap.server_address.yields': 'a host, a port and the SSL setting.',
+  'setup.imap.app_password.title': 'Create an app password',
+  'setup.imap.app_password.detail':
+    'Most providers refuse a normal account password for IMAP when two-factor authentication is on, and want an app-specific password instead. Create one for the account being migrated.',
+  'setup.imap.app_password.yields': 'a username and an app password.',
+  'setup.webdav.account_exists.title': 'Make sure the destination account exists',
+  'setup.webdav.account_exists.detail':
+    'Create the account on the target server first, with enough quota for what is coming. Nothing here creates accounts.',
+  'setup.webdav.app_password.title': 'Create an app password for it',
+  'setup.webdav.app_password.detail':
+    'In Nextcloud: Settings → Security → Devices & sessions → Create new app password. Use that rather than the account\u2019s own password.',
+  'setup.webdav.app_password.yields': 'a username and an app password.',
+  'setup.webdav.base_url.title': 'Note the WebDAV address',
+  'setup.webdav.base_url.detail':
+    'The server\u2019s WebDAV base URL for that account — Nextcloud shows it at the bottom of the Files settings page.',
+  'setup.webdav.base_url.yields': 'the host, port and path to put in the wizard.',
+  'setup.jmap.account_exists.title': 'Make sure the destination account exists',
+  'setup.jmap.account_exists.detail':
+    'Create the mailbox on the JMAP server first, with enough quota. Nothing here creates accounts.',
+  'setup.jmap.api_token.title': 'Create an API token',
+  'setup.jmap.api_token.detail':
+    'Generate a token for that account in the server\u2019s own settings, with permission to write mail and files.',
+  'setup.jmap.api_token.yields': 'a username and an API token.',
+  'setup.davbasic.account_exists.title': 'Make sure the destination account exists',
+  'setup.davbasic.account_exists.detail':
+    'Create the account on the target server first, with enough quota for what is coming. Nothing here creates accounts.',
+  'setup.davbasic.app_password.title': 'Create an app password for it',
+  'setup.davbasic.app_password.detail':
+    'Use an app-specific password rather than the account\u2019s own login where the server offers one — it can be revoked without changing the person\u2019s password.',
+  'setup.davbasic.app_password.yields': 'a username and an app password.',
 } as const;
 
 const nl: Record<keyof typeof en, string> = {
@@ -1151,6 +1290,10 @@ const nl: Record<keyof typeof en, string> = {
   'deletions.apply': 'Verwijder het hier ook',
   'deletions.applyArmed': 'Bevestig verwijderen',
   'common.loading': 'Laden…',
+  'common.cancel': 'Annuleren',
+  'docs.title': 'Instelhandleidingen',
+  'docs.all': '← Alle instelhandleidingen',
+  'docs.notFound': 'Er is geen handleiding met die naam. Dit zijn de handleidingen die bij deze versie horen:',
   'mappings.lastSync': 'Laatste synchronisatie:',
   'mappings.never': 'Nooit',
   'mappings.loadFailed': 'De migratielijst kon niet worden geladen.',
@@ -1447,6 +1590,141 @@ const nl: Record<keyof typeof en, string> = {
   'decisionStatus.resolved': 'Beslist',
   'decisionStatus.auto_resolved': 'Beslist door vast antwoord',
   'decisionStatus.dismissed': 'Terzijde gelegd',
+  'nav.connections': 'Verbindingen',
+  'nav.setup': 'Instelchecklist',
+  'nav.docs': 'Handleidingen',
+  'wizard.reuseSource': 'Gebruik een bronverbinding die u al heeft',
+  'wizard.reuseTarget': 'Gebruik een doelverbinding die u al heeft',
+  'wizard.reuseNone': 'Nee — hieronder nieuwe inloggegevens invoeren',
+  'wizard.reuse.hint':
+    'Als u er een kiest worden de opgeslagen inloggegevens hergebruikt, zodat u hetzelfde geheim niet twee keer plakt. De velden hieronder verdwijnen dan.',
+  'connections.delete': 'Verwijderen',
+  'connections.rotate': 'Inloggegevens vervangen',
+  'connections.rotate.hint':
+    'Plak de nieuwe waarden. Ze worden gecontroleerd vóór ze de oude vervangen — mislukt de controle, dan verandert er niets en houden uw migraties wat werkte.',
+  'connections.rotate.save': 'Controleren en vervangen',
+  'connections.add': 'Verbinding toevoegen',
+  'connections.addAndTest': 'Toevoegen en testen',
+  'connections.role': 'Is dit een bron of een doel?',
+  'connections.type': 'Aanbieder',
+  'connections.name': 'Geef het een naam (zodat u het later herkent)',
+  'connections.title': 'Verbindingen',
+  'connections.intro':
+    'De bron- en doelaccounts waarmee uw migraties inloggen. Test er een om te controleren of de inloggegevens nog werken — dat voert dezelfde alleen-lezen controle uit als een migratie en toont precies wat de aanbieder zegt.',
+  'connections.none': 'Nog geen verbindingen. Bij het aanmaken van uw eerste migratie worden ze toegevoegd.',
+  'connections.sources': 'Bronnen',
+  'connections.targets': 'Doelen',
+  'connections.test': 'Testen',
+  'connections.testing': 'Bezig met testen…',
+  'connections.usedBy': 'postbus(sen) gebruiken dit',
+  'connections.setupSteps': 'Instelstappen',
+  'connections.ok': 'Bereikt. De inloggegevens werken nog.',
+  'connections.failed': 'Kon deze niet bereiken.',
+  // ---- Provider setup checklist (workplan 0061) ----
+  'setup.title': 'Wat u instelt bij de aanbieder',
+  'setup.intro':
+    'Deze stappen doet u in de console van de aanbieder zelf, niet hier. Vink ze af terwijl u bezig bent — deze lijst wordt bewaard voor uw hele organisatie, dus u kunt stoppen en later verdergaan, en een collega kan het overnemen.',
+  'setup.backToWizard': '← Terug naar de migratiewizard',
+  'setup.fullGuide': 'Lees de volledige handleiding',
+  'setup.settled': 'afgehandeld',
+  'setup.stillOpen': 'nog te doen',
+  'setup.waitingOnOthers': 'wacht op een beheerder',
+  'setup.allDone': 'Alles hier is afgehandeld — u kunt de wizard afronden.',
+  'setup.nothingToDo': 'Voor deze aanbieder hoeft u vooraf niets in te stellen. Ga direct naar de wizard.',
+  'setup.yields': 'Dit levert op:',
+  'setup.tick': 'Deze stap afvinken',
+  'setup.untick': 'Vinkje weghalen',
+  'setup.skip': 'Overslaan',
+  'setup.unskip': 'Niet overslaan',
+  'setup.state.done': 'Gedaan',
+  'setup.state.skipped': 'Overgeslagen — bewust niet nodig',
+  'setup.needsAnotherPerson': 'beheerder nodig',
+  'setup.needsAnotherPerson.hint':
+    'Iemand met beheerdersrechten moet dit doen, dus dit is de stap waarop u het vaakst moet wachten.',
+  'setup.openChecklist': 'Open de instelchecklist voor deze aanbieder',
+  'setup.box.create_app.title': 'Maak een Box-platform-app',
+  'setup.box.create_app.detail':
+    'Box Developer Console → Create Platform App → Custom App, en kies Client Credentials Grant (Server Authentication).',
+  'setup.box.create_app.yields': 'een Client-ID en een Client-geheim.',
+  'setup.box.configure_access.title': 'Geef de app alleen-leestoegang',
+  'setup.box.configure_access.detail':
+    'Op het tabblad Configuration: zet App Access Level op "App + Enterprise Access", vink alleen de leesrechten voor bestanden en mappen aan en zet "Generate user access tokens" aan.',
+  'setup.box.admin_authorize.title': 'Laat een Box-beheerder de app autoriseren',
+  'setup.box.admin_authorize.detail':
+    'Admin Console → Apps → Custom Apps Manager → voeg de app toe op Client-ID en autoriseer deze. Tot dat gebeurd is weigert Box elk token met "unauthorized_client".',
+  'setup.box.subject_user_id.title': 'Zoek het numerieke gebruikers-id op',
+  'setup.box.subject_user_id.detail':
+    'Admin Console → Users & Groups → het account dat u migreert. Box wil het nummer, niet het e-mailadres.',
+  'setup.box.subject_user_id.yields': 'het Box-gebruikers-id (een nummer).',
+  'setup.dropbox.create_app.title': 'Maak een Dropbox-app',
+  'setup.dropbox.create_app.detail':
+    'Dropbox App Console → Create app → Scoped access → Full Dropbox (of App folder als de migratie maar één map mag zien).',
+  'setup.dropbox.create_app.yields': 'een App-sleutel en een App-geheim.',
+  'setup.dropbox.scopes.title': 'Geef de app alleen-leesrechten',
+  'setup.dropbox.scopes.detail':
+    'Zet op het tabblad Permissions files.metadata.read en files.content.read aan, en niets dat schrijft. Voeg sharing.read toe als u hier gedeelde mappen wilt kunnen bekijken.',
+  'setup.dropbox.consent.title': 'Laat de accounthouder eenmalig toestemming geven',
+  'setup.dropbox.consent.detail':
+    'Stuur de persoon van wie de Dropbox gemigreerd wordt door de autorisatie-URL van deze app, met token_access_type=offline zodat Dropbox een refresh-token teruggeeft.',
+  'setup.dropbox.exchange_code.title': 'Wissel de code in voor een refresh-token',
+  'setup.dropbox.exchange_code.detail':
+    'Wissel de code uit de vorige stap eenmalig in bij het token-eindpunt van Dropbox. Toegangstokens worden per run aangemaakt; verder wordt niets langlevends bewaard.',
+  'setup.dropbox.exchange_code.yields': 'een refresh-token.',
+  'setup.google.create_oauth_client.title': 'Maak een Google OAuth-client',
+  'setup.google.create_oauth_client.detail':
+    'Google Cloud console → APIs & Services → Credentials → Create credentials → OAuth client ID, als Desktop- of Web-toepassing.',
+  'setup.google.create_oauth_client.yields': 'een Client-ID en een Client-geheim.',
+  'setup.google.enable_api.title': 'Zet de API aan voor het product dat u migreert',
+  'setup.google.enable_api.detail':
+    'Zet in hetzelfde project de API aan die past bij de gekozen bron — Drive, Gmail, Calendar of People. Zonder dat mislukt de eerste aanroep.',
+  'setup.google.consent_scope.title': 'Laat een alleen-lezen refresh-token toestemmen',
+  'setup.google.consent_scope.detail':
+    'Laat de accounthouder toestemmen met de scope van DAT product; een token dat voor het ene Google-product is toegestemd werkt niet voor het andere. U kunt ook een service-account met domain-wide delegation gebruiken, dat een beheerder eenmalig voor het hele domein autoriseert.',
+  'setup.google.consent_scope.yields': 'een refresh-token (of een service-account-sleutelbestand).',
+  'setup.graph.app_registration.title': 'Registreer een app in Microsoft Entra',
+  'setup.graph.app_registration.detail':
+    'Entra-beheercentrum → App registrations → New registration, in de tenant waarvan u de postbussen migreert.',
+  'setup.graph.app_registration.yields': 'een Tenant-ID en een Client-ID.',
+  'setup.graph.api_permissions.title': 'Voeg de leesrechten toe en laat een beheerder toestemmen',
+  'setup.graph.api_permissions.detail':
+    'Voeg de Graph-rechten toe voor wat u migreert (mail, agenda, contacten of bestanden) en laat een tenantbeheerder toestemming geven. De postbus of drive van een ander lezen vereist application permissions, en die vragen altijd om toestemming.',
+  'setup.graph.client_secret.title': 'Maak een clientgeheim',
+  'setup.graph.client_secret.detail':
+    'Certificates & secrets → New client secret. Kopieer de waarde meteen — Entra toont deze één keer.',
+  'setup.graph.client_secret.yields': 'een Client-geheim.',
+  'setup.imap.server_address.title': 'Zoek het IMAP-serveradres op',
+  'setup.imap.server_address.detail':
+    'De host en poort die uw mailaanbieder voor IMAP documenteert, en of er SSL gebruikt wordt. Meestal poort 993 met SSL.',
+  'setup.imap.server_address.yields': 'een host, een poort en de SSL-instelling.',
+  'setup.imap.app_password.title': 'Maak een app-wachtwoord',
+  'setup.imap.app_password.detail':
+    'De meeste aanbieders weigeren een gewoon accountwachtwoord voor IMAP zodra tweestapsverificatie aanstaat en willen een app-specifiek wachtwoord. Maak er één voor het account dat gemigreerd wordt.',
+  'setup.imap.app_password.yields': 'een gebruikersnaam en een app-wachtwoord.',
+  'setup.webdav.account_exists.title': 'Zorg dat het doelaccount bestaat',
+  'setup.webdav.account_exists.detail':
+    'Maak het account eerst aan op de doelserver, met genoeg quota voor wat eraan komt. Dit product maakt zelf geen accounts aan.',
+  'setup.webdav.app_password.title': 'Maak er een app-wachtwoord voor',
+  'setup.webdav.app_password.detail':
+    'In Nextcloud: Instellingen → Beveiliging → Apparaten & sessies → Nieuw app-wachtwoord. Gebruik dat in plaats van het accountwachtwoord zelf.',
+  'setup.webdav.app_password.yields': 'een gebruikersnaam en een app-wachtwoord.',
+  'setup.webdav.base_url.title': 'Noteer het WebDAV-adres',
+  'setup.webdav.base_url.detail':
+    'De WebDAV-basis-URL van de server voor dat account — Nextcloud toont deze onderaan de pagina met bestandsinstellingen.',
+  'setup.webdav.base_url.yields': 'de host, poort en het pad voor in de wizard.',
+  'setup.jmap.account_exists.title': 'Zorg dat het doelaccount bestaat',
+  'setup.jmap.account_exists.detail':
+    'Maak de postbus eerst aan op de JMAP-server, met genoeg quota. Dit product maakt zelf geen accounts aan.',
+  'setup.jmap.api_token.title': 'Maak een API-token',
+  'setup.jmap.api_token.detail':
+    'Genereer in de instellingen van de server een token voor dat account, met rechten om mail en bestanden te schrijven.',
+  'setup.jmap.api_token.yields': 'een gebruikersnaam en een API-token.',
+  'setup.davbasic.account_exists.title': 'Zorg dat het doelaccount bestaat',
+  'setup.davbasic.account_exists.detail':
+    'Maak het account eerst aan op de doelserver, met genoeg quota voor wat eraan komt. Dit product maakt zelf geen accounts aan.',
+  'setup.davbasic.app_password.title': 'Maak er een app-wachtwoord voor',
+  'setup.davbasic.app_password.detail':
+    'Gebruik waar de server dat aanbiedt een app-specifiek wachtwoord in plaats van de gewone login — dat kan ingetrokken worden zonder het wachtwoord van de persoon te wijzigen.',
+  'setup.davbasic.app_password.yields': 'een gebruikersnaam en een app-wachtwoord.',
 };
 
 export type Locale = 'en' | 'nl';

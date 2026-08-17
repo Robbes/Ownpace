@@ -13,6 +13,7 @@ import type {
   MailItem,
   MailKeyword,
   RawMessage,
+  SetupStepRow,
   ShareGrantRow,
   SourceConnector,
   SyncCursor,
@@ -557,6 +558,53 @@ export class MemoryLedger implements Ledger {
       open += 1;
     }
     return Promise.resolve(open);
+  }
+
+  /** Setup-checklist rows (workplan 0061); only SETTLED steps exist, as in Pg. */
+  private readonly setupSteps: Array<
+    SetupStepRow & { tenantId: LedgerRecord['tenantId'] }
+  > = [];
+
+  listSetupSteps(
+    tenantId: LedgerRecord['tenantId'],
+    side: 'source' | 'target',
+    provider: string,
+  ): Promise<ReadonlyArray<SetupStepRow>> {
+    const mine = this.setupSteps.filter(
+      (r) => r.tenantId === tenantId && r.side === side && r.provider === provider,
+    );
+    return Promise.resolve(mine.map(({ tenantId: _t, ...row }) => ({ ...row })));
+  }
+
+  setSetupStepState(
+    tenantId: LedgerRecord['tenantId'],
+    side: 'source' | 'target',
+    provider: string,
+    stepKey: string,
+    decision: { readonly state: 'open' | 'done' | 'skipped'; readonly decidedBy: string },
+  ): Promise<SetupStepRow> {
+    const settled = decision.state !== 'open';
+    const existing = this.setupSteps.find(
+      (r) =>
+        r.tenantId === tenantId &&
+        r.side === side &&
+        r.provider === provider &&
+        r.stepKey === stepKey,
+    );
+    const next = {
+      id: existing?.id ?? `setup-${this.setupSteps.length + 1}`,
+      tenantId,
+      side,
+      provider,
+      stepKey,
+      state: decision.state,
+      // Open clears the decider, matching the table's CHECK.
+      ...(settled ? { decidedBy: decision.decidedBy, decidedAt: new Date().toISOString() } : {}),
+    };
+    if (existing) this.setupSteps.splice(this.setupSteps.indexOf(existing), 1, next);
+    else this.setupSteps.push(next);
+    const { tenantId: _t, ...row } = next;
+    return Promise.resolve({ ...row });
   }
 
   listShareGrants(

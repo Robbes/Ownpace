@@ -1,0 +1,19 @@
+# Workplan 0062 — connections you can see and re-test
+
+## Status — 2026-08-17 (update this block at the end of every session)
+
+| Task | Status | Evidence |
+|---|---|---|
+| T1 the finding | ✅ **Stated 2026-08-17** | `connection` rows have existed since the baseline, and creating a mapping inserts two of them — `"<name> (source)"` and `"<name> (target)"` — but **nothing ever showed them**. Consequences, all of which an owner meets rather than reads about: a credential that expires is discovered by a failing pass rather than by asking; a second mapping against the same tenant means pasting the same three secrets again, because nothing offers the connection that already exists; and "is this still good?" had no answer short of running a migration. |
+| T2 list and probe | ✅ **Done 2026-08-17** | `GET /api/connections` lists what exists per tenant with role, kind, name, status and **how many mailboxes depend on it** — the number that says whether a broken connection matters. `POST /api/connections/:id/test` decrypts the stored credentials and runs the SAME read-only probe the wizard's Test-connections button runs, through the builders a sync pass would use, so a passing test cannot diverge from what a pass does. The outcome is written back to `connection.status`, so the list says what was last TRUE rather than what was true at creation. Secrets never leave: the list returns names and states, and the only thing touching plaintext is the probe, which returns the provider's verdict and nothing else. A connection with no stored secret says exactly that instead of reporting a credential failure it never had. |
+| T3 the screen | ✅ **Done 2026-08-17** | `Connections.tsx`, in the nav beside Mappings (per tenant, so not inside a mapping). Sources and targets, each with status, usage count, a **Test** button, and a link to that provider's setup checklist — because the answer to a failed probe is often "somebody has to re-authorise the app", which is workplan 0061's list. A refusal renders as readable text in the provider's own words, not a toast: that sentence is what the person came for (hard rule 9). 6 tests, including that a thrown error still reaches the person and that an empty tenant says so. EN/NL. |
+| T4 not done, honestly | ⛔ | (a) **Adding a connection from this page is not built**, and it is the piece the owner also asked for. Doing it properly needs a per-kind credential FIELD DESCRIPTOR — which fields, which labels in the provider's vocabulary, which are secret — and that descriptor should be shared with `CreateMapping` rather than duplicated, since the wizard currently encodes it as hand-written JSX per source type. That refactor is the next slice, and doing it badly would leave two places that must agree about Box's "App key". (b) **Reusing an existing connection when creating a mapping** is therefore also unbuilt; create still always inserts two new rows. (c) **Rotating credentials** needs the same descriptor and is unbuilt — today an expired token means a new mapping. (d) Deleting a connection is deliberately absent: rows cascade to mailboxes and items, and a delete button over that needs a refusal path ("3 mailboxes use this") designed first. (e) The probe writes `status` but nothing schedules it — connections are tested when a person asks, not in the background. |
+
+## What this is
+
+Half of the answer to "can the UI manage sources and targets": the seeing-and-checking half.
+The adding-and-reusing half (T4a/b/c) is blocked behind one design decision worth making once —
+a shared, per-kind description of what credentials a provider needs, which the wizard, this page
+and any future rotation form all read. Building the add-form here without it would duplicate
+the wizard's per-provider knowledge into a second place, and the two would drift the first time
+a provider renames a field.

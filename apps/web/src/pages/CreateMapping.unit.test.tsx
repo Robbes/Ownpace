@@ -28,6 +28,9 @@ import { mappingApi } from '../services/mapping-service';
 
 vi.mock('../services/mapping-service', () => ({
   mappingApi: { create: vi.fn() },
+  // The wizard offers reusable connections (workplan 0064); an empty list is
+  // the "nothing to reuse yet" case these walks exercise.
+  connectionsApi: { list: vi.fn().mockResolvedValue([]) },
 }));
 
 const createMock = vi.mocked(mappingApi.create);

@@ -52,7 +52,7 @@ function firstOrThrow<T>(rows: T[], what: string): T {
 }
 
 /** Map the web source type to a connection.kind (protocol-based). */
-function sourceKindFor(
+export function sourceKindFor(
   sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'dropbox' | 'box',
 ): 'imap' | 'o365' | 'google_drive' | 'gmail' | 'google_calendar' | 'google_contacts' | 'dropbox' | 'box' {
   // 'google_drive' is the CHECK-constrained connection.kind migration 0008
@@ -84,7 +84,7 @@ function sourceKindFor(
  * present where they mean something because the GET detail route spreads this
  * object (with the password masked) as its echo.
  */
-function sourceConnectionConfig(
+export function sourceConnectionConfig(
   body: Pick<z.infer<typeof CreateMappingSchema>, 'sourceType' | 'sourceConfig'>,
 ): Record<string, unknown> {
   const cfg = body.sourceConfig;
@@ -165,7 +165,7 @@ function sourceConnectionConfig(
  * imap-dav). The DAV targets keep the plain shape: their domain path builds
  * its URL from host/port/useSsl via `davUrl()` and never reads a `type`.
  */
-function targetConnectionConfig(
+export function targetConnectionConfig(
   body: Pick<z.infer<typeof CreateMappingSchema>, 'targetType' | 'targetConfig'>,
 ): Record<string, unknown> {
   const cfg = body.targetConfig;
@@ -183,6 +183,68 @@ function targetConnectionConfig(
 }
 
 /**
+ * What a mapping overrides on a SHARED connection — only the keys that are
+ * this mapping's to answer (workplan 0067, closing 0066 T4d).
+ *
+ * The split is the one migration 0021 encodes: a connection answers *as whom
+ * do we sign in*, a mapping answers *whose data, and where*. `rootFolderId`,
+ * `rootPath`, the Box subject and the per-mapping user/mailbox belong to the
+ * mapping; the host, port, TLS, tenant and every credential belong to the
+ * connection.
+ *
+ * This started as `sourceConnectionConfig(body)` reused wholesale, recorded as
+ * "harmless, a narrower projection would be tidier". It stopped being harmless
+ * the moment the wizard stopped ASKING for the connection-level fields when
+ * reusing: the full shape would then write `host: undefined` into the override
+ * and the key-by-key merge in `loadDomainConnections` would apply it OVER the
+ * connection's real host. Storing more than you need is only free while
+ * everything keeps filling it in.
+ *
+ * Undefined values are dropped, so a field the operator left blank means
+ * "inherit", never "blank it".
+ */
+export function sourceConfigOverride(
+  body: Pick<z.infer<typeof CreateMappingSchema>, 'sourceType' | 'sourceConfig'>,
+): Record<string, unknown> {
+  const cfg = body.sourceConfig;
+  const keep = (o: Record<string, unknown>) =>
+    Object.fromEntries(
+      Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== ''),
+    );
+
+  switch (body.sourceType) {
+    case 'google-drive':
+      return keep({ rootFolderId: cfg.rootFolderId, nativeFilePolicy: cfg.nativeFilePolicy });
+    case 'dropbox':
+      return keep({ rootPath: cfg.rootPath });
+    case 'box':
+      // The CCG subject is per-mapping by ADR-0033, and the superRefine above
+      // demands it on the reuse path too — without it this override would be
+      // empty and the merge would silently fall back to whoever the shared
+      // connection was created for.
+      return keep({ userId: cfg.userId, rootFolderId: cfg.rootFolderId });
+    case 'gmail':
+    case 'google-calendar':
+    case 'google-contacts':
+      return keep({ user: cfg.username });
+    case 'graph':
+      // The tenant is the app registration's, which the connection holds.
+      return keep({ mailbox: cfg.username });
+    default:
+      // imap and oauth2: the server is the connection's, the mailbox is ours.
+      return keep({ user: cfg.username });
+  }
+}
+
+/** The target half of the same split: the account, never the server. */
+export function targetConfigOverride(
+  body: Pick<z.infer<typeof CreateMappingSchema>, 'targetType' | 'targetConfig'>,
+): Record<string, unknown> {
+  const user = body.targetConfig.username;
+  return user ? { user } : {};
+}
+
+/**
  * The credential record create ENCRYPTS — factored so the connection-test
  * probe (workplan 0046) can run on EXACTLY what would be stored: "test
  * passed, create, first pass fails" must never be caused by the probe testing
@@ -194,7 +256,7 @@ function targetConnectionConfig(
  * the four Google sources carry EXACTLY the keys the STORED_*_NAMES read —
  * the build refuses at build time naming any that are missing.
  */
-function sourceCredentialRecord(
+export function sourceCredentialRecord(
   body: Pick<z.infer<typeof CreateMappingSchema>, 'sourceType' | 'sourceConfig'>,
 ): Record<string, string> {
   if (body.sourceType === 'imap') {
@@ -276,9 +338,21 @@ function getSharedPool() {
  * asserted against — and a schema nothing tests is one careless widening away
  * from accepting `bidirectional` again in silence.
  */
-const CreateMappingBase = z.object({
+/** Exported for the credential-descriptor coverage lock (workplan 0063):
+ *  a form that collects a field this schema has never heard of stores
+ *  nothing, and neither side errors at runtime. */
+export const CreateMappingBase = z.object({
   name: z.string().min(1).max(255),
   sourceType: z.enum(['imap', 'oauth2', 'graph', 'google-drive', 'gmail', 'google-calendar', 'google-contacts', 'dropbox', 'box']),
+  /**
+   * Reuse a connection that already exists instead of creating another
+   * (workplan 0064). When set, the credentials and provider config come from
+   * that row and the matching `sourceConfig`/`targetConfig` credential fields
+   * are no longer demanded — `username` still is, because it names WHICH
+   * mailbox this mapping moves, which a shared connection cannot know.
+   */
+  sourceConnectionId: z.string().uuid().optional(),
+  targetConnectionId: z.string().uuid().optional(),
   targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav']),
   sourceConfig: z.object({
     // host/port belong to an 'imap' source; tenantId/clientId/clientSecret to
@@ -401,13 +475,37 @@ const CreateMappingBase = z.object({
  *    would have done.
  */
 export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => {
+  // Reusing a stored connection means the credentials are already on it and
+  // already proved: demanding them again would make "pick the Box connection
+  // you added last week" impossible without re-pasting its secret, which is
+  // the whole point of reuse (workplan 0064). The DOMAIN coherence checks
+  // below still run — those are about this mapping, not the credential.
+  const reusingSource = Boolean(body.sourceConnectionId);
   // Source-type / credential coherence (0037 T6, owner decision 2026-08-10):
   // an 'imap' source signs in directly and needs a server to sign in TO;
   // 'oauth2' and 'graph' authenticate with the customer's own Entra app
   // registration (client-credentials — ADR-0006's row-14 model), so accepting
   // them without tenantId/clientId/clientSecret would store a connection no
   // sync pass can ever open.
-  if (body.sourceType === 'google-drive') {
+  if (reusingSource) {
+    // No CREDENTIAL to demand — the connection carries those. But the fields
+    // that say WHOSE data this mapping moves are still ours to demand, and a
+    // Box subject is the one with no safe default: with no `userId` the
+    // override is empty, the merge falls back to the connection's stored
+    // subject, and the migration silently reads whoever that connection was
+    // first created for. ADR-0033's one-subject-per-mapping rule is only true
+    // if every mapping states its subject (workplan 0067).
+    if (body.sourceType === 'box' && !body.sourceConfig.userId) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sourceConfig', 'userId'],
+        message:
+          'Reusing a Box connection still needs the NUMERIC Box user id of the account ' +
+          'this migration moves (userId): the connection says which Box app signs in, ' +
+          'not whose files to read. See docs/box-setup.md.',
+      });
+    }
+  } else if (body.sourceType === 'google-drive') {
     // A service-account key selects domain-wide delegation (ADR-0033): the
     // refresh-token trio is not required, but a SUBJECT is — the username
     // names the one account this mapping impersonates.
@@ -960,36 +1058,70 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         }).encrypted,
       );
 
-      const sourceConn = firstOrThrow(
-        await db
-          .insert(schema.connection)
-          .values({
-            tenantId,
-            role: 'source',
-            kind: sourceKindFor(body.sourceType),
-            displayName: `${body.name} (source)`,
-            config: sourceConnectionConfig(body),
-            secretRef: sourceSecret,
-          })
-          .returning({ id: schema.connection.id }),
-        'source connection',
-      );
+      /**
+       * Reuse a stored connection, or make one (workplan 0064).
+       *
+       * Reuse is checked against THIS tenant and the right role before it is
+       * trusted: an id is a client-supplied value, and a mapping pointed at
+       * another tenant's connection would read their mail. A mismatch is a
+       * refusal naming what was wrong, not a silent fall back to creating a
+       * new row — that would quietly store the credentials the caller was
+       * trying not to re-send.
+       */
+      const reuseConnection = async (
+        id: string,
+        role: 'source' | 'target',
+      ): Promise<{ id: string }> => {
+        const rows = await db
+          .select({ id: schema.connection.id, role: schema.connection.role })
+          .from(schema.connection)
+          .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId)));
+        const found = rows[0];
+        if (!found) {
+          throw new ConfigError(`No connection ${id} belongs to this tenant.`);
+        }
+        if (found.role !== role) {
+          throw new ConfigError(
+            `Connection ${id} is a ${found.role}, so it cannot be used as the ${role}.`,
+          );
+        }
+        return { id: found.id };
+      };
 
-      const targetConn = firstOrThrow(
-        await db
-          .insert(schema.connection)
-          .values({
-            tenantId,
-            role: 'target',
-            // targetType values (jmap/imap/caldav/carddav/webdav) are all valid connection kinds.
-            kind: body.targetType,
-            displayName: `${body.name} (target)`,
-            config: targetConnectionConfig(body),
-            secretRef: targetSecret,
-          })
-          .returning({ id: schema.connection.id }),
-        'target connection',
-      );
+      const sourceConn = body.sourceConnectionId
+        ? await reuseConnection(body.sourceConnectionId, 'source')
+        : firstOrThrow(
+            await db
+              .insert(schema.connection)
+              .values({
+                tenantId,
+                role: 'source',
+                kind: sourceKindFor(body.sourceType),
+                displayName: `${body.name} (source)`,
+                config: sourceConnectionConfig(body),
+                secretRef: sourceSecret,
+              })
+              .returning({ id: schema.connection.id }),
+            'source connection',
+          );
+
+      const targetConn = body.targetConnectionId
+        ? await reuseConnection(body.targetConnectionId, 'target')
+        : firstOrThrow(
+            await db
+              .insert(schema.connection)
+              .values({
+                tenantId,
+                role: 'target',
+                // targetType values (jmap/imap/caldav/carddav/webdav) are all valid connection kinds.
+                kind: body.targetType,
+                displayName: `${body.name} (target)`,
+                config: targetConnectionConfig(body),
+                secretRef: targetSecret,
+              })
+              .returning({ id: schema.connection.id }),
+            'target connection',
+          );
 
       const sourceMailbox = firstOrThrow(
         await db
@@ -1029,6 +1161,14 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
             throttleConfig: body.throttleConfig
               ? parseThrottleConfig(body.throttleConfig)
               : null,
+            /**
+             * When a connection is SHARED, this mapping's own answers to
+             * "whose data, and where" (migration 0021). Only recorded when
+             * reusing: a mapping with its own connection already has these on
+             * it, and writing them twice would create two places to disagree.
+             */
+            sourceConfigOverride: body.sourceConnectionId ? sourceConfigOverride(body) : null,
+            targetConfigOverride: body.targetConnectionId ? targetConfigOverride(body) : null,
           })
           .returning(),
         'mapping',

@@ -302,6 +302,8 @@ async function loadDomainConnections(
         sourceMailboxId: mailboxMapping.sourceMailboxId,
         targetMailboxId: mailboxMapping.targetMailboxId,
         targetFolderPrefix: mailboxMapping.targetFolderPrefix,
+        sourceConfigOverride: mailboxMapping.sourceConfigOverride,
+        targetConfigOverride: mailboxMapping.targetConfigOverride,
       })
       .from(mailboxMapping)
       .where(and(eq(mailboxMapping.tenantId, tenantId), eq(mailboxMapping.id, mappingId)));
@@ -338,7 +340,27 @@ async function loadDomainConnections(
       if (!conn) {
         throw new Error(`${role} connection not found for tenant: ${tenantId}`);
       }
-      const config = (conn.config ?? {}) as Record<string, unknown>;
+      /**
+       * The connection's config, with this mapping's own answers merged OVER
+       * it (migration 0021).
+       *
+       * A shared connection says as whom we sign in; the mapping says whose
+       * data and where — a Box subject, a Drive root folder, a Dropbox root
+       * path. Without this merge, reusing a connection silently inherited its
+       * root, so "same account, different folder" needed a duplicate
+       * connection holding the same secret twice.
+       *
+       * Override-over-connection, key by key: an absent key keeps whatever the
+       * connection said, so nothing changes for the mappings that have no
+       * override (every one created before this).
+       */
+      const override = (role === 'source'
+        ? mapping.sourceConfigOverride
+        : mapping.targetConfigOverride) as Record<string, unknown> | null;
+      const config = {
+        ...((conn.config ?? {}) as Record<string, unknown>),
+        ...(override ?? {}),
+      };
       let creds: Record<string, string>;
       if (conn.secretRef) {
         creds = SecretStore.decryptCredentials(conn.secretRef);

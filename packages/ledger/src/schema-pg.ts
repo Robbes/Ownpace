@@ -153,6 +153,16 @@ export const mailboxMapping = pgTable(
     // 2026-08-16). See migration 0011 and MappingConfig.targetFolderPrefix.
     targetFolderPrefix: text('target_folder_prefix'),
     /**
+     * Per-mapping overrides of a SHARED connection's config (migration 0021).
+     *
+     * The connection answers "as whom do we sign in"; the mapping answers
+     * "whose data, and where" — a Box subject, a Drive root folder, a Dropbox
+     * root path. NULL means nothing to override, which is every mapping whose
+     * connection is not shared. Merged override-over-connection at build time.
+     */
+    sourceConfigOverride: jsonb('source_config_override'),
+    targetConfigOverride: jsonb('target_config_override'),
+    /**
      * The mapping's throttle choice (migration 0017) — same shape and same
      * shared parser as the appliance's `throttleConfig`. NULL = no throttling.
      */
@@ -623,6 +633,32 @@ export const applyReceipt = pgTable(
  * owner's decision is never reset to open by looking again. No FK on
  * mappingId, mirroring `item`: the appliance's mappings are config-born.
  */
+/**
+ * Provider setup checklist state (workplan 0061, migration 0020).
+ *
+ * State only — the steps are defined in `@openmig/shared`'s `provider-setup`
+ * and keyed by `stepKey`, so wording and ordering change in code without a
+ * data migration. Per TENANT: a Box app is created once for the organisation,
+ * and the point of persisting this is that a colleague can pick it up.
+ */
+export const setupStep = pgTable(
+  'setup_step',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    side: text('side', { enum: ['source', 'target'] }).notNull(),
+    provider: text('provider').notNull(),
+    stepKey: text('step_key').notNull(),
+    state: text('state', { enum: ['open', 'done', 'skipped'] })
+      .notNull()
+      .default('open'),
+    decidedBy: text('decided_by'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('uk_setup_step_identity').on(t.tenantId, t.side, t.provider, t.stepKey)],
+);
+
 export const shareGrant = pgTable(
   'share_grant',
   {

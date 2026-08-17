@@ -2,7 +2,8 @@
 import React, { useState } from 'react';
 import { useT, useFormatters } from '../i18n';
 import type { StringKey } from '../i18n';
-import { useNavigate } from 'react-router';
+import { useNavigate, Link } from 'react-router';
+import { useQuery } from '@tanstack/react-query';
 import {
   ArrowLeft,
   ArrowRight,
@@ -30,7 +31,12 @@ import {
 // schedules with, so the "next syncs" echo below cannot disagree with what
 // the scheduler will actually do.
 import { Cron } from 'croner';
-import { mappingApi, type TestConnectionResult } from '../services/mapping-service';
+import {
+  connectionsApi,
+  mappingApi,
+  type ConnectionSummary,
+  type TestConnectionResult,
+} from '../services/mapping-service';
 import { serverMessage } from '../services/api';
 import { useMutation } from '@tanstack/react-query';
 
@@ -70,6 +76,9 @@ interface FormData {
   sourceRootPath: string;
   /** Box (workplan 0056): the NUMERIC user id the CCG token reads for. */
   sourceBoxUserId: string;
+  /** Reuse a stored connection instead of re-typing its credentials (0064). */
+  sourceConnectionId: string;
+  targetConnectionId: string;
   targetHost: string;
   targetPort: string;
   targetUsername: string;
@@ -98,6 +107,8 @@ const initialFormData: FormData = {
   sourceRootFolderId: '',
   sourceRootPath: '',
   sourceBoxUserId: '',
+  sourceConnectionId: '',
+  targetConnectionId: '',
   targetHost: '',
   targetPort: '443',
   targetUsername: '',
@@ -107,6 +118,21 @@ const initialFormData: FormData = {
   domains: ['email'],
   schedule: '',
 };
+
+/**
+ * The `connection.kind` a wizard source type stores as — the client half of
+ * the server's `sourceKindFor`, so the picker only offers connections that
+ * would actually work for the selected source.
+ */
+function sourceKindOf(sourceType: string): string {
+  if (sourceType === 'google-drive') return 'google_drive';
+  if (sourceType === 'google-calendar') return 'google_calendar';
+  if (sourceType === 'google-contacts') return 'google_contacts';
+  if (sourceType === 'gmail') return 'gmail';
+  if (sourceType === 'dropbox') return 'dropbox';
+  if (sourceType === 'box') return 'box';
+  return sourceType === 'imap' ? 'imap' : 'o365';
+}
 
 const steps: { id: Step; nameKey: StringKey; icon: React.FC<React.SVGProps<SVGSVGElement>> }[] = [
   { id: 'source', nameKey: 'wizard.step.source', icon: Server },
@@ -142,6 +168,36 @@ const Required: React.FC = () => (
     *
   </span>
 );
+
+/**
+ * "Use one you already have" (workplans 0064, 0067). Renders nothing when
+ * there is nothing to reuse, so a first-time tenant never sees an empty
+ * shortcut. Lives on the step whose credential fields it replaces — see the
+ * comment at its source-step call site for why that placement is the feature.
+ */
+const ConnectionPicker: React.FC<{
+  labelKey: StringKey;
+  options: ConnectionSummary[];
+  value: string;
+  onChange: (id: string) => void;
+}> = ({ labelKey, options, value, onChange }) => {
+  const t = useT();
+  if (options.length === 0) return null;
+  return (
+    <div className="border border-gray-200 rounded-lg p-4 mb-4">
+      <label className="block text-sm font-medium text-gray-700 mb-1">{t(labelKey)}</label>
+      <select className="input w-full" value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">{t('wizard.reuseNone')}</option>
+        {options.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.displayName} ({c.kind})
+          </option>
+        ))}
+      </select>
+      <p className="mt-1 text-sm text-gray-500">{t('wizard.reuse.hint')}</p>
+    </div>
+  );
+};
 
 const CreateMapping: React.FC = () => {
   const t = useT();
@@ -179,6 +235,22 @@ const CreateMapping: React.FC = () => {
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty, createMutation.isSuccess]);
+
+  // What can be reused. Failing to load them must not block the wizard — the
+  // form still works, it just cannot offer the shortcut (workplan 0064).
+  const { data: existingConnections } = useQuery<ConnectionSummary[]>({
+    queryKey: ['connections'],
+    queryFn: connectionsApi.list,
+    retry: false,
+  });
+  const reusableSources = (existingConnections ?? []).filter(
+    (c) => c.role === 'source' && c.kind === sourceKindOf(formData.sourceType),
+  );
+  // Target kinds ARE the wizard's target types (jmap/imap/caldav/carddav/
+  // webdav are all valid connection kinds), so no mapping is needed here.
+  const reusableTargets = (existingConnections ?? []).filter(
+    (c) => c.role === 'target' && c.kind === formData.targetType,
+  );
 
   // The config shapes, shared by submit AND the connection test (workplan
   // 0046) — the probe must run on exactly what create would post, or "test
@@ -260,6 +332,10 @@ const CreateMapping: React.FC = () => {
         name: formData.name,
         sourceType: formData.sourceType,
         targetType: formData.targetType,
+        // Reuse rather than re-create: the server then takes credentials from
+        // the stored connection and demands none here (workplan 0064).
+        ...(formData.sourceConnectionId ? { sourceConnectionId: formData.sourceConnectionId } : {}),
+        ...(formData.targetConnectionId ? { targetConnectionId: formData.targetConnectionId } : {}),
         sourceConfig: builtSourceConfig(),
         targetConfig: builtTargetConfig(),
         syncConfig: {
@@ -443,28 +519,70 @@ const CreateMapping: React.FC = () => {
   // forever on the first screen, with no message, and the wizard could not
   // be completed at all. The username requirement now lives on the step
   // that shows the fields.
+  /**
+   * What the SOURCE step is still missing, by the label it is shown under
+   * (workplan 0067). One function, used by both the gate and the message, for
+   * the reason this defect existed at all: they were two switch statements
+   * that agreed by hand until Box was added to one of them and not the other.
+   *
+   * Box then demanded a Host it never renders — Next disabled forever, with
+   * "Host" named beside it — and Dropbox's message said "Client ID" while its
+   * field is labelled "App key". Deriving both from one list means a provider
+   * can be wrong, but it cannot be *inconsistently* wrong.
+   */
+  const sourceStepMissing = (): string[] => {
+    // A stored connection answers every credential-identifying field on this
+    // step, and the step hides them all. Nothing left to require.
+    if (formData.sourceConnectionId) return [];
+    const out: string[] = [];
+    if (isDropboxSource) {
+      // Labelled as the Dropbox App Console labels it, which is not "Client ID".
+      if (formData.sourceClientId.trim() === '') out.push(t('wizard.dropboxAppKey'));
+    } else if (isBoxSource) {
+      if (formData.sourceClientId.trim() === '') out.push(t('wizard.clientId'));
+      // The CCG subject: without it there is no "whose files" to read.
+      if (formData.sourceBoxUserId.trim() === '') out.push(t('wizard.boxUserId'));
+    } else if (isGoogleSource) {
+      // Either flow (ADR-0033): an OAuth client, or a service-account key.
+      if (
+        formData.sourceClientId.trim() === '' &&
+        formData.sourceServiceAccountKey.trim() === ''
+      )
+        out.push(t('wizard.clientId'));
+    } else if (isO365Source) {
+      if (formData.sourceTenantId.trim() === '') out.push(t('wizard.tenantId'));
+      if (formData.sourceClientId.trim() === '') out.push(t('wizard.clientId'));
+    } else {
+      if (!formData.sourceHost) out.push(t('wizard.host'));
+      if (!isValidPort(formData.sourcePort)) out.push(t('wizard.port'));
+    }
+    return out;
+  };
+
   const canProceed = () => {
     switch (steps[currentStep].id) {
       case 'source':
-        if (isGoogleSource)
-          // Either flow (ADR-0033): an OAuth client, or a service-account key.
-          return (
-            formData.sourceClientId.trim() !== '' ||
-            formData.sourceServiceAccountKey.trim() !== ''
-          );
-        return isO365Source
-          ? formData.sourceTenantId.trim() !== '' && formData.sourceClientId.trim() !== ''
-          : Boolean(formData.sourceHost) && isValidPort(formData.sourcePort);
+        return sourceStepMissing().length === 0;
       case 'target':
-        return Boolean(formData.targetHost) && isValidPort(formData.targetPort);
+        // A reused target connection carries the server; the step then renders
+        // only the folder prefix, which is optional.
+        return (
+          Boolean(formData.targetConnectionId) ||
+          (Boolean(formData.targetHost) && isValidPort(formData.targetPort))
+        );
       case 'credentials':
         return (
           formData.name.trim() !== '' &&
           Boolean(formData.sourceUsername && formData.targetUsername) &&
-          (!isO365Source || formData.sourceClientSecret !== '') &&
-          (!isGoogleSource ||
-            formData.sourceServiceAccountKey.trim() !== '' ||
-            (formData.sourceClientSecret !== '' && formData.sourceRefreshToken !== ''))
+          // The secret demands lift with the inputs: a reused connection
+          // already holds them, and this step no longer renders the fields.
+          // Requiring what is not on screen is how Next ends up disabled
+          // forever with a message naming a field nobody can find.
+          (Boolean(formData.sourceConnectionId) ||
+            ((!isO365Source && !isBoxSource) || formData.sourceClientSecret !== '') &&
+              (!isGoogleSource ||
+                formData.sourceServiceAccountKey.trim() !== '' ||
+                (formData.sourceClientSecret !== '' && formData.sourceRefreshToken !== '')))
         );
       case 'data-types':
         return (
@@ -486,31 +604,26 @@ const CreateMapping: React.FC = () => {
     const out: string[] = [];
     switch (steps[currentStep].id) {
       case 'source':
-        if (isGoogleSource) {
-          if (
-            formData.sourceClientId.trim() === '' &&
-            formData.sourceServiceAccountKey.trim() === ''
-          )
-            out.push(t('wizard.clientId'));
-        } else if (isO365Source) {
-          if (formData.sourceTenantId.trim() === '') out.push(t('wizard.tenantId'));
-          if (formData.sourceClientId.trim() === '') out.push(t('wizard.clientId'));
-        } else {
-          if (!formData.sourceHost) out.push(t('wizard.host'));
-          if (!isValidPort(formData.sourcePort)) out.push(t('wizard.port'));
-        }
+        out.push(...sourceStepMissing());
         break;
       case 'target':
-        if (!formData.targetHost) out.push(t('wizard.host'));
-        if (!isValidPort(formData.targetPort)) out.push(t('wizard.port'));
+        if (!formData.targetConnectionId) {
+          if (!formData.targetHost) out.push(t('wizard.host'));
+          if (!isValidPort(formData.targetPort)) out.push(t('wizard.port'));
+        }
         break;
       case 'credentials':
         if (formData.name.trim() === '') out.push(t('wizard.migrationName'));
         if (!formData.sourceUsername) out.push(t('wizard.sourceUsername'));
-        if (isO365Source && formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
-        if (isGoogleSource && formData.sourceServiceAccountKey.trim() === '') {
-          if (formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
-          if (formData.sourceRefreshToken === '') out.push(t('wizard.refreshToken'));
+        // Named only while the inputs are on screen — a reused connection
+        // removes both the fields and the demand.
+        if (!formData.sourceConnectionId) {
+          if ((isO365Source || isBoxSource) && formData.sourceClientSecret === '')
+            out.push(t('wizard.sourceClientSecret'));
+          if (isGoogleSource && formData.sourceServiceAccountKey.trim() === '') {
+            if (formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
+            if (formData.sourceRefreshToken === '') out.push(t('wizard.refreshToken'));
+          }
         }
         if (!formData.targetUsername) out.push(t('wizard.targetUsername'));
         break;
@@ -703,8 +816,39 @@ const CreateMapping: React.FC = () => {
               )}
             </div>
 
+            {/* The prerequisites as a checklist that REMEMBERS (workplan 0061).
+                The panels above say what to do; this is where it gets ticked
+                off, per tenant, so an interrupted setup can be resumed — and
+                so a colleague can finish what somebody else started. */}
+            <p className="mt-3">
+              <Link
+                to={`/setup/source/${formData.sourceType}`}
+                className="text-sm text-blue-700 hover:underline"
+              >
+                {t('setup.openChecklist')}
+              </Link>
+            </p>
+
+            {/* Reuse instead of re-typing (workplan 0064), offered HERE rather
+                than on the credentials step (workplan 0067). It has to be on
+                the step that gates the fields it replaces: a Box or Microsoft
+                365 source cannot leave this screen without a client id, so a
+                picker that removes the need for one two steps later removes it
+                after the person has already been forced to find it. */}
+            <ConnectionPicker
+              labelKey="wizard.reuseSource"
+              options={reusableSources}
+              value={formData.sourceConnectionId}
+              onChange={(id) => updateField('sourceConnectionId', id)}
+            />
+
             {isDropboxSource ? (
               <div className="space-y-4">
+                {/* Hidden when a stored connection supplies it. What stays
+                    visible below is the per-mapping "where" — a shared
+                    connection knows the account, never which folder THIS
+                    migration is rooted at (`source_config_override`). */}
+                {!formData.sourceConnectionId && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('wizard.dropboxAppKey')}
@@ -718,6 +862,7 @@ const CreateMapping: React.FC = () => {
                     className="input w-full"
                   />
                 </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('wizard.dropboxRootPath')}
@@ -735,6 +880,7 @@ const CreateMapping: React.FC = () => {
               </div>
             ) : isBoxSource ? (
               <div className="space-y-4">
+                {!formData.sourceConnectionId && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('wizard.clientId')}
@@ -748,6 +894,10 @@ const CreateMapping: React.FC = () => {
                     className="input w-full"
                   />
                 </div>
+                )}
+                {/* Stays visible when a connection is reused: the CCG subject
+                    is WHOSE files, which is this mapping's question and not
+                    the connection's (ADR-0033, one subject per mapping). */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('wizard.boxUserId')}
@@ -780,6 +930,10 @@ const CreateMapping: React.FC = () => {
               </div>
             ) : isGmailSource || isGoogleDavSource ? (
               <div className="space-y-4">
+                {/* Nothing per-mapping here — Gmail and the Google DAV pair
+                    are rooted at the account, so a reused connection answers
+                    this whole block and it disappears entirely. */}
+                {!formData.sourceConnectionId && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('wizard.clientId')}
@@ -794,6 +948,8 @@ const CreateMapping: React.FC = () => {
                     placeholder="…apps.googleusercontent.com"
                   />
                 </div>
+                )}
+                {!formData.sourceConnectionId && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('wizard.serviceAccountKey')}
@@ -813,9 +969,11 @@ const CreateMapping: React.FC = () => {
                     {t('wizard.serviceAccountKey.width')}
                   </p>
                 </div>
+                )}
               </div>
             ) : isDriveSource ? (
               <div className="space-y-4">
+                {!formData.sourceConnectionId && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('wizard.clientId')}
@@ -830,6 +988,8 @@ const CreateMapping: React.FC = () => {
                     placeholder="…apps.googleusercontent.com"
                   />
                 </div>
+                )}
+                {/* Stays: which folder THIS migration is rooted at. */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('wizard.rootFolderId')}
@@ -864,6 +1024,10 @@ const CreateMapping: React.FC = () => {
               </div>
             ) : isO365Source ? (
               <div className="space-y-4">
+                {/* The app registration IS the connection — a reused one
+                    answers both, and this mapping's own question (which
+                    mailbox) is the username on the credentials step. */}
+                {!formData.sourceConnectionId && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('wizard.tenantId')}
@@ -878,6 +1042,8 @@ const CreateMapping: React.FC = () => {
                     placeholder="contoso.onmicrosoft.com"
                   />
                 </div>
+                )}
+                {!formData.sourceConnectionId && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('wizard.clientId')}
@@ -892,9 +1058,14 @@ const CreateMapping: React.FC = () => {
                     placeholder="00000000-0000-0000-0000-000000000000"
                   />
                 </div>
+                )}
               </div>
             ) : (
               <div className="space-y-4">
+                {/* Host, port and TLS describe the SERVER, which is what an
+                    IMAP connection holds. The mailbox this mapping moves is
+                    the username, two steps on. */}
+                {!formData.sourceConnectionId && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('wizard.host')}
@@ -909,7 +1080,9 @@ const CreateMapping: React.FC = () => {
                     placeholder="imap.example.com"
                   />
                 </div>
+                )}
 
+                {!formData.sourceConnectionId && (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -941,6 +1114,7 @@ const CreateMapping: React.FC = () => {
                     </label>
                   </div>
                 </div>
+                )}
               </div>
             )}
           </div>
@@ -986,7 +1160,21 @@ const CreateMapping: React.FC = () => {
               </p>
             </div>
 
+            <ConnectionPicker
+              labelKey="wizard.reuseTarget"
+              options={reusableTargets}
+              value={formData.targetConnectionId}
+              onChange={(id) => updateField('targetConnectionId', id)}
+            />
+
             <div className="space-y-4">
+              {/* Host and port describe the SERVER, which is what a target
+                  connection already holds — so a reused one answers them and
+                  re-asking would be asking somebody to confirm a value they
+                  cannot see. The target USERNAME stays on the credentials
+                  step: it names which account this mapping writes to, which a
+                  shared connection cannot know. */}
+              {!formData.targetConnectionId && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {t('wizard.host')}
@@ -1001,7 +1189,9 @@ const CreateMapping: React.FC = () => {
                   placeholder="jmap.example.com"
                 />
               </div>
+              )}
 
+              {!formData.targetConnectionId && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1033,6 +1223,7 @@ const CreateMapping: React.FC = () => {
                   </label>
                 </div>
               </div>
+              )}
 
               {/* The merge-or-subfolder choice (owner decision 2026-08-16),
                   made where the destination is chosen. Empty means MERGE —
@@ -1097,6 +1288,10 @@ const CreateMapping: React.FC = () => {
                   />
                 </div>
 
+                {/* Hidden when a stored connection is supplying the
+                    credentials — anything typed here would be ignored, and a
+                    field that is ignored is worse than one that is absent. */}
+                {!formData.sourceConnectionId && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {/* For oauth2/graph the secret beside the mailbox is the
@@ -1140,7 +1335,9 @@ const CreateMapping: React.FC = () => {
                   </div>
                 </div>
 
-                {isGoogleSource && (
+                )}
+
+                {isGoogleSource && !formData.sourceConnectionId && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       {t('wizard.refreshToken')}
@@ -1284,6 +1481,7 @@ const CreateMapping: React.FC = () => {
                   />
                 </div>
 
+                {!formData.targetConnectionId && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('wizard.targetPassword')}
@@ -1307,6 +1505,7 @@ const CreateMapping: React.FC = () => {
                     </button>
                   </div>
                 </div>
+                )}
               </div>
               {/* What happens to these secrets — a claim the code already
                   makes true (SecretStore.encryptCredentials; GET masks). */}

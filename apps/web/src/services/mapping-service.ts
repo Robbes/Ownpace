@@ -205,6 +205,10 @@ export interface CreateMappingInput {
     | 'box'
     | 'google-contacts';
   targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav';
+  /** Reuse a stored connection instead of creating one (workplan 0064). When
+   *  set, its credentials are used and none need re-sending. */
+  sourceConnectionId?: string;
+  targetConnectionId?: string;
   sourceConfig: {
     /** host/port for an 'imap' source; tenantId/clientId/clientSecret for
      *  'oauth2'/'graph' (the per-customer Entra app registration, 0037 T6);
@@ -513,4 +517,121 @@ export const mappingApi = {
     return response.data;
   },
 
+};
+
+/** One step of a provider setup checklist, with what the owner has said (0061). */
+export interface SetupStepStatusDto {
+  step: {
+    key: string;
+    titleKey: string;
+    detailKey: string;
+    yieldsKey?: string;
+    needsAnotherPerson?: boolean;
+  };
+  state: 'open' | 'done' | 'skipped';
+  decidedBy?: string;
+  decidedAt?: string;
+}
+
+export interface SetupChecklist {
+  side: 'source' | 'target';
+  provider: string;
+  steps: SetupStepStatusDto[];
+  progress: {
+    total: number;
+    done: number;
+    skipped: number;
+    open: number;
+    /** Open steps needing an administrator — why a setup is stuck. */
+    blockedOnOthers: number;
+    complete: boolean;
+  };
+}
+
+export const setupApi = {
+  /**
+   * The platform-side prerequisites for one provider, and how far they have
+   * got. Per tenant, so a colleague sees the same progress — the point of
+   * persisting it at all.
+   */
+  get: async (side: 'source' | 'target', provider: string): Promise<SetupChecklist> => {
+    const response = await apiClient.get(`/setup/${side}/${encodeURIComponent(provider)}`);
+    return response.data as SetupChecklist;
+  },
+  /** Tick, un-tick or skip one step. Answers the refreshed checklist. */
+  setStep: async (
+    side: 'source' | 'target',
+    provider: string,
+    stepKey: string,
+    state: 'open' | 'done' | 'skipped',
+  ): Promise<SetupChecklist> => {
+    const response = await apiClient.put(
+      `/setup/${side}/${encodeURIComponent(provider)}/${encodeURIComponent(stepKey)}`,
+      { state },
+    );
+    return response.data as SetupChecklist;
+  },
+};
+
+/** A stored source or target connection (workplan 0062). Never carries secrets. */
+export interface ConnectionSummary {
+  id: string;
+  role: 'source' | 'target';
+  kind: string;
+  displayName: string;
+  status: 'connected' | 'error' | 'revoked';
+  createdAt: string;
+  /** How many mailboxes depend on it — whether re-testing this matters. */
+  usedByMailboxes: number;
+}
+
+export const connectionsApi = {
+  /**
+   * Add a connection without creating a mapping. Which fields to send comes
+   * from the shared descriptor (`credentialFieldsFor`), so the form and the
+   * server cannot disagree about what a provider needs.
+   */
+  add: async (payload: {
+    role: 'source' | 'target';
+    type: string;
+    displayName: string;
+    values: Record<string, string>;
+  }): Promise<TestConnectionResult & { id: string }> => {
+    const response = await apiClient.post('/connections', payload);
+    return response.data as TestConnectionResult & { id: string };
+  },
+  /**
+   * Replace a connection's credentials in place. Probed first; `rotated:false`
+   * means the probe failed and the OLD credentials were kept.
+   */
+  rotate: async (
+    id: string,
+    values: Record<string, string>,
+  ): Promise<TestConnectionResult & { rotated: boolean }> => {
+    const response = await apiClient.put(
+      `/connections/${encodeURIComponent(id)}/credentials`,
+      { values },
+    );
+    return response.data as TestConnectionResult & { rotated: boolean };
+  },
+  /**
+   * Delete a connection. The server REFUSES while anything uses it, because
+   * mailbox rows cascade and would take the migration ledger with them; the
+   * refusal names which migrations, so it is actionable.
+   */
+  remove: async (id: string): Promise<void> => {
+    await apiClient.delete(`/connections/${encodeURIComponent(id)}`);
+  },
+  list: async (): Promise<ConnectionSummary[]> => {
+    const response = await apiClient.get('/connections');
+    return (response.data as { connections: ConnectionSummary[] }).connections;
+  },
+  /**
+   * Probe a stored connection now, through the same builders a pass uses. A
+   * provider refusal comes back as `{ok:false, reason}` in its own words.
+   */
+  test: async (id: string): Promise<TestConnectionResult> => {
+    const response = await apiClient.post(`/connections/${encodeURIComponent(id)}/test`);
+    return response.data as TestConnectionResult;
+  },
 };

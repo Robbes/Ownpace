@@ -489,6 +489,225 @@ paths:
                   reason: { type: string }
         '400': { description: The three credential fields were not all present. }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/connections:
+    get:
+      tags: [Connections]
+      summary: The tenant's source and target connections
+      description: |
+        Connection rows have existed since the baseline but were never shown:
+        creating a mapping silently inserts two and that was the last anyone
+        heard of them. This lists what exists, what each is for, and how many
+        mailboxes depend on it. Secrets never come back out — names, kinds and
+        states only.
+      responses:
+        '200':
+          description: The connections.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  connections:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        role: { type: string, enum: [source, target] }
+                        kind: { type: string }
+                        displayName: { type: string }
+                        status: { type: string, enum: [connected, error, revoked] }
+                        createdAt: { type: string, format: date-time }
+                        usedByMailboxes:
+                          type: integer
+                          description: How many mailboxes depend on this connection.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Connections]
+      summary: Add a connection on its own, without creating a mapping
+      description: |
+        Which fields a provider needs comes from the shared credential
+        descriptor, so a form and this route cannot disagree about them; the
+        stored config and encrypted credential record are built by the same
+        functions the create-mapping route uses, so what is saved here is what
+        a sync pass reads. Probed before it is stored, and stored either way
+        with the outcome on `status` — a credential that does not work yet is
+        worth keeping (somebody is mid-setup) but must not look healthy.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role, type, displayName, values]
+              properties:
+                role: { type: string, enum: [source, target] }
+                type:
+                  type: string
+                  description: A wizard source or target type, e.g. box or webdav.
+                displayName: { type: string }
+                values:
+                  type: object
+                  additionalProperties: { type: string }
+                  description: Field key to what the person typed. Secrets included; never echoed back.
+      responses:
+        '201':
+          description: Created, with what the probe found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  ok: { type: boolean }
+                  detail: { type: string }
+                  reason: { type: string }
+        '400': { description: Unknown type, a missing required field, or a value the schema refuses. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/connections/{id}:
+    delete:
+      tags: [Connections]
+      summary: Delete a connection nothing depends on
+      description: |
+        REFUSES while any mailbox uses it, naming which migrations. That
+        refusal is the feature: `mailbox.connection_id` cascades on delete and
+        `item` hangs off the mailboxes, so deleting a connection in use would
+        not fail loudly — it would take the mailboxes and the whole migration
+        ledger with it, and the next pass would re-copy everything as though it
+        had never run.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Deleted. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: No such connection for this tenant. }
+        '409':
+          description: Still in use; the reason names how many and which migrations.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /api/connections/{id}/credentials:
+    put:
+      tags: [Connections]
+      summary: Replace a connection's credentials in place
+      description: |
+        Credentials expire — a rotated Box secret, a revoked Google refresh
+        token — and without this the only repair was a new connection and a new
+        mapping, abandoning the ledger history that made the old one useful.
+        The row keeps its id, so every mapping pointing at it keeps working.
+        The new credentials are PROBED BEFORE they replace the old ones, and a
+        failure leaves the old ones in place (`rotated: false`): turning a
+        working connection into a broken one because somebody pasted the wrong
+        value is worse than refusing. The stored config is deliberately not
+        touched — rotation replaces a secret, not where a migration is rooted.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [values]
+              properties:
+                values:
+                  type: object
+                  additionalProperties: { type: string }
+      responses:
+        '200':
+          description: What the probe found, and whether the credentials were replaced.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  detail: { type: string }
+                  reason: { type: string }
+                  rotated:
+                    type: boolean
+                    description: False when the probe failed and the old credentials were kept.
+        '400': { description: A missing required field, or a value the schema refuses. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: No such connection for this tenant. }
+  /api/connections/{id}/test:
+    post:
+      tags: [Connections]
+      summary: Probe a stored connection now
+      description: |
+        Runs the same read-only probe the wizard's Test connections button
+        uses, through the builders a sync pass would use, against the stored
+        credentials — so a credential that has expired says so here instead of
+        in a failing pass. The provider's refusal comes back verbatim, and the
+        outcome is recorded on the connection's status.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: What the provider answered. A refusal is an answer, not an error.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  detail: { type: string }
+                  reason: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: No such connection for this tenant. }
+  /api/setup/{side}/{provider}:
+    get:
+      tags: [Setup]
+      summary: The provider setup checklist and where it has got to
+      description: |
+        What a person must do IN THE PROVIDER before a migration can read
+        anything — create an app, grant scopes, get an administrator to
+        authorise it, obtain a token. Steps are defined in code and keyed by
+        `key`; state lives per tenant. A step nobody has answered has no stored
+        row and reads as `open`, so a step added in a later release is open for
+        everyone with no backfill.
+      parameters:
+        - { name: side, in: path, required: true, schema: { type: string, enum: [source, target] } }
+        - { name: provider, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: The steps, their state, and the progress summary.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SetupChecklist' }
+        '400': { description: 'The path was not /api/setup/{source|target}/{provider}.' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/setup/{side}/{provider}/{stepKey}:
+    put:
+      tags: [Setup]
+      summary: Record what a person decided about one setup step
+      description: |
+        `done` and `skipped` are settled states and record who decided and
+        when; setting a step back to `open` clears that, because an open step
+        is by definition one nobody has answered. Answers the whole refreshed
+        checklist, so the caller never has to re-read it.
+      parameters:
+        - { name: side, in: path, required: true, schema: { type: string, enum: [source, target] } }
+        - { name: provider, in: path, required: true, schema: { type: string } }
+        - { name: stepKey, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [state]
+              properties:
+                state: { type: string, enum: [open, done, skipped] }
+      responses:
+        '200':
+          description: The refreshed checklist.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SetupChecklist' }
+        '400': { description: 'The body was not a { state } object.' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: That step does not belong to this provider and side. }
   /api/migrations/test-connection:
     post:
       tags: [Migrations]
@@ -1675,6 +1894,38 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
 
   schemas:
+    SetupChecklist:
+      type: object
+      properties:
+        side: { type: string, enum: [source, target] }
+        provider: { type: string }
+        steps:
+          type: array
+          items:
+            type: object
+            properties:
+              step:
+                type: object
+                properties:
+                  key: { type: string }
+                  titleKey: { type: string }
+                  detailKey: { type: string }
+                  yieldsKey: { type: string }
+                  needsAnotherPerson: { type: boolean }
+              state: { type: string, enum: [open, done, skipped] }
+              decidedBy: { type: string }
+              decidedAt: { type: string, format: date-time }
+        progress:
+          type: object
+          properties:
+            total: { type: integer }
+            done: { type: integer }
+            skipped: { type: integer }
+            open: { type: integer }
+            blockedOnOthers:
+              type: integer
+              description: Open steps needing an administrator — why a setup is stuck.
+            complete: { type: boolean }
     Error:
       type: object
       description: Every refusal has this shape. `message` is meant to be shown to a person as-is.
