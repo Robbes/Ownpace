@@ -260,4 +260,99 @@ describe('POST /api/migrations — real persistence', () => {
       clientSecret: SECRET_PASSWORD,
     });
   });
+
+  /**
+   * REUSING a stored connection (workplan 0064) through the route that
+   * consumes it — the path that was never tested here, and shipped broken
+   * because of it (workplan 0071 T6).
+   *
+   * The route inserted a fresh `mailbox` row per connection with a hardcoded
+   * `external_id: 'primary'`, against a table declaring
+   * `UNIQUE (connection_id, external_id)`. So the FIRST migration on a stored
+   * connection worked and every later one died on a 23505 that the route
+   * turned into a 500 — the reuse feature failing at the one thing it exists
+   * for. Workplan 0069 made it near-certain to be met, because testing a side
+   * now saves a connection and the wizard holds its id from then on. The owner
+   * hit it on a phone; it reached them as reference `e133a809`.
+   *
+   * The feature had a round-trip test over connection KINDS. Nothing walked it
+   * through create — which is the same shape as every defect workplan 0068
+   * found: the thing worked, and the thing a person would do was untested.
+   */
+  describe('reusing stored connections', () => {
+    const REUSE_TENANT = TENANT_A;
+    let sourceConnectionId: string;
+    let targetConnectionId: string;
+
+    beforeAll(async () => {
+      const conns = await pool.query(
+        `SELECT id, role FROM connection WHERE tenant_id = $1 AND display_name LIKE 'Acme mail migration%'`,
+        [REUSE_TENANT],
+      );
+      sourceConnectionId = conns.rows.find((r) => r.role === 'source')!.id;
+      targetConnectionId = conns.rows.find((r) => r.role === 'target')!.id;
+    });
+
+    /** The wizard's shape when a side reuses a connection: no credentials. */
+    const reuseBody = (name: string, targetFolderPrefix?: string) => ({
+      ...body,
+      name,
+      sourceConnectionId,
+      targetConnectionId,
+      // A reused side collapses its credential inputs, so the username the
+      // wizard posts is ''. That must not rename the stored mailbox.
+      sourceConfig: { ...body.sourceConfig, username: '', password: '' },
+      targetConfig: { ...body.targetConfig, username: '', password: '' },
+      ...(targetFolderPrefix ? { targetFolderPrefix } : {}),
+    });
+
+    it('creates a SECOND migration on the same connections, under a different target folder', async () => {
+      const res = await request
+        .post('/api/migrations')
+        .set('Authorization', `Bearer ${token(REUSE_TENANT)}`)
+        .send(reuseBody('Acme mail migration (archive)', 'Archive'));
+
+      expect(res.status, JSON.stringify(res.body)).toBe(201);
+
+      // ONE mailbox per connection, not one per mapping: the connection is the
+      // account, so the second mapping hangs off the same row.
+      const mailboxes = await pool.query(
+        `SELECT id, primary_address FROM mailbox WHERE connection_id = $1`,
+        [sourceConnectionId],
+      );
+      expect(mailboxes.rows, 'a reused connection must not grow a second mailbox').toHaveLength(1);
+      // ...and the empty username the wizard posts did not blank it.
+      expect(mailboxes.rows[0].primary_address).toBe('src@acme.test');
+    });
+
+    it('REFUSES a second migration that would write to the same place', async () => {
+      // Same pair, same (absent) prefix as the original: every item would be
+      // copied twice into the same destination. Owner decision 2026-08-18 —
+      // something must distinguish them, or it is not allowed.
+      const res = await request
+        .post('/api/migrations')
+        .set('Authorization', `Bearer ${token(REUSE_TENANT)}`)
+        .send(reuseBody('Acme mail migration (duplicate)'));
+
+      // A refusal, NOT a 500 — that distinction is the whole fix.
+      expect(res.status, JSON.stringify(res.body)).toBe(409);
+      expect(res.body.error).toBe('duplicate_mapping');
+      // Named and linkable, so "no" points at the thing already doing it.
+      expect(res.body.existingMappingName).toBe('Acme mail migration');
+      expect(res.body.existingMappingId).toBeTruthy();
+    });
+
+    it('leaves nothing behind when it refuses', async () => {
+      const mappings = await pool.query(
+        `SELECT name FROM mailbox_mapping WHERE tenant_id = $1 ORDER BY name`,
+        [REUSE_TENANT],
+      );
+      // The refused attempt rolled back with the transaction: no half-made
+      // mapping, and no orphan connection or mailbox from its own body.
+      expect(mappings.rows.map((r) => r.name)).toEqual([
+        'Acme mail migration',
+        'Acme mail migration (archive)',
+      ]);
+    });
+  });
 });

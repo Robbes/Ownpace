@@ -148,4 +148,25 @@ export function inUseMigrations(err: unknown): string[] | null {
   return names.length > 0 ? names : null;
 }
 
+/**
+ * The migration a `duplicate_mapping` refusal points at, or null (0071 T6).
+ *
+ * Same split again: the existing migration's name and id are the finding, the
+ * sentence explaining why two of them would double everything on the target is
+ * ours. The id is what makes the refusal a way OUT rather than a wall — the
+ * screen can offer to open the migration that already does this.
+ */
+export function duplicateMapping(err: unknown): { id: string; name: string | null } | null {
+  if (!axios.isAxiosError(err)) return null;
+  const data = err.response?.data as
+    | { error?: unknown; existingMappingId?: unknown; existingMappingName?: unknown }
+    | undefined;
+  if (!data || data.error !== 'duplicate_mapping') return null;
+  if (typeof data.existingMappingId !== 'string' || !data.existingMappingId) return null;
+  return {
+    id: data.existingMappingId,
+    name: typeof data.existingMappingName === 'string' ? data.existingMappingName : null,
+  };
+}
+
 export default apiClient;
