@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useT, useFormatters } from '../i18n';
 import type { StringKey } from '../i18n';
 import { useNavigate, Link } from 'react-router';
+import { useQuery } from '@tanstack/react-query';
 import {
   ArrowLeft,
   ArrowRight,
@@ -30,7 +31,12 @@ import {
 // schedules with, so the "next syncs" echo below cannot disagree with what
 // the scheduler will actually do.
 import { Cron } from 'croner';
-import { mappingApi, type TestConnectionResult } from '../services/mapping-service';
+import {
+  connectionsApi,
+  mappingApi,
+  type ConnectionSummary,
+  type TestConnectionResult,
+} from '../services/mapping-service';
 import { serverMessage } from '../services/api';
 import { useMutation } from '@tanstack/react-query';
 
@@ -70,6 +76,9 @@ interface FormData {
   sourceRootPath: string;
   /** Box (workplan 0056): the NUMERIC user id the CCG token reads for. */
   sourceBoxUserId: string;
+  /** Reuse a stored connection instead of re-typing its credentials (0064). */
+  sourceConnectionId: string;
+  targetConnectionId: string;
   targetHost: string;
   targetPort: string;
   targetUsername: string;
@@ -98,6 +107,8 @@ const initialFormData: FormData = {
   sourceRootFolderId: '',
   sourceRootPath: '',
   sourceBoxUserId: '',
+  sourceConnectionId: '',
+  targetConnectionId: '',
   targetHost: '',
   targetPort: '443',
   targetUsername: '',
@@ -107,6 +118,21 @@ const initialFormData: FormData = {
   domains: ['email'],
   schedule: '',
 };
+
+/**
+ * The `connection.kind` a wizard source type stores as — the client half of
+ * the server's `sourceKindFor`, so the picker only offers connections that
+ * would actually work for the selected source.
+ */
+function sourceKindOf(sourceType: string): string {
+  if (sourceType === 'google-drive') return 'google_drive';
+  if (sourceType === 'google-calendar') return 'google_calendar';
+  if (sourceType === 'google-contacts') return 'google_contacts';
+  if (sourceType === 'gmail') return 'gmail';
+  if (sourceType === 'dropbox') return 'dropbox';
+  if (sourceType === 'box') return 'box';
+  return sourceType === 'imap' ? 'imap' : 'o365';
+}
 
 const steps: { id: Step; nameKey: StringKey; icon: React.FC<React.SVGProps<SVGSVGElement>> }[] = [
   { id: 'source', nameKey: 'wizard.step.source', icon: Server },
@@ -179,6 +205,17 @@ const CreateMapping: React.FC = () => {
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty, createMutation.isSuccess]);
+
+  // What can be reused. Failing to load them must not block the wizard — the
+  // form still works, it just cannot offer the shortcut (workplan 0064).
+  const { data: existingConnections } = useQuery<ConnectionSummary[]>({
+    queryKey: ['connections'],
+    queryFn: connectionsApi.list,
+    retry: false,
+  });
+  const reusableSources = (existingConnections ?? []).filter(
+    (c) => c.role === 'source' && c.kind === sourceKindOf(formData.sourceType),
+  );
 
   // The config shapes, shared by submit AND the connection test (workplan
   // 0046) — the probe must run on exactly what create would post, or "test
@@ -260,6 +297,10 @@ const CreateMapping: React.FC = () => {
         name: formData.name,
         sourceType: formData.sourceType,
         targetType: formData.targetType,
+        // Reuse rather than re-create: the server then takes credentials from
+        // the stored connection and demands none here (workplan 0064).
+        ...(formData.sourceConnectionId ? { sourceConnectionId: formData.sourceConnectionId } : {}),
+        ...(formData.targetConnectionId ? { targetConnectionId: formData.targetConnectionId } : {}),
         sourceConfig: builtSourceConfig(),
         targetConfig: builtTargetConfig(),
         syncConfig: {
@@ -1088,6 +1129,33 @@ const CreateMapping: React.FC = () => {
               <p className="mt-1 text-sm text-gray-500">{t('wizard.migrationNameHint')}</p>
             </div>
 
+            {/* Reuse instead of re-typing (workplan 0064). A connection added
+                on the Connections page — or by an earlier migration — already
+                holds the credentials and has already been probed, so picking
+                one here means never pasting the same client secret twice. The
+                credential fields below disappear when one is chosen, because
+                anything typed there would be ignored. */}
+            {reusableSources.length > 0 && (
+              <div className="border border-gray-200 rounded-lg p-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('wizard.reuseSource')}
+                </label>
+                <select
+                  className="input w-full"
+                  value={formData.sourceConnectionId}
+                  onChange={(e) => updateField('sourceConnectionId', e.target.value)}
+                >
+                  <option value="">{t('wizard.reuseNone')}</option>
+                  {reusableSources.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.displayName} ({c.kind})
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-sm text-gray-500">{t('wizard.reuse.hint')}</p>
+              </div>
+            )}
+
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h4 className="font-medium text-blue-900 mb-2">{t('wizard.credentials')}</h4>
               <div className="space-y-4">
@@ -1110,6 +1178,10 @@ const CreateMapping: React.FC = () => {
                   />
                 </div>
 
+                {/* Hidden when a stored connection is supplying the
+                    credentials — anything typed here would be ignored, and a
+                    field that is ignored is worse than one that is absent. */}
+                {!formData.sourceConnectionId && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {/* For oauth2/graph the secret beside the mailbox is the
@@ -1153,7 +1225,9 @@ const CreateMapping: React.FC = () => {
                   </div>
                 </div>
 
-                {isGoogleSource && (
+                )}
+
+                {isGoogleSource && !formData.sourceConnectionId && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       {t('wizard.refreshToken')}

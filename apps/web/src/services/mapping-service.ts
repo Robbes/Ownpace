@@ -205,6 +205,10 @@ export interface CreateMappingInput {
     | 'box'
     | 'google-contacts';
   targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav';
+  /** Reuse a stored connection instead of creating one (workplan 0064). When
+   *  set, its credentials are used and none need re-sending. */
+  sourceConnectionId?: string;
+  targetConnectionId?: string;
   sourceConfig: {
     /** host/port for an 'imap' source; tenantId/clientId/clientSecret for
      *  'oauth2'/'graph' (the per-customer Entra app registration, 0037 T6);

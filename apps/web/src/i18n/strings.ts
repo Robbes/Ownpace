@@ -745,6 +745,10 @@ const en = {
   'decisionStatus.auto_resolved': 'Decided by preset',
   'decisionStatus.dismissed': 'Dismissed',
   'nav.connections': 'Connections',
+  'wizard.reuseSource': 'Use a connection you already have',
+  'wizard.reuseNone': 'No — enter new credentials below',
+  'wizard.reuse.hint':
+    'Picking one reuses its saved credentials, so you do not paste the same secret twice. The credential fields below disappear when you do.',
   'connections.add': 'Add a connection',
   'connections.addAndTest': 'Add and test',
   'connections.role': 'Is this a source or a target?',
@@ -1579,6 +1583,10 @@ const nl: Record<keyof typeof en, string> = {
   'decisionStatus.auto_resolved': 'Beslist door vast antwoord',
   'decisionStatus.dismissed': 'Terzijde gelegd',
   'nav.connections': 'Verbindingen',
+  'wizard.reuseSource': 'Gebruik een verbinding die u al heeft',
+  'wizard.reuseNone': 'Nee — hieronder nieuwe inloggegevens invoeren',
+  'wizard.reuse.hint':
+    'Als u er een kiest worden de opgeslagen inloggegevens hergebruikt, zodat u hetzelfde geheim niet twee keer plakt. De velden hieronder verdwijnen dan.',
   'connections.add': 'Verbinding toevoegen',
   'connections.addAndTest': 'Toevoegen en testen',
   'connections.role': 'Is dit een bron of een doel?',

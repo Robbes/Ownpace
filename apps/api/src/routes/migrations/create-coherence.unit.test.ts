@@ -436,3 +436,48 @@ describe('a box source (workplan 0056) — the CCG shape: NO refresh token, a nu
     expect(msg).toContain('Box API only');
   });
 });
+
+describe('reusing a stored connection (workplan 0064)', () => {
+  const reused = (over: Record<string, unknown> = {}) =>
+    body({
+      sourceType: 'box',
+      targetType: 'webdav',
+      sourceConnectionId: '11111111-1111-4111-8111-111111111111',
+      sourceConfig: {
+        // Only WHICH mailbox — the credentials live on the connection.
+        username: 'owner@example.nl',
+        ...((over.sourceConfig as Record<string, unknown>) ?? {}),
+      },
+      syncConfig: { domains: ['file'] },
+      ...Object.fromEntries(Object.entries(over).filter(([k]) => k !== 'sourceConfig')),
+    });
+
+  it('accepts a source with NO credentials, because the connection carries them', () => {
+    // The whole point: "pick the Box connection you added last week" must not
+    // require re-pasting its client secret.
+    expect(CreateMappingSchema.safeParse(reused()).success).toBe(true);
+  });
+
+  it('still refuses an incoherent domain — that is about the mapping, not the credential', () => {
+    const msg = refusalText(reused({ syncConfig: { domains: ['file', 'email'] } }));
+    expect(msg).toContain("'email'");
+  });
+
+  it('still demands the credentials when NOT reusing', () => {
+    const msg = refusalText(
+      body({
+        sourceType: 'box',
+        targetType: 'webdav',
+        sourceConfig: { username: 'owner@example.nl' },
+        syncConfig: { domains: ['file'] },
+      }),
+    );
+    expect(msg).toContain('box-setup.md');
+  });
+
+  it('refuses a connection id that is not a uuid rather than looking it up', () => {
+    expect(
+      CreateMappingSchema.safeParse(reused({ sourceConnectionId: 'not-a-uuid' })).success,
+    ).toBe(false);
+  });
+});

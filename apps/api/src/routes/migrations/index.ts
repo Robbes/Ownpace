@@ -282,6 +282,15 @@ function getSharedPool() {
 export const CreateMappingBase = z.object({
   name: z.string().min(1).max(255),
   sourceType: z.enum(['imap', 'oauth2', 'graph', 'google-drive', 'gmail', 'google-calendar', 'google-contacts', 'dropbox', 'box']),
+  /**
+   * Reuse a connection that already exists instead of creating another
+   * (workplan 0064). When set, the credentials and provider config come from
+   * that row and the matching `sourceConfig`/`targetConfig` credential fields
+   * are no longer demanded — `username` still is, because it names WHICH
+   * mailbox this mapping moves, which a shared connection cannot know.
+   */
+  sourceConnectionId: z.string().uuid().optional(),
+  targetConnectionId: z.string().uuid().optional(),
   targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav']),
   sourceConfig: z.object({
     // host/port belong to an 'imap' source; tenantId/clientId/clientSecret to
@@ -404,13 +413,21 @@ export const CreateMappingBase = z.object({
  *    would have done.
  */
 export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => {
+  // Reusing a stored connection means the credentials are already on it and
+  // already proved: demanding them again would make "pick the Box connection
+  // you added last week" impossible without re-pasting its secret, which is
+  // the whole point of reuse (workplan 0064). The DOMAIN coherence checks
+  // below still run — those are about this mapping, not the credential.
+  const reusingSource = Boolean(body.sourceConnectionId);
   // Source-type / credential coherence (0037 T6, owner decision 2026-08-10):
   // an 'imap' source signs in directly and needs a server to sign in TO;
   // 'oauth2' and 'graph' authenticate with the customer's own Entra app
   // registration (client-credentials — ADR-0006's row-14 model), so accepting
   // them without tenantId/clientId/clientSecret would store a connection no
   // sync pass can ever open.
-  if (body.sourceType === 'google-drive') {
+  if (reusingSource) {
+    // Nothing to demand: the connection carries it.
+  } else if (body.sourceType === 'google-drive') {
     // A service-account key selects domain-wide delegation (ADR-0033): the
     // refresh-token trio is not required, but a SUBJECT is — the username
     // names the one account this mapping impersonates.
@@ -963,36 +980,70 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         }).encrypted,
       );
 
-      const sourceConn = firstOrThrow(
-        await db
-          .insert(schema.connection)
-          .values({
-            tenantId,
-            role: 'source',
-            kind: sourceKindFor(body.sourceType),
-            displayName: `${body.name} (source)`,
-            config: sourceConnectionConfig(body),
-            secretRef: sourceSecret,
-          })
-          .returning({ id: schema.connection.id }),
-        'source connection',
-      );
+      /**
+       * Reuse a stored connection, or make one (workplan 0064).
+       *
+       * Reuse is checked against THIS tenant and the right role before it is
+       * trusted: an id is a client-supplied value, and a mapping pointed at
+       * another tenant's connection would read their mail. A mismatch is a
+       * refusal naming what was wrong, not a silent fall back to creating a
+       * new row — that would quietly store the credentials the caller was
+       * trying not to re-send.
+       */
+      const reuseConnection = async (
+        id: string,
+        role: 'source' | 'target',
+      ): Promise<{ id: string }> => {
+        const rows = await db
+          .select({ id: schema.connection.id, role: schema.connection.role })
+          .from(schema.connection)
+          .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId)));
+        const found = rows[0];
+        if (!found) {
+          throw new ConfigError(`No connection ${id} belongs to this tenant.`);
+        }
+        if (found.role !== role) {
+          throw new ConfigError(
+            `Connection ${id} is a ${found.role}, so it cannot be used as the ${role}.`,
+          );
+        }
+        return { id: found.id };
+      };
 
-      const targetConn = firstOrThrow(
-        await db
-          .insert(schema.connection)
-          .values({
-            tenantId,
-            role: 'target',
-            // targetType values (jmap/imap/caldav/carddav/webdav) are all valid connection kinds.
-            kind: body.targetType,
-            displayName: `${body.name} (target)`,
-            config: targetConnectionConfig(body),
-            secretRef: targetSecret,
-          })
-          .returning({ id: schema.connection.id }),
-        'target connection',
-      );
+      const sourceConn = body.sourceConnectionId
+        ? await reuseConnection(body.sourceConnectionId, 'source')
+        : firstOrThrow(
+            await db
+              .insert(schema.connection)
+              .values({
+                tenantId,
+                role: 'source',
+                kind: sourceKindFor(body.sourceType),
+                displayName: `${body.name} (source)`,
+                config: sourceConnectionConfig(body),
+                secretRef: sourceSecret,
+              })
+              .returning({ id: schema.connection.id }),
+            'source connection',
+          );
+
+      const targetConn = body.targetConnectionId
+        ? await reuseConnection(body.targetConnectionId, 'target')
+        : firstOrThrow(
+            await db
+              .insert(schema.connection)
+              .values({
+                tenantId,
+                role: 'target',
+                // targetType values (jmap/imap/caldav/carddav/webdav) are all valid connection kinds.
+                kind: body.targetType,
+                displayName: `${body.name} (target)`,
+                config: targetConnectionConfig(body),
+                secretRef: targetSecret,
+              })
+              .returning({ id: schema.connection.id }),
+            'target connection',
+          );
 
       const sourceMailbox = firstOrThrow(
         await db
