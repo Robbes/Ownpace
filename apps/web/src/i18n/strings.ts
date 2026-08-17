@@ -778,6 +778,14 @@ const en = {
   'connections.setupSteps': 'Setup steps',
   'connections.ok': 'Reached it. The credentials still work.',
   'connections.failed': 'Could not reach it.',
+  // The delete refusal's FRAME (workplan 0071). The migrations it names are
+  // the server's finding and render verbatim; these words are ours, so they
+  // are translated — the owner met the old five-clause English paragraph in a
+  // Dutch UI and asked for both halves of that to change. It still answers
+  // why, what to do first, and where, in two lines instead of five.
+  'connections.inUse.lead': 'Still used by',
+  'connections.inUse.why':
+    'Deleting it would also delete what those migrations have recorded, so remove them under Migrations first.',
   // ---- Provider setup checklist (workplan 0061) ----
   'setup.title': 'What to set up in the provider',
   'setup.intro':
@@ -1645,6 +1653,9 @@ const nl: Record<keyof typeof en, string> = {
   'connections.setupSteps': 'Instelstappen',
   'connections.ok': 'Bereikt. De inloggegevens werken nog.',
   'connections.failed': 'Kon deze niet bereiken.',
+  'connections.inUse.lead': 'Nog in gebruik door',
+  'connections.inUse.why':
+    'Verwijderen wist ook wat die migraties hebben vastgelegd; verwijder ze eerst onder Migraties.',
   // ---- Provider setup checklist (workplan 0061) ----
   'setup.title': 'Wat u instelt bij de aanbieder',
   'setup.intro':

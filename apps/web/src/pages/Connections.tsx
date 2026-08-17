@@ -29,7 +29,42 @@ import {
   type TestConnectionResult,
 } from '../services/mapping-service';
 import { useT, useFormatters, type StringKey } from '../i18n';
-import { serverMessage } from '../services/api';
+import { inUseMigrations, missingCredentialFields, serverMessage } from '../services/api';
+
+/**
+ * A refusal in the reader's own language wherever we authored it (0071).
+ *
+ * A provider's words render verbatim — that is the whole value of a probe
+ * result, and translating it would put a layer between the operator and the
+ * console they must paste it into. But `missing_fields` is OUR refusal about
+ * OUR form, and it arrived as English prose naming storage keys: the owner met
+ * `Still needed: clientId.` in a Dutch UI, beside a form whose matching input
+ * is labelled *App-sleutel*. The keys are the handle; the labels already exist
+ * (the descriptor reuses the wizard's own i18n keys), so this renders the same
+ * sentence the wizard's blocked-Next line renders.
+ */
+const useRefusalText = (fields: ReadonlyArray<{ key: string; labelKey: string }>) => {
+  const t = useT();
+  return (err: unknown): string => {
+    const missing = missingCredentialFields(err);
+    if (missing) {
+      const labels = missing.map((key) => {
+        const field = fields.find((f) => f.key === key);
+        // An unknown key is shown as itself rather than swallowed: a
+        // descriptor and a route that disagree is a bug worth seeing.
+        return field ? t(field.labelKey as StringKey) : key;
+      });
+      return `${t('wizard.missing.lead')} ${labels.join(', ')}`;
+    }
+    const inUse = inUseMigrations(err);
+    if (inUse) {
+      // The names are the server's, the frame is ours (0068 T4's three
+      // questions, in the reader's language and two lines rather than five).
+      return `${t('connections.inUse.lead')} ${inUse.map((n) => `“${n}”`).join(', ')}. ${t('connections.inUse.why')}`;
+    }
+    return serverMessage(err);
+  };
+};
 
 const StatusIcon: React.FC<{ status: ConnectionSummary['status'] }> = ({ status }) => {
   if (status === 'connected') return <CheckCircle2 className="w-4 h-4 text-green-600" />;
@@ -48,13 +83,31 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
   const [rotating, setRotating] = React.useState(false);
   const [newValues, setNewValues] = React.useState<Record<string, string>>({});
 
-  // Only the SECRETS are re-asked. Rotation replaces a credential, not where a
-  // migration is rooted — and re-presenting a root folder id here would invite
-  // somebody to change it while fixing a login.
-  const secretFields = credentialFieldsFor(
+  /**
+   * Every field the rotate ROUTE requires, plus the secrets (workplan 0071).
+   *
+   * This used to be `f.secret || f.key === 'username'`, on the reasoning that
+   * rotation replaces a credential and re-presenting a root folder id would
+   * invite somebody to change where a migration is rooted while fixing a
+   * login. That reasoning is still right, and it is why the non-required
+   * extras stay out — but it silently dropped the required fields that are
+   * not secret, and the route validates EVERY required field. Dropbox's App
+   * key is required and not a secret, so the panel could not supply it and
+   * the refusal read `Still needed: clientId.` — naming a storage key for an
+   * input that was never on screen. Rotation was therefore impossible for
+   * every type except the four Google ones: box, dropbox, graph, oauth2, imap
+   * and EVERY target were all dead ends (the owner found it on Dropbox).
+   *
+   * This is the fourth time a gate has demanded a field its screen does not
+   * render — 0037 T1, 0067 T1, 0067 T2 — so the rule is pinned by a test
+   * across every connectable type rather than restated in a comment.
+   */
+  const allFields = credentialFieldsFor(
     connection.role,
     wizardTypeForConnectionKind(connection.kind),
-  ).filter((f) => f.secret || f.key === 'username');
+  );
+  const rotatableFields = allFields.filter((f) => f.required || f.secret);
+  const refusalText = useRefusalText(allFields);
 
   /** The server decides whether this is allowed; its refusal is the message. */
   const remove = async () => {
@@ -64,7 +117,7 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
       await connectionsApi.remove(connection.id);
       onChanged();
     } catch (err) {
-      setResult({ ok: false, reason: serverMessage(err) });
+      setResult({ ok: false, reason: refusalText(err) });
     } finally {
       setTesting(false);
     }
@@ -82,7 +135,7 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
         onChanged();
       }
     } catch (err) {
-      setResult({ ok: false, reason: serverMessage(err) });
+      setResult({ ok: false, reason: refusalText(err) });
     } finally {
       setTesting(false);
     }
@@ -159,7 +212,7 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
         <div className="mt-3 border-t border-gray-200 pt-3">
           <p className="text-sm text-gray-600">{t('connections.rotate.hint')}</p>
           <div className="mt-2 grid gap-3 sm:grid-cols-2">
-            {secretFields.map((field) => (
+            {rotatableFields.map((field) => (
               <label key={field.key} className="text-sm">
                 <span className="block text-gray-700 mb-1">{t(field.labelKey as StringKey)}</span>
                 <input
@@ -217,6 +270,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   const [result, setResult] = React.useState<TestConnectionResult | null>(null);
 
   const fields = credentialFieldsFor(role, type);
+  const refusalText = useRefusalText(fields);
 
   const submit = async () => {
     setBusy(true);
@@ -228,7 +282,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
       // keeping while somebody chases an administrator.
       onAdded();
     } catch (err) {
-      setResult({ ok: false, reason: serverMessage(err) });
+      setResult({ ok: false, reason: refusalText(err) });
     } finally {
       setBusy(false);
     }

@@ -110,6 +110,35 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
   }
 });
 
+/**
+ * "You still have to fill these in", as DATA rather than a finished sentence
+ * (workplan 0071).
+ *
+ * This used to answer `Still needed: clientId.` — one English string naming
+ * the STORAGE key. Both halves were wrong in front of a Dutch operator: the
+ * sentence never translated, and `clientId` is not what any screen calls that
+ * field (Dropbox's is labelled *App key* / *App-sleutel*). The owner met it
+ * as `Still needed: clientId.` beside a form with no such box.
+ *
+ * `fields` is the fix and `reason` is the fallback. Per the prose boundary
+ * (docs/i18n-prose-boundary.md, class 2) a stable machine handle is what the
+ * client localizes against — it already holds the label for every key through
+ * `credentialFieldsFor`, so it renders the same sentence the wizard shows, in
+ * the operator's own language. The English `reason` stays for API consumers
+ * that have no dictionary, which is the one audience the old string served.
+ */
+export function missingFieldsRefusal(missing: string[]): {
+  error: string;
+  fields: string[];
+  reason: string;
+} {
+  return {
+    error: 'missing_fields',
+    fields: missing,
+    reason: `Still needed: ${missing.join(', ')}.`,
+  };
+}
+
 const AddSchema = z.object({
   role: z.enum(['source', 'target']),
   type: z.string().min(1),
@@ -151,10 +180,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
     }
     const missing = fields.filter((f) => f.required && !values[f.key]?.trim()).map((f) => f.key);
     if (missing.length > 0) {
-      return void res.status(400).json({
-        error: 'missing_fields',
-        reason: `Still needed: ${missing.join(', ')}.`,
-      });
+      return void res.status(400).json(missingFieldsRefusal(missing));
     }
 
     // Through the SAME zod object the create route validates, so a value this
@@ -325,10 +351,7 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
       ? fields.filter((f) => f.required && !parsed.data.values[f.key]?.trim()).map((f) => f.key)
       : [];
     if (missing.length > 0) {
-      return void res.status(400).json({
-        error: 'missing_fields',
-        reason: `Still needed: ${missing.join(', ')}.`,
-      });
+      return void res.status(400).json(missingFieldsRefusal(missing));
     }
 
     const values = parsed.data.values;
@@ -462,15 +485,25 @@ router.delete('/:id', authenticate, async (req: AuthenticatedRequest, res: Respo
         outcome.names.length > 0
           ? outcome.names.map((n) => `“${n}”`).join(', ')
           : `${outcome.used} ${outcome.used === 1 ? 'mailbox' : 'mailboxes'}`;
+      // `migrations` is the finding; the FRAME around it is the client's to
+      // author and translate (workplan 0071, prose boundary class 2). 0068 T4
+      // was right that the refusal must answer why / what first / where, and
+      // wrong about where those words live: as one English string on this
+      // route it reached a Dutch operator untranslated and five clauses long.
+      // The names stay a list rather than a sentence for the same reason the
+      // missing-field keys do — a list can be counted, ordered and localized;
+      // a sentence can only be printed.
       return void res.status(409).json({
         error: 'in_use',
+        migrations: outcome.names,
+        used: outcome.used,
+        // The English fallback for API consumers with no dictionary — the one
+        // audience the old string genuinely served.
         reason:
-          `This connection is still used by ${named}. It is kept rather than deleted ` +
-          `because removing it would also delete everything already recorded about those ` +
-          `migrations — what has been copied, and what has not — and the next run would ` +
-          `start again from nothing. To delete it, first remove ${
+          `This connection is still used by ${named}. Deleting it would also delete ` +
+          `everything those migrations have recorded, so remove ${
             outcome.names.length === 1 ? 'that migration' : 'those migrations'
-          } under Migrations, then come back here.`,
+          } under Migrations first.`,
       });
     }
     res.status(204).end();
