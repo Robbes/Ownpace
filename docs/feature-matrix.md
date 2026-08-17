@@ -207,7 +207,7 @@ These hold across all object types, and are features rather than gaps:
 | JMAP calendar target | 🚫 parked (recurrence round-trip) | workplan 0031 T1 |
 | Drive loose shared *files* (shared folders root a mapping since 0051; shortcuts are refused loudly) | ⛔ not enumerated | Shared content section above; workplan 0051 |
 | Sharing checklist: live Nextcloud OCS proof (digest counts, report section and confirm-once addresses shipped) | ⏳ rides the owner runbook | ADR-0032; workplan 0052 T6 |
-| Whole-tenant Google migration (domain-wide delegation) | ⛔ ADR proposed, awaiting owner decision | ADR-0033 |
+| Whole-tenant Google migration (domain-wide delegation, opt-in) | ⏳ built, awaiting first contact with a real Workspace | ADR-0033; workplan 0053 |
 | Drive incremental delta (`changes.list`) | ⛔ deliberate cost/correctness trade | workplan 0042 T1 |
 | Per-domain throttle limiters (today: one merged limiter per mapping) | ⛔ future work | `DomainConfig.throttleConfig` |
 | Sieve rules, signatures, OOF, ACLs, invitation state, version history | 🚫 out of scope, stated per domain above | this document |

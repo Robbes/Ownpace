@@ -24,6 +24,11 @@
 import type { CalendarSource, ContactSource, TokenProvider } from '@openmig/shared';
 import { CalDAVSource, CarddavSource, GoogleTokenProvider } from '@openmig/connectors';
 import type { GoogleCredentialNaming, GoogleCredentialsAsFound } from './drive-source-factory';
+import {
+  ENV_GOOGLE_DWD_KEY_NAME,
+  STORED_GOOGLE_DWD_KEY_NAME,
+  dwdTokenProviderIfConfigured,
+} from './google-dwd';
 
 /** The scope Google's CalDAV v2 endpoint requires. */
 export const GOOGLE_CALDAV_SCOPE = 'https://www.googleapis.com/auth/calendar';
@@ -56,6 +61,7 @@ export const ENV_GOOGLE_CALENDAR_CREDENTIAL_NAMES: GoogleCredentialNaming = {
   // in both variables — but the config stays explicit about which consent
   // each domain runs on.
   refreshToken: 'GOOGLE_CALENDAR_REFRESH_TOKEN',
+  serviceAccountKey: ENV_GOOGLE_DWD_KEY_NAME,
   where: "the appliance's environment",
 };
 
@@ -64,6 +70,7 @@ export const ENV_GOOGLE_CONTACTS_CREDENTIAL_NAMES: GoogleCredentialNaming = {
   clientId: 'GOOGLE_CLIENT_ID',
   clientSecret: 'GOOGLE_CLIENT_SECRET',
   refreshToken: 'GOOGLE_CONTACTS_REFRESH_TOKEN',
+  serviceAccountKey: ENV_GOOGLE_DWD_KEY_NAME,
   where: "the appliance's environment",
 };
 
@@ -72,6 +79,7 @@ export const STORED_GOOGLE_DAV_CREDENTIAL_NAMES: GoogleCredentialNaming = {
   clientId: 'clientId',
   clientSecret: 'clientSecret',
   refreshToken: 'refreshToken',
+  serviceAccountKey: STORED_GOOGLE_DWD_KEY_NAME,
   where: "the source connection's stored credentials",
 };
 
@@ -132,11 +140,19 @@ export function buildGoogleCalendarDavSourceFrom(
   naming: GoogleCredentialNaming = ENV_GOOGLE_CALENDAR_CREDENTIAL_NAMES,
   makeTokenProvider: GoogleDavTokenProviderFactory = defaultProvider,
 ): CalendarSource {
-  const complete = refuseMissing('Calendar', GOOGLE_CALDAV_SCOPE, user, creds, naming);
+  // A service-account key selects domain-wide delegation (ADR-0033); the
+  // subject is the account whose principal URL the discovery starts from.
+  const dwd = dwdTokenProviderIfConfigured(creds, user, GOOGLE_CALDAV_SCOPE, 'Google Calendar source');
+  const tokenProvider =
+    dwd ??
+    makeTokenProvider(
+      refuseMissing('Calendar', GOOGLE_CALDAV_SCOPE, user, creds, naming),
+      GOOGLE_CALDAV_SCOPE,
+    );
   return new CalDAVSource({
     url: googleCalDavPrincipalUrl(user),
     username: user,
-    tokenProvider: makeTokenProvider(complete, GOOGLE_CALDAV_SCOPE),
+    tokenProvider,
   });
 }
 
@@ -147,10 +163,16 @@ export function buildGoogleContactsDavSourceFrom(
   naming: GoogleCredentialNaming = ENV_GOOGLE_CONTACTS_CREDENTIAL_NAMES,
   makeTokenProvider: GoogleDavTokenProviderFactory = defaultProvider,
 ): ContactSource {
-  const complete = refuseMissing('Contacts', GOOGLE_CARDDAV_SCOPE, user, creds, naming);
+  const dwd = dwdTokenProviderIfConfigured(creds, user, GOOGLE_CARDDAV_SCOPE, 'Google Contacts source');
+  const tokenProvider =
+    dwd ??
+    makeTokenProvider(
+      refuseMissing('Contacts', GOOGLE_CARDDAV_SCOPE, user, creds, naming),
+      GOOGLE_CARDDAV_SCOPE,
+    );
   return new CarddavSource({
     url: googleCardDavPrincipalUrl(user),
     username: user,
-    tokenProvider: makeTokenProvider(complete, GOOGLE_CARDDAV_SCOPE),
+    tokenProvider,
   });
 }

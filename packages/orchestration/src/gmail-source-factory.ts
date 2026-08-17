@@ -31,6 +31,11 @@ import type { MailFolder, MailItem, RawMessage, SourceConnector, SyncCursor, Tok
 import { GoogleTokenProvider } from '@openmig/connectors';
 import { buildImapSourceFrom } from './mail-source-factory';
 import type { GoogleCredentialNaming, GoogleCredentialsAsFound } from './drive-source-factory';
+import {
+  ENV_GOOGLE_DWD_KEY_NAME,
+  STORED_GOOGLE_DWD_KEY_NAME,
+  dwdTokenProviderIfConfigured,
+} from './google-dwd';
 
 /**
  * The one scope Google's IMAP endpoint accepts for XOAUTH2.
@@ -52,6 +57,7 @@ export const ENV_GMAIL_CREDENTIAL_NAMES: GoogleCredentialNaming = {
   // `invalid_scope` at mint time. Two names make "which consent is this"
   // visible in the config instead of discovered in an error.
   refreshToken: 'GOOGLE_MAIL_REFRESH_TOKEN',
+  serviceAccountKey: ENV_GOOGLE_DWD_KEY_NAME,
   where: "the appliance's environment",
 };
 
@@ -60,6 +66,7 @@ export const STORED_GMAIL_CREDENTIAL_NAMES: GoogleCredentialNaming = {
   clientId: 'clientId',
   clientSecret: 'clientSecret',
   refreshToken: 'refreshToken',
+  serviceAccountKey: STORED_GOOGLE_DWD_KEY_NAME,
   where: "the source connection's stored credentials",
 };
 
@@ -145,10 +152,17 @@ export function buildGmailSourceFrom(
   makeTokenProvider: GmailTokenProviderFactory = (c, scope) =>
     new GoogleTokenProvider(c, { scope }),
 ): SourceConnector {
+  // A service-account key selects domain-wide delegation (ADR-0033); the
+  // subject is the mailbox this mapping migrates — the same address XOAUTH2
+  // authenticates as, so the two identities cannot diverge.
+  const dwd = dwdTokenProviderIfConfigured(creds, user, GMAIL_SCOPE, 'Gmail source');
+
   const missing: string[] = [];
-  if (!creds.clientId) missing.push(naming.clientId);
-  if (!creds.clientSecret) missing.push(naming.clientSecret);
-  if (!creds.refreshToken) missing.push(naming.refreshToken);
+  if (!dwd) {
+    if (!creds.clientId) missing.push(naming.clientId);
+    if (!creds.clientSecret) missing.push(naming.clientSecret);
+    if (!creds.refreshToken) missing.push(naming.refreshToken);
+  }
   if (missing.length > 0) {
     throw new Error(
       `Gmail source is missing ${missing.join(', ')} in ${naming.where}. All three are ` +
@@ -164,14 +178,16 @@ export function buildGmailSourceFrom(
     );
   }
 
-  const tokenProvider = makeTokenProvider(
-    {
-      clientId: creds.clientId!,
-      clientSecret: creds.clientSecret!,
-      refreshToken: creds.refreshToken!,
-    },
-    GMAIL_SCOPE,
-  );
+  const tokenProvider =
+    dwd ??
+    makeTokenProvider(
+      {
+        clientId: creds.clientId!,
+        clientSecret: creds.clientSecret!,
+        refreshToken: creds.refreshToken!,
+      },
+      GMAIL_SCOPE,
+    );
 
   return new GmailFolderView(
     buildImapSourceFrom(

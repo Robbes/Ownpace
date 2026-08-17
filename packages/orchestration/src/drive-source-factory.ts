@@ -24,10 +24,16 @@
 
 import type { FileSource, GoogleNativeFilePolicy } from '@openmig/shared';
 import {
+  DRIVE_READONLY_SCOPE,
   GoogleDriveSource,
   createGoogleTokenProvider,
   googleDriveTransport,
 } from '@openmig/connectors';
+import {
+  ENV_GOOGLE_DWD_KEY_NAME,
+  STORED_GOOGLE_DWD_KEY_NAME,
+  dwdTokenProviderIfConfigured,
+} from './google-dwd';
 
 /**
  * Where the Drive is, with no trace of whether a file or a database row said so.
@@ -42,11 +48,15 @@ export interface GoogleDriveEndpoint {
   readonly nativeFilePolicy?: GoogleNativeFilePolicy;
 }
 
-/** The three values Google's refresh grant needs, as the caller found them. */
+/** The credentials as the caller found them — either flow's (ADR-0033). */
 export interface GoogleCredentialsAsFound {
   readonly clientId?: string | undefined;
   readonly clientSecret?: string | undefined;
   readonly refreshToken?: string | undefined;
+  /** A service-account key file selects domain-wide delegation instead. */
+  readonly serviceAccountKey?: string | undefined;
+  /** The impersonated account, for factories that take no user parameter. */
+  readonly subject?: string | undefined;
 }
 
 /**
@@ -60,6 +70,8 @@ export interface GoogleCredentialNaming {
   readonly clientId: string;
   readonly clientSecret: string;
   readonly refreshToken: string;
+  /** The DWD alternative's name (ADR-0033); optional for older callers. */
+  readonly serviceAccountKey?: string;
   /** Where these are configured, completing the sentence "set them in …". */
   readonly where: string;
 }
@@ -69,6 +81,7 @@ export const ENV_GOOGLE_CREDENTIAL_NAMES: GoogleCredentialNaming = {
   clientId: 'GOOGLE_CLIENT_ID',
   clientSecret: 'GOOGLE_CLIENT_SECRET',
   refreshToken: 'GOOGLE_REFRESH_TOKEN',
+  serviceAccountKey: ENV_GOOGLE_DWD_KEY_NAME,
   where: "the appliance's environment",
 };
 
@@ -77,6 +90,7 @@ export const STORED_GOOGLE_CREDENTIAL_NAMES: GoogleCredentialNaming = {
   clientId: 'clientId',
   clientSecret: 'clientSecret',
   refreshToken: 'refreshToken',
+  serviceAccountKey: STORED_GOOGLE_DWD_KEY_NAME,
   where: "the source connection's stored credentials",
 };
 
@@ -93,11 +107,23 @@ export function buildGoogleDriveSourceFrom(
   creds: GoogleCredentialsAsFound,
   naming: GoogleCredentialNaming = ENV_GOOGLE_CREDENTIAL_NAMES,
 ): FileSource {
+  // A service-account key selects domain-wide delegation (ADR-0033): the
+  // subject is the account this mapping migrates, and the refresh-token
+  // refusals below never fire — the two flows need different values.
+  const dwd = dwdTokenProviderIfConfigured(
+    creds,
+    creds.subject,
+    DRIVE_READONLY_SCOPE,
+    'google-drive source',
+  );
+
   // Every missing value at once. Naming them one at a time makes an operator
   // fix, re-run, and be told about the next — three passes to learn one thing.
-  const missing = (['clientId', 'clientSecret', 'refreshToken'] as const)
-    .filter((key) => !creds[key])
-    .map((key) => naming[key]);
+  const missing = dwd
+    ? []
+    : (['clientId', 'clientSecret', 'refreshToken'] as const)
+        .filter((key) => !creds[key])
+        .map((key) => naming[key]);
 
   if (missing.length > 0) {
     throw new Error(
@@ -108,11 +134,13 @@ export function buildGoogleDriveSourceFrom(
     );
   }
 
-  const tokens = createGoogleTokenProvider({
-    clientId: creds.clientId!,
-    clientSecret: creds.clientSecret!,
-    refreshToken: creds.refreshToken!,
-  });
+  const tokens =
+    dwd ??
+    createGoogleTokenProvider({
+      clientId: creds.clientId!,
+      clientSecret: creds.clientSecret!,
+      refreshToken: creds.refreshToken!,
+    });
 
   return new GoogleDriveSource(googleDriveTransport(tokens), {
     // Each omitted rather than defaulted here, so the connector stays the single

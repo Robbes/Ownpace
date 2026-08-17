@@ -11,6 +11,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
+import { generateKeyPairSync } from 'node:crypto';
 import { NativeFileRefused, type DriveFile } from '@openmig/connectors';
 import {
   ENV_GOOGLE_CREDENTIAL_NAMES,
@@ -200,5 +201,80 @@ describe('the shared-with-me folder browse (workplan 0051)', () => {
     // The owner's address is what disambiguates two shares named alike.
     expect(listing).toContain('owners(emailAddress)');
     expect(calls[1]!.headers.Authorization).toBe('Bearer at-1');
+  });
+});
+
+describe('domain-wide delegation (ADR-0033, workplan 0053)', () => {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const SA_KEY = JSON.stringify({
+    type: 'service_account',
+    client_email: 'migrator@project.iam.gserviceaccount.com',
+    private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+  });
+
+  function stubNetworkWithBodies() {
+    const calls: Array<{ url: string; body?: string }> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: { body?: string }) => {
+        calls.push({ url, ...(init?.body !== undefined ? { body: String(init.body) } : {}) });
+        const isToken = url.includes('/token');
+        return {
+          ok: true,
+          status: 200,
+          text: async () =>
+            isToken
+              ? JSON.stringify({ access_token: 'at-dwd', expires_in: 3600, token_type: 'Bearer' })
+              : '',
+          json: async () => ({ files: [] }),
+          arrayBuffer: async () => new ArrayBuffer(0),
+        };
+      }),
+    );
+    return calls;
+  }
+
+  it('a service-account key selects the JWT-bearer grant, impersonating the SUBJECT', async () => {
+    const calls = stubNetworkWithBodies();
+    try {
+      const source = buildGoogleDriveSourceFrom(
+        {},
+        { serviceAccountKey: SA_KEY, subject: 'anna@example.nl' },
+      );
+      await source.listSince({ path: '' });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    const token = calls.find((c) => c.url.includes('/token'))!;
+    expect(token.body).toContain('grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer');
+    const assertion = new URLSearchParams(token.body!).get('assertion')!;
+    const claims = JSON.parse(Buffer.from(assertion.split('.')[1]!, 'base64url').toString());
+    // The credential is domain-wide; the built provider impersonates exactly
+    // this mapping's subject, with the read-only Drive scope (§1).
+    expect(claims.sub).toBe('anna@example.nl');
+    expect(claims.scope).toContain('drive.readonly');
+    // And the minted token is what gets spent on Drive.
+    const drive = calls.find((c) => c.url.includes('googleapis.com/drive'));
+    expect(drive).toBeDefined();
+  });
+
+  it('the refresh-token refusals never fire in DWD mode — the flows need different values', () => {
+    // No clientId/clientSecret/refreshToken, and no refusal about them.
+    expect(() =>
+      buildGoogleDriveSourceFrom({}, { serviceAccountKey: SA_KEY, subject: 'anna@example.nl' }),
+    ).not.toThrow();
+  });
+
+  it('a key without a subject refuses with the one-subject-per-mapping sentence', () => {
+    expect(() => buildGoogleDriveSourceFrom({}, { serviceAccountKey: SA_KEY })).toThrow(
+      /one subject/,
+    );
+  });
+
+  it('a mangled key paste refuses at build time, naming the paste', () => {
+    expect(() =>
+      buildGoogleDriveSourceFrom({}, { serviceAccountKey: 'not json', subject: 'a@b.nl' }),
+    ).toThrow(/WHOLE key file/);
   });
 });
