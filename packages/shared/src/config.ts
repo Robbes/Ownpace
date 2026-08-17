@@ -230,6 +230,24 @@ export interface GoogleContactsSource {
   readonly user: string;
 }
 
+/**
+ * Microsoft OneDrive/SharePoint file source (workplan 0054) — the Graph drive
+ * connector, wired at last. Same Entra registration and flow rules as the
+ * other Graph sources; `mailbox` unset reads the signed-in user's drive
+ * (/me, delegated), an address reads /users/{address}/drive under
+ * application permissions (see docs/o365-application-access.md — reading
+ * another user's OneDrive needs Files.Read.All, the scope workplan 0029
+ * deliberately did NOT consent on the reference tenant; a customer grants it
+ * to their own registration knowingly or reads /me per user).
+ */
+export interface GraphDriveFileSource {
+  readonly type: 'graph-drive';
+  readonly baseUrl?: string;
+  readonly tenantId: string;
+  /** Whose drive, when not the signed-in user's. See GraphCalendarSource.mailbox. */
+  readonly mailbox?: string;
+}
+
 /** Microsoft Graph Calendar source */
 export interface GraphCalendarSource {
   readonly type: 'graph-calendar';
@@ -353,7 +371,7 @@ export interface DomainsConfig {
   files?: DomainConfig;
 }
 
-export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphMailSource | GoogleDriveSource | GmailSource | GoogleCalendarSource | GoogleContactsSource;
+export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphMailSource | GraphDriveFileSource | GoogleDriveSource | GmailSource | GoogleCalendarSource | GoogleContactsSource;
 export type TargetConfig = JmapTarget | ImapDavTarget | CalDAVTarget | CardDAVTarget | WebDAVTarget;
 
 export interface ScheduleConfig {
@@ -712,6 +730,15 @@ function parseSource(obj: Record<string, unknown>): SourceConfig {
   if (type === 'graph-contacts') {
     return {
       type: 'graph-contacts',
+      baseUrl: obj['baseUrl'] as string | undefined,
+      tenantId: reqString(obj, 'tenantId', 'source.tenantId'),
+      // Optional: unset means the signed-in user (/me). See the type's comment.
+      ...(obj['mailbox'] === undefined ? {} : { mailbox: String(obj['mailbox']) }),
+    };
+  }
+  if (type === 'graph-drive') {
+    return {
+      type: 'graph-drive',
       baseUrl: obj['baseUrl'] as string | undefined,
       tenantId: reqString(obj, 'tenantId', 'source.tenantId'),
       // Optional: unset means the signed-in user (/me). See the type's comment.

@@ -51,7 +51,7 @@ Not (yet) migrated:
 
 | | generic CalDAV | Microsoft 365 | Google |
 |---|---|---|---|
-| **Source** | ✅ (`caldav`) | ✅ Graph (`graph-calendar`), incl. a shared mailbox's calendar via `source.mailbox` | ⏳ CalDAV with OAuth (`google-calendar`, workplan 0045) — Stage 6 |
+| **Source** | ✅ (`caldav`) | ⏳ Graph (`graph-calendar`) — WIRED in workplan 0054 (before it, the config parsed but could not build: the connector had no call site); appliance mapping files; shared mailbox via `source.mailbox` | ⏳ CalDAV with OAuth (`google-calendar`, workplan 0045) — Stage 6 |
 | **Target** | ✅ CalDAV only | — | 🚫 never a target |
 
 What migrates: events as **iCal objects**, with recurring series and their exceptions
@@ -76,7 +76,7 @@ Not (yet) migrated:
 
 | | generic CardDAV | Microsoft 365 | Google |
 |---|---|---|---|
-| **Source** | ✅ (`carddav`) | ✅ Graph (`graph-contacts`), incl. shared via `source.mailbox` | ⏳ CardDAV with OAuth (`google-contacts`, workplan 0045) — Stage 6 |
+| **Source** | ✅ (`carddav`) | ⏳ Graph (`graph-contacts`) — wired in workplan 0054, same story as calendars; appliance mapping files; shared via `source.mailbox` | ⏳ CardDAV with OAuth (`google-contacts`, workplan 0045) — Stage 6 |
 | **Target** | ✅ CardDAV | — | 🚫 never a target |
 
 Also a target: **JMAP** (workplan 0031 T2).
@@ -93,10 +93,10 @@ Not (yet) migrated:
 
 ## Files
 
-| | generic WebDAV (Nextcloud, …) | Google Drive |
-|---|---|---|
-| **Source** | ✅ (`webdav`), incl. trash-bin read for deletion evidence | ✅ (`google-drive`, workplan 0042), My Drive, a **shared drive** or a **folder shared with the account** by id — browsable since workplans 0049/0051; bin read for evidence |
-| **Target** | ✅ WebDAV | 🚫 never a target |
+| | generic WebDAV (Nextcloud, …) | Google Drive | Microsoft 365 |
+|---|---|---|---|
+| **Source** | ✅ (`webdav`), incl. trash-bin read for deletion evidence | ✅ (`google-drive`, workplan 0042), My Drive, a **shared drive** or a **folder shared with the account** by id — browsable since workplans 0049/0051; bin read for evidence | ⏳ OneDrive/SharePoint (`graph-drive`, wired in workplan 0054 — the connector existed, delta queries and all, with no call site); appliance mapping files; another user's drive via `mailbox` needs `Files.Read.All` (see the setup doc's consent note) |
+| **Target** | ✅ WebDAV | 🚫 never a target | 🚫 never a target |
 
 Also a target: **JMAP files** (workplan 0031 T3).
 
@@ -207,6 +207,7 @@ These hold across all object types, and are features rather than gaps:
 | JMAP calendar target | 🚫 parked (recurrence round-trip) | workplan 0031 T1 |
 | Drive loose shared *files* (shared folders root a mapping since 0051; shortcuts are refused loudly) | ⛔ not enumerated | Shared content section above; workplan 0051 |
 | Sharing checklist: live Nextcloud OCS proof (digest counts, report section and confirm-once addresses shipped) | ⏳ rides the owner runbook | ADR-0032; workplan 0052 T6 |
+| M365 calendar / contacts / OneDrive sources in the managed WIZARD (today: appliance mapping files only) | ⛔ needs wizard types + connection kinds | workplan 0054 |
 | Whole-tenant Google migration (domain-wide delegation, opt-in) | ⏳ built, awaiting first contact with a real Workspace | ADR-0033; workplan 0053 |
 | Drive incremental delta (`changes.list`) | ⛔ deliberate cost/correctness trade | workplan 0042 T1 |
 | Per-domain throttle limiters (today: one merged limiter per mapping) | ⛔ future work | `DomainConfig.throttleConfig` |

@@ -53,6 +53,12 @@ import {
   buildGoogleCalendarDavSourceFrom,
   buildGoogleContactsDavSourceFrom,
 } from './google-dav-source-factory';
+import {
+  buildGraphCalendarSourceFrom,
+  buildGraphContactsSourceFrom,
+  buildGraphDriveSourceFrom,
+  graphEntraCredsFromEnv,
+} from './graph-domain-source-factory';
 import { withClose, type WithClose } from './deps-lifecycle';
 import {
   buildGraphMailSourceFrom,
@@ -602,7 +608,17 @@ function buildDomainDepsWithLedger(
       // minted from env credentials — so it must not ride the endpoint
       // resolver, which would demand a password Google does not take.
       source =
-        sourceConfig.type === 'google-calendar'
+        sourceConfig.type === 'graph-calendar'
+          ? // The Graph calendar connector, wired at last (workplan 0054):
+            // the same Entra registration graph-mail reads from the
+            // environment; a config that reached the DAV resolver instead
+            // used to throw about a URL it could never have.
+            buildGraphCalendarSourceFrom(
+              sourceConfig,
+              graphEntraCredsFromEnv(),
+              domainThrottleLimiter,
+            )
+          : sourceConfig.type === 'google-calendar'
           ? buildGoogleCalendarDavSourceFrom(
               sourceConfig.user,
               {
@@ -619,7 +635,13 @@ function buildDomainDepsWithLedger(
     case 'contact': {
       // Google Contacts (workplan 0045): CardDAV with OAuth, same argument.
       source =
-        sourceConfig.type === 'google-contacts'
+        sourceConfig.type === 'graph-contacts'
+          ? buildGraphContactsSourceFrom(
+              sourceConfig,
+              graphEntraCredsFromEnv(),
+              domainThrottleLimiter,
+            )
+          : sourceConfig.type === 'google-contacts'
           ? buildGoogleContactsDavSourceFrom(
               sourceConfig.user,
               {
@@ -650,7 +672,15 @@ function buildDomainDepsWithLedger(
       // come from the environment, named the way an appliance operator sets
       // them; the refusal for a missing one lives in the shared factory.
       source =
-        sourceConfig.type === 'google-drive'
+        sourceConfig.type === 'graph-drive'
+          ? // OneDrive/SharePoint (workplan 0054): the orphaned connector's
+            // first production call site.
+            buildGraphDriveSourceFrom(
+              sourceConfig,
+              graphEntraCredsFromEnv(),
+              domainThrottleLimiter,
+            )
+          : sourceConfig.type === 'google-drive'
           ? buildGoogleDriveSourceFrom(
               sourceConfig,
               {

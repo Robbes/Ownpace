@@ -64,6 +64,9 @@ export * from './graph-calendar-source.types';
 // Graph Contacts source connector
 export * from './graph-contacts-source';
 export * from './graph-contacts-source.types';
+// OneDrive/SharePoint (workplan 0054) — unexported until its first caller.
+export * from './graph-drive-source';
+export * from './graph-drive-source.types';
 
 export * from './graph-mail-source';
 export * from './graph-mail-source.types';
