@@ -16,7 +16,7 @@
  * throws in croner at scheduler registration.
  */
 import { describe, it, expect } from 'vitest';
-import { CreateMappingSchema } from './index';
+import { CreateMappingSchema, sourceConfigOverride } from './index';
 
 function body(over: Record<string, unknown> = {}) {
   return {
@@ -444,8 +444,10 @@ describe('reusing a stored connection (workplan 0064)', () => {
       targetType: 'webdav',
       sourceConnectionId: '11111111-1111-4111-8111-111111111111',
       sourceConfig: {
-        // Only WHICH mailbox — the credentials live on the connection.
+        // Only WHICH mailbox and WHOSE files — the credentials live on the
+        // connection, but the Box subject never can (workplan 0067).
         username: 'owner@example.nl',
+        userId: '12345678',
         ...((over.sourceConfig as Record<string, unknown>) ?? {}),
       },
       syncConfig: { domains: ['file'] },
@@ -479,5 +481,91 @@ describe('reusing a stored connection (workplan 0064)', () => {
     expect(
       CreateMappingSchema.safeParse(reused({ sourceConnectionId: 'not-a-uuid' })).success,
     ).toBe(false);
+  });
+
+  it('still demands the Box subject, which no connection can supply (0067)', () => {
+    // Reuse drops the CREDENTIAL demands. It must not drop this one: with no
+    // userId the override is empty, the merge falls back to the connection's
+    // stored subject, and the migration reads whoever that connection was
+    // first created for — silently, and with a green light.
+    const msg = refusalText(reused({ sourceConfig: { userId: undefined } }));
+    expect(msg).toContain('userId');
+    expect(msg).toContain('not whose files to read');
+  });
+});
+
+describe('what a reused connection lets a mapping override (workplan 0067)', () => {
+  it('keeps only the per-mapping keys, never the server or the tenant', () => {
+    // The bug this prevents: the override used to be the FULL connection
+    // config, so once the wizard stopped asking for host/port on the reuse
+    // path, `host: undefined` would be written over the connection's real
+    // host by the key-by-key merge in loadDomainConnections.
+    expect(
+      sourceConfigOverride({
+        sourceType: 'imap',
+        sourceConfig: { username: 'anna@acme.example' } as never,
+      }),
+    ).toEqual({ user: 'anna@acme.example' });
+
+    expect(
+      sourceConfigOverride({
+        sourceType: 'graph',
+        sourceConfig: { username: 'anna@acme.example', tenantId: 'acme.onmicrosoft.com' } as never,
+      }),
+    ).toEqual({ mailbox: 'anna@acme.example' });
+
+    expect(
+      sourceConfigOverride({
+        sourceType: 'box',
+        sourceConfig: { userId: '12345678', clientId: 'id', clientSecret: 'shh' } as never,
+      }),
+    ).toEqual({ userId: '12345678' });
+  });
+
+  it('drops empty values, so a blank field means inherit and never blank-it', () => {
+    expect(
+      sourceConfigOverride({
+        sourceType: 'google-drive',
+        sourceConfig: { rootFolderId: '' } as never,
+      }),
+    ).toEqual({});
+    expect(
+      sourceConfigOverride({
+        sourceType: 'dropbox',
+        sourceConfig: { rootPath: '/Team' } as never,
+      }),
+    ).toEqual({ rootPath: '/Team' });
+  });
+
+  it('never carries a credential into the mapping row', () => {
+    // Overrides are plaintext JSONB on mailbox_mapping. A secret reaching one
+    // would be a secret stored unencrypted, so this asserts the shape rather
+    // than trusting the switch above to keep omitting them.
+    const secrets = ['clientSecret', 'refreshToken', 'serviceAccountKey', 'password'];
+    for (const sourceType of [
+      'imap',
+      'oauth2',
+      'graph',
+      'google-drive',
+      'gmail',
+      'google-calendar',
+      'google-contacts',
+      'dropbox',
+      'box',
+    ] as const) {
+      const out = sourceConfigOverride({
+        sourceType,
+        sourceConfig: {
+          username: 'anna@acme.example',
+          userId: '1',
+          clientId: 'id',
+          clientSecret: 'shh',
+          refreshToken: '1//tok',
+          serviceAccountKey: '{"private_key":"x"}',
+          password: 'hunter2',
+        } as never,
+      });
+      for (const s of secrets) expect(Object.keys(out)).not.toContain(s);
+    }
   });
 });

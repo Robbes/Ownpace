@@ -183,6 +183,68 @@ export function targetConnectionConfig(
 }
 
 /**
+ * What a mapping overrides on a SHARED connection — only the keys that are
+ * this mapping's to answer (workplan 0067, closing 0066 T4d).
+ *
+ * The split is the one migration 0021 encodes: a connection answers *as whom
+ * do we sign in*, a mapping answers *whose data, and where*. `rootFolderId`,
+ * `rootPath`, the Box subject and the per-mapping user/mailbox belong to the
+ * mapping; the host, port, TLS, tenant and every credential belong to the
+ * connection.
+ *
+ * This started as `sourceConnectionConfig(body)` reused wholesale, recorded as
+ * "harmless, a narrower projection would be tidier". It stopped being harmless
+ * the moment the wizard stopped ASKING for the connection-level fields when
+ * reusing: the full shape would then write `host: undefined` into the override
+ * and the key-by-key merge in `loadDomainConnections` would apply it OVER the
+ * connection's real host. Storing more than you need is only free while
+ * everything keeps filling it in.
+ *
+ * Undefined values are dropped, so a field the operator left blank means
+ * "inherit", never "blank it".
+ */
+export function sourceConfigOverride(
+  body: Pick<z.infer<typeof CreateMappingSchema>, 'sourceType' | 'sourceConfig'>,
+): Record<string, unknown> {
+  const cfg = body.sourceConfig;
+  const keep = (o: Record<string, unknown>) =>
+    Object.fromEntries(
+      Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== ''),
+    );
+
+  switch (body.sourceType) {
+    case 'google-drive':
+      return keep({ rootFolderId: cfg.rootFolderId, nativeFilePolicy: cfg.nativeFilePolicy });
+    case 'dropbox':
+      return keep({ rootPath: cfg.rootPath });
+    case 'box':
+      // The CCG subject is per-mapping by ADR-0033, and the superRefine above
+      // demands it on the reuse path too — without it this override would be
+      // empty and the merge would silently fall back to whoever the shared
+      // connection was created for.
+      return keep({ userId: cfg.userId, rootFolderId: cfg.rootFolderId });
+    case 'gmail':
+    case 'google-calendar':
+    case 'google-contacts':
+      return keep({ user: cfg.username });
+    case 'graph':
+      // The tenant is the app registration's, which the connection holds.
+      return keep({ mailbox: cfg.username });
+    default:
+      // imap and oauth2: the server is the connection's, the mailbox is ours.
+      return keep({ user: cfg.username });
+  }
+}
+
+/** The target half of the same split: the account, never the server. */
+export function targetConfigOverride(
+  body: Pick<z.infer<typeof CreateMappingSchema>, 'targetType' | 'targetConfig'>,
+): Record<string, unknown> {
+  const user = body.targetConfig.username;
+  return user ? { user } : {};
+}
+
+/**
  * The credential record create ENCRYPTS — factored so the connection-test
  * probe (workplan 0046) can run on EXACTLY what would be stored: "test
  * passed, create, first pass fails" must never be caused by the probe testing
@@ -426,7 +488,23 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
   // them without tenantId/clientId/clientSecret would store a connection no
   // sync pass can ever open.
   if (reusingSource) {
-    // Nothing to demand: the connection carries it.
+    // No CREDENTIAL to demand — the connection carries those. But the fields
+    // that say WHOSE data this mapping moves are still ours to demand, and a
+    // Box subject is the one with no safe default: with no `userId` the
+    // override is empty, the merge falls back to the connection's stored
+    // subject, and the migration silently reads whoever that connection was
+    // first created for. ADR-0033's one-subject-per-mapping rule is only true
+    // if every mapping states its subject (workplan 0067).
+    if (body.sourceType === 'box' && !body.sourceConfig.userId) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sourceConfig', 'userId'],
+        message:
+          'Reusing a Box connection still needs the NUMERIC Box user id of the account ' +
+          'this migration moves (userId): the connection says which Box app signs in, ' +
+          'not whose files to read. See docs/box-setup.md.',
+      });
+    }
   } else if (body.sourceType === 'google-drive') {
     // A service-account key selects domain-wide delegation (ADR-0033): the
     // refresh-token trio is not required, but a SUBJECT is — the username
@@ -1089,12 +1167,8 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
              * reusing: a mapping with its own connection already has these on
              * it, and writing them twice would create two places to disagree.
              */
-            sourceConfigOverride: body.sourceConnectionId
-              ? sourceConnectionConfig(body)
-              : null,
-            targetConfigOverride: body.targetConnectionId
-              ? targetConnectionConfig(body)
-              : null,
+            sourceConfigOverride: body.sourceConnectionId ? sourceConfigOverride(body) : null,
+            targetConfigOverride: body.targetConnectionId ? targetConfigOverride(body) : null,
           })
           .returning(),
         'mapping',
