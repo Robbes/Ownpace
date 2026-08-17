@@ -257,7 +257,64 @@ export interface FileSource {
    * differs by a leading slash or a `rootPath` prefix hashes to something no row
    * has, and the result is not an error but SILENCE.
    */
-  listTrashedPaths?(): Promise<ReadonlyArray<string>>;
+  listTrashedPaths?(): Promise<TrashListing>;
+}
+
+/**
+ * What a bin read found, and what it could not read — the two being different
+ * answers rather than one short list.
+ *
+ * A bin entry that cannot be turned into a natural key is skipped either way,
+ * because there is nothing to hash. The question this type exists to answer is
+ * whether that skip is worth telling anyone about, and the mail connector
+ * settled it first: it drops a binned message with no Message-ID and says so
+ * in `reconcile.ts` — *"Nothing is lost by skipping it: those items are counted
+ * as `unkeyable` wherever they are listed in scope."* The silence is earned by
+ * the second half. Skipping is honest exactly when the same object is already
+ * accounted for somewhere the owner looks.
+ *
+ * Two kinds of skip come out of that test differently, and only one belongs in
+ * `unnameable`:
+ *
+ *  - **Out of scope** — the entry's original location is not under this
+ *    migration's root (a Drive parent chain that tops out elsewhere, a Box
+ *    ancestor chain that never passes the configured folder, a WebDAV location
+ *    outside `rootPath`). NOT counted, and not a blind spot: an item outside
+ *    the root was never copied, so no ledger row and no target copy exist to
+ *    reconcile. `resolveDiscardedItems` re-checks this against the ledger
+ *    anyway (`if (!row) continue`), so an over-broad bin listing is harmless
+ *    and a connector-side scope filter can only ever lose true positives.
+ *  - **Unnameable** — the entry probably WAS in scope and we cannot say where
+ *    it lived: a Box item with no `path_collection`, a Drive item whose
+ *    ancestor was permanently deleted, an unparseable WebDAV location. Nothing
+ *    counts these anywhere, so they fail the mail test. Their cost is precise:
+ *    the deletion still surfaces by absence-counting, but its evidence
+ *    degrades from `trashed` to `inferred`, and ADR-0024 gate 3 then withholds
+ *    the apply action — the owner sees a deletion they cannot action and no
+ *    reason why. That is what this count exists to explain.
+ */
+export interface TrashListing {
+  /** Root-relative original paths, in `FileItem.path` form. */
+  readonly paths: ReadonlyArray<string>;
+  /**
+   * Entries that WERE possibly in scope and could not be named. Required, not
+   * optional: a connector that has thought about its bin should state zero
+   * rather than leave the question unanswered.
+   */
+  readonly unnameable: number;
+  /** Why, in the source's own terms. Shown verbatim; set only when `unnameable > 0`. */
+  readonly reason?: string;
+}
+
+/**
+ * The same answer once the paths have become natural keys — what the sync loop
+ * consumes. See {@link TrashListing} for what `unnameable` does and does not
+ * count.
+ */
+export interface DiscardedListing {
+  readonly keys: ReadonlyArray<string>;
+  readonly unnameable: number;
+  readonly reason?: string;
 }
 
 /**

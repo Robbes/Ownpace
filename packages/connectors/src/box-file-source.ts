@@ -18,7 +18,8 @@
  *    — the same bin read Drive, Dropbox and Nextcloud have, and the reason a
  *    Box deletion can be APPLIED rather than only reported (ADR-0024 gate 3
  *    refuses `inferred` however many passes it survives). Absence-counting
- *    still covers what the bin cannot say.
+ *    still covers what the bin cannot say, and what the bin could not NAME
+ *    is counted rather than dropped — see `TrashListing`.
  *  - **The path is the natural key**, DERIVED root-relative by the folder
  *    walk (a Box item has no path of its own), composed by one function for
  *    listings and keys both. `sourceRef` is Box's own `id` — stable across
@@ -32,8 +33,15 @@
  * bytes on any target this product writes.
  */
 
-import { log } from '@openmig/shared';
-import type { FileFolder, FileItem, FileSource, RawFileItem, SyncCursor, TokenProvider } from '@openmig/shared';
+import type {
+  FileFolder,
+  FileItem,
+  FileSource,
+  RawFileItem,
+  SyncCursor,
+  TokenProvider,
+  TrashListing,
+} from '@openmig/shared';
 import type { BoxFileSourceConfig, BoxItem, BoxItemList, BoxTransport } from './box-file-source.types';
 
 const DEFAULT_BASE = 'https://api.box.com/2.0';
@@ -155,45 +163,44 @@ export class BoxFileSource implements FileSource {
    * holds resolves to nothing downstream, exactly like Dropbox's folder
    * tombstones.
    *
-   * TWO HONEST LIMITS, neither of them silent:
-   *
-   *  - An entry whose ancestor chain does not pass through the configured
-   *    root was never inside this migration's scope, and one whose chain is
-   *    missing has no nameable path; both are skipped per item, so one
-   *    unresolvable entry cannot silence the bin.
-   *  - If the trash held entries and NOT ONE resolved, that is not an empty
-   *    bin — it is this read not working (the shape of `path_collection` on a
-   *    trashed item is the one thing here no test can prove, only a real
-   *    tenant can). Nextcloud's rule applies: failing to read a bin that
-   *    exists is different from there being none, and only the second is
-   *    silent. So that case warns and the domain stays on absence-counting,
-   *    rather than reporting "nothing was deleted".
+   * TWO KINDS OF SKIP, reported differently on purpose (see `TrashListing`):
+   * an entry whose ancestor chain never passes the configured root was not in
+   * this migration and is skipped silently, while an entry Box gave no usable
+   * chain for probably WAS in scope and is counted as `unnameable` — those
+   * deletions fall back to absence-counting, which costs the owner the apply
+   * action, and a count is what lets anyone say why.
    *
    * Descendants of a trashed FOLDER may not be listed individually by Box
    * (unlike Drive, which marks every descendant trashed). Where they are not,
    * those files stay on absence-counting — this read never claims to cover
    * what it did not see.
    */
-  async listTrashedPaths(): Promise<ReadonlyArray<string>> {
+  async listTrashedPaths(): Promise<TrashListing> {
     const entries = await this.listTrashItems();
-    if (entries.length === 0) return [];
+    if (entries.length === 0) return { paths: [], unnameable: 0 };
 
     const out = new Set<string>();
+    let unnameable = 0;
     for (const entry of entries) {
-      const path = this.originalPathOf(entry);
-      if (path !== undefined) out.add(path);
+      const resolved = this.originalPathOf(entry);
+      if (resolved.path !== undefined) out.add(resolved.path);
+      else if (resolved.why === 'unnameable') unnameable += 1;
     }
 
-    if (out.size === 0) {
-      log.warn(
-        `[box] the trash listed ${entries.length} item(s) and none could be placed under the ` +
-          `configured root (folder id "${this.rootFolderId}"). Either everything in the bin is ` +
-          'out of this migration\'s scope, or Box did not answer path_collection with the ' +
-          'original ancestors for trashed items — in which case Box deletions stay on ' +
-          'absence-counting (inferred) and cannot be applied. Not reporting an empty bin.',
-      );
-    }
-    return [...out];
+    return {
+      paths: [...out],
+      unnameable,
+      ...(unnameable > 0
+        ? {
+            reason:
+              `Box listed ${unnameable} trashed item(s) without a usable path_collection, so ` +
+              'where they used to live cannot be named. If this is EVERY item in the bin, Box ' +
+              'is answering the ancestor chain for trashed items differently than this read ' +
+              'expects — either way those deletions stay on absence-counting and cannot be ' +
+              'applied.',
+          }
+        : {}),
+    };
   }
 
   /** The trash, marker-paged, asking for the ancestor chain up front. */
@@ -220,18 +227,25 @@ export class BoxFileSource implements FileSource {
   }
 
   /**
-   * The path an item HAD, from the ancestor chain the listing carried.
-   * `undefined` = out of this migration's scope, or unnameable.
+   * The path an item HAD, from the ancestor chain the listing carried — and
+   * when there is none, WHICH kind of nothing it is. The two are different
+   * answers: `out_of_scope` is arithmetic (the item was never in this
+   * migration), `unnameable` is a blind spot worth counting.
    */
-  private originalPathOf(entry: BoxItem): string | undefined {
+  private originalPathOf(entry: BoxItem): {
+    path?: string;
+    why?: 'out_of_scope' | 'unnameable';
+  } {
     const chain = entry.path_collection?.entries;
-    if (!chain || chain.length === 0) return undefined;
+    // Box answered no ancestors at all: this item may well have been in scope
+    // and there is no way to say where it lived.
+    if (!chain || chain.length === 0) return { why: 'unnameable' };
     // The chain runs root-first. Everything BELOW the configured root is the
     // path; a chain that never passes through it was never ours to report.
     const rootAt = chain.findIndex((ancestor) => ancestor.id === this.rootFolderId);
-    if (rootAt === -1) return undefined;
+    if (rootAt === -1) return { why: 'out_of_scope' };
     const segments = chain.slice(rootAt + 1).map((ancestor) => ancestor.name);
-    return this.childPath(segments.join('/'), entry.name);
+    return { path: this.childPath(segments.join('/'), entry.name) };
   }
 
   /**

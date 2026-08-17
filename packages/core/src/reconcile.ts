@@ -127,7 +127,15 @@ export const runShadowPass: RunShadowPass = async (deps) => {
         // retire messages nobody had looked at.
         if (cursors) await cursors.set(tenantId, mappingId, scanKey, nextCursor);
       }
-      return keys;
+      // `unnameable: 0` is a claim, not a default, and mail can make it: a
+      // message with no Message-ID could never be KEYED, so it was never
+      // copied either — there is no target copy for a deletion to act on, and
+      // the item is already counted as `unkeyable` where it was listed in
+      // scope. That is the test `TrashListing` states, and this is the case
+      // that passes it. The file sources cannot say the same: a binned file
+      // had a perfectly good path when it was copied, so an entry they cannot
+      // name is a capability lost, not an item that was never there.
+      return { keys, unnameable: 0 };
     },
     fetchRaw: async (item) => {
       const raw = await source.fetch(item);

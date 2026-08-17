@@ -25,7 +25,7 @@ import {
   type MappingId,
   DEFAULT_CONCURRENCY,
 } from '@openmig/shared';
-import { log, isLevelEnabled, type PassMetrics } from '@openmig/shared';
+import { log, isLevelEnabled, type DiscardedListing, type PassMetrics } from '@openmig/shared';
 
 export type { PassMetrics };
 
@@ -456,7 +456,7 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    * Absent means the domain has no readable bin, which is a "not measured" and
    * never a "nothing was deleted".
    */
-  readonly listDiscardedKeys?: () => Promise<ReadonlyArray<string>>;
+  readonly listDiscardedKeys?: () => Promise<DiscardedListing>;
   /**
    * Derive the natural-key hash once the raw item is in hand. Required if
    * `naturalKey` can return undefined.
@@ -484,6 +484,22 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
 
 /** Summary of a domain sync pass. */
 export interface DomainSyncResult {
+  /**
+   * Bin entries the source could not turn into a natural key, with the
+   * source's own explanation.
+   *
+   * Reported for the reason `excludedCollections` is: quietly losing a
+   * capability is the same class of failure as quietly using one. These
+   * deletions ARE still found by absence-counting, so nothing goes unnoticed —
+   * but their evidence is `inferred` rather than `trashed`, and ADR-0024
+   * gate 3 refuses to apply that, so the owner meets a deletion whose apply
+   * action is missing. This is the only thing that can tell them why.
+   *
+   * NOT counted here: bin entries whose original location is outside the
+   * migration's root. Those were never copied, so no target copy exists to
+   * reconcile — see `TrashListing`. Absent when the pass had none.
+   */
+  readonly unplaceableDiscards?: { readonly count: number; readonly reason?: string };
   readonly scanned: number;
   readonly created: number;
   /** Not created because OUR LEDGER already had the item. */
@@ -660,6 +676,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   const moves: ItemMove[] = [];
   const deletions: ItemDeletion[] = [];
   let drift = 0;
+  /** Bin entries the source could not name — see `DomainSyncResult`. */
+  let unplaceableDiscards: { count: number; reason?: string } | undefined;
   /**
    * Source refs the server said are gone, gathered across every folder.
    *
@@ -1292,7 +1310,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   // What the owner threw away. Read from collections this pass deliberately did
   // NOT copy — which is what makes them readable as a signal at all.
   if (listDiscardedKeys) {
-    let discarded: ReadonlyArray<string> | undefined;
+    let discarded: DiscardedListing | undefined;
     try {
       discarded = await listDiscardedKeys();
     } catch (err) {
@@ -1304,14 +1322,31 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           `be reported from them this pass: ${(err as Error)?.message ?? String(err)}`,
       );
     }
-    if (discarded && discarded.length > 0) {
+    // Entries the bin held and the source could not NAME. Their deletions are
+    // still detected by absence-counting, but the evidence drops from
+    // `trashed` to `inferred`, and gate 3 then withholds the apply action —
+    // so an owner sees a deletion they cannot action. Said out loud here and
+    // carried on the result, because an unexplained missing capability is the
+    // failure this count exists to prevent (hard rule 9).
+    if (discarded && discarded.unnameable > 0) {
+      unplaceableDiscards = {
+        count: discarded.unnameable,
+        ...(discarded.reason ? { reason: discarded.reason } : {}),
+      };
+      log.warn(
+        `[sync] ${domain}: ${discarded.unnameable} item(s) in the owner's bin could not be ` +
+          'placed, so those deletions stay on absence-counting and cannot be applied' +
+          (discarded.reason ? `: ${discarded.reason}` : '.'),
+      );
+    }
+    if (discarded && discarded.keys.length > 0) {
       deletions.push(
         ...(await resolveDiscardedItems({
           tenantId,
           mappingId,
           domain,
           ledger,
-          discarded,
+          discarded: discarded.keys,
           seenByCollection,
         })),
       );
@@ -1414,6 +1449,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     moves,
     deletions: reportedDeletions,
     drift,
+    ...(unplaceableDiscards ? { unplaceableDiscards } : {}),
     metrics: summarise(phases, scanned),
   };
 }

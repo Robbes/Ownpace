@@ -50,6 +50,7 @@ import {
   type PermissionListing,
   type RawFileItem,
   type SyncCursor,
+  type TrashListing,
 } from '@openmig/shared';
 import {
   DRIVE_FOLDER_MIME,
@@ -429,7 +430,7 @@ export class GoogleDriveSource implements FileSource {
     return { kind: 'listed', grants };
   }
 
-  async listTrashedPaths(): Promise<ReadonlyArray<string>> {
+  async listTrashedPaths(): Promise<TrashListing> {
     const q = `trashed=true and mimeType!='${DRIVE_FOLDER_MIME}'`;
     const fields = 'nextPageToken,files(id,name,parents)';
 
@@ -444,7 +445,7 @@ export class GoogleDriveSource implements FileSource {
       binned.push(...(page.files ?? []));
       pageToken = page.nextPageToken;
     } while (pageToken);
-    if (binned.length === 0) return [];
+    if (binned.length === 0) return { paths: [], unnameable: 0 };
 
     const rootId = await this.actualRootId();
     // Folder metadata, cached: bins hold cohorts (a folder trashed whole), and
@@ -452,28 +453,53 @@ export class GoogleDriveSource implements FileSource {
     // questions N times.
     const folders = new Map<string, { name: string; parent?: string }>();
     const out = new Set<string>();
+    let unnameable = 0;
 
     for (const file of binned) {
-      const path = await this.originalPathOf(file, rootId, folders);
-      if (path !== undefined) out.add(path);
+      const resolved = await this.originalPathOf(file, rootId, folders);
+      if (resolved.path !== undefined) out.add(resolved.path);
+      else if (resolved.why === 'unnameable') unnameable += 1;
     }
-    return [...out];
+    return {
+      paths: [...out],
+      unnameable,
+      ...(unnameable > 0
+        ? {
+            reason:
+              `${unnameable} file(s) in the Drive bin have an ancestor folder that was ` +
+              'permanently deleted (or a parent Drive would not name), so the path they used ' +
+              'to have cannot be reconstructed. Those deletions stay on absence-counting and ' +
+              'cannot be applied.',
+          }
+        : {}),
+    };
   }
 
-  /** Walk `file`'s parents up to the root; undefined = out of scope or unresolvable. */
+  /**
+   * Walk `file`'s parents up to the root.
+   *
+   * When there is no path to report, WHICH kind of nothing matters (see
+   * `TrashListing`): a chain that tops out somewhere else means the file was
+   * never in this migration — arithmetic, silent — while a chain we cannot
+   * follow means it probably WAS and we cannot say where, which is a blind
+   * spot worth counting.
+   */
   private async originalPathOf(
     file: DriveFile,
     rootId: string,
     folders: Map<string, { name: string; parent?: string }>,
-  ): Promise<string | undefined> {
+  ): Promise<{ path?: string; why?: 'out_of_scope' | 'unnameable' }> {
     const segments: string[] = [];
     let current = file.parents?.[0];
+    // Drive named no parent at all, so nothing places this file — including
+    // whether it was ours. Not the same as a chain that ends elsewhere.
+    if (current === undefined) return { why: 'unnameable' };
     // A parent chain deeper than this is a cycle, not a Drive.
     for (let depth = 0; depth < 64; depth += 1) {
-      if (current === undefined) return undefined; // topped out ≠ our root
+      if (current === undefined) return { why: 'out_of_scope' }; // topped out ≠ our root
       if (current === rootId) {
         // Pushed child-upward; the path reads root-downward.
-        return this.childPath([...segments].reverse().join('/'), file.name);
+        return { path: this.childPath([...segments].reverse().join('/'), file.name) };
       }
       let meta = folders.get(current);
       if (!meta) {
@@ -485,14 +511,15 @@ export class GoogleDriveSource implements FileSource {
           folders.set(current, meta);
         } catch {
           // A permanently-deleted ancestor: this file's original path cannot
-          // be named, so it cannot be reported — absence-counting covers it.
-          return undefined;
+          // be named, so it cannot be reported — absence-counting covers it,
+          // and the count says the apply action was lost for a reason.
+          return { why: 'unnameable' };
         }
       }
       segments.push(meta.name);
       current = meta.parent;
     }
-    return undefined;
+    return { why: 'unnameable' };
   }
 
   /**

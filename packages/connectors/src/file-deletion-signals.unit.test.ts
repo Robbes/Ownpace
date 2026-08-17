@@ -55,7 +55,7 @@ describe('WebdavFileSource.listTrashedPaths', () => {
       },
     );
 
-    expect(await source.listTrashedPaths()).toEqual(['Documents/report.pdf']);
+    expect((await source.listTrashedPaths()).paths).toEqual(['Documents/report.pdf']);
     // Derived from the files endpoint, not configured — the two are the same
     // account by construction, and asking an operator to write the second URL by
     // hand is asking them to get it subtly wrong.
@@ -72,7 +72,7 @@ describe('WebdavFileSource.listTrashedPaths', () => {
       { httpClient: { request } as unknown as HttpClient },
     );
 
-    expect(await source.listTrashedPaths()).toEqual([]);
+    expect((await source.listTrashedPaths()).paths).toEqual([]);
     expect(request).not.toHaveBeenCalled();
   });
 
@@ -85,7 +85,7 @@ describe('WebdavFileSource.listTrashedPaths', () => {
         { url: 'https://cloud.example.com/remote.php/dav/files/alice/', username: 'alice', password: 'pw' },
         { httpClient: client(() => ({ status, body: '', headers: {} })) },
       );
-      expect(await quiet.listTrashedPaths()).toEqual([]);
+      expect((await quiet.listTrashedPaths()).paths).toEqual([]);
     }
 
     const broken = new WebdavFileSource(
@@ -113,7 +113,7 @@ describe('WebdavFileSource.listTrashedPaths', () => {
       { httpClient: client(() => ({ status: 207, body, headers: {} })) },
     );
 
-    expect(await source.listTrashedPaths()).toEqual([]);
+    expect((await source.listTrashedPaths()).paths).toEqual([]);
   });
 
   it('strips the rootPath so the key matches what was recorded', async () => {
@@ -127,7 +127,7 @@ describe('WebdavFileSource.listTrashedPaths', () => {
       { httpClient: client(() => ({ status: 207, body: TRASHBIN_BODY, headers: {} })) },
     );
 
-    expect(await source.listTrashedPaths()).toEqual(['report.pdf']);
+    expect((await source.listTrashedPaths()).paths).toEqual(['report.pdf']);
   });
 });
 

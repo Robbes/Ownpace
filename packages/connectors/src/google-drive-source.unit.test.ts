@@ -442,7 +442,7 @@ describe('listTrashedPaths — the bin as positive deletion evidence', () => {
     });
     const source = new GoogleDriveSource(transport, { baseUrl: BASE });
 
-    const paths = await source.listTrashedPaths();
+    const paths = (await source.listTrashedPaths()).paths;
 
     expect([...paths].sort()).toEqual(['a/b/also-gone.pdf', 'a/b/gone.pdf', 'top.txt']);
     // The shared ancestry was walked ONCE: two files under dir-b, one lookup.
@@ -458,7 +458,7 @@ describe('listTrashedPaths — the bin as positive deletion evidence', () => {
     });
     const source = new GoogleDriveSource(transport, { baseUrl: BASE, rootFolderId: 'scoped-id' });
 
-    expect(await source.listTrashedPaths()).toEqual([]);
+    expect((await source.listTrashedPaths()).paths).toEqual([]);
   });
 
   it('skips ONLY the file behind a permanently-deleted ancestor — one orphan cannot silence the bin', async () => {
@@ -474,7 +474,7 @@ describe('listTrashedPaths — the bin as positive deletion evidence', () => {
     });
     const source = new GoogleDriveSource(transport, { baseUrl: BASE });
 
-    expect(await source.listTrashedPaths()).toEqual(['fine.pdf']);
+    expect((await source.listTrashedPaths()).paths).toEqual(['fine.pdf']);
   });
 
   it('asks with the all-drives parameters and excludes folders in the QUERY', async () => {
