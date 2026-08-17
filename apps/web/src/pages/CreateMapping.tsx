@@ -59,8 +59,8 @@ interface FormData {
   sourceSsl: boolean;
   /** The per-customer Entra app registration (0037 T6, owner decision
    *  2026-08-10; ADR-0006's row-14 model): oauth2/graph sources authenticate
-   *  with the customer's OWN app — tenant + client id here, the client
-   *  secret on the credentials step beside the mailbox address. */
+   *  with the customer's OWN app — tenant + client id here, and the client
+   *  secret beside the mailbox address on the same source step (0070). */
   sourceTenantId: string;
   sourceClientId: string;
   sourceClientSecret: string;
@@ -338,8 +338,8 @@ const CreateMapping: React.FC = () => {
   }, [formData]);
 
   // Leaving a dirty wizard is a question, not a silent discard (0037 T5).
-  // All wizard state is plain useState, so refresh/close throws away six
-  // steps of typed input; beforeunload covers those, and handleBack's
+  // All wizard state is plain useState, so refresh/close throws away every
+  // step of typed input; beforeunload covers those, and handleBack's
   // confirm covers the in-app Cancel. (A full in-app navigation blocker
   // needs a data router this app does not use yet.)
   const dirty = JSON.stringify(formData) !== JSON.stringify(initialFormData);
@@ -469,9 +469,9 @@ const CreateMapping: React.FC = () => {
   };
 
   // The shared-drive browse (workplan 0049): fills rootFolderId from
-  // drives.list instead of a paste out of the admin console. Lives on the
-  // credentials step because that is where the three values it needs are
-  // typed; the id it picks lands in the same field the source step shows.
+  // drives.list instead of a paste out of the admin console. Rendered with
+  // the source credentials, because that is where the three values it needs
+  // are typed; the id it picks lands in the rootFolderId field beside them.
   const [sharedDrives, setSharedDrives] = React.useState<
     Array<{ id: string; name: string }> | null
   >(null);
@@ -740,10 +740,10 @@ const CreateMapping: React.FC = () => {
   // Each step's gate checks only fields that step RENDERS (0037 T1, pulled
   // forward into 0033 T3 because no wizard test can exist without it): the
   // old source/target gates required sourceUsername/targetUsername — inputs
-  // that render two steps later, on 'credentials' — so Next was disabled
-  // forever on the first screen, with no message, and the wizard could not
-  // be completed at all. The username requirement now lives on the step
-  // that shows the fields.
+  // that rendered two steps later, on a shared 'credentials' step — so Next
+  // was disabled forever on the first screen, with no message, and the
+  // wizard could not be completed at all. Each side now renders and gates
+  // its own account (workplan 0070), which is that rule made structural.
   /**
    * What the SOURCE step is still missing, by the label it is shown under
    * (workplan 0067). One function, used by both the gate and the message, for
@@ -854,13 +854,15 @@ const CreateMapping: React.FC = () => {
   const blockedReason = (): string | null => {
     if (canProceed()) return null;
     const stepId = steps[currentStep].id;
-    if (stepId === 'migration' && formData.domains.length > 0) {
-      return (
-        targetDomainRefusal(formData.targetType, formData.domains) ??
-        sourceDomainRefusal(formData.sourceType, formData.domains)
-      );
-    }
     if (stepId === 'migration') {
+      // The data types and the schedule share this step now (workplan 0070),
+      // so neither reason may return early on the other's behalf: an
+      // incoherent domain used to answer for a broken cron with `null`,
+      // leaving Next disabled and silent — the exact defect 0037 T3 removed.
+      const refusal =
+        targetDomainRefusal(formData.targetType, formData.domains) ??
+        sourceDomainRefusal(formData.sourceType, formData.domains);
+      if (refusal) return refusal;
       const problem = cronProblem();
       if (problem) return `${t('wizard.cron.invalidLead')} ${problem}`;
     }
@@ -1389,7 +1391,7 @@ const CreateMapping: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('wizard.dropboxRootPath')}
                   </label>
-                  {/* '' = the whole Dropbox. The credentials step offers a
+                  {/* '' = the whole Dropbox. The credentials below offer a
                       browse over sharing/list_folders that fills this. */}
                   <input
                     type="text"
@@ -1548,7 +1550,7 @@ const CreateMapping: React.FC = () => {
               <div className="space-y-4">
                 {/* The app registration IS the connection — a reused one
                     answers both, and this mapping's own question (which
-                    mailbox) is the username on the credentials step. */}
+                    mailbox) is the username in the credentials below. */}
                 {!formData.sourceConnectionId && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1795,56 +1797,54 @@ const CreateMapping: React.FC = () => {
               <p className="mt-1 text-sm text-gray-500">{t('wizard.migrationNameHint')}</p>
             </div>
 
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium text-gray-900">
-              {t('wizard.selectDataTypes')}
-            </h3>
-            <p className="text-sm text-gray-500">{t('wizard.selectDataTypesHint')}</p>
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium text-gray-900">
+                {t('wizard.selectDataTypes')}
+              </h3>
+              <p className="text-sm text-gray-500">{t('wizard.selectDataTypesHint')}</p>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {dataTypes.map((type) => {
-                const unavailable = !allowedDomains.includes(type.id);
-                // A selected-but-unavailable type stays clickable: it must be
-                // DESELECTABLE, or going back and changing the target would
-                // trap the wizard behind a button that cannot be un-pressed.
-                const locked = unavailable && !formData.domains.includes(type.id);
-                return (
-                  <button
-                    key={type.id}
-                    onClick={() => toggleDomain(type.id)}
-                    disabled={locked}
-                    className={`p-4 border-2 rounded-lg text-left transition-colors ${
-                      formData.domains.includes(type.id)
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    } ${locked ? 'opacity-50 cursor-not-allowed hover:border-gray-200' : ''}`}
-                  >
-                    <div className="flex items-center">
-                      <type.icon
-                        className={`w-6 h-6 mr-3 ${
-                          formData.domains.includes(type.id)
-                            ? 'text-blue-600'
-                            : 'text-gray-400'
-                        }`}
-                      />
-                      <div>
-                        <p className="font-medium text-gray-900">{t(type.nameKey)}</p>
-                        <p className="text-sm text-gray-500">{t(type.hintKey)}</p>
-                        {unavailable && (
-                          <p className="text-xs text-amber-700 mt-1">
-                            {t('wizard.domain.notForTarget')}
-                          </p>
-                        )}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {dataTypes.map((type) => {
+                  const unavailable = !allowedDomains.includes(type.id);
+                  // A selected-but-unavailable type stays clickable: it must be
+                  // DESELECTABLE, or going back and changing the target would
+                  // trap the wizard behind a button that cannot be un-pressed.
+                  const locked = unavailable && !formData.domains.includes(type.id);
+                  return (
+                    <button
+                      key={type.id}
+                      onClick={() => toggleDomain(type.id)}
+                      disabled={locked}
+                      className={`p-4 border-2 rounded-lg text-left transition-colors ${
+                        formData.domains.includes(type.id)
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      } ${locked ? 'opacity-50 cursor-not-allowed hover:border-gray-200' : ''}`}
+                    >
+                      <div className="flex items-center">
+                        <type.icon
+                          className={`w-6 h-6 mr-3 ${
+                            formData.domains.includes(type.id)
+                              ? 'text-blue-600'
+                              : 'text-gray-400'
+                          }`}
+                        />
+                        <div>
+                          <p className="font-medium text-gray-900">{t(type.nameKey)}</p>
+                          <p className="text-sm text-gray-500">{t(type.hintKey)}</p>
+                          {unavailable && (
+                            <p className="text-xs text-amber-700 mt-1">
+                              {t('wizard.domain.notForTarget')}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                );
-              })}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        );
 
-          <div className="space-y-6">
             <div>
               <h3 className="text-lg font-medium text-gray-900 mb-4">{t('wizard.schedule')}</h3>
               <p className="text-sm text-gray-500 mb-4">{t('wizard.scheduleHint')}</p>
@@ -1902,10 +1902,6 @@ const CreateMapping: React.FC = () => {
             </div>
           </div>
         );
-          </div>
-        );
-
-
 
       case 'review':
         return (
