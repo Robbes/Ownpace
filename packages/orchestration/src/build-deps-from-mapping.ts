@@ -41,6 +41,11 @@ import {
   STORED_GOOGLE_CREDENTIAL_NAMES,
   buildGoogleDriveSourceFrom,
 } from './drive-source-factory';
+import {
+  DROPBOX_CONNECTION_KIND,
+  STORED_DROPBOX_CREDENTIAL_NAMES,
+  buildDropboxSourceFrom,
+} from './dropbox-source-factory';
 import { STORED_GMAIL_CREDENTIAL_NAMES, buildGmailSourceFrom } from './gmail-source-factory';
 import {
   GOOGLE_CALENDAR_CONNECTION_KIND,
@@ -493,6 +498,19 @@ export function buildFileSourceFromConnection(src: {
   creds: Record<string, string>;
   kind: string;
 }): FileSource {
+  if (src.kind === DROPBOX_CONNECTION_KIND) {
+    // Dropbox (workplan 0055): stored under the shared trio keys, mapped to
+    // Dropbox's own words by the naming (see the factory).
+    return buildDropboxSourceFrom(
+      { rootPath: (src.config as { rootPath?: string }).rootPath },
+      {
+        appKey: src.creds[STORED_DROPBOX_CREDENTIAL_NAMES.appKey],
+        appSecret: src.creds[STORED_DROPBOX_CREDENTIAL_NAMES.appSecret],
+        refreshToken: src.creds[STORED_DROPBOX_CREDENTIAL_NAMES.refreshToken],
+      },
+      STORED_DROPBOX_CREDENTIAL_NAMES,
+    );
+  }
   if (src.kind === GOOGLE_DRIVE_CONNECTION_KIND) {
     return buildGoogleDriveSourceFrom(
       parseGoogleDriveSource(src.config),

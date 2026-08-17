@@ -52,8 +52,8 @@ function firstOrThrow<T>(rows: T[], what: string): T {
 
 /** Map the web source type to a connection.kind (protocol-based). */
 function sourceKindFor(
-  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts',
-): 'imap' | 'o365' | 'google_drive' | 'gmail' | 'google_calendar' | 'google_contacts' {
+  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'dropbox',
+): 'imap' | 'o365' | 'google_drive' | 'gmail' | 'google_calendar' | 'google_contacts' | 'dropbox' {
   // 'google_drive' is the CHECK-constrained connection.kind migration 0008
   // added, and the literal build-deps-from-mapping branches on
   // (GOOGLE_DRIVE_CONNECTION_KIND) — underscore, unlike the wizard's hyphen,
@@ -65,6 +65,8 @@ function sourceKindFor(
   if (sourceType === 'gmail') return 'gmail';
   // Same shape for the Google DAV pair (workplan 0045, migration 0015).
   if (sourceType === 'google-calendar') return 'google_calendar';
+  // 'dropbox' joined the CHECK in migration 0018 (workplan 0055).
+  if (sourceType === 'dropbox') return 'dropbox';
   if (sourceType === 'google-contacts') return 'google_contacts';
   return sourceType === 'imap' ? 'imap' : 'o365';
 }
@@ -95,6 +97,11 @@ function sourceConnectionConfig(
       ...(cfg.rootFolderId ? { rootFolderId: cfg.rootFolderId } : {}),
       ...(cfg.nativeFilePolicy ? { nativeFilePolicy: cfg.nativeFilePolicy } : {}),
     }) as unknown as Record<string, unknown>;
+  }
+  if (body.sourceType === 'dropbox') {
+    // The config carries only WHERE the migration is rooted; credentials live
+    // encrypted on the connection. Engine shape, like every source here.
+    return { type: 'dropbox', ...(cfg.rootPath ? { rootPath: cfg.rootPath } : {}) };
   }
   if (body.sourceType === 'gmail') {
     // Everything else is fixed by Google (imap.gmail.com:993, XOAUTH2) or
@@ -188,7 +195,10 @@ function sourceCredentialRecord(
     body.sourceType === 'google-drive' ||
     body.sourceType === 'gmail' ||
     body.sourceType === 'google-calendar' ||
-    body.sourceType === 'google-contacts'
+    body.sourceType === 'google-contacts' ||
+    // Dropbox rides the same trio keys; the factory's naming maps them to
+    // Dropbox's own words (App key / App secret).
+    body.sourceType === 'dropbox'
   ) {
     // Either flow's values (ADR-0033): a service-account key selects
     // domain-wide delegation, and the SUBJECT rides along so the factories
@@ -247,7 +257,7 @@ function getSharedPool() {
  */
 const CreateMappingBase = z.object({
   name: z.string().min(1).max(255),
-  sourceType: z.enum(['imap', 'oauth2', 'graph', 'google-drive', 'gmail', 'google-calendar', 'google-contacts']),
+  sourceType: z.enum(['imap', 'oauth2', 'graph', 'google-drive', 'gmail', 'google-calendar', 'google-contacts', 'dropbox']),
   targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav']),
   sourceConfig: z.object({
     // host/port belong to an 'imap' source; tenantId/clientId/clientSecret to
@@ -270,6 +280,8 @@ const CreateMappingBase = z.object({
     serviceAccountKey: z.string().optional(),
     /** Google Drive only: root the migration somewhere other than My Drive. */
     rootFolderId: z.string().optional(),
+    /** Dropbox only (workplan 0055): root the migration at a folder path. */
+    rootPath: z.string().optional(),
     /** Google Drive only: what happens to Docs/Sheets/Slides. The VALUES are
      *  validated by the shared parser in the superRefine, not re-enumerated
      *  here — one authority, both editions. */
@@ -455,6 +467,26 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
       });
     }
     const sourceRefusal = sourceDomainRefusal(body.sourceType, body.syncConfig.domains);
+    if (sourceRefusal) {
+      ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: sourceRefusal });
+    }
+  } else if (body.sourceType === 'dropbox') {
+    // Dropbox's App Console calls these "App key" and "App secret"; they ride
+    // the shared trio fields so the probe and create post one shape.
+    const missing = (['clientId', 'clientSecret', 'refreshToken'] as const).filter(
+      (k) => !body.sourceConfig[k],
+    );
+    if (missing.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sourceConfig', missing[0]!],
+        message:
+          "A 'dropbox' source authenticates with your own Dropbox app (App key as clientId, " +
+          `App secret as clientSecret) and a refresh token: sourceConfig is missing ` +
+          `${missing.join(', ')}. Where each comes from is docs/dropbox-setup.md.`,
+      });
+    }
+    const sourceRefusal = sourceDomainRefusal('dropbox', body.syncConfig.domains);
     if (sourceRefusal) {
       ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: sourceRefusal });
     }

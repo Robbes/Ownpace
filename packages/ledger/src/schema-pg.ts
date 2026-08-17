@@ -66,6 +66,9 @@ export const connection = pgTable(
         // Allowed by the CHECK since 0015.
         'google_calendar',
         'google_contacts',
+        // Dropbox as a file SOURCE (workplan 0055). Allowed by the CHECK
+        // since 0018; the credential shape is Dropbox's own OAuth trio.
+        'dropbox',
       ],
     }).notNull(),
     displayName: text('display_name').notNull(),

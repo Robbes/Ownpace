@@ -101,7 +101,8 @@ export type WizardSourceType =
   | 'google-drive'
   | 'gmail'
   | 'google-calendar'
-  | 'google-contacts';
+  | 'google-contacts'
+  | 'dropbox';
 
 /** Domains a wizard source can serve, where the source constrains it at all. */
 export const SOURCE_TYPE_DOMAINS: Partial<
@@ -111,6 +112,7 @@ export const SOURCE_TYPE_DOMAINS: Partial<
   gmail: ['email'],
   'google-calendar': ['calendar'],
   'google-contacts': ['contact'],
+  dropbox: ['file'],
 };
 
 /**
@@ -132,6 +134,7 @@ const CONSTRAINED_SOURCE_PROSE: Partial<
     name: 'Google Contacts',
     reads: 'contacts only (the https://www.googleapis.com/auth/carddav scope)',
   },
+  dropbox: { name: 'Dropbox', reads: 'the Dropbox API only' },
 };
 
 /**

@@ -90,6 +90,10 @@ const en = {
   'wizard.proto.oauth2.hint': 'Office 365 over IMAP (app registration)',
   'wizard.proto.graph.hint': 'Office 365 over the Graph API (app registration)',
   'wizard.proto.googleDrive.hint': 'Files from a Google Drive (read-only OAuth)',
+  'wizard.proto.dropbox.hint': 'Files from a Dropbox (read-only OAuth app)',
+  'wizard.dropboxAppKey': 'App key (from the Dropbox App Console)',
+  'wizard.source.dropboxSetup':
+    'A Dropbox migration authenticates with your own Dropbox app: create it read-only (files.metadata.read + files.content.read). The App key goes here; on the credentials step, the App secret goes in the client-secret field and the refresh token beside it. docs/dropbox-setup.md walks through each.',
   'wizard.proto.gmail.hint': 'Email from a Gmail mailbox (OAuth over IMAP)',
   'wizard.proto.googleCalendar.hint': 'Calendars from a Google account (OAuth over CalDAV)',
   'wizard.proto.googleContacts.hint': 'Contacts from a Google account (OAuth over CardDAV)',
@@ -802,6 +806,10 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.proto.oauth2.hint': 'Office 365 via IMAP (appregistratie)',
   'wizard.proto.graph.hint': 'Office 365 via de Graph-API (appregistratie)',
   'wizard.proto.googleDrive.hint': 'Bestanden uit een Google Drive (alleen-lezen OAuth)',
+  'wizard.proto.dropbox.hint': 'Bestanden uit een Dropbox (alleen-lezen OAuth-app)',
+  'wizard.dropboxAppKey': 'App-sleutel (uit de Dropbox App Console)',
+  'wizard.source.dropboxSetup':
+    'Een Dropbox-migratie authenticeert met uw eigen Dropbox-app: maak deze alleen-lezen aan (files.metadata.read + files.content.read). De App-sleutel komt hier; op de inloggegevens-stap komt het App-geheim in het client-geheim-veld en de refresh-token ernaast. docs/dropbox-setup.md doorloopt elke stap.',
   'wizard.proto.gmail.hint': 'E-mail uit een Gmail-postvak (OAuth via IMAP)',
   'wizard.proto.googleCalendar.hint': "Agenda's uit een Google-account (OAuth via CalDAV)",
   'wizard.proto.googleContacts.hint': 'Contacten uit een Google-account (OAuth via CardDAV)',
