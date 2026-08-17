@@ -48,6 +48,8 @@ function drive() {
   ]);
   /** The bin: root-relative ORIGINAL paths of deleted files. */
   const bin: string[] = [];
+  /** Bin entries the source could not name — see `TrashListing`. */
+  const unnameable = { count: 0 };
   const target = new Map<string, string>();
 
   const source: FileSource = {
@@ -76,7 +78,11 @@ function drive() {
       content: new TextEncoder().encode(files.get(item.path) ?? ''),
     }),
     listKeys: async () => [...files.keys()],
-    listTrashedPaths: async () => [...bin],
+    listTrashedPaths: async () => ({
+      paths: [...bin],
+      unnameable: unnameable.count,
+      ...(unnameable.count > 0 ? { reason: 'the bin gave no original location' } : {}),
+    }),
   };
 
   const writer: FileTargetWriter = {
@@ -99,7 +105,7 @@ function drive() {
   const run = (ledger: MemoryLedger) =>
     runFileSync({ tenantId: TENANT, mappingId: MAPPING, source, target: writer, ledger });
 
-  return { files, bin, target, remove, run };
+  return { files, bin, target, remove, run, unnameable };
 }
 
 describe('a file the owner moved to the bin', () => {
@@ -237,5 +243,41 @@ describe('a source with no bin to read', () => {
     const third = await run();
     expect(third.deletions).toHaveLength(1);
     expect(third.deletions[0]).toMatchObject({ evidence: 'inferred', confirmed: true });
+  });
+});
+
+
+describe('bin entries the source could not NAME (TrashListing.unnameable)', () => {
+  it('are carried to the result so the missing apply action has an explanation', async () => {
+    const ledger = new MemoryLedger();
+    const d = drive();
+    await d.run(ledger);
+
+    // The owner deleted something the source cannot place — a Drive ancestor
+    // permanently deleted, a Box item with no path_collection. The deletion is
+    // still caught by absence-counting, but only as `inferred`, which gate 3
+    // will not apply. Nothing else would tell anyone why.
+    d.files.delete('notes.txt');
+    d.unnameable.count = 1;
+
+    const result = await d.run(ledger);
+
+    expect(result.unplaceableDiscards).toEqual({
+      count: 1,
+      reason: 'the bin gave no original location',
+    });
+  });
+
+  it('is absent when every bin entry could be placed — not a zero to read past', async () => {
+    const ledger = new MemoryLedger();
+    const d = drive();
+    await d.run(ledger);
+    d.remove('notes.txt');
+
+    const result = await d.run(ledger);
+
+    expect(result.unplaceableDiscards).toBeUndefined();
+    // ...and the placeable one still lands as positive evidence.
+    expect(result.deletions?.[0]?.evidence).toBe('trashed');
   });
 });

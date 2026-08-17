@@ -17,7 +17,8 @@
  *    states a path's deleted state outright (`include_deleted`), and
  *    `listTrashedPaths` below turns that into the `trashed` evidence class —
  *    the same bin read Drive and WebDAV have. Absence-counting still covers
- *    what the tombstones cannot say.
+ *    what the tombstones cannot say, and a tombstone that cannot be NAMED is
+ *    counted rather than dropped (see `TrashListing`).
  *  - **The path is the natural key**, display-cased (`path_display`), RELATIVE
  *    to the configured root — the same tree lands the same way whichever root
  *    carried it. `sourceRef` is Dropbox's own `id`, stable across renames,
@@ -28,7 +29,15 @@
  * files are never re-sent, changed ones are updated.
  */
 
-import type { FileFolder, FileItem, FileSource, RawFileItem, SyncCursor, TokenProvider } from '@openmig/shared';
+import type {
+  FileFolder,
+  FileItem,
+  FileSource,
+  RawFileItem,
+  SyncCursor,
+  TokenProvider,
+  TrashListing,
+} from '@openmig/shared';
 import type {
   DropboxEntry,
   DropboxFileSourceConfig,
@@ -184,14 +193,33 @@ export class DropboxFileSource implements FileSource {
    * resolves to nothing downstream, exactly like Drive's out-of-scope
    * entries.
    */
-  async listTrashedPaths(): Promise<ReadonlyArray<string>> {
+  async listTrashedPaths(): Promise<TrashListing> {
     const out = new Set<string>();
+    let unnameable = 0;
     for (const entry of await this.listAll(this.rootPath, true, true)) {
       if (entry['.tag'] !== 'deleted') continue;
+      // The listing is already rooted, so an entry Dropbox gave no
+      // `path_display` for is not out of scope — it is one we cannot name
+      // (see `TrashListing`). Counted, not dropped.
+      if (!entry.path_display) {
+        unnameable += 1;
+        continue;
+      }
       const path = this.relativePath(entry);
       if (path) out.add(path);
     }
-    return [...out];
+    return {
+      paths: [...out],
+      unnameable,
+      ...(unnameable > 0
+        ? {
+            reason:
+              `Dropbox listed ${unnameable} tombstone(s) with no path_display, so where they ` +
+              'used to live cannot be named. Those deletions stay on absence-counting and ' +
+              'cannot be applied.',
+          }
+        : {}),
+    };
   }
 
   /**

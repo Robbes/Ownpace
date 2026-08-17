@@ -50,6 +50,7 @@ import {
   type PermissionListing,
   type RawFileItem,
   type SyncCursor,
+  type TrashListing,
 } from '@openmig/shared';
 import {
   DRIVE_FOLDER_MIME,
@@ -264,6 +265,63 @@ export class GoogleDriveSource implements FileSource {
    * stays on absence-counting, which still works and says less.
    */
   /**
+   * Files the account OWNS that no walk from the migration root can reach
+   * (workplan 0058) — Drive's "unorganized" items, and the coverage question
+   * every file source should be able to answer about itself.
+   *
+   * Drive is the one provider where a file can genuinely FLOAT: delete a
+   * parent folder without deleting its contents, or create a file through the
+   * API with no `parents`, and the file stays in the account, owned and
+   * intact, reachable by search but by no path. Drive's own UI hides it
+   * (`is:unorganized` in search is how a person finds it). `listFolders`
+   * walks DOWN from `rootFolderId`, so a pass never sees it — it is not
+   * migrated, and until this existed nothing said so. That is the silent
+   * under-migration this product exists not to do (hard rule 9).
+   *
+   * Deliberately CHEAP and read-only: one paged `files.list` over
+   * `'me' in owners`, asking only for `parents`, which is the same listing
+   * shape `listOwnedShareGrants` already makes for the sharing scan. Nothing
+   * here fetches bytes or changes what a pass migrates — it reports.
+   *
+   * Only files the account OWNS: a file shared WITH the account has parents
+   * the account cannot see, so it would read as orphaned for everyone, every
+   * pass. Those are the documented shared-with-me case instead, and rooting a
+   * mapping at a shared folder is their supported route.
+   */
+  async listOrphanedFiles(options?: { maxItems?: number }): Promise<{
+    readonly files: ReadonlyArray<{ id: string; name: string }>;
+    readonly capped: boolean;
+  }> {
+    const maxItems = options?.maxItems ?? 200;
+    const q = `'me' in owners and trashed=false and mimeType!='${DRIVE_FOLDER_MIME}'`;
+    const fields = 'nextPageToken,files(id,name,parents)';
+    const found: Array<{ id: string; name: string }> = [];
+
+    let pageToken: string | undefined;
+    let pages = 0;
+    do {
+      if (++pages > 100) return { files: found, capped: true };
+      const url =
+        `${this.baseUrl}/files?q=${encodeURIComponent(q)}&pageSize=100` +
+        `&fields=${encodeURIComponent(fields)}` +
+        (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '');
+      const page = (await this.getJson(url)) as DriveFileList;
+      for (const file of page.files ?? []) {
+        // No parents at all is what "unorganized" means on the wire. A file
+        // WITH parents may still be out of this migration's root, which is a
+        // scoping decision rather than a floating file — not this report's
+        // business (see `TrashListing` for the same distinction).
+        if (file.parents && file.parents.length > 0) continue;
+        if (found.length >= maxItems) return { files: found, capped: true };
+        found.push({ id: file.id, name: file.name });
+      }
+      pageToken = page.nextPageToken;
+    } while (pageToken);
+
+    return { files: found, capped: false };
+  }
+
+  /**
    * The shared drives this credential can see (workplan 0049) — `drives.list`,
    * paged, read-only. This is the onboarding question ("which id do I put in
    * rootFolderId?") answered by the API instead of by a walk through the
@@ -429,7 +487,7 @@ export class GoogleDriveSource implements FileSource {
     return { kind: 'listed', grants };
   }
 
-  async listTrashedPaths(): Promise<ReadonlyArray<string>> {
+  async listTrashedPaths(): Promise<TrashListing> {
     const q = `trashed=true and mimeType!='${DRIVE_FOLDER_MIME}'`;
     const fields = 'nextPageToken,files(id,name,parents)';
 
@@ -444,7 +502,7 @@ export class GoogleDriveSource implements FileSource {
       binned.push(...(page.files ?? []));
       pageToken = page.nextPageToken;
     } while (pageToken);
-    if (binned.length === 0) return [];
+    if (binned.length === 0) return { paths: [], unnameable: 0 };
 
     const rootId = await this.actualRootId();
     // Folder metadata, cached: bins hold cohorts (a folder trashed whole), and
@@ -452,28 +510,53 @@ export class GoogleDriveSource implements FileSource {
     // questions N times.
     const folders = new Map<string, { name: string; parent?: string }>();
     const out = new Set<string>();
+    let unnameable = 0;
 
     for (const file of binned) {
-      const path = await this.originalPathOf(file, rootId, folders);
-      if (path !== undefined) out.add(path);
+      const resolved = await this.originalPathOf(file, rootId, folders);
+      if (resolved.path !== undefined) out.add(resolved.path);
+      else if (resolved.why === 'unnameable') unnameable += 1;
     }
-    return [...out];
+    return {
+      paths: [...out],
+      unnameable,
+      ...(unnameable > 0
+        ? {
+            reason:
+              `${unnameable} file(s) in the Drive bin have an ancestor folder that was ` +
+              'permanently deleted (or a parent Drive would not name), so the path they used ' +
+              'to have cannot be reconstructed. Those deletions stay on absence-counting and ' +
+              'cannot be applied.',
+          }
+        : {}),
+    };
   }
 
-  /** Walk `file`'s parents up to the root; undefined = out of scope or unresolvable. */
+  /**
+   * Walk `file`'s parents up to the root.
+   *
+   * When there is no path to report, WHICH kind of nothing matters (see
+   * `TrashListing`): a chain that tops out somewhere else means the file was
+   * never in this migration — arithmetic, silent — while a chain we cannot
+   * follow means it probably WAS and we cannot say where, which is a blind
+   * spot worth counting.
+   */
   private async originalPathOf(
     file: DriveFile,
     rootId: string,
     folders: Map<string, { name: string; parent?: string }>,
-  ): Promise<string | undefined> {
+  ): Promise<{ path?: string; why?: 'out_of_scope' | 'unnameable' }> {
     const segments: string[] = [];
     let current = file.parents?.[0];
+    // Drive named no parent at all, so nothing places this file — including
+    // whether it was ours. Not the same as a chain that ends elsewhere.
+    if (current === undefined) return { why: 'unnameable' };
     // A parent chain deeper than this is a cycle, not a Drive.
     for (let depth = 0; depth < 64; depth += 1) {
-      if (current === undefined) return undefined; // topped out ≠ our root
+      if (current === undefined) return { why: 'out_of_scope' }; // topped out ≠ our root
       if (current === rootId) {
         // Pushed child-upward; the path reads root-downward.
-        return this.childPath([...segments].reverse().join('/'), file.name);
+        return { path: this.childPath([...segments].reverse().join('/'), file.name) };
       }
       let meta = folders.get(current);
       if (!meta) {
@@ -485,14 +568,15 @@ export class GoogleDriveSource implements FileSource {
           folders.set(current, meta);
         } catch {
           // A permanently-deleted ancestor: this file's original path cannot
-          // be named, so it cannot be reported — absence-counting covers it.
-          return undefined;
+          // be named, so it cannot be reported — absence-counting covers it,
+          // and the count says the apply action was lost for a reason.
+          return { why: 'unnameable' };
         }
       }
       segments.push(meta.name);
       current = meta.parent;
     }
-    return undefined;
+    return { why: 'unnameable' };
   }
 
   /**

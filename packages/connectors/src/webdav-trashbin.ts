@@ -144,12 +144,30 @@ export function trashbinPathToKeyPath(
   originalLocation: string,
   rootPath?: string,
 ): string | undefined {
+  return classifyTrashbinLocation(originalLocation, rootPath).path;
+}
+
+/**
+ * The same mapping, saying WHY when there is no path — the distinction
+ * `TrashListing` is built on.
+ *
+ * An empty location is the server telling us nothing about where the item
+ * lived: it may well have been in scope, and nothing else will account for it,
+ * so it is `unnameable` and gets counted. A location that simply sits outside
+ * `rootPath` (or IS the root) is arithmetic: that item was never copied, so no
+ * ledger row and no target copy exist to reconcile, and reporting it would be
+ * noise.
+ */
+export function classifyTrashbinLocation(
+  originalLocation: string,
+  rootPath?: string,
+): { path?: string; why?: 'out_of_scope' | 'unnameable' } {
   const location = originalLocation.replace(/^\/+/, '').replace(/\/+$/, '');
-  if (location === '') return undefined;
+  if (location === '') return { why: 'unnameable' };
 
   const root = (rootPath ?? '').replace(/^\/+/, '').replace(/\/+$/, '');
-  if (root === '') return location;
-  if (location === root) return undefined; // the root itself, not an item in it
-  if (!location.startsWith(`${root}/`)) return undefined; // outside the sync scope
-  return location.slice(root.length + 1);
+  if (root === '') return { path: location };
+  if (location === root) return { why: 'out_of_scope' }; // the root itself, not an item in it
+  if (!location.startsWith(`${root}/`)) return { why: 'out_of_scope' }; // outside the sync scope
+  return { path: location.slice(root.length + 1) };
 }

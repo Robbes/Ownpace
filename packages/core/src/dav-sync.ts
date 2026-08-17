@@ -236,8 +236,17 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
     // that have to agree by coincidence.
     ...(source.listTrashedPaths
       ? {
-          listDiscardedKeys: async () =>
-            (await source.listTrashedPaths!()).map(fileNaturalKeyHash),
+          listDiscardedKeys: async () => {
+            const listing = await source.listTrashedPaths!();
+            return {
+              keys: listing.paths.map(fileNaturalKeyHash),
+              // Carried, not swallowed: entries the source could not NAME are
+              // deletions whose evidence silently drops to `inferred`, which
+              // costs the owner the apply action (`TrashListing`).
+              unnameable: listing.unnameable,
+              ...(listing.reason ? { reason: listing.reason } : {}),
+            };
+          },
         }
       : {}),
     sourceVersion: (item) => item.item.etag,

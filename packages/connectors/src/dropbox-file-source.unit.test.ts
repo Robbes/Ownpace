@@ -193,7 +193,7 @@ describe('listTrashedPaths — the tombstones (deletion evidence follow-up)', ()
       rootPath: '/Team',
     });
 
-    const trashed = await source.listTrashedPaths();
+    const trashed = (await source.listTrashedPaths()).paths;
 
     expect(trashed).toEqual(['Docs/gone.txt', 'Old']);
     expect(JSON.parse(calls[0]!.body!)).toMatchObject({ include_deleted: true, recursive: true });

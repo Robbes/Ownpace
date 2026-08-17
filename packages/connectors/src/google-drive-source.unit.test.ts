@@ -442,7 +442,7 @@ describe('listTrashedPaths — the bin as positive deletion evidence', () => {
     });
     const source = new GoogleDriveSource(transport, { baseUrl: BASE });
 
-    const paths = await source.listTrashedPaths();
+    const paths = (await source.listTrashedPaths()).paths;
 
     expect([...paths].sort()).toEqual(['a/b/also-gone.pdf', 'a/b/gone.pdf', 'top.txt']);
     // The shared ancestry was walked ONCE: two files under dir-b, one lookup.
@@ -458,7 +458,7 @@ describe('listTrashedPaths — the bin as positive deletion evidence', () => {
     });
     const source = new GoogleDriveSource(transport, { baseUrl: BASE, rootFolderId: 'scoped-id' });
 
-    expect(await source.listTrashedPaths()).toEqual([]);
+    expect((await source.listTrashedPaths()).paths).toEqual([]);
   });
 
   it('skips ONLY the file behind a permanently-deleted ancestor — one orphan cannot silence the bin', async () => {
@@ -474,7 +474,7 @@ describe('listTrashedPaths — the bin as positive deletion evidence', () => {
     });
     const source = new GoogleDriveSource(transport, { baseUrl: BASE });
 
-    expect(await source.listTrashedPaths()).toEqual(['fine.pdf']);
+    expect((await source.listTrashedPaths()).paths).toEqual(['fine.pdf']);
   });
 
   it('asks with the all-drives parameters and excludes folders in the QUERY', async () => {
@@ -571,5 +571,56 @@ describe('listOwnedShareGrants (workplan 0029, the Google half)', () => {
     expect(listing.kind).toBe('not_discoverable');
     if (listing.kind !== 'not_discoverable') return;
     expect(listing.reason).toContain('not "no permissions');
+  });
+});
+
+describe('listOrphanedFiles — the coverage question (workplan 0058)', () => {
+  it('reports files the account owns that NO walk from the root can reach', async () => {
+    // Drive is the one provider where a file genuinely floats: delete a parent
+    // without deleting its contents and the file stays owned, intact, and
+    // reachable by search only. `listFolders` walks DOWN, so a pass never sees
+    // it — not migrated, and until this existed nothing said so.
+    const { transport } = fakeDrive({
+      '/files?q=': {
+        files: [
+          { id: 'f1', name: 'floating.pdf' }, // no parents at all
+          { id: 'f2', name: 'filed.pdf', parents: ['some-folder'] },
+        ],
+      },
+    });
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE });
+
+    const result = await source.listOrphanedFiles();
+
+    expect(result.files).toEqual([{ id: 'f1', name: 'floating.pdf' }]);
+    expect(result.capped).toBe(false);
+  });
+
+  it('asks only about files this account OWNS', async () => {
+    // A file shared WITH the account has parents the account cannot see, so it
+    // would read as orphaned for everyone on every pass. Those are the
+    // documented shared-with-me case, not a coverage gap.
+    const { transport, calls } = fakeDrive({ '/files?q=': { files: [] } });
+
+    await new GoogleDriveSource(transport, { baseUrl: BASE }).listOrphanedFiles();
+
+    expect(decodeURIComponent(calls[0]!.url)).toContain("'me' in owners");
+  });
+
+  it('says when the answer was capped rather than passing a partial list off as all', async () => {
+    const { transport } = fakeDrive({
+      '/files?q=': {
+        files: [
+          { id: 'f1', name: 'a.pdf' },
+          { id: 'f2', name: 'b.pdf' },
+        ],
+      },
+    });
+    const source = new GoogleDriveSource(transport, { baseUrl: BASE });
+
+    const result = await source.listOrphanedFiles({ maxItems: 1 });
+
+    expect(result.files).toHaveLength(1);
+    expect(result.capped, 'a short list read as the whole one is the failure here').toBe(true);
   });
 });

@@ -17,8 +17,7 @@
  *     entries but no usable paths is NOT reported as an empty bin.
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { log } from '@openmig/shared';
+import { describe, it, expect } from 'vitest';
 import { BoxFileSource } from './box-file-source';
 import { BoxTokenProvider } from './box-token-provider';
 import type { BoxTransport } from './box-file-source.types';
@@ -219,7 +218,7 @@ describe('listTrashedPaths — the bin read (trashed-class deletion evidence)', 
     });
     const source = new BoxFileSource(transport, { baseUrl: API });
 
-    expect(await source.listTrashedPaths()).toEqual(['Docs/gone.txt', 'top.txt']);
+    expect((await source.listTrashedPaths()).paths).toEqual(['Docs/gone.txt', 'top.txt']);
     // The chain is only asked for HERE — the ordinary listing never needs it.
     expect(calls[0]).toContain('path_collection');
   });
@@ -245,7 +244,7 @@ describe('listTrashedPaths — the bin read (trashed-class deletion evidence)', 
     });
     const source = new BoxFileSource(transport, { baseUrl: API, rootFolderId: 'root9' });
 
-    expect(await source.listTrashedPaths()).toEqual(['Old/mine.txt']);
+    expect((await source.listTrashedPaths()).paths).toEqual(['Old/mine.txt']);
   });
 
   it('follows next_marker — a partial bin is never the bin', async () => {
@@ -257,36 +256,42 @@ describe('listTrashedPaths — the bin read (trashed-class deletion evidence)', 
     });
     const source = new BoxFileSource(transport, { baseUrl: API });
 
-    expect(await source.listTrashedPaths()).toEqual(['one.txt', 'two.txt']);
+    expect((await source.listTrashedPaths()).paths).toEqual(['one.txt', 'two.txt']);
   });
 
-  it('an EMPTY bin is empty — no warning, nothing reported', async () => {
-    const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
+  it('an EMPTY bin is empty — nothing found, nothing unnameable', async () => {
     const { transport } = fakeBox({ trash: [{ entries: [] }] });
 
-    expect(await new BoxFileSource(transport, { baseUrl: API }).listTrashedPaths()).toEqual([]);
-    expect(warn).not.toHaveBeenCalled();
-    warn.mockRestore();
-  });
-
-  it('WARNS rather than reporting an empty bin when nothing could be placed', async () => {
-    // What a Box that answers path_collection with the Trash pseudo-folder
-    // instead of the original ancestors would look like. Failing to read a bin
-    // is not the same as there being none (the Nextcloud rule) — the domain
-    // must stay on absence-counting, loudly.
-    const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
-    const { transport } = fakeBox({
-      trash: [{ entries: [TRASHED('gone.txt', [{ id: '1', name: 'Trash' }])] }],
+    expect(await new BoxFileSource(transport, { baseUrl: API }).listTrashedPaths()).toEqual({
+      paths: [],
+      unnameable: 0,
     });
-
-    expect(await new BoxFileSource(transport, { baseUrl: API }).listTrashedPaths()).toEqual([]);
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(String(warn.mock.calls[0]![0])).toMatch(/path_collection|absence-counting/);
-    warn.mockRestore();
   });
 
-  it('an item with no chain at all is skipped, not guessed at', async () => {
-    const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
+  it('out of scope is NOT counted — it was never in the migration', async () => {
+    // A chain that never passes the configured root is arithmetic, not a blind
+    // spot: nothing was copied, so no target copy exists to reconcile. Counting
+    // it would cry wolf on every pass of every scoped migration.
+    const { transport } = fakeBox({
+      trash: [
+        {
+          entries: [
+            TRASHED('elsewhere.txt', [
+              { id: '0', name: 'All Files' },
+              { id: 'other', name: 'Elsewhere' },
+            ]),
+          ],
+        },
+      ],
+    });
+    const source = new BoxFileSource(transport, { baseUrl: API, rootFolderId: 'root9' });
+
+    expect(await source.listTrashedPaths()).toEqual({ paths: [], unnameable: 0 });
+  });
+
+  it('COUNTS an entry Box gave no chain for, and says why', async () => {
+    // This one may well have been in scope, and nothing else will account for
+    // it — the deletion degrades to `inferred`, which gate 3 will not apply.
     const { transport } = fakeBox({
       trash: [
         {
@@ -298,11 +303,26 @@ describe('listTrashedPaths — the bin read (trashed-class deletion evidence)', 
       ],
     });
 
-    expect(await new BoxFileSource(transport, { baseUrl: API }).listTrashedPaths()).toEqual([
-      'kept.txt',
-    ]);
-    expect(warn, 'one unresolvable entry must not silence the bin').not.toHaveBeenCalled();
-    warn.mockRestore();
+    const listing = await new BoxFileSource(transport, { baseUrl: API }).listTrashedPaths();
+
+    expect(listing.paths, 'one unnameable entry must not silence the bin').toEqual(['kept.txt']);
+    expect(listing.unnameable).toBe(1);
+    expect(listing.reason).toMatch(/path_collection/);
+  });
+
+  it('a bin where NOTHING could be named still reports the count, never an empty bin', async () => {
+    // What a Box answering path_collection with the Trash pseudo-folder would
+    // look like, if it also dropped the chain: failing to read a bin is not the
+    // same as there being none, and the count is what says so.
+    const { transport } = fakeBox({
+      trash: [{ entries: [{ type: 'file', id: 'x', name: 'gone.txt' }] }],
+    });
+
+    const listing = await new BoxFileSource(transport, { baseUrl: API }).listTrashedPaths();
+
+    expect(listing.paths).toEqual([]);
+    expect(listing.unnameable).toBe(1);
+    expect(listing.reason).toBeTruthy();
   });
 });
 

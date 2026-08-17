@@ -24,6 +24,9 @@ import { log } from '@openmig/shared';
 /**
  * Graph Drive source connector implementation.
  */
+/** Deeper than any real drive nests — a guard against a looping walk. */
+const MAX_FOLDER_DEPTH = 64;
+
 export class GraphDriveSource implements FileSource {
   private readonly config: GraphDriveSourceConfig;
   private readonly baseUrl: string;
@@ -45,48 +48,113 @@ export class GraphDriveSource implements FileSource {
   }
 
   /**
-   * Enumerate all file folders (directories) from OneDrive root.
-   * Uses /drive/root/children endpoint to list items.
+   * Every folder in the drive, depth-first, ROOT INCLUDED.
+   *
+   * Two things this had wrong until 2026-08-17, both of which lost files
+   * silently rather than failing:
+   *
+   *  - It listed `/drive/root/children` and never recursed, so only top-level
+   *    folders were ever returned. The sync loop migrates exactly what this
+   *    answers, so nothing nested was ever enumerated as a collection.
+   *  - It omitted the root itself. Every other file source emits `{ path: '' }`
+   *    first (`WebdavFileSource`, Drive, Box, Dropbox), because files sitting
+   *    directly in the account root live in that collection and nothing else
+   *    lists them.
+   *
+   * Folder paths keep this connector's leading-slash form (`/Documents`),
+   * which `listSince` needs verbatim to build `…/root:/Documents:/delta`. The
+   * root is the one exception, spelled `''` — the same value `listSince`
+   * already recognised.
    */
   async listFolders(): Promise<ReadonlyArray<FileFolder>> {
-    const folders: FileFolder[] = [];
-    let nextLink: string | undefined;
+    const folders: FileFolder[] = [{ path: '' }];
 
-    // Start from root and enumerate
-    do {
-      const url = nextLink ?? `${this.scope}/drive/root/children`;
-      const response = await this.makeRequest({
-        url,
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
-
-      if (response.status !== 200) {
-        throw new Error(`Failed to list drive items: ${response.status} - ${response.body}`);
+    const walk = async (url: string, prefix: string, depth: number): Promise<void> => {
+      // A drive cannot nest this deep; a walk that says otherwise is looping,
+      // and an unbounded recursion against a customer tenant is the expensive
+      // way to find that out.
+      if (depth > MAX_FOLDER_DEPTH) {
+        throw new Error(
+          `OneDrive folder walk passed ${MAX_FOLDER_DEPTH} levels at "${prefix}" — refusing to ` +
+            'keep recursing.',
+        );
       }
+      let nextLink: string | undefined;
+      do {
+        const response = await this.makeRequest({
+          url: nextLink ?? url,
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+          },
+        });
 
-      const data = JSON.parse(response.body) as { value: GraphDriveItem[]; '@odata.nextLink'?: string };
-      
-      // Only include folders
-      for (const item of data.value) {
-        if (item.folder) {
-          folders.push({
-            path: this.normalizePath(item.path || `/${item.name}`),
-            name: item.name,
-            quota: item.folder.childCount ? {
-              used: 0, // Graph doesn't provide folder quota directly
-              available: undefined,
-            } : undefined,
-          });
+        if (response.status !== 200) {
+          throw new Error(`Failed to list drive items: ${response.status} - ${response.body}`);
         }
-      }
-      
-      nextLink = data['@odata.nextLink'];
-    } while (nextLink);
 
+        const data = JSON.parse(response.body) as {
+          value: GraphDriveItem[];
+          '@odata.nextLink'?: string;
+        };
+
+        // Only folders: files arrive through `listSince`, per collection.
+        for (const item of data.value) {
+          if (!item.folder) continue;
+          const path = `${prefix}/${item.name}`;
+          folders.push({
+            path,
+            name: item.name,
+            quota: item.folder.childCount
+              ? {
+                  used: 0, // Graph doesn't provide folder quota directly
+                  available: undefined,
+                }
+              : undefined,
+          });
+          await walk(`${this.scope}/drive/items/${item.id}/children`, path, depth + 1);
+        }
+
+        nextLink = data['@odata.nextLink'];
+      } while (nextLink);
+    };
+
+    await walk(`${this.scope}/drive/root/children`, '', 0);
     return folders;
+  }
+
+  /**
+   * The item's path, derived from the fields Graph ACTUALLY returns.
+   *
+   * There is no `path` property on a driveItem. The type declared one, no
+   * response ever carried it, and the natural key therefore fell through to
+   * `/${item.name}` for every file in the drive — the whole tree flattened
+   * onto the root, so `/Work/notes.txt` and `/Personal/notes.txt` became one
+   * key and collided on the ledger's unique index. The unit fixtures invented
+   * the field too, which is why the suite stayed green.
+   *
+   * Graph gives `parentReference.path`: `/drive/root:` at the root,
+   * `/drive/root:/Documents` below it, `/drives/{id}/root:/…` when the drive
+   * is addressed by id. Everything up to and including `root:` is addressing,
+   * not path.
+   *
+   * `undefined` when it cannot be derived, and the caller SKIPS that item
+   * loudly rather than falling back to a bare name: a wrong key is worse than
+   * a missing one, because it silently merges two different files.
+   *
+   * NOT percent-decoded. Whether Graph encodes this field for names with
+   * spaces or `%` is exactly the sort of thing only a real tenant settles, and
+   * decoding a literal `%` corrupts it (the trap `webdav-trashbin.ts`
+   * documents); workplan 0058 records it as the first live run's question.
+   */
+  private itemPath(item: GraphDriveItem): string | undefined {
+    if (!item.name) return undefined;
+    const parent = item.parentReference?.path;
+    if (parent === undefined) return undefined;
+    const marker = parent.indexOf('root:');
+    if (marker === -1) return undefined;
+    const dir = parent.slice(marker + 'root:'.length);
+    return this.normalizePath(`${dir}/${item.name}`);
   }
 
   /**
@@ -196,9 +264,20 @@ export class GraphDriveSource implements FileSource {
     const fileItems: RawFileItem[] = [];
     for (const item of items) {
       try {
-        // Get the natural key (normalized path)
-        const naturalKey = this.normalizePath(item.path || `/${item.name}`);
-        
+        // The natural key, derived from Graph's own fields — see `itemPath`.
+        const naturalKey = this.itemPath(item);
+        if (naturalKey === undefined) {
+          // Never fall back to the bare name. That fallback is what flattened
+          // every file onto the root; skipping one item loudly is the honest
+          // failure, merging two files silently is not.
+          log.warn(
+            `[graph-drive] skipping "${item.name}" (id ${item.id}): Graph did not report a ` +
+              'usable parentReference.path, so where it lives cannot be named and a natural ' +
+              'key would be a guess.',
+          );
+          continue;
+        }
+
         // Get change detection hash (quickXorHash or cTag)
         const changeHash = item.quickXorHash || item.cTag;
         
@@ -504,11 +583,20 @@ export class GraphDriveSource implements FileSource {
   }
 
   /**
-   * Check if two items are the same (same GUID) but with different paths (renamed).
-   * Returns true if items have the same id but different paths.
+   * Same item (same GUID), different place — a rename or a move.
+   *
+   * The third site that read the phantom `item.path`: with no such field it
+   * compared `undefined` against `undefined`, so this answered FALSE for every
+   * rename it was asked about. It goes through `itemPath` now, like the
+   * natural key does. Two items whose paths cannot be derived are not called a
+   * rename — that would be a guess about customer data from no evidence.
    */
   isRename(oldItem: GraphDriveItem, newItem: GraphDriveItem): boolean {
-    return oldItem.id === newItem.id && oldItem.path !== newItem.path;
+    if (oldItem.id !== newItem.id) return false;
+    const before = this.itemPath(oldItem);
+    const after = this.itemPath(newItem);
+    if (before === undefined || after === undefined) return false;
+    return before !== after;
   }
 
   /**

@@ -13,7 +13,14 @@
  * - Support for binary file content
  */
 
-import type { FileSource, FileFolder, FileItem, RawFileItem, SyncCursor } from '@openmig/shared';
+import type {
+  FileSource,
+  FileFolder,
+  FileItem,
+  RawFileItem,
+  SyncCursor,
+  TrashListing,
+} from '@openmig/shared';
 import type { 
   WebDAVSourceConfig, 
   WebDAVFile, 
@@ -26,7 +33,7 @@ import {
   TRASHBIN_PROPFIND_BODY,
   nextcloudTrashbinUrl,
   parseTrashbinOriginalLocations,
-  trashbinPathToKeyPath,
+  classifyTrashbinLocation,
 } from './webdav-trashbin';
 
 /**
@@ -202,9 +209,9 @@ export class WebdavFileSource implements FileSource {
    * and only the second is silent: a 404/405/501 means the server does not serve
    * this collection, while any other error is thrown for the sync loop to log.
    */
-  async listTrashedPaths(): Promise<ReadonlyArray<string>> {
+  async listTrashedPaths(): Promise<TrashListing> {
     const url = nextcloudTrashbinUrl(this.config.url);
-    if (!url) return [];
+    if (!url) return { paths: [], unnameable: 0 };
 
     const response = await this.send({
       method: 'PROPFIND',
@@ -221,22 +228,40 @@ export class WebdavFileSource implements FileSource {
     // WebDAV servers live at a Nextcloud-shaped URL without serving a trashbin,
     // and a bin that has never had anything in it can 404 too.
     if (response.status === 404 || response.status === 405 || response.status === 501) {
-      return [];
+      return { paths: [], unnameable: 0 };
     }
     if (response.status !== 207) {
       throw new Error(`trashbin PROPFIND failed with status ${response.status}: ${response.body}`);
     }
 
     const paths: string[] = [];
+    let unnameable = 0;
     for (const location of parseTrashbinOriginalLocations(response.body)) {
       // Normalised HERE and nowhere else, so there is one definition of the form
       // these paths must take. The sync loop hashes them into the same natural key
       // as `FileItem.path`, and a mismatch would report nothing at all rather than
       // failing — silence being the failure nobody notices.
-      const path = trashbinPathToKeyPath(location, this.config.rootPath);
-      if (path) paths.push(path);
+      //
+      // Outside `rootPath` is arithmetic and stays silent; a location the server
+      // gave us nothing usable for is counted instead, because that item may
+      // well have been in scope and nothing else will account for it
+      // (`TrashListing`).
+      const resolved = classifyTrashbinLocation(location, this.config.rootPath);
+      if (resolved.path) paths.push(resolved.path);
+      else if (resolved.why === 'unnameable') unnameable += 1;
     }
-    return paths;
+    return {
+      paths,
+      unnameable,
+      ...(unnameable > 0
+        ? {
+            reason:
+              `The trashbin listed ${unnameable} item(s) with no original location, so where ` +
+              'they used to live cannot be named. Those deletions stay on absence-counting ' +
+              'and cannot be applied.',
+          }
+        : {}),
+    };
   }
 
   /**
