@@ -53,8 +53,8 @@ function firstOrThrow<T>(rows: T[], what: string): T {
 
 /** Map the web source type to a connection.kind (protocol-based). */
 function sourceKindFor(
-  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'dropbox',
-): 'imap' | 'o365' | 'google_drive' | 'gmail' | 'google_calendar' | 'google_contacts' | 'dropbox' {
+  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'dropbox' | 'box',
+): 'imap' | 'o365' | 'google_drive' | 'gmail' | 'google_calendar' | 'google_contacts' | 'dropbox' | 'box' {
   // 'google_drive' is the CHECK-constrained connection.kind migration 0008
   // added, and the literal build-deps-from-mapping branches on
   // (GOOGLE_DRIVE_CONNECTION_KIND) — underscore, unlike the wizard's hyphen,
@@ -68,6 +68,8 @@ function sourceKindFor(
   if (sourceType === 'google-calendar') return 'google_calendar';
   // 'dropbox' joined the CHECK in migration 0018 (workplan 0055).
   if (sourceType === 'dropbox') return 'dropbox';
+  // 'box' joined the CHECK in migration 0019 (workplan 0056).
+  if (sourceType === 'box') return 'box';
   if (sourceType === 'google-contacts') return 'google_contacts';
   return sourceType === 'imap' ? 'imap' : 'o365';
 }
@@ -103,6 +105,15 @@ function sourceConnectionConfig(
     // The config carries only WHERE the migration is rooted; credentials live
     // encrypted on the connection. Engine shape, like every source here.
     return { type: 'dropbox', ...(cfg.rootPath ? { rootPath: cfg.rootPath } : {}) };
+  }
+  if (body.sourceType === 'box') {
+    // WHERE it is rooted and WHOSE files (the CCG subject — one subject per
+    // mapping, never a secret); the client id + secret live encrypted.
+    return {
+      type: 'box',
+      userId: cfg.userId!,
+      ...(cfg.rootFolderId ? { rootFolderId: cfg.rootFolderId } : {}),
+    };
   }
   if (body.sourceType === 'gmail') {
     // Everything else is fixed by Google (imap.gmail.com:993, XOAUTH2) or
@@ -192,6 +203,15 @@ function sourceCredentialRecord(
       ...(body.sourceConfig.password ? { password: body.sourceConfig.password } : {}),
     };
   }
+  if (body.sourceType === 'box') {
+    // Client id + secret ONLY — no refresh token by DESIGN: Box rotates
+    // refresh tokens on every use, and stored credentials are never written
+    // back (see the box factory). The subject user id rides the config.
+    return {
+      clientId: body.sourceConfig.clientId!,
+      clientSecret: body.sourceConfig.clientSecret!,
+    };
+  }
   if (
     body.sourceType === 'google-drive' ||
     body.sourceType === 'gmail' ||
@@ -258,7 +278,7 @@ function getSharedPool() {
  */
 const CreateMappingBase = z.object({
   name: z.string().min(1).max(255),
-  sourceType: z.enum(['imap', 'oauth2', 'graph', 'google-drive', 'gmail', 'google-calendar', 'google-contacts', 'dropbox']),
+  sourceType: z.enum(['imap', 'oauth2', 'graph', 'google-drive', 'gmail', 'google-calendar', 'google-contacts', 'dropbox', 'box']),
   targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav']),
   sourceConfig: z.object({
     // host/port belong to an 'imap' source; tenantId/clientId/clientSecret to
@@ -279,10 +299,12 @@ const CreateMappingBase = z.object({
     /** The four Google sources (ADR-0033): a service-account key FILE selects
      *  domain-wide delegation instead of a per-user refresh token. */
     serviceAccountKey: z.string().optional(),
-    /** Google Drive only: root the migration somewhere other than My Drive. */
+    /** Google Drive or Box: root the migration somewhere other than the account root. */
     rootFolderId: z.string().optional(),
     /** Dropbox only (workplan 0055): root the migration at a folder path. */
     rootPath: z.string().optional(),
+    /** Box only (workplan 0056): the NUMERIC user id whose files the CCG token reads. */
+    userId: z.string().optional(),
     /** Google Drive only: what happens to Docs/Sheets/Slides. The VALUES are
      *  validated by the shared parser in the superRefine, not re-enumerated
      *  here — one authority, both editions. */
@@ -488,6 +510,28 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
       });
     }
     const sourceRefusal = sourceDomainRefusal('dropbox', body.syncConfig.domains);
+    if (sourceRefusal) {
+      ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: sourceRefusal });
+    }
+  } else if (body.sourceType === 'box') {
+    // No refreshToken demanded, by DESIGN: Box rotates refresh tokens on
+    // every use, so the Client Credentials Grant is used and the subject
+    // user id names whose files the token reads (one subject per mapping).
+    const missing = (['clientId', 'clientSecret', 'userId'] as const).filter(
+      (k) => !body.sourceConfig[k],
+    );
+    if (missing.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sourceConfig', missing[0]!],
+        message:
+          "A 'box' source authenticates with your own Box platform app via the Client " +
+          `Credentials Grant (client id + client secret) and needs the NUMERIC Box user id ` +
+          `of the account being migrated as userId: sourceConfig is missing ` +
+          `${missing.join(', ')}. Where each comes from is docs/box-setup.md.`,
+      });
+    }
+    const sourceRefusal = sourceDomainRefusal('box', body.syncConfig.domains);
     if (sourceRefusal) {
       ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: sourceRefusal });
     }

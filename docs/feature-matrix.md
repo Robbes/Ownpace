@@ -93,10 +93,10 @@ Not (yet) migrated:
 
 ## Files
 
-| | generic WebDAV (Nextcloud, …) | Google Drive | Microsoft 365 | Dropbox |
-|---|---|---|---|---|
-| **Source** | ✅ (`webdav`), incl. trash-bin read for deletion evidence | ✅ (`google-drive`, workplan 0042), My Drive, a **shared drive** or a **folder shared with the account** by id — browsable since workplans 0049/0051; bin read for evidence | ⏳ OneDrive/SharePoint (`graph-drive`, wired in workplan 0054 — the connector existed, delta queries and all, with no call site); appliance mapping files; deletions arrive as **`reported`-class evidence** from the delta stream's `deleted` facets (pinned by test, 0054 T4c corrected); another user's drive via `mailbox` needs `Files.Read.All` (see the setup doc's consent note) | ⏳ (`dropbox`, workplan 0055): the whole Dropbox or a `rootPath` — **browsable** via `sharing/list_folders` (wizard button + appliance script; mounted shares carry the path, optional `sharing.read` scope); the owner's own read-only app; `content_hash` change detection; **tombstone read** (`include_deleted`) gives `trashed`-class deletion evidence, absence-counting covers the rest |
-| **Target** | ✅ WebDAV | 🚫 never a target | 🚫 never a target | 🚫 never a target |
+| | generic WebDAV (Nextcloud, …) | Google Drive | Microsoft 365 | Dropbox | Box |
+|---|---|---|---|---|---|
+| **Source** | ✅ (`webdav`), incl. trash-bin read for deletion evidence | ✅ (`google-drive`, workplan 0042), My Drive, a **shared drive** or a **folder shared with the account** by id — browsable since workplans 0049/0051; bin read for evidence | ⏳ OneDrive/SharePoint (`graph-drive`, wired in workplan 0054 — the connector existed, delta queries and all, with no call site); appliance mapping files; deletions arrive as **`reported`-class evidence** from the delta stream's `deleted` facets (pinned by test, 0054 T4c corrected); another user's drive via `mailbox` needs `Files.Read.All` (see the setup doc's consent note) | ⏳ (`dropbox`, workplan 0055): the whole Dropbox or a `rootPath` — **browsable** via `sharing/list_folders` (wizard button + appliance script; mounted shares carry the path, optional `sharing.read` scope); the owner's own read-only app; `content_hash` change detection; **tombstone read** (`include_deleted`) gives `trashed`-class deletion evidence, absence-counting covers the rest | ⏳ (`box`, workplan 0056): All Files or a `rootFolderId`; the owner's own read-only platform app via the **Client Credentials Grant** — no refresh token, because Box rotates refresh tokens on every use and stored credentials are never written back; the numeric subject user id rides the mapping (one subject per mapping); `sha1` change detection; **bin read** (`/folders/trash/items`, original paths recovered from the `path_collection` ancestor chain the listing already carries) gives `trashed`-class deletion evidence, so a Box deletion can be APPLIED, not only reported — a bin that answers entries but no placeable paths warns and stays on absence-counting rather than reading as empty; **web links** are pointers, not files — not enumerated |
+| **Target** | ✅ WebDAV | 🚫 never a target | 🚫 never a target | 🚫 never a target | 🚫 never a target |
 
 Also a target: **JMAP files** (workplan 0031 T3).
 
@@ -150,6 +150,10 @@ rather than as one row:
   lists these folders beside the shared drives, sharer's address included. "Shared with me"
   itself is a view, not a folder — no walk from My Drive reaches it, which is why the root
   is the mechanism.
+- ✅ **A collaborated folder (Box)** needs no feature: Box places a folder you were
+  invited to into the account's own tree ("All Files"), so it migrates as ordinary
+  content — the WebDAV posture, not the Drive one. Rooting a mapping at its
+  `rootFolderId` scopes to just that folder.
 - ✅ **A mounted shared folder (Dropbox)** lives in the account's own tree and migrates as
   ordinary content — its path is a valid `rootPath`. The browse (wizard button,
   `scripts/list-dropbox-shared-folders.ts`; optional `sharing.read` scope) lists what the

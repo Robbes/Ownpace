@@ -259,6 +259,20 @@ export interface DropboxSource {
   readonly rootPath?: string;
 }
 
+/**
+ * Box file source (workplan 0056). Client id + secret live beside the config
+ * per edition, like every OAuth source here — but there is NO refresh token:
+ * Box rotates refresh tokens on every use, so the Client Credentials Grant
+ * is used, and the SUBJECT (whose files) is named here on the config.
+ */
+export interface BoxSource {
+  readonly type: 'box';
+  /** The NUMERIC Box user id being migrated — one subject per mapping. */
+  readonly userId: string;
+  /** Unset = '0' (the account root, "All Files"); a folder id scopes to it. */
+  readonly rootFolderId?: string;
+}
+
 /** Microsoft Graph Calendar source */
 export interface GraphCalendarSource {
   readonly type: 'graph-calendar';
@@ -382,7 +396,7 @@ export interface DomainsConfig {
   files?: DomainConfig;
 }
 
-export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphMailSource | GraphDriveFileSource | GoogleDriveSource | GmailSource | GoogleCalendarSource | GoogleContactsSource | DropboxSource;
+export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphMailSource | GraphDriveFileSource | GoogleDriveSource | GmailSource | GoogleCalendarSource | GoogleContactsSource | DropboxSource | BoxSource;
 export type TargetConfig = JmapTarget | ImapDavTarget | CalDAVTarget | CardDAVTarget | WebDAVTarget;
 
 export interface ScheduleConfig {
@@ -753,6 +767,16 @@ function parseSource(obj: Record<string, unknown>): SourceConfig {
       ...(obj['rootPath'] === undefined
         ? {}
         : { rootPath: reqString(obj, 'rootPath', 'source.rootPath') }),
+    };
+  }
+  if (type === 'box') {
+    return {
+      type: 'box',
+      // Required: the Client Credentials Grant reads nobody without a subject.
+      userId: reqString(obj, 'userId', 'source.userId'),
+      ...(obj['rootFolderId'] === undefined
+        ? {}
+        : { rootFolderId: reqString(obj, 'rootFolderId', 'source.rootFolderId') }),
     };
   }
   if (type === 'graph-drive') {

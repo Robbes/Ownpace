@@ -177,6 +177,7 @@ export const CreateMappingResponseSchema = z.object({
     'google-calendar',
     'google-contacts',
     'dropbox',
+    'box',
   ]),
   targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav']),
   status: MappingLifecycleSchema,
@@ -201,6 +202,7 @@ export interface CreateMappingInput {
     | 'gmail'
     | 'google-calendar'
     | 'dropbox'
+    | 'box'
     | 'google-contacts';
   targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav';
   sourceConfig: {
@@ -220,6 +222,8 @@ export interface CreateMappingInput {
     clientSecret?: string;
     refreshToken?: string;
     rootFolderId?: string;
+    /** Box only (workplan 0056): the numeric user id the CCG token reads for. */
+    userId?: string;
   };
   targetConfig: {
     host: string;

@@ -68,6 +68,9 @@ export * from './graph-contacts-source.types';
 export * from './dropbox-file-source';
 export * from './dropbox-file-source.types';
 export * from './dropbox-token-provider';
+export * from './box-file-source';
+export * from './box-file-source.types';
+export * from './box-token-provider';
 // OneDrive/SharePoint (workplan 0054) — unexported until its first caller.
 export * from './graph-drive-source';
 export * from './graph-drive-source.types';

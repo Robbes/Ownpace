@@ -57,6 +57,7 @@ import {
   ENV_DROPBOX_CREDENTIAL_NAMES,
   buildDropboxSourceFrom,
 } from './dropbox-source-factory';
+import { ENV_BOX_CREDENTIAL_NAMES, buildBoxSourceFrom } from './box-source-factory';
 import {
   buildGraphCalendarSourceFrom,
   buildGraphContactsSourceFrom,
@@ -684,6 +685,14 @@ function buildDomainDepsWithLedger(
               appKey: process.env[ENV_DROPBOX_CREDENTIAL_NAMES.appKey],
               appSecret: process.env[ENV_DROPBOX_CREDENTIAL_NAMES.appSecret],
               refreshToken: process.env[ENV_DROPBOX_CREDENTIAL_NAMES.refreshToken],
+            })
+          : sourceConfig.type === 'box'
+          ? // Box (workplan 0056): the Client Credentials Grant — no refresh
+            // token (Box rotates them); the subject rides the mapping config.
+            buildBoxSourceFrom(sourceConfig, {
+              clientId: process.env[ENV_BOX_CREDENTIAL_NAMES.clientId],
+              clientSecret: process.env[ENV_BOX_CREDENTIAL_NAMES.clientSecret],
+              subjectUserId: sourceConfig.userId,
             })
           : sourceConfig.type === 'graph-drive'
           ? // OneDrive/SharePoint (workplan 0054): the orphaned connector's

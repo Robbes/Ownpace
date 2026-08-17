@@ -394,3 +394,45 @@ describe("a dropbox source (workplan 0055) — the trio shape, Dropbox's words i
     expect(msg).toContain("'file'");
   });
 });
+
+describe('a box source (workplan 0056) — the CCG shape: NO refresh token, a numeric subject', () => {
+  const box = (over: Record<string, unknown> = {}) =>
+    body({
+      sourceType: 'box',
+      targetType: 'webdav',
+      sourceConfig: {
+        username: 'owner@example.nl',
+        clientId: 'box-client-id',
+        clientSecret: 'box-client-secret',
+        userId: '1234567890',
+        ...((over.sourceConfig as Record<string, unknown>) ?? {}),
+      },
+      syncConfig: { domains: ['file'] },
+      ...Object.fromEntries(Object.entries(over).filter(([k]) => k !== 'sourceConfig')),
+    });
+
+  it('accepts the coherent shape: box → webdav, file domain, id + secret + subject', () => {
+    expect(CreateMappingSchema.safeParse(box()).success).toBe(true);
+  });
+
+  it('does NOT demand a refresh token — Box rotates them, so none is stored', () => {
+    // The same body with no refreshToken anywhere must parse; a schema that
+    // quietly demanded the trio here would re-create the break-on-second-pass
+    // failure the CCG choice exists to avoid.
+    const parsed = CreateMappingSchema.safeParse(box());
+    expect(parsed.success).toBe(true);
+  });
+
+  it('refuses a missing subject user id, naming the doc', () => {
+    const msg = refusalText(box({ sourceConfig: { userId: undefined } }));
+    expect(msg).toContain('userId');
+    expect(msg).toContain('NUMERIC Box user id');
+    expect(msg).toContain('box-setup.md');
+  });
+
+  it('refuses non-file domains — the credential reads the Box API only', () => {
+    const msg = refusalText(box({ syncConfig: { domains: ['file', 'calendar'] } }));
+    expect(msg).toContain("'calendar'");
+    expect(msg).toContain('Box API only');
+  });
+});
