@@ -26,10 +26,21 @@ const API = 'https://api.test/2.0';
 
 type Page = { entries: unknown[]; next_marker?: string };
 
-/** Pages per folder id; a folder's array is consumed one page per request. */
+/**
+ * Pages per folder id, served BY MARKER — like Box does, and unlike a fake
+ * that counts calls.
+ *
+ * Workplans 0058 and 0059 both turned up connectors certified healthy by mocks
+ * answering something no server could answer: one invented a response field,
+ * the other handed back page two for a repeat of the identical request. A
+ * call-counting fake here would pass whether or not `listChildren` actually
+ * sent `marker`, which is the only thing making its pagination work. So the
+ * marker is the address: no marker means page 0, `?marker=m1` means page 1,
+ * and a request that forgets it gets page 0 again — which loops, exactly as
+ * the real API would.
+ */
 function fakeBox(pagesByFolder: Record<string, Page[]>, bytes?: Uint8Array) {
   const calls: string[] = [];
-  const served: Record<string, number> = {};
   const transport: BoxTransport = async (url) => {
     calls.push(url);
     const respond = (payload: unknown, ok = true, status = 200) => ({
@@ -39,19 +50,19 @@ function fakeBox(pagesByFolder: Record<string, Page[]>, bytes?: Uint8Array) {
       arrayBuffer: async () => (bytes ?? new Uint8Array()).buffer as ArrayBuffer,
       text: async () => '',
     });
+    /** `m3` → page 3; absent → page 0. The fake's whole addressing scheme. */
+    const pageOf = (queue: Page[]): unknown => {
+      const marker = /[?&]marker=([^&]*)/.exec(url)?.[1];
+      const index = marker ? Number(decodeURIComponent(marker).replace(/^m/, '')) : 0;
+      return queue[Math.min(Number.isNaN(index) ? 0 : index, queue.length - 1)];
+    };
     if (url.includes('/folders/trash/items')) {
-      const queue = pagesByFolder['trash'] ?? [{ entries: [] }];
-      const index = served['trash'] ?? 0;
-      served['trash'] = index + 1;
-      return respond(queue[Math.min(index, queue.length - 1)]);
+      return respond(pageOf(pagesByFolder['trash'] ?? [{ entries: [] }]));
     }
     const itemsMatch = /\/folders\/([^/]+)\/items/.exec(url);
     if (itemsMatch) {
       const folderId = decodeURIComponent(itemsMatch[1]!);
-      const queue = pagesByFolder[folderId] ?? [{ entries: [] }];
-      const index = served[folderId] ?? 0;
-      served[folderId] = index + 1;
-      return respond(queue[Math.min(index, queue.length - 1)]);
+      return respond(pageOf(pagesByFolder[folderId] ?? [{ entries: [] }]));
     }
     if (url.includes('/content')) return respond({});
     return respond({ message: `unrouted: ${url}` }, false, 404);
@@ -109,7 +120,7 @@ describe('the natural key', () => {
 
 describe('pagination', () => {
   it('follows next_marker to the end — a partial listing is never the folder', async () => {
-    const { transport } = fakeBox({
+    const { transport, calls } = fakeBox({
       '0': [
         { entries: [FILE('f1', 'one.txt')], next_marker: 'm1' },
         { entries: [FILE('f2', 'two.txt')], next_marker: 'm2' },
@@ -121,6 +132,12 @@ describe('pagination', () => {
     const { items } = await source.listSince({ path: '' });
 
     expect(items.map((i) => i.item.path)).toEqual(['one.txt', 'two.txt', 'three.txt']);
+    // The marker is what advances the listing, and the fake serves BY it — so a
+    // request that forgot to carry it would read page one again and never
+    // terminate, exactly as against the real API. Asserted because a
+    // call-counting fake would have passed either way (workplans 0058/0059).
+    expect(calls[1]).toContain('marker=m1');
+    expect(calls[2]).toContain('marker=m2');
   });
 });
 
