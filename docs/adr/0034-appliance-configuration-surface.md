@@ -1,10 +1,14 @@
 # ADR-0034: Personal, Organisation, Managed — naming the deployments, and giving each the configuration door it needs
 
-- **Status:** Proposed
+- **Status:** Proposed — the decisions below await an accept/reject, but two inputs to them
+  are settled owner decisions (2026-08-17): the **names** in decision 1 (Personal /
+  Organisation / Managed, with edition left as ADR-0003 defined it), and that an
+  Organisation deployment's ~1000 is **migrated accounts operated by a small admin team**,
+  not a thousand interactive logins.
 - **Date:** 2026-08-17
-- **Deciders:** owner (who delegated the two questions in "Decisions the owner left
-  open", below, answering *no preference* to both — so they are recorded here as
-  mine, with the reasoning, and are the easiest part of this ADR to overrule)
+- **Deciders:** owner (who also delegated the two questions in "Decisions the owner left
+  open", below, answering *no preference* to both — so those two are recorded as mine,
+  with the reasoning, and are the easiest part of this ADR to overrule)
 - **Relates to:** [ADR-0003](./0003-two-editions-one-core.md) (two editions, one core),
   [ADR-0026](./0026-one-operating-ui-one-contract.md) (one operating UI, one contract —
   this is that argument applied to configuration rather than to operation),
@@ -166,8 +170,13 @@ There are **two independent axes**, and conflating them is the original mistake:
 | Name | Who runs it | Whose data | Bind | Edition |
 |---|---|---|---|---|
 | **Personal** | one person, on their own machine | their own (or a handful) | loopback | self-host |
-| **Organisation** | an operator, on the org's hardware | that org's users — the owner's ceiling is ~1000 | network | self-host |
+| **Organisation** | a **small admin team**, on the org's hardware | that org's users — up to ~1000 **migrated accounts** | network | self-host |
 | **Managed** | us, for many organisations | many orgs' users | network | managed |
+
+The Organisation row's number is **migrated accounts, not interactive logins** (owner
+decision, 2026-08-17). A thousand people's mail moves; a handful of admins operate it, and
+the migrators never sign in. That bound is load-bearing — it is what makes decision 6's
+prerequisite an admin login rather than a multi-user identity programme.
 
 **Edition stays what ADR-0003 made it** — `self-host` | `managed`, a *build* distinction —
 and gains a runtime companion, `deployment` ∈ `personal` | `organisation` | `managed`. The
@@ -328,10 +337,21 @@ So, as a hard sequencing constraint rather than a wish:
   honest options are that those routes refuse on a non-loopback bind, or that the
   deployment keeps using files, which is the path it wants anyway.
 
-Authentication for the self-host edition is **its own decision and its own ADR**; SAD §7.3
-currently records self-host auth as "local / single-user", which is the row that has to
-change first. What this ADR commits to is only the ordering: the UI door does not reach a
-served deployment ahead of it.
+**And it is a small prerequisite, because of how the owner bounded the scale.** The ~1000 is
+migrated accounts, not interactive logins: the migrators never sign in, a handful of admins
+operate everything. So what decision 6 demands is **an admin login and a session** — one
+identity boundary in front of an operator surface — not per-user identity, not RBAC, not
+per-migrator scoping. That is a well-understood, contained piece of work, which is the
+difference between a prerequisite worth stating and one that would quietly kill the feature.
+
+If end-user login is ever wanted, the decisions that would need revisiting are named: this
+one, the ledger's single-tenant assumption on the self-host path, and every route that
+currently treats "the operator" as one person.
+
+Authentication for the self-host edition is still **its own decision and its own ADR**; SAD
+§7.3 records self-host auth as "local / single-user", which is the row that has to change
+first. What this ADR commits to is only the ordering: the credential-editing door does not
+reach an Organisation deployment ahead of it.
 
 ### 7. What does not change
 
