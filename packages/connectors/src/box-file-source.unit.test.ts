@@ -11,9 +11,14 @@
  *  3. Marker pagination is followed to the end — a partial listing read as
  *     the folder would count every unread file as absent.
  *  4. Web links are pointers, not files — never enumerated as items.
+ *  5. The bin read recovers the path an item HAD, from the ancestor chain the
+ *     listing already carried — `trashed`-class evidence, which is what lets a
+ *     Box deletion be applied instead of only reported. A bin that answered
+ *     entries but no usable paths is NOT reported as an empty bin.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { log } from '@openmig/shared';
 import { BoxFileSource } from './box-file-source';
 import { BoxTokenProvider } from './box-token-provider';
 import type { BoxTransport } from './box-file-source.types';
@@ -35,6 +40,12 @@ function fakeBox(pagesByFolder: Record<string, Page[]>, bytes?: Uint8Array) {
       arrayBuffer: async () => (bytes ?? new Uint8Array()).buffer as ArrayBuffer,
       text: async () => '',
     });
+    if (url.includes('/folders/trash/items')) {
+      const queue = pagesByFolder['trash'] ?? [{ entries: [] }];
+      const index = served['trash'] ?? 0;
+      served['trash'] = index + 1;
+      return respond(queue[Math.min(index, queue.length - 1)]);
+    }
     const itemsMatch = /\/folders\/([^/]+)\/items/.exec(url);
     if (itemsMatch) {
       const folderId = decodeURIComponent(itemsMatch[1]!);
@@ -181,6 +192,117 @@ describe('fetch', () => {
         sourceRef: '',
       }),
     ).rejects.toThrow(/No Box file id/);
+  });
+});
+
+describe('listTrashedPaths — the bin read (trashed-class deletion evidence)', () => {
+  const TRASHED = (name: string, chain: Array<{ id: string; name: string }>) => ({
+    type: 'file',
+    id: `t:${name}`,
+    name,
+    path_collection: { total_count: chain.length, entries: chain },
+  });
+
+  it('recovers the ORIGINAL root-relative path from the ancestor chain', async () => {
+    const { transport, calls } = fakeBox({
+      trash: [
+        {
+          entries: [
+            TRASHED('gone.txt', [
+              { id: '0', name: 'All Files' },
+              { id: 'd1', name: 'Docs' },
+            ]),
+            TRASHED('top.txt', [{ id: '0', name: 'All Files' }]),
+          ],
+        },
+      ],
+    });
+    const source = new BoxFileSource(transport, { baseUrl: API });
+
+    expect(await source.listTrashedPaths()).toEqual(['Docs/gone.txt', 'top.txt']);
+    // The chain is only asked for HERE — the ordinary listing never needs it.
+    expect(calls[0]).toContain('path_collection');
+  });
+
+  it('is relative to the CONFIGURED root, and skips what was never under it', async () => {
+    const { transport } = fakeBox({
+      trash: [
+        {
+          entries: [
+            TRASHED('mine.txt', [
+              { id: '0', name: 'All Files' },
+              { id: 'root9', name: 'Team' },
+              { id: 'd2', name: 'Old' },
+            ]),
+            // Lives elsewhere in the account: not this migration's business.
+            TRASHED('theirs.txt', [
+              { id: '0', name: 'All Files' },
+              { id: 'other', name: 'Elsewhere' },
+            ]),
+          ],
+        },
+      ],
+    });
+    const source = new BoxFileSource(transport, { baseUrl: API, rootFolderId: 'root9' });
+
+    expect(await source.listTrashedPaths()).toEqual(['Old/mine.txt']);
+  });
+
+  it('follows next_marker — a partial bin is never the bin', async () => {
+    const { transport } = fakeBox({
+      trash: [
+        { entries: [TRASHED('one.txt', [{ id: '0', name: 'All Files' }])], next_marker: 'm1' },
+        { entries: [TRASHED('two.txt', [{ id: '0', name: 'All Files' }])] },
+      ],
+    });
+    const source = new BoxFileSource(transport, { baseUrl: API });
+
+    expect(await source.listTrashedPaths()).toEqual(['one.txt', 'two.txt']);
+  });
+
+  it('an EMPTY bin is empty — no warning, nothing reported', async () => {
+    const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
+    const { transport } = fakeBox({ trash: [{ entries: [] }] });
+
+    expect(await new BoxFileSource(transport, { baseUrl: API }).listTrashedPaths()).toEqual([]);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('WARNS rather than reporting an empty bin when nothing could be placed', async () => {
+    // What a Box that answers path_collection with the Trash pseudo-folder
+    // instead of the original ancestors would look like. Failing to read a bin
+    // is not the same as there being none (the Nextcloud rule) — the domain
+    // must stay on absence-counting, loudly.
+    const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
+    const { transport } = fakeBox({
+      trash: [{ entries: [TRASHED('gone.txt', [{ id: '1', name: 'Trash' }])] }],
+    });
+
+    expect(await new BoxFileSource(transport, { baseUrl: API }).listTrashedPaths()).toEqual([]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]![0])).toMatch(/path_collection|absence-counting/);
+    warn.mockRestore();
+  });
+
+  it('an item with no chain at all is skipped, not guessed at', async () => {
+    const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
+    const { transport } = fakeBox({
+      trash: [
+        {
+          entries: [
+            { type: 'file', id: 'x', name: 'orphan.txt' },
+            TRASHED('kept.txt', [{ id: '0', name: 'All Files' }]),
+          ],
+        },
+      ],
+    });
+
+    expect(await new BoxFileSource(transport, { baseUrl: API }).listTrashedPaths()).toEqual([
+      'kept.txt',
+    ]);
+    expect(warn, 'one unresolvable entry must not silence the bin').not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 });
 

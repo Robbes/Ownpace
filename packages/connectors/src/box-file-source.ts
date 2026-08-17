@@ -13,10 +13,12 @@
  *    T1's lesson). Every pass lists the folder; the natural key plus the
  *    ledger provide idempotency. Slower than a delta and CORRECT, in that
  *    order.
- *  - **`removed` is never populated.** Absence-counting provides deletion
- *    detection; a trash read (`GET /folders/trash/items`) that recovers
- *    ORIGINAL paths is its own later slice — recorded in the workplan, not
- *    implied away.
+ *  - **`removed` is never populated**, but the bin IS read: `listTrashedPaths`
+ *    below turns `GET /folders/trash/items` into the `trashed` evidence class
+ *    — the same bin read Drive, Dropbox and Nextcloud have, and the reason a
+ *    Box deletion can be APPLIED rather than only reported (ADR-0024 gate 3
+ *    refuses `inferred` however many passes it survives). Absence-counting
+ *    still covers what the bin cannot say.
  *  - **The path is the natural key**, DERIVED root-relative by the folder
  *    walk (a Box item has no path of its own), composed by one function for
  *    listings and keys both. `sourceRef` is Box's own `id` — stable across
@@ -30,6 +32,7 @@
  * bytes on any target this product writes.
  */
 
+import { log } from '@openmig/shared';
 import type { FileFolder, FileItem, FileSource, RawFileItem, SyncCursor, TokenProvider } from '@openmig/shared';
 import type { BoxFileSourceConfig, BoxItem, BoxItemList, BoxTransport } from './box-file-source.types';
 
@@ -37,6 +40,8 @@ const DEFAULT_BASE = 'https://api.box.com/2.0';
 /** Box's spelling of the account root ("All Files"). */
 const BOX_ROOT = '0';
 const ITEM_FIELDS = 'id,type,name,size,sha1,modified_at,created_at';
+/** The bin read needs the ancestor chain; the ordinary listing never asks for it. */
+const TRASH_FIELDS = 'id,type,name,path_collection';
 
 /** A transport that stamps each request with a freshly minted Bearer token. */
 export function boxTransport(tokens: TokenProvider): BoxTransport {
@@ -130,6 +135,103 @@ export class BoxFileSource implements FileSource {
   /** One composition for the path-shaped natural key — listings and keys both. */
   private childPath(folderPath: string, name: string): string {
     return folderPath ? `${folderPath}/${name}` : name;
+  }
+
+  /**
+   * Original root-relative paths of items in the account's TRASH
+   * (`FileSource.listTrashedPaths`) — Box's turn at the bin read.
+   *
+   * THE EVIDENCE THIS BUYS is the whole point (ADR-0024 gate 3): absence
+   * alone is `inferred`, which is reported to the owner but may never gate a
+   * destructive action, so before this the Box Deletions queue was a to-do
+   * list with the apply action permanently withheld. An item in the trash is
+   * the owner's own deletion, found where they put it — positive `trashed`
+   * evidence, the same class Drive, Dropbox and Nextcloud already answer.
+   *
+   * ONE listing, not Drive's per-file parent walk: Box answers
+   * `path_collection` — the ordered ancestor chain, id and name per level —
+   * on each entry, so the original path is composed from what the listing
+   * already carried. Folders ride along; a directory path no ledger file row
+   * holds resolves to nothing downstream, exactly like Dropbox's folder
+   * tombstones.
+   *
+   * TWO HONEST LIMITS, neither of them silent:
+   *
+   *  - An entry whose ancestor chain does not pass through the configured
+   *    root was never inside this migration's scope, and one whose chain is
+   *    missing has no nameable path; both are skipped per item, so one
+   *    unresolvable entry cannot silence the bin.
+   *  - If the trash held entries and NOT ONE resolved, that is not an empty
+   *    bin — it is this read not working (the shape of `path_collection` on a
+   *    trashed item is the one thing here no test can prove, only a real
+   *    tenant can). Nextcloud's rule applies: failing to read a bin that
+   *    exists is different from there being none, and only the second is
+   *    silent. So that case warns and the domain stays on absence-counting,
+   *    rather than reporting "nothing was deleted".
+   *
+   * Descendants of a trashed FOLDER may not be listed individually by Box
+   * (unlike Drive, which marks every descendant trashed). Where they are not,
+   * those files stay on absence-counting — this read never claims to cover
+   * what it did not see.
+   */
+  async listTrashedPaths(): Promise<ReadonlyArray<string>> {
+    const entries = await this.listTrashItems();
+    if (entries.length === 0) return [];
+
+    const out = new Set<string>();
+    for (const entry of entries) {
+      const path = this.originalPathOf(entry);
+      if (path !== undefined) out.add(path);
+    }
+
+    if (out.size === 0) {
+      log.warn(
+        `[box] the trash listed ${entries.length} item(s) and none could be placed under the ` +
+          `configured root (folder id "${this.rootFolderId}"). Either everything in the bin is ` +
+          'out of this migration\'s scope, or Box did not answer path_collection with the ' +
+          'original ancestors for trashed items — in which case Box deletions stay on ' +
+          'absence-counting (inferred) and cannot be applied. Not reporting an empty bin.',
+      );
+    }
+    return [...out];
+  }
+
+  /** The trash, marker-paged, asking for the ancestor chain up front. */
+  private async listTrashItems(): Promise<BoxItem[]> {
+    const found: BoxItem[] = [];
+    let marker: string | undefined;
+    let hops = 0;
+    do {
+      if (++hops > 1000) {
+        throw new Error(
+          'Box trash listing did not stop paging after 1000 markers — refusing to treat a ' +
+            'partial listing as the bin.',
+        );
+      }
+      const url =
+        `${this.baseUrl}/folders/trash/items` +
+        `?limit=1000&usemarker=true&fields=${encodeURIComponent(TRASH_FIELDS)}` +
+        (marker ? `&marker=${encodeURIComponent(marker)}` : '');
+      const page = (await this.getJson(url)) as BoxItemList;
+      found.push(...(page.entries ?? []).filter((e) => e.type !== 'web_link'));
+      marker = page.next_marker;
+    } while (marker);
+    return found;
+  }
+
+  /**
+   * The path an item HAD, from the ancestor chain the listing carried.
+   * `undefined` = out of this migration's scope, or unnameable.
+   */
+  private originalPathOf(entry: BoxItem): string | undefined {
+    const chain = entry.path_collection?.entries;
+    if (!chain || chain.length === 0) return undefined;
+    // The chain runs root-first. Everything BELOW the configured root is the
+    // path; a chain that never passes through it was never ours to report.
+    const rootAt = chain.findIndex((ancestor) => ancestor.id === this.rootFolderId);
+    if (rootAt === -1) return undefined;
+    const segments = chain.slice(rootAt + 1).map((ancestor) => ancestor.name);
+    return this.childPath(segments.join('/'), entry.name);
   }
 
   /**

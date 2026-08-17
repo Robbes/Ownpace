@@ -42,6 +42,17 @@ export interface BoxItem {
   readonly sha1?: string;
   readonly modified_at?: string;
   readonly created_at?: string;
+  /**
+   * The ordered ANCESTOR CHAIN, root first (`0` = "All Files"). Box answers
+   * this per item when asked for, which is what makes the trash read a single
+   * listing rather than Drive's per-file parent walk.
+   */
+  readonly path_collection?: BoxPathCollection;
+}
+
+export interface BoxPathCollection {
+  readonly total_count?: number;
+  readonly entries: ReadonlyArray<{ readonly id: string; readonly name: string }>;
 }
 
 export interface BoxItemList {

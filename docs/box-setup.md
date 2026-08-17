@@ -63,6 +63,25 @@ A folder somebody invited the account to (a **collaborated folder**) sits in the
 account's own tree and migrates as ordinary content; root a separate mapping at its
 folder id to migrate just it.
 
+## 5. The trash, and why it matters
+
+Each pass reads the account's trash (`/folders/trash/items`, read-only). An item the
+owner deleted is found where they put it, which is **positive** deletion evidence — the
+only kind that may gate removing the target's copy. Absence alone is never enough
+(ADR-0024), so with no trash the Deletions queue can only tell the owner what to delete
+by hand.
+
+Two enterprise settings therefore change what the owner can do, not just what they see:
+
+- **Trash retention** (Admin Console → Enterprise Settings → Content & Sharing). Box's
+  default keeps deleted items ~30 days. Deletions older than the window have left the
+  bin, and those fall back to absence-counting.
+- **Trash disabled** (permanent delete on). Nothing is ever in the bin, so every Box
+  deletion stays `inferred` and the apply action is withheld by design.
+
+Neither is a misconfiguration to fix — they are the customer's retention policy, and the
+migration reports honestly under both.
+
 ## What does not migrate (stated, not implied)
 
 Sharing state, collaborations, comments, tasks, Box Notes rendering guarantees, version
