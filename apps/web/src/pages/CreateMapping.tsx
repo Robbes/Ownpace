@@ -216,6 +216,11 @@ const CreateMapping: React.FC = () => {
   const reusableSources = (existingConnections ?? []).filter(
     (c) => c.role === 'source' && c.kind === sourceKindOf(formData.sourceType),
   );
+  // Target kinds ARE the wizard's target types (jmap/imap/caldav/carddav/
+  // webdav are all valid connection kinds), so no mapping is needed here.
+  const reusableTargets = (existingConnections ?? []).filter(
+    (c) => c.role === 'target' && c.kind === formData.targetType,
+  );
 
   // The config shapes, shared by submit AND the connection test (workplan
   // 0046) — the probe must run on exactly what create would post, or "test
@@ -1156,6 +1161,27 @@ const CreateMapping: React.FC = () => {
               </div>
             )}
 
+            {reusableTargets.length > 0 && (
+              <div className="border border-gray-200 rounded-lg p-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('wizard.reuseTarget')}
+                </label>
+                <select
+                  className="input w-full"
+                  value={formData.targetConnectionId}
+                  onChange={(e) => updateField('targetConnectionId', e.target.value)}
+                >
+                  <option value="">{t('wizard.reuseNone')}</option>
+                  {reusableTargets.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.displayName} ({c.kind})
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-sm text-gray-500">{t('wizard.reuse.hint')}</p>
+              </div>
+            )}
+
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h4 className="font-medium text-blue-900 mb-2">{t('wizard.credentials')}</h4>
               <div className="space-y-4">
@@ -1371,6 +1397,7 @@ const CreateMapping: React.FC = () => {
                   />
                 </div>
 
+                {!formData.targetConnectionId && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('wizard.targetPassword')}
@@ -1394,6 +1421,7 @@ const CreateMapping: React.FC = () => {
                     </button>
                   </div>
                 </div>
+                )}
               </div>
               {/* What happens to these secrets — a claim the code already
                   makes true (SecretStore.encryptCredentials; GET masks). */}

@@ -32,7 +32,7 @@ import {
   probeTargetConnection,
 } from '@openmig/orchestration/probe-connection';
 import { z } from 'zod';
-import { credentialFieldsFor } from '@openmig/shared';
+import { credentialFieldsFor, wizardTypeForConnectionKind } from '@openmig/shared';
 import { authenticate, getDbPool, withTenantDb } from '../middleware/auth';
 import type { AuthenticatedRequest } from '../types/api';
 // The SHAPE builders stay the create route's, deliberately: what a connection
@@ -276,6 +276,120 @@ router.post('/:id/test', authenticate, async (req: AuthenticatedRequest, res: Re
   } catch (error) {
     log.error('[api] testing a connection failed:', error);
     res.status(500).json({ error: 'test_failed', reason: String(error) });
+  }
+});
+
+/**
+ * Replace a connection's credentials in place (workplan 0065).
+ *
+ * The add route minus the insert. It exists because credentials EXPIRE — a
+ * rotated Box secret, a revoked Google refresh token — and without it the only
+ * repair was creating a new connection and a new mapping, abandoning the
+ * ledger history that made the old one useful.
+ *
+ * The row keeps its id, so every mapping pointing at it keeps working. What
+ * changes is the secret and, if the probe now succeeds, the status. The new
+ * credentials are PROBED BEFORE they replace the old ones, and a failure
+ * leaves the old ones in place: half-rotating a working connection into a
+ * broken one because somebody pasted the wrong value is worse than refusing.
+ */
+router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.tenantId) {
+      return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found' });
+    }
+    const tenantId = req.tenantId;
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    if (!id) return void res.status(400).json({ error: 'invalid_path', reason: 'id is required' });
+
+    const parsed = z.object({ values: z.record(z.string(), z.string()) }).safeParse(req.body);
+    if (!parsed.success) {
+      return void res.status(400).json({ error: 'invalid_body', reason: 'Send { values }.' });
+    }
+
+    const found = await withTenantDb(tenantId, pool(), (db) =>
+      db
+        .select()
+        .from(schema.connection)
+        .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId))),
+    );
+    const row = found[0];
+    if (!row) {
+      return void res.status(404).json({ error: 'not_found', reason: 'No such connection.' });
+    }
+
+    // By wizard type, not by kind — the descriptor is keyed the wizard's way.
+    const type = wizardTypeForConnectionKind(row.kind);
+    const fields = credentialFieldsFor(row.role, type);
+    const missing = parsed.data.values
+      ? fields.filter((f) => f.required && !parsed.data.values[f.key]?.trim()).map((f) => f.key)
+      : [];
+    if (missing.length > 0) {
+      return void res.status(400).json({
+        error: 'missing_fields',
+        reason: `Still needed: ${missing.join(', ')}.`,
+      });
+    }
+
+    const values = parsed.data.values;
+    const shaped = { ...values, ...(values.port ? { port: Number(values.port) } : {}) };
+    const configShape =
+      row.role === 'source' ? CreateMappingBase.shape.sourceConfig : CreateMappingBase.shape.targetConfig;
+    const checked = configShape.safeParse(shaped);
+    if (!checked.success) {
+      return void res.status(400).json({
+        error: 'invalid_values',
+        reason: checked.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(' '),
+      });
+    }
+
+    const half = checked.data as never;
+    const creds =
+      row.role === 'source'
+        ? sourceCredentialRecord({ sourceType: type as never, sourceConfig: half })
+        : { username: values.username ?? '', password: values.password ?? '' };
+
+    // The CONFIG is deliberately left alone: rotation replaces a secret, not
+    // where the migration is rooted. Changing both here would let a rotation
+    // silently re-point a mapping at a different folder.
+    const probe =
+      row.role === 'target'
+        ? await probeTargetConnection(
+            (TARGET_KINDS as ReadonlyArray<string>).includes(row.kind)
+              ? (row.kind as TargetKind)
+              : 'webdav',
+            (row.config ?? {}) as Record<string, unknown>,
+            creds as Record<string, string>,
+          )
+        : await probeSourceConnection(
+            row.kind,
+            (row.config ?? {}) as Record<string, unknown>,
+            creds as Record<string, string>,
+          );
+
+    if (!probe.ok) {
+      // The old credentials stay. Every mapping on this connection keeps
+      // whatever it had, which may well still be working.
+      return void res.status(200).json({ ...probe, rotated: false });
+    }
+
+    await withTenantDb(tenantId, pool(), (db) =>
+      db
+        .update(schema.connection)
+        .set({
+          secretRef: JSON.stringify(
+            SecretStore.encryptCredentials(creds as Record<string, string>).encrypted,
+          ),
+          status: 'connected',
+          updatedAt: new Date(),
+        })
+        .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId))),
+    );
+
+    res.json({ ...probe, rotated: true });
+  } catch (error) {
+    log.error('[api] rotating credentials failed:', error);
+    res.status(500).json({ error: 'rotate_failed', reason: String(error) });
   }
 });
 

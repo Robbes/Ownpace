@@ -564,6 +564,50 @@ paths:
                   reason: { type: string }
         '400': { description: Unknown type, a missing required field, or a value the schema refuses. }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/connections/{id}/credentials:
+    put:
+      tags: [Connections]
+      summary: Replace a connection's credentials in place
+      description: |
+        Credentials expire — a rotated Box secret, a revoked Google refresh
+        token — and without this the only repair was a new connection and a new
+        mapping, abandoning the ledger history that made the old one useful.
+        The row keeps its id, so every mapping pointing at it keeps working.
+        The new credentials are PROBED BEFORE they replace the old ones, and a
+        failure leaves the old ones in place (`rotated: false`): turning a
+        working connection into a broken one because somebody pasted the wrong
+        value is worse than refusing. The stored config is deliberately not
+        touched — rotation replaces a secret, not where a migration is rooted.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [values]
+              properties:
+                values:
+                  type: object
+                  additionalProperties: { type: string }
+      responses:
+        '200':
+          description: What the probe found, and whether the credentials were replaced.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  detail: { type: string }
+                  reason: { type: string }
+                  rotated:
+                    type: boolean
+                    description: False when the probe failed and the old credentials were kept.
+        '400': { description: A missing required field, or a value the schema refuses. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: No such connection for this tenant. }
   /api/connections/{id}/test:
     post:
       tags: [Connections]

@@ -11,15 +11,19 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import type { ConnectionSummary } from '../services/mapping-service';
 
-const { list, test: testConnection } = vi.hoisted(() => ({ list: vi.fn(), test: vi.fn() }));
+const { list, test: testConnection, rotate } = vi.hoisted(() => ({
+  list: vi.fn(),
+  test: vi.fn(),
+  rotate: vi.fn(),
+}));
 
 vi.mock('../services/mapping-service', () => ({
-  connectionsApi: { list, test: testConnection },
+  connectionsApi: { list, test: testConnection, rotate },
 }));
 
 import Connections from './Connections';
@@ -49,6 +53,7 @@ function renderPage() {
 beforeEach(() => {
   list.mockReset();
   testConnection.mockReset();
+  rotate.mockReset();
 });
 
 describe('the connections screen', () => {
@@ -108,5 +113,47 @@ describe('the connections screen', () => {
     renderPage();
 
     expect(await screen.findByText(/No connections yet/)).toBeTruthy();
+  });
+});
+
+describe('replacing credentials', () => {
+  it('asks only for the SECRETS, never for where the migration is rooted', async () => {
+    // Rotation replaces a credential, not a root folder — re-presenting the
+    // latter invites somebody to change it while fixing a login (0065).
+    list.mockResolvedValue([conn({ kind: 'box' })]);
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Replace credentials'));
+
+    expect(screen.getByText(/Source client secret/)).toBeTruthy();
+    expect(screen.queryByText(/Root folder id/), 'config is not re-asked').toBeNull();
+  });
+
+  it('keeps the OLD credentials when the new ones do not work', async () => {
+    list.mockResolvedValue([conn()]);
+    rotate.mockResolvedValue({
+      ok: false,
+      rotated: false,
+      reason: 'Box refused the token request (400): invalid_client.',
+    });
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Replace credentials'));
+    fireEvent.click(screen.getByText('Check and replace'));
+
+    // The provider's words, and nothing silently swapped underneath.
+    expect(await screen.findByText(/invalid_client/)).toBeTruthy();
+    expect(screen.getByText('Check and replace'), 'the form stays open to retry').toBeTruthy();
+  });
+
+  it('closes and refreshes once the new credentials prove out', async () => {
+    list.mockResolvedValue([conn()]);
+    rotate.mockResolvedValue({ ok: true, rotated: true, detail: 'Listed 12 folders.' });
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Replace credentials'));
+    fireEvent.click(screen.getByText('Check and replace'));
+
+    await waitFor(() => expect(screen.queryByText('Check and replace')).toBeNull());
   });
 });

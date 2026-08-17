@@ -15,8 +15,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { credentialFieldsFor, connectableTypes } from '@openmig/shared';
-import { CreateMappingBase } from './index';
+import {
+  connectableTypes,
+  credentialFieldsFor,
+  wizardTypeForConnectionKind,
+} from '@openmig/shared';
+import { CreateMappingBase, sourceKindFor } from './index';
 
 /** The wizard vocabularies the create route accepts, read off the schema itself. */
 function acceptedTypes(field: 'sourceType' | 'targetType'): string[] {
@@ -71,5 +75,34 @@ describe('every field the descriptor asks for is one the schema knows', () => {
         );
       }
     }
+  });
+});
+
+describe('connection kind and wizard type are inverses', () => {
+  it('round-trips every source type through sourceKindFor and back', () => {
+    // The two vocabularies differ by an underscore, and getting it wrong is
+    // SILENT: a setup profile looked up by kind answers [], which renders as
+    // "this provider needs nothing set up in advance" (workplan 0065).
+    for (const type of acceptedTypes('sourceType')) {
+      const kind = sourceKindFor(type as never);
+      const back = wizardTypeForConnectionKind(kind);
+      // oauth2 and graph both store as o365, so the inverse picks one of them;
+      // what must hold is that the answer is a type with a real descriptor.
+      expect(
+        credentialFieldsFor('source', back).length,
+        `${type} → ${kind} → ${back} has no descriptor`,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  it('maps the Google kinds back to their hyphenated wizard types', () => {
+    expect(wizardTypeForConnectionKind('google_drive')).toBe('google-drive');
+    expect(wizardTypeForConnectionKind('google_calendar')).toBe('google-calendar');
+    expect(wizardTypeForConnectionKind('google_contacts')).toBe('google-contacts');
+  });
+
+  it('leaves kinds that are already wizard types alone', () => {
+    expect(wizardTypeForConnectionKind('box')).toBe('box');
+    expect(wizardTypeForConnectionKind('dropbox')).toBe('dropbox');
   });
 });

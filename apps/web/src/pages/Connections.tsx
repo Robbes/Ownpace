@@ -18,7 +18,11 @@ import React from 'react';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, XCircle, HelpCircle, Loader2 } from 'lucide-react';
-import { credentialFieldsFor, connectableTypes } from '@openmig/shared';
+import {
+  connectableTypes,
+  credentialFieldsFor,
+  wizardTypeForConnectionKind,
+} from '@openmig/shared';
 import {
   connectionsApi,
   type ConnectionSummary,
@@ -32,11 +36,42 @@ const StatusIcon: React.FC<{ status: ConnectionSummary['status'] }> = ({ status 
   return <HelpCircle className="w-4 h-4 text-gray-400" />;
 };
 
-const Row: React.FC<{ connection: ConnectionSummary }> = ({ connection }) => {
+const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = ({
+  connection,
+  onChanged,
+}) => {
   const t = useT();
   const { relativeToNow } = useFormatters();
   const [testing, setTesting] = React.useState(false);
   const [result, setResult] = React.useState<TestConnectionResult | null>(null);
+  const [rotating, setRotating] = React.useState(false);
+  const [newValues, setNewValues] = React.useState<Record<string, string>>({});
+
+  // Only the SECRETS are re-asked. Rotation replaces a credential, not where a
+  // migration is rooted — and re-presenting a root folder id here would invite
+  // somebody to change it while fixing a login.
+  const secretFields = credentialFieldsFor(
+    connection.role,
+    wizardTypeForConnectionKind(connection.kind),
+  ).filter((f) => f.secret || f.key === 'username');
+
+  const rotate = async () => {
+    setTesting(true);
+    setResult(null);
+    try {
+      const answer = await connectionsApi.rotate(connection.id, newValues);
+      setResult(answer);
+      if (answer.rotated) {
+        setRotating(false);
+        setNewValues({});
+        onChanged();
+      }
+    } catch (err) {
+      setResult({ ok: false, reason: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setTesting(false);
+    }
+  };
 
   const test = async () => {
     setTesting(true);
@@ -67,7 +102,10 @@ const Row: React.FC<{ connection: ConnectionSummary }> = ({ connection }) => {
           {/* The prerequisites for this provider, in case the answer is
               "somebody has to re-authorise the app". */}
           <Link
-            to={`/setup/${connection.role}/${connection.kind}`}
+            // BY WIZARD TYPE, not by kind: the profiles are keyed the wizard's
+            // way, and looking one up by kind answers an empty checklist that
+            // reads as "nothing to set up" (workplan 0065).
+            to={`/setup/${connection.role}/${wizardTypeForConnectionKind(connection.kind)}`}
             className="text-sm text-blue-700 hover:underline"
           >
             {t('connections.setupSteps')}
@@ -81,8 +119,45 @@ const Row: React.FC<{ connection: ConnectionSummary }> = ({ connection }) => {
             {testing && <Loader2 className="w-3 h-3 animate-spin" />}
             {testing ? t('connections.testing') : t('connections.test')}
           </button>
+          <button
+            type="button"
+            onClick={() => setRotating((v) => !v)}
+            className="text-sm px-3 py-1 border border-gray-300 rounded hover:bg-gray-50"
+          >
+            {t('connections.rotate')}
+          </button>
         </div>
       </div>
+
+      {rotating && (
+        <div className="mt-3 border-t border-gray-200 pt-3">
+          <p className="text-sm text-gray-600">{t('connections.rotate.hint')}</p>
+          <div className="mt-2 grid gap-3 sm:grid-cols-2">
+            {secretFields.map((field) => (
+              <label key={field.key} className="text-sm">
+                <span className="block text-gray-700 mb-1">{t(field.labelKey as StringKey)}</span>
+                <input
+                  type={field.secret ? 'password' : 'text'}
+                  autoComplete={field.secret ? 'new-password' : 'off'}
+                  className="input w-full"
+                  value={newValues[field.key] ?? ''}
+                  onChange={(e) =>
+                    setNewValues((v) => ({ ...v, [field.key]: e.target.value }))
+                  }
+                />
+              </label>
+            ))}
+          </div>
+          <button
+            type="button"
+            disabled={testing}
+            onClick={rotate}
+            className="mt-3 text-sm px-3 py-1.5 bg-blue-600 text-white rounded disabled:opacity-50"
+          >
+            {testing ? t('connections.testing') : t('connections.rotate.save')}
+          </button>
+        </div>
+      )}
 
       {result && (
         <p
@@ -286,14 +361,14 @@ const Connections: React.FC = () => {
           <h3 className="mt-6 font-medium text-gray-900">{t('connections.sources')}</h3>
           <ul className="mt-2 space-y-3">
             {sources.map((c) => (
-              <Row key={c.id} connection={c} />
+              <Row key={c.id} connection={c} onChanged={() => void refetch()} />
             ))}
           </ul>
 
           <h3 className="mt-6 font-medium text-gray-900">{t('connections.targets')}</h3>
           <ul className="mt-2 space-y-3">
             {targets.map((c) => (
-              <Row key={c.id} connection={c} />
+              <Row key={c.id} connection={c} onChanged={() => void refetch()} />
             ))}
           </ul>
         </>

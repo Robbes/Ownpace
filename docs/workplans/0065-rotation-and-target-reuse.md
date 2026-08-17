@@ -1,0 +1,21 @@
+# Workplan 0065 — finishing the connections surface
+
+## Status — 2026-08-17 (update this block at the end of every session)
+
+| Task | Status | Evidence |
+|---|---|---|
+| T1 a defect this PR introduced | ✅ **Fixed 2026-08-17** | The Connections page linked to a provider's setup checklist using `connection.kind`, but the setup profiles are keyed by WIZARD TYPE. Those two vocabularies differ by an underscore — `google_drive` versus `google-drive` — so every Google connection's "Setup steps" link landed on an empty checklist reading *"this provider needs nothing set up in advance"*. Silent, and wrong in the direction that tells a customer there is nothing to do. `wizardTypeForConnectionKind` is the inverse of the server's `sourceKindFor`, used by the page and by rotation, and a test round-trips every accepted source type through both to assert the result always has a real descriptor. Box and Dropbox hid the bug by having `kind === type`. |
+| T2 rotation | ✅ **Done 2026-08-17** | `PUT /api/connections/:id/credentials` — the add route minus the insert. It exists because credentials EXPIRE, and without it the only repair was a new connection and a new mapping, abandoning the ledger history that made the old one useful. The row keeps its id, so every mapping on it keeps working. Two decisions: the new credentials are **probed before they replace the old ones**, and a failure answers `rotated: false` leaving the old ones in place — turning a working connection into a broken one because somebody pasted the wrong value is worse than refusing; and the stored **config is deliberately untouched**, because rotation replaces a secret, not where a migration is rooted. The form re-asks only the secrets (plus the username), for the same reason. 3 tests. |
+| T3 target-side reuse | ✅ **Done 2026-08-17** | The wizard now offers stored TARGET connections as well as sources, and hides the target password when one is chosen. Simpler than the source side: target kinds ARE the wizard's target types, so no vocabulary mapping is needed — noted in the code so nobody adds one by symmetry. |
+| T4 what is deliberately still absent | ⛔ | (a) **Deleting a connection.** Rows cascade to mailboxes and items, so a delete button needs a refusal path ("3 mailboxes use this — remove those migrations first") designed before it is built. Leaving it out is the safe half of a destructive feature. (b) **Per-mapping config overriding a shared connection.** A mapping reusing a Drive connection inherits its `rootFolderId`; "same credentials, different folder" therefore still needs its own connection. That is a genuine design question — where does config live when a connection is shared? — not an oversight, and worth answering before someone works around it. (c) **These management surfaces are managed-edition only.** The API routes live in `apps/api`, which the appliance does not run, and the Connections nav entry is inside the non-self-host branch. The appliance configures its connections in mapping files, so the checklist and connections pages do not apply — but `/docs` does work there, since it is static, which is a small win the appliance gets for free. Stated because "the web app is shared between editions" makes the opposite assumption easy. |
+
+## What this is
+
+The last of the connections surface, and one defect caught by asking what else the PR needed
+rather than by a test.
+
+The T1 bug is the one worth remembering: two vocabularies for the same concept, differing by a
+single character, with a lookup that answers `[]` rather than throwing when you use the wrong
+one. Nothing failed — the page rendered a cheerful "nothing to set up". The fix is an explicit
+inverse function and a round-trip test; the lesson is that a lookup returning an empty answer
+for an unknown key is only safe when callers can tell "none" from "wrong key".

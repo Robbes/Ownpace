@@ -151,3 +151,34 @@ export function secretFieldKeys(role: 'source' | 'target', type: string): Readon
     .filter((f) => f.secret)
     .map((f) => f.key);
 }
+
+/**
+ * `connection.kind` → the wizard type the rest of this file is keyed by
+ * (workplan 0065).
+ *
+ * The two vocabularies differ by an underscore for historical reasons —
+ * `connection.kind` predates the wizard, so Drive is `google_drive` there and
+ * `google-drive` here — and the gap is silent when you get it wrong: looking a
+ * setup profile up by KIND answers `[]`, which renders as "this provider needs
+ * nothing set up in advance". That is what the Connections page did for every
+ * Google connection until this existed.
+ *
+ * The server's `sourceKindFor` is the forward direction; this is its inverse,
+ * and a test pins them as a round trip.
+ */
+export function wizardTypeForConnectionKind(kind: string): string {
+  switch (kind) {
+    case 'google_drive':
+      return 'google-drive';
+    case 'google_calendar':
+      return 'google-calendar';
+    case 'google_contacts':
+      return 'google-contacts';
+    case 'o365':
+      // Both `oauth2` and `graph` store as o365; they share a setup profile
+      // and a field list, so either answer is correct for those uses.
+      return 'graph';
+    default:
+      return kind;
+  }
+}

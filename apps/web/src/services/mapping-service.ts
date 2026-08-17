@@ -600,6 +600,20 @@ export const connectionsApi = {
     const response = await apiClient.post('/connections', payload);
     return response.data as TestConnectionResult & { id: string };
   },
+  /**
+   * Replace a connection's credentials in place. Probed first; `rotated:false`
+   * means the probe failed and the OLD credentials were kept.
+   */
+  rotate: async (
+    id: string,
+    values: Record<string, string>,
+  ): Promise<TestConnectionResult & { rotated: boolean }> => {
+    const response = await apiClient.put(
+      `/connections/${encodeURIComponent(id)}/credentials`,
+      { values },
+    );
+    return response.data as TestConnectionResult & { rotated: boolean };
+  },
   list: async (): Promise<ConnectionSummary[]> => {
     const response = await apiClient.get('/connections');
     return (response.data as { connections: ConnectionSummary[] }).connections;
