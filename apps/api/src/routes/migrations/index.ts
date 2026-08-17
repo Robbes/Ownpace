@@ -1083,6 +1083,18 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
             throttleConfig: body.throttleConfig
               ? parseThrottleConfig(body.throttleConfig)
               : null,
+            /**
+             * When a connection is SHARED, this mapping's own answers to
+             * "whose data, and where" (migration 0021). Only recorded when
+             * reusing: a mapping with its own connection already has these on
+             * it, and writing them twice would create two places to disagree.
+             */
+            sourceConfigOverride: body.sourceConnectionId
+              ? sourceConnectionConfig(body)
+              : null,
+            targetConfigOverride: body.targetConnectionId
+              ? targetConnectionConfig(body)
+              : null,
           })
           .returning(),
         'mapping',

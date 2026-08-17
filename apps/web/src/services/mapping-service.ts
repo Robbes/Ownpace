@@ -614,6 +614,14 @@ export const connectionsApi = {
     );
     return response.data as TestConnectionResult & { rotated: boolean };
   },
+  /**
+   * Delete a connection. The server REFUSES while anything uses it, because
+   * mailbox rows cascade and would take the migration ledger with them; the
+   * refusal names which migrations, so it is actionable.
+   */
+  remove: async (id: string): Promise<void> => {
+    await apiClient.delete(`/connections/${encodeURIComponent(id)}`);
+  },
   list: async (): Promise<ConnectionSummary[]> => {
     const response = await apiClient.get('/connections');
     return (response.data as { connections: ConnectionSummary[] }).connections;

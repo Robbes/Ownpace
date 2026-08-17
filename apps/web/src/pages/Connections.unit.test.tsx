@@ -16,14 +16,15 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import type { ConnectionSummary } from '../services/mapping-service';
 
-const { list, test: testConnection, rotate } = vi.hoisted(() => ({
+const { list, test: testConnection, rotate, remove } = vi.hoisted(() => ({
   list: vi.fn(),
   test: vi.fn(),
   rotate: vi.fn(),
+  remove: vi.fn(),
 }));
 
 vi.mock('../services/mapping-service', () => ({
-  connectionsApi: { list, test: testConnection, rotate },
+  connectionsApi: { list, test: testConnection, rotate, remove },
 }));
 
 import Connections from './Connections';
@@ -54,6 +55,7 @@ beforeEach(() => {
   list.mockReset();
   testConnection.mockReset();
   rotate.mockReset();
+  remove.mockReset();
 });
 
 describe('the connections screen', () => {
@@ -155,5 +157,33 @@ describe('replacing credentials', () => {
     fireEvent.click(screen.getByText('Check and replace'));
 
     await waitFor(() => expect(screen.queryByText('Check and replace')).toBeNull());
+  });
+});
+
+describe('deleting a connection', () => {
+  it("refuses while anything uses it, and names what — not a flat no", async () => {
+    // The cascade is the reason: mailbox.connection_id cascades and item hangs
+    // off the mailboxes, so deleting one in use would take the migration
+    // ledger with it silently (workplan 0066).
+    list.mockResolvedValue([conn({ usedByMailboxes: 3 })]);
+    remove.mockRejectedValue(
+      new Error('3 mailbox(es) still use this connection (Acme mail). Deleting it would take their migration history with it, so remove those migrations first.'),
+    );
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Delete'));
+
+    expect(await screen.findByText(/Acme mail/)).toBeTruthy();
+    expect(screen.getByText(/migration history/)).toBeTruthy();
+  });
+
+  it('deletes one nothing depends on, and refreshes', async () => {
+    list.mockResolvedValue([conn({ usedByMailboxes: 0 })]);
+    remove.mockResolvedValue(undefined);
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Delete'));
+
+    await waitFor(() => expect(remove).toHaveBeenCalledWith('c1'));
   });
 });

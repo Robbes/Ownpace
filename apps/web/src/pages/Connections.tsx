@@ -55,6 +55,20 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
     wizardTypeForConnectionKind(connection.kind),
   ).filter((f) => f.secret || f.key === 'username');
 
+  /** The server decides whether this is allowed; its refusal is the message. */
+  const remove = async () => {
+    setTesting(true);
+    setResult(null);
+    try {
+      await connectionsApi.remove(connection.id);
+      onChanged();
+    } catch (err) {
+      setResult({ ok: false, reason: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setTesting(false);
+    }
+  };
+
   const rotate = async () => {
     setTesting(true);
     setResult(null);
@@ -125,6 +139,14 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
             className="text-sm px-3 py-1 border border-gray-300 rounded hover:bg-gray-50"
           >
             {t('connections.rotate')}
+          </button>
+          <button
+            type="button"
+            onClick={remove}
+            disabled={testing}
+            className="text-sm px-3 py-1 border border-gray-300 rounded text-red-700 hover:bg-red-50 disabled:opacity-50"
+          >
+            {t('connections.delete')}
           </button>
         </div>
       </div>

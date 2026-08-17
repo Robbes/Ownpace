@@ -23,7 +23,7 @@
 
 import { Router } from 'express';
 import type { Response } from 'express';
-import { eq, and, inArray, sql } from 'drizzle-orm';
+import { eq, and, inArray, or, sql } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { log } from '@openmig/shared';
 import { SecretStore } from '@openmig/core/secret-store';
@@ -390,6 +390,82 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
   } catch (error) {
     log.error('[api] rotating credentials failed:', error);
     res.status(500).json({ error: 'rotate_failed', reason: String(error) });
+  }
+});
+
+/**
+ * Delete a connection — but only one nothing depends on (workplan 0066).
+ *
+ * THE REFUSAL IS THE FEATURE. `mailbox.connection_id` cascades on delete, and
+ * `item` hangs off the mailboxes, so letting this through for a connection in
+ * use would not fail loudly — it would take the mailboxes and the entire
+ * migration ledger with it, silently, and the next pass would re-copy
+ * everything as though it had never run. Hard rule 2 is about not destroying a
+ * customer's data on their servers; this is about not destroying the record of
+ * what we already did with it, which is the same promise wearing different
+ * clothes.
+ *
+ * So: refuse while anything uses it, and say how many and which migrations, so
+ * the answer is actionable rather than a flat no.
+ */
+router.delete('/:id', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.tenantId) {
+      return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found' });
+    }
+    const tenantId = req.tenantId;
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    if (!id) return void res.status(400).json({ error: 'invalid_path', reason: 'id is required' });
+
+    const outcome = await withTenantDb(tenantId, pool(), async (db) => {
+      const found = await db
+        .select({ id: schema.connection.id, displayName: schema.connection.displayName })
+        .from(schema.connection)
+        .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId)));
+      if (!found[0]) return { status: 404 as const };
+
+      // Named, not just counted: "3 mailboxes" is a number, "Acme mail" is
+      // something the person can go and deal with.
+      const users = await db
+        .select({ mapping: schema.mailboxMapping.name })
+        .from(schema.mailbox)
+        .leftJoin(
+          schema.mailboxMapping,
+          or(
+            eq(schema.mailboxMapping.sourceMailboxId, schema.mailbox.id),
+            eq(schema.mailboxMapping.targetMailboxId, schema.mailbox.id),
+          ),
+        )
+        .where(eq(schema.mailbox.connectionId, id));
+
+      if (users.length > 0) {
+        const names = [...new Set(users.map((u) => u.mapping).filter(Boolean))];
+        return { status: 409 as const, used: users.length, names };
+      }
+
+      await db
+        .delete(schema.connection)
+        .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId)));
+      return { status: 204 as const };
+    });
+
+    if (outcome.status === 404) {
+      return void res.status(404).json({ error: 'not_found', reason: 'No such connection.' });
+    }
+    if (outcome.status === 409) {
+      return void res.status(409).json({
+        error: 'in_use',
+        reason:
+          `${outcome.used} mailbox(es) still use this connection` +
+          (outcome.names.length > 0 ? ` (${outcome.names.join(', ')})` : '') +
+          '. Deleting it would take their migration history with it, so remove those ' +
+          'migrations first.',
+      });
+    }
+    res.status(204).end();
+  } catch (error) {
+    log.error('[api] deleting a connection failed:', error);
+    res.status(500).json({ error: 'delete_failed', reason: String(error) });
   }
 });
 

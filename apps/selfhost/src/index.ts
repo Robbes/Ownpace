@@ -49,6 +49,8 @@ import {
   MOVE_GUIDANCE,
   DELETIONS_MEANING,
   DELETION_GUIDANCE,
+  setupStepsFor,
+  summariseSetup,
 } from '@openmig/shared';
 import type {
   ApplyDeletionsFlag,
@@ -1476,6 +1478,98 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           );
         };
       };
+      /**
+       * One appliance, one tenant — every configured mapping shares it, so the
+       * checklist is tenant-scoped exactly as it is on managed, with no
+       * per-mapping meaning to invent.
+       */
+      const applianceTenantId = (): TenantId =>
+        (mappings[0]?.config.tenantId ?? '00000000-0000-0000-0000-000000000000') as TenantId;
+
+      // ------------------------------ the provider setup checklist (0061/0066)
+      //
+      // GENERIC ON PURPOSE. The prerequisites are the same work in both
+      // editions — somebody still creates a Box app and gets an admin to
+      // authorise it — so the appliance answers the same two routes over the
+      // same table, and the shared UI needs no edition branch.
+      //
+      // Connections management is NOT mirrored, and that is a decision rather
+      // than an omission: an appliance's connections come from mapping FILES,
+      // which are the source of truth an operator edits and version-controls.
+      // A UI that let somebody edit them here would either lie (the file wins
+      // on restart) or quietly rewrite a file the operator owns.
+      const setupGetMatch =
+        req.method === 'GET' && req.url ? /^\/setup\/([^/]+)\/([^/]+)$/.exec(req.url) : null;
+      if (setupGetMatch) {
+        const side = setupGetMatch[1] === 'target' ? 'target' : 'source';
+        const provider = decodeURIComponent(setupGetMatch[2]!);
+        const steps = setupStepsFor(side, provider);
+        const rows = await ledger.listSetupSteps(applianceTenantId(), side, provider);
+        const byKey = new Map(rows.map((r) => [r.stepKey, r]));
+        const statuses = steps.map((step) => {
+          const row = byKey.get(step.key);
+          return {
+            step,
+            state: row?.state ?? ('open' as const),
+            ...(row?.decidedBy ? { decidedBy: row.decidedBy } : {}),
+            ...(row?.decidedAt ? { decidedAt: row.decidedAt } : {}),
+          };
+        });
+        return sendJson(res, 200, {
+          side,
+          provider,
+          steps: statuses,
+          progress: summariseSetup(statuses),
+        });
+      }
+      const setupPutMatch =
+        req.method === 'PUT' && req.url
+          ? /^\/setup\/([^/]+)\/([^/]+)\/([^/]+)$/.exec(req.url)
+          : null;
+      if (setupPutMatch) {
+        const body = await readJson(req);
+        const side = setupPutMatch[1] === 'target' ? 'target' : 'source';
+        const provider = decodeURIComponent(setupPutMatch[2]!);
+        const stepKey = decodeURIComponent(setupPutMatch[3]!);
+        const state = (body as { state?: string }).state;
+        if (state !== 'open' && state !== 'done' && state !== 'skipped') {
+          return sendJson(res, 400, {
+            error: 'invalid_body',
+            reason: "Send { state } — one of 'open', 'done' or 'skipped'.",
+          });
+        }
+        if (!setupStepsFor(side, provider).some((x) => x.key === stepKey)) {
+          return sendJson(res, 404, {
+            error: 'unknown_step',
+            reason: `'${stepKey}' is not a setup step for the ${side} '${provider}'.`,
+          });
+        }
+        // One operator on an appliance, so the decider is the operator — the
+        // same word the sharing queue uses here.
+        await ledger.setSetupStepState(applianceTenantId(), side, provider, stepKey, {
+          state,
+          decidedBy: 'operator',
+        });
+        const steps = setupStepsFor(side, provider);
+        const rows = await ledger.listSetupSteps(applianceTenantId(), side, provider);
+        const byKey = new Map(rows.map((r) => [r.stepKey, r]));
+        const statuses = steps.map((step) => {
+          const row = byKey.get(step.key);
+          return {
+            step,
+            state: row?.state ?? ('open' as const),
+            ...(row?.decidedBy ? { decidedBy: row.decidedBy } : {}),
+            ...(row?.decidedAt ? { decidedAt: row.decidedAt } : {}),
+          };
+        });
+        return sendJson(res, 200, {
+          side,
+          provider,
+          steps: statuses,
+          progress: summariseSetup(statuses),
+        });
+      }
+
       // ------------------------------------------ the sharing queue (ADR-0032)
       const sharingGetMatch =
         req.method === 'GET' && req.url ? /^\/mappings\/([^/]+)\/sharing$/.exec(req.url) : null;

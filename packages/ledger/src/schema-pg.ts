@@ -153,6 +153,16 @@ export const mailboxMapping = pgTable(
     // 2026-08-16). See migration 0011 and MappingConfig.targetFolderPrefix.
     targetFolderPrefix: text('target_folder_prefix'),
     /**
+     * Per-mapping overrides of a SHARED connection's config (migration 0021).
+     *
+     * The connection answers "as whom do we sign in"; the mapping answers
+     * "whose data, and where" — a Box subject, a Drive root folder, a Dropbox
+     * root path. NULL means nothing to override, which is every mapping whose
+     * connection is not shared. Merged override-over-connection at build time.
+     */
+    sourceConfigOverride: jsonb('source_config_override'),
+    targetConfigOverride: jsonb('target_config_override'),
+    /**
      * The mapping's throttle choice (migration 0017) — same shape and same
      * shared parser as the appliance's `throttleConfig`. NULL = no throttling.
      */

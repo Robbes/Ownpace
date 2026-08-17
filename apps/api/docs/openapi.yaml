@@ -564,6 +564,28 @@ paths:
                   reason: { type: string }
         '400': { description: Unknown type, a missing required field, or a value the schema refuses. }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/connections/{id}:
+    delete:
+      tags: [Connections]
+      summary: Delete a connection nothing depends on
+      description: |
+        REFUSES while any mailbox uses it, naming which migrations. That
+        refusal is the feature: `mailbox.connection_id` cascades on delete and
+        `item` hangs off the mailboxes, so deleting a connection in use would
+        not fail loudly — it would take the mailboxes and the whole migration
+        ledger with it, and the next pass would re-copy everything as though it
+        had never run.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Deleted. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: No such connection for this tenant. }
+        '409':
+          description: Still in use; the reason names how many and which migrations.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
   /api/connections/{id}/credentials:
     put:
       tags: [Connections]

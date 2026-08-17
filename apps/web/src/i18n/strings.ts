@@ -745,11 +745,14 @@ const en = {
   'decisionStatus.auto_resolved': 'Decided by preset',
   'decisionStatus.dismissed': 'Dismissed',
   'nav.connections': 'Connections',
+  'nav.setup': 'Setup checklist',
+  'nav.docs': 'Setup guides',
   'wizard.reuseSource': 'Use a source connection you already have',
   'wizard.reuseTarget': 'Use a target connection you already have',
   'wizard.reuseNone': 'No — enter new credentials below',
   'wizard.reuse.hint':
     'Picking one reuses its saved credentials, so you do not paste the same secret twice. The credential fields below disappear when you do.',
+  'connections.delete': 'Delete',
   'connections.rotate': 'Replace credentials',
   'connections.rotate.hint':
     'Paste the new values. They are checked before they replace the old ones — if the check fails, nothing changes and your migrations keep whatever was working.',
@@ -1588,11 +1591,14 @@ const nl: Record<keyof typeof en, string> = {
   'decisionStatus.auto_resolved': 'Beslist door vast antwoord',
   'decisionStatus.dismissed': 'Terzijde gelegd',
   'nav.connections': 'Verbindingen',
+  'nav.setup': 'Instelchecklist',
+  'nav.docs': 'Handleidingen',
   'wizard.reuseSource': 'Gebruik een bronverbinding die u al heeft',
   'wizard.reuseTarget': 'Gebruik een doelverbinding die u al heeft',
   'wizard.reuseNone': 'Nee — hieronder nieuwe inloggegevens invoeren',
   'wizard.reuse.hint':
     'Als u er een kiest worden de opgeslagen inloggegevens hergebruikt, zodat u hetzelfde geheim niet twee keer plakt. De velden hieronder verdwijnen dan.',
+  'connections.delete': 'Verwijderen',
   'connections.rotate': 'Inloggegevens vervangen',
   'connections.rotate.hint':
     'Plak de nieuwe waarden. Ze worden gecontroleerd vóór ze de oude vervangen — mislukt de controle, dan verandert er niets en houden uw migraties wat werkte.',
