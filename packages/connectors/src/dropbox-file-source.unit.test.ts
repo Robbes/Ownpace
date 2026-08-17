@@ -20,9 +20,20 @@ import type { DropboxTransport } from './dropbox-file-source.types';
 const API = 'https://api.test/2';
 const CONTENT = 'https://content.test/2';
 
+/**
+ * Served BY CURSOR, not by call count — the continue endpoint is one URL, so
+ * the cursor in the BODY is the only address there is.
+ *
+ * Workplans 0058 and 0059 both found connectors certified healthy by mocks
+ * answering what no server could: one invented a response field, the other
+ * returned page two for a repeat of the identical request. A call-counting
+ * fake here would pass whether or not `listAll` fed each page's cursor into
+ * the next continue — which is the entire mechanism. So a continue carrying
+ * cursor `c1` gets page 1, and one that reuses a stale cursor gets the page it
+ * asked for, looping exactly as the real API would.
+ */
 function fakeDropbox(pages: Record<string, unknown[]>, bytes?: Uint8Array) {
   const calls: Array<{ url: string; body?: string; headers: Record<string, string> }> = [];
-  let continueCount = 0;
   let sharingCount = 0;
   const transport: DropboxTransport = async (url, init) => {
     calls.push({ url, headers: { ...init.headers }, ...(init.body ? { body: init.body } : {}) });
@@ -34,13 +45,23 @@ function fakeDropbox(pages: Record<string, unknown[]>, bytes?: Uint8Array) {
       text: async () => '',
     });
     if (url.includes('/files/download')) return respond({});
+    if (url.includes('/sharing/list_folders/continue')) {
+      const queue = pages['sharing'] ?? [];
+      return respond(queue[++sharingCount] ?? { entries: [] });
+    }
     if (url.includes('/sharing/list_folders')) {
       const queue = pages['sharing'] ?? [];
-      return respond(queue[sharingCount++] ?? { entries: [] });
+      return respond(queue[0] ?? { entries: [] });
     }
     if (url.includes('list_folder/continue')) {
+      // `c1` → page 1 of the continue queue. A stale or missing cursor
+      // therefore re-reads a page it has already had, which is a loop.
+      const arg = JSON.parse(init.body ?? '{}') as { cursor?: string };
+      const index = Number(String(arg.cursor ?? 'c1').replace(/^c/, '')) - 1;
       const queue = pages['continue'] ?? [];
-      return respond(queue[continueCount++] ?? { entries: [], cursor: 'c', has_more: false });
+      return respond(
+        queue[Number.isNaN(index) ? 0 : index] ?? { entries: [], cursor: 'c', has_more: false },
+      );
     }
     const arg = JSON.parse(init.body ?? '{}') as { path: string };
     const first = pages[arg.path] ?? [{ entries: [], cursor: 'c', has_more: false }];
@@ -97,7 +118,7 @@ describe('the natural key', () => {
 
 describe('pagination', () => {
   it('follows has_more to the end — a partial listing is never the folder', async () => {
-    const { transport } = fakeDropbox({
+    const { transport, calls } = fakeDropbox({
       '': [{ entries: [FILE('/one.txt')], cursor: 'c1', has_more: true }],
       continue: [
         { entries: [FILE('/two.txt')], cursor: 'c2', has_more: true },
@@ -109,6 +130,11 @@ describe('pagination', () => {
     const { items } = await source.listSince({ path: '' });
 
     expect(items.map((i) => i.item.path)).toEqual(['one.txt', 'two.txt', 'three.txt']);
+    // Each continue must carry the cursor the PREVIOUS page answered. The fake
+    // serves by it, so reusing a stale one would re-read a page forever —
+    // asserted because a call-counting fake passes either way (0058/0059).
+    expect(JSON.parse(calls[1]!.body!).cursor).toBe('c1');
+    expect(JSON.parse(calls[2]!.body!).cursor).toBe('c2');
   });
 });
 
