@@ -132,6 +132,22 @@ export const managedDigest = schedules.task({
           since,
           mappingId,
         }),
+      // Open checklist rows, counted from the same table the Sharing screen
+      // reads (ADR-0032) — the digest and the page cannot disagree.
+      countSharingOpen: async (tenantId, mappingId) =>
+        (await ledger.listShareGrants(asTenantId(tenantId), asMappingId(mappingId))).filter(
+          (g) => g.state === 'open',
+        ).length,
+      lastDigestSentAt: (tenantId, cadence) =>
+        ledger.latestAuditEventAt(asTenantId(tenantId), {
+          actor: 'system:digest',
+          action: `digest_sent_${cadence}`,
+        }),
+      recordDigestSent: (tenantId, cadence) =>
+        ledger.recordAuditEvent(asTenantId(tenantId), {
+          actor: 'system:digest',
+          action: `digest_sent_${cadence}`,
+        }),
       countPendingDecisions: async (tenantId) =>
         (await decisions.list(asTenantId(tenantId), { status: 'pending' })).length,
 

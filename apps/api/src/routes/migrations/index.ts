@@ -34,6 +34,7 @@ import {
   DISTRIBUTION_D_NOT_A_MAPPING,
   targetDomainRefusal,
   parseTargetFolderPrefix,
+  parseThrottleConfig,
   sourceDomainRefusal,
   parseGoogleDriveSource,
   ConfigError,
@@ -276,6 +277,9 @@ const CreateMappingBase = z.object({
    * API refuse the same shapes in the same words.
    */
   targetFolderPrefix: z.string().optional(),
+  // The mapping's throttle choice — the appliance's `throttleConfig` shape,
+  // refused by the SHARED parser in its words (hard rule 5).
+  throttleConfig: z.record(z.string(), z.unknown()).optional(),
   // Mapping-specific fields (for mailbox_mapping table)
   status: z.enum(['active', 'paused', 'cutover', 'done']).optional(),
   /**
@@ -471,6 +475,19 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
       ctx.addIssue({
         code: 'custom',
         path: ['targetFolderPrefix'],
+        message: err instanceof ConfigError ? err.message : String(err),
+      });
+    }
+  }
+  if (body.throttleConfig !== undefined) {
+    // The appliance's parser, verbatim (hard rule 5): a garbage field is
+    // refused here in the same words a mapping file gets.
+    try {
+      parseThrottleConfig(body.throttleConfig);
+    } catch (err) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['throttleConfig'],
         message: err instanceof ConfigError ? err.message : String(err),
       });
     }
@@ -861,6 +878,11 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
             // Parsed, not raw: '/Gmail/' stores as 'Gmail', and '' as NULL —
             // the same normalisation the appliance's config loader applies.
             targetFolderPrefix: parseTargetFolderPrefix(body.targetFolderPrefix) ?? null,
+            // Stored as the PARSED shape, so what a pass reads back is exactly
+            // what the shared parser accepted (migration 0017).
+            throttleConfig: body.throttleConfig
+              ? parseThrottleConfig(body.throttleConfig)
+              : null,
           })
           .returning(),
         'mapping',

@@ -480,6 +480,25 @@ export class PgLedger implements Ledger {
     return rows[0]?.n ?? 0;
   }
 
+  async latestAuditEventAt(
+    tenantId: TenantId,
+    filter: { readonly actor: string; readonly action: string },
+  ): Promise<string | undefined> {
+    const rows = await this.db
+      .select({ at: schemaPg.auditLog.at })
+      .from(schemaPg.auditLog)
+      .where(
+        and(
+          eq(schemaPg.auditLog.tenantId, tenantId),
+          eq(schemaPg.auditLog.actor, filter.actor),
+          eq(schemaPg.auditLog.action, filter.action),
+        ),
+      )
+      .orderBy(desc(schemaPg.auditLog.at))
+      .limit(1);
+    return rows[0]?.at.toISOString();
+  }
+
   async upsertShareGrants(
     tenantId: TenantId,
     mappingId: MappingId,

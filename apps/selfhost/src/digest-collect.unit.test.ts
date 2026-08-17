@@ -28,6 +28,7 @@ function deps(overrides: Partial<CollectDeps> = {}): CollectDeps {
     listMoves: async () => [],
     listFailures: async () => [],
     countAutoApplied: async () => 0,
+    countSharingOpen: async () => 0,
     countPendingDecisions: async () => 0,
     ...overrides,
   };
@@ -199,6 +200,7 @@ describe('collectTenantAttention (0043 T4)', () => {
         listMoves: async () => [],
         listFailures: async () => [],
     countAutoApplied: async () => 0,
+    countSharingOpen: async () => 0,
         countPendingDecisions: async () => 2,
       }),
     ).resolves.toEqual({ pendingDecisions: 2 });
@@ -219,6 +221,7 @@ describe('collectTenantAttention (0043 T4)', () => {
         listMoves: async () => [],
         listFailures: async () => [],
     countAutoApplied: async () => 0,
+    countSharingOpen: async () => 0,
         countPendingDecisions: async () => {
           calls += 1;
           return 1;
@@ -236,6 +239,7 @@ describe('collectTenantAttention (0043 T4)', () => {
       listMoves: async () => [],
       listFailures: async () => [],
     countAutoApplied: async () => 0,
+    countSharingOpen: async () => 0,
       countPendingDecisions: async () => {
         throw new Error('decisions table unreachable');
       },
@@ -254,6 +258,7 @@ describe('collectTenantAttention (0043 T4)', () => {
       listMoves: async () => [],
       listFailures: async () => [],
     countAutoApplied: async () => 0,
+    countSharingOpen: async () => 0,
       countPendingDecisions: async () => 0,
     });
 

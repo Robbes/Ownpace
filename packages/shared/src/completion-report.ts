@@ -58,6 +58,21 @@ export interface CompletionAppliedSummary {
   readonly refused: number;
 }
 
+/**
+ * The sharing checklist's closing state (ADR-0032, workplan 0052 T6b): what
+ * was carried over, by whom's tick, and what is still open. Open rows do NOT
+ * hold the verdict — the checklist is worked AFTER finishing (the cutover
+ * gate on apply says so) — but a closing document that hid them would be the
+ * silence the checklist exists to prevent.
+ */
+export interface CompletionSharingSummary {
+  readonly applied: number;
+  readonly doneManual: number;
+  readonly skipped: number;
+  readonly open: number;
+  readonly openManual: number;
+}
+
 export interface CompletionReportInputs {
   readonly mappingId: string;
   readonly name?: string;
@@ -70,6 +85,7 @@ export interface CompletionReportInputs {
   readonly deletions: ReadonlyArray<ItemDeletion>;
   readonly failures: ReadonlyArray<ItemFailure>;
   readonly applied?: CompletionAppliedSummary;
+  readonly sharing?: CompletionSharingSummary;
 }
 
 export interface CompletionReport {
@@ -82,6 +98,7 @@ export interface CompletionReport {
   readonly domains: ReadonlyArray<CompletionDomainLine>;
   readonly queues: CompletionQueueSummary;
   readonly applied?: CompletionAppliedSummary;
+  readonly sharing?: CompletionSharingSummary;
   /**
    * The one-sentence verdict, derived, never hand-set: "complete" only when
    * every enabled domain completed AND nothing is waiting on a decision. A
@@ -130,6 +147,7 @@ export function buildCompletionReport(inputs: CompletionReportInputs): Completio
     })),
     queues,
     ...(inputs.applied ? { applied: inputs.applied } : {}),
+    ...(inputs.sharing ? { sharing: inputs.sharing } : {}),
     verdict: !allComplete
       ? 'in_progress'
       : decisionsPending
@@ -205,6 +223,30 @@ export function renderCompletionReportMarkdown(report: CompletionReport): string
         'receipts are a managed-edition construct. Nothing is ever removed without an ' +
         'explicit decision (hard rule 2).',
     );
+  }
+  if (report.sharing) {
+    lines.push('');
+    lines.push('## Access carried over (the sharing checklist)');
+    lines.push('');
+    lines.push(
+      `- Shares re-created on the target (its own invitation sent): **${report.sharing.applied}**`,
+    );
+    lines.push(`- Done by hand and ticked off: **${report.sharing.doneManual}**`);
+    lines.push(`- Deliberately not carried over: **${report.sharing.skipped}**`);
+    lines.push(
+      `- Still open: **${report.sharing.open}**` +
+        (report.sharing.openManual > 0
+          ? ` (of which manual steps for the owner: ${report.sharing.openManual})`
+          : ''),
+    );
+    if (report.sharing.open > 0) {
+      lines.push('');
+      lines.push(
+        'Open rows do not hold this migration back — the checklist is worked after ' +
+          'finishing — but access nobody carried over stops working when the source is ' +
+          'retired. Work the Sharing screen until this line reads zero.',
+      );
+    }
   }
   lines.push('');
   return lines.join('\n');

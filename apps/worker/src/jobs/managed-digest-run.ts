@@ -66,6 +66,17 @@ export interface DigestDeps {
   listFailures(tenantId: string, mappingId: string): Promise<readonly FailureRow[]>;
   /** Relocations auto-applied for this mapping since `since` (ADR-0031, 0048). */
   countAutoApplied(tenantId: string, mappingId: string, since: string): Promise<number>;
+  /** Open sharing-checklist rows for this mapping (ADR-0032, 0052 T6a). */
+  countSharingOpen(tenantId: string, mappingId: string): Promise<number>;
+  /**
+   * When this tenant's digest of this cadence last actually went out;
+   * undefined = never. The window "since the last summary" used to be
+   * computed as now-minus-cadence, which double-counts after a late run and
+   * under-counts after a missed one — the recorded send time does neither.
+   */
+  lastDigestSentAt(tenantId: string, cadence: 'daily' | 'weekly'): Promise<string | undefined>;
+  /** Record that this tenant's digest of this cadence went out just now. */
+  recordDigestSent(tenantId: string, cadence: 'daily' | 'weekly'): Promise<void>;
   countPendingDecisions(tenantId: string): Promise<number>;
   send(
     to: readonly string[],
@@ -122,6 +133,11 @@ async function attentionFor(
     () => deps.countAutoApplied(tenantId, mapping.id, since),
     0,
   );
+  const sharingOpen = await guarded(
+    'the sharing checklist',
+    () => deps.countSharingOpen(tenantId, mapping.id),
+    0,
+  );
 
   return summariseQueues(mapping.id, {
     deletions,
@@ -130,6 +146,7 @@ async function attentionFor(
     pendingDecisions: pendingDecisions ?? 0,
     status: mapping.status,
     autoApplied,
+    sharingOpen,
     blindSpots,
   });
 }
@@ -179,15 +196,26 @@ export async function runDigest(deps: DigestDeps): Promise<DigestSummary> {
       }`;
     }
 
+    // The digest window: what happened since the last summary ACTUALLY went
+    // out — recorded per send. The cadence-sized fallback covers a first-ever
+    // digest and a tenant whose record cannot be read.
+    let since = new Date(
+      Date.now() - (cadence === 'weekly' ? 7 : 1) * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    try {
+      since = (await deps.lastDigestSentAt(tenant.id, cadence)) ?? since;
+    } catch (err) {
+      deps.warn(
+        `[digest] tenant ${tenant.id}: could not read when the last ${cadence} digest was ` +
+          `sent (${err instanceof Error ? err.message : String(err)}); falling back to the ` +
+          'cadence-sized window',
+      );
+    }
+
     for (const mapping of mappings) {
       // A finished migration keeps its history but stops nagging — the same
       // rule the queue endpoints apply, checked before any read.
       if (!reportsToDigest(mapping.status)) continue;
-      // The digest window: what happened since the LAST summary of this
-      // cadence — a day or a week ago.
-      const since = new Date(
-        Date.now() - (cadence === 'weekly' ? 7 : 1) * 24 * 60 * 60 * 1000,
-      ).toISOString();
       const one = await attentionFor(
         deps,
         tenant.id,
@@ -232,6 +260,17 @@ export async function runDigest(deps: DigestDeps): Promise<DigestSummary> {
     try {
       await deps.send(to, prefs.locale, message);
       sent++;
+      try {
+        // Recorded AFTER the send: a failed send must leave the window where
+        // it was, so the next attempt still covers the same span.
+        await deps.recordDigestSent(tenant.id, cadence);
+      } catch (err) {
+        deps.warn(
+          `[digest] tenant ${tenant.id}: the ${cadence} digest went out but recording the ` +
+            `send time failed (${err instanceof Error ? err.message : String(err)}); the ` +
+            'next window falls back to cadence-sized',
+        );
+      }
     } catch (err) {
       // One tenant's mail server refusing must not stop the other tenants'
       // digests, and the failure is stated rather than counted as sent.

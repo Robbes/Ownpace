@@ -297,3 +297,19 @@ describe('targetFolderPrefix — refused in the shared parser\'s words (hard rul
     expect(msg).toContain('separator');
   });
 });
+
+describe("throttleConfig — refused in the shared parser's words (hard rule 5)", () => {
+  it('accepts a clean config and the omitted default', () => {
+    expect(
+      CreateMappingSchema.safeParse(
+        body({ throttleConfig: { maxConcurrent: 2, requestsPerSecond: 5 } }),
+      ).success,
+    ).toBe(true);
+    expect(CreateMappingSchema.safeParse(body()).success).toBe(true);
+  });
+
+  it('refuses a non-integer field with the field named — the appliance sentence', () => {
+    const msg = refusalText(body({ throttleConfig: { maxConcurrent: 'fast' } }));
+    expect(msg).toContain('maxConcurrent');
+  });
+});

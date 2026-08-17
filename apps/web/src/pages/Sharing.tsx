@@ -71,12 +71,22 @@ const Row: React.FC<{
     grantee?: string,
   ) => void;
   refusal?: string;
-}> = ({ row, busy, onDecide, refusal }) => {
+  /** A pair the owner already confirmed on another row of the same grantee. */
+  confirmedGrantee?: string;
+}> = ({ row, busy, onDecide, refusal, confirmedGrantee }) => {
   const t = useT();
-  // The machine proposes the source's address; a person confirms or edits it
-  // before anything is sent (ADR-0032 §6). Local state on purpose: nothing is
-  // stored until apply succeeds.
-  const [grantee, setGrantee] = React.useState(row.grantee ?? '');
+  // The machine proposes; a person confirms or edits before anything is sent
+  // (ADR-0032 §6). Confirm ONCE: an address the owner already corrected for
+  // this grantee — anna@old → anna@new on some other file — prefills their
+  // remaining rows, so nobody retypes the same correction ten times. Local
+  // state beyond that: nothing is stored until apply succeeds.
+  const [grantee, setGrantee] = React.useState(confirmedGrantee ?? row.grantee ?? '');
+  const [edited, setEdited] = React.useState(false);
+  React.useEffect(() => {
+    // A confirmation arriving from ANOTHER row updates this one only while
+    // the owner has not typed here themselves — their edit always wins.
+    if (!edited && confirmedGrantee) setGrantee(confirmedGrantee);
+  }, [confirmedGrantee, edited]);
   const settled = row.state !== 'open';
   const applicable = !settled && row.verdict === 'clean' && !row.viaLink;
 
@@ -128,7 +138,10 @@ const Row: React.FC<{
               <input
                 type="text"
                 value={grantee}
-                onChange={(e) => setGrantee(e.target.value)}
+                onChange={(e) => {
+                  setEdited(true);
+                  setGrantee(e.target.value);
+                }}
                 className="input text-sm py-1 w-56"
               />
               <DestructiveButton
@@ -165,6 +178,10 @@ const Sharing: React.FC = () => {
   const queryClient = useQueryClient();
   const [busyId, setBusyId] = React.useState<string | null>(null);
   const [refusals, setRefusals] = React.useState<Record<string, string>>({});
+  // Confirm-once address mapping (ADR-0032 §6): a corrected address, applied
+  // successfully, prefills the same grantee's other rows this session. Never
+  // stored server-side — each apply still sends its address explicitly.
+  const [confirmedPairs, setConfirmedPairs] = React.useState<Record<string, string>>({});
   const [rescanning, setRescanning] = React.useState(false);
   const [blindSpots, setBlindSpots] = React.useState<ReadonlyArray<string>>([]);
 
@@ -185,7 +202,14 @@ const Sharing: React.FC = () => {
     setBusyId(row.id);
     setRefusals((r) => ({ ...r, [row.id]: '' }));
     decideSharing(mappingId, row.id, { action, ...(grantee ? { grantee } : {}) })
-      .then(() => refresh())
+      .then(() => {
+        // A successful apply with a corrected address IS the confirmation —
+        // remember the pair for this grantee's remaining rows.
+        if (action === 'apply' && grantee && row.grantee && grantee !== row.grantee) {
+          setConfirmedPairs((p) => ({ ...p, [row.grantee!]: grantee }));
+        }
+        refresh();
+      })
       .catch((err: unknown) => {
         setRefusals((r) => ({
           ...r,
@@ -272,6 +296,7 @@ const Sharing: React.FC = () => {
               busy={busyId === row.id}
               onDecide={onDecide}
               refusal={refusals[row.id] || undefined}
+              confirmedGrantee={row.grantee ? confirmedPairs[row.grantee] : undefined}
             />
           ))}
         </ul>

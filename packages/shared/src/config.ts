@@ -952,7 +952,7 @@ function parseDomainsConfig(obj: Record<string, unknown>): DomainsConfig {
 }
 
 /** Parse and validate throttle configuration */
-function parseThrottleConfig(obj: Record<string, unknown>): Partial<ThrottleConfig> {
+export function parseThrottleConfig(obj: Record<string, unknown>): Partial<ThrottleConfig> {
   const config: Partial<ThrottleConfig> = {};
   
   if (obj.maxConcurrent !== undefined) {
