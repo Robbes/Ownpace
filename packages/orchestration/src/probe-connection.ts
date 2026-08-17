@@ -30,6 +30,7 @@ import {
   buildSourceConnectorFromCredentials,
 } from './build-deps-from-mapping';
 import { GMAIL_CONNECTION_KIND, STORED_GMAIL_CREDENTIAL_NAMES, buildGmailSourceFrom } from './gmail-source-factory';
+import { DROPBOX_CONNECTION_KIND } from './dropbox-source-factory';
 import {
   GOOGLE_DRIVE_CONNECTION_KIND,
   STORED_GOOGLE_CREDENTIAL_NAMES,
@@ -90,6 +91,10 @@ export async function probeSourceConnection(
         'folder',
       );
     case GOOGLE_DRIVE_CONNECTION_KIND:
+      return probeListable(() => buildFileSourceFromConnection({ config, creds, kind }), 'folder');
+    case DROPBOX_CONNECTION_KIND:
+      // Same route as Drive: the file-source builder already branches on the
+      // kind, so the probe builds exactly what a pass would (workplan 0055).
       return probeListable(() => buildFileSourceFromConnection({ config, creds, kind }), 'folder');
     case GOOGLE_CALENDAR_CONNECTION_KIND:
       return probeListable(

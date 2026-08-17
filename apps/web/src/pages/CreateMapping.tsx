@@ -41,7 +41,7 @@ type Domain = 'email' | 'calendar' | 'contact' | 'file';
 
 interface FormData {
   name: string;
-  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts';
+  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'dropbox';
   targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav';
   sourceHost: string;
   /** Kept as the raw INPUT string (0037 T3): parseInt on change turned a
@@ -178,7 +178,14 @@ const CreateMapping: React.FC = () => {
   // 0046) — the probe must run on exactly what create would post, or "test
   // passed, create failed" becomes possible by construction.
   const builtSourceConfig = () =>
-    isDriveSource
+    isDropboxSource
+          ? {
+              username: formData.sourceUsername,
+              clientId: formData.sourceClientId,
+              clientSecret: formData.sourceClientSecret,
+              refreshToken: formData.sourceRefreshToken,
+            }
+          : isDriveSource
           ? {
               username: formData.sourceUsername,
               clientId: formData.sourceClientId,
@@ -362,6 +369,9 @@ const CreateMapping: React.FC = () => {
   // refresh token and no tenant.
   const isO365Source = formData.sourceType === 'oauth2' || formData.sourceType === 'graph';
   const isDriveSource = formData.sourceType === 'google-drive';
+  // Dropbox rides the same credential trio (its App key/secret in the client
+  // fields — the create schema's dropbox refusal names the mapping).
+  const isDropboxSource = formData.sourceType === 'dropbox';
   // gmail (workplan 0044) shares Drive's credential SHAPE — a Google OAuth
   // client and a refresh token — but not its domain: the token is consented
   // with the mail scope, so the source serves email and nothing else.
@@ -370,7 +380,7 @@ const CreateMapping: React.FC = () => {
   // Google credential shape as Drive and Gmail, one pinned domain each.
   const isGoogleDavSource =
     formData.sourceType === 'google-calendar' || formData.sourceType === 'google-contacts';
-  const isGoogleSource = isDriveSource || isGmailSource || isGoogleDavSource;
+  const isGoogleSource = isDriveSource || isGmailSource || isGoogleDavSource || isDropboxSource;
 
   /** The problem with a non-empty custom cron, or null (empty = default). */
   const cronProblem = (): string | null =>
@@ -524,6 +534,7 @@ const CreateMapping: React.FC = () => {
                       name: 'Google Contacts',
                       hintKey: 'wizard.proto.googleContacts.hint',
                     },
+                    { id: 'dropbox', name: 'Dropbox', hintKey: 'wizard.proto.dropbox.hint' },
                   ] as const
                 ).map((type) => (
                   <button
@@ -536,7 +547,7 @@ const CreateMapping: React.FC = () => {
                       // AWAY leaves the selection alone, which the matrices then
                       // re-police. Drive pins the file domain and a file-capable
                       // target; Gmail pins email and a mail-capable one.
-                      type.id === 'google-drive'
+                      type.id === 'google-drive' || type.id === 'dropbox'
                         ? setFormData((prev) => ({
                             ...prev,
                             sourceType: type.id,
@@ -608,6 +619,13 @@ const CreateMapping: React.FC = () => {
                   {t('wizard.source.driveSetup')}
                 </p>
               )}
+              {/* Workplan 0055: Dropbox's App Console words mapped onto the
+                  shared credential fields, said up front. */}
+              {isDropboxSource && (
+                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  {t('wizard.source.dropboxSetup')}
+                </p>
+              )}
               {/* Workplan 0044: the same Google OAuth client as Drive, but the
                   refresh token must be consented with the mail scope — the one
                   mistake this box exists to prevent. */}
@@ -626,7 +644,23 @@ const CreateMapping: React.FC = () => {
               )}
             </div>
 
-            {isGmailSource || isGoogleDavSource ? (
+            {isDropboxSource ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.dropboxAppKey')}
+                    <Required />
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.sourceClientId}
+                    onChange={(e) => updateField('sourceClientId', e.target.value)}
+                    className="input w-full"
+                  />
+                </div>
+              </div>
+            ) : isGmailSource || isGoogleDavSource ? (
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">

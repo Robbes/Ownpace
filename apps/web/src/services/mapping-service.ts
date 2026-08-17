@@ -176,6 +176,7 @@ export const CreateMappingResponseSchema = z.object({
     'gmail',
     'google-calendar',
     'google-contacts',
+    'dropbox',
   ]),
   targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav']),
   status: MappingLifecycleSchema,
@@ -199,6 +200,7 @@ export interface CreateMappingInput {
     | 'google-drive'
     | 'gmail'
     | 'google-calendar'
+    | 'dropbox'
     | 'google-contacts';
   targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav';
   sourceConfig: {

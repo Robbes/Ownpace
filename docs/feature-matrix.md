@@ -93,10 +93,10 @@ Not (yet) migrated:
 
 ## Files
 
-| | generic WebDAV (Nextcloud, …) | Google Drive | Microsoft 365 |
-|---|---|---|---|
-| **Source** | ✅ (`webdav`), incl. trash-bin read for deletion evidence | ✅ (`google-drive`, workplan 0042), My Drive, a **shared drive** or a **folder shared with the account** by id — browsable since workplans 0049/0051; bin read for evidence | ⏳ OneDrive/SharePoint (`graph-drive`, wired in workplan 0054 — the connector existed, delta queries and all, with no call site); appliance mapping files; another user's drive via `mailbox` needs `Files.Read.All` (see the setup doc's consent note) |
-| **Target** | ✅ WebDAV | 🚫 never a target | 🚫 never a target |
+| | generic WebDAV (Nextcloud, …) | Google Drive | Microsoft 365 | Dropbox |
+|---|---|---|---|---|
+| **Source** | ✅ (`webdav`), incl. trash-bin read for deletion evidence | ✅ (`google-drive`, workplan 0042), My Drive, a **shared drive** or a **folder shared with the account** by id — browsable since workplans 0049/0051; bin read for evidence | ⏳ OneDrive/SharePoint (`graph-drive`, wired in workplan 0054 — the connector existed, delta queries and all, with no call site); appliance mapping files; another user's drive via `mailbox` needs `Files.Read.All` (see the setup doc's consent note) | ⏳ (`dropbox`, workplan 0055): the whole Dropbox or a `rootPath`; the owner's own read-only app; `content_hash` change detection; no bin read yet (absence-counting covers deletions) |
+| **Target** | ✅ WebDAV | 🚫 never a target | 🚫 never a target | 🚫 never a target |
 
 Also a target: **JMAP files** (workplan 0031 T3).
 

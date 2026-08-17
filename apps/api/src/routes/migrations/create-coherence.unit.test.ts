@@ -354,3 +354,43 @@ describe('domain-wide delegation (ADR-0033) — a key selects the second flow', 
     expect(msg).toContain('refreshToken');
   });
 });
+
+describe("a dropbox source (workplan 0055) — the trio shape, Dropbox's words in the refusal", () => {
+  const dropbox = (over: Record<string, unknown> = {}) =>
+    body({
+      sourceType: 'dropbox',
+      targetType: 'webdav',
+      sourceConfig: {
+        username: 'owner@example.nl',
+        clientId: 'app-key',
+        clientSecret: 'app-secret',
+        refreshToken: 'rt',
+        ...((over.sourceConfig as Record<string, unknown>) ?? {}),
+      },
+      syncConfig: { domains: ['file'] },
+      ...Object.fromEntries(Object.entries(over).filter(([k]) => k !== 'sourceConfig')),
+    });
+
+  it('accepts the coherent shape: dropbox → webdav, file domain, three credentials', () => {
+    expect(CreateMappingSchema.safeParse(dropbox()).success).toBe(true);
+  });
+
+  it("refuses a missing refresh token, naming Dropbox's own vocabulary and the doc", () => {
+    const msg = refusalText(dropbox({ sourceConfig: { refreshToken: undefined } }));
+    expect(msg).toContain('refreshToken');
+    expect(msg).toContain('App key');
+    expect(msg).toContain('dropbox-setup.md');
+  });
+
+  it('refuses non-file domains — the credential reads the Dropbox API only', () => {
+    const msg = refusalText(dropbox({ syncConfig: { domains: ['file', 'email'] } }));
+    expect(msg).toContain("'email'");
+    expect(msg).toContain('Dropbox API only');
+  });
+
+  it('still refuses an incoherent TARGET for the file domain', () => {
+    const msg = refusalText(dropbox({ targetType: 'caldav' }));
+    expect(msg).toContain('CalDAV');
+    expect(msg).toContain("'file'");
+  });
+});

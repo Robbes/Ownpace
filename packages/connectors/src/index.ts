@@ -64,6 +64,10 @@ export * from './graph-calendar-source.types';
 // Graph Contacts source connector
 export * from './graph-contacts-source';
 export * from './graph-contacts-source.types';
+// Dropbox as a file source (workplan 0055).
+export * from './dropbox-file-source';
+export * from './dropbox-file-source.types';
+export * from './dropbox-token-provider';
 // OneDrive/SharePoint (workplan 0054) — unexported until its first caller.
 export * from './graph-drive-source';
 export * from './graph-drive-source.types';

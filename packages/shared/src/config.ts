@@ -248,6 +248,17 @@ export interface GraphDriveFileSource {
   readonly mailbox?: string;
 }
 
+/**
+ * Dropbox file source (workplan 0055). The credential trio lives beside the
+ * config, per edition (env vars on the appliance, stored encrypted on
+ * managed) — like every OAuth source here.
+ */
+export interface DropboxSource {
+  readonly type: 'dropbox';
+  /** Unset = the whole Dropbox; a path ('/Team') scopes the migration to it. */
+  readonly rootPath?: string;
+}
+
 /** Microsoft Graph Calendar source */
 export interface GraphCalendarSource {
   readonly type: 'graph-calendar';
@@ -371,7 +382,7 @@ export interface DomainsConfig {
   files?: DomainConfig;
 }
 
-export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphMailSource | GraphDriveFileSource | GoogleDriveSource | GmailSource | GoogleCalendarSource | GoogleContactsSource;
+export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphMailSource | GraphDriveFileSource | GoogleDriveSource | GmailSource | GoogleCalendarSource | GoogleContactsSource | DropboxSource;
 export type TargetConfig = JmapTarget | ImapDavTarget | CalDAVTarget | CardDAVTarget | WebDAVTarget;
 
 export interface ScheduleConfig {
@@ -734,6 +745,14 @@ function parseSource(obj: Record<string, unknown>): SourceConfig {
       tenantId: reqString(obj, 'tenantId', 'source.tenantId'),
       // Optional: unset means the signed-in user (/me). See the type's comment.
       ...(obj['mailbox'] === undefined ? {} : { mailbox: String(obj['mailbox']) }),
+    };
+  }
+  if (type === 'dropbox') {
+    return {
+      type: 'dropbox',
+      ...(obj['rootPath'] === undefined
+        ? {}
+        : { rootPath: reqString(obj, 'rootPath', 'source.rootPath') }),
     };
   }
   if (type === 'graph-drive') {

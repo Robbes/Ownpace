@@ -54,6 +54,10 @@ import {
   buildGoogleContactsDavSourceFrom,
 } from './google-dav-source-factory';
 import {
+  ENV_DROPBOX_CREDENTIAL_NAMES,
+  buildDropboxSourceFrom,
+} from './dropbox-source-factory';
+import {
   buildGraphCalendarSourceFrom,
   buildGraphContactsSourceFrom,
   buildGraphDriveSourceFrom,
@@ -672,7 +676,16 @@ function buildDomainDepsWithLedger(
       // come from the environment, named the way an appliance operator sets
       // them; the refusal for a missing one lives in the shared factory.
       source =
-        sourceConfig.type === 'graph-drive'
+        sourceConfig.type === 'dropbox'
+          ? // Dropbox (workplan 0055): same env-half pattern as every OAuth
+            // source — read the variables, hand off; the refusal naming the
+            // missing ones lives in the shared factory (rule 5).
+            buildDropboxSourceFrom(sourceConfig, {
+              appKey: process.env[ENV_DROPBOX_CREDENTIAL_NAMES.appKey],
+              appSecret: process.env[ENV_DROPBOX_CREDENTIAL_NAMES.appSecret],
+              refreshToken: process.env[ENV_DROPBOX_CREDENTIAL_NAMES.refreshToken],
+            })
+          : sourceConfig.type === 'graph-drive'
           ? // OneDrive/SharePoint (workplan 0054): the orphaned connector's
             // first production call site.
             buildGraphDriveSourceFrom(
