@@ -4,8 +4,9 @@
  * field-level honesty pass (0033 T3, 0037 T1/T3/T4/T5/T6).
  *
  * Pinned here:
- *  1. The wizard walks all six steps filling ONLY the fields each step
- *     renders and reaches submit (0037 T1 — it used to be uncompletable).
+ *  1. The wizard walks all four steps — source, target, migration, review
+ *     since workplan 0070 — filling ONLY the fields each step renders, and
+ *     reaches submit (0037 T1 — it used to be uncompletable).
  *  2. Create success NAVIGATES to /mappings/:id/confirm (0037 T2) instead of
  *     swapping component state no route could reach.
  *  3. A failed submit renders the server's words and keeps the form.
@@ -35,6 +36,14 @@ vi.mock('../services/mapping-service', () => ({
 
 const createMock = vi.mocked(mappingApi.create);
 
+// The wizard now REMEMBERS its non-secret half across mounts (workplan 0069),
+// which is the feature — and which means every test in this file has to start
+// from an empty draft or it inherits whatever the previous one typed. File
+// level rather than per-describe: the draft outlives a describe block too.
+beforeEach(() => {
+  globalThis.sessionStorage.clear();
+});
+
 const renderWizard = () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -61,34 +70,60 @@ const nextButton = () =>
 /** Fill only what each step RENDERS and advance — the whole point of the
  *  0037 T1 pin. Fails on the old gates at the very first click. */
 const walkToReview = () => {
-  // Step 1 — Source: host (port is prefilled).
+  // Step 1 — Source: each side now carries its OWN credentials (workplan
+  // 0070), so the account and the password gate here, beside the host.
   fireEvent.change(screen.getByPlaceholderText('imap.example.com'), {
     target: { value: 'mail.old-provider.example' },
+  });
+  fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
+    target: { value: 'source@acme.example' },
   });
   expect(nextButton()).toBeEnabled();
   fireEvent.click(nextButton());
 
-  // Step 2 — Target: host (port prefilled, jmap preselected).
+  // Step 2 — Target: host, account, password (port prefilled, jmap preselected).
   fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
     target: { value: 'stalwart.acme.example' },
   });
+  fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
+    target: { value: 'target@acme.example' },
+  });
+  fireEvent.change(document.querySelectorAll('input[type="password"]')[0]!, {
+    target: { value: 'target-password' },
+  });
   fireEvent.click(nextButton());
 
-  // Step 3 — Name & credentials (the usernames gate HERE now, where the
-  // inputs are, not on steps 1-2).
+  // Step 3 — The migration itself: a name, what to move (email preselected)
+  // and how often (empty = the default cadence).
   fireEvent.change(screen.getByPlaceholderText('My Migration'), {
     target: { value: 'Acme mail' },
   });
-  const usernames = screen.getAllByPlaceholderText('user@example.com');
-  fireEvent.change(usernames[0]!, { target: { value: 'source@acme.example' } });
-  fireEvent.change(usernames[1]!, { target: { value: 'target@acme.example' } });
   fireEvent.click(nextButton());
+};
 
-  // Step 4 — Data types: email is preselected.
-  fireEvent.click(nextButton());
 
-  // Step 5 — Schedule: optional.
-  fireEvent.click(nextButton());
+/**
+ * Fill the source account and any secret the chosen provider now demands
+ * (workplan 0070): each side gates on its own credentials, so a test that only
+ * set the provider config can no longer leave step one.
+ */
+const satisfySourceStep = () => {
+  const user = screen.queryAllByPlaceholderText('user@example.com')[0];
+  if (user) fireEvent.change(user, { target: { value: 'source@acme.example' } });
+  document
+    .querySelectorAll('input[type="password"]')
+    .forEach((el) => fireEvent.change(el, { target: { value: 'secret-value' } }));
+  const refresh = screen.queryByPlaceholderText('1//…');
+  if (refresh) fireEvent.change(refresh, { target: { value: '1//refresh-token' } });
+};
+
+
+/** As satisfySourceStep, for the target side's own account and password. */
+const satisfyTargetStep = () => {
+  const user = screen.queryAllByPlaceholderText('user@example.com')[0];
+  if (user) fireEvent.change(user, { target: { value: 'target@acme.example' } });
+  const pw = document.querySelectorAll('input[type="password"]')[0];
+  if (pw) fireEvent.change(pw, { target: { value: 'target-password' } });
 };
 
 /** An axios-shaped 400, the way the real apiClient delivers the server's
@@ -110,7 +145,7 @@ describe('CreateMapping — the wizard reaches submit and says what failed', () 
     createMock.mockReset();
   });
 
-  it('walks all six steps filling only the visible fields; success navigates to the confirm ROUTE (0037 T1+T2)', async () => {
+  it('walks all four steps filling only the visible fields; success navigates to the confirm ROUTE (0037 T1+T2)', async () => {
     createMock.mockResolvedValue({
       id: 'mapping-new',
       tenantId: 't1',
@@ -127,7 +162,7 @@ describe('CreateMapping — the wizard reaches submit and says what failed', () 
     renderWizard();
     walkToReview();
 
-    // Step 6 — Review: submit.
+    // Step 4 — Review: submit.
     fireEvent.click(screen.getByRole('button', { name: /Create Migration/ }));
 
     await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
@@ -181,41 +216,54 @@ describe('CreateMapping — the wizard reaches submit and says what failed', () 
 describe('CreateMapping — field-level honesty on the credentials and review steps (0037 T3)', () => {
   beforeEach(() => createMock.mockReset());
 
-  const walkToCredentials = () => {
-    fireEvent.change(screen.getByPlaceholderText('imap.example.com'), {
-      target: { value: 'mail.old-provider.example' },
-    });
-    fireEvent.click(nextButton());
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
-      target: { value: 'stalwart.acme.example' },
-    });
-    fireEvent.click(nextButton());
+  /**
+   * The account and the secret a side needs are rendered BY that side now
+   * (workplan 0070), so there is no shared credentials step left to walk to:
+   * the source pair is on step one and the target pair on step two. This walk
+   * asserts the same properties on each, where each actually lives.
+   */
+  const assertCredentialPair = () => {
+    const username = screen.getByPlaceholderText('user@example.com');
+    expect(username).toHaveAttribute('autocomplete', 'username');
+
+    const secret = screen.getByPlaceholderText('••••••••');
+    expect(secret).toHaveAttribute('autocomplete', 'new-password');
+    expect(secret).toHaveAttribute('type', 'password');
+
+    // The toggle makes a masked paste checkable.
+    fireEvent.click(screen.getByRole('button', { name: 'Show password' }));
+    expect(screen.getByPlaceholderText('••••••••')).toHaveAttribute('type', 'text');
+
+    // One honest sentence about what happens to the secrets, on the step that
+    // collects them rather than one the person may never scroll back to.
+    expect(screen.getByText(/encrypted at rest/)).toBeInTheDocument();
+    expect(screen.getByText(/never shown again/)).toBeInTheDocument();
   };
 
   it('the credential inputs carry autocomplete attributes and a show/hide toggle', () => {
     renderWizard();
-    walkToCredentials();
 
-    const usernames = screen.getAllByPlaceholderText('user@example.com');
-    expect(usernames[0]).toHaveAttribute('autocomplete', 'username');
-    expect(usernames[1]).toHaveAttribute('autocomplete', 'username');
-    const passwords = screen.getAllByPlaceholderText('••••••••');
-    expect(passwords[0]).toHaveAttribute('autocomplete', 'new-password');
-    expect(passwords[1]).toHaveAttribute('autocomplete', 'new-password');
-    expect(passwords[0]).toHaveAttribute('type', 'password');
+    // Step 1 — the SOURCE's own account and password.
+    assertCredentialPair();
 
-    // The toggle makes a masked paste checkable.
-    fireEvent.click(screen.getAllByRole('button', { name: 'Show password' })[0]!);
-    expect(screen.getAllByPlaceholderText('••••••••')[0]).toHaveAttribute('type', 'text');
+    fireEvent.change(screen.getByPlaceholderText('imap.example.com'), {
+      target: { value: 'mail.old-provider.example' },
+    });
+    satisfySourceStep();
+    fireEvent.click(nextButton());
 
-    // One honest sentence about what happens to the secrets.
-    expect(screen.getByText(/encrypted at rest/)).toBeInTheDocument();
-    expect(screen.getByText(/never shown again/)).toBeInTheDocument();
+    // Step 2 — the TARGET's, with the same attributes and its own toggle.
+    assertCredentialPair();
   });
 
-  it('the step is labeled for what it contains: Name & credentials', () => {
+  it('the steps are labeled for what they contain', () => {
     renderWizard();
-    expect(screen.getByText('Name & credentials')).toBeInTheDocument();
+    // Four steps since workplan 0070: each side owns its credentials, and one
+    // step finalises the migration between the two.
+    for (const label of ['Source', 'Target', 'Migration', 'Review']) {
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    }
+    expect(screen.queryByText('Name & credentials')).not.toBeInTheDocument();
   });
 
   it('the review note no longer claims sync starts on create — it names the paused truth', () => {
@@ -234,22 +282,32 @@ describe('CreateMapping — choices that cannot work are constrained (0037 T4)',
   beforeEach(() => createMock.mockReset());
 
   const walkToDataTypes = (target: string) => {
+    // Source: host + account (its credentials live here now).
     fireEvent.change(screen.getByPlaceholderText('imap.example.com'), {
       target: { value: 'mail.old-provider.example' },
     });
+    fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
+      target: { value: 'source@acme.example' },
+    });
     fireEvent.click(nextButton());
+
+    // Target: pick the protocol, then its own host + account + password.
     fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${target}`) }));
     fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
       target: { value: 'dav.acme.example' },
     });
+    fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
+      target: { value: 'target@acme.example' },
+    });
+    fireEvent.change(document.querySelectorAll('input[type="password"]')[0]!, {
+      target: { value: 'target-password' },
+    });
     fireEvent.click(nextButton());
+
+    // The migration step carries the name, the data types and the schedule.
     fireEvent.change(screen.getByPlaceholderText('My Migration'), {
       target: { value: 'Acme mail' },
     });
-    const usernames = screen.getAllByPlaceholderText('user@example.com');
-    fireEvent.change(usernames[0]!, { target: { value: 'source@acme.example' } });
-    fireEvent.change(usernames[1]!, { target: { value: 'target@acme.example' } });
-    fireEvent.click(nextButton());
   };
 
   it('a CardDAV target blocks the preselected email domain with the shared refusal, and recovers on deselect', () => {
@@ -282,23 +340,23 @@ describe('CreateMapping — choices that cannot work are constrained (0037 T4)',
 
   it('garbage cron blocks Next with the reason; a valid one echoes its next runs', () => {
     renderWizard();
-    // Walk to the schedule step with defaults.
+    // Source, then target — each finished on its own step (workplan 0070).
     fireEvent.change(screen.getByPlaceholderText('imap.example.com'), {
       target: { value: 'mail.old-provider.example' },
     });
+    satisfySourceStep();
     fireEvent.click(nextButton());
     fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
       target: { value: 'stalwart.acme.example' },
     });
+    satisfyTargetStep();
     fireEvent.click(nextButton());
+
+    // The migration step carries the name, the data types AND the schedule:
+    // the cron is no longer two clicks past the name.
     fireEvent.change(screen.getByPlaceholderText('My Migration'), {
       target: { value: 'Acme mail' },
     });
-    const usernames = screen.getAllByPlaceholderText('user@example.com');
-    fireEvent.change(usernames[0]!, { target: { value: 'source@acme.example' } });
-    fireEvent.change(usernames[1]!, { target: { value: 'target@acme.example' } });
-    fireEvent.click(nextButton());
-    fireEvent.click(nextButton()); // data types → schedule
 
     const cronInput = screen.getByPlaceholderText('0 2 * * *');
     fireEvent.change(cronInput, { target: { value: 'every day at noon' } });
@@ -367,6 +425,7 @@ describe('CreateMapping — a dirty wizard does not discard silently (0037 T5)',
     fireEvent.change(screen.getByPlaceholderText('imap.example.com'), {
       target: { value: 'mail.old-provider.example' },
     });
+    satisfySourceStep();
     fireEvent.click(nextButton());
     expect(screen.getByText(/destination server is yours to run/)).toBeInTheDocument();
   });
@@ -395,6 +454,20 @@ describe('CreateMapping — oauth2/graph collect the app registration (0037 T6, 
     fireEvent.change(screen.getByPlaceholderText('00000000-0000-0000-0000-000000000000'), {
       target: { value: 'app-client-id' },
     });
+
+    // The registration is not the whole side. This step carries the source's
+    // own credentials too (workplan 0070), so it keeps gating — and keeps
+    // naming what is left, rather than going quiet two screens early.
+    expect(nextButton()).toBeDisabled();
+    expect(screen.getByRole('status').textContent).toContain('Source Username');
+    expect(screen.getByRole('status').textContent).toContain('Source client secret');
+
+    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      target: { value: 'mailbox@acme.example' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('••••••••'), {
+      target: { value: 'shh-client-secret' },
+    });
     expect(nextButton()).toBeEnabled();
 
     // Back to IMAP: the server fields return, the explainer leaves.
@@ -414,31 +487,35 @@ describe('CreateMapping — oauth2/graph collect the app registration (0037 T6, 
     fireEvent.change(screen.getByPlaceholderText('00000000-0000-0000-0000-000000000000'), {
       target: { value: 'app-client-id' },
     });
-    fireEvent.click(nextButton());
-
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
-      target: { value: 'stalwart.acme.example' },
+    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      target: { value: 'mailbox@acme.example' },
     });
-    fireEvent.click(nextButton());
 
-    // Credentials: the source secret field is the CLIENT SECRET, required —
-    // filling everything else leaves Next blocked, naming it.
+    // The source's masked field here is the app registration's CLIENT SECRET,
+    // not a mailbox password — labelled as what it is, and required: without
+    // it the client-credentials flow cannot mint a single token. It gates the
+    // SOURCE step now, beside the registration it belongs to.
     expect(screen.getByText('Source client secret')).toBeInTheDocument();
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
-      target: { value: 'Acme O365' },
-    });
-    const usernames = screen.getAllByPlaceholderText('user@example.com');
-    fireEvent.change(usernames[0]!, { target: { value: 'mailbox@acme.example' } });
-    fireEvent.change(usernames[1]!, { target: { value: 'target@acme.example' } });
     expect(nextButton()).toBeDisabled();
     expect(screen.getByRole('status').textContent).toContain('Source client secret');
 
-    const secrets = screen.getAllByPlaceholderText('••••••••');
-    fireEvent.change(secrets[0]!, { target: { value: 'shh-client-secret' } });
+    fireEvent.change(screen.getByPlaceholderText('••••••••'), {
+      target: { value: 'shh-client-secret' },
+    });
     fireEvent.click(nextButton());
 
-    fireEvent.click(nextButton()); // data types (email preselected, jmap takes it)
-    fireEvent.click(nextButton()); // schedule (optional)
+    // Target: its own server and its own account.
+    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+      target: { value: 'stalwart.acme.example' },
+    });
+    satisfyTargetStep();
+    fireEvent.click(nextButton());
+
+    // Migration: a name; email is preselected and jmap takes it.
+    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+      target: { value: 'Acme O365' },
+    });
+    fireEvent.click(nextButton());
 
     // Review echoes the tenant, not a host:port that was never asked.
     expect(screen.getByText(/acme\.onmicrosoft\.com/)).toBeInTheDocument();
@@ -479,37 +556,41 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
     fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
       target: { value: 'cid.apps.googleusercontent.com' },
     });
+    // Its credentials gate HERE now (workplan 0070), on the source's own step.
+    expect(nextButton()).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      target: { value: 'owner@acme.example' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('••••••••'), {
+      target: { value: 'client-secret' },
+    });
+    expect(nextButton()).toBeDisabled(); // the refresh token still gates
+    fireEvent.change(screen.getByPlaceholderText('1//…'), { target: { value: '1//refresh' } });
+    // The side is now finishable — which is the whole point of the restructure.
+    expect(nextButton()).toBeEnabled();
     fireEvent.click(nextButton());
 
-    // Step 2 — Target: the preselected jmap SURVIVES the source switch — it
-    // carries files — so only its host is needed. (An incapable selection
-    // would have been swapped to webdav.)
+    // Step 2 — Target: the preselected jmap SURVIVES the source switch, so it
+    // needs only its own server, account and password.
     fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
       target: { value: 'nextcloud.acme.example' },
     });
+    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      target: { value: 'files@acme.example' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('••••••••'), {
+      target: { value: 'target-pass' },
+    });
     fireEvent.click(nextButton());
 
-    // Step 3 — Name & credentials: the secret is labeled a CLIENT SECRET, and
-    // the refresh token renders masked with its own gate.
+    // Step 3 — The migration itself: a name, what to move (file is pinned and
+    // the mail-shaped types cannot be picked), how often.
     fireEvent.change(screen.getByPlaceholderText('My Migration'), {
       target: { value: 'Acme files' },
     });
-    const usernames = screen.getAllByPlaceholderText('user@example.com');
-    fireEvent.change(usernames[0]!, { target: { value: 'owner@acme.example' } });
-    fireEvent.change(usernames[1]!, { target: { value: 'files@acme.example' } });
-    const secrets = screen.getAllByPlaceholderText('••••••••');
-    fireEvent.change(secrets[0]!, { target: { value: 'client-secret' } });
-    expect(nextButton()).toBeDisabled(); // the refresh token still gates
-    fireEvent.change(screen.getByPlaceholderText('1//…'), {
-      target: { value: '1//refresh' },
-    });
-    fireEvent.change(secrets[1]!, { target: { value: 'target-pass' } });
     fireEvent.click(nextButton());
 
-    // Step 4 — Data types: file is selected; the mail-shaped ones cannot be.
-    fireEvent.click(nextButton());
-    // Step 5 — Schedule (default), Step 6 — Review.
-    fireEvent.click(nextButton());
+    // Step 4 — Review: submit.
     fireEvent.click(nextButton());
 
     await waitFor(() => expect(createMock).toHaveBeenCalled());
@@ -533,23 +614,19 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
     fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
       target: { value: 'cid' },
     });
+    satisfySourceStep();
     fireEvent.click(nextButton());
     fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
       target: { value: 'nc.acme.example' },
     });
+    satisfyTargetStep();
     fireEvent.click(nextButton());
     fireEvent.change(screen.getByPlaceholderText('My Migration'), { target: { value: 'x' } });
-    const users = screen.getAllByPlaceholderText('user@example.com');
-    fireEvent.change(users[0]!, { target: { value: 'a@b.c' } });
-    fireEvent.change(users[1]!, { target: { value: 'd@e.f' } });
-    const secrets = screen.getAllByPlaceholderText('••••••••');
-    fireEvent.change(secrets[0]!, { target: { value: 's' } });
-    fireEvent.change(screen.getByPlaceholderText('1//…'), { target: { value: 'r' } });
-    fireEvent.click(nextButton());
 
-    // The Email card is disabled: the target (webdav) and the source (drive)
-    // both rule it out, and the wizard constrains rather than letting the
-    // server refuse three steps later.
+    // The Email card is disabled on the migration step: the SOURCE rules it
+    // out even though the jmap target would carry it — a Drive credential
+    // reads the Drive API and nothing else. The wizard constrains rather than
+    // letting the server refuse after the walk is over.
     const emailCard = screen.getByRole('button', { name: /Email/ });
     expect(emailCard).toBeDisabled();
   });
@@ -575,34 +652,38 @@ describe('CreateMapping — a Gmail source (workplan 0044)', () => {
     fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
       target: { value: 'cid.apps.googleusercontent.com' },
     });
-    fireEvent.click(nextButton());
-
-    // Step 2 — Target: the preselected jmap survives (it carries email).
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
-      target: { value: 'stalwart.acme.example' },
+    // Gmail's credentials gate HERE now (workplan 0070) — the mailbox this
+    // migration moves, the OAuth client's secret, and the mail-scoped token.
+    expect(nextButton()).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      target: { value: 'owner@gmail.com' },
     });
-    fireEvent.click(nextButton());
-
-    // Step 3 — Name & credentials: client secret + refresh token gate, the
-    // same Google credential shape Drive collects.
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
-      target: { value: 'Acme mail' },
+    fireEvent.change(screen.getByPlaceholderText('••••••••'), {
+      target: { value: 'client-secret' },
     });
-    const usernames = screen.getAllByPlaceholderText('user@example.com');
-    fireEvent.change(usernames[0]!, { target: { value: 'owner@gmail.com' } });
-    fireEvent.change(usernames[1]!, { target: { value: 'owner@acme.example' } });
-    const secrets = screen.getAllByPlaceholderText('••••••••');
-    fireEvent.change(secrets[0]!, { target: { value: 'client-secret' } });
     expect(nextButton()).toBeDisabled(); // the refresh token still gates
     fireEvent.change(screen.getByPlaceholderText('1//…'), {
       target: { value: '1//mail-refresh' },
     });
-    fireEvent.change(secrets[1]!, { target: { value: 'target-pass' } });
+    expect(nextButton()).toBeEnabled();
     fireEvent.click(nextButton());
 
-    // Step 4 — Data types (email pinned), Step 5 — Schedule, Step 6 — Review.
+    // Step 2 — Target: the preselected jmap survives (it carries email), and
+    // asks only for its own server and account.
+    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+      target: { value: 'stalwart.acme.example' },
+    });
+    satisfyTargetStep();
     fireEvent.click(nextButton());
+
+    // Step 3 — The migration itself: a name, what to move (email is pinned),
+    // how often.
+    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+      target: { value: 'Acme mail' },
+    });
     fireEvent.click(nextButton());
+
+    // Step 4 — Review: submit.
     fireEvent.click(nextButton());
 
     await waitFor(() => expect(createMock).toHaveBeenCalled());
@@ -627,19 +708,14 @@ describe('CreateMapping — a Gmail source (workplan 0044)', () => {
     fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
       target: { value: 'cid' },
     });
+    satisfySourceStep();
     fireEvent.click(nextButton());
     fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
       target: { value: 'stalwart.acme.example' },
     });
+    satisfyTargetStep();
     fireEvent.click(nextButton());
     fireEvent.change(screen.getByPlaceholderText('My Migration'), { target: { value: 'x' } });
-    const users = screen.getAllByPlaceholderText('user@example.com');
-    fireEvent.change(users[0]!, { target: { value: 'a@gmail.com' } });
-    fireEvent.change(users[1]!, { target: { value: 'd@e.f' } });
-    const secrets = screen.getAllByPlaceholderText('••••••••');
-    fireEvent.change(secrets[0]!, { target: { value: 's' } });
-    fireEvent.change(screen.getByPlaceholderText('1//…'), { target: { value: 'r' } });
-    fireEvent.click(nextButton());
 
     // Files is ruled out by the SOURCE even though the target (jmap) carries
     // it: the mail-scoped credential cannot read a Drive.

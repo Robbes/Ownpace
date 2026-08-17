@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useT, useFormatters } from '../i18n';
 import type { StringKey } from '../i18n';
 import { useNavigate, Link } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   ArrowRight,
@@ -11,7 +11,6 @@ import {
   Server,
   Database,
   Settings,
-  Clock,
   FileText,
   Calendar,
   Users,
@@ -26,6 +25,7 @@ import {
   sourceDomainRefusal,
   targetDomainRefusal,
   describeCronScheduleProblem,
+  credentialFieldsFor,
 } from '@openmig/shared';
 // The SAME cron library — same pinned version — the managed tick evaluates
 // schedules with, so the "next syncs" echo below cannot disagree with what
@@ -40,7 +40,7 @@ import {
 import { serverMessage } from '../services/api';
 import { useMutation } from '@tanstack/react-query';
 
-type Step = 'source' | 'target' | 'credentials' | 'data-types' | 'schedule' | 'review';
+type Step = 'source' | 'target' | 'migration' | 'review';
 
 // Matches the shared/API domain enum so the wizard submits a schema-valid config.
 type Domain = 'email' | 'calendar' | 'contact' | 'file';
@@ -59,8 +59,8 @@ interface FormData {
   sourceSsl: boolean;
   /** The per-customer Entra app registration (0037 T6, owner decision
    *  2026-08-10; ADR-0006's row-14 model): oauth2/graph sources authenticate
-   *  with the customer's OWN app — tenant + client id here, the client
-   *  secret on the credentials step beside the mailbox address. */
+   *  with the customer's OWN app — tenant + client id here, and the client
+   *  secret beside the mailbox address on the same source step (0070). */
   sourceTenantId: string;
   sourceClientId: string;
   sourceClientSecret: string;
@@ -135,11 +135,12 @@ function sourceKindOf(sourceType: string): string {
 }
 
 const steps: { id: Step; nameKey: StringKey; icon: React.FC<React.SVGProps<SVGSVGElement>> }[] = [
+  // Four steps, not six (workplan 0070): each side carries its own
+  // credentials and is finished when it tests, so what is left is one step for
+  // what is true of the migration itself.
   { id: 'source', nameKey: 'wizard.step.source', icon: Server },
   { id: 'target', nameKey: 'wizard.step.target', icon: Database },
-  { id: 'credentials', nameKey: 'wizard.step.credentials', icon: Settings },
-  { id: 'data-types', nameKey: 'wizard.step.dataTypes', icon: FileText },
-  { id: 'schedule', nameKey: 'wizard.step.schedule', icon: Clock },
+  { id: 'migration', nameKey: 'wizard.step.migration', icon: Settings },
   { id: 'review', nameKey: 'wizard.step.review', icon: Check },
 ];
 
@@ -160,6 +161,45 @@ const isValidPort = (raw: string): boolean => {
   const n = Number(raw);
   return n >= 1 && n <= 65535;
 };
+
+/**
+ * What to forget when the source provider changes (workplan 0068).
+ *
+ * The per-provider inputs share form fields underneath — Box's client id and
+ * Dropbox's "App key" are both `sourceClientId` — so switching provider used to
+ * carry the old value across and present it under the new provider's label. The
+ * owner found it by typing a Box client id and then seeing it waiting in
+ * Dropbox's App-sleutel field.
+ *
+ * `sourceConnectionId` is the one that matters beyond tidiness. The picker only
+ * OFFERS connections whose kind matches the selected type, but a stored id
+ * survived a provider switch, and the create route verifies a reused
+ * connection's tenant and role — not its kind. So choosing a Box connection and
+ * then switching to Dropbox could submit a Box connection for a Dropbox mapping.
+ * Clearing it here closes that; the route ought to check kind too, which is
+ * noted in the workplan rather than fixed blind.
+ *
+ * Deliberately NOT cleared: `name`, `sourceUsername`, the domains and the
+ * schedule. Those are answers about this migration that survive a change of
+ * provider, and re-typing them is the annoyance this function exists to reduce.
+ */
+function clearedSourceFields(prev: FormData, next: string): Partial<FormData> {
+  if (prev.sourceType === next) return {};
+  return {
+    sourceHost: '',
+    sourcePort: '993',
+    sourcePassword: '',
+    sourceTenantId: '',
+    sourceClientId: '',
+    sourceClientSecret: '',
+    sourceRefreshToken: '',
+    sourceServiceAccountKey: '',
+    sourceRootFolderId: '',
+    sourceRootPath: '',
+    sourceBoxUserId: '',
+    sourceConnectionId: '',
+  };
+}
 
 /** The red asterisk beside a gating field's label (0037 T3). */
 const Required: React.FC = () => (
@@ -199,12 +239,81 @@ const ConnectionPicker: React.FC<{
   );
 };
 
+/**
+ * The half of the wizard that is safe to remember (workplan 0069).
+ *
+ * The credentials are now kept as a stored CONNECTION once they test — see
+ * `runProbes` — which leaves the cheap half: a name, which accounts, the
+ * domains and a schedule. Those are seconds to retype and worth nothing to an
+ * attacker, so they survive a navigation in `sessionStorage`.
+ *
+ * **The secrets are deliberately absent from this list, and that is the point.**
+ * Writing a half-typed client secret or mailbox password into web storage would
+ * hand every script on the page a credential the product otherwise only ever
+ * holds encrypted, server-side. `sessionStorage` also dies with the tab, so an
+ * abandoned draft does not outlive the sitting.
+ */
+const DRAFT_KEY = 'wizard.draft.v1';
+const DRAFT_FIELDS = [
+  'name',
+  'sourceType',
+  'targetType',
+  'sourceUsername',
+  'targetUsername',
+  'sourceConnectionId',
+  'targetConnectionId',
+  'sourceHost',
+  'sourcePort',
+  'sourceRootFolderId',
+  'sourceRootPath',
+  'sourceBoxUserId',
+  'sourceTenantId',
+  'targetHost',
+  'targetPort',
+  'targetFolderPrefix',
+  'domains',
+  'schedule',
+] as const;
+
+function restoreDraft(): FormData {
+  try {
+    const raw = globalThis.sessionStorage?.getItem(DRAFT_KEY);
+    if (!raw) return initialFormData;
+    const saved = JSON.parse(raw) as Partial<FormData>;
+    const picked = Object.fromEntries(
+      DRAFT_FIELDS.filter((k) => saved[k] !== undefined).map((k) => [k, saved[k]]),
+    );
+    return { ...initialFormData, ...picked };
+  } catch {
+    // A malformed draft is not worth a broken wizard.
+    return initialFormData;
+  }
+}
+
+function saveDraft(form: FormData): void {
+  try {
+    const picked = Object.fromEntries(DRAFT_FIELDS.map((k) => [k, form[k]]));
+    globalThis.sessionStorage?.setItem(DRAFT_KEY, JSON.stringify(picked));
+  } catch {
+    // Private mode, quota, no storage at all — the wizard still works.
+  }
+}
+
+export function clearDraft(): void {
+  try {
+    globalThis.sessionStorage?.removeItem(DRAFT_KEY);
+  } catch {
+    /* nothing to clear */
+  }
+}
+
 const CreateMapping: React.FC = () => {
   const t = useT();
   const { dateTime } = useFormatters();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [currentStep, setCurrentStep] = useState(0);
-  const [formData, setFormData] = useState<FormData>(initialFormData);
+  const [formData, setFormData] = useState<FormData>(restoreDraft);
   const [showSourcePassword, setShowSourcePassword] = useState(false);
   const [showTargetPassword, setShowTargetPassword] = useState(false);
 
@@ -215,13 +324,22 @@ const CreateMapping: React.FC = () => {
     // stranded the paused mapping. Navigating gives the green light an
     // address that survives the wizard.
     onSuccess: (mapping: { id: string }) => {
+      // The draft has become a migration; keeping it would re-seed the next
+      // wizard with the last one's name and schedule.
+      clearDraft();
       navigate(`/mappings/${mapping.id}/confirm`);
     },
   });
 
+  // Remember the safe half as it is typed (workplan 0069). Cheap to write, and
+  // it means a navigation costs a name and a schedule rather than everything.
+  React.useEffect(() => {
+    saveDraft(formData);
+  }, [formData]);
+
   // Leaving a dirty wizard is a question, not a silent discard (0037 T5).
-  // All wizard state is plain useState, so refresh/close throws away six
-  // steps of typed input; beforeunload covers those, and handleBack's
+  // All wizard state is plain useState, so refresh/close throws away every
+  // step of typed input; beforeunload covers those, and handleBack's
   // confirm covers the in-app Cancel. (A full in-app navigation blocker
   // needs a data router this app does not use yet.)
   const dirty = JSON.stringify(formData) !== JSON.stringify(initialFormData);
@@ -351,9 +469,9 @@ const CreateMapping: React.FC = () => {
   };
 
   // The shared-drive browse (workplan 0049): fills rootFolderId from
-  // drives.list instead of a paste out of the admin console. Lives on the
-  // credentials step because that is where the three values it needs are
-  // typed; the id it picks lands in the same field the source step shows.
+  // drives.list instead of a paste out of the admin console. Rendered with
+  // the source credentials, because that is where the three values it needs
+  // are typed; the id it picks lands in the rootFolderId field beside them.
   const [sharedDrives, setSharedDrives] = React.useState<
     Array<{ id: string; name: string }> | null
   >(null);
@@ -429,27 +547,134 @@ const CreateMapping: React.FC = () => {
     source?: TestConnectionResult;
     target?: TestConnectionResult;
   }>({});
-  const runProbes = () => {
+  /**
+   * A side's typed credentials, keyed the way the shared descriptor keys them
+   * (workplan 0069). The wizard's form fields are prefixed by side; the
+   * descriptor is not, so this is the one place the two vocabularies meet.
+   */
+  const credentialValuesFor = (role: 'source' | 'target'): Record<string, string> => {
+    const from: Record<string, string> =
+      role === 'source'
+        ? {
+            username: formData.sourceUsername,
+            password: formData.sourcePassword,
+            host: formData.sourceHost,
+            port: formData.sourcePort,
+            tenantId: formData.sourceTenantId,
+            clientId: formData.sourceClientId,
+            clientSecret: formData.sourceClientSecret,
+            refreshToken: formData.sourceRefreshToken,
+            serviceAccountKey: formData.sourceServiceAccountKey,
+            rootFolderId: formData.sourceRootFolderId,
+            rootPath: formData.sourceRootPath,
+            userId: formData.sourceBoxUserId,
+          }
+        : {
+            username: formData.targetUsername,
+            password: formData.targetPassword,
+            host: formData.targetHost,
+            port: formData.targetPort,
+          };
+    // Only what this provider actually asks for, and only what was filled in:
+    // posting an empty optional would store "" where the connector expects the
+    // key to be absent.
+    const wanted = credentialFieldsFor(role, role === 'source' ? formData.sourceType : formData.targetType);
+    return Object.fromEntries(
+      wanted.map((f) => [f.key, from[f.key] ?? '']).filter(([, v]) => v !== ''),
+    );
+  };
+
+  /**
+   * Test, and KEEP what works (owner request, workplan 0069).
+   *
+   * The probe used to be transient: it told you the credentials were good and
+   * then threw them away with the rest of the form the moment you navigated
+   * anywhere. Since the expensive half of this wizard is the credentials — and
+   * a connection is already a first-class thing that can be probed, stored and
+   * reused — testing now SAVES. A side that passes becomes a stored connection
+   * and the wizard holds only its id, so leaving and coming back costs you a
+   * name and a schedule instead of another trip to somebody's admin console.
+   *
+   * Retrying rotates the SAME row rather than adding another. The add route
+   * stores a failing credential deliberately (somebody mid-setup waiting on an
+   * admin should not lose it), which without this would leave a trail of broken
+   * connections behind every corrected typo. Rotation also probes before it
+   * replaces, so a worse second attempt cannot destroy a working first one.
+   */
+  const [draftConnection, setDraftConnection] = React.useState<{
+    source?: string;
+    target?: string;
+  }>({});
+
+  const runProbe = (only?: 'source' | 'target') => {
     setProbing(true);
-    setProbeResults({});
+
+    const saveSide = async (role: 'source' | 'target'): Promise<TestConnectionResult> => {
+      const chosen = role === 'source' ? formData.sourceConnectionId : formData.targetConnectionId;
+      // Already reusing a stored connection: there is nothing of ours to save,
+      // so this is the plain read-only probe it always was.
+      if (chosen) {
+        return role === 'source'
+          ? mappingApi.testConnection({
+              side: 'source',
+              sourceType: formData.sourceType,
+              sourceConfig: builtSourceConfig(),
+            })
+          : mappingApi.testConnection({
+              side: 'target',
+              targetType: formData.targetType,
+              targetConfig: builtTargetConfig(),
+            });
+      }
+
+      const values = credentialValuesFor(role);
+      const type = role === 'source' ? formData.sourceType : formData.targetType;
+      const who = role === 'source' ? formData.sourceUsername : formData.targetUsername;
+      const existing = draftConnection[role];
+
+      if (existing) {
+        const rotated = await connectionsApi.rotate(existing, values);
+        if (rotated.ok) updateField(role === 'source' ? 'sourceConnectionId' : 'targetConnectionId', existing);
+        return rotated;
+      }
+
+      const added = await connectionsApi.add({
+        role,
+        type,
+        // Named for what it connects to, not for a migration that does not
+        // exist yet at this point in the wizard.
+        displayName: who ? `${type} · ${who}` : type,
+        values,
+      });
+      setDraftConnection((d) => ({ ...d, [role]: added.id }));
+      if (added.ok) {
+        updateField(role === 'source' ? 'sourceConnectionId' : 'targetConnectionId', added.id);
+      }
+      return added;
+    };
+
     const asResult = (settled: PromiseSettledResult<TestConnectionResult>): TestConnectionResult =>
       settled.status === 'fulfilled'
         ? settled.value
         : { ok: false, reason: serverMessage(settled.reason) };
-    Promise.allSettled([
-      mappingApi.testConnection({
-        side: 'source',
-        sourceType: formData.sourceType,
-        sourceConfig: builtSourceConfig(),
-      }),
-      mappingApi.testConnection({
-        side: 'target',
-        targetType: formData.targetType,
-        targetConfig: builtTargetConfig(),
-      }),
-    ])
-      .then(([src, tgt]) => setProbeResults({ source: asResult(src), target: asResult(tgt) }))
-      .finally(() => setProbing(false));
+
+    // One side at a time now that each has its own step (workplan 0070):
+    // probing the other would report on credentials the person has not been
+    // asked for yet.
+    const sides: Array<'source' | 'target'> = only ? [only] : ['source', 'target'];
+    Promise.allSettled(sides.map(saveSide))
+      .then((settled) =>
+        setProbeResults((prev) => ({
+          ...prev,
+          ...Object.fromEntries(sides.map((side, i) => [side, asResult(settled[i]!)])),
+        })),
+      )
+      .finally(() => {
+        setProbing(false);
+        // The pickers on steps 1 and 2 read this list; a connection saved here
+        // must appear there if the person walks back.
+        void queryClient.invalidateQueries({ queryKey: ['connections'] });
+      });
   };
 
   const handleBack = () => {
@@ -515,10 +740,10 @@ const CreateMapping: React.FC = () => {
   // Each step's gate checks only fields that step RENDERS (0037 T1, pulled
   // forward into 0033 T3 because no wizard test can exist without it): the
   // old source/target gates required sourceUsername/targetUsername — inputs
-  // that render two steps later, on 'credentials' — so Next was disabled
-  // forever on the first screen, with no message, and the wizard could not
-  // be completed at all. The username requirement now lives on the step
-  // that shows the fields.
+  // that rendered two steps later, on a shared 'credentials' step — so Next
+  // was disabled forever on the first screen, with no message, and the
+  // wizard could not be completed at all. Each side now renders and gates
+  // its own account (workplan 0070), which is that rule made structural.
   /**
    * What the SOURCE step is still missing, by the label it is shown under
    * (workplan 0067). One function, used by both the gate and the message, for
@@ -530,28 +755,48 @@ const CreateMapping: React.FC = () => {
    * field is labelled "App key". Deriving both from one list means a provider
    * can be wrong, but it cannot be *inconsistently* wrong.
    */
-  const sourceStepMissing = (): string[] => {
+  const sideStepMissing = (side: 'source' | 'target'): string[] => {
+    const out: string[] = [];
+
+    if (side === 'target') {
+      // A reused target connection carries the server AND the account.
+      if (formData.targetConnectionId) return out;
+      if (!formData.targetHost) out.push(t('wizard.host'));
+      if (!isValidPort(formData.targetPort)) out.push(t('wizard.port'));
+      if (!formData.targetUsername) out.push(t('wizard.targetUsername'));
+      if (formData.targetPassword === '') out.push(t('wizard.targetPassword'));
+      return out;
+    }
+
     // A stored connection answers every credential-identifying field on this
     // step, and the step hides them all. Nothing left to require.
-    if (formData.sourceConnectionId) return [];
-    const out: string[] = [];
+    if (formData.sourceConnectionId) return out;
+
+    // WHICH account, always — it names the mailbox or drive this migration
+    // moves, and no shared connection can know it.
+    if (!formData.sourceUsername) out.push(t('wizard.sourceUsername'));
+
     if (isDropboxSource) {
       // Labelled as the Dropbox App Console labels it, which is not "Client ID".
       if (formData.sourceClientId.trim() === '') out.push(t('wizard.dropboxAppKey'));
+      if (formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
+      if (formData.sourceRefreshToken === '') out.push(t('wizard.refreshToken'));
     } else if (isBoxSource) {
       if (formData.sourceClientId.trim() === '') out.push(t('wizard.clientId'));
       // The CCG subject: without it there is no "whose files" to read.
       if (formData.sourceBoxUserId.trim() === '') out.push(t('wizard.boxUserId'));
+      if (formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
     } else if (isGoogleSource) {
-      // Either flow (ADR-0033): an OAuth client, or a service-account key.
-      if (
-        formData.sourceClientId.trim() === '' &&
-        formData.sourceServiceAccountKey.trim() === ''
-      )
-        out.push(t('wizard.clientId'));
+      // Either flow (ADR-0033): a service-account key, or the OAuth trio.
+      if (formData.sourceServiceAccountKey.trim() === '') {
+        if (formData.sourceClientId.trim() === '') out.push(t('wizard.clientId'));
+        if (formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
+        if (formData.sourceRefreshToken === '') out.push(t('wizard.refreshToken'));
+      }
     } else if (isO365Source) {
       if (formData.sourceTenantId.trim() === '') out.push(t('wizard.tenantId'));
       if (formData.sourceClientId.trim() === '') out.push(t('wizard.clientId'));
+      if (formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
     } else {
       if (!formData.sourceHost) out.push(t('wizard.host'));
       if (!isValidPort(formData.sourcePort)) out.push(t('wizard.port'));
@@ -562,36 +807,20 @@ const CreateMapping: React.FC = () => {
   const canProceed = () => {
     switch (steps[currentStep].id) {
       case 'source':
-        return sourceStepMissing().length === 0;
       case 'target':
-        // A reused target connection carries the server; the step then renders
-        // only the folder prefix, which is optional.
-        return (
-          Boolean(formData.targetConnectionId) ||
-          (Boolean(formData.targetHost) && isValidPort(formData.targetPort))
-        );
-      case 'credentials':
+        // Each side now renders its own credentials, so each side's gate is
+        // its own missing-field list (workplan 0070) — one function per step,
+        // for the reason the last two of these bugs existed: two switches that
+        // agree by hand stop agreeing the moment a provider is added to one.
+        return sideStepMissing(steps[currentStep].id as 'source' | 'target').length === 0;
+      case 'migration':
         return (
           formData.name.trim() !== '' &&
-          Boolean(formData.sourceUsername && formData.targetUsername) &&
-          // The secret demands lift with the inputs: a reused connection
-          // already holds them, and this step no longer renders the fields.
-          // Requiring what is not on screen is how Next ends up disabled
-          // forever with a message naming a field nobody can find.
-          (Boolean(formData.sourceConnectionId) ||
-            ((!isO365Source && !isBoxSource) || formData.sourceClientSecret !== '') &&
-              (!isGoogleSource ||
-                formData.sourceServiceAccountKey.trim() !== '' ||
-                (formData.sourceClientSecret !== '' && formData.sourceRefreshToken !== '')))
-        );
-      case 'data-types':
-        return (
           formData.domains.length > 0 &&
           targetDomainRefusal(formData.targetType, formData.domains) === null &&
-          sourceDomainRefusal(formData.sourceType, formData.domains) === null
+          sourceDomainRefusal(formData.sourceType, formData.domains) === null &&
+          cronProblem() === null // empty = the default cadence, fine
         );
-      case 'schedule':
-        return cronProblem() === null; // empty = the default cadence, fine
       case 'review':
         return true;
       default:
@@ -604,30 +833,11 @@ const CreateMapping: React.FC = () => {
     const out: string[] = [];
     switch (steps[currentStep].id) {
       case 'source':
-        out.push(...sourceStepMissing());
-        break;
       case 'target':
-        if (!formData.targetConnectionId) {
-          if (!formData.targetHost) out.push(t('wizard.host'));
-          if (!isValidPort(formData.targetPort)) out.push(t('wizard.port'));
-        }
+        out.push(...sideStepMissing(steps[currentStep].id as 'source' | 'target'));
         break;
-      case 'credentials':
+      case 'migration':
         if (formData.name.trim() === '') out.push(t('wizard.migrationName'));
-        if (!formData.sourceUsername) out.push(t('wizard.sourceUsername'));
-        // Named only while the inputs are on screen — a reused connection
-        // removes both the fields and the demand.
-        if (!formData.sourceConnectionId) {
-          if ((isO365Source || isBoxSource) && formData.sourceClientSecret === '')
-            out.push(t('wizard.sourceClientSecret'));
-          if (isGoogleSource && formData.sourceServiceAccountKey.trim() === '') {
-            if (formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
-            if (formData.sourceRefreshToken === '') out.push(t('wizard.refreshToken'));
-          }
-        }
-        if (!formData.targetUsername) out.push(t('wizard.targetUsername'));
-        break;
-      case 'data-types':
         if (formData.domains.length === 0) out.push(t('wizard.missing.dataTypes'));
         break;
     }
@@ -644,13 +854,15 @@ const CreateMapping: React.FC = () => {
   const blockedReason = (): string | null => {
     if (canProceed()) return null;
     const stepId = steps[currentStep].id;
-    if (stepId === 'data-types' && formData.domains.length > 0) {
-      return (
+    if (stepId === 'migration') {
+      // The data types and the schedule share this step now (workplan 0070),
+      // so neither reason may return early on the other's behalf: an
+      // incoherent domain used to answer for a broken cron with `null`,
+      // leaving Next disabled and silent — the exact defect 0037 T3 removed.
+      const refusal =
         targetDomainRefusal(formData.targetType, formData.domains) ??
-        sourceDomainRefusal(formData.sourceType, formData.domains)
-      );
-    }
-    if (stepId === 'schedule') {
+        sourceDomainRefusal(formData.sourceType, formData.domains);
+      if (refusal) return refusal;
       const problem = cronProblem();
       if (problem) return `${t('wizard.cron.invalidLead')} ${problem}`;
     }
@@ -668,607 +880,20 @@ const CreateMapping: React.FC = () => {
     }
   };
 
-  const renderStep = () => {
-    switch (steps[currentStep].id) {
-      case 'source':
-        return (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">{t('wizard.selectSource')}</h3>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {(
-                  [
-                    { id: 'imap', name: 'IMAP', hintKey: 'wizard.proto.imap.hint' },
-                    { id: 'oauth2', name: 'OAuth2', hintKey: 'wizard.proto.oauth2.hint' },
-                    { id: 'graph', name: 'Microsoft Graph', hintKey: 'wizard.proto.graph.hint' },
-                    {
-                      id: 'google-drive',
-                      name: 'Google Drive',
-                      hintKey: 'wizard.proto.googleDrive.hint',
-                    },
-                    { id: 'gmail', name: 'Gmail', hintKey: 'wizard.proto.gmail.hint' },
-                    {
-                      id: 'google-calendar',
-                      name: 'Google Calendar',
-                      hintKey: 'wizard.proto.googleCalendar.hint',
-                    },
-                    {
-                      id: 'google-contacts',
-                      name: 'Google Contacts',
-                      hintKey: 'wizard.proto.googleContacts.hint',
-                    },
-                    { id: 'dropbox', name: 'Dropbox', hintKey: 'wizard.proto.dropbox.hint' },
-                    { id: 'box', name: 'Box', hintKey: 'wizard.proto.box.hint' },
-                  ] as const
-                ).map((type) => (
-                  <button
-                    key={type.id}
-                    onClick={() =>
-                      // A Google credential reads exactly one API, so choosing
-                      // it also chooses that domain — the same constraint the
-                      // server refuses by name (sourceDomainRefusal). Setting it
-                      // here spares the data-types step a dead end; switching
-                      // AWAY leaves the selection alone, which the matrices then
-                      // re-police. Drive pins the file domain and a file-capable
-                      // target; Gmail pins email and a mail-capable one.
-                      type.id === 'google-drive' || type.id === 'dropbox' || type.id === 'box'
-                        ? setFormData((prev) => ({
-                            ...prev,
-                            sourceType: type.id,
-                            domains: ['file'],
-                            targetType:
-                              prev.targetType === 'jmap' || prev.targetType === 'webdav'
-                                ? prev.targetType
-                                : 'webdav',
-                          }))
-                        : type.id === 'gmail'
-                          ? setFormData((prev) => ({
-                              ...prev,
-                              sourceType: type.id,
-                              domains: ['email'],
-                              targetType:
-                                prev.targetType === 'jmap' || prev.targetType === 'imap'
-                                  ? prev.targetType
-                                  : 'jmap',
-                            }))
-                          : type.id === 'google-calendar'
-                            ? setFormData((prev) => ({
-                                ...prev,
-                                sourceType: type.id,
-                                domains: ['calendar'],
-                                // The one calendar-capable target (JMAP calendar
-                                // is parked by owner decision, 0031 T1).
-                                targetType: 'caldav',
-                              }))
-                            : type.id === 'google-contacts'
-                              ? setFormData((prev) => ({
-                                  ...prev,
-                                  sourceType: type.id,
-                                  domains: ['contact'],
-                                  targetType:
-                                    prev.targetType === 'jmap' || prev.targetType === 'carddav'
-                                      ? prev.targetType
-                                      : 'carddav',
-                                }))
-                              : updateField('sourceType', type.id)
-                    }
-                    className={`p-4 border-2 rounded-lg text-left transition-colors ${
-                      formData.sourceType === type.id
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <p className="font-medium text-gray-900">{type.name}</p>
-                    <p className="text-sm text-gray-500 mt-1">{t(type.hintKey)}</p>
-                  </button>
-                ))}
-              </div>
-              {/* 0037 T6, answered 2026-08-10: oauth2/graph use the
-                  per-customer Entra app registration (ADR-0006's row-14
-                  model) — say what these fields ARE and where the rest of
-                  the registration goes, instead of the retired interim
-                  confession that only username+password were collected. */}
-              {isO365Source && (
-                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  {t('wizard.source.appRegistration')}
-                </p>
-              )}
-              {/* Workplan 0042: the customer's own Google OAuth client, a
-                  delegated read-only token, and the doc that walks all of it.
-                  Also the one place to say what happens to Google Docs —
-                  reported un-migratable one by one, by design, until export
-                  byte-stability is measured (T3). */}
-              {isDriveSource && (
-                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  {t('wizard.source.driveSetup')}
-                </p>
-              )}
-              {/* Workplan 0055: Dropbox's App Console words mapped onto the
-                  shared credential fields, said up front. */}
-              {isDropboxSource && (
-                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  {t('wizard.source.dropboxSetup')}
-                </p>
-              )}
-              {/* Workplan 0056: Box's Client Credentials Grant — why there is
-                  no refresh-token field, and where the admin authorization
-                  happens, said up front. */}
-              {isBoxSource && (
-                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  {t('wizard.source.boxSetup')}
-                </p>
-              )}
-              {/* Workplan 0044: the same Google OAuth client as Drive, but the
-                  refresh token must be consented with the mail scope — the one
-                  mistake this box exists to prevent. */}
-              {isGmailSource && (
-                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  {t('wizard.source.gmailSetup')}
-                </p>
-              )}
-              {/* Workplan 0045: same OAuth client, per-product consent — the
-                  scope each token must carry is the mistake this box exists
-                  to prevent, exactly like Gmail's. */}
-              {isGoogleDavSource && (
-                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  {t('wizard.source.googleDavSetup')}
-                </p>
-              )}
-            </div>
-
-            {/* The prerequisites as a checklist that REMEMBERS (workplan 0061).
-                The panels above say what to do; this is where it gets ticked
-                off, per tenant, so an interrupted setup can be resumed — and
-                so a colleague can finish what somebody else started. */}
-            <p className="mt-3">
-              <Link
-                to={`/setup/source/${formData.sourceType}`}
-                className="text-sm text-blue-700 hover:underline"
-              >
-                {t('setup.openChecklist')}
-              </Link>
-            </p>
-
-            {/* Reuse instead of re-typing (workplan 0064), offered HERE rather
-                than on the credentials step (workplan 0067). It has to be on
-                the step that gates the fields it replaces: a Box or Microsoft
-                365 source cannot leave this screen without a client id, so a
-                picker that removes the need for one two steps later removes it
-                after the person has already been forced to find it. */}
-            <ConnectionPicker
-              labelKey="wizard.reuseSource"
-              options={reusableSources}
-              value={formData.sourceConnectionId}
-              onChange={(id) => updateField('sourceConnectionId', id)}
-            />
-
-            {isDropboxSource ? (
-              <div className="space-y-4">
-                {/* Hidden when a stored connection supplies it. What stays
-                    visible below is the per-mapping "where" — a shared
-                    connection knows the account, never which folder THIS
-                    migration is rooted at (`source_config_override`). */}
-                {!formData.sourceConnectionId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.dropboxAppKey')}
-                    <Required />
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.sourceClientId}
-                    onChange={(e) => updateField('sourceClientId', e.target.value)}
-                    className="input w-full"
-                  />
-                </div>
-                )}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.dropboxRootPath')}
-                  </label>
-                  {/* '' = the whole Dropbox. The credentials step offers a
-                      browse over sharing/list_folders that fills this. */}
-                  <input
-                    type="text"
-                    value={formData.sourceRootPath}
-                    onChange={(e) => updateField('sourceRootPath', e.target.value)}
-                    className="input w-full"
-                    placeholder={t('wizard.dropboxRootPath.placeholder')}
-                  />
-                </div>
-              </div>
-            ) : isBoxSource ? (
-              <div className="space-y-4">
-                {!formData.sourceConnectionId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.clientId')}
-                    <Required />
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.sourceClientId}
-                    onChange={(e) => updateField('sourceClientId', e.target.value)}
-                    className="input w-full"
-                  />
-                </div>
-                )}
-                {/* Stays visible when a connection is reused: the CCG subject
-                    is WHOSE files, which is this mapping's question and not
-                    the connection's (ADR-0033, one subject per mapping). */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.boxUserId')}
-                    <Required />
-                  </label>
-                  {/* The CCG subject: WHOSE files the token reads. Numeric by
-                      Box's design — an email here is the mistake the create
-                      refusal and docs/box-setup.md both name. */}
-                  <input
-                    type="text"
-                    required
-                    value={formData.sourceBoxUserId}
-                    onChange={(e) => updateField('sourceBoxUserId', e.target.value)}
-                    className="input w-full"
-                    placeholder={t('wizard.boxUserId.placeholder')}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.boxRootFolderId')}
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.sourceRootFolderId}
-                    onChange={(e) => updateField('sourceRootFolderId', e.target.value)}
-                    className="input w-full"
-                    placeholder={t('wizard.boxRootFolderId.placeholder')}
-                  />
-                </div>
-              </div>
-            ) : isGmailSource || isGoogleDavSource ? (
-              <div className="space-y-4">
-                {/* Nothing per-mapping here — Gmail and the Google DAV pair
-                    are rooted at the account, so a reused connection answers
-                    this whole block and it disappears entirely. */}
-                {!formData.sourceConnectionId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.clientId')}
-                    <Required />
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.sourceClientId}
-                    onChange={(e) => updateField('sourceClientId', e.target.value)}
-                    className="input w-full"
-                    placeholder="…apps.googleusercontent.com"
-                  />
-                </div>
-                )}
-                {!formData.sourceConnectionId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.serviceAccountKey')}
-                  </label>
-                  {/* ADR-0033: pasting the key FILE selects domain-wide
-                      delegation — the OAuth client and refresh token stop
-                      being required. The copy under the field states the
-                      grant's width; the mapping still names one subject. */}
-                  <textarea
-                    value={formData.sourceServiceAccountKey}
-                    onChange={(e) => updateField('sourceServiceAccountKey', e.target.value)}
-                    className="input w-full font-mono text-xs"
-                    rows={4}
-                    placeholder={t('wizard.serviceAccountKey.placeholder')}
-                  />
-                  <p className="mt-1 text-xs text-amber-800">
-                    {t('wizard.serviceAccountKey.width')}
-                  </p>
-                </div>
-                )}
-              </div>
-            ) : isDriveSource ? (
-              <div className="space-y-4">
-                {!formData.sourceConnectionId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.clientId')}
-                    <Required />
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.sourceClientId}
-                    onChange={(e) => updateField('sourceClientId', e.target.value)}
-                    className="input w-full"
-                    placeholder="…apps.googleusercontent.com"
-                  />
-                </div>
-                )}
-                {/* Stays: which folder THIS migration is rooted at. */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.rootFolderId')}
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.sourceRootFolderId}
-                    onChange={(e) => updateField('sourceRootFolderId', e.target.value)}
-                    className="input w-full"
-                    placeholder={t('wizard.rootFolderId.placeholder')}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.serviceAccountKey')}
-                  </label>
-                  {/* ADR-0033: pasting the key FILE selects domain-wide
-                      delegation — the OAuth client and refresh token stop
-                      being required. The copy under the field states the
-                      grant's width; the mapping still names one subject. */}
-                  <textarea
-                    value={formData.sourceServiceAccountKey}
-                    onChange={(e) => updateField('sourceServiceAccountKey', e.target.value)}
-                    className="input w-full font-mono text-xs"
-                    rows={4}
-                    placeholder={t('wizard.serviceAccountKey.placeholder')}
-                  />
-                  <p className="mt-1 text-xs text-amber-800">
-                    {t('wizard.serviceAccountKey.width')}
-                  </p>
-                </div>
-              </div>
-            ) : isO365Source ? (
-              <div className="space-y-4">
-                {/* The app registration IS the connection — a reused one
-                    answers both, and this mapping's own question (which
-                    mailbox) is the username on the credentials step. */}
-                {!formData.sourceConnectionId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.tenantId')}
-                    <Required />
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.sourceTenantId}
-                    onChange={(e) => updateField('sourceTenantId', e.target.value)}
-                    className="input w-full"
-                    placeholder="contoso.onmicrosoft.com"
-                  />
-                </div>
-                )}
-                {!formData.sourceConnectionId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.clientId')}
-                    <Required />
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.sourceClientId}
-                    onChange={(e) => updateField('sourceClientId', e.target.value)}
-                    className="input w-full"
-                    placeholder="00000000-0000-0000-0000-000000000000"
-                  />
-                </div>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* Host, port and TLS describe the SERVER, which is what an
-                    IMAP connection holds. The mailbox this mapping moves is
-                    the username, two steps on. */}
-                {!formData.sourceConnectionId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.host')}
-                    <Required />
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.sourceHost}
-                    onChange={(e) => updateField('sourceHost', e.target.value)}
-                    className="input w-full"
-                    placeholder="imap.example.com"
-                  />
-                </div>
-                )}
-
-                {!formData.sourceConnectionId && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {t('wizard.port')}
-                      <Required />
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min={1}
-                      max={65535}
-                      value={formData.sourcePort}
-                      onChange={(e) => updateField('sourcePort', e.target.value)}
-                      className="input w-full"
-                      placeholder="993"
-                    />
-                  </div>
-
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="sourceSsl"
-                      checked={formData.sourceSsl}
-                      onChange={(e) => updateField('sourceSsl', e.target.checked)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="sourceSsl" className="ml-2 block text-sm text-gray-700">
-                      {t('wizard.useSsl')}
-                    </label>
-                  </div>
-                </div>
-                )}
-              </div>
-            )}
-          </div>
-        );
-
-      case 'target':
-        return (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">{t('wizard.selectTarget')}</h3>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                {(
-                  [
-                    { id: 'jmap', name: 'JMAP', hintKey: 'wizard.proto.jmap.hint' },
-                    { id: 'imap', name: 'IMAP', hintKey: 'wizard.proto.imap.hint' },
-                    { id: 'caldav', name: 'CalDAV', hintKey: 'wizard.proto.caldav.hint' },
-                    { id: 'carddav', name: 'CardDAV', hintKey: 'wizard.proto.carddav.hint' },
-                    { id: 'webdav', name: 'WebDAV', hintKey: 'wizard.proto.webdav.hint' },
-                  ] as const
-                ).map((type) => (
-                  <button
-                    key={type.id}
-                    onClick={() => updateField('targetType', type.id)}
-                    className={`p-4 border-2 rounded-lg text-left transition-colors ${
-                      formData.targetType === type.id
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <p className="font-medium text-gray-900">{type.name}</p>
-                    <p className="text-sm text-gray-500 mt-1">{t(type.hintKey)}</p>
-                  </button>
-                ))}
-              </div>
-              {/* ADR-0011's consequence, on the step where the destination is
-                  chosen (owner decision 2026-08-10 — it previously rendered on
-                  the SOURCE step): whatever server the owner points this at is
-                  THEIRS. We migrate into it; we do not run it, monitor it,
-                  back it up, or carry an SLA for it. Said before the
-                  connection details are typed, not after. */}
-              <p className="mt-4 text-sm text-gray-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                {t('createMapping.target.userOperated')}
-              </p>
-            </div>
-
-            <ConnectionPicker
-              labelKey="wizard.reuseTarget"
-              options={reusableTargets}
-              value={formData.targetConnectionId}
-              onChange={(id) => updateField('targetConnectionId', id)}
-            />
-
-            <div className="space-y-4">
-              {/* Host and port describe the SERVER, which is what a target
-                  connection already holds — so a reused one answers them and
-                  re-asking would be asking somebody to confirm a value they
-                  cannot see. The target USERNAME stays on the credentials
-                  step: it names which account this mapping writes to, which a
-                  shared connection cannot know. */}
-              {!formData.targetConnectionId && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('wizard.host')}
-                  <Required />
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.targetHost}
-                  onChange={(e) => updateField('targetHost', e.target.value)}
-                  className="input w-full"
-                  placeholder="jmap.example.com"
-                />
-              </div>
-              )}
-
-              {!formData.targetConnectionId && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.port')}
-                    <Required />
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min={1}
-                    max={65535}
-                    value={formData.targetPort}
-                    onChange={(e) => updateField('targetPort', e.target.value)}
-                    className="input w-full"
-                    placeholder="443"
-                  />
-                </div>
-
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="targetSsl"
-                    checked={formData.targetSsl}
-                    onChange={(e) => updateField('targetSsl', e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="targetSsl" className="ml-2 block text-sm text-gray-700">
-                    {t('wizard.useSsl')}
-                  </label>
-                </div>
-              </div>
-              )}
-
-              {/* The merge-or-subfolder choice (owner decision 2026-08-16),
-                  made where the destination is chosen. Empty means MERGE —
-                  the default on purpose — and the hint says what the other
-                  answer is for, so consolidating owners find it here rather
-                  than in a source step that cannot know it is one of two. */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('wizard.targetPrefix')}
-                </label>
-                <input
-                  type="text"
-                  value={formData.targetFolderPrefix}
-                  onChange={(e) => updateField('targetFolderPrefix', e.target.value)}
-                  className="input w-full"
-                  placeholder={t('wizard.targetPrefix.placeholder')}
-                />
-                <p className="mt-1 text-sm text-gray-500">{t('wizard.targetPrefix.hint')}</p>
-              </div>
-            </div>
-          </div>
-        );
-
-      case 'credentials':
-        return (
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('wizard.migrationName')}
-                <Required />
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.name}
-                onChange={(e) => updateField('name', e.target.value)}
-                className="input w-full"
-                placeholder="My Migration"
-              />
-              <p className="mt-1 text-sm text-gray-500">{t('wizard.migrationNameHint')}</p>
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="font-medium text-blue-900 mb-2">{t('wizard.credentials')}</h4>
-              <div className="space-y-4">
+  /**
+   * A side's credentials, rendered on that side's own step (workplan 0070).
+   *
+   * They used to share a step two screens later, which is why the reuse picker
+   * was unreachable and why testing could not save: by the time you could
+   * prove a credential, the wizard had already asked you for the other side's.
+   * Each side is now self-contained — pick a provider, enter its credentials,
+   * test, saved — and what remains is one step to finalise between the two.
+   */
+  const renderSourceCredentials = () =>
+    formData.sourceConnectionId ? null : (
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <h4 className="font-medium text-blue-900 mb-2">{t('wizard.credentials')}</h4>
+        <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('wizard.sourceUsername')}
@@ -1464,7 +1089,18 @@ const CreateMapping: React.FC = () => {
                     )}
                   </div>
                 )}
+        </div>
+        {/* What happens to these secrets — a claim the code already makes
+            true (SecretStore.encryptCredentials; GET masks). */}
+        <p className="mt-4 text-sm text-blue-900">{t('wizard.credentials.storage')}</p>
+      </div>
+    );
 
+  const renderTargetCredentials = () =>
+    formData.targetConnectionId ? null : (
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <h4 className="font-medium text-blue-900 mb-2">{t('wizard.credentials')}</h4>
+        <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('wizard.targetUsername')}
@@ -1506,112 +1142,709 @@ const CreateMapping: React.FC = () => {
                   </div>
                 </div>
                 )}
-              </div>
-              {/* What happens to these secrets — a claim the code already
-                  makes true (SecretStore.encryptCredentials; GET masks). */}
-              <p className="mt-4 text-sm text-blue-900">{t('wizard.credentials.storage')}</p>
-            </div>
+        </div>
+        <p className="mt-4 text-sm text-blue-900">{t('wizard.credentials.storage')}</p>
+      </div>
+    );
 
-            {/* The connection test (workplan 0046): the docs' "one read-only
-                command that proves the credentials", as a button — because a
-                managed operator has no shell. Optional: Next never gates on
-                it, a probe can time out on a slow provider and the create API
-                re-refuses everything anyway. */}
-            <div className="border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={runProbes}
-                  disabled={probing}
-                  className="btn-secondary text-sm disabled:opacity-50"
-                >
-                  {probing ? t('wizard.testing') : t('wizard.testConnections')}
-                </button>
-                <p className="text-sm text-gray-500">{t('wizard.testConnections.hint')}</p>
-              </div>
-              {(probeResults.source || probeResults.target) && (
-                <dl className="mt-3 space-y-2 text-sm">
-                  {(['source', 'target'] as const).map((side) => {
-                    const r = probeResults[side];
-                    if (!r) return null;
-                    return (
-                      <div key={side} className="flex items-start gap-2">
-                        {r.ok ? (
-                          <Check className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
-                        ) : (
-                          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
-                        )}
-                        <dt className="font-medium text-gray-900">
-                          {t(side === 'source' ? 'wizard.step.source' : 'wizard.step.target')}:
-                        </dt>
-                        {/* The provider's words, verbatim (rule 9) — the same
-                            sentence the first pass would have failed with. */}
-                        <dd className="text-gray-700 min-w-0 break-words">
-                          {r.ok ? r.detail : r.reason}
-                        </dd>
-                      </div>
-                    );
-                  })}
-                </dl>
-              )}
-            </div>
+  /**
+   * Test this side, and keep it if it works (workplan 0069, now per side).
+   *
+   * Optional — Next never gates on it, because a probe can time out on a slow
+   * provider and the create route re-refuses everything anyway. But it is the
+   * only way to leave with the credentials kept, so it says so.
+   */
+  const renderProbe = (side: 'source' | 'target') => {
+    const chosen = side === 'source' ? formData.sourceConnectionId : formData.targetConnectionId;
+    const r = probeResults[side];
+    return (
+      <div className="border border-gray-200 rounded-lg p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => runProbe(side)}
+            disabled={probing}
+            className="btn-secondary text-sm disabled:opacity-50"
+          >
+            {probing ? t('wizard.testing') : t('wizard.testConnections')}
+          </button>
+          <p className="text-sm text-gray-500">
+            {chosen ? t('wizard.testConnections.reused') : t('wizard.testConnections.hint')}
+          </p>
+        </div>
+        {r && (
+          <div className="mt-3 flex items-start gap-2 text-sm">
+            {r.ok ? (
+              <Check className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
+            ) : (
+              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
+            )}
+            {/* The provider's words, verbatim (rule 9) — the same sentence the
+                first pass would have failed with. */}
+            <p className="text-gray-700 min-w-0 break-words">{r.ok ? r.detail : r.reason}</p>
           </div>
-        );
+        )}
+      </div>
+    );
+  };
 
-      case 'data-types':
-        return (
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium text-gray-900">
-              {t('wizard.selectDataTypes')}
-            </h3>
-            <p className="text-sm text-gray-500">{t('wizard.selectDataTypesHint')}</p>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {dataTypes.map((type) => {
-                const unavailable = !allowedDomains.includes(type.id);
-                // A selected-but-unavailable type stays clickable: it must be
-                // DESELECTABLE, or going back and changing the target would
-                // trap the wizard behind a button that cannot be un-pressed.
-                const locked = unavailable && !formData.domains.includes(type.id);
-                return (
-                  <button
-                    key={type.id}
-                    onClick={() => toggleDomain(type.id)}
-                    disabled={locked}
-                    className={`p-4 border-2 rounded-lg text-left transition-colors ${
-                      formData.domains.includes(type.id)
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    } ${locked ? 'opacity-50 cursor-not-allowed hover:border-gray-200' : ''}`}
-                  >
-                    <div className="flex items-center">
-                      <type.icon
-                        className={`w-6 h-6 mr-3 ${
-                          formData.domains.includes(type.id)
-                            ? 'text-blue-600'
-                            : 'text-gray-400'
-                        }`}
-                      />
-                      <div>
-                        <p className="font-medium text-gray-900">{t(type.nameKey)}</p>
-                        <p className="text-sm text-gray-500">{t(type.hintKey)}</p>
-                        {unavailable && (
-                          <p className="text-xs text-amber-700 mt-1">
-                            {t('wizard.domain.notForTarget')}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        );
-
-      case 'schedule':
+  const renderStep = () => {
+    switch (steps[currentStep].id) {
+      case 'source':
         return (
           <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">{t('wizard.selectSource')}</h3>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {(
+                  [
+                    { id: 'imap', name: 'IMAP', hintKey: 'wizard.proto.imap.hint' },
+                    { id: 'oauth2', name: 'OAuth2', hintKey: 'wizard.proto.oauth2.hint' },
+                    { id: 'graph', name: 'Microsoft Graph', hintKey: 'wizard.proto.graph.hint' },
+                    {
+                      id: 'google-drive',
+                      name: 'Google Drive',
+                      hintKey: 'wizard.proto.googleDrive.hint',
+                    },
+                    { id: 'gmail', name: 'Gmail', hintKey: 'wizard.proto.gmail.hint' },
+                    {
+                      id: 'google-calendar',
+                      name: 'Google Calendar',
+                      hintKey: 'wizard.proto.googleCalendar.hint',
+                    },
+                    {
+                      id: 'google-contacts',
+                      name: 'Google Contacts',
+                      hintKey: 'wizard.proto.googleContacts.hint',
+                    },
+                    { id: 'dropbox', name: 'Dropbox', hintKey: 'wizard.proto.dropbox.hint' },
+                    { id: 'box', name: 'Box', hintKey: 'wizard.proto.box.hint' },
+                  ] as const
+                ).map((type) => (
+                  <button
+                    key={type.id}
+                    onClick={() =>
+                      // A Google credential reads exactly one API, so choosing
+                      // it also chooses that domain — the same constraint the
+                      // server refuses by name (sourceDomainRefusal). Setting it
+                      // here spares the data-types step a dead end; switching
+                      // AWAY leaves the selection alone, which the matrices then
+                      // re-police. Drive pins the file domain and a file-capable
+                      // target; Gmail pins email and a mail-capable one.
+                      type.id === 'google-drive' || type.id === 'dropbox' || type.id === 'box'
+                        ? setFormData((prev) => ({
+                            ...prev,
+                            ...clearedSourceFields(prev, type.id),
+                            sourceType: type.id,
+                            domains: ['file'],
+                            targetType:
+                              prev.targetType === 'jmap' || prev.targetType === 'webdav'
+                                ? prev.targetType
+                                : 'webdav',
+                          }))
+                        : type.id === 'gmail'
+                          ? setFormData((prev) => ({
+                              ...prev,
+                              ...clearedSourceFields(prev, type.id),
+                              sourceType: type.id,
+                              domains: ['email'],
+                              targetType:
+                                prev.targetType === 'jmap' || prev.targetType === 'imap'
+                                  ? prev.targetType
+                                  : 'jmap',
+                            }))
+                          : type.id === 'google-calendar'
+                            ? setFormData((prev) => ({
+                                ...prev,
+                                ...clearedSourceFields(prev, type.id),
+                                sourceType: type.id,
+                                domains: ['calendar'],
+                                // The one calendar-capable target (JMAP calendar
+                                // is parked by owner decision, 0031 T1).
+                                targetType: 'caldav',
+                              }))
+                            : type.id === 'google-contacts'
+                              ? setFormData((prev) => ({
+                                  ...prev,
+                                  ...clearedSourceFields(prev, type.id),
+                                  sourceType: type.id,
+                                  domains: ['contact'],
+                                  targetType:
+                                    prev.targetType === 'jmap' || prev.targetType === 'carddav'
+                                      ? prev.targetType
+                                      : 'carddav',
+                                }))
+                              : setFormData((prev) => ({ ...prev, ...clearedSourceFields(prev, type.id), sourceType: type.id }))
+                    }
+                    className={`p-4 border-2 rounded-lg text-left transition-colors ${
+                      formData.sourceType === type.id
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <p className="font-medium text-gray-900">{type.name}</p>
+                    <p className="text-sm text-gray-500 mt-1">{t(type.hintKey)}</p>
+                  </button>
+                ))}
+              </div>
+              {/* 0037 T6, answered 2026-08-10: oauth2/graph use the
+                  per-customer Entra app registration (ADR-0006's row-14
+                  model) — say what these fields ARE and where the rest of
+                  the registration goes, instead of the retired interim
+                  confession that only username+password were collected. */}
+              {isO365Source && (
+                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  {t('wizard.source.appRegistration')}
+                </p>
+              )}
+              {/* Workplan 0042: the customer's own Google OAuth client, a
+                  delegated read-only token, and the doc that walks all of it.
+                  Also the one place to say what happens to Google Docs —
+                  reported un-migratable one by one, by design, until export
+                  byte-stability is measured (T3). */}
+              {isDriveSource && (
+                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  {t('wizard.source.driveSetup')}
+                </p>
+              )}
+              {/* Workplan 0055: Dropbox's App Console words mapped onto the
+                  shared credential fields, said up front. */}
+              {isDropboxSource && (
+                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  {t('wizard.source.dropboxSetup')}
+                </p>
+              )}
+              {/* Workplan 0056: Box's Client Credentials Grant — why there is
+                  no refresh-token field, and where the admin authorization
+                  happens, said up front. */}
+              {isBoxSource && (
+                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  {t('wizard.source.boxSetup')}
+                </p>
+              )}
+              {/* Workplan 0044: the same Google OAuth client as Drive, but the
+                  refresh token must be consented with the mail scope — the one
+                  mistake this box exists to prevent. */}
+              {isGmailSource && (
+                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  {t('wizard.source.gmailSetup')}
+                </p>
+              )}
+              {/* Workplan 0045: same OAuth client, per-product consent — the
+                  scope each token must carry is the mistake this box exists
+                  to prevent, exactly like Gmail's. */}
+              {isGoogleDavSource && (
+                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  {t('wizard.source.googleDavSetup')}
+                </p>
+              )}
+            </div>
+
+            {/* The prerequisites as a checklist that REMEMBERS (workplan 0061).
+                The panels above say what to do; this is where it gets ticked
+                off, per tenant, so an interrupted setup can be resumed — and
+                so a colleague can finish what somebody else started. */}
+            <p className="mt-3">
+              <Link
+                to={`/setup/source/${formData.sourceType}`}
+                className="text-sm text-blue-700 hover:underline"
+              >
+                {t('setup.openChecklist')}
+              </Link>
+            </p>
+
+            {/* Reuse instead of re-typing (workplan 0064), offered HERE rather
+                than on the credentials step (workplan 0067). It has to be on
+                the step that gates the fields it replaces: a Box or Microsoft
+                365 source cannot leave this screen without a client id, so a
+                picker that removes the need for one two steps later removes it
+                after the person has already been forced to find it. */}
+            <ConnectionPicker
+              labelKey="wizard.reuseSource"
+              options={reusableSources}
+              value={formData.sourceConnectionId}
+              onChange={(id) => updateField('sourceConnectionId', id)}
+            />
+
+            {isDropboxSource ? (
+              <div className="space-y-4">
+                {/* Hidden when a stored connection supplies it. What stays
+                    visible below is the per-mapping "where" — a shared
+                    connection knows the account, never which folder THIS
+                    migration is rooted at (`source_config_override`). */}
+                {!formData.sourceConnectionId && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.dropboxAppKey')}
+                    <Required />
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.sourceClientId}
+                    onChange={(e) => updateField('sourceClientId', e.target.value)}
+                    className="input w-full"
+                  />
+                </div>
+                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.dropboxRootPath')}
+                  </label>
+                  {/* '' = the whole Dropbox. The credentials below offer a
+                      browse over sharing/list_folders that fills this. */}
+                  <input
+                    type="text"
+                    value={formData.sourceRootPath}
+                    onChange={(e) => updateField('sourceRootPath', e.target.value)}
+                    className="input w-full"
+                    placeholder={t('wizard.dropboxRootPath.placeholder')}
+                  />
+                </div>
+              </div>
+            ) : isBoxSource ? (
+              <div className="space-y-4">
+                {!formData.sourceConnectionId && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.clientId')}
+                    <Required />
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.sourceClientId}
+                    onChange={(e) => updateField('sourceClientId', e.target.value)}
+                    className="input w-full"
+                  />
+                </div>
+                )}
+                {/* Stays visible when a connection is reused: the CCG subject
+                    is WHOSE files, which is this mapping's question and not
+                    the connection's (ADR-0033, one subject per mapping). */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.boxUserId')}
+                    <Required />
+                  </label>
+                  {/* The CCG subject: WHOSE files the token reads. Numeric by
+                      Box's design — an email here is the mistake the create
+                      refusal and docs/box-setup.md both name. */}
+                  <input
+                    type="text"
+                    required
+                    value={formData.sourceBoxUserId}
+                    onChange={(e) => updateField('sourceBoxUserId', e.target.value)}
+                    className="input w-full"
+                    placeholder={t('wizard.boxUserId.placeholder')}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.boxRootFolderId')}
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.sourceRootFolderId}
+                    onChange={(e) => updateField('sourceRootFolderId', e.target.value)}
+                    className="input w-full"
+                    placeholder={t('wizard.boxRootFolderId.placeholder')}
+                  />
+                </div>
+              </div>
+            ) : isGmailSource || isGoogleDavSource ? (
+              <div className="space-y-4">
+                {/* Nothing per-mapping here — Gmail and the Google DAV pair
+                    are rooted at the account, so a reused connection answers
+                    this whole block and it disappears entirely. */}
+                {!formData.sourceConnectionId && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.clientId')}
+                    <Required />
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.sourceClientId}
+                    onChange={(e) => updateField('sourceClientId', e.target.value)}
+                    className="input w-full"
+                    placeholder="…apps.googleusercontent.com"
+                  />
+                </div>
+                )}
+                {!formData.sourceConnectionId && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.serviceAccountKey')}
+                  </label>
+                  {/* ADR-0033: pasting the key FILE selects domain-wide
+                      delegation — the OAuth client and refresh token stop
+                      being required. The copy under the field states the
+                      grant's width; the mapping still names one subject. */}
+                  <textarea
+                    value={formData.sourceServiceAccountKey}
+                    onChange={(e) => updateField('sourceServiceAccountKey', e.target.value)}
+                    className="input w-full font-mono text-xs"
+                    rows={4}
+                    placeholder={t('wizard.serviceAccountKey.placeholder')}
+                  />
+                  <p className="mt-1 text-xs text-amber-800">
+                    {t('wizard.serviceAccountKey.width')}
+                  </p>
+                </div>
+                )}
+              </div>
+            ) : isDriveSource ? (
+              <div className="space-y-4">
+                {!formData.sourceConnectionId && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.clientId')}
+                    <Required />
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.sourceClientId}
+                    onChange={(e) => updateField('sourceClientId', e.target.value)}
+                    className="input w-full"
+                    placeholder="…apps.googleusercontent.com"
+                  />
+                </div>
+                )}
+                {/* Stays: which folder THIS migration is rooted at. */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.rootFolderId')}
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.sourceRootFolderId}
+                    onChange={(e) => updateField('sourceRootFolderId', e.target.value)}
+                    className="input w-full"
+                    placeholder={t('wizard.rootFolderId.placeholder')}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.serviceAccountKey')}
+                  </label>
+                  {/* ADR-0033: pasting the key FILE selects domain-wide
+                      delegation — the OAuth client and refresh token stop
+                      being required. The copy under the field states the
+                      grant's width; the mapping still names one subject. */}
+                  <textarea
+                    value={formData.sourceServiceAccountKey}
+                    onChange={(e) => updateField('sourceServiceAccountKey', e.target.value)}
+                    className="input w-full font-mono text-xs"
+                    rows={4}
+                    placeholder={t('wizard.serviceAccountKey.placeholder')}
+                  />
+                  <p className="mt-1 text-xs text-amber-800">
+                    {t('wizard.serviceAccountKey.width')}
+                  </p>
+                </div>
+              </div>
+            ) : isO365Source ? (
+              <div className="space-y-4">
+                {/* The app registration IS the connection — a reused one
+                    answers both, and this mapping's own question (which
+                    mailbox) is the username in the credentials below. */}
+                {!formData.sourceConnectionId && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.tenantId')}
+                    <Required />
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.sourceTenantId}
+                    onChange={(e) => updateField('sourceTenantId', e.target.value)}
+                    className="input w-full"
+                    placeholder="contoso.onmicrosoft.com"
+                  />
+                </div>
+                )}
+                {!formData.sourceConnectionId && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.clientId')}
+                    <Required />
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.sourceClientId}
+                    onChange={(e) => updateField('sourceClientId', e.target.value)}
+                    className="input w-full"
+                    placeholder="00000000-0000-0000-0000-000000000000"
+                  />
+                </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Host, port and TLS describe the SERVER, which is what an
+                    IMAP connection holds. The mailbox this mapping moves is
+                    the username, two steps on. */}
+                {!formData.sourceConnectionId && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.host')}
+                    <Required />
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.sourceHost}
+                    onChange={(e) => updateField('sourceHost', e.target.value)}
+                    className="input w-full"
+                    placeholder="imap.example.com"
+                  />
+                </div>
+                )}
+
+                {!formData.sourceConnectionId && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {t('wizard.port')}
+                      <Required />
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      max={65535}
+                      value={formData.sourcePort}
+                      onChange={(e) => updateField('sourcePort', e.target.value)}
+                      className="input w-full"
+                      placeholder="993"
+                    />
+                  </div>
+
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="sourceSsl"
+                      checked={formData.sourceSsl}
+                      onChange={(e) => updateField('sourceSsl', e.target.checked)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="sourceSsl" className="ml-2 block text-sm text-gray-700">
+                      {t('wizard.useSsl')}
+                    </label>
+                  </div>
+                </div>
+                )}
+              </div>
+            )}
+            {renderSourceCredentials()}
+            {renderProbe('source')}
+          </div>
+        );
+
+      case 'target':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">{t('wizard.selectTarget')}</h3>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                {(
+                  [
+                    { id: 'jmap', name: 'JMAP', hintKey: 'wizard.proto.jmap.hint' },
+                    { id: 'imap', name: 'IMAP', hintKey: 'wizard.proto.imap.hint' },
+                    { id: 'caldav', name: 'CalDAV', hintKey: 'wizard.proto.caldav.hint' },
+                    { id: 'carddav', name: 'CardDAV', hintKey: 'wizard.proto.carddav.hint' },
+                    { id: 'webdav', name: 'WebDAV', hintKey: 'wizard.proto.webdav.hint' },
+                  ] as const
+                ).map((type) => (
+                  <button
+                    key={type.id}
+                    onClick={() => updateField('targetType', type.id)}
+                    className={`p-4 border-2 rounded-lg text-left transition-colors ${
+                      formData.targetType === type.id
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <p className="font-medium text-gray-900">{type.name}</p>
+                    <p className="text-sm text-gray-500 mt-1">{t(type.hintKey)}</p>
+                  </button>
+                ))}
+              </div>
+              {/* ADR-0011's consequence, on the step where the destination is
+                  chosen (owner decision 2026-08-10 — it previously rendered on
+                  the SOURCE step): whatever server the owner points this at is
+                  THEIRS. We migrate into it; we do not run it, monitor it,
+                  back it up, or carry an SLA for it. Said before the
+                  connection details are typed, not after. */}
+              <p className="mt-4 text-sm text-gray-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                {t('createMapping.target.userOperated')}
+              </p>
+            </div>
+
+            <ConnectionPicker
+              labelKey="wizard.reuseTarget"
+              options={reusableTargets}
+              value={formData.targetConnectionId}
+              onChange={(id) => updateField('targetConnectionId', id)}
+            />
+
+            <div className="space-y-4">
+              {/* Host and port describe the SERVER, which is what a target
+                  connection already holds — so a reused one answers them and
+                  re-asking would be asking somebody to confirm a value they
+                  cannot see. The target USERNAME stays on the credentials
+                  step: it names which account this mapping writes to, which a
+                  shared connection cannot know. */}
+              {!formData.targetConnectionId && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('wizard.host')}
+                  <Required />
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.targetHost}
+                  onChange={(e) => updateField('targetHost', e.target.value)}
+                  className="input w-full"
+                  placeholder="jmap.example.com"
+                />
+              </div>
+              )}
+
+              {!formData.targetConnectionId && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.port')}
+                    <Required />
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    max={65535}
+                    value={formData.targetPort}
+                    onChange={(e) => updateField('targetPort', e.target.value)}
+                    className="input w-full"
+                    placeholder="443"
+                  />
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="targetSsl"
+                    checked={formData.targetSsl}
+                    onChange={(e) => updateField('targetSsl', e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="targetSsl" className="ml-2 block text-sm text-gray-700">
+                    {t('wizard.useSsl')}
+                  </label>
+                </div>
+              </div>
+              )}
+
+              {/* The merge-or-subfolder choice (owner decision 2026-08-16),
+                  made where the destination is chosen. Empty means MERGE —
+                  the default on purpose — and the hint says what the other
+                  answer is for, so consolidating owners find it here rather
+                  than in a source step that cannot know it is one of two. */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('wizard.targetPrefix')}
+                </label>
+                <input
+                  type="text"
+                  value={formData.targetFolderPrefix}
+                  onChange={(e) => updateField('targetFolderPrefix', e.target.value)}
+                  className="input w-full"
+                  placeholder={t('wizard.targetPrefix.placeholder')}
+                />
+                <p className="mt-1 text-sm text-gray-500">{t('wizard.targetPrefix.hint')}</p>
+              </div>
+            </div>
+            {renderTargetCredentials()}
+            {renderProbe('target')}
+          </div>
+        );
+
+      case 'migration':
+        return (
+          <div className="space-y-6">
+            {/* Both sides are settled by the time anyone gets here (workplan
+                0070): this step is only what is true of THIS migration —
+                what to call it, what to move, and how often. */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('wizard.migrationName')}
+                <Required />
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.name}
+                onChange={(e) => updateField('name', e.target.value)}
+                className="input w-full"
+                placeholder="My Migration"
+              />
+              <p className="mt-1 text-sm text-gray-500">{t('wizard.migrationNameHint')}</p>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium text-gray-900">
+                {t('wizard.selectDataTypes')}
+              </h3>
+              <p className="text-sm text-gray-500">{t('wizard.selectDataTypesHint')}</p>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {dataTypes.map((type) => {
+                  const unavailable = !allowedDomains.includes(type.id);
+                  // A selected-but-unavailable type stays clickable: it must be
+                  // DESELECTABLE, or going back and changing the target would
+                  // trap the wizard behind a button that cannot be un-pressed.
+                  const locked = unavailable && !formData.domains.includes(type.id);
+                  return (
+                    <button
+                      key={type.id}
+                      onClick={() => toggleDomain(type.id)}
+                      disabled={locked}
+                      className={`p-4 border-2 rounded-lg text-left transition-colors ${
+                        formData.domains.includes(type.id)
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      } ${locked ? 'opacity-50 cursor-not-allowed hover:border-gray-200' : ''}`}
+                    >
+                      <div className="flex items-center">
+                        <type.icon
+                          className={`w-6 h-6 mr-3 ${
+                            formData.domains.includes(type.id)
+                              ? 'text-blue-600'
+                              : 'text-gray-400'
+                          }`}
+                        />
+                        <div>
+                          <p className="font-medium text-gray-900">{t(type.nameKey)}</p>
+                          <p className="text-sm text-gray-500">{t(type.hintKey)}</p>
+                          {unavailable && (
+                            <p className="text-xs text-amber-700 mt-1">
+                              {t('wizard.domain.notForTarget')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <div>
               <h3 className="text-lg font-medium text-gray-900 mb-4">{t('wizard.schedule')}</h3>
               <p className="text-sm text-gray-500 mb-4">{t('wizard.scheduleHint')}</p>

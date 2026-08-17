@@ -93,33 +93,78 @@ beforeEach(() => {
 });
 
 /** Every source card, and the fields ITS first step marks required. */
-const M365 = (): [RegExp, string][] => [
-  [/^Tenant ID/, '11111111-1111-1111-1111-111111111111'],
-  [/^Client ID/, '22222222-2222-2222-2222-222222222222'],
+const CREDS = {
+  user: [/^Source Username/, 'anna@acme.example'] as [RegExp, string],
+  secret: [/^Source client secret/, 'shh-secret'] as [RegExp, string],
+  refresh: [/^Refresh token/, '1//refresh-token'] as [RegExp, string],
+};
+
+/**
+ * Each side now carries its own credentials (workplan 0070), so a source
+ * type's FIRST step demands everything that side needs — not just its
+ * provider config. That is the whole point of the restructure and this table
+ * is the place it is pinned.
+ */
+const google = (id: string): [RegExp, string][] => [
+  CREDS.user,
+  [/^Client ID/, id],
+  CREDS.secret,
+  CREDS.refresh,
 ];
 
 const SOURCE_TYPES: { name: string; required: [RegExp, string][] }[] = [
-  { name: 'IMAP', required: [[/^Host$/, 'mail.example.com']] },
-  { name: 'OAuth2', required: M365() },
-  { name: 'Microsoft Graph', required: M365() },
-  { name: 'Google Drive', required: [[/^Client ID/, 'drive.apps.googleusercontent.com']] },
-  { name: 'Gmail', required: [[/^Client ID/, 'gmail.apps.googleusercontent.com']] },
-  { name: 'Google Calendar', required: [[/^Client ID/, 'gcal.apps.googleusercontent.com']] },
-  { name: 'Google Contacts', required: [[/^Client ID/, 'gcon.apps.googleusercontent.com']] },
-  // Dropbox calls it an App key on screen, which is what the App Console
-  // calls it. The blocked-reason line must call it that too.
-  { name: 'Dropbox', required: [[/^App key/, 'dropbox-app-key']] },
+  { name: 'IMAP', required: [CREDS.user, [/^Host$/, 'mail.example.com']] },
+  {
+    name: 'OAuth2',
+    required: [
+      CREDS.user,
+      [/^Tenant ID/, '11111111-1111-1111-1111-111111111111'],
+      [/^Client ID/, '22222222-2222-2222-2222-222222222222'],
+      CREDS.secret,
+    ],
+  },
+  {
+    name: 'Microsoft Graph',
+    required: [
+      CREDS.user,
+      [/^Tenant ID/, '11111111-1111-1111-1111-111111111111'],
+      [/^Client ID/, '22222222-2222-2222-2222-222222222222'],
+      CREDS.secret,
+    ],
+  },
+  { name: 'Google Drive', required: google('drive.apps.googleusercontent.com') },
+  { name: 'Gmail', required: google('gmail.apps.googleusercontent.com') },
+  { name: 'Google Calendar', required: google('gcal.apps.googleusercontent.com') },
+  { name: 'Google Contacts', required: google('gcon.apps.googleusercontent.com') },
+  // Dropbox calls it an App key on screen, which is what the App Console calls
+  // it. The blocked-reason line must call it that too.
+  {
+    name: 'Dropbox',
+    required: [CREDS.user, [/^App key/, 'dropbox-app-key'], CREDS.secret, CREDS.refresh],
+  },
   {
     name: 'Box',
     required: [
+      CREDS.user,
       [/^Client ID/, 'box-client-id'],
       [/^Box user id/, '12345678'],
+      CREDS.secret,
     ],
   },
 ];
 
 /** Field labels a blocked-reason line is allowed to name, per the strings. */
-const GATE_LABELS = ['Host', 'Port', 'Client ID', 'Tenant ID', 'Box user id', 'App key'];
+const GATE_LABELS = [
+  'Host',
+  'Port',
+  'Client ID',
+  'Tenant ID',
+  'Box user id',
+  'App key',
+  'Source Username',
+  'Source client secret',
+  'Refresh token',
+];
 
 describe('every source type gets past its own first step', () => {
   it.each(SOURCE_TYPES)('$name', async ({ name, required }) => {
@@ -208,17 +253,19 @@ describe('reusing a stored connection', () => {
     expect(queryFieldFor(/^Client ID/)).toBeNull();
   });
 
-  it('does not demand, two steps later, the secrets it just hid', async () => {
+  it('does not demand, a step later, the secrets it just hid', async () => {
     await pickBoxConnection();
     fireEvent.click(nextButton()); // -> target
 
+    // The target side is untouched by the source's reuse and asks for its own.
     fill(/^Host$/, 'stalwart.acme.example');
-    fireEvent.click(nextButton()); // -> name & credentials
-
-    fill(/^Migration Name/i, 'Acme files');
-    fill(/^Source Username/i, 'anna@acme.example');
     fill(/^Target Username/i, 'anna@acme.net');
+    fill(/^Target Password/i, 'target-pw');
+    await waitFor(() => expect(nextButton()).toBeEnabled());
+    fireEvent.click(nextButton()); // -> migration
 
+    // And the finalise step never mentions a credential at all.
+    fill(/^Migration Name/i, 'Acme files');
     await waitFor(() => expect(nextButton()).toBeEnabled());
   });
 });

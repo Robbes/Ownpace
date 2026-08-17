@@ -1,12 +1,10 @@
 # O365 Setup Documentation
 
-**Reference:** ADR-0006 (O365 Access Model), Workplan 0008 T2
-
 This guide walks you through setting up a Microsoft Entra (formerly Azure AD)
 application for Open-Migrate to access O365 resources (mail, calendar,
 contacts, OneDrive) — **in your own tenant, registered by you**.
 
-> **Model change, 2026-08-09 (owner decision — workplan 0026 T3 row 14).**
+> **Model change, 2026-08-09.**
 > This document originally described ONE multi-tenant app, published by the
 > Open-Migrate project, that every customer tenant consented to. That model is
 > retired: **each customer registers their own single-tenant app in their own
@@ -15,7 +13,7 @@ contacts, OneDrive) — **in your own tenant, registered by you**.
 > (the multi-tenant model would have required a Partner Center verification
 > before any foreign tenant could consent); the credential never leaves your
 > custody — you put it in your own appliance's `secrets.cmd`/`.env` or the
-> managed edition's connection screen, so the "whitelisting" is credential
+> connection screen, so the "whitelisting" is credential
 > custody plus the Application Access Policy narrowing the app to named
 > mailboxes; and revocation is yours — delete the app registration and every
 > token dies. The multi-tenant consent-URL machinery below is kept only for
@@ -54,7 +52,7 @@ This approach:
 - **Follows least-privilege**: permissions are scoped to only what's needed,
   and the Application Access Policy narrows mailbox access further
 
-### Access Model (per ADR-0006)
+### Access Model
 
 Two authentication paths are supported:
 
@@ -81,7 +79,7 @@ Both paths use the same app registration but different permission configurations
 - `Files.Read.All` - Read OneDrive files (Graph)
 - `offline_access` - Refresh token support
 
-> **Note:** POP is intentionally NOT enabled. IMAP is the primary mail access method per ADR-0006.
+> **Note:** POP is intentionally NOT enabled. IMAP is the primary mail access method.
 
 ---
 
@@ -307,7 +305,7 @@ OAUTH2_CLIENT_SECRET=your-client-secret-here
 # Alternative: Certificate path (more secure than secrets)
 # OAUTH2_CLIENT_CERTIFICATE_PATH=/path/to/private-key.pem
 
-# For delegated flow (self-host path), user's refresh token
+# For the delegated flow, the user's refresh token
 # This is obtained after user consent and initial auth
 OAUTH2_REFRESH_TOKEN=your-refresh-token-here
 
@@ -322,7 +320,7 @@ OAUTH2_TOKEN_URL=https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token
 
 ## Application Access Policy
 
-**This lives in one place: [`o365-application-access.md`](./o365-application-access.md) §4.**
+**This lives in one place: [`o365-application-access.md`](./o365-application-access.md), section 4.**
 
 This section used to restate the whole procedure, and the copy was wrong in three ways that
 each cost an operator real time before the error made sense:
@@ -578,8 +576,3 @@ Expected claims:
 - [Graph API Permissions Reference](https://docs.microsoft.com/en-us/graph/permissions-reference)
 
 ---
-
-## References
-
-- **ADR-0006**: O365 Access Model - [docs/adr/0006-o365-access-model.md](./adr/0006-o365-access-model.md)
-- **Workplan 0008**: O365 Graph Source - [docs/workplans/0008-o365-graph-source.md](./workplans/0008-o365-graph-source.md)

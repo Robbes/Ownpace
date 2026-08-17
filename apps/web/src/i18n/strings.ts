@@ -149,11 +149,15 @@ const en = {
   'wizard.noSharedDrives': 'This credential sees no shared drives or shared folders — leaving the root empty migrates My Drive.',
   'wizard.sharedDrivesGroup': 'Shared drives',
   'wizard.sharedFoldersGroup': 'Folders shared with me',
-  'wizard.testConnections': 'Test connections',
+  'wizard.step.migration': 'Migration',
+  'wizard.testConnections.reused':
+    'This side already uses a saved connection, so this just checks it still works.',
+  'wizard.testConnections': 'Test and save connections',
   'wizard.testing': 'Testing…',
   'wizard.testConnections.hint':
-    'Read-only: signs in to both sides with what you typed and lists what it can see. ' +
-    'Nothing is created or written.',
+    'Signs in to both sides with what you typed and lists what it can see — nothing is ' +
+    'written to either system. A side that works is SAVED as a connection, so if you leave ' +
+    'this wizard you will not have to fetch those credentials again.',
   'wizard.proto.jmap.hint': 'Modern email protocol',
   'wizard.proto.caldav.hint': 'Calendar protocol',
   'wizard.proto.carddav.hint': 'Contact protocol',
@@ -372,7 +376,7 @@ const en = {
   'sharing.loadFailed': 'The sharing checklist could not be read.',
   'hub.check.name': 'Check',
   'hub.check.blurb':
-    'Compare the two systems and sample the contents — the §20 gate, behind a button.',
+    'Compare the two systems and sample the contents, behind one button.',
   'hub.finish.name': 'Finish',
   'hub.finish.blurb':
     'The cutover checklist. Ends the migration — in order, with the one attested step.',
@@ -606,7 +610,7 @@ const en = {
     'Confirm step 4 first — finishing before delivery has moved loses anything that arrives afterwards.',
   'createMapping.target.userOperated':
     'The destination server is yours to run. We migrate your data into it — we do not ' +
-    'operate, monitor or back it up, and it carries no service level from us (ADR-0011). ' +
+    'operate, monitor or back it up, and it carries no service level from us. ' +
     'If it is a managed European platform, its own provider is responsible for it.',
   'tenants.title': 'Team & organization',
   'tenants.intro':
@@ -785,6 +789,22 @@ const en = {
   'setup.waitingOnOthers': 'waiting on an administrator',
   'setup.allDone': 'Everything here is settled — you can complete the wizard.',
   'setup.nothingToDo': 'This provider needs nothing set up in advance. Go straight to the wizard.',
+  // ---- Choosing a provider, and narrowing by who you are (workplan 0068) ----
+  'setup.choose.title': 'What are you setting up?',
+  'setup.choose.intro':
+    'Pick the system you are migrating from or to. Each one has its own short list of things to arrange before a migration can read anything.',
+  'setup.choose.sources': 'Migrating from',
+  'setup.choose.targets': 'Migrating to',
+  'setup.admin.question': 'Do you administer this system for your organisation?',
+  'setup.admin.yes': 'Yes, I am an administrator',
+  'setup.admin.no': 'No, someone else is',
+  'setup.admin.unsure': 'Show me everything',
+  'setup.admin.hint':
+    'This only changes how the list below is arranged. It is remembered on this device, for you — a colleague answering differently still sees their own view.',
+  'setup.yours': 'What you can do yourself',
+  'setup.forYourAdmin': 'What your administrator has to do',
+  'setup.forYourAdmin.hint':
+    'These need rights you have said you do not have. Send them to whoever administers this system; you can tick them off here once they confirm.',
   'setup.yields': 'You get:',
   'setup.tick': 'Mark this step done',
   'setup.untick': 'Mark this step not done',
@@ -1019,11 +1039,16 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.noSharedDrives': 'Deze inloggegevens zien geen gedeelde Drives of gedeelde mappen — een lege hoofdmap migreert Mijn Drive.',
   'wizard.sharedDrivesGroup': 'Gedeelde Drives',
   'wizard.sharedFoldersGroup': 'Met mij gedeelde mappen',
-  'wizard.testConnections': 'Verbindingen testen',
+  'wizard.step.migration': 'Migratie',
+  'wizard.testConnections.reused':
+    'Deze kant gebruikt al een bewaarde verbinding; dit controleert alleen of die nog werkt.',
+  'wizard.testConnections': 'Verbindingen testen en bewaren',
   'wizard.testing': 'Testen…',
   'wizard.testConnections.hint':
-    'Alleen-lezen: meldt zich aan beide kanten aan met wat u hebt ingevuld en toont wat ' +
-    'zichtbaar is. Er wordt niets aangemaakt of geschreven.',
+    'Meldt zich aan beide kanten aan met wat u hebt ingevuld en toont wat zichtbaar is — ' +
+    'er wordt niets naar beide systemen geschreven. Een kant die werkt, wordt BEWAARD als ' +
+    'verbinding, zodat u die inloggegevens niet opnieuw hoeft op te halen als u de wizard ' +
+    'verlaat.',
   'wizard.proto.jmap.hint': 'Modern e-mailprotocol',
   'wizard.proto.caldav.hint': 'Agendaprotocol',
   'wizard.proto.carddav.hint': 'Contactenprotocol',
@@ -1084,7 +1109,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.next': 'Volgende',
   'wizard.create': 'Migratie aanmaken',
   'wizard.creating': 'Aanmaken…',
-  'wizard.missing.lead': 'Vul om verder te gaan in:',
+  'wizard.missing.lead': 'Nog invullen om verder te gaan:',
   'wizard.missing.dataTypes': 'kies minstens één gegevenstype',
   'wizard.showPassword': 'Toon wachtwoord',
   'wizard.hidePassword': 'Verberg wachtwoord',
@@ -1225,7 +1250,7 @@ const nl: Record<keyof typeof en, string> = {
   'sharing.loadFailed': 'De deel-checklist kon niet worden gelezen.',
   'hub.check.name': 'Verificatie',
   'hub.check.blurb':
-    'Vergelijk de twee systemen en controleer steekproeven van de inhoud — het §20-controlepunt, achter één knop.',
+    'Vergelijk de twee systemen en controleer steekproeven van de inhoud, achter één knop.',
   'hub.finish.name': 'Afronden',
   'hub.finish.blurb':
     'De cutover-checklist. Beëindigt de migratie — in volgorde, met de ene stap die u zelf moet bevestigen.',
@@ -1460,8 +1485,8 @@ const nl: Record<keyof typeof en, string> = {
     'Bevestig eerst stap 4 — afronden voordat de e-mailbezorging is omgezet, verliest alles wat daarna binnenkomt.',
   'createMapping.target.userOperated':
     'De doelserver beheert u zelf. Wij zetten uw gegevens erin over — wij beheren, ' +
-    'bewaken of back-uppen hem niet, en er geldt van onze kant geen serviceniveau voor ' +
-    '(ADR-0011). Is het een beheerd Europees platform, dan is de aanbieder ervan ' +
+    'bewaken of back-uppen hem niet, en er geldt van onze kant geen serviceniveau voor. ' +
+    'Is het een beheerd Europees platform, dan is de aanbieder ervan ' +
     'verantwoordelijk.',
   'tenants.title': 'Team & organisatie',
   'tenants.intro':
@@ -1631,6 +1656,22 @@ const nl: Record<keyof typeof en, string> = {
   'setup.waitingOnOthers': 'wacht op een beheerder',
   'setup.allDone': 'Alles hier is afgehandeld — u kunt de wizard afronden.',
   'setup.nothingToDo': 'Voor deze aanbieder hoeft u vooraf niets in te stellen. Ga direct naar de wizard.',
+  // ---- Aanbieder kiezen en de lijst afstemmen op wie u bent (workplan 0068) ----
+  'setup.choose.title': 'Wat wilt u instellen?',
+  'setup.choose.intro':
+    'Kies het systeem waarvandaan of waarnaartoe u migreert. Elk systeem heeft een eigen korte lijst met zaken die u vooraf regelt.',
+  'setup.choose.sources': 'Migreren vanaf',
+  'setup.choose.targets': 'Migreren naar',
+  'setup.admin.question': 'Beheert u dit systeem voor uw organisatie?',
+  'setup.admin.yes': 'Ja, ik ben beheerder',
+  'setup.admin.no': 'Nee, iemand anders',
+  'setup.admin.unsure': 'Laat alles zien',
+  'setup.admin.hint':
+    'Dit verandert alleen de indeling van de lijst hieronder. Het wordt op dit apparaat onthouden, voor u — een collega die anders antwoordt, ziet zijn eigen indeling.',
+  'setup.yours': 'Wat u zelf kunt doen',
+  'setup.forYourAdmin': 'Wat uw beheerder moet doen',
+  'setup.forYourAdmin.hint':
+    'Hiervoor zijn rechten nodig die u naar eigen zeggen niet heeft. Stuur ze door naar de beheerder van dit systeem; u kunt ze hier afvinken zodra die het bevestigt.',
   'setup.yields': 'Dit levert op:',
   'setup.tick': 'Deze stap afvinken',
   'setup.untick': 'Vinkje weghalen',

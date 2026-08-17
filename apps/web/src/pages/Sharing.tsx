@@ -40,6 +40,7 @@ import {
 } from '../services/operating-service';
 import MappingHubLink from '../components/MappingHubLink';
 import { useT, useFormatters } from '../i18n';
+import { serverMessage } from '../services/api';
 
 const StateBadge: React.FC<{ row: ShareGrantRow }> = ({ row }) => {
   const t = useT();
@@ -281,7 +282,7 @@ const Sharing: React.FC = () => {
       {error != null && (
         <p className="mt-4 text-sm text-amber-800">
           {t('sharing.loadFailed')}{' '}
-          {error instanceof Error ? error.message : String(error)}
+          {serverMessage(error)}
         </p>
       )}
       {data && data.grants.length === 0 && (

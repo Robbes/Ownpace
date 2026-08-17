@@ -27,7 +27,9 @@ import { useParams, Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, CircleDashed, SkipForward, UserCog } from 'lucide-react';
 import { setupApi, type SetupChecklist, type SetupStepStatusDto } from '../services/mapping-service';
+import { providersWithSetup } from '@openmig/shared';
 import { useT, useFormatters, type StringKey } from '../i18n';
+import { serverMessage } from '../services/api';
 
 const StepRow: React.FC<{
   status: SetupStepStatusDto;
@@ -118,6 +120,68 @@ function guideSlug(provider: string): string {
   return `${provider}-setup`;
 }
 
+/**
+ * "Which provider?" — the screen the nav used to skip (workplan 0068).
+ *
+ * `Layout.tsx` linked straight to `/setup/source/box`, so everybody's checklist
+ * was Box's regardless of what they were actually migrating. The owner hit it
+ * within a minute of opening the page and asked whether it was demo data. It
+ * was not; it was a hardcoded href.
+ */
+const ProviderChooser: React.FC = () => {
+  const t = useT();
+  return (
+    <div className="p-6 max-w-3xl">
+      <h2 className="text-xl font-semibold text-gray-900">{t('setup.choose.title')}</h2>
+      <p className="mt-1 text-sm text-gray-600">{t('setup.choose.intro')}</p>
+      {(['source', 'target'] as const).map((side) => (
+        <div key={side} className="mt-6">
+          <h3 className="text-sm font-medium text-gray-700">
+            {t(side === 'source' ? 'setup.choose.sources' : 'setup.choose.targets')}
+          </h3>
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {providersWithSetup(side).map((p) => (
+              <Link
+                key={`${side}:${p}`}
+                to={`/setup/${side}/${p}`}
+                className="border border-gray-200 rounded-lg px-4 py-3 hover:border-gray-300 hover:bg-gray-50 text-gray-900"
+              >
+                {p}
+              </Link>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/**
+ * Whether this PERSON administers the provider — which narrows what they can
+ * usefully be shown (owner decision, workplan 0068).
+ *
+ * Deliberately **not** stored in the ledger beside the step states. A step's
+ * state is a fact about the tenant's setup that a colleague should inherit;
+ * "am I an administrator?" is a fact about whoever is looking, and two people
+ * on the same tenant have different answers. Storing it per tenant would mean
+ * the first person to answer decides what the second one sees.
+ */
+type AdminAnswer = 'yes' | 'no' | 'unknown';
+
+function useAdminAnswer(side: string, provider: string) {
+  const key = `setup.admin.${side}.${provider}`;
+  const [answer, setAnswer] = React.useState<AdminAnswer>(() => {
+    const stored = globalThis.localStorage?.getItem(key);
+    return stored === 'yes' || stored === 'no' ? stored : 'unknown';
+  });
+  const set = (a: AdminAnswer) => {
+    setAnswer(a);
+    if (a === 'unknown') globalThis.localStorage?.removeItem(key);
+    else globalThis.localStorage?.setItem(key, a);
+  };
+  return [answer, set] as const;
+}
+
 const Setup: React.FC = () => {
   const t = useT();
   const { side, provider } = useParams<{ side: string; provider: string }>();
@@ -125,6 +189,7 @@ const Setup: React.FC = () => {
   const [busyKey, setBusyKey] = React.useState<string | null>(null);
 
   const resolvedSide: 'source' | 'target' = side === 'target' ? 'target' : 'source';
+  const [adminAnswer, setAdminAnswer] = useAdminAnswer(resolvedSide, provider ?? '');
   const key = ['setup', resolvedSide, provider ?? ''];
 
   const { data, isLoading, error } = useQuery<SetupChecklist>({
@@ -143,8 +208,11 @@ const Setup: React.FC = () => {
     }
   };
 
+  // No provider in the URL: ask which one, rather than picking for them.
+  if (!provider) return <ProviderChooser />;
+
   if (isLoading) return <div className="p-6 text-gray-500">{t('common.loading')}</div>;
-  if (error) return <div className="p-6 text-red-700">{String(error)}</div>;
+  if (error) return <div className="p-6 text-red-700">{serverMessage(error)}</div>;
   if (!data) return null;
 
   const { progress } = data;
@@ -192,17 +260,83 @@ const Setup: React.FC = () => {
             )}
           </div>
 
-          <ul className="mt-4 space-y-3">
-            {data.steps.map((s) => (
-              <li key={s.step.key} className="list-none">
-                <StepRow
-                  status={s}
-                  busy={busyKey === s.step.key}
-                  onSet={(state) => set(s.step.key, state)}
-                />
-              </li>
-            ))}
-          </ul>
+          {/* The narrowing question (owner decision, workplan 0068). Asked
+              BEFORE the list, because the answer changes what most of the list
+              means: an admin sees seven things to do, while somebody without
+              those rights sees four they can do and three to hand over. Showing
+              everyone all seven made the page look like more work than it is. */}
+          <div className="mt-4 border border-gray-200 rounded-lg p-4">
+            <p className="text-sm font-medium text-gray-900">
+              {t('setup.admin.question')} — {data.provider}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {(['yes', 'no', 'unknown'] as const).map((a) => (
+                <button
+                  key={a}
+                  type="button"
+                  onClick={() => setAdminAnswer(a)}
+                  className={`text-sm rounded px-3 py-1.5 border ${
+                    adminAnswer === a
+                      ? 'bg-blue-600 border-blue-600 text-white'
+                      : 'bg-white border-gray-300 text-gray-700 hover:border-gray-400'
+                  }`}
+                >
+                  {t(
+                    a === 'yes'
+                      ? 'setup.admin.yes'
+                      : a === 'no'
+                        ? 'setup.admin.no'
+                        : 'setup.admin.unsure',
+                  )}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-gray-500">{t('setup.admin.hint')}</p>
+          </div>
+
+          {(() => {
+            // With "no", the admin-gated steps are not hidden — hiding work
+            // does not make it go away, and somebody has to chase it. They are
+            // SEPARATED, under a heading that says whose they are.
+            const mine =
+              adminAnswer === 'no'
+                ? data.steps.filter((s) => !s.step.needsAnotherPerson)
+                : data.steps;
+            const theirs =
+              adminAnswer === 'no'
+                ? data.steps.filter((s) => s.step.needsAnotherPerson)
+                : [];
+            const list = (rows: typeof data.steps) => (
+              <ul className="mt-4 space-y-3">
+                {rows.map((s) => (
+                  <li key={s.step.key} className="list-none">
+                    <StepRow
+                      status={s}
+                      busy={busyKey === s.step.key}
+                      onSet={(state) => set(s.step.key, state)}
+                    />
+                  </li>
+                ))}
+              </ul>
+            );
+            return (
+              <>
+                {adminAnswer === 'no' && mine.length > 0 && (
+                  <h3 className="mt-6 text-sm font-medium text-gray-700">{t('setup.yours')}</h3>
+                )}
+                {list(mine)}
+                {theirs.length > 0 && (
+                  <>
+                    <h3 className="mt-8 text-sm font-medium text-amber-800">
+                      {t('setup.forYourAdmin')}
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-600">{t('setup.forYourAdmin.hint')}</p>
+                    {list(theirs)}
+                  </>
+                )}
+              </>
+            );
+          })()}
         </>
       )}
     </div>

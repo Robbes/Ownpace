@@ -187,6 +187,9 @@ const AppRoutes: React.FC = () => {
             the queue's rows live in the ledger either way. */}
         <Route path="mappings/:mappingId/sharing" element={<Sharing />} />
         {/* The platform-side prerequisites, per provider (workplan 0061). */}
+        {/* Without a provider the page ASKS which one (workplan 0068); the
+            nav used to link straight to Box for everybody. */}
+        <Route path="setup" element={<Setup />} />
         <Route path="setup/:side/:provider" element={<Setup />} />
         {/* Connections as first-class, testable things (workplan 0062). */}
         <Route path="connections" element={<Connections />} />

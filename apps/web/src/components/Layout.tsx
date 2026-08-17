@@ -64,7 +64,7 @@ const Layout: React.FC = () => {
     // The setup checklist is EDITION-NEUTRAL (workplan 0066): creating a Box
     // app and getting an admin to authorise it is the same work either way,
     // and the appliance answers the same routes over the same table.
-    { name: t('nav.setup'), href: '/setup/source/box', icon: ListChecks },
+    { name: t('nav.setup'), href: '/setup', icon: ListChecks },
     { name: t('nav.docs'), href: '/docs', icon: BookOpen },
     // The §11.2 decision queues, and then the §20 gate and the end of the
     // migration — in the order the runbook's cutover sequence uses.
@@ -252,7 +252,10 @@ const Layout: React.FC = () => {
         </header>
 
         {/* Page content */}
-        <main className="p-4 lg:p-8">
+        {/* pb-24 on small screens: Android password managers and the on-screen
+            keyboard float an overlay above the viewport bottom, which hid the
+            wizard's Next button behind it with nothing left to scroll to. */}
+        <main className="p-4 pb-24 lg:p-8 lg:pb-8">
           <Outlet />
         </main>
       </div>
