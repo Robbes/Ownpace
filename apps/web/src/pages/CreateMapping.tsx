@@ -655,7 +655,7 @@ const CreateMapping: React.FC = () => {
                     onChange={(e) => updateField('sourceServiceAccountKey', e.target.value)}
                     className="input w-full font-mono text-xs"
                     rows={4}
-                    placeholder='{"type": "service_account", …}'
+                    placeholder={t('wizard.serviceAccountKey.placeholder')}
                   />
                   <p className="mt-1 text-xs text-amber-800">
                     {t('wizard.serviceAccountKey.width')}
@@ -703,7 +703,7 @@ const CreateMapping: React.FC = () => {
                     onChange={(e) => updateField('sourceServiceAccountKey', e.target.value)}
                     className="input w-full font-mono text-xs"
                     rows={4}
-                    placeholder='{"type": "service_account", …}'
+                    placeholder={t('wizard.serviceAccountKey.placeholder')}
                   />
                   <p className="mt-1 text-xs text-amber-800">
                     {t('wizard.serviceAccountKey.width')}

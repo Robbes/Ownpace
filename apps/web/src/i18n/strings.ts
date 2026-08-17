@@ -124,6 +124,7 @@ const en = {
     'Google product will not work here. docs/google-workspace-setup.md walks through it.',
   'hub.completionReport': 'Download the completion report (Markdown)',
   'wizard.serviceAccountKey': 'Service account key (domain-wide delegation, optional)',
+  'wizard.serviceAccountKey.placeholder': 'Paste the whole JSON key file Google generated',
   'wizard.serviceAccountKey.width':
     'This key can read every user in the Workspace domain. Each migration still names one account. Authorise only the scopes you need in the Admin console, and revoke the delegation at cutover.',
   'wizard.browseSharedDrives': 'Browse shared drives & folders…',
@@ -836,6 +837,7 @@ const nl: Record<keyof typeof en, string> = {
     'Google-product is toegestemd werkt hier niet. docs/google-workspace-setup.md behandelt dit.',
   'hub.completionReport': 'Download het opleveringsrapport (Markdown)',
   'wizard.serviceAccountKey': 'Serviceaccount-sleutel (domeinbrede delegatie, optioneel)',
+  'wizard.serviceAccountKey.placeholder': 'Plak het volledige JSON-sleutelbestand dat Google genereerde',
   'wizard.serviceAccountKey.width':
     'Deze sleutel kan elke gebruiker in het Workspace-domein lezen. Elke migratie benoemt nog steeds één account. Autoriseer alleen de benodigde scopes in de Admin-console, en trek de delegatie bij de overstap weer in.',
   'wizard.browseSharedDrives': 'Gedeelde Drives en mappen bekijken…',

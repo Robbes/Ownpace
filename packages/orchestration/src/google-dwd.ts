@@ -47,6 +47,8 @@ export function dwdTokenProviderIfConfigured(
   try {
     return new GoogleJwtBearerProvider(creds.serviceAccountKey, subject ?? creds.subject ?? '', scope);
   } catch (err) {
-    throw new Error(`${product}: ${err instanceof Error ? err.message : String(err)}`);
+    throw new Error(`${product}: ${err instanceof Error ? err.message : String(err)}`, {
+      cause: err,
+    });
   }
 }

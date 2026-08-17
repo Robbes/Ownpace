@@ -177,6 +177,7 @@ export class GoogleJwtBearerProvider implements TokenProvider {
           `is damaged (commonly: newlines mangled by a shell or an editor). ${
             err instanceof Error ? err.message : String(err)
           }`,
+        { cause: err },
       );
     }
     return `${signingInput}.${signature.toString('base64url')}`;
