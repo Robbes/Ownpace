@@ -13,6 +13,10 @@ folder). On the **Permissions** tab enable exactly:
 
 - `files.metadata.read`
 - `files.content.read`
+- `sharing.read` — optional, read-only too: it powers the shared-folder **browse**
+  (the wizard's "Browse shared folders" button and `scripts/list-dropbox-shared-folders.ts`).
+  Without it migrations work unchanged; the browse gets Dropbox's own refusal, naming
+  the scope.
 
 Nothing else. The **App key** and **App secret** on the Settings tab are two of the three
 values.
@@ -45,6 +49,11 @@ run; nothing long-lived is stored beyond these three.
 
 `rootPath` unset migrates the whole Dropbox; a path scopes the migration to that folder
 (natural keys are relative to it, so the same tree lands the same way either way).
+
+A **mounted shared folder** lives in the account's tree and migrates like any other
+folder — its path is a valid `rootPath`. `scripts/list-dropbox-shared-folders.ts` (or
+the wizard's browse) lists what the account can see, paths included; an unmounted share
+has no path until the account adds it to its Dropbox.
 
 **Managed** — pick Dropbox in the wizard: the App key goes in the key field on the source
 step; the App secret and refresh token ride the credential fields on the credentials step,

@@ -408,6 +408,26 @@ export const mappingApi = {
   },
 
   /**
+   * The shared folders a Dropbox credential can see (workplan 0055 follow-up)
+   * — the browse behind rootPath. Only a MOUNTED folder carries the path that
+   * goes in the field; an unmounted one is shown so the owner knows it
+   * exists. Read-only; nothing stored.
+   */
+  listDropboxSharedFolders: async (creds: {
+    clientId: string;
+    clientSecret: string;
+    refreshToken: string;
+  }): Promise<
+    | { ok: true; folders: Array<{ id: string; name: string; path?: string }> }
+    | { ok: false; reason: string }
+  > => {
+    const response = await apiClient.post('/migrations/dropbox/shared-folders', creds);
+    return response.data as
+      | { ok: true; folders: Array<{ id: string; name: string; path?: string }> }
+      | { ok: false; reason: string };
+  },
+
+  /**
    * Prove one side's credentials before create (workplan 0046). Read-only on
    * the server; a provider refusal comes back as `{ok:false, reason}` with
    * the provider's words — the same sentence the first pass would have

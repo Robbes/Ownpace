@@ -13,11 +13,11 @@
  *    wrong to use (0026 T1's lesson). So every pass lists the folder, the
  *    natural key plus the ledger provide idempotency, and the second pass
  *    creates nothing. Slower than a delta and CORRECT, in that order.
- *  - **`removed` is never populated.** A `deleted` entry from Dropbox can
- *    state a removal, but this first slice keeps the WebDAV/Drive posture:
- *    absence-counting does the corroborated job, and turning a listing tag
- *    into owner-actionable destructive evidence (ADR-0024) is its own
- *    decision for a later slice, recorded in the workplan.
+ *  - **`removed` is never populated**, but the tombstones ARE read: Dropbox
+ *    states a path's deleted state outright (`include_deleted`), and
+ *    `listTrashedPaths` below turns that into the `trashed` evidence class —
+ *    the same bin read Drive and WebDAV have. Absence-counting still covers
+ *    what the tombstones cannot say.
  *  - **The path is the natural key**, display-cased (`path_display`), RELATIVE
  *    to the configured root — the same tree lands the same way whichever root
  *    carried it. `sourceRef` is Dropbox's own `id`, stable across renames,
@@ -87,12 +87,17 @@ export class DropboxFileSource implements FileSource {
   }
 
   /** The whole tree under one listing: `list_folder` recursive + continue. */
-  private async listAll(path: string, recursive: boolean): Promise<DropboxEntry[]> {
+  private async listAll(
+    path: string,
+    recursive: boolean,
+    includeDeleted = false,
+  ): Promise<DropboxEntry[]> {
     const entries: DropboxEntry[] = [];
     let page = (await this.rpc('files/list_folder', {
       path,
       recursive,
       limit: 1000,
+      ...(includeDeleted ? { include_deleted: true } : {}),
     })) as DropboxListFolderResponse;
     entries.push(...page.entries);
     let hops = 0;
@@ -158,6 +163,69 @@ export class DropboxFileSource implements FileSource {
     const listed = await this.listSince(folder);
     this.lastListing = undefined;
     return listed.items.map((i) => i.item.path);
+  }
+
+  /**
+   * Root-relative paths of Dropbox's TOMBSTONES (`FileSource.listTrashedPaths`)
+   * — positive deletion evidence, added after the first slice deliberately
+   * left it out (workplan 0055 T3b, built as this follow-up).
+   *
+   * `list_folder` with `include_deleted` answers a `.tag: "deleted"` entry
+   * for a path whose latest state is deleted — Dropbox's equivalent of a
+   * recycle bin (deleted files stay restorable for the account's retention
+   * window, and the tombstone lists exactly that window). A path that was
+   * deleted and re-created answers as its live file, not a tombstone, so
+   * this never contradicts the listing.
+   *
+   * The evidence class this feeds is `trashed` (the owner threw it away and
+   * could still restore it), the same class as Drive's bin read — NOT
+   * `reported`: a tombstone is a bin state, not a sync answer. Folder
+   * tombstones ride along; a directory path no ledger file row holds
+   * resolves to nothing downstream, exactly like Drive's out-of-scope
+   * entries.
+   */
+  async listTrashedPaths(): Promise<ReadonlyArray<string>> {
+    const out = new Set<string>();
+    for (const entry of await this.listAll(this.rootPath, true, true)) {
+      if (entry['.tag'] !== 'deleted') continue;
+      const path = this.relativePath(entry);
+      if (path) out.add(path);
+    }
+    return [...out];
+  }
+
+  /**
+   * The shared folders this account can see (the 0049/0051 browse, Dropbox's
+   * turn) — `sharing/list_folders`, paged, read-only, NEVER used by a pass: a
+   * migration's root is a written-down decision. A MOUNTED shared folder
+   * lives in the account's tree (its `path_lower` says where) and migrates as
+   * ordinary content already; the browse answers "which path do I put in
+   * rootPath?" without archaeology. An unmounted one is listed with no path —
+   * shown so the owner knows it exists, mountable only from Dropbox itself.
+   *
+   * Needs the `sharing.read` scope beside the two files scopes; an app
+   * created without it gets Dropbox's own refusal verbatim, naming the scope.
+   */
+  async listSharedFolders(): Promise<
+    ReadonlyArray<{ id: string; name: string; path?: string }>
+  > {
+    const out: Array<{ id: string; name: string; path?: string }> = [];
+    let page = (await this.rpc('sharing/list_folders', { limit: 100 })) as {
+      entries: ReadonlyArray<{ shared_folder_id: string; name: string; path_lower?: string }>;
+      cursor?: string;
+    };
+    for (;;) {
+      for (const e of page.entries) {
+        out.push({
+          id: e.shared_folder_id,
+          name: e.name,
+          ...(e.path_lower ? { path: e.path_lower } : {}),
+        });
+      }
+      if (!page.cursor) break;
+      page = (await this.rpc('sharing/list_folders/continue', { cursor: page.cursor })) as typeof page;
+    }
+    return out;
   }
 
   async fetch(item: FileItem): Promise<RawFileItem> {

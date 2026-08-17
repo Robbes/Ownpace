@@ -9,7 +9,8 @@
  *     (stable across renames) via the header-argument download endpoint.
  *  3. Pagination (`has_more`/continue) is followed to the end — a partial
  *     listing read as the folder would count every unread file as absent.
- *  4. `removed` is never populated (the WebDAV/Drive posture, on purpose).
+ *  4. `removed` is never populated; the tombstone read below is the bin
+ *     (`trashed`-class) evidence instead.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -22,6 +23,7 @@ const CONTENT = 'https://content.test/2';
 function fakeDropbox(pages: Record<string, unknown[]>, bytes?: Uint8Array) {
   const calls: Array<{ url: string; body?: string; headers: Record<string, string> }> = [];
   let continueCount = 0;
+  let sharingCount = 0;
   const transport: DropboxTransport = async (url, init) => {
     calls.push({ url, headers: { ...init.headers }, ...(init.body ? { body: init.body } : {}) });
     const respond = (payload: unknown) => ({
@@ -32,6 +34,10 @@ function fakeDropbox(pages: Record<string, unknown[]>, bytes?: Uint8Array) {
       text: async () => '',
     });
     if (url.includes('/files/download')) return respond({});
+    if (url.includes('/sharing/list_folders')) {
+      const queue = pages['sharing'] ?? [];
+      return respond(queue[sharingCount++] ?? { entries: [] });
+    }
     if (url.includes('list_folder/continue')) {
       const queue = pages['continue'] ?? [];
       return respond(queue[continueCount++] ?? { entries: [], cursor: 'c', has_more: false });
@@ -163,5 +169,70 @@ describe('fetch', () => {
         sourceRef: '',
       }),
     ).rejects.toThrow(/No Dropbox file id/);
+  });
+});
+
+describe('listTrashedPaths — the tombstones (deletion evidence follow-up)', () => {
+  it('asks WITH include_deleted and returns only tombstones, root-relative', async () => {
+    const { transport, calls } = fakeDropbox({
+      '/Team': [
+        {
+          entries: [
+            FILE('/Team/kept.txt'),
+            { '.tag': 'deleted', name: 'gone.txt', path_display: '/Team/Docs/gone.txt' },
+            { '.tag': 'deleted', name: 'Old', path_display: '/Team/Old' },
+          ],
+          cursor: 'c',
+          has_more: false,
+        },
+      ],
+    });
+    const source = new DropboxFileSource(transport, {
+      apiBaseUrl: API,
+      contentBaseUrl: CONTENT,
+      rootPath: '/Team',
+    });
+
+    const trashed = await source.listTrashedPaths();
+
+    expect(trashed).toEqual(['Docs/gone.txt', 'Old']);
+    expect(JSON.parse(calls[0]!.body!)).toMatchObject({ include_deleted: true, recursive: true });
+  });
+
+  it('the ordinary listing still never asks for tombstones', async () => {
+    const { transport, calls } = fakeDropbox({
+      '': [{ entries: [], cursor: 'c', has_more: false }],
+    });
+    await new DropboxFileSource(transport, { apiBaseUrl: API, contentBaseUrl: CONTENT }).listSince({
+      path: '',
+    });
+
+    expect(JSON.parse(calls[0]!.body!).include_deleted).toBeUndefined();
+  });
+});
+
+describe('listSharedFolders — the browse behind rootPath (0049/0051, Dropbox turn)', () => {
+  it('pages to the end; only a MOUNTED folder carries the path that goes in rootPath', async () => {
+    const { transport, calls } = fakeDropbox({
+      sharing: [
+        {
+          entries: [{ shared_folder_id: '11', name: 'Team Docs', path_lower: '/team docs' }],
+          cursor: 'more',
+        },
+        {
+          entries: [{ shared_folder_id: '22', name: 'Unmounted' }],
+        },
+      ],
+    });
+    const source = new DropboxFileSource(transport, { apiBaseUrl: API, contentBaseUrl: CONTENT });
+
+    const folders = await source.listSharedFolders();
+
+    expect(folders).toEqual([
+      { id: '11', name: 'Team Docs', path: '/team docs' },
+      { id: '22', name: 'Unmounted' },
+    ]);
+    expect(calls[1]!.url).toBe(`${API}/sharing/list_folders/continue`);
+    expect(JSON.parse(calls[1]!.body!)).toEqual({ cursor: 'more' });
   });
 });

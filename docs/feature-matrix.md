@@ -95,7 +95,7 @@ Not (yet) migrated:
 
 | | generic WebDAV (Nextcloud, …) | Google Drive | Microsoft 365 | Dropbox |
 |---|---|---|---|---|
-| **Source** | ✅ (`webdav`), incl. trash-bin read for deletion evidence | ✅ (`google-drive`, workplan 0042), My Drive, a **shared drive** or a **folder shared with the account** by id — browsable since workplans 0049/0051; bin read for evidence | ⏳ OneDrive/SharePoint (`graph-drive`, wired in workplan 0054 — the connector existed, delta queries and all, with no call site); appliance mapping files; another user's drive via `mailbox` needs `Files.Read.All` (see the setup doc's consent note) | ⏳ (`dropbox`, workplan 0055): the whole Dropbox or a `rootPath`; the owner's own read-only app; `content_hash` change detection; no bin read yet (absence-counting covers deletions) |
+| **Source** | ✅ (`webdav`), incl. trash-bin read for deletion evidence | ✅ (`google-drive`, workplan 0042), My Drive, a **shared drive** or a **folder shared with the account** by id — browsable since workplans 0049/0051; bin read for evidence | ⏳ OneDrive/SharePoint (`graph-drive`, wired in workplan 0054 — the connector existed, delta queries and all, with no call site); appliance mapping files; deletions arrive as **`reported`-class evidence** from the delta stream's `deleted` facets (pinned by test, 0054 T4c corrected); another user's drive via `mailbox` needs `Files.Read.All` (see the setup doc's consent note) | ⏳ (`dropbox`, workplan 0055): the whole Dropbox or a `rootPath` — **browsable** via `sharing/list_folders` (wizard button + appliance script; mounted shares carry the path, optional `sharing.read` scope); the owner's own read-only app; `content_hash` change detection; **tombstone read** (`include_deleted`) gives `trashed`-class deletion evidence, absence-counting covers the rest |
 | **Target** | ✅ WebDAV | 🚫 never a target | 🚫 never a target | 🚫 never a target |
 
 Also a target: **JMAP files** (workplan 0031 T3).
@@ -150,6 +150,11 @@ rather than as one row:
   lists these folders beside the shared drives, sharer's address included. "Shared with me"
   itself is a view, not a folder — no walk from My Drive reaches it, which is why the root
   is the mechanism.
+- ✅ **A mounted shared folder (Dropbox)** lives in the account's own tree and migrates as
+  ordinary content — its path is a valid `rootPath`. The browse (wizard button,
+  `scripts/list-dropbox-shared-folders.ts`; optional `sharing.read` scope) lists what the
+  account can see; an **unmounted** share is shown path-less — it has no place in the tree
+  until the account mounts it in Dropbox itself, which no migration tool should do for it.
 - ⛔ **Loose shared files (Drive)** — shared with the account but not inside a folder it can
   root at — are still not enumerated by any pass. A **shortcut** the owner added to My
   Drive surfaces as a per-item refusal in the failures queue (a pointer, not a file) —

@@ -445,6 +445,50 @@ paths:
                   reason: { type: string }
         '400': { description: The three credential fields were not all present. }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/migrations/dropbox/shared-folders:
+    post:
+      tags: [Migrations]
+      summary: List the shared folders a Dropbox credential can see
+      description: |
+        Read-only (`sharing/list_folders`), Dropbox's turn at the rootPath
+        "browse". A MOUNTED folder answers with the path that goes in
+        `rootPath`; an unmounted one is listed without a path — mounting
+        happens in Dropbox itself. The trio keys are the shared OAuth shape
+        (Dropbox's App Console calls the first two "App key" and
+        "App secret"); nothing is stored. Needs the `sharing.read` scope —
+        an app without it gets Dropbox's refusal verbatim
+        (`{ok:false, reason}`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clientId, clientSecret, refreshToken]
+              properties:
+                clientId: { type: string }
+                clientSecret: { type: string, writeOnly: true }
+                refreshToken: { type: string, writeOnly: true }
+      responses:
+        '200':
+          description: The shared folders (path present only when mounted), or the refusal.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  folders:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        name: { type: string }
+                        path: { type: string }
+                  reason: { type: string }
+        '400': { description: The three credential fields were not all present. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /api/migrations/test-connection:
     post:
       tags: [Migrations]
