@@ -31,6 +31,13 @@ import { log } from '@openmig/shared';
 /**
  * Graph contacts source connector implementation.
  */
+/**
+ * More delta pages than any mailbox produces. A guard, not a limit: the loop
+ * below re-requested page one forever until 2026-08-17, and an unbounded
+ * request loop against a customer tenant should fail loudly, not quietly.
+ */
+const MAX_DELTA_PAGES = 10_000;
+
 export class GraphContactsSource implements ContactSource {
   private readonly config: GraphContactsSourceConfig;
   private readonly tokenProvider: TokenProvider;
@@ -124,16 +131,33 @@ export class GraphContactsSource implements ContactSource {
     
     // Build the delta query URL
     const baseUrl = `${this.scope}/contactFolders/${folderId}/contacts`;
-    const url = deltaLink ?? `${baseUrl}/$delta`;
+    // Graph spells this `/delta`, not `/$delta` — the same endpoint
+    // `graph-drive-source.ts` calls as `/drive/root/delta` in this repo.
+    const firstUrl = deltaLink ?? `${baseUrl}/delta`;
 
     const contacts: GraphContact[] = [];
     let nextLink: string | undefined;
     let lastDeltaLink: string | undefined;
+    let hops = 0;
 
-    // Paginate through all contacts
+    // Paginate through all contacts.
+    //
+    // FOLLOW `nextLink`. This used to request a `const url` computed once and
+    // never read `nextLink` as an address — so against a real server, a folder
+    // whose delta answers more than one page re-fetched PAGE ONE forever,
+    // appending it to `contacts` every time until the process died. The unit
+    // test could not catch it because the mock answers by call order rather
+    // than by URL: it handed back page two for a repeat of the same request,
+    // which no server does. `listFolders` above had it right all along.
     do {
+      if (++hops > MAX_DELTA_PAGES) {
+        throw new Error(
+          `Contacts delta paging passed ${MAX_DELTA_PAGES} pages for "${folder.path}" — ` +
+            'refusing to keep requesting.',
+        );
+      }
       const response = await this.makeRequest({
-        url,
+        url: nextLink ?? firstUrl,
         method: 'GET',
         headers: {
           'Accept': 'application/json',

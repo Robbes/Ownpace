@@ -99,6 +99,42 @@ describe('GraphContactsSource', () => {
       });
     });
 
+it('follows nextLink to the SECOND page instead of re-requesting the first', async () => {
+      // Same regression as the calendar source: the delta loop requested a
+      // `const url` computed once, so a folder answering more than one page
+      // re-fetched page ONE forever. This mock answers by URL, like a server.
+      const NEXT = 'https://graph.microsoft.com/v1.0/me/contactFolders/f1/contacts/delta?$skiptoken=p2';
+      const page1 = {
+        value: [{ id: 'c1', displayName: 'Ada' }],
+        '@odata.nextLink': NEXT,
+      };
+      const page2 = {
+        value: [{ id: 'c2', displayName: 'Grace' }],
+        '@odata.deltaLink': 'https://graph.microsoft.com/v1.0/me/contactFolders/f1/contacts/delta?$deltatoken=final',
+      };
+      const urls: string[] = [];
+      const mockClient: HttpClient = {
+        request: vi.fn().mockImplementation((options: { url: string }) => {
+          urls.push(options.url);
+          const body = options.url === NEXT ? page2 : page1;
+          return Promise.resolve({ status: 200, body: JSON.stringify(body), headers: {} });
+        }),
+      };
+
+      const source = new GraphContactsSource(
+        createMockTokenProvider(),
+        'test-tenant-id',
+        undefined,
+        { httpClient: mockClient },
+      );
+
+      const result = await source.listSince({ path: '/contactFolders/f1', name: 'Contacts' });
+
+      expect(urls[1], 'the second request must go to nextLink').toBe(NEXT);
+      expect(result.items.map((i) => i.item.name)).toEqual(['Ada', 'Grace']);
+      expect(result.nextCursor.value).toContain('final');
+    });
+
     it('should handle pagination for contact folder list', async () => {
       const tokenProvider = createMockTokenProvider();
       const mockClient = createMockHttpClient([
