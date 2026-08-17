@@ -42,6 +42,7 @@ const MOUNTS: ReadonlyArray<{ prefix: string; files: string[]; mountedIn?: strin
   { prefix: '/api/billing/webhooks', files: ['src/routes/billing/webhooks.ts'] },
   { prefix: '/api/tenants', files: ['src/routes/tenants/index.ts'] },
   { prefix: '/api/scope-manifest', files: ['src/routes/scope-manifest.ts'] },
+  { prefix: '/api/setup', files: ['src/routes/setup.ts'] },
   { prefix: '/api/migrations', files: ['src/routes/migrations/index.ts', 'src/routes/migrations/operating-routes.ts'] },
   { prefix: '/api/decisions', files: ['src/routes/decisions.ts'] },
   { prefix: '/api/shared-addresses', files: ['src/routes/shared-addresses.ts'] },

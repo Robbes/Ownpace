@@ -44,6 +44,7 @@ vi.mock('./pages/Deletions', () => ({ default: () => <div>screen:deletions</div>
 vi.mock('./pages/Moves', () => ({ default: () => <div>screen:moves</div> }));
 vi.mock('./pages/Failures', () => ({ default: () => <div>screen:failures</div> }));
 vi.mock('./pages/Sharing', () => ({ default: () => <div>screen:sharing</div> }));
+vi.mock('./pages/Setup', () => ({ default: () => <div>screen:setup</div> }));
 vi.mock('./pages/Verify', () => ({ default: () => <div>screen:verify</div> }));
 vi.mock('./pages/Finish', () => ({ default: () => <div>screen:finish</div> }));
 vi.mock('./pages/Confirm', () => ({ default: () => <div>screen:confirm</div> }));

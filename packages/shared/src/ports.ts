@@ -918,6 +918,17 @@ export interface LedgerRecord {
  * every settled row answers who and when, which is what makes the queue a
  * checklist rather than a report.
  */
+/** One settled setup step. Absence of a row means the step is still open. */
+export interface SetupStepRow {
+  readonly id: string;
+  readonly side: 'source' | 'target';
+  readonly provider: string;
+  readonly stepKey: string;
+  readonly state: 'open' | 'done' | 'skipped';
+  readonly decidedBy?: string;
+  readonly decidedAt?: string;
+}
+
 export interface ShareGrantRow {
   readonly id: string;
   readonly grantHash: string;
@@ -1149,6 +1160,31 @@ export interface Ledger {
       readonly verdictTarget: string;
     }>,
   ): Promise<number>;
+  /**
+   * Setup-checklist state for one side of one provider, for this tenant
+   * (workplan 0061). Only rows a person has SETTLED exist; a step nobody has
+   * touched has no row, and the reader treats its absence as `open`. That way
+   * a new step added in code is open for everyone the moment it ships, with
+   * no backfill.
+   */
+  listSetupSteps(
+    tenantId: TenantId,
+    side: 'source' | 'target',
+    provider: string,
+  ): Promise<ReadonlyArray<SetupStepRow>>;
+  /**
+   * Record what a person decided about one setup step. Upserts on the step's
+   * identity, so ticking, un-ticking and skipping are the same call — and
+   * setting it back to `open` clears the decider, because an open step is by
+   * definition one nobody has answered.
+   */
+  setSetupStepState(
+    tenantId: TenantId,
+    side: 'source' | 'target',
+    provider: string,
+    stepKey: string,
+    decision: { readonly state: 'open' | 'done' | 'skipped'; readonly decidedBy: string },
+  ): Promise<SetupStepRow>;
   /** Every sharing-queue row for one mapping, checklist order (open first, then by label). */
   listShareGrants(tenantId: TenantId, mappingId: MappingId): Promise<ReadonlyArray<ShareGrantRow>>;
   /**

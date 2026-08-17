@@ -623,6 +623,32 @@ export const applyReceipt = pgTable(
  * owner's decision is never reset to open by looking again. No FK on
  * mappingId, mirroring `item`: the appliance's mappings are config-born.
  */
+/**
+ * Provider setup checklist state (workplan 0061, migration 0020).
+ *
+ * State only — the steps are defined in `@openmig/shared`'s `provider-setup`
+ * and keyed by `stepKey`, so wording and ordering change in code without a
+ * data migration. Per TENANT: a Box app is created once for the organisation,
+ * and the point of persisting this is that a colleague can pick it up.
+ */
+export const setupStep = pgTable(
+  'setup_step',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    side: text('side', { enum: ['source', 'target'] }).notNull(),
+    provider: text('provider').notNull(),
+    stepKey: text('step_key').notNull(),
+    state: text('state', { enum: ['open', 'done', 'skipped'] })
+      .notNull()
+      .default('open'),
+    decidedBy: text('decided_by'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('uk_setup_step_identity').on(t.tenantId, t.side, t.provider, t.stepKey)],
+);
+
 export const shareGrant = pgTable(
   'share_grant',
   {

@@ -514,3 +514,57 @@ export const mappingApi = {
   },
 
 };
+
+/** One step of a provider setup checklist, with what the owner has said (0061). */
+export interface SetupStepStatusDto {
+  step: {
+    key: string;
+    titleKey: string;
+    detailKey: string;
+    yieldsKey?: string;
+    needsAnotherPerson?: boolean;
+  };
+  state: 'open' | 'done' | 'skipped';
+  decidedBy?: string;
+  decidedAt?: string;
+}
+
+export interface SetupChecklist {
+  side: 'source' | 'target';
+  provider: string;
+  steps: SetupStepStatusDto[];
+  progress: {
+    total: number;
+    done: number;
+    skipped: number;
+    open: number;
+    /** Open steps needing an administrator — why a setup is stuck. */
+    blockedOnOthers: number;
+    complete: boolean;
+  };
+}
+
+export const setupApi = {
+  /**
+   * The platform-side prerequisites for one provider, and how far they have
+   * got. Per tenant, so a colleague sees the same progress — the point of
+   * persisting it at all.
+   */
+  get: async (side: 'source' | 'target', provider: string): Promise<SetupChecklist> => {
+    const response = await apiClient.get(`/setup/${side}/${encodeURIComponent(provider)}`);
+    return response.data as SetupChecklist;
+  },
+  /** Tick, un-tick or skip one step. Answers the refreshed checklist. */
+  setStep: async (
+    side: 'source' | 'target',
+    provider: string,
+    stepKey: string,
+    state: 'open' | 'done' | 'skipped',
+  ): Promise<SetupChecklist> => {
+    const response = await apiClient.put(
+      `/setup/${side}/${encodeURIComponent(provider)}/${encodeURIComponent(stepKey)}`,
+      { state },
+    );
+    return response.data as SetupChecklist;
+  },
+};

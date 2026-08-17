@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useT, useFormatters } from '../i18n';
 import type { StringKey } from '../i18n';
-import { useNavigate } from 'react-router';
+import { useNavigate, Link } from 'react-router';
 import {
   ArrowLeft,
   ArrowRight,
@@ -702,6 +702,19 @@ const CreateMapping: React.FC = () => {
                 </p>
               )}
             </div>
+
+            {/* The prerequisites as a checklist that REMEMBERS (workplan 0061).
+                The panels above say what to do; this is where it gets ticked
+                off, per tenant, so an interrupted setup can be resumed — and
+                so a colleague can finish what somebody else started. */}
+            <p className="mt-3">
+              <Link
+                to={`/setup/source/${formData.sourceType}`}
+                className="text-sm text-blue-700 hover:underline"
+              >
+                {t('setup.openChecklist')}
+              </Link>
+            </p>
 
             {isDropboxSource ? (
               <div className="space-y-4">

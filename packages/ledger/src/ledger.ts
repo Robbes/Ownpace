@@ -12,6 +12,7 @@ import {
   DELETION_CONFIRMATIONS,
   type TenantId,
   type MappingId,
+  type SetupStepRow,
   type ShareGrantRow,
 } from '@openmig/shared';
 import type { PgDatabase } from './db';
@@ -553,6 +554,72 @@ export class PgLedger implements Ledger {
       }
     }
     return created;
+  }
+
+  async listSetupSteps(
+    tenantId: TenantId,
+    side: 'source' | 'target',
+    provider: string,
+  ): Promise<ReadonlyArray<SetupStepRow>> {
+    const rows = await this.db
+      .select()
+      .from(schemaPg.setupStep)
+      .where(
+        and(
+          eq(schemaPg.setupStep.tenantId, tenantId),
+          eq(schemaPg.setupStep.side, side),
+          eq(schemaPg.setupStep.provider, provider),
+        ),
+      );
+    return rows.map((r) => ({
+      id: r.id,
+      side: r.side,
+      provider: r.provider,
+      stepKey: r.stepKey,
+      state: r.state,
+      ...(r.decidedBy ? { decidedBy: r.decidedBy } : {}),
+      ...(r.decidedAt ? { decidedAt: r.decidedAt.toISOString() } : {}),
+    }));
+  }
+
+  async setSetupStepState(
+    tenantId: TenantId,
+    side: 'source' | 'target',
+    provider: string,
+    stepKey: string,
+    decision: { readonly state: 'open' | 'done' | 'skipped'; readonly decidedBy: string },
+  ): Promise<SetupStepRow> {
+    // Back to `open` clears the decider: an open step is by definition one
+    // nobody has answered, and the table's CHECK enforces exactly that pairing.
+    const settled = decision.state !== 'open';
+    const values = {
+      state: decision.state,
+      decidedBy: settled ? decision.decidedBy : null,
+      decidedAt: settled ? new Date() : null,
+    };
+    const [row] = await this.db
+      .insert(schemaPg.setupStep)
+      .values({ tenantId, side, provider, stepKey, ...values })
+      .onConflictDoUpdate({
+        target: [
+          schemaPg.setupStep.tenantId,
+          schemaPg.setupStep.side,
+          schemaPg.setupStep.provider,
+          schemaPg.setupStep.stepKey,
+        ],
+        set: values,
+      })
+      .returning();
+    const saved = row!;
+    return {
+      id: saved.id,
+      side: saved.side,
+      provider: saved.provider,
+      stepKey: saved.stepKey,
+      state: saved.state,
+      ...(saved.decidedBy ? { decidedBy: saved.decidedBy } : {}),
+      ...(saved.decidedAt ? { decidedAt: saved.decidedAt.toISOString() } : {}),
+    };
   }
 
   async listShareGrants(

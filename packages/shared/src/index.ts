@@ -28,6 +28,7 @@ export * from './cursor';
 export * from './concurrency';
 export * from './config';
 export * from './target-domains';
+export * from './provider-setup';
 export * from './cron-schedule';
 export * from './throttling';
 export * from './logger';

@@ -489,6 +489,59 @@ paths:
                   reason: { type: string }
         '400': { description: The three credential fields were not all present. }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/setup/{side}/{provider}:
+    get:
+      tags: [Setup]
+      summary: The provider setup checklist and where it has got to
+      description: |
+        What a person must do IN THE PROVIDER before a migration can read
+        anything — create an app, grant scopes, get an administrator to
+        authorise it, obtain a token. Steps are defined in code and keyed by
+        `key`; state lives per tenant. A step nobody has answered has no stored
+        row and reads as `open`, so a step added in a later release is open for
+        everyone with no backfill.
+      parameters:
+        - { name: side, in: path, required: true, schema: { type: string, enum: [source, target] } }
+        - { name: provider, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: The steps, their state, and the progress summary.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SetupChecklist' }
+        '400': { description: 'The path was not /api/setup/{source|target}/{provider}.' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/setup/{side}/{provider}/{stepKey}:
+    put:
+      tags: [Setup]
+      summary: Record what a person decided about one setup step
+      description: |
+        `done` and `skipped` are settled states and record who decided and
+        when; setting a step back to `open` clears that, because an open step
+        is by definition one nobody has answered. Answers the whole refreshed
+        checklist, so the caller never has to re-read it.
+      parameters:
+        - { name: side, in: path, required: true, schema: { type: string, enum: [source, target] } }
+        - { name: provider, in: path, required: true, schema: { type: string } }
+        - { name: stepKey, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [state]
+              properties:
+                state: { type: string, enum: [open, done, skipped] }
+      responses:
+        '200':
+          description: The refreshed checklist.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SetupChecklist' }
+        '400': { description: 'The body was not a { state } object.' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: That step does not belong to this provider and side. }
   /api/migrations/test-connection:
     post:
       tags: [Migrations]
@@ -1675,6 +1728,38 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
 
   schemas:
+    SetupChecklist:
+      type: object
+      properties:
+        side: { type: string, enum: [source, target] }
+        provider: { type: string }
+        steps:
+          type: array
+          items:
+            type: object
+            properties:
+              step:
+                type: object
+                properties:
+                  key: { type: string }
+                  titleKey: { type: string }
+                  detailKey: { type: string }
+                  yieldsKey: { type: string }
+                  needsAnotherPerson: { type: boolean }
+              state: { type: string, enum: [open, done, skipped] }
+              decidedBy: { type: string }
+              decidedAt: { type: string, format: date-time }
+        progress:
+          type: object
+          properties:
+            total: { type: integer }
+            done: { type: integer }
+            skipped: { type: integer }
+            open: { type: integer }
+            blockedOnOthers:
+              type: integer
+              description: Open steps needing an administrator — why a setup is stuck.
+            complete: { type: boolean }
     Error:
       type: object
       description: Every refusal has this shape. `message` is meant to be shown to a person as-is.
