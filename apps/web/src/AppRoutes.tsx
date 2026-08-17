@@ -27,6 +27,7 @@ import Login from './pages/Login';
 import Decisions from './pages/Decisions';
 import Deletions from './pages/Deletions';
 import Moves from './pages/Moves';
+import Connections from './pages/Connections';
 import Setup from './pages/Setup';
 import Sharing from './pages/Sharing';
 import Failures from './pages/Failures';
@@ -186,6 +187,8 @@ const AppRoutes: React.FC = () => {
         <Route path="mappings/:mappingId/sharing" element={<Sharing />} />
         {/* The platform-side prerequisites, per provider (workplan 0061). */}
         <Route path="setup/:side/:provider" element={<Setup />} />
+        {/* Connections as first-class, testable things (workplan 0062). */}
+        <Route path="connections" element={<Connections />} />
         {/* The §20 gate and the end of the shadow sync. Verify has the
             same two mount points as the queues and for the same reason:
             the appliance scans every configured mapping in one run, a

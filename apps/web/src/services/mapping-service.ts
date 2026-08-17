@@ -568,3 +568,30 @@ export const setupApi = {
     return response.data as SetupChecklist;
   },
 };
+
+/** A stored source or target connection (workplan 0062). Never carries secrets. */
+export interface ConnectionSummary {
+  id: string;
+  role: 'source' | 'target';
+  kind: string;
+  displayName: string;
+  status: 'connected' | 'error' | 'revoked';
+  createdAt: string;
+  /** How many mailboxes depend on it — whether re-testing this matters. */
+  usedByMailboxes: number;
+}
+
+export const connectionsApi = {
+  list: async (): Promise<ConnectionSummary[]> => {
+    const response = await apiClient.get('/connections');
+    return (response.data as { connections: ConnectionSummary[] }).connections;
+  },
+  /**
+   * Probe a stored connection now, through the same builders a pass uses. A
+   * provider refusal comes back as `{ok:false, reason}` in its own words.
+   */
+  test: async (id: string): Promise<TestConnectionResult> => {
+    const response = await apiClient.post(`/connections/${encodeURIComponent(id)}/test`);
+    return response.data as TestConnectionResult;
+  },
+};

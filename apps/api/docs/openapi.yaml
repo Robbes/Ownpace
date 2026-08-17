@@ -489,6 +489,64 @@ paths:
                   reason: { type: string }
         '400': { description: The three credential fields were not all present. }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/connections:
+    get:
+      tags: [Connections]
+      summary: The tenant's source and target connections
+      description: |
+        Connection rows have existed since the baseline but were never shown:
+        creating a mapping silently inserts two and that was the last anyone
+        heard of them. This lists what exists, what each is for, and how many
+        mailboxes depend on it. Secrets never come back out — names, kinds and
+        states only.
+      responses:
+        '200':
+          description: The connections.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  connections:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        role: { type: string, enum: [source, target] }
+                        kind: { type: string }
+                        displayName: { type: string }
+                        status: { type: string, enum: [connected, error, revoked] }
+                        createdAt: { type: string, format: date-time }
+                        usedByMailboxes:
+                          type: integer
+                          description: How many mailboxes depend on this connection.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/connections/{id}/test:
+    post:
+      tags: [Connections]
+      summary: Probe a stored connection now
+      description: |
+        Runs the same read-only probe the wizard's Test connections button
+        uses, through the builders a sync pass would use, against the stored
+        credentials — so a credential that has expired says so here instead of
+        in a failing pass. The provider's refusal comes back verbatim, and the
+        outcome is recorded on the connection's status.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: What the provider answered. A refusal is an answer, not an error.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  detail: { type: string }
+                  reason: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: No such connection for this tenant. }
   /api/setup/{side}/{provider}:
     get:
       tags: [Setup]

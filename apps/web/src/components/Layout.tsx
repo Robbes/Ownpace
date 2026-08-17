@@ -15,8 +15,7 @@ import {
   AlertTriangle,
   ClipboardCheck,
   ListChecks,
-  Flag
-} from 'lucide-react';
+  Flag, Plug } from 'lucide-react';
 import { useAuthStore } from '../stores/auth-store';
 import { isSelfHost } from '../services/edition';
 import { useLocale } from '../i18n';
@@ -55,6 +54,9 @@ const Layout: React.FC = () => {
       : [
           { name: t('nav.dashboard'), href: '/dashboard', icon: LayoutDashboard },
           { name: t('nav.mappings'), href: '/mappings', icon: FolderGit2 },
+          // Connections are managed per tenant, so they sit beside Mappings
+          // rather than inside one (workplan 0062).
+          { name: t('nav.connections'), href: '/connections', icon: Plug },
         ]),
     // The §11.2 decision queues, and then the §20 gate and the end of the
     // migration — in the order the runbook's cutover sequence uses.

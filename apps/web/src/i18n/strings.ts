@@ -740,6 +740,19 @@ const en = {
   'decisionStatus.resolved': 'Decided',
   'decisionStatus.auto_resolved': 'Decided by preset',
   'decisionStatus.dismissed': 'Dismissed',
+  'nav.connections': 'Connections',
+  'connections.title': 'Connections',
+  'connections.intro':
+    'The source and target accounts your migrations sign in with. Test one to check its credentials are still good — that runs the same read-only check a migration would, and shows exactly what the provider says.',
+  'connections.none': 'No connections yet. Creating your first migration adds them.',
+  'connections.sources': 'Sources',
+  'connections.targets': 'Targets',
+  'connections.test': 'Test',
+  'connections.testing': 'Testing…',
+  'connections.usedBy': 'mailbox(es) use this',
+  'connections.setupSteps': 'Setup steps',
+  'connections.ok': 'Reached it. The credentials still work.',
+  'connections.failed': 'Could not reach it.',
   // ---- Provider setup checklist (workplan 0061) ----
   'setup.title': 'What to set up in the provider',
   'setup.intro':
@@ -1551,6 +1564,19 @@ const nl: Record<keyof typeof en, string> = {
   'decisionStatus.resolved': 'Beslist',
   'decisionStatus.auto_resolved': 'Beslist door vast antwoord',
   'decisionStatus.dismissed': 'Terzijde gelegd',
+  'nav.connections': 'Verbindingen',
+  'connections.title': 'Verbindingen',
+  'connections.intro':
+    'De bron- en doelaccounts waarmee uw migraties inloggen. Test er een om te controleren of de inloggegevens nog werken — dat voert dezelfde alleen-lezen controle uit als een migratie en toont precies wat de aanbieder zegt.',
+  'connections.none': 'Nog geen verbindingen. Bij het aanmaken van uw eerste migratie worden ze toegevoegd.',
+  'connections.sources': 'Bronnen',
+  'connections.targets': 'Doelen',
+  'connections.test': 'Testen',
+  'connections.testing': 'Bezig met testen…',
+  'connections.usedBy': 'postbus(sen) gebruiken dit',
+  'connections.setupSteps': 'Instelstappen',
+  'connections.ok': 'Bereikt. De inloggegevens werken nog.',
+  'connections.failed': 'Kon deze niet bereiken.',
   // ---- Provider setup checklist (workplan 0061) ----
   'setup.title': 'Wat u instelt bij de aanbieder',
   'setup.intro':

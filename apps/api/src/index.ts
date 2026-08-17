@@ -30,6 +30,7 @@ import billingRoutes from './routes/billing/index';
 import billingWebhookRoutes from './routes/billing/webhooks';
 import scopeManifestRoutes from './routes/scope-manifest';
 import setupRoutes from './routes/setup';
+import connectionRoutes from './routes/connections';
 import { assertProductionAuthConfig } from './middleware/auth';
 import { assertProductionUrlConfig } from './config-guards';
 import { buildIdentity } from '@openmig/core';
@@ -103,6 +104,7 @@ app.get('/metrics', (req: Request, res: Response) => {
 app.use('/api/tenants', tenantRoutes);
 app.use('/api/scope-manifest', scopeManifestRoutes);
 app.use('/api/setup', setupRoutes);
+app.use('/api/connections', connectionRoutes);
 app.use('/api/migrations', mappingRoutes);
 // The §11.1 drift decision queue (workplan 0028 T1).
 app.use('/api/decisions', decisionRoutes);
