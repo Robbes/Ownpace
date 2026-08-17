@@ -1,0 +1,20 @@
+# Workplan 0056 — Box as a file source
+
+## Status — 2026-08-17 (update this block at the end of every session)
+
+| Task | Status | Evidence |
+|---|---|---|
+| T1 the connector | ✅ **Done 2026-08-17** | `connectors/box-file-source.ts` + `box-token-provider.ts`, MODELLED ON THE DRIVE SOURCE because Box's API has Drive's shape (id-addressed, a folder has a name but never a path, migration rooted at a configured folder id): no delta (`/events` is whole-account — the per-folder-cursor mismatch again), `removed` never populated, paths DERIVED root-relative by the folder walk, `sourceRef` = Box's rename-stable `id`, `sha1` as the change signal (compared only against itself). Marker pagination followed to the end or refused as partial; web links (pointers, not files) never enumerated — stated in the matrix. **The auth decision is the slice's real content**: Box rotates refresh tokens on every use (single-use), and stored credentials here are never written back, so the refresh-token flow would break on the second pass — the **Client Credentials Grant** is used instead (`box_subject_type=user` + numeric `box_subject_id`, one subject per mapping — the M365 client-credentials / ADR-0033 DWD posture), and the `unauthorized_client` refusal names the Admin Console authorization Box's own error does not. 11 connector tests. |
+| T2 both ways in | ✅ **Done 2026-08-17** | `orchestration/box-source-factory.ts` — one builder, refusals naming every missing value at once AND why there is no refresh token. Appliance: config `type: "box"` (required `userId`, optional `rootFolderId`) parsed by the shared parser; `build-deps` file branch (client id/secret from `BOX_CLIENT_ID`/`BOX_CLIENT_SECRET`, subject from the mapping). Managed: migration 0019 widens `connection.kind`; create API gained the source type (BOTH schema enums — client response schema too, the 0046 lesson), the CCG refusal naming the numeric user id and the setup doc, credential record storing client id + secret ONLY (no refresh token by design), engine-shaped config `{type:'box', userId, rootFolderId?}`; `build-deps-from-mapping` and the probe route through the same builder, so test-connection proves exactly what a pass builds. Wizard: Box card pinning the file domain, Client ID + numeric user id + optional root folder id on the source step, client secret on the credentials step, NO refresh-token field (deliberately), the setup box saying why. EN/NL. 4 factory + 4 create-coherence tests; the feature-matrix drift lock enforces the `box` mention. |
+| T3 not done, honestly | ⛔ | (a) Real-endpoint proof — ⏳ in the matrix; the CCG flow in `docs/box-setup.md` is documented Box behaviour, unproven here; first live run rides the owner runbook. (b) Trash read: `GET /folders/trash/items` exists, but recovering ORIGINAL root-relative paths for trashed items needs parent-chain reconstruction this slice did not attempt — deletions stay on absence-counting (`inferred`); the Drive/Dropbox evidence classes set the pattern for a follow-up. (c) Shared-folder browse à la 0049/0051/0055 — collaborated folders arrive in the tree (the WebDAV posture), so the browse would only answer "which folder id?"; typed for now. (d) Box Notes (`.boxnote`) migrate as their JSON bytes — faithful to "bytes, verbatim", but a target has no app to open them; not refused, not special-cased, stated here. (e) `As-User` / enterprise-wide subject batching — one mapping = one subject, deliberately. |
+
+## What this is
+
+The fourth file provider. The connector itself was the cheap part — Drive's decisions
+apply unchanged to an id-addressed API. What is genuinely Box's, and what this workplan
+exists to record: the **credential shape**. Box's authorization-code flow rotates refresh
+tokens on every use, which is incompatible with write-once stored credentials — a
+connector built on it would pass every test, migrate one pass, and break on the second
+with a credential error nobody caused. The Client Credentials Grant (admin-authorized,
+subject-scoped) is the shape that stays true, and every refusal in the slice explains it
+in the operator's vocabulary.

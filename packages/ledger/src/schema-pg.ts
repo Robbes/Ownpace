@@ -69,6 +69,10 @@ export const connection = pgTable(
         // Dropbox as a file SOURCE (workplan 0055). Allowed by the CHECK
         // since 0018; the credential shape is Dropbox's own OAuth trio.
         'dropbox',
+        // Box as a file SOURCE (workplan 0056). Allowed by the CHECK since
+        // 0019; client id + secret only (Client Credentials Grant — Box
+        // rotates refresh tokens, so none is stored), subject on the config.
+        'box',
       ],
     }).notNull(),
     displayName: text('display_name').notNull(),

@@ -35,6 +35,7 @@ import {
   STORED_DROPBOX_CREDENTIAL_NAMES,
   buildDropboxSourceFrom,
 } from './dropbox-source-factory';
+import { BOX_CONNECTION_KIND } from './box-source-factory';
 import {
   GOOGLE_DRIVE_CONNECTION_KIND,
   STORED_GOOGLE_CREDENTIAL_NAMES,
@@ -99,6 +100,10 @@ export async function probeSourceConnection(
     case DROPBOX_CONNECTION_KIND:
       // Same route as Drive: the file-source builder already branches on the
       // kind, so the probe builds exactly what a pass would (workplan 0055).
+      return probeListable(() => buildFileSourceFromConnection({ config, creds, kind }), 'folder');
+    case BOX_CONNECTION_KIND:
+      // Box (workplan 0056): same route again — the builder holds the CCG
+      // branching, so test-connection proves exactly what a pass builds.
       return probeListable(() => buildFileSourceFromConnection({ config, creds, kind }), 'folder');
     case GOOGLE_CALENDAR_CONNECTION_KIND:
       return probeListable(

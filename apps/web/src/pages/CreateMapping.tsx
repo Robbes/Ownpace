@@ -41,7 +41,7 @@ type Domain = 'email' | 'calendar' | 'contact' | 'file';
 
 interface FormData {
   name: string;
-  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'dropbox';
+  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'dropbox' | 'box';
   targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav';
   sourceHost: string;
   /** Kept as the raw INPUT string (0037 T3): parseInt on change turned a
@@ -68,6 +68,8 @@ interface FormData {
   sourceRootFolderId: string;
   /** Dropbox: root the migration at a folder ('' = the whole Dropbox). */
   sourceRootPath: string;
+  /** Box (workplan 0056): the NUMERIC user id the CCG token reads for. */
+  sourceBoxUserId: string;
   targetHost: string;
   targetPort: string;
   targetUsername: string;
@@ -95,6 +97,7 @@ const initialFormData: FormData = {
   sourceServiceAccountKey: '',
   sourceRootFolderId: '',
   sourceRootPath: '',
+  sourceBoxUserId: '',
   targetHost: '',
   targetPort: '443',
   targetUsername: '',
@@ -189,6 +192,16 @@ const CreateMapping: React.FC = () => {
               refreshToken: formData.sourceRefreshToken,
               ...(formData.sourceRootPath.trim()
                 ? { rootPath: formData.sourceRootPath.trim() }
+                : {}),
+            }
+          : isBoxSource
+          ? {
+              username: formData.sourceUsername,
+              clientId: formData.sourceClientId,
+              clientSecret: formData.sourceClientSecret,
+              userId: formData.sourceBoxUserId.trim(),
+              ...(formData.sourceRootFolderId.trim()
+                ? { rootFolderId: formData.sourceRootFolderId.trim() }
                 : {}),
             }
           : isDriveSource
@@ -414,6 +427,10 @@ const CreateMapping: React.FC = () => {
   const isGoogleDavSource =
     formData.sourceType === 'google-calendar' || formData.sourceType === 'google-contacts';
   const isGoogleSource = isDriveSource || isGmailSource || isGoogleDavSource || isDropboxSource;
+  // Box (workplan 0056) is deliberately NOT in the refresh-token group: it
+  // uses the Client Credentials Grant (Box rotates refresh tokens, so none is
+  // stored) — client id + secret plus the numeric subject user id.
+  const isBoxSource = formData.sourceType === 'box';
 
   /** The problem with a non-empty custom cron, or null (empty = default). */
   const cronProblem = (): string | null =>
@@ -568,6 +585,7 @@ const CreateMapping: React.FC = () => {
                       hintKey: 'wizard.proto.googleContacts.hint',
                     },
                     { id: 'dropbox', name: 'Dropbox', hintKey: 'wizard.proto.dropbox.hint' },
+                    { id: 'box', name: 'Box', hintKey: 'wizard.proto.box.hint' },
                   ] as const
                 ).map((type) => (
                   <button
@@ -580,7 +598,7 @@ const CreateMapping: React.FC = () => {
                       // AWAY leaves the selection alone, which the matrices then
                       // re-police. Drive pins the file domain and a file-capable
                       // target; Gmail pins email and a mail-capable one.
-                      type.id === 'google-drive' || type.id === 'dropbox'
+                      type.id === 'google-drive' || type.id === 'dropbox' || type.id === 'box'
                         ? setFormData((prev) => ({
                             ...prev,
                             sourceType: type.id,
@@ -659,6 +677,14 @@ const CreateMapping: React.FC = () => {
                   {t('wizard.source.dropboxSetup')}
                 </p>
               )}
+              {/* Workplan 0056: Box's Client Credentials Grant — why there is
+                  no refresh-token field, and where the admin authorization
+                  happens, said up front. */}
+              {isBoxSource && (
+                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  {t('wizard.source.boxSetup')}
+                </p>
+              )}
               {/* Workplan 0044: the same Google OAuth client as Drive, but the
                   refresh token must be consented with the mail scope — the one
                   mistake this box exists to prevent. */}
@@ -704,6 +730,51 @@ const CreateMapping: React.FC = () => {
                     onChange={(e) => updateField('sourceRootPath', e.target.value)}
                     className="input w-full"
                     placeholder={t('wizard.dropboxRootPath.placeholder')}
+                  />
+                </div>
+              </div>
+            ) : isBoxSource ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.clientId')}
+                    <Required />
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.sourceClientId}
+                    onChange={(e) => updateField('sourceClientId', e.target.value)}
+                    className="input w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.boxUserId')}
+                    <Required />
+                  </label>
+                  {/* The CCG subject: WHOSE files the token reads. Numeric by
+                      Box's design — an email here is the mistake the create
+                      refusal and docs/box-setup.md both name. */}
+                  <input
+                    type="text"
+                    required
+                    value={formData.sourceBoxUserId}
+                    onChange={(e) => updateField('sourceBoxUserId', e.target.value)}
+                    className="input w-full"
+                    placeholder={t('wizard.boxUserId.placeholder')}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('wizard.boxRootFolderId')}
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.sourceRootFolderId}
+                    onChange={(e) => updateField('sourceRootFolderId', e.target.value)}
+                    className="input w-full"
+                    placeholder={t('wizard.boxRootFolderId.placeholder')}
                   />
                 </div>
               </div>
@@ -1033,23 +1104,25 @@ const CreateMapping: React.FC = () => {
                         mailbox password — labeled as what it is, and required:
                         without it the client-credentials flow cannot mint a
                         single token. */}
-                    {isO365Source || isGoogleSource
+                    {isO365Source || isGoogleSource || isBoxSource
                       ? t('wizard.sourceClientSecret')
                       : t('wizard.sourcePassword')}
-                    {(isO365Source || isGoogleSource) && <Required />}
+                    {(isO365Source || isGoogleSource || isBoxSource) && <Required />}
                   </label>
                   <div className="relative">
                     <input
                       type={showSourcePassword ? 'text' : 'password'}
                       autoComplete="new-password"
                       value={
-                        isO365Source || isGoogleSource
+                        isO365Source || isGoogleSource || isBoxSource
                           ? formData.sourceClientSecret
                           : formData.sourcePassword
                       }
                       onChange={(e) =>
                         updateField(
-                          isO365Source || isGoogleSource ? 'sourceClientSecret' : 'sourcePassword',
+                          isO365Source || isGoogleSource || isBoxSource
+                            ? 'sourceClientSecret'
+                            : 'sourcePassword',
                           e.target.value,
                         )
                       }
@@ -1428,6 +1501,8 @@ const CreateMapping: React.FC = () => {
                           ? formData.sourceRootPath
                             ? `(${formData.sourceRootPath})`
                             : `(${t('wizard.review.wholeDropbox')})`
+                        : isBoxSource
+                          ? `(${t('wizard.review.boxUser')} ${formData.sourceBoxUserId})`
                         : isGmailSource || isGoogleDavSource
                           ? `(${formData.sourceUsername})`
                           : isO365Source

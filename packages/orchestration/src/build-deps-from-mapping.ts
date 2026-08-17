@@ -46,6 +46,11 @@ import {
   STORED_DROPBOX_CREDENTIAL_NAMES,
   buildDropboxSourceFrom,
 } from './dropbox-source-factory';
+import {
+  BOX_CONNECTION_KIND,
+  STORED_BOX_CREDENTIAL_NAMES,
+  buildBoxSourceFrom,
+} from './box-source-factory';
 import { STORED_GMAIL_CREDENTIAL_NAMES, buildGmailSourceFrom } from './gmail-source-factory';
 import {
   GOOGLE_CALENDAR_CONNECTION_KIND,
@@ -509,6 +514,21 @@ export function buildFileSourceFromConnection(src: {
         refreshToken: src.creds[STORED_DROPBOX_CREDENTIAL_NAMES.refreshToken],
       },
       STORED_DROPBOX_CREDENTIAL_NAMES,
+    );
+  }
+  if (src.kind === BOX_CONNECTION_KIND) {
+    // Box (workplan 0056): client id + secret from the stored credentials;
+    // the SUBJECT user id rides the source config — one subject per mapping,
+    // never a secret (see the factory).
+    const cfg = src.config as { userId?: string; rootFolderId?: string };
+    return buildBoxSourceFrom(
+      { ...(cfg.rootFolderId === undefined ? {} : { rootFolderId: cfg.rootFolderId }) },
+      {
+        clientId: src.creds[STORED_BOX_CREDENTIAL_NAMES.clientId],
+        clientSecret: src.creds[STORED_BOX_CREDENTIAL_NAMES.clientSecret],
+        subjectUserId: cfg.userId,
+      },
+      STORED_BOX_CREDENTIAL_NAMES,
     );
   }
   if (src.kind === GOOGLE_DRIVE_CONNECTION_KIND) {
