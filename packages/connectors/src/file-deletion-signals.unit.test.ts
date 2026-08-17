@@ -137,7 +137,7 @@ const DELTA_BODY = JSON.stringify({
     {
       id: 'item-live',
       name: 'kept.txt',
-      path: '/kept.txt',
+      parentReference: { path: '/drive/root:' },
       size: 4,
       lastModifiedDateTime: '2026-07-01T00:00:00Z',
       file: { mimeType: 'text/plain' },
@@ -186,7 +186,7 @@ describe('GraphDriveSource.listSince', () => {
         {
           id: 'item-live',
           name: 'kept.txt',
-          path: '/kept.txt',
+          parentReference: { path: '/drive/root:' },
           size: 4,
           lastModifiedDateTime: '2026-07-01T00:00:00Z',
           file: {},

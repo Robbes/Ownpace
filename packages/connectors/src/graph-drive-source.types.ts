@@ -30,7 +30,21 @@ export interface GraphDriveSourceConfig {
 export interface GraphDriveItem {
   readonly id: string;
   readonly name: string;
-  readonly path: string;
+  /**
+   * WHERE the item lives, as Graph actually reports it.
+   *
+   * There is no top-level `path` on a driveItem — this type declared one until
+   * 2026-08-17 and nothing ever populated it, because no Graph response
+   * carries it. `parentReference.path` is the real field, of the form
+   * `/drive/root:` at the drive root or `/drive/root:/Documents` below it
+   * (`/drives/{driveId}/root:/…` when the drive is addressed by id).
+   * `GraphDriveSource.itemPath` derives the natural key from it.
+   */
+  readonly parentReference?: {
+    readonly path?: string;
+    readonly id?: string;
+    readonly driveId?: string;
+  };
   readonly size: number;
   readonly lastModifiedDateTime: string;
   readonly cTag?: string;

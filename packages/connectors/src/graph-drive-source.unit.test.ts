@@ -51,41 +51,54 @@ describe('GraphDriveSource', () => {
   });
 
   describe('listFolders', () => {
-    it('should enumerate folders from OneDrive root', async () => {
-      const mockResponse = {
-        value: [
-          {
-            id: 'folder1',
-            name: 'Documents',
-            path: '/Documents',
-            folder: { childCount: 5 },
-            lastModifiedDateTime: '2024-01-15T00:00:00Z',
-            cTag: 'cTag1',
-          },
-          {
-            id: 'folder2',
-            name: 'Photos',
-            path: '/Photos',
-            folder: { childCount: 100 },
-            lastModifiedDateTime: '2024-01-20T00:00:00Z',
-            cTag: 'cTag2',
-          },
-          {
-            id: 'file1',
-            name: 'report.pdf',
-            path: '/report.pdf',
-            file: { mimeType: 'application/pdf' },
-            size: 1024,
-            lastModifiedDateTime: '2024-01-10T00:00:00Z',
-            cTag: 'cTag3',
-          },
-        ],
+    it('walks NESTED folders and includes the root — not just the top level', async () => {
+      // Until 2026-08-17 this listed /drive/root/children once and returned
+      // only top-level folders, with no root entry. The sync loop migrates
+      // exactly what listFolders answers, so everything nested and everything
+      // sitting in the drive root was never enumerated at all.
+      const byUrl: Record<string, unknown> = {
+        '/me/drive/root/children': {
+          value: [
+            {
+              id: 'folder1',
+              name: 'Documents',
+              parentReference: { path: '/drive/root:' },
+              folder: { childCount: 5 },
+              lastModifiedDateTime: '2024-01-15T00:00:00Z',
+              cTag: 'cTag1',
+            },
+            {
+              id: 'file1',
+              name: 'report.pdf',
+              parentReference: { path: '/drive/root:' },
+              file: { mimeType: 'application/pdf' },
+              size: 1024,
+              lastModifiedDateTime: '2024-01-10T00:00:00Z',
+              cTag: 'cTag3',
+            },
+          ],
+        },
+        '/me/drive/items/folder1/children': {
+          value: [
+            {
+              id: 'folder2',
+              name: 'Invoices',
+              parentReference: { path: '/drive/root:/Documents' },
+              folder: { childCount: 2 },
+              lastModifiedDateTime: '2024-01-16T00:00:00Z',
+              cTag: 'cTag2',
+            },
+          ],
+        },
+        '/me/drive/items/folder2/children': { value: [] },
       };
-
-      fetchMock.mockResolvedValue({
-        status: 200,
-        text: async () => JSON.stringify(mockResponse),
-        headers: new Map(),
+      fetchMock.mockImplementation(async (url: string) => {
+        const match = Object.keys(byUrl).find((k) => String(url).includes(k));
+        return {
+          status: 200,
+          text: async () => JSON.stringify(match ? byUrl[match] : { value: [] }),
+          headers: new Map(),
+        };
       });
 
       const config: GraphDriveSourceConfig = {
@@ -96,17 +109,9 @@ describe('GraphDriveSource', () => {
 
       const folders = await driveSource.listFolders();
 
-      expect(folders).toHaveLength(2);
-      expect(folders[0]).toMatchObject({
-        path: '/Documents',
-        name: 'Documents',
-      });
-      expect(folders[1]).toMatchObject({
-        path: '/Photos',
-        name: 'Photos',
-      });
-      // Files should not be included
-      expect(folders.find(f => f.name === 'report.pdf')).toBeUndefined();
+      expect(folders.map((f) => f.path)).toEqual(['', '/Documents', '/Documents/Invoices']);
+      // Files are not collections; they arrive through listSince.
+      expect(folders.find((f) => f.name === 'report.pdf')).toBeUndefined();
     });
 
     it('should handle pagination for folder listing', async () => {
@@ -135,17 +140,15 @@ describe('GraphDriveSource', () => {
         ],
       };
 
-      fetchMock
-        .mockResolvedValueOnce({
-          status: 200,
-          text: async () => JSON.stringify(page1),
-          headers: new Map(),
-        })
-        .mockResolvedValueOnce({
-          status: 200,
-          text: async () => JSON.stringify(page2),
-          headers: new Map(),
-        });
+      fetchMock.mockImplementation(async (url: string) => {
+        const u = String(url);
+        const body = u.includes('page=2')
+          ? page2
+          : u.includes('/drive/root/children')
+            ? page1
+            : { value: [] }; // walking into either folder
+        return { status: 200, text: async () => JSON.stringify(body), headers: new Map() };
+      });
 
       const config: GraphDriveSourceConfig = {
         tokenProvider: mockTokenProvider,
@@ -155,8 +158,9 @@ describe('GraphDriveSource', () => {
 
       const folders = await driveSource.listFolders();
 
-      expect(folders).toHaveLength(2);
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      // Root + both pages' folders. (Each folder is also walked into, which the
+      // default mock answers empty.)
+      expect(folders.map((f) => f.path)).toEqual(['', '/Folder1', '/Folder2']);
     });
 
     it('should throw error on failed listing', async () => {
@@ -177,6 +181,99 @@ describe('GraphDriveSource', () => {
   });
 
   describe('listSince - Delta Query', () => {
+    it('the natural key carries the FOLDER — two same-named files never collide', async () => {
+      // The defect this pins: `GraphDriveItem.path` was a field Graph does not
+      // return, so the key fell through to `/${name}` for every file. The whole
+      // tree flattened onto the root and these two became ONE key, which the
+      // ledger's unique index turns into a hard stop. The fixtures fabricated
+      // `path`, so the suite stayed green while no real drive could migrate.
+      const delta = {
+        value: [
+          {
+            id: 'w1',
+            name: 'notes.txt',
+            parentReference: { path: '/drive/root:/Work' },
+            file: { mimeType: 'text/plain' },
+            size: 10,
+            lastModifiedDateTime: '2024-01-01T00:00:00Z',
+          },
+          {
+            id: 'p1',
+            name: 'notes.txt',
+            parentReference: { path: '/drive/root:/Personal' },
+            file: { mimeType: 'text/plain' },
+            size: 20,
+            lastModifiedDateTime: '2024-01-01T00:00:00Z',
+          },
+          {
+            id: 'r1',
+            name: 'top.txt',
+            parentReference: { path: '/drive/root:' },
+            file: { mimeType: 'text/plain' },
+            size: 30,
+            lastModifiedDateTime: '2024-01-01T00:00:00Z',
+          },
+        ],
+        '@odata.deltaLink': 'https://graph.microsoft.com/v1.0/delta?deltatoken=abc',
+      };
+      fetchMock.mockResolvedValue({
+        status: 200,
+        text: async () => JSON.stringify(delta),
+        headers: new Map(),
+      });
+      const driveSource = new GraphDriveSource({
+        tokenProvider: mockTokenProvider,
+        tenantId: 'test-tenant-id',
+      });
+
+      const result = await driveSource.listSince({ path: '/' });
+
+      expect(result.items.map((i) => i.item.path)).toEqual([
+        '/Work/notes.txt',
+        '/Personal/notes.txt',
+        // A file sitting in the drive root keeps its bare path.
+        '/top.txt',
+      ]);
+    });
+
+    it('SKIPS a file whose location Graph did not report, rather than guessing a key', async () => {
+      // Falling back to the bare name is exactly what flattened the tree. One
+      // skipped item is a visible loss; a wrong key silently merges two files.
+      const delta = {
+        value: [
+          {
+            id: 'x1',
+            name: 'mystery.txt',
+            file: { mimeType: 'text/plain' },
+            size: 10,
+            lastModifiedDateTime: '2024-01-01T00:00:00Z',
+          },
+          {
+            id: 'ok1',
+            name: 'fine.txt',
+            parentReference: { path: '/drive/root:/Docs' },
+            file: { mimeType: 'text/plain' },
+            size: 10,
+            lastModifiedDateTime: '2024-01-01T00:00:00Z',
+          },
+        ],
+        '@odata.deltaLink': 'https://graph.microsoft.com/v1.0/delta?deltatoken=abc',
+      };
+      fetchMock.mockResolvedValue({
+        status: 200,
+        text: async () => JSON.stringify(delta),
+        headers: new Map(),
+      });
+      const driveSource = new GraphDriveSource({
+        tokenProvider: mockTokenProvider,
+        tenantId: 'test-tenant-id',
+      });
+
+      const result = await driveSource.listSince({ path: '/' });
+
+      expect(result.items.map((i) => i.item.path)).toEqual(['/Docs/fine.txt']);
+    });
+
     it('carries DELETED delta entries up as `removed` ids — the reported evidence class', async () => {
       // The delta answer states outright that items are gone (files AND
       // folders); dropping either here would make a recorded item silently
@@ -192,7 +289,7 @@ describe('GraphDriveSource', () => {
               {
                 id: 'still-here',
                 name: 'kept.txt',
-                path: '/kept.txt',
+                parentReference: { path: '/drive/root:' },
                 file: { mimeType: 'text/plain' },
                 lastModifiedDateTime: '2024-01-15T00:00:00Z',
                 size: 10,
@@ -216,7 +313,7 @@ describe('GraphDriveSource', () => {
           {
             id: 'file1',
             name: 'document.docx',
-            path: '/Documents/document.docx',
+            parentReference: { path: '/drive/root:/Documents' },
             file: {
               mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             },
@@ -228,7 +325,7 @@ describe('GraphDriveSource', () => {
           {
             id: 'file2',
             name: 'image.png',
-            path: '/Photos/image.png',
+            parentReference: { path: '/drive/root:/Photos' },
             file: {
               mimeType: 'image/png',
             },
@@ -239,7 +336,7 @@ describe('GraphDriveSource', () => {
           {
             id: 'folder1',
             name: 'Documents',
-            path: '/Documents',
+            parentReference: { path: '/drive/root:' },
             folder: { childCount: 5 },
             lastModifiedDateTime: '2024-01-15T00:00:00Z',
             cTag: 'cTag1',
@@ -288,7 +385,7 @@ describe('GraphDriveSource', () => {
               {
                 id: 'file-sub',
                 name: 'notes.txt',
-                path: '/Team Docs/notes.txt',
+                parentReference: { path: '/drive/root:/Team Docs' },
                 file: { mimeType: 'text/plain' },
                 lastModifiedDateTime: '2024-02-01T00:00:00Z',
                 size: 10,
@@ -345,7 +442,7 @@ describe('GraphDriveSource', () => {
           {
             id: 'file1',
             name: 'document.docx',
-            path: '/Documents/document.docx',
+            parentReference: { path: '/drive/root:/Documents' },
             file: {
               mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             },
@@ -400,7 +497,7 @@ describe('GraphDriveSource', () => {
           {
             id: 'file3',
             name: 'modified.txt',
-            path: '/path/to/folder/modified.txt',
+            parentReference: { path: '/drive/root:/path/to/folder' },
             file: {
               mimeType: 'text/plain',
             },
@@ -448,7 +545,7 @@ describe('GraphDriveSource', () => {
           {
             id: 'file1',
             name: 'test.txt',
-            path: '/test.txt',
+            parentReference: { path: '/drive/root:' },
             file: { mimeType: 'text/plain' },
             size: 50,
             lastModifiedDateTime: '2024-01-01T00:00:00Z',
@@ -487,7 +584,7 @@ describe('GraphDriveSource', () => {
           {
             id: 'file1',
             name: 'deleted.txt',
-            path: '/deleted.txt',
+            parentReference: { path: '/drive/root:' },
             deleted: {},
             lastModifiedDateTime: '2024-01-01T00:00:00Z',
             cTag: 'cTag1',
@@ -495,7 +592,7 @@ describe('GraphDriveSource', () => {
           {
             id: 'file2',
             name: 'kept.txt',
-            path: '/kept.txt',
+            parentReference: { path: '/drive/root:' },
             file: { mimeType: 'text/plain' },
             size: 100,
             lastModifiedDateTime: '2024-01-02T00:00:00Z',
@@ -535,7 +632,7 @@ describe('GraphDriveSource', () => {
           {
             id: 'folder1',
             name: 'Documents',
-            path: '/Documents',
+            parentReference: { path: '/drive/root:' },
             folder: { childCount: 5 },
             lastModifiedDateTime: '2024-01-01T00:00:00Z',
             cTag: 'cTag1',
@@ -543,7 +640,7 @@ describe('GraphDriveSource', () => {
           {
             id: 'file1',
             name: 'test.txt',
-            path: '/test.txt',
+            parentReference: { path: '/drive/root:' },
             file: { mimeType: 'text/plain' },
             size: 100,
             lastModifiedDateTime: '2024-01-02T00:00:00Z',
@@ -585,7 +682,7 @@ describe('GraphDriveSource', () => {
           {
             id: 'file1',
             name: 'file1.txt',
-            path: '/file1.txt',
+            parentReference: { path: '/drive/root:' },
             file: { mimeType: 'text/plain' },
             size: 100,
             lastModifiedDateTime: '2024-01-01T00:00:00Z',
@@ -600,7 +697,7 @@ describe('GraphDriveSource', () => {
           {
             id: 'file2',
             name: 'file2.txt',
-            path: '/file2.txt',
+            parentReference: { path: '/drive/root:' },
             file: { mimeType: 'text/plain' },
             size: 200,
             lastModifiedDateTime: '2024-01-02T00:00:00Z',
@@ -612,17 +709,10 @@ describe('GraphDriveSource', () => {
 
       // listSince is metadata-only: 2 calls for the 2 delta pages
       // Content fetching happens separately via fetch() (not tested here)
-      fetchMock
-        .mockResolvedValueOnce({
-          status: 200,
-          text: async () => JSON.stringify(page1),
-          headers: new Map(),
-        })
-        .mockResolvedValueOnce({
-          status: 200,
-          text: async () => JSON.stringify(page2),
-          headers: new Map(),
-        });
+      fetchMock.mockImplementation(async (url: string) => {
+        const body = String(url).includes('page=2') ? page2 : page1;
+        return { status: 200, text: async () => JSON.stringify(body), headers: new Map() };
+      });
 
       const config: GraphDriveSourceConfig = {
         tokenProvider: mockTokenProvider,
@@ -642,7 +732,7 @@ describe('GraphDriveSource', () => {
           {
             id: 'file1',
             name: 'file1.txt',
-            path: '/file1.txt',
+            parentReference: { path: '/drive/root:' },
             file: { mimeType: 'text/plain' },
             size: 100,
             lastModifiedDateTime: '2024-01-01T00:00:00Z',
@@ -657,7 +747,7 @@ describe('GraphDriveSource', () => {
           {
             id: 'file2',
             name: 'file2.txt',
-            path: '/file2.txt',
+            parentReference: { path: '/drive/root:' },
             file: { mimeType: 'text/plain' },
             size: 200,
             lastModifiedDateTime: '2024-01-02T00:00:00Z',
@@ -713,7 +803,7 @@ describe('GraphDriveSource', () => {
       const oldItem: GraphDriveItem = {
         id: '01AZJL5PMZQXGQKQYJFZHKZQVJQXGQKQYJ',
         name: 'old-name.docx',
-        path: '/Documents/old-name.docx',
+        parentReference: { path: '/drive/root:/Documents' },
         lastModifiedDateTime: '2024-01-01T00:00:00Z',
         size: 25600,
         cTag: 'cTag1',
@@ -723,7 +813,7 @@ describe('GraphDriveSource', () => {
       const newItem: GraphDriveItem = {
         id: '01AZJL5PMZQXGQKQYJFZHKZQVJQXGQKQYJ', // Same GUID
         name: 'new-name.docx',
-        path: '/Documents/new-name.docx', // Different path
+        parentReference: { path: '/drive/root:/Documents' }, // Different path
         lastModifiedDateTime: '2024-01-15T00:00:00Z',
         size: 25600,
         cTag: 'cTag2',
@@ -743,7 +833,7 @@ describe('GraphDriveSource', () => {
       const oldItem: GraphDriveItem = {
         id: 'old-guid',
         name: 'file.txt',
-        path: '/file.txt',
+        parentReference: { path: '/drive/root:' },
         lastModifiedDateTime: '2024-01-01T00:00:00Z',
         size: 100,
         cTag: 'cTag1',
@@ -752,7 +842,7 @@ describe('GraphDriveSource', () => {
       const newItem: GraphDriveItem = {
         id: 'new-guid', // Different GUID
         name: 'file.txt',
-        path: '/file.txt',
+        parentReference: { path: '/drive/root:' },
         lastModifiedDateTime: '2024-01-02T00:00:00Z',
         size: 100,
         cTag: 'cTag2',
@@ -761,32 +851,50 @@ describe('GraphDriveSource', () => {
       expect(driveSource.isRename(oldItem, newItem)).toBe(false);
     });
 
-    it('should not detect as rename when only name changes but path is same', () => {
+    it('a MOVE is a rename; identical name and parent is not', () => {
+      // The old test here asserted "name changed, path is the same" — a state
+      // Graph cannot produce, and one only expressible while `path` was a
+      // fabricated field independent of `name`. What is real: the derived path
+      // is parentReference + name, so either half changing is a relocation.
       const config: GraphDriveSourceConfig = {
         tokenProvider: mockTokenProvider,
         tenantId: 'test-tenant-id',
       };
       const driveSource = new GraphDriveSource(config);
-
-      const oldItem: GraphDriveItem = {
+      const at = (parent: string, name: string): GraphDriveItem => ({
         id: 'same-guid',
-        name: 'old-name.txt',
-        path: '/Documents/file.txt',
+        name,
+        parentReference: { path: parent },
         lastModifiedDateTime: '2024-01-01T00:00:00Z',
         size: 100,
-        cTag: 'cTag1',
-      };
+      });
 
-      const newItem: GraphDriveItem = {
+      expect(
+        driveSource.isRename(at('/drive/root:/Documents', 'a.txt'), at('/drive/root:/Archive', 'a.txt')),
+        'same file, different folder — a move',
+      ).toBe(true);
+      expect(
+        driveSource.isRename(at('/drive/root:/Documents', 'a.txt'), at('/drive/root:/Documents', 'a.txt')),
+        'nothing changed',
+      ).toBe(false);
+    });
+
+    it('never calls it a rename when neither path can be derived', () => {
+      // No parentReference means no evidence of WHERE either item is. Guessing
+      // "renamed" from that would be a claim about customer data from nothing.
+      const config: GraphDriveSourceConfig = {
+        tokenProvider: mockTokenProvider,
+        tenantId: 'test-tenant-id',
+      };
+      const driveSource = new GraphDriveSource(config);
+      const bare = (name: string): GraphDriveItem => ({
         id: 'same-guid',
-        name: 'new-name.txt',
-        path: '/Documents/file.txt', // Same path
-        lastModifiedDateTime: '2024-01-02T00:00:00Z',
+        name,
+        lastModifiedDateTime: '2024-01-01T00:00:00Z',
         size: 100,
-        cTag: 'cTag2',
-      };
+      });
 
-      expect(driveSource.isRename(oldItem, newItem)).toBe(false);
+      expect(driveSource.isRename(bare('a.txt'), bare('b.txt'))).toBe(false);
     });
 
     it('should log renames as drift, not duplicate (per §11.1)', () => {
@@ -799,7 +907,7 @@ describe('GraphDriveSource', () => {
       const oldItem: GraphDriveItem = {
         id: 'same-guid',
         name: 'old-name.txt',
-        path: '/old/path.txt',
+        parentReference: { path: '/drive/root:/old' },
         lastModifiedDateTime: '2024-01-01T00:00:00Z',
         size: 100,
         cTag: 'cTag1',
@@ -808,7 +916,7 @@ describe('GraphDriveSource', () => {
       const newItem: GraphDriveItem = {
         id: 'same-guid', // Same GUID
         name: 'new-name.txt',
-        path: '/new/path.txt', // Different path
+        parentReference: { path: '/drive/root:/new' }, // Different path
         lastModifiedDateTime: '2024-01-02T00:00:00Z',
         size: 100,
         cTag: 'cTag2',
@@ -1009,7 +1117,7 @@ describe('GraphDriveSource', () => {
       const item: GraphDriveItem = {
         id: 'file1',
         name: 'test.txt',
-        path: '/test.txt',
+        parentReference: { path: '/drive/root:' },
         lastModifiedDateTime: '2024-01-01T00:00:00Z',
         size: 100,
         cTag: 'cTag789',
@@ -1030,7 +1138,7 @@ describe('GraphDriveSource', () => {
       const item: GraphDriveItem = {
         id: 'file1',
         name: 'test.txt',
-        path: '/test.txt',
+        parentReference: { path: '/drive/root:' },
         lastModifiedDateTime: '2024-01-01T00:00:00Z',
         size: 100,
         cTag: 'cTag789',
@@ -1050,7 +1158,7 @@ describe('GraphDriveSource', () => {
       const item: GraphDriveItem = {
         id: 'file1',
         name: 'test.txt',
-        path: '/test.txt',
+        parentReference: { path: '/drive/root:' },
         lastModifiedDateTime: '2024-01-01T00:00:00Z',
         size: 100,
       };
@@ -1065,7 +1173,7 @@ describe('GraphDriveSource', () => {
           {
             id: 'file1',
             name: 'test.txt',
-            path: '/test.txt',
+            parentReference: { path: '/drive/root:' },
             file: {
               mimeType: 'text/plain',
             },
@@ -1159,7 +1267,7 @@ describe('GraphDriveSource', () => {
           {
             id: 'file1',
             name: 'test.txt',
-            path: '/test.txt',
+            parentReference: { path: '/drive/root:' },
             file: { mimeType: 'text/plain' },
             size: 100,
             lastModifiedDateTime: '2024-01-01T00:00:00Z',
@@ -1321,7 +1429,7 @@ export const graphDriveFixtures = {
     before: {
       id: '01AZJL5PMZQXGQKQYJFZHKZQVJQXGQKQYJ',
       name: 'old-name.docx',
-      path: '/Documents/old-name.docx',
+      parentReference: { path: '/drive/root:/Documents' },
       file: { mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
       size: 25600,
       lastModifiedDateTime: '2024-01-01T00:00:00Z',
@@ -1330,7 +1438,7 @@ export const graphDriveFixtures = {
     after: {
       id: '01AZJL5PMZQXGQKQYJFZHKZQVJQXGQKQYJ', // Same GUID
       name: 'new-name.docx',
-      path: '/Documents/new-name.docx', // Different path
+      parentReference: { path: '/drive/root:/Documents' }, // Different path
       file: { mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
       size: 25600,
       lastModifiedDateTime: '2024-01-15T00:00:00Z',

@@ -265,6 +265,63 @@ export class GoogleDriveSource implements FileSource {
    * stays on absence-counting, which still works and says less.
    */
   /**
+   * Files the account OWNS that no walk from the migration root can reach
+   * (workplan 0058) — Drive's "unorganized" items, and the coverage question
+   * every file source should be able to answer about itself.
+   *
+   * Drive is the one provider where a file can genuinely FLOAT: delete a
+   * parent folder without deleting its contents, or create a file through the
+   * API with no `parents`, and the file stays in the account, owned and
+   * intact, reachable by search but by no path. Drive's own UI hides it
+   * (`is:unorganized` in search is how a person finds it). `listFolders`
+   * walks DOWN from `rootFolderId`, so a pass never sees it — it is not
+   * migrated, and until this existed nothing said so. That is the silent
+   * under-migration this product exists not to do (hard rule 9).
+   *
+   * Deliberately CHEAP and read-only: one paged `files.list` over
+   * `'me' in owners`, asking only for `parents`, which is the same listing
+   * shape `listOwnedShareGrants` already makes for the sharing scan. Nothing
+   * here fetches bytes or changes what a pass migrates — it reports.
+   *
+   * Only files the account OWNS: a file shared WITH the account has parents
+   * the account cannot see, so it would read as orphaned for everyone, every
+   * pass. Those are the documented shared-with-me case instead, and rooting a
+   * mapping at a shared folder is their supported route.
+   */
+  async listOrphanedFiles(options?: { maxItems?: number }): Promise<{
+    readonly files: ReadonlyArray<{ id: string; name: string }>;
+    readonly capped: boolean;
+  }> {
+    const maxItems = options?.maxItems ?? 200;
+    const q = `'me' in owners and trashed=false and mimeType!='${DRIVE_FOLDER_MIME}'`;
+    const fields = 'nextPageToken,files(id,name,parents)';
+    const found: Array<{ id: string; name: string }> = [];
+
+    let pageToken: string | undefined;
+    let pages = 0;
+    do {
+      if (++pages > 100) return { files: found, capped: true };
+      const url =
+        `${this.baseUrl}/files?q=${encodeURIComponent(q)}&pageSize=100` +
+        `&fields=${encodeURIComponent(fields)}` +
+        (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '');
+      const page = (await this.getJson(url)) as DriveFileList;
+      for (const file of page.files ?? []) {
+        // No parents at all is what "unorganized" means on the wire. A file
+        // WITH parents may still be out of this migration's root, which is a
+        // scoping decision rather than a floating file — not this report's
+        // business (see `TrashListing` for the same distinction).
+        if (file.parents && file.parents.length > 0) continue;
+        if (found.length >= maxItems) return { files: found, capped: true };
+        found.push({ id: file.id, name: file.name });
+      }
+      pageToken = page.nextPageToken;
+    } while (pageToken);
+
+    return { files: found, capped: false };
+  }
+
+  /**
    * The shared drives this credential can see (workplan 0049) — `drives.list`,
    * paged, read-only. This is the onboarding question ("which id do I put in
    * rootFolderId?") answered by the API instead of by a walk through the
