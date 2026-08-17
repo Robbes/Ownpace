@@ -96,30 +96,46 @@ describe('the wizard draft', () => {
   it('NEVER writes a secret into session storage', async () => {
     renderWizard();
 
-    // Reach the credentials step, where every secret input lives.
+    // Each side carries its own credentials since workplan 0070, so the
+    // secrets are typed on TWO steps rather than one. Both are covered.
+    const typeEverySecret = (offset: number) => {
+      const masked = document.querySelectorAll('input[type="password"]');
+      expect(masked.length).toBeGreaterThan(0);
+      masked.forEach((el, i) =>
+        fireEvent.change(el, {
+          target: { value: Object.values(SECRETS)[offset + i] ?? 'SECRET-x9y8z7' },
+        }),
+      );
+    };
+
+    // Step 1 — source: host, account, and every secret it renders.
     fireEvent.change(screen.getByPlaceholderText('imap.example.com'), {
       target: { value: 'mail.acme.example' },
     });
+    fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
+      target: { value: 'anna@acme.example' },
+    });
+    typeEverySecret(0);
+    await waitFor(() => expect(screen.getByRole('button', { name: /Next/ })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Next/ }));
+
+    // Step 2 — target: same again, on the other side.
     fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
       target: { value: 'stalwart.acme.example' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /Next/ }));
-
-    // Type into every password-shaped field this step renders.
-    const masked = document.querySelectorAll('input[type="password"]');
-    expect(masked.length).toBeGreaterThan(0);
-    masked.forEach((el, i) =>
-      fireEvent.change(el, { target: { value: Object.values(SECRETS)[i] ?? 'SECRET-x9y8z7' } }),
-    );
+    fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
+      target: { value: 'anna@acme.net' },
+    });
+    typeEverySecret(4);
 
     await waitFor(() => expect(draft()).not.toBeNull());
 
     const stored = draft()!;
     for (const [field, value] of Object.entries(SECRETS)) {
-      expect(stored, `the draft contains ${field} — secrets must never be written here`).not.toContain(
-        value,
-      );
+      expect(
+        stored,
+        `the draft contains ${field} — secrets must never be written here`,
+      ).not.toContain(value);
     }
     // Belt and braces: nothing shaped like the marker at all.
     expect(stored).not.toMatch(/SECRET|PASSWORD|REFRESH-TOKEN|SERVICE-ACCOUNT/i);

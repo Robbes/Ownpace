@@ -149,6 +149,9 @@ const en = {
   'wizard.noSharedDrives': 'This credential sees no shared drives or shared folders — leaving the root empty migrates My Drive.',
   'wizard.sharedDrivesGroup': 'Shared drives',
   'wizard.sharedFoldersGroup': 'Folders shared with me',
+  'wizard.step.migration': 'Migration',
+  'wizard.testConnections.reused':
+    'This side already uses a saved connection, so this just checks it still works.',
   'wizard.testConnections': 'Test and save connections',
   'wizard.testing': 'Testing…',
   'wizard.testConnections.hint':
@@ -1036,6 +1039,9 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.noSharedDrives': 'Deze inloggegevens zien geen gedeelde Drives of gedeelde mappen — een lege hoofdmap migreert Mijn Drive.',
   'wizard.sharedDrivesGroup': 'Gedeelde Drives',
   'wizard.sharedFoldersGroup': 'Met mij gedeelde mappen',
+  'wizard.step.migration': 'Migratie',
+  'wizard.testConnections.reused':
+    'Deze kant gebruikt al een bewaarde verbinding; dit controleert alleen of die nog werkt.',
   'wizard.testConnections': 'Verbindingen testen en bewaren',
   'wizard.testing': 'Testen…',
   'wizard.testConnections.hint':
