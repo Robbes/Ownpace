@@ -37,7 +37,7 @@ import {
   type ConnectionSummary,
   type TestConnectionResult,
 } from '../services/mapping-service';
-import { serverMessage } from '../services/api';
+import { duplicateMapping, serverMessage } from '../services/api';
 import { useMutation } from '@tanstack/react-query';
 
 type Step = 'source' | 'target' | 'migration' | 'review';
@@ -336,6 +336,9 @@ const CreateMapping: React.FC = () => {
   React.useEffect(() => {
     saveDraft(formData);
   }, [formData]);
+
+  /** Set when the refusal is "this migration already exists" (0071 T6). */
+  const duplicate = createMutation.isError ? duplicateMapping(createMutation.error) : null;
 
   // Leaving a dirty wizard is a question, not a silent discard (0037 T5).
   // All wizard state is plain useState, so refresh/close throws away every
@@ -2045,10 +2048,31 @@ const CreateMapping: React.FC = () => {
       {createMutation.isError && (
         <div className="mt-6 flex items-start gap-2 p-4 rounded-lg bg-red-50 text-red-800 text-sm">
           <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="font-medium">{t('createMapping.createFailed')}</p>
-            <p className="mt-1">{serverMessage(createMutation.error)}</p>
-          </div>
+          {/* A duplicate is a REFUSAL with a way out, not a fault (0071 T6):
+              the existing migration's name is the server's finding and the
+              explanation is ours, so it reads in the operator's own language —
+              and its id turns "no" into a link to the thing already doing it.
+              Everything else still renders the server's sentence verbatim. */}
+          {duplicate ? (
+            <div>
+              <p className="font-medium">{t('createMapping.duplicate.lead')}</p>
+              <p className="mt-1">
+                {duplicate.name ? `“${duplicate.name}”` : duplicate.id}
+              </p>
+              <p className="mt-1">{t('createMapping.duplicate.why')}</p>
+              <Link
+                to={`/mappings/${duplicate.id}`}
+                className="mt-2 inline-block underline hover:no-underline"
+              >
+                {t('createMapping.duplicate.open')}
+              </Link>
+            </div>
+          ) : (
+            <div>
+              <p className="font-medium">{t('createMapping.createFailed')}</p>
+              <p className="mt-1">{serverMessage(createMutation.error)}</p>
+            </div>
+          )}
         </div>
       )}
 

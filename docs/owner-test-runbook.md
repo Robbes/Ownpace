@@ -216,11 +216,12 @@ Stage 2's drills through the managed journey:
 1. Bring up `deploy/compose/managed.yml` on the Spark (worker included — the
    destructive path runs through Trigger.dev there, so a missing worker shows
    up as receipts stuck `queued`, which is itself worth seeing once).
-2. Walk the wizard: source **Google Drive** (client ID + root folder on the
-   source step; client secret + refresh token on the credentials step — the
-   same three values Stage 1 proved), target your Nextcloud/Stalwart, and note
-   the wizard pins the **file** data type and refuses the others in the same
-   sentence the API would.
+2. Walk the wizard: source **Google Drive** — client ID, root folder, account,
+   client secret and refresh token are now **all on the source step** (workplan
+   0070 gave each side its own credentials; there is no separate credentials
+   step any more), the same three values Stage 1 proved. Then target your
+   Nextcloud/Stalwart, and note the wizard pins the **file** data type and
+   refuses the others in the same sentence the API would.
 3. Confirm the mapping (it lands paused, by design), start it, and run drills
    A–E from Stage 2 at `/mappings/<id>/moves` and `/mappings/<id>/deletions`.
    The one visible difference from the appliance: **apply answers with a

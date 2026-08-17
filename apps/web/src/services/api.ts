@@ -108,4 +108,65 @@ export function serverMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+/**
+ * The credential FIELD KEYS a `missing_fields` refusal names, or null when the
+ * error is not one (workplan 0071).
+ *
+ * `serverMessage` is the right answer for a provider's own words, and the
+ * wrong one here: this refusal is our own, and the sentence it carries is
+ * English prose naming storage keys (`clientId`) rather than the label the
+ * person is looking at (*App key* / *App-sleutel*). The keys are the stable
+ * handle the caller localizes against — `credentialFieldsFor` already maps
+ * each to the same i18n key the input's own label uses, so both doors say what
+ * the wizard says, in the reader's language.
+ */
+export function missingCredentialFields(err: unknown): string[] | null {
+  if (!axios.isAxiosError(err)) return null;
+  const data = err.response?.data as { error?: unknown; fields?: unknown } | undefined;
+  if (!data || data.error !== 'missing_fields' || !Array.isArray(data.fields)) return null;
+  const keys = data.fields.filter((f): f is string => typeof f === 'string' && f !== '');
+  return keys.length > 0 ? keys : null;
+}
+
+/**
+ * The migrations an `in_use` delete-refusal names, or null when the error is
+ * not one (workplan 0071).
+ *
+ * Same split as `missingCredentialFields`: the NAMES are the server's finding
+ * and render verbatim, the sentence around them is ours and gets translated.
+ * 0068 T4 established what the refusal has to answer — why, what first, where
+ * — and shipped it as one English paragraph on the route, which is how a Dutch
+ * operator got five clauses of English. An empty array is a real answer (the
+ * usage count was known but no names were): the caller falls back to the
+ * server's own sentence rather than rendering a frame around nothing.
+ */
+export function inUseMigrations(err: unknown): string[] | null {
+  if (!axios.isAxiosError(err)) return null;
+  const data = err.response?.data as { error?: unknown; migrations?: unknown } | undefined;
+  if (!data || data.error !== 'in_use' || !Array.isArray(data.migrations)) return null;
+  const names = data.migrations.filter((m): m is string => typeof m === 'string' && m !== '');
+  return names.length > 0 ? names : null;
+}
+
+/**
+ * The migration a `duplicate_mapping` refusal points at, or null (0071 T6).
+ *
+ * Same split again: the existing migration's name and id are the finding, the
+ * sentence explaining why two of them would double everything on the target is
+ * ours. The id is what makes the refusal a way OUT rather than a wall — the
+ * screen can offer to open the migration that already does this.
+ */
+export function duplicateMapping(err: unknown): { id: string; name: string | null } | null {
+  if (!axios.isAxiosError(err)) return null;
+  const data = err.response?.data as
+    | { error?: unknown; existingMappingId?: unknown; existingMappingName?: unknown }
+    | undefined;
+  if (!data || data.error !== 'duplicate_mapping') return null;
+  if (typeof data.existingMappingId !== 'string' || !data.existingMappingId) return null;
+  return {
+    id: data.existingMappingId,
+    name: typeof data.existingMappingName === 'string' ? data.existingMappingName : null,
+  };
+}
+
 export default apiClient;

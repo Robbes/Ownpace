@@ -172,7 +172,19 @@ export const mailboxMapping = pgTable(
   },
   (t) => [
     index('ix_mapping_tenant').on(t.tenantId),
-    uniqueIndex('uk_mapping_source_target').on(t.sourceMailboxId, t.targetMailboxId),
+    /**
+     * A source/target pair may repeat only under a DIFFERENT target folder
+     * prefix (migration 0022, owner decision 2026-08-18): two mappings writing
+     * the same items into the same place would double everything in the
+     * target. `COALESCE(…, '')` is load-bearing — NULL means "merge into the
+     * account root", which is the default answer, and under Postgres's
+     * NULLS DISTINCT two merges between the same pair would BOTH be accepted.
+     */
+    uniqueIndex('uk_mapping_source_target_prefix').on(
+      t.sourceMailboxId,
+      t.targetMailboxId,
+      sql`(COALESCE(${t.targetFolderPrefix}, ''))`,
+    ),
   ],
 );
 

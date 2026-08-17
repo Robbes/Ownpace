@@ -778,6 +778,22 @@ const en = {
   'connections.setupSteps': 'Setup steps',
   'connections.ok': 'Reached it. The credentials still work.',
   'connections.failed': 'Could not reach it.',
+  // The delete refusal's FRAME (workplan 0071). The migrations it names are
+  // the server's finding and render verbatim; these words are ours, so they
+  // are translated — the owner met the old five-clause English paragraph in a
+  // Dutch UI and asked for both halves of that to change. It still answers
+  // why, what to do first, and where, in two lines instead of five.
+  'connections.inUse.lead': 'Still used by',
+  // The duplicate-migration refusal (workplan 0071 T6, owner decision
+  // 2026-08-18). Two mappings between the same two accounts, into the same
+  // place, copy every item twice — so the pair may only repeat under a
+  // different target folder, and this says which existing one is in the way.
+  'createMapping.duplicate.lead': 'You already have a migration between these two accounts:',
+  'createMapping.duplicate.why':
+    'Two migrations copying the same items into the same place would put everything on the target twice. Give this one a different target folder, or open the existing migration.',
+  'createMapping.duplicate.open': 'Open the existing migration',
+  'connections.inUse.why':
+    'Deleting it would also delete what those migrations have recorded, so remove them under Migrations first.',
   // ---- Provider setup checklist (workplan 0061) ----
   'setup.title': 'What to set up in the provider',
   'setup.intro':
@@ -1645,6 +1661,13 @@ const nl: Record<keyof typeof en, string> = {
   'connections.setupSteps': 'Instelstappen',
   'connections.ok': 'Bereikt. De inloggegevens werken nog.',
   'connections.failed': 'Kon deze niet bereiken.',
+  'connections.inUse.lead': 'Nog in gebruik door',
+  'createMapping.duplicate.lead': 'U heeft al een migratie tussen deze twee accounts:',
+  'createMapping.duplicate.why':
+    'Twee migraties die dezelfde items naar dezelfde plek kopiëren, zetten alles dubbel op het doel. Geef deze een andere doelmap, of open de bestaande migratie.',
+  'createMapping.duplicate.open': 'Open de bestaande migratie',
+  'connections.inUse.why':
+    'Verwijderen wist ook wat die migraties hebben vastgelegd; verwijder ze eerst onder Migraties.',
   // ---- Provider setup checklist (workplan 0061) ----
   'setup.title': 'Wat u instelt bij de aanbieder',
   'setup.intro':

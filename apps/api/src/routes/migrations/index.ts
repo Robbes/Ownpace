@@ -12,7 +12,7 @@ import type { Response } from 'express';
 import { z } from 'zod';
 import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth';
 import type { AuthenticatedRequest } from '../../types/api';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { PgMigrationStatusStore, PgLedger, RunStore } from '@openmig/ledger';
 import { buildDomainStatusReports } from '@openmig/shared';
@@ -318,6 +318,31 @@ export function sourceCredentialRecord(
 // RunStore.listRunsWithEvents.
 
 const router = Router();
+
+/**
+ * "You already have this migration" — a REFUSAL, not a fault (workplan 0071).
+ *
+ * Thrown from inside the create transaction so the whole chain rolls back, and
+ * caught by the route as a 409 rather than falling into the 500 branch. It
+ * carries the existing mapping's id and name as DATA: the client renders the
+ * sentence in its own language, and a name is something a person can go and
+ * open, where "a mapping already exists" is something they can only stare at.
+ */
+export class DuplicateMappingError extends Error {
+  constructor(
+    readonly existingId: string,
+    readonly existingName: string | null,
+  ) {
+    super(
+      `A migration between these two accounts already exists${
+        existingName ? ` (“${existingName}”)` : ''
+      }. Two migrations that copy the same items into the same place would ` +
+        `double everything on the target. Give this one a different target ` +
+        `folder, or open the existing migration instead.`,
+    );
+    this.name = 'DuplicateMappingError';
+  }
+}
 
 router.use('/', operatingRoutes);
 
@@ -1143,21 +1168,99 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
             'target connection',
           );
 
-      const sourceMailbox = firstOrThrow(
-        await db
-          .insert(schema.mailbox)
-          .values({ tenantId, connectionId: sourceConn.id, kind: 'user', externalId: 'primary', primaryAddress: body.sourceConfig.username })
-          .returning({ id: schema.mailbox.id }),
+      /**
+       * ONE mailbox per connection, found or created (workplan 0071 T6).
+       *
+       * This used to be a bare INSERT of `external_id: 'primary'` per side.
+       * `mailbox` declares `UNIQUE (connection_id, external_id)`, so the first
+       * migration on a stored connection succeeded and every later one died on
+       * a 23505 the route turned into a 500 — the connection-reuse feature
+       * (0064) failing at the one thing it exists for, and 0069 made it
+       * near-certain to be hit, because testing now saves a connection and the
+       * wizard holds its id from then on. The owner met it as reference
+       * `e133a809`.
+       *
+       * The constraint was right and the INSERT was wrong: a connection is one
+       * account, so it has one mailbox row, and reusing the connection means
+       * reusing that row. `primaryAddress` is only overwritten when the body
+       * actually carries one — a reused connection hides the username input,
+       * so trusting the body blindly renamed a real mailbox to ''.
+       */
+      const mailboxFor = async (
+        connectionId: string,
+        username: string,
+        label: string,
+      ): Promise<{ id: string }> => {
+        const existing = await db
+          .select({ id: schema.mailbox.id })
+          .from(schema.mailbox)
+          .where(
+            and(
+              eq(schema.mailbox.connectionId, connectionId),
+              eq(schema.mailbox.externalId, 'primary'),
+            ),
+          );
+        const found = existing[0];
+        if (found) {
+          if (username) {
+            await db
+              .update(schema.mailbox)
+              .set({ primaryAddress: username })
+              .where(eq(schema.mailbox.id, found.id));
+          }
+          return found;
+        }
+        return firstOrThrow(
+          await db
+            .insert(schema.mailbox)
+            .values({
+              tenantId,
+              connectionId,
+              kind: 'user',
+              externalId: 'primary',
+              primaryAddress: username,
+            })
+            .returning({ id: schema.mailbox.id }),
+          label,
+        );
+      };
+
+      const sourceMailbox = await mailboxFor(
+        sourceConn.id,
+        body.sourceConfig.username,
         'source mailbox',
       );
-
-      const targetMailbox = firstOrThrow(
-        await db
-          .insert(schema.mailbox)
-          .values({ tenantId, connectionId: targetConn.id, kind: 'user', externalId: 'primary', primaryAddress: body.targetConfig.username })
-          .returning({ id: schema.mailbox.id }),
+      const targetMailbox = await mailboxFor(
+        targetConn.id,
+        body.targetConfig.username,
         'target mailbox',
       );
+
+      /**
+       * The same two accounts, twice, into the same place (owner decision
+       * 2026-08-18): refused, because both mappings would copy the same items
+       * to the same destination and double everything in the target. A
+       * different target folder prefix makes them not overlap, and is the
+       * answer this refusal points at — migration 0022 enforces exactly that
+       * triple, so this check and the index cannot disagree about what counts
+       * as "the same migration twice".
+       */
+      const prefix = parseTargetFolderPrefix(body.targetFolderPrefix) ?? null;
+      const clash = await db
+        .select({ id: schema.mailboxMapping.id, name: schema.mailboxMapping.name })
+        .from(schema.mailboxMapping)
+        .where(
+          and(
+            eq(schema.mailboxMapping.sourceMailboxId, sourceMailbox.id),
+            eq(schema.mailboxMapping.targetMailboxId, targetMailbox.id),
+            prefix === null
+              ? isNull(schema.mailboxMapping.targetFolderPrefix)
+              : eq(schema.mailboxMapping.targetFolderPrefix, prefix),
+          ),
+        );
+      if (clash[0]) {
+        throw new DuplicateMappingError(clash[0].id, clash[0].name ?? null);
+      }
 
       const mapping = firstOrThrow(
         await db
@@ -1227,6 +1330,15 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         // list (0037 T4).
         message: error.issues.map((i) => i.message).join(' '),
         details: error.issues,
+      });
+    } else if (error instanceof DuplicateMappingError) {
+      // A refusal the person can act on, so it must not look like a fault:
+      // this used to reach them as a 500 about a unique index (0071 T6).
+      res.status(409).json({
+        error: 'duplicate_mapping',
+        existingMappingId: error.existingId,
+        existingMappingName: error.existingName,
+        message: error.message,
       });
     } else {
       // A 500 is a BUG, not a refusal, so its internals must not reach a
