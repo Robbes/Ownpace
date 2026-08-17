@@ -49,6 +49,7 @@ import MappingHubLink from '../components/MappingHubLink';
 import PermissionsHandover from '../components/finish/PermissionsHandover';
 import CompletionReportDownload from '../components/CompletionReportDownload';
 import type { StringKey } from '../i18n';
+import { serverMessage } from '../services/api';
 
 type Outcome =
   | { readonly state: 'pending' }
@@ -173,7 +174,7 @@ const Finish: React.FC = () => {
           ...o,
           [mappingId]: {
             state: 'failed',
-            error: err instanceof Error ? err.message : t('common.requestFailed'),
+            error: serverMessage(err),
           },
         }));
       });
@@ -189,7 +190,7 @@ const Finish: React.FC = () => {
         // ran" was a claim this catch could not make.
         setPass((p) => ({
           ...p,
-          [mappingId]: { failed: err instanceof Error ? err.message : t('common.requestFailed') },
+          [mappingId]: { failed: serverMessage(err) },
         })),
       )
       .finally(() => {

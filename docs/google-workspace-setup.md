@@ -1,7 +1,6 @@
 # Google Workspace setup — Drive, Gmail, Calendar and Contacts as migration sources
 
-**Reference:** workplan 0042 (Drive), workplan 0044 (Gmail), workplan 0045 (Calendar &
-Contacts). The Microsoft equivalent is [`o365-setup.md`](./o365-setup.md).
+The Microsoft equivalent of this guide is [`o365-setup.md`](./o365-setup.md).
 
 This is what an operator does once, in the customer's own Google Cloud project, to let
 Open-Migrate read a Google Drive. It ends with three values that go in `.env` (appliance) or
@@ -21,10 +20,10 @@ is a stronger guarantee than a promise in a document — it is enforced by Googl
 
 It is a **delegated** credential: it reads the Drive of the person who consents, including the
 shared drives that person can see. For a whole Workspace there is a second, opt-in path —
-**domain-wide delegation** (ADR-0033, accepted) — described in its own section below.
+**domain-wide delegation** — described in its own section below.
 Per-user tokens stay the default: smallest access, revocable per person, no admin needed.
 
-## Domain-wide delegation (ADR-0033) — one admin action instead of N consents
+## Domain-wide delegation — one admin action instead of N consents
 
 A Workspace admin can authorise a **service account** to impersonate users, once, for an
 enumerated list of scopes. Use it when per-user consent ceremonies do not scale; skip it
@@ -47,9 +46,10 @@ account (the subject); what widens is the credential, not any mapping.
    | Calendar | `https://www.googleapis.com/auth/calendar` |
    | Contacts | `https://www.googleapis.com/auth/carddav` |
 
-4. **Configure it**: on the appliance, put the whole key file in
-   `GOOGLE_SERVICE_ACCOUNT_KEY` and state each mapping's account (`user` — for Drive too);
-   on managed, paste the key file into the wizard's "Service account key" field. The
+4. **Configure it**: paste the whole key file into the wizard's "Service account key"
+   field and state each migration's account. (If you run open-migrate yourself from
+   configuration files, the same key goes in `GOOGLE_SERVICE_ACCOUNT_KEY`, with each
+   mapping's account as `user` — for Drive too.) The
    refresh-token fields stop being required; the refusals will say so if something is
    missing.
 5. **Revoke at cutover.** Delete the Admin-console delegation entry (and the key) when the
@@ -84,7 +84,7 @@ is not a user in the domain.
 **APIs & Services → Credentials → Create credentials → OAuth client ID.**
 
 Pick **Web application** and add `https://developers.google.com/oauthplayground` as an
-authorised redirect URI. That is only to obtain the refresh token in step 4; the appliance
+authorised redirect URI. That is only to obtain the refresh token in step 4; open-migrate
 never redirects anywhere, because it uses the refresh token directly from then on.
 
 Copy the **client ID** and **client secret**.
@@ -106,7 +106,7 @@ The one value that cannot be read out of a console. Using Google's own
 **Treat the refresh token as a password.** It grants read access to that Drive until it is
 revoked, and it does not expire on its own. It does die if: the account's password changes,
 an admin revokes the app, the OAuth client is deleted, or it goes six months unused. All four
-produce the same `invalid_grant` from Google, and the appliance's error message names them.
+produce the same `invalid_grant` from Google, and the error message names them.
 
 ## 5. Configure it
 
@@ -136,14 +136,14 @@ Then the mapping's file domain:
 ```
 
 `"rootFolderId"` roots the migration somewhere other than My Drive — a **shared drive** is
-named by its own id, and so is a **folder somebody shared with this account** (workplan
-0051): "Shared with me" is a view, not a folder, so its contents never appear under My
+named by its own id, and so is a **folder somebody shared with this account**:
+"Shared with me" is a view, not a folder, so its contents never appear under My
 Drive's tree — rooting a separate mapping at the shared folder's id is how such a folder
 migrates. To see the ids this credential can reach, run
-`pnpm exec tsx scripts/list-shared-drives.ts` and `pnpm exec tsx scripts/list-shared-folders.ts`
-(appliance) or use the wizard's **Browse shared drives & folders** button on the
-credentials step (managed) — all read-only listings through the same connector a pass uses
-(workplans 0049, 0051). Loose shared *files* — shared with you but not inside a folder you
+use the wizard's **Browse shared drives & folders** button on the credentials step — a
+read-only listing through the same connector a migration uses. (Running from configuration
+files instead? `pnpm exec tsx scripts/list-shared-drives.ts` and
+`pnpm exec tsx scripts/list-shared-folders.ts` answer the same question.) Loose shared *files* — shared with you but not inside a folder you
 can root at — stay out of scope, stated in `docs/feature-matrix.md`. `"nativeFilePolicy"` decides what happens to Google Docs; read the next
 section before setting it.
 
@@ -169,8 +169,8 @@ the default is `refuse`: each Doc is reported as un-migratable, one by one, with
 and the rest of the folder migrates.
 
 Run it for `export-office` and for `export-pdf` — different renderers — and ideally against a
-Doc, a Sheet and a Slide. Then record what you found in
-[`workplans/0042-google-drive-source.md`](./workplans/0042-google-drive-source.md) (T3).
+Doc, a Sheet and a Slide. Then keep a note of what you found — the answer decides whether exporting Google Docs is
+safe to turn on at all.
 
 ### Recording a fixture while you are there
 
@@ -201,7 +201,7 @@ listing of the root cannot gate it. The script says so if it finds no subfolder.
 
 ---
 
-## Gmail as a mail source (workplan 0044)
+## Gmail as a mail source
 
 The same project, the same consent screen, the same OAuth client — steps 1–3 above are done
 once and serve both. What differs is the **consent** the refresh token carries and the name
@@ -222,7 +222,7 @@ Mint the refresh token exactly as in step 4, with two changes:
 
 **A Drive-consented token will not work.** A refresh token carries the scopes it was
 consented with, and one minted for `drive.readonly` answers `invalid_scope` the first time a
-mail token is requested. That is why the appliance stores the mail token under its own name:
+mail token is requested. That is why open-migrate stores the mail token under its own name:
 
 ```sh
 GOOGLE_CLIENT_ID=…apps.googleusercontent.com   # the same client as Drive
@@ -253,7 +253,7 @@ sighting under another label is never re-copied; it can surface in the **Moves**
 source-side placement report, which is information, not action. If your labelling is heavy,
 expect that queue to describe Gmail's labels rather than anything you did.
 
-## Calendar and Contacts as sources (workplan 0045)
+## Calendar and Contacts as sources
 
 The same project, consent screen and OAuth client again. Google still speaks the protocols
 this product already implements — CalDAV for calendars, CardDAV for contacts — so these
@@ -302,7 +302,7 @@ Stated here rather than discovered:
 - **No incremental delta.** Every pass lists every folder. The ledger still makes the second
   pass copy nothing — it costs a listing, not a re-copy. (Drive's `changes.list` reports the
   whole drive, and using it per folder would reproduce a defect this product has already paid
-  for once; workplan 0042 T1.)
+  for once.)
 - **Deletions are never taken from Drive's `removed` signal.** Google sets it for losing
   access and for sharing changes, which are not deletions, and this product treats a reported
   removal as *known* rather than suspected — so a Drive source still reports none of those.
@@ -310,7 +310,6 @@ Stated here rather than discovered:
   performed, reported at once with positive evidence, and the Deletions queue may offer
   removing the target's copy on it. An emptied bin falls back to absence-counting.
 - **A moved or renamed file leaves the old copy on the target.** It is detected and reported;
-  making the target follow it is [ADR-0030](./adr/0030-relocation-is-positive-evidence.md),
-  which is proposed and not yet decided.
+  making the target follow it is an action you approve per file, from the Moves queue.
 - **Two files with the same name in the same folder cannot both be migrated.** The natural key
   is the path, and the ledger's unique index on it makes that a hard stop, not a setting.

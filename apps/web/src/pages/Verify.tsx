@@ -29,6 +29,7 @@ import { useT, useFormatters } from '../i18n';
 import { isSelfHost } from '../services/edition';
 import MappingHubLink from '../components/MappingHubLink';
 import type { StringKey } from '../i18n';
+import { serverMessage } from '../services/api';
 
 // The status WORD (PASS/FAIL/…) stays the server's vocabulary; the hover help
 // is client prose and translates (workplan 0024 T2).
@@ -269,7 +270,7 @@ const Verify: React.FC = () => {
         stopPolling();
         setState({
           kind: 'error',
-          message: err instanceof Error ? err.message : t('verify.didNotStart'),
+          message: serverMessage(err),
         });
       });
   };

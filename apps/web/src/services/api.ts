@@ -77,8 +77,20 @@ export function serverMessage(err: unknown): string {
   if (axios.isAxiosError(err)) {
     const data: unknown = err.response?.data;
     if (data && typeof data === 'object') {
-      const d = data as { message?: unknown; error?: unknown; details?: unknown };
+      const d = data as {
+        message?: unknown;
+        reason?: unknown;
+        error?: unknown;
+        details?: unknown;
+      };
       if (typeof d.message === 'string' && d.message) return d.message;
+      // `reason` is the OTHER shape this API answers with — 24 routes use it
+      // where 44 use `message`, and the connections routes are all in the first
+      // group. Without this the delete-in-use refusal renders as the bare code
+      // 'in_use' (it falls through to `error` below), which is how a sentence
+      // naming the migrations that block the delete became a word nobody can
+      // act on. Found on a phone, in Dutch, by the owner (workplan 0068).
+      if (typeof d.reason === 'string' && d.reason) return d.reason;
       // Zod refusals from routes that answer `{error, details}` without a
       // message: the sentences the schema wrote live on the issues. Showing
       // only the label 'Validation error' would discard exactly the words the

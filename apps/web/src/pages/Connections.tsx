@@ -29,6 +29,7 @@ import {
   type TestConnectionResult,
 } from '../services/mapping-service';
 import { useT, useFormatters, type StringKey } from '../i18n';
+import { serverMessage } from '../services/api';
 
 const StatusIcon: React.FC<{ status: ConnectionSummary['status'] }> = ({ status }) => {
   if (status === 'connected') return <CheckCircle2 className="w-4 h-4 text-green-600" />;
@@ -63,7 +64,7 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
       await connectionsApi.remove(connection.id);
       onChanged();
     } catch (err) {
-      setResult({ ok: false, reason: err instanceof Error ? err.message : String(err) });
+      setResult({ ok: false, reason: serverMessage(err) });
     } finally {
       setTesting(false);
     }
@@ -81,7 +82,7 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
         onChanged();
       }
     } catch (err) {
-      setResult({ ok: false, reason: err instanceof Error ? err.message : String(err) });
+      setResult({ ok: false, reason: serverMessage(err) });
     } finally {
       setTesting(false);
     }
@@ -93,7 +94,7 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
     try {
       setResult(await connectionsApi.test(connection.id));
     } catch (err) {
-      setResult({ ok: false, reason: err instanceof Error ? err.message : String(err) });
+      setResult({ ok: false, reason: serverMessage(err) });
     } finally {
       setTesting(false);
     }
@@ -112,7 +113,10 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
         </span>
         <span className="text-xs text-gray-400">{relativeToNow(connection.createdAt)}</span>
 
-        <div className="ml-auto flex items-center gap-3">
+        {/* wrap, and only push right once there is room to (workplan 0068):
+            on a phone these four actions overflowed the card horizontally and
+            the last one sat off-screen. */}
+        <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center gap-2 sm:gap-3">
           {/* The prerequisites for this provider, in case the answer is
               "somebody has to re-authorise the app". */}
           <Link
@@ -224,7 +228,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
       // keeping while somebody chases an administrator.
       onAdded();
     } catch (err) {
-      setResult({ ok: false, reason: err instanceof Error ? err.message : String(err) });
+      setResult({ ok: false, reason: serverMessage(err) });
     } finally {
       setBusy(false);
     }
@@ -364,7 +368,7 @@ const Connections: React.FC = () => {
   });
 
   if (isLoading) return <div className="p-6 text-gray-500">{t('common.loading')}</div>;
-  if (error) return <div className="p-6 text-red-700">{String(error)}</div>;
+  if (error) return <div className="p-6 text-red-700">{serverMessage(error)}</div>;
 
   const sources = (data ?? []).filter((c) => c.role === 'source');
   const targets = (data ?? []).filter((c) => c.role === 'target');

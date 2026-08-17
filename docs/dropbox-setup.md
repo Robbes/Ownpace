@@ -1,6 +1,6 @@
 # Dropbox setup — the app, the consent, the three values
 
-A Dropbox migration (workplan 0055) authenticates with **your own Dropbox app** and a
+A Dropbox migration authenticates with **your own Dropbox app** and a
 refresh token consented by the account being migrated. Read-only by construction: create
 the app with only the read scopes and this product could not write to the Dropbox even if
 it wanted to — an enforced guarantee, not a promise in a document.
@@ -64,5 +64,5 @@ exactly what a pass would build.
 
 Sharing state, file requests, Paper docs and version history stay behind —
 `docs/feature-matrix.md` carries the full per-type picture. Deletions are detected by
-absence-counting (two clean passes); a Dropbox "rewind"/deleted-entry read is future work,
-recorded in workplan 0055.
+absence-counting (two clean passes); a Dropbox "rewind"/deleted-entry read is not
+yet supported.

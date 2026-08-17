@@ -453,13 +453,24 @@ router.delete('/:id', authenticate, async (req: AuthenticatedRequest, res: Respo
       return void res.status(404).json({ error: 'not_found', reason: 'No such connection.' });
     }
     if (outcome.status === 409) {
+      // The refusal has to answer three questions, because the owner testing
+      // this on a phone got only a 409 and asked all three (workplan 0068):
+      // WHY it is refused, WHAT to do first, and WHERE to do it. Naming the
+      // migrations matters more than counting the mailboxes — "3 mailboxes" is
+      // a number, "Acme mail" is something a person can go and act on.
+      const named =
+        outcome.names.length > 0
+          ? outcome.names.map((n) => `“${n}”`).join(', ')
+          : `${outcome.used} ${outcome.used === 1 ? 'mailbox' : 'mailboxes'}`;
       return void res.status(409).json({
         error: 'in_use',
         reason:
-          `${outcome.used} mailbox(es) still use this connection` +
-          (outcome.names.length > 0 ? ` (${outcome.names.join(', ')})` : '') +
-          '. Deleting it would take their migration history with it, so remove those ' +
-          'migrations first.',
+          `This connection is still used by ${named}. It is kept rather than deleted ` +
+          `because removing it would also delete everything already recorded about those ` +
+          `migrations — what has been copied, and what has not — and the next run would ` +
+          `start again from nothing. To delete it, first remove ${
+            outcome.names.length === 1 ? 'that migration' : 'those migrations'
+          } under Migrations, then come back here.`,
       });
     }
     res.status(204).end();

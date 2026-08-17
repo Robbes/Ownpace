@@ -161,6 +161,45 @@ const isValidPort = (raw: string): boolean => {
   return n >= 1 && n <= 65535;
 };
 
+/**
+ * What to forget when the source provider changes (workplan 0068).
+ *
+ * The per-provider inputs share form fields underneath — Box's client id and
+ * Dropbox's "App key" are both `sourceClientId` — so switching provider used to
+ * carry the old value across and present it under the new provider's label. The
+ * owner found it by typing a Box client id and then seeing it waiting in
+ * Dropbox's App-sleutel field.
+ *
+ * `sourceConnectionId` is the one that matters beyond tidiness. The picker only
+ * OFFERS connections whose kind matches the selected type, but a stored id
+ * survived a provider switch, and the create route verifies a reused
+ * connection's tenant and role — not its kind. So choosing a Box connection and
+ * then switching to Dropbox could submit a Box connection for a Dropbox mapping.
+ * Clearing it here closes that; the route ought to check kind too, which is
+ * noted in the workplan rather than fixed blind.
+ *
+ * Deliberately NOT cleared: `name`, `sourceUsername`, the domains and the
+ * schedule. Those are answers about this migration that survive a change of
+ * provider, and re-typing them is the annoyance this function exists to reduce.
+ */
+function clearedSourceFields(prev: FormData, next: string): Partial<FormData> {
+  if (prev.sourceType === next) return {};
+  return {
+    sourceHost: '',
+    sourcePort: '993',
+    sourcePassword: '',
+    sourceTenantId: '',
+    sourceClientId: '',
+    sourceClientSecret: '',
+    sourceRefreshToken: '',
+    sourceServiceAccountKey: '',
+    sourceRootFolderId: '',
+    sourceRootPath: '',
+    sourceBoxUserId: '',
+    sourceConnectionId: '',
+  };
+}
+
 /** The red asterisk beside a gating field's label (0037 T3). */
 const Required: React.FC = () => (
   <span className="text-red-500" aria-hidden="true">
@@ -714,6 +753,7 @@ const CreateMapping: React.FC = () => {
                       type.id === 'google-drive' || type.id === 'dropbox' || type.id === 'box'
                         ? setFormData((prev) => ({
                             ...prev,
+                            ...clearedSourceFields(prev, type.id),
                             sourceType: type.id,
                             domains: ['file'],
                             targetType:
@@ -724,6 +764,7 @@ const CreateMapping: React.FC = () => {
                         : type.id === 'gmail'
                           ? setFormData((prev) => ({
                               ...prev,
+                              ...clearedSourceFields(prev, type.id),
                               sourceType: type.id,
                               domains: ['email'],
                               targetType:
@@ -734,6 +775,7 @@ const CreateMapping: React.FC = () => {
                           : type.id === 'google-calendar'
                             ? setFormData((prev) => ({
                                 ...prev,
+                                ...clearedSourceFields(prev, type.id),
                                 sourceType: type.id,
                                 domains: ['calendar'],
                                 // The one calendar-capable target (JMAP calendar
@@ -743,6 +785,7 @@ const CreateMapping: React.FC = () => {
                             : type.id === 'google-contacts'
                               ? setFormData((prev) => ({
                                   ...prev,
+                                  ...clearedSourceFields(prev, type.id),
                                   sourceType: type.id,
                                   domains: ['contact'],
                                   targetType:
@@ -750,7 +793,7 @@ const CreateMapping: React.FC = () => {
                                       ? prev.targetType
                                       : 'carddav',
                                 }))
-                              : updateField('sourceType', type.id)
+                              : setFormData((prev) => ({ ...prev, ...clearedSourceFields(prev, type.id), sourceType: type.id }))
                     }
                     className={`p-4 border-2 rounded-lg text-left transition-colors ${
                       formData.sourceType === type.id

@@ -1,6 +1,6 @@
 # Box setup — the app, the authorization, the three values
 
-A Box migration (workplan 0056) authenticates with **your own Box platform app** using the
+A Box migration authenticates with **your own Box platform app** using the
 **Client Credentials Grant** — client id + client secret, plus the numeric **user id** of
 the account being migrated (one subject per mapping).
 
@@ -68,7 +68,7 @@ folder id to migrate just it.
 Each pass reads the account's trash (`/folders/trash/items`, read-only). An item the
 owner deleted is found where they put it, which is **positive** deletion evidence — the
 only kind that may gate removing the target's copy. Absence alone is never enough
-(ADR-0024), so with no trash the Deletions queue can only tell the owner what to delete
+by design, so with no trash the Deletions queue can only tell the owner what to delete
 by hand.
 
 Two enterprise settings therefore change what the owner can do, not just what they see:

@@ -34,6 +34,7 @@ import SharedAddresses from '../components/confirm/SharedAddresses';
 import LiveProgress from '../components/LiveProgress';
 import MappingHubLink from '../components/MappingHubLink';
 import StateChip from '../components/StateChip';
+import { serverMessage } from '../services/api';
 import {
   fetchAllDiscovery,
   fetchScopeManifest,
@@ -98,7 +99,7 @@ const Confirm: React.FC = () => {
         <div>
           <p className="font-medium">{t('confirm.readError')}</p>
           <p className="mt-1">
-            {status.error instanceof Error ? status.error.message : String(status.error)}
+            {serverMessage(status.error)}
           </p>
         </div>
       </div>
@@ -222,7 +223,7 @@ const Confirm: React.FC = () => {
               {start.isError && start.variables === m.mappingId && (
                 <p className="mt-2 text-sm text-red-700" role="alert">
                   {t('confirm.startError')}{' '}
-                  {start.error instanceof Error ? start.error.message : t('confirm.startErrorFallback')}
+                  {serverMessage(start.error)}
                 </p>
               )}
             </div>

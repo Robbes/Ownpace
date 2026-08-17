@@ -7,6 +7,7 @@
  */
 
 import { Router } from 'express';
+import { randomUUID } from 'node:crypto';
 import type { Response } from 'express';
 import { z } from 'zod';
 import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth';
@@ -1071,9 +1072,14 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       const reuseConnection = async (
         id: string,
         role: 'source' | 'target',
+        wantKind: string,
       ): Promise<{ id: string }> => {
         const rows = await db
-          .select({ id: schema.connection.id, role: schema.connection.role })
+          .select({
+            id: schema.connection.id,
+            role: schema.connection.role,
+            kind: schema.connection.kind,
+          })
           .from(schema.connection)
           .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId)));
         const found = rows[0];
@@ -1085,11 +1091,25 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
             `Connection ${id} is a ${found.role}, so it cannot be used as the ${role}.`,
           );
         }
+        // The KIND has to match too (workplan 0068). The wizard's picker only
+        // offers connections of the selected type, so this looked unreachable —
+        // but the selected type can CHANGE after a connection is picked, and
+        // the id rode along. A Box connection accepted for a Dropbox mapping
+        // would then be handed to the Dropbox factory, which would fail at the
+        // first request with a credential-shaped error rather than a refusal
+        // anybody could act on. The client now clears the id on a provider
+        // switch; this is the half that does not depend on the client.
+        if (found.kind !== wantKind) {
+          throw new ConfigError(
+            `Connection ${id} is a '${found.kind}' connection, so it cannot be used for a ` +
+              `'${wantKind}' ${role}. Pick a ${wantKind} connection, or enter new credentials.`,
+          );
+        }
         return { id: found.id };
       };
 
       const sourceConn = body.sourceConnectionId
-        ? await reuseConnection(body.sourceConnectionId, 'source')
+        ? await reuseConnection(body.sourceConnectionId, 'source', sourceKindFor(body.sourceType))
         : firstOrThrow(
             await db
               .insert(schema.connection)
@@ -1106,7 +1126,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
           );
 
       const targetConn = body.targetConnectionId
-        ? await reuseConnection(body.targetConnectionId, 'target')
+        ? await reuseConnection(body.targetConnectionId, 'target', body.targetType)
         : firstOrThrow(
             await db
               .insert(schema.connection)
@@ -1209,10 +1229,19 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         details: error.issues,
       });
     } else {
-      log.error('Error creating mapping:', error);
+      // A 500 is a BUG, not a refusal, so its internals must not reach a
+      // browser — a driver error can carry a connection string. But "Failed to
+      // create mapping" alone left the owner with no way to get from a red box
+      // on a phone to the cause, which is sitting in the log two metres away
+      // (workplan 0068). So the log line and the response now share a short
+      // reference: the message stays safe, and quoting it finds the stack.
+      const ref = randomUUID().slice(0, 8);
+      log.error(`Error creating mapping [ref ${ref}]:`, error);
       res.status(500).json({
         error: 'Internal server error',
-        message: 'Failed to create mapping',
+        message:
+          `Something went wrong creating this migration — this is a fault on our side, ` +
+          `not something your input caused. Reference ${ref}; quoting it finds the detail in the server log.`,
       });
     }
   }
