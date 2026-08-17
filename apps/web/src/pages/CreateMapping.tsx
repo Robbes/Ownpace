@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useT, useFormatters } from '../i18n';
 import type { StringKey } from '../i18n';
 import { useNavigate, Link } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   ArrowRight,
@@ -26,6 +26,7 @@ import {
   sourceDomainRefusal,
   targetDomainRefusal,
   describeCronScheduleProblem,
+  credentialFieldsFor,
 } from '@openmig/shared';
 // The SAME cron library — same pinned version — the managed tick evaluates
 // schedules with, so the "next syncs" echo below cannot disagree with what
@@ -238,12 +239,81 @@ const ConnectionPicker: React.FC<{
   );
 };
 
+/**
+ * The half of the wizard that is safe to remember (workplan 0069).
+ *
+ * The credentials are now kept as a stored CONNECTION once they test — see
+ * `runProbes` — which leaves the cheap half: a name, which accounts, the
+ * domains and a schedule. Those are seconds to retype and worth nothing to an
+ * attacker, so they survive a navigation in `sessionStorage`.
+ *
+ * **The secrets are deliberately absent from this list, and that is the point.**
+ * Writing a half-typed client secret or mailbox password into web storage would
+ * hand every script on the page a credential the product otherwise only ever
+ * holds encrypted, server-side. `sessionStorage` also dies with the tab, so an
+ * abandoned draft does not outlive the sitting.
+ */
+const DRAFT_KEY = 'wizard.draft.v1';
+const DRAFT_FIELDS = [
+  'name',
+  'sourceType',
+  'targetType',
+  'sourceUsername',
+  'targetUsername',
+  'sourceConnectionId',
+  'targetConnectionId',
+  'sourceHost',
+  'sourcePort',
+  'sourceRootFolderId',
+  'sourceRootPath',
+  'sourceBoxUserId',
+  'sourceTenantId',
+  'targetHost',
+  'targetPort',
+  'targetFolderPrefix',
+  'domains',
+  'schedule',
+] as const;
+
+function restoreDraft(): FormData {
+  try {
+    const raw = globalThis.sessionStorage?.getItem(DRAFT_KEY);
+    if (!raw) return initialFormData;
+    const saved = JSON.parse(raw) as Partial<FormData>;
+    const picked = Object.fromEntries(
+      DRAFT_FIELDS.filter((k) => saved[k] !== undefined).map((k) => [k, saved[k]]),
+    );
+    return { ...initialFormData, ...picked };
+  } catch {
+    // A malformed draft is not worth a broken wizard.
+    return initialFormData;
+  }
+}
+
+function saveDraft(form: FormData): void {
+  try {
+    const picked = Object.fromEntries(DRAFT_FIELDS.map((k) => [k, form[k]]));
+    globalThis.sessionStorage?.setItem(DRAFT_KEY, JSON.stringify(picked));
+  } catch {
+    // Private mode, quota, no storage at all — the wizard still works.
+  }
+}
+
+export function clearDraft(): void {
+  try {
+    globalThis.sessionStorage?.removeItem(DRAFT_KEY);
+  } catch {
+    /* nothing to clear */
+  }
+}
+
 const CreateMapping: React.FC = () => {
   const t = useT();
   const { dateTime } = useFormatters();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [currentStep, setCurrentStep] = useState(0);
-  const [formData, setFormData] = useState<FormData>(initialFormData);
+  const [formData, setFormData] = useState<FormData>(restoreDraft);
   const [showSourcePassword, setShowSourcePassword] = useState(false);
   const [showTargetPassword, setShowTargetPassword] = useState(false);
 
@@ -254,9 +324,18 @@ const CreateMapping: React.FC = () => {
     // stranded the paused mapping. Navigating gives the green light an
     // address that survives the wizard.
     onSuccess: (mapping: { id: string }) => {
+      // The draft has become a migration; keeping it would re-seed the next
+      // wizard with the last one's name and schedule.
+      clearDraft();
       navigate(`/mappings/${mapping.id}/confirm`);
     },
   });
+
+  // Remember the safe half as it is typed (workplan 0069). Cheap to write, and
+  // it means a navigation costs a name and a schedule rather than everything.
+  React.useEffect(() => {
+    saveDraft(formData);
+  }, [formData]);
 
   // Leaving a dirty wizard is a question, not a silent discard (0037 T5).
   // All wizard state is plain useState, so refresh/close throws away six
@@ -468,27 +547,126 @@ const CreateMapping: React.FC = () => {
     source?: TestConnectionResult;
     target?: TestConnectionResult;
   }>({});
+  /**
+   * A side's typed credentials, keyed the way the shared descriptor keys them
+   * (workplan 0069). The wizard's form fields are prefixed by side; the
+   * descriptor is not, so this is the one place the two vocabularies meet.
+   */
+  const credentialValuesFor = (role: 'source' | 'target'): Record<string, string> => {
+    const from: Record<string, string> =
+      role === 'source'
+        ? {
+            username: formData.sourceUsername,
+            password: formData.sourcePassword,
+            host: formData.sourceHost,
+            port: formData.sourcePort,
+            tenantId: formData.sourceTenantId,
+            clientId: formData.sourceClientId,
+            clientSecret: formData.sourceClientSecret,
+            refreshToken: formData.sourceRefreshToken,
+            serviceAccountKey: formData.sourceServiceAccountKey,
+            rootFolderId: formData.sourceRootFolderId,
+            rootPath: formData.sourceRootPath,
+            userId: formData.sourceBoxUserId,
+          }
+        : {
+            username: formData.targetUsername,
+            password: formData.targetPassword,
+            host: formData.targetHost,
+            port: formData.targetPort,
+          };
+    // Only what this provider actually asks for, and only what was filled in:
+    // posting an empty optional would store "" where the connector expects the
+    // key to be absent.
+    const wanted = credentialFieldsFor(role, role === 'source' ? formData.sourceType : formData.targetType);
+    return Object.fromEntries(
+      wanted.map((f) => [f.key, from[f.key] ?? '']).filter(([, v]) => v !== ''),
+    );
+  };
+
+  /**
+   * Test, and KEEP what works (owner request, workplan 0069).
+   *
+   * The probe used to be transient: it told you the credentials were good and
+   * then threw them away with the rest of the form the moment you navigated
+   * anywhere. Since the expensive half of this wizard is the credentials — and
+   * a connection is already a first-class thing that can be probed, stored and
+   * reused — testing now SAVES. A side that passes becomes a stored connection
+   * and the wizard holds only its id, so leaving and coming back costs you a
+   * name and a schedule instead of another trip to somebody's admin console.
+   *
+   * Retrying rotates the SAME row rather than adding another. The add route
+   * stores a failing credential deliberately (somebody mid-setup waiting on an
+   * admin should not lose it), which without this would leave a trail of broken
+   * connections behind every corrected typo. Rotation also probes before it
+   * replaces, so a worse second attempt cannot destroy a working first one.
+   */
+  const [draftConnection, setDraftConnection] = React.useState<{
+    source?: string;
+    target?: string;
+  }>({});
+
   const runProbes = () => {
     setProbing(true);
     setProbeResults({});
+
+    const saveSide = async (role: 'source' | 'target'): Promise<TestConnectionResult> => {
+      const chosen = role === 'source' ? formData.sourceConnectionId : formData.targetConnectionId;
+      // Already reusing a stored connection: there is nothing of ours to save,
+      // so this is the plain read-only probe it always was.
+      if (chosen) {
+        return role === 'source'
+          ? mappingApi.testConnection({
+              side: 'source',
+              sourceType: formData.sourceType,
+              sourceConfig: builtSourceConfig(),
+            })
+          : mappingApi.testConnection({
+              side: 'target',
+              targetType: formData.targetType,
+              targetConfig: builtTargetConfig(),
+            });
+      }
+
+      const values = credentialValuesFor(role);
+      const type = role === 'source' ? formData.sourceType : formData.targetType;
+      const who = role === 'source' ? formData.sourceUsername : formData.targetUsername;
+      const existing = draftConnection[role];
+
+      if (existing) {
+        const rotated = await connectionsApi.rotate(existing, values);
+        if (rotated.ok) updateField(role === 'source' ? 'sourceConnectionId' : 'targetConnectionId', existing);
+        return rotated;
+      }
+
+      const added = await connectionsApi.add({
+        role,
+        type,
+        // Named for what it connects to, not for a migration that does not
+        // exist yet at this point in the wizard.
+        displayName: who ? `${type} · ${who}` : type,
+        values,
+      });
+      setDraftConnection((d) => ({ ...d, [role]: added.id }));
+      if (added.ok) {
+        updateField(role === 'source' ? 'sourceConnectionId' : 'targetConnectionId', added.id);
+      }
+      return added;
+    };
+
     const asResult = (settled: PromiseSettledResult<TestConnectionResult>): TestConnectionResult =>
       settled.status === 'fulfilled'
         ? settled.value
         : { ok: false, reason: serverMessage(settled.reason) };
-    Promise.allSettled([
-      mappingApi.testConnection({
-        side: 'source',
-        sourceType: formData.sourceType,
-        sourceConfig: builtSourceConfig(),
-      }),
-      mappingApi.testConnection({
-        side: 'target',
-        targetType: formData.targetType,
-        targetConfig: builtTargetConfig(),
-      }),
-    ])
+
+    Promise.allSettled([saveSide('source'), saveSide('target')])
       .then(([src, tgt]) => setProbeResults({ source: asResult(src), target: asResult(tgt) }))
-      .finally(() => setProbing(false));
+      .finally(() => {
+        setProbing(false);
+        // The pickers on steps 1 and 2 read this list; a connection saved here
+        // must appear there if the person walks back.
+        void queryClient.invalidateQueries({ queryKey: ['connections'] });
+      });
   };
 
   const handleBack = () => {

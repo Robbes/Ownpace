@@ -149,11 +149,12 @@ const en = {
   'wizard.noSharedDrives': 'This credential sees no shared drives or shared folders — leaving the root empty migrates My Drive.',
   'wizard.sharedDrivesGroup': 'Shared drives',
   'wizard.sharedFoldersGroup': 'Folders shared with me',
-  'wizard.testConnections': 'Test connections',
+  'wizard.testConnections': 'Test and save connections',
   'wizard.testing': 'Testing…',
   'wizard.testConnections.hint':
-    'Read-only: signs in to both sides with what you typed and lists what it can see. ' +
-    'Nothing is created or written.',
+    'Signs in to both sides with what you typed and lists what it can see — nothing is ' +
+    'written to either system. A side that works is SAVED as a connection, so if you leave ' +
+    'this wizard you will not have to fetch those credentials again.',
   'wizard.proto.jmap.hint': 'Modern email protocol',
   'wizard.proto.caldav.hint': 'Calendar protocol',
   'wizard.proto.carddav.hint': 'Contact protocol',
@@ -1035,11 +1036,13 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.noSharedDrives': 'Deze inloggegevens zien geen gedeelde Drives of gedeelde mappen — een lege hoofdmap migreert Mijn Drive.',
   'wizard.sharedDrivesGroup': 'Gedeelde Drives',
   'wizard.sharedFoldersGroup': 'Met mij gedeelde mappen',
-  'wizard.testConnections': 'Verbindingen testen',
+  'wizard.testConnections': 'Verbindingen testen en bewaren',
   'wizard.testing': 'Testen…',
   'wizard.testConnections.hint':
-    'Alleen-lezen: meldt zich aan beide kanten aan met wat u hebt ingevuld en toont wat ' +
-    'zichtbaar is. Er wordt niets aangemaakt of geschreven.',
+    'Meldt zich aan beide kanten aan met wat u hebt ingevuld en toont wat zichtbaar is — ' +
+    'er wordt niets naar beide systemen geschreven. Een kant die werkt, wordt BEWAARD als ' +
+    'verbinding, zodat u die inloggegevens niet opnieuw hoeft op te halen als u de wizard ' +
+    'verlaat.',
   'wizard.proto.jmap.hint': 'Modern e-mailprotocol',
   'wizard.proto.caldav.hint': 'Agendaprotocol',
   'wizard.proto.carddav.hint': 'Contactenprotocol',

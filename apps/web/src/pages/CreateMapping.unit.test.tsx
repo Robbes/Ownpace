@@ -35,6 +35,14 @@ vi.mock('../services/mapping-service', () => ({
 
 const createMock = vi.mocked(mappingApi.create);
 
+// The wizard now REMEMBERS its non-secret half across mounts (workplan 0069),
+// which is the feature — and which means every test in this file has to start
+// from an empty draft or it inherits whatever the previous one typed. File
+// level rather than per-describe: the draft outlives a describe block too.
+beforeEach(() => {
+  globalThis.sessionStorage.clear();
+});
+
 const renderWizard = () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
