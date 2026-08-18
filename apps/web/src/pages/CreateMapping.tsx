@@ -26,6 +26,7 @@ import {
   targetDomainRefusal,
   describeCronScheduleProblem,
   credentialFieldsFor,
+  type CredentialField,
 } from '@openmig/shared';
 // The SAME cron library — same pinned version — the managed tick evaluates
 // schedules with, so the "next syncs" echo below cannot disagree with what
@@ -76,6 +77,16 @@ interface FormData {
   sourceRootPath: string;
   /** Box (workplan 0056): the NUMERIC user id the CCG token reads for. */
   sourceBoxUserId: string;
+  /**
+   * What to CALL the connection this side saves (workplan 0076).
+   *
+   * Empty means "name it after what it connects to" — the auto-name below.
+   * The owner asked for this at the moment of testing, which is also the
+   * moment they know what it is for; a connection they cannot name is one
+   * they cannot tell apart from the next one later (0069 T7b).
+   */
+  sourceConnectionName: string;
+  targetConnectionName: string;
   /** Reuse a stored connection instead of re-typing its credentials (0064). */
   sourceConnectionId: string;
   targetConnectionId: string;
@@ -107,6 +118,8 @@ const initialFormData: FormData = {
   sourceRootFolderId: '',
   sourceRootPath: '',
   sourceBoxUserId: '',
+  sourceConnectionName: '',
+  targetConnectionName: '',
   sourceConnectionId: '',
   targetConnectionId: '',
   targetHost: '',
@@ -262,6 +275,8 @@ const DRAFT_FIELDS = [
   'targetUsername',
   'sourceConnectionId',
   'targetConnectionId',
+  'sourceConnectionName',
+  'targetConnectionName',
   'sourceHost',
   'sourcePort',
   'sourceRootFolderId',
@@ -609,6 +624,50 @@ const CreateMapping: React.FC = () => {
     target?: string;
   }>({});
 
+  /**
+   * Forget a side's probe result (workplan 0073).
+   *
+   * A result is a statement about ONE credential, and nothing used to retire
+   * it: the green "the credentials still work" from the connection you tested
+   * stayed on screen after you picked a different connection from the picker,
+   * and even after you switched provider entirely. The owner watched a
+   * Dropbox verdict sit above a different source type. That is worse than no
+   * verdict — it is a verdict about something else, and the whole point of
+   * this button is to let somebody trust what it says.
+   *
+   * Called where the SUBJECT changes (provider, or chosen connection), not
+   * from an effect: `runProbe` itself sets `sourceConnectionId` when a probe
+   * saves, and an effect keyed on that would wipe the result it just earned.
+   */
+  const forgetProbe = (side: 'source' | 'target') =>
+    setProbeResults((prev) => ({ ...prev, [side]: undefined }));
+
+  /** What this side will be saved as: what was typed, else what it connects to. */
+  const connectionNameFor = (role: 'source' | 'target'): string => {
+    const typed = (role === 'source' ? formData.sourceConnectionName : formData.targetConnectionName).trim();
+    if (typed) return typed;
+    const type = role === 'source' ? formData.sourceType : formData.targetType;
+    const who = role === 'source' ? formData.sourceUsername : formData.targetUsername;
+    return who ? `${type} · ${who}` : type;
+  };
+
+  /**
+   * Is that name already taken? (workplan 0076.)
+   *
+   * A WARNING, not a refusal. Two connections may legitimately share a name —
+   * nothing keys off it — but the owner met two called `dropbox · anna@…` and
+   * said it plainly: *that is asking for issues*. A name exists to tell things
+   * apart, so a collision is worth saying at the moment it is created rather
+   * than discovering it in a picker a week later. Blocking the save would be
+   * friction at the worst possible moment: you have just proved a credential.
+   */
+  const connectionNameTaken = (role: 'source' | 'target'): boolean => {
+    const chosen = role === 'source' ? formData.sourceConnectionId : formData.targetConnectionId;
+    if (chosen) return false;
+    const name = connectionNameFor(role);
+    return (existingConnections ?? []).some((c) => c.role === role && c.displayName === name);
+  };
+
   const runProbe = (only?: 'source' | 'target') => {
     setProbing(true);
 
@@ -637,7 +696,6 @@ const CreateMapping: React.FC = () => {
 
       const values = credentialValuesFor(role);
       const type = role === 'source' ? formData.sourceType : formData.targetType;
-      const who = role === 'source' ? formData.sourceUsername : formData.targetUsername;
       const existing = draftConnection[role];
 
       if (existing) {
@@ -649,9 +707,10 @@ const CreateMapping: React.FC = () => {
       const added = await connectionsApi.add({
         role,
         type,
-        // Named for what it connects to, not for a migration that does not
-        // exist yet at this point in the wizard.
-        displayName: who ? `${type} · ${who}` : type,
+        // What the person called it, or — failing that — what it connects to.
+        // Never the migration's name: the migration does not exist yet at this
+        // point in the wizard, and the connection outlives it anyway.
+        displayName: connectionNameFor(role),
         values,
       });
       setDraftConnection((d) => ({ ...d, [role]: added.id }));
@@ -897,263 +956,289 @@ const CreateMapping: React.FC = () => {
    * Each side is now self-contained — pick a provider, enter its credentials,
    * test, saved — and what remains is one step to finalise between the two.
    */
-  const renderSourceCredentials = () =>
-    formData.sourceConnectionId ? null : (
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h4 className="font-medium text-blue-900 mb-2">{t('wizard.credentials')}</h4>
-        <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.sourceUsername')}
-                    <Required />
-                  </label>
-                  {/* autocomplete says what these fields ARE (0037 T3): the
-                      bare inputs invited the browser to autofill the admin's
-                      OWN login into the source mailbox's password field. */}
-                  <input
-                    type="text"
-                    required
-                    autoComplete="username"
-                    value={formData.sourceUsername}
-                    onChange={(e) => updateField('sourceUsername', e.target.value)}
-                    className="input w-full"
-                    placeholder="user@example.com"
-                  />
-                </div>
+  /**
+   * Which form field each descriptor key writes to. The descriptor is not
+   * prefixed by side and this form is — this is the one place the two
+   * vocabularies meet for the SOURCE, exactly as `credentialValuesFor` is for
+   * the probe payload.
+   */
+  const TARGET_FORM_FIELD: Readonly<Record<string, keyof FormData>> = {
+    host: 'targetHost',
+    port: 'targetPort',
+    username: 'targetUsername',
+    password: 'targetPassword',
+  };
 
-                {/* Hidden when a stored connection is supplying the
-                    credentials — anything typed here would be ignored, and a
-                    field that is ignored is worse than one that is absent. */}
-                {!formData.sourceConnectionId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {/* For oauth2/graph the secret beside the mailbox is the
-                        app registration's CLIENT SECRET (0037 T6), not a
-                        mailbox password — labeled as what it is, and required:
-                        without it the client-credentials flow cannot mint a
-                        single token. */}
-                    {isO365Source || isGoogleSource || isBoxSource
-                      ? t('wizard.sourceClientSecret')
-                      : t('wizard.sourcePassword')}
-                    {(isO365Source || isGoogleSource || isBoxSource) && <Required />}
-                  </label>
+  const SOURCE_FORM_FIELD: Readonly<Record<string, keyof FormData>> = {
+    username: 'sourceUsername',
+    password: 'sourcePassword',
+    host: 'sourceHost',
+    port: 'sourcePort',
+    tenantId: 'sourceTenantId',
+    clientId: 'sourceClientId',
+    clientSecret: 'sourceClientSecret',
+    refreshToken: 'sourceRefreshToken',
+    serviceAccountKey: 'sourceServiceAccountKey',
+    rootFolderId: 'sourceRootFolderId',
+    rootPath: 'sourceRootPath',
+    userId: 'sourceBoxUserId',
+  };
+
+  /**
+   * Does this field gate Next RIGHT NOW? (workplan 0075 T2.)
+   *
+   * The red asterisk used to be written by hand beside each input, and for the
+   * Google sources it lied: Client ID and Refresh token were marked required
+   * unconditionally, while `sideStepMissing` stops requiring them the moment a
+   * service-account key is pasted (ADR-0033's either-flow). Same condition,
+   * one place, so a marker cannot disagree with the gate it claims to explain.
+   */
+  const sourceFieldRequiredNow = (field: CredentialField): boolean => {
+    if (isGoogleSource && ['clientId', 'clientSecret', 'refreshToken'].includes(field.key)) {
+      return formData.sourceServiceAccountKey.trim() === '';
+    }
+    return field.required === true;
+  };
+
+  /** The shared-drive browse (0049), anchored to the field it fills. */
+  const renderDriveBrowse = () => (
+    <div>
+      <button
+        type="button"
+        onClick={browseSharedDrives}
+        disabled={
+          browsing ||
+          !formData.sourceClientId ||
+          !formData.sourceClientSecret ||
+          !formData.sourceRefreshToken
+        }
+        className="text-sm text-blue-700 hover:underline disabled:opacity-50"
+      >
+        {browsing ? t('wizard.testing') : t('wizard.browseSharedDrives')}
+      </button>
+      {sharedDrivesError && (
+        <p className="mt-1 text-sm text-amber-800">{sharedDrivesError}</p>
+      )}
+      {sharedDrives &&
+        sharedDrives.length === 0 &&
+        sharedFolders &&
+        sharedFolders.length === 0 && (
+          <p className="mt-1 text-sm text-gray-500">
+            {t('wizard.noSharedDrives')}
+          </p>
+        )}
+      {((sharedDrives?.length ?? 0) > 0 || (sharedFolders?.length ?? 0) > 0) && (
+        <select
+          className="input w-full mt-2"
+          value={formData.sourceRootFolderId}
+          onChange={(e) => updateField('sourceRootFolderId', e.target.value)}
+        >
+          <option value="">{t('wizard.review.myDrive')}</option>
+          {sharedDrives && sharedDrives.length > 0 && (
+            <optgroup label={t('wizard.sharedDrivesGroup')}>
+              {sharedDrives.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {sharedFolders && sharedFolders.length > 0 && (
+            <optgroup label={t('wizard.sharedFoldersGroup')}>
+              {/* The owner disambiguates two shares named alike. */}
+              {sharedFolders.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.owner ? `${f.name} — ${f.owner}` : f.name}
+                </option>
+              ))}
+            </optgroup>
+          )}
+        </select>
+      )}
+    </div>
+  );
+
+  /** Dropbox's shared-folder browse (0055 follow-up), likewise. */
+  const renderDropboxBrowse = () => (
+    <div>
+      <button
+        type="button"
+        onClick={browseDropboxFolders}
+        disabled={
+          browsing ||
+          !formData.sourceClientId ||
+          !formData.sourceClientSecret ||
+          !formData.sourceRefreshToken
+        }
+        className="text-sm text-blue-700 hover:underline disabled:opacity-50"
+      >
+        {browsing ? t('wizard.testing') : t('wizard.browseDropboxFolders')}
+      </button>
+      {dropboxFoldersError && (
+        <p className="mt-1 text-sm text-amber-800">{dropboxFoldersError}</p>
+      )}
+      {dropboxFolders && dropboxFolders.length === 0 && (
+        <p className="mt-1 text-sm text-gray-500">
+          {t('wizard.noDropboxSharedFolders')}
+        </p>
+      )}
+      {dropboxFolders && dropboxFolders.length > 0 && (
+        <select
+          className="input w-full mt-2"
+          value={formData.sourceRootPath}
+          onChange={(e) => updateField('sourceRootPath', e.target.value)}
+        >
+          <option value="">{t('wizard.review.wholeDropbox')}</option>
+          {dropboxFolders.map((f) => (
+            <option key={f.id} value={f.path ?? ''} disabled={!f.path}>
+              {f.path ? f.name : `${f.name} — ${t('wizard.dropboxUnmounted')}`}
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+
+  /**
+   * The source's fields, in the ONE order the descriptor declares (0075 T1).
+   *
+   * This was two things: a hand-written block per provider holding its config,
+   * and a shared blue "Credentials" panel bolted on after it holding the
+   * account, the secret and the refresh token. Workplan 0070 moved that panel
+   * onto the step that owns it and stopped there — so on a Drive source the
+   * order a person met was Client ID, root folder, service-account key, and
+   * only THEN the account, client secret and refresh token. **The three values
+   * that come from one page of the Google console were separated by two fields
+   * belonging to neither.** The owner reported it three rounds running.
+   *
+   * `credential-fields.ts` has declared the right order since 0063 and this
+   * file never read it. Now it does, which also means a provider gains a field
+   * in one place instead of four, and the Connections page and the wizard can
+   * no longer disagree about what Dropbox asks for.
+   */
+  const renderSideFields = (side: 'source' | 'target') => {
+    const isSource = side === 'source';
+    const chosen = isSource ? formData.sourceConnectionId : formData.targetConnectionId;
+    const reveal = isSource ? showSourcePassword : showTargetPassword;
+    const setReveal = isSource ? setShowSourcePassword : setShowTargetPassword;
+    const fields = credentialFieldsFor(
+      side,
+      isSource ? formData.sourceType : formData.targetType,
+    );
+    return (
+      <div className="space-y-4">
+        {fields.map((field) => {
+          // A stored connection answers everything except THIS mapping's own
+          // question — whose files, and from which folder (0066 T4a).
+          if (chosen && !field.perMapping) return null;
+          const formKey = isSource ? SOURCE_FORM_FIELD[field.key] : TARGET_FORM_FIELD[field.key];
+          if (!formKey) return null;
+          const value = String(formData[formKey] ?? '');
+          const placeholder =
+            field.placeholder ??
+            (field.placeholderKey ? t(field.placeholderKey as StringKey) : undefined);
+          const set = (v: string) => updateField(formKey, v);
+          /**
+           * A label a screen reader can actually attach to its box
+           * (workplan 0068 T10, finally cheap).
+           *
+           * The wizard's inputs had no `htmlFor`/`id` pair, so a screen
+           * reader read roughly thirty unlabelled boxes and the fix was
+           * logged as "~30 mechanical edits, deserves its own change". After
+           * 0075 there is one input in this file instead of thirty, so it is
+           * four lines. That is the compounding return on deleting the
+           * duplication rather than editing every copy of it.
+           */
+          const id = `${side}-${field.key}`;
+          return (
+            <React.Fragment key={field.key}>
+              {isSource && field.key === 'rootFolderId' && isDriveSource && renderDriveBrowse()}
+              {isSource && field.key === 'rootPath' && isDropboxSource && renderDropboxBrowse()}
+              <div>
+                <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
+                  {t(field.labelKey as StringKey)}
+                  {(isSource ? sourceFieldRequiredNow(field) : field.required === true) && <Required />}
+                </label>
+                {field.multiline ? (
+                  <textarea
+                    id={id}
+                    value={value}
+                    onChange={(e) => set(e.target.value)}
+                    className="input w-full font-mono text-xs"
+                    rows={4}
+                    placeholder={placeholder}
+                  />
+                ) : field.revealable ? (
                   <div className="relative">
                     <input
-                      type={showSourcePassword ? 'text' : 'password'}
-                      autoComplete="new-password"
-                      value={
-                        isO365Source || isGoogleSource || isBoxSource
-                          ? formData.sourceClientSecret
-                          : formData.sourcePassword
-                      }
-                      onChange={(e) =>
-                        updateField(
-                          isO365Source || isGoogleSource || isBoxSource
-                            ? 'sourceClientSecret'
-                            : 'sourcePassword',
-                          e.target.value,
-                        )
-                      }
+                      id={id}
+                      type={reveal ? 'text' : 'password'}
+                      autoComplete={field.autoComplete}
+                      value={value}
+                      onChange={(e) => set(e.target.value)}
                       className="input w-full pr-10"
-                      placeholder="••••••••"
+                      placeholder={placeholder}
                     />
                     <button
                       type="button"
-                      onClick={() => setShowSourcePassword((v) => !v)}
+                      onClick={() => setReveal((v) => !v)}
                       className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
-                      aria-label={t(showSourcePassword ? 'wizard.hidePassword' : 'wizard.showPassword')}
+                      aria-label={t(reveal ? 'wizard.hidePassword' : 'wizard.showPassword')}
                     >
-                      {showSourcePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {reveal ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                </div>
-
-                )}
-
-                {isGoogleSource && !formData.sourceConnectionId && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {t('wizard.refreshToken')}
-                      <Required />
-                    </label>
-                    {/* A password in every way that matters: it grants read
-                        access to that Drive until revoked. Rendered masked,
-                        never echoed back by the API. */}
-                    <input
-                      type="password"
-                      required
-                      autoComplete="off"
-                      value={formData.sourceRefreshToken}
-                      onChange={(e) => updateField('sourceRefreshToken', e.target.value)}
-                      className="input w-full"
-                      placeholder="1//…"
-                    />
-                    <p className="mt-1 text-sm text-gray-500">{t('wizard.refreshToken.hint')}</p>
-                  </div>
-                )}
-
-                {/* Workplan 0049: once the three values above are typed, the
-                    shared drives they can see are one click away — and picking
-                    one fills rootFolderId, the field an operator otherwise
-                    fetches from the admin console by hand. Drive only: the
-                    other Google sources have no root to choose. */}
-                {isDriveSource && (
-                  <div>
-                    <button
-                      type="button"
-                      onClick={browseSharedDrives}
-                      disabled={
-                        browsing ||
-                        !formData.sourceClientId ||
-                        !formData.sourceClientSecret ||
-                        !formData.sourceRefreshToken
-                      }
-                      className="text-sm text-blue-700 hover:underline disabled:opacity-50"
-                    >
-                      {browsing ? t('wizard.testing') : t('wizard.browseSharedDrives')}
-                    </button>
-                    {sharedDrivesError && (
-                      <p className="mt-1 text-sm text-amber-800">{sharedDrivesError}</p>
-                    )}
-                    {sharedDrives &&
-                      sharedDrives.length === 0 &&
-                      sharedFolders &&
-                      sharedFolders.length === 0 && (
-                        <p className="mt-1 text-sm text-gray-500">
-                          {t('wizard.noSharedDrives')}
-                        </p>
-                      )}
-                    {((sharedDrives?.length ?? 0) > 0 || (sharedFolders?.length ?? 0) > 0) && (
-                      <select
-                        className="input w-full mt-2"
-                        value={formData.sourceRootFolderId}
-                        onChange={(e) => updateField('sourceRootFolderId', e.target.value)}
-                      >
-                        <option value="">{t('wizard.review.myDrive')}</option>
-                        {sharedDrives && sharedDrives.length > 0 && (
-                          <optgroup label={t('wizard.sharedDrivesGroup')}>
-                            {sharedDrives.map((d) => (
-                              <option key={d.id} value={d.id}>
-                                {d.name}
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
-                        {sharedFolders && sharedFolders.length > 0 && (
-                          <optgroup label={t('wizard.sharedFoldersGroup')}>
-                            {/* The owner disambiguates two shares named alike. */}
-                            {sharedFolders.map((f) => (
-                              <option key={f.id} value={f.id}>
-                                {f.owner ? `${f.name} — ${f.owner}` : f.name}
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
-                      </select>
-                    )}
-                  </div>
-                )}
-
-                {/* The same one-click browse for Dropbox (0055 follow-up):
-                    picking a MOUNTED shared folder fills rootPath with its
-                    path; an unmounted one renders disabled — it has no path
-                    until the account mounts it in Dropbox. */}
-                {isDropboxSource && (
-                  <div>
-                    <button
-                      type="button"
-                      onClick={browseDropboxFolders}
-                      disabled={
-                        browsing ||
-                        !formData.sourceClientId ||
-                        !formData.sourceClientSecret ||
-                        !formData.sourceRefreshToken
-                      }
-                      className="text-sm text-blue-700 hover:underline disabled:opacity-50"
-                    >
-                      {browsing ? t('wizard.testing') : t('wizard.browseDropboxFolders')}
-                    </button>
-                    {dropboxFoldersError && (
-                      <p className="mt-1 text-sm text-amber-800">{dropboxFoldersError}</p>
-                    )}
-                    {dropboxFolders && dropboxFolders.length === 0 && (
-                      <p className="mt-1 text-sm text-gray-500">
-                        {t('wizard.noDropboxSharedFolders')}
-                      </p>
-                    )}
-                    {dropboxFolders && dropboxFolders.length > 0 && (
-                      <select
-                        className="input w-full mt-2"
-                        value={formData.sourceRootPath}
-                        onChange={(e) => updateField('sourceRootPath', e.target.value)}
-                      >
-                        <option value="">{t('wizard.review.wholeDropbox')}</option>
-                        {dropboxFolders.map((f) => (
-                          <option key={f.id} value={f.path ?? ''} disabled={!f.path}>
-                            {f.path ? f.name : `${f.name} — ${t('wizard.dropboxUnmounted')}`}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-                )}
-        </div>
-        {/* What happens to these secrets — a claim the code already makes
-            true (SecretStore.encryptCredentials; GET masks). */}
-        <p className="mt-4 text-sm text-blue-900">{t('wizard.credentials.storage')}</p>
-      </div>
-    );
-
-  const renderTargetCredentials = () =>
-    formData.targetConnectionId ? null : (
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h4 className="font-medium text-blue-900 mb-2">{t('wizard.credentials')}</h4>
-        <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.targetUsername')}
-                    <Required />
-                  </label>
+                ) : (
                   <input
-                    type="text"
-                    required
-                    autoComplete="username"
-                    value={formData.targetUsername}
-                    onChange={(e) => updateField('targetUsername', e.target.value)}
+                    id={id}
+                    type={field.secret ? 'password' : field.numeric ? 'number' : 'text'}
+                    inputMode={field.numeric ? 'numeric' : undefined}
+                    min={field.numeric ? 1 : undefined}
+                    max={field.numeric ? 65535 : undefined}
+                    autoComplete={field.autoComplete ?? 'off'}
+                    value={value}
+                    onChange={(e) => set(e.target.value)}
                     className="input w-full"
-                    placeholder="user@example.com"
+                    placeholder={placeholder}
                   />
-                </div>
-
-                {!formData.targetConnectionId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.targetPassword')}
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showTargetPassword ? 'text' : 'password'}
-                      autoComplete="new-password"
-                      value={formData.targetPassword}
-                      onChange={(e) => updateField('targetPassword', e.target.value)}
-                      className="input w-full pr-10"
-                      placeholder="••••••••"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowTargetPassword((v) => !v)}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
-                      aria-label={t(showTargetPassword ? 'wizard.hidePassword' : 'wizard.showPassword')}
-                    >
-                      {showTargetPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
                 )}
-        </div>
-        <p className="mt-4 text-sm text-blue-900">{t('wizard.credentials.storage')}</p>
+                {field.hintKey && (
+                  <p
+                    className={
+                      field.key === 'serviceAccountKey'
+                        ? 'mt-1 text-xs text-amber-800'
+                        : 'mt-1 text-sm text-gray-500'
+                    }
+                  >
+                    {t(field.hintKey as StringKey)}
+                  </p>
+                )}
+              </div>
+              {/* TLS belongs to the server, so it sits with host and port —
+                  it is not a credential and the descriptor does not carry it. */}
+              {field.key === 'port' && !chosen && (
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id={isSource ? 'sourceSsl' : 'targetSsl'}
+                    checked={isSource ? formData.sourceSsl : formData.targetSsl}
+                    onChange={(e) => updateField(isSource ? 'sourceSsl' : 'targetSsl', e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor={isSource ? 'sourceSsl' : 'targetSsl'} className="ml-2 block text-sm text-gray-700">
+                    {t('wizard.useSsl')}
+                  </label>
+                </div>
+              )}
+            </React.Fragment>
+          );
+        })}
+        {/* What happens to these secrets — one sentence, at the foot of the
+            fields it is about rather than in a panel of its own. */}
+        {!chosen && <p className="text-sm text-blue-900">{t('wizard.credentials.storage')}</p>}
       </div>
     );
+  };
 
   /**
    * Test this side, and keep it if it works (workplan 0069, now per side).
@@ -1167,6 +1252,34 @@ const CreateMapping: React.FC = () => {
     const r = probeResults[side];
     return (
       <div className="border border-gray-200 rounded-lg p-4">
+        {/* Name it HERE, because testing is what saves it (0069 T2) and this
+            is the moment the person knows what it is for (workplan 0076).
+            Optional: left empty it is named after what it connects to, which
+            is what it always was. */}
+        {!chosen && (
+          <div className="mb-3">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t('wizard.connectionName')}
+            </label>
+            <input
+              type="text"
+              value={side === 'source' ? formData.sourceConnectionName : formData.targetConnectionName}
+              onChange={(e) =>
+                updateField(
+                  side === 'source' ? 'sourceConnectionName' : 'targetConnectionName',
+                  e.target.value,
+                )
+              }
+              className="input w-full"
+              placeholder={connectionNameFor(side)}
+            />
+            {connectionNameTaken(side) && (
+              // A warning, not a refusal: nothing keys off the name, but a
+              // name that does not tell two things apart is not doing its job.
+              <p className="mt-1 text-sm text-amber-800">{t('wizard.connectionName.taken')}</p>
+            )}
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
@@ -1231,7 +1344,11 @@ const CreateMapping: React.FC = () => {
                 ).map((type) => (
                   <button
                     key={type.id}
-                    onClick={() =>
+                    onClick={() => {
+                      // A verdict about the OLD provider must not survive the
+                      // switch (0073) — it is a statement about a credential
+                      // this screen no longer asks for.
+                      forgetProbe('source');
                       // A Google credential reads exactly one API, so choosing
                       // it also chooses that domain — the same constraint the
                       // server refuses by name (sourceDomainRefusal). Setting it
@@ -1239,7 +1356,11 @@ const CreateMapping: React.FC = () => {
                       // AWAY leaves the selection alone, which the matrices then
                       // re-police. Drive pins the file domain and a file-capable
                       // target; Gmail pins email and a mail-capable one.
-                      type.id === 'google-drive' || type.id === 'dropbox' || type.id === 'box'
+                      // `void`: the chain below is an expression chosen for its
+                      // effect, and it is left as one rather than rewritten —
+                      // reshaping a live nested ternary is the edit 0070 T6
+                      // records going wrong.
+                      void (type.id === 'google-drive' || type.id === 'dropbox' || type.id === 'box'
                         ? setFormData((prev) => ({
                             ...prev,
                             ...clearedSourceFields(prev, type.id),
@@ -1282,8 +1403,8 @@ const CreateMapping: React.FC = () => {
                                       ? prev.targetType
                                       : 'carddav',
                                 }))
-                              : setFormData((prev) => ({ ...prev, ...clearedSourceFields(prev, type.id), sourceType: type.id }))
-                    }
+                              : setFormData((prev) => ({ ...prev, ...clearedSourceFields(prev, type.id), sourceType: type.id })));
+                    }}
                     className={`p-4 border-2 rounded-lg text-left transition-colors ${
                       formData.sourceType === type.id
                         ? 'border-blue-500 bg-blue-50'
@@ -1355,6 +1476,7 @@ const CreateMapping: React.FC = () => {
             <p className="mt-3">
               <Link
                 to={`/setup/source/${formData.sourceType}`}
+                state={{ from: '/mappings/new' }}
                 className="text-sm text-blue-700 hover:underline"
               >
                 {t('setup.openChecklist')}
@@ -1371,285 +1493,13 @@ const CreateMapping: React.FC = () => {
               labelKey="wizard.reuseSource"
               options={reusableSources}
               value={formData.sourceConnectionId}
-              onChange={(id) => updateField('sourceConnectionId', id)}
+              onChange={(id) => {
+                forgetProbe('source');
+                updateField('sourceConnectionId', id);
+              }}
             />
 
-            {isDropboxSource ? (
-              <div className="space-y-4">
-                {/* Hidden when a stored connection supplies it. What stays
-                    visible below is the per-mapping "where" — a shared
-                    connection knows the account, never which folder THIS
-                    migration is rooted at (`source_config_override`). */}
-                {!formData.sourceConnectionId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.dropboxAppKey')}
-                    <Required />
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.sourceClientId}
-                    onChange={(e) => updateField('sourceClientId', e.target.value)}
-                    className="input w-full"
-                  />
-                </div>
-                )}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.dropboxRootPath')}
-                  </label>
-                  {/* '' = the whole Dropbox. The credentials below offer a
-                      browse over sharing/list_folders that fills this. */}
-                  <input
-                    type="text"
-                    value={formData.sourceRootPath}
-                    onChange={(e) => updateField('sourceRootPath', e.target.value)}
-                    className="input w-full"
-                    placeholder={t('wizard.dropboxRootPath.placeholder')}
-                  />
-                </div>
-              </div>
-            ) : isBoxSource ? (
-              <div className="space-y-4">
-                {!formData.sourceConnectionId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.clientId')}
-                    <Required />
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.sourceClientId}
-                    onChange={(e) => updateField('sourceClientId', e.target.value)}
-                    className="input w-full"
-                  />
-                </div>
-                )}
-                {/* Stays visible when a connection is reused: the CCG subject
-                    is WHOSE files, which is this mapping's question and not
-                    the connection's (ADR-0033, one subject per mapping). */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.boxUserId')}
-                    <Required />
-                  </label>
-                  {/* The CCG subject: WHOSE files the token reads. Numeric by
-                      Box's design — an email here is the mistake the create
-                      refusal and docs/box-setup.md both name. */}
-                  <input
-                    type="text"
-                    required
-                    value={formData.sourceBoxUserId}
-                    onChange={(e) => updateField('sourceBoxUserId', e.target.value)}
-                    className="input w-full"
-                    placeholder={t('wizard.boxUserId.placeholder')}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.boxRootFolderId')}
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.sourceRootFolderId}
-                    onChange={(e) => updateField('sourceRootFolderId', e.target.value)}
-                    className="input w-full"
-                    placeholder={t('wizard.boxRootFolderId.placeholder')}
-                  />
-                </div>
-              </div>
-            ) : isGmailSource || isGoogleDavSource ? (
-              <div className="space-y-4">
-                {/* Nothing per-mapping here — Gmail and the Google DAV pair
-                    are rooted at the account, so a reused connection answers
-                    this whole block and it disappears entirely. */}
-                {!formData.sourceConnectionId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.clientId')}
-                    <Required />
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.sourceClientId}
-                    onChange={(e) => updateField('sourceClientId', e.target.value)}
-                    className="input w-full"
-                    placeholder="…apps.googleusercontent.com"
-                  />
-                </div>
-                )}
-                {!formData.sourceConnectionId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.serviceAccountKey')}
-                  </label>
-                  {/* ADR-0033: pasting the key FILE selects domain-wide
-                      delegation — the OAuth client and refresh token stop
-                      being required. The copy under the field states the
-                      grant's width; the mapping still names one subject. */}
-                  <textarea
-                    value={formData.sourceServiceAccountKey}
-                    onChange={(e) => updateField('sourceServiceAccountKey', e.target.value)}
-                    className="input w-full font-mono text-xs"
-                    rows={4}
-                    placeholder={t('wizard.serviceAccountKey.placeholder')}
-                  />
-                  <p className="mt-1 text-xs text-amber-800">
-                    {t('wizard.serviceAccountKey.width')}
-                  </p>
-                </div>
-                )}
-              </div>
-            ) : isDriveSource ? (
-              <div className="space-y-4">
-                {!formData.sourceConnectionId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.clientId')}
-                    <Required />
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.sourceClientId}
-                    onChange={(e) => updateField('sourceClientId', e.target.value)}
-                    className="input w-full"
-                    placeholder="…apps.googleusercontent.com"
-                  />
-                </div>
-                )}
-                {/* Stays: which folder THIS migration is rooted at. */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.rootFolderId')}
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.sourceRootFolderId}
-                    onChange={(e) => updateField('sourceRootFolderId', e.target.value)}
-                    className="input w-full"
-                    placeholder={t('wizard.rootFolderId.placeholder')}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.serviceAccountKey')}
-                  </label>
-                  {/* ADR-0033: pasting the key FILE selects domain-wide
-                      delegation — the OAuth client and refresh token stop
-                      being required. The copy under the field states the
-                      grant's width; the mapping still names one subject. */}
-                  <textarea
-                    value={formData.sourceServiceAccountKey}
-                    onChange={(e) => updateField('sourceServiceAccountKey', e.target.value)}
-                    className="input w-full font-mono text-xs"
-                    rows={4}
-                    placeholder={t('wizard.serviceAccountKey.placeholder')}
-                  />
-                  <p className="mt-1 text-xs text-amber-800">
-                    {t('wizard.serviceAccountKey.width')}
-                  </p>
-                </div>
-              </div>
-            ) : isO365Source ? (
-              <div className="space-y-4">
-                {/* The app registration IS the connection — a reused one
-                    answers both, and this mapping's own question (which
-                    mailbox) is the username in the credentials below. */}
-                {!formData.sourceConnectionId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.tenantId')}
-                    <Required />
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.sourceTenantId}
-                    onChange={(e) => updateField('sourceTenantId', e.target.value)}
-                    className="input w-full"
-                    placeholder="contoso.onmicrosoft.com"
-                  />
-                </div>
-                )}
-                {!formData.sourceConnectionId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.clientId')}
-                    <Required />
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.sourceClientId}
-                    onChange={(e) => updateField('sourceClientId', e.target.value)}
-                    className="input w-full"
-                    placeholder="00000000-0000-0000-0000-000000000000"
-                  />
-                </div>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* Host, port and TLS describe the SERVER, which is what an
-                    IMAP connection holds. The mailbox this mapping moves is
-                    the username, two steps on. */}
-                {!formData.sourceConnectionId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.host')}
-                    <Required />
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.sourceHost}
-                    onChange={(e) => updateField('sourceHost', e.target.value)}
-                    className="input w-full"
-                    placeholder="imap.example.com"
-                  />
-                </div>
-                )}
-
-                {!formData.sourceConnectionId && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {t('wizard.port')}
-                      <Required />
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min={1}
-                      max={65535}
-                      value={formData.sourcePort}
-                      onChange={(e) => updateField('sourcePort', e.target.value)}
-                      className="input w-full"
-                      placeholder="993"
-                    />
-                  </div>
-
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="sourceSsl"
-                      checked={formData.sourceSsl}
-                      onChange={(e) => updateField('sourceSsl', e.target.checked)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="sourceSsl" className="ml-2 block text-sm text-gray-700">
-                      {t('wizard.useSsl')}
-                    </label>
-                  </div>
-                </div>
-                )}
-              </div>
-            )}
-            {renderSourceCredentials()}
+            {renderSideFields('source')}
             {renderProbe('source')}
           </div>
         );
@@ -1671,7 +1521,10 @@ const CreateMapping: React.FC = () => {
                 ).map((type) => (
                   <button
                     key={type.id}
-                    onClick={() => updateField('targetType', type.id)}
+                    onClick={() => {
+                      forgetProbe('target');
+                      updateField('targetType', type.id);
+                    }}
                     className={`p-4 border-2 rounded-lg text-left transition-colors ${
                       formData.targetType === type.id
                         ? 'border-blue-500 bg-blue-50'
@@ -1698,7 +1551,10 @@ const CreateMapping: React.FC = () => {
               labelKey="wizard.reuseTarget"
               options={reusableTargets}
               value={formData.targetConnectionId}
-              onChange={(id) => updateField('targetConnectionId', id)}
+              onChange={(id) => {
+                forgetProbe('target');
+                updateField('targetConnectionId', id);
+              }}
             />
 
             <div className="space-y-4">
@@ -1708,56 +1564,7 @@ const CreateMapping: React.FC = () => {
                   cannot see. The target USERNAME stays on the credentials
                   step: it names which account this mapping writes to, which a
                   shared connection cannot know. */}
-              {!formData.targetConnectionId && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('wizard.host')}
-                  <Required />
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.targetHost}
-                  onChange={(e) => updateField('targetHost', e.target.value)}
-                  className="input w-full"
-                  placeholder="jmap.example.com"
-                />
-              </div>
-              )}
-
-              {!formData.targetConnectionId && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.port')}
-                    <Required />
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min={1}
-                    max={65535}
-                    value={formData.targetPort}
-                    onChange={(e) => updateField('targetPort', e.target.value)}
-                    className="input w-full"
-                    placeholder="443"
-                  />
-                </div>
-
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="targetSsl"
-                    checked={formData.targetSsl}
-                    onChange={(e) => updateField('targetSsl', e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="targetSsl" className="ml-2 block text-sm text-gray-700">
-                    {t('wizard.useSsl')}
-                  </label>
-                </div>
-              </div>
-              )}
+              {renderSideFields('target')}
 
               {/* The merge-or-subfolder choice (owner decision 2026-08-16),
                   made where the destination is chosen. Empty means MERGE —
@@ -1778,7 +1585,6 @@ const CreateMapping: React.FC = () => {
                 <p className="mt-1 text-sm text-gray-500">{t('wizard.targetPrefix.hint')}</p>
               </div>
             </div>
-            {renderTargetCredentials()}
             {renderProbe('target')}
           </div>
         );

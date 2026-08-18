@@ -51,11 +51,11 @@ const checklist = (over: Partial<SetupChecklist> = {}): SetupChecklist => ({
   ...over,
 });
 
-function renderPage() {
+function renderPage(entry: string | { pathname: string; state?: unknown } = '/setup/source/box') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/setup/source/box']}>
+      <MemoryRouter initialEntries={[entry as never]}>
         <Routes>
           <Route path="/setup/:side/:provider" element={<Setup />} />
         </Routes>
@@ -139,5 +139,54 @@ describe('the setup checklist screen', () => {
     renderPage();
 
     expect(await screen.findByText(/needs nothing set up in advance/)).toBeTruthy();
+  });
+});
+
+
+/**
+ * A checklist that says WHOSE it is, and gets you back where you were
+ * (workplan 0074).
+ *
+ * Two things the owner reported in the same breath. The heading rendered the
+ * wizard type — an operator was told to configure `oauth2`, and asked the
+ * question that makes it obvious: *how should a user guess that is for Entra
+ * ID?* And the back link was a hardcoded *← Back to the migration wizard*, so
+ * reaching this page from Connections — which links here by design since 0065
+ * — sent you somewhere you had never been.
+ */
+describe('Setup — names the provider, and goes back where you came from (0074)', () => {
+  beforeEach(() => {
+    get.mockReset();
+    setStep.mockReset();
+  });
+
+  it('heads the page with the provider NAME, not the wizard type', async () => {
+    get.mockResolvedValue(checklist({ provider: 'oauth2' }));
+    renderPage({ pathname: '/setup/source/oauth2' });
+
+    // BOTH places that name the provider — the heading and the admin
+    // question. The second one is why this assertion is `getAllByText`: it
+    // was missed on the first pass and this test is what found it.
+    expect((await screen.findAllByText(/Microsoft 365/)).length).toBeGreaterThanOrEqual(2);
+    // The raw type must not be what an operator is asked to go and configure.
+    expect(screen.queryByText(/— oauth2/)).toBeNull();
+  });
+
+  it('returns to CONNECTIONS when that is where the link came from', async () => {
+    get.mockResolvedValue(checklist());
+    renderPage({ pathname: '/setup/source/box', state: { from: '/connections' } });
+
+    const back = await screen.findByText(/Back to connections/);
+    expect(back.getAttribute('href')).toBe('/connections');
+  });
+
+  it('still defaults to the wizard for a direct URL', async () => {
+    // Most people arrive from the wizard, and a bookmarked checklist has no
+    // origin to honour — so the default stays what it always was.
+    get.mockResolvedValue(checklist());
+    renderPage();
+
+    const back = await screen.findByText(/Back to the migration wizard/);
+    expect(back.getAttribute('href')).toBe('/mappings/new');
   });
 });

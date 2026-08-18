@@ -39,6 +39,35 @@ export interface CredentialField {
   /** A pasted key file rather than a one-line value. */
   readonly multiline?: boolean;
   /**
+   * The example value shown in the empty box, VERBATIM (workplan 0075).
+   *
+   * Not translated, and that is the point: `…apps.googleusercontent.com` and
+   * `contoso.onmicrosoft.com` are shapes the provider itself uses, and a
+   * Dutch rendering of them would be a Dutch rendering of somebody else's
+   * identifier. Where the example is really a sentence — "paste the whole key
+   * file" — it is a `placeholderKey` instead, below.
+   */
+  readonly placeholder?: string;
+  /** A sentence under the field. Ours, so it is a key. */
+  readonly hintKey?: string;
+  /** What the browser should offer to autofill here. */
+  readonly autoComplete?: 'username' | 'new-password' | 'off';
+  /**
+   * Offers a show/hide toggle. Deliberately NOT every secret: a masked
+   * password is worth being able to check after a paste, while a refresh
+   * token or a pasted key file is too long to proofread by eye and putting an
+   * eye icon beside it only widens the shoulder-surfing window.
+   */
+  readonly revealable?: boolean;
+  /**
+   * Survives a REUSED connection (workplan 0075). A connection answers "as
+   * whom do we sign in"; it cannot answer "whose files, and from which
+   * folder" — that is this mapping's question, and `source_config_override`
+   * exists to hold the answer (0066 T4a). Everything without this flag
+   * disappears when a stored connection supplies it.
+   */
+  readonly perMapping?: boolean;
+  /**
    * The value is a NUMBER (workplan 0072). The create schema coerces and then
    * refuses a non-number, and the Connections form rendered every field as a
    * bare text box — so a port typed as anything else came back as
@@ -52,57 +81,42 @@ export interface CredentialField {
 }
 
 /** Fields for one wizard source type, in the order a person meets them. */
-const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = {
-  box: [
-    { key: 'username', labelKey: 'wizard.sourceUsername', required: true },
-    { key: 'clientId', labelKey: 'wizard.clientId', required: true },
-    { key: 'clientSecret', labelKey: 'wizard.sourceClientSecret', required: true, secret: true },
-    { key: 'userId', labelKey: 'wizard.boxUserId', required: true },
-    { key: 'rootFolderId', labelKey: 'wizard.boxRootFolderId' },
-  ],
-  dropbox: [
-    { key: 'username', labelKey: 'wizard.sourceUsername', required: true },
-    { key: 'clientId', labelKey: 'wizard.dropboxAppKey', required: true },
-    { key: 'clientSecret', labelKey: 'wizard.sourceClientSecret', required: true, secret: true },
-    { key: 'refreshToken', labelKey: 'wizard.refreshToken', required: true, secret: true },
-    { key: 'rootPath', labelKey: 'wizard.dropboxRootPath' },
-  ],
-  'google-drive': [
-    { key: 'username', labelKey: 'wizard.sourceUsername', required: true },
-    { key: 'clientId', labelKey: 'wizard.clientId' },
-    { key: 'clientSecret', labelKey: 'wizard.sourceClientSecret', secret: true },
-    { key: 'refreshToken', labelKey: 'wizard.refreshToken', secret: true },
-    {
-      key: 'serviceAccountKey',
-      labelKey: 'wizard.serviceAccountKey',
-      secret: true,
-      multiline: true,
-      placeholderKey: 'wizard.serviceAccountKey.placeholder',
-    },
-    { key: 'rootFolderId', labelKey: 'wizard.rootFolderId' },
-  ],
-  gmail: googleFields(),
-  'google-calendar': googleFields(),
-  'google-contacts': googleFields(),
-  graph: [
-    { key: 'username', labelKey: 'wizard.sourceUsername', required: true },
-    { key: 'tenantId', labelKey: 'wizard.tenantId', required: true },
-    { key: 'clientId', labelKey: 'wizard.clientId', required: true },
-    { key: 'clientSecret', labelKey: 'wizard.sourceClientSecret', required: true, secret: true },
-  ],
-  oauth2: [
-    { key: 'username', labelKey: 'wizard.sourceUsername', required: true },
-    { key: 'tenantId', labelKey: 'wizard.tenantId', required: true },
-    { key: 'clientId', labelKey: 'wizard.clientId', required: true },
-    { key: 'clientSecret', labelKey: 'wizard.sourceClientSecret', required: true, secret: true },
-  ],
-  imap: [
-    { key: 'host', labelKey: 'wizard.host', required: true },
-    { key: 'port', labelKey: 'wizard.port', required: true, numeric: true },
-    { key: 'username', labelKey: 'wizard.sourceUsername', required: true },
-    { key: 'password', labelKey: 'wizard.sourcePassword', required: true, secret: true },
-  ],
-};
+const USER = {
+  key: 'username',
+  labelKey: 'wizard.sourceUsername',
+  required: true,
+  placeholder: 'user@example.com',
+  autoComplete: 'username',
+} as const;
+
+const SECRET = {
+  key: 'clientSecret',
+  labelKey: 'wizard.sourceClientSecret',
+  required: true,
+  secret: true,
+  placeholder: '••••••••',
+  autoComplete: 'new-password',
+  revealable: true,
+} as const;
+
+const REFRESH = {
+  key: 'refreshToken',
+  labelKey: 'wizard.refreshToken',
+  secret: true,
+  placeholder: '1//…',
+  hintKey: 'wizard.refreshToken.hint',
+  autoComplete: 'off',
+} as const;
+
+const SERVICE_ACCOUNT_KEY = {
+  key: 'serviceAccountKey',
+  labelKey: 'wizard.serviceAccountKey',
+  secret: true,
+  multiline: true,
+  placeholderKey: 'wizard.serviceAccountKey.placeholder',
+  hintKey: 'wizard.serviceAccountKey.width',
+  autoComplete: 'off',
+} as const;
 
 /**
  * The four Google source types share one OAuth client and differ only in the
@@ -111,26 +125,122 @@ const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = 
  */
 function googleFields(): ReadonlyArray<CredentialField> {
   return [
-    { key: 'username', labelKey: 'wizard.sourceUsername', required: true },
-    { key: 'clientId', labelKey: 'wizard.clientId' },
-    { key: 'clientSecret', labelKey: 'wizard.sourceClientSecret', secret: true },
-    { key: 'refreshToken', labelKey: 'wizard.refreshToken', secret: true },
-    {
-      key: 'serviceAccountKey',
-      labelKey: 'wizard.serviceAccountKey',
-      secret: true,
-      multiline: true,
-      placeholderKey: 'wizard.serviceAccountKey.placeholder',
-    },
+    USER,
+    { key: 'clientId', labelKey: 'wizard.clientId', placeholder: '…apps.googleusercontent.com' },
+    { ...SECRET, required: false },
+    REFRESH,
+    SERVICE_ACCOUNT_KEY,
   ];
 }
 
+/**
+ * oauth2 and graph authenticate with the customer's OWN Entra app
+ * registration (0037 T6, ADR-0006's row-14 model), so what they ask for is a
+ * registration and a mailbox — never a server address.
+ */
+function o365Fields(): ReadonlyArray<CredentialField> {
+  return [
+    USER,
+    {
+      key: 'tenantId',
+      labelKey: 'wizard.tenantId',
+      required: true,
+      placeholder: 'contoso.onmicrosoft.com',
+    },
+    {
+      key: 'clientId',
+      labelKey: 'wizard.clientId',
+      required: true,
+      placeholder: '00000000-0000-0000-0000-000000000000',
+    },
+    SECRET,
+  ];
+}
+
+const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = {
+  box: [
+    USER,
+    { key: 'clientId', labelKey: 'wizard.clientId', required: true },
+    SECRET,
+    // The CCG subject — WHOSE files the token reads. One subject per mapping
+    // (ADR-0033), so it outlives a reused connection.
+    {
+      key: 'userId',
+      labelKey: 'wizard.boxUserId',
+      required: true,
+      placeholderKey: 'wizard.boxUserId.placeholder',
+      perMapping: true,
+    },
+    {
+      key: 'rootFolderId',
+      labelKey: 'wizard.boxRootFolderId',
+      placeholderKey: 'wizard.boxRootFolderId.placeholder',
+      perMapping: true,
+    },
+  ],
+  dropbox: [
+    USER,
+    // Dropbox's App Console calls it an App key, so the field does too.
+    { key: 'clientId', labelKey: 'wizard.dropboxAppKey', required: true },
+    SECRET,
+    { ...REFRESH, required: true },
+    {
+      key: 'rootPath',
+      labelKey: 'wizard.dropboxRootPath',
+      placeholderKey: 'wizard.dropboxRootPath.placeholder',
+      perMapping: true,
+    },
+  ],
+  'google-drive': [
+    ...googleFields(),
+    {
+      key: 'rootFolderId',
+      labelKey: 'wizard.rootFolderId',
+      placeholderKey: 'wizard.rootFolderId.placeholder',
+      perMapping: true,
+    },
+  ],
+  gmail: googleFields(),
+  'google-calendar': googleFields(),
+  'google-contacts': googleFields(),
+  graph: o365Fields(),
+  oauth2: o365Fields(),
+  imap: [
+    { key: 'host', labelKey: 'wizard.host', required: true, placeholder: 'imap.example.com' },
+    { key: 'port', labelKey: 'wizard.port', required: true, numeric: true, placeholder: '993' },
+    USER,
+    {
+      key: 'password',
+      labelKey: 'wizard.sourcePassword',
+      required: true,
+      secret: true,
+      placeholder: '••••••••',
+      autoComplete: 'new-password',
+      revealable: true,
+    },
+  ],
+};
+
 /** Every target speaks host/port/user/password; only the protocol differs. */
 const TARGET_FIELDS: ReadonlyArray<CredentialField> = [
-  { key: 'host', labelKey: 'wizard.host', required: true },
-  { key: 'port', labelKey: 'wizard.port', required: true, numeric: true },
-  { key: 'username', labelKey: 'wizard.targetUsername', required: true },
-  { key: 'password', labelKey: 'wizard.targetPassword', required: true, secret: true },
+  { key: 'host', labelKey: 'wizard.host', required: true, placeholder: 'jmap.example.com' },
+  { key: 'port', labelKey: 'wizard.port', required: true, numeric: true, placeholder: '443' },
+  {
+    key: 'username',
+    labelKey: 'wizard.targetUsername',
+    required: true,
+    placeholder: 'user@example.com',
+    autoComplete: 'username',
+  },
+  {
+    key: 'password',
+    labelKey: 'wizard.targetPassword',
+    required: true,
+    secret: true,
+    placeholder: '••••••••',
+    autoComplete: 'new-password',
+    revealable: true,
+  },
 ];
 
 const TARGET_TYPES = ['jmap', 'imap', 'caldav', 'carddav', 'webdav'] as const;
@@ -191,4 +301,57 @@ export function wizardTypeForConnectionKind(kind: string): string {
     default:
       return kind;
   }
+}
+
+/**
+ * What to CALL a provider on screen (workplan 0074).
+ *
+ * The setup checklist rendered the wizard type itself — `oauth2` — as its
+ * heading and in its provider chooser, and the owner asked the right question:
+ * *how should a user guess that is for Entra ID?* They should not have to. A
+ * type is a key the code agrees on; a name is what the person came in knowing.
+ *
+ * It lives beside the field descriptor rather than in the web dictionary for
+ * the reason the descriptor lives here at all: these are the vocabulary of the
+ * PROVIDER, not our copy, so they are identical in every language and must not
+ * drift between the doors that show them. `providerDisplayNamesCoverEveryType`
+ * pins that a type without a name fails loudly rather than rendering a key.
+ *
+ * The Microsoft pair is deliberately named for the product an admin buys, with
+ * the protocol kept in parentheses: `oauth2` and `graph` differ by transport,
+ * and nobody arrives thinking "I need the OAuth2 one".
+ */
+const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
+  imap: 'IMAP',
+  oauth2: 'Microsoft 365 (OAuth2)',
+  graph: 'Microsoft 365 (Microsoft Graph)',
+  'google-drive': 'Google Drive',
+  gmail: 'Gmail',
+  'google-calendar': 'Google Calendar',
+  'google-contacts': 'Google Contacts',
+  dropbox: 'Dropbox',
+  box: 'Box',
+  jmap: 'JMAP',
+  caldav: 'CalDAV',
+  carddav: 'CardDAV',
+  webdav: 'WebDAV',
+};
+
+/**
+ * The provider's name, or the type itself when nothing names it — shown as
+ * itself rather than blanked, on the same principle as an unlabelled field
+ * key: a gap you can see is a bug report, a gap you cannot is a mystery.
+ */
+export function providerDisplayName(type: string): string {
+  return PROVIDER_DISPLAY_NAMES[type] ?? type;
+}
+
+/** Every type this product connects to, for the coverage lock. */
+export function typesNeedingDisplayNames(): ReadonlyArray<string> {
+  return [...new Set([...connectableTypes('source'), ...connectableTypes('target')])];
+}
+
+/** Whether every connectable type has a real name. Used by the lock test. */
+export function providerDisplayNamesCoverEveryType(): ReadonlyArray<string> {
+  return typesNeedingDisplayNames().filter((t) => !(t in PROVIDER_DISPLAY_NAMES));
 }

@@ -97,7 +97,10 @@ const Dashboard: React.FC = () => {
           and done are the ending every migration aims for, and the old tiles
           could not count either. */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5">
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <Link
+          to="/mappings"
+          className="bg-white rounded-lg border border-gray-200 p-6 block hover:border-blue-300 hover:bg-blue-50 transition-colors"
+        >
           <div className="flex items-center">
             <div className="p-3 bg-blue-100 rounded-lg">
               <FolderGit2 className="w-6 h-6 text-blue-600" />
@@ -107,9 +110,12 @@ const Dashboard: React.FC = () => {
               <p className="text-2xl font-semibold text-gray-900">{stats.total}</p>
             </div>
           </div>
-        </div>
+        </Link>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <Link
+          to="/mappings?status=active"
+          className="bg-white rounded-lg border border-gray-200 p-6 block hover:border-blue-300 hover:bg-blue-50 transition-colors"
+        >
           <div className="flex items-center">
             <div className="p-3 bg-green-100 rounded-lg">
               <ArrowRightLeft className="w-6 h-6 text-green-600" />
@@ -119,9 +125,12 @@ const Dashboard: React.FC = () => {
               <p className="text-2xl font-semibold text-gray-900">{stats.active}</p>
             </div>
           </div>
-        </div>
+        </Link>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <Link
+          to="/mappings?status=paused"
+          className="bg-white rounded-lg border border-gray-200 p-6 block hover:border-blue-300 hover:bg-blue-50 transition-colors"
+        >
           <div className="flex items-center">
             <div className="p-3 bg-yellow-100 rounded-lg">
               <Clock className="w-6 h-6 text-yellow-600" />
@@ -131,9 +140,12 @@ const Dashboard: React.FC = () => {
               <p className="text-2xl font-semibold text-gray-900">{stats.paused}</p>
             </div>
           </div>
-        </div>
+        </Link>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <Link
+          to="/mappings?status=cutover"
+          className="bg-white rounded-lg border border-gray-200 p-6 block hover:border-blue-300 hover:bg-blue-50 transition-colors"
+        >
           <div className="flex items-center">
             <div className="p-3 bg-blue-100 rounded-lg">
               <AlertCircle className="w-6 h-6 text-blue-600" />
@@ -143,9 +155,12 @@ const Dashboard: React.FC = () => {
               <p className="text-2xl font-semibold text-gray-900">{stats.cutover}</p>
             </div>
           </div>
-        </div>
+        </Link>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <Link
+          to="/mappings?status=done"
+          className="bg-white rounded-lg border border-gray-200 p-6 block hover:border-blue-300 hover:bg-blue-50 transition-colors"
+        >
           <div className="flex items-center">
             <div className="p-3 bg-emerald-100 rounded-lg">
               <CheckCircle className="w-6 h-6 text-emerald-600" />
@@ -155,7 +170,7 @@ const Dashboard: React.FC = () => {
               <p className="text-2xl font-semibold text-gray-900">{stats.done}</p>
             </div>
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* Recent Activity */}
