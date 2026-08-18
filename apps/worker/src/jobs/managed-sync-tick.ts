@@ -89,6 +89,13 @@ export const managedSyncTick = schedules.task({
     });
 
     const now = new Date();
+    // The tick runs on a one-minute cron, so its own duration is the number
+    // that decides whether it still fits (workplan 0083). 0082 fixed three
+    // things that made it slow and could argue only from reading the code —
+    // this is what makes the next such claim measurable instead. Logged every
+    // tick rather than sampled: it is one line, and the interesting value is
+    // the tail, which sampling is exactly what loses.
+    const startedAt = Date.now();
     const { rows } = await pool.query<TickRow>(
       `SELECT m.id, m.tenant_id, m.schedule,
               (SELECT max(r.started_at) FROM run r
@@ -185,7 +192,19 @@ export const managedSyncTick = schedules.task({
       skippedRunning,
       skippedNoDomains,
       failedToEnqueue: failures.length,
+      ms: Date.now() - startedAt,
     };
+    // Said loudly when the tick is approaching the interval it runs on. A tick
+    // that takes longer than its own period does not fail — it overlaps, and
+    // the fan-out gets least predictable exactly when there is most of it. By
+    // the time that is visible in behaviour it is hard to attribute, so it is
+    // announced while there is still headroom.
+    if (summary.ms >= 30_000) {
+      log.warn(
+        `[sync-tick] took ${summary.ms}ms of its 60000ms period — at 60000ms ticks begin to ` +
+          'overlap. Enumerated ' + `${summary.active} active mappings, enqueued ${summary.triggered}.`
+      );
+    }
     log.info('[sync-tick]', summary);
     return summary;
   },
