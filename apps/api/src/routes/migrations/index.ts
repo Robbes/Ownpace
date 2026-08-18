@@ -43,6 +43,7 @@ import {
   describeCronScheduleProblem,
   credentialFieldsFor,
 } from '@openmig/shared';
+import { serverFault } from '../../server-fault';
 
 /** Take the first row of a RETURNING result or fail loudly (no silent nulls). */
 function firstOrThrow<T>(rows: T[], what: string): T {
@@ -866,8 +867,7 @@ router.post(
       }
       res.json(await listGoogleSharedDrives(parsed.data));
     } catch (error) {
-      log.error('[api] shared-drives listing failed unexpectedly:', error);
-      res.status(500).json({ error: 'listing_failed', reason: String(error) });
+      serverFault(res, 'listing_failed', 'listing the shared drives', error);
     }
   },
 );
@@ -891,8 +891,7 @@ router.post(
       }
       res.json(await listGoogleSharedFolders(parsed.data));
     } catch (error) {
-      log.error('[api] shared-folders listing failed unexpectedly:', error);
-      res.status(500).json({ error: 'listing_failed', reason: String(error) });
+      serverFault(res, 'listing_failed', 'listing the shared folders', error);
     }
   },
 );
@@ -920,8 +919,7 @@ router.post(
       }
       res.json(await listDropboxSharedFolders(parsed.data));
     } catch (error) {
-      log.error('[api] dropbox shared-folders listing failed unexpectedly:', error);
-      res.status(500).json({ error: 'listing_failed', reason: String(error) });
+      serverFault(res, 'listing_failed', 'listing the Dropbox shared folders', error);
     }
   },
 );
@@ -966,8 +964,7 @@ router.post('/test-connection', authenticate, async (req: AuthenticatedRequest, 
   } catch (error) {
     // Provider-side failures are ANSWERS ({ok:false, reason}) from the probe;
     // only a genuine coding error lands here.
-    log.error('[api] test-connection failed unexpectedly:', error);
-    res.status(500).json({ error: 'probe_failed', reason: String(error) });
+    serverFault(res, 'probe_failed', 'testing this connection', error);
   }
 });
 

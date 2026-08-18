@@ -46,6 +46,7 @@ import {
   sourceKindFor,
   targetConnectionConfig,
 } from './migrations/index';
+import { serverFault } from '../server-fault';
 
 const router = Router();
 
@@ -122,8 +123,7 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
     });
     res.json({ connections: rows });
   } catch (error) {
-    log.error('[api] listing connections failed:', error);
-    res.status(500).json({ error: 'list_failed', reason: String(error) });
+    serverFault(res, 'list_failed', 'listing your connections', error);
   }
 });
 
@@ -279,8 +279,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
 
     res.status(201).json({ id: inserted[0]!.id, ...probe });
   } catch (error) {
-    log.error('[api] adding a connection failed:', error);
-    res.status(500).json({ error: 'add_failed', reason: String(error) });
+    serverFault(res, 'add_failed', 'adding this connection', error);
   }
 });
 
@@ -449,8 +448,7 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
 
     res.json({ ...probe, rotated: true });
   } catch (error) {
-    log.error('[api] rotating credentials failed:', error);
-    res.status(500).json({ error: 'rotate_failed', reason: String(error) });
+    serverFault(res, 'rotate_failed', 'replacing these credentials', error);
   }
 });
 
@@ -561,8 +559,7 @@ router.delete('/:id', authenticate, async (req: AuthenticatedRequest, res: Respo
     }
     res.status(204).end();
   } catch (error) {
-    log.error('[api] deleting a connection failed:', error);
-    res.status(500).json({ error: 'delete_failed', reason: String(error) });
+    serverFault(res, 'delete_failed', 'deleting this connection', error);
   }
 });
 
