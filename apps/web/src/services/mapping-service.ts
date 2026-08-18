@@ -583,6 +583,14 @@ export interface ConnectionSummary {
   createdAt: string;
   /** How many mailboxes depend on it — whether re-testing this matters. */
   usedByMailboxes: number;
+  /**
+   * The NON-SECRET values this connection already holds, keyed the way the
+   * form keys them (workplan 0078). Built server-side from `connection.config`
+   * alone and filtered through the credential descriptor — a secret can never
+   * appear here, so a rotation can be prefilled without the encrypted record
+   * ever being opened.
+   */
+  knownValues?: Record<string, string>;
 }
 
 export const connectionsApi = {

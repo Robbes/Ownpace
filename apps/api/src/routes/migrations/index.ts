@@ -41,6 +41,7 @@ import {
   parseGoogleDriveSource,
   ConfigError,
   describeCronScheduleProblem,
+  credentialFieldsFor,
 } from '@openmig/shared';
 
 /** Take the first row of a RETURNING result or fail loudly (no silent nulls). */
@@ -166,6 +167,66 @@ export function sourceConnectionConfig(
  * imap-dav). The DAV targets keep the plain shape: their domain path builds
  * its URL from host/port/useSsl via `davUrl()` and never reads a `type`.
  */
+/**
+ * What a stored connection ALREADY KNOWS, keyed the way the FORM keys it
+ * (workplan 0078, owner decision 2026-08-18).
+ *
+ * Rotating a credential presented every field empty, so somebody fixing an
+ * expired secret had to retype the server address and the account name that
+ * had not changed. The owner asked why, and chose the boundary this function
+ * exists inside: prefill from `connection.config` ONLY.
+ *
+ * That boundary is the whole design. `config` is plain JSONB, written by the
+ * builders above, and it holds which server a migration talks to and where it
+ * is rooted — never a credential. The encrypted record is not read here at
+ * all, so *SECRETS NEVER COME BACK OUT* needs no exception carved into it:
+ * everything returned was never secret to begin with.
+ *
+ * The key names differ, and this is the one place they meet. The builders
+ * above write the ENGINE's vocabulary (`user`, `mailbox`); the descriptor and
+ * every form speak their own (`username`). Translating in the client would
+ * put a second copy of that mapping a long way from the first.
+ *
+ * The consequence worth stating: providers whose identity lives ENTIRELY in
+ * the encrypted record get nothing back. Dropbox stores only `rootPath` in
+ * config, so its App key — the field that prompted this — still has to be
+ * retyped. That is the cost of the chosen boundary, not an oversight.
+ */
+export function knownConnectionValues(
+  role: 'source' | 'target',
+  type: string,
+  config: unknown,
+): Record<string, string> {
+  const cfg = (config ?? {}) as Record<string, unknown>;
+  const str = (v: unknown): string | undefined => {
+    if (typeof v === 'string' && v !== '') return v;
+    if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+    return undefined;
+  };
+
+  // Engine vocabulary → form vocabulary, per what the builders actually write.
+  const candidates: Record<string, string | undefined> = {
+    host: str(cfg.host),
+    port: str(cfg.port),
+    username: str(cfg.user) ?? str(cfg.mailbox),
+    tenantId: str(cfg.tenantId),
+    rootFolderId: str(cfg.rootFolderId),
+    rootPath: str(cfg.rootPath),
+    userId: str(cfg.userId),
+  };
+
+  // Only what this provider asks for, and never a secret one. The descriptor
+  // decides both, so a field that becomes secret later stops being returned
+  // without anybody having to remember this function exists.
+  const out: Record<string, string> = {};
+  for (const field of credentialFieldsFor(role, type)) {
+    if (field.secret) continue;
+    const value = candidates[field.key];
+    if (value !== undefined) out[field.key] = value;
+  }
+  return out;
+}
+
 export function targetConnectionConfig(
   body: Pick<z.infer<typeof CreateMappingSchema>, 'targetType' | 'targetConfig'>,
 ): Record<string, unknown> {

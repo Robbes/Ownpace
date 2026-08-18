@@ -229,7 +229,18 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
           </button>
           <button
             type="button"
-            onClick={() => setRotating((v) => !v)}
+            onClick={() =>
+              setRotating((open) => {
+                // Opening: start from what the connection ALREADY knows
+                // (workplan 0078). Rotating an expired secret used to mean
+                // retyping the server address and the account name that had
+                // not changed. Only non-secret config values arrive here —
+                // the encrypted record is never opened — so the secrets are
+                // still, correctly, blank.
+                if (!open) setNewValues({ ...(connection.knownValues ?? {}) });
+                return !open;
+              })
+            }
             className="text-sm px-3 py-1 border border-gray-300 rounded hover:bg-gray-50"
           >
             {t('connections.rotate')}
