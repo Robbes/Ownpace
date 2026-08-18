@@ -1,0 +1,188 @@
+name: E2E (managed)
+
+# ==============================================================================
+# The gate for the edition nobody tested (workplan 0084).
+#
+# 0083 found that the managed edition had NO end-to-end gate at all: `e2e.yml`
+# stands up `deploy/selfhost/compose.yml` and never references
+# `deploy/compose/managed.yml`. So PgBouncer (0082 T4) and the shared rate
+# budget (0082 T5) could not be verified by CI, and the honest answer to "is
+# the pooler tested?" was "no, and it cannot be". This is that gate.
+#
+# ------------------------------------------------------------------------------
+# WHY THIS RUNS AGAINST A LONG-LIVED STACK, AND DOES NOT `down -v`
+# ------------------------------------------------------------------------------
+# The managed stack's Trigger.dev instance cannot be bootstrapped unattended.
+# `deploy-tasks.sh` documents the one-time steps and they need a human: create
+# an account and project through the dashboard's magic-link login (the link is
+# printed into `docker logs trigger-api` because no mail server is configured),
+# copy TRIGGER_PROJECT_REF and a `tr_prod_` secret key into `.env`, run a CLI
+# login once per machine, and set the task runtime environment variables in the
+# dashboard — the deployed tasks run in their OWN containers and inherit
+# nothing.
+#
+# So a nightly that tore the stack down would destroy that setup and need a
+# person to rebuild it before the next run. **The naive `down -v` this workflow
+# does not do would break the gate permanently, and the failure would look like
+# a broken test rather than a missing account.** Instead the Trigger.dev half
+# persists between runs, and the run recreates the halves it owns: the API, the
+# web app, the worker image and the seed.
+#
+# What that costs, stated rather than discovered later: **this gate does not
+# prove bring-up from scratch.** It proves the application works against a
+# configured stack. Somebody changing `managed.yml`'s Trigger.dev services
+# still has to verify those by hand.
+#
+# ------------------------------------------------------------------------------
+# WHAT GREEN IS ALLOWED TO MEAN (0084 T7)
+# ------------------------------------------------------------------------------
+#   1. Every service the run touches is HEALTHY, not merely started.
+#   2. A task deployed and RAN — an enqueue became a runner container on this
+#      machine. 0018 T5's lesson: a green CI says nothing about that.
+#   3. Verify reached a terminal state, and apply reached `applied` or
+#      `refused`. A refusal is a legitimate pass — the gates said no, and said
+#      why.
+#   4. The app talked through PgBouncer, and migrations did NOT.
+#   5. The stack is left in a state the next run can use.
+#
+# A skipped step, a timed-out poll, or a service left `unhealthy` is NOT green.
+# ==============================================================================
+
+on:
+  schedule:
+    # 05:30 UTC — after e2e.yml's 01:30 (postgres) and 03:30 (pglite) firings.
+    # The Spark is one shared box: three stacks at once would fight over Docker
+    # and the loser would be blamed on whatever it happened to be testing.
+    - cron: '30 5 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  # Queue, never cancel. A cancelled run leaves a half-built stack behind, and
+  # the next run inherits it as a mystery.
+  cancel-in-progress: false
+
+env:
+  MANAGED_COMPOSE: -f deploy/compose/managed.yml
+  # Read by the smoke; defaults match the demo seed.
+  SMOKE_API: http://localhost:3001
+
+jobs:
+  e2e-managed:
+    runs-on: [self-hosted, linux, arm64]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Refuse early if the one-time setup was never done
+        # Loud and specific, because the alternative is a failure fifteen
+        # minutes later inside the smoke, pointing at a task that never
+        # deployed. Rule 9: name the fix.
+        run: |
+          ENV_FILE=deploy/compose/.env
+          missing=()
+          [ -f "$ENV_FILE" ] || missing+=("$ENV_FILE itself")
+          for key in TRIGGER_PROJECT_REF TRIGGER_SECRET_KEY JWT_SECRET SECRET_ENCRYPTION_KEY; do
+            grep -qE "^${key}=." "$ENV_FILE" 2>/dev/null || missing+=("$key")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::This runner has never had the managed stack set up: missing ${missing[*]}."
+            echo "The Trigger.dev half cannot be bootstrapped unattended — see the ONE-TIME"
+            echo "prerequisites in deploy/compose/deploy-tasks.sh: create the account and project"
+            echo "through the dashboard, put TRIGGER_PROJECT_REF and the tr_prod_ key in"
+            echo "deploy/compose/.env, run the CLI login once, and set the task environment"
+            echo "variables in the dashboard. Then re-run this workflow."
+            exit 1
+          fi
+          echo "one-time setup present"
+
+      - name: Bring the stack up
+        run: |
+          set -euo pipefail
+          # The documented run order (setup-managed-demo.sh's header), minus the
+          # teardown: postgres + nextcloud first, because the demo provisioning
+          # needs them before anything else can seed.
+          docker compose $MANAGED_COMPOSE up -d --wait postgres pgbouncer nextcloud
+          ./deploy/compose/setup-managed-demo.sh
+          pnpm --filter @openmig/api seed:managed
+          docker compose $MANAGED_COMPOSE up -d --build --wait
+          ./deploy/compose/deploy-tasks.sh
+
+      - name: The app talks through PgBouncer, and migrations do not (0082 T4)
+        # The reason this workflow exists. Asserted against the pooler's own
+        # admin console rather than inferred from a working app: an app that
+        # silently fell back to a direct connection would pass every other step
+        # in this gate.
+        run: |
+          set -euo pipefail
+          source deploy/compose/.env
+          pools=$(docker compose $MANAGED_COMPOSE exec -T pgbouncer \
+            psql "postgresql://pgbouncer_auth:${PGBOUNCER_AUTH_PASSWORD}@127.0.0.1:6432/pgbouncer" \
+            -tAc "SHOW POOLS" || true)
+          echo "$pools"
+          if [ -z "$pools" ]; then
+            echo "::error::PgBouncer's admin console answered nothing — the pooler is not serving."
+            exit 1
+          fi
+          # Transaction mode, and at least one client actually connected through it.
+          echo "$pools" | grep -q "transaction" || {
+            echo "::error::PgBouncer is not in transaction mode. managed.yml sets pool_mode=transaction."
+            exit 1
+          }
+          # And the migration path is direct: DIRECT_DATABASE_URL must not point at the pooler.
+          direct=$(docker compose $MANAGED_COMPOSE exec -T api printenv DIRECT_DATABASE_URL)
+          case "$direct" in
+            *pgbouncer*|*:6432*)
+              echo "::error::DIRECT_DATABASE_URL points at the pooler. Migrations hold a SESSION advisory lock; through a transaction pooler two replicas stop excluding each other, silently."
+              exit 1 ;;
+          esac
+          echo "pooler in front, migrations direct"
+
+      - name: The acceptance smoke (verify + apply, through real runners)
+        # 0020 T5's script, unchanged. It mints a seeded-member token, drives
+        # verify and apply to terminal states, captures runner logs before
+        # AutoRemove destroys them, and lands stuck rows by hand rather than
+        # leaving them pointing at nothing.
+        run: ./deploy/compose/smoke-managed.sh
+
+      - name: Redact the evidence before it becomes an artifact
+        if: always()
+        # A script, not a shell block, because this is the one step whose bug is
+        # a credential disclosure — and a `run:` block cannot be tested.
+        # scripts/redact-evidence.unit.test.ts feeds it a log full of
+        # real-shaped secrets and asserts none survive.
+        run: |
+          set -euo pipefail
+          mkdir -p managed-evidence
+          shopt -s nullglob
+          for f in smoke-managed-*.log deploy/compose/smoke-*.out test-logs/*; do
+            [ -f "$f" ] && cp "$f" managed-evidence/
+          done
+          # Even with nothing collected: an empty directory must still be the
+          # thing that gets uploaded, never the repo.
+          ./deploy/compose/redact-evidence.sh managed-evidence
+
+      - name: Keep the evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v5.0.0
+        with:
+          name: managed-e2e-evidence-${{ github.run_id }}
+          path: managed-evidence/
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: What state did we leave it in?
+        if: always()
+        # Not a teardown — see the header. This says what is still standing, so
+        # a run that failed halfway does not leave the next one guessing.
+        run: |
+          docker compose $MANAGED_COMPOSE ps || true
+          echo '--- unhealthy services, if any ---'
+          docker compose $MANAGED_COMPOSE ps --format '{{.Name}} {{.Health}}' 2>/dev/null \
+            | grep -v ' healthy$' || echo 'all healthy'
