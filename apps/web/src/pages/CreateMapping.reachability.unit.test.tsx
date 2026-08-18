@@ -281,6 +281,45 @@ describe('reusing a stored connection', () => {
     expect(await screen.findByText(/Listed 12 folders/)).toBeTruthy();
   });
 
+  /**
+   * A verdict is about ONE credential, and must not outlive it (workplan 0073).
+   *
+   * Nothing retired a probe result: the green "the credentials still work"
+   * from the connection you tested stayed on screen after you picked a
+   * different connection, and even after you switched provider entirely. The
+   * owner watched a Dropbox verdict sit above a different source type. That is
+   * worse than no verdict — it is a verdict about something else, on the one
+   * button whose entire job is to be trustworthy.
+   */
+  it('forgets the probe result when the provider changes (0073)', async () => {
+    vi.mocked(connectionsApi.test).mockResolvedValue({ ok: true, detail: 'Listed 12 folders.' });
+    await pickBoxConnection();
+
+    fireEvent.click(screen.getByRole('button', { name: /Test/i }));
+    expect(await screen.findByText(/Listed 12 folders/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Dropbox/ }));
+
+    expect(
+      screen.queryByText(/Listed 12 folders/),
+      'a verdict about the Box connection is still on screen under Dropbox',
+    ).toBeNull();
+  });
+
+  it('forgets it when a DIFFERENT stored connection is picked (0073)', async () => {
+    vi.mocked(connectionsApi.test).mockResolvedValue({ ok: true, detail: 'Listed 12 folders.' });
+    await pickBoxConnection();
+
+    fireEvent.click(screen.getByRole('button', { name: /Test/i }));
+    expect(await screen.findByText(/Listed 12 folders/)).toBeTruthy();
+
+    // Back to "enter new credentials": the verdict belonged to the connection
+    // that is no longer selected.
+    fireEvent.change(fieldFor(/^Use a source connection/), { target: { value: '' } });
+
+    expect(screen.queryByText(/Listed 12 folders/)).toBeNull();
+  });
+
   it('does not demand, a step later, the secrets it just hid', async () => {
     await pickBoxConnection();
     fireEvent.click(nextButton()); // -> target

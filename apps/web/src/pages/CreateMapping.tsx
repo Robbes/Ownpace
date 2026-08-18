@@ -609,6 +609,24 @@ const CreateMapping: React.FC = () => {
     target?: string;
   }>({});
 
+  /**
+   * Forget a side's probe result (workplan 0073).
+   *
+   * A result is a statement about ONE credential, and nothing used to retire
+   * it: the green "the credentials still work" from the connection you tested
+   * stayed on screen after you picked a different connection from the picker,
+   * and even after you switched provider entirely. The owner watched a
+   * Dropbox verdict sit above a different source type. That is worse than no
+   * verdict — it is a verdict about something else, and the whole point of
+   * this button is to let somebody trust what it says.
+   *
+   * Called where the SUBJECT changes (provider, or chosen connection), not
+   * from an effect: `runProbe` itself sets `sourceConnectionId` when a probe
+   * saves, and an effect keyed on that would wipe the result it just earned.
+   */
+  const forgetProbe = (side: 'source' | 'target') =>
+    setProbeResults((prev) => ({ ...prev, [side]: undefined }));
+
   const runProbe = (only?: 'source' | 'target') => {
     setProbing(true);
 
@@ -1231,7 +1249,11 @@ const CreateMapping: React.FC = () => {
                 ).map((type) => (
                   <button
                     key={type.id}
-                    onClick={() =>
+                    onClick={() => {
+                      // A verdict about the OLD provider must not survive the
+                      // switch (0073) — it is a statement about a credential
+                      // this screen no longer asks for.
+                      forgetProbe('source');
                       // A Google credential reads exactly one API, so choosing
                       // it also chooses that domain — the same constraint the
                       // server refuses by name (sourceDomainRefusal). Setting it
@@ -1239,7 +1261,11 @@ const CreateMapping: React.FC = () => {
                       // AWAY leaves the selection alone, which the matrices then
                       // re-police. Drive pins the file domain and a file-capable
                       // target; Gmail pins email and a mail-capable one.
-                      type.id === 'google-drive' || type.id === 'dropbox' || type.id === 'box'
+                      // `void`: the chain below is an expression chosen for its
+                      // effect, and it is left as one rather than rewritten —
+                      // reshaping a live nested ternary is the edit 0070 T6
+                      // records going wrong.
+                      void (type.id === 'google-drive' || type.id === 'dropbox' || type.id === 'box'
                         ? setFormData((prev) => ({
                             ...prev,
                             ...clearedSourceFields(prev, type.id),
@@ -1282,8 +1308,8 @@ const CreateMapping: React.FC = () => {
                                       ? prev.targetType
                                       : 'carddav',
                                 }))
-                              : setFormData((prev) => ({ ...prev, ...clearedSourceFields(prev, type.id), sourceType: type.id }))
-                    }
+                              : setFormData((prev) => ({ ...prev, ...clearedSourceFields(prev, type.id), sourceType: type.id })));
+                    }}
                     className={`p-4 border-2 rounded-lg text-left transition-colors ${
                       formData.sourceType === type.id
                         ? 'border-blue-500 bg-blue-50'
@@ -1371,7 +1397,10 @@ const CreateMapping: React.FC = () => {
               labelKey="wizard.reuseSource"
               options={reusableSources}
               value={formData.sourceConnectionId}
-              onChange={(id) => updateField('sourceConnectionId', id)}
+              onChange={(id) => {
+                forgetProbe('source');
+                updateField('sourceConnectionId', id);
+              }}
             />
 
             {isDropboxSource ? (
@@ -1671,7 +1700,10 @@ const CreateMapping: React.FC = () => {
                 ).map((type) => (
                   <button
                     key={type.id}
-                    onClick={() => updateField('targetType', type.id)}
+                    onClick={() => {
+                      forgetProbe('target');
+                      updateField('targetType', type.id);
+                    }}
                     className={`p-4 border-2 rounded-lg text-left transition-colors ${
                       formData.targetType === type.id
                         ? 'border-blue-500 bg-blue-50'
@@ -1698,7 +1730,10 @@ const CreateMapping: React.FC = () => {
               labelKey="wizard.reuseTarget"
               options={reusableTargets}
               value={formData.targetConnectionId}
-              onChange={(id) => updateField('targetConnectionId', id)}
+              onChange={(id) => {
+                forgetProbe('target');
+                updateField('targetConnectionId', id);
+              }}
             />
 
             <div className="space-y-4">

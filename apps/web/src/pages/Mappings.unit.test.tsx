@@ -176,6 +176,32 @@ describe('Mappings — Delete arms with the mapping name and works (0037 T5)', (
     deleteMock.mockReset();
   });
 
+  /**
+   * The Delete button has to be REACHABLE, not merely present (workplan 0073).
+   *
+   * The table wrapper was `overflow-hidden` around five nowrap columns wider
+   * than a phone, so the actions column was clipped with no way to scroll to
+   * it: on Android the owner could not delete a migration at all, and every
+   * test below passed the whole time because jsdom renders the button
+   * regardless of whether a human could touch it.
+   *
+   * jsdom has no layout, so a scroll cannot be simulated — asserting the
+   * container permits horizontal overflow is the most this tier can say. It is
+   * a weak test for a real defect, and it is here because the alternative is
+   * nothing: the same defect already shipped once as 0068 T9.
+   */
+  it('lets a narrow screen reach the actions column (0073)', async () => {
+    listMock.mockResolvedValue([sampleMapping({ id: 'm1', name: 'Inbox' })]);
+    renderMappings();
+
+    const table = (await screen.findByRole('table')).parentElement!;
+    expect(
+      table.className,
+      'the actions column is clipped off-screen on a phone, Delete included',
+    ).toContain('overflow-x-auto');
+    expect(table.className).not.toContain('overflow-hidden');
+  });
+
   it('stays disarmed until the typed name matches, then deletes and refreshes', async () => {
     listMock.mockResolvedValue([sampleMapping({ id: 'm1', name: 'Inbox' })]);
     deleteMock.mockResolvedValue(undefined);

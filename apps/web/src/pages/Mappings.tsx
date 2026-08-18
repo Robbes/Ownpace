@@ -126,7 +126,14 @@ const Mappings: React.FC = () => {
           </Link>
         </div>
       ) : (
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        /* overflow-x-AUTO, not hidden (workplan 0073). Five nowrap columns are
+           wider than a phone, and `overflow-hidden` CLIPPED the overflow with
+           no way to scroll to it — so the actions column, Delete included, was
+           simply unreachable on Android: the owner could not delete a migration
+           at all. Same defect as 0068 T9's Connections row, in a table instead
+           of a flex row. A control that exists but cannot be touched is a
+           control that does not exist. */
+        <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
