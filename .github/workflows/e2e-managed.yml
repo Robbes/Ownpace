@@ -317,13 +317,21 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
-      - name: Why it failed, where a log tail can reach it
-        if: failure()
+      - name: What the smoke actually concluded, where a log tail can reach it
+        if: always()
         # The evidence file is uploaded as an artifact, and an artifact is not
-        # always reachable from wherever the failure is being read — the tail of
-        # a job log usually is. Without this the smoke's verdict sits ~100 lines
+        # always reachable from wherever the run is being read — the tail of a
+        # job log usually is. Without this the smoke's verdict sits ~100 lines
         # up, behind the artifact upload and `docker compose ps`, and finding out
-        # WHY a run went red costs a round trip. Cheap insurance, printed last.
+        # what a run concluded costs a round trip. Cheap insurance, printed last.
+        #
+        # `always()`, not `failure()`. A green needs this MORE than a red does.
+        # Run #12 passed every step, and its verdict — the one line saying
+        # whether the apply half reached a terminal state or was skipped — was
+        # unreadable: the artifact host is not always fetchable and the log tail
+        # could not reach back that far. That left "all steps passed, so it must
+        # be fine", which is the exact reasoning that made run #6's green a lie.
+        # A gate whose conclusion cannot be read is not a gate, it is a colour.
         #
         # THE REDACTED COPY, never the original. The last lines of that file are
         # the captured runner logs, and a runner's debug output prints the whole
@@ -340,7 +348,7 @@ jobs:
             echo "===== last 45 lines of $f (redacted copy) ====="
             tail -45 "$f"
           else
-            echo "no redacted evidence at $f — the run failed before the smoke, see the failing step above"
+            echo "no redacted evidence at $f — the run ended before the smoke, see the steps above"
           fi
 
       - name: What state did we leave it in?

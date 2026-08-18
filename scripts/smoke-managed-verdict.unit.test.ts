@@ -317,7 +317,9 @@ describe("the failure summary cannot leak what the redaction removes", () => {
   // debug output prints the whole task environment. A job log is readable by
   // everyone who can see the repo.
   const step = workflow.slice(
-    workflow.indexOf("Why it failed, where a log tail can reach it"),
+    workflow.indexOf(
+      "What the smoke actually concluded, where a log tail can reach it",
+    ),
   );
   const tailStep = step.slice(0, step.indexOf("- name: What state"));
 
@@ -332,9 +334,28 @@ describe("the failure summary cannot leak what the redaction removes", () => {
       "Redact the evidence before it becomes an artifact",
     );
     const tailAt = workflow.indexOf(
-      "Why it failed, where a log tail can reach it",
+      "What the smoke actually concluded, where a log tail can reach it",
     );
     expect(redactAt).toBeGreaterThan(-1);
     expect(tailAt).toBeGreaterThan(redactAt);
+  });
+});
+
+describe("a green states its own verdict", () => {
+  // Run #12 passed every step and its verdict was unreadable: the artifact host
+  // is not always fetchable, and the log tail could not reach back past the
+  // upload and `docker compose ps`. What was left was "all steps passed, so it
+  // must be fine" — the exact reasoning that made run #6's green a lie. A gate
+  // whose conclusion cannot be read is not a gate, it is a colour.
+  const step = workflow.slice(
+    workflow.indexOf(
+      "What the smoke actually concluded, where a log tail can reach it",
+    ),
+  );
+  const body = step.slice(0, step.indexOf("- name: What state"));
+
+  it("prints the evidence tail on success too, not only on failure", () => {
+    expect(body).toContain("if: always()");
+    expect(body).not.toContain("if: failure()");
   });
 });
