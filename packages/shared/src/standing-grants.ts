@@ -70,12 +70,19 @@ export interface StandingGrant {
 }
 
 /**
- * Only the providers where a grant actually persists after we stop using it.
+ * Providers where a CONSENT persists after we stop using it.
  *
- * Deliberately NOT a row per connection kind. A plain IMAP connection
- * authenticates with a password the customer already controls — there is no
- * consent object sitting in a console, and inventing a reminder for it would
- * teach people to ignore the ones that matter.
+ * Not a row per connection kind: several kinds share one authorization, and a
+ * reminder repeated three times about the same page trains people to skim.
+ *
+ * This list used to be the whole story, on the reasoning that *"a plain IMAP
+ * connection authenticates with a password the customer already controls — there
+ * is no consent object sitting in a console"*. **Half right, and the wrong
+ * half was load-bearing** (owner, 2026-08-18). There is no *consent* object,
+ * but there is very often a **credential** object — an app password sitting in
+ * the provider's account settings, which we deleted our copy of and which still
+ * works. `CREDENTIAL_RETIREMENTS` below covers those; the two are kept separate
+ * because they are different things to do, not because one matters less.
  */
 const GRANTS: readonly StandingGrant[] = [
   {
@@ -185,4 +192,167 @@ export function standingGrantReminders(
     body: locale === 'nl' ? g.nl : g.en,
     where: g.where,
   }));
+}
+
+
+/**
+ * A credential the customer gave us that keeps working after we forget it
+ * (owner's finding, 2026-08-18: *"they just need to be reminded to do so and
+ * not leave credentials wandering around"*).
+ *
+ * ## Why this is separate from a consent, and equally necessary
+ *
+ * Deleting our encrypted copy of an app password removes it from us. It does
+ * not remove it from the provider — that string keeps authenticating until
+ * somebody deletes or changes it in the account it belongs to. So the shape of
+ * the risk is identical to a standing consent (access that outlives our
+ * erasure and only the customer can end), even though the object and the
+ * screen are different.
+ *
+ * ## Why the vague ones are still worth saying
+ *
+ * For `nextcloud` and `proton` we can name the screen. For a generic `imap` or
+ * `webdav` connection we cannot — the portal belongs to whichever provider
+ * they use, and we do not know which. The temptation is to say nothing rather
+ * than say something imprecise.
+ *
+ * That would be the wrong call: **the customer knows who their mail provider
+ * is, and we know what they should look for.** Naming the thing ("app
+ * password", "application-specific password", "device password") is the part
+ * they cannot supply, and it is enough to find the screen. Saying nothing
+ * leaves a working credential in place because we could not be exact.
+ */
+export interface CredentialRetirement {
+  readonly id: string;
+  /** `connection.kind` values, and wizard types where they differ. */
+  readonly impliedBy: readonly string[];
+  /** What the provider calls it — rendered verbatim. */
+  readonly whatTheyCallIt: string;
+  /** A URL where one is stable, else the path through their settings. */
+  readonly where: string;
+  readonly en: string;
+  readonly nl: string;
+}
+
+const CREDENTIALS: readonly CredentialRetirement[] = [
+  {
+    id: 'nextcloud',
+    impliedBy: ['nextcloud'],
+    whatTheyCallIt: 'Settings → Security → Devices & sessions',
+    where: 'your Nextcloud account → Settings → Security → Devices & sessions',
+    en:
+      'The app password you created for this migration still works on your Nextcloud account. ' +
+      'Deleting our copy does not delete it there — revoke the device entry to end it.',
+    nl:
+      'Het app-wachtwoord dat u voor deze migratie hebt aangemaakt werkt nog steeds op uw ' +
+      'Nextcloud-account. Het verwijderen van onze kopie verwijdert het daar niet — trek de ' +
+      'apparaatvermelding in om het te beëindigen.',
+  },
+  {
+    id: 'proton',
+    impliedBy: ['proton'],
+    whatTheyCallIt: 'Account → Security → App passwords',
+    where: 'https://account.proton.me → Security and privacy',
+    en:
+      'The bridge or app password you gave us still works on your Proton account until you ' +
+      'delete it there.',
+    nl:
+      'Het bridge- of app-wachtwoord dat u ons hebt gegeven werkt nog op uw Proton-account ' +
+      'totdat u het daar verwijdert.',
+  },
+  {
+    id: 'mail_password',
+    impliedBy: ['imap', 'jmap', 'soverin', 'selfhosted_mail'],
+    whatTheyCallIt: 'your mail provider’s account or security settings',
+    where:
+      'your mail provider’s account settings — look for “app password”, ' +
+      '“application-specific password” or “device password”',
+    en:
+      'The mailbox password or app password you gave us still works. We have deleted our copy; ' +
+      'only you can retire it, by deleting that app password or changing the account password. ' +
+      'We cannot name the exact screen because it belongs to your provider, not to us.',
+    nl:
+      'Het postbuswachtwoord of app-wachtwoord dat u ons hebt gegeven werkt nog steeds. Wij ' +
+      'hebben onze kopie verwijderd; alleen u kunt het intrekken, door dat app-wachtwoord te ' +
+      'verwijderen of het accountwachtwoord te wijzigen. Wij kunnen het exacte scherm niet ' +
+      'noemen omdat het van uw aanbieder is, niet van ons.',
+  },
+  {
+    id: 'dav_password',
+    impliedBy: ['caldav', 'carddav', 'webdav'],
+    whatTheyCallIt: 'your calendar, contacts or file provider’s security settings',
+    where:
+      'your provider’s account settings — look for “app password”, ' +
+      '“application-specific password” or “connected devices”',
+    en:
+      'The password you gave us for this calendar, contacts or file account still works. We have ' +
+      'deleted our copy; only you can retire it where the account lives.',
+    nl:
+      'Het wachtwoord dat u ons voor dit agenda-, contacten- of bestandsaccount hebt gegeven ' +
+      'werkt nog steeds. Wij hebben onze kopie verwijderd; alleen u kunt het intrekken waar het ' +
+      'account thuishoort.',
+  },
+];
+
+/** The credentials a set of provider identifiers leaves behind, deduplicated. */
+export function credentialRetirementsFor(
+  identifiers: Iterable<string>,
+): readonly CredentialRetirement[] {
+  const wanted = new Set(identifiers);
+  return CREDENTIALS.filter((c) => c.impliedBy.some((id) => wanted.has(id)));
+}
+
+/** Every credential-retirement id — for the coverage lock in the tests. */
+export function credentialRetirementIds(): readonly string[] {
+  return CREDENTIALS.map((c) => c.id);
+}
+
+/** Every identifier that leaves a credential behind. */
+export function identifiersWithRetirableCredentials(): readonly string[] {
+  return CREDENTIALS.flatMap((c) => [...c.impliedBy]);
+}
+
+/** One entry in the list of access that outlives our erasure. */
+export interface OutlivingAccess {
+  readonly id: string;
+  /** A consent in a console, or a credential in an account. Different jobs. */
+  readonly category: 'consent' | 'credential';
+  readonly heading: string;
+  readonly body: string;
+  readonly where: string;
+}
+
+/**
+ * Everything that keeps working after we have forgotten the customer, in one
+ * list, for the kinds they actually used.
+ *
+ * Credentials come FIRST. A consent is a permission sitting unused; a live app
+ * password is a working way in, and if somebody reads one item and stops, that
+ * is the one they should have read. (Both are shown — this decides the order,
+ * not the contents.)
+ *
+ * Empty when nothing applies, so a caller renders nothing rather than an empty
+ * heading: a reminder section with no reminders reads as a bug and trains
+ * people to skim past the real ones.
+ */
+export function accessThatOutlivesErasure(
+  identifiers: Iterable<string>,
+  locale: RefusalLocale,
+): readonly OutlivingAccess[] {
+  const kinds = [...identifiers];
+  const credentials: OutlivingAccess[] = credentialRetirementsFor(kinds).map((c) => ({
+    id: c.id,
+    category: 'credential',
+    heading: c.whatTheyCallIt,
+    body: locale === 'nl' ? c.nl : c.en,
+    where: c.where,
+  }));
+  const consents: OutlivingAccess[] = standingGrantsFor(kinds).map((g) => ({
+    id: g.id,
+    category: 'consent',
+    heading: g.whatTheyCallIt,
+    body: locale === 'nl' ? g.nl : g.en,
+    where: g.where,
+  }));
+  return [...credentials, ...consents];
 }

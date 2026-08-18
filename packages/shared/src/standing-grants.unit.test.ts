@@ -19,6 +19,9 @@ import {
   leavesAStandingGrant,
   grantIds,
   identifiersWithStandingGrants,
+  credentialRetirementsFor,
+  identifiersWithRetirableCredentials,
+  accessThatOutlivesErasure,
 } from './standing-grants';
 
 describe('standing grants', () => {
@@ -122,14 +125,14 @@ describe('the completion report carries it (workplan 0085 T4b)', () => {
     expect(md).toContain('entra.microsoft.com');
   });
 
-  it('says nothing when neither side leaves a grant behind', async () => {
+  const reportFor = async (sourceType: string, targetType: string) => {
     const { buildCompletionReport, renderCompletionReportMarkdown } = await import(
       './completion-report'
     );
     const report = buildCompletionReport({
       mappingId: 'm2',
-      sourceType: 'imap',
-      targetType: 'imap',
+      sourceType,
+      targetType,
       lifecycle: 'done',
       generatedAt: '2026-08-18T12:00:00.000Z',
       domains: [{ domain: 'email', state: 'completed' } as never],
@@ -137,9 +140,127 @@ describe('the completion report carries it (workplan 0085 T4b)', () => {
       deletions: [],
       failures: [],
     });
+    return { report, md: renderCompletionReportMarkdown(report) };
+  };
+
+  it('an IMAP-only migration is reminded about the password, not passed over', async () => {
+    // This test used to assert the opposite, on the reasoning that a password
+    // connection leaves "no consent object sitting in a console". True, and
+    // beside the point (owner, 2026-08-18): the app password we were given
+    // still authenticates after we delete our copy, so somebody finishing an
+    // IMAP migration is exactly who needs telling.
+    const { report, md } = await reportFor('imap', 'imap');
+
+    // No CONSENT — that part of the old reasoning was right.
     expect(report.standingGrants).toEqual([]);
+    // But there is something outstanding, and it is a password.
+    expect(report.outlivingAccess.map((a) => a.category)).toEqual(['credential']);
+    expect(md).toContain('Access you granted, which only you can withdraw');
+    expect(md).toContain('Passwords that still work');
+    expect(md).toMatch(/app password/i);
+  });
+
+  it('shows passwords above permissions when a migration leaves both', async () => {
+    const { md } = await reportFor('imap', 'graph');
+    expect(md.indexOf('Passwords that still work')).toBeLessThan(
+      md.indexOf('Permissions you granted'),
+    );
+  });
+
+  it('says nothing when nothing is left behind', async () => {
     // No empty heading: a section with nothing under it reads as a bug and
-    // trains people to skim past the real ones.
-    expect(renderCompletionReportMarkdown(report)).not.toContain('only you can withdraw');
+    // trains people to skim past the real ones. Note this needs an
+    // UNRECOGNISED type — every connection kind the schema actually allows now
+    // leaves either a consent or a credential, which is the point.
+    const { report, md } = await reportFor('nothing_we_know_of', 'nothing_we_know_of');
+
+    expect(report.outlivingAccess).toEqual([]);
+    expect(md).not.toContain('only you can withdraw');
+  });
+});
+
+// ---------------------------------------------------------------------------
+/**
+ * The credential half (owner's finding, 2026-08-18).
+ *
+ * The consent list used to be the whole story, on the reasoning that a
+ * password connection has "no consent object sitting in a console". True, and
+ * beside the point: there is very often a **credential** object — an app
+ * password we deleted our copy of that still authenticates. The risk is the
+ * same shape, so the reminder has to exist.
+ */
+describe('credentials that outlive our erasure', () => {
+  it.each(['nextcloud', 'proton', 'imap', 'jmap', 'caldav', 'carddav', 'webdav', 'selfhosted_mail', 'soverin'])(
+    '%s leaves a credential the customer has to retire',
+    (kind) => {
+      const found = credentialRetirementsFor([kind]);
+      expect(found, `${kind} has no retirement entry`).toHaveLength(1);
+      expect(found[0]!.where.length).toBeGreaterThan(10);
+    },
+  );
+
+  it('every password-shaped connection kind is covered', () => {
+    // The coverage lock. A kind added to the schema without an entry here is a
+    // credential nobody is ever told about — silent, and indistinguishable
+    // from "nothing to do".
+    const PASSWORD_KINDS = [
+      'imap', 'jmap', 'caldav', 'carddav', 'webdav',
+      'nextcloud', 'proton', 'soverin', 'selfhosted_mail',
+    ];
+    const covered = new Set(identifiersWithRetirableCredentials());
+    expect(PASSWORD_KINDS.filter((k) => !covered.has(k))).toEqual([]);
+  });
+
+  it('says the credential STILL WORKS, which is the whole point', () => {
+    for (const kind of ['imap', 'nextcloud', 'proton', 'webdav']) {
+      const [item] = credentialRetirementsFor([kind]);
+      expect(item!.en, kind).toMatch(/still works|keeps working/i);
+    }
+  });
+
+  it('the vague ones name what to look for, since we cannot name the screen', () => {
+    // We do not know which mail provider they use. We do know what the thing
+    // is called, and that is the half they cannot supply.
+    const [item] = credentialRetirementsFor(['imap']);
+    expect(item!.where).toMatch(/app password/i);
+    expect(item!.en).toMatch(/belongs to your provider/i);
+  });
+
+  it('deduplicates, so one Google-shaped answer is not repeated per domain', () => {
+    expect(credentialRetirementsFor(['caldav', 'carddav', 'webdav'])).toHaveLength(1);
+  });
+
+  it('an OAuth kind leaves a consent, not a credential', () => {
+    expect(credentialRetirementsFor(['o365'])).toEqual([]);
+    expect(credentialRetirementsFor(['gmail'])).toEqual([]);
+  });
+});
+
+describe('accessThatOutlivesErasure', () => {
+  it('puts credentials before consents', () => {
+    // A consent is a permission sitting unused; a live app password is a
+    // working way in. If somebody reads one item and stops, it should be that.
+    const items = accessThatOutlivesErasure(['o365', 'imap'], 'en');
+
+    expect(items.map((i) => i.category)).toEqual(['credential', 'consent']);
+  });
+
+  it('returns both halves for a tenant that used both', () => {
+    const items = accessThatOutlivesErasure(['gmail', 'nextcloud'], 'en');
+    expect(items.map((i) => i.id).sort()).toEqual(['google', 'nextcloud']);
+  });
+
+  it('is empty when nothing applies, so no empty heading is rendered', () => {
+    expect(accessThatOutlivesErasure(['something_unknown'], 'en')).toEqual([]);
+  });
+
+  it('translates the frame in Dutch and keeps the provider label verbatim', () => {
+    const [nl] = accessThatOutlivesErasure(['nextcloud'], 'nl');
+    const [en] = accessThatOutlivesErasure(['nextcloud'], 'en');
+
+    expect(nl!.body).not.toBe(en!.body);
+    expect(nl!.body).toMatch(/app-wachtwoord/);
+    // The screen name is a label on their screen — never translated.
+    expect(nl!.heading).toBe(en!.heading);
   });
 });

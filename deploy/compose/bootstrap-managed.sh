@@ -301,8 +301,25 @@ phase_data() {
     -f - <"${SCRIPT_DIR}/pgbouncer/setup-auth.sql" >/dev/null
   note "pgbouncer_auth role + user_lookup() present (idempotent)"
 
+  # pgbouncer.ini's auth_dbname is a literal — compose mounts that file
+  # verbatim, so it cannot read POSTGRES_DB. A mismatch does not fail at
+  # start-up; it fails later, as an authentication error naming a database
+  # nobody configured. Check it here, where both values are in hand.
+  local ini="${SCRIPT_DIR}/pgbouncer/pgbouncer.ini"
+  local auth_db configured_db
+  auth_db="$(grep -oE 'auth_dbname=[A-Za-z0-9_]+' "$ini" | head -1 | cut -d= -f2)"
+  configured_db="${POSTGRES_DB:-openmigrate}"
+  if [ -n "$auth_db" ] && [ "$auth_db" != "$configured_db" ]; then
+    echo "!!! pgbouncer.ini runs auth_query in '${auth_db}', but POSTGRES_DB is '${configured_db}'." >&2
+    echo "!!! pgbouncer_auth.user_lookup() only exists in the latter, so every login would fail." >&2
+    echo "!!! Set them to the same value:" >&2
+    echo "!!!   ${ini}            (auth_dbname=…)" >&2
+    echo "!!!   ${ENV_FILE}       (POSTGRES_DB=…)" >&2
+    exit 1
+  fi
+
   up_wait pgbouncer
-  note "pgbouncer healthy, in transaction mode"
+  note "pgbouncer healthy, in transaction mode (auth_query in ${configured_db})"
 
   if [ "$WITH_DEMO" -eq 1 ]; then
     up_wait nextcloud
