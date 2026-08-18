@@ -221,6 +221,55 @@ a job log is readable by everyone who can see the repo. The first draft of that
 step tailed the original; it was caught before it ran, and a test now pins the
 redacted path.
 
+## Run #11 — the gate paid for itself (2026-08-18)
+
+The first run with `SMOKE_PREPARE_APPLY=1`. It seeded the DAV source, enqueued
+a sync, four runners executed, items were created and reached `copied` — and
+the apply half still found nothing. The diagnosis added for run #9 said which
+of the three states it was, and it was the third:
+
+> there ARE copied items, but none carries a target_ref id.
+> That is a bug in the sync's ledger write, not a missing precondition.
+
+It was right, and it found two defects.
+
+**`target_ref` was a string of itself.** `PgLedger` wrote
+`JSON.stringify({ id })` into a drizzle `jsonb` column. Drizzle serialises
+whatever it is handed, so the JSON *text* was stored as a jsonb string scalar —
+`"{\"id\":\"abc\"}"` — rather than the object. Confirmed through the real
+write path against real migrations under PGlite:
+
+| | jsonb_typeof | `target_ref->>'id'` |
+|---|---|---|
+| a hand-written `INSERT` of the same value | `object` | `target-abc` |
+| through `PgLedger` | **`string`** | **`null`** |
+
+That second row is the bug, and the first row is why it hid so well: write the
+value yourself and it is fine — only drizzle's own serialisation double-encodes,
+so any test that inserted its own fixture would have proved the opposite of the
+truth. `target_ref->>'id'` was NULL on every row ever written, and
+`mapRowToRecord` read `.id` off a string, got `undefined`, and handed `''` to
+every caller. **Every `targetId` in the system came back empty.** Fixed in
+`ledger.ts` (three sites); migration 0027 repairs the rows already written.
+
+**And an empty handle was not refused.** This is the worse of the two. Every
+DAV writer builds its URL with `buildUrl(targetId)`, and `buildUrl('')` is the
+**collection** — so `removeItem('')` does not fail, it aims the DELETE at the
+whole calendar, address book or folder. `apply-deletion.ts` passes the ledger's
+`targetId` straight in. Applying one deletion would have removed the container
+and everything in it.
+
+Reachable, not theoretical: the storage bug guaranteed `''`. Both halves are
+fixed, but the guard stands on its own — a handle we do not have is never
+permission to delete what contains it (ADR-0024, hard rule 2). It refuses
+before any URL is formed, in all three writers, and a test asserts the ordering
+so a writer added later cannot quietly skip it.
+
+**What this says about the gate.** Nine runs of arguing with a nightly produced
+a latent data-loss path in the apply route — the exact path 0084 exists to
+cover, in the edition nobody tested. The skip that used to pass would have
+hidden all of it: `apply: skipped-no-item` and `SMOKE PASS`, indefinitely.
+
 ## Run #6, and what the green actually covered (2026-08-18)
 
 The gate's first fully green run. Every one of its fourteen steps reports
