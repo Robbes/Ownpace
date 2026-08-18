@@ -568,3 +568,46 @@ describe('the target step asks in the descriptor order too', () => {
     expect(at('Target Username') + 1).toBe(at('Target Password'));
   });
 });
+
+
+/**
+ * Every field a screen reader can name (workplan 0068 T10).
+ *
+ * The wizard's inputs had no `htmlFor`/`id` pair, so a screen reader read
+ * roughly thirty unlabelled boxes — the owner asked for it after testing on a
+ * phone, and it was logged as "~30 mechanical edits, deserves its own change".
+ * After 0075 there is ONE input in that file instead of thirty, so it cost
+ * four lines. This asserts it by ASKING THE WAY ASSISTIVE TECH DOES —
+ * `getByLabelText` resolves through the association, so it cannot be satisfied
+ * by a label that merely sits next to a box.
+ */
+describe('every wizard field is reachable by its label', () => {
+  it.each(SOURCE_TYPES)('$name', ({ name, required }) => {
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${name}`) }));
+
+    for (const [label] of required) {
+      // The `$`-anchored patterns above match the LABEL TEXT; the accessible
+      // name additionally carries the required marker's " *" (the span is
+      // aria-hidden, so a screen reader still says just "Host"). Anchor the
+      // start only, or this asserts about punctuation rather than labelling.
+      const byName = new RegExp(label.source.replace(/\$$/, ''));
+      expect(
+        screen.getByLabelText(byName),
+        `a screen reader cannot name the ${label} box on a ${name} source`,
+      ).toBeTruthy();
+    }
+  });
+
+  it('the target step too', () => {
+    renderWizard();
+    fill(/^Host$/, 'mail.acme.example');
+    fill(/^Source Username/, 'anna@acme.example');
+    fireEvent.click(nextButton());
+
+    expect(screen.getByLabelText(/^Host/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Port/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Target Username/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Target Password/)).toBeTruthy();
+  });
+});

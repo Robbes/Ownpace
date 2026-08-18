@@ -1138,17 +1138,30 @@ const CreateMapping: React.FC = () => {
             field.placeholder ??
             (field.placeholderKey ? t(field.placeholderKey as StringKey) : undefined);
           const set = (v: string) => updateField(formKey, v);
+          /**
+           * A label a screen reader can actually attach to its box
+           * (workplan 0068 T10, finally cheap).
+           *
+           * The wizard's inputs had no `htmlFor`/`id` pair, so a screen
+           * reader read roughly thirty unlabelled boxes and the fix was
+           * logged as "~30 mechanical edits, deserves its own change". After
+           * 0075 there is one input in this file instead of thirty, so it is
+           * four lines. That is the compounding return on deleting the
+           * duplication rather than editing every copy of it.
+           */
+          const id = `${side}-${field.key}`;
           return (
             <React.Fragment key={field.key}>
               {isSource && field.key === 'rootFolderId' && isDriveSource && renderDriveBrowse()}
               {isSource && field.key === 'rootPath' && isDropboxSource && renderDropboxBrowse()}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
                   {t(field.labelKey as StringKey)}
                   {(isSource ? sourceFieldRequiredNow(field) : field.required === true) && <Required />}
                 </label>
                 {field.multiline ? (
                   <textarea
+                    id={id}
                     value={value}
                     onChange={(e) => set(e.target.value)}
                     className="input w-full font-mono text-xs"
@@ -1158,6 +1171,7 @@ const CreateMapping: React.FC = () => {
                 ) : field.revealable ? (
                   <div className="relative">
                     <input
+                      id={id}
                       type={reveal ? 'text' : 'password'}
                       autoComplete={field.autoComplete}
                       value={value}
@@ -1176,6 +1190,7 @@ const CreateMapping: React.FC = () => {
                   </div>
                 ) : (
                   <input
+                    id={id}
                     type={field.secret ? 'password' : field.numeric ? 'number' : 'text'}
                     inputMode={field.numeric ? 'numeric' : undefined}
                     min={field.numeric ? 1 : undefined}

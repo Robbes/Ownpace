@@ -29,6 +29,8 @@ case alone.
 
 | T4 the target step, the same way | ✅ **Fixed 2026-08-19** | Done as a second pass once the source step was green, so each change had the suite to itself. The target had the identical split — host and port up top, then a separate blue panel holding the account and the password — and the owner never reported it only because they tested sources. One `renderSideFields(side)` now serves both, which is the point: leaving one side hand-written is precisely how the two drift. Another **122 lines out, 33 in**, tests again unchanged. |
 
+| T5 the labels a screen reader could not use | ✅ **Fixed 2026-08-19** | The wizard's inputs had no `htmlFor`/`id` pair, so a screen reader read roughly thirty unlabelled boxes. The owner raised it after testing on a phone and it was logged in 0068 T10 as *~30 mechanical edits; deserves its own change* — which was true then. After T1 and T4 there is **one input in this file instead of thirty**, so it cost four lines. That is the compounding return on deleting duplication rather than editing every copy of it, and it is the reason this task is in this workplan rather than its own. The test asks the way assistive tech does (`getByLabelText`, which resolves through the association), so it cannot be satisfied by a label that merely sits next to a box; mutation-verified by dropping `htmlFor`, which fails every provider. |
+
 ## What this leaves
 
 The descriptor is now the single answer to *what does this provider ask for, in what order,
