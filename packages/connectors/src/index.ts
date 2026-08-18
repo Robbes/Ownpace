@@ -104,4 +104,5 @@ export * from './google-drive-source';
 export * from './google-drive-source.types';
 export * from './google-drive-transport';
 export * from './google-token-provider';
+export * from './token-revoker';
 export * from './google-jwt-bearer-provider';

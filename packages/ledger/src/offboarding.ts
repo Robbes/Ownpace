@@ -31,7 +31,11 @@
 
 import { sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
-import { DEFAULT_BACKUP_RETENTION_DAYS, erasureTimeline } from '@openmig/shared';
+import {
+  DEFAULT_BACKUP_RETENTION_DAYS,
+  erasureTimeline,
+  type RevocationOutcome,
+} from '@openmig/shared';
 import type { PgDatabase } from './db-types';
 
 /** The windows a customer may choose (owner decision, 2026-08-18). */
@@ -211,6 +215,8 @@ export interface PurgeResult {
   readonly tenantRef: string;
   readonly counts: Readonly<Record<string, number>>;
   readonly retainedInvoiceIds: readonly string[];
+  /** What happened when each stored credential was revoked at its provider. */
+  readonly revocations: readonly RevocationOutcome[];
 }
 
 /**
@@ -228,6 +234,21 @@ export async function purgeTenant(
   db: PgDatabase,
   tenantId: string,
   now: Date,
+  /**
+   * The outcome of attempting provider-side revocation, done by the CALLER
+   * before this runs (T4a).
+   *
+   * Passed in rather than performed here for two reasons. This module talks to
+   * one database and nothing else, and a network call inside the purge
+   * transaction would hold it open across an unbounded wait. And revocation
+   * must happen while the `connection` rows still exist — it needs the
+   * credentials this function is about to delete — so the ordering is the
+   * caller's to get right, and making it a parameter is what forces them to.
+   *
+   * Defaults to empty, which the receipt reports honestly as "no attempt was
+   * recorded" rather than as "nothing needed revoking".
+   */
+  revocations: readonly RevocationOutcome[] = [],
 ): Promise<PurgeResult> {
   const ref = tenantRef(tenantId);
   const counts: Record<string, number> = {};
@@ -258,11 +279,12 @@ export async function purgeTenant(
     UPDATE erasure_record
        SET purged_at = ${now},
            retained_invoice_ids = ${sql.raw(pgUuidArray(retainedInvoiceIds))},
-           purged_counts = ${JSON.stringify(counts)}::jsonb
+           purged_counts = ${JSON.stringify(counts)}::jsonb,
+           revocations = ${JSON.stringify(revocations)}::jsonb
      WHERE tenant_ref = ${ref} AND purged_at IS NULL
   `);
 
-  return { tenantRef: ref, counts, retainedInvoiceIds };
+  return { tenantRef: ref, counts, retainedInvoiceIds, revocations };
 }
 
 /** A literal `uuid[]`, because a parameterised array is driver-specific here. */
