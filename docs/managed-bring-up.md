@@ -493,15 +493,30 @@ On the reference box that was exactly one variable out of four:
 `SECRET_ENCRYPTION_KEY`, whose value had not changed while the three database
 URLs had. Three readable secrets, one unreadable, every run dead.
 
-Use the force flag, which writes a throwaway value first so the real write
-cannot be skipped:
+Use the force flag, which **deletes** each variable before writing it, so the
+write is a creation and cannot be skipped:
 
 ```bash
 SET_TASK_ENV_FORCE_REWRITE=1 ./deploy/compose/set-task-env.sh
 ```
 
-To repair one variable by hand, upload any different value for it and then run
-`set-task-env.sh` normally — the same trick, done twice.
+**Delete, not overwrite** — and this is the part that costs a round if you get
+it wrong. `envvars.upload` *reads* the existing value to decide whether the
+write is a no-op, so on a variable it cannot decrypt, the repair fails on the
+same error as the fault:
+
+```
+[set-task-env] FAILED: Unsupported state or unable to authenticate data
+```
+
+Deletion needs no plaintext. To repair a single variable by hand:
+
+```bash
+cd apps/worker
+TRIGGER_API_URL=http://localhost:3090 TRIGGER_SECRET_KEY=… TRIGGER_PROJECT_REF=… \
+  node -e 'require("@trigger.dev/sdk").envvars.del(process.env.TRIGGER_PROJECT_REF, "prod", "SECRET_ENCRYPTION_KEY").then(()=>console.log("deleted"))'
+cd .. && ./deploy/compose/set-task-env.sh
+```
 
 The order that works:
 
