@@ -398,6 +398,7 @@ it.
 | `git status` shows `apps/worker/package.json` modified after a deploy | The Trigger.dev CLI rewrites the file — usually only stripping its trailing newline | `git diff` it; discard unless it is a real SDK bump. `deploy-tasks.sh` now says so rather than leaving you to find it |
 | `Seed failed: DATABASE_URL (DB owner connection) is required to seed` | The seed runs on the host and inherits nothing; nothing in `apps/api` loads a dotenv file | Use `./deploy/compose/seed-managed.sh`, which reads `.env` and asks compose for the published port |
 | Demo owner tokens are rejected by the API | They expire after seven days | Re-run `./deploy/compose/seed-managed.sh` — it is idempotent and mints fresh ones |
+| Supervisor loops on `Snapshot changed inside startRunAttempt`, runs pile up `EXECUTING`, runner containers accumulate | Almost certainly **not** about snapshots. Check `docker compose logs trigger-api` for `Unsupported state or unable to authenticate data` at `PrismaSecretStore.getSecrets` — that is `TRIGGER_ENCRYPTION_KEY` no longer matching the stored secrets | See "Rotating `TRIGGER_ENCRYPTION_KEY`" above. `set-task-env.sh` alone does not fix it |
 | `set-task-env.sh` fails with a bare `Connection error`, and works when re-run | It was run straight after `trigger-api` was recreated, before the webapp was accepting requests | Nothing — it now waits for the webapp before uploading, and says so |
 | A secret in `.env` is a `change-me-…` value and was never generated | `ensure-env-secrets.sh` used to treat any non-empty value as set, so an `.env` copied from an older template kept its shipped placeholders for ever | Re-run `./deploy/compose/ensure-env-secrets.sh` — it now replaces placeholders and prints what to recreate afterwards |
 | `--from trigger` refuses with "Trigger.dev version drift" | `TRIGGER_IMAGE_TAG` and `@trigger.dev/sdk` disagree (0018 T0). Unset, the tag falls back to `managed.yml`'s default, which is easy to miss | Set `TRIGGER_IMAGE_TAG` to `v<sdk version>`, or pin the SDK back. The refusal prints both commands |
@@ -459,6 +460,57 @@ refuses when they disagree.
 services, re-run `set-task-env.sh` if a task variable changed, and re-mint any
 JWTs signed with a rotated `JWT_SECRET`. Rotating `SECRET_ENCRYPTION_KEY`
 **strands stored connection credentials** — they have to be re-entered.
+Rotating `TRIGGER_LOGIN_SECRET` signs everyone out **including the deploy
+CLI**, whose stored token then fails with `Unable to validate existing personal
+access token — 500`; a `login` fixes it.
+
+### Rotating `TRIGGER_ENCRYPTION_KEY`
+
+**Not a normal rotation, and `ensure-env-secrets.sh` refuses to do it for you.**
+
+This key encrypts the Trigger.dev secret store. Changing it does not re-encrypt
+anything — it strands every secret written under the old key. The failure is not
+at boot; it is every run, at `startRunAttempt`:
+
+```
+Error: Unsupported state or unable to authenticate data
+  at PrismaSecretStore.getSecrets
+  at AuthenticatedWorkerInstance.getEnvVars
+  at AuthenticatedWorkerInstance.startRunAttempt
+```
+
+which the supervisor reports as `Snapshot changed inside startRunAttempt` —
+a message about snapshots with nothing in it about keys. Runs pile up
+`EXECUTING`, retry containers accumulate, and nothing reaches a task body.
+
+**Re-running `set-task-env.sh` does not cure it.** That re-encrypts the four
+variables this repository owns; the store holds more. The result is a *mixed*
+store, where neither the old key nor the new one decrypts everything — so
+putting the old key back is not a clean undo either.
+
+The order that works:
+
+1. **Before rotating**, list what is in the store:
+   `SELECT key, "updatedAt" FROM "SecretStore"` — everything there has to be
+   re-creatable, or you cannot rotate without losing it.
+2. Drain the queue (nothing in `EXECUTING`) and stop the schedule.
+3. Rotate the key, recreate `trigger-api` and `trigger-supervisor`.
+4. Delete the now-undecryptable rows and recreate them: `set-task-env.sh` for
+   the task environment, and by hand for anything else step 1 found.
+5. Redeploy the tasks and watch the first runs reach a terminal state.
+
+**On a stack whose Trigger.dev data is disposable — which a reference or demo
+box usually is — the wipe is faster and more certain than the surgery:**
+
+```bash
+docker compose -f deploy/compose/managed.yml down trigger-api trigger-supervisor
+docker volume rm open-migrate-managed_trigger_db_data
+./deploy/compose/bootstrap-managed.sh --from trigger
+```
+
+That destroys the orchestration database only. The ledger, tenants, mappings and
+items live in `open-migrate-db` and are untouched. You are then back at the one
+human step, and `trigger-credentials.sh` reads the new project's credentials.
 
 **Turning the pooler off** is two values: `DB_HOST=postgres`, `DB_PORT=5432`,
 then `up -d`. Every service reads them, so nothing in `managed.yml` is edited.
