@@ -182,6 +182,45 @@ Whether `seed-demo-dav-content.sh` has been run on the Spark is still not
 knowable from a run's evidence. After this change it is: run #10's refusal, if
 it comes, will say which of the three states the ledger is in.
 
+## Run #10, and making the gate able to prepare its own box (2026-08-18)
+
+Red at the same step. The interesting part is not the failure, it is what the
+gate could not do about it: every remaining route to green needed a human on
+the Spark, and there was none.
+
+**The two things standing between the gate and an honest green, both structural.**
+
+The demo DAV source has no content and never has —
+`setup-nextcloud-users.sh` provisions accounts and nothing else. And a mapping
+with no schedule syncs on `DEFAULT_SYNC_SCHEDULE = */15`, so even with content
+in place the gate would either sit idle for a quarter of an hour or race the
+tick and lose. Neither is a defect in the product; both mean the gate cannot
+reach its own precondition unaided.
+
+So the smoke gained `SMOKE_PREPARE_APPLY`, **off by default**. Run by hand it
+remains an acceptance test — it reports what the stack is, and a script that
+manufactured its own fixture by default would be the same class of lie as the
+skip that used to pass. In CI, where nobody prepares the box between runs, the
+gate sets it and the smoke seeds the DAV source and enqueues the sync itself
+(`POST /api/migrations/:id/sync`, which is the "run now" path rather than the
+scheduler's cadence), then re-asks the same eligibility question it always
+asked. A seeding failure does not short-circuit anything: it falls through to
+the diagnosis added for run #9, which then says whether the ledger is empty or
+stalled.
+
+**A failure has to be readable from where it is read.** Run #10's diagnosis was
+written, uploaded, and unreachable: the artifact host is not always fetchable,
+and the verdict sits about a hundred lines up a job log behind the artifact
+upload and `docker compose ps`, so a log tail does not reach it. There is now a
+final `if: failure()` step that prints the last 45 lines of the evidence.
+
+It prints **the redacted copy**, never the workspace original. Those last lines
+are the captured runner logs, a runner's debug output prints the whole task
+environment — `DATABASE_URL`, `SECRET_ENCRYPTION_KEY`, the `tr_prod_` key — and
+a job log is readable by everyone who can see the repo. The first draft of that
+step tailed the original; it was caught before it ran, and a test now pins the
+redacted path.
+
 ## Run #6, and what the green actually covered (2026-08-18)
 
 The gate's first fully green run. Every one of its fourteen steps reports
