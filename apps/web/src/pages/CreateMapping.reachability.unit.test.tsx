@@ -336,3 +336,103 @@ describe('reusing a stored connection', () => {
     await waitFor(() => expect(nextButton()).toBeEnabled());
   });
 });
+
+
+/**
+ * The source step asks in ONE order, the descriptor's (workplan 0075).
+ *
+ * It used to ask in two groups: a hand-written block per provider holding its
+ * config, then a shared blue "Credentials" panel holding the account, the
+ * secret and the refresh token. On a Drive source that put Client ID, root
+ * folder and service-account key BEFORE the account, client secret and
+ * refresh token — so the three values that come from one page of the Google
+ * console were separated by two fields belonging to neither. The owner
+ * reported it three rounds running.
+ *
+ * Order is the assertion because order is the defect. `credential-fields.ts`
+ * has declared the right one since 0063; this pins that the screen obeys it.
+ */
+describe('the source step asks in the descriptor order', () => {
+  /** Every field label on screen, top to bottom. */
+  const labelsInOrder = (): string[] =>
+    Array.from(document.querySelectorAll('label'))
+      .map((l) => (l.textContent ?? '').replace(/\s*\*\s*$/, '').trim())
+      .filter(Boolean);
+
+  const orderFor = (card: RegExp): string[] => {
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: card }));
+    return labelsInOrder();
+  };
+
+  it('Google Drive: the OAuth trio is contiguous, and the account comes first', () => {
+    const labels = orderFor(/^Google Drive/);
+    const at = (needle: string) => labels.findIndex((l) => l.startsWith(needle));
+
+    expect(at('Source Username')).toBeGreaterThanOrEqual(0);
+    // The account names WHOSE drive this is — it belongs at the top, not
+    // below two fields about where the files live.
+    expect(at('Source Username')).toBeLessThan(at('Client ID'));
+    // Client id → secret → refresh token, with nothing wedged between them:
+    // one page of the Google console, one run of fields.
+    expect(at('Client ID') + 1).toBe(at('Source client secret'));
+    expect(at('Source client secret') + 1).toBe(at('Refresh token'));
+    // ...and the per-mapping "where" comes after the credentials, not inside.
+    expect(at('Root folder ID')).toBeGreaterThan(at('Refresh token'));
+  });
+
+  it('Dropbox: App key sits between the account and the secret', () => {
+    const labels = orderFor(/^Dropbox/);
+    const at = (needle: string) => labels.findIndex((l) => l.startsWith(needle));
+
+    expect(at('Source Username')).toBeLessThan(at('App key'));
+    expect(at('App key') + 1).toBe(at('Source client secret'));
+    expect(at('Source client secret') + 1).toBe(at('Refresh token'));
+    expect(at('Root folder path')).toBeGreaterThan(at('Refresh token'));
+  });
+
+  it('Microsoft Graph: mailbox, then the registration it signs in with', () => {
+    const labels = orderFor(/^Microsoft Graph/);
+    const at = (needle: string) => labels.findIndex((l) => l.startsWith(needle));
+
+    expect(at('Source Username')).toBeLessThan(at('Tenant ID'));
+    expect(at('Tenant ID') + 1).toBe(at('Client ID'));
+    expect(at('Client ID') + 1).toBe(at('Source client secret'));
+  });
+});
+
+/**
+ * A red asterisk is a claim about the GATE, and it used to lie (0075 T2).
+ *
+ * On the Google sources, Client ID and Refresh token were marked required
+ * unconditionally, while `sideStepMissing` stops requiring them the moment a
+ * service-account key is pasted (ADR-0033's either-flow). So the screen went
+ * on demanding two fields that Next no longer wanted — the mirror image of
+ * 0067's "Next names a field that is not there", and just as confusing.
+ */
+describe('the required markers agree with the gate', () => {
+  const markedRequired = (): string[] =>
+    Array.from(document.querySelectorAll('label'))
+      .filter((l) => (l.textContent ?? '').trim().endsWith('*'))
+      .map((l) => (l.textContent ?? '').replace(/\s*\*\s*$/, '').trim());
+
+  it('drops the OAuth trio the moment a service-account key is pasted', async () => {
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /^Google Drive/ }));
+
+    expect(markedRequired().some((l) => l.startsWith('Client ID'))).toBe(true);
+    expect(markedRequired().some((l) => l.startsWith('Refresh token'))).toBe(true);
+
+    fill(/^Service account key/, '{"type":"service_account"}');
+
+    // The gate stopped wanting them, so the markers must stop claiming them.
+    expect(markedRequired().some((l) => l.startsWith('Client ID'))).toBe(false);
+    expect(markedRequired().some((l) => l.startsWith('Refresh token'))).toBe(false);
+    // The account is still required either way — no connection can know it.
+    expect(markedRequired().some((l) => l.startsWith('Source Username'))).toBe(true);
+
+    // And the gate agrees: the account alone now lets the step finish.
+    fill(/^Source Username/, 'anna@acme.example');
+    await waitFor(() => expect(nextButton()).toBeEnabled());
+  });
+});
