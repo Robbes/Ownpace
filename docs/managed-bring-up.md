@@ -395,8 +395,10 @@ it.
 | `trigger-magic-link.sh` finds nothing | The link is only written when one is **requested** | Submit your email on the dashboard's login page first, then re-run |
 | Dashboard loads but the login never completes | `TRIGGER_APP_ORIGIN` / `TRIGGER_LOGIN_ORIGIN` do not match the address the browser is using; the `Secure` cookie is dropped | Set both (and `TRIGGER_TLS_HOST`) to the real address, then `--from trigger` |
 | `npx trigger.dev deploy` dies with a bare `Connection error` | The CLI was pointed at the https front | Log in against `http://localhost:3090` |
+| `git status` shows `apps/worker/package.json` modified after a deploy | The Trigger.dev CLI rewrites the file — usually only stripping its trailing newline | `git diff` it; discard unless it is a real SDK bump. `deploy-tasks.sh` now says so rather than leaving you to find it |
 | `Seed failed: DATABASE_URL (DB owner connection) is required to seed` | The seed runs on the host and inherits nothing; nothing in `apps/api` loads a dotenv file | Use `./deploy/compose/seed-managed.sh`, which reads `.env` and asks compose for the published port |
 | Demo owner tokens are rejected by the API | They expire after seven days | Re-run `./deploy/compose/seed-managed.sh` — it is idempotent and mints fresh ones |
+| Supervisor loops on `Snapshot changed inside startRunAttempt`, runs pile up `EXECUTING`, runner containers accumulate | Almost certainly **not** about snapshots. Check `docker compose logs trigger-api` for `Unsupported state or unable to authenticate data` at `PrismaSecretStore.getSecrets` — that is `TRIGGER_ENCRYPTION_KEY` no longer matching the stored secrets | See "Rotating `TRIGGER_ENCRYPTION_KEY`" above. `set-task-env.sh` alone does not fix it |
 | `set-task-env.sh` fails with a bare `Connection error`, and works when re-run | It was run straight after `trigger-api` was recreated, before the webapp was accepting requests | Nothing — it now waits for the webapp before uploading, and says so |
 | A secret in `.env` is a `change-me-…` value and was never generated | `ensure-env-secrets.sh` used to treat any non-empty value as set, so an `.env` copied from an older template kept its shipped placeholders for ever | Re-run `./deploy/compose/ensure-env-secrets.sh` — it now replaces placeholders and prints what to recreate afterwards |
 | `--from trigger` refuses with "Trigger.dev version drift" | `TRIGGER_IMAGE_TAG` and `@trigger.dev/sdk` disagree (0018 T0). Unset, the tag falls back to `managed.yml`'s default, which is easy to miss | Set `TRIGGER_IMAGE_TAG` to `v<sdk version>`, or pin the SDK back. The refusal prints both commands |
@@ -429,13 +431,119 @@ new instance's own.
 
 **Upgrading Trigger.dev** is one number in two places that must agree:
 `TRIGGER_IMAGE_TAG` in `.env` and `@trigger.dev/sdk` in
-`apps/worker/package.json`. Check both when bumping either. Then
-`--from trigger`.
+`apps/worker/package.json`. Check both when bumping either — `--from trigger`
+refuses when they disagree.
+
+> ⚠️ **Do not upgrade with runs in flight.** Recreating the webapp and
+> supervisor under load left the reference deployment looping on
+> `Failed to start run … "Snapshot changed inside startRunAttempt"` for every
+> run: nothing reached a task body, and the schedule kept adding one run a
+> minute on top (2026-08-18). Cancelling the backlog through the API did not
+> help — new runs failed identically — so it was the version, not the state.
+>
+> The order that avoids it:
+>
+> 1. Stop the schedule producing work, or accept a backlog you will cancel.
+> 2. Wait for `TaskRun` to have nothing in `EXECUTING`.
+> 3. Change the tag AND the SDK together, `pnpm install`.
+> 4. `--from trigger`, then **redeploy the tasks** — an image built by one CLI
+>    version and run by another platform version is the same drift by a
+>    different route.
+> 5. Watch the first few runs reach `COMPLETED_SUCCESSFULLY` before walking
+>    away.
+>
+> Rolling back is the same procedure in reverse, and is the right first move
+> when an upgrade goes wrong: the older version has run history behind it and
+> the newer one does not.
 
 **Rotating a secret**: change it in `.env`, `docker compose up -d` the affected
 services, re-run `set-task-env.sh` if a task variable changed, and re-mint any
 JWTs signed with a rotated `JWT_SECRET`. Rotating `SECRET_ENCRYPTION_KEY`
 **strands stored connection credentials** — they have to be re-entered.
+Rotating `TRIGGER_LOGIN_SECRET` signs everyone out **including the deploy
+CLI**, whose stored token then fails with `Unable to validate existing personal
+access token — 500`; a `login` fixes it.
+
+### Rotating `TRIGGER_ENCRYPTION_KEY`
+
+**Not a normal rotation, and `ensure-env-secrets.sh` refuses to do it for you.**
+
+This key encrypts the Trigger.dev secret store. Changing it does not re-encrypt
+anything — it strands every secret written under the old key. The failure is not
+at boot; it is every run, at `startRunAttempt`:
+
+```
+Error: Unsupported state or unable to authenticate data
+  at PrismaSecretStore.getSecrets
+  at AuthenticatedWorkerInstance.getEnvVars
+  at AuthenticatedWorkerInstance.startRunAttempt
+```
+
+which the supervisor reports as `Snapshot changed inside startRunAttempt` —
+a message about snapshots with nothing in it about keys. Runs pile up
+`EXECUTING`, retry containers accumulate, and nothing reaches a task body.
+
+**Re-running `set-task-env.sh` alone does not cure it**, and the reason is
+worth knowing: `envvars.upload(..., { override: true })` **skips a value whose
+plaintext has not changed.** Re-encryption requires a re-write, so any variable
+whose value happens to be identical is quietly left on the old key — while the
+script reports success and lists it among the uploaded names.
+
+On the reference box that was exactly one variable out of four:
+`SECRET_ENCRYPTION_KEY`, whose value had not changed while the three database
+URLs had. Three readable secrets, one unreadable, every run dead.
+
+Use the force flag, which **deletes** each variable before writing it, so the
+write is a creation and cannot be skipped:
+
+```bash
+SET_TASK_ENV_FORCE_REWRITE=1 ./deploy/compose/set-task-env.sh
+```
+
+**Delete, not overwrite** — and this is the part that costs a round if you get
+it wrong. `envvars.upload` *reads* the existing value to decide whether the
+write is a no-op, so on a variable it cannot decrypt, the repair fails on the
+same error as the fault:
+
+```
+[set-task-env] FAILED: Unsupported state or unable to authenticate data
+```
+
+Deletion needs no plaintext. To repair a single variable by hand:
+
+```bash
+cd apps/worker
+TRIGGER_API_URL=http://localhost:3090 TRIGGER_SECRET_KEY=… TRIGGER_PROJECT_REF=… \
+  node -e 'require("@trigger.dev/sdk").envvars.del(process.env.TRIGGER_PROJECT_REF, "prod", "SECRET_ENCRYPTION_KEY").then(()=>console.log("deleted"))'
+cd .. && ./deploy/compose/set-task-env.sh
+```
+
+The order that works:
+
+1. **Before rotating**, list what is in the store:
+   `SELECT key, "updatedAt" FROM "SecretStore"` — everything there has to be
+   re-creatable, or you cannot rotate without losing it.
+2. Drain the queue (nothing in `EXECUTING`) and stop the schedule.
+3. Rotate the key, recreate `trigger-api` and `trigger-supervisor`.
+4. Re-write every stored secret under the new key —
+   `SET_TASK_ENV_FORCE_REWRITE=1 ./deploy/compose/set-task-env.sh` for the task
+   environment, and by hand for anything else step 1 found. Then check
+   `SELECT key, "updatedAt" FROM "SecretStore"`: **every** row must show a
+   timestamp after the rotation. One that does not is one dead run away.
+5. Redeploy the tasks and watch the first runs reach a terminal state.
+
+**On a stack whose Trigger.dev data is disposable — which a reference or demo
+box usually is — the wipe is faster and more certain than the surgery:**
+
+```bash
+docker compose -f deploy/compose/managed.yml down trigger-api trigger-supervisor
+docker volume rm open-migrate-managed_trigger_db_data
+./deploy/compose/bootstrap-managed.sh --from trigger
+```
+
+That destroys the orchestration database only. The ledger, tenants, mappings and
+items live in `open-migrate-db` and are untouched. You are then back at the one
+human step, and `trigger-credentials.sh` reads the new project's credentials.
 
 **Turning the pooler off** is two values: `DB_HOST=postgres`, `DB_PORT=5432`,
 then `up -d`. Every service reads them, so nothing in `managed.yml` is edited.

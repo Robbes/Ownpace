@@ -154,6 +154,25 @@ cd "${REPO_ROOT}/apps/worker"
 TRIGGER_PROJECT_REF="${TRIGGER_PROJECT_REF}" \
   npx -y "trigger.dev@${CLI_VERSION}" deploy --profile "${PROFILE}"
 
+# THE DEPLOY EDITS apps/worker/package.json AND DOES NOT SAY SO.
+#
+# Observed on the Spark, 2026-08-18: the only change was the trailing newline
+# being stripped. Harmless in itself, and worth naming anyway — a working tree
+# that is dirty for no reason anybody remembers is one that blocks the next
+# `git pull` at the least convenient moment, and trains people to `git checkout
+# --` things without reading them first.
+#
+# Reported, not reverted: the CLI is also capable of legitimately bumping the
+# SDK version here, and silently undoing that would be worse than a dirty file.
+if command -v git >/dev/null 2>&1 && ! git -C "$REPO_ROOT" diff --quiet -- apps/worker/package.json 2>/dev/null; then
+  echo "[deploy-tasks] NOTE: the deploy modified apps/worker/package.json:"
+  git -C "$REPO_ROOT" diff --stat -- apps/worker/package.json | sed 's/^/[deploy-tasks]   /'
+  echo "[deploy-tasks] Usually just a stripped trailing newline. Check it, then either"
+  echo "[deploy-tasks] commit a real SDK bump or discard it:"
+  echo "[deploy-tasks]   git diff apps/worker/package.json"
+  echo "[deploy-tasks]   git checkout -- apps/worker/package.json"
+fi
+
 echo "[deploy-tasks] deploy command finished. The CLI's own output above is the"
 echo "[deploy-tasks] registration evidence; the dashboard's Deployments page"
 echo "[deploy-tasks] shows the task list. The REAL proof is the live smoke:"

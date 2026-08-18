@@ -37,6 +37,39 @@
 # dashboard value silently winning over a rotated .env is exactly the failure
 # mode T6 exists to end.
 #
+# BUT `override: true` SKIPS A VALUE WHOSE PLAINTEXT HAS NOT CHANGED, and that
+# is not a detail. After TRIGGER_ENCRYPTION_KEY is rotated, every stored secret
+# has to be RE-ENCRYPTED — which means re-written — and a variable whose value
+# happens to be identical is quietly left on the old key.
+#
+# On the reference box (2026-08-18) that was exactly one variable:
+# SECRET_ENCRYPTION_KEY, whose plaintext had not changed while the three
+# database URLs had. This script reported "upload OK" listing all four. The
+# store then held three readable secrets and one unreadable one, and every run
+# died inside `startRunAttempt` for the rest of the afternoon:
+#
+#   Error: Unsupported state or unable to authenticate data
+#     at PrismaSecretStore.getSecrets
+#
+# surfacing to the operator as the supervisor looping on "Snapshot changed
+# inside startRunAttempt". A message about snapshots, caused by one skipped
+# write.
+#
+# Hence FORCE_REWRITE below: after a key rotation, run
+#
+#   SET_TASK_ENV_FORCE_REWRITE=1 ./deploy/compose/set-task-env.sh
+#
+# which DELETES each variable before writing it, so the write is a creation and
+# cannot be skipped. Off by default — it discards the stored values, and is
+# only correct when the encryption key beneath them has moved.
+#
+# Deleting rather than overwriting is not fastidiousness. `upload` READS the
+# existing value to decide whether the write is a no-op, so on a variable it
+# cannot decrypt, every repair through `upload` dies on the same error as the
+# thing being repaired. Deletion needs no plaintext. (Confirmed the hard way:
+# the first version of this flag wrote a throwaway value first, and failed
+# identically.)
+#
 # Requirements: .env populated (TRIGGER_PROJECT_REF + TRIGGER_SECRET_KEY come
 # from the one-time dashboard setup — deploy-tasks.sh's header documents it),
 # and `pnpm install` done (uses apps/worker's own @trigger.dev/sdk).
@@ -131,6 +164,7 @@ TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
   NOTIFY_FROM="${NOTIFY_FROM:-}" \
   NOTIFY_TO="${NOTIFY_TO:-}" \
   NOTIFY_LOCALE="${NOTIFY_LOCALE:-}" \
+  FORCE_REWRITE="${SET_TASK_ENV_FORCE_REWRITE:-0}" \
   node -e '
 const { envvars } = require("@trigger.dev/sdk");
 (async () => {
@@ -154,6 +188,29 @@ const { envvars } = require("@trigger.dev/sdk");
   ]) {
     const value = process.env[name];
     if (value) variables[name] = value;
+  }
+  // See FORCE_REWRITE in the header of this file.
+  //
+  // DELETE, not overwrite. `upload` READS the existing value to decide whether
+  // the write is a no-op — so on a variable it cannot decrypt, the repair path
+  // dies on the same error as everything else:
+  //
+  //   FAILED: Unsupported state or unable to authenticate data
+  //
+  // A first attempt at this wrote a throwaway value first, which fails for
+  // exactly that reason: it is still an upload, and upload still reads.
+  // Deleting needs no plaintext, so it is the only way back.
+  if (process.env.FORCE_REWRITE === "1") {
+    for (const name of Object.keys(variables)) {
+      try {
+        await envvars.del(ref, slug, name);
+        console.log("[set-task-env] deleted", name, "so it is rewritten under the current key");
+      } catch (e) {
+        // Absent is the desired state; anything else is worth seeing but not
+        // worth stopping for, since the upload below is the actual repair.
+        console.log("[set-task-env] could not delete", name + ":", e && e.message ? e.message : e);
+      }
+    }
   }
   await envvars.upload(ref, slug, { variables, override: true });
   const list = await envvars.list(ref, slug);

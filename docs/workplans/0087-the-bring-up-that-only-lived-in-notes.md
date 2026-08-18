@@ -2,7 +2,23 @@
 
 ## Status — 2026-08-18 (update this block at the end of every session)
 
-**Built 2026-08-18. Never executed against Docker.** The authoring session had
+**Built 2026-08-18, and verified on real hardware the same day.** T8 is closed:
+the owner ran it on the Spark and every phase completed. The bring-up is no
+longer a document with a shebang.
+
+**What that cost, recorded because it is the finding.** Six rounds of defects,
+in this order: PgBouncer's healthcheck could never pass (`stats_users`); its
+`auth_query` had no database (`auth_dbname`); a config fix the process never
+re-read (`up -d` does not restart on a changed bind mount); `auth_user` scoped
+globally so it governed the admin console; the pooler could not read its own
+`userlist.txt` (0600 against a container user) — with the cause printed at
+start-up, one line above a `--tail 30` window, for three of those rounds; and
+secrets that were never generated because `^NAME=.` cannot tell a value from a
+placeholder. **None of it was bad luck.** `deploy/compose/pgbouncer/*` shipped
+with 0082 T4 in June and was executed for the first time on 2026-08-18.
+`e2e-managed.yml` asserts the very first of those six and has still never run.
+
+**Originally:** The authoring session had
 no Docker daemon and no Trigger.dev instance, so every phase that touches
 either is written and reviewed but unrun. What *was* run: the three helper
 scripts, under 23 unit tests, plus the `env` phase end to end against the real
@@ -19,7 +35,7 @@ architecture, idempotent on re-run). The first real proof is the nightly
 | T5 the prose companion | ✅ **Built 2026-08-18** | `docs/managed-bring-up.md`. Every command, every script, every button, in order, with a verification per phase, a thirteen-row failure table, and a "what this does not cover" section. |
 | T6 make the nightly exercise it | ✅ **Built 2026-08-18** | `e2e-managed.yml` now brings the stack up with `bootstrap-managed.sh --from data --with-demo --no-smoke` instead of an inline copy of the run order. A bring-up script nothing runs is a document with a shebang. |
 | T7 the two latent bugs found on the way | ✅ **Fixed 2026-08-18** | Below. |
-| T8 first real firing | ⬜ **Open** | Nothing here has met Docker. The `account` and `login` phases are exercised only by a person doing this on a new machine — see "What is still unproven". |
+| T8 first real firing | ✅ **Done 2026-08-18** | Run end to end on the Spark by the owner. Phases `data` → `trigger` → `account` → `login` → `app` → `tasks` all completed; the two human phases were no-ops on an already configured box, so **`account` and `login` remain the least exercised wording in the script**. It cost **six rounds of defects**, every one of them in configuration nothing had ever executed — see below. What the run proved, in the order it proved it: the pooler serves; the app talks through it (`DATABASE_URL` and `APP_DATABASE_URL` on `pgbouncer:6432`, `DIRECT_DATABASE_URL` on `postgres:5432`); migrations reached 0026; and **a task executed** — two `runner-…` containers appeared and ran within the two-minute window. |
 
 ## What this is
 

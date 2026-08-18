@@ -36,6 +36,33 @@ is_placeholder() { # is_placeholder <value>
   esac
 }
 
+# ROTATING AN ENCRYPTION KEY IS NOT THE SAME AS FILLING IN A BLANK ONE.
+#
+# TRIGGER_ENCRYPTION_KEY encrypts the Trigger.dev secret store. Replacing it on
+# an instance that already HAS secrets does not re-encrypt them — it strands
+# them, and the failure is not at boot. It is
+#
+#   Error: Unsupported state or unable to authenticate data
+#     at PrismaSecretStore.getSecrets
+#     at AuthenticatedWorkerInstance.getEnvVars
+#     at AuthenticatedWorkerInstance.startRunAttempt
+#
+# every time a run tries to start, surfacing to the operator as the supervisor
+# looping on "Snapshot changed inside startRunAttempt" — a message about
+# snapshots, with nothing in it about keys. It cost an afternoon on the
+# reference box (2026-08-18), and a version rollback was blamed first.
+#
+# Re-running set-task-env.sh does NOT cure it: that re-encrypts the variables
+# this repository owns, and the store holds more than those. The result is a
+# MIXED store, where neither the old key nor the new one decrypts everything.
+#
+# So: this script fills in a MISSING key, which is safe, and refuses to replace
+# an existing one, which is not. Rotating deliberately is a procedure, not a
+# side effect — see docs/managed-bring-up.md.
+needs_rotation_procedure() { # needs_rotation_procedure <name>
+  [ "$1" = "TRIGGER_ENCRYPTION_KEY" ]
+}
+
 ensure() { # ensure <name> <bytes>
   local name="$1" bytes="$2"
   local current
@@ -51,6 +78,21 @@ ensure() { # ensure <name> <bytes>
   local was_placeholder=0
   [ -n "$current" ] && was_placeholder=1
 
+  if [ "$was_placeholder" -eq 1 ] && needs_rotation_procedure "$name"; then
+    echo "[ensure-env-secrets] REFUSING to replace ${name}." >&2
+    echo "[ensure-env-secrets] It holds a shipped placeholder, which is not a secret — and it is" >&2
+    echo "[ensure-env-secrets] ALSO the key the Trigger.dev secret store is encrypted with. Replacing" >&2
+    echo "[ensure-env-secrets] it here would strand every secret already written under it, and the" >&2
+    echo "[ensure-env-secrets] symptom is runs that never start, reported as a snapshot error." >&2
+    echo "[ensure-env-secrets]" >&2
+    echo "[ensure-env-secrets] On a stack with no Trigger.dev data yet, rotate it and move on:" >&2
+    echo "[ensure-env-secrets]   ./deploy/compose/env-upsert.sh ${ENV_FILE} ${name}=\$(openssl rand -hex ${bytes})" >&2
+    echo "[ensure-env-secrets] On one that is running, follow the procedure in" >&2
+    echo "[ensure-env-secrets] docs/managed-bring-up.md — 'Rotating TRIGGER_ENCRYPTION_KEY'." >&2
+    REFUSED_ROTATION=1
+    return 0
+  fi
+
   # Drop the old line — empty, or a placeholder — then append the real value.
   sed -i "/^${name}=/d" "$ENV_FILE"
   echo "${name}=$(openssl rand -hex "$bytes")" >>"$ENV_FILE"
@@ -63,6 +105,7 @@ ensure() { # ensure <name> <bytes>
 }
 
 PLACEHOLDERS_REPLACED=0
+REFUSED_ROTATION=0
 
 ensure JWT_SECRET 32
 ensure SECRET_ENCRYPTION_KEY 32
@@ -128,4 +171,8 @@ if [ "${PLACEHOLDERS_REPLACED:-0}" -eq 1 ]; then
 EOF
 fi
 
-echo "[ensure-env-secrets] done — secrets present in ${ENV_FILE}"
+if [ "${REFUSED_ROTATION:-0}" -eq 1 ]; then
+  echo "[ensure-env-secrets] done, EXCEPT the key named above — decide that one deliberately."
+else
+  echo "[ensure-env-secrets] done — secrets present in ${ENV_FILE}"
+fi
