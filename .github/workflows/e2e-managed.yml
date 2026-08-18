@@ -89,6 +89,19 @@ env:
   # (Settings -> Secrets and variables -> Actions -> Variables) named
   # MANAGED_ENV_PERSIST_DIR if this default does not suit the runner.
   MANAGED_ENV_PERSIST_DIR: ${{ vars.MANAGED_ENV_PERSIST_DIR }}
+  # THE CLI's OWN DOCUMENTED ANSWER FOR CI (0084 T6, run #5's follow-up,
+  # 2026-08-18) — a Personal Access Token, not a restored session file.
+  # `deploy` reads this directly, before ever touching a profile file (see
+  # trigger-cli-lib.sh's comment for the exact source). Mint one at the
+  # self-hosted instance's own dashboard, Account -> Personal Access Tokens
+  # (or reuse an existing `tr_pat_…`), then add it as a repository secret:
+  # Settings -> Secrets and variables -> Actions -> New repository secret,
+  # named TRIGGER_ACCESS_TOKEN. Empty here is fine — everything still falls
+  # back to the restored-session-file path below when it is unset.
+  TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
+  # Required alongside it: unset, the CLI's env-var login path defaults to
+  # the SAAS cloud (api.trigger.dev), not this self-hosted instance.
+  TRIGGER_API_URL: http://localhost:3090
 
 jobs:
   e2e-managed:
