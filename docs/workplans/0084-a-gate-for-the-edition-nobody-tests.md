@@ -107,6 +107,43 @@ array form is kept because it is obvious rather than something you have to
 know, and the comment now says that instead of describing a bug that never
 existed.
 
+## Run #8 — same red, and the check that it was the same red (2026-08-18)
+
+Red again, at the same step and for the same reason. Worth a paragraph only
+because "it failed in the same place" is a claim that has to be checked rather
+than assumed, and because two of the previous fixes are now confirmed in CI.
+
+**Confirmed live.** The health step reports what it means: seven services under
+"no healthcheck defined (this gate cannot speak for these)" and `unhealthy:
+none`. Through run #6 the same seven were printed as unhealthy under a step
+that could not fail. The evidence artifact was produced again.
+
+**Ruled out, rather than assumed.** Run #7's fix changed the query that decides
+whether an eligible item exists. A malformed one would return nothing and be
+reported as "no eligible item" — indistinguishable, in the log, from the
+genuine absence. So the predicate was checked directly instead of by reading
+the failure message twice:
+
+| | matches |
+|---|---|
+| `status='copied' AND target_ref IS NOT NULL` | `h-default`, `h-empty-id`, `h-real` |
+| `status='copied' AND coalesce(target_ref->>'id','') <> ''` | `h-real` |
+
+against the real migrated schema under PGlite, with the shell quoting through
+`q()` verified separately to deliver the SQL to `psql` intact. The old form
+matched every copied row including one whose `target_ref` was the column
+default; the new one matches only a row that actually landed. The change is
+sound and is not the cause of the red.
+
+That is now `packages/ledger/src/target-ref-eligibility.unit.test.ts`, which
+also asserts the script still asks the discriminating question — the SQL being
+right and the script using it are separate facts, and only worth something
+together.
+
+**Still the same missing precondition.** Nothing has yet put content into the
+demo DAV source, so there is still nothing to sync and no `copied` row to act
+on. `seed-demo-dav-content.sh` exists and has not been run on the Spark.
+
 ## Run #6, and what the green actually covered (2026-08-18)
 
 The gate's first fully green run. Every one of its fourteen steps reports
