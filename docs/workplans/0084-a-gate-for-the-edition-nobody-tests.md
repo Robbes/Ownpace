@@ -73,9 +73,32 @@ workflow's job — confirmed from `e2e.yml`'s own "Install stalwart-cli" step,
 copied here verbatim rather than reinvented, to avoid the two drifting into
 two different install recipes for the same tool.
 
-**Still open, and the actual next step for this workplan:** the very next
-trigger is the workflow's first attempt at the stack with both prerequisites
-(persisted `.env`, installed CLI) actually in place.
+**Run #4**, after `stalwart-cli` was installed: the whole `data` and `demo`
+phases went clean — Stalwart provisioned, Nextcloud provisioned, the seed ran
+and minted fresh demo tokens, the entire Trigger.dev plane came up healthy,
+and `account` correctly found the persisted `.env`'s project and did nothing.
+**Everything up to the human step now works unattended.** Stopped, correctly,
+at `login`:
+
+```
+The deploy CLI is not logged in on this machine.
+```
+
+Not the `whoami` bug recurring — this run already has that fix, and the
+check is trustworthy. The owner HAD logged in by hand, hours earlier, against
+this exact project (`account` found no reason to redo anything, so no reset
+happened in between) — the session simply had nowhere to persist TO before
+this run, the same gap `.env` had before its own fix. Same treatment: the
+CLI's session file (`${XDG_CONFIG_HOME:-$HOME/.config}/trigger/config.json`,
+confirmed from the CLI's own `xdg-app-paths` dependency, not guessed) is now
+restored from the persist directory alongside `.env`, seeded from whatever
+login already exists rather than clicking through the magic link again.
+
+**Still open, and the actual next step for this workplan:** seed
+`trigger-cli-config.json` into the persist directory (docs/managed-bring-up.md
+has the one command). The next trigger after that is the workflow's first
+attempt with every prerequisite — `.env`, `stalwart-cli`, and now the CLI
+login — actually in place.
 
 ## What this is
 

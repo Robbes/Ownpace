@@ -117,6 +117,24 @@ jobs:
           stalwart-cli --version
 
       - name: Restore the one-time setup (checkout's own clean would destroy it)
+        # The CLI login is the SAME class of gap as .env, found one phase later
+        # (run #4, 2026-08-18): `bootstrap-managed.sh`'s `login` phase correctly
+        # reported "not logged in", using the whoami check fixed to be trustworthy
+        # earlier the same day — so this is not that bug recurring. The owner HAD
+        # already logged in by hand, on this machine, hours earlier, against this
+        # exact project (the `account` phase found the persisted .env's project ref
+        # and did nothing, so no reset happened in between). Whether the job's
+        # actual $HOME differs from the interactive shell's, or the session simply
+        # never had anywhere to persist FROM before this fix existed, is not fully
+        # settled — and does not need to be: restoring the file explicitly, the same
+        # way as .env, is correct either way.
+        #
+        # `xdgAppPaths("trigger").config()` — read from the installed CLI's own
+        # dependency rather than assumed — resolves to `${XDG_CONFIG_HOME:-$HOME/.config}/trigger`.
+        # This does NOT make login automatable: creating the account and project
+        # is still the one step that opens a browser (0084 T6). This only lets a
+        # login already performed once survive to the next run, exactly as the
+        # account/project's credentials already do via `.env`.
         run: |
           set -euo pipefail
           PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/open-migrate-managed}"
@@ -129,6 +147,14 @@ jobs:
             echo "restored the one-time setup from ${PERSIST_DIR}"
           else
             echo "nothing persisted yet at ${PERSIST_DIR} — the next step explains what to do"
+          fi
+          TRIGGER_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/trigger"
+          if [ -f "${PERSIST_DIR}/trigger-cli-config.json" ]; then
+            mkdir -p "${TRIGGER_CONFIG_DIR}"
+            cp "${PERSIST_DIR}/trigger-cli-config.json" "${TRIGGER_CONFIG_DIR}/config.json"
+            echo "restored the deploy CLI's login from ${PERSIST_DIR}"
+          else
+            echo "no persisted CLI login at ${PERSIST_DIR}/trigger-cli-config.json yet"
           fi
 
       - name: Refuse early if the one-time setup was never done
