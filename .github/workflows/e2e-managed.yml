@@ -266,10 +266,20 @@ jobs:
           echo "pooler in front, migrations direct"
 
       - name: The acceptance smoke (verify + apply, through real runners)
-        # 0020 T5's script, unchanged. It mints a seeded-member token, drives
-        # verify and apply to terminal states, captures runner logs before
-        # AutoRemove destroys them, and lands stuck rows by hand rather than
-        # leaving them pointing at nothing.
+        # 0020 T5's script. It mints a seeded-member token, drives verify and
+        # apply to terminal states, captures runner logs before AutoRemove
+        # destroys them, and lands stuck rows by hand rather than leaving them
+        # pointing at nothing.
+        env:
+          # The evidence has to land where the collector below actually looks.
+          # Run #6 (2026-08-18, this gate's first green) uploaded NOTHING: the
+          # smoke defaults SMOKE_OUT to /tmp, the collector globs the workspace,
+          # `redact-evidence.sh` reported "cleaned 0 file(s)", and upload-artifact
+          # warned "No files were found". So T5's redaction had never once
+          # redacted anything in CI, and the artifact this gate exists to leave
+          # behind did not exist. The glob below is `smoke-managed-*.log`; this
+          # name is chosen to match it.
+          SMOKE_OUT: smoke-managed-${{ github.run_id }}.log
         run: ./deploy/compose/smoke-managed.sh
 
       - name: Redact the evidence before it becomes an artifact
@@ -302,8 +312,33 @@ jobs:
         if: always()
         # Not a teardown — see the header. This says what is still standing, so
         # a run that failed halfway does not leave the next one guessing.
+        #
+        # `.Health` is EMPTY for a service that defines no healthcheck, and the
+        # first version of this step printed those under the heading "unhealthy
+        # services". Run #6 listed seven that way — trigger-api, trigger-supervisor,
+        # trigger-tls, minio, registry, docker-proxy, nextcloud — not one of which
+        # was unhealthy; `docker compose ps` showed them all plainly "Up". A
+        # heading that cries wolf costs itself its meaning, which is the same
+        # defect as a green that means nothing. So the two states are now
+        # reported separately, and only a real `unhealthy` fails the job (0084
+        # T7.1, which the old `|| true` could never enforce).
+        #
+        # Stated rather than left to be discovered: T7.1 asks that every service
+        # the run touches be HEALTHY, and for the services listed under "no
+        # healthcheck defined" this gate cannot say. Giving them healthchecks in
+        # managed.yml is the only thing that would close that, and it is not
+        # done here.
         run: |
+          set -uo pipefail
           docker compose $MANAGED_COMPOSE ps || true
-          echo '--- unhealthy services, if any ---'
-          docker compose $MANAGED_COMPOSE ps --format '{{.Name}} {{.Health}}' 2>/dev/null \
-            | grep -v ' healthy$' || echo 'all healthy'
+          health=$(docker compose $MANAGED_COMPOSE ps --format '{{.Name}} {{.Health}}' 2>/dev/null || true)
+          echo '--- no healthcheck defined (this gate cannot speak for these) ---'
+          echo "$health" | awk 'NF==1 && $1!=""' || true
+          echo '--- unhealthy ---'
+          unhealthy=$(echo "$health" | awk '$2=="unhealthy"{print $1}')
+          if [ -n "$unhealthy" ]; then
+            echo "$unhealthy"
+            echo "::error::Left unhealthy after the run: $(echo $unhealthy | tr '\n' ' ')"
+            exit 1
+          fi
+          echo 'none'

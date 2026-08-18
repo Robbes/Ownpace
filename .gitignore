@@ -39,6 +39,13 @@ coverage/
 # Test logs (durable failure diagnostics)
 test-logs/
 
+# smoke-managed.sh's evidence file. SECRET-BEARING: runner debug logs print the
+# task's whole environment (DATABASE_URL, SECRET_ENCRYPTION_KEY, the tr_prod_
+# key), which is why the workflow redacts a COPY before uploading it and never
+# the original. e2e-managed.yml now writes it here instead of /tmp so the
+# collector can find it, so it must never become a committable file.
+smoke-managed-*.log
+
 # Temporary files
 tmp/
 temp/

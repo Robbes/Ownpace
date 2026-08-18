@@ -2,12 +2,15 @@
 
 ## Status — 2026-08-18 (update this block at the end of every session)
 
-**Built 2026-08-18. First two hand-triggered runs, same day, both failed
-before the stack ever came up** (see below) — genuinely never yet exercised
-past its own precondition check. T1–T5 and T7 are in
+**Built 2026-08-18. Green on run #6 the same day — and the green was
+over-claiming.** Runs #1–#5 each failed at a different step and were fixed by a
+separate PR (#457 persist/restore, #458 stalwart-cli, #459 CLI-config restore,
+#460 `TRIGGER_ACCESS_TOKEN`). Run #6 passed every step. Reading it against T7
+rather than accepting the checkmark found that **two of the five criteria were
+never enforced and a third had never produced anything** — see "Run #6, and
+what the green actually covered" below. T1–T5 and T7 are in
 `.github/workflows/e2e-managed.yml`; T6 was **withdrawn** on a finding that
-changed the design (below). No Docker in the authoring session, so its first
-firing on the Spark is its first real run.
+changed the design (below).
 
 | Task | Status | Notes |
 |---|---|---|
@@ -15,9 +18,9 @@ firing on the Spark is its first real run.
 | T2 the acceptance itself — **mostly already written** | ✅ **Built 2026-08-18** | `deploy/compose/smoke-managed.sh` (257 lines, workplan 0020 T5) already drives the live verify + apply smoke against a running managed stack, captures runner logs before AutoRemove destroys them, and lands stuck rows by hand rather than leaving them pointing at nothing. **This task is wiring, not writing.** `setup-managed-demo.sh` + `seed-managed.ts` + `deploy-tasks.sh` are the bring-up it expects. |
 | T3 the pooler is in the path | ✅ **Built 2026-08-18** | The reason this workplan exists at all. 0082 T4 shipped PgBouncer and **nothing can verify it** — `e2e.yml` stands up `deploy/selfhost/compose.yml` and never references `managed.yml`. The gate must assert the app is actually talking through the pooler (`SHOW POOLS` reports non-zero `cl_active`) and that **migrations are not** (they hold a session advisory lock; through a transaction pooler two replicas would stop excluding each other, silently). Closing 0082 T4 is this task. |
 | T4 nightly, and somebody reads it | ✅ **Built 2026-08-18** | Nightly like `e2e.yml` (`30 1` postgres, `30 3` pglite — pick a third slot, not one of those two: the Spark cannot run them concurrently). **A nightly nobody reads is worse than no nightly**, because it converts a real signal into a green-looking habit. See "Who reads it" below. |
-| T5 evidence without leaking secrets | ✅ **Built 2026-08-18** | `smoke-managed.sh` already warns that runner debug logs print the **full task environment — `DATABASE_URL`, `SECRET_ENCRYPTION_KEY`, the `tr_prod_` key**. A nightly job that uploads those as an artifact is a credential disclosure with a retention policy. Redaction is a prerequisite for artifact upload, not a nicety. |
+| T5 evidence without leaking secrets | ⚠️ **Built 2026-08-18, never ran until 2026-08-18** | `smoke-managed.sh` already warns that runner debug logs print the **full task environment — `DATABASE_URL`, `SECRET_ENCRYPTION_KEY`, the `tr_prod_` key**. A nightly job that uploads those as an artifact is a credential disclosure with a retention policy. Redaction is a prerequisite for artifact upload, not a nicety. **Run #6 uploaded nothing** — the smoke wrote to `/tmp` and the collector globbed the workspace, so redaction cleaned an empty directory and the gate left no evidence behind. Fixed by pointing `SMOKE_OUT` at a path the collector matches. |
 | T6 teardown that actually tears down | ⛔ **Withdrawn 2026-08-18** | Fourteen services, named volumes, a local registry and a docker proxy on a **shared, long-lived** machine. **Withdrawn, and this is the finding that mattered most.** The naive `down -v` this row asked for would have destroyed the Trigger.dev account, project and API key — none of which can be recreated unattended — and the next run would fail looking like a broken test rather than a missing account. See below. The run now leaves the stack standing and reports what state it is in. |
-| T7 what "green" is allowed to mean | ✅ **Built 2026-08-18** | Stated up front so the gate cannot quietly weaken. See below. |
+| T7 what "green" is allowed to mean | ⚠️ **Built 2026-08-18, enforced 2026-08-18** | Stated up front so the gate cannot quietly weaken — and then run #6 went green with T7.1 unasserted and T7.3's apply half skipped. **Writing the criteria down did not enforce them.** Now enforced in code, except that T7.1 still cannot speak for the seven services with no healthcheck. See "Run #6" below. |
 
 **Follow-on: workplan 0087.** T6's withdrawal rested on *"the Trigger.dev half
 cannot be bootstrapped unattended"*. 0087 takes that as far as it goes: the
@@ -28,6 +31,82 @@ runs that script** rather than an inline copy of the order. 0087 also fixed two
 latent bugs this workflow carried: its seed step depended on the runner's
 ambient environment, and `setup-auth.sql`'s header documented a flag the SQL
 does not read.
+
+## Run #6, and what the green actually covered (2026-08-18)
+
+The gate's first fully green run. Every one of its fourteen steps reports
+`success`, none skipped. Held against T7's own five criteria, three of them
+were satisfied and two were not — and the run said nothing about the
+difference, which is the failure mode T7 was written to prevent.
+
+**What green did prove.**
+
+- *T7.2 — a task deployed and RAN.* Real, and the strongest thing the run says.
+  Container `runner-cmsz11lj5005w4wo5jv6v7xyc` was scheduled at 18:59:46.187Z,
+  dequeued two milliseconds earlier, connected to the supervisor and reached
+  `EXECUTING` on deployment `20260818.2`. An enqueue became a runner on this
+  machine — 0018 T5's question, answered in the affirmative by evidence rather
+  than by a green tick.
+- *T7.3, verify half.* `verification_run` reached `done`, started 18:59:45.838Z
+  and finished 18:59:47.901Z, with an empty error column.
+- *T7.4 — the pooler is in the path.* `SHOW POOLS` answered, reported
+  transaction mode, and `DIRECT_DATABASE_URL` inside the api container pointed
+  at neither `pgbouncer` nor `:6432`. This is the criterion the whole workplan
+  exists for, and it holds.
+
+**What green did not prove, and did not admit.**
+
+- *T7.3, apply half — never ran, and passed anyway.* The smoke printed `no
+  eligible item (status='copied' with a target_ref) — apply half SKIPPED`, then
+  `verify: done   apply: skipped-no-item`, then `SMOKE PASS`. The
+  terminal-state assertion sat inside the `else` of the eligible-item check, so
+  the one branch that needed judging was the only branch that escaped it. The
+  script's own header had said all along that success requires apply terminal;
+  the code had quietly stopped agreeing. **The apply half has never executed
+  under this gate.**
+
+  The precondition is not an accident of timing: `seed-managed.ts` creates
+  tenants, connections and mappings but **no items**, and only a real sync
+  produces one. So this half could not have run, on any run, and the smoke
+  reported that as a pass. It now fails, and names the fix. Expect the nightly
+  to go red until a sync lands a `copied` item on the apply mapping — that red
+  is the accurate state, and the known `run-delta-sync` fault
+  (`Unsupported target type: undefined`) sits squarely in the path that would
+  clear it.
+- *T7.1 — nothing asserted on health.* The closing step ran `|| true` and could
+  never fail the job. Worse, it printed seven services under the heading
+  "unhealthy services, if any" — `trigger-api`, `trigger-supervisor`,
+  `trigger-tls`, `minio`, `trigger-registry`, `trigger-docker-proxy`,
+  `nextcloud` — **none of which was unhealthy.** `docker compose ps` showed
+  every one plainly `Up`; they define no healthcheck, so `.Health` is empty and
+  a `grep -v ' healthy$'` matched them. A heading that cries wolf on seven
+  healthy services teaches its reader to skip it. The step now separates "no
+  healthcheck defined" from `unhealthy`, and only the latter fails the job.
+  T7.1 still cannot speak for the seven: closing that means giving them
+  healthchecks in `managed.yml`, which is not done here.
+- *T5 — the evidence artifact was empty.* `redact-evidence.sh` reported
+  `cleaned 0 file(s)` and upload-artifact warned `No files were found with the
+  provided path: managed-evidence/`. The smoke defaults its output to
+  `/tmp/openmig-smoke-managed-*.txt` while the collector globs the workspace,
+  so **T5's redaction had never once redacted anything in CI** and the run left
+  behind no evidence at all. The workflow now sets `SMOKE_OUT` to a workspace
+  path the collector matches; that file is secret-bearing (runner debug logs
+  print `DATABASE_URL`, `SECRET_ENCRYPTION_KEY` and the `tr_prod_` key) and is
+  gitignored for the same reason the redaction exists.
+- *T7.2, as an assertion rather than a fact.* A runner did appear, so the
+  criterion holds for this run — but `(no runner containers appeared)` was an
+  echo, not a failure. The gate could have missed the single thing it was
+  written to catch. It now fails.
+
+**The lesson, since it is the second time this shape has appeared here.** Both
+this and the `deploy/compose` configuration 0087 found had the same property:
+written carefully, never executed, and therefore wrong in ways no amount of
+re-reading surfaces. A gate is a program too. Its first green is a claim to be
+checked against its own stated criteria, not a result.
+
+`scripts/smoke-managed-verdict.unit.test.ts` holds all four fixes, executing the
+script's real decision lines rather than restating them; five mutations
+reverting each fix were confirmed to fail it.
 
 ## The first two runs, and what they found (2026-08-18)
 
@@ -210,10 +289,19 @@ one, which reads as green while proving nothing.
 
 ## What is still owed
 
-- **Its first run.** Written without Docker, so nothing here has executed. The
-  first firing on the Spark is the verification, and the honest expectation is
-  that it needs a round or two of fixing — a 14-service stack driven by a
-  workflow nobody has watched is not green on the first try.
+- **An apply half that can run.** The gate now fails rather than pretending,
+  but failing is not covering. Something has to put a `copied` item with a
+  `target_ref` on the apply mapping before the nightly can be green honestly —
+  either the demo seed grows one (fabricating `copied` would falsify the
+  ledger, so it would have to be a real sync) or the bring-up drives a sync and
+  waits for it. Blocked in practice on `run-delta-sync`'s
+  `Unsupported target type: undefined`.
+- **Healthchecks for the seven services that have none.** T7.1 asks that every
+  service the run touches be healthy; for `trigger-api`, `trigger-supervisor`,
+  `trigger-tls`, `minio`, `trigger-registry`, `trigger-docker-proxy` and
+  `nextcloud` this gate can only say they are running. `trigger-api` and
+  `trigger-supervisor` are on the path every executed task takes, so those two
+  are the ones worth doing first.
 - **The reading habit.** T4 describes what happens on red; making that real
   means a check-in that reads the run each morning, which is a standing
   arrangement rather than a file in the repo.
