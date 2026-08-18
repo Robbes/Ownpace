@@ -99,7 +99,10 @@ your_turn() { # your_turn <phase-to-resume-from>
 
 env_get() { # env_get NAME — the value in force, i.e. the last one
   [ -f "$ENV_FILE" ] || return 0
-  grep -E "^$1=" "$ENV_FILE" | tail -1 | cut -d= -f2-
+  # `|| true` for the same reason as in ensure-env-secrets.sh: under
+  # `set -o pipefail` a grep that finds nothing fails the whole pipeline, and
+  # "this key is not set" is a normal answer, not an error.
+  grep -E "^$1=" "$ENV_FILE" | tail -1 | cut -d= -f2- || true
 }
 
 # Load .env for our own use. Only after the `env` phase has had a chance to
@@ -408,6 +411,36 @@ phase_demo() {
 phase_trigger() {
   say trigger "the Trigger.dev plane"
   load_env
+
+  # ONE VERSION NUMBER, TWO PLACES, AND THEY MUST AGREE (0018 T0).
+  #
+  # managed.yml runs the webapp and the supervisor at ${TRIGGER_IMAGE_TAG}, and
+  # the deploy CLI runs at the @trigger.dev/sdk version in
+  # apps/worker/package.json. Its own comment records this drifting twice
+  # already, and the reason it matters is that "the 4.5.x family is
+  # SDK-compatible" is a hope, not a deploy story.
+  #
+  # Checked rather than corrected: which way to reconcile is a judgement about
+  # what to run, and the two directions have different consequences — bumping
+  # the tag pulls images that may not exist yet, pinning the SDK back changes
+  # what the tasks are built with. Naming both is the useful thing a script can
+  # do here.
+  local sdk_version tag_version
+  sdk_version="$(node -p "require('${REPO_ROOT}/apps/worker/package.json').dependencies['@trigger.dev/sdk']")"
+  tag_version="${TRIGGER_IMAGE_TAG:-v4.5.9}"
+  if [ "${tag_version#v}" != "$sdk_version" ]; then
+    echo "!!! Trigger.dev version drift (0018 T0):" >&2
+    echo "!!!   images:  ${tag_version}   (TRIGGER_IMAGE_TAG, or managed.yml's default when unset)" >&2
+    echo "!!!   SDK/CLI: ${sdk_version}   (apps/worker/package.json)" >&2
+    echo "!!! These run the same protocol and are only compatible by coincidence when they differ." >&2
+    echo "!!! Reconcile, in whichever direction you mean:" >&2
+    echo "!!!   ./deploy/compose/env-upsert.sh ${ENV_FILE} TRIGGER_IMAGE_TAG=v${sdk_version}" >&2
+    echo "!!!     then re-run this phase — the webapp and supervisor are recreated at the new tag" >&2
+    echo "!!!   or pin @trigger.dev/sdk back to ${tag_version#v} in apps/worker/package.json" >&2
+    echo "!!!     and pnpm install --frozen-lockfile" >&2
+    exit 1
+  fi
+  note "Trigger.dev images and SDK agree at ${sdk_version}"
   up_wait trigger-db trigger-redis clickhouse minio trigger-registry \
     trigger-docker-proxy trigger-api trigger-tls trigger-supervisor
   note "all Trigger.dev services healthy"

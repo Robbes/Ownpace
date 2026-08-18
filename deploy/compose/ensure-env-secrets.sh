@@ -14,16 +14,55 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env"
 touch "$ENV_FILE"
 
+# A PLACEHOLDER IS NOT A SECRET, AND `^NAME=.` CANNOT TELL THE DIFFERENCE.
+#
+# This function used to ask only whether the line had *a* value. Older versions
+# of managed.env.example shipped `change-me-…` defaults, so an .env copied from
+# one of those satisfied that test forever and the secret was never generated.
+#
+# Found on the Spark, 2026-08-18, where the live stack was running with
+#   TRIGGER_ENCRYPTION_KEY=change-me-32-byte-encryption-key
+#   TRIGGER_LOGIN_SECRET=change-me-login-secret
+# — values published in this repository's git history. TRIGGER_ENCRYPTION_KEY
+# is the one that matters: it encrypts the Trigger.dev environment-variable
+# store, which holds DATABASE_URL, APP_DATABASE_URL and SECRET_ENCRYPTION_KEY —
+# the key that decrypts every stored customer credential.
+#
+# So anything still wearing a shipped placeholder counts as ABSENT.
+is_placeholder() { # is_placeholder <value>
+  case "$1" in
+    change-me* | changeme* | your-* | replace-me* | TODO*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 ensure() { # ensure <name> <bytes>
   local name="$1" bytes="$2"
-  if ! grep -qE "^${name}=." "$ENV_FILE"; then
-    # Drop an empty `NAME=` line left over from copying managed.env.example,
-    # then append the generated value.
-    sed -i "/^${name}=$/d" "$ENV_FILE"
-    echo "${name}=$(openssl rand -hex "$bytes")" >>"$ENV_FILE"
+  local current
+  # `|| true` is load-bearing: this script runs under `set -o pipefail`, and
+  # grep exits 1 when the key is absent — which is the ORDINARY case on a fresh
+  # .env, and would otherwise abort the script before generating anything.
+  current="$(grep -E "^${name}=" "$ENV_FILE" | tail -1 | cut -d= -f2- || true)"
+
+  if [ -n "$current" ] && ! is_placeholder "$current"; then
+    return 0
+  fi
+
+  local was_placeholder=0
+  [ -n "$current" ] && was_placeholder=1
+
+  # Drop the old line — empty, or a placeholder — then append the real value.
+  sed -i "/^${name}=/d" "$ENV_FILE"
+  echo "${name}=$(openssl rand -hex "$bytes")" >>"$ENV_FILE"
+  if [ "$was_placeholder" -eq 1 ]; then
+    echo "[ensure-env-secrets] REPLACED ${name} — it held a shipped placeholder, which is not a secret"
+    PLACEHOLDERS_REPLACED=1
+  else
     echo "[ensure-env-secrets] generated ${name}"
   fi
 }
+
+PLACEHOLDERS_REPLACED=0
 
 ensure JWT_SECRET 32
 ensure SECRET_ENCRYPTION_KEY 32
@@ -70,6 +109,22 @@ if [ -n "$PGB_PW" ]; then
   echo "[ensure-env-secrets] NOTE: the matching Postgres role is created by"
   echo "[ensure-env-secrets]       pgbouncer/setup-auth.sql — run it once against"
   echo "[ensure-env-secrets]       DIRECT_DATABASE_URL before starting pgbouncer."
+fi
+
+if [ "${PLACEHOLDERS_REPLACED:-0}" -eq 1 ]; then
+  cat <<'EOF'
+
+[ensure-env-secrets] ONE OR MORE SECRETS WERE PLACEHOLDERS AND HAVE BEEN REPLACED.
+[ensure-env-secrets] The services holding the old values must be recreated, and
+[ensure-env-secrets] anything encrypted with them re-supplied:
+[ensure-env-secrets]
+[ensure-env-secrets]   docker compose -f deploy/compose/managed.yml up -d --force-recreate [ensure-env-secrets]     trigger-api trigger-supervisor api
+[ensure-env-secrets]   ./deploy/compose/set-task-env.sh    # re-encrypts the task environment
+[ensure-env-secrets]
+[ensure-env-secrets] Rotating TRIGGER_ENCRYPTION_KEY strands the Trigger.dev env-var store,
+[ensure-env-secrets] which is why set-task-env.sh is not optional here. Rotating
+[ensure-env-secrets] TRIGGER_LOGIN_SECRET or TRIGGER_SESSION_SECRET only signs people out.
+EOF
 fi
 
 echo "[ensure-env-secrets] done — secrets present in ${ENV_FILE}"
