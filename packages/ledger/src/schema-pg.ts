@@ -1115,6 +1115,11 @@ export const erasureRecord = pgTable('erasure_record', {
   tenantRef: text('tenant_ref').notNull(),
   requestedAt: timestamp('requested_at', { withTimezone: true }).notNull(),
   windowDays: integer('window_days').notNull(),
+  // Nullable on purpose: records written before 0085 T5 carry no promise about
+  // backups, and inventing one for them retroactively would be writing a
+  // commitment nobody gave.
+  backupRetentionDays: integer('backup_retention_days'),
+  backupsExpireAt: timestamp('backups_expire_at', { withTimezone: true }),
   purgedAt: timestamp('purged_at', { withTimezone: true }),
   retainedInvoiceIds: uuid('retained_invoice_ids').array().notNull().default([]),
   revocations: jsonb('revocations').notNull().default({}),

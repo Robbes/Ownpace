@@ -31,6 +31,7 @@
 
 import { sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
+import { DEFAULT_BACKUP_RETENTION_DAYS, erasureTimeline } from '@openmig/shared';
 import type { PgDatabase } from './db-types';
 
 /** The windows a customer may choose (owner decision, 2026-08-18). */
@@ -106,6 +107,15 @@ export function tenantRef(tenantId: string): string {
 export interface CloseResult {
   readonly purgeAfter: Date;
   readonly windowDays: CloseWindowDays;
+  /**
+   * When the last backup that could still contain this tenant's data ages out
+   * — i.e. when erasure actually completes (T5). `purgeAfter` is when the LIVE
+   * database stops holding it; these are not the same day, and telling a
+   * customer only the first one is telling them something untrue.
+   */
+  readonly backupsExpireAt: Date;
+  /** This deployment's backup retention window, as it stood at close time. */
+  readonly backupRetentionDays: number;
 }
 
 /**
@@ -122,8 +132,16 @@ export async function closeTenant(
   windowDays: CloseWindowDays,
   closedBy: string,
   now: Date,
+  /**
+   * This deployment's backup retention, in days. Passed in rather than read
+   * from the environment here so the promise made to one customer can be
+   * recomputed from the record later, and so a test can state the number it
+   * is testing instead of arranging for `process.env` to say it.
+   */
+  backupRetentionDays: number = DEFAULT_BACKUP_RETENTION_DAYS,
 ): Promise<CloseResult> {
-  const purgeAfter = new Date(now.getTime() + windowDays * 24 * 60 * 60 * 1000);
+  const timeline = erasureTimeline({ closedAt: now, windowDays, backupRetentionDays });
+  const purgeAfter = timeline.purgeAfter;
 
   const rows = await db.execute(sql`
     UPDATE tenant
@@ -141,12 +159,27 @@ export async function closeTenant(
   // because the job is broken, or the process died — must still leave evidence
   // that somebody asked, and when. `purged_at` staying NULL is exactly the
   // signal that something owed did not happen.
+  // The retention window is recorded as a NUMBER as well as a date. The number
+  // can change when the backup schedule changes; the date the customer was
+  // given cannot. Storing only the date would leave nobody able to say how it
+  // was arrived at, and storing only the number would leave the date to be
+  // recomputed under whatever retention happens to be current.
   await db.execute(sql`
-    INSERT INTO erasure_record (tenant_ref, requested_at, window_days)
-    VALUES (${tenantRef(tenantId)}, ${now}, ${windowDays})
+    INSERT INTO erasure_record (
+      tenant_ref, requested_at, window_days, backup_retention_days, backups_expire_at
+    )
+    VALUES (
+      ${tenantRef(tenantId)}, ${now}, ${windowDays},
+      ${timeline.backupRetentionDays}, ${timeline.backupsExpireAt}
+    )
   `);
 
-  return { purgeAfter, windowDays };
+  return {
+    purgeAfter,
+    windowDays,
+    backupsExpireAt: timeline.backupsExpireAt,
+    backupRetentionDays: timeline.backupRetentionDays,
+  };
 }
 
 /**

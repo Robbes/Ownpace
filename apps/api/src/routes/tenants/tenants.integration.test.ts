@@ -363,6 +363,16 @@ describe('API Tenant Isolation', () => {
       expect(closed.body.status).toBe('closed');
       expect(closed.body.canReopenUntil).toBeTruthy();
 
+      // TWO dates, not one (0085 T5). `purgeAfter` is when the live database
+      // stops holding it; the backups do not stop holding it that day, and a
+      // response carrying only the first date would read as a claim it is not.
+      expect(new Date(closed.body.backupsExpireAt).getTime()).toBeGreaterThan(
+        new Date(closed.body.purgeAfter).getTime(),
+      );
+      expect(closed.body.backupRetentionDays).toBe(7);
+      expect(closed.body.erasureCompletesText.en).toContain('live service');
+      expect(closed.body.erasureCompletesText.nl).toContain('back-ups');
+
       // Closed is NOT deleted: the row is still here, which is what makes the
       // window worth having.
       const afterClose = await superuserPool.query(

@@ -20,7 +20,12 @@ import {
   CLOSE_WINDOWS_DAYS,
   type PgDatabase,
 } from '@openmig/ledger';
-import { standingGrantReminders } from '@openmig/shared';
+import {
+  standingGrantReminders,
+  backupRetentionDaysFromEnv,
+  erasureTimeline,
+  erasureTimelineText,
+} from '@openmig/shared';
 import { eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import {
@@ -409,20 +414,33 @@ router.post(
       // at all — outliving the tenant is about the absence of a foreign key,
       // not about the transaction — so writing it here is unrestricted, while
       // the tenant UPDATE genuinely REQUIRES the context.
+      const closedAt = new Date();
+      const backupRetentionDays = backupRetentionDaysFromEnv(process.env.BACKUP_RETENTION_DAYS);
       const result = await withTenantDb(req.tenantId, pool, (tdb) =>
         closeTenant(
           tdb as unknown as PgDatabase,
           req.tenantId!,
           windowDays,
           req.userId ?? 'unknown',
-          new Date(),
+          closedAt,
+          backupRetentionDays,
         ),
       );
 
+      // Both dates, and the sentence that explains them. `purgeAfter` alone
+      // would be a true statement that reads as a false one: the live database
+      // stops holding it that day, and the backups do not (0085 T5).
+      const timeline = erasureTimeline({ closedAt, windowDays, backupRetentionDays });
       res.json({
         status: 'closed',
         purgeAfter: result.purgeAfter.toISOString(),
         windowDays: result.windowDays,
+        backupsExpireAt: result.backupsExpireAt.toISOString(),
+        backupRetentionDays: result.backupRetentionDays,
+        erasureCompletesText: {
+          en: erasureTimelineText(timeline, 'en'),
+          nl: erasureTimelineText(timeline, 'nl'),
+        },
         canReopenUntil: result.windowDays > 0 ? result.purgeAfter.toISOString() : null,
         standingGrants: standingGrantReminders(kinds, 'en'),
       });
