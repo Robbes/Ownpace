@@ -202,14 +202,44 @@ if [ -z "$HASH" ]; then
   #
   # The precondition is nobody's accident: seed-managed.ts creates tenants,
   # connections and mappings but NO items. Only a real sync produces one.
-  echo "no eligible item (status='copied' with a target_ref) on this mapping."
+  echo "no eligible item (status='copied' with a target_ref id) on this mapping."
   echo "FAILING rather than skipping: an apply half that never ran proves nothing"
   echo "about the path it exists to cover, and a pass here would make this script"
   echo "the very thing it was written to catch."
-  echo "To give it something to act on — the demo seed alone never will:"
-  echo "  1. POST /api/migrations/$APPLY_MAPPING/start  (marks the mapping active)"
-  echo "  2. let the scheduler's sync tick copy at least one item, or run a sync by hand"
-  echo "  3. re-run this smoke once an item is status='copied' with a target_ref"
+  echo ""
+
+  # SAY WHICH of the three it is. This message used to be one paragraph for
+  # every way of having nothing to act on, and the three have entirely
+  # different fixes — so telling them apart meant going and querying the box by
+  # hand, which across runs #7, #8 and #9 is exactly what it cost. A refusal
+  # that names a symptom and not a state is only half a refusal (rule 9).
+  echo "what IS on this mapping:"
+  TOTAL="$(q "SELECT count(*) FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING'")"
+  COPIED="$(q "SELECT count(*) FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND status='copied'")"
+  q "SELECT domain, status, count(*), count(*) FILTER (WHERE coalesce(target_ref->>'id','') <> '') AS with_target_id FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' GROUP BY 1,2 ORDER BY 1,2" \
+    | sed 's/^/  /'
+  echo "  (total ${TOTAL:-0}, copied ${COPIED:-0})"
+  echo ""
+
+  if [ "${TOTAL:-0}" = "0" ]; then
+    echo "DIAGNOSIS: the mapping has no items at all — nothing has ever synced here."
+    echo "The demo seed creates tenants, connections and mappings but NO items, and"
+    echo "setup-nextcloud-users.sh provisions ACCOUNTS with no calendar, contact or"
+    echo "file content in them. So there has never been anything to copy."
+    echo "  ./deploy/compose/seed-demo-dav-content.sh   # put content in the DAV source"
+    echo "  # then let the scheduler's sync tick copy it, and re-run this smoke"
+  elif [ "${COPIED:-0}" = "0" ]; then
+    echo "DIAGNOSIS: items exist but NONE is 'copied' — a sync ran and the copying"
+    echo "did not succeed. This is a product fault, not a missing fixture; the"
+    echo "breakdown above says which domain and which status it stalled in."
+    echo "  docker exec $DB_CONTAINER psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -Atc \\"
+    echo "    \"SELECT level,message,at FROM run_event WHERE tenant_id='$APPLY_TENANT' ORDER BY at DESC LIMIT 20\""
+  else
+    echo "DIAGNOSIS: there ARE copied items, but none carries a target_ref id."
+    echo "Something wrote the ledger row without the handle the target returned,"
+    echo "which leaves an item that cannot be acted on and cannot be traced back."
+    echo "That is a bug in the sync's ledger write, not a missing precondition."
+  fi
 else
   echo "eligible item hash: $HASH"
   echo "flag on + fabricate deletion evidence (both retracted below):"

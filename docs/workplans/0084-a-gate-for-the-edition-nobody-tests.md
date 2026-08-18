@@ -144,6 +144,44 @@ together.
 demo DAV source, so there is still nothing to sync and no `copied` row to act
 on. `seed-demo-dav-content.sh` exists and has not been run on the Spark.
 
+## Run #9 — a refusal that named a symptom, not a state (2026-08-18)
+
+Red again, byte-for-byte the same refusal as #8: `no eligible item`, verify
+`done`, a runner executing normally (deployment `20260818.5`). And the evidence
+does not say **why** there is nothing to act on — which is the finding.
+
+`no eligible item` was one paragraph covering three states with three entirely
+different fixes:
+
+| state | what it means | the fix |
+|---|---|---|
+| no `item` rows at all | nothing has ever synced here | put content in the source |
+| rows exist, none `copied` | a sync ran and copying failed | a product fault; read the run log |
+| `copied` but no `target_ref` id | the ledger write dropped the handle | a bug in the sync's ledger write |
+
+Telling them apart meant going and querying the box by hand, and across runs
+#7, #8 and #9 that is exactly what it cost — three rounds in which the gate
+reported the same sentence and the actual state was never in the evidence. The
+refusal now prints the `domain / status / count / with_target_id` breakdown for
+the mapping and names which of the three it is. **A refusal that names a
+symptom and not a state is only half a refusal.**
+
+**The DAV chain is confirmed intact, which narrows what is left.** It was not
+obvious that seeding content would be sufficient — `buildTargetWriterFromCredentials`
+throws `Unsupported target type: undefined` for a config without a `type`
+discriminator, and the demo's DAV connections have none (`{ baseUrl: … }`),
+which matches a fault seen on the old instance. Read rather than assumed: that
+function is on the **email** path only. Calendar, contact and file go through
+`buildDomainDepsFromMapping` → `davEndpointFromCreds` → `davUrl`, and `davUrl`
+accepts `baseUrl` directly, with credentials as `{username, password}` — which
+is exactly what `seed-managed.ts` writes. So the path from seeded content to a
+`copied` row with a target id is unbroken, and content is the only thing
+missing.
+
+Whether `seed-demo-dav-content.sh` has been run on the Spark is still not
+knowable from a run's evidence. After this change it is: run #10's refusal, if
+it comes, will say which of the three states the ledger is in.
+
 ## Run #6, and what the green actually covered (2026-08-18)
 
 The gate's first fully green run. Every one of its fourteen steps reports
