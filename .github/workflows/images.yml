@@ -124,6 +124,33 @@ jobs:
         # Sigstore log is the point, not a side effect. Failing loud is the
         # contract (rule 9): a publish whose signing step soft-failed would be
         # the pipeline lying about what it shipped.
+        #
+        # Retried because the dependency is somebody else's public good.
+        # Run 206 (2026-08-18) went red here on `POST
+        # https://rekor.sigstore.dev/api/v1/log/entries: giving up after 2
+        # attempt(s)` — for the `web` image only, while `api` and `selfhost`
+        # signed the same commit seconds apart. Same code, same step, one of
+        # three: a Rekor blip, not a defect. cosign's own retry is those two
+        # attempts within a few seconds, which a short outage outlasts.
+        #
+        # It still exits non-zero after the third try, and that matters more
+        # than the retry does: **push happens in the step above**, so a red run
+        # here does NOT unpublish anything. `:edge` is live and unsigned, and
+        # `cosign verify` — which deploy/selfhost/README.md tells operators to
+        # run — fails against it until this step succeeds. Red means "re-run
+        # this job", not "nothing shipped".
         run: |
-          cosign sign --yes \
-            "ghcr.io/robbes/open-migrate-${{ matrix.image }}@${{ steps.build.outputs.digest }}"
+          ref="ghcr.io/robbes/open-migrate-${{ matrix.image }}@${{ steps.build.outputs.digest }}"
+          for attempt in 1 2 3; do
+            if cosign sign --yes "$ref"; then
+              echo "signed on attempt ${attempt}"
+              exit 0
+            fi
+            if [ "${attempt}" -lt 3 ]; then
+              delay=$(( attempt * 30 ))
+              echo "::warning::cosign sign failed (attempt ${attempt}/3), retrying in ${delay}s"
+              sleep "${delay}"
+            fi
+          done
+          echo "::error::cosign sign failed three times — ${ref} is PUBLISHED AND UNSIGNED. Re-run this job once Sigstore is healthy (https://status.sigstore.dev); the digest is stable, so a later run signs the same image."
+          exit 1
