@@ -417,12 +417,26 @@ is already using — the same class of outage as rotating
 just proven working. Reuse what already works; only generate fresh secrets
 when there is no working stack yet at all.
 
-**The deploy CLI's login is the same gap, one phase later.** It lives at
-`${XDG_CONFIG_HOME:-$HOME/.config}/trigger/config.json` — outside any
-checkout, so `git clean` never touches it, but the CI job's environment is
-not guaranteed to be the one you logged in from by hand. Seed it into the
-same persist directory, reusing whatever login you already have rather than
-clicking through the magic link again:
+**The deploy CLI's login is the same gap, one phase later — and it has a
+better answer than restoring a session file.** `deploy` reads
+`TRIGGER_ACCESS_TOKEN` directly, before ever touching a profile file, and
+this is the CLI's *own* documented answer for CI: unable to run the
+interactive flow, it throws
+
+> Authentication required in CI environment. Please set the
+> TRIGGER_ACCESS_TOKEN environment variable with a Personal Access Token.
+
+**Preferred**, one-time, in the GitHub UI: mint a token at the self-hosted
+instance's own dashboard — *Account → Personal Access Tokens* — or reuse an
+existing `tr_pat_…` from `${XDG_CONFIG_HOME:-$HOME/.config}/trigger/config.json`
+if you already have one. Then, in the repository: **Settings → Secrets and
+variables → Actions → New repository secret**, named `TRIGGER_ACCESS_TOKEN`.
+`e2e-managed.yml` also sets `TRIGGER_API_URL` alongside it — required,
+because unset, the CLI's env-var login path defaults to the SAAS cloud
+(`api.trigger.dev`), not this instance.
+
+**Fallback, if you would rather not mint a token:** the session file still
+gets restored the same way `.env` does —
 
 ```bash
 mkdir -p ~/.persistent/open-migrate-managed
@@ -430,10 +444,14 @@ cp "${XDG_CONFIG_HOME:-$HOME/.config}/trigger/config.json" \
    ~/.persistent/open-migrate-managed/trigger-cli-config.json
 ```
 
-This does not make the login itself automatable — creating the account and
-project is still the one step that opens a browser (0084 T6). It only lets a
-login already performed once survive to the next run, the same way `.env`
-already does.
+— though note `whoami` structurally cannot see `TRIGGER_ACCESS_TOKEN` (it
+never reads that variable, only `deploy` does), so a manual bring-up that
+sets the token will still print "not logged in" from `whoami` even though
+`deploy` works fine. That asymmetry is the CLI's, not this repo's.
+
+Neither path makes the login *itself* automatable — creating the account
+and project is still the one step that opens a browser (0084 T6). Both only
+let a credential obtained once survive to the next run.
 
 ## When it goes wrong
 

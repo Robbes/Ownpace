@@ -29,6 +29,27 @@
 # regardless of what the process exited with.
 trigger_cli_logged_in() { # trigger_cli_logged_in <cli_version> <profile>
   local cli_version="$1" profile="$2"
+
+  # TRIGGER_ACCESS_TOKEN short-circuits this entirely, and has to: `whoami`
+  # (dist/esm/commands/whoami.js) calls isLoggedIn(), which reads ONLY the
+  # local profile file and never looks at this variable — confirmed from the
+  # installed CLI's own source. `deploy` is different: it calls
+  # login({embedded:true}) internally, and login()'s FIRST branch checks
+  # TRIGGER_ACCESS_TOKEN before ever touching the profile file, validates it
+  # against the server, and returns success or throws — no browser, no file.
+  #
+  # This is also the CLI's own documented answer for CI: login() throws
+  # "Authentication required in CI environment. Please set the
+  # TRIGGER_ACCESS_TOKEN environment variable..." when it detects it cannot
+  # run the interactive flow. So a `whoami`-based check cannot see this
+  # token no matter how it is invoked, but `deploy` uses it successfully
+  # regardless — trust it directly rather than trying to make `whoami`
+  # agree. A bad token still fails, loudly, inside `deploy` itself; that is
+  # an acceptable failure mode for a value meant to be minted at the
+  # platform's own UI (Account -> Personal Access Tokens) and verified once,
+  # by hand, before it is ever stored as a CI secret.
+  [ -n "${TRIGGER_ACCESS_TOKEN:-}" ] && return 0
+
   local cmd="${TRIGGER_CLI_WHOAMI_CMD:-npx -y trigger.dev@${cli_version} whoami --profile ${profile}}"
   eval "$cmd" 2>&1 | grep -q "^User ID:"
 }

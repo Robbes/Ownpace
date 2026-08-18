@@ -94,11 +94,27 @@ confirmed from the CLI's own `xdg-app-paths` dependency, not guessed) is now
 restored from the persist directory alongside `.env`, seeded from whatever
 login already exists rather than clicking through the magic link again.
 
-**Still open, and the actual next step for this workplan:** seed
-`trigger-cli-config.json` into the persist directory (docs/managed-bring-up.md
-has the one command). The next trigger after that is the workflow's first
-attempt with every prerequisite — `.env`, `stalwart-cli`, and now the CLI
-login — actually in place.
+**Run #5**, before the fix below merged, failed identically to run #4 — the
+persist directory had not been seeded yet, expected and not a new finding.
+
+**Found while answering the owner's own question — why not a Personal
+Access Token, the way most Trigger.dev CI examples do it — a genuinely
+better mechanism than the session-file restore above.** Read from source
+(`dist/esm/commands/deploy.js` calls `login({embedded:true})`, whose FIRST
+branch checks `TRIGGER_ACCESS_TOKEN` before ever touching the profile file):
+`deploy` honours it directly, and it is the CLI's own documented answer for
+a CI environment that cannot run the interactive flow. `whoami` cannot see
+it — confirmed from the same source, `isLoggedIn()` never reads that
+variable — so `trigger_cli_logged_in()` now short-circuits on its presence
+rather than trying to make `whoami` agree. The session-file restore stays as
+a fallback for a manual bring-up that would rather not mint a token.
+
+**Still open, and the actual next step for this workplan:** add the
+`TRIGGER_ACCESS_TOKEN` repository secret (docs/managed-bring-up.md has the
+exact steps — minting it is a browser action only the owner can do). The
+next trigger after that is the workflow's first attempt with every
+prerequisite — `.env`, `stalwart-cli`, and now a CI-native login — actually
+in place.
 
 ## What this is
 

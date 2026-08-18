@@ -393,4 +393,32 @@ describe('trigger_cli_logged_in (trigger-cli-lib.sh)', () => {
     // not be read as a successful account lookup.
     expect(loggedIn(stub('echo "no User ID: field was present in the response"'))).toBe(false);
   });
+
+  // ---------------------------------------------------------------------
+  /**
+   * TRIGGER_ACCESS_TOKEN (found 2026-08-18, following run #5). `whoami`
+   * structurally cannot see this variable — confirmed from the installed
+   * CLI's source, `isLoggedIn()` reads only the local profile file. `deploy`
+   * uses it directly via a different code path (`login({embedded:true})`).
+   * So when it is set, this function must trust it WITHOUT ever invoking
+   * whoami — these tests prove that by pointing TRIGGER_CLI_WHOAMI_CMD at a
+   * stub that would fail, and confirming it is never reached.
+   */
+  it('trusts TRIGGER_ACCESS_TOKEN without ever calling whoami', () => {
+    const env = {
+      ...stub('echo "You must login first."; exit 0'), // would report false, if called
+      TRIGGER_ACCESS_TOKEN: 'tr_pat_fakeButPresent',
+    };
+    expect(loggedIn(env)).toBe(true);
+  });
+
+  it('does not treat an empty TRIGGER_ACCESS_TOKEN as set', () => {
+    const env = { ...stub('echo "User ID: user_abc123"'), TRIGGER_ACCESS_TOKEN: '' };
+    // Empty falls through to the real check, which here says logged in —
+    // proving the empty value did NOT short-circuit on its own to a false
+    // positive OR a false negative, only that the fallback ran at all.
+    expect(loggedIn(env)).toBe(true);
+    const envLoggedOut = { ...stub('echo "not logged in"; exit 0'), TRIGGER_ACCESS_TOKEN: '' };
+    expect(loggedIn(envLoggedOut)).toBe(false);
+  });
 });
