@@ -118,7 +118,8 @@ if [ "${PLACEHOLDERS_REPLACED:-0}" -eq 1 ]; then
 [ensure-env-secrets] The services holding the old values must be recreated, and
 [ensure-env-secrets] anything encrypted with them re-supplied:
 [ensure-env-secrets]
-[ensure-env-secrets]   docker compose -f deploy/compose/managed.yml up -d --force-recreate [ensure-env-secrets]     trigger-api trigger-supervisor api
+[ensure-env-secrets]   docker compose -f deploy/compose/managed.yml \
+[ensure-env-secrets]     up -d --force-recreate trigger-api trigger-supervisor api
 [ensure-env-secrets]   ./deploy/compose/set-task-env.sh    # re-encrypts the task environment
 [ensure-env-secrets]
 [ensure-env-secrets] Rotating TRIGGER_ENCRYPTION_KEY strands the Trigger.dev env-var store,

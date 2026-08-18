@@ -76,6 +76,38 @@ TASK_APP_DATABASE_URL="postgresql://${APP_DB_USER:-app_user}:${APP_DB_PASSWORD:-
 # Never the pooler: session-scoped advisory lock. See packages/ledger/src/direct-url.ts.
 TASK_DIRECT_DATABASE_URL="postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD:-openmigrate_password}@postgres:5432/${POSTGRES_DB:-openmigrate}"
 
+# WAIT FOR THE WEBAPP BEFORE UPLOADING TO IT.
+#
+# The instruction this script follows a rotation with is "recreate trigger-api,
+# then run set-task-env.sh" — and a freshly recreated webapp takes some seconds
+# to accept requests. Run immediately after, the upload dies with a bare
+#
+#   [set-task-env] FAILED: Connection error.
+#
+# which says nothing about waiting and reads like a broken key or a wrong URL.
+# Observed live on the Spark, 2026-08-18: the operator ran it twice and the
+# second one worked, which is the correct fix expressed as a manual retry.
+#
+# `compose up --wait` covers this inside bootstrap-managed.sh, but this script
+# is also run on its own, by hand, straight after a recreate — which is exactly
+# when it is most likely to race.
+TRIGGER_ORIGIN="${TRIGGER_API_ORIGIN:-http://localhost:3090}"
+printf '[set-task-env] waiting for %s' "$TRIGGER_ORIGIN" >&2
+for attempt in $(seq 1 30); do
+  if curl -fsS -o /dev/null --max-time 5 "$TRIGGER_ORIGIN"; then
+    echo " — up" >&2
+    break
+  fi
+  if [ "$attempt" -eq 30 ]; then
+    echo >&2
+    echo "[set-task-env] FATAL: ${TRIGGER_ORIGIN} did not answer within 60s." >&2
+    echo "[set-task-env] Is the webapp running?  docker compose -f deploy/compose/managed.yml ps trigger-api" >&2
+    exit 1
+  fi
+  printf '.' >&2
+  sleep 2
+done
+
 echo "[set-task-env] uploading task env vars to project ${TRIGGER_PROJECT_REF} env '${TRIGGER_ENV_SLUG}'"
 
 cd "$REPO_ROOT/apps/worker"
