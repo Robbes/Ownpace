@@ -376,34 +376,9 @@ phase_demo() {
 
   "${SCRIPT_DIR}/setup-managed-demo.sh"
 
-  # The seed runs on the HOST, so it needs host-reachable URLs and the same
-  # secrets the containers have. It is not a container and inherits nothing —
-  # the same trap the task runtime falls into, one layer up. Direct to
-  # Postgres on its published port: the pooler is internal-only (no `ports:`),
-  # and the seed runs migrations, which must not go through a pooler anyway.
-  # THE PORT COMES FROM COMPOSE, NOT FROM .env.
-  #
-  # `${POSTGRES_PORT:-5432}` looks harmless and is not, on a host that runs
-  # anything else: 5432 is the obvious port and something else may already own
-  # it. On the Spark it does — an unrelated `litellm-db` is published there,
-  # while this stack's Postgres is on 55432. A wrong password makes that a loud
-  # failure rather than a silent write to a stranger's database, but "loud
-  # failure naming the wrong cause" is still an hour of somebody's evening.
-  #
-  # `compose port` asks the thing that actually published it.
-  local hostport
-  hostport="$("${COMPOSE[@]}" port postgres 5432 2>/dev/null | tail -1)"
-  [ -n "$hostport" ] || die "could not determine the published host port for postgres — is it up?"
-  # Strip the address half: compose answers 0.0.0.0:55432, and 0.0.0.0 is not
-  # an address to connect TO.
-  local pgport="${hostport##*:}"
-  note "seeding against the published port compose reports: localhost:${pgport}"
-  local direct="postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD}@localhost:${pgport}/${POSTGRES_DB:-openmigrate}"
-  DATABASE_URL="$direct" \
-    DIRECT_DATABASE_URL="$direct" \
-    JWT_SECRET="${JWT_SECRET}" \
-    SECRET_ENCRYPTION_KEY="${SECRET_ENCRYPTION_KEY}" \
-    pnpm --dir "$REPO_ROOT" --filter @openmig/api seed:managed
+  # One implementation, in seed-managed.sh — which is also what a person runs
+  # by hand, so the by-hand path and the scripted one cannot drift.
+  "${SCRIPT_DIR}/seed-managed.sh"
   note "migrations applied and demo tenants seeded (idempotent)"
 }
 

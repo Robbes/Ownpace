@@ -16,7 +16,10 @@ set -euo pipefail
 # Run order:
 #   1. docker compose -f deploy/compose/managed.yml up -d postgres nextcloud
 #   2. ./deploy/compose/setup-managed-demo.sh
-#   3. pnpm --filter @openmig/api seed:managed   (reads the fixed demo creds below)
+#   3. ./deploy/compose/seed-managed.sh          (reads the fixed demo creds below;
+#      wraps `pnpm --filter @openmig/api seed:managed`, which on its own cannot
+#      find DATABASE_URL/JWT_SECRET/SECRET_ENCRYPTION_KEY — it runs on the host
+#      and inherits nothing)
 #   4. docker compose -f deploy/compose/managed.yml up -d --build (rest of the stack)
 #   5. ./deploy/compose/deploy-tasks.sh          (Trigger.dev tasks — needed for
 #      verify/apply's job loop; one-time dashboard steps in that script's header)

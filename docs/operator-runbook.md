@@ -159,7 +159,7 @@ first:
 cd ..              # repo root
 set -a; source deploy/compose/.env; set +a
 DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:${POSTGRES_PORT:-5432}/${POSTGRES_DB}" \
-  pnpm --filter @openmig/api seed:managed
+  ./deploy/compose/seed-managed.sh
 
 # The managed-sync-tick scheduled task (deployed via deploy-tasks.sh) picks
 # up the seeded mappings within a minute and starts their sync passes on
