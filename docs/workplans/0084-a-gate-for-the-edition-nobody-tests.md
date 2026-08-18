@@ -58,10 +58,24 @@ name, the containers a manual bring-up already created are the same
 containers CI would manage — so seeding the persist directory from an
 already-working `.env` is a copy, not a second bring-up.
 
-**Still open, and the actual next step for this workplan:** the owner has
-not yet seeded `MANAGED_ENV_PERSIST_DIR` on the runner. The very next
-trigger — hand-run or the next scheduled 05:30 UTC firing — is the workflow's
-first real attempt at the stack itself.
+**Run #3**, after `MANAGED_ENV_PERSIST_DIR` was seeded: got materially further —
+postgres, pgbouncer (recreated, healthy, `auth_query in openmigrate`) and
+nextcloud all came up clean, proving the restore mechanism above actually
+works. Failed at `--with-demo`'s Stalwart provisioning:
+
+```
+[setup-stalwart] stalwart-cli not found. Install it (see this script's header) or set STALWART_CLI_PATH.
+```
+
+`e2e.yml` installs `stalwart-cli` on the same runner class for its own job,
+but a job's `PATH`/`GITHUB_PATH` additions do not carry to a different
+workflow's job — confirmed from `e2e.yml`'s own "Install stalwart-cli" step,
+copied here verbatim rather than reinvented, to avoid the two drifting into
+two different install recipes for the same tool.
+
+**Still open, and the actual next step for this workplan:** the very next
+trigger is the workflow's first attempt at the stack with both prerequisites
+(persisted `.env`, installed CLI) actually in place.
 
 ## What this is
 
