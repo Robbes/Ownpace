@@ -239,6 +239,38 @@ describe('closing a tenant', () => {
 });
 
 describe('purging a tenant', () => {
+  it('records what happened to each credential, including what could not be revoked', async () => {
+    // T4a. The receipt has to carry the failures, because `failed` and
+    // `unsupported` are the customer's cue to go and withdraw the access
+    // themselves — and a record that only kept the successes would lose it.
+    await closeTenant(db, LEAVING, 0, 'owner@acme.example', NOW, 7);
+    await purgeTenant(db, LEAVING, NOW, [
+      { kind: 'gmail', status: 'revoked' },
+      { kind: 'o365', status: 'unsupported', reason: 'Microsoft publishes no revocation endpoint.' },
+      { kind: 'imap', status: 'no_credential' },
+    ]);
+
+    const { rows } = await conn.query<{ revocations: unknown }>(
+      `SELECT revocations FROM erasure_record WHERE tenant_ref = $1`,
+      [tenantRef(LEAVING)],
+    );
+    const recorded = rows[0]!.revocations as Array<{ kind: string; status: string; reason?: string }>;
+
+    expect(recorded.map((r) => `${r.kind}:${r.status}`)).toEqual([
+      'gmail:revoked',
+      'o365:unsupported',
+      'imap:no_credential',
+    ]);
+    // The reason survives, because "we could not" without "why" is not a record.
+    expect(recorded[1]!.reason).toMatch(/no revocation endpoint/i);
+  });
+
+  it('a purge with no revocation attempt records that, rather than an empty success', async () => {
+    await closeTenant(db, LEAVING, 0, 'owner@acme.example', NOW, 7);
+    const result = await purgeTenant(db, LEAVING, NOW);
+    expect(result.revocations).toEqual([]);
+  });
+
   it('empties every table it names, for that tenant only', async () => {
     await closeTenant(db, LEAVING, 0, 'owner@acme.example', NOW);
     await purgeTenant(db, LEAVING, NOW);
