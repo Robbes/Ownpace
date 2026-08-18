@@ -20,6 +20,7 @@
  * read, application permissions only) is combined with the delegated flow.
  */
 
+import { delegatedFlowCannotReadMailbox, entraClientIdMissing, entraFlowNotChosen } from '@openmig/shared';
 import type {
   CalendarSource,
   ContactSource,
@@ -61,28 +62,28 @@ function graphTokenProviderFor(
   creds: GraphEntraCredsAsFound,
 ) {
   if (!creds.clientId) {
-    throw new Error(
-      `${productLabel}: OAUTH2_CLIENT_ID is not set (the Entra app registration id).`,
-    );
+    throw entraClientIdMissing(productLabel, 'OAUTH2_CLIENT_ID');
   }
   if (!creds.clientSecret && !creds.refreshToken) {
-    throw new Error(
-      `${productLabel}: set OAUTH2_CLIENT_SECRET (client-credentials flow) or ` +
-        'OAUTH2_REFRESH_TOKEN (delegated flow).',
-    );
+    throw entraFlowNotChosen(productLabel, 'OAUTH2_CLIENT_SECRET', 'OAUTH2_REFRESH_TOKEN');
   }
   // The mail factory's lesson, verbatim in spirit: a /users/{address} read is
   // only possible under application permissions, and with a refresh token
   // present Graph answers an access-denied that says nothing about the cause.
   if (endpoint.mailbox !== undefined && creds.refreshToken) {
-    throw new Error(
-      `${productLabel}: mailbox "${endpoint.mailbox}" names another user's store, which ` +
-        'requires application permissions (the client-credentials flow), but ' +
-        'OAUTH2_REFRESH_TOKEN is set — the DELEGATED flow can only read the signed-in ' +
-        'user (/me). Unset OAUTH2_REFRESH_TOKEN and set OAUTH2_CLIENT_SECRET, having ' +
-        'granted admin consent — see docs/o365-application-access.md — or remove the ' +
-        'mailbox to read /me.',
-    );
+    // One sentence, not two. This said the same thing as the mail factory's
+    // refusal in slightly different words — "the DELEGATED flow can only read"
+    // against "that is the DELEGATED flow and can only read" — which is the
+    // drift a shared contract exists to stop. `store` stays a parameter
+    // because it genuinely differs: this factory also serves calendar,
+    // contacts and drive, where "mailbox" would be wrong.
+    throw delegatedFlowCannotReadMailbox({
+      subject: productLabel,
+      mailbox: endpoint.mailbox,
+      refreshTokenField: 'OAUTH2_REFRESH_TOKEN',
+      clientSecretField: 'OAUTH2_CLIENT_SECRET',
+      store: 'store',
+    });
   }
   return createTokenProvider({
     tokenEndpoint: `https://login.microsoftonline.com/${endpoint.tenantId}/oauth2/v2.0/token`,

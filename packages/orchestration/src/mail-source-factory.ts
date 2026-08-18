@@ -26,6 +26,7 @@
  * So the callers hand this function values that are already known to be present.
  */
 
+import { delegatedFlowCannotReadMailbox } from '@openmig/shared';
 import type { SourceConnector, ThrottleLimiter } from '@openmig/shared';
 import {
   GraphMailSource,
@@ -118,14 +119,13 @@ export function buildGraphMailSourceFrom(
   // fix the operator cannot apply is not one. See GraphCredentialNaming.
   if (endpoint.mailbox !== undefined && creds.refreshToken) {
     const naming = creds.naming ?? ENV_CREDENTIAL_NAMES;
-    throw new Error(
-      `graph-mail source: mailbox "${endpoint.mailbox}" names another user's ` +
-        'mailbox, which requires application permissions (the client-credentials ' +
-        `flow), but ${naming.refreshToken} is set — that is the DELEGATED flow and ` +
-        `can only read the signed-in user (/me). Unset ${naming.refreshToken} and ` +
-        `set ${naming.clientSecret}, having granted admin consent — see ` +
-        'docs/o365-application-access.md — or remove the mailbox to read /me.',
-    );
+    throw delegatedFlowCannotReadMailbox({
+      subject: 'graph-mail source',
+      mailbox: endpoint.mailbox,
+      refreshTokenField: naming.refreshToken,
+      clientSecretField: naming.clientSecret,
+      store: 'mailbox',
+    });
   }
 
   const tokenProvider = createTokenProvider({

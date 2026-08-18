@@ -16,9 +16,14 @@
  * `providerRefused` falls through to the verbatim text. A result with no
  * outcome at all — an older API, a cached response — also falls through, so
  * this can never render less than what arrived.
+ *
+ * `credentialsRefused` (workplan 0083) is the case that was on the wrong side
+ * of that line: *dropbox source: clientId … are not set* reads like a
+ * provider's error and is not one — we wrote it — so it was rendering verbatim
+ * in a Dutch UI under a rule meant for somebody else's strings.
  */
 
-import type { ProbeOutcome, ProbeUnit } from '@openmig/shared';
+import { refusalText, type ProbeOutcome, type ProbeUnit, type RefusalLocale } from '@openmig/shared';
 import type { StringKey } from './strings';
 
 type Translate = (key: StringKey, vars?: Readonly<Record<string, string | number>>) => string;
@@ -36,7 +41,12 @@ function unitWord(t: Translate, unit: ProbeUnit, count: number): string {
  * comes back whenever the outcome is the provider's or is missing — never a
  * blank, and never a worse sentence than the one that arrived.
  */
-export function probeText(t: Translate, outcome: ProbeOutcome | undefined, fallback: string): string {
+export function probeText(
+  t: Translate,
+  outcome: ProbeOutcome | undefined,
+  fallback: string,
+  locale: RefusalLocale = 'en',
+): string {
   if (!outcome) return fallback;
   switch (outcome.code) {
     case 'connected':
@@ -52,6 +62,12 @@ export function probeText(t: Translate, outcome: ProbeOutcome | undefined, fallb
       }`;
     case 'noProbe':
       return t('probe.noProbe', { kind: outcome.kind });
+    case 'credentialsRefused':
+      // OURS, so it gets translated — the opposite of the case below, and the
+      // distinction the outcome exists to carry. The field names inside the
+      // sentence are still verbatim in both languages: they are the literal
+      // thing the operator has to go and set (workplan 0083).
+      return refusalText(outcome.refusal, locale);
     case 'providerRefused':
       // Theirs. Verbatim, always — this is the string somebody pastes into a
       // provider's console, and the only thing translating it could do is

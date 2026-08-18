@@ -35,7 +35,7 @@ import {
   applyMappingDeletion,
   applyMappingRelocation,
 } from '@openmig/orchestration';
-import { SCOPE_MANIFEST, DELETION_CONFIRMATIONS, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown } from '@openmig/shared';
+import { isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
 // three cannot drift apart in the explanations that stop somebody destroying
@@ -751,6 +751,14 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       );
     } catch (err) {
       // Surface, never swallow (hard rule 9). The scheduler keeps running.
+      //
+      // The LOG stays English always, deliberately: it is evidence, it gets
+      // grepped, and it gets pasted into an issue by somebody who may not read
+      // Dutch. The NOTIFICATION is prose the owner reads, so a credential
+      // refusal — which is ours, not a provider's diagnostic — is sent in the
+      // configured language (workplan 0083). Anything else stays verbatim,
+      // because `lastError` is a finding and the difference between a 507, a
+      // 403 and a parse error is the whole of its value.
       log.error(`[selfhost] ${m.config.mappingId}: pass failed:`, err instanceof Error ? err.message : err);
       // A pass that threw outright never produced results, and is as failed
       // as a pass can be.
@@ -758,7 +766,11 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         failureStreak.record(
           m.config.mappingId,
           'failed',
-          err instanceof Error ? err.message : String(err),
+          isCredentialRefusal(err)
+            ? refusalText(err.refusal, notifyLocale)
+            : err instanceof Error
+              ? err.message
+              : String(err),
         ),
       );
     }

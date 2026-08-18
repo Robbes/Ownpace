@@ -52,6 +52,6 @@ describe('refusals, before anything is attempted', () => {
         { ...ENDPOINT, mailbox: 'shared@contoso.example' },
         DELEGATED_CREDS,
       ),
-    ).toThrow(/DELEGATED flow can only read the signed-in user/);
+    ).toThrow(/DELEGATED flow and can only read the signed-in user/);
   });
 });

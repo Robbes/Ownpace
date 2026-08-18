@@ -40,7 +40,18 @@ of* it.
    `@openmig/shared` (same file, updated together or neither), so both
    editions and both languages share one source of truth. This — not a
    client-side translation — is how any future server-authored prose goes
-   bilingual.
+   bilingual. `credential-refusals.ts` is the second and larger application of
+   it (workplan 0083): twelve build-time refusals across seven source
+   factories, each carrying `en` and `nl` plus the `fields` it names.
+
+   **A refusal we wrote is not a provider's diagnostic, and the difference is
+   easy to lose.** Those twelve reached the UI through the same `catch` as a
+   real provider error, were labelled `providerRefused`, and so rendered
+   verbatim under `nl` — the render-verbatim rule, correctly applied to the
+   wrong sentence. `ProbeOutcome` now separates them: `providerRefused` is
+   theirs and stays verbatim; `credentialsRefused` is ours and carries the
+   pair. When adding server prose, ask **who wrote this sentence** before
+   asking which class it is.
 
 ## For future prose
 
@@ -49,6 +60,11 @@ class **in the contract**, at authoring time:
 
 - A finding/diagnostic/gate → one language, rendered verbatim; give the UI a
   stable `code` beside it if screens may want to explain it.
+- **The field names inside our own prose are findings even when the sentence
+  around them is not.** `clientId`, `OAUTH2_CLIENT_ID` and `DROPBOX_APP_KEY`
+  render identically in both languages, because they are the literal thing the
+  operator must go and set — translating one names a box that is on no screen,
+  which is 0071 T2's defect from the other direction.
 - Operator prose that must exist in Dutch → author both languages in
   `@openmig/shared`, adjacent, with the update-both-or-neither comment.
 

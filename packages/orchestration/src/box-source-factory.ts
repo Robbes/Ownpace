@@ -16,6 +16,8 @@
  * posture), not among the secrets.
  */
 
+import { CREDENTIAL_STORE_NL } from '@openmig/shared';
+import { missingCredentials } from '@openmig/shared';
 import type { FileSource } from '@openmig/shared';
 import { BoxFileSource, BoxTokenProvider, boxTransport } from '@openmig/connectors';
 
@@ -39,6 +41,8 @@ export interface BoxCredentialNaming {
   readonly clientSecret: string;
   readonly subjectUserId: string;
   readonly where: string;
+  /** The same place in Dutch. Optional: unset falls back to the English. */
+  readonly whereNl?: string;
 }
 
 /** Self-host: the operator sets environment variables on the appliance. */
@@ -47,6 +51,7 @@ export const ENV_BOX_CREDENTIAL_NAMES: BoxCredentialNaming = {
   clientSecret: 'BOX_CLIENT_SECRET',
   subjectUserId: "userId (on the mapping's source config)",
   where: "the appliance's environment (userId on the mapping file)",
+  whereNl: `${CREDENTIAL_STORE_NL.appliance} (userId in het mapping-bestand)`,
 };
 
 /** Managed: stored on the connection, encrypted; the subject rides the config. */
@@ -55,6 +60,7 @@ export const STORED_BOX_CREDENTIAL_NAMES: BoxCredentialNaming = {
   clientSecret: 'clientSecret',
   subjectUserId: "userId (on the source config)",
   where: "the source connection's stored credentials (userId on the source config)",
+  whereNl: `${CREDENTIAL_STORE_NL.managed} (userId in de bronconfiguratie)`,
 };
 
 /** The managed `connection.kind` (migration 0019). */
@@ -70,15 +76,25 @@ export function buildBoxSourceFrom(
     .filter((key) => !creds[key])
     .map((key) => naming[key]);
   if (missing.length > 0) {
-    throw new Error(
-      `box source: ${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} not set. ` +
+    throw missingCredentials({
+      subject: 'box source',
+      missing,
+      detailEn:
         `A Box migration uses the Client Credentials Grant — NOT a refresh token, because Box ` +
         `rotates refresh tokens on every use and stored credentials here are never written ` +
         `back — so it needs ${naming.clientId}, ${naming.clientSecret} and the numeric ` +
         `${naming.subjectUserId} in ${naming.where}. docs/box-setup.md walks through obtaining ` +
         'each, including the one-time admin authorization; the app is read-only by scope — ' +
         'this product never writes to a Box.',
-    );
+      detailNl:
+        'Een Box-migratie gebruikt de Client Credentials Grant — GEEN refresh-token, omdat Box ' +
+        'refresh-tokens bij elk gebruik vervangt en opgeslagen gegevens hier nooit worden ' +
+        `teruggeschreven — dus zijn ${naming.clientId}, ${naming.clientSecret} en het ` +
+        `numerieke ${naming.subjectUserId} nodig in ${naming.whereNl ?? naming.where}. ` +
+        'docs/box-setup.md legt stap voor stap uit hoe u ze verkrijgt, inclusief de eenmalige ' +
+        'beheerdersautorisatie; de app is alleen-lezen door de gekozen scopes — dit product ' +
+        'schrijft nooit naar een Box.',
+    });
   }
 
   const tokens = new BoxTokenProvider(

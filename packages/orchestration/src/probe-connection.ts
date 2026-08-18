@@ -22,6 +22,7 @@
  * nothing anywhere.
  */
 
+import { isCredentialRefusal } from '@openmig/shared';
 import type { SourceConfig, ProbeOutcome, ProbeUnit } from '@openmig/shared';
 import { CalDAVSource, CarddavSource, WebdavFileSource } from '@openmig/connectors';
 import { buildImapSourceFrom } from './mail-source-factory';
@@ -72,8 +73,27 @@ interface Listable {
   listFolders(): Promise<ReadonlyArray<unknown>>;
 }
 
-/** A provider's own refusal, carried verbatim and labelled as theirs. */
+/**
+ * A refusal, labelled with WHOSE it is.
+ *
+ * Two very different things reach this catch. A provider's error —
+ * `invalid_client` from Dropbox — is theirs, and the whole point of 0080 is
+ * that it renders verbatim. A credential refusal thrown by one of our own
+ * source factories is OURS, and mislabelling it as the provider's is why it
+ * stayed English in a Dutch UI: the render-verbatim rule was being applied to
+ * a sentence we wrote (workplan 0083).
+ *
+ * `reason` is the English either way, so nothing that only knows about
+ * `reason` changes.
+ */
 function providerRefused(err: unknown): ProbeResult {
+  if (isCredentialRefusal(err)) {
+    return {
+      ok: false,
+      reason: err.refusal.en,
+      outcome: { code: 'credentialsRefused', refusal: err.refusal },
+    };
+  }
   return {
     ok: false,
     reason: err instanceof Error ? err.message : String(err),
