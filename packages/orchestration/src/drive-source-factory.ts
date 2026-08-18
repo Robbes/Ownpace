@@ -22,6 +22,7 @@
  * this mints cannot write to Drive at all (`drive.readonly`).
  */
 
+import { CREDENTIAL_STORE_NL, missingCredentials } from '@openmig/shared';
 import type { FileSource, GoogleNativeFilePolicy } from '@openmig/shared';
 import {
   DRIVE_READONLY_SCOPE,
@@ -74,6 +75,8 @@ export interface GoogleCredentialNaming {
   readonly serviceAccountKey?: string;
   /** Where these are configured, completing the sentence "set them in …". */
   readonly where: string;
+  /** The same place in Dutch. Optional: unset falls back to the English. */
+  readonly whereNl?: string;
 }
 
 /** Self-host: the operator sets environment variables on the appliance. */
@@ -83,6 +86,7 @@ export const ENV_GOOGLE_CREDENTIAL_NAMES: GoogleCredentialNaming = {
   refreshToken: 'GOOGLE_REFRESH_TOKEN',
   serviceAccountKey: ENV_GOOGLE_DWD_KEY_NAME,
   where: "the appliance's environment",
+  whereNl: CREDENTIAL_STORE_NL.appliance,
 };
 
 /** Managed: the operator stores them on the connection, encrypted. */
@@ -92,6 +96,7 @@ export const STORED_GOOGLE_CREDENTIAL_NAMES: GoogleCredentialNaming = {
   refreshToken: 'refreshToken',
   serviceAccountKey: STORED_GOOGLE_DWD_KEY_NAME,
   where: "the source connection's stored credentials",
+  whereNl: CREDENTIAL_STORE_NL.managed,
 };
 
 /**
@@ -126,12 +131,19 @@ export function buildGoogleDriveSourceFrom(
         .map((key) => naming[key]);
 
   if (missing.length > 0) {
-    throw new Error(
-      `google-drive source: ${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} not set. ` +
+    throw missingCredentials({
+      subject: 'google-drive source',
+      missing,
+      detailEn:
         `A Drive migration authenticates as the user who consented, so it needs all three of ` +
         `${naming.clientId}, ${naming.clientSecret} and ${naming.refreshToken} in ${naming.where}. ` +
         'The token is minted read-only (drive.readonly): this product never writes to a Drive.',
-    );
+      detailNl:
+        'Een Drive-migratie meldt zich aan als de gebruiker die toestemming gaf, dus alle drie ' +
+        `zijn nodig: ${naming.clientId}, ${naming.clientSecret} en ${naming.refreshToken} in ` +
+        `${naming.whereNl ?? naming.where}. Het token wordt alleen-lezen aangemaakt ` +
+        '(drive.readonly): dit product schrijft nooit naar een Drive.',
+    });
   }
 
   const tokens =

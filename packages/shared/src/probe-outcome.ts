@@ -20,6 +20,8 @@
  * each side is a contract that drifts.
  */
 
+import type { BilingualRefusal } from './credential-refusals';
+
 /** What a source counts when it lists. */
 export type ProbeUnit = 'folder' | 'calendar' | 'addressBook' | 'collection';
 
@@ -33,4 +35,19 @@ export type ProbeOutcome =
   /** No probe is wired for this kind — a gap in us, not in the credential. */
   | { readonly code: 'noProbe'; readonly kind: string }
   /** The accompanying sentence is the PROVIDER's. Render it verbatim. */
-  | { readonly code: 'providerRefused' };
+  | { readonly code: 'providerRefused' }
+  /**
+   * A credential refusal WE wrote, in both languages (workplan 0083).
+   *
+   * This used to arrive as `providerRefused`, and that was wrong in the one
+   * way this file exists to prevent: it is not the provider's string, it is
+   * ours — *dropbox source: clientId, clientSecret, refreshToken are not set*
+   * was written here, not by Dropbox. Being mislabelled as theirs is precisely
+   * why it stayed English for a Dutch operator: the rule for the provider's
+   * words is render-verbatim, and it was being applied to our own.
+   *
+   * The pair rides along rather than a locale being chosen at throw time,
+   * because the factory that throws has no idea who reads it — a log on the
+   * appliance, a probe panel on a phone, an API response.
+   */
+  | { readonly code: 'credentialsRefused'; readonly refusal: BilingualRefusal };

@@ -90,3 +90,42 @@ describe('probeText — when there is no outcome at all', () => {
     );
   });
 });
+
+describe('a credential refusal is OURS, so it is translated (workplan 0083)', () => {
+  const refusal = {
+    code: 'credentials_missing',
+    fields: ['clientId', 'clientSecret'],
+    en: 'dropbox source: clientId, clientSecret are not set. A Dropbox migration authenticates as the account that consented.',
+    nl: 'dropbox source: clientId en clientSecret zijn niet ingesteld. Een Dropbox-migratie meldt zich aan als het account dat toestemming gaf.',
+  } as const;
+
+  it('renders the Dutch to a Dutch reader', () => {
+    // The owner's report, in one assertion: this sentence was English on a
+    // Dutch phone because it arrived labelled as the provider's.
+    expect(probeText(nl, { code: 'credentialsRefused', refusal }, 'IGNORED', 'nl')).toBe(refusal.nl);
+  });
+
+  it('renders the English to an English reader', () => {
+    expect(probeText(en, { code: 'credentialsRefused', refusal }, 'IGNORED', 'en')).toBe(refusal.en);
+  });
+
+  it('still names the exact fields in Dutch', () => {
+    const dutch = probeText(nl, { code: 'credentialsRefused', refusal }, '', 'nl');
+    // Translating `clientId` would name a box that is on no screen — the 0071
+    // T2 defect, from the other direction.
+    expect(dutch).toContain('clientId');
+    expect(dutch).toContain('clientSecret');
+  });
+
+  it("does NOT translate a provider's own refusal, whatever the locale", () => {
+    // The distinction the outcome exists to carry. `invalid_client` is the
+    // string somebody pastes into Dropbox's console.
+    expect(probeText(nl, { code: 'providerRefused' }, 'invalid_client', 'nl')).toBe('invalid_client');
+  });
+
+  it('defaults to English when no locale is passed', () => {
+    // Every pre-existing call site omits the argument; none of them may start
+    // rendering something different because this parameter was added.
+    expect(probeText(en, { code: 'credentialsRefused', refusal }, 'IGNORED')).toBe(refusal.en);
+  });
+});

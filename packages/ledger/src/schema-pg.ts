@@ -13,6 +13,8 @@ import {
   integer,
   uniqueIndex,
   index,
+  doublePrecision,
+  primaryKey,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
@@ -1060,4 +1062,26 @@ export const paymentMethod = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('ix_payment_method_tenant').on(t.tenantId)],
+);
+
+/**
+ * The token bucket every process shares, per (tenant, provider) — migration
+ * 0024, workplan 0082 T5.
+ *
+ * Added here in 0083 because the migration shipped without it: `PgRateBudget`
+ * issues raw SQL, so nothing typed ever referenced the table and its absence
+ * from the schema was invisible until an integration test tried to read the
+ * balance it had just spent. A table the ORM cannot see is one nothing else
+ * can join, assert on, or notice the loss of.
+ */
+export const rateBudget = pgTable(
+  'rate_budget',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    provider: text('provider').notNull(),
+    /** Fractional: a short gap at 10/s refills 0.4 of a token, not zero. */
+    tokens: doublePrecision('tokens').notNull(),
+    refilledAt: timestamp('refilled_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.tenantId, t.provider] })],
 );

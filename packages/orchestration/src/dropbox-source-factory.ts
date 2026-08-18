@@ -14,6 +14,8 @@
  * the words, exactly like `GoogleCredentialNaming` does.
  */
 
+import { CREDENTIAL_STORE_NL } from '@openmig/shared';
+import { missingCredentials } from '@openmig/shared';
 import type { FileSource } from '@openmig/shared';
 import { DropboxFileSource, DropboxTokenProvider, dropboxTransport } from '@openmig/connectors';
 
@@ -35,6 +37,8 @@ export interface DropboxCredentialNaming {
   readonly appSecret: string;
   readonly refreshToken: string;
   readonly where: string;
+  /** The same place in Dutch. Optional: unset falls back to the English. */
+  readonly whereNl?: string;
 }
 
 /** Self-host: the operator sets environment variables on the appliance. */
@@ -43,6 +47,7 @@ export const ENV_DROPBOX_CREDENTIAL_NAMES: DropboxCredentialNaming = {
   appSecret: 'DROPBOX_APP_SECRET',
   refreshToken: 'DROPBOX_REFRESH_TOKEN',
   where: "the appliance's environment",
+  whereNl: CREDENTIAL_STORE_NL.appliance,
 };
 
 /** Managed: stored on the connection, encrypted, under the shared trio keys. */
@@ -51,6 +56,7 @@ export const STORED_DROPBOX_CREDENTIAL_NAMES: DropboxCredentialNaming = {
   appSecret: 'clientSecret',
   refreshToken: 'refreshToken',
   where: "the source connection's stored credentials",
+  whereNl: CREDENTIAL_STORE_NL.managed,
 };
 
 /** The managed `connection.kind` (migration 0018). */
@@ -66,13 +72,21 @@ export function buildDropboxSourceFrom(
     .filter((key) => !creds[key])
     .map((key) => naming[key]);
   if (missing.length > 0) {
-    throw new Error(
-      `dropbox source: ${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} not set. ` +
+    throw missingCredentials({
+      subject: 'dropbox source',
+      missing,
+      detailEn:
         `A Dropbox migration authenticates as the account that consented, so it needs all three ` +
         `of ${naming.appKey}, ${naming.appSecret} and ${naming.refreshToken} in ${naming.where}. ` +
         'docs/dropbox-setup.md walks through obtaining each; create the app with the read-only ' +
         'files scopes — this product never writes to a Dropbox.',
-    );
+      detailNl:
+        'Een Dropbox-migratie meldt zich aan als het account dat toestemming gaf, dus alle drie ' +
+        `zijn nodig: ${naming.appKey}, ${naming.appSecret} en ${naming.refreshToken} in ` +
+        `${naming.whereNl ?? naming.where}. docs/dropbox-setup.md legt stap voor stap uit hoe u ` +
+        'ze verkrijgt; maak de app aan met de alleen-lezen bestandsscopes — dit product ' +
+        'schrijft nooit naar een Dropbox.',
+    });
   }
 
   const tokens = new DropboxTokenProvider({

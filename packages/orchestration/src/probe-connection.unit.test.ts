@@ -111,3 +111,35 @@ describe('probeTargetConnection: read-only questions only', () => {
     if (!result.ok) expect(result.reason.length).toBeGreaterThan(0);
   });
 });
+
+describe('whose refusal is it? (workplan 0083)', () => {
+  it("labels OUR credential refusal as ours, and carries both languages", async () => {
+    // A gmail source with nothing stored refuses in one of our own factories.
+    // Before 0083 this arrived as `providerRefused` — the code that means
+    // "render verbatim, it is somebody else's string" — which is why a Dutch
+    // operator read it in English. It is not Dropbox's or Google's sentence.
+    // We wrote it.
+    const result = await probeSourceConnection('gmail', { type: 'gmail', user: 'a@gmail.com' }, {});
+    expect(result.ok).toBe(false);
+    expect(result.outcome?.code).toBe('credentialsRefused');
+    if (result.outcome?.code === 'credentialsRefused') {
+      const { refusal } = result.outcome;
+      expect(refusal.nl).not.toBe(refusal.en);
+      expect(refusal.nl.length).toBeGreaterThan(20);
+      // The field names survive translation — they are what must be set.
+      for (const field of refusal.fields) expect(refusal.nl).toContain(field);
+      // And `reason` is still the English, so every caller that only knows
+      // about `reason` is unchanged.
+      if (!result.ok) expect(result.reason).toBe(refusal.en);
+    }
+  });
+
+  it("leaves a PROVIDER's refusal labelled as theirs", async () => {
+    // An unprobeable kind is ours too, but a genuine provider error must not
+    // be swept into the translated bucket — that would be 0080's defect in
+    // reverse, and it is the more damaging direction: `invalid_client` is the
+    // string somebody pastes into a provider's console.
+    const result = await probeSourceConnection('carrier_pigeon', {}, {});
+    expect(result.outcome?.code).not.toBe('credentialsRefused');
+  });
+});

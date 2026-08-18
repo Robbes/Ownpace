@@ -27,6 +27,7 @@
  * deletion evidence — exactly as it does for every other IMAP source.
  */
 
+import { CREDENTIAL_STORE_NL, CredentialRefusalError, missingAccountAddress } from '@openmig/shared';
 import type { MailFolder, MailItem, RawMessage, SourceConnector, SyncCursor, TokenProvider } from '@openmig/shared';
 import { GoogleTokenProvider } from '@openmig/connectors';
 import { buildImapSourceFrom } from './mail-source-factory';
@@ -59,6 +60,7 @@ export const ENV_GMAIL_CREDENTIAL_NAMES: GoogleCredentialNaming = {
   refreshToken: 'GOOGLE_MAIL_REFRESH_TOKEN',
   serviceAccountKey: ENV_GOOGLE_DWD_KEY_NAME,
   where: "the appliance's environment",
+  whereNl: CREDENTIAL_STORE_NL.appliance,
 };
 
 /** Managed: the operator stores them on the connection, encrypted. */
@@ -68,6 +70,7 @@ export const STORED_GMAIL_CREDENTIAL_NAMES: GoogleCredentialNaming = {
   refreshToken: 'refreshToken',
   serviceAccountKey: STORED_GOOGLE_DWD_KEY_NAME,
   where: "the source connection's stored credentials",
+  whereNl: CREDENTIAL_STORE_NL.managed,
 };
 
 /** The managed `connection.kind` for a Gmail source (migration 0012). */
@@ -164,17 +167,33 @@ export function buildGmailSourceFrom(
     if (!creds.refreshToken) missing.push(naming.refreshToken);
   }
   if (missing.length > 0) {
-    throw new Error(
-      `Gmail source is missing ${missing.join(', ')} in ${naming.where}. All three are ` +
+    throw new CredentialRefusalError({
+      code: 'credentials_missing',
+      fields: missing,
+      // Lead phrased "is missing X in Y" rather than "X is not set", which is
+      // how this factory has always said it — kept, because the English is
+      // pinned by tests and because rewording five correct sentences to fit
+      // one template is a worse trade than authoring five Dutch ones.
+      en:
+        `Gmail source is missing ${missing.join(', ')} in ${naming.where}. All three are ` +
         'required: the OAuth client (id + secret) and a refresh token consented with the ' +
         `${GMAIL_SCOPE} scope — a Drive-consented token will not mint mail tokens. ` +
         'docs/google-workspace-setup.md walks through obtaining each.',
-    );
+      nl:
+        `Gmail-bron: ${missing.join(', ')} ontbreekt in ${naming.whereNl ?? naming.where}. ` +
+        'Alle drie zijn vereist: de OAuth-client (id + secret) en een refresh-token met ' +
+        `toestemming voor de scope ${GMAIL_SCOPE} — een token dat voor Drive is toegestaan ` +
+        'levert geen mailtokens op. docs/google-workspace-setup.md legt stap voor stap uit ' +
+        'hoe u ze verkrijgt.',
+    });
   }
   if (!user) {
-    throw new Error(
-      'Gmail source is missing the account address (`user`): XOAUTH2 authenticates a token ' +
-        'FOR an address, and Google refuses the handshake without one.',
+    throw missingAccountAddress(
+      'Gmail source',
+      'XOAUTH2 authenticates a token FOR an address, and Google refuses the handshake ' +
+        'without one.',
+      'XOAUTH2 verifieert een token VOOR een adres, en Google weigert de handshake zonder ' +
+        'adres.',
     );
   }
 

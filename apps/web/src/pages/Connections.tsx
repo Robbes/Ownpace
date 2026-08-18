@@ -29,7 +29,7 @@ import {
   type ConnectionSummary,
   type TestConnectionResult,
 } from '../services/mapping-service';
-import { useT, useFormatters, type StringKey } from '../i18n';
+import { useT, useLocale, useFormatters, type StringKey } from '../i18n';
 import { probeText } from '../i18n/probe-text';
 import {
   inUseMigrations,
@@ -110,7 +110,7 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
   connection,
   onChanged,
 }) => {
-  const t = useT();
+  const { t, locale } = useLocale();
   const { relativeToNow } = useFormatters();
   const [testing, setTesting] = React.useState(false);
   const [result, setResult] = React.useState<TestConnectionResult | null>(null);
@@ -305,6 +305,7 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
             t,
             result.outcome,
             result.ok ? (result.detail ?? t('connections.ok')) : (result.reason ?? t('connections.failed')),
+            locale,
           )}
         </p>
       )}
@@ -322,7 +323,7 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
  * connection added here is one a sync pass can use.
  */
 const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
-  const t = useT();
+  const { t, locale } = useLocale();
   const [open, setOpen] = React.useState(false);
   const [role, setRole] = React.useState<'source' | 'target'>('source');
   const [type, setType] = React.useState('box');
@@ -460,6 +461,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
             t,
             result.outcome,
             result.ok ? (result.detail ?? t('connections.ok')) : (result.reason ?? t('connections.failed')),
+            locale,
           )}
         </p>
       )}

@@ -21,6 +21,7 @@
  * is that proof.
  */
 
+import { CREDENTIAL_STORE_NL, CredentialRefusalError, missingAccountAddress } from '@openmig/shared';
 import type { CalendarSource, ContactSource, TokenProvider } from '@openmig/shared';
 import { CalDAVSource, CarddavSource, GoogleTokenProvider } from '@openmig/connectors';
 import type { GoogleCredentialNaming, GoogleCredentialsAsFound } from './drive-source-factory';
@@ -63,6 +64,7 @@ export const ENV_GOOGLE_CALENDAR_CREDENTIAL_NAMES: GoogleCredentialNaming = {
   refreshToken: 'GOOGLE_CALENDAR_REFRESH_TOKEN',
   serviceAccountKey: ENV_GOOGLE_DWD_KEY_NAME,
   where: "the appliance's environment",
+  whereNl: CREDENTIAL_STORE_NL.appliance,
 };
 
 /** Same, for contacts. */
@@ -72,6 +74,7 @@ export const ENV_GOOGLE_CONTACTS_CREDENTIAL_NAMES: GoogleCredentialNaming = {
   refreshToken: 'GOOGLE_CONTACTS_REFRESH_TOKEN',
   serviceAccountKey: ENV_GOOGLE_DWD_KEY_NAME,
   where: "the appliance's environment",
+  whereNl: CREDENTIAL_STORE_NL.appliance,
 };
 
 /** Managed: stored on the connection, encrypted — the same three names as every Google source. */
@@ -81,6 +84,7 @@ export const STORED_GOOGLE_DAV_CREDENTIAL_NAMES: GoogleCredentialNaming = {
   refreshToken: 'refreshToken',
   serviceAccountKey: STORED_GOOGLE_DWD_KEY_NAME,
   where: "the source connection's stored credentials",
+  whereNl: CREDENTIAL_STORE_NL.managed,
 };
 
 /** The managed `connection.kind`s (migration 0015). */
@@ -113,17 +117,27 @@ function refuseMissing(
   if (!creds.clientSecret) missing.push(naming.clientSecret);
   if (!creds.refreshToken) missing.push(naming.refreshToken);
   if (missing.length > 0) {
-    throw new Error(
-      `Google ${what} source is missing ${missing.join(', ')} in ${naming.where}. All three are ` +
+    throw new CredentialRefusalError({
+      code: 'credentials_missing',
+      fields: missing,
+      en:
+        `Google ${what} source is missing ${missing.join(', ')} in ${naming.where}. All three are ` +
         'required: the OAuth client (id + secret) and a refresh token consented with the ' +
         `${scope} scope — a token consented for another Google product will not mint these. ` +
         'docs/google-workspace-setup.md walks through obtaining each.',
-    );
+      nl:
+        `Google ${what}-bron: ${missing.join(', ')} ontbreekt in ` +
+        `${naming.whereNl ?? naming.where}. Alle drie zijn vereist: de OAuth-client ` +
+        `(id + secret) en een refresh-token met toestemming voor de scope ${scope} — een ` +
+        'token dat voor een ander Google-product is toegestaan levert deze niet op. ' +
+        'docs/google-workspace-setup.md legt stap voor stap uit hoe u ze verkrijgt.',
+    });
   }
   if (!user) {
-    throw new Error(
-      `Google ${what} source is missing the account address (\`user\`): the principal URL ` +
-        'the DAV discovery starts from is derived from it.',
+    throw missingAccountAddress(
+      `Google ${what} source`,
+      'the principal URL the DAV discovery starts from is derived from it.',
+      'de principal-URL waar de DAV-detectie mee begint wordt eruit afgeleid.',
     );
   }
   return {

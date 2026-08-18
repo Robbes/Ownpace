@@ -1,6 +1,6 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import React, { useState } from 'react';
-import { useT, useFormatters } from '../i18n';
+import { useT, useLocale, useFormatters } from '../i18n';
 import { probeText } from '../i18n/probe-text';
 import type { StringKey } from '../i18n';
 import { useNavigate, Link } from 'react-router';
@@ -324,7 +324,7 @@ export function clearDraft(): void {
 }
 
 const CreateMapping: React.FC = () => {
-  const t = useT();
+  const { t, locale } = useLocale();
   const { dateTime } = useFormatters();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -1306,7 +1306,7 @@ const CreateMapping: React.FC = () => {
                 which; a provider's refusal always falls through unchanged,
                 because that string is what you paste into their console. */}
             <p className="text-gray-700 min-w-0 break-words">
-              {probeText(t, r.outcome, (r.ok ? r.detail : r.reason) ?? '')}
+              {probeText(t, r.outcome, (r.ok ? r.detail : r.reason) ?? '', locale)}
             </p>
           </div>
         )}
