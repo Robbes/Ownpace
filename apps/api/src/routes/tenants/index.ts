@@ -13,7 +13,6 @@ import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middle
 import type { AuthenticatedRequest } from '../../types/api';
 import membersRoutes from './members';
 import { serverFault } from '../../server-fault';
-import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
 import {
   closeTenant,
   reopenTenant,
@@ -397,16 +396,27 @@ router.post(
         ),
       );
 
-      // Deliberately NOT inside withTenantDb: closing writes the erasure
-      // record, which has no tenant column to be scoped by and must outlive
-      // the tenant it describes.
-      const db = drizzlePg(pool, { schema }) as unknown as PgDatabase;
-      const result = await closeTenant(
-        db,
-        req.tenantId,
-        windowDays,
-        req.userId ?? 'unknown',
-        new Date(),
+      // INSIDE withTenantDb, and the first version was not — which is how
+      // this was found, as a 500 in the integration tier. `tenant` is FORCE
+      // ROW LEVEL SECURITY with an UPDATE policy on `app.current_tenant`, and
+      // the API connects as `app_user`, so without the tenant context the
+      // UPDATE matches zero rows and close reports a tenant that does not
+      // exist.
+      //
+      // The reasoning that put it outside sounded right and was backwards:
+      // `erasure_record` must outlive the tenant, so it felt like it had to be
+      // written outside the tenant's transaction. But it has no RLS policies
+      // at all — outliving the tenant is about the absence of a foreign key,
+      // not about the transaction — so writing it here is unrestricted, while
+      // the tenant UPDATE genuinely REQUIRES the context.
+      const result = await withTenantDb(req.tenantId, pool, (tdb) =>
+        closeTenant(
+          tdb as unknown as PgDatabase,
+          req.tenantId!,
+          windowDays,
+          req.userId ?? 'unknown',
+          new Date(),
+        ),
       );
 
       res.json({
@@ -441,8 +451,10 @@ router.post(
         });
         return;
       }
-      const db = drizzlePg(getSharedPool(), { schema }) as unknown as PgDatabase;
-      await reopenTenant(db, req.tenantId, new Date());
+      // Same reason as close: the tenant UPDATE needs `app.current_tenant`.
+      await withTenantDb(req.tenantId, getSharedPool(), (tdb) =>
+        reopenTenant(tdb as unknown as PgDatabase, req.tenantId!, new Date()),
+      );
       res.json({ status: 'active' });
     } catch (error) {
       // A closed window is a REFUSAL, not a fault: the caller asked for

@@ -166,6 +166,55 @@ describe('the Drizzle schema and the migrations describe the same database', () 
     }
   });
 
+  it('grants the request path access to every table it has to reach', async () => {
+    // The API connects as `app_user` so RLS is always in force (0011 T1). A
+    // table created without a grant is INVISIBLE to it, and the symptom is a
+    // 500 from whichever route writes it.
+    //
+    // The unit tier could not catch that on its own: PGlite runs as the owner,
+    // so nothing local exercises a grant. This asks the catalogue instead,
+    // which needs no privileges to read — and it is how a missing grant on
+    // `erasure_record` would have been caught before CI rather than after.
+    const { rows } = await conn.query<{ table_name: string; privilege_type: string }>(
+      `SELECT table_name, privilege_type FROM information_schema.role_table_grants
+        WHERE grantee = 'app_user' AND table_schema = 'public'`,
+    );
+    const granted = new Map<string, Set<string>>();
+    for (const r of rows) {
+      const set = granted.get(r.table_name) ?? new Set<string>();
+      set.add(r.privilege_type);
+      granted.set(r.table_name, set);
+    }
+
+    const missing: string[] = [];
+    for (const table of declaredTables()) {
+      const privileges = granted.get(table.name);
+      if (!privileges) {
+        missing.push(`${table.name}: app_user has no grant at all`);
+        continue;
+      }
+      for (const needed of ['SELECT', 'INSERT', 'UPDATE']) {
+        if (!privileges.has(needed)) missing.push(`${table.name}: missing ${needed}`);
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
+  it('does not let the request path delete an erasure record', async () => {
+    const { rows } = await conn.query<{ privilege_type: string }>(
+      `SELECT privilege_type FROM information_schema.role_table_grants
+        WHERE grantee = 'app_user' AND table_schema = 'public' AND table_name = 'erasure_record'`,
+    );
+    // The baseline's ALTER DEFAULT PRIVILEGES grants all four on every new
+    // table, so this is REVOKED rather than merely ungranted — which is the
+    // whole reason the migration says so out loud. A first attempt asserted
+    // this by writing a narrower GRANT, which changed nothing: a grant cannot
+    // take away what default privileges already gave.
+    const privileges = new Set(rows.map((r) => r.privilege_type));
+    expect([...privileges].sort()).toEqual(['INSERT', 'SELECT', 'UPDATE']);
+    expect(privileges.has('DELETE')).toBe(false);
+  });
+
   it('puts billed_to_name on invoice and NOT on usage_metric', async () => {
     // The specific bug, pinned by name. The checks above would catch it, but a
     // regression should fail with the sentence that explains it rather than as

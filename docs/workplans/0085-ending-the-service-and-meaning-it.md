@@ -87,6 +87,45 @@ making on its own:
   `connection`, and several call sites select the whole row. The failure mode is
   credential disclosure in an API response.
 
+## A second CI failure, and what it was really about
+
+The close route returned 500 in the integration tier while every unit test
+passed. The cause was a comment of mine that reasoned confidently and
+backwards:
+
+> *Deliberately NOT inside `withTenantDb`: closing writes the erasure record,
+> which has no tenant column to be scoped by and must outlive the tenant.*
+
+`erasure_record` outliving the tenant is about **the absence of a foreign
+key**, not about which transaction writes it — it has no RLS policies, so
+writing it inside a tenant transaction is unrestricted. Meanwhile `tenant` is
+`FORCE ROW LEVEL SECURITY` with an UPDATE policy on `app.current_tenant`, and
+the API connects as `app_user`. Outside the context the UPDATE matched **zero
+rows**, and close correctly reported a tenant that does not exist.
+
+**Why no unit test caught it:** `offboarding.unit.test.ts` drives PGlite as the
+owner, where Postgres skips row security. Every offboarding assertion was made
+in a world where RLS does not apply, about code that only ever runs in a world
+where it does. `offboarding-under-rls.unit.test.ts` now drives the same
+functions as `app_user` through `withTenant`, which is the arrangement
+`rls-in-force.unit.test.ts` established for exactly this reason.
+
+Two smaller things fell out of it:
+
+- A first attempt "fixed" this as a missing GRANT. It was not — the baseline's
+  `ALTER DEFAULT PRIVILEGES` already grants all four on every new table, so the
+  narrower GRANT changed nothing. **A grant cannot take away what default
+  privileges already gave**, so denying the request path DELETE on
+  `erasure_record` needs an explicit `REVOKE` — which is worth having, since a
+  request path that can delete an erasure record can erase the evidence that it
+  erased something.
+- The "fails without the tenant context" test was written and then **removed**:
+  under that arrangement the UPDATE aborts the transaction rather than
+  returning zero rows, so the test asserted Postgres's error semantics and
+  poisoned the connection for whatever ran next. The route-level property is
+  pinned where it belongs — the integration test that calls `POST /close` and
+  expects 200.
+
 ## What is NOT in scope here
 
 - **Per-user erasure inside a tenant.** This is tenant-level offboarding. An

@@ -112,3 +112,22 @@ CREATE INDEX IF NOT EXISTS ix_erasure_record_ref ON public.erasure_record (tenan
 
 COMMENT ON TABLE public.erasure_record IS
   'Proof that an erasure happened, holding no personal data of its own. tenant_ref is a one-way hash of the tenant id: an auditor holding the id can verify the record; the table cannot be read back into a list of former customers. Deliberately without a tenant foreign key (a record that cascades away with its subject is not a record) and without RLS (read by system-level code that has no tenant context).';
+
+-- ---------------------------------------------------------------------------
+-- 4. The request path may write this, but never destroy it.
+-- ---------------------------------------------------------------------------
+--
+-- The baseline sets `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT
+-- SELECT,INSERT,DELETE,UPDATE ON TABLES TO app_user`, so a new table is
+-- already reachable from the request path without any grant here. The explicit
+-- GRANT is written anyway because every table-creating migration in this
+-- schema writes one (0003, 0004, 0016, 0020) and a reader should not have to
+-- know about default privileges to know what a table permits.
+--
+-- The REVOKE is the part that changes anything. An erasure record exists to
+-- prove an erasure happened; **a request path that can delete it can erase the
+-- evidence that it erased something.** The purge job updates it through the
+-- owner connection, which default privileges do not constrain, so nothing this
+-- product needs is lost.
+GRANT SELECT,INSERT,UPDATE ON TABLE public.erasure_record TO app_user;
+REVOKE DELETE ON TABLE public.erasure_record FROM app_user;
