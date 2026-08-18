@@ -2,10 +2,21 @@
 
 ## Status — 2026-08-18 (update this block at the end of every session)
 
-**Built 2026-08-18. Green on run #6 the same day — the green was
-over-claiming, and run #7 (the first with the over-claim removed) went red for
-a real reason nobody had found in the demo's whole existence: it has no DAV
-content to sync.** Runs #1–#5 each failed at a different step and were fixed by a
+**Built 2026-08-18. HONESTLY GREEN on run #13, the same day.** Run #6 was
+green and over-claiming; runs #7–#12 were the argument with it. The gate now
+enforces what it always said, and its verdict — read from the run, not
+inferred from its colour — is:
+
+```
+--- verdict ---
+verify: done   apply: applied
+SMOKE PASS — evidence in smoke-managed-32189040577.log
+```
+
+**It cost nine red runs and it found two product defects on the way**, both in
+the apply path this gate exists to cover and neither reachable by review: the
+ledger stored every target handle as a string of itself, and an empty handle
+aimed a DELETE at the collection root. See run #11 below. Runs #1–#5 each failed at a different step and were fixed by a
 separate PR (#457 persist/restore, #458 stalwart-cli, #459 CLI-config restore,
 #460 `TRIGGER_ACCESS_TOKEN`). Run #6 passed every step. Reading it against T7
 rather than accepting the checkmark found that **two of the five criteria were
@@ -20,9 +31,9 @@ changed the design (below).
 | T2 the acceptance itself — **mostly already written** | ✅ **Built 2026-08-18** | `deploy/compose/smoke-managed.sh` (257 lines, workplan 0020 T5) already drives the live verify + apply smoke against a running managed stack, captures runner logs before AutoRemove destroys them, and lands stuck rows by hand rather than leaving them pointing at nothing. **This task is wiring, not writing.** `setup-managed-demo.sh` + `seed-managed.ts` + `deploy-tasks.sh` are the bring-up it expects. |
 | T3 the pooler is in the path | ✅ **Built 2026-08-18** | The reason this workplan exists at all. 0082 T4 shipped PgBouncer and **nothing can verify it** — `e2e.yml` stands up `deploy/selfhost/compose.yml` and never references `managed.yml`. The gate must assert the app is actually talking through the pooler (`SHOW POOLS` reports non-zero `cl_active`) and that **migrations are not** (they hold a session advisory lock; through a transaction pooler two replicas would stop excluding each other, silently). Closing 0082 T4 is this task. |
 | T4 nightly, and somebody reads it | ✅ **Built 2026-08-18** | Nightly like `e2e.yml` (`30 1` postgres, `30 3` pglite — pick a third slot, not one of those two: the Spark cannot run them concurrently). **A nightly nobody reads is worse than no nightly**, because it converts a real signal into a green-looking habit. See "Who reads it" below. |
-| T5 evidence without leaking secrets | ⚠️ **Built 2026-08-18, never ran until 2026-08-18** | `smoke-managed.sh` already warns that runner debug logs print the **full task environment — `DATABASE_URL`, `SECRET_ENCRYPTION_KEY`, the `tr_prod_` key**. A nightly job that uploads those as an artifact is a credential disclosure with a retention policy. Redaction is a prerequisite for artifact upload, not a nicety. **Run #6 uploaded nothing** — the smoke wrote to `/tmp` and the collector globbed the workspace, so redaction cleaned an empty directory and the gate left no evidence behind. Fixed by pointing `SMOKE_OUT` at a path the collector matches. |
+| T5 evidence without leaking secrets | ✅ **Proved 2026-08-18 (run #13)** | Ran empty through run #9 — the smoke wrote to `/tmp` while the collector globbed the workspace, so redaction had never redacted anything and no artifact existed. Fixed by pointing `SMOKE_OUT` at a collected path. Run #9's artifact was downloaded and grepped: no `tr_prod_`, `tr_pat_`, `postgres://` or JWT shapes survive, and a `[redacted]` marker is present. The evidence tail now also prints into the job log on `always()`, from the REDACTED copy — the original carries the runners' whole task environment. |
 | T6 teardown that actually tears down | ⛔ **Withdrawn 2026-08-18** | Fourteen services, named volumes, a local registry and a docker proxy on a **shared, long-lived** machine. **Withdrawn, and this is the finding that mattered most.** The naive `down -v` this row asked for would have destroyed the Trigger.dev account, project and API key — none of which can be recreated unattended — and the next run would fail looking like a broken test rather than a missing account. See below. The run now leaves the stack standing and reports what state it is in. |
-| T7 what "green" is allowed to mean | ⚠️ **Built 2026-08-18, enforced 2026-08-18** | Stated up front so the gate cannot quietly weaken — and then run #6 went green with T7.1 unasserted and T7.3's apply half skipped. **Writing the criteria down did not enforce them.** Now enforced in code, except that T7.1 still cannot speak for the seven services with no healthcheck. See "Run #6" below. |
+| T7 what "green" is allowed to mean | ✅ **Enforced and met 2026-08-18 (run #13)** | Writing the criteria down did not enforce them: run #6 went green with T7.1 unasserted and T7.3's apply half skipped. All five are now enforced in code and mutation-verified, and run #13 satisfies them — `verify: done   apply: applied`, a runner executing, the pooler assertion passing, `unhealthy: none`, and the stack left standing for the next run. **One documented gap remains:** T7.1 cannot speak for the seven services that define no healthcheck. |
 
 **Follow-on: workplan 0087.** T6's withdrawal rested on *"the Trigger.dev half
 cannot be bootstrapped unattended"*. 0087 takes that as far as it goes: the
@@ -269,6 +280,36 @@ so a writer added later cannot quietly skip it.
 a latent data-loss path in the apply route — the exact path 0084 exists to
 cover, in the edition nobody tested. The skip that used to pass would have
 hidden all of it: `apply: skipped-no-item` and `SMOKE PASS`, indefinitely.
+
+## Run #13 — the honest green, and what it is allowed to claim (2026-08-18)
+
+Held against T7's five criteria, read from the run rather than inferred from
+its colour:
+
+| T7 | criterion | run #13 |
+|---|---|---|
+| 1 | every service HEALTHY, not merely started | `--- unhealthy --- none`. **Partial:** seven services define no healthcheck and are reported as such rather than counted. |
+| 2 | a task deployed and RAN — an enqueue became a runner container | a runner reached `EXECUTING` on deployment `20260818.9`, captured in the evidence before AutoRemove |
+| 3 | verify terminal, and apply `applied` or `refused` | **`verify: done   apply: applied`** |
+| 4 | the app talked through PgBouncer, and migrations did NOT | the pooler assertion passed: transaction mode, `DIRECT_DATABASE_URL` on neither `pgbouncer` nor `:6432` |
+| 5 | the stack is left in a state the next run can use | #13 ran against the stack #12 left standing |
+
+**What "apply: applied" means, precisely.** The smoke flips
+`allow_apply_deletions`, fabricates the deletion evidence, applies it, and
+retracts the evidence afterwards — guarded, so evidence is only retracted if
+the deletion was never applied, because retracting under an applied receipt
+would falsify the record. So a real deletion was applied to a real DAV target
+through a real runner, and the receipt reached a terminal state. That is the
+half that had never once executed under this gate.
+
+**Reading the verdict was itself a fix.** Run #12 was green with all fifteen
+steps passing, and its verdict was unreadable — the artifact host is not always
+fetchable and the log tail could not reach back past the artifact upload and
+`docker compose ps`. What remained was "all steps passed, so it must be fine",
+which is the reasoning that made run #6's green a lie. The evidence tail now
+prints on `always()` rather than `failure()`: a green needs it more than a red
+does, because a red at least names the step that broke. **A gate whose
+conclusion cannot be read is not a gate, it is a colour.**
 
 ## Run #6, and what the green actually covered (2026-08-18)
 
@@ -527,12 +568,14 @@ one, which reads as green while proving nothing.
 
 ## What is still owed
 
-- **An apply half that can run**, in three steps, none of them done yet.
-  Run `deploy/compose/seed-demo-dav-content.sh` on the Spark and confirm it
-  reports non-zero counts; let a sync tick copy the content and confirm `item`
-  holds `copied` rows for mapping `b0000000-…-d1`; then wire the seeder into
-  `setup-managed-demo.sh` so `--with-demo` does it every run. Only after the
-  second step can the nightly be honestly green.
+- **Healthchecks for the seven services that have none** — the one T7
+  criterion still only partly met. `trigger-api` and `trigger-supervisor` are
+  on the path every executed task takes, so those two are worth doing first.
+- **The `SMOKE_PREPARE_APPLY` path has run exactly once as a full seed.** Run
+  #11 exercised it end to end (seed, enqueue, poll) and it worked; runs #12 and
+  #13 found an eligible item already present and skipped it. So the branch is
+  proved, but it is not exercised by every run, and a regression in the seeder
+  would surface only on a stack with no copied items.
 - **The mail side has the same hole, unnoticed.** Nothing seeds the three
   Stalwart messages the verify half counts, so on any machine but this one the
   verify half would have nothing to verify. The DAV seeder's equivalent for
