@@ -50,6 +50,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+# shellcheck source=trigger-cli-lib.sh
+. "${SCRIPT_DIR}/trigger-cli-lib.sh"
 
 ENV_FILE="${SCRIPT_DIR}/.env"
 if [ -f "$ENV_FILE" ]; then
@@ -109,7 +111,11 @@ fi
 # below sends to /dev/null along with everything else, so the script just
 # sits at the version banner looking hung (observed live, 2026-08-11, on the
 # 4.5.7 -> 4.5.9 bump: 30+ minutes at the banner, twice).
-if ! npx -y "trigger.dev@${CLI_VERSION}" whoami --profile "${PROFILE}" >/dev/null 2>&1; then
+# NOT an exit-code check — `whoami` exits 0 whether or not the token actually
+# works (see trigger-cli-lib.sh). A stale profile from a wiped instance passes
+# a naive check and fails later, inside `deploy`, with an error that looks
+# like a broken deployment rather than a login nobody did.
+if ! trigger_cli_logged_in "${CLI_VERSION}" "${PROFILE}"; then
   echo "[deploy-tasks] Not logged in. Run this once, then re-run this script:" >&2
   echo "               npx -y trigger.dev@${CLI_VERSION} login -a ${TRIGGER_URL} --profile ${PROFILE}" >&2
   exit 1
