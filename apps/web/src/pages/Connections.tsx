@@ -30,6 +30,7 @@ import {
   type TestConnectionResult,
 } from '../services/mapping-service';
 import { useT, useFormatters, type StringKey } from '../i18n';
+import { probeText } from '../i18n/probe-text';
 import {
   inUseMigrations,
   invalidCredentialFields,
@@ -300,7 +301,11 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
           className={`mt-3 text-sm ${result.ok ? 'text-green-800 bg-green-50 border-green-200' : 'text-amber-900 bg-amber-50 border-amber-200'} border rounded p-2`}
         >
           {/* Verbatim, both ways: the provider's sentence is the whole value. */}
-          {result.ok ? (result.detail ?? t('connections.ok')) : (result.reason ?? t('connections.failed'))}
+          {probeText(
+            t,
+            result.outcome,
+            result.ok ? (result.detail ?? t('connections.ok')) : (result.reason ?? t('connections.failed')),
+          )}
         </p>
       )}
     </li>
@@ -451,7 +456,11 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
         <p
           className={`mt-3 text-sm border rounded p-2 ${result.ok ? 'text-green-800 bg-green-50 border-green-200' : 'text-amber-900 bg-amber-50 border-amber-200'}`}
         >
-          {result.ok ? (result.detail ?? t('connections.ok')) : (result.reason ?? t('connections.failed'))}
+          {probeText(
+            t,
+            result.outcome,
+            result.ok ? (result.detail ?? t('connections.ok')) : (result.reason ?? t('connections.failed')),
+          )}
         </p>
       )}
 

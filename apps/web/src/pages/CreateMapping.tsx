@@ -1,6 +1,7 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import React, { useState } from 'react';
 import { useT, useFormatters } from '../i18n';
+import { probeText } from '../i18n/probe-text';
 import type { StringKey } from '../i18n';
 import { useNavigate, Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -1300,9 +1301,13 @@ const CreateMapping: React.FC = () => {
             ) : (
               <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
             )}
-            {/* The provider's words, verbatim (rule 9) — the same sentence the
-                first pass would have failed with. */}
-            <p className="text-gray-700 min-w-0 break-words">{r.ok ? r.detail : r.reason}</p>
+            {/* Ours in the reader's language, theirs verbatim (workplan
+                0080). `probeText` reads the outcome code to tell which is
+                which; a provider's refusal always falls through unchanged,
+                because that string is what you paste into their console. */}
+            <p className="text-gray-700 min-w-0 break-words">
+              {probeText(t, r.outcome, (r.ok ? r.detail : r.reason) ?? '')}
+            </p>
           </div>
         )}
         {/* "We kept this" (workplan 0069 T7c).

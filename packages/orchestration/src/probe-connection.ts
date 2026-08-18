@@ -22,7 +22,7 @@
  * nothing anywhere.
  */
 
-import type { SourceConfig } from '@openmig/shared';
+import type { SourceConfig, ProbeOutcome, ProbeUnit } from '@openmig/shared';
 import { CalDAVSource, CarddavSource, WebdavFileSource } from '@openmig/connectors';
 import { buildImapSourceFrom } from './mail-source-factory';
 import {
@@ -57,23 +57,40 @@ import { davEndpointFromCreds } from './dav-endpoint';
  * shown before anything was created instead of after (rule 9).
  */
 export type ProbeResult =
-  | { readonly ok: true; readonly detail: string }
-  | { readonly ok: false; readonly reason: string };
+  | { readonly ok: true; readonly detail: string; readonly outcome: ProbeOutcome }
+  | { readonly ok: false; readonly reason: string; readonly outcome: ProbeOutcome };
+
+/** The English `detail` for a successful listing — the fallback, not the UI. */
+function connectedDetail(count: number, unit: ProbeUnit): string {
+  const noun =
+    unit === 'addressBook' ? 'address book' : unit === 'collection' ? 'collection' : unit;
+  return `Connected. ${count} ${noun}${count === 1 ? '' : 's'} visible.`;
+}
 
 /** Anything with the one question every source answers. */
 interface Listable {
   listFolders(): Promise<ReadonlyArray<unknown>>;
 }
 
-async function probeListable(build: () => Listable, what: string): Promise<ProbeResult> {
+/** A provider's own refusal, carried verbatim and labelled as theirs. */
+function providerRefused(err: unknown): ProbeResult {
+  return {
+    ok: false,
+    reason: err instanceof Error ? err.message : String(err),
+    outcome: { code: 'providerRefused' },
+  };
+}
+
+async function probeListable(build: () => Listable, unit: ProbeUnit): Promise<ProbeResult> {
   try {
     const folders = await build().listFolders();
     return {
       ok: true,
-      detail: `Connected. ${folders.length} ${what}${folders.length === 1 ? '' : 's'} visible.`,
+      detail: connectedDetail(folders.length, unit),
+      outcome: { code: 'connected', count: folders.length, unit },
     };
   } catch (err) {
-    return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+    return providerRefused(err);
   }
 }
 
@@ -113,7 +130,7 @@ export async function probeSourceConnection(
     case GOOGLE_CONTACTS_CONNECTION_KIND:
       return probeListable(
         () => buildGoogleContactsDavSourceFrom(user, creds, STORED_GOOGLE_DAV_CREDENTIAL_NAMES),
-        'address book',
+        'addressBook',
       );
     case 'imap':
     case 'o365':
@@ -128,6 +145,7 @@ export async function probeSourceConnection(
       return {
         ok: false,
         reason: `No probe exists for a '${kind}' source connection. This is a wiring gap, not a credential problem.`,
+        outcome: { code: 'noProbe', kind },
       };
   }
 }
@@ -157,13 +175,19 @@ export async function probeTargetConnection(
       if (!res.ok) {
         return {
           ok: false,
-          reason: `The JMAP session document at ${sessionUrl} answered ${res.status}. ` +
+          reason:
+            `The JMAP session document at ${sessionUrl} answered ${res.status}. ` +
             (res.status === 401
               ? 'The server is reachable and refused the credentials.'
               : 'Check the target host and port.'),
+          outcome: { code: 'targetStatus', url: sessionUrl, status: res.status },
         };
       }
-      return { ok: true, detail: 'Connected. The JMAP session document answered.' };
+      return {
+        ok: true,
+        detail: 'Connected. The JMAP session document answered.',
+        outcome: { code: 'connectedSession' },
+      };
     }
     if (targetType === 'imap') {
       const source = buildImapSourceFrom(
@@ -176,7 +200,11 @@ export async function probeTargetConnection(
         { authType: 'LOGIN', password: creds.password },
       );
       const folders = await source.listFolders();
-      return { ok: true, detail: `Connected. ${folders.length} folders visible.` };
+      return {
+        ok: true,
+        detail: connectedDetail(folders.length, 'folder'),
+        outcome: { code: 'connected', count: folders.length, unit: 'folder' },
+      };
     }
     // The three DAV targets: same URL resolution as the real target builders.
     const endpoint = davEndpointFromCreds('target', config, creds);
@@ -187,9 +215,13 @@ export async function probeTargetConnection(
           ? new CarddavSource({ url: endpoint.url, username: endpoint.username, password: endpoint.password })
           : new WebdavFileSource({ url: endpoint.url, username: endpoint.username, password: endpoint.password });
     const folders = await listable.listFolders();
-    return { ok: true, detail: `Connected. ${folders.length} collections visible.` };
+    return {
+      ok: true,
+      detail: connectedDetail(folders.length, 'collection'),
+      outcome: { code: 'connected', count: folders.length, unit: 'collection' },
+    };
   } catch (err) {
-    return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+    return providerRefused(err);
   }
 }
 

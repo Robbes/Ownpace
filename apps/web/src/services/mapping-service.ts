@@ -1,6 +1,7 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import apiClient from './api';
 import { z } from 'zod';
+import type { ProbeOutcome } from '@openmig/shared';
 import { MAPPING_LIFECYCLES } from '@openmig/shared';
 import type { DiscoveryRecord, MappingLifecycle } from '@openmig/shared';
 
@@ -376,6 +377,14 @@ export interface TestConnectionResult {
   ok: boolean;
   detail?: string;
   reason?: string;
+  /**
+   * Whose words `detail`/`reason` are (workplan 0080). Our codes carry their
+   * data and get rendered in the reader's language; `providerRefused` means
+   * the accompanying sentence is the provider's and renders verbatim. Optional
+   * so an older response, or one from a route that has not been taught yet,
+   * still shows what it always showed.
+   */
+  outcome?: ProbeOutcome;
 }
 
 export const mappingApi = {

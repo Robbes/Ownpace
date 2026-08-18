@@ -35,3 +35,4 @@ export * from './throttling';
 export * from './logger';
 export * from './metrics';
 export * from './pricing';
+export * from './probe-outcome';
