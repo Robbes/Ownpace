@@ -213,6 +213,20 @@ describe('replacing credentials', () => {
     }
   });
 
+  it('shows the same example the wizard does (0077)', async () => {
+    // Somebody adding a Dropbox connection here was asked for an "App key"
+    // with no indication of what one looks like, while the same field two
+    // screens away showed a shape. Since 0075 the examples live on the
+    // descriptor, so both doors read them instead of one door owning them.
+    list.mockResolvedValue([conn({ kind: 'dropbox' })]);
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Replace credentials'));
+
+    expect(screen.getByPlaceholderText('user@example.com')).toBeTruthy();
+    expect(screen.getByPlaceholderText('1//…')).toBeTruthy();
+  });
+
   it('names the missing field the way the FORM does, not the way the database does', async () => {
     // `Still needed: clientId.` in a Dutch UI, beside an input labelled
     // App-sleutel (workplan 0071). The keys are the handle; the labels are

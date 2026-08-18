@@ -22,6 +22,7 @@ import {
   connectableTypes,
   credentialFieldsFor,
   wizardTypeForConnectionKind,
+  type CredentialField,
 } from '@openmig/shared';
 import {
   connectionsApi,
@@ -83,6 +84,21 @@ const useRefusalText = (fields: ReadonlyArray<{ key: string; labelKey: string }>
   };
 };
 
+/**
+ * The example value for a field, from the descriptor (workplan 0077).
+ *
+ * The wizard has always shown these; this form never did, so somebody adding
+ * a Dropbox connection here was asked for an "App key" with no indication of
+ * what one looks like — while the same field two screens away showed a shape.
+ * Since 0075 the examples live on the descriptor, so both doors can read them
+ * instead of one door owning them.
+ */
+const usePlaceholderFor = () => {
+  const t = useT();
+  return (field: CredentialField): string | undefined =>
+    field.placeholder ?? (field.placeholderKey ? t(field.placeholderKey as StringKey) : undefined);
+};
+
 const StatusIcon: React.FC<{ status: ConnectionSummary['status'] }> = ({ status }) => {
   if (status === 'connected') return <CheckCircle2 className="w-4 h-4 text-green-600" />;
   if (status === 'error') return <XCircle className="w-4 h-4 text-red-600" />;
@@ -119,6 +135,7 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
    * render — 0037 T1, 0067 T1, 0067 T2 — so the rule is pinned by a test
    * across every connectable type rather than restated in a comment.
    */
+  const placeholderFor = usePlaceholderFor();
   const allFields = credentialFieldsFor(
     connection.role,
     wizardTypeForConnectionKind(connection.kind),
@@ -242,7 +259,11 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
                   // mistake the input could have prevented.
                   type={field.secret ? 'password' : field.numeric ? 'number' : 'text'}
                   inputMode={field.numeric ? 'numeric' : undefined}
-                  autoComplete={field.secret ? 'new-password' : 'off'}
+                  autoComplete={field.autoComplete ?? (field.secret ? 'new-password' : 'off')}
+                  // The example the wizard has always shown, from the same
+                  // descriptor (0077) — an App key is a good deal easier to
+                  // paste correctly when the box says what one looks like.
+                  placeholder={placeholderFor(field)}
                   className="input w-full"
                   value={newValues[field.key] ?? ''}
                   onChange={(e) =>
@@ -296,6 +317,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
 
   const fields = credentialFieldsFor(role, type);
   const refusalText = useRefusalText(fields);
+  const placeholderFor = usePlaceholderFor();
 
   const submit = async () => {
     setBusy(true);
@@ -384,6 +406,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
               <textarea
                 className="input w-full font-mono text-xs"
                 rows={4}
+                placeholder={placeholderFor(field)}
                 value={values[field.key] ?? ''}
                 onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
               />
@@ -394,7 +417,8 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
                 // a numeric field is numeric here too (0072).
                 type={field.secret ? 'password' : field.numeric ? 'number' : 'text'}
                 inputMode={field.numeric ? 'numeric' : undefined}
-                autoComplete={field.secret ? 'new-password' : 'off'}
+                autoComplete={field.autoComplete ?? (field.secret ? 'new-password' : 'off')}
+                placeholder={placeholderFor(field)}
                 className="input w-full"
                 value={values[field.key] ?? ''}
                 onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
