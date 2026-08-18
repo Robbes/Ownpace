@@ -87,7 +87,9 @@ caller's **role comes from that row, never from the token**. A `role` claim
 in the JWT is ignored.
 
 There is no password-login endpoint; the demo seed
-(`pnpm --filter @openmig/api seed:managed`) prints demo owner tokens.
+(`./deploy/compose/seed-managed.sh`, which wraps `pnpm --filter @openmig/api
+seed:managed` with the environment it needs) prints demo owner tokens. They
+expire after seven days; re-run it to mint fresh ones.
 
 ## Endpoints (selection)
 
