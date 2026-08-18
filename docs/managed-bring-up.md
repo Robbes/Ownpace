@@ -417,6 +417,24 @@ is already using — the same class of outage as rotating
 just proven working. Reuse what already works; only generate fresh secrets
 when there is no working stack yet at all.
 
+**The deploy CLI's login is the same gap, one phase later.** It lives at
+`${XDG_CONFIG_HOME:-$HOME/.config}/trigger/config.json` — outside any
+checkout, so `git clean` never touches it, but the CI job's environment is
+not guaranteed to be the one you logged in from by hand. Seed it into the
+same persist directory, reusing whatever login you already have rather than
+clicking through the magic link again:
+
+```bash
+mkdir -p ~/.persistent/open-migrate-managed
+cp "${XDG_CONFIG_HOME:-$HOME/.config}/trigger/config.json" \
+   ~/.persistent/open-migrate-managed/trigger-cli-config.json
+```
+
+This does not make the login itself automatable — creating the account and
+project is still the one step that opens a browser (0084 T6). It only lets a
+login already performed once survive to the next run, the same way `.env`
+already does.
+
 ## When it goes wrong
 
 | What you see | What it is | What to do |
