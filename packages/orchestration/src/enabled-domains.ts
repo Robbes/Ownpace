@@ -35,6 +35,55 @@ export async function enabledDomains(
   return new Set(rows.map((r) => r.domain));
 }
 
+/**
+ * The same question for many mappings, in one round trip (workplan 0082 T3).
+ *
+ * The sync tick asked it inside its loop — one query per due mapping, every
+ * minute. That is the textbook N+1, and it is worse than usual here because
+ * the loop is on a one-minute cron: the cost is not "a slow page", it is tick
+ * wall-time that eventually exceeds the interval it runs on, at which point
+ * ticks start overlapping and the fan-out gets less predictable exactly when
+ * there is most of it.
+ *
+ * Keyed by mapping id alone, which is safe because mapping ids are UUIDs and
+ * unique across tenants — but the tenant is still carried through and checked
+ * by the caller rather than assumed, because "globally unique" is a property
+ * of the id generator and not something this query can enforce.
+ *
+ * A mapping with no included rows is absent from the map, not present with an
+ * empty set — the caller must not be able to confuse "nothing selected" with
+ * "I did not ask about that one".
+ */
+export async function enabledDomainsForMappings(
+  pool: Pool,
+  mappings: readonly { readonly id: string; readonly tenantId: string }[],
+): Promise<Map<string, Set<SyncDomain>>> {
+  const byMapping = new Map<string, Set<SyncDomain>>();
+  if (mappings.length === 0) return byMapping;
+
+  const { rows } = await pool.query<{ mapping_id: string; tenant_id: string; domain: SyncDomain }>(
+    `SELECT mapping_id, tenant_id, domain
+       FROM scope_selection
+      WHERE included = true AND mapping_id = ANY($1::uuid[])`,
+    [mappings.map((m) => m.id)],
+  );
+
+  const tenantOf = new Map(mappings.map((m) => [m.id, m.tenantId]));
+  for (const row of rows) {
+    // Belt and braces: a row whose tenant does not match the mapping we asked
+    // about would mean the id collision this comment says cannot happen, and
+    // acting on it would run a job against another tenant's scope.
+    if (tenantOf.get(row.mapping_id) !== row.tenant_id) continue;
+    let set = byMapping.get(row.mapping_id);
+    if (!set) {
+      set = new Set<SyncDomain>();
+      byMapping.set(row.mapping_id, set);
+    }
+    set.add(row.domain);
+  }
+  return byMapping;
+}
+
 /** Every domain the product can carry, in the order a person reads them. */
 export const ALL_SYNC_DOMAINS: readonly SyncDomain[] = ['email', 'calendar', 'contact', 'file'];
 

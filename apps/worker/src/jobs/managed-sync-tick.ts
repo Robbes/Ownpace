@@ -33,9 +33,12 @@
 
 import { schedules, configure } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
-import { log } from '@openmig/shared';
-import { isSyncDue, DEFAULT_SYNC_SCHEDULE } from '@openmig/orchestration/sync-due';
-import { enabledDomains } from '@openmig/orchestration/enabled-domains';
+import { log, mapWithConcurrency } from '@openmig/shared';
+import { isSyncDue, DEFAULT_SYNC_SCHEDULE, defaultScheduleFor } from '@openmig/orchestration/sync-due';
+import {
+  enabledDomainsForMappings,
+  type SyncDomain,
+} from '@openmig/orchestration/enabled-domains';
 import { runDeltaSync } from './run-delta-sync';
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -43,6 +46,21 @@ if (!DATABASE_URL) {
   throw new Error('DATABASE_URL environment variable is required');
 }
 const pool = new Pool({ connectionString: DATABASE_URL });
+
+/**
+ * How many mappings the tick may enqueue at once.
+ *
+ * Not a sync concurrency — enqueueing is a short API call, and the runs
+ * themselves are serialized per mapping by the queue. This exists because the
+ * enqueues used to be `await`ed one after another inside the loop, so the
+ * tick's wall time was the number of due mappings times a round trip. On a
+ * one-minute cron that is a countdown: cross sixty seconds and ticks overlap.
+ *
+ * Bounded rather than unbounded because the failure mode of `Promise.all` over
+ * every due mapping is a burst against the trigger API that looks, to it, the
+ * same as an attack.
+ */
+const ENQUEUE_CONCURRENCY = 8;
 
 interface TickRow {
   readonly id: string;
@@ -82,20 +100,26 @@ export const managedSyncTick = schedules.task({
         WHERE m.status = 'active'`
     );
 
-    let triggered = 0;
     let notDue = 0;
     let skippedRunning = 0;
     let skippedNoDomains = 0;
 
+    // Phase 1 — decide, in memory. No I/O in here, so the set of due mappings
+    // is evaluated against ONE `now` rather than drifting as the loop runs.
+    const due: TickRow[] = [];
     for (const m of rows) {
       if (m.running) {
         skippedRunning++;
         continue;
       }
 
-      let due: boolean;
+      // An explicit schedule is the owner's decision and is used as written.
+      // Only the absent one gets a per-mapping offset, so the mappings that
+      // never chose a cadence stop all firing in the same minute.
+      const schedule = m.schedule ?? defaultScheduleFor(m.id);
+      let isDue: boolean;
       try {
-        due = isSyncDue(m.schedule, m.last_started, now);
+        isDue = isSyncDue(schedule, m.last_started, now);
       } catch (err) {
         // Loud, every tick, and the mapping keeps syncing on the default
         // cadence while somebody fixes the value.
@@ -104,30 +128,64 @@ export const managedSyncTick = schedules.task({
             `using the default (${DEFAULT_SYNC_SCHEDULE}) until it is fixed:`,
           err
         );
-        due = isSyncDue(DEFAULT_SYNC_SCHEDULE, m.last_started, now);
+        isDue = isSyncDue(defaultScheduleFor(m.id), m.last_started, now);
       }
-      if (!due) {
+      if (!isDue) {
         notDue++;
         continue;
       }
+      due.push(m);
+    }
 
-      const domains = [...(await enabledDomains(pool, m.tenant_id, m.id))];
+    // Phase 2 — one query for every due mapping's scope, instead of one per
+    // mapping inside the loop.
+    const domainsByMapping = await enabledDomainsForMappings(
+      pool,
+      due.map((m) => ({ id: m.id, tenantId: m.tenant_id }))
+    );
+
+    const toEnqueue: { row: TickRow; domains: SyncDomain[] }[] = [];
+    for (const m of due) {
+      // Absent from the map means no included rows: no scope_selection row is
+      // "not selected", never "default to everything".
+      const domains = [...(domainsByMapping.get(m.id) ?? [])];
       if (domains.length === 0) {
         skippedNoDomains++;
         continue;
       }
-
-      await runDeltaSync.trigger(
-        { tenantId: m.tenant_id, mappingId: m.id, domains },
-        {
-          concurrencyKey: m.id,
-          tags: [`tenant:${m.tenant_id}`, `mapping:${m.id}`],
-        }
-      );
-      triggered++;
+      toEnqueue.push({ row: m, domains });
     }
 
-    const summary = { active: rows.length, triggered, notDue, skippedRunning, skippedNoDomains };
+    // Phase 3 — enqueue concurrently, bounded. A failure to enqueue ONE
+    // mapping must not cost the others their turn: before this the loop threw
+    // out of the whole tick, so a single bad mapping stopped every mapping
+    // after it in the list, once a minute, invisibly.
+    let triggered = 0;
+    const failures: string[] = [];
+    await mapWithConcurrency(toEnqueue, ENQUEUE_CONCURRENCY, async ({ row, domains }) => {
+      try {
+        await runDeltaSync.trigger(
+          { tenantId: row.tenant_id, mappingId: row.id, domains },
+          {
+            concurrencyKey: row.id,
+            tags: [`tenant:${row.tenant_id}`, `mapping:${row.id}`],
+          }
+        );
+        triggered++;
+      } catch (err) {
+        failures.push(row.id);
+        log.error(`[sync-tick] mapping ${row.id}: could not enqueue this pass:`, err);
+      }
+    });
+
+    const summary = {
+      active: rows.length,
+      triggered,
+      notDue,
+      skippedRunning,
+      skippedNoDomains,
+      failedToEnqueue: failures.length,
+    };
     log.info('[sync-tick]', summary);
     return summary;
   },
