@@ -54,15 +54,21 @@ const sampleMapping = (over: Partial<MappingListItem> = {}): MappingListItem => 
 
 /** An axios-shaped rejection carrying a JSON error body, the way the real
  *  apiClient delivers a 500 — err.message is the generic transport wrapper,
- *  the server's sentence lives in response.data. */
-const axios500 = (message: string): AxiosError => {
+ *  the server's sentence lives in response.data.
+ *
+ *  The body is `{error, reason}` because that is what `serverFault` sends
+ *  (workplan 0081): a stable code, and one sentence carrying the reference
+ *  that finds the stack in the log. It used to be `{error: 'Internal server
+ *  error', message}`, and a fixture left on the old shape would keep passing
+ *  while proving nothing about what the API actually answers. */
+const axios500 = (reason: string): AxiosError => {
   const err = new AxiosError('Request failed with status code 500');
   err.response = {
     status: 500,
     statusText: 'Internal Server Error',
     headers: {},
     config: { headers: new AxiosHeaders() },
-    data: { error: 'Internal server error', message },
+    data: { error: 'list_failed', reason },
   };
   return err;
 };
@@ -73,12 +79,19 @@ describe('Mappings — failed read ≠ empty list (hard rule 9)', () => {
   });
 
   it('renders the SERVER message on a failed read, and never the empty state or the table', async () => {
-    listMock.mockRejectedValue(axios500('Failed to list mappings'));
+    listMock.mockRejectedValue(
+      axios500(
+        'Something went wrong listing your migrations — this is a fault on our side, not ' +
+          'something your input caused. Reference 1a2b3c4d; quoting it finds the detail in the server log.',
+      ),
+    );
 
     renderMappings();
 
-    // The server's own sentence, not axios's wrapper.
-    expect(await screen.findByText('Failed to list mappings')).toBeInTheDocument();
+    // The server's own sentence, not axios's wrapper — and the reference with
+    // it, which is the only thing connecting this red box to the stack in the log.
+    expect(await screen.findByText(/Something went wrong listing your migrations/)).toBeInTheDocument();
+    expect(screen.getByText(/Reference 1a2b3c4d/)).toBeInTheDocument();
     expect(screen.getByText('Could not load the migrations list.')).toBeInTheDocument();
     // Mutation check: removing the error branch would fall through to one of
     // these — both must be absent.
@@ -237,7 +250,12 @@ describe('Mappings — Delete arms with the mapping name and works (0037 T5)', (
       statusText: 'Internal Server Error',
       headers: {},
       config: { headers: new AxiosHeaders() },
-      data: { error: 'Internal server error', message: 'Failed to delete mapping' },
+      data: {
+        error: 'delete_failed',
+        reason:
+          'Something went wrong deleting this migration — this is a fault on our side, not ' +
+          'something your input caused. Reference 1a2b3c4d; quoting it finds the detail in the server log.',
+      },
     };
     deleteMock.mockRejectedValue(err);
 
@@ -248,7 +266,8 @@ describe('Mappings — Delete arms with the mapping name and works (0037 T5)', (
     fireEvent.click(screen.getByRole('button', { name: 'Delete migration' }));
 
     expect(await screen.findByText('The migration was not deleted.')).toBeInTheDocument();
-    expect(screen.getByText('Failed to delete mapping')).toBeInTheDocument();
+    expect(screen.getByText(/Something went wrong deleting this migration/)).toBeInTheDocument();
+    expect(screen.getByText(/Reference 1a2b3c4d/)).toBeInTheDocument();
     // The mapping is still listed — nothing pretended to succeed.
     expect(screen.getByText('Inbox')).toBeInTheDocument();
   });

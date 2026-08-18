@@ -12,10 +12,10 @@ import { z } from 'zod';
 import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middleware/auth';
 import type { AuthenticatedRequest } from '../../types/api';
 import membersRoutes from './members';
+import { serverFault } from '../../server-fault';
 import { eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import {
-  log,
   readTenantNotificationPrefs,
   withTenantNotificationPrefs,
 } from '@openmig/shared';
@@ -81,11 +81,7 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
       })),
     });
   } catch (error) {
-    log.error('Error listing tenants:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to list tenants',
-    });
+    serverFault(res, 'list_failed', 'listing your tenants', error);
   }
 });
 
@@ -165,11 +161,7 @@ router.get('/:tenantId', authenticate, async (req: AuthenticatedRequest, res: Re
       createdAt: tenant.createdAt,
     });
   } catch (error) {
-    log.error('Error getting tenant:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to get tenant',
-    });
+    serverFault(res, 'read_failed', 'reading this tenant', error);
   }
 });
 
@@ -244,11 +236,7 @@ router.put(
           details: error.issues,
         });
       } else {
-        log.error('Error updating tenant:', error);
-        res.status(500).json({
-          error: 'Internal server error',
-          message: 'Failed to update tenant',
-        });
+        serverFault(res, 'update_failed', 'updating this tenant', error);
       }
     }
   }
@@ -317,11 +305,7 @@ router.put(
       if (error instanceof z.ZodError) {
         res.status(400).json({ error: 'Validation error', details: error.issues });
       } else {
-        log.error('Error updating tenant notification preferences:', error);
-        res.status(500).json({
-          error: 'Internal server error',
-          message: 'Failed to update notification preferences',
-        });
+        serverFault(res, 'notifications_failed', 'updating your notification preferences', error);
       }
     }
   },
@@ -370,11 +354,7 @@ router.delete(
         message: 'Tenant deleted successfully',
       });
     } catch (error) {
-      log.error('Error deleting tenant:', error);
-      res.status(500).json({
-        error: 'Internal server error',
-        message: 'Failed to delete tenant',
-      });
+      serverFault(res, 'delete_failed', 'deleting this tenant', error);
     }
   }
 );

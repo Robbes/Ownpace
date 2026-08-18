@@ -19,6 +19,7 @@ import type { AuthenticatedRequest } from '../types/api';
 import { PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore } from '@openmig/ledger';
 import { DECISION_EFFECTS, asTenantId, asMappingId, log, type DecisionStatus } from '@openmig/shared';
 import { sharedAddressAnswer } from '@openmig/core';
+import { serverFault } from '../server-fault';
 
 const router = Router();
 
@@ -74,11 +75,7 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
       res.status(400).json({ error: 'Validation error', details: error.issues });
       return;
     }
-    log.error('Error listing decisions:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to list decisions',
-    });
+    serverFault(res, 'list_failed', 'listing the decisions', error);
   }
 });
 
@@ -157,11 +154,7 @@ router.post(
         res.status(400).json({ error: 'Validation error', details: error.issues });
         return;
       }
-      log.error('Error resolving decision:', error);
-      res.status(500).json({
-        error: 'Internal server error',
-        message: 'Failed to resolve decision',
-      });
+      serverFault(res, 'resolve_failed', 'resolving this decision', error);
     }
   },
 );
@@ -204,11 +197,7 @@ router.post(
       }
       res.json({ ...dismissed, effect: DECISION_EFFECTS.dismissed });
     } catch (error) {
-      log.error('Error dismissing decision:', error);
-      res.status(500).json({
-        error: 'Internal server error',
-        message: 'Failed to dismiss decision',
-      });
+      serverFault(res, 'dismiss_failed', 'dismissing this decision', error);
     }
   },
 );
@@ -239,11 +228,7 @@ router.get('/presets', authenticate, async (req: AuthenticatedRequest, res: Resp
     // would show a tenant as auto-answering things it actually asks about.
     res.json({ presets, defaultAction: 'ask' });
   } catch (error) {
-    log.error('Error listing policy presets:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to list policy presets',
-    });
+    serverFault(res, 'presets_failed', 'listing the policy presets', error);
   }
 });
 
@@ -283,11 +268,7 @@ router.put(
         res.status(400).json({ error: 'Validation error', details: error.issues });
         return;
       }
-      log.error('Error setting a policy preset:', error);
-      res.status(500).json({
-        error: 'Internal server error',
-        message: 'Failed to set the policy preset',
-      });
+      serverFault(res, 'preset_failed', 'setting this policy preset', error);
     }
   },
 );

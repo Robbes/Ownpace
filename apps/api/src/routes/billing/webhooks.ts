@@ -20,6 +20,7 @@ import * as schema from '@openmig/ledger';
 import { getMollieService, type MolliePayment } from '../../services/mollie/index';
 import { getDbPool, withTenantDb } from '../../middleware/auth';
 import { log } from '@openmig/shared';
+import { serverFault } from '../../server-fault';
 
 const router = Router();
 
@@ -106,8 +107,7 @@ router.post('/mollie', async (req: Request, res: Response) => {
 
     res.status(200).json({ received: true });
   } catch (error) {
-    log.error('Error processing Mollie webhook:', error);
-    res.status(500).json({ error: 'Webhook processing failed' });
+    serverFault(res, 'webhook_failed', 'processing this webhook', error);
   }
 });
 

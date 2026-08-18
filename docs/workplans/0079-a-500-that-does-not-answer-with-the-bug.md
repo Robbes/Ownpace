@@ -27,10 +27,16 @@ The generalisable bit: when a fix comes with a *reason*, the reason is usually b
 the fix. Worth asking, each time, "where else is this true?" — the answer here was ten
 places, and one of them could have put a database password on a phone screen.
 
-## What is NOT done
+## What is NOT done — ✅ **done in workplan 0081**
 
 `billing`, `tenants`, `decisions`, `shared-addresses`, `permissions` and
 `migrations/operating-routes` still have ~43 `res.status(500)` sites between them. **None of
 them leaks `String(error)`** — that was the whole of the defect and it is closed. What they
 lack is the reference id, which is a smaller loss and a much larger diff; they are left for
 a pass that can be reviewed on its own rather than smuggled in behind a security fix.
+
+**Closed 2026-08-18 by workplan 0081**, and with one correction to this workplan's own
+record: T2 above says the reference *"now goes on every fault the helper serves"*, which was
+true and read as a broader claim than it was — the helper served eleven of fifty-four sites.
+0081 converts the rest and replaces this paragraph with a test, because a paragraph saying
+what is not done cannot tell when it becomes untrue.

@@ -16,6 +16,7 @@ import { Pool } from 'pg';
 import { eq, and } from 'drizzle-orm';
 import { withTenant as ledgerWithTenant, tenantMember, type PgDatabase } from '@openmig/ledger';
 import { log } from '@openmig/shared';
+import { serverFault } from '../server-fault';
 
 export interface JwtPayload {
   sub: string;
@@ -375,18 +376,10 @@ export async function authenticate(
           message: error.message,
         });
       } else {
-        log.error('Authentication error:', error);
-        res.status(500).json({
-          error: 'Internal server error',
-          message: 'Token verification failed',
-        });
+        serverFault(res, 'auth_failed', 'verifying your session', error);
       }
     } else {
-      log.error('Authentication error:', error);
-      res.status(500).json({
-        error: 'Internal server error',
-        message: 'Token verification failed',
-      });
+      serverFault(res, 'auth_failed', 'verifying your session', error);
     }
   }
 }
