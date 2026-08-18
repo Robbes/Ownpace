@@ -312,8 +312,11 @@ describe('API Tenant Isolation', () => {
   });
 
   describe('DELETE /api/tenants/:id', () => {
-    it('should allow owner to delete their own tenant', async () => {
-      // Create a temporary tenant for deletion test with owner role token
+    it('REFUSES to delete a tenant outright, and says what to do instead', async () => {
+      // Retired in workplan 0085. This used to answer 200 and hard-delete,
+      // cascading twenty-five tables — invoice and audit_log among them —
+      // behind one call with no confirmation and no way back. A customer's
+      // billing history is not ours to destroy on request.
       const tempId = '5e2b0000-e29b-41d4-a716-446655442301';
       await superuserPool.query(`
         INSERT INTO tenant (id, name, status)
@@ -322,21 +325,91 @@ describe('API Tenant Isolation', () => {
       `, [tempId, 'Temp Tenant', 'active']);
       await seedMembership(superuserPool, tempId, `user-owner-${tempId}`, 'owner');
 
-      // Create owner token for temp tenant
       const tokenOwnerTemp = createTestToken(tempId, 'owner');
 
       const response = await request
         .delete(`/api/tenants/${tempId}`)
         .set('Authorization', `Bearer ${tokenOwnerTemp}`);
 
-      expect(response.status).toBe(200);
-      
-      // Verify deletion
+      // 410, not 404: a caller that has not been updated is told where to go
+      // rather than seeing what looks like a routing bug.
+      expect(response.status).toBe(410);
+      expect(response.body.error).toBe('use_close');
+      expect(response.body.reason).toMatch(/close/i);
+
+      // And the tenant is STILL THERE — the whole point of the refusal.
       const check = await superuserPool.query(
         'SELECT * FROM tenant WHERE id = $1',
         [tempId]
       );
-      expect(check.rows.length).toBe(0);
+      expect(check.rows.length).toBe(1);
+    });
+
+    it('closes a tenant instead, and can undo it while the window is open', async () => {
+      const tempId = '5e2b0000-e29b-41d4-a716-446655442302';
+      await superuserPool.query(`
+        INSERT INTO tenant (id, name, status)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (id) DO NOTHING
+      `, [tempId, 'Closing Tenant', 'active']);
+      await seedMembership(superuserPool, tempId, `user-owner-${tempId}`, 'owner');
+      const token = createTestToken(tempId, 'owner');
+
+      const closed = await request
+        .post(`/api/tenants/${tempId}/close`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ windowDays: 30 });
+      expect(closed.status).toBe(200);
+      expect(closed.body.status).toBe('closed');
+      expect(closed.body.canReopenUntil).toBeTruthy();
+
+      // Closed is NOT deleted: the row is still here, which is what makes the
+      // window worth having.
+      const afterClose = await superuserPool.query(
+        `SELECT status, purge_after FROM tenant WHERE id = $1`,
+        [tempId]
+      );
+      expect(afterClose.rows[0].status).toBe('closed');
+      expect(afterClose.rows[0].purge_after).not.toBeNull();
+
+      // The erasure record exists ALREADY — a purge that never runs must still
+      // leave evidence that somebody asked, and when.
+      const record = await superuserPool.query(
+        `SELECT purged_at FROM erasure_record WHERE window_days = 30`
+      );
+      expect(record.rows.length).toBeGreaterThan(0);
+
+      const reopened = await request
+        .post(`/api/tenants/${tempId}/reopen`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(reopened.status).toBe(200);
+
+      const afterReopen = await superuserPool.query(
+        `SELECT status, purge_after FROM tenant WHERE id = $1`,
+        [tempId]
+      );
+      expect(afterReopen.rows[0].status).toBe('active');
+      expect(afterReopen.rows[0].purge_after).toBeNull();
+    });
+
+    it('refuses a window it does not offer, naming the ones it does', async () => {
+      const tempId = '5e2b0000-e29b-41d4-a716-446655442303';
+      await superuserPool.query(`
+        INSERT INTO tenant (id, name, status)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (id) DO NOTHING
+      `, [tempId, 'Bad Window Tenant', 'active']);
+      await seedMembership(superuserPool, tempId, `user-owner-${tempId}`, 'owner');
+
+      const response = await request
+        .post(`/api/tenants/${tempId}/close`)
+        .set('Authorization', `Bearer ${createTestToken(tempId, 'owner')}`)
+        .send({ windowDays: 45 });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe('bad_window');
+      // Named, not a shrug: the caller has to learn which values exist.
+      expect(response.body.allowed).toEqual([0, 7, 30, 90]);
     });
 
     it('should prevent tenant B from deleting tenant A (CROSS-TENANT TEST)', async () => {
@@ -344,7 +417,9 @@ describe('API Tenant Isolation', () => {
         .delete(`/api/tenants/${API_TENANT_A}`)
         .set('Authorization', `Bearer ${TOKEN_TENANT_B}`);
 
-      expect([200, 403, 404]).toContain(response.status);
+      // 410 is the retired route's answer. The cross-tenant point is unchanged:
+      // whatever the status, tenant A must still be there afterwards.
+      expect([403, 404, 410]).toContain(response.status);
       
       // Verify tenant A still exists
       const check = await superuserPool.query(

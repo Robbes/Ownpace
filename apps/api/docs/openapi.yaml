@@ -230,13 +230,87 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     delete:
       tags: [Tenants]
-      summary: Delete a tenant
-      description: Offboarding (§17, right to erasure). See the operator runbook before using it.
+      summary: Retired — close the account instead
+      description: |
+        Gone since workplan 0085. This did a hard delete that cascaded
+        twenty-five tables, `invoice` and `audit_log` among them, behind one
+        call with no confirmation and no way back — destroying billing records
+        that tax law requires be kept.
+
+        It answers 410 naming the replacement rather than 404, so a caller that
+        has not been updated is told where to go instead of seeing what looks
+        like a routing bug.
       responses:
-        '200': { description: Deleted. }
+        '410':
+          description: Retired. Use POST /api/tenants/{tenantId}/close.
+          content:
+            application/json:
+              schema: { type: object }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/tenants/{tenantId}/close:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    post:
+      tags: [Tenants]
+      summary: End the service for this tenant
+      description: |
+        Stops syncs and billing immediately and makes the account read-only,
+        then schedules the erasure for the window the customer chose.
+
+        **Closed is not deleted.** Until `purgeAfter` passes the close can be
+        undone with `/reopen`; a window of 0 cannot, and says so.
+
+        The response carries `standingGrants` — the permissions the customer
+        granted in their OWN provider consoles, which survive our erasure
+        because only they can withdraw them. We can name them and link to
+        them; we cannot remove them.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [windowDays]
+              properties:
+                windowDays:
+                  type: integer
+                  enum: [0, 7, 30, 90]
+                  description: Days before the erasure runs. 0 cannot be undone.
+      responses:
+        '200':
+          description: Closed, with the purge scheduled.
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/tenants/{tenantId}/reopen:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    post:
+      tags: [Tenants]
+      summary: Undo a close while the window is still open
+      description: |
+        The reason the staged flow exists: a mistaken click, a resolved
+        dispute, or a bug in the purge spotted before it ran. Refuses with 409
+        once the window has passed — there is nothing to come back to.
+      responses:
+        '200':
+          description: The tenant is active again.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: Not closed, or the window has already passed.
+          content:
+            application/json:
+              schema: { type: object }
 
   /api/tenants/{tenantId}/notifications:
     parameters:
