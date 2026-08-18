@@ -103,6 +103,19 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
+      # --with-demo provisions a real Stalwart mail backend (setup-managed-demo.sh ->
+      # setup-stalwart.sh), which needs stalwart-cli on PATH. Identical to e2e.yml's own
+      # step of the same name — keep the two in sync rather than letting them drift, the
+      # same reason the seed command in 0087 was consolidated into one script instead of
+      # being copied into every place that needed it.
+      - name: Install stalwart-cli
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/stalwartlabs/cli/releases/latest/download/stalwart-cli-installer.sh | sh
+          export PATH="$HOME/.cargo/bin:$PATH"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          which stalwart-cli
+          stalwart-cli --version
+
       - name: Restore the one-time setup (checkout's own clean would destroy it)
         run: |
           set -euo pipefail
