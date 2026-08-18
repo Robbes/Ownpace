@@ -170,8 +170,20 @@ function closed(lifecycle: MappingLifecycle) {
   return lifecycle === 'done' ? { reportingClosed: REPORTING_CLOSED } : {};
 }
 
-function serverError(res: Response, what: string, error: unknown): void {
-  serverFault(res, 'operating_failed', what, error);
+/**
+ * A fault on one of the §11.2 queues, named by the queue it happened on.
+ *
+ * `code` is per-route rather than one shared `operating_failed` (owner
+ * decision, workplan 0081 T6): these nineteen routes serve six different
+ * queues, and a caller that cannot tell "the deletions queue would not load"
+ * from "the verification report would not assemble" is back to the state this
+ * workplan set out to leave. Naming them also surfaced that three routes
+ * answered the byte-identical sentence *recording the decision* — the
+ * deletions keep, the moves keep and the failures action — so `what` is now
+ * distinct per route too, which is the half a person actually reads.
+ */
+function serverError(res: Response, code: string, what: string, error: unknown): void {
+  serverFault(res, code, what, error);
 }
 
 // ---------------------------------------------------------------- the queues
@@ -197,7 +209,7 @@ router.get('/:mappingId/deletions', authenticate, async (req: AuthenticatedReque
     };
     res.json(body);
   } catch (error) {
-    serverError(res, 'reading the deletions queue', error);
+    serverError(res, 'deletions_failed', 'reading the deletions queue', error);
   }
 });
 
@@ -220,7 +232,7 @@ router.get('/:mappingId/moves', authenticate, async (req: AuthenticatedRequest, 
     };
     res.json(body);
   } catch (error) {
-    serverError(res, 'reading the moves queue', error);
+    serverError(res, 'moves_failed', 'reading the moves queue', error);
   }
 });
 
@@ -312,7 +324,7 @@ router.get(
       });
       res.json({ report, markdown: renderCompletionReportMarkdown(report) });
     } catch (error) {
-      serverError(res, 'assembling the completion report', error);
+      serverError(res, 'completion_report_failed', 'assembling the completion report', error);
     }
   },
 );
@@ -338,7 +350,7 @@ router.get('/:mappingId/failures', authenticate, async (req: AuthenticatedReques
     };
     res.json(body);
   } catch (error) {
-    serverError(res, 'reading the failure queue', error);
+    serverError(res, 'failures_failed', 'reading the failure queue', error);
   }
 });
 
@@ -439,7 +451,7 @@ router.get('/:mappingId/sharing', authenticate, async (req: AuthenticatedRequest
       ...closed(s.lifecycle),
     });
   } catch (error) {
-    serverError(res, 'reading the sharing queue', error);
+    serverError(res, 'sharing_failed', 'reading the sharing queue', error);
   }
 });
 
@@ -472,7 +484,7 @@ router.post(
       );
       res.json(result);
     } catch (error) {
-      serverError(res, 'rescanning sharing', error);
+      serverError(res, 'sharing_rescan_failed', 'rescanning sharing', error);
     }
   },
 );
@@ -529,7 +541,7 @@ router.post(
       }
       res.json({ status: 'ok', grant: outcome.row });
     } catch (error) {
-      serverError(res, 'recording the sharing decision', error);
+      serverError(res, 'sharing_decision_failed', 'recording this sharing decision', error);
     }
   },
 );
@@ -565,7 +577,7 @@ router.post(
       };
       res.json(body);
     } catch (error) {
-      serverError(res, 'recording the decision', error);
+      serverError(res, 'deletion_keep_failed', 'recording the decision to keep this deletion', error);
     }
   },
 );
@@ -597,7 +609,7 @@ router.post(
       };
       res.json(body);
     } catch (error) {
-      serverError(res, 'recording the decision', error);
+      serverError(res, 'move_keep_failed', 'recording the decision to keep this move', error);
     }
   },
 );
@@ -657,7 +669,7 @@ router.post(
       };
       res.json(body);
     } catch (error) {
-      serverError(res, 'recording the decision', error);
+      serverError(res, 'failure_decision_failed', 'recording the decision on this failure', error);
     }
   },
 );
@@ -726,7 +738,7 @@ router.post('/:mappingId/finish', authenticate, async (req: AuthenticatedRequest
     };
     res.json(body);
   } catch (error) {
-    serverError(res, 'finishing the migration', error);
+    serverError(res, 'finish_failed', 'finishing the migration', error);
   }
 });
 
@@ -825,7 +837,7 @@ router.post('/:mappingId/verify/start', authenticate, async (req: AuthenticatedR
     };
     res.status(202).json(body);
   } catch (error) {
-    serverError(res, 'starting the verification', error);
+    serverError(res, 'verify_start_failed', 'starting the verification', error);
   }
 });
 
@@ -835,7 +847,7 @@ router.get('/:mappingId/verify/report', authenticate, async (req: AuthenticatedR
     if (!s) return;
     res.json(await latestRunReport(s));
   } catch (error) {
-    serverError(res, 'reading the verification report', error);
+    serverError(res, 'verify_report_failed', 'reading the verification report', error);
   }
 });
 
@@ -1017,7 +1029,7 @@ router.post(
       };
       res.status(202).json(body);
     } catch (error) {
-      serverError(res, 'queuing the removal', error);
+      serverError(res, 'deletion_apply_failed', "queuing this deletion's removal", error);
     }
   },
 );
@@ -1033,7 +1045,7 @@ router.get(
       if (!hash) return void res.status(400).json({ error: 'hash is required' });
       res.json(await latestReceipt(s, hash, 'deletion'));
     } catch (error) {
-      serverError(res, 'reading the removal receipt', error);
+      serverError(res, 'deletion_receipt_failed', 'reading this deletion receipt', error);
     }
   },
 );
@@ -1159,7 +1171,7 @@ router.post(
       };
       res.status(202).json(body);
     } catch (error) {
-      serverError(res, 'queuing the removal', error);
+      serverError(res, 'relocation_apply_failed', "queuing the removal of this relocated item's old copy", error);
     }
   },
 );
@@ -1175,7 +1187,7 @@ router.get(
       if (!hash) return void res.status(400).json({ error: 'hash is required' });
       res.json(await latestReceipt(s, hash, 'relocation'));
     } catch (error) {
-      serverError(res, 'reading the removal receipt', error);
+      serverError(res, 'relocation_receipt_failed', 'reading this relocation receipt', error);
     }
   },
 );
@@ -1210,7 +1222,7 @@ router.get(
       };
       res.json(body);
     } catch (error) {
-      serverError(res, 'reading the apply-deletions flag', error);
+      serverError(res, 'apply_flag_failed', 'reading the apply-deletions flag', error);
     }
   },
 );
@@ -1276,7 +1288,7 @@ router.patch(
       };
       res.json(body);
     } catch (error) {
-      serverError(res, 'changing the apply-deletions flag', error);
+      serverError(res, 'apply_flag_change_failed', 'changing the apply-deletions flag', error);
     }
   },
 );

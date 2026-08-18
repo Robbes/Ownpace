@@ -104,6 +104,24 @@ describe('every 500 carries a reference', () => {
     }
   });
 
+  it('gives each operating queue its own code, not one shared operating_failed', () => {
+    // Owner decision, workplan 0081 T6. These nineteen routes serve six
+    // different queues; one shared code puts a caller back where this workplan
+    // started — a fault it cannot tell apart from a different fault. Pinned
+    // because the way this regresses is a copy-pasted catch block, which no
+    // amount of care at review time reliably catches.
+    const source = readFileSync(join(SRC, 'routes/migrations/operating-routes.ts'), 'utf8');
+    const codes = [...source.matchAll(/serverError\(res, '([a-z_]+)',/g)].flatMap((m) =>
+      m[1] ? [m[1]] : [],
+    );
+    expect(codes.length).toBe(19);
+    // Named, not counted: a Set-size comparison would report "18 !== 19" and
+    // leave the next person to find WHICH two collided.
+    const seen = new Set<string>();
+    const collisions = codes.filter((c) => (seen.has(c) ? true : (seen.add(c), false)));
+    expect(collisions).toEqual([]);
+  });
+
   it('reaches the routes it claims to — the sweep is not silently empty', () => {
     // A file walk that finds nothing would pass the first test perfectly.
     const files = sourceFiles(SRC).map((f) => relative(SRC, f));
