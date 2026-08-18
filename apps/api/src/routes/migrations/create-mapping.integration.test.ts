@@ -342,6 +342,58 @@ describe('POST /api/migrations — real persistence', () => {
       expect(res.body.existingMappingId).toBeTruthy();
     });
 
+    /**
+     * DELETING a connection asks about MIGRATIONS, not mailbox rows
+     * (workplan 0072).
+     *
+     * The refusal counted rows from `mailbox LEFT JOIN mailbox_mapping`, which
+     * is a different question from the one it claims to answer. A mailbox row
+     * outlives the migration that created it — the ledger hangs off
+     * `item.mapping_id`, never off the mailbox — so a connection whose
+     * migrations had all been removed still answered 409, counting a row
+     * nothing referenced, and named no migration to go and remove because
+     * there was none. An unactionable no in front of a delete that was safe.
+     * The owner met it on the older connections, in English, because the
+     * name list was empty.
+     */
+    describe('deleting the connection afterwards', () => {
+      const ORPHAN_CONN = '5f4b0000-e29b-41d4-a716-446655443901';
+
+      it('REFUSES while a migration still points at it, and names it', async () => {
+        const res = await request
+          .delete(`/api/connections/${sourceConnectionId}`)
+          .set('Authorization', `Bearer ${token(REUSE_TENANT)}`);
+
+        expect(res.status, JSON.stringify(res.body)).toBe(409);
+        expect(res.body.error).toBe('in_use');
+        expect(res.body.migrations).toContain('Acme mail migration');
+        expect(res.body.used).toBeGreaterThan(0);
+      });
+
+      it('ALLOWS it when a mailbox row is all that is left', async () => {
+        // A connection with a mailbox and no mapping: nothing recorded hangs
+        // off it, so there is nothing for the refusal to protect.
+        await pool.query(
+          `INSERT INTO connection (id, tenant_id, role, kind, display_name)
+           VALUES ($1, $2, 'source', 'imap', 'Orphaned source')`,
+          [ORPHAN_CONN, REUSE_TENANT],
+        );
+        await pool.query(
+          `INSERT INTO mailbox (tenant_id, connection_id, external_id, kind)
+           VALUES ($1, $2, 'primary', 'user')`,
+          [REUSE_TENANT, ORPHAN_CONN],
+        );
+
+        const res = await request
+          .delete(`/api/connections/${ORPHAN_CONN}`)
+          .set('Authorization', `Bearer ${token(REUSE_TENANT)}`);
+
+        expect(res.status, JSON.stringify(res.body)).toBe(204);
+        const left = await pool.query(`SELECT id FROM connection WHERE id = $1`, [ORPHAN_CONN]);
+        expect(left.rows).toHaveLength(0);
+      });
+    });
+
     it('leaves nothing behind when it refuses', async () => {
       const mappings = await pool.query(
         `SELECT name FROM mailbox_mapping WHERE tenant_id = $1 ORDER BY name`,

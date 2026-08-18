@@ -614,20 +614,25 @@ const CreateMapping: React.FC = () => {
 
     const saveSide = async (role: 'source' | 'target'): Promise<TestConnectionResult> => {
       const chosen = role === 'source' ? formData.sourceConnectionId : formData.targetConnectionId;
-      // Already reusing a stored connection: there is nothing of ours to save,
-      // so this is the plain read-only probe it always was.
+      /**
+       * Reusing a stored connection: probe THE STORED CREDENTIAL, by id
+       * (workplan 0072).
+       *
+       * This used to post `builtSourceConfig()` — values read out of the form.
+       * But choosing a stored connection is exactly what HIDES those inputs, so
+       * the form holds empty strings, and the probe refused every time with
+       * *clientId, clientSecret, refreshToken are not set* — a sentence about
+       * fields the person was deliberately not asked for. Testing a reused
+       * connection could therefore never pass, which is the one thing the
+       * reuse path most needs to be able to prove before you commit to it.
+       *
+       * `POST /connections/:id/test` is the route that decrypts and probes what
+       * is actually stored; the Connections page has used it since 0062. There
+       * is nothing of ours to save here either way, so this stays the plain
+       * read-only check it was always described as.
+       */
       if (chosen) {
-        return role === 'source'
-          ? mappingApi.testConnection({
-              side: 'source',
-              sourceType: formData.sourceType,
-              sourceConfig: builtSourceConfig(),
-            })
-          : mappingApi.testConnection({
-              side: 'target',
-              targetType: formData.targetType,
-              targetConfig: builtTargetConfig(),
-            });
+        return connectionsApi.test(chosen);
       }
 
       const values = credentialValuesFor(role);

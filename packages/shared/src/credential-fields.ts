@@ -38,6 +38,16 @@ export interface CredentialField {
   readonly required?: boolean;
   /** A pasted key file rather than a one-line value. */
   readonly multiline?: boolean;
+  /**
+   * The value is a NUMBER (workplan 0072). The create schema coerces and then
+   * refuses a non-number, and the Connections form rendered every field as a
+   * bare text box — so a port typed as anything else came back as
+   * `port: Invalid input: expected number, received NaN`, a zod path and a zod
+   * sentence, in English, naming a storage key. The wizard's own port input
+   * has always been `type="number"`; this is how the other doors learn it
+   * without restating which field it is.
+   */
+  readonly numeric?: boolean;
   readonly placeholderKey?: string;
 }
 
@@ -88,7 +98,7 @@ const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = 
   ],
   imap: [
     { key: 'host', labelKey: 'wizard.host', required: true },
-    { key: 'port', labelKey: 'wizard.port', required: true },
+    { key: 'port', labelKey: 'wizard.port', required: true, numeric: true },
     { key: 'username', labelKey: 'wizard.sourceUsername', required: true },
     { key: 'password', labelKey: 'wizard.sourcePassword', required: true, secret: true },
   ],
@@ -118,7 +128,7 @@ function googleFields(): ReadonlyArray<CredentialField> {
 /** Every target speaks host/port/user/password; only the protocol differs. */
 const TARGET_FIELDS: ReadonlyArray<CredentialField> = [
   { key: 'host', labelKey: 'wizard.host', required: true },
-  { key: 'port', labelKey: 'wizard.port', required: true },
+  { key: 'port', labelKey: 'wizard.port', required: true, numeric: true },
   { key: 'username', labelKey: 'wizard.targetUsername', required: true },
   { key: 'password', labelKey: 'wizard.targetPassword', required: true, secret: true },
 ];
