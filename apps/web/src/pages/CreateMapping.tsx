@@ -962,6 +962,13 @@ const CreateMapping: React.FC = () => {
    * vocabularies meet for the SOURCE, exactly as `credentialValuesFor` is for
    * the probe payload.
    */
+  const TARGET_FORM_FIELD: Readonly<Record<string, keyof FormData>> = {
+    host: 'targetHost',
+    port: 'targetPort',
+    username: 'targetUsername',
+    password: 'targetPassword',
+  };
+
   const SOURCE_FORM_FIELD: Readonly<Record<string, keyof FormData>> = {
     username: 'sourceUsername',
     password: 'sourcePassword',
@@ -1109,15 +1116,22 @@ const CreateMapping: React.FC = () => {
    * in one place instead of four, and the Connections page and the wizard can
    * no longer disagree about what Dropbox asks for.
    */
-  const renderSourceFields = () => {
-    const fields = credentialFieldsFor('source', formData.sourceType);
+  const renderSideFields = (side: 'source' | 'target') => {
+    const isSource = side === 'source';
+    const chosen = isSource ? formData.sourceConnectionId : formData.targetConnectionId;
+    const reveal = isSource ? showSourcePassword : showTargetPassword;
+    const setReveal = isSource ? setShowSourcePassword : setShowTargetPassword;
+    const fields = credentialFieldsFor(
+      side,
+      isSource ? formData.sourceType : formData.targetType,
+    );
     return (
       <div className="space-y-4">
         {fields.map((field) => {
           // A stored connection answers everything except THIS mapping's own
           // question — whose files, and from which folder (0066 T4a).
-          if (formData.sourceConnectionId && !field.perMapping) return null;
-          const formKey = SOURCE_FORM_FIELD[field.key];
+          if (chosen && !field.perMapping) return null;
+          const formKey = isSource ? SOURCE_FORM_FIELD[field.key] : TARGET_FORM_FIELD[field.key];
           if (!formKey) return null;
           const value = String(formData[formKey] ?? '');
           const placeholder =
@@ -1126,12 +1140,12 @@ const CreateMapping: React.FC = () => {
           const set = (v: string) => updateField(formKey, v);
           return (
             <React.Fragment key={field.key}>
-              {field.key === 'rootFolderId' && isDriveSource && renderDriveBrowse()}
-              {field.key === 'rootPath' && isDropboxSource && renderDropboxBrowse()}
+              {isSource && field.key === 'rootFolderId' && isDriveSource && renderDriveBrowse()}
+              {isSource && field.key === 'rootPath' && isDropboxSource && renderDropboxBrowse()}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {t(field.labelKey as StringKey)}
-                  {sourceFieldRequiredNow(field) && <Required />}
+                  {(isSource ? sourceFieldRequiredNow(field) : field.required === true) && <Required />}
                 </label>
                 {field.multiline ? (
                   <textarea
@@ -1144,7 +1158,7 @@ const CreateMapping: React.FC = () => {
                 ) : field.revealable ? (
                   <div className="relative">
                     <input
-                      type={showSourcePassword ? 'text' : 'password'}
+                      type={reveal ? 'text' : 'password'}
                       autoComplete={field.autoComplete}
                       value={value}
                       onChange={(e) => set(e.target.value)}
@@ -1153,11 +1167,11 @@ const CreateMapping: React.FC = () => {
                     />
                     <button
                       type="button"
-                      onClick={() => setShowSourcePassword((v) => !v)}
+                      onClick={() => setReveal((v) => !v)}
                       className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
-                      aria-label={t(showSourcePassword ? 'wizard.hidePassword' : 'wizard.showPassword')}
+                      aria-label={t(reveal ? 'wizard.hidePassword' : 'wizard.showPassword')}
                     >
-                      {showSourcePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {reveal ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 ) : (
@@ -1187,16 +1201,16 @@ const CreateMapping: React.FC = () => {
               </div>
               {/* TLS belongs to the server, so it sits with host and port —
                   it is not a credential and the descriptor does not carry it. */}
-              {field.key === 'port' && !formData.sourceConnectionId && (
+              {field.key === 'port' && !chosen && (
                 <div className="flex items-center">
                   <input
                     type="checkbox"
-                    id="sourceSsl"
-                    checked={formData.sourceSsl}
-                    onChange={(e) => updateField('sourceSsl', e.target.checked)}
+                    id={isSource ? 'sourceSsl' : 'targetSsl'}
+                    checked={isSource ? formData.sourceSsl : formData.targetSsl}
+                    onChange={(e) => updateField(isSource ? 'sourceSsl' : 'targetSsl', e.target.checked)}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
-                  <label htmlFor="sourceSsl" className="ml-2 block text-sm text-gray-700">
+                  <label htmlFor={isSource ? 'sourceSsl' : 'targetSsl'} className="ml-2 block text-sm text-gray-700">
                     {t('wizard.useSsl')}
                   </label>
                 </div>
@@ -1206,63 +1220,10 @@ const CreateMapping: React.FC = () => {
         })}
         {/* What happens to these secrets — one sentence, at the foot of the
             fields it is about rather than in a panel of its own. */}
-        {!formData.sourceConnectionId && (
-          <p className="text-sm text-blue-900">{t('wizard.credentials.storage')}</p>
-        )}
+        {!chosen && <p className="text-sm text-blue-900">{t('wizard.credentials.storage')}</p>}
       </div>
     );
   };
-
-  const renderTargetCredentials = () =>
-    formData.targetConnectionId ? null : (
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h4 className="font-medium text-blue-900 mb-2">{t('wizard.credentials')}</h4>
-        <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.targetUsername')}
-                    <Required />
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    autoComplete="username"
-                    value={formData.targetUsername}
-                    onChange={(e) => updateField('targetUsername', e.target.value)}
-                    className="input w-full"
-                    placeholder="user@example.com"
-                  />
-                </div>
-
-                {!formData.targetConnectionId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.targetPassword')}
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showTargetPassword ? 'text' : 'password'}
-                      autoComplete="new-password"
-                      value={formData.targetPassword}
-                      onChange={(e) => updateField('targetPassword', e.target.value)}
-                      className="input w-full pr-10"
-                      placeholder="••••••••"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowTargetPassword((v) => !v)}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
-                      aria-label={t(showTargetPassword ? 'wizard.hidePassword' : 'wizard.showPassword')}
-                    >
-                      {showTargetPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-                )}
-        </div>
-        <p className="mt-4 text-sm text-blue-900">{t('wizard.credentials.storage')}</p>
-      </div>
-    );
 
   /**
    * Test this side, and keep it if it works (workplan 0069, now per side).
@@ -1523,7 +1484,7 @@ const CreateMapping: React.FC = () => {
               }}
             />
 
-            {renderSourceFields()}
+            {renderSideFields('source')}
             {renderProbe('source')}
           </div>
         );
@@ -1588,56 +1549,7 @@ const CreateMapping: React.FC = () => {
                   cannot see. The target USERNAME stays on the credentials
                   step: it names which account this mapping writes to, which a
                   shared connection cannot know. */}
-              {!formData.targetConnectionId && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('wizard.host')}
-                  <Required />
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.targetHost}
-                  onChange={(e) => updateField('targetHost', e.target.value)}
-                  className="input w-full"
-                  placeholder="jmap.example.com"
-                />
-              </div>
-              )}
-
-              {!formData.targetConnectionId && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('wizard.port')}
-                    <Required />
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min={1}
-                    max={65535}
-                    value={formData.targetPort}
-                    onChange={(e) => updateField('targetPort', e.target.value)}
-                    className="input w-full"
-                    placeholder="443"
-                  />
-                </div>
-
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="targetSsl"
-                    checked={formData.targetSsl}
-                    onChange={(e) => updateField('targetSsl', e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="targetSsl" className="ml-2 block text-sm text-gray-700">
-                    {t('wizard.useSsl')}
-                  </label>
-                </div>
-              </div>
-              )}
+              {renderSideFields('target')}
 
               {/* The merge-or-subfolder choice (owner decision 2026-08-16),
                   made where the destination is chosen. Empty means MERGE —
@@ -1658,7 +1570,6 @@ const CreateMapping: React.FC = () => {
                 <p className="mt-1 text-sm text-gray-500">{t('wizard.targetPrefix.hint')}</p>
               </div>
             </div>
-            {renderTargetCredentials()}
             {renderProbe('target')}
           </div>
         );

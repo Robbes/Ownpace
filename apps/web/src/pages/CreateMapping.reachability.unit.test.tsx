@@ -538,3 +538,33 @@ describe('naming the connection that testing saves', () => {
     expect(queryFieldFor(/^Name this connection/)).toBeNull();
   });
 });
+
+
+/**
+ * The TARGET step reads the same descriptor (workplan 0075 T4).
+ *
+ * It had the identical split the source step did — host and port up top, then
+ * a separate blue Credentials panel holding the account and the password. The
+ * owner never reported it only because they tested sources; the defect is the
+ * same one, and leaving one side hand-written is how the two drift.
+ */
+describe('the target step asks in the descriptor order too', () => {
+  it('server, then the account that signs in to it, in one run', () => {
+    renderWizard();
+    fill(/^Host$/, 'mail.acme.example');
+    fill(/^Source Username/, 'anna@acme.example');
+    fireEvent.click(nextButton());
+
+    const labels = Array.from(document.querySelectorAll('label'))
+      .map((l) => (l.textContent ?? '').replace(/\s*\*\s*$/, '').trim())
+      .filter(Boolean);
+    const at = (needle: string) => labels.findIndex((l) => l.startsWith(needle));
+
+    expect(at('Host')).toBeGreaterThanOrEqual(0);
+    expect(at('Host') + 1).toBe(at('Port'));
+    // The account and its password follow the server they sign in to, rather
+    // than sitting in a panel of their own below an unrelated field.
+    expect(at('Target Username')).toBeGreaterThan(at('Port'));
+    expect(at('Target Username') + 1).toBe(at('Target Password'));
+  });
+});

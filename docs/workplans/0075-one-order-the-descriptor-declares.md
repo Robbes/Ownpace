@@ -27,10 +27,16 @@ contiguous, that the account comes first, that the per-mapping "where" fields co
 credentials. Mutation-verified — moving `USER` back down the Google list fails the Drive
 case alone.
 
+| T4 the target step, the same way | ✅ **Fixed 2026-08-19** | Done as a second pass once the source step was green, so each change had the suite to itself. The target had the identical split — host and port up top, then a separate blue panel holding the account and the password — and the owner never reported it only because they tested sources. One `renderSideFields(side)` now serves both, which is the point: leaving one side hand-written is precisely how the two drift. Another **122 lines out, 33 in**, tests again unchanged. |
+
 ## What this leaves
 
 The descriptor is now the single answer to *what does this provider ask for, in what order,
-looking like what*. Two doors read it (the wizard's source step, the Connections add/rotate
-form) and a third still does not: **the wizard's TARGET step**, deliberately untouched here
-to halve the blast radius of one change. It is the obvious next application, and it is
-smaller than this one was — every target speaks the same four fields.
+looking like what*, and every door reads it: both wizard steps and the Connections
+add/rotate form. A provider gains a field in ONE place.
+
+Nothing about the wizard's field rendering is hand-written per provider any more, which
+retires the failure mode behind 0068 T7 (a value following you between providers because two
+blocks shared a form field), 0071 T1 (a form that could not satisfy its own route) and 0075
+T2 (a marker disagreeing with the gate). Those were three symptoms of one cause: the same
+knowledge written down in four places.
