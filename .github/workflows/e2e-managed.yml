@@ -10,6 +10,24 @@ name: E2E (managed)
 # the pooler tested?" was "no, and it cannot be". This is that gate.
 #
 # ------------------------------------------------------------------------------
+# THE CHECKOUT ITSELF CANNOT HOLD THE ONE-TIME SETUP
+# ------------------------------------------------------------------------------
+# `actions/checkout` defaults to `clean: true`, which runs `git clean -ffdx`
+# before every checkout — the `-x` includes IGNORED files. `deploy/compose/.env`
+# and `pgbouncer/userlist.txt` are both gitignored, so whatever the one-time
+# setup wrote into the checkout is destroyed at the START of the very next run,
+# by design, regardless of what a human did by hand in between. Found live,
+# 2026-08-18: two hand-triggered runs, hours apart and on different commits,
+# both failed the SAME "one-time setup was never done" refusal, because
+# nothing had ever been placed in a location that survives a checkout.
+#
+# So the one-time setup lives OUTSIDE the checkout, at a fixed path on the
+# runner, and the "Restore" step below copies it in fresh every run — a
+# deliberate step, not a workaround for `clean`, because `clean` is doing
+# exactly what a persistent self-hosted runner needs it to do for everything
+# else (stale build output, leftover node_modules) and disabling it would
+# trade one class of staleness for another.
+# ------------------------------------------------------------------------------
 # WHY THIS RUNS AGAINST A LONG-LIVED STACK, AND DOES NOT `down -v`
 # ------------------------------------------------------------------------------
 # The managed stack's Trigger.dev instance cannot be bootstrapped unattended.
@@ -66,6 +84,11 @@ env:
   MANAGED_COMPOSE: -f deploy/compose/managed.yml
   # Read by the smoke; defaults match the demo seed.
   SMOKE_API: http://localhost:3001
+  # Where the one-time setup lives, OUTSIDE any checkout so `actions/checkout`'s
+  # `git clean -ffdx` can never reach it. Override with a repository variable
+  # (Settings -> Secrets and variables -> Actions -> Variables) named
+  # MANAGED_ENV_PERSIST_DIR if this default does not suit the runner.
+  MANAGED_ENV_PERSIST_DIR: ${{ vars.MANAGED_ENV_PERSIST_DIR }}
 
 jobs:
   e2e-managed:
@@ -79,6 +102,21 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+
+      - name: Restore the one-time setup (checkout's own clean would destroy it)
+        run: |
+          set -euo pipefail
+          PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/open-migrate-managed}"
+          if [ -f "${PERSIST_DIR}/.env" ]; then
+            mkdir -p deploy/compose/pgbouncer
+            cp "${PERSIST_DIR}/.env" deploy/compose/.env
+            if [ -f "${PERSIST_DIR}/userlist.txt" ]; then
+              cp "${PERSIST_DIR}/userlist.txt" deploy/compose/pgbouncer/userlist.txt
+            fi
+            echo "restored the one-time setup from ${PERSIST_DIR}"
+          else
+            echo "nothing persisted yet at ${PERSIST_DIR} — the next step explains what to do"
+          fi
 
       - name: Refuse early if the one-time setup was never done
         # Loud and specific, because the alternative is a failure fifteen
@@ -97,6 +135,7 @@ jobs:
             grep -qE "^${key}=." "$ENV_FILE" 2>/dev/null || missing+=("$key")
           done
           if [ ${#missing[@]} -gt 0 ]; then
+            PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/open-migrate-managed}"
             echo "::error::This runner has never had the managed stack set up: missing ${missing[*]}."
             echo "The Trigger.dev half cannot be bootstrapped unattended — see the ONE-TIME"
             echo "prerequisites in deploy/compose/deploy-tasks.sh: create the account and project"
@@ -105,6 +144,14 @@ jobs:
             echo "variables in the dashboard. Then re-run this workflow."
             echo "For PGBOUNCER_AUTH_PASSWORD specifically, it is generated rather than chosen:"
             echo "  ./deploy/compose/ensure-env-secrets.sh && ./deploy/compose/bootstrap-managed.sh --only data"
+            echo ""
+            echo "IMPORTANT — this checkout's own copy will not survive the next run:"
+            echo "actions/checkout cleans ignored files (.env among them) before every checkout."
+            echo "Once the file above is correct, persist it OUTSIDE the checkout so the"
+            echo "'Restore' step earlier in this job can find it next time:"
+            echo "  mkdir -p ${PERSIST_DIR}"
+            echo "  cp deploy/compose/.env ${PERSIST_DIR}/.env"
+            echo "  cp deploy/compose/pgbouncer/userlist.txt ${PERSIST_DIR}/userlist.txt"
             exit 1
           fi
           echo "one-time setup present"
