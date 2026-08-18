@@ -27,7 +27,13 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, chmodSync } from 'node:fs';
+import {
+  mkdtempSync,
+  writeFileSync,
+  readFileSync,
+  rmSync,
+  chmodSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -326,5 +332,65 @@ describe('trigger-credentials.sh', () => {
     expect(r.stderr).toMatch(/expected answer BEFORE the one human step/);
     expect(r.stderr).toContain('Project → Settings');
     expect(r.stderr).toContain('API keys');
+  });
+});
+
+// ---------------------------------------------------------------------------
+/**
+ * `trigger.dev whoami` cannot be trusted by exit code (found 2026-08-18).
+ *
+ * Read from the installed CLI's own source: on an auth failure `whoami`
+ * returns `{success:false}` as DATA rather than throwing, and the CLI's own
+ * command wrapper only marks the process failed when something throws. So
+ * `whoami --profile X >/dev/null 2>&1; echo $?` is 0 for a revoked, stale, or
+ * entirely absent token — exactly the state a wiped Trigger.dev instance
+ * leaves behind, since the local CLI profile lives outside its database and
+ * survives untouched. Both bootstrap-managed.sh's `login` phase and
+ * deploy-tasks.sh's preflight trusted that exit code and let a dead token
+ * through; `deploy` only failed once it tried to use it.
+ */
+describe('trigger_cli_logged_in (trigger-cli-lib.sh)', () => {
+  const LIB = join(REPO_ROOT, 'deploy/compose/trigger-cli-lib.sh');
+
+  function stub(body: string): NodeJS.ProcessEnv {
+    const path = join(dir, 'whoami-stub');
+    writeFileSync(path, `#!/usr/bin/env bash\n${body}\n`);
+    chmodSync(path, 0o755);
+    return { TRIGGER_CLI_WHOAMI_CMD: path };
+  }
+
+  function loggedIn(env: NodeJS.ProcessEnv): boolean {
+    const r = spawnSync('bash', ['-c', `. "${LIB}"; trigger_cli_logged_in 4.5.9 openmig`], {
+      env: { ...process.env, ...env },
+    });
+    return r.status === 0;
+  }
+
+  it('recognises a real successful lookup by its User ID line', () => {
+    expect(
+      loggedIn(stub('echo "User ID: user_abc123"; echo "Email:   owner@example.test"')),
+    ).toBe(true);
+  });
+
+  it('is NOT fooled by an exit code of 0 on a stale token', () => {
+    // This is the bug, reproduced: the real CLI exits 0 here too.
+    const env = stub(
+      'echo "You must login first. Use `trigger.dev login --profile openmig` to login."; exit 0',
+    );
+    expect(loggedIn(env)).toBe(false);
+  });
+
+  it('treats a platform-down fetch failure as not logged in, not a crash', () => {
+    expect(loggedIn(stub('echo "Fetch failed. Platform down?"; exit 0'))).toBe(false);
+  });
+
+  it('treats a genuinely nonzero exit as not logged in too', () => {
+    expect(loggedIn(stub('echo "boom" >&2; exit 1'))).toBe(false);
+  });
+
+  it('does not match "User ID" appearing somewhere it should not (e.g. an error dump)', () => {
+    // Guards the anchor: a stray mention of the phrase in unrelated output must
+    // not be read as a successful account lookup.
+    expect(loggedIn(stub('echo "no User ID: field was present in the response"'))).toBe(false);
   });
 });

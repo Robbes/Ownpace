@@ -46,6 +46,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env"
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml")
+# shellcheck source=trigger-cli-lib.sh
+. "${SCRIPT_DIR}/trigger-cli-lib.sh"
 
 PHASES=(preflight env data demo trigger account login app tasks smoke)
 WITH_DEMO=0
@@ -488,7 +490,7 @@ phase_login() {
   profile="${TRIGGER_CLI_PROFILE:-openmig}"
   url="http://localhost:${TRIGGER_PORT:-3090}"
 
-  if npx -y "trigger.dev@${cli_version}" whoami --profile "$profile" >/dev/null 2>&1; then
+  if trigger_cli_logged_in "$cli_version" "$profile"; then
     note "already logged in (profile ${profile}, CLI ${cli_version})"
     return 0
   fi

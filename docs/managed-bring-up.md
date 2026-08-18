@@ -386,6 +386,7 @@ it.
 | --- | --- | --- |
 | `pgbouncer` logs `could not open auth_file … Permission denied`, then `no such user: pgbouncer_auth` | `userlist.txt` was written 0600 by the host user; PgBouncer reads it as a different user inside the container, finds no users, and rejects every login | `chmod 644 deploy/compose/pgbouncer/userlist.txt`, then force-recreate. `ensure-env-secrets.sh` now writes 644 and `--only data` repairs the mode |
 | The seed or a host-run script talks to the wrong Postgres | On a shared host, `localhost:5432` may belong to something else entirely — this stack's Postgres is published wherever `POSTGRES_PORT` says | The `demo` phase asks `docker compose port postgres 5432` rather than trusting a default. For your own commands, do the same |
+| `deploy-tasks.sh` proceeds past its own login check and then fails with `Unable to validate existing personal access token` / `Invalid or Missing Access Token` | `whoami` exits 0 whether or not you are actually logged in — confirmed from the CLI's own source, an auth failure returns data rather than throwing. A stale profile (e.g. left over after `reset-trigger.sh`) passes the check and only fails once `deploy` tries to use it | `npx -y trigger.dev@<version> login -a http://localhost:${TRIGGER_PORT:-3090} --profile <profile>`, then re-run. Fixed at the source in `trigger-cli-lib.sh`, which both scripts now use instead of trusting the exit code |
 | A config fix to `pgbouncer.ini` seems to change nothing — same error after pulling | `pgbouncer.ini` is a bind mount read once at start-up, and `up -d` does not recreate a container whose spec has not changed, so the old process keeps running the old file | `docker compose -f deploy/compose/managed.yml up -d --force-recreate pgbouncer`. `--only data` now does this automatically when the container is unhealthy |
 | `pgbouncer` log says `cannot use the reserved "pgbouncer" database as an auth_dbname` | `auth_user` set in the **global** `[pgbouncer]` section governs the admin console too, and the console's database name is reserved — so `auth_query` cannot run and every connection is refused. A per-database `auth_dbname` does not help: the console is not matched by `*` | Fixed by moving `auth_user` onto the `*` entry, where it applies to real databases only. `auth_dbname` there must equal `POSTGRES_DB`; `--only data` refuses if they disagree |
 | `pgbouncer` reports `unhealthy` after ~80s, and its own log says the user is not allowed | The healthcheck reads `SHOW POOLS` from the admin console, which PgBouncer refuses to anyone not in `stats_users`/`admin_users` | Fixed in `pgbouncer/pgbouncer.ini` (`stats_users = pgbouncer_auth`). On an older checkout, pull and `--only data` |
@@ -463,6 +464,34 @@ JWTs signed with a rotated `JWT_SECRET`. Rotating `SECRET_ENCRYPTION_KEY`
 Rotating `TRIGGER_LOGIN_SECRET` signs everyone out **including the deploy
 CLI**, whose stored token then fails with `Unable to validate existing personal
 access token — 500`; a `login` fixes it.
+
+### `whoami` says nothing about whether you are logged in
+
+`trigger.dev whoami --profile <name>` **exits 0 regardless of login state.**
+Read from the installed CLI's own source (`dist/esm/commands/whoami.js` +
+`cli/common.js`): an auth failure returns `{success:false}` as data rather than
+throwing, and the CLI's command wrapper only marks the process failed on a
+thrown exception. So a script that does
+
+```bash
+whoami --profile X >/dev/null 2>&1   # WRONG — 0 either way
+```
+
+cannot tell "logged in" from "never logged in" from "token was just revoked".
+This bit the `login` phase and `deploy-tasks.sh`'s own preflight the same day,
+on the same box: both reported "already logged in" against a profile left over
+from before a `reset-trigger.sh`, and the deploy that followed died with
+
+```
+Error: Unable to validate existing personal access token
+Invalid or Missing Access Token
+```
+
+which reads like a broken deployment rather than a login nobody actually did.
+`trigger-cli-lib.sh`'s `trigger_cli_logged_in()` is the fix both scripts now
+share: run `whoami` for real and look for the `User ID:` line a genuine
+successful lookup prints, regardless of exit code. If you ever call the CLI
+directly in a script, do the same rather than trusting `$?`.
 
 ### Rotating `TRIGGER_ENCRYPTION_KEY`
 
