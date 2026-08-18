@@ -21,8 +21,9 @@ import type { Response } from 'express';
 import { authenticate, getDbPool, withTenantDb } from '../middleware/auth';
 import type { AuthenticatedRequest } from '../types/api';
 import { PgGroupDefStore } from '@openmig/ledger';
-import { asTenantId, log } from '@openmig/shared';
+import { asTenantId } from '@openmig/shared';
 import { renderGroupRunbook } from '@openmig/core';
+import { serverFault } from '../server-fault';
 
 const router = Router();
 
@@ -54,11 +55,7 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
     // Never an empty list on failure: "we could not read them" and "there are
     // none" are opposite sentences, and the screen renders them differently
     // (hard rule 9).
-    log.error('Error listing shared addresses:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to list shared addresses',
-    });
+    serverFault(res, 'list_failed', 'listing the shared addresses', error);
   }
 });
 
@@ -99,11 +96,7 @@ router.get('/runbook', authenticate, async (req: AuthenticatedRequest, res: Resp
 
     res.type('text/markdown; charset=utf-8').send(markdown);
   } catch (error) {
-    log.error('Error rendering the shared-address runbook:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to render the runbook',
-    });
+    serverFault(res, 'runbook_failed', 'rendering the runbook', error);
   }
 });
 

@@ -23,7 +23,7 @@ import {
   grantsOwnerWithoutPermission,
   isSelfRemoval,
 } from './member-guards';
-import { log } from '@openmig/shared';
+import { serverFault } from '../../server-fault';
 
 const router = Router();
 
@@ -85,11 +85,7 @@ router.get(
 
       res.json({ members });
     } catch (error) {
-      log.error('Error listing members:', error);
-      res.status(500).json({
-        error: 'Internal server error',
-        message: 'Failed to list members',
-      });
+      serverFault(res, 'list_failed', 'listing the members', error);
     }
   }
 );
@@ -172,11 +168,7 @@ router.post(
           details: error.issues,
         });
       } else {
-        log.error('Error inviting member:', error);
-        res.status(500).json({
-          error: 'Internal server error',
-          message: 'Failed to invite member',
-        });
+        serverFault(res, 'invite_failed', 'inviting this member', error);
       }
     }
   }
@@ -234,11 +226,7 @@ router.get(
 
       res.json(members[0]);
     } catch (error) {
-      log.error('Error getting member:', error);
-      res.status(500).json({
-        error: 'Internal server error',
-        message: 'Failed to get member',
-      });
+      serverFault(res, 'read_failed', 'reading this member', error);
     }
   }
 );
@@ -343,11 +331,7 @@ router.patch(
           details: error.issues,
         });
       } else {
-        log.error('Error updating member:', error);
-        res.status(500).json({
-          error: 'Internal server error',
-          message: 'Failed to update member',
-        });
+        serverFault(res, 'update_failed', 'updating this member', error);
       }
     }
   }
@@ -441,11 +425,7 @@ router.delete(
 
       res.status(204).send();
     } catch (error) {
-      log.error('Error removing member:', error);
-      res.status(500).json({
-        error: 'Internal server error',
-        message: 'Failed to remove member',
-      });
+      serverFault(res, 'remove_failed', 'removing this member', error);
     }
   }
 );

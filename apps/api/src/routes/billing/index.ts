@@ -21,6 +21,7 @@ import { eq, and, desc } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { getUsageMetricsForPeriod, resolveTenantPricing } from '@openmig/ledger';
 import { log } from '@openmig/shared';
+import { serverFault } from '../../server-fault';
 
 const router = Router();
 
@@ -99,11 +100,7 @@ router.get('/usage', authenticate, requireBillingRead, async (req: Authenticated
       period: periodStart.slice(0, 7),
     });
   } catch (error) {
-    log.error('Error getting usage:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to get usage metrics',
-    });
+    serverFault(res, 'usage_failed', 'reading your usage', error);
   }
 });
 
@@ -194,11 +191,7 @@ router.get('/usage/history', authenticate, requireBillingRead, async (req: Authe
       usage: usageHistory,
     });
   } catch (error) {
-    log.error('Error getting usage history:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to get usage history',
-    });
+    serverFault(res, 'usage_history_failed', 'reading your usage history', error);
   }
 });
 
@@ -249,11 +242,7 @@ router.post('/estimate', authenticate, requireBillingRead, async (req: Authentic
         details: error.issues,
       });
     } else {
-      log.error('Error estimating cost:', error);
-      res.status(500).json({
-        error: 'Internal server error',
-        message: 'Failed to estimate cost',
-      });
+      serverFault(res, 'estimate_failed', 'estimating the cost', error);
     }
   }
 });
@@ -291,8 +280,7 @@ router.post('/invoices/generate', authenticate, requireBillingWrite, async (req:
 
     res.status(201).json({ invoice });
   } catch (error) {
-    log.error('Error generating invoice:', error);
-    res.status(500).json({ error: 'Internal server error', message: 'Failed to generate invoice' });
+    serverFault(res, 'invoice_create_failed', 'generating this invoice', error);
   }
 });
 
@@ -338,11 +326,7 @@ router.get('/invoices', authenticate, requireBillingRead, async (req: Authentica
       invoices,
     });
   } catch (error) {
-    log.error('Error listing invoices:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to list invoices',
-    });
+    serverFault(res, 'invoices_failed', 'listing your invoices', error);
   }
 });
 
@@ -402,11 +386,7 @@ router.get('/invoices/:invoiceId', authenticate, requireBillingRead, async (req:
 
     res.json({ invoice: invoices[0] });
   } catch (error) {
-    log.error('Error getting invoice:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to get invoice',
-    });
+    serverFault(res, 'invoice_failed', 'reading this invoice', error);
   }
 });
 
@@ -514,10 +494,7 @@ router.post('/invoices/:invoiceId/pay', authenticate, requireBillingWrite, async
         message: 'Mollie API key not configured',
       });
     } else {
-      res.status(500).json({
-        error: 'Internal server error',
-        message: 'Failed to create payment',
-      });
+      serverFault(res, 'payment_failed', 'creating this payment', error);
     }
   }
 });
@@ -557,11 +534,7 @@ router.get('/payment-methods', authenticate, requireBillingRead, async (req: Aut
       paymentMethods,
     });
   } catch (error) {
-    log.error('Error listing payment methods:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to list payment methods',
-    });
+    serverFault(res, 'payment_methods_failed', 'listing your payment methods', error);
   }
 });
 
@@ -609,11 +582,7 @@ router.post('/payment-methods', authenticate, requireBillingWrite, async (req: A
         details: error.issues,
       });
     } else {
-      log.error('Error creating payment method:', error);
-      res.status(500).json({
-        error: 'Internal server error',
-        message: 'Failed to create payment method',
-      });
+      serverFault(res, 'payment_method_failed', 'adding this payment method', error);
     }
   }
 });
@@ -670,11 +639,7 @@ router.patch(
         paymentMethod,
       });
     } catch (error) {
-      log.error('Error setting default payment method:', error);
-      res.status(500).json({
-        error: 'Internal server error',
-        message: 'Failed to set default payment method',
-      });
+      serverFault(res, 'payment_method_default_failed', 'setting your default payment method', error);
     }
   }
 );

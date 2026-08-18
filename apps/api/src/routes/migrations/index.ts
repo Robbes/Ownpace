@@ -7,7 +7,6 @@
  */
 
 import { Router } from 'express';
-import { randomUUID } from 'node:crypto';
 import type { Response } from 'express';
 import { z } from 'zod';
 import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth';
@@ -32,7 +31,6 @@ import {
 // discovery and start, which is where the appliance's equivalents live too.
 import operatingRoutes from './operating-routes';
 import {
-  log,
   DISTRIBUTION_D_NOT_A_MAPPING,
   targetDomainRefusal,
   parseTargetFolderPrefix,
@@ -1093,11 +1091,7 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
       })),
     });
   } catch (error) {
-    log.error('Error listing mappings:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to list mappings',
-    });
+    serverFault(res, 'list_failed', 'listing your migrations', error);
   }
 });
 
@@ -1405,14 +1399,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       // on a phone to the cause, which is sitting in the log two metres away
       // (workplan 0068). So the log line and the response now share a short
       // reference: the message stays safe, and quoting it finds the stack.
-      const ref = randomUUID().slice(0, 8);
-      log.error(`Error creating mapping [ref ${ref}]:`, error);
-      res.status(500).json({
-        error: 'Internal server error',
-        message:
-          `Something went wrong creating this migration — this is a fault on our side, ` +
-          `not something your input caused. Reference ${ref}; quoting it finds the detail in the server log.`,
-      });
+      serverFault(res, 'create_failed', 'creating this migration', error);
     }
   }
 });
@@ -1568,11 +1555,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
       updatedAt: mapping.updatedAt,
     });
   } catch (error) {
-    log.error('Error getting mapping:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to get mapping',
-    });
+    serverFault(res, 'read_failed', 'reading this migration', error);
   }
 });
 
@@ -1662,11 +1645,7 @@ router.put(
           details: error.issues,
         });
       } else {
-        log.error('Error updating mapping:', error);
-        res.status(500).json({
-          error: 'Internal server error',
-          message: 'Failed to update mapping',
-        });
+        serverFault(res, 'update_failed', 'updating this migration', error);
       }
     }
   }
@@ -1726,11 +1705,7 @@ router.delete(
         message: 'Mapping deleted successfully',
       });
     } catch (error) {
-      log.error('Error deleting mapping:', error);
-      res.status(500).json({
-        error: 'Internal server error',
-        message: 'Failed to delete mapping',
-      });
+      serverFault(res, 'delete_failed', 'deleting this migration', error);
     }
   }
 );
@@ -1813,11 +1788,7 @@ router.post(
           details: error.issues,
         });
       } else {
-        log.error('Error triggering sync:', error);
-        res.status(500).json({
-          error: 'Internal server error',
-          message: 'Failed to trigger sync',
-        });
+        serverFault(res, 'sync_failed', 'starting this sync', error);
       }
     }
   }
@@ -1895,11 +1866,7 @@ router.post(
           details: error.issues,
         });
       } else {
-        log.error('Error triggering cutover:', error);
-        res.status(500).json({
-          error: 'Internal server error',
-          message: 'Failed to trigger cutover',
-        });
+        serverFault(res, 'cutover_failed', 'starting this cutover', error);
       }
     }
   }
@@ -1943,11 +1910,7 @@ router.get(
 
       res.json({ runs, truncated });
     } catch (error) {
-      log.error('Error listing runs:', error);
-      res.status(500).json({
-        error: 'Internal server error',
-        message: 'Failed to list runs',
-      });
+      serverFault(res, 'runs_failed', 'listing the runs for this migration', error);
     }
   }
 );
@@ -1996,8 +1959,7 @@ router.post('/:mappingId/discover', authenticate, async (req: AuthenticatedReque
     if (error instanceof z.ZodError) {
       res.status(400).json({ error: 'Validation error', details: error.issues });
     } else {
-      log.error('Error triggering discovery:', error);
-      res.status(500).json({ error: 'Internal server error', message: 'Failed to trigger discovery' });
+      serverFault(res, 'discovery_failed', 'starting discovery', error);
     }
   }
 });
@@ -2021,8 +1983,7 @@ router.get('/:mappingId/discovery', authenticate, async (req: AuthenticatedReque
     );
     res.json({ mappingId, discovered: domains.length > 0, domains });
   } catch (error) {
-    log.error('Error reading discovery:', error);
-    res.status(500).json({ error: 'Internal server error', message: 'Failed to read discovery' });
+    serverFault(res, 'discovery_read_failed', 'reading the discovery result', error);
   }
 });
 
@@ -2054,8 +2015,7 @@ router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest,
     }
     res.json({ id: mappingId, status: 'active' });
   } catch (error) {
-    log.error('Error starting mapping:', error);
-    res.status(500).json({ error: 'Internal server error', message: 'Failed to start mapping' });
+    serverFault(res, 'start_failed', 'starting this migration', error);
   }
 });
 

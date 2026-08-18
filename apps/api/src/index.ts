@@ -33,6 +33,7 @@ import setupRoutes from './routes/setup';
 import connectionRoutes from './routes/connections';
 import { assertProductionAuthConfig } from './middleware/auth';
 import { assertProductionUrlConfig } from './config-guards';
+import { serverFault } from './server-fault';
 import { buildIdentity } from '@openmig/core';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
 import { log } from '@openmig/shared';
@@ -117,11 +118,7 @@ app.use('/api/billing/webhooks', billingWebhookRoutes);
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
-  log.error('API Error:', err);
-  res.status(500).json({
-    error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined,
-  });
+  serverFault(res, 'unhandled', 'handling this request', err);
 });
 
 // Start server. Self-migrates first (under migrate.ts's advisory lock, idempotent) --

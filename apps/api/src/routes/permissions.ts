@@ -49,6 +49,7 @@ import {
   STORED_GOOGLE_CREDENTIAL_NAMES,
 } from '@openmig/orchestration/drive-source-factory';
 import { Pool } from 'pg';
+import { serverFault } from '../server-fault';
 
 const router = Router();
 
@@ -136,11 +137,7 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
 
     res.type('text/markdown; charset=utf-8').send(markdown);
   } catch (error) {
-    log.error('Error rendering the permission report:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to render the permission report',
-    });
+    serverFault(res, 'report_failed', 'rendering the permission report', error);
   }
 });
 
