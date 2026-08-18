@@ -142,6 +142,25 @@ load_env() {
   fi
 }
 
+# Bring services up, and on failure show WHY rather than the one line compose
+# prints. `up --wait` reports `container X is unhealthy` and stops — which
+# names the service and not the reason, and the reason is always in that
+# container's own log. Waiting for somebody to think of `docker logs` is a
+# minute of confusion per occurrence, every time, forever.
+up_wait() { # up_wait <service> [service...]
+  if "${COMPOSE[@]}" up -d --wait "$@"; then return 0; fi
+  echo >&2
+  echo "!!! compose could not bring these up healthy: $*" >&2
+  for svc in "$@"; do
+    local state
+    state="$("${COMPOSE[@]}" ps --format '{{.State}} {{.Health}}' "$svc" 2>/dev/null | tail -1)"
+    echo "!!! --- ${svc} (${state:-not running}) — last 30 log lines:" >&2
+    "${COMPOSE[@]}" logs --tail 30 "$svc" 2>&1 | sed 's/^/    /' >&2
+  done
+  echo "!!! docs/managed-bring-up.md has a failure table; the log above is the answer." >&2
+  exit 1
+}
+
 # ---------------------------------------------------------------------------
 phase_preflight() {
   say preflight "the tools this needs, and the one setting that cannot be fixed later"
@@ -262,7 +281,7 @@ phase_data() {
   say data "postgres, the pooler's lookup role, pgbouncer"
   load_env
 
-  "${COMPOSE[@]}" up -d --wait postgres
+  up_wait postgres
   note "postgres healthy"
 
   # ORDER. pgbouncer's healthcheck authenticates as `pgbouncer_auth`, and that
@@ -282,11 +301,11 @@ phase_data() {
     -f - <"${SCRIPT_DIR}/pgbouncer/setup-auth.sql" >/dev/null
   note "pgbouncer_auth role + user_lookup() present (idempotent)"
 
-  "${COMPOSE[@]}" up -d --wait pgbouncer
+  up_wait pgbouncer
   note "pgbouncer healthy, in transaction mode"
 
   if [ "$WITH_DEMO" -eq 1 ]; then
-    "${COMPOSE[@]}" up -d --wait nextcloud
+    up_wait nextcloud
     note "nextcloud healthy (demo DAV backend)"
   fi
 }
@@ -320,8 +339,7 @@ phase_demo() {
 phase_trigger() {
   say trigger "the Trigger.dev plane"
   load_env
-  "${COMPOSE[@]}" up -d --wait \
-    trigger-db trigger-redis clickhouse minio trigger-registry \
+  up_wait trigger-db trigger-redis clickhouse minio trigger-registry \
     trigger-docker-proxy trigger-api trigger-tls trigger-supervisor
   note "all Trigger.dev services healthy"
   note "dashboard: ${TRIGGER_APP_ORIGIN:-https://localhost:3443}  (api: ${TRIGGER_API_ORIGIN:-http://localhost:3090})"
