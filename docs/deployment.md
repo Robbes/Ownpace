@@ -24,5 +24,52 @@ For managed day-2 operations (start/stop, seed, backup, tenant offboarding, what
 - **Release channels** (the real ones — see deploy/selfhost/README.md): `edge` per merge, `sha-<commit>`, `X.Y.Z` per tag, `latest` only once a non-prerelease exists; self-host updates via image tags; back up the ledger before upgrading; never run two app versions against one database. The release procedure is docs/release.md.
 - Managed: staged/canary rollout, DB backup before migrate, roll-forward preferred over schema rollback.
 
+## Connection pooling (managed)
+
+**PgBouncer, transaction mode, in front of Postgres** (workplan 0082 T4). The
+app and the worker connect through it; **migrations always connect direct**, via
+`DIRECT_DATABASE_URL`.
+
+The worker is the reason it exists: every sync pass opens its own `pg.Pool` of
+`DEFAULT_CONCURRENCY + 2`, so the server-connection ceiling was
+concurrent-passes × 6 against a managed Postgres whose connection limit is far
+below what its CPU allowance suggests. Pooling removes that as a *class* of
+problem rather than as an incident.
+
+Transaction mode is safe here because of a property the code already had, not
+one added for it: `withTenant` opens a transaction, sets the role with
+`SET LOCAL` and the tenant with `set_config(…, true)`, and commits — both
+transaction-scoped, so nothing survives the COMMIT that hands the server
+connection to the next borrower. That matters more than it sounds:
+`app.current_tenant` **is** the RLS boundary, and a session-scoped version of it
+under transaction pooling would be a cross-tenant read. Nothing on the Postgres
+path uses LISTEN/NOTIFY, temp tables, session-level `SET`, or named prepared
+statements.
+
+Migrations are the one exception and the reason `DIRECT_DATABASE_URL` exists.
+`migrate.ts` holds `pg_advisory_lock` — session-scoped — across every
+migration's own transaction. Through a transaction pooler the lock would be
+taken on one server connection and the migrations applied on others, so two
+replicas booting at once would stop excluding each other. Nothing errors when
+that happens: both read an empty `schema_migrations` and both start applying
+`0001`.
+
+**Bring-up:**
+
+1. `deploy/compose/ensure-env-secrets.sh` — generates `PGBOUNCER_AUTH_PASSWORD`
+   and writes `pgbouncer/userlist.txt` (gitignored).
+2. `psql "$DIRECT_DATABASE_URL" -v pw="'<that password>'" -f deploy/compose/pgbouncer/setup-auth.sql`
+   — creates the powerless lookup role and its `SECURITY DEFINER` function, so
+   PgBouncer can authenticate every other role via `auth_query` instead of
+   keeping a second copy of each password.
+3. `docker compose -f managed.yml up -d`.
+
+**Verify:** `psql -h <host> -p 6432 -U pgbouncer_auth -d pgbouncer -c 'SHOW POOLS'`
+should list pools with `pool_mode` `transaction`, and the API's boot log says
+`a connection pooler is in front of Postgres; migrations bypass it`.
+
+**Rollback:** set `DB_HOST=postgres` and `DB_PORT=5432` in `.env`, then
+`compose up -d`. Every service reads those two variables.
+
 ## EU/CH provider options
 Scaleway, OVHcloud (incl. SecNumCloud), Exoscale, StackIT, IONOS, Open Telekom Cloud, UpCloud, Elastx, Leafcloud; Aiven for managed data; Hetzner for cheap IaaS.

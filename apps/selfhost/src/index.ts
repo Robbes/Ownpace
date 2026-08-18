@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant } from '@openmig/ledger';
+import { runMigrations, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, retentionDaysFromEnv } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -949,6 +949,39 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     const handle = scheduler.schedule('drift-detect', '0 7 * * *', detectDrift);
     handles.push(handle);
     log.info('[selfhost] drift detection scheduled (0 7 * * *)');
+  }
+
+  // 3d-bis. Ledger retention (workplan 0082 T2).
+  //
+  // The appliance gets this for the same reason managed does, and hard rule 5
+  // is the reason it is not managed-only: `run_event` is one row per log line
+  // of every pass, forever, and an appliance on a Pi with an SD card is the
+  // machine that can least afford a table that only grows. The rules are in
+  // `@openmig/ledger`; this is the schedule.
+  //
+  // 03:17, well away from the digest and the discovery passes — nothing waits
+  // on retention, so it runs when nothing else wants the disk.
+  {
+    const pruneLogs = async (): Promise<void> => {
+      try {
+        const days = retentionDaysFromEnv(process.env.LEDGER_RETENTION_DAYS);
+        const result = await pruneRunEvents(db, new Date(), { olderThanDays: days });
+        if (result.deleted > 0 || result.moreRemaining) {
+          log.info(
+            `[retention] deleted ${result.deleted} run events older than ` +
+              `${result.cutoff.toISOString()}${result.moreRemaining ? '; more still eligible, the next pass continues' : ''}`,
+          );
+        }
+      } catch (err) {
+        // Housekeeping must never take the appliance down, and must never fail
+        // quietly either (rule 9) — a pruner nobody knows has stopped is how a
+        // disk fills up.
+        log.error('[retention] the prune pass failed:', err instanceof Error ? err.message : err);
+      }
+    };
+    const handle = scheduler.schedule('retention', '17 3 * * *', pruneLogs);
+    handles.push(handle);
+    log.info('[selfhost] ledger retention scheduled (17 3 * * *)');
   }
 
   // 3e. Shared-address discovery (workplan 0027 T1).

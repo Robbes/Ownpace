@@ -11,7 +11,7 @@ import type { Request, Response, NextFunction, Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import { runMigrations } from '@openmig/ledger';
+import { runMigrations, migrationConnectionString, poolerInFront } from '@openmig/ledger';
 
 // Import types
 import type { AuthenticatedRequest, JwtPayload } from './types/api';
@@ -136,7 +136,18 @@ if (process.env.NODE_ENV !== 'test') {
   if (!databaseUrl) {
     throw new Error('DATABASE_URL is required');
   }
-  runMigrations({ connectionString: databaseUrl })
+  // Migrations go DIRECT to Postgres, never through the transaction-mode
+  // pooler (workplan 0082 T4). `migrate.ts` holds `pg_advisory_lock`, which is
+  // session-scoped, across every migration's own transaction — through
+  // PgBouncer in transaction mode the lock would be taken on one server
+  // connection and the migrations applied on others, so two replicas booting
+  // at once would stop excluding each other. That is the exact situation the
+  // lock exists for, and it would fail silently.
+  const migrationUrl = migrationConnectionString(process.env);
+  if (poolerInFront(process.env)) {
+    log.info('[api] a connection pooler is in front of Postgres; migrations bypass it');
+  }
+  runMigrations({ connectionString: migrationUrl })
     .then(() => {
       app.listen(PORT, () => {
         log.info(`API server running on port ${PORT}`);

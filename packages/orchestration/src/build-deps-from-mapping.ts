@@ -13,6 +13,7 @@ import {
   type ThrottleLimiter,
   type ThrottleConfigMapping,
   createThrottleLimiterFromMapping,
+  DEFAULT_THROTTLE_CONFIG,
   type TenantId,
   type MappingId,
   type SourceConfig,
@@ -22,7 +23,7 @@ import {
   parseGoogleDriveSource,
   log,
 } from '@openmig/shared';
-import { connection as connectionTable, mailbox as mailboxTable } from '@openmig/ledger';
+import { connection as connectionTable, mailbox as mailboxTable, PgRateBudget } from '@openmig/ledger';
 import {
   createTokenProvider,
 } from '@openmig/connectors';
@@ -228,11 +229,21 @@ export async function buildDepsFromMapping(
     | Partial<import('@openmig/shared').ThrottleConfig>
     | null
     | undefined;
+  // The budget the WHOLE SERVICE shares for this tenant and provider, not just
+  // this pass (workplan 0082 T5). Trigger.dev runs each pass in its own
+  // process, so an in-process bucket was one private copy of the limit per
+  // concurrent pass — against a provider quota that is singular, because SAD
+  // §13 specifies one multi-tenant Entra app for every customer.
+  const sharedBudget = new PgRateBudget(db, {
+    requestsPerSecond:
+      storedThrottle?.requestsPerSecond ?? DEFAULT_THROTTLE_CONFIG.requestsPerSecond,
+  });
+  // Built unconditionally now, where it used to be skipped when no throttle
+  // config was stored. "No custom limits" never meant "no limits" — it meant
+  // the defaults, and the defaults are what the shared budget enforces.
   const throttleLimiter = storedThrottle
-    ? createThrottleLimiterFromMapping({ mapping: storedThrottle })
-    : Object.keys(throttleConfigMapping).length > 0
-      ? createThrottleLimiterFromMapping(throttleConfigMapping)
-      : undefined;
+    ? createThrottleLimiterFromMapping({ mapping: storedThrottle }, {}, sharedBudget)
+    : createThrottleLimiterFromMapping(throttleConfigMapping, {}, sharedBudget);
   
   // Build source connector with decrypted credentials
   const source = buildSourceConnectorFromCredentials(
