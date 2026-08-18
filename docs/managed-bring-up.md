@@ -384,6 +384,7 @@ it.
 
 | What you see | What it is | What to do |
 | --- | --- | --- |
+| `pgbouncer` log says `cannot use the reserved "pgbouncer" database as an auth_dbname` | With `auth_user` set, PgBouncer needs a database to run `auth_query` in; without `auth_dbname` it uses the one the client asked for, and the healthcheck asks for the admin console | Fixed in `pgbouncer.ini` (`auth_dbname=openmigrate` on the `*` entry). It must equal `POSTGRES_DB`; `--only data` refuses if they disagree |
 | `pgbouncer` reports `unhealthy` after ~80s, and its own log says the user is not allowed | The healthcheck reads `SHOW POOLS` from the admin console, which PgBouncer refuses to anyone not in `stats_users`/`admin_users` | Fixed in `pgbouncer/pgbouncer.ini` (`stats_users = pgbouncer_auth`). On an older checkout, pull and `--only data` |
 | Any `docker compose` command fails with `required variable X is missing a value` | Compose interpolates the **whole** file before running anything, so one unset variable breaks every command — including ones that never touch the service named in the error. An `.env` that predates the pooler hits this on `PGBOUNCER_AUTH_PASSWORD` | `./deploy/compose/ensure-env-secrets.sh`, then `--only data` to create the matching Postgres role and start the pooler |
 | `pgbouncer` never becomes healthy, complains about a password | `setup-auth.sql` has not run, or ran without `my.pw` set | `--only data`. The SQL now refuses an unset `my.pw` rather than creating a role with no password |

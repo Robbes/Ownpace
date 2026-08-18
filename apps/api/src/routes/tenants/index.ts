@@ -22,6 +22,7 @@ import {
 } from '@openmig/ledger';
 import {
   standingGrantReminders,
+  accessThatOutlivesErasure,
   backupRetentionDaysFromEnv,
   erasureTimeline,
   erasureTimelineText,
@@ -442,7 +443,18 @@ router.post(
           nl: erasureTimelineText(timeline, 'nl'),
         },
         canReopenUntil: result.windowDays > 0 ? result.purgeAfter.toISOString() : null,
+        // Kept for callers that already read it. `outlivingAccess` supersedes
+        // it and is what new callers should render.
         standingGrants: standingGrantReminders(kinds, 'en'),
+        // Everything that keeps working after we have forgotten them: the
+        // consents in their providers' consoles AND the app passwords sitting
+        // in their own accounts (owner, 2026-08-18 — "not leave credentials
+        // wandering around"). Credentials first: a consent is a permission
+        // sitting unused, a live app password is a working way in.
+        outlivingAccess: {
+          en: accessThatOutlivesErasure(kinds, 'en'),
+          nl: accessThatOutlivesErasure(kinds, 'nl'),
+        },
       });
     } catch (error) {
       serverFault(res, 'close_failed', 'closing this account', error);

@@ -262,10 +262,12 @@ paths:
         **Closed is not deleted.** Until `purgeAfter` passes the close can be
         undone with `/reopen`; a window of 0 cannot, and says so.
 
-        The response carries `standingGrants` — the permissions the customer
-        granted in their OWN provider consoles, which survive our erasure
-        because only they can withdraw them. We can name them and link to
-        them; we cannot remove them.
+        The response carries `outlivingAccess` — everything that keeps working
+        after the erasure and only the customer can end. Two kinds, and both
+        matter: the **permissions** granted in their own provider consoles, and
+        the **app passwords** they gave us, which keep authenticating after we
+        delete our copy. We can name them and say where; we cannot remove them.
+        (`standingGrants` is the older field covering only the permissions.)
 
         **Two dates, not one.** `purgeAfter` is when the live service stops
         holding the data. `backupsExpireAt` is when the last backup that could
@@ -322,7 +324,22 @@ paths:
                     description: Null when the window was 0 — an immediate close cannot be undone.
                   standingGrants:
                     type: array
+                    description: >-
+                      Superseded by outlivingAccess; kept for existing callers.
+                      Covers the OAuth consents only.
                     items: { type: object }
+                  outlivingAccess:
+                    type: object
+                    description: >-
+                      Everything that keeps working after the erasure, in both
+                      languages: the consents sitting in the customer's provider
+                      consoles AND the app passwords sitting in their own
+                      accounts. Credentials come first — a consent is a
+                      permission sitting unused, a live app password is a
+                      working way in.
+                    properties:
+                      en: { type: array, items: { type: object } }
+                      nl: { type: array, items: { type: object } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }

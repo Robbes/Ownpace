@@ -19,7 +19,12 @@
  * unit tests without a database.
  */
 
-import { standingGrantsFor, type StandingGrant } from './standing-grants';
+import {
+  standingGrantsFor,
+  accessThatOutlivesErasure,
+  type StandingGrant,
+  type OutlivingAccess,
+} from './standing-grants';
 import type { DomainStatusReport } from './operating-contract';
 import type { ItemDeletion, ItemFailure, ItemMove } from './ports';
 
@@ -125,6 +130,15 @@ export interface CompletionReport {
    * rather than an empty heading.
    */
   readonly standingGrants: ReadonlyArray<StandingGrant>;
+  /**
+   * Consents AND credentials that keep working now the migration is over.
+   *
+   * Supersedes `standingGrants`, which covers only the consents. The app
+   * password somebody created for an IMAP or Nextcloud account is the same
+   * kind of problem — access that outlives us and only they can end — and
+   * leaving it out was the gap the owner named (2026-08-18).
+   */
+  readonly outlivingAccess: ReadonlyArray<OutlivingAccess>;
 }
 
 /** Assemble the report. Pure — same inputs, same document, either edition. */
@@ -152,6 +166,7 @@ export function buildCompletionReport(inputs: CompletionReportInputs): Completio
     mappingId: inputs.mappingId,
     ...(inputs.name ? { name: inputs.name } : {}),
     standingGrants: standingGrantsFor([inputs.sourceType, inputs.targetType]),
+    outlivingAccess: accessThatOutlivesErasure([inputs.sourceType, inputs.targetType], 'en'),
     sourceType: inputs.sourceType,
     targetType: inputs.targetType,
     lifecycle: inputs.lifecycle,
@@ -271,20 +286,39 @@ export function renderCompletionReportMarkdown(report: CompletionReport): string
   // The last section on purpose. Everything above is what happened; this is the
   // one thing still outstanding, and it is outstanding on the READER's side —
   // so it is what they should be looking at when they stop reading.
-  if (report.standingGrants.length > 0) {
+  if (report.outlivingAccess.length > 0) {
     lines.push('');
     lines.push('## Access you granted, which only you can withdraw');
     lines.push('');
     lines.push(
-      'This migration is finished and we have stopped using the access it needed. The ' +
-        'permission you granted is a separate thing, it lives in your own account, and it ' +
+      'This migration is finished and we have stopped using the access it needed. What you ' +
+        'granted is a separate thing: it lives in your own accounts, it still works, and it ' +
         'stays there until you remove it. We cannot do this for you — we can only tell you ' +
         'it is still there.',
     );
-    for (const grant of report.standingGrants) {
+    const credentials = report.outlivingAccess.filter((a) => a.category === 'credential');
+    const consents = report.outlivingAccess.filter((a) => a.category === 'consent');
+
+    // Credentials first, and labelled as passwords rather than permissions. A
+    // consent is a permission sitting unused; a live app password is a working
+    // way in, and if somebody reads one heading and stops, it should be this.
+    if (credentials.length > 0) {
       lines.push('');
-      lines.push(`- **${grant.whatTheyCallIt}** — ${grant.en}`);
-      lines.push(`  Where: ${grant.where}`);
+      lines.push('### Passwords that still work');
+      for (const item of credentials) {
+        lines.push('');
+        lines.push(`- **${item.heading}** — ${item.body}`);
+        lines.push(`  Where: ${item.where}`);
+      }
+    }
+    if (consents.length > 0) {
+      lines.push('');
+      lines.push('### Permissions you granted');
+      for (const item of consents) {
+        lines.push('');
+        lines.push(`- **${item.heading}** — ${item.body}`);
+        lines.push(`  Where: ${item.where}`);
+      }
     }
   }
   lines.push('');
