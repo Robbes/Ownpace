@@ -2,7 +2,9 @@
 
 ## Status — 2026-08-18 (update this block at the end of every session)
 
-**Built 2026-08-18, and never yet run.** T1–T5 and T7 are in
+**Built 2026-08-18. First two hand-triggered runs, same day, both failed
+before the stack ever came up** (see below) — genuinely never yet exercised
+past its own precondition check. T1–T5 and T7 are in
 `.github/workflows/e2e-managed.yml`; T6 was **withdrawn** on a finding that
 changed the design (below). No Docker in the authoring session, so its first
 firing on the Spark is its first real run.
@@ -26,6 +28,40 @@ runs that script** rather than an inline copy of the order. 0087 also fixed two
 latent bugs this workflow carried: its seed step depended on the runner's
 ambient environment, and `setup-auth.sql`'s header documented a flag the SQL
 does not read.
+
+## The first two runs, and what they found (2026-08-18)
+
+Hand-triggered twice, hours apart, on different commits — the second run
+came *after* the managed stack had been fully rebuilt, verified, and proven
+executing tasks cleanly by hand. Both failed at the exact same step:
+`Refuse early if the one-time setup was never done`, both naming a missing
+`deploy/compose/.env`.
+
+**Neither is a defect in the stack.** The job log (`get_job_logs`, not
+guessed) showed the checkout at
+`/home/robbes/infra/gha-runner-openmig/_work/open-migrate/open-migrate` —
+a different directory from wherever the manual bring-up happened all day.
+A self-hosted runner does not share a working directory with a human's own
+clone just because it is the same machine.
+
+**And it would have kept failing even after a manual fix**, which is the
+real finding: `actions/checkout` defaults to `clean: true` (`git clean
+-ffdx` before every checkout), which destroys gitignored files — `.env`
+among them — at the start of every single run. A one-time setup placed by
+hand in the runner's checkout does not survive to the next run.
+
+Fixed by moving the one-time setup **outside** any checkout: a `Restore`
+step now copies `.env` and `userlist.txt` in from a fixed persist directory
+before the refuse-early check runs, and the refusal message names the exact
+two commands to seed that directory. Because `managed.yml` pins its project
+name, the containers a manual bring-up already created are the same
+containers CI would manage — so seeding the persist directory from an
+already-working `.env` is a copy, not a second bring-up.
+
+**Still open, and the actual next step for this workplan:** the owner has
+not yet seeded `MANAGED_ENV_PERSIST_DIR` on the runner. The very next
+trigger — hand-run or the next scheduled 05:30 UTC firing — is the workflow's
+first real attempt at the stack itself.
 
 ## What this is
 

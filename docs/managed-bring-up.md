@@ -380,6 +380,43 @@ it.
 
 ---
 
+## The CI runner is a different checkout from wherever you did this by hand
+
+If you brought the stack up manually — following this document, on this same
+machine — **that checkout and the CI runner's checkout are not the same
+directory**, even on a self-hosted runner. `actions/checkout` clones into its
+own workspace (typically `<runner>/_work/<repo>/<repo>`), and `deploy/compose/.env`
+in your manual clone does nothing for a workflow running from there.
+
+Worse: `actions/checkout` defaults to `clean: true`, which runs `git clean
+-ffdx` before every checkout — the `-x` reaches gitignored files, `.env`
+among them. So even hand-placing `.env` in the runner's checkout once does
+not survive the *next* run. `e2e-managed.yml` now works around this by
+persisting the one-time setup **outside** any checkout — at
+`$MANAGED_ENV_PERSIST_DIR` (default `~/.persistent/open-migrate-managed` on
+the runner, overridable as a repository variable) — and restoring it into
+the checkout at the start of every run, before the refuse-early check.
+
+**Because `docker compose -f deploy/compose/managed.yml` pins its project
+name, the containers are the same regardless of which checkout ran the
+command that created them.** So if you already have a working manual stack,
+the one-time setup for CI is not a second bring-up — it is copying your
+already-correct `.env` into the persist directory:
+
+```bash
+mkdir -p ~/.persistent/open-migrate-managed
+cp deploy/compose/.env ~/.persistent/open-migrate-managed/.env
+cp deploy/compose/pgbouncer/userlist.txt ~/.persistent/open-migrate-managed/userlist.txt
+```
+
+**Do not run a fresh `bootstrap-managed.sh` or `ensure-env-secrets.sh` in the
+CI checkout to "set it up independently.**" It would generate different
+random secrets for the *same*, pinned-name containers your manual checkout
+is already using — the same class of outage as rotating
+`TRIGGER_ENCRYPTION_KEY` without a plan, self-inflicted on a stack that was
+just proven working. Reuse what already works; only generate fresh secrets
+when there is no working stack yet at all.
+
 ## When it goes wrong
 
 | What you see | What it is | What to do |
