@@ -203,3 +203,64 @@ describe("the header and the code agree", () => {
     expect(smoke).toContain("no runner at all");
   });
 });
+
+describe("the refusal says WHICH way there is nothing to act on", () => {
+  // Three states hid behind one paragraph: no items at all, items but none
+  // copied, copied but with no target handle. They have entirely different
+  // fixes, and telling them apart meant querying the box by hand — which
+  // across runs #7, #8 and #9 is exactly what it cost.
+  const block = smoke.match(
+    / {2}echo "what IS on this mapping:"[\s\S]*?\n {2}fi\n/,
+  )?.[0];
+
+  /** Drive the real branch with a `q` that answers as a given ledger would. */
+  function diagnose(total: string, copied: string, breakdown = "") {
+    const q = `q() { case "$1" in
+      *"count(*) FROM item"*"status='copied'"*) echo "${copied}" ;;
+      *"count(*) FROM item"*) echo "${total}" ;;
+      *) printf '%s' "${breakdown}" ;;
+    esac; }`;
+    return execFileSync(
+      "bash",
+      [
+        "-c",
+        `set -u\nAPPLY_TENANT=t\nAPPLY_MAPPING=m\nDB_CONTAINER=db\n${q}\n${block}`,
+      ],
+      { encoding: "utf8" },
+    );
+  }
+
+  it("is extractable — the branch still exists to test", () => {
+    expect(block).toBeDefined();
+  });
+
+  it("no items at all names the empty demo, and the script that fills it", () => {
+    const out = diagnose("0", "0");
+    expect(out).toContain("no items at all");
+    expect(out).toContain("seed-demo-dav-content.sh");
+    expect(out).not.toContain("product fault");
+  });
+
+  it("items but none copied names a product fault, not a fixture", () => {
+    const out = diagnose("6", "0", "calendar|pending|6|0");
+    expect(out).toContain("NONE is 'copied'");
+    expect(out).toContain("product fault");
+    // Points at the run log, because that is where a stalled copy explains itself.
+    expect(out).toContain("run_event");
+    expect(out).not.toContain("seed-demo-dav-content.sh");
+  });
+
+  it("copied without a target id is called a ledger-write bug", () => {
+    const out = diagnose("6", "6", "calendar|copied|6|0");
+    expect(out).toContain("none carries a target_ref id");
+    expect(out).toContain("bug in the sync's ledger write");
+    expect(out).not.toContain("seed-demo-dav-content.sh");
+  });
+
+  it("always prints the actual breakdown, whichever state it is", () => {
+    expect(diagnose("6", "0", "calendar|pending|6|0")).toContain(
+      "calendar|pending|6|0",
+    );
+    expect(diagnose("0", "0")).toContain("(total 0, copied 0)");
+  });
+});
