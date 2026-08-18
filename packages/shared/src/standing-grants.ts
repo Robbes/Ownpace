@@ -44,8 +44,23 @@ import type { RefusalLocale } from './credential-refusals';
 
 /** Where a standing grant lives, and what it is called there. */
 export interface StandingGrant {
-  /** The `connection.kind` this applies to. */
-  readonly kind: string;
+  /** A stable handle for this grant, for tests and for switching on. */
+  readonly id: string;
+  /**
+   * Every identifier that implies this grant — in BOTH vocabularies.
+   *
+   * This product names providers two ways and they do not line up: a stored
+   * `connection.kind` (`o365`, `google_drive`, …, with underscores) and a
+   * wizard source type (`graph`, `oauth2`, `google-drive`, …, with hyphens).
+   * One grant is implied by several of each — every Google connector shares a
+   * single account authorization, and both `graph` and `oauth2` are the same
+   * Entra app consent.
+   *
+   * Keying on one vocabulary would have made the reminder **silently never
+   * fire** for callers holding the other, which is the worst failure available
+   * here: the customer is told nothing, and nothing looks wrong.
+   */
+  readonly impliedBy: readonly string[];
   /** What the provider calls the thing to remove. Rendered verbatim — it is a label on their screen. */
   readonly whatTheyCallIt: string;
   /** Where to go. A URL when the provider has a stable one; otherwise a path through their UI. */
@@ -64,7 +79,10 @@ export interface StandingGrant {
  */
 const GRANTS: readonly StandingGrant[] = [
   {
-    kind: 'o365',
+    id: 'microsoft',
+    // `o365` is the stored kind; `graph` and `oauth2` are the wizard types for
+    // the same Entra app registration (0074 T1: `oauth2` means Entra ID).
+    impliedBy: ['o365', 'graph', 'oauth2'],
     whatTheyCallIt: 'Enterprise applications → Permissions',
     where: 'https://entra.microsoft.com → Identity → Applications → Enterprise applications',
     en:
@@ -77,7 +95,17 @@ const GRANTS: readonly StandingGrant[] = [
       'permanente machtiging om de betrokken postbussen te lezen, of iemand die nu gebruikt of niet.',
   },
   {
-    kind: 'gmail',
+    id: 'google',
+    // One Google account authorization covers every Google connector.
+    impliedBy: [
+      'gmail',
+      'google_drive',
+      'google_calendar',
+      'google_contacts',
+      'google-drive',
+      'google-calendar',
+      'google-contacts',
+    ],
     whatTheyCallIt: 'Third-party apps with account access',
     where: 'https://myaccount.google.com/permissions',
     en:
@@ -89,7 +117,8 @@ const GRANTS: readonly StandingGrant[] = [
       'haalt de machtiging zelf weg.',
   },
   {
-    kind: 'dropbox',
+    id: 'dropbox',
+    impliedBy: ['dropbox'],
     whatTheyCallIt: 'Connected apps',
     where: 'https://www.dropbox.com/account/connected_apps',
     en:
@@ -99,7 +128,8 @@ const GRANTS: readonly StandingGrant[] = [
       'daar ontkoppelt.',
   },
   {
-    kind: 'box',
+    id: 'box',
+    impliedBy: ['box'],
     whatTheyCallIt: 'Admin Console → Apps → Custom Apps Manager',
     where: 'https://app.box.com/master/custom-apps',
     en:
@@ -111,20 +141,32 @@ const GRANTS: readonly StandingGrant[] = [
   },
 ];
 
-/** The standing grants for a set of connection kinds, deduplicated, in a stable order. */
-export function standingGrantsFor(kinds: Iterable<string>): readonly StandingGrant[] {
-  const wanted = new Set(kinds);
-  return GRANTS.filter((g) => wanted.has(g.kind));
+/**
+ * The standing grants implied by a set of provider identifiers.
+ *
+ * Accepts either vocabulary — stored `connection.kind` or wizard source type —
+ * and deduplicates, so a tenant using Gmail, Google Drive and Google Calendar
+ * is reminded once about one Google authorization rather than three times about
+ * the same page.
+ */
+export function standingGrantsFor(identifiers: Iterable<string>): readonly StandingGrant[] {
+  const wanted = new Set(identifiers);
+  return GRANTS.filter((g) => g.impliedBy.some((id) => wanted.has(id)));
 }
 
-/** True when a kind leaves a grant behind that only the customer can remove. */
-export function leavesAStandingGrant(kind: string): boolean {
-  return GRANTS.some((g) => g.kind === kind);
+/** True when an identifier leaves a grant behind that only the customer can remove. */
+export function leavesAStandingGrant(identifier: string): boolean {
+  return GRANTS.some((g) => g.impliedBy.includes(identifier));
 }
 
-/** Every kind this module knows about — for the coverage lock in the tests. */
-export function kindsWithStandingGrants(): readonly string[] {
-  return GRANTS.map((g) => g.kind);
+/** Every grant this module knows about — for the coverage lock in the tests. */
+export function grantIds(): readonly string[] {
+  return GRANTS.map((g) => g.id);
+}
+
+/** Every identifier that implies some grant, both vocabularies. */
+export function identifiersWithStandingGrants(): readonly string[] {
+  return GRANTS.flatMap((g) => [...g.impliedBy]);
 }
 
 /**
