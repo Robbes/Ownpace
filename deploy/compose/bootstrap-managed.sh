@@ -318,6 +318,23 @@ phase_data() {
     exit 1
   fi
 
+  # RECREATE A POOLER THAT IS RUNNING BUT UNHEALTHY, rather than waiting on it.
+  #
+  # pgbouncer.ini is a bind mount and PgBouncer reads it once, at start-up. So
+  # after a `git pull` that fixes the config, plain `up -d` does NOTHING: compose
+  # sees an existing container whose spec has not changed, leaves it alone, and
+  # waits on the same unhealthy process still running the OLD file. The fix
+  # looks like it did not work, and the log shows the same error it showed
+  # before — which is exactly what happened on the Spark, 2026-08-18, and cost a
+  # round trip.
+  #
+  # Only when it is unhealthy: a pooler that is serving is left alone, because
+  # recreating it drops every client connection for no reason.
+  if [ "$("${COMPOSE[@]}" ps --format '{{.Health}}' pgbouncer 2>/dev/null | tail -1)" = "unhealthy" ]; then
+    note "pgbouncer is running but unhealthy — recreating it so it re-reads pgbouncer.ini"
+    "${COMPOSE[@]}" up -d --force-recreate --no-deps pgbouncer >/dev/null
+  fi
+
   up_wait pgbouncer
   note "pgbouncer healthy, in transaction mode (auth_query in ${configured_db})"
 
