@@ -37,6 +37,32 @@
 # dashboard value silently winning over a rotated .env is exactly the failure
 # mode T6 exists to end.
 #
+# BUT `override: true` SKIPS A VALUE WHOSE PLAINTEXT HAS NOT CHANGED, and that
+# is not a detail. After TRIGGER_ENCRYPTION_KEY is rotated, every stored secret
+# has to be RE-ENCRYPTED — which means re-written — and a variable whose value
+# happens to be identical is quietly left on the old key.
+#
+# On the reference box (2026-08-18) that was exactly one variable:
+# SECRET_ENCRYPTION_KEY, whose plaintext had not changed while the three
+# database URLs had. This script reported "upload OK" listing all four. The
+# store then held three readable secrets and one unreadable one, and every run
+# died inside `startRunAttempt` for the rest of the afternoon:
+#
+#   Error: Unsupported state or unable to authenticate data
+#     at PrismaSecretStore.getSecrets
+#
+# surfacing to the operator as the supervisor looping on "Snapshot changed
+# inside startRunAttempt". A message about snapshots, caused by one skipped
+# write.
+#
+# Hence FORCE_REWRITE below: after a key rotation, run
+#
+#   SET_TASK_ENV_FORCE_REWRITE=1 ./deploy/compose/set-task-env.sh
+#
+# which writes a throwaway value first so that the real write cannot be
+# skipped. Off by default — it doubles the round trips, and is only needed when
+# the encryption key beneath the store has moved.
+#
 # Requirements: .env populated (TRIGGER_PROJECT_REF + TRIGGER_SECRET_KEY come
 # from the one-time dashboard setup — deploy-tasks.sh's header documents it),
 # and `pnpm install` done (uses apps/worker's own @trigger.dev/sdk).
@@ -131,6 +157,7 @@ TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
   NOTIFY_FROM="${NOTIFY_FROM:-}" \
   NOTIFY_TO="${NOTIFY_TO:-}" \
   NOTIFY_LOCALE="${NOTIFY_LOCALE:-}" \
+  FORCE_REWRITE="${SET_TASK_ENV_FORCE_REWRITE:-0}" \
   node -e '
 const { envvars } = require("@trigger.dev/sdk");
 (async () => {
@@ -154,6 +181,17 @@ const { envvars } = require("@trigger.dev/sdk");
   ]) {
     const value = process.env[name];
     if (value) variables[name] = value;
+  }
+  // See FORCE_REWRITE in the header of this file. `override: true` skips a value
+  // whose plaintext is unchanged, which after a key rotation leaves it
+  // encrypted under the discarded key. Writing a throwaway first makes the
+  // real write a genuine change, so it cannot be skipped.
+  if (process.env.FORCE_REWRITE === "1") {
+    const throwaway = Object.fromEntries(
+      Object.keys(variables).map((k) => [k, "forcing-a-rewrite-under-the-current-key"])
+    );
+    await envvars.upload(ref, slug, { variables: throwaway, override: true });
+    console.log("[set-task-env] forced a rewrite of", Object.keys(throwaway).length, "variables");
   }
   await envvars.upload(ref, slug, { variables, override: true });
   const list = await envvars.list(ref, slug);

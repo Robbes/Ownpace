@@ -483,10 +483,25 @@ which the supervisor reports as `Snapshot changed inside startRunAttempt` —
 a message about snapshots with nothing in it about keys. Runs pile up
 `EXECUTING`, retry containers accumulate, and nothing reaches a task body.
 
-**Re-running `set-task-env.sh` does not cure it.** That re-encrypts the four
-variables this repository owns; the store holds more. The result is a *mixed*
-store, where neither the old key nor the new one decrypts everything — so
-putting the old key back is not a clean undo either.
+**Re-running `set-task-env.sh` alone does not cure it**, and the reason is
+worth knowing: `envvars.upload(..., { override: true })` **skips a value whose
+plaintext has not changed.** Re-encryption requires a re-write, so any variable
+whose value happens to be identical is quietly left on the old key — while the
+script reports success and lists it among the uploaded names.
+
+On the reference box that was exactly one variable out of four:
+`SECRET_ENCRYPTION_KEY`, whose value had not changed while the three database
+URLs had. Three readable secrets, one unreadable, every run dead.
+
+Use the force flag, which writes a throwaway value first so the real write
+cannot be skipped:
+
+```bash
+SET_TASK_ENV_FORCE_REWRITE=1 ./deploy/compose/set-task-env.sh
+```
+
+To repair one variable by hand, upload any different value for it and then run
+`set-task-env.sh` normally — the same trick, done twice.
 
 The order that works:
 
@@ -495,8 +510,11 @@ The order that works:
    re-creatable, or you cannot rotate without losing it.
 2. Drain the queue (nothing in `EXECUTING`) and stop the schedule.
 3. Rotate the key, recreate `trigger-api` and `trigger-supervisor`.
-4. Delete the now-undecryptable rows and recreate them: `set-task-env.sh` for
-   the task environment, and by hand for anything else step 1 found.
+4. Re-write every stored secret under the new key —
+   `SET_TASK_ENV_FORCE_REWRITE=1 ./deploy/compose/set-task-env.sh` for the task
+   environment, and by hand for anything else step 1 found. Then check
+   `SELECT key, "updatedAt" FROM "SecretStore"`: **every** row must show a
+   timestamp after the rotation. One that does not is one dead run away.
 5. Redeploy the tasks and watch the first runs reach a terminal state.
 
 **On a stack whose Trigger.dev data is disposable — which a reference or demo
