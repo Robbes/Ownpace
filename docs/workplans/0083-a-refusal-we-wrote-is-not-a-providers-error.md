@@ -9,7 +9,7 @@
 | T3 the finding stays verbatim in both languages | ✅ **Built 2026-08-18** | `clientId`, `OAUTH2_CLIENT_ID`, `DROPBOX_APP_KEY` render identically in Dutch. They are the literal thing the operator must go and set; a Dutch rendering of `clientId` names a field that exists on no screen — **0071 T2's defect from the other direction**, where a refusal named a database column beside a form with no such box. Pinned per shape: every field name appears in the Dutch sentence too. |
 | T4 `message` stays the English it always was | ✅ **Built 2026-08-18** | `CredentialRefusalError.message` is byte-identical to what these factories always threw, so every log line, every existing test and every caller that only knows about `Error` is untouched — 512 orchestration/shared tests passed unchanged. The pair rides on the error rather than a locale being chosen at throw time, because the factory has no idea who reads it: a log on the Spark, a probe panel on a phone, an API response. |
 | T5 the appliance sends Dutch and logs English | ✅ **Built 2026-08-18** | A log is evidence — it gets grepped and pasted into an issue by somebody who may not read Dutch — so it stays English always. The **notification** is prose the owner reads, so a credential refusal goes out in `NOTIFY_LOCALE`. Everything that is not one of our refusals still reports verbatim, because `lastError` is a finding and the difference between a 507, a 403 and a parse error is the whole of its value. |
-| T6 the two measurements 0082 said were missing | ✅ **Built 2026-08-18** — ⚠️ the integration test has never run | The tick now reports its own duration every tick (not sampled — the interesting value is the tail) and warns above 30s of its 60s period. And `PgRateBudget` gets the contention test 0082 called *"the property that would break first"*: twelve real sessions against a bucket of eight, with a pool sized so node-postgres does not quietly queue them. ⚠️ **No Docker in this session**, so it typechecks and lints but has never executed. |
+| T6 the two measurements 0082 said were missing | ✅ **Fixed 2026-08-18** (⚠️ lifted — it ran in CI) | The tick now reports its own duration every tick (not sampled — the interesting value is the tail) and warns above 30s of its 60s period. And `PgRateBudget` gets the contention test 0082 called *"the property that would break first"*: twelve real sessions against a bucket of eight, with a pool sized so node-postgres does not quietly queue them. ~~⚠️ No Docker in this session, so it has never executed.~~ **Lifted the same day:** `integration-tests` on PR #440 passed on **both** `ubuntu-24.04` and `ubuntu-24.04-arm`, and this file cannot silently skip — the integration project's glob is `**/*.integration.test.ts`, and the file throws at module scope when `TEST_DATABASE_URL` is unset. A green job therefore means it ran, against real Postgres, on two architectures. **The caveat was about this session's environment, not about CI's**, and I did not check the difference before writing it down. |
 | T7 `rate_budget` was invisible to the ORM | ✅ **Fixed 2026-08-18** | Found while writing T6. Migration `0024` created the table and **nothing was added to `schema-pg.ts`** — `PgRateBudget` issues raw SQL, so nothing typed ever referenced it and the omission was invisible until something tried to read the balance it had just spent. A table the ORM cannot see is one nothing else can join, assert on, or notice the loss of. |
 
 ## What this is
@@ -55,7 +55,36 @@ translation anywhere; only the second survives the next screen that renders it.
 
 ## What is NOT done
 
-- The integration test in T6 has never executed (no Docker here). Its first
-  real run is the integration tier on the Spark.
 - `pg_stat_statements` on the Spark — the third of 0082's three measurements,
   and the one that is an operator action rather than a code change.
+- **PgBouncer (0082 T4) still has nothing that can verify it, and now we know
+  why.** See below.
+
+## The managed edition has no end-to-end test
+
+Found while working out what the owner's green e2e runs actually covered
+(2026-08-18). They ran the gate on both backends — Postgres and PGlite — and
+both passed, which is real coverage of the migration chain, the appliance's
+boot, and the idempotency property under everything 0082 changed.
+
+What it does **not** touch, and cannot:
+
+| | covered by the e2e gate | why not |
+|---|---|---|
+| `deploy/selfhost/compose.yml` (appliance) | ✅ both backends | — |
+| `deploy/compose/managed.yml` | ❌ never | `e2e.yml` does not reference it at all |
+| **PgBouncer** | ❌ | it only exists in `managed.yml` |
+| **`PgRateBudget`** | ❌ | reached only via `buildDepsFromMapping`, the managed deps builder; the appliance goes through `runAllDomains` → `buildDeps` |
+
+So the answer to *"why can't CI verify the pooler?"* is not "no Docker in that
+session" — it is that **the managed edition has no end-to-end gate at all.**
+The unit and integration tiers cover managed code; nothing stands the managed
+STACK up. That is a gap in the testing story rather than in any one workplan,
+and it is the reason 0082 T4 will stay owner-verified until somebody builds
+one.
+
+Not proposed as work here, because it is a real piece of infrastructure and an
+owner decision about cost — the managed stack is Trigger.dev plus Postgres plus
+Redis plus the API plus the web, and standing all of that up nightly is not
+free. Recorded so the next person asking *"is the pooler tested?"* gets the
+honest answer in one place.
