@@ -992,13 +992,7 @@ export const usageMetric = pgTable(
   'usage_metric',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    // NULL once the tenant is erased: the invoice outlives it, because tax
-    // retention outlives the customer relationship (0085).
-    tenantId: uuid('tenant_id').references(() => tenant.id, { onDelete: 'set null' }),
-    // Captured at issue time. An invoice records a moment, so a later rename
-    // must not rewrite invoices already issued — and a detached invoice has to
-    // be able to say who it was for at all.
-    billedToName: text('billed_to_name'),
+    tenantId: uuid('tenant_id').notNull().references(() => tenant.id, { onDelete: 'cascade' }),
     periodStart: text('period_start').notNull(), // Using text for date
     periodEnd: text('period_end').notNull(),
     metricType: text('metric_type', {
@@ -1026,7 +1020,13 @@ export const invoice = pgTable(
   'invoice',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    tenantId: uuid('tenant_id').notNull().references(() => tenant.id, { onDelete: 'cascade' }),
+    // NULL once the tenant is erased: the invoice outlives it, because tax
+    // retention outlives the customer relationship (0085).
+    tenantId: uuid('tenant_id').references(() => tenant.id, { onDelete: 'set null' }),
+    // Captured at issue time. An invoice records a moment, so a later rename
+    // must not rewrite invoices already issued — and a detached invoice has to
+    // be able to say who it was for at all.
+    billedToName: text('billed_to_name'),
     periodStart: text('period_start').notNull(),
     periodEnd: text('period_end').notNull(),
     status: text('status', {

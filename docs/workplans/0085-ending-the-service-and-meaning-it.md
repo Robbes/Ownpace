@@ -56,6 +56,37 @@ This needs an ADR, because it is a decision about what we deliberately keep
 about people who asked to be forgotten, and a future reader will want the
 reasoning and not just the schema.
 
+## A bug that reached CI, and the guard it bought
+
+The `billed_to_name` column was added to `schema-pg.ts` with an anchored
+replace whose anchor — `tenantId … references(…)` followed by `periodStart` —
+**matches two tables**. It landed on `usage_metric`, which is defined first;
+`invoice` was never touched.
+
+Every unit test passed. PGlite runs the real migrations, so the *database* was
+right, and nothing in the unit tier inserts into `usage_metric` through
+Drizzle. It failed in the integration tier, on a table nobody had edited.
+
+That is the worst shape available: **the two halves of one change drift, and
+the tests that would notice are the ones nobody thought to run.** The same
+anchored-replace mistake had already happened once this session (Dutch strings
+landing in the English block, 0083) and once before it (0071 T2's note about a
+replace matching the wrong occurrence). Being more careful is not a fix for a
+mistake that recurs.
+
+So `schema-matches-migrations.unit.test.ts` compares the ORM's column names
+against the migrated database's, both directions, in the unit tier. It found
+two pre-existing undeclared columns immediately — `item.item_type` and
+`connection.encrypted_credentials` — both real, both used, and both allow-listed
+**with reasons** rather than declared, because each carries a decision worth
+making on its own:
+
+- declaring `item_type` would let `recordFailure` use `ON CONFLICT DO UPDATE`
+  instead of UPDATE-then-INSERT — an improvement, and a behaviour change;
+- declaring `encrypted_credentials` would make it appear in every `select()` on
+  `connection`, and several call sites select the whole row. The failure mode is
+  credential disclosure in an API response.
+
 ## What is NOT in scope here
 
 - **Per-user erasure inside a tenant.** This is tenant-level offboarding. An
