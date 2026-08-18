@@ -25,13 +25,13 @@ const listMock = vi.mocked(mappingApi.list);
 const syncMock = vi.mocked(mappingApi.triggerSync);
 const deleteMock = vi.mocked(mappingApi.delete);
 
-const renderMappings = () => {
+const renderMappings = (path = '/mappings') => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[path]}>
         <Mappings />
       </MemoryRouter>
     </QueryClientProvider>
@@ -251,5 +251,72 @@ describe('Mappings — Delete arms with the mapping name and works (0037 T5)', (
     expect(screen.getByText('Failed to delete mapping')).toBeInTheDocument();
     // The mapping is still listed — nothing pretended to succeed.
     expect(screen.getByText('Inbox')).toBeInTheDocument();
+  });
+});
+
+
+/**
+ * `?status=` — where the dashboard's counts land (workplan 0074).
+ *
+ * The five tiles counted the lifecycle states and were plain `<div>`s. The
+ * obvious question a count raises is *which ones?*, and clicking it did
+ * nothing at all, which is the whole of the owner's report.
+ *
+ * The filter is a URL rather than component state so it survives a refresh and
+ * can be shared — and it is VISIBLE, because a list quietly showing a subset
+ * is how somebody comes to report a missing migration.
+ */
+describe('Mappings — filtering by lifecycle state (0074)', () => {
+  beforeEach(() => {
+    listMock.mockReset();
+    syncMock.mockReset();
+    deleteMock.mockReset();
+  });
+
+  const three = () => [
+    sampleMapping({ id: 'a', status: 'active', name: 'Active one' }),
+    sampleMapping({ id: 'b', status: 'paused', name: 'Paused one' }),
+    sampleMapping({ id: 'c', status: 'done', name: 'Finished one' }),
+  ];
+
+  it('shows every migration when nothing is filtered', async () => {
+    listMock.mockResolvedValue(three());
+    renderMappings();
+
+    expect(await screen.findByText('Active one')).toBeInTheDocument();
+    expect(screen.getByText('Paused one')).toBeInTheDocument();
+    expect(screen.getByText('Finished one')).toBeInTheDocument();
+  });
+
+  it('shows only the asked-for state, and SAYS that it is filtering', async () => {
+    listMock.mockResolvedValue(three());
+    renderMappings('/mappings?status=paused');
+
+    expect(await screen.findByText('Paused one')).toBeInTheDocument();
+    expect(screen.queryByText('Active one')).toBeNull();
+    expect(screen.queryByText('Finished one')).toBeNull();
+    // Visible and named — otherwise the next person reports a missing row.
+    expect(screen.getByText(/Showing only:/)).toBeInTheDocument();
+  });
+
+  it('can be cleared back to the whole list', async () => {
+    listMock.mockResolvedValue(three());
+    renderMappings('/mappings?status=paused');
+
+    fireEvent.click(await screen.findByText('Show all migrations'));
+
+    expect(await screen.findByText('Active one')).toBeInTheDocument();
+    expect(screen.queryByText(/Showing only:/)).toBeNull();
+  });
+
+  it('filters to NOTHING for a status nothing has, rather than showing everything', async () => {
+    // An empty list under a banner naming the filter is an answer. A full list
+    // under a filter that silently did not apply is a lie.
+    listMock.mockResolvedValue(three());
+    renderMappings('/mappings?status=cutover');
+
+    expect(await screen.findByText(/Showing only:/)).toBeInTheDocument();
+    expect(screen.queryByText('Active one')).toBeNull();
+    expect(screen.queryByText('Paused one')).toBeNull();
   });
 });

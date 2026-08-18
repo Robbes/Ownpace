@@ -194,6 +194,9 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
             // way, and looking one up by kind answers an empty checklist that
             // reads as "nothing to set up" (workplan 0065).
             to={`/setup/${connection.role}/${wizardTypeForConnectionKind(connection.kind)}`}
+            // Say where this link came FROM, so the checklist's back link
+            // returns here instead of to a wizard nobody opened (0074).
+            state={{ from: '/connections' }}
             className="text-sm text-blue-700 hover:underline"
           >
             {t('connections.setupSteps')}

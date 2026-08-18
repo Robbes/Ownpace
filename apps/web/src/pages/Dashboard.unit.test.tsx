@@ -87,6 +87,34 @@ describe('Dashboard', () => {
     expect(screen.getByText('5')).toBeInTheDocument(); // total
   });
 
+  /**
+   * A count is a question, and the tile has to answer it (workplan 0074).
+   *
+   * The five tiles counted the lifecycle states and were plain `<div>`s. The
+   * owner asked the obvious thing — *I can't click those, why not?* — because
+   * the only interesting follow-up to "3 paused" is "which three", and the
+   * screen had no way to say. Each tile is now the filtered list it counts.
+   */
+  it('each tile leads to the list it is counting (0074)', async () => {
+    listMock.mockResolvedValue([
+      sampleMapping({ id: 'a', status: 'active' }),
+      sampleMapping({ id: 'b', status: 'paused' }),
+    ]);
+
+    renderDashboard();
+
+    const href = (label: string) =>
+      screen.getByText(label).closest('a')!.getAttribute('href');
+
+    expect(await screen.findByText('Total Migrations')).toBeInTheDocument();
+    // Total goes to the unfiltered list — every other tile is a subset of it.
+    expect(href('Total Migrations')).toBe('/mappings');
+    expect(href('Active')).toBe('/mappings?status=active');
+    expect(href('Paused')).toBe('/mappings?status=paused');
+    expect(href('In cutover')).toBe('/mappings?status=cutover');
+    expect(href('Done')).toBe('/mappings?status=done');
+  });
+
   it('Recent Activity is REAL run history: a failed run in the ledger is visibly failed (0033 T4)', async () => {
     listMock.mockResolvedValue([
       sampleMapping({ id: 'a', name: 'Acme mail', lastSyncAt: '2026-08-09T10:00:00Z' }),

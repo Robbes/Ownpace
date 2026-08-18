@@ -451,6 +451,8 @@ const en = {
   'docs.notFound': 'There is no guide by that name. These are the ones that ship with this version:',
   'mappings.lastSync': 'Last sync:',
   'mappings.never': 'Never',
+  'mappings.filtered.lead': 'Showing only:',
+  'mappings.filtered.clear': 'Show all migrations',
   'mappings.loadFailed': 'Could not load the migrations list.',
   'mappings.loadFailedNotEmpty':
     'This is not the same as having no migrations — mappings may exist that could not be read.',
@@ -804,6 +806,7 @@ const en = {
   'setup.intro':
     'These steps happen in the provider\u2019s own console, not here. Tick each one off as you go — this list is saved for your whole organisation, so you can stop and come back, and a colleague can pick up where you left off.',
   'setup.backToWizard': '← Back to the migration wizard',
+  'setup.backToConnections': '← Back to connections',
   'setup.fullGuide': 'Read the full setup guide',
   'setup.settled': 'settled',
   'setup.stillOpen': 'still to do',
@@ -1342,6 +1345,8 @@ const nl: Record<keyof typeof en, string> = {
   'docs.notFound': 'Er is geen handleiding met die naam. Dit zijn de handleidingen die bij deze versie horen:',
   'mappings.lastSync': 'Laatste synchronisatie:',
   'mappings.never': 'Nooit',
+  'mappings.filtered.lead': 'Alleen zichtbaar:',
+  'mappings.filtered.clear': 'Toon alle migraties',
   'mappings.loadFailed': 'De migratielijst kon niet worden geladen.',
   'mappings.loadFailedNotEmpty':
     'Dit is niet hetzelfde als geen migraties — er kunnen migraties bestaan die niet gelezen konden worden.',
@@ -1680,6 +1685,7 @@ const nl: Record<keyof typeof en, string> = {
   'setup.intro':
     'Deze stappen doet u in de console van de aanbieder zelf, niet hier. Vink ze af terwijl u bezig bent — deze lijst wordt bewaard voor uw hele organisatie, dus u kunt stoppen en later verdergaan, en een collega kan het overnemen.',
   'setup.backToWizard': '← Terug naar de migratiewizard',
+  'setup.backToConnections': '← Terug naar verbindingen',
   'setup.fullGuide': 'Lees de volledige handleiding',
   'setup.settled': 'afgehandeld',
   'setup.stillOpen': 'nog te doen',

@@ -23,11 +23,11 @@
  */
 
 import React from 'react';
-import { useParams, Link } from 'react-router';
+import { useParams, useLocation, Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, CircleDashed, SkipForward, UserCog } from 'lucide-react';
 import { setupApi, type SetupChecklist, type SetupStepStatusDto } from '../services/mapping-service';
-import { providersWithSetup } from '@openmig/shared';
+import { providersWithSetup, providerDisplayName } from '@openmig/shared';
 import { useT, useFormatters, type StringKey } from '../i18n';
 import { serverMessage } from '../services/api';
 
@@ -146,7 +146,9 @@ const ProviderChooser: React.FC = () => {
                 to={`/setup/${side}/${p}`}
                 className="border border-gray-200 rounded-lg px-4 py-3 hover:border-gray-300 hover:bg-gray-50 text-gray-900"
               >
-                {p}
+                {/* The provider's own name, not the wizard's key: nobody can
+                    guess `oauth2` means Entra ID (workplan 0074). */}
+                {providerDisplayName(p)}
               </Link>
             ))}
           </div>
@@ -185,6 +187,12 @@ function useAdminAnswer(side: string, provider: string) {
 const Setup: React.FC = () => {
   const t = useT();
   const { side, provider } = useParams<{ side: string; provider: string }>();
+  const location = useLocation();
+  const cameFrom = (location.state as { from?: string } | null)?.from;
+  const backTo: { to: string; labelKey: StringKey } =
+    cameFrom === '/connections'
+      ? { to: '/connections', labelKey: 'setup.backToConnections' }
+      : { to: '/mappings/new', labelKey: 'setup.backToWizard' };
   const queryClient = useQueryClient();
   const [busyKey, setBusyKey] = React.useState<string | null>(null);
 
@@ -220,8 +228,14 @@ const Setup: React.FC = () => {
   return (
     <div className="p-6 max-w-3xl">
       <div className="flex flex-wrap gap-4">
-        <Link to="/mappings/new" className="text-sm text-blue-700 hover:underline">
-          {t('setup.backToWizard')}
+        {/* Back to where you actually came FROM (workplan 0074). This was a
+            hardcoded link to the wizard, so reaching the checklist from
+            Connections — which links here by design since 0065 — sent you
+            somewhere you had never been. The linking screen says where it is;
+            the wizard stays the default for a direct URL, because that is
+            where most people arrive from. */}
+        <Link to={backTo.to} className="text-sm text-blue-700 hover:underline">
+          {t(backTo.labelKey)}
         </Link>
         {/* The long-form guide, in the app rather than as a filename nobody
             in a browser can open (workplan 0063). */}
@@ -231,7 +245,7 @@ const Setup: React.FC = () => {
       </div>
 
       <h2 className="mt-2 text-xl font-semibold text-gray-900">
-        {t('setup.title')} — {data.provider}
+        {t('setup.title')} — {providerDisplayName(data.provider)}
       </h2>
 
       {data.steps.length === 0 ? (
@@ -267,7 +281,7 @@ const Setup: React.FC = () => {
               everyone all seven made the page look like more work than it is. */}
           <div className="mt-4 border border-gray-200 rounded-lg p-4">
             <p className="text-sm font-medium text-gray-900">
-              {t('setup.admin.question')} — {data.provider}
+              {t('setup.admin.question')} — {providerDisplayName(data.provider)}
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {(['yes', 'no', 'unknown'] as const).map((a) => (

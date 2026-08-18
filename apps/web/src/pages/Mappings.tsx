@@ -1,6 +1,6 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import React from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import {
   FolderGit2,
@@ -15,16 +15,35 @@ import {
 import { mappingApi } from '../services/mapping-service';
 import { serverMessage } from '../services/api';
 import StateChip from '../components/StateChip';
-import { useT, useFormatters } from '../i18n';
+import { useT, useFormatters, type StringKey } from '../i18n';
 
 const Mappings: React.FC = () => {
   const t = useT();
   const navigate = useNavigate();
   const { relativeToNow } = useFormatters();
-  const { data: mappings, isLoading, error, refetch } = useQuery({
+  const { data: allMappings, isLoading, error, refetch } = useQuery({
     queryKey: ['mappings'],
     queryFn: mappingApi.list,
   });
+
+  /**
+   * `?status=` — where the dashboard's counts LAND (workplan 0074).
+   *
+   * The five tiles counted the lifecycle states and were plain `<div>`s: the
+   * obvious question a count raises is *which ones?*, and clicking it did
+   * nothing. Filtering here rather than on the tile keeps one list with one
+   * set of row actions, and makes the filter a URL somebody can share or
+   * bookmark instead of component state that dies on a refresh.
+   *
+   * An unknown status filters to nothing rather than silently showing
+   * everything — an empty list under a banner naming the filter is an answer;
+   * a full list under a filter that did not apply is a lie.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const statusFilter = searchParams.get('status');
+  const mappings = statusFilter
+    ? allMappings?.filter((m) => m.status === statusFilter)
+    : allMappings;
 
   // Per-row sync outcome (0033 T3). The old handleSync caught failures with
   // console.error only — the operator who clicked saw nothing. A refusal now
@@ -97,6 +116,23 @@ const Mappings: React.FC = () => {
           {t('mappings.new')}
         </Link>
       </div>
+
+      {/* A filter has to be VISIBLE and reversible, or the next person to open
+          this link reports a missing migration (0074). */}
+      {statusFilter && error == null && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
+          <span className="text-blue-900">
+            {t('mappings.filtered.lead')} {t(`state.lifecycle.${statusFilter}` as StringKey)}
+          </span>
+          <button
+            type="button"
+            onClick={() => setSearchParams({})}
+            className="text-blue-700 underline hover:no-underline"
+          >
+            {t('mappings.filtered.clear')}
+          </button>
+        </div>
+      )}
 
       {/* Failed read ≠ empty list (hard rule 9 / 0033 T2). Before this branch
           existed, a failed fetch fell through `mappings?.length === 0`

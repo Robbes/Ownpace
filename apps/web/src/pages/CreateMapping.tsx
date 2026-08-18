@@ -1381,6 +1381,7 @@ const CreateMapping: React.FC = () => {
             <p className="mt-3">
               <Link
                 to={`/setup/source/${formData.sourceType}`}
+                state={{ from: '/mappings/new' }}
                 className="text-sm text-blue-700 hover:underline"
               >
                 {t('setup.openChecklist')}

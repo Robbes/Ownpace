@@ -192,3 +192,56 @@ export function wizardTypeForConnectionKind(kind: string): string {
       return kind;
   }
 }
+
+/**
+ * What to CALL a provider on screen (workplan 0074).
+ *
+ * The setup checklist rendered the wizard type itself — `oauth2` — as its
+ * heading and in its provider chooser, and the owner asked the right question:
+ * *how should a user guess that is for Entra ID?* They should not have to. A
+ * type is a key the code agrees on; a name is what the person came in knowing.
+ *
+ * It lives beside the field descriptor rather than in the web dictionary for
+ * the reason the descriptor lives here at all: these are the vocabulary of the
+ * PROVIDER, not our copy, so they are identical in every language and must not
+ * drift between the doors that show them. `providerDisplayNamesCoverEveryType`
+ * pins that a type without a name fails loudly rather than rendering a key.
+ *
+ * The Microsoft pair is deliberately named for the product an admin buys, with
+ * the protocol kept in parentheses: `oauth2` and `graph` differ by transport,
+ * and nobody arrives thinking "I need the OAuth2 one".
+ */
+const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
+  imap: 'IMAP',
+  oauth2: 'Microsoft 365 (OAuth2)',
+  graph: 'Microsoft 365 (Microsoft Graph)',
+  'google-drive': 'Google Drive',
+  gmail: 'Gmail',
+  'google-calendar': 'Google Calendar',
+  'google-contacts': 'Google Contacts',
+  dropbox: 'Dropbox',
+  box: 'Box',
+  jmap: 'JMAP',
+  caldav: 'CalDAV',
+  carddav: 'CardDAV',
+  webdav: 'WebDAV',
+};
+
+/**
+ * The provider's name, or the type itself when nothing names it — shown as
+ * itself rather than blanked, on the same principle as an unlabelled field
+ * key: a gap you can see is a bug report, a gap you cannot is a mystery.
+ */
+export function providerDisplayName(type: string): string {
+  return PROVIDER_DISPLAY_NAMES[type] ?? type;
+}
+
+/** Every type this product connects to, for the coverage lock. */
+export function typesNeedingDisplayNames(): ReadonlyArray<string> {
+  return [...new Set([...connectableTypes('source'), ...connectableTypes('target')])];
+}
+
+/** Whether every connectable type has a real name. Used by the lock test. */
+export function providerDisplayNamesCoverEveryType(): ReadonlyArray<string> {
+  return typesNeedingDisplayNames().filter((t) => !(t in PROVIDER_DISPLAY_NAMES));
+}
