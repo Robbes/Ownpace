@@ -67,6 +67,37 @@ echo "[deploy-tasks] CLI/SDK version: ${CLI_VERSION}  instance: ${TRIGGER_URL}  
 
 : "${TRIGGER_PROJECT_REF:?Set TRIGGER_PROJECT_REF in deploy/compose/.env — the proj_… ref from the dashboard project settings}"
 
+# The CLI version and the INSTALLED SDK must be the same, or the deploy stops
+# and asks a question.
+#
+# CLI_VERSION above comes from apps/worker/package.json. The CLI compares
+# itself against what is actually in node_modules, and on a mismatch it prints
+# "Would you like to apply those updates?" and WAITS. Observed live on the
+# Spark, 2026-08-18: package.json pinned 4.5.11, node_modules still held 4.5.9
+# from before the bump, and a scripted deploy turned into an interactive one.
+#
+# That is the same class of failure as the `npx -y` lesson below — a prompt
+# nobody is there to answer — and it is worse in CI, where there is no terminal
+# to answer it from and the nightly would sit on it.
+#
+# Refused rather than suppressed: the condition is a stale install, and the fix
+# is to install. Suppressing the prompt would deploy an image built against one
+# SDK from a checkout pinning another, which is the drift 0018 T0 exists to
+# prevent.
+INSTALLED_SDK="$(node -p "require('${REPO_ROOT}/apps/worker/node_modules/@trigger.dev/sdk/package.json').version" 2>/dev/null || echo '')"
+if [ -z "$INSTALLED_SDK" ]; then
+  echo "[deploy-tasks] ERROR: @trigger.dev/sdk is not installed in apps/worker." >&2
+  echo "               pnpm install --frozen-lockfile" >&2
+  exit 1
+fi
+if [ "$INSTALLED_SDK" != "$CLI_VERSION" ]; then
+  echo "[deploy-tasks] ERROR: apps/worker/package.json pins @trigger.dev/sdk ${CLI_VERSION}," >&2
+  echo "               but node_modules holds ${INSTALLED_SDK}. The deploy CLI would stop and" >&2
+  echo "               ask whether to update, which a script cannot answer. Install first:" >&2
+  echo "                 pnpm install --frozen-lockfile" >&2
+  exit 1
+fi
+
 if ! curl -fsS -o /dev/null "${TRIGGER_URL}"; then
   echo "[deploy-tasks] ERROR: ${TRIGGER_URL} is not reachable — is the stack up?" >&2
   echo "               docker compose -f deploy/compose/managed.yml up -d" >&2
