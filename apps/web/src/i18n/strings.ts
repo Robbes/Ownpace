@@ -152,6 +152,9 @@ const en = {
   'wizard.step.migration': 'Migration',
   'wizard.testConnections.reused':
     'This side already uses a saved connection, so this just checks it still works.',
+  'wizard.connectionName': 'Name this connection (so you recognise it later)',
+  'wizard.connectionName.taken':
+    'You already have a connection with this name. It will still be saved — but two things with one name are hard to tell apart later.',
   'wizard.testConnections': 'Test and save connections',
   'wizard.testing': 'Testing…',
   'wizard.testConnections.hint':
@@ -1066,6 +1069,9 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.step.migration': 'Migratie',
   'wizard.testConnections.reused':
     'Deze kant gebruikt al een bewaarde verbinding; dit controleert alleen of die nog werkt.',
+  'wizard.connectionName': 'Geef deze verbinding een naam (zodat u het later herkent)',
+  'wizard.connectionName.taken':
+    'U heeft al een verbinding met deze naam. Hij wordt wel bewaard — maar twee dingen met één naam zijn later lastig uit elkaar te houden.',
   'wizard.testConnections': 'Verbindingen testen en bewaren',
   'wizard.testing': 'Testen…',
   'wizard.testConnections.hint':

@@ -77,6 +77,16 @@ interface FormData {
   sourceRootPath: string;
   /** Box (workplan 0056): the NUMERIC user id the CCG token reads for. */
   sourceBoxUserId: string;
+  /**
+   * What to CALL the connection this side saves (workplan 0076).
+   *
+   * Empty means "name it after what it connects to" — the auto-name below.
+   * The owner asked for this at the moment of testing, which is also the
+   * moment they know what it is for; a connection they cannot name is one
+   * they cannot tell apart from the next one later (0069 T7b).
+   */
+  sourceConnectionName: string;
+  targetConnectionName: string;
   /** Reuse a stored connection instead of re-typing its credentials (0064). */
   sourceConnectionId: string;
   targetConnectionId: string;
@@ -108,6 +118,8 @@ const initialFormData: FormData = {
   sourceRootFolderId: '',
   sourceRootPath: '',
   sourceBoxUserId: '',
+  sourceConnectionName: '',
+  targetConnectionName: '',
   sourceConnectionId: '',
   targetConnectionId: '',
   targetHost: '',
@@ -263,6 +275,8 @@ const DRAFT_FIELDS = [
   'targetUsername',
   'sourceConnectionId',
   'targetConnectionId',
+  'sourceConnectionName',
+  'targetConnectionName',
   'sourceHost',
   'sourcePort',
   'sourceRootFolderId',
@@ -628,6 +642,32 @@ const CreateMapping: React.FC = () => {
   const forgetProbe = (side: 'source' | 'target') =>
     setProbeResults((prev) => ({ ...prev, [side]: undefined }));
 
+  /** What this side will be saved as: what was typed, else what it connects to. */
+  const connectionNameFor = (role: 'source' | 'target'): string => {
+    const typed = (role === 'source' ? formData.sourceConnectionName : formData.targetConnectionName).trim();
+    if (typed) return typed;
+    const type = role === 'source' ? formData.sourceType : formData.targetType;
+    const who = role === 'source' ? formData.sourceUsername : formData.targetUsername;
+    return who ? `${type} · ${who}` : type;
+  };
+
+  /**
+   * Is that name already taken? (workplan 0076.)
+   *
+   * A WARNING, not a refusal. Two connections may legitimately share a name —
+   * nothing keys off it — but the owner met two called `dropbox · anna@…` and
+   * said it plainly: *that is asking for issues*. A name exists to tell things
+   * apart, so a collision is worth saying at the moment it is created rather
+   * than discovering it in a picker a week later. Blocking the save would be
+   * friction at the worst possible moment: you have just proved a credential.
+   */
+  const connectionNameTaken = (role: 'source' | 'target'): boolean => {
+    const chosen = role === 'source' ? formData.sourceConnectionId : formData.targetConnectionId;
+    if (chosen) return false;
+    const name = connectionNameFor(role);
+    return (existingConnections ?? []).some((c) => c.role === role && c.displayName === name);
+  };
+
   const runProbe = (only?: 'source' | 'target') => {
     setProbing(true);
 
@@ -656,7 +696,6 @@ const CreateMapping: React.FC = () => {
 
       const values = credentialValuesFor(role);
       const type = role === 'source' ? formData.sourceType : formData.targetType;
-      const who = role === 'source' ? formData.sourceUsername : formData.targetUsername;
       const existing = draftConnection[role];
 
       if (existing) {
@@ -668,9 +707,10 @@ const CreateMapping: React.FC = () => {
       const added = await connectionsApi.add({
         role,
         type,
-        // Named for what it connects to, not for a migration that does not
-        // exist yet at this point in the wizard.
-        displayName: who ? `${type} · ${who}` : type,
+        // What the person called it, or — failing that — what it connects to.
+        // Never the migration's name: the migration does not exist yet at this
+        // point in the wizard, and the connection outlives it anyway.
+        displayName: connectionNameFor(role),
         values,
       });
       setDraftConnection((d) => ({ ...d, [role]: added.id }));
@@ -1236,6 +1276,34 @@ const CreateMapping: React.FC = () => {
     const r = probeResults[side];
     return (
       <div className="border border-gray-200 rounded-lg p-4">
+        {/* Name it HERE, because testing is what saves it (0069 T2) and this
+            is the moment the person knows what it is for (workplan 0076).
+            Optional: left empty it is named after what it connects to, which
+            is what it always was. */}
+        {!chosen && (
+          <div className="mb-3">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t('wizard.connectionName')}
+            </label>
+            <input
+              type="text"
+              value={side === 'source' ? formData.sourceConnectionName : formData.targetConnectionName}
+              onChange={(e) =>
+                updateField(
+                  side === 'source' ? 'sourceConnectionName' : 'targetConnectionName',
+                  e.target.value,
+                )
+              }
+              className="input w-full"
+              placeholder={connectionNameFor(side)}
+            />
+            {connectionNameTaken(side) && (
+              // A warning, not a refusal: nothing keys off the name, but a
+              // name that does not tell two things apart is not doing its job.
+              <p className="mt-1 text-sm text-amber-800">{t('wizard.connectionName.taken')}</p>
+            )}
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"

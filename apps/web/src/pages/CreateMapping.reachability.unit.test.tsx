@@ -89,6 +89,13 @@ const fill = (label: RegExp, value: string) =>
   fireEvent.change(fieldFor(label), { target: { value } });
 
 beforeEach(() => {
+  // The wizard REMEMBERS its non-secret half across mounts (workplan 0069),
+  // which is the feature — and which means every test here starts from
+  // whatever the previous one typed unless the draft is cleared. File level,
+  // not per-describe: a draft outlives a describe block too. This file was
+  // written before that feature existed and went without; the first test to
+  // type a provider and a name is what surfaced it (0069 T6, again).
+  globalThis.sessionStorage.clear();
   listMock.mockResolvedValue([]);
 });
 
@@ -434,5 +441,100 @@ describe('the required markers agree with the gate', () => {
     // And the gate agrees: the account alone now lets the step finish.
     fill(/^Source Username/, 'anna@acme.example');
     await waitFor(() => expect(nextButton()).toBeEnabled());
+  });
+});
+
+
+/**
+ * Naming the connection you just proved (workplan 0076).
+ *
+ * Testing is what SAVES a credential (0069 T2), and until now it saved under
+ * an auto-name — `dropbox · anna@acme.example` — with no chance to say what it
+ * was for and no rename afterwards (0069 T7b). The owner asked for the name at
+ * the moment of testing, which is also the moment they know the answer; and
+ * separately met two connections carrying the identical auto-name and said it
+ * plainly: *that is asking for issues*.
+ */
+describe('naming the connection that testing saves', () => {
+  const filledImapSource = () => {
+    renderWizard();
+    fill(/^Host$/, 'mail.acme.example');
+    fill(/^Source Username/, 'anna@acme.example');
+  };
+
+  beforeEach(() => {
+    listMock.mockResolvedValue([]);
+    vi.mocked(connectionsApi.add).mockResolvedValue({ id: 'new-1', ok: true, detail: 'Reached it.' });
+  });
+
+  it('saves under the name that was typed', async () => {
+    filledImapSource();
+    fill(/^Name this connection/, 'Acme old mail server');
+
+    fireEvent.click(screen.getByRole('button', { name: /Test/i }));
+
+    await waitFor(() =>
+      expect(connectionsApi.add).toHaveBeenCalledWith(
+        expect.objectContaining({ displayName: 'Acme old mail server' }),
+      ),
+    );
+  });
+
+  it('falls back to what it connects to when left empty', async () => {
+    // The behaviour that always existed — a name is an improvement on it, not
+    // a new obligation at the end of a long form.
+    filledImapSource();
+
+    fireEvent.click(screen.getByRole('button', { name: /Test/i }));
+
+    await waitFor(() =>
+      expect(connectionsApi.add).toHaveBeenCalledWith(
+        expect.objectContaining({ displayName: 'imap · anna@acme.example' }),
+      ),
+    );
+  });
+
+  it('warns when the name is already taken, and saves anyway', async () => {
+    listMock.mockResolvedValue([
+      {
+        id: 'c-old',
+        role: 'source' as const,
+        kind: 'imap',
+        displayName: 'Acme old mail server',
+        status: 'connected' as const,
+        createdAt: '2026-08-01T00:00:00.000Z',
+        usedByMailboxes: 1,
+      },
+    ]);
+    filledImapSource();
+    fill(/^Name this connection/, 'Acme old mail server');
+
+    // A warning, not a refusal: nothing keys off the name, and blocking here
+    // would be friction at the worst moment — you have just proved a credential.
+    expect(await screen.findByText(/already have a connection with this name/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Test/i }));
+    await waitFor(() => expect(connectionsApi.add).toHaveBeenCalled());
+  });
+
+  it('does not ask for a name when a stored connection is being reused', async () => {
+    // There is nothing of ours to save, so there is nothing to name.
+    listMock.mockResolvedValue([
+      {
+        id: 'c0000000-0000-4000-8000-00000000000b',
+        role: 'source' as const,
+        kind: 'imap',
+        displayName: 'Acme old mail server',
+        status: 'connected' as const,
+        createdAt: '2026-08-01T00:00:00.000Z',
+        usedByMailboxes: 1,
+      },
+    ]);
+    renderWizard();
+    await waitFor(() => expect(queryFieldFor(/^Use a source connection/)).not.toBeNull());
+    fireEvent.change(fieldFor(/^Use a source connection/), {
+      target: { value: 'c0000000-0000-4000-8000-00000000000b' },
+    });
+
+    expect(queryFieldFor(/^Name this connection/)).toBeNull();
   });
 });
