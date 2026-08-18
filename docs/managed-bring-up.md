@@ -430,8 +430,30 @@ new instance's own.
 
 **Upgrading Trigger.dev** is one number in two places that must agree:
 `TRIGGER_IMAGE_TAG` in `.env` and `@trigger.dev/sdk` in
-`apps/worker/package.json`. Check both when bumping either. Then
-`--from trigger`.
+`apps/worker/package.json`. Check both when bumping either — `--from trigger`
+refuses when they disagree.
+
+> ⚠️ **Do not upgrade with runs in flight.** Recreating the webapp and
+> supervisor under load left the reference deployment looping on
+> `Failed to start run … "Snapshot changed inside startRunAttempt"` for every
+> run: nothing reached a task body, and the schedule kept adding one run a
+> minute on top (2026-08-18). Cancelling the backlog through the API did not
+> help — new runs failed identically — so it was the version, not the state.
+>
+> The order that avoids it:
+>
+> 1. Stop the schedule producing work, or accept a backlog you will cancel.
+> 2. Wait for `TaskRun` to have nothing in `EXECUTING`.
+> 3. Change the tag AND the SDK together, `pnpm install`.
+> 4. `--from trigger`, then **redeploy the tasks** — an image built by one CLI
+>    version and run by another platform version is the same drift by a
+>    different route.
+> 5. Watch the first few runs reach `COMPLETED_SUCCESSFULLY` before walking
+>    away.
+>
+> Rolling back is the same procedure in reverse, and is the right first move
+> when an upgrade goes wrong: the older version has run history behind it and
+> the newer one does not.
 
 **Rotating a secret**: change it in `.env`, `docker compose up -d` the affected
 services, re-run `set-task-env.sh` if a task variable changed, and re-mint any
