@@ -87,7 +87,15 @@ describe('probeTargetConnection: read-only questions only', () => {
         { type: 'jmap', baseUrl: 'https://mail.example.net' },
         { username: 'u', password: 'p' },
       );
-      expect(result).toEqual({ ok: true, detail: 'Connected. The JMAP session document answered.' });
+      // The English `detail` is unchanged and still the fallback an appliance
+      // or an API consumer reads; `outcome` is what lets a Dutch screen say it
+      // in Dutch (workplan 0080). Asserted in full rather than loosened to
+      // `toMatchObject`, because the shape IS the contract.
+      expect(result).toEqual({
+        ok: true,
+        detail: 'Connected. The JMAP session document answered.',
+        outcome: { code: 'connectedSession' },
+      });
     } finally {
       vi.unstubAllGlobals();
     }

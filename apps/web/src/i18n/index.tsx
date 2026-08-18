@@ -27,10 +27,35 @@ export function detectLocale(): Locale {
 interface LocaleContextValue {
   locale: Locale;
   setLocale: (locale: Locale) => void;
-  t: (key: StringKey) => string;
+  t: (key: StringKey, vars?: TemplateVars) => string;
 }
 
 const LocaleContext = React.createContext<LocaleContextValue | null>(null);
+
+/**
+ * Values substituted into a string's `{placeholders}` (workplan 0080).
+ *
+ * Added for the probe results, and the reason it had to exist rather than be
+ * composed at the call site: a sentence built by concatenating dictionary
+ * fragments has ENGLISH word order baked into the concatenation. *The JMAP
+ * session document at {url} answered {status}* and its Dutch counterpart do
+ * not put those two values in the same places, and no amount of care at the
+ * call site fixes that — the ordering belongs to the sentence, which means it
+ * belongs to the dictionary.
+ */
+export type TemplateVars = Readonly<Record<string, string | number>>;
+
+/**
+ * Substitute `{name}` from `vars`. A placeholder with no value is left ALONE
+ * rather than blanked: a visible `{count}` on screen is a bug report, and an
+ * empty gap is a mystery.
+ */
+function fill(template: string, vars?: TemplateVars): string {
+  if (!vars) return template;
+  return template.replace(/\{(\w+)\}/g, (whole, name: string) =>
+    name in vars ? String(vars[name]) : whole,
+  );
+}
 
 export const LocaleProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [locale, setLocaleState] = React.useState<Locale>(detectLocale);
@@ -44,7 +69,10 @@ export const LocaleProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, []);
 
-  const t = React.useCallback((key: StringKey) => STRINGS[locale][key], [locale]);
+  const t = React.useCallback(
+    (key: StringKey, vars?: TemplateVars) => fill(STRINGS[locale][key], vars),
+    [locale],
+  );
 
   const value = React.useMemo(() => ({ locale, setLocale, t }), [locale, setLocale, t]);
 
@@ -63,13 +91,17 @@ export const LocaleProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 export function useLocale(): LocaleContextValue {
   const ctx = React.useContext(LocaleContext);
   if (!ctx) {
-    return { locale: 'en', setLocale: () => {}, t: (key: StringKey) => STRINGS.en[key] };
+    return {
+      locale: 'en',
+      setLocale: () => {},
+      t: (key: StringKey, vars?: TemplateVars) => fill(STRINGS.en[key], vars),
+    };
   }
   return ctx;
 }
 
 /** Shorthand for components that only read strings. */
-export function useT(): (key: StringKey) => string {
+export function useT(): (key: StringKey, vars?: TemplateVars) => string {
   return useLocale().t;
 }
 

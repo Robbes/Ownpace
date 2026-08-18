@@ -783,6 +783,25 @@ const en = {
   'connections.testing': 'Testing…',
   'connections.usedBy': 'mailbox(es) use this',
   'connections.setupSteps': 'Setup steps',
+  // What a probe FOUND, rendered from its outcome code (workplan 0080).
+  // Ours, so translated; the provider's own refusal is never in here — it
+  // renders verbatim, because that string is what you paste into their
+  // console.
+  'probe.connected': 'Connected. {count} {unit} visible.',
+  'probe.connectedSession': 'Connected. The JMAP session document answered.',
+  'probe.targetStatus': 'The server at {url} answered {status}.',
+  'probe.targetStatus.refused': 'It is reachable and refused the credentials.',
+  'probe.targetStatus.check': 'Check the target host and port.',
+  'probe.noProbe':
+    'This build has no check for a {kind} connection. That is a gap on our side, not a problem with your credentials.',
+  'probe.unit.folder.one': 'folder',
+  'probe.unit.folder.many': 'folders',
+  'probe.unit.calendar.one': 'calendar',
+  'probe.unit.calendar.many': 'calendars',
+  'probe.unit.addressBook.one': 'address book',
+  'probe.unit.addressBook.many': 'address books',
+  'probe.unit.collection.one': 'collection',
+  'probe.unit.collection.many': 'collections',
   'connections.ok': 'Reached it. The credentials still work.',
   'connections.failed': 'Could not reach it.',
   // The delete refusal's FRAME (workplan 0071). The migrations it names are
@@ -1679,6 +1698,21 @@ const nl: Record<keyof typeof en, string> = {
   'connections.testing': 'Bezig met testen…',
   'connections.usedBy': 'postbus(sen) gebruiken dit',
   'connections.setupSteps': 'Instelstappen',
+  'probe.connected': 'Verbonden. {count} {unit} zichtbaar.',
+  'probe.connectedSession': 'Verbonden. Het JMAP-sessiedocument antwoordde.',
+  'probe.targetStatus': 'De server op {url} antwoordde {status}.',
+  'probe.targetStatus.refused': 'Hij is bereikbaar en weigerde de inloggegevens.',
+  'probe.targetStatus.check': 'Controleer de host en poort van het doel.',
+  'probe.noProbe':
+    'Deze versie heeft geen controle voor een {kind}-verbinding. Dat is een gat aan onze kant, geen probleem met uw inloggegevens.',
+  'probe.unit.folder.one': 'map',
+  'probe.unit.folder.many': 'mappen',
+  'probe.unit.calendar.one': 'agenda',
+  'probe.unit.calendar.many': 'agenda\'s',
+  'probe.unit.addressBook.one': 'adresboek',
+  'probe.unit.addressBook.many': 'adresboeken',
+  'probe.unit.collection.one': 'verzameling',
+  'probe.unit.collection.many': 'verzamelingen',
   'connections.ok': 'Bereikt. De inloggegevens werken nog.',
   'connections.failed': 'Kon deze niet bereiken.',
   'connections.inUse.lead': 'Nog in gebruik door',

@@ -25,7 +25,6 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import { eq, and, inArray, or, sql } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
-import { log } from '@openmig/shared';
 import { SecretStore } from '@openmig/core/secret-store';
 import {
   probeSourceConnection,
@@ -338,8 +337,7 @@ router.post('/:id/test', authenticate, async (req: AuthenticatedRequest, res: Re
 
     res.json(result);
   } catch (error) {
-    log.error('[api] testing a connection failed:', error);
-    res.status(500).json({ error: 'test_failed', reason: String(error) });
+    serverFault(res, 'test_failed', 'testing this connection', error);
   }
 });
 
