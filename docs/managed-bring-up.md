@@ -533,17 +533,27 @@ The order that works:
 5. Redeploy the tasks and watch the first runs reach a terminal state.
 
 **On a stack whose Trigger.dev data is disposable — which a reference or demo
-box usually is — the wipe is faster and more certain than the surgery:**
+box usually is — the wipe is faster and more certain than the surgery, and it is
+a script because the sequence has two traps:**
 
 ```bash
-docker compose -f deploy/compose/managed.yml down trigger-api trigger-supervisor
-docker volume rm open-migrate-managed_trigger_db_data
+./deploy/compose/reset-trigger.sh --yes
 ./deploy/compose/bootstrap-managed.sh --from trigger
 ```
 
-That destroys the orchestration database only. The ledger, tenants, mappings and
-items live in `open-migrate-db` and are untouched. You are then back at the one
-human step, and `trigger-credentials.sh` reads the new project's credentials.
+The traps, in case you do it by hand anyway: the volume belongs to **`trigger-db`**,
+so stopping only `trigger-api` and `trigger-supervisor` leaves `docker volume rm`
+refusing with "volume is in use" — and the bring-up afterwards then quietly
+reuses the old database and fails exactly as before. And the stale
+`TRIGGER_PROJECT_REF` has to be cleared from `.env`, or the `account` phase sees
+it populated, reports "nothing to do", and skips the human step that is now
+mandatory.
+
+The reset destroys the orchestration database only. The ledger, tenants,
+mappings, items and invoices live in `open-migrate-db`, a different volume, and
+are untouched; the API and pooler keep serving throughout. You are then back at
+the one human step, and `trigger-credentials.sh` reads the new project's
+credentials.
 
 **Turning the pooler off** is two values: `DB_HOST=postgres`, `DB_PORT=5432`,
 then `up -d`. Every service reads them, so nothing in `managed.yml` is edited.
