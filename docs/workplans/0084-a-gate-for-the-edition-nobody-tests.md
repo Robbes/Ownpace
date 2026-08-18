@@ -2,8 +2,10 @@
 
 ## Status — 2026-08-18 (update this block at the end of every session)
 
-**Built 2026-08-18. Green on run #6 the same day — and the green was
-over-claiming.** Runs #1–#5 each failed at a different step and were fixed by a
+**Built 2026-08-18. Green on run #6 the same day — the green was
+over-claiming, and run #7 (the first with the over-claim removed) went red for
+a real reason nobody had found in the demo's whole existence: it has no DAV
+content to sync.** Runs #1–#5 each failed at a different step and were fixed by a
 separate PR (#457 persist/restore, #458 stalwart-cli, #459 CLI-config restore,
 #460 `TRIGGER_ACCESS_TOKEN`). Run #6 passed every step. Reading it against T7
 rather than accepting the checkmark found that **two of the five criteria were
@@ -31,6 +33,79 @@ runs that script** rather than an inline copy of the order. 0087 also fixed two
 latent bugs this workflow carried: its seed step depended on the runner's
 ambient environment, and `setup-auth.sql`'s header documented a flag the SQL
 does not read.
+
+## Run #7 — the red, and what it was pointing at (2026-08-18)
+
+The first run after the apply half stopped being allowed to skip. It failed,
+correctly, and the failure turned out to be worth more than the green was.
+
+**Three of the four fixes are now proved in CI, not just in tests.**
+
+- The evidence artifact **exists** — `smoke-managed-32176950847.log`, 7808
+  bytes, downloaded and read. `redact-evidence.sh` ran over it, and grepping
+  the artifact for `tr_prod_`/`tr_pat_`/`postgres://`/JWT shapes returns
+  nothing. T5's redaction has now actually redacted something, which through
+  run #6 it never had.
+- The apply half **fails instead of passing**: `verify: done   apply:
+  skipped-no-item` → `SMOKE FAIL`, exit 1.
+- A runner appeared and executed (`runner-cmsz2fj3k008h4wo50kdle29s`, deployment
+  `20260818.3`), so the new no-runner assertion did not misfire.
+
+**Why there was no eligible item — and it is not the apply path.**
+
+`deploy/selfhost/setup-nextcloud-users.sh` provisions **accounts and nothing
+else**: grep it for `PUT`, `MKCOL`, `.ics` or `.vcf` and every one comes back
+empty. The demo tenant B source account has therefore always been empty, every
+sync of that mapping has correctly copied nothing, and `item` has never held a
+`copied` row for it. **The apply half was never blocked by a defect in apply.
+It was blocked by a demo with nothing in it, for as long as the demo has
+existed** — and until run #7 the smoke reported that as a pass.
+
+Mail looks different only by accident. Run #7's verify half reports
+`sourceCount 3, targetCount 3, checksumMatches 3` — but nothing in this repo
+seeds those three messages either. They are ambient state on the Spark's
+Stalwart, put there by hand at some point. Worth knowing before trusting the
+verify half's counts on a fresh machine: **that half would find nothing to
+verify too.**
+
+A smaller thing found while reading the query that decides all this: the smoke
+filtered on `status='copied' AND target_ref IS NOT NULL`, and `target_ref` is
+`jsonb NOT NULL DEFAULT '{}'` — so the second half of that predicate was true
+of every row ever written. It read like "and it landed somewhere on the target"
+and filtered nothing. It now tests `target_ref->>'id'`.
+
+**What was built in response.** `deploy/compose/seed-demo-dav-content.sh` puts
+two events, two contacts and two files into the demo DAV **source** account.
+It deliberately does **not** write ledger rows: inserting `status='copied'`
+would hand the smoke its precondition and prove nothing, and it would be a
+claim that a copy happened in the table whose whole job is recording copies
+that did. The data goes in the source and a real sync earns the rows.
+
+The script re-reads what it wrote with a `Depth: 1` PROPFIND and refuses if the
+content is not there, because "every PUT returned 201" and "the data is
+present" are different claims — the same distinction this workplan exists for.
+It also discovers the collection paths rather than assuming them: Nextcloud's
+layout is not symmetric (`calendars/<user>/` but `addressbooks/users/<user>/`),
+and guessing wrong yields a 404 indistinguishable from "the account has no
+calendar". `scripts/seed-demo-dav-content.unit.test.ts` covers both, plus the
+refusal, with a stubbed Docker; three of four mutations were caught and the
+fourth turned out not to be a defect at all (see below).
+
+**Not yet wired into the bring-up, on purpose.** `--with-demo` does not call it
+yet. If it misbehaves against the real Nextcloud it would break the bring-up
+step and take the whole gate with it, which is a worse failure than the one it
+fixes. Run it by hand on the Spark first; wire it into `setup-managed-demo.sh`
+once it has worked once.
+
+**A correction worth recording, since this workplan is about not over-claiming.**
+The seeder's first draft passed curl's Content-Type via
+`${ctype:+-H "Content-Type: $ctype"}`, and I rewrote it to an argument array
+with a comment stating that the original word-split a value containing `;`.
+The mutation test disagreed, and it was right: bash honours the quotes inside a
+`${var:+word}` alternate value, and the header arrived intact all along. The
+array form is kept because it is obvious rather than something you have to
+know, and the comment now says that instead of describing a bug that never
+existed.
 
 ## Run #6, and what the green actually covered (2026-08-18)
 
@@ -289,13 +364,16 @@ one, which reads as green while proving nothing.
 
 ## What is still owed
 
-- **An apply half that can run.** The gate now fails rather than pretending,
-  but failing is not covering. Something has to put a `copied` item with a
-  `target_ref` on the apply mapping before the nightly can be green honestly —
-  either the demo seed grows one (fabricating `copied` would falsify the
-  ledger, so it would have to be a real sync) or the bring-up drives a sync and
-  waits for it. Blocked in practice on `run-delta-sync`'s
-  `Unsupported target type: undefined`.
+- **An apply half that can run**, in three steps, none of them done yet.
+  Run `deploy/compose/seed-demo-dav-content.sh` on the Spark and confirm it
+  reports non-zero counts; let a sync tick copy the content and confirm `item`
+  holds `copied` rows for mapping `b0000000-…-d1`; then wire the seeder into
+  `setup-managed-demo.sh` so `--with-demo` does it every run. Only after the
+  second step can the nightly be honestly green.
+- **The mail side has the same hole, unnoticed.** Nothing seeds the three
+  Stalwart messages the verify half counts, so on any machine but this one the
+  verify half would have nothing to verify. The DAV seeder's equivalent for
+  mail does not exist.
 - **Healthchecks for the seven services that have none.** T7.1 asks that every
   service the run touches be healthy; for `trigger-api`, `trigger-supervisor`,
   `trigger-tls`, `minio`, `trigger-registry`, `trigger-docker-proxy` and
