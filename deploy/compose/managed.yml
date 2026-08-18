@@ -405,6 +405,10 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3123}
       WEB_URL: ${WEB_URL:-http://localhost:3123}
       API_URL: ${API_URL:-http://localhost:3001}
+      # How long a backup of this database is kept. Not a schedule — it is what
+      # the close endpoint TELLS a customer about when their erasure actually
+      # completes (0085 T5). Unset means the 7-day default in @openmig/shared.
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-}
     ports:
       - "${API_PORT:-3001}:3001"
     depends_on:

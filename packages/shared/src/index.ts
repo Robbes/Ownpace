@@ -35,6 +35,7 @@ export * from './throttling';
 export * from './rate-budget';
 export * from './credential-refusals';
 export * from './standing-grants';
+export * from './erasure-timeline';
 export * from './logger';
 export * from './metrics';
 export * from './pricing';

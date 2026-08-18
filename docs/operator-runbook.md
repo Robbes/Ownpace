@@ -375,23 +375,86 @@ Notes:
 
 ## Tenant offboarding (GDPR right to erasure, §17)
 
-Erasure = **revoke access, then purge data + ledger + logs** for that tenant.
+> ⚠️ **This section was rewritten 2026-08-18 (workplan 0085).** It previously
+> said to `DELETE` the tenant row and let `ON DELETE CASCADE` do the rest.
+> **Do not do that.** The cascade takes `invoice` and `audit_log` with it, and
+> Dutch tax law wants invoices kept for years — so the old instruction traded
+> one legal obligation for another. `DELETE /api/tenants/:tenantId` now returns
+> **410** and names the endpoint below, for the same reason.
 
-1. **Revoke access.** With local JWTs there is no server-side session to kill, so:
-   - Rotate `JWT_SECRET` to invalidate all outstanding tokens (affects every tenant — prefer
-     short token lifetimes; see the seam for per-tenant/JWKS revocation when SSO lands), **or**
-   - Suspend the tenant: set `tenant.status = 'suspended'` and `tenant_member.status = 'suspended'`
-     so the app rejects the tenant even with a valid token.
-2. **Purge.** Delete the tenant row; `ON DELETE CASCADE` removes all tenant-scoped rows
-   (connections, mailboxes, mappings, items, runs, events, usage, invoices, payment methods, audit
-   log). Because RLS is tenant-scoped, do this as the owner with the tenant context set, or via a
-   dedicated purge routine. Verify zero residual rows for the tenant id across tenant-scoped tables.
-3. **Logs.** Ensure no content was ever logged (it isn't, by design); purge status/metadata logs
-   that reference the tenant per your retention policy. Metadata is personal data too.
-4. **Record** the erasure in your DPA/audit process (operator = processor).
+Ending the service is **commercial**; erasing the data is **legal**. They are
+deliberately not the same button: the first is reversible and routine, the
+second is neither.
 
-> A dedicated, audited purge endpoint/job is the correct home for steps 1–3; until it exists,
-> perform them deliberately as the DB owner and record what was purged.
+### 1. Close — stops the service now, schedules the erasure
+
+```bash
+curl -X POST "$API/api/tenants/$TENANT/close" \
+  -H "Authorization: Bearer $OWNER_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"windowDays": 30}'     # 0, 7, 30 or 90 — the customer chooses
+```
+
+Syncs and billing stop immediately and the account goes read-only. Nothing is
+deleted yet. A window of `0` cannot be undone and the response says so
+(`canReopenUntil: null`); every other window can, with
+`POST /api/tenants/:tenantId/reopen`, until it runs out.
+
+The response is what you tell the customer. It carries **two dates**:
+
+| Field | Means |
+| --- | --- |
+| `purgeAfter` | when the **live service** stops holding their data |
+| `backupsExpireAt` | when the last backup that could still contain it ages out — **this is when the erasure completes** |
+| `backupRetentionDays` | this deployment's retention, from `BACKUP_RETENTION_DAYS` (default **7**) |
+| `erasureCompletesText` | the same promise as a sentence, `en` and `nl` |
+| `standingGrants` | the permissions granted in the customer's **own** provider consoles, which survive our erasure because only they can withdraw them |
+
+**Why two dates.** A row deleted from the live database is still in last
+night's backup. Saying "deleted" on the day of the purge would be false, and it
+is the kind of false a supervisory authority asks about. Backups are not
+edited retrospectively — nobody surgically edits a backup — they **expire**,
+and the wording says exactly that.
+
+**Set `BACKUP_RETENTION_DAYS` to your own number.** The default is the
+reference deployment's. If your backups are kept for a month, a deployment left
+on the default promises a date it cannot honour. `0` is a valid answer for a
+deployment that takes no backups, and produces different wording rather than
+the same date twice.
+
+### 2. Purge — runs when the window has passed
+
+The purge deletes from an explicit list of tables (`PURGED_TABLES` in
+`packages/ledger/src/offboarding.ts`), **written out rather than derived from
+the cascade** — that list is reviewable and the cascade is not. It writes an
+`erasure_record` holding the tenant's sha256 reference (never the id), the
+window, the retention promise, what was purged per table, and which invoices
+were kept.
+
+The record is written **at close**, not at purge, so a purge that never ran
+leaves `purged_at` NULL — the signal that something owed did not happen.
+
+### 3. What survives, and what is never touched
+
+**Survives:** invoices and payment records, **detached** from the tenant
+(`tenant_id` set NULL, `billed_to_name` retained). GDPR art. 17(3)(b).
+
+**Never touched, ever:** the **source** (hard rule 2 — it is the rollback path)
+and the **target** (the migrated mail is the customer's, in the customer's own
+system). We forget our record of it; we do not reach into their new mailbox.
+Say this to a customer plainly — *"delete my data"* is exactly the phrase
+somebody could reasonably expect to mean the opposite.
+
+### 4. Access, and the part only they can do
+
+Closing makes the account read-only. To invalidate outstanding tokens as well,
+rotate `JWT_SECRET` (affects every tenant — prefer short token lifetimes) or
+set `tenant_member.status = 'suspended'`.
+
+Then send them `standingGrants` from the close response. Revoking a token is
+not withdrawing a consent: an Entra admin consent, a Google OAuth
+authorization, a Dropbox app link or a Box admin authorization lives in *their*
+platform under *their* account, and no API call of ours withdraws it.
 
 > **The three decision queues now have a UI as well as these endpoints**
 > ([ADR-0026](adr/0026-one-operating-ui-one-contract.md)). The appliance serves

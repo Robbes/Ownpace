@@ -189,6 +189,47 @@ describe('closing a tenant', () => {
     await expect(reopenTenant(db, LEAVING, NOW)).rejects.toThrow(/window has already passed/);
   });
 
+  it('records the backup promise, both the number and the date it produced', async () => {
+    // T5. `purged_at` is when the rows left the LIVE database; every backup
+    // taken before that still contains them. A record that offers no second
+    // date invites everyone reading it to assume erasure finished on the first.
+    //
+    // The NUMBER is stored as well as the date because retention can change
+    // and the date the customer was given cannot — without it, nobody can say
+    // how the promise was arrived at.
+    const result = await closeTenant(db, LEAVING, 30, 'owner@acme.example', NOW, 7);
+
+    const { rows } = await conn.query<{
+      backup_retention_days: number | null;
+      backups_expire_at: Date | null;
+      purge_after_from_tenant: Date;
+    }>(
+      `SELECT e.backup_retention_days, e.backups_expire_at, t.purge_after AS purge_after_from_tenant
+         FROM erasure_record e, tenant t WHERE t.id = $1`,
+      [LEAVING],
+    );
+    expect(rows[0]?.backup_retention_days).toBe(7);
+
+    // Seven days AFTER the purge, not after the close: the last backup that
+    // can contain anything is taken the moment before the purge.
+    const purge = new Date(rows[0]!.purge_after_from_tenant).getTime();
+    expect(new Date(rows[0]!.backups_expire_at!).getTime() - purge).toBe(7 * 24 * 60 * 60 * 1000);
+    expect(result.backupsExpireAt.getTime()).toBe(new Date(rows[0]!.backups_expire_at!).getTime());
+  });
+
+  it('a deployment that keeps no backups records that, rather than nothing', async () => {
+    // 0 is a real answer, and it must be distinguishable from "nobody said" —
+    // which is what NULL means on rows written before this existed.
+    await closeTenant(db, LEAVING, 7, 'owner@acme.example', NOW, 0);
+
+    const { rows } = await conn.query<{
+      backup_retention_days: number | null;
+      backups_expire_at: Date | null;
+    }>(`SELECT backup_retention_days, backups_expire_at FROM erasure_record`);
+    expect(rows[0]?.backup_retention_days).toBe(0);
+    expect(rows[0]?.backups_expire_at).not.toBeNull();
+  });
+
   it('offers exactly the windows the owner chose', () => {
     expect([...CLOSE_WINDOWS_DAYS]).toEqual([0, 7, 30, 90]);
     expect(isCloseWindow(30)).toBe(true);
