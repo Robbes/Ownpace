@@ -4,7 +4,11 @@ set -euo pipefail
 # Deploy the worker's Trigger.dev tasks to the managed stack's OWN instance
 # (workplan 0018 T4). Idempotent — run it after every `git pull`.
 #
-# ONE-TIME prerequisites, in order (all against this host's stack):
+# ONE-TIME prerequisites, in order (all against this host's stack). All of
+# them EXCEPT creating the account/organisation/project are done for you by
+# deploy/compose/bootstrap-managed.sh — see docs/managed-bring-up.md. They
+# stay written out here because this script is also run on its own, long
+# after a bring-up, and its refusals point back at them:
 #
 #   1. The stack is up:  docker compose -f deploy/compose/managed.yml up -d
 #   2. Create your account + org + project in the instance's dashboard
@@ -21,15 +25,25 @@ set -euo pipefail
 #      (this script prints the exact pinned command if you are not logged in)
 #
 # TASK RUNTIME ENV VARS — the deployed tasks run in their own containers on
-# the compose network, NOT in the worker container, so they inherit nothing.
-# Set these in the dashboard (project → environment → Environment Variables),
-# with the same values the worker container has (`docker inspect
-# open-migrate-worker` shows them):
+# the compose network, NOT in the worker container, so they inherit nothing:
 #
-#   DATABASE_URL           postgresql://<owner>@postgres:5432/openmigrate
-#   APP_DATABASE_URL       postgresql://app_user@postgres:5432/openmigrate
+#   DATABASE_URL           through the pooler, at the IN-NETWORK address
+#   APP_DATABASE_URL       the RLS-enforcing app_user role, same address
+#   DIRECT_DATABASE_URL    never the pooler (session-scoped advisory lock)
 #   SECRET_ENCRYPTION_KEY  (same 32-byte key as api/worker)
-#   IMAP_TIMEOUT / JMAP_TIMEOUT (optional, as configured)
+#   OAUTH2_* / SMTP_* / NOTIFY_* (optional, as configured)
+#
+# Do NOT enter these in the dashboard by hand. Run:
+#
+#   ./deploy/compose/set-task-env.sh
+#
+# which uploads them from deploy/compose/.env with `override: true`, so the
+# file is the source of truth and a stale dashboard value cannot silently win
+# over a rotated one. (The dashboard's env form also misbehaved over the TLS
+# front during the 2026-08-01 bring-up; the SDK path this wraps is what
+# actually worked.) Run it BEFORE the deploy below: a task that lands before
+# its environment exists runs once against no database and fails in a way that
+# reads like a broken task.
 #
 # The CLI version is pinned to the SDK version in apps/worker/package.json by
 # construction — one number, read from the one place it already lives.
