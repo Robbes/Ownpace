@@ -90,8 +90,34 @@ jobs:
             org.opencontainers.image.title=open-migrate-${{ matrix.image }}
             org.opencontainers.image.licenses=Apache-2.0
 
+      # ---------------------------------------------------------------------
+      # Build, and retry ONCE if ghcr refuses the push.
+      #
+      # Observed on main at 85eb64f (2026-08-18): every layer built and pushed,
+      # and the manifest push came back
+      #
+      #   403 permission_denied … "You have exceeded a secondary rate limit."
+      #
+      # That is not a permission problem despite the word, and not a problem
+      # with the image. Three pull requests merged inside forty minutes, each
+      # firing this workflow's three-image matrix at multi-arch, is nine
+      # manifest pushes to ghcr in a short window — and GitHub's secondary
+      # limits are per-window, so the ninth is the one that loses.
+      #
+      # The retry is cheap: the first attempt exported and cached every layer,
+      # so the second is a manifest push, not a rebuild. The wait is long
+      # because a secondary limit is a window and hammering it immediately
+      # extends the window rather than clearing it.
+      #
+      # DUPLICATED ON PURPOSE, and it is the weak point of this: GitHub Actions
+      # has no YAML anchors and `uses:` cannot be wrapped in a shell retry, so
+      # the two blocks must be kept identical BY HAND. Change one, change the
+      # other. (Same shape as the cosign retry below, for the same reason: an
+      # external service that is fine ten seconds later.)
+      # ---------------------------------------------------------------------
       - name: Build${{ github.event_name != 'pull_request' && ' + push' || '' }}
-        id: build
+        id: build_attempt
+        continue-on-error: true
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
@@ -111,6 +137,55 @@ jobs:
           # the same reason compose.yml hardcodes ghcr.io/robbes/….
           cache-from: type=registry,ref=ghcr.io/robbes/open-migrate-${{ matrix.image }}:buildcache
           cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref=ghcr.io/robbes/open-migrate-{0}:buildcache,mode=max', matrix.image) || '' }}
+
+      # Only on the publish path. A pull request builds without pushing, so it
+      # cannot hit a registry rate limit — retrying a genuinely broken
+      # Dockerfile there would just cost every PR author two minutes before
+      # telling them the same thing.
+      - name: Wait out the rate-limit window
+        if: steps.build_attempt.outcome == 'failure' && github.event_name != 'pull_request'
+        run: |
+          echo "::warning::First push attempt failed. If this was a ghcr secondary rate limit,"
+          echo "::warning::the retry after this wait normally succeeds. Full reason is in the step above."
+          sleep 120
+
+      - name: Retry the build + push
+        id: build_retry
+        if: steps.build_attempt.outcome == 'failure' && github.event_name != 'pull_request'
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: apps/${{ matrix.image }}/Dockerfile
+          # The /version endpoints report this commit (build-identity.ts).
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+          # PRs prove the Dockerfile builds; the publish path proves multi-arch.
+          platforms: ${{ github.event_name == 'pull_request' && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Registry-backed layer cache: the second multi-arch build reuses the
+          # first's layers instead of re-paying the QEMU cost every merge.
+          # Lowercase literal (ghcr requires it): metadata-action lowercases
+          # the image name above, but these raw refs would keep "Robbes" —
+          # the same reason compose.yml hardcodes ghcr.io/robbes/….
+          cache-from: type=registry,ref=ghcr.io/robbes/open-migrate-${{ matrix.image }}:buildcache
+          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref=ghcr.io/robbes/open-migrate-{0}:buildcache,mode=max', matrix.image) || '' }}
+
+      # Neither attempt is allowed to fail silently. `continue-on-error` above
+      # makes the FIRST step green whatever happens, so without this the job
+      # would pass on a failed push — the exact "skipped is not passed" trap
+      # AGENTS.md hard rule 9 exists for.
+      # On a pull request the retry is skipped, so `outcome` is 'skipped' rather
+      # than 'success' and this still fires — a broken Dockerfile fails the PR
+      # immediately, which is the point of building it there.
+      - name: Fail if the build did not succeed
+        if: steps.build_attempt.outcome == 'failure' && steps.build_retry.outcome != 'success'
+        run: |
+          echo "::error::open-migrate-${{ matrix.image }} did not build/publish."
+          echo "If the reason was a ghcr secondary rate limit, re-run this job in a few minutes."
+          echo "If it was anything else, the reason is in the build step's log above."
+          exit 1
 
       - name: Install cosign
         if: github.event_name != 'pull_request'
@@ -140,7 +215,17 @@ jobs:
         # run — fails against it until this step succeeds. Red means "re-run
         # this job", not "nothing shipped".
         run: |
-          ref="ghcr.io/robbes/open-migrate-${{ matrix.image }}@${{ steps.build.outputs.digest }}"
+          # Whichever attempt actually published — the retry step's output is
+          # empty when it was skipped, and `||` takes the first non-empty. An
+          # empty digest would make `ref` end in a bare `@` and cosign would
+          # fail on a malformed reference, so refuse here with the reason
+          # rather than there with a parse error.
+          digest="${{ steps.build_retry.outputs.digest || steps.build_attempt.outputs.digest }}"
+          if [ -z "$digest" ]; then
+            echo "::error::No image digest from either build attempt — nothing was published, so there is nothing to sign."
+            exit 1
+          fi
+          ref="ghcr.io/robbes/open-migrate-${{ matrix.image }}@${digest}"
           for attempt in 1 2 3; do
             if cosign sign --yes "$ref"; then
               echo "signed on attempt ${attempt}"
