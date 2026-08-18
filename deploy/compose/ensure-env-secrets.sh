@@ -46,7 +46,26 @@ PGB_PW="$(grep -E '^PGBOUNCER_AUTH_PASSWORD=' "$ENV_FILE" | head -1 | cut -d= -f
 if [ -n "$PGB_PW" ]; then
   mkdir -p "${SCRIPT_DIR}/pgbouncer"
   printf '"pgbouncer_auth" "%s"\n' "$PGB_PW" >"$USERLIST"
-  chmod 600 "$USERLIST"
+  # 0644, NOT 0600, and this is not an oversight.
+  #
+  # PgBouncer reads this file from inside its container, as a user that is not
+  # the host user who wrote it. At 0600 it gets
+  #
+  #   ERROR could not open auth_file /etc/pgbouncer/userlist.txt: Permission denied
+  #
+  # and then, having no users at all, refuses every login with `no such user:
+  # pgbouncer_auth` — which reads like a missing role rather than a mode bit.
+  # (Spark, 2026-08-18. The startup line naming the real cause had already
+  # scrolled out of the log window, so it cost three rounds of looking at the
+  # wrong thing.)
+  #
+  # Matching the container's uid instead would mean discovering it per image
+  # tag; world-readable is the portable answer. What it exposes is bounded on
+  # purpose: this file holds ONE password, for a role whose entire power is
+  # calling a SECURITY DEFINER function that returns one user's verifier
+  # (pgbouncer/setup-auth.sql). The valuable secrets — POSTGRES_PASSWORD,
+  # JWT_SECRET, SECRET_ENCRYPTION_KEY — are in .env next door, which stays 0600.
+  chmod 644 "$USERLIST"
   echo "[ensure-env-secrets] wrote ${USERLIST}"
   echo "[ensure-env-secrets] NOTE: the matching Postgres role is created by"
   echo "[ensure-env-secrets]       pgbouncer/setup-auth.sql — run it once against"
