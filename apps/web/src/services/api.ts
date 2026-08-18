@@ -121,9 +121,23 @@ export function serverMessage(err: unknown): string {
  * the wizard says, in the reader's language.
  */
 export function missingCredentialFields(err: unknown): string[] | null {
+  return credentialFieldsInRefusal(err, 'missing_fields');
+}
+
+/**
+ * The same, for values that ARE filled in but are the wrong shape (0072) —
+ * `invalid_values`. Kept a separate call rather than a flag, because the two
+ * need different sentences: one asks for something, the other says what you
+ * gave cannot be used.
+ */
+export function invalidCredentialFields(err: unknown): string[] | null {
+  return credentialFieldsInRefusal(err, 'invalid_values');
+}
+
+function credentialFieldsInRefusal(err: unknown, code: string): string[] | null {
   if (!axios.isAxiosError(err)) return null;
   const data = err.response?.data as { error?: unknown; fields?: unknown } | undefined;
-  if (!data || data.error !== 'missing_fields' || !Array.isArray(data.fields)) return null;
+  if (!data || data.error !== code || !Array.isArray(data.fields)) return null;
   const keys = data.fields.filter((f): f is string => typeof f === 'string' && f !== '');
   return keys.length > 0 ? keys : null;
 }
@@ -136,16 +150,25 @@ export function missingCredentialFields(err: unknown): string[] | null {
  * and render verbatim, the sentence around them is ours and gets translated.
  * 0068 T4 established what the refusal has to answer — why, what first, where
  * — and shipped it as one English paragraph on the route, which is how a Dutch
- * operator got five clauses of English. An empty array is a real answer (the
- * usage count was known but no names were): the caller falls back to the
- * server's own sentence rather than rendering a frame around nothing.
+ * operator got five clauses of English.
+ *
+ * `names` may be SHORTER than `used`, because `mailbox_mapping.name` is
+ * nullable (the appliance writes rows without one). Falling back to the
+ * server's English sentence in that case was the first answer here and the
+ * wrong one — it put the reader back in English for the case they were most
+ * likely to meet. The caller says "an unnamed migration" in its own language
+ * instead, which is still true and still points at the right screen.
  */
-export function inUseMigrations(err: unknown): string[] | null {
+export function inUseMigrations(err: unknown): { names: string[]; used: number } | null {
   if (!axios.isAxiosError(err)) return null;
-  const data = err.response?.data as { error?: unknown; migrations?: unknown } | undefined;
+  const data = err.response?.data as
+    | { error?: unknown; migrations?: unknown; used?: unknown }
+    | undefined;
   if (!data || data.error !== 'in_use' || !Array.isArray(data.migrations)) return null;
-  const names = data.migrations.filter((m): m is string => typeof m === 'string' && m !== '');
-  return names.length > 0 ? names : null;
+  return {
+    names: data.migrations.filter((m): m is string => typeof m === 'string' && m !== ''),
+    used: typeof data.used === 'number' ? data.used : data.migrations.length,
+  };
 }
 
 /**

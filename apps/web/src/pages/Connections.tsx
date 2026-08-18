@@ -29,7 +29,12 @@ import {
   type TestConnectionResult,
 } from '../services/mapping-service';
 import { useT, useFormatters, type StringKey } from '../i18n';
-import { inUseMigrations, missingCredentialFields, serverMessage } from '../services/api';
+import {
+  inUseMigrations,
+  invalidCredentialFields,
+  missingCredentialFields,
+  serverMessage,
+} from '../services/api';
 
 /**
  * A refusal in the reader's own language wherever we authored it (0071).
@@ -46,21 +51,33 @@ import { inUseMigrations, missingCredentialFields, serverMessage } from '../serv
 const useRefusalText = (fields: ReadonlyArray<{ key: string; labelKey: string }>) => {
   const t = useT();
   return (err: unknown): string => {
+    const label = (key: string) => {
+      const field = fields.find((f) => f.key === key);
+      // An unknown key is shown as itself rather than swallowed: a descriptor
+      // and a route that disagree is a bug worth seeing.
+      return field ? t(field.labelKey as StringKey) : key;
+    };
+
     const missing = missingCredentialFields(err);
-    if (missing) {
-      const labels = missing.map((key) => {
-        const field = fields.find((f) => f.key === key);
-        // An unknown key is shown as itself rather than swallowed: a
-        // descriptor and a route that disagree is a bug worth seeing.
-        return field ? t(field.labelKey as StringKey) : key;
-      });
-      return `${t('wizard.missing.lead')} ${labels.join(', ')}`;
+    if (missing) return `${t('wizard.missing.lead')} ${missing.map(label).join(', ')}`;
+
+    // Filled in, but the wrong shape — a different sentence from "still
+    // needed", and no longer a raw zod path in English (0072).
+    const invalid = invalidCredentialFields(err);
+    if (invalid) {
+      return `${t('connections.invalidValues.lead')} ${invalid.map(label).join(', ')}`;
     }
     const inUse = inUseMigrations(err);
     if (inUse) {
       // The names are the server's, the frame is ours (0068 T4's three
       // questions, in the reader's language and two lines rather than five).
-      return `${t('connections.inUse.lead')} ${inUse.map((n) => `“${n}”`).join(', ')}. ${t('connections.inUse.why')}`;
+      // A nameless migration still gets a Dutch sentence — dropping back to
+      // the server's English for it was the 0072 regression.
+      const named =
+        inUse.names.length > 0
+          ? inUse.names.map((n) => `“${n}”`).join(', ')
+          : t('connections.inUse.unnamed');
+      return `${t('connections.inUse.lead')} ${named}. ${t('connections.inUse.why')}`;
     }
     return serverMessage(err);
   };
@@ -216,7 +233,12 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
               <label key={field.key} className="text-sm">
                 <span className="block text-gray-700 mb-1">{t(field.labelKey as StringKey)}</span>
                 <input
-                  type={field.secret ? 'password' : 'text'}
+                  // A numeric field says so (0072): a port asked for in a bare
+                  // text box came back as `port: Invalid input: expected
+                  // number, received NaN` — a zod path, in English, for a
+                  // mistake the input could have prevented.
+                  type={field.secret ? 'password' : field.numeric ? 'number' : 'text'}
+                  inputMode={field.numeric ? 'numeric' : undefined}
                   autoComplete={field.secret ? 'new-password' : 'off'}
                   className="input w-full"
                   value={newValues[field.key] ?? ''}
@@ -365,8 +387,10 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
             ) : (
               <input
                 // Secrets are masked here for the same reason they are never
-                // returned by the API: nothing should read one over a shoulder.
-                type={field.secret ? 'password' : 'text'}
+                // returned by the API: nothing should read one over a shoulder;
+                // a numeric field is numeric here too (0072).
+                type={field.secret ? 'password' : field.numeric ? 'number' : 'text'}
+                inputMode={field.numeric ? 'numeric' : undefined}
                 autoComplete={field.secret ? 'new-password' : 'off'}
                 className="input w-full"
                 value={values[field.key] ?? ''}

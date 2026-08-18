@@ -230,6 +230,30 @@ describe('replacing credentials', () => {
     expect(screen.queryByText(/clientId/), 'a storage key is not a field name').toBeNull();
   });
 
+  it('names the field the FORM does when a value is the wrong shape (0072)', async () => {
+    // `port: Invalid input: expected number, received NaN` — a zod path and a
+    // zod sentence, in English, naming a storage key. The owner met it adding
+    // a target connection.
+    list.mockResolvedValue([conn({ kind: 'jmap', role: 'target' })]);
+    rotate.mockRejectedValue(
+      axios400({
+        error: 'invalid_values',
+        fields: ['port'],
+        reason: 'port: Invalid input: expected number, received NaN',
+      }),
+    );
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Replace credentials'));
+    fireEvent.click(screen.getByText('Check and replace'));
+
+    // The whole sentence: 'Port' alone also matches the field's own label.
+    expect(
+      await screen.findByText(`${STRINGS.en['connections.invalidValues.lead']} Port`),
+    ).toBeTruthy();
+    expect(screen.queryByText(/received NaN/), 'a zod path is not a field name').toBeNull();
+  });
+
   it('keeps the OLD credentials when the new ones do not work', async () => {
     list.mockResolvedValue([conn()]);
     rotate.mockResolvedValue({
@@ -284,6 +308,30 @@ describe('deleting a connection', () => {
     // ...and the frame is the dictionary's, which is what makes it Dutch
     // under nl rather than a paragraph nobody translated.
     expect(screen.getByText(new RegExp(STRINGS.en['connections.inUse.why']))).toBeTruthy();
+  });
+
+  it('says it in Dutch even when the migration has no name (0072)', async () => {
+    // `mailbox_mapping.name` is nullable — the appliance writes rows without
+    // one — so `migrations` can be shorter than `used`. Falling back to the
+    // server's English sentence for that case put the reader back in English
+    // for the case they were most likely to meet.
+    list.mockResolvedValue([conn({ usedByMailboxes: 1 })]);
+    remove.mockRejectedValue(
+      axios409({
+        error: 'in_use',
+        migrations: [],
+        used: 1,
+        reason: 'This connection is still used by 1 mailbox.',
+      }),
+    );
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Delete'));
+
+    expect(await screen.findByText(new RegExp(STRINGS.en['connections.inUse.unnamed']))).toBeTruthy();
+    expect(screen.getByText(new RegExp(STRINGS.en['connections.inUse.why']))).toBeTruthy();
+    // The server's English sentence must NOT be what reaches the screen.
+    expect(screen.queryByText(/still used by 1 mailbox/)).toBeNull();
   });
 
   it("refuses while anything uses it, and names what — not a flat no", async () => {

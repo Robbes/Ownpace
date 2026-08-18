@@ -139,6 +139,29 @@ export function missingFieldsRefusal(missing: string[]): {
   };
 }
 
+/**
+ * "These values are not the right shape", also as data (workplan 0072).
+ *
+ * The sibling of `missingFieldsRefusal`, and it was left behind: a zod failure
+ * rendered as `port: Invalid input: expected number, received NaN` — a zod
+ * PATH and a zod SENTENCE, in English, in front of an operator reading Dutch,
+ * naming the storage key rather than the label above the box. `fields` gives
+ * the client the same handle it already uses for the missing-field case, so
+ * one localizer covers both; `reason` keeps the zod detail for callers with no
+ * dictionary, because "which value and why" is genuinely in there.
+ */
+function invalidValuesRefusal(error: z.ZodError): {
+  error: string;
+  fields: string[];
+  reason: string;
+} {
+  return {
+    error: 'invalid_values',
+    fields: [...new Set(error.issues.map((i) => String(i.path[0] ?? '')).filter(Boolean))],
+    reason: error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(' '),
+  };
+}
+
 const AddSchema = z.object({
   role: z.enum(['source', 'target']),
   type: z.string().min(1),
@@ -192,8 +215,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
     const checked = configShape.safeParse(shaped);
     if (!checked.success) {
       return void res.status(400).json({
-        error: 'invalid_values',
-        reason: checked.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(' '),
+        ...invalidValuesRefusal(checked.error),
       });
     }
 
@@ -361,8 +383,7 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
     const checked = configShape.safeParse(shaped);
     if (!checked.success) {
       return void res.status(400).json({
-        error: 'invalid_values',
-        reason: checked.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(' '),
+        ...invalidValuesRefusal(checked.error),
       });
     }
 
@@ -447,12 +468,27 @@ router.delete('/:id', authenticate, async (req: AuthenticatedRequest, res: Respo
         .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId)));
       if (!found[0]) return { status: 404 as const };
 
-      // Named, not just counted: "3 mailboxes" is a number, "Acme mail" is
-      // something the person can go and deal with.
+      /**
+       * What actually depends on this connection: MIGRATIONS (workplan 0072).
+       *
+       * This was a LEFT JOIN counting `mailbox` rows, which is not the same
+       * question. A mailbox row outlives the migration that created it — the
+       * ledger hangs off `item.mapping_id`, never off the mailbox — so a
+       * connection whose migrations had all been removed still answered 409,
+       * counting a row nothing referenced. The refusal then had no name to
+       * give ("still used by 1 mailbox") and named no migration to go and
+       * remove, because there was none: an unactionable no, in front of a
+       * delete that was in fact safe. The owner met exactly that on the older
+       * connections.
+       *
+       * An INNER JOIN asks the question the refusal claims to be answering.
+       * Named, not just counted, for the reason 0068 T4 gives: "3 mailboxes"
+       * is a number, "Acme mail" is something a person can act on.
+       */
       const users = await db
         .select({ mapping: schema.mailboxMapping.name })
         .from(schema.mailbox)
-        .leftJoin(
+        .innerJoin(
           schema.mailboxMapping,
           or(
             eq(schema.mailboxMapping.sourceMailboxId, schema.mailbox.id),

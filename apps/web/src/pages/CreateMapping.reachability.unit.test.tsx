@@ -34,11 +34,11 @@ import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import CreateMapping from './CreateMapping';
-import { connectionsApi } from '../services/mapping-service';
+import { connectionsApi, mappingApi } from '../services/mapping-service';
 
 vi.mock('../services/mapping-service', () => ({
-  mappingApi: { create: vi.fn() },
-  connectionsApi: { list: vi.fn().mockResolvedValue([]) },
+  mappingApi: { create: vi.fn(), testConnection: vi.fn() },
+  connectionsApi: { list: vi.fn().mockResolvedValue([]), test: vi.fn(), add: vi.fn(), rotate: vi.fn() },
 }));
 
 const listMock = vi.mocked(connectionsApi.list);
@@ -251,6 +251,34 @@ describe('reusing a stored connection', () => {
     // ...and the credential is gone, because a field that would be ignored is
     // worse than one that is absent.
     expect(queryFieldFor(/^Client ID/)).toBeNull();
+  });
+
+  /**
+   * Testing a REUSED connection must probe what is STORED (workplan 0072).
+   *
+   * It used to post `builtSourceConfig()` — values read out of the form. But
+   * choosing a stored connection is precisely what HIDES those inputs, so the
+   * form holds empty strings and the probe refused every single time with
+   * *clientId, clientSecret, refreshToken are not set*: a complaint about
+   * fields the person had deliberately not been asked for. Testing a reused
+   * connection could therefore never pass, which makes the reuse path
+   * unproveable at exactly the moment somebody wants to prove it.
+   *
+   * The assertion is about WHICH route is called, because that is the bug:
+   * `/connections/:id/test` decrypts and probes the stored credential, and
+   * `/migrations/test-connection` can only ever see the empty form.
+   */
+  it('probes the STORED credential, not the emptied form (0072)', async () => {
+    vi.mocked(connectionsApi.test).mockResolvedValue({ ok: true, detail: 'Listed 12 folders.' });
+    await pickBoxConnection();
+
+    fireEvent.click(screen.getByRole('button', { name: /Test/i }));
+
+    await waitFor(() => expect(connectionsApi.test).toHaveBeenCalledWith(boxConnection.id));
+    // The form-values probe must not be reached at all: with the credential
+    // inputs hidden it would post empty strings and refuse by name.
+    expect(mappingApi.testConnection).not.toHaveBeenCalled();
+    expect(await screen.findByText(/Listed 12 folders/)).toBeTruthy();
   });
 
   it('does not demand, a step later, the secrets it just hid', async () => {

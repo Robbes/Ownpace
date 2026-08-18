@@ -784,6 +784,11 @@ const en = {
   // Dutch UI and asked for both halves of that to change. It still answers
   // why, what to do first, and where, in two lines instead of five.
   'connections.inUse.lead': 'Still used by',
+  // `mailbox_mapping.name` is nullable, so a migration can genuinely have no
+  // name to quote. Saying so beats dropping back to the server's English.
+  'connections.inUse.unnamed': 'a migration with no name',
+  // Filled in, but not usable — distinct from "still needed" (0072).
+  'connections.invalidValues.lead': 'These values cannot be used as they are:',
   // The duplicate-migration refusal (workplan 0071 T6, owner decision
   // 2026-08-18). Two mappings between the same two accounts, into the same
   // place, copy every item twice — so the pair may only repeat under a
@@ -1662,6 +1667,8 @@ const nl: Record<keyof typeof en, string> = {
   'connections.ok': 'Bereikt. De inloggegevens werken nog.',
   'connections.failed': 'Kon deze niet bereiken.',
   'connections.inUse.lead': 'Nog in gebruik door',
+  'connections.inUse.unnamed': 'een migratie zonder naam',
+  'connections.invalidValues.lead': 'Deze waarden kunnen zo niet worden gebruikt:',
   'createMapping.duplicate.lead': 'U heeft al een migratie tussen deze twee accounts:',
   'createMapping.duplicate.why':
     'Twee migraties die dezelfde items naar dezelfde plek kopiëren, zetten alles dubbel op het doel. Geef deze een andere doelmap, of open de bestaande migratie.',
