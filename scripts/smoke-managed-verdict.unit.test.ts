@@ -1,0 +1,205 @@
+// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+
+/**
+ * What `smoke-managed.sh` is allowed to call a pass.
+ *
+ * This gate's first green run (e2e-managed #6, 2026-08-18) printed these three
+ * lines within four lines of each other:
+ *
+ *     no eligible item (status='copied' with a target_ref) — apply half SKIPPED.
+ *     verify: done   apply: skipped-no-item
+ *     SMOKE PASS
+ *
+ * The script's own header had always said success is verify `done` AND apply
+ * terminal as `applied` or `refused`. The code disagreed with the header: the
+ * terminal-state assertion sat INSIDE the `else` of the eligible-item check, so
+ * the one branch that needed judging was the one branch that escaped it. The
+ * apply half had therefore never executed under CI, and nothing said so.
+ *
+ * The bug was one level of indentation, which is precisely why it needs a test
+ * rather than a careful reader — the next person to restructure that block will
+ * not remember that the `case` has to outlive the `if`.
+ *
+ * These tests execute the real script's real decision lines, extracted from the
+ * file rather than restated here. A test that restated them would pass forever
+ * while the script drifted underneath it.
+ */
+
+import { describe, it, expect } from "vitest";
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const SMOKE = join(REPO_ROOT, "deploy/compose/smoke-managed.sh");
+const WORKFLOW = join(REPO_ROOT, ".github/workflows/e2e-managed.yml");
+
+const smoke = readFileSync(SMOKE, "utf8");
+const workflow = readFileSync(WORKFLOW, "utf8");
+
+/** Run a fragment of the real script under bash and report the resulting $fail. */
+function verdict(fragment: string, setup: string): string {
+  const out = execFileSync(
+    "bash",
+    ["-c", `fail=0\n${setup}\n${fragment}\necho "FAIL=$fail"`],
+    {
+      encoding: "utf8",
+    },
+  );
+  // The fragments print diagnostics of their own; the verdict is the last line.
+  return out.trim().split("\n").pop()!.replace("FAIL=", "");
+}
+
+describe("the apply half is judged, including when it found nothing to do", () => {
+  // Extracted, not restated: this is the line the script actually runs.
+  const caseLine = smoke
+    .split("\n")
+    .find((l) => l.startsWith('case "$APPLY_RESULT" in'));
+
+  it("the terminal-state assertion is at top level, not nested in the else", () => {
+    // The whole bug, stated as a position. An indented `case` is inside the
+    // `if [ -z "$HASH" ] … else` again, which is how a skip became a pass.
+    expect(caseLine).toBeDefined();
+    expect(smoke).toMatch(/^case "\$APPLY_RESULT" in/m);
+    expect(smoke).not.toMatch(/^\s+case "\$APPLY_RESULT" in/m);
+  });
+
+  it.each([
+    ["applied", "0"],
+    ["refused", "0"],
+  ])("%s is a pass", (result, expected) => {
+    expect(verdict(caseLine!, `APPLY_RESULT=${result}`)).toBe(expected);
+  });
+
+  it.each([
+    // The regression this file exists for.
+    ["skipped-no-item"],
+    ["timeout"],
+    ["failed"],
+    ["start-http-403"],
+    ["start-http-500"],
+  ])("%s is a failure", (result) => {
+    expect(verdict(caseLine!, `APPLY_RESULT=${result}`)).toBe("1");
+  });
+
+  it("says how to give the apply half something to act on", () => {
+    // seed-managed.ts creates tenants, connections and mappings but no items —
+    // so "run a sync" is the fix, and a failure that does not name it just
+    // moves the puzzle. Rule 9.
+    expect(smoke).toContain("status='copied' with a target_ref");
+    expect(smoke).toMatch(/\/start\b/);
+  });
+});
+
+describe("an enqueue that never became a runner is a failure", () => {
+  // 0018 T5's lesson is the reason this script exists at all; it used to be
+  // reported with an echo, so the script could miss the single thing it was
+  // written to catch and still say PASS.
+  const block = smoke
+    .split("\n--- ")
+    .join("\n--- ") // no-op, keeps the split readable below
+    .match(/if \[ "\$found_logs" != "1" \]; then[\s\S]*?\nfi/)?.[0];
+
+  it("is asserted, not merely remarked upon", () => {
+    expect(block).toBeDefined();
+    expect(block).toContain("fail=1");
+  });
+
+  it("no runner containers sets fail", () => {
+    expect(verdict(block!, "found_logs=0")).toBe("1");
+  });
+
+  it("at least one runner container leaves fail alone", () => {
+    expect(verdict(block!, "found_logs=1")).toBe("0");
+  });
+});
+
+describe("the evidence reaches the artifact", () => {
+  // Run #6 uploaded nothing: the smoke defaulted SMOKE_OUT to /tmp while the
+  // collector globbed the workspace, so `redact-evidence.sh` cleaned an empty
+  // directory and upload-artifact warned "No files were found". T5's redaction
+  // had never actually redacted anything in CI.
+  // `${{ github.run_id }}` contains spaces, so this reads to end of line.
+  const smokeOut = workflow.match(/SMOKE_OUT:[ \t]*(.+)/)?.[1]?.trim();
+
+  it("the workflow tells the smoke where to write", () => {
+    expect(smokeOut).toBeDefined();
+  });
+
+  it("and that path is one the collector globs", () => {
+    // The collector's own glob, read from the workflow rather than assumed.
+    expect(workflow).toContain("smoke-managed-*.log");
+    expect(smokeOut).toMatch(/^smoke-managed-.*\.log$/);
+  });
+
+  it("the smoke honours SMOKE_OUT", () => {
+    expect(smoke).toContain('OUT="${SMOKE_OUT:-');
+    expect(smoke).toMatch(/exec > >\(tee "\$OUT"\)/);
+  });
+
+  it("and the file is gitignored, because it carries the task environment", () => {
+    // The runner debug logs it captures print DATABASE_URL, SECRET_ENCRYPTION_KEY
+    // and the tr_prod_ key. Moving it into the workspace is only safe if it can
+    // never be committed.
+    expect(readFileSync(join(REPO_ROOT, ".gitignore"), "utf8")).toContain(
+      "smoke-managed-*.log",
+    );
+  });
+});
+
+describe("unhealthy is reported as unhealthy, and nothing else is", () => {
+  // Run #6 listed seven services under "unhealthy services, if any" — trigger-api,
+  // trigger-supervisor, trigger-tls, minio, registry, docker-proxy, nextcloud —
+  // none of which was unhealthy. They define no healthcheck, so `.Health` is
+  // empty and `grep -v ' healthy$'` matched them. The step also could not fail.
+  const step = workflow.slice(
+    workflow.indexOf("What state did we leave it in?"),
+  );
+
+  it('distinguishes "no healthcheck" from "unhealthy"', () => {
+    expect(step).toContain("no healthcheck defined");
+    expect(step).toMatch(/\$2=="unhealthy"/);
+  });
+
+  it("a real unhealthy service fails the job", () => {
+    expect(step).toMatch(/::error::Left unhealthy/);
+    expect(step).toMatch(/exit 1/);
+  });
+
+  it("the awk selects unhealthy without catching the healthcheck-less", () => {
+    const sample = [
+      "open-migrate-api healthy",
+      "trigger-api ", // no healthcheck: .Health is empty
+      "trigger-supervisor ",
+      "some-broken unhealthy",
+    ].join("\n");
+    const unhealthy = execFileSync(
+      "bash",
+      ["-c", `awk '$2=="unhealthy"{print $1}'`],
+      {
+        encoding: "utf8",
+        input: sample,
+      },
+    ).trim();
+    expect(unhealthy).toBe("some-broken");
+
+    const nocheck = execFileSync("bash", ["-c", `awk 'NF==1 && $1!=""'`], {
+      encoding: "utf8",
+      input: sample,
+    }).trim();
+    expect(nocheck.split("\n").map((s) => s.trim())).toEqual([
+      "trigger-api",
+      "trigger-supervisor",
+    ]);
+  });
+});
+
+describe("the header and the code agree", () => {
+  // The original defect was not a typo, it was a contract the code stopped
+  // honouring while the comment kept promising it.
+  it("the header claims exactly what the code now enforces", () => {
+    expect(smoke).toMatch(/Success = verify `done` AND apply terminal/);
+    expect(smoke).toContain("no runner at all");
+  });
+});

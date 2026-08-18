@@ -21,8 +21,11 @@
 #     explanatory error (never left `running`/`queued` pointing at nothing).
 #
 # Success = verify `done` AND apply terminal as `applied` or `refused`
-# (`refused` is a legitimate answer — the gates said no and said why).
-# `failed` or a timeout on either half exits non-zero.
+# (`refused` is a legitimate answer — the gates said no and said why) AND at
+# least one runner container having appeared. `failed`, a timeout, a missing
+# eligible item, or no runner at all each exit non-zero — the last two used to
+# print a remark and pass, which is how the apply half reached the gate's first
+# green run (2026-08-18) never once having executed.
 #
 # Requirements: the managed stack up (managed.yml), tasks deployed
 # (deploy-tasks.sh), the demo seed applied (seed-managed.ts — it creates the
@@ -185,8 +188,23 @@ note "APPLY — mapping $APPLY_MAPPING (tenant $APPLY_TENANT, sub $APPLY_SUB)"
 APPLY_RESULT="skipped-no-item"
 HASH="$(q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND status='copied' AND target_ref IS NOT NULL ORDER BY natural_key_hash LIMIT 1")"
 if [ -z "$HASH" ]; then
-  echo "no eligible item (status='copied' with a target_ref) — apply half SKIPPED."
-  echo "Run a sync on the apply mapping first (the demo scheduler does this on its own)."
+  # NOT a skip. Found in the gate's first green run (e2e-managed #6, 2026-08-18):
+  # this branch printed "SKIPPED", left `fail` untouched, and the verdict below
+  # said "apply: skipped-no-item" and "SMOKE PASS" three lines apart. The header
+  # of this file has always said success is verify `done` AND apply terminal —
+  # so the code contradicted its own contract, and the half this script exists
+  # to cover had never once run under CI.
+  #
+  # The precondition is nobody's accident: seed-managed.ts creates tenants,
+  # connections and mappings but NO items. Only a real sync produces one.
+  echo "no eligible item (status='copied' with a target_ref) on this mapping."
+  echo "FAILING rather than skipping: an apply half that never ran proves nothing"
+  echo "about the path it exists to cover, and a pass here would make this script"
+  echo "the very thing it was written to catch."
+  echo "To give it something to act on — the demo seed alone never will:"
+  echo "  1. POST /api/migrations/$APPLY_MAPPING/start  (marks the mapping active)"
+  echo "  2. let the scheduler's sync tick copy at least one item, or run a sync by hand"
+  echo "  3. re-run this smoke once an item is status='copied' with a target_ref"
 else
   echo "eligible item hash: $HASH"
   echo "flag on + fabricate deletion evidence (both retracted below):"
@@ -230,8 +248,10 @@ else
   echo "receipts for this item:"
   q "SELECT left(natural_key_hash,12), state, coalesce(kind,''), coalesce(code,''), left(coalesce(reason,''),80) FROM apply_receipt WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND natural_key_hash='$HASH' ORDER BY requested_at DESC LIMIT 3"
 
-  case "$APPLY_RESULT" in applied | refused) : ;; *) fail=1 ;; esac
 fi
+# Outside the `if` on purpose — see the comment in its empty branch. Every
+# APPLY_RESULT is judged here, `skipped-no-item` among them.
+case "$APPLY_RESULT" in applied | refused) : ;; *) fail=1 ;; esac
 
 # ---------- runner logs ----------
 note "runner logs captured before AutoRemove"
@@ -244,7 +264,20 @@ for f in "$RUNNER_LOG_DIR"/*.log; do
   head -c 4000 "$f"
   echo
 done
-[ "$found_logs" = "1" ] || echo "(no runner containers appeared)"
+if [ "$found_logs" != "1" ]; then
+  # 0018 T5's entire lesson, restated as an assertion rather than a remark:
+  # an enqueue that never becomes a runner container on this machine is the
+  # failure a green CI hides. This used to be an echo, so the one thing this
+  # script was written to detect could happen without changing its verdict.
+  #
+  # Caveat worth knowing before blaming the stack: the watcher above polls
+  # `docker ps` once a second, so a runner that lived under a second could be
+  # missed. For a real verify task that would itself be worth investigating —
+  # and if it ever proves flaky, the fix is an event-based capture, not a
+  # softer assertion.
+  echo "NO runner containers appeared during this smoke."
+  fail=1
+fi
 
 # ---------- verdict ----------
 note "verdict"
