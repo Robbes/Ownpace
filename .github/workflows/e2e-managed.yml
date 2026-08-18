@@ -103,16 +103,31 @@ jobs:
           echo "one-time setup present"
 
       - name: Bring the stack up
+        # Through bootstrap-managed.sh rather than an inline copy of the run
+        # order, for two reasons.
+        #
+        # It is the only place the bootstrap script is ever exercised. A
+        # bring-up script that nothing runs is a document with a shebang: it
+        # goes stale exactly as fast as the notes it replaced, and nobody finds
+        # out until the next machine.
+        #
+        # And the inline version had a bug this inherits the fix for: `pnpm
+        # --filter @openmig/api seed:managed` runs on the HOST, and the seed
+        # reads DATABASE_URL / JWT_SECRET / SECRET_ENCRYPTION_KEY from its own
+        # environment. Nothing here exported them, and nothing in apps/api
+        # loads a dotenv file — so the step depended on the runner happening to
+        # have them set. The script exports them from deploy/compose/.env,
+        # pointed at Postgres's PUBLISHED port (the pooler is internal-only,
+        # and migrations must not go through it in any case).
+        #
+        # --with-demo: this gate drives the two demo tenants the seed creates.
+        # --no-smoke: the smoke runs as its own step below, so its output can
+        # be captured and redacted before it is uploaded.
+        # The account/login phases are no-ops on a runner that has been set up —
+        # which the step above has just refused to continue without.
         run: |
           set -euo pipefail
-          # The documented run order (setup-managed-demo.sh's header), minus the
-          # teardown: postgres + nextcloud first, because the demo provisioning
-          # needs them before anything else can seed.
-          docker compose $MANAGED_COMPOSE up -d --wait postgres pgbouncer nextcloud
-          ./deploy/compose/setup-managed-demo.sh
-          pnpm --filter @openmig/api seed:managed
-          docker compose $MANAGED_COMPOSE up -d --build --wait
-          ./deploy/compose/deploy-tasks.sh
+          ./deploy/compose/bootstrap-managed.sh --from data --with-demo --no-smoke
 
       - name: The app talks through PgBouncer, and migrations do not (0082 T4)
         # The reason this workflow exists. Asserted against the pooler's own

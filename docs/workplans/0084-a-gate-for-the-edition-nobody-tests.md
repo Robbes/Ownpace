@@ -17,6 +17,16 @@ firing on the Spark is its first real run.
 | T6 teardown that actually tears down | ⛔ **Withdrawn 2026-08-18** | Fourteen services, named volumes, a local registry and a docker proxy on a **shared, long-lived** machine. **Withdrawn, and this is the finding that mattered most.** The naive `down -v` this row asked for would have destroyed the Trigger.dev account, project and API key — none of which can be recreated unattended — and the next run would fail looking like a broken test rather than a missing account. See below. The run now leaves the stack standing and reports what state it is in. |
 | T7 what "green" is allowed to mean | ✅ **Built 2026-08-18** | Stated up front so the gate cannot quietly weaken. See below. |
 
+**Follow-on: workplan 0087.** T6's withdrawal rested on *"the Trigger.dev half
+cannot be bootstrapped unattended"*. 0087 takes that as far as it goes: the
+human step is now two clicks with a script either side of it, the whole
+bring-up is one resumable command (`deploy/compose/bootstrap-managed.sh`) with
+a runbook (`docs/managed-bring-up.md`), and **this workflow's bring-up step now
+runs that script** rather than an inline copy of the order. 0087 also fixed two
+latent bugs this workflow carried: its seed step depended on the runner's
+ambient environment, and `setup-auth.sql`'s header documented a flag the SQL
+does not read.
+
 ## What this is
 
 The owner asked for a managed end-to-end gate, nightly, with the results
