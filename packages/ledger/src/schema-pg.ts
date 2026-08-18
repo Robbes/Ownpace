@@ -23,10 +23,18 @@ import { sql } from 'drizzle-orm';
 export const tenant = pgTable('tenant', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
-  status: text('status', { enum: ['active', 'suspended', 'deleting'] })
+  status: text('status', { enum: ['active', 'suspended', 'closed', 'deleting'] })
     .notNull()
     .default('active'),
   settings: jsonb('settings').notNull().default({}),
+  // Ending the service (0085). CLOSED is not deleted: syncs and billing stop
+  // and the account goes read-only, then the purge runs when purgeAfter is
+  // reached. `deleting` keeps its old meaning — the purge actually running,
+  // which is brief.
+  closedAt: timestamp('closed_at', { withTimezone: true }),
+  /** now() for an immediate close, so one code path serves every window. */
+  purgeAfter: timestamp('purge_after', { withTimezone: true }),
+  closedBy: text('closed_by'),
   // The prices this tenant AGREED to (migration 0007), integer cents. Pinned
   // once from the operator's template and never following it again — see
   // tenant-pricing.ts. Nullable: NULL is "no agreement yet", not "free".
@@ -984,7 +992,13 @@ export const usageMetric = pgTable(
   'usage_metric',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    tenantId: uuid('tenant_id').notNull().references(() => tenant.id, { onDelete: 'cascade' }),
+    // NULL once the tenant is erased: the invoice outlives it, because tax
+    // retention outlives the customer relationship (0085).
+    tenantId: uuid('tenant_id').references(() => tenant.id, { onDelete: 'set null' }),
+    // Captured at issue time. An invoice records a moment, so a later rename
+    // must not rewrite invoices already issued — and a detached invoice has to
+    // be able to say who it was for at all.
+    billedToName: text('billed_to_name'),
     periodStart: text('period_start').notNull(), // Using text for date
     periodEnd: text('period_end').notNull(),
     metricType: text('metric_type', {
@@ -1085,3 +1099,25 @@ export const rateBudget = pgTable(
   },
   (t) => [primaryKey({ columns: [t.tenantId, t.provider] })],
 );
+
+/**
+ * Proof that an erasure happened, holding no personal data of its own —
+ * migration 0025, workplan 0085.
+ *
+ * `tenantRef` is a sha256 of the tenant id, never the id: an auditor holding
+ * the id can verify the record, and the table cannot be read back into a list
+ * of former customers. No tenant foreign key (a record that cascades away with
+ * its subject is not a record) and no RLS (system-level code reads it, with no
+ * tenant context to key a policy on).
+ */
+export const erasureRecord = pgTable('erasure_record', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantRef: text('tenant_ref').notNull(),
+  requestedAt: timestamp('requested_at', { withTimezone: true }).notNull(),
+  windowDays: integer('window_days').notNull(),
+  purgedAt: timestamp('purged_at', { withTimezone: true }),
+  retainedInvoiceIds: uuid('retained_invoice_ids').array().notNull().default([]),
+  revocations: jsonb('revocations').notNull().default({}),
+  purgedCounts: jsonb('purged_counts').notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});

@@ -13,6 +13,15 @@ import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middle
 import type { AuthenticatedRequest } from '../../types/api';
 import membersRoutes from './members';
 import { serverFault } from '../../server-fault';
+import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
+import {
+  closeTenant,
+  reopenTenant,
+  isCloseWindow,
+  CLOSE_WINDOWS_DAYS,
+  type PgDatabase,
+} from '@openmig/ledger';
+import { standingGrantReminders } from '@openmig/shared';
 import { eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import {
@@ -312,12 +321,48 @@ router.put(
 );
 
 /**
- * DELETE /api/tenants/:tenantId
+ * DELETE /api/tenants/:tenantId — retired (workplan 0085 T1).
  *
- * Delete a tenant (owner only)
+ * This did a hard `DELETE FROM tenant`, which cascaded twenty-five tables —
+ * `invoice` and `audit_log` among them — behind one call, with no
+ * confirmation, no grace period, and nothing recording that it happened.
+ *
+ * Two things were wrong and only one was about safety. **A customer's billing
+ * history is not ours to destroy on request**: Dutch tax law wants invoices
+ * kept for years, so a literal "delete everything" swapped a GDPR obligation
+ * for a tax one. And a purge with no window has nothing in which to catch a
+ * mistaken click, or a bug in the purge itself.
+ *
+ * It refuses rather than being removed outright, so anything still calling it
+ * gets an answer saying where to go (rule 9) instead of a 404 that reads as a
+ * routing bug.
  */
 router.delete(
   '/:tenantId',
+  authenticate,
+  requireRole('owner'),
+  (_req: AuthenticatedRequest, res: Response) => {
+    res.status(410).json({
+      error: 'use_close',
+      reason:
+        'Deleting a tenant outright is no longer available: it destroyed invoices that must be ' +
+        'kept for tax purposes, and left no window in which to undo a mistake. Close the ' +
+        'account instead — POST /api/tenants/:tenantId/close with windowDays of 0, 7, 30 or 90. ' +
+        'Closing stops syncs and billing immediately; the erasure runs when the window is up, ' +
+        'and can be undone until then.',
+    });
+  },
+);
+
+/**
+ * POST /api/tenants/:tenantId/close — end the service (workplan 0085 T2).
+ *
+ * Stops syncs and billing now; schedules the erasure for the window the
+ * customer chose. Owner only, because it is the one action that ends the
+ * relationship.
+ */
+router.post(
+  '/:tenantId/close',
   authenticate,
   requireRole('owner'),
   async (req: AuthenticatedRequest, res: Response) => {
@@ -329,34 +374,87 @@ router.delete(
         });
         return;
       }
-
-      const tenantId = req.tenantId;
-      const pool = getSharedPool();
-
-      // Delete tenant from database with RLS enforcement via withTenantDb
-      const [deleted] = await withTenantDb(tenantId, pool, async (db) => {
-        return await db
-          .delete(schema.tenant)
-          .where(eq(schema.tenant.id, tenantId))
-          .returning();
-      });
-
-      if (!deleted) {
-        res.status(404).json({
-          error: 'Not found',
-          message: 'Tenant not found',
+      const windowDays = (req.body as { windowDays?: unknown } | undefined)?.windowDays;
+      if (!isCloseWindow(windowDays)) {
+        res.status(400).json({
+          error: 'bad_window',
+          reason:
+            `windowDays must be one of ${CLOSE_WINDOWS_DAYS.join(', ')} — days before erasure. ` +
+            '0 erases as soon as the purge next runs, and cannot be undone.',
+          allowed: CLOSE_WINDOWS_DAYS,
         });
         return;
       }
 
+      const pool = getSharedPool();
+
+      // The grants only THEY can remove (0085 T4b) — read BEFORE closing, from
+      // the kinds this tenant actually connected, so the answer names their
+      // providers rather than every provider we support.
+      const kinds = await withTenantDb(req.tenantId, pool, async (tdb) =>
+        (await tdb.select({ kind: schema.connection.kind }).from(schema.connection)).map(
+          (r) => r.kind,
+        ),
+      );
+
+      // Deliberately NOT inside withTenantDb: closing writes the erasure
+      // record, which has no tenant column to be scoped by and must outlive
+      // the tenant it describes.
+      const db = drizzlePg(pool, { schema }) as unknown as PgDatabase;
+      const result = await closeTenant(
+        db,
+        req.tenantId,
+        windowDays,
+        req.userId ?? 'unknown',
+        new Date(),
+      );
+
       res.json({
-        success: true,
-        message: 'Tenant deleted successfully',
+        status: 'closed',
+        purgeAfter: result.purgeAfter.toISOString(),
+        windowDays: result.windowDays,
+        canReopenUntil: result.windowDays > 0 ? result.purgeAfter.toISOString() : null,
+        standingGrants: standingGrantReminders(kinds, 'en'),
       });
     } catch (error) {
-      serverFault(res, 'delete_failed', 'deleting this tenant', error);
+      serverFault(res, 'close_failed', 'closing this account', error);
     }
-  }
+  },
+);
+
+/**
+ * POST /api/tenants/:tenantId/reopen — undo a close while the window is open.
+ *
+ * The reason the staged flow exists: a mistaken click, a resolved dispute, or
+ * a bug in the purge spotted before it ran.
+ */
+router.post(
+  '/:tenantId/reopen',
+  authenticate,
+  requireRole('owner'),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.tenantId) {
+        res.status(401).json({
+          error: 'Unauthorized',
+          message: 'Tenant ID not found in authentication context',
+        });
+        return;
+      }
+      const db = drizzlePg(getSharedPool(), { schema }) as unknown as PgDatabase;
+      await reopenTenant(db, req.tenantId, new Date());
+      res.json({ status: 'active' });
+    } catch (error) {
+      // A closed window is a REFUSAL, not a fault: the caller asked for
+      // something no longer possible and needs to be told which.
+      const message = error instanceof Error ? error.message : String(error);
+      if (/window has already passed|not closed/.test(message)) {
+        res.status(409).json({ error: 'cannot_reopen', reason: message });
+        return;
+      }
+      serverFault(res, 'reopen_failed', 'reopening this account', error);
+    }
+  },
 );
 
 export default router;
