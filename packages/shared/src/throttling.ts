@@ -12,6 +12,7 @@
  */
 
 import { mapWithConcurrency } from './concurrency';
+import type { RateBudget } from './rate-budget';
 
 /**
  * Throttle budget configuration
@@ -160,8 +161,20 @@ export class ThrottleLimiter {
   private readonly stats: ThrottleStats;
   private activeRequests: number;
 
-  constructor(config: Partial<ThrottleConfig> = {}) {
+  /**
+   * A budget shared with every OTHER process, or undefined for in-process only.
+   *
+   * The local `buckets` below stay either way. They are not redundant: this
+   * instance handles a whole pass, so the local bucket absorbs that pass's own
+   * burst without a round trip, and the shared budget is consulted for the
+   * thing only it can know — what the rest of the service is spending against
+   * the same provider quota (workplan 0082 T5).
+   */
+  private readonly shared: RateBudget | undefined;
+
+  constructor(config: Partial<ThrottleConfig> = {}, shared?: RateBudget) {
     this._config = { ...DEFAULT_THROTTLE_CONFIG, ...config };
+    this.shared = shared;
     this.buckets = new Map();
     this.stats = {
       throttleEvents: 0,
@@ -207,6 +220,11 @@ export class ThrottleLimiter {
       // Wait for rate limit token
       const bucket = this.getBucket(tenantId, provider);
       await bucket.acquire();
+      // Then the budget the rest of the service shares. Second, not first: the
+      // local bucket is free and rejects the easy cases without a round trip,
+      // so the shared store only sees traffic this process was already willing
+      // to send.
+      if (this.shared) await this.shared.acquire(tenantId, provider);
     } catch (error) {
       this.activeRequests--;
       throw error;
@@ -399,7 +417,8 @@ export interface ThrottleConfigMapping {
  */
 export function createThrottleLimiterFromMapping(
   mapping: ThrottleConfigMapping,
-  defaultConfig: Partial<ThrottleConfig> = {}
+  defaultConfig: Partial<ThrottleConfig> = {},
+  shared?: RateBudget
 ): ThrottleLimiter {
   const mergedConfig: ThrottleConfig = { ...DEFAULT_THROTTLE_CONFIG, ...defaultConfig };
 
@@ -426,7 +445,7 @@ export function createThrottleLimiterFromMapping(
     }
   }
 
-  return new ThrottleLimiter(mergedConfig);
+  return new ThrottleLimiter(mergedConfig, shared);
 }
 
 /**

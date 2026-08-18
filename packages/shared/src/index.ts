@@ -32,6 +32,7 @@ export * from './provider-setup';
 export * from './credential-fields';
 export * from './cron-schedule';
 export * from './throttling';
+export * from './rate-budget';
 export * from './logger';
 export * from './metrics';
 export * from './pricing';
