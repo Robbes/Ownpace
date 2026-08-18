@@ -23,3 +23,4 @@ export * from './usage-metering';
 export * from './tenant-pricing';
 export * from './run-store';
 export * from './migrate';
+export * from './retention';
