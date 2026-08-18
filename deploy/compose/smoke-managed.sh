@@ -186,7 +186,12 @@ q "SELECT state, started_at, finished_at, left(coalesce(error,''),120) FROM veri
 # ---------- APPLY half ----------
 note "APPLY — mapping $APPLY_MAPPING (tenant $APPLY_TENANT, sub $APPLY_SUB)"
 APPLY_RESULT="skipped-no-item"
-HASH="$(q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND status='copied' AND target_ref IS NOT NULL ORDER BY natural_key_hash LIMIT 1")"
+# `target_ref` is `jsonb NOT NULL DEFAULT '{}'` (schema-pg.ts), so the
+# `target_ref IS NOT NULL` this used to say was true of every row ever written
+# — a predicate that read like "and it landed somewhere on the target" and
+# filtered nothing. The ledger stores the handle as `{"id": "..."}`, so that is
+# what has to be non-empty.
+HASH="$(q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND status='copied' AND coalesce(target_ref->>'id','') <> '' ORDER BY natural_key_hash LIMIT 1")"
 if [ -z "$HASH" ]; then
   # NOT a skip. Found in the gate's first green run (e2e-managed #6, 2026-08-18):
   # this branch printed "SKIPPED", left `fail` untouched, and the verdict below
