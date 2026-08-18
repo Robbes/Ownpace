@@ -295,6 +295,30 @@ describe('trigger-credentials.sh', () => {
     expect(r.stdout).toBe('');
   });
 
+  it('does not blame the stack when compose could not read the file at all', () => {
+    // Seen live on the Spark, 2026-08-18. `docker compose exec` interpolates
+    // the WHOLE compose file before running anything, so ONE unset variable —
+    // here on a service this command never touches — fails the call. The old
+    // message said "Is the stack up?" and sent the operator looking at a
+    // Trigger.dev instance that was running perfectly well.
+    const composeError =
+      'error while interpolating services.pgbouncer.environment.PGBOUNCER_AUTH_PASSWORD: ' +
+      'required variable PGBOUNCER_AUTH_PASSWORD is missing a value';
+    const path = join(dir, 'psql-failing');
+    writeFileSync(path, ['#!/usr/bin/env bash', 'cat >/dev/null', `echo '${composeError}' >&2`, 'exit 1'].join('\n'));
+    chmodSync(path, 0o755);
+
+    const r = run(CREDENTIALS, [], { TRIGGER_DB_PSQL: path });
+
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('NOT a database problem');
+    expect(r.stderr).toContain('PGBOUNCER_AUTH_PASSWORD');
+    expect(r.stderr).toContain('ensure-env-secrets.sh');
+    // And it must NOT hand out the dashboard instructions, which would be
+    // answering a question nobody asked.
+    expect(r.stderr).not.toContain('Project → Settings');
+  });
+
   it('treats "no project yet" as the expected pre-setup answer and says which pages to open', () => {
     const r = run(CREDENTIALS, [], stubPsql(FULL_SCHEMA, ''));
 

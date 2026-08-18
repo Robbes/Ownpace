@@ -110,6 +110,36 @@ load_env() {
   # shellcheck disable=SC1090
   . "$ENV_FILE"
   set +a
+
+  # Compose interpolates the WHOLE file before running any command, so ONE
+  # `${VAR:?…}` with no value in .env breaks every compose call against
+  # managed.yml — including ones that never touch the service that is missing
+  # it. The resulting message names a service the operator was not thinking
+  # about, which reads as "that service is broken" rather than "your .env is
+  # incomplete". Seen live on the Spark, 2026-08-18: an `exec` into trigger-db
+  # failed on pgbouncer's PGBOUNCER_AUTH_PASSWORD, and the honest reading of
+  # that error was that Trigger.dev was down. It was not.
+  #
+  # So: check once, here, where every compose-using phase passes through, and
+  # name the actual fix.
+  local config_err
+  if ! config_err="$("${COMPOSE[@]}" config -q 2>&1)"; then
+    echo "!!! docker compose cannot read managed.yml:" >&2
+    printf '%s\n' "$config_err" | sed 's/^/    /' >&2
+    local var
+    var="$(printf '%s\n' "$config_err" | grep -oE 'required variable [A-Za-z_][A-Za-z0-9_]*' | head -1 | awk '{print $3}')"
+    if [ -n "$var" ]; then
+      echo "!!! ${var} has no value in ${ENV_FILE}." >&2
+      echo "!!! This breaks EVERY compose command, not just the service named above." >&2
+      echo "!!! Generate the missing secrets (idempotent — it rotates nothing):" >&2
+      echo "!!!   ./deploy/compose/ensure-env-secrets.sh" >&2
+      if [ "$var" = "PGBOUNCER_AUTH_PASSWORD" ]; then
+        echo "!!! then create the matching Postgres role and start the pooler:" >&2
+        echo "!!!   ./deploy/compose/bootstrap-managed.sh --only data" >&2
+      fi
+    fi
+    exit 1
+  fi
 }
 
 # ---------------------------------------------------------------------------

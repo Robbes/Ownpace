@@ -93,6 +93,27 @@ probe_sql="SELECT table_name || '.' || column_name FROM information_schema.colum
 if ! present="$(run_sql "$probe_sql")"; then
   echo "[trigger-credentials] could not query the Trigger.dev database:" >&2
   echo "${present}" | sed 's/^/    /' >&2
+
+  # Two very different failures arrive down this one pipe, and calling both of
+  # them "is the stack up?" sent an operator looking at a Trigger.dev instance
+  # that was running perfectly well (observed live, 2026-08-18).
+  #
+  # `docker compose exec` interpolates the WHOLE compose file before it runs
+  # anything, so one `${VAR:?…}` with no value in .env makes every compose
+  # command against managed.yml fail — including this one, which only wanted to
+  # reach trigger-db and never touches the service that is missing a variable.
+  if printf '%s\n' "$present" | grep -qE 'required variable|error while interpolating'; then
+    var="$(printf '%s\n' "$present" | grep -oE 'required variable [A-Za-z_][A-Za-z0-9_]*' | head -1 | awk '{print $3}')"
+    echo "[trigger-credentials] That is NOT a database problem, and probably not a stopped stack." >&2
+    echo "[trigger-credentials] docker compose could not read managed.yml at all: ${var:-a required variable}" >&2
+    echo "[trigger-credentials] has no value in deploy/compose/.env, and compose interpolates the" >&2
+    echo "[trigger-credentials] whole file before running any command. Generate the missing secrets:" >&2
+    echo "[trigger-credentials]   ./deploy/compose/ensure-env-secrets.sh" >&2
+    echo "[trigger-credentials] then, if it was PGBOUNCER_AUTH_PASSWORD, create the matching role:" >&2
+    echo "[trigger-credentials]   ./deploy/compose/bootstrap-managed.sh --only data" >&2
+    exit 1
+  fi
+
   echo "[trigger-credentials] Is the stack up?  docker compose -f deploy/compose/managed.yml up -d trigger-db" >&2
   manual_instructions
   exit 1

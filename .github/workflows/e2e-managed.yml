@@ -88,7 +88,12 @@ jobs:
           ENV_FILE=deploy/compose/.env
           missing=()
           [ -f "$ENV_FILE" ] || missing+=("$ENV_FILE itself")
-          for key in TRIGGER_PROJECT_REF TRIGGER_SECRET_KEY JWT_SECRET SECRET_ENCRYPTION_KEY; do
+          # PGBOUNCER_AUTH_PASSWORD is here for a reason that is not obvious:
+          # compose interpolates the WHOLE file before running anything, so
+          # without it EVERY compose command against managed.yml fails — with a
+          # message about pgbouncer, on a runner whose actual problem is an
+          # .env that predates the pooler. `ensure-env-secrets.sh` generates it.
+          for key in TRIGGER_PROJECT_REF TRIGGER_SECRET_KEY JWT_SECRET SECRET_ENCRYPTION_KEY PGBOUNCER_AUTH_PASSWORD; do
             grep -qE "^${key}=." "$ENV_FILE" 2>/dev/null || missing+=("$key")
           done
           if [ ${#missing[@]} -gt 0 ]; then
@@ -98,6 +103,8 @@ jobs:
             echo "through the dashboard, put TRIGGER_PROJECT_REF and the tr_prod_ key in"
             echo "deploy/compose/.env, run the CLI login once, and set the task environment"
             echo "variables in the dashboard. Then re-run this workflow."
+            echo "For PGBOUNCER_AUTH_PASSWORD specifically, it is generated rather than chosen:"
+            echo "  ./deploy/compose/ensure-env-secrets.sh && ./deploy/compose/bootstrap-managed.sh --only data"
             exit 1
           fi
           echo "one-time setup present"
