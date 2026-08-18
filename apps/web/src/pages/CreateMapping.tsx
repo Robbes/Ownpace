@@ -1305,6 +1305,19 @@ const CreateMapping: React.FC = () => {
             <p className="text-gray-700 min-w-0 break-words">{r.ok ? r.detail : r.reason}</p>
           </div>
         )}
+        {/* "We kept this" (workplan 0069 T7c).
+ 
+            A failing credential is stored deliberately — somebody mid-setup
+            waiting on an administrator should not lose it (0063 T4) — and the
+            wizard said only what went wrong, so the storing was invisible. The
+            reasonable inference from a red panel is that nothing was saved and
+            the whole form has to be retyped, which is the opposite of what
+            happened. Shown only when there IS something of ours saved:
+            `draftConnection[side]` is set by the add/rotate path and never by
+            the read-only probe of a connection already being reused. */}
+        {r && !r.ok && draftConnection[side] && (
+          <p className="mt-2 text-sm text-gray-600">{t('wizard.testConnections.kept')}</p>
+        )}
       </div>
     );
   };

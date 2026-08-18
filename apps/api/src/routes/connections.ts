@@ -42,9 +42,11 @@ import {
   CreateMappingBase,
   sourceConnectionConfig,
   sourceCredentialRecord,
+  knownConnectionValues,
   sourceKindFor,
   targetConnectionConfig,
 } from './migrations/index';
+import { serverFault } from '../server-fault';
 
 const router = Router();
 
@@ -73,6 +75,9 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
           displayName: schema.connection.displayName,
           status: schema.connection.status,
           createdAt: schema.connection.createdAt,
+          // Non-secret config only — `knownConnectionValues` filters it
+          // through the descriptor before any of it leaves this route.
+          config: schema.connection.config,
         })
         .from(schema.connection)
         .where(eq(schema.connection.tenantId, tenantId));
@@ -97,16 +102,28 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
         .groupBy(schema.mailbox.connectionId);
       const usedBy = new Map(usage.map((u) => [u.connectionId, u.used]));
 
-      return connections.map((c) => ({
+      return connections.map(({ config, ...c }) => ({
         ...c,
         createdAt: c.createdAt.toISOString(),
         usedByMailboxes: usedBy.get(c.id) ?? 0,
+        /**
+         * What this connection already knows, so a rotation only asks for
+         * what actually changed (workplan 0078). Built from `config` alone —
+         * the encrypted record is never opened — and filtered through the
+         * descriptor, so a secret field cannot appear here however the config
+         * was written. The raw `config` is destructured away deliberately:
+         * only the filtered view leaves.
+         */
+        knownValues: knownConnectionValues(
+          c.role as 'source' | 'target',
+          wizardTypeForConnectionKind(c.kind),
+          config,
+        ),
       }));
     });
     res.json({ connections: rows });
   } catch (error) {
-    log.error('[api] listing connections failed:', error);
-    res.status(500).json({ error: 'list_failed', reason: String(error) });
+    serverFault(res, 'list_failed', 'listing your connections', error);
   }
 });
 
@@ -262,8 +279,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
 
     res.status(201).json({ id: inserted[0]!.id, ...probe });
   } catch (error) {
-    log.error('[api] adding a connection failed:', error);
-    res.status(500).json({ error: 'add_failed', reason: String(error) });
+    serverFault(res, 'add_failed', 'adding this connection', error);
   }
 });
 
@@ -432,8 +448,7 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
 
     res.json({ ...probe, rotated: true });
   } catch (error) {
-    log.error('[api] rotating credentials failed:', error);
-    res.status(500).json({ error: 'rotate_failed', reason: String(error) });
+    serverFault(res, 'rotate_failed', 'replacing these credentials', error);
   }
 });
 
@@ -544,8 +559,7 @@ router.delete('/:id', authenticate, async (req: AuthenticatedRequest, res: Respo
     }
     res.status(204).end();
   } catch (error) {
-    log.error('[api] deleting a connection failed:', error);
-    res.status(500).json({ error: 'delete_failed', reason: String(error) });
+    serverFault(res, 'delete_failed', 'deleting this connection', error);
   }
 });
 

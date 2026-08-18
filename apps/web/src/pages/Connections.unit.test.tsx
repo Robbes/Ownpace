@@ -213,6 +213,30 @@ describe('replacing credentials', () => {
     }
   });
 
+  it('starts from what the connection already knows (0078)', async () => {
+    // Rotating an expired secret meant retyping the server address and the
+    // account that had not changed. Only NON-SECRET config values arrive —
+    // the encrypted record is never opened — so the secrets stay blank, which
+    // is the half this test also pins.
+    list.mockResolvedValue([
+      conn({
+        kind: 'jmap',
+        role: 'target',
+        knownValues: { host: 'stalwart.acme.example', port: '443', username: 'anna@acme.net' },
+      }),
+    ]);
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Replace credentials'));
+
+    expect(screen.getByDisplayValue('stalwart.acme.example')).toBeTruthy();
+    expect(screen.getByDisplayValue('443')).toBeTruthy();
+    expect(screen.getByDisplayValue('anna@acme.net')).toBeTruthy();
+    // The password is what you came to change, and nothing pretends to know it.
+    const password = document.querySelector('input[type="password"]') as HTMLInputElement;
+    expect(password.value, 'a secret must never be prefilled').toBe('');
+  });
+
   it('shows the same example the wizard does (0077)', async () => {
     // Somebody adding a Dropbox connection here was asked for an "App key"
     // with no indication of what one looks like, while the same field two

@@ -611,3 +611,78 @@ describe('every wizard field is reachable by its label', () => {
     expect(screen.getByLabelText(/^Target Password/)).toBeTruthy();
   });
 });
+
+
+/**
+ * A failing credential is KEPT, and the wizard now says so (0069 T7c).
+ *
+ * `POST /connections` stores a credential that does not work yet on purpose —
+ * somebody mid-setup waiting on an administrator should not lose it (0063 T4).
+ * The wizard showed only the provider's refusal, so the storing was invisible,
+ * and the reasonable inference from a red panel is that nothing was saved and
+ * the whole form has to be retyped. That is the opposite of what happened.
+ */
+describe('a credential that fails is still kept, and says so', () => {
+  const fillImap = () => {
+    renderWizard();
+    fill(/^Host$/, 'mail.acme.example');
+    fill(/^Source Username/, 'anna@acme.example');
+  };
+
+  it('says the details were kept when the check fails', async () => {
+    vi.mocked(connectionsApi.add).mockResolvedValue({
+      id: 'kept-1',
+      ok: false,
+      reason: 'IMAP said: AUTHENTICATIONFAILED.',
+    });
+    fillImap();
+
+    fireEvent.click(screen.getByRole('button', { name: /Test/i }));
+
+    // The provider's words, verbatim — and then ours, saying it is not lost.
+    expect(await screen.findByText(/AUTHENTICATIONFAILED/)).toBeTruthy();
+    expect(screen.getByText(/kept even though the check failed/)).toBeTruthy();
+  });
+
+  it('does not claim to have kept anything when the check passes', async () => {
+    vi.mocked(connectionsApi.add).mockResolvedValue({
+      id: 'kept-2',
+      ok: true,
+      detail: 'Listed 12 folders.',
+    });
+    fillImap();
+
+    fireEvent.click(screen.getByRole('button', { name: /Test/i }));
+
+    expect(await screen.findByText(/Listed 12 folders/)).toBeTruthy();
+    expect(screen.queryByText(/kept even though the check failed/)).toBeNull();
+  });
+
+  it('does not say it about a connection that was only READ', async () => {
+    // Reusing a stored connection probes it read-only: there is nothing of
+    // ours to have saved, so claiming to have kept something would be a lie.
+    vi.mocked(connectionsApi.test).mockResolvedValue({
+      ok: false,
+      reason: 'Box refused the token request (400): invalid_client.',
+    });
+    const stored = {
+      id: 'c0000000-0000-4000-8000-00000000000b',
+      role: 'source' as const,
+      kind: 'box',
+      displayName: 'Acme Box',
+      status: 'connected' as const,
+      createdAt: '2026-08-01T00:00:00.000Z',
+      usedByMailboxes: 1,
+    };
+    listMock.mockResolvedValue([stored]);
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /^Box/ }));
+    await waitFor(() => expect(queryFieldFor(/^Use a source connection/)).not.toBeNull());
+    fireEvent.change(fieldFor(/^Use a source connection/), { target: { value: stored.id } });
+
+    fireEvent.click(screen.getByRole('button', { name: /Test/i }));
+
+    expect(await screen.findByText(/invalid_client/)).toBeTruthy();
+    expect(screen.queryByText(/kept even though the check failed/)).toBeNull();
+  });
+});

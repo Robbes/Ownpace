@@ -16,7 +16,6 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import { z } from 'zod';
 import {
-  log,
   setupStepsFor,
   summariseSetup,
   type SetupSide,
@@ -26,6 +25,7 @@ import { PgLedger } from '@openmig/ledger';
 import type { TenantId } from '@openmig/shared';
 import { authenticate, getDbPool, withTenantDb } from '../middleware/auth';
 import type { AuthenticatedRequest } from '../types/api';
+import { serverFault } from '../server-fault';
 
 const router = Router();
 
@@ -86,8 +86,7 @@ router.get('/:side/:provider', authenticate, async (req: AuthenticatedRequest, r
     }
     res.json(await readChecklist(req.tenantId, side, provider));
   } catch (error) {
-    log.error('[api] reading the setup checklist failed:', error);
-    res.status(500).json({ error: 'read_failed', reason: String(error) });
+    serverFault(res, 'read_failed', 'reading the setup checklist', error);
   }
 });
 
@@ -132,8 +131,7 @@ router.put(
       );
       res.json(await readChecklist(req.tenantId, side, provider));
     } catch (error) {
-      log.error('[api] recording a setup step failed:', error);
-      res.status(500).json({ error: 'write_failed', reason: String(error) });
+      serverFault(res, 'write_failed', 'recording that setup step', error);
     }
   },
 );
