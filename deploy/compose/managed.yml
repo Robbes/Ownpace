@@ -58,6 +58,46 @@ services:
     networks:
       - open-migrate-network
 
+  # PgBouncer — transaction-mode pooler in front of the ledger (workplan 0082 T4)
+  #
+  # Why: every sync pass opens its own pg.Pool of DEFAULT_CONCURRENCY + 2, so the
+  # server-connection ceiling was concurrent-passes times six, against a managed
+  # Postgres whose connection limit is much lower than its CPU budget suggests.
+  # A pooler removes that as a CLASS of problem rather than as an incident.
+  #
+  # The safety argument is in pgbouncer/pgbouncer.ini: the tenant context is set
+  # with set_config(..., true) inside a transaction, so nothing survives the
+  # COMMIT that hands the server connection to the next borrower. Migrations are
+  # the one exception and connect direct — see DIRECT_DATABASE_URL below.
+  #
+  # ROLLBACK, if this misbehaves: set DB_HOST=postgres and DB_PORT=5432 in .env
+  # and `compose up -d`. Every service reads those, so that one change puts the
+  # whole stack back on direct connections without touching this file.
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.24.1-p1
+    container_name: open-migrate-pgbouncer
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      # SCRAM verifier for the lookup role only — every other credential is read
+      # from Postgres via auth_query, so this file does not grow.
+      - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    healthcheck:
+      # `pgbouncer` is a real database name on the admin console; reaching it
+      # proves the process is accepting connections, which a TCP probe does not.
+      test: ["CMD-SHELL", "PGPASSWORD=$${PGBOUNCER_AUTH_PASSWORD} psql -h 127.0.0.1 -p 6432 -U pgbouncer_auth -d pgbouncer -c 'SHOW POOLS' >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    environment:
+      PGBOUNCER_AUTH_PASSWORD: ${PGBOUNCER_AUTH_PASSWORD:?run deploy/compose/pgbouncer/setup-auth.sql and set this in .env}
+    networks:
+      - open-migrate-network
+
   # Trigger.dev Backend
   trigger-db:
     image: postgres:18-alpine
@@ -335,8 +375,17 @@ services:
       # DATABASE_URL = DB owner (migrations / seed). APP_DATABASE_URL = non-owner
       # `app_user` role the request path connects through so RLS is ALWAYS enforced
       # (a superuser/owner bypasses RLS even under FORCE — see workplan 0011 T1).
-      DATABASE_URL: postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD:-openmigrate_password}@postgres:5432/${POSTGRES_DB:-openmigrate}
-      APP_DATABASE_URL: postgresql://${APP_DB_USER:-app_user}:${APP_DB_PASSWORD:-app_password}@postgres:5432/${POSTGRES_DB:-openmigrate}
+      # DB_HOST/DB_PORT default to the pooler. Setting them to postgres:5432 in
+      # .env puts the whole stack back on direct connections — the rollback the
+      # pgbouncer service documents.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD:-openmigrate_password}@${DB_HOST:-pgbouncer}:${DB_PORT:-6432}/${POSTGRES_DB:-openmigrate}
+      APP_DATABASE_URL: postgresql://${APP_DB_USER:-app_user}:${APP_DB_PASSWORD:-app_password}@${DB_HOST:-pgbouncer}:${DB_PORT:-6432}/${POSTGRES_DB:-openmigrate}
+      # ALWAYS direct, never the pooler. `migrate.ts` holds a SESSION-scoped
+      # pg_advisory_lock across every migration's own transaction; through a
+      # transaction-mode pooler the lock would be taken on one server connection
+      # and the migrations applied on others, so two replicas booting at once
+      # would stop excluding each other — silently, and only under load.
+      DIRECT_DATABASE_URL: postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD:-openmigrate_password}@postgres:5432/${POSTGRES_DB:-openmigrate}
       # Fail-closed (0020 T2): with the tenant-membership gate, JWT_SECRET is
       # the outer wall of the tenancy boundary. No default — and the API also
       # refuses to BOOT in production with a known placeholder value.

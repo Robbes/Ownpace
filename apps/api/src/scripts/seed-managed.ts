@@ -53,6 +53,7 @@ import {
   createPgDb,
   withTenant,
   runMigrations,
+  migrationConnectionString,
   tenant,
   tenantMember,
   connection,
@@ -292,7 +293,10 @@ async function main(): Promise<void> {
   // arrives first applies, the other finds everything already recorded. This
   // used to be initdb's job via a docker-entrypoint-initdb.d mount, which
   // applied the files WITHOUT schema_migrations bookkeeping — see managed.yml.
-  await runMigrations({ connectionString });
+  // Direct, not through the pooler, for the advisory-lock reason in
+  // `direct-url.ts` — and doubly so here, where the whole point of the call is
+  // that it may be racing an API boot doing the same thing.
+  await runMigrations({ connectionString: migrationConnectionString(process.env) });
 
   const tokens: Array<{ tenant: string; email: string; token: string }> = [];
   for (const t of DEMO_TENANTS) {

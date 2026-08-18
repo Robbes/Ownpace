@@ -67,8 +67,14 @@ fi
 
 # In-network addresses — runners run ON the compose network (see managed.yml's
 # DOCKER_RUNNER_NETWORKS), so the DB is `postgres`, never localhost.
-TASK_DATABASE_URL="postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD:-openmigrate_password}@postgres:5432/${POSTGRES_DB:-openmigrate}"
-TASK_APP_DATABASE_URL="postgresql://${APP_DB_USER:-app_user}:${APP_DB_PASSWORD:-app_password}@postgres:5432/${POSTGRES_DB:-openmigrate}"
+# Through the pooler by default (workplan 0082 T4). The worker is the reason it
+# exists: every sync pass opens its own pg.Pool of DEFAULT_CONCURRENCY + 2, so
+# without pooling the server-connection ceiling is concurrent-passes times six.
+# DB_HOST=postgres DB_PORT=5432 in .env is the rollback, same as the API's.
+TASK_DATABASE_URL="postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD:-openmigrate_password}@${DB_HOST:-pgbouncer}:${DB_PORT:-6432}/${POSTGRES_DB:-openmigrate}"
+TASK_APP_DATABASE_URL="postgresql://${APP_DB_USER:-app_user}:${APP_DB_PASSWORD:-app_password}@${DB_HOST:-pgbouncer}:${DB_PORT:-6432}/${POSTGRES_DB:-openmigrate}"
+# Never the pooler: session-scoped advisory lock. See packages/ledger/src/direct-url.ts.
+TASK_DIRECT_DATABASE_URL="postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD:-openmigrate_password}@postgres:5432/${POSTGRES_DB:-openmigrate}"
 
 echo "[set-task-env] uploading task env vars to project ${TRIGGER_PROJECT_REF} env '${TRIGGER_ENV_SLUG}'"
 
@@ -79,6 +85,7 @@ TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
   TRIGGER_ENV_SLUG="$TRIGGER_ENV_SLUG" \
   TASK_DATABASE_URL="$TASK_DATABASE_URL" \
   TASK_APP_DATABASE_URL="$TASK_APP_DATABASE_URL" \
+  TASK_DIRECT_DATABASE_URL="$TASK_DIRECT_DATABASE_URL" \
   SECRET_ENCRYPTION_KEY="$SECRET_ENCRYPTION_KEY" \
   OAUTH2_CLIENT_ID="${OAUTH2_CLIENT_ID:-}" \
   OAUTH2_CLIENT_SECRET="${OAUTH2_CLIENT_SECRET:-}" \
@@ -100,6 +107,7 @@ const { envvars } = require("@trigger.dev/sdk");
   const variables = {
     DATABASE_URL: process.env.TASK_DATABASE_URL,
     APP_DATABASE_URL: process.env.TASK_APP_DATABASE_URL,
+    DIRECT_DATABASE_URL: process.env.TASK_DIRECT_DATABASE_URL,
     SECRET_ENCRYPTION_KEY: process.env.SECRET_ENCRYPTION_KEY,
   };
   // Graph credentials and notification settings are optional; only the ones
