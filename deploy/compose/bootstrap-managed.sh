@@ -154,8 +154,17 @@ up_wait() { # up_wait <service> [service...]
   for svc in "$@"; do
     local state
     state="$("${COMPOSE[@]}" ps --format '{{.State}} {{.Health}}' "$svc" 2>/dev/null | tail -1)"
-    echo "!!! --- ${svc} (${state:-not running}) — last 30 log lines:" >&2
-    "${COMPOSE[@]}" logs --tail 30 "$svc" 2>&1 | sed 's/^/    /' >&2
+    # BOTH ENDS OF THE LOG, and the first half is the one that matters.
+    # A misconfigured service says why at START-UP and then loops on the
+    # consequence, so a `--tail 30` window shows thirty copies of the symptom
+    # and none of the cause. That is not hypothetical: PgBouncer's
+    # `could not open auth_file … Permission denied` sat one line above the
+    # visible window for three rounds of debugging (Spark, 2026-08-18) while
+    # the repeating authentication failures below it got all the attention.
+    echo "!!! --- ${svc} (${state:-not running}) — FIRST 20 log lines (start-up):" >&2
+    "${COMPOSE[@]}" logs "$svc" 2>&1 | head -20 | sed 's/^/    /' >&2
+    echo "!!! --- ${svc} — last 20:" >&2
+    "${COMPOSE[@]}" logs --tail 20 "$svc" 2>&1 | sed 's/^/    /' >&2
   done
   echo "!!! docs/managed-bring-up.md has a failure table; the log above is the answer." >&2
   exit 1
@@ -318,6 +327,15 @@ phase_data() {
     exit 1
   fi
 
+  # The pooler reads userlist.txt as a user that is not the one who wrote it.
+  # Checked here rather than discovered as `no such user: pgbouncer_auth` after
+  # an 80-second healthcheck timeout.
+  local userlist="${SCRIPT_DIR}/pgbouncer/userlist.txt"
+  if [ -f "$userlist" ] && [ ! "$(stat -c '%a' "$userlist" 2>/dev/null)" = "644" ]; then
+    chmod 644 "$userlist"
+    note "userlist.txt was not readable inside the container — set to 644 (see ensure-env-secrets.sh)"
+  fi
+
   # RECREATE A POOLER THAT IS RUNNING BUT UNHEALTHY, rather than waiting on it.
   #
   # pgbouncer.ini is a bind mount and PgBouncer reads it once, at start-up. So
@@ -360,7 +378,24 @@ phase_demo() {
   # the same trap the task runtime falls into, one layer up. Direct to
   # Postgres on its published port: the pooler is internal-only (no `ports:`),
   # and the seed runs migrations, which must not go through a pooler anyway.
-  local direct="postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD}@localhost:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-openmigrate}"
+  # THE PORT COMES FROM COMPOSE, NOT FROM .env.
+  #
+  # `${POSTGRES_PORT:-5432}` looks harmless and is not, on a host that runs
+  # anything else: 5432 is the obvious port and something else may already own
+  # it. On the Spark it does — an unrelated `litellm-db` is published there,
+  # while this stack's Postgres is on 55432. A wrong password makes that a loud
+  # failure rather than a silent write to a stranger's database, but "loud
+  # failure naming the wrong cause" is still an hour of somebody's evening.
+  #
+  # `compose port` asks the thing that actually published it.
+  local hostport
+  hostport="$("${COMPOSE[@]}" port postgres 5432 2>/dev/null | tail -1)"
+  [ -n "$hostport" ] || die "could not determine the published host port for postgres — is it up?"
+  # Strip the address half: compose answers 0.0.0.0:55432, and 0.0.0.0 is not
+  # an address to connect TO.
+  local pgport="${hostport##*:}"
+  note "seeding against the published port compose reports: localhost:${pgport}"
+  local direct="postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD}@localhost:${pgport}/${POSTGRES_DB:-openmigrate}"
   DATABASE_URL="$direct" \
     DIRECT_DATABASE_URL="$direct" \
     JWT_SECRET="${JWT_SECRET}" \
