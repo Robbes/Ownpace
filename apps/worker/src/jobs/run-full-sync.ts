@@ -52,7 +52,7 @@ export const runFullSync = schemaTask({
   id: 'run-full-sync',
   description: 'Full Sync',
   schema: FullSyncJobSchema,
-  run: async (payload: unknown, _context) => {
+  run: async (payload: unknown, context) => {
     // Type assertion since schemaTask validates the payload
     const typedPayload = payload as FullSyncJobPayload;
     
@@ -73,12 +73,20 @@ export const runFullSync = schemaTask({
 
       // Open the run-ledger row up front so an in-flight run is visible and a
       // crash leaves a `running` row rather than no trace at all.
+      // The orchestrator's own id for this run — see the note in
+      // run-delta-sync.ts. Absent rather than wrong if the shape changes: an
+      // absent handle degrades to the erasure quiesce's age-based path, a wrong
+      // one would point it at somebody else's run.
+      const contextRunId = (context as { ctx?: { run?: { id?: unknown } } } | undefined)?.ctx?.run
+        ?.id;
+      const orchestratorRef = typeof contextRunId === 'string' ? contextRunId : undefined;
       const runId = await withTenant(pool, tenantId, async (db) =>
         new RunStore(db).startRun({
           tenantId,
           mappingId,
           kind: 'initial_copy',
           trigger: 'manual',
+          ...(orchestratorRef ? { orchestratorRef } : {}),
         }),
       );
 

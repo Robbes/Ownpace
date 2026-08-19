@@ -163,7 +163,7 @@ export const runDeltaSync = schemaTask({
   description: 'Delta Sync',
   schema: DeltaSyncJobSchema,
   queue: deltaSyncQueue,
-  run: async (payload: unknown, _context) => {
+  run: async (payload: unknown, context) => {
     // Type assertion since schemaTask validates the payload
     const typedPayload = payload as DeltaSyncJobPayload;
     
@@ -195,15 +195,29 @@ export const runDeltaSync = schemaTask({
 
     // Open the run-ledger row up front so an in-flight run is visible in the UI
     // and a crash leaves a `running` row rather than no trace at all.
+    // Absent rather than wrong if the shape ever changes again: an absent
+    // handle degrades to the age-based path, a wrong one points the quiesce at
+    // somebody else's run.
+    const contextRunId = (context as { ctx?: { run?: { id?: unknown } } } | undefined)?.ctx?.run
+      ?.id;
+    const orchestratorRef = typeof contextRunId === 'string' ? contextRunId : undefined;
     const runId = await withTenant(pool, tenantId, async (db) =>
       new RunStore(db).startRun({
         tenantId,
         mappingId,
         kind: 'incremental',
         trigger: 'schedule',
-        // orchestratorRef (the Trigger.dev run id) is intentionally not set:
-        // the context shape isn't stable across SDK versions here, and a wrong
-        // value is worse than an absent one. Wire it when the v4 task model lands.
+        // The orchestrator's own id for this run. It used to be left unset —
+        // "wire it when the v4 task model lands" — and v4 is what we run now
+        // (`ctx.run.id`, read from @trigger.dev/core's TaskRunContext rather
+        // than guessed).
+        //
+        // It is not bookkeeping. Without a handle, a row that says `running`
+        // is an unfalsifiable claim: the erasure quiesce (0085 T8) cannot ask
+        // whether the process behind it still exists, so it can only wait, and
+        // a row left behind by a killed worker blocks a promised erasure for
+        // ever. This is what makes the question answerable.
+        ...(orchestratorRef ? { orchestratorRef } : {}),
       }),
     );
 

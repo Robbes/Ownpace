@@ -28,8 +28,10 @@ import {
   erasureTimelineText,
   erasureScopeText,
   erasureNeverTouches,
+  log,
 } from '@openmig/shared';
 import { eq } from 'drizzle-orm';
+import { getTriggerClient } from '@openmig/scheduler';
 import * as schema from '@openmig/ledger';
 import {
   readTenantNotificationPrefs,
@@ -383,6 +385,60 @@ router.delete(
 );
 
 /**
+ * Ask the orchestrator to stop every pass this tenant still has in flight
+ * (workplan 0085 T8).
+ *
+ * Closing already stops the scheduler STARTING passes — the mapping is no
+ * longer `active`. What it did not do is stop the ones already running, and
+ * "waited out rather than stopped" is how a pass that never ends holds a
+ * promised erasure open for ever.
+ *
+ * Two things this deliberately does NOT do.
+ *
+ * It does not mark the run rows cancelled. A cancellation is a REQUEST; the
+ * pass may still be mid-write when it is acknowledged. Landing the row here
+ * would tell the purge nothing is in flight while something still is, which is
+ * precisely the state that duplicates a leaving customer's mail into their own
+ * target. The row is landed by whoever actually finishes it — the worker, or
+ * the purge's quiesce once the orchestrator confirms it stopped.
+ *
+ * And it never fails the close. Somebody ending their relationship with us must
+ * not be blocked because our orchestrator is unreachable; the purge-time
+ * quiesce is the backstop, and it is the one that enforces the safety rule.
+ */
+async function stopPassesInFlight(tenantId: string): Promise<number> {
+  let asked = 0;
+  try {
+    const live = await getSharedPool().query<{ id: string; orchestrator_ref: string | null }>(
+      `SELECT id, orchestrator_ref FROM run
+        WHERE tenant_id = $1 AND status IN ('running', 'queued')`,
+      [tenantId],
+    );
+    const client = getTriggerClient();
+    for (const row of live.rows) {
+      if (!row.orchestrator_ref) continue;
+      try {
+        await client.runs.cancel(row.orchestrator_ref);
+        asked++;
+      } catch (error) {
+        log.warn(
+          `[close] could not ask the orchestrator to cancel run ${row.id} ` +
+            `(${row.orchestrator_ref}): ${error instanceof Error ? error.message : String(error)}. ` +
+            'The erasure quiesce will deal with it before any purge runs.',
+        );
+      }
+    }
+  } catch (error) {
+    log.warn(
+      `[close] could not stop passes in flight for ${tenantId}: ` +
+        `${error instanceof Error ? error.message : String(error)}. The close stands; the purge ` +
+        'will not proceed until they are quiesced.',
+    );
+  }
+  return asked;
+}
+
+/**
  * POST /api/tenants/:tenantId/close — end the service (workplan 0085 T2).
  *
  * Stops syncs and billing now; schedules the erasure for the window the
@@ -451,6 +507,10 @@ router.post(
         ),
       );
 
+      // Stop what is already running. Best effort, and never a reason to fail
+      // the close — see the helper.
+      const passesStopped = await stopPassesInFlight(req.tenantId);
+
       // Both dates, and the sentence that explains them. `purgeAfter` alone
       // would be a true statement that reads as a false one: the live database
       // stops holding it that day, and the backups do not (0085 T5).
@@ -466,6 +526,9 @@ router.post(
           nl: erasureTimelineText(timeline, 'nl'),
         },
         canReopenUntil: result.windowDays > 0 ? result.purgeAfter.toISOString() : null,
+        // How many in-flight passes we asked to stop. Not how many stopped —
+        // that is the orchestrator's to confirm, and the purge checks it.
+        passesStopped,
         // Kept for callers that already read it. `outlivingAccess` supersedes
         // it and is what new callers should render.
         standingGrants: standingGrantReminders(kinds, 'en'),

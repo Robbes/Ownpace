@@ -37,6 +37,7 @@ export * from './credential-refusals';
 export * from './standing-grants';
 export * from './erasure-timeline';
 export * from './erasure-scope';
+export * from './quiesce';
 export * from './token-revocation';
 export * from './logger';
 export * from './metrics';
