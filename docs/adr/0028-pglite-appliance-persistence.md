@@ -5,6 +5,16 @@
 - **Context:** workplans [0016](../workplans/0016-pglite-adoption.md) (execution),
   [0015](../workplans/0015-native-windows-installer.md) (the motivating installer)
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- The appliance may run **PGlite** (`SELFHOST_PERSISTENCE=pglite`) behind the `LedgerDriver` seam; managed stays server Postgres; PGlite is **not** the compose default.
+- The seam carries the security posture: `LedgerDriver.role` forces `SET LOCAL ROLE` — owner connections are RLS-exempt, so without it every policy is decoration.
+- The e2e parity matrix runs per backend; anything opening its own connection outside the seam is a bug.
+
 ## Context
 
 ADR-0023 chose PostgreSQL as the single ledger backend for both editions and

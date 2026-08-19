@@ -4,6 +4,16 @@
 - **Date:** 2026-06-21
 - **Refines:** ADR-0007 (engine reuse); relates to ADR-0003 (two editions, one core) and ADR-0018 (JMAP-first).
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- **Container-first** is the supported self-host packaging.
+- The runtime dependency list is exhaustive, not preferred: pure JS (`imapflow`, `webdav`, `ical.js`, `undici`) — **no Perl, no Python, no external binaries**.
+- The Tauri tray is deferred as the first Windows target by ADR-0027 (revisit condition lives there).
+
 ## Update 2026-07-30: decision 3 went all the way — there are no shell-out engines left
 
 Decision 3 said "prefer JS-native where fidelity is equal, keep the shell-out

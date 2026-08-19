@@ -4,6 +4,16 @@
 - **Date:** 2026-06-21
 - **Relates to:** ADR-0005 (idempotency via ledger, non-destructive), ADR-0015 (backup scope), ADR-0016 (ledger schema), ADR-0018 (JMAP/DAV targets).
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- The ledger is a **rebuildable cache + audit log**, never the source of truth for existence — that fact lives on the target via natural keys.
+- Writes are **create-if-absent by natural key** (target existence check beside the ledger fast-path); an empty ledger can never duplicate.
+- **Reindex/adopt** rehydrates the ledger from the target; auto-runs when the ledger is empty but the target is not. Content-hash fallback for Message-ID-less items; cursors are non-authoritative; backups are the fast path, not the safety net.
+
 ## Context
 A self-host user can lose their install (disk failure, no backup) and **reinstall fresh with an empty ledger**, pointing at the same O365 source and the same target. If migration relied solely on the local ledger to know what was already migrated, a fresh install would re-copy everything and risk **duplicating** it on the target. Correctness must survive ledger loss.
 

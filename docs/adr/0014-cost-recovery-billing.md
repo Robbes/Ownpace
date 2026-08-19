@@ -3,6 +3,15 @@
 - **Status:** Accepted
 - **Date:** 2026-06-20
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- Managed edition is priced at **cost recovery, no profit**; the self-host edition is free.
+- Metering derives from the ledger; EU PSP (Mollie). The machinery lives in `@openmig/managed` (ADR-0036).
+
 ## Context
 The managed service should be sustainable, not profit-seeking.
 

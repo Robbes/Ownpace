@@ -18,7 +18,8 @@
     "test:ui": "vitest run --project ui",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "typecheck:legacy": "tsc6 --noEmit"
+    "typecheck:legacy": "tsc6 --noEmit",
+    "adr:operative": "node scripts/adr-operative.mjs --write"
   },
   "dependencies": {
     "@azure/msal-node": "^5.5.0",

@@ -3,6 +3,16 @@
 - **Status:** Accepted
 - **Date:** 2026-06-20
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- **Each customer registers their own single-tenant Entra app** and consents in their own tenant — the central multi-tenant app is retired (2026-08-09). The credential never leaves customer custody; deleting the registration is their kill switch.
+- Application permissions + **Application Access Policy** for org tenants; delegated for individuals.
+- Mail: **IMAP+OAuth2 primary**, Graph fallback via a self-verifying probe (`MailSourceWithGraphFallback`) — probe the alternative, never parse Microsoft's error prose.
+
 > **Update 2026-08-02 (workplan 0021 T5, owner decision: keep + build).** The
 > "Microsoft Graph fallback when IMAP is disabled per mailbox" promise had no
 > code behind it — the mail path was IMAP+OAuth2 only. Kept, and built the

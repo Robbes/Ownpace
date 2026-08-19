@@ -4,6 +4,16 @@
 - **Date:** 2026-07-30
 - **Relates to:** ADR-0011 (targets are managed EU/CH platforms; self-hosted permitted but user-operated), ADR-0019 (packaging; JS-native), ADR-0020 (ledger is a rebuildable cache), ADR-0024 (`apply`), SAD §9.1/§9.4 (Proton positioning), §17 (secret handling), §20 (verification).
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- The **entire Proton destination is deferred** (Drive, Bridge mail, ICS/vCard snapshots); nothing Proton is in the scope manifest.
+- Drive's revisit needs **both**: SDK general availability **and** a non-interactive credential a headless worker may hold — the second is the real gate.
+- The reverse-engineered rclone/Proton-API-Bridge route is **rejected outright, now and later** (idempotency cannot survive an undocumented per-account protocol).
+
 ## Context
 
 Proton is Swiss, end-to-end encrypted, and exactly the kind of destination this

@@ -54,6 +54,11 @@ Significant decisions are captured as ADRs in `docs/adr/`.
 - Copy `docs/adr/0000-template.md` to the next number, e.g. `0011-my-decision.md`.
 - Status flow: Proposed -> Accepted -> (later) Superseded by `00xx`.
 - Keep them short (about one page): Context, Decision, Consequences, Alternatives.
+- **Every ADR carries an `## Operative rules` section** (ADR-0038): 3–8 terse bullets
+  stating what holds now, amended **in place** when a later decision changes them — the
+  rest of the file stays append-only. After amending, regenerate the assembled view:
+  `node scripts/adr-operative.mjs --write` (a unit test fails any drift). Readers load
+  `docs/adr/OPERATIVE.md`; the register (`docs/adr/README.md`) carries statuses only.
 - Reference the ADR id from code/PRs when relevant.
 
 ## Commits & branches

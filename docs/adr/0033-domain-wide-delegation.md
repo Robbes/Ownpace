@@ -9,6 +9,16 @@
   per-user Google sources this would scale), `docs/google-workspace-setup.md` (which has
   carried a "needs an ADR" note since Gmail landed).
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- Google **DWD is a second credential mode, opt-in** — per-user refresh tokens remain the default and documented first path.
+- One subject per mapping (blast radius unchanged); dedicated service account; **only the enumerated scopes the chosen products need**; revoke the delegation at cutover.
+- Refusals name the Admin-console delegation with Google's own words verbatim; no bulk mapping-from-directory (open question, Pattern D shape); **Google is never a target**.
+
 ## Context
 
 Every Google source this product has — Drive, Gmail, Calendar, Contacts — authenticates

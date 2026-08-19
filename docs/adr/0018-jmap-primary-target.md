@@ -4,6 +4,16 @@
 - **Date:** 2026-06-21
 - **Supersedes:** the earlier "JMAP as a roadmap/planned adapter" framing.
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- **JMAP is the primary target protocol**; the IMAP/DAV family ships in parallel; sources are unchanged (Microsoft has no JMAP). Stalwart is the reference server.
+- Per-domain reality (tested, not assumed): mail and files are JMAP-capable (files with full checksums); **contacts are JMAP with no checksum leg** (`CHECKSUM_UNAVAILABLE_contacts`); **calendars stay CalDAV** — Stalwart refuses `recurrenceRules` over JMAP; re-run `scripts/jmap-target-spike.ts` on each server bump.
+- No external import utility: `JmapTargetWriter` does bulk and incremental through the same idempotent pass.
+
 ## Context
 A growing class of EU sovereign suites — **La Suite numérique** (DINUM) and its SaaS resellers (**mosa.cloud**, the Dutch **MijnBureau**) — are **JMAP-first and deliberately omit IMAP** (the La Suite *Messages* brick states "no POP3 or IMAP, by design"). **JMAP** (RFC 8620/8621, plus JMAP for Calendars/Contacts/Files) is the modern, JSON-over-HTTP open successor to IMAP/CalDAV/CardDAV/WebDAV, with superior native delta-sync. Meanwhile, **OX-based suites (openDesk)** and **Soverin** speak classic **IMAP/CalDAV/CardDAV/WebDAV**.
 

@@ -3,6 +3,15 @@
 - **Status:** Accepted
 - **Date:** 2026-06-20
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- One **public Apache-2.0 monorepo** with the whole product; private only: secrets, our ops/IaC, tenant data, billing keys, NDA integrations.
+- This ADR says **"No open-core."** ⚠ **CONFLICT:** ADR-0036 (also Accepted) parks an open-core split as an option that "remains open". Which statement governs is an **owner decision still pending** — do not act on either reading without it.
+
 ## Context
 Maximal use + open. Avoid leaking secrets or business operations.
 

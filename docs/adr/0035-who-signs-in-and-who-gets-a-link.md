@@ -26,6 +26,17 @@
   question), [ADR-0006](./0006-o365-access-model.md), SAD §7.3 (the `Auth` row this
   changes).
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- **Owners sign in; migrated people get links, not accounts** — and the owner decides who gets a link to manage and **grant** their own migration (restated 2026-08-19).
+- Only the migrated person holds their own source credential, never the organisation; admins see their whole family/organisation's progress.
+- `tenant_member` rows sign in; mappings get links. Organisation-held credentials (Box CCG, app-only Graph, DWD) **cannot be narrowed** — stated, not hidden.
+- Still open: the formal accept/reject of this ADR's reasoning and consequences.
+
 ## Context
 
 ### A correction, first, because it changed my advice

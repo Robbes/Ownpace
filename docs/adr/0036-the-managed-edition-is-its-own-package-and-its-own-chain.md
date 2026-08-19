@@ -18,6 +18,19 @@
   see Consequences), AGENTS.md hard rule 5 (the editions must not differ), hard rule 2 (never
   delete from source).
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- Managed-only code lives in **`@openmig/managed`** (pricing, tenant pricing, usage metering, offboarding + seven tables); only `apps/api` and `apps/worker` may depend on it. The split is by **who is served**, not by subject.
+- Enforced by a **walk** (`no-managed-leakage`: forbidden imports, no managed table/column reachable) and by **building both bundles** (billing markers present on managed, absent on self-host).
+- Managed DDL is its **own chain** (own bookkeeping table, own advisory lock) that **adopts** pre-split databases (`IF NOT EXISTS` + carrying `tenant.pricing`/closure data into `tenant_pricing`/`tenant_closure`).
+- Managed state on a core table is a **ROW, not a column**; `tenant` stays core (RLS anchor); `tenant.status` keeps `closed`/`deleting`; `forget-me` stays on the appliance.
+- The 27-file shared chain is **not compressed** until a guard compares RLS policy definitions and per-role grants and provably fails on a dropped `USING` clause.
+- Two-repo options are **parked, not rejected**. ⚠ **CONFLICT:** ADR-0009 (Accepted) says "No open-core". Owner reconciliation pending — see 0009's operative note.
+
 ## Context
 
 ADR-0003 says two editions come from one core. It does not say where the core stops, and

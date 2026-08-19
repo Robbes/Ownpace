@@ -3,6 +3,16 @@
 - **Status:** Accepted
 - **Date:** 2026-06-20
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- **Drizzle Kit** authors and applies migrations; **Atlas** lints them in CI (`migration-lint`, destructive-change detection); no Liquibase/Flyway.
+- Data migrations are idempotent, batched, expand-contract; migrations run at startup behind an advisory lock; the app **refuses to start if the schema is newer than it supports**; roll-forward preferred.
+- Two chains since ADR-0036: shared + managed, each with its own bookkeeping and lock.
+
 > **Update 2026-08-02 (workplan 0021 T5, owner decision: keep + build).** The
 > Atlas lint bullet was the one promise here with no code behind it — every
 > migration to date had been reviewed by eye only. It is now real: the

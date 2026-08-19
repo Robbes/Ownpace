@@ -7,6 +7,16 @@
   named there is assumed here), ADR-0024 (`apply` — the one destructive path), ADR-0005
   (non-destructive by default). Arch doc §11.1.
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- `autoApplyRelocations` per mapping, **default false**, and it **extends** `allowApplyDeletions` — never substitutes (auto ON with the base flag OFF refuses everything).
+- Four unattended gates atop every manual gate: pairing **unique corpus-wide** (empty files never eligible); the relocation **survived a completed pass** (`moved_recorded_at < passStartedAt`); the breaker decides **for the whole pass** (the cap must not nibble a mass event); cap **50 per mapping per pass**.
+- Attribution is `system:auto-apply` everywhere (audit log, managed apply receipts), counts narrated in the run summary. **Deletions never auto-apply**, either evidence class.
+
 ## Context
 
 ADR-0030 made a correlated relocation applicable, and its amendments hardened the gates until

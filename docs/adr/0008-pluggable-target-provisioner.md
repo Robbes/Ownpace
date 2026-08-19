@@ -3,6 +3,15 @@
 - **Status:** **Retracted 2026-08-02** (owner decision, workplan 0021 T5) — accepted 2026-06-20, never built
 - **Date:** 2026-06-20
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- **Nothing is operative — retracted 2026-08-02, never built.** Onboarding assumes the target account exists; discovery and the first pass prove connectivity, loudly.
+- Revisit trigger: a hoster/reseller partnership or a requested "create the target for me" flow — then a Nextcloud OCS `ApiProvisioner` is the first slice.
+
 > **Retraction note (2026-08-02).** The `TargetProvisioner` interface,
 > `ManualProvisioner` and `ApiProvisioner` were never implemented —
 > `packages/provisioner` stayed a one-line stub with zero consumers for the

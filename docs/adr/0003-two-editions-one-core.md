@@ -3,6 +3,16 @@
 - **Status:** Accepted
 - **Date:** 2026-06-20
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- One codebase, two editions; **only the control plane differs** (orchestration, state, tenancy, secrets, auth, provisioning, billing).
+- Shared code must not depend on managed-only services — the boundary is drawn and enforced by ADR-0036's walk.
+- Migration behavior and idempotency are identical across editions.
+
 ## Context
 Audience spans a self-hosting hobbyist (NAS/Pi/Spark, possibly single-user) and customers without a server who need a managed service.
 
