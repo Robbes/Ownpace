@@ -647,6 +647,54 @@ one, which reads as green while proving nothing.
   0082's numbers still want `pg_stat_statements`, which is a separate thing.
 - **Not a bring-up test** (see above).
 
+## Run #18: the gate refused an item it had just printed
+
+The nightly went red with `apply: skipped-no-item`, and its own diagnosis
+contained the counter-example:
+
+```
+what IS on this mapping:
+  calendar|tombstoned|3|3
+  contact|tombstoned|4|4
+  file|adopted|64|64
+  file|tombstoned|1|1
+  file|updated|1|1
+```
+
+`file|updated|1|1` is one updated file **with a target_ref id** — eligible by
+the product's own rule. `ownershipCheck` in `apply-deletion.ts` accepts
+`copied` OR `updated`, and its comment insists that list "has to be an
+equality, not an approximation". The smoke asked for `status='copied'` alone,
+so it declared there was nothing to act on and failed the gate for a reason
+that was not true. **A gate paraphrasing the rule it is checking will
+eventually disagree with it**, and the disagreement reads as a product fault.
+
+Fixed by asking for what the product accepts, and by a guard that READS
+`ownershipCheck` rather than restating its answer — so widening the product
+without the smoke, or narrowing the smoke without the product, fails a test.
+Both directions are mutation-verified, as is the case that must never pass:
+`adopted` becoming eligible, which would have the gate asking to delete bytes
+that were the account owner's before we arrived.
+
+**Two things the same run proved, first time out.** `minio HTTP 200` and
+`trigger-tls: TLS terminated on 127.0.0.1:3443 (HTTP 200)` — both new
+assertions correct on first contact, including the by-IP reasoning for the
+SNI. And the bring-up seeding worked: the prepare phase's PUTs all returned
+**204, not 201**, which is Nextcloud saying the resources were already there.
+
+**A risk this run surfaced without settling.** 64 files came back `adopted`
+and nothing came back `copied`. `adopted` means the target already held the
+item, and the product refuses to remove those on purpose (hard rule 2). On a
+long-lived stack whose demo target already holds everything the seeder writes
+— byte-identical bodies, fixed paths, every bring-up — the eligible population
+can converge on nothing, and the gate would go red for a condition that is not
+a fault. It did not happen this time; there was an `updated` row. **What would
+settle it is the next few runs**: if `apply` starts refusing with an empty
+`eligible` count while `adopted` grows, the fixture needs one resource whose
+content genuinely changes per run, and that is a deliberate change to make with
+the evidence in hand rather than now, on a hunch about which status a writer
+picks.
+
 ## What is still owed
 
 - ~~**The DAV seeder is still not wired into the bring-up.**~~ **Done

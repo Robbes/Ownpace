@@ -299,7 +299,21 @@ APPLY_RESULT="skipped-no-item"
 # — a predicate that read like "and it landed somewhere on the target" and
 # filtered nothing. The ledger stores the handle as `{"id": "..."}`, so that is
 # what has to be non-empty.
-HASH="$(q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND status='copied' AND coalesce(target_ref->>'id','') <> '' ORDER BY natural_key_hash LIMIT 1")"
+# ELIGIBILITY MIRRORS THE PRODUCT'S OWN GATE, which is `copied` OR `updated`
+# — see `ownershipCheck` in packages/core/src/apply-deletion.ts, whose comment
+# insists the same list be an equality rather than an approximation.
+#
+# It asked for `copied` alone until run #18, and that is how the gate came to
+# print an eligible item inside its own diagnosis and then declare there was
+# none: `file|updated|1|1` — one updated file, with a target_ref id, which the
+# apply path would have accepted. `updated` means WE wrote over a copy we had
+# written before; `copied` means we created it. Both are ours to remove. Only
+# `adopted` is not, and the product refuses that one for a reason worth keeping
+# separate: those bytes were the account owner's before we arrived.
+#
+# `smoke-managed-verdict.unit.test.ts` reads that function and fails if these
+# two lists ever stop agreeing, in either direction.
+HASH="$(q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND status IN ('copied','updated') AND coalesce(target_ref->>'id','') <> '' ORDER BY natural_key_hash LIMIT 1")"
 # ---------- optional: make the precondition exist, rather than wait for it ----------
 # OFF by default. Run by hand, this script is an ACCEPTANCE test: it reports what
 # the stack is, and manufacturing its own fixture would be the same class of lie
@@ -344,7 +358,7 @@ if [ -z "$HASH" ] && [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
   while [ $i -lt "$PREP_POLLS" ]; do
     sleep "$POLL_SLEEP"
     i=$((i + 1))
-    HASH="$(q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND status='copied' AND coalesce(target_ref->>'id','') <> '' ORDER BY natural_key_hash LIMIT 1")"
+    HASH="$(q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND status IN ('copied','updated') AND coalesce(target_ref->>'id','') <> '' ORDER BY natural_key_hash LIMIT 1")"
     if [ -n "$HASH" ]; then
       echo "prepare: an eligible item appeared after $((i * POLL_SLEEP))s"
       break
@@ -363,7 +377,7 @@ if [ -z "$HASH" ]; then
   #
   # The precondition is nobody's accident: seed-managed.ts creates tenants,
   # connections and mappings but NO items. Only a real sync produces one.
-  echo "no eligible item (status='copied' with a target_ref id) on this mapping."
+  echo "no eligible item (status 'copied' or 'updated' with a target_ref id) on this mapping."
   echo "FAILING rather than skipping: an apply half that never ran proves nothing"
   echo "about the path it exists to cover, and a pass here would make this script"
   echo "the very thing it was written to catch."
@@ -376,10 +390,10 @@ if [ -z "$HASH" ]; then
   # that names a symptom and not a state is only half a refusal (rule 9).
   echo "what IS on this mapping:"
   TOTAL="$(q "SELECT count(*) FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING'")"
-  COPIED="$(q "SELECT count(*) FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND status='copied'")"
+  COPIED="$(q "SELECT count(*) FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND status IN ('copied','updated')")"
   q "SELECT domain, status, count(*), count(*) FILTER (WHERE coalesce(target_ref->>'id','') <> '') AS with_target_id FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' GROUP BY 1,2 ORDER BY 1,2" \
     | sed 's/^/  /'
-  echo "  (total ${TOTAL:-0}, copied ${COPIED:-0})"
+  echo "  (total ${TOTAL:-0}, eligible ${COPIED:-0} — status copied or updated)"
   echo ""
 
   if [ "${TOTAL:-0}" = "0" ]; then
@@ -393,13 +407,13 @@ if [ -z "$HASH" ]; then
     echo "  ./deploy/compose/seed-demo-dav-content.sh            # put it there"
     echo "  # then let the scheduler's sync tick copy it, and re-run this smoke"
   elif [ "${COPIED:-0}" = "0" ]; then
-    echo "DIAGNOSIS: items exist but NONE is 'copied' — a sync ran and the copying"
-    echo "did not succeed. This is a product fault, not a missing fixture; the"
-    echo "breakdown above says which domain and which status it stalled in."
+    echo "DIAGNOSIS: items exist but NONE is 'copied' or 'updated' — a sync ran and"
+    echo "the copying did not succeed. This is a product fault, not a missing"
+    echo "fixture; the breakdown above says which domain and status it stalled in."
     echo "  docker exec $DB_CONTAINER psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -Atc \\"
     echo "    \"SELECT level,message,at FROM run_event WHERE tenant_id='$APPLY_TENANT' ORDER BY at DESC LIMIT 20\""
   else
-    echo "DIAGNOSIS: there ARE copied items, but none carries a target_ref id."
+    echo "DIAGNOSIS: there ARE eligible items, but none carries a target_ref id."
     echo "Something wrote the ledger row without the handle the target returned,"
     echo "which leaves an item that cannot be acted on and cannot be traced back."
     echo "That is a bug in the sync's ledger write, not a missing precondition."
