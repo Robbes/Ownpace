@@ -35,11 +35,44 @@ import {
   type LedgerDriver,
   type LedgerConnection,
 } from '@openmig/ledger';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   runManagedMigrations,
   managedMigrationsDir,
   MANAGED_BOOKKEEPING_TABLE,
 } from './migrate-managed';
+
+// packages/managed/src -> repo root
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+const RELEASED_REF = process.env.UPGRADE_FROM_REF || 'v0.1.0-rc.1';
+const MIGRATIONS_PATH = 'packages/ledger/migrations';
+
+const git = (...args: string[]): string =>
+  execFileSync('git', args, {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+    maxBuffer: 32 * 1024 * 1024,
+  });
+
+/** The released shared chain, written out so the real loader reads it. */
+function materialiseReleasedMigrations(): string {
+  const dir = join(mkdtempSync(join(tmpdir(), 'openmig-presplit-')), 'migrations');
+  mkdirSync(dir, { recursive: true });
+  const names = git('ls-tree', '--name-only', RELEASED_REF, `${MIGRATIONS_PATH}/`)
+    .split('\n')
+    .map((p) => p.trim())
+    .filter((p) => p.endsWith('.sql'))
+    .map((p) => p.slice(MIGRATIONS_PATH.length + 1));
+  for (const name of names) {
+    writeFileSync(join(dir, name), git('show', `${RELEASED_REF}:${MIGRATIONS_PATH}/${name}`));
+  }
+  return dir;
+}
 
 /** Everything the managed chain creates, and nothing else does. */
 const MANAGED_TABLES = [
@@ -203,4 +236,138 @@ describe('one ledger for two chains breaks the downgrade guard', () => {
       await made.driver.end();
     }
   }, 120_000);
+});
+
+describe('the managed chain adopts a database that predates the split', () => {
+  // E2E (managed) run #16, verbatim:
+  //
+  //   [migrate] schema up to date at 0027_the_target_handle_was_a_string_of_itself.sql
+  //   [migrate] applying 0001_the_managed_service.sql
+  //   Seed failed: Migration 0001_the_managed_service.sql failed:
+  //     relation "invoice" already exists
+  //
+  // The Spark's database was built by the OLD shared baseline, which created
+  // these four tables. The managed chain's bookkeeping table is empty there —
+  // it is a new chain — so its first run tried to create them again.
+  //
+  // This is the NORMAL condition for every managed deployment older than the
+  // split, and nothing drops the old copies (doing so on the shared chain
+  // would destroy invoices we are required to keep). So the chain has to
+  // converge onto a database that already looks like its own output.
+  //
+  // The fixture is built from the REAL released baseline out of git rather
+  // than from hand-written CREATE TABLEs: the whole failure was a mismatch
+  // between what an old database actually holds and what this file assumes,
+  // and a fixture written from the same assumption would reproduce nothing.
+  let driver: LedgerDriver;
+
+  beforeAll(async () => {
+    const made = await createPgliteDb({});
+    driver = made.driver;
+
+    // 1. The released shared chain — its 0001_baseline.sql still creates
+    //    invoice, payment_method, usage_metric and tenant_member.
+    const released = materialiseReleasedMigrations();
+    await runMigrations({ driver, migrationsDir: released, logger: () => {} });
+
+    // 2. The columns that pre-split migrations 0007 and 0025 added to `tenant`.
+    //    Added by hand because those files no longer exist in the tree — the
+    //    split moved their content — so there is nothing left to replay. This
+    //    is the one part of the fixture that is a reconstruction, and it is
+    //    narrow: two column sets, exactly as those migrations declared them.
+    let conn = await driver.acquire();
+    try {
+      await conn.query(`ALTER TABLE public.tenant
+        ADD COLUMN IF NOT EXISTS pricing jsonb,
+        ADD COLUMN IF NOT EXISTS closed_at timestamptz,
+        ADD COLUMN IF NOT EXISTS purge_after timestamptz,
+        ADD COLUMN IF NOT EXISTS closed_by text`);
+    } finally {
+      conn.release();
+    }
+
+    // 3. Today's SHARED chain. It skips 0001 (already recorded under the same
+    //    filename) and applies 0002 onward.
+    await runMigrations({ driver, logger: () => {} });
+
+    // 4. The rows, written between the two chains rather than before both:
+    //    `status = 'closed'` is only an allowed value from 0025 onward, and
+    //    the released baseline predates it. Their position relative to the
+    //    shared chain is not what is under test — their existence before the
+    //    MANAGED chain runs is.
+    conn = await driver.acquire();
+    try {
+      await conn.query(`INSERT INTO public.tenant (id, name, status, pricing)
+        VALUES ('11111111-1111-4111-8111-111111111111', 'agreed at 1500',
+                'active', '{"baseFee":1500}'::jsonb)`);
+      await conn.query(`INSERT INTO public.tenant
+          (id, name, status, closed_at, purge_after, closed_by)
+        VALUES ('22222222-2222-4222-8222-222222222222', 'closing', 'closed',
+                now(), now() + interval '30 days', 'owner@example.com')`);
+    } finally {
+      conn.release();
+    }
+
+    // 5. And the managed chain, which is the thing that failed on the Spark.
+    await runManagedMigrations({ driver, logger: () => {} });
+  }, 180_000);
+
+  afterAll(async () => {
+    await driver?.end();
+  });
+
+  it('applies at all — this is the case that broke the nightly', async () => {
+    // Reaching here means the four CREATE TABLEs, twelve constraints, nine
+    // indexes and twenty-four policies all landed on objects that already
+    // existed. beforeAll would have thrown otherwise.
+    const conn = await driver.acquire();
+    try {
+      const { rows } = await conn.query<{ version: string }>(
+        `SELECT version FROM ${MANAGED_BOOKKEEPING_TABLE}`,
+      );
+      expect(rows.map((r) => r.version)).toContain('0001_the_managed_service.sql');
+    } finally {
+      conn.release();
+    }
+  }, 60_000);
+
+  it('carries each tenant\'s AGREED prices into tenant_pricing', async () => {
+    // The quiet one. An empty tenant_pricing beside a populated tenant.pricing
+    // reads as "nobody agreed anything", and the next billing touch pins every
+    // existing customer to TODAY'S template — re-pricing people already being
+    // billed, through the door migration 0007 was written to close.
+    const conn = await driver.acquire();
+    try {
+      const { rows } = await conn.query<{ pricing: unknown }>(
+        `SELECT pricing FROM public.tenant_pricing
+          WHERE tenant_id = '11111111-1111-4111-8111-111111111111'`,
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.pricing).toMatchObject({ baseFee: 1500 });
+    } finally {
+      conn.release();
+    }
+  }, 60_000);
+
+  it('carries a closed tenant\'s dates into tenant_closure', async () => {
+    // The other direction of the same risk: a closed tenant whose dates did
+    // not follow reads as active, the purge job joins tenant_closure and finds
+    // nothing, and an erasure somebody was promised silently never runs.
+    const conn = await driver.acquire();
+    try {
+      const { rows } = await conn.query<{ closed_by: string }>(
+        `SELECT closed_by FROM public.tenant_closure
+          WHERE tenant_id = '22222222-2222-4222-8222-222222222222'`,
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.closed_by).toBe('owner@example.com');
+    } finally {
+      conn.release();
+    }
+  }, 60_000);
+
+  it('re-running the managed chain is still a no-op', async () => {
+    const again = await runManagedMigrations({ driver, logger: () => {} });
+    expect(again.applied).toEqual([]);
+  }, 60_000);
 });

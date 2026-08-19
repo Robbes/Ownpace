@@ -25,6 +25,33 @@
 -- appliance owns, which is why they could not stay.
 --
 -- Ordering: this chain runs AFTER the shared one, so `public.tenant` exists.
+--
+-- ## EVERY STATEMENT HERE ADOPTS RATHER THAN CREATES, and that is not tidiness
+--
+-- E2E (managed) run #16 died on `relation "invoice" already exists`. A database
+-- that predates ADR-0036 already HAS these four tables — the old shared
+-- baseline made them — while this chain's bookkeeping table is empty on that
+-- machine, so its first run tried to make them again.
+--
+-- That is the normal condition, not an edge case: every managed deployment
+-- that existed before the split is in it, and there is no migration anywhere
+-- that drops the old copies (see the ADR — doing so on the shared chain would
+-- destroy invoices we are required to keep). So this file has to converge onto
+-- a database that already looks like its output:
+--
+--   CREATE TABLE / INDEX   IF NOT EXISTS
+--   ADD CONSTRAINT         guarded on pg_constraint — checked, never dropped,
+--                          because dropping a live primary key to re-add it is
+--                          a rebuild nobody asked for
+--   CREATE POLICY          DROP IF EXISTS first, so THIS file is the authority
+--                          on the definition rather than whatever wrote it
+--
+-- Sections 3 and 4 go further and carry the DATA across. A pre-split database
+-- holds each tenant's agreed prices in `tenant.pricing`; creating an empty
+-- `tenant_pricing` beside it would leave every existing customer looking
+-- unpriced, and `resolveTenantPricing` would then pin them to today's template
+-- — silently re-pricing customers already being billed, which is the exact
+-- hazard migration 0007 was written to prevent.
 
 
 -- ===========================================================================
@@ -34,7 +61,7 @@
 -- Name: invoice; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.invoice (
+CREATE TABLE IF NOT EXISTS public.invoice (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     period_start date NOT NULL,
@@ -63,7 +90,7 @@ ALTER TABLE ONLY public.invoice FORCE ROW LEVEL SECURITY;
 -- Name: payment_method; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.payment_method (
+CREATE TABLE IF NOT EXISTS public.payment_method (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     mollie_id text NOT NULL,
@@ -86,7 +113,7 @@ ALTER TABLE ONLY public.payment_method FORCE ROW LEVEL SECURITY;
 -- Name: tenant_member; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.tenant_member (
+CREATE TABLE IF NOT EXISTS public.tenant_member (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     user_id text NOT NULL,
@@ -108,7 +135,7 @@ ALTER TABLE ONLY public.tenant_member FORCE ROW LEVEL SECURITY;
 -- Name: usage_metric; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.usage_metric (
+CREATE TABLE IF NOT EXISTS public.usage_metric (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     period_start date NOT NULL,
@@ -132,145 +159,217 @@ ALTER TABLE ONLY public.usage_metric FORCE ROW LEVEL SECURITY;
 -- Name: invoice invoice_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.invoice
-    ADD CONSTRAINT invoice_pkey PRIMARY KEY (id);
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                    WHERE conname = 'invoice_pkey'
+                      AND conrelid = 'public.invoice'::regclass) THEN
+        ALTER TABLE ONLY public.invoice
+        ADD CONSTRAINT invoice_pkey PRIMARY KEY (id);
+    END IF;
+END $$;
 
 
 --
 -- Name: invoice invoice_tenant_id_period_start_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.invoice
-    ADD CONSTRAINT invoice_tenant_id_period_start_key UNIQUE (tenant_id, period_start);
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                    WHERE conname = 'invoice_tenant_id_period_start_key'
+                      AND conrelid = 'public.invoice'::regclass) THEN
+        ALTER TABLE ONLY public.invoice
+        ADD CONSTRAINT invoice_tenant_id_period_start_key UNIQUE (tenant_id, period_start);
+    END IF;
+END $$;
 
 
 --
 -- Name: payment_method payment_method_mollie_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.payment_method
-    ADD CONSTRAINT payment_method_mollie_id_key UNIQUE (mollie_id);
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                    WHERE conname = 'payment_method_mollie_id_key'
+                      AND conrelid = 'public.payment_method'::regclass) THEN
+        ALTER TABLE ONLY public.payment_method
+        ADD CONSTRAINT payment_method_mollie_id_key UNIQUE (mollie_id);
+    END IF;
+END $$;
 
 
 --
 -- Name: payment_method payment_method_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.payment_method
-    ADD CONSTRAINT payment_method_pkey PRIMARY KEY (id);
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                    WHERE conname = 'payment_method_pkey'
+                      AND conrelid = 'public.payment_method'::regclass) THEN
+        ALTER TABLE ONLY public.payment_method
+        ADD CONSTRAINT payment_method_pkey PRIMARY KEY (id);
+    END IF;
+END $$;
 
 
 --
 -- Name: tenant_member tenant_member_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.tenant_member
-    ADD CONSTRAINT tenant_member_pkey PRIMARY KEY (id);
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                    WHERE conname = 'tenant_member_pkey'
+                      AND conrelid = 'public.tenant_member'::regclass) THEN
+        ALTER TABLE ONLY public.tenant_member
+        ADD CONSTRAINT tenant_member_pkey PRIMARY KEY (id);
+    END IF;
+END $$;
 
 
 --
 -- Name: tenant_member tenant_member_tenant_id_user_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.tenant_member
-    ADD CONSTRAINT tenant_member_tenant_id_user_id_key UNIQUE (tenant_id, user_id);
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                    WHERE conname = 'tenant_member_tenant_id_user_id_key'
+                      AND conrelid = 'public.tenant_member'::regclass) THEN
+        ALTER TABLE ONLY public.tenant_member
+        ADD CONSTRAINT tenant_member_tenant_id_user_id_key UNIQUE (tenant_id, user_id);
+    END IF;
+END $$;
 
 
 --
 -- Name: usage_metric usage_metric_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.usage_metric
-    ADD CONSTRAINT usage_metric_pkey PRIMARY KEY (id);
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                    WHERE conname = 'usage_metric_pkey'
+                      AND conrelid = 'public.usage_metric'::regclass) THEN
+        ALTER TABLE ONLY public.usage_metric
+        ADD CONSTRAINT usage_metric_pkey PRIMARY KEY (id);
+    END IF;
+END $$;
 
 
 --
 -- Name: usage_metric usage_metric_tenant_id_period_start_metric_type_resource_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.usage_metric
-    ADD CONSTRAINT usage_metric_tenant_id_period_start_metric_type_resource_key UNIQUE (tenant_id, period_start, metric_type, resource);
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                    WHERE conname = 'usage_metric_tenant_id_period_start_metric_type_resource_key'
+                      AND conrelid = 'public.usage_metric'::regclass) THEN
+        ALTER TABLE ONLY public.usage_metric
+        ADD CONSTRAINT usage_metric_tenant_id_period_start_metric_type_resource_key UNIQUE (tenant_id, period_start, metric_type, resource);
+    END IF;
+END $$;
 
 
 --
 -- Name: ix_invoice_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX ix_invoice_status ON public.invoice USING btree (status, period_start);
+CREATE INDEX IF NOT EXISTS ix_invoice_status ON public.invoice USING btree (status, period_start);
 
 
 --
 -- Name: ix_invoice_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX ix_invoice_tenant ON public.invoice USING btree (tenant_id, period_start DESC);
+CREATE INDEX IF NOT EXISTS ix_invoice_tenant ON public.invoice USING btree (tenant_id, period_start DESC);
 
 
 --
 -- Name: ix_payment_method_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX ix_payment_method_tenant ON public.payment_method USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS ix_payment_method_tenant ON public.payment_method USING btree (tenant_id);
 
 
 --
 -- Name: ix_tenant_member_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX ix_tenant_member_tenant ON public.tenant_member USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS ix_tenant_member_tenant ON public.tenant_member USING btree (tenant_id);
 
 
 --
 -- Name: ix_tenant_member_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX ix_tenant_member_user ON public.tenant_member USING btree (user_id);
+CREATE INDEX IF NOT EXISTS ix_tenant_member_user ON public.tenant_member USING btree (user_id);
 
 
 --
 -- Name: ix_usage_period_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX ix_usage_period_type ON public.usage_metric USING btree (period_start, metric_type);
+CREATE INDEX IF NOT EXISTS ix_usage_period_type ON public.usage_metric USING btree (period_start, metric_type);
 
 
 --
 -- Name: ix_usage_tenant_period; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX ix_usage_tenant_period ON public.usage_metric USING btree (tenant_id, period_start DESC);
+CREATE INDEX IF NOT EXISTS ix_usage_tenant_period ON public.usage_metric USING btree (tenant_id, period_start DESC);
 
 
 --
 -- Name: invoice invoice_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.invoice
-    ADD CONSTRAINT invoice_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenant(id) ON DELETE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                    WHERE conname = 'invoice_tenant_id_fkey'
+                      AND conrelid = 'public.invoice'::regclass) THEN
+        ALTER TABLE ONLY public.invoice
+        ADD CONSTRAINT invoice_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenant(id) ON DELETE CASCADE;
+    END IF;
+END $$;
 
 
 --
 -- Name: payment_method payment_method_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.payment_method
-    ADD CONSTRAINT payment_method_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenant(id) ON DELETE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                    WHERE conname = 'payment_method_tenant_id_fkey'
+                      AND conrelid = 'public.payment_method'::regclass) THEN
+        ALTER TABLE ONLY public.payment_method
+        ADD CONSTRAINT payment_method_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenant(id) ON DELETE CASCADE;
+    END IF;
+END $$;
 
 
 --
 -- Name: tenant_member tenant_member_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.tenant_member
-    ADD CONSTRAINT tenant_member_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenant(id) ON DELETE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                    WHERE conname = 'tenant_member_tenant_id_fkey'
+                      AND conrelid = 'public.tenant_member'::regclass) THEN
+        ALTER TABLE ONLY public.tenant_member
+        ADD CONSTRAINT tenant_member_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenant(id) ON DELETE CASCADE;
+    END IF;
+END $$;
 
 
 --
 -- Name: usage_metric usage_metric_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.usage_metric
-    ADD CONSTRAINT usage_metric_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenant(id) ON DELETE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                    WHERE conname = 'usage_metric_tenant_id_fkey'
+                      AND conrelid = 'public.usage_metric'::regclass) THEN
+        ALTER TABLE ONLY public.usage_metric
+        ADD CONSTRAINT usage_metric_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenant(id) ON DELETE CASCADE;
+    END IF;
+END $$;
 
 
 --
@@ -289,6 +388,7 @@ ALTER TABLE public.payment_method ENABLE ROW LEVEL SECURITY;
 -- Name: invoice tenant_isolation_delete; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation_delete ON public.invoice;
 CREATE POLICY tenant_isolation_delete ON public.invoice FOR DELETE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
@@ -296,6 +396,7 @@ CREATE POLICY tenant_isolation_delete ON public.invoice FOR DELETE USING ((tenan
 -- Name: payment_method tenant_isolation_delete; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation_delete ON public.payment_method;
 CREATE POLICY tenant_isolation_delete ON public.payment_method FOR DELETE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
@@ -303,6 +404,7 @@ CREATE POLICY tenant_isolation_delete ON public.payment_method FOR DELETE USING 
 -- Name: tenant_member tenant_isolation_delete; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation_delete ON public.tenant_member;
 CREATE POLICY tenant_isolation_delete ON public.tenant_member FOR DELETE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
@@ -310,6 +412,7 @@ CREATE POLICY tenant_isolation_delete ON public.tenant_member FOR DELETE USING (
 -- Name: usage_metric tenant_isolation_delete; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation_delete ON public.usage_metric;
 CREATE POLICY tenant_isolation_delete ON public.usage_metric FOR DELETE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
@@ -317,6 +420,7 @@ CREATE POLICY tenant_isolation_delete ON public.usage_metric FOR DELETE USING ((
 -- Name: invoice tenant_isolation_insert; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation_insert ON public.invoice;
 CREATE POLICY tenant_isolation_insert ON public.invoice FOR INSERT WITH CHECK ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
@@ -324,6 +428,7 @@ CREATE POLICY tenant_isolation_insert ON public.invoice FOR INSERT WITH CHECK ((
 -- Name: payment_method tenant_isolation_insert; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation_insert ON public.payment_method;
 CREATE POLICY tenant_isolation_insert ON public.payment_method FOR INSERT WITH CHECK ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
@@ -331,6 +436,7 @@ CREATE POLICY tenant_isolation_insert ON public.payment_method FOR INSERT WITH C
 -- Name: tenant_member tenant_isolation_insert; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation_insert ON public.tenant_member;
 CREATE POLICY tenant_isolation_insert ON public.tenant_member FOR INSERT WITH CHECK ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
@@ -338,6 +444,7 @@ CREATE POLICY tenant_isolation_insert ON public.tenant_member FOR INSERT WITH CH
 -- Name: usage_metric tenant_isolation_insert; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation_insert ON public.usage_metric;
 CREATE POLICY tenant_isolation_insert ON public.usage_metric FOR INSERT WITH CHECK ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
@@ -345,6 +452,7 @@ CREATE POLICY tenant_isolation_insert ON public.usage_metric FOR INSERT WITH CHE
 -- Name: invoice tenant_isolation_select; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation_select ON public.invoice;
 CREATE POLICY tenant_isolation_select ON public.invoice FOR SELECT USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
@@ -352,6 +460,7 @@ CREATE POLICY tenant_isolation_select ON public.invoice FOR SELECT USING ((tenan
 -- Name: payment_method tenant_isolation_select; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation_select ON public.payment_method;
 CREATE POLICY tenant_isolation_select ON public.payment_method FOR SELECT USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
@@ -359,6 +468,7 @@ CREATE POLICY tenant_isolation_select ON public.payment_method FOR SELECT USING 
 -- Name: tenant_member tenant_isolation_select; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation_select ON public.tenant_member;
 CREATE POLICY tenant_isolation_select ON public.tenant_member FOR SELECT USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
@@ -366,6 +476,7 @@ CREATE POLICY tenant_isolation_select ON public.tenant_member FOR SELECT USING (
 -- Name: usage_metric tenant_isolation_select; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation_select ON public.usage_metric;
 CREATE POLICY tenant_isolation_select ON public.usage_metric FOR SELECT USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
@@ -373,6 +484,7 @@ CREATE POLICY tenant_isolation_select ON public.usage_metric FOR SELECT USING ((
 -- Name: invoice tenant_isolation_update; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation_update ON public.invoice;
 CREATE POLICY tenant_isolation_update ON public.invoice FOR UPDATE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)) WITH CHECK ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
@@ -380,6 +492,7 @@ CREATE POLICY tenant_isolation_update ON public.invoice FOR UPDATE USING ((tenan
 -- Name: payment_method tenant_isolation_update; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation_update ON public.payment_method;
 CREATE POLICY tenant_isolation_update ON public.payment_method FOR UPDATE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)) WITH CHECK ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
@@ -387,6 +500,7 @@ CREATE POLICY tenant_isolation_update ON public.payment_method FOR UPDATE USING 
 -- Name: tenant_member tenant_isolation_update; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation_update ON public.tenant_member;
 CREATE POLICY tenant_isolation_update ON public.tenant_member FOR UPDATE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)) WITH CHECK ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
@@ -394,6 +508,7 @@ CREATE POLICY tenant_isolation_update ON public.tenant_member FOR UPDATE USING (
 -- Name: usage_metric tenant_isolation_update; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation_update ON public.usage_metric;
 CREATE POLICY tenant_isolation_update ON public.usage_metric FOR UPDATE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)) WITH CHECK ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
@@ -583,15 +698,55 @@ CREATE TABLE IF NOT EXISTS public.tenant_pricing (
 ALTER TABLE public.tenant_pricing ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ONLY public.tenant_pricing FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS tenant_isolation_select ON public.tenant_pricing;
 CREATE POLICY tenant_isolation_select ON public.tenant_pricing FOR SELECT USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
+DROP POLICY IF EXISTS tenant_isolation_insert ON public.tenant_pricing;
 CREATE POLICY tenant_isolation_insert ON public.tenant_pricing FOR INSERT WITH CHECK ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
+DROP POLICY IF EXISTS tenant_isolation_update ON public.tenant_pricing;
 CREATE POLICY tenant_isolation_update ON public.tenant_pricing FOR UPDATE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)) WITH CHECK ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
+DROP POLICY IF EXISTS tenant_isolation_delete ON public.tenant_pricing;
 CREATE POLICY tenant_isolation_delete ON public.tenant_pricing FOR DELETE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.tenant_pricing TO app_user;
 
 COMMENT ON TABLE public.tenant_pricing IS
   'The prices this tenant agreed to, in integer cents (baseFee, storagePricePerGB, egressPricePerGB, computePricePerHour). Pinned once from the operator template; never follows it afterwards. NO ROW = not yet agreed.';
+
+-- CARRY THE AGREEMENTS ACROSS, on a database that predates this split.
+--
+-- `tenant.pricing` is where they lived. An empty table beside a populated
+-- column would read as "nobody has agreed anything", and the next billing touch
+-- would pin every one of them to TODAY'S template — re-pricing existing
+-- customers retroactively, through the door built to stop exactly that.
+--
+-- Wrapped in a DO block with an explicit column test because on a FRESH
+-- database `tenant.pricing` does not exist, and a bare SELECT naming it is a
+-- parse error rather than a no-op — the statement would fail before it could
+-- decide not to run.
+--
+-- ON CONFLICT DO NOTHING: an agreement already in the new table wins. Re-running
+-- must not reach back into the old column and overwrite a price agreed since.
+--
+-- The inner statement is SINGLE-QUOTED rather than given its own dollar tag. A
+-- plain DO block is proven here — 0001_baseline.sql has carried one since the
+-- beginning and Atlas has linted it every run — but a dollar tag nested inside
+-- one is not, and the migration lint is not the place to discover a parser
+-- limit. Neither statement contains a string literal, so plain quoting needs no
+-- escaping.
+--
+-- Note also what this paragraph is careful NOT to contain: a doubled dollar
+-- sign. Written inside the block below, even in a comment, it would END the
+-- quoting and the migration would die on `syntax error`. It did, once, while
+-- this was being written.
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'tenant'
+                  AND column_name = 'pricing') THEN
+        EXECUTE 'INSERT INTO public.tenant_pricing (tenant_id, pricing)
+                 SELECT id, pricing FROM public.tenant WHERE pricing IS NOT NULL
+                 ON CONFLICT (tenant_id) DO NOTHING';
+    END IF;
+END $$;
 
 
 -- ===========================================================================
@@ -631,12 +786,35 @@ CREATE INDEX IF NOT EXISTS ix_tenant_closure_due ON public.tenant_closure (purge
 ALTER TABLE public.tenant_closure ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ONLY public.tenant_closure FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS tenant_isolation_select ON public.tenant_closure;
 CREATE POLICY tenant_isolation_select ON public.tenant_closure FOR SELECT USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
+DROP POLICY IF EXISTS tenant_isolation_insert ON public.tenant_closure;
 CREATE POLICY tenant_isolation_insert ON public.tenant_closure FOR INSERT WITH CHECK ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
+DROP POLICY IF EXISTS tenant_isolation_update ON public.tenant_closure;
 CREATE POLICY tenant_isolation_update ON public.tenant_closure FOR UPDATE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)) WITH CHECK ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
+DROP POLICY IF EXISTS tenant_isolation_delete ON public.tenant_closure;
 CREATE POLICY tenant_isolation_delete ON public.tenant_closure FOR DELETE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.tenant_closure TO app_user;
 
 COMMENT ON TABLE public.tenant_closure IS
   'A closed tenant''s dates: when it was closed, when the purge becomes due, and who asked. No row = not closed. Managed only — the appliance ends itself with forget-me, which revokes and does not wait.';
+
+-- The same carry-over for the closure dates, and here the stakes run the other
+-- way: a tenant that was CLOSED, whose dates did not follow, would read as
+-- active. The purge job joins `tenant_closure`, so it would simply never run —
+-- an erasure a customer was promised, quietly not happening, with nothing
+-- anywhere reporting a failure.
+--
+-- Both dates are required, so a half-written close (status set, dates not, or
+-- the reverse) is skipped rather than half-migrated.
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'tenant'
+                  AND column_name = 'purge_after') THEN
+        EXECUTE 'INSERT INTO public.tenant_closure (tenant_id, closed_at, purge_after, closed_by)
+                 SELECT id, closed_at, purge_after, closed_by FROM public.tenant
+                  WHERE closed_at IS NOT NULL AND purge_after IS NOT NULL
+                 ON CONFLICT (tenant_id) DO NOTHING';
+    END IF;
+END $$;

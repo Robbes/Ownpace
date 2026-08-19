@@ -649,16 +649,37 @@ one, which reads as green while proving nothing.
 
 ## What is still owed
 
-- **The DAV seeder is still not wired into the bring-up.**
-  `seed-demo-dav-content.sh` runs from the smoke's prepare phase, which only
-  fires when the apply half has nothing to act on. The mail seeder is now a
-  bring-up step; the DAV one should probably become one too, for the same
-  reason — a precondition that only appears when something is already missing
-  is a precondition nobody can reason about.
-- **Healthchecks for `minio` and `trigger-tls`** — the two of the original
-  seven that are neither probed nor functionally proven. Three were added on
-  2026-08-19 and two others (`trigger-registry`, `trigger-docker-proxy`) are
-  covered by T7.2 instead; see above.
+- ~~**The DAV seeder is still not wired into the bring-up.**~~ **Done
+  2026-08-19.** `setup-managed-demo.sh` now seeds the source right after
+  provisioning the accounts it fills, so the by-hand bring-up and the nightly
+  get the same demo. **No `only if empty` guard, unlike the mail seeder** — that
+  one APPENDS, so an unguarded re-run on this long-lived stack grows the mailbox
+  every night; this one PUTs to fixed paths and accepts 201 or 204, created or
+  overwritten, so re-running converges instead of growing. Idempotent by
+  construction rather than by a check. The smoke keeps its copy as an explicit
+  FALLBACK for stacks brought up before this change.
+- ~~**Healthchecks for `minio` and `trigger-tls`**~~ **Asserted instead,
+  2026-08-19 — and the substitution is the point.** A compose probe runs INSIDE
+  the image, so under `up -d --wait` one naming a binary that image lacks does
+  not misreport: it fails the bring-up and takes the gate with it. `nextcloud`'s
+  probe could be written because `setup-nextcloud-users.sh` has run exactly that
+  curl against exactly that image for months. **Nothing in this repository has
+  ever executed a command inside `bitnamilegacy/minio` or `caddy:2-alpine`**, so
+  there is no evidence to write either probe from, and "the image probably has
+  curl" is the guess that costs a bring-up.
+
+  So the smoke asserts them from places whose tooling IS proven. `minio` through
+  the API container (a Node image, the same reasoning the trigger probes use)
+  because it publishes no port and `http://minio:9000` is the address
+  trigger-api is configured with — asserting it from the host would assert a
+  different thing. `trigger-tls` from the host's own curl, **by IP**, because
+  the Caddyfile's site address is the operator's own host and a request to
+  `localhost` sends an SNI matching no site; an IP sends none, which is the case
+  `default_sni` exists for (rule 2, learned live on 2026-08-01).
+
+  **What this does not do is make `docker compose ps` say "healthy"**, so
+  T7.1's count of services without a healthcheck is unchanged at seven. What
+  changed is that five of them are now proven by something.
 - **The `SMOKE_PREPARE_APPLY` path has run exactly once as a full seed.** Run
   #11 exercised it end to end (seed, enqueue, poll) and it worked; runs #12 and
   #13 found an eligible item already present and skipped it. So the branch is

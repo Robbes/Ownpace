@@ -147,16 +147,40 @@ but the tax record we are legally required to keep. The managed chain would then
 to tidy four tables off an appliance is not a trade worth making**, and it would sit in the
 chain for ever.
 
-The remedy is the one `migrate.ts` already prescribes for a squash: recreate the database. The
-ledger is a rebuildable cache (ADR-0020), and a pre-release schema break is fixed by dropping
-it, not by migrating through it. Left alone, the leftovers are four empty tables an appliance
-never reads.
+On an APPLIANCE, that is where it ends: four empty tables it never reads, and the remedy — if
+anyone wants them gone — is the one `migrate.ts` already prescribes for a squash, recreate the
+database, because the ledger is a rebuildable cache (ADR-0020). `v0.1.0-rc.1` is a release
+candidate with no known installs, which is the only reason that shrug is acceptable; the same
+shrug after a real release would not be. The gate does not merely tolerate the difference:
+`MOVED_TO_MANAGED_CHAIN` names the four tables with their reason, an upgraded database may
+carry **those and nothing else**, it may never LACK anything a fresh install has, and a
+declaration that has stopped covering anything fails its own test.
 
-**`v0.1.0-rc.1` is a release candidate with no known installs, which is the only reason that
-shrug is acceptable** — the same shrug after a real release would not be. So the gate does not
-merely tolerate the difference: `MOVED_TO_MANAGED_CHAIN` names the four tables with their
-reason, an upgraded database may carry **those and nothing else**, it may never LACK anything a
-fresh install has, and a declaration that has stopped covering anything fails its own test.
+**On a MANAGED deployment it does not end there, and finding that out cost a nightly.** E2E
+(managed) run #16 died at bring-up on `relation "invoice" already exists`: the Spark's database
+was built by the old shared baseline, the managed chain's bookkeeping table is empty there
+because it is a new chain, and its first run tried to create four tables that were already
+sitting in front of it. That is the normal condition for every managed deployment older than
+the split, not an edge case.
+
+So **every statement in the managed chain adopts rather than creates** — `IF NOT EXISTS` on
+tables and indexes, constraints guarded on `pg_constraint` (checked, never dropped: dropping a
+live primary key to re-add it is a rebuild nobody asked for), policies dropped and recreated so
+this file is the authority on their definition.
+
+**And it carries the DATA, which is the half that would have gone wrong quietly.** A pre-split
+database holds each tenant's agreed prices in `tenant.pricing` and each closed tenant's dates
+in `tenant.closed_at`/`purge_after`. Creating empty `tenant_pricing` and `tenant_closure` beside
+them would have left every existing customer looking unpriced — so `resolveTenantPricing` would
+pin them to today's template, **silently re-pricing customers already being billed, through the
+exact door migration 0007 was built to close** — and every closed tenant looking active, so the
+purge job (which joins `tenant_closure`) would never run and an erasure somebody was promised
+would simply not happen, with nothing anywhere reporting a failure.
+
+`two-chains.unit.test.ts` reproduces the Spark: it applies the real released baseline out of
+git, adds the two pre-split column sets, runs today's shared chain, writes a priced tenant and
+a closed one, and then runs the managed chain. Reverting the `IF NOT EXISTS` reproduces run #16
+exactly; removing either carry-over fails its own case.
 
 ## Rejected: compressing the shared chain
 

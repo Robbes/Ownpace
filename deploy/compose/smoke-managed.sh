@@ -145,6 +145,79 @@ JW="$(docker exec "$API_CONTAINER" printenv JWT_SECRET)" || {
 }
 echo "preflights OK (API up, db reachable, jsonwebtoken present, secret read)"
 
+# ---------- the two services nothing else speaks for (0084) ----------
+#
+# `minio` and `trigger-tls` are the last two of the original seven that are
+# neither probed by a healthcheck nor proven functionally by the rest of this
+# run. 0084 asked for healthchecks. They are asserted here instead, and the
+# reason is the same rule those healthchecks were chosen under: **a probe runs
+# INSIDE the image, so it may only name a binary that image certainly has —
+# and under `up -d --wait` a probe naming a missing binary does not misreport,
+# it fails the bring-up and takes the gate with it.**
+#
+# `nextcloud`'s probe could be written because `setup-nextcloud-users.sh` has
+# run exactly that curl against exactly that image for months. Nothing in this
+# repository has ever executed a command inside `bitnamilegacy/minio` or
+# `caddy:2-alpine`, so there is no such evidence for either, and "the image
+# probably has curl" is the guess that costs a bring-up.
+#
+# An assertion here has none of that exposure: it runs from a place whose
+# tooling IS proven, and when it is wrong the gate goes red with a sentence
+# instead of never starting. What it cannot do is make `docker compose ps` say
+# "healthy" — so T7.1's count of services without a healthcheck is unchanged,
+# and 0084 says so.
+note "minio and trigger-tls (0084 — the last two unasserted services)"
+
+# MINIO is network-internal (no published port), so this goes through a
+# container on `open-migrate-network`. The API container, because it is a Node
+# image whose own entrypoint is node — the same reasoning the trigger probes
+# use — and because this script already execs into it to read JWT_SECRET.
+#
+# `fetch` resolving is the whole assertion. It settles on ANY HTTP response,
+# 403 and 404 included, and rejects only when nothing is listening. That is
+# deliberate: `/minio/health/live` is MinIO's documented endpoint, but a probe
+# that depends on a named path goes quietly wrong the day an upstream image
+# moves it, and "something is serving HTTP on minio:9000" is the claim
+# trigger-api actually depends on (OBJECT_STORE_BASE_URL points there).
+if docker exec "$API_CONTAINER" node -e \
+  "fetch('http://minio:9000/minio/health/live').then(r=>{console.log('minio HTTP '+r.status);process.exit(0)}).catch(e=>{console.log('minio unreachable: '+e.message);process.exit(1)})"
+then
+  echo "minio: reachable from the API container on the stack network"
+else
+  echo "FAIL: nothing is serving HTTP on minio:9000."
+  echo "      trigger-api's OBJECT_STORE_BASE_URL points there, so any task"
+  echo "      payload over the inline limit fails — silently, until one is big"
+  echo "      enough. This is the state the service existed to fix."
+  fail=1
+fi
+
+# TRIGGER-TLS publishes a port, so the host's own curl is enough — no exec, no
+# assumption about what is inside the Caddy image.
+#
+# BY IP, NOT BY NAME, and that is load-bearing. The Caddyfile's site address is
+# `{$TRIGGER_TLS_HOST}:3443`, which on a real box is the machine's VPN address,
+# so a request to `https://localhost:3443/` sends an SNI that matches no site
+# and can die in the handshake. curl sends no SNI for an IP literal, which is
+# exactly the case `default_sni` exists for — rule 2 in trigger-tls.Caddyfile,
+# learned the hard way on 2026-08-01.
+#
+# `-k` because the certificate is internally minted on purpose: no public CA
+# signs a private IP. A status code — ANY status code — means TLS terminated
+# and Caddy answered. `000` is curl for "no response at all".
+TLS_PORT="${TRIGGER_TLS_PORT:-3443}"
+tls_code="$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 \
+  "https://127.0.0.1:${TLS_PORT}/" 2>/dev/null || echo 000)"
+if [ "$tls_code" != "000" ]; then
+  echo "trigger-tls: TLS terminated on 127.0.0.1:${TLS_PORT} (HTTP ${tls_code})"
+else
+  echo "FAIL: nothing answered https://127.0.0.1:${TLS_PORT}/."
+  echo "      That front is how a browser reaches the Trigger dashboard at all —"
+  echo "      its production-mode Secure cookies make plain http unusable from"
+  echo "      anything but localhost. If this is red, the dashboard is"
+  echo "      unreachable for every operator who is not sitting at the machine."
+  fail=1
+fi
+
 # ---------- runner-log capture (before anything can AutoRemove) ----------
 RUNNER_LOG_DIR="$(mktemp -d /tmp/openmig-runner-logs.XXXXXX)"
 (
@@ -235,10 +308,18 @@ HASH="$(q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND
 # own narrated phase, and still ending in the same honest check.
 #
 # Both halves are needed and neither is enough alone:
-#   the demo DAV source has no content (setup-nextcloud-users.sh makes ACCOUNTS,
-#   not events/contacts/files), and the scheduler's own cadence for a mapping
-#   with no schedule is DEFAULT_SYNC_SCHEDULE = */15, which is far longer than a
-#   gate should sit waiting. So: seed the source, then enqueue the sync directly.
+#   the demo DAV source may have no content, and the scheduler's own cadence for
+#   a mapping with no schedule is DEFAULT_SYNC_SCHEDULE = */15, which is far
+#   longer than a gate should sit waiting. So: seed the source, then enqueue the
+#   sync directly.
+#
+# THE SEEDING IS NOW A FALLBACK, not the only path. `setup-managed-demo.sh`
+# seeds the DAV source at bring-up, beside the accounts it fills (0084) — so on
+# a stack brought up since 2026-08-19 this call finds the same fixed resources
+# already there and overwrites them, which is a no-op in every sense that
+# matters. It stays because a stack older than that change, or one whose demo
+# was reprovisioned by hand, still needs it, and because a prepare phase that
+# assumes its precondition would be the same mistake in a different place.
 if [ -z "$HASH" ] && [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
   note "prepare (SMOKE_PREPARE_APPLY=1) — give the apply half something real to act on"
 
@@ -305,8 +386,11 @@ if [ -z "$HASH" ]; then
     echo "DIAGNOSIS: the mapping has no items at all — nothing has ever synced here."
     echo "The demo seed creates tenants, connections and mappings but NO items, and"
     echo "setup-nextcloud-users.sh provisions ACCOUNTS with no calendar, contact or"
-    echo "file content in them. So there has never been anything to copy."
-    echo "  ./deploy/compose/seed-demo-dav-content.sh   # put content in the DAV source"
+    echo "file content in them. Content comes from seed-demo-dav-content.sh, which"
+    echo "setup-managed-demo.sh now runs at bring-up — so seeing this on a freshly"
+    echo "bootstrapped stack means THAT step did not run or did not take."
+    echo "  ./deploy/compose/seed-demo-dav-content.sh --verify   # is the content there?"
+    echo "  ./deploy/compose/seed-demo-dav-content.sh            # put it there"
     echo "  # then let the scheduler's sync tick copy it, and re-run this smoke"
   elif [ "${COPIED:-0}" = "0" ]; then
     echo "DIAGNOSIS: items exist but NONE is 'copied' — a sync ran and the copying"
