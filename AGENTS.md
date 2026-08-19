@@ -15,6 +15,22 @@ Before any Stalwart or integration-test work: read `docs/stalwart-integration-fi
 
 ## Commands
 - Install: `pnpm install` · Lint: `pnpm lint` · Typecheck: `pnpm typecheck`
+- **The toolchain runs two TypeScripts on purpose.** `tsc` is TypeScript 7 (the Go
+  port) and does every type check; `tsc6` is TypeScript 6 and exists only for
+  `pnpm typecheck:legacy`, a second opinion when 7 says something surprising.
+  In `package.json` this reads as `"typescript": "npm:@typescript/typescript6"`
+  and `"@typescript/native": "npm:typescript@7"` — deliberately crossed, not a
+  mistake. TypeScript 7.0 ships **no programmatic API**, and typescript-eslint
+  imports one, so the package NAME `typescript` has to keep resolving to a 6.x
+  API or ESLint stops working. Nine installed packages depend on that name: the
+  seven `@typescript-eslint/*`, `ts-api-utils`, and `typescript-eslint`.
+  **Remove the split** once typescript-eslint ships a release whose peer range
+  admits TypeScript 7 — today's is `>=4.8.4 <6.1.0`, and the work is tracked in
+  [typescript-eslint#10940](https://github.com/typescript-eslint/typescript-eslint/issues/10940)
+  (TS 7.1 is the release expected to restore the API). Then `typescript` goes
+  back to plain `typescript@7` and `typecheck:legacy` goes away.
+  `scripts/toolchain-split.unit.test.ts` guards the arrangement and should be
+  deleted in the same change.
 - Unit: `pnpm test` · Integration: `pnpm test:integration` (self-manages its stack via Testcontainers) · UI smoke: `pnpm test:ui` (real Chromium over the built bundle; runs on every PR) · E2E: `pnpm test:e2e`
 - Optional dev stack: `docker compose -f deploy/compose/dev.yml up -d` (Postgres + Nextcloud).
   Stalwart isn't part of it — its two-phase startup can't be expressed as one compose service —

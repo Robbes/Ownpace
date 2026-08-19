@@ -84,3 +84,9 @@ deploy/compose/pgbouncer/userlist.txt
 # untracked file next to the source is one `git add .` away from being
 # published. Seen on the reference box, 2026-08-18.
 /*.sql
+
+# ESLint's incremental cache (--cache --cache-strategy content).
+# Content-hashed, so it stays valid across a fresh checkout; CI restores it
+# with actions/cache. Never committed: it is a local build artifact whose
+# entries name absolute paths.
+.eslintcache

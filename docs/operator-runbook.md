@@ -973,6 +973,45 @@ result and run it again if not.
   origins your browser uses. Either way the fix ends with a recreate:
   `--force-recreate trigger-tls trigger-api` after correcting `.env` (see Start/stop).
 
+### Which services the managed gate actually speaks for
+
+`smoke-managed.sh` says `unhealthy: none`, and that sentence is narrower than
+it sounds: **seven of the fourteen services define no healthcheck**, so
+`docker compose ps` can only say they are *running*. If a red gate points at a
+service, this is the map of what proved it and how:
+
+| service | how it is proven |
+|---|---|
+| postgres, pgbouncer, trigger-db, trigger-redis, clickhouse, api, web | compose healthcheck — `--wait` blocks on them |
+| nextcloud, trigger-api, trigger-supervisor | compose healthcheck, added 2026-08-19 |
+| trigger-registry, trigger-docker-proxy | **functionally**, by the gate itself: a deploy pushes through the registry and the supervisor starts runners through the proxy |
+| minio, trigger-tls | **asserted by the smoke**, not probed — see below |
+
+`minio` and `trigger-tls` have no healthcheck on purpose. A compose probe runs
+INSIDE the image, so under `up -d --wait` one naming a binary that image lacks
+does not misreport — it fails the bring-up and takes the stack with it. Nothing
+in this repository has ever run a command inside `bitnamilegacy/minio` or
+`caddy:2-alpine`, so there was no evidence to write either probe from. The
+smoke asserts them from places whose tooling is proven instead:
+
+```
+--- minio and trigger-tls (0084 — the last two unasserted services) ---
+minio HTTP 200
+minio: reachable from the API container on the stack network
+trigger-tls: TLS terminated on 127.0.0.1:3443 (HTTP 200)
+```
+
+- **minio** is reached from the API container, because it publishes no port and
+  `http://minio:9000` is the address `trigger-api` is configured with. If this
+  is red, task payloads over the inline limit fail — silently, until one is big
+  enough.
+- **trigger-tls** is reached from the host **by IP**, never by name: the
+  Caddyfile's site address is `TRIGGER_TLS_HOST`, so a request to `localhost`
+  sends an SNI matching no site. An IP sends none, which is what `default_sni`
+  is for. If this is red, the dashboard is unreachable for every operator not
+  sitting at the machine — see the white-screen entry above, which is the same
+  fault seen from the browser.
+
 ## Related docs
 
 - Architecture (source of truth): [`architecture/solution-architecture.md`](./architecture/solution-architecture.md) — §4 roles, §16 cost drivers, §17 security/GDPR, §22.1 releases.

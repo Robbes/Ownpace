@@ -22,6 +22,24 @@
     "lib": ["ES2022"],
     "strict": true,
     "noUncheckedIndexedAccess": true,
+
+    /* Each of the three below was measured against the whole workspace before
+       being turned on, and each reported ZERO errors — they cost nothing today
+       and are here to keep it that way.
+
+       `isolatedModules` is the load-bearing one. Nothing here is compiled by
+       tsc; the apps run under tsx and the web app is built by Vite, and BOTH
+       transpile one file at a time with esbuild, which never sees the rest of
+       the program. That is precisely the model isolatedModules describes, so
+       without it tsc was type-checking under assumptions the actual runtime
+       does not make. apps/web already set it; the workspace did not.
+
+       `noImplicitOverride` and `noFallthroughCasesInSwitch` are ordinary
+       correctness checks. apps/web had the second one, the packages did not —
+       the same one-config-knows, the-other-does-not split. */
+    "isolatedModules": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,

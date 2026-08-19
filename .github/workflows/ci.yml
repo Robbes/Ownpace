@@ -248,10 +248,28 @@ jobs:
           # job. Cached it is ~6s; cold it is tens of seconds, every PR.
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # ESLint's incremental cache. `--cache-strategy content` (set in the lint
+      # script) hashes file CONTENT rather than mtime, which is the only
+      # strategy that survives a checkout: actions/checkout writes every file
+      # fresh, so an mtime-keyed cache invalidates 100% of its entries and buys
+      # nothing. Measured on this repo: after touching every .ts, metadata fell
+      # back to 10.6s while content held at 2.7s.
+      #
+      # restore-keys lets a run start from the previous commit's cache and
+      # re-lint only what changed, instead of an all-or-nothing hit.
+      - name: Restore ESLint cache
+        # v6.1.0, same pin and same reason as the Chromium cache below:
+        # actions/cache v4 still declares `using: node20`.
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .eslintcache
+          key: eslint-${{ runner.os }}-${{ hashFiles('eslint.config.js', 'pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            eslint-${{ runner.os }}-${{ hashFiles('eslint.config.js', 'pnpm-lock.yaml') }}-
       - name: Lint & typecheck
         run: |
           pnpm lint
-          pnpm typecheck   # tsc --noEmit across the workspace
+          pnpm typecheck   # tsc (TypeScript 7) --noEmit across the workspace
 
   unit-tests:
     name: unit-tests
