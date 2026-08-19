@@ -8,6 +8,8 @@
   **Amended 2026-08-19:** the two questions in "Decisions still OPEN" were recorded as
   delegated to me on a *no preference* that the owner never gave. They are open, the owner
   has a preference, and the text under them is a proposal rather than a decision.
+  **Resolved later the same day** — the owner answered both, and the answers reshaped
+  decisions 2–5: see "Now decided" below and [ADR-0037](./0037-keys-credentials-and-transport-floors.md).
 - **Date:** 2026-08-17
 - **Deciders:** owner — for the names and the ~1000 figure above, which were given in
   conversation. **NOT for the two questions in "Decisions the owner left open" below: those
@@ -220,6 +222,9 @@ Personal and Organisation, it now means whichever the sentence says.
 
 ### 2. The UI is a first-class configuration door on the self-host edition
 
+> **Amended 2026-08-19** — see "Now decided": the UI is the **topology** door on Personal
+> and the **credential** door everywhere; on Organisation, topology stays with files.
+
 The self-host edition serves the same connections and mapping-management contract the
 managed edition does, over the same routes, rendered by the same web app with no edition
 branch. A **Personal** user who installs the MSI can add a source, add a target, test them,
@@ -240,6 +245,9 @@ implementations of the same screen.
 
 ### 3. Files stay, first-class, unchanged, and are not deprecated
 
+> **Amended 2026-08-19** — files survive as **Organisation's sole topology door**;
+> Personal has no file door at all. See "Now decided".
+
 `CONFIG_DIR` keeps working exactly as it does. No migration step, no "legacy" label, no
 warning banner. The fleet operator's arrangement is not a transitional state on the way to
 a database, and a product that treats it as one has misread who is running it.
@@ -251,6 +259,12 @@ configure the appliance with **no secret at rest in its own storage** — which 
 some operators specifically want, and which the UI path by definition cannot offer.
 
 ### 4. Ownership is per object, and the two sources are never merged
+
+> **Amended 2026-08-19** — the two-door-per-object machinery this decision built
+> (ownership column, collision check) is **replaced** by the concern split in "Now
+> decided": topology and credentials are disjoint field sets, so there is nothing to
+> merge. What survives of this decision: the origin path recorded on file-seeded rows,
+> and the read-only-with-the-file-named UI treatment of file topology on Organisation.
 
 Every connection and every mapping is owned by exactly one of the two doors, and the row
 records which:
@@ -285,6 +299,11 @@ Two edges follow, and both are decided rather than left to be discovered:
   `loadConfigDir`'s existing behaviour for two files claiming one `mappingId`.
 
 ### 5. The appliance gets a secret store, and generates its own key
+
+> **Amended 2026-08-19** — mechanics unchanged and now owned by
+> [ADR-0037](./0037-keys-credentials-and-transport-floors.md) (two providers: env wins,
+> generated file for Personal — on every platform), with one addition: the key is
+> required at **first store**, not at boot, so a pure files+env fleet gains no new knob.
 
 Storing credentials from the UI requires an encryption key, and `SecretStore` currently
 demands `SECRET_ENCRYPTION_KEY` from the environment — which is precisely the thing the
@@ -423,6 +442,68 @@ appliance **unable to start unattended**, and surviving a power cut without a hu
 is a stated value for intermittently attended hosts — proven deliberately on real hardware
 (runbook phase 3, hard kill mid-sync). If the owner wants the passphrase it should be an
 *option* on top of the key file, never the only path.
+
+### Now decided (owner, 2026-08-19) — and the shape the answers produced
+
+Both questions were answered in conversation, with reasoning in the owner's own words. The
+final shape was then **corrected twice against this repository's own record** before being
+written down, and both corrections are kept here because they changed the answer.
+
+**Question 1 — files.** The owner chose splitting by deployment: *Personal aims at
+Windows/Unix and simple Linux, people work 99% with the UI; Organisation fits DevOps/IT who
+want GitOps or at least control from files* — guessing that Organisation "might have more
+overlap with the managed version". Checked against the code, that overlap is real **but on
+the secrets axis, not the configuration axis**: real managed tenants configure through the
+API (the UI's door), so on configuration, Managed sits with Personal and Organisation is
+the odd one out. On secrets, Organisation and Managed both have someone who already runs
+secret management, and Personal has nobody. Both halves of that are now load-bearing below.
+
+**The first correction — a deployment split for *everything* contradicts ADR-0035.** "No
+secret store on Organisation" forces every credential into env vars, and a credential that
+arrives from a *person at runtime* — the grant link, the product's central flow — has no
+environment variable. The grown-up tier would be the one that cannot do the thing the
+product is built around.
+
+**The second correction came from the owner:** *"don't we mix up secrets the app uses to
+keep secrets in DB safe? why would we want to store all possible secrets in files, while we
+can hold them also in DB like with grants and the UI we have."* Exactly right, and it
+produced the final shape — **split by concern, not by deployment**:
+
+| concern | Personal | Organisation | Managed |
+|---|---|---|---|
+| **topology** (mappings, connections, schedules) | UI | **files** (sole door) | API/UI |
+| **credentials & grants** | store (UI / grant link) | store (UI / grant link) | store |
+| escape hatch | — | `passwordFromEnv`/`tokenFromEnv` stays, per connection | — |
+
+The concerns are disjoint by construction — files never hold secrets (already true), and
+the credential flow never writes topology — so **none of decision 4's merge machinery is
+needed**: no ownership column, no collision check, no two-door edit rules. That was the
+deployment split's entire prize, and it survives the correction.
+
+What the shape requires, stated rather than discovered later:
+
+- **The mode is explicit** (an env-declared deployment kind), defaulting to Personal, and
+  contradictions refuse loudly: Personal with files present in `CONFIG_DIR` refuses at
+  start naming the files and the mode switch — never silently ignores configuration
+  somebody wrote; Organisation refuses a **topology** write arriving via UI/API naming the
+  file door, while credential and grant writes are accepted everywhere. Today's fleet
+  upgrades with one env var, told to them by the refusal itself.
+- **One lifecycle rule where the doors touch one object:** a file-declared connection may
+  carry a store-held granted credential (disjoint fields, same row). Deleting the file
+  revokes or parks that credential through the existing `revokeStoredCredentials` path —
+  never orphans it.
+- **Forward note:** today's schema holds one source+target connection pair per tenant;
+  ADR-0035's per-person grants will widen that. The split is drawn so the widening lands
+  on the credential side only — topology (host, folders) is shared, identities are not.
+
+**Question 2 — the key.** The owner's threat model, per tier: Personal on Windows/Apple is
+*"basic protection against someone steals your laptop or logs in with your credentials"*;
+Organisation is hosted and *"secrets management should better fit that"*; Managed belongs
+in *"some vault/KMS-like secrets manager"* — with the practical rider that nothing exists
+yet on the current host and K8s-like hosting may come later. The mechanism, provider seam,
+per-platform answer (generated file everywhere, keystore deferred), the lazy-key rule, the
+post-quantum position and the TLS floors are all
+[ADR-0037](./0037-keys-credentials-and-transport-floors.md)'s to own, and live there.
 
 ## Consequences
 
