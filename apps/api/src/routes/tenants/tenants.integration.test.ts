@@ -38,8 +38,8 @@ const getAppUserConnectionString = (originalUrl: string): string => {
 };
 process.env.APP_DATABASE_URL = getAppUserConnectionString(PG_CONNECTION_STRING);
 
-import app from '../../index.js';
-import { seedMembership } from '../../__tests__/seed-membership.js';
+import app from '../../index.ts';
+import { seedMembership } from '../../__tests__/seed-membership.ts';
 
 // UUIDs for API isolation tests (950e8400-e29b-41d4-a716-44665544xxxx)
 const API_TENANT_A = '5e2b0000-e29b-41d4-a716-446655442101';

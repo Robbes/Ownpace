@@ -1,0 +1,17 @@
+{
+  // The UI smoke drives a real browser. The bodies of `page.evaluate()` and
+  // `addInitScript()` are COMPILED here but EXECUTED in the page, so they
+  // legitimately name `document`, `window` and `getComputedStyle`.
+  //
+  // This is a separate project rather than a `lib` widening or a
+  // `/// <reference lib="dom" />`, because both of those are PROGRAM-wide, not
+  // file-wide. Tried it: adding DOM to the one file put DOM's `fetch`/`Blob`
+  // overloads in front of Node's for every other file too, and
+  // `webdav-source.ts` and `webdav-target-writer.ts` stopped compiling. The
+  // rest of the workspace must keep its Node-only globals.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+  },
+  "include": ["**/*.ts"]
+}

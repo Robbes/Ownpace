@@ -188,7 +188,8 @@ describe('every check a pull request can produce is classified', () => {
 
     expect(start, `docs/testing.md no longer contains "${marker}"`).toBeGreaterThan(-1);
 
-    const paragraph = doc.slice(start).split('\n\n')[0];
+    // split() always yields at least one element; ?? '' says so to the compiler.
+    const paragraph = doc.slice(start).split('\n\n')[0] ?? '';
     const missing = [...REQUIRED_OUTSIDE_CI].filter((n) => !paragraph.includes(n));
 
     expect(

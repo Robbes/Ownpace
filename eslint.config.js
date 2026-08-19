@@ -38,15 +38,12 @@ export default tseslint.config(
      * is ~1.5s, which is what nearly every run is: `--cache-strategy content`
      * survives CI's checkout, and only changed files are re-linted.
      */
-    // Scoped to the files a tsconfig actually covers. The `test` and `scripts`
-    // trees and the root-level .ts files are in NO tsconfig `include`, so the
-    // project service cannot type them and each would report a parsing error.
-    // That gap is real and worth closing on its own — widening the root
-    // include surfaces 29 genuine type errors in files nothing has ever
-    // checked — but it is a separate change, and silently linting a subset is
-    // how a gate ends up meaning less than it appears to. Hence the explicit
-    // list here rather than a catch-all plus 35 suppressions.
-    files: ['packages/*/src/**/*.ts', 'apps/*/src/**/*.ts', 'apps/web/src/**/*.tsx'],
+    // Every .ts/.tsx in the repo is now inside a tsconfig — the root program
+    // covers packages, apps, scripts, test and the root-level files, and
+    // test/ui has its own (it needs DOM lib). Before that this list named three
+    // globs and quietly skipped 35 files, which is how a gate ends up meaning
+    // less than it looks like it means.
+    files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
       parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
     },

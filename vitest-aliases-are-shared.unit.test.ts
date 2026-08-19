@@ -42,7 +42,8 @@ const SHARED = 'vitest.aliases.ts';
 function sharedAliasKeysInOrder(): string[] {
   const src = readFileSync(join(ROOT, SHARED), 'utf8');
   const body = src.slice(src.indexOf('export const aliases'));
-  return [...body.matchAll(/^\s*'(@openmig\/[^']+)'\s*:/gm)].map((m) => m[1]);
+  // Group 1 is not optional in that pattern, so a match always carries it.
+  return [...body.matchAll(/^\s*'(@openmig\/[^']+)'\s*:/gm)].flatMap((m) => (m[1] ? [m[1]] : []));
 }
 
 /** Every app that has its own vitest config. */
@@ -83,8 +84,11 @@ describe('vitest alias map', () => {
     expect(targets.length).toBeGreaterThan(5);
 
     const missing = targets
-      .filter(([, , rel]) => !existsSync(join(ROOT, rel)))
-      .map(([, key, rel]) => `${key} -> ${rel}`);
+      // Both groups are mandatory in the pattern above, so a match carries
+      // both — `?? ''` states that instead of asserting it.
+      .map((m) => ({ key: m[1] ?? '', rel: m[2] ?? '' }))
+      .filter(({ rel }) => !existsSync(join(ROOT, rel)))
+      .map(({ key, rel }) => `${key} -> ${rel}`);
 
     expect(missing, 'An alias pointing at a file that does not exist fails at import time, not here.').toEqual([]);
   });

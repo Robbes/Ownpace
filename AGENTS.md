@@ -35,10 +35,13 @@ Before any Stalwart or integration-test work: read `docs/stalwart-integration-fi
   `no-floating-promises` and `no-misused-promises` — so a COLD lint is ~47s and a
   warm one ~2.4s. Do not drop `--cache --cache-strategy content` from the script
   to "simplify" it: `--cache` alone keys on mtime, which every checkout
-  invalidates. The type-aware block is scoped to the globs a tsconfig actually
-  covers; `test/`, `scripts/` and root-level `.ts` are in no `include` and are
-  therefore neither typechecked nor type-linted (29 real type errors are waiting
-  there whenever someone widens it).
+  invalidates. Every `.ts` in the repo is inside a
+  tsconfig, so lint and `pnpm typecheck` both cover the GATES themselves and not
+  only the shipped source — that gap once hid 29 real errors, including a
+  function the integration teardown imports and calls that was never exported.
+  `test/ui` is its own project because it needs DOM lib (a `lib` is
+  program-wide, so it cannot be widened centrally); `pnpm typecheck` runs it as
+  a second `tsc`. Do not narrow either scope back to `packages`/`apps`.
 - **Nothing transpiles at runtime.** The API image runs `node apps/api/src/index.ts`
   and the appliance runs an esbuild bundle; Node erases the types itself. Three
   source rules keep that working — every relative import carries its extension,

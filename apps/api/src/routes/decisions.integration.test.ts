@@ -35,8 +35,8 @@ const getAppUserConnectionString = (originalUrl: string): string => {
 };
 process.env.APP_DATABASE_URL = getAppUserConnectionString(PG_CONNECTION_STRING);
 
-import app from '../index.js';
-import { seedMembership } from '../__tests__/seed-membership.js';
+import app from '../index.ts';
+import { seedMembership } from '../__tests__/seed-membership.ts';
 
 const DEC_TENANT_A = '5e3c0000-e29b-41d4-a716-446655440001';
 const DEC_TENANT_B = '5e3c0000-e29b-41d4-a716-446655440002';

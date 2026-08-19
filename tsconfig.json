@@ -1,5 +1,16 @@
 {
+  // The include names every .ts in the repo, not just the shipped source.
+  // It used to stop at `packages/*/src` and `apps/*/src`, which left `test/`,
+  // `scripts/` and the root-level files — the gates themselves — unchecked by
+  // `pnpm typecheck`. Widening it surfaced 29 real errors, one of which was a
+  // function the integration teardown imports and calls but that was never
+  // exported: every diagnostic capture on a failed run had been silently
+  // swallowed by its own try/catch.
+  //
+  // `test/ui` is excluded and has its own tsconfig — it needs DOM lib, and a
+  // `lib` is program-wide, so it cannot be widened here without giving every
+  // package DOM's fetch/Blob overloads instead of Node's.
   "extends": "./tsconfig.base.json",
-  "include": ["packages/*/src/**/*.ts", "apps/*/src/**/*.ts", "*.config.ts"],
-  "exclude": ["**/node_modules/**", "**/dist/**", "**/build/**", "**/coverage/**"]
+  "include": ["packages/*/src/**/*.ts", "apps/*/src/**/*.ts", "*.config.ts", "*.ts", "test/**/*.ts", "scripts/**/*.ts"],
+  "exclude": ["**/node_modules/**", "**/dist/**", "**/build/**", "**/coverage/**", "test/ui/**"]
 }

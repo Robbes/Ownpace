@@ -98,16 +98,28 @@ describe('the runtime needs no transpiler', () => {
     expect(files.length).toBeGreaterThan(400);
   });
 
-  it('gives every relative import an explicit file extension', () => {
+  it('gives every relative import an extension that names a file on disk', () => {
+    // Two failures, one check, because they are the same failure: Node opens
+    // the path it is given and nothing else.
+    //
+    //   './routes/index'      -> no extension at all
+    //   './seed-membership.js' -> an extension pointing at a file that is .ts
+    //
+    // The second is the one an "add the extension" rule misses, and there were
+    // 25 of them — the TypeScript convention of writing `.js` for a `.ts`
+    // file, which every bundler rewrites and Node does not. Resolving the
+    // target catches both without needing to know which mistake was made.
     const offenders: string[] = [];
     for (const file of files) {
       for (const spec of relativeSpecifiers(file, readFileSync(file, 'utf8'))) {
         if (!HAS_EXTENSION.test(spec)) {
-          offenders.push(`${file.slice(ROOT.length + 1)} -> '${spec}'`);
+          offenders.push(`${file.slice(ROOT.length + 1)} -> '${spec}' (no extension)`);
+        } else if (!existsSync(join(dirname(file), spec))) {
+          offenders.push(`${file.slice(ROOT.length + 1)} -> '${spec}' (no such file)`);
         }
       }
     }
-    expect(offenders, `Node cannot resolve these; add the extension (usually '.ts' or '/index.ts')`).toEqual([]);
+    expect(offenders, 'Node resolves these literally; point them at the real file').toEqual([]);
   });
 
   it('keeps the two compiler options the eraser depends on', () => {

@@ -327,6 +327,15 @@ export class O365TokenProvider {
 // O365 Graph Client
 // ============================================================================
 
+/**
+ * What every Graph list endpoint returns. `Response.json()` is `unknown`, and
+ * these helpers all reach straight into `.value` — so the cast belongs here,
+ * once and named, rather than seven of them scattered through the callers.
+ */
+interface GraphListResponse {
+  readonly value: ReadonlyArray<Record<string, unknown>>;
+}
+
 export interface O365GraphFolder {
   id: string;
   displayName: string;
@@ -398,7 +407,7 @@ export class O365GraphClient {
     if (!response.ok) {
       throw new Error(`Graph API error: ${response.statusText}`);
     }
-    return response.json();
+    return response.json() as Promise<Record<string, unknown>>;
   }
 
   async listMailFolders(): Promise<O365GraphFolder[]> {
@@ -408,7 +417,7 @@ export class O365GraphClient {
     if (!response.ok) {
       throw new Error(`Graph API error: ${response.statusText}`);
     }
-    const data = await response.json();
+    const data = (await response.json()) as GraphListResponse;
     return data.value.map((folder: Record<string, unknown>) => ({
       id: folder.id as string,
       displayName: folder.displayName as string,
@@ -426,7 +435,7 @@ export class O365GraphClient {
     if (!response.ok) {
       throw new Error(`Graph API error: ${response.statusText}`);
     }
-    const data = await response.json();
+    const data = (await response.json()) as GraphListResponse;
     return data.value.map((msg: Record<string, unknown>) => ({
       id: msg.id as string,
       subject: msg.subject as string,
@@ -445,7 +454,7 @@ export class O365GraphClient {
     if (!response.ok) {
       throw new Error(`Graph API error: ${response.statusText}`);
     }
-    const data = await response.json();
+    const data = (await response.json()) as GraphListResponse;
     return data.value.map((cal: Record<string, unknown>) => ({
       id: cal.id as string,
       displayName: cal.name as string,
@@ -461,7 +470,7 @@ export class O365GraphClient {
     if (!response.ok) {
       throw new Error(`Graph API error: ${response.statusText}`);
     }
-    const data = await response.json();
+    const data = (await response.json()) as GraphListResponse;
     return data.value.map((evt: Record<string, unknown>) => ({
       id: evt.id as string,
       subject: evt.subject as string,
@@ -480,7 +489,7 @@ export class O365GraphClient {
     if (!response.ok) {
       throw new Error(`Graph API error: ${response.statusText}`);
     }
-    const data = await response.json();
+    const data = (await response.json()) as GraphListResponse;
     return data.value.map((folder: Record<string, unknown>) => ({
       id: folder.id as string,
       displayName: folder.displayName as string,
@@ -496,7 +505,7 @@ export class O365GraphClient {
     if (!response.ok) {
       throw new Error(`Graph API error: ${response.statusText}`);
     }
-    const data = await response.json();
+    const data = (await response.json()) as GraphListResponse;
     return data.value.map((contact: Record<string, unknown>) => ({
       id: contact.id as string,
       displayName: contact.displayName as string,
@@ -514,7 +523,7 @@ export class O365GraphClient {
     if (!response.ok) {
       throw new Error(`Graph API error: ${response.statusText}`);
     }
-    const data = await response.json();
+    const data = (await response.json()) as GraphListResponse;
     return data.value.map((item: Record<string, unknown>) => ({
       id: item.id as string,
       name: item.name as string,

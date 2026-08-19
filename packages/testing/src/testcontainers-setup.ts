@@ -135,7 +135,7 @@ async function streamContainerLogs(
  * Capture final diagnostics for a container including docker logs,
  * internal logs, and network state.
  */
-async function captureContainerDiagnostics(
+export async function captureContainerDiagnostics(
   container: StartedTestContainer,
   containerName: string,
   extraChecks: string[] = []
