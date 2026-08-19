@@ -40,6 +40,16 @@ function forbiddenReason(spec: string): string | null {
   if (/^@trigger\.dev(\/|$)/.test(spec)) return 'Trigger.dev SDK (managed orchestration)';
   if (/^@mollie(\/|$)/.test(spec) || /mollie/i.test(spec)) return 'Mollie billing client';
   if (/(^|\/)billing(\/|$)/.test(spec)) return 'billing module';
+  // ADR-0032. `billing` alone was not enough: the modules that priced a tenant
+  // and metered its usage were called `pricing`, `tenant-pricing` and
+  // `usage-metering`, they were re-exported from `@openmig/shared` and
+  // `@openmig/ledger` — which ARE the appliance — and this guard walked
+  // straight past them for as long as they existed. A rule that only catches
+  // the word "billing" catches whatever happens to be named after the invoice,
+  // not what happens to be about money.
+  if (/(^|\/)(pricing|tenant-pricing|usage-metering|invoice|invoice-generation)(\/|$)/.test(spec)) {
+    return 'pricing/metering module (managed-only — an appliance has an owner, not customers)';
+  }
   // The scheduler index re-exports the Trigger.dev client — self-host must use
   // the trigger-free `/in-process` subpath instead.
   if (spec === '@openmig/scheduler' || spec === '@openmig/scheduler/index') {
@@ -168,5 +178,84 @@ describe('self-host has no managed-only leakage (hard rule 5)', () => {
 
   it('imports no Trigger.dev / billing / Mollie anywhere in its reachable graph', () => {
     expect(violations).toEqual([]);
+  });
+
+  // ======================= the schema half (ADR-0032) =======================
+  //
+  // The checks above prove the appliance loads no managed CODE. They said
+  // nothing about the TABLES it can name, and for as long as `invoice`,
+  // `payment_method` and `usage_metric` were declared in `schema-pg.ts` —
+  // which the appliance imports — a `db.select().from(schema.invoice)` written
+  // in shared code compiled on both editions and typechecked clean. The rule
+  // was real; only the code half of it was enforced.
+
+  /** Tables that only exist because somebody is being charged. */
+  const MANAGED_ONLY_TABLES = ['invoice', 'payment_method', 'usage_metric'] as const;
+
+  /**
+   * Managed-only COLUMNS on tables the appliance legitimately owns.
+   *
+   * `tenant.pricing` is the whole list, and it is declared rather than removed:
+   * a table is declared in one place, and splitting one nullable jsonb column
+   * into a second declaration of `tenant` would leave the schema/migration
+   * drift guard with two rows of that name and no way to tell which it checked.
+   * The money LOGIC left (`tenant-pricing.ts` is in @openmig/billing); the
+   * column stays beside its table, and stays named here so it cannot quietly
+   * acquire company.
+   */
+  const MANAGED_ONLY_COLUMNS: Readonly<Record<string, string>> = {
+    'tenant.pricing':
+      'the prices a tenant agreed to (migration 0007). Declared with its table; ' +
+      'nothing reachable from the appliance reads it.',
+  };
+
+  it('declares no managed-only table anywhere in its reachable graph', () => {
+    const found: string[] = [];
+    for (const file of visited) {
+      const source = readFileSync(file, 'utf-8');
+      for (const table of MANAGED_ONLY_TABLES) {
+        // `pgTable(` and its name argument are usually on separate lines.
+        if (new RegExp(`pgTable\\(\\s*'${table}'`).test(source)) {
+          found.push(`${file.slice(ROOT.length + 1)} declares '${table}'`);
+        }
+      }
+    }
+    expect(
+      found,
+      'the appliance reaches a schema module that declares a managed-only table, ' +
+        'so shared code can name it and typecheck clean on both editions:\n' +
+        found.map((f) => `  - ${f}`).join('\n'),
+    ).toEqual([]);
+  });
+
+  it('names every managed-only column it still carries, and no more', () => {
+    // The complement: `tenant.pricing` survives deliberately, so this asserts
+    // the exception is the ONE that was argued for. A second money column
+    // arriving on a core table fails here rather than being absorbed.
+    const schemaFile = join(ROOT, 'packages/ledger/src/schema-pg.ts');
+    expect(visited.has(schemaFile), 'the appliance no longer loads schema-pg.ts — ' +
+      'this check is looking at a file that is not in the graph').toBe(true);
+
+    const source = readFileSync(schemaFile, 'utf-8');
+    // The `tenant` table body: from its declaration to the closing `});`.
+    const tenantBody = /export const tenant = pgTable\('tenant', \{([\s\S]*?)\n\}\);/.exec(source)?.[1];
+    expect(tenantBody, 'could not find the tenant table body to read its columns from').toBeTruthy();
+
+    const columns = [...tenantBody!.matchAll(/^\s{2}(\w+):/gm)].map((m) => m[1]!);
+    expect(columns.length, 'no columns parsed out of the tenant table — the ' +
+      'check below would pass against an empty list').toBeGreaterThan(5);
+
+    const MONEY = /^(pricing|price|billing|invoice|payment|vat|tax|currency|fee|rate)/i;
+    const money = columns.filter((c) => MONEY.test(c)).map((c) => `tenant.${c}`);
+    expect(
+      money.filter((c) => !(c in MANAGED_ONLY_COLUMNS)),
+      'a managed-only column arrived on a table the appliance loads. Either it ' +
+        'belongs in @openmig/billing, or add it to MANAGED_ONLY_COLUMNS with the ' +
+        'reason it has to live here (ADR-0032).',
+    ).toEqual([]);
+
+    for (const key of Object.keys(MANAGED_ONLY_COLUMNS)) {
+      expect(money, `${key}: allow-listed but no longer declared — remove the entry`).toContain(key);
+    }
   });
 });

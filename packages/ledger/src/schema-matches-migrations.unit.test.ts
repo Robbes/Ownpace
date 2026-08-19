@@ -37,6 +37,12 @@ import { PgTable } from 'drizzle-orm/pg-core';
 import { createPgliteDb } from './pglite-driver';
 import { runMigrations } from './migrate';
 import * as schemaPg from './schema-pg';
+// The billing tables were declared in schema-pg.ts until ADR-0032 moved them to
+// @openmig/billing. There is still ONE database and ONE migration chain, so
+// there is still one guard over it — the import is test-only (a devDependency,
+// deliberately not a real one) and `covers every table the migrations create`
+// below fails if it is ever dropped.
+import * as schemaBilling from '@openmig/billing/schema-billing';
 import type { LedgerDriver, LedgerConnection } from './driver';
 
 let driver: LedgerDriver;
@@ -71,10 +77,12 @@ const UNDECLARED_ON_PURPOSE: Readonly<Record<string, string>> = {
 /** Every table the ORM declares, by its real Postgres name. */
 function declaredTables(): Array<{ name: string; columns: string[] }> {
   const out: Array<{ name: string; columns: string[] }> = [];
-  for (const value of Object.values(schemaPg)) {
-    if (!is(value, PgTable)) continue;
-    const columns = Object.values(getTableColumns(value)).map((c) => c.name);
-    out.push({ name: getTableName(value), columns: columns.sort() });
+  for (const module of [schemaPg, schemaBilling]) {
+    for (const value of Object.values(module)) {
+      if (!is(value, PgTable)) continue;
+      const columns = Object.values(getTableColumns(value)).map((c) => c.name);
+      out.push({ name: getTableName(value), columns: columns.sort() });
+    }
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -95,6 +103,23 @@ describe('the Drizzle schema and the migrations describe the same database', () 
     // A introspection helper that returns nothing would make every assertion
     // below pass perfectly.
     expect(declaredTables().length).toBeGreaterThan(20);
+  });
+
+  it('covers every table the migrations create, in both schema modules', () => {
+    // The vacuity check above counts tables, so it stays green if a whole
+    // module drops out of the walk: `schema-pg` alone still declares far more
+    // than 20. When the billing tables moved to @openmig/billing (ADR-0032)
+    // this guard silently stopped covering three of them — the direction that
+    // finds undeclared columns skips any table the ORM does not model, so the
+    // loss looked exactly like success.
+    //
+    // Named, so that dropping the schemaBilling import fails here with the
+    // reason rather than nowhere.
+    const names = new Set(declaredTables().map((t) => t.name));
+    for (const table of ['invoice', 'payment_method', 'usage_metric']) {
+      expect(names.has(table), `${table} is created by the migrations but no ` +
+        'schema module in this guard declares it, so nothing checks it for drift').toBe(true);
+    }
   });
 
   it('declares no column the migrated database does not have', async () => {

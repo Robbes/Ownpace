@@ -41,5 +41,6 @@ export * from './quiesce';
 export * from './token-revocation';
 export * from './logger';
 export * from './metrics';
-export * from './pricing';
+// Pricing moved to @openmig/billing (ADR-0032): an appliance has an owner,
+// not customers, and @openmig/shared is loaded by both editions.
 export * from './probe-outcome';

@@ -24,14 +24,10 @@
  */
 
 import { eq } from 'drizzle-orm';
-import {
-  type PricingConfig,
-  parsePinnedPricing,
-  pricingFromEnv,
-  log,
-} from '@openmig/shared';
-import type { PgDatabase } from './db';
-import * as schema from './schema-pg';
+import { log } from '@openmig/shared';
+import type { PgDatabase } from '@openmig/ledger/db';
+import * as schema from '@openmig/ledger/schema-pg';
+import { type PricingConfig, parsePinnedPricing, pricingFromEnv } from './pricing';
 
 /**
  * The tenant's agreed prices, pinning the operator's template if it has none.

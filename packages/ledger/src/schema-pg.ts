@@ -37,7 +37,10 @@ export const tenant = pgTable('tenant', {
   closedBy: text('closed_by'),
   // The prices this tenant AGREED to (migration 0007), integer cents. Pinned
   // once from the operator's template and never following it again — see
-  // tenant-pricing.ts. Nullable: NULL is "no agreement yet", not "free".
+  // @openmig/billing's tenant-pricing.ts. Nullable: NULL is "no agreement
+  // yet", not "free". The one managed-only column left on a core table, named
+  // in no-managed-leakage.unit.test.ts so it cannot quietly acquire company
+  // (ADR-0032).
   pricing: jsonb('pricing'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -986,97 +989,13 @@ export const tenantMember = pgTable(
   ],
 );
 
-// ========================= Usage Metrics (for billing) =========================
-
-export const usageMetric = pgTable(
-  'usage_metric',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    tenantId: uuid('tenant_id').notNull().references(() => tenant.id, { onDelete: 'cascade' }),
-    periodStart: text('period_start').notNull(), // Using text for date
-    periodEnd: text('period_end').notNull(),
-    metricType: text('metric_type', {
-      enum: ['storage', 'egress', 'compute', 'api_calls'],
-    }).notNull(),
-    resource: text('resource'),
-    quantity: text('quantity').notNull(), // Using text for numeric
-    unit: text('unit').notNull(),
-    unitPrice: text('unit_price').notNull(),
-    totalCost: text('total_cost').notNull(),
-    metadata: jsonb('metadata').notNull().default({}),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    index('ix_usage_tenant_period').on(t.tenantId, t.periodStart),
-    index('ix_usage_period_type').on(t.periodStart, t.metricType),
-    uniqueIndex('uk_usage_metric').on(t.tenantId, t.periodStart, t.metricType, t.resource),
-  ],
-);
-
-// ========================= Billing Invoices =========================
-
-export const invoice = pgTable(
-  'invoice',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    // NULL once the tenant is erased: the invoice outlives it, because tax
-    // retention outlives the customer relationship (0085).
-    tenantId: uuid('tenant_id').references(() => tenant.id, { onDelete: 'set null' }),
-    // Captured at issue time. An invoice records a moment, so a later rename
-    // must not rewrite invoices already issued — and a detached invoice has to
-    // be able to say who it was for at all.
-    billedToName: text('billed_to_name'),
-    periodStart: text('period_start').notNull(),
-    periodEnd: text('period_end').notNull(),
-    status: text('status', {
-      enum: ['draft', 'sent', 'paid', 'overdue', 'void'],
-    })
-      .notNull()
-      .default('draft'),
-    subtotal: text('subtotal').notNull(),
-    taxRate: text('tax_rate').notNull(),
-    taxAmount: text('tax_amount').notNull(),
-    total: text('total').notNull(),
-    currency: text('currency').notNull().default('EUR'),
-    paymentMethod: text('payment_method'),
-    paymentId: text('payment_id'),
-    paidAt: timestamp('paid_at', { withTimezone: true }),
-    dueDate: text('due_date'),
-    sentAt: timestamp('sent_at', { withTimezone: true }),
-    metadata: jsonb('metadata').notNull().default({}),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    index('ix_invoice_tenant').on(t.tenantId, t.periodStart),
-    index('ix_invoice_status').on(t.status, t.periodStart),
-    uniqueIndex('uk_invoice_tenant_period').on(t.tenantId, t.periodStart),
-  ],
-);
-
-// ========================= Payment Methods =========================
-
-export const paymentMethod = pgTable(
-  'payment_method',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    tenantId: uuid('tenant_id').notNull().references(() => tenant.id, { onDelete: 'cascade' }),
-    mollieId: text('mollie_id').notNull().unique(),
-    type: text('type').notNull(),
-    brand: text('brand'),
-    lastFour: text('last_four'),
-    expiryMonth: integer('expiry_month'),
-    expiryYear: integer('expiry_year'),
-    isDefault: boolean('is_default').notNull().default(false),
-    status: text('status', { enum: ['active', 'expired', 'revoked'] })
-      .notNull()
-      .default('active'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [index('ix_payment_method_tenant').on(t.tenantId)],
-);
+// The billing tables — `usage_metric`, `invoice`, `payment_method` — used to be
+// declared here. They moved to `@openmig/billing`'s `schema-billing.ts` when the
+// edition boundary was drawn (ADR-0032): every appliance imports this module, and
+// a schema is a list of things the code that loads it is allowed to name.
+//
+// The TABLES did not move — they are still created by `0001_baseline.sql` and are
+// still there, empty, on an appliance. Only the declaration did.
 
 /**
  * The token bucket every process shares, per (tenant, provider) — migration

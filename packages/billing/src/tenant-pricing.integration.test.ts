@@ -10,10 +10,10 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { DEFAULT_PRICING } from '@openmig/shared';
-import { createPgDb } from './db';
+import { createPgDb } from '@openmig/ledger/db';
+import * as schemaPg from '@openmig/ledger/schema-pg';
+import { DEFAULT_PRICING } from './pricing';
 import { resolveTenantPricing } from './tenant-pricing';
-import * as schemaPg from './schema-pg';
 
 const TEST_DB_URL = process.env.TEST_DATABASE_URL;
 if (!TEST_DB_URL) {
