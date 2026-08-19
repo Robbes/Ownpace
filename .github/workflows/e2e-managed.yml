@@ -280,6 +280,15 @@ jobs:
           # behind did not exist. The glob below is `smoke-managed-*.log`; this
           # name is chosen to match it.
           SMOKE_OUT: smoke-managed-${{ github.run_id }}.log
+          # Nobody prepares this box between runs. The demo DAV source has no
+          # content of its own (setup-nextcloud-users.sh provisions ACCOUNTS,
+          # not events, contacts or files) and a mapping with no schedule syncs
+          # on DEFAULT_SYNC_SCHEDULE = */15, so waiting for the tick would mean
+          # a gate that sits idle for a quarter of an hour and still might miss.
+          # With this set the smoke seeds the source and enqueues the sync
+          # itself, then checks the same question it always did. OFF by default:
+          # run by hand it stays an acceptance test, not a fixture factory.
+          SMOKE_PREPARE_APPLY: 1
         run: ./deploy/compose/smoke-managed.sh
 
       - name: Redact the evidence before it becomes an artifact
@@ -307,6 +316,40 @@ jobs:
           path: managed-evidence/
           retention-days: 7
           if-no-files-found: warn
+
+      - name: What the smoke actually concluded, where a log tail can reach it
+        if: always()
+        # The evidence file is uploaded as an artifact, and an artifact is not
+        # always reachable from wherever the run is being read — the tail of a
+        # job log usually is. Without this the smoke's verdict sits ~100 lines
+        # up, behind the artifact upload and `docker compose ps`, and finding out
+        # what a run concluded costs a round trip. Cheap insurance, printed last.
+        #
+        # `always()`, not `failure()`. A green needs this MORE than a red does.
+        # Run #12 passed every step, and its verdict — the one line saying
+        # whether the apply half reached a terminal state or was skipped — was
+        # unreadable: the artifact host is not always fetchable and the log tail
+        # could not reach back that far. That left "all steps passed, so it must
+        # be fine", which is the exact reasoning that made run #6's green a lie.
+        # A gate whose conclusion cannot be read is not a gate, it is a colour.
+        #
+        # THE REDACTED COPY, never the original. The last lines of that file are
+        # the captured runner logs, and a runner's debug output prints the whole
+        # task environment — DATABASE_URL, SECRET_ENCRYPTION_KEY, the tr_prod_
+        # key. The original in the workspace has had nothing done to it; only
+        # `managed-evidence/` has been through redact-evidence.sh (the step above
+        # runs `if: always()`, so it has run even on the failure that brought us
+        # here). Tailing the original would put credentials in a job log that
+        # everyone who can see the repo can read.
+        run: |
+          set -uo pipefail
+          f="managed-evidence/smoke-managed-${{ github.run_id }}.log"
+          if [ -f "$f" ]; then
+            echo "===== last 45 lines of $f (redacted copy) ====="
+            tail -45 "$f"
+          else
+            echo "no redacted evidence at $f — the run ended before the smoke, see the steps above"
+          fi
 
       - name: What state did we leave it in?
         if: always()

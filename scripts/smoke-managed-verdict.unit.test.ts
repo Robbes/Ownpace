@@ -264,3 +264,98 @@ describe("the refusal says WHICH way there is nothing to act on", () => {
     expect(diagnose("0", "0")).toContain("(total 0, copied 0)");
   });
 });
+
+describe("the prepare phase (SMOKE_PREPARE_APPLY)", () => {
+  const block = smoke.match(
+    / {2}note "prepare \(SMOKE_PREPARE_APPLY=1\)[\s\S]*?\n {2}\[ -n "\$HASH" \] \|\| echo "prepare: still nothing[^\n]*\n/,
+  )?.[0];
+  const guard = smoke
+    .split("\n")
+    .find((l) => l.startsWith('if [ -z "$HASH" ] && [ "${SMOKE_PREPARE_APPLY'));
+
+  it("is OFF unless asked for — by hand this stays an acceptance test", () => {
+    // Manufacturing its own fixture by default would be the same class of lie
+    // as the skip that used to pass: the script would stop reporting the state
+    // of the stack and start reporting the state it arranged.
+    expect(guard).toBeDefined();
+    expect(guard).toContain('"${SMOKE_PREPARE_APPLY:-0}" = "1"');
+  });
+
+  it("only runs when there is nothing to act on", () => {
+    // An eligible item that already exists is the real thing; seeding over it
+    // would replace a genuine precondition with a manufactured one.
+    expect(guard).toContain('[ -z "$HASH" ]');
+  });
+
+  it("seeds the source and enqueues a sync — neither alone is enough", () => {
+    expect(block).toBeDefined();
+    expect(block).toContain("seed-demo-dav-content.sh");
+    expect(block).toMatch(/\/sync\b/);
+    // */15 is the default cadence; a gate cannot wait for the tick.
+    expect(smoke).toContain("DEFAULT_SYNC_SCHEDULE");
+  });
+
+  it("sends an explicit JSON body, because zod parses it", () => {
+    expect(block).toContain("Content-Type: application/json");
+    expect(block).toMatch(/-d '\{"type":"delta"\}'/);
+  });
+
+  it("re-checks the SAME question rather than assuming it worked", () => {
+    // The poll re-runs the eligibility query; it does not set HASH to something
+    // it hoped for. A seeding failure still lands in the diagnosis below.
+    expect(block).toContain("coalesce(target_ref->>'id','') <> ''");
+    expect(block).toContain("SEEDING FAILED");
+  });
+
+  it("the workflow turns it on, and nothing else does", () => {
+    expect(workflow).toContain("SMOKE_PREPARE_APPLY: 1");
+  });
+});
+
+describe("the failure summary cannot leak what the redaction removes", () => {
+  // The last lines of the evidence are captured runner logs, and a runner's
+  // debug output prints the whole task environment. A job log is readable by
+  // everyone who can see the repo.
+  const step = workflow.slice(
+    workflow.indexOf(
+      "What the smoke actually concluded, where a log tail can reach it",
+    ),
+  );
+  const tailStep = step.slice(0, step.indexOf("- name: What state"));
+
+  it("tails the redacted copy, never the workspace original", () => {
+    expect(tailStep).toContain("managed-evidence/smoke-managed-");
+    // The bare workspace path is what must NOT be tailed.
+    expect(tailStep).not.toMatch(/\n\s+f="smoke-managed-/);
+  });
+
+  it("runs after the redaction step, which is if: always()", () => {
+    const redactAt = workflow.indexOf(
+      "Redact the evidence before it becomes an artifact",
+    );
+    const tailAt = workflow.indexOf(
+      "What the smoke actually concluded, where a log tail can reach it",
+    );
+    expect(redactAt).toBeGreaterThan(-1);
+    expect(tailAt).toBeGreaterThan(redactAt);
+  });
+});
+
+describe("a green states its own verdict", () => {
+  // Run #12 passed every step and its verdict was unreadable: the artifact host
+  // is not always fetchable, and the log tail could not reach back past the
+  // upload and `docker compose ps`. What was left was "all steps passed, so it
+  // must be fine" — the exact reasoning that made run #6's green a lie. A gate
+  // whose conclusion cannot be read is not a gate, it is a colour.
+  const step = workflow.slice(
+    workflow.indexOf(
+      "What the smoke actually concluded, where a log tail can reach it",
+    ),
+  );
+  const body = step.slice(0, step.indexOf("- name: What state"));
+
+  it("prints the evidence tail on success too, not only on failure", () => {
+    expect(body).toContain("if: always()");
+    expect(body).not.toContain("if: failure()");
+  });
+});

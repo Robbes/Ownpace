@@ -86,6 +86,32 @@ export interface RemoveDavResourceDeps {
   readonly kind?: RemovalKind;
 }
 
+/**
+ * A removal needs a resource to remove.
+ *
+ * Every DAV writer turns its `targetId` into a URL with `buildUrl(targetId)`,
+ * and `buildUrl('')` is the COLLECTION — so an empty handle does not fail, it
+ * silently aims the DELETE at the whole calendar, address book or folder.
+ * Applying one deletion would remove the container and everything in it.
+ *
+ * That was reachable: `PgLedger` stored `target_ref` double-encoded, so
+ * `mapRowToRecord` read `undefined` and handed `''` to every caller, and
+ * `apply-deletion.ts` passes that straight to `removeItem`. The storage bug is
+ * fixed and migration 0027 repairs the rows, but the guard belongs here too —
+ * a handle we do not have must never widen into permission to delete its
+ * container (ADR-0024: nothing is removed outside the gated apply path, and
+ * certainly not more than was asked for).
+ */
+export function assertRemovableTargetId(targetId: string, what: string): void {
+  if (targetId.trim() === '') {
+    throw new Error(
+      `Refusing to remove ${what}: the ledger holds no target handle for it. ` +
+        'An empty handle would address the collection itself, and deleting a ' +
+        'container is never what a single-item removal meant. Nothing was changed.',
+    );
+  }
+}
+
 /** DELETE one DAV resource, refusing if the owner has edited it since. */
 export async function removeDavResource(deps: RemoveDavResourceDeps): Promise<RemovalResult> {
   const { url, authorization, request, expectedTargetVersion } = deps;

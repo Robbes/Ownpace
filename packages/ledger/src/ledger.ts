@@ -114,7 +114,16 @@ export class PgLedger implements Ledger {
         contentHash: record.contentHash,
         sizeBytes: record.sizeBytes !== undefined ? BigInt(record.sizeBytes) : null,
         status: record.status ?? 'copied',
-        targetRef: JSON.stringify({ id: record.targetId }),
+        // The OBJECT, not a string of it. `target_ref` is a drizzle `jsonb`
+        // column and drizzle serialises the value it is given, so passing
+        // `JSON.stringify({...})` stored the JSON *text* as a jsonb string
+        // scalar: `"{\"id\":\"abc\"}"` rather than `{"id":"abc"}`. Nothing
+        // ever complained. `target_ref->>'id'` returned NULL for every row ever
+        // written, and `mapRowToRecord` read `(row.targetRef as {id}).id` off a
+        // string and got `undefined`, so EVERY targetId came back as ''. Found
+        // by the managed gate (0084) when its apply half finally ran: the ledger
+        // held `copied` items that claimed no target handle.
+        targetRef: { id: record.targetId },
         sourceVersion: record.sourceVersion ?? null,
         targetVersion: record.targetVersion ?? null,
         // The source's own handle, so a later removal report can be matched back
@@ -161,7 +170,7 @@ export class PgLedger implements Ledger {
         contentHash: record.contentHash,
         sizeBytes: record.sizeBytes !== undefined ? BigInt(record.sizeBytes) : null,
         status: record.status ?? 'updated',
-        targetRef: JSON.stringify({ id: record.targetId }),
+        targetRef: { id: record.targetId },
         sourceVersion: record.sourceVersion ?? null,
         // Conditional for the same reason `collection` is below: a caller may
         // legitimately have nothing to say (a server that returns no ETag on
@@ -266,7 +275,7 @@ export class PgLedger implements Ledger {
         contentHash: record.contentHash,
         sizeBytes: record.sizeBytes !== undefined ? BigInt(record.sizeBytes) : null,
         status: 'failed',
-        targetRef: JSON.stringify({ id: record.targetId }),
+        targetRef: { id: record.targetId },
         sourceVersion: record.sourceVersion ?? null,
         // No `target_version`, deliberately, and for the same reason this path
         // leaves content_hash alone on an existing row: a failed attempt wrote

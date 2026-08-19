@@ -25,7 +25,7 @@ import { fileNaturalKeyHash, fileContentHash, isOnTarget } from '@openmig/shared
 import { parseMultiStatus, isCollection, hrefRelativeTo, sizeOf } from './dav-multistatus';
 import { requestWithDavRetry } from './dav-retry';
 import { readEtag, ownershipOf } from './dav-target-version';
-import { removeDavResource } from './dav-remove';
+import { removeDavResource, assertRemovableTargetId } from './dav-remove';
 import { log } from '@openmig/shared';
 
 /**
@@ -713,6 +713,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     targetId: string,
     options?: { readonly expectedTargetVersion?: string },
   ): Promise<RemovalResult> {
+    assertRemovableTargetId(targetId, 'this file');
     const path = this.normalizeRelativePath(targetId);
     return removeDavResource({
       url: this.buildUrl(path),

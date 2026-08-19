@@ -38,6 +38,11 @@
 #   SMOKE_VERIFY_TENANT/SUB/MAPPING (demo tenant A, mail)
 #   SMOKE_APPLY_TENANT/SUB/MAPPING  (demo tenant B, DAV)
 #   SMOKE_POLLS (45) SMOKE_POLL_SLEEP (2) SMOKE_OUT (evidence file path)
+#   SMOKE_PREPARE_APPLY (0)  1 = seed the demo DAV source and enqueue a sync when
+#                            the apply half has nothing to act on. For CI, which
+#                            has nobody to prepare the box; OFF by hand, where
+#                            manufacturing the fixture would hide the real state.
+#   SMOKE_PREPARE_POLLS (60) how long that preparation may wait, in POLL_SLEEPs.
 #
 # NOTE: runner debug logs print the full task environment (DATABASE_URL,
 # SECRET_ENCRYPTION_KEY, the tr_prod_ key). The evidence file this script
@@ -52,6 +57,9 @@ DB_CONTAINER="${SMOKE_DB_CONTAINER:-open-migrate-db}"
 API_CONTAINER="${SMOKE_API_CONTAINER:-open-migrate-api}"
 POLLS="${SMOKE_POLLS:-45}"
 POLL_SLEEP="${SMOKE_POLL_SLEEP:-2}"
+# The prepare phase waits on a whole sync pass (runner start + DAV round trips),
+# which is a longer thing than polling one already-running verify.
+PREP_POLLS="${SMOKE_PREPARE_POLLS:-60}"
 OUT="${SMOKE_OUT:-/tmp/openmig-smoke-managed-$(date -u +%Y%m%dT%H%M%SZ).txt}"
 
 # Demo-seed fixtures (apps/api/src/scripts/seed-managed.ts).
@@ -192,6 +200,51 @@ APPLY_RESULT="skipped-no-item"
 # filtered nothing. The ledger stores the handle as `{"id": "..."}`, so that is
 # what has to be non-empty.
 HASH="$(q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND status='copied' AND coalesce(target_ref->>'id','') <> '' ORDER BY natural_key_hash LIMIT 1")"
+# ---------- optional: make the precondition exist, rather than wait for it ----------
+# OFF by default. Run by hand, this script is an ACCEPTANCE test: it reports what
+# the stack is, and manufacturing its own fixture would be the same class of lie
+# as the skip-that-passed. In CI there is nobody to prepare the box, so the gate
+# sets SMOKE_PREPARE_APPLY=1 and the preparation happens here — visibly, as its
+# own narrated phase, and still ending in the same honest check.
+#
+# Both halves are needed and neither is enough alone:
+#   the demo DAV source has no content (setup-nextcloud-users.sh makes ACCOUNTS,
+#   not events/contacts/files), and the scheduler's own cadence for a mapping
+#   with no schedule is DEFAULT_SYNC_SCHEDULE = */15, which is far longer than a
+#   gate should sit waiting. So: seed the source, then enqueue the sync directly.
+if [ -z "$HASH" ] && [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
+  note "prepare (SMOKE_PREPARE_APPLY=1) — give the apply half something real to act on"
+
+  if "$SCRIPT_DIR/seed-demo-dav-content.sh"; then
+    echo "prepare: DAV source seeded"
+  else
+    echo "prepare: SEEDING FAILED — the diagnosis below will say what the ledger holds."
+  fi
+
+  TOK_P="$(mint "$APPLY_SUB" "$APPLY_TENANT")"
+  # An explicit JSON body: the endpoint runs req.body through zod, and an absent
+  # body is not the same thing as an empty object.
+  sync_out="$(curl -sS -X POST -H 'Content-Type: application/json' -d '{"type":"delta"}' \
+    -H "Authorization: Bearer $TOK_P" -w '\n%{http_code}' \
+    "$API/api/migrations/$APPLY_MAPPING/sync")"
+  echo "prepare: sync enqueue -> HTTP ${sync_out##*$'\n'}"
+  echo "prepare: ${sync_out%$'\n'*}"
+
+  # Poll for the row the apply half needs. A sync is a Trigger.dev run: a runner
+  # container has to start before anything is written, so seconds, not instants.
+  i=0
+  while [ $i -lt "$PREP_POLLS" ]; do
+    sleep "$POLL_SLEEP"
+    i=$((i + 1))
+    HASH="$(q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND status='copied' AND coalesce(target_ref->>'id','') <> '' ORDER BY natural_key_hash LIMIT 1")"
+    if [ -n "$HASH" ]; then
+      echo "prepare: an eligible item appeared after $((i * POLL_SLEEP))s"
+      break
+    fi
+  done
+  [ -n "$HASH" ] || echo "prepare: still nothing after $((PREP_POLLS * POLL_SLEEP))s — see the diagnosis below."
+fi
+
 if [ -z "$HASH" ]; then
   # NOT a skip. Found in the gate's first green run (e2e-managed #6, 2026-08-18):
   # this branch printed "SKIPPED", left `fail` untouched, and the verdict below
