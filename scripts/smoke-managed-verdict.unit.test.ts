@@ -348,12 +348,14 @@ describe('the refusal says WHICH way there is nothing to act on', () => {
   const block = smoke.match(/ {2}echo "what IS on this mapping:"[\s\S]*?\n {2}fi\n/)?.[0];
 
   /** Drive the real branch with a `q` that answers as a given ledger would. */
-  function diagnose(total: string, eligible: string, breakdown = '') {
+  function diagnose(total: string, eligible: string, breakdown = '', spent = '0') {
     // The eligible-count query is told apart by its status list, not by the
     // word "copied": that word appears in both queries' text now, and matching
     // on it silently answered the ELIGIBLE query with the TOTAL — which made
-    // this stub report "6 eligible" for a ledger the test said had none.
+    // this stub report "6 eligible" for a ledger the test said had none. The
+    // tombstone count is told apart the same way, and for the same reason.
     const q = `q() { case "$1" in
+      *"count(*) FROM item"*"status='tombstoned'"*) echo "${spent}" ;;
       *"count(*) FROM item"*"status IN ('copied','updated')"*) echo "${eligible}" ;;
       *"count(*) FROM item"*) echo "${total}" ;;
       *) printf '%s' "${breakdown}" ;;
@@ -378,11 +380,35 @@ describe('the refusal says WHICH way there is nothing to act on', () => {
 
   it('items but none copied names a product fault, not a fixture', () => {
     const out = diagnose('6', '0', 'calendar|pending|6|0');
-    expect(out).toContain("NONE is 'copied' or 'updated'");
+    expect(out).toContain("none is 'copied' or 'updated'");
     expect(out).toContain('product fault');
     // Points at the run log, because that is where a stalled copy explains itself.
     expect(out).toContain('run_event');
     expect(out).not.toContain('seed-demo-dav-content.sh');
+  });
+
+  // RUN #20 (2026-08-19). A fourth state, which for two runs wore the third
+  // one's paragraph: nothing eligible because this script has already SPENT the
+  // fixture, one applied deletion per green run, against a bring-up seed that
+  // writes six fixed natural keys and a `classifyKnownItem` that refuses
+  // forever to re-create a tombstoned one. Calling that "a product fault" sent
+  // the reader hunting a copy bug in a sync that had never failed.
+  it('all-tombstoned is called a spent fixture, not a product fault', () => {
+    const out = diagnose('73', '0', 'file|tombstoned|2|2', '9');
+    expect(out).toContain('SPENT');
+    expect(out).not.toContain('product fault');
+    // The fix that actually works, named: fresh keys, not another re-seed of the
+    // fixed ones, which is the thing that cannot help here.
+    expect(out).toContain('--fresh');
+    expect(out).toContain('never re-copied');
+  });
+
+  it('a copy failure with no tombstones behind it is still a product fault', () => {
+    // The two branches must not collapse into each other: a mapping that has
+    // never had an apply run against it and still copies nothing IS a bug.
+    const out = diagnose('6', '0', 'calendar|pending|6|0', '0');
+    expect(out).toContain('product fault');
+    expect(out).not.toContain('SPENT');
   });
 
   it('copied without a target id is called a ledger-write bug', () => {

@@ -701,6 +701,64 @@ predicate was the whole of the fault. It does NOT settle the `adopted` question
 — a green tells us the eligible population was not empty, not which status
 filled it. That still wants a few more runs.
 
+### Run #20 (2026-08-19) — the gate had eaten its own fixture
+
+Red, with `verify: done   apply: skipped-no-item`, on `3730a5d` — a commit whose
+PR was green and whose `E2E (self-hosted) #140` was green, four hours after run
+#19 passed on the same stack. Nothing had regressed. The gate had spent the last
+of a fixture it could not replace, and would have failed every run from then on.
+
+**The mechanism, and it is a ratchet.** The apply half applies a REAL deletion
+to one eligible item per pass. `applyDeletion` writes `status='tombstoned'`, and
+`classifyKnownItem` refuses forever to re-create a tombstoned natural key —
+deliberately, because it cannot tell a change of mind from an erasure request.
+`seed-demo-dav-content.sh` writes SIX fixed natural keys (the VEVENT/vCard UID
+and the file path ARE the keys), so *re-seeding cannot give one back*: the PUT
+succeeds, the next sync sees the key again, and the only thing that happens is a
+"reappeared after removal" warning. **One green run, one item spent, six items
+ever.**
+
+The arithmetic is in the two evidence files. Run #18 held
+`calendar|tombstoned|3`, `contact|tombstoned|4`, `file|adopted|64`,
+`file|tombstoned|1`, `file|updated|1` — 73 rows, one eligible. Run #19 applied
+that last one (`kind: binned`). Run #20's breakdown is the same 73 rows with the
+`updated` file moved to `tombstoned`: nothing eligible, and nothing that could
+become eligible.
+
+**Two things made this hard to read, and both are fixed.**
+
+The diagnosis called it *"a product fault, not a missing fixture; a sync ran and
+the copying did not succeed"* — which sends the next reader hunting a copy bug in
+a sync that had never once failed. It now tells the fourth state apart from the
+third: a mapping whose items are `tombstoned` has a SPENT fixture, and the fix
+is new keys, not a re-seed of the old ones.
+
+And the seeder's own verification said `present now — events:1` after writing
+two, every run since it was written. `grep -c` counts matching LINES, and
+Nextcloud answers a `PROPFIND` on one. A verification step that cannot tell one
+resource from two is most of the way back to trusting the PUT's status code,
+which is the thing that step exists not to do.
+
+**The fix: `seed-demo-dav-content.sh --fresh`.** It seeds a set whose UIDs and
+paths carry a tag unique to the invocation, so the natural keys have never been
+seen by the ledger and CANNOT collide with a tombstone. The smoke's prepare
+phase uses it; bring-up does not, because bring-up wants the same handful of
+demo resources on every stack. It is still an honest fixture — it goes into the
+SOURCE, and a real sync has to copy it before anything is eligible.
+
+**What `--fresh` costs, stated rather than discovered later:** it adds to a
+long-lived source instead of overwriting it. It seeds six, the smoke spends one
+per run, and it only runs when nothing eligible is left — so the steady state is
+roughly one new object per run, each a few hundred bytes. If that ever needs
+bounding, prune the tagged resources from the SOURCE; never the ledger rows,
+which are the record.
+
+**This also answers the `adopted` question left open under run #18** — and not
+the way that note guessed. The eligible population was not being eaten by
+`adopted`; it was being eaten by this script, one applied deletion at a time. A
+resource whose content genuinely changed per run would not have helped: a
+changed body under a spent key still classifies as `tombstoned`.
+
 ## What is still owed
 
 - ~~**The DAV seeder is still not wired into the bring-up.**~~ **Done
@@ -739,6 +797,10 @@ filled it. That still wants a few more runs.
   #13 found an eligible item already present and skipped it. So the branch is
   proved, but it is not exercised by every run, and a regression in the seeder
   would surface only on a stack with no copied items.
+- **`--fresh` grows the demo source, slowly and on purpose.** Roughly one new
+  object per run in the steady state, never pruned. It is cheap enough to leave
+  alone and easy enough to bound later; what must not happen is pruning the
+  ledger rows instead, which are the record of what this gate did.
 - **The mail side has the same hole, unnoticed.** Nothing seeds the three
   Stalwart messages the verify half counts, so on any machine but this one the
   verify half would have nothing to verify. The DAV seeder's equivalent for

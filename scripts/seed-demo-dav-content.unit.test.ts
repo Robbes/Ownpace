@@ -48,12 +48,12 @@ if [ "$m" = "PROPFIND" ]; then
   esac
   exit 0
 fi
-cat >/dev/null 2>&1; echo -n 201
+cat >> "$ARGDIR/bodies.txt" 2>/dev/null; echo -n 201
 `;
 
 let dir: string;
-function run(env: Record<string, string> = {}) {
-  return spawnSync('bash', [SEEDER], {
+function run(env: Record<string, string> = {}, argv: string[] = []) {
+  return spawnSync('bash', [SEEDER, ...argv], {
     encoding: 'utf8',
     env: {
       ...process.env,
@@ -73,6 +73,9 @@ beforeEach(() => {
   chmodSync(join(dir, 'bin', 'docker'), 0o755);
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+/** The demo resource names in a captured argv dump. */
+const names = (captured: string) => captured.match(/openmig-demo-[a-z]+-[^\s"]+/g) ?? [];
 
 describe('the requests it builds', () => {
   it('sends Content-Type as ONE argument, not three', () => {
@@ -173,10 +176,26 @@ describe('it runs at bring-up, not only when something is already missing (0084)
     // PUTs to fixed paths and accepts 201 or 204, created or overwritten, so
     // re-running converges instead of growing. If that ever stops being true,
     // this bring-up call needs a guard and this test should fail first.
-    const text = readFileSync(SEEDER, 'utf8');
-    expect(text).toMatch(/openmig-demo-event-\$\{?n\}?\.ics/);
-    expect(text).toContain('201|204');
+    //
+    // Asserted by RUNNING it twice rather than by grepping the source for the
+    // literal path: `--fresh` made that name an expression, and a regex over
+    // the file would now pin the spelling of a variable instead of the
+    // behaviour that matters.
+    run();
+    run();
+    const paths = names(readFileSync(join(dir, 'all.args'), 'utf8')).sort();
+    expect(paths.length).toBeGreaterThan(0);
+    // Every name written exactly twice — overwritten, not added to.
+    expect(new Set(paths).size).toBe(paths.length / 2);
+    expect(readFileSync(SEEDER, 'utf8')).toContain('201|204');
     expect(demo).not.toContain('ONLY_IF_EMPTY');
+  });
+
+  it('bring-up seeds the FIXED fixture — it is the demo, not a smoke fixture', () => {
+    // `--fresh` must not leak into bring-up: that call exists to give every
+    // stack the same handful of demo resources, and tagging them would leave
+    // the demo account growing a new set on every bootstrap.
+    expect(demo).not.toContain('--fresh');
   });
 
   it('the smoke keeps it as a fallback, and says it is one', () => {
@@ -185,5 +204,114 @@ describe('it runs at bring-up, not only when something is already missing (0084)
     // mistake in a different place.
     expect(smoke).toContain('seed-demo-dav-content.sh');
     expect(smoke).toMatch(/FALLBACK|fallback/);
+  });
+
+  it('the smoke asks for FRESH keys — the fixed ones are the spent ones', () => {
+    // The whole of run #20. The prepare phase fires only when nothing is
+    // eligible, and by then the fixed keys are tombstoned; re-seeding them is a
+    // no-op that leaves the gate red forever. A plain call here would put it
+    // straight back.
+    expect(smoke).toMatch(/seed-demo-dav-content\.sh" --fresh/);
+  });
+});
+
+/**
+ * WHY `--fresh` EXISTS (e2e-managed #20, 2026-08-19).
+ *
+ * `smoke-managed.sh`'s apply half applies a REAL deletion, `applyDeletion`
+ * writes `status='tombstoned'`, and `classifyKnownItem` refuses forever to
+ * re-create a tombstoned natural key — it cannot tell a change of mind from an
+ * erasure request. The names here are FIXED and the natural key is the
+ * UID/path, so every green run of the managed gate permanently spent one of six
+ * items and re-seeding could not give it back. Run #19 spent the last one; run
+ * #20 failed with "no eligible item" against 73 rows that were all `tombstoned`
+ * or `adopted`, on a commit whose PR and self-hosted e2e were both green.
+ *
+ * A gate that consumes its own precondition and cannot replace it fails from
+ * then on, forever, for a reason that looks like a product regression.
+ */
+describe('--fresh seeds keys no tombstone can already own', () => {
+  it('a plain run writes the fixed demo names', () => {
+    run();
+    const all = names(readFileSync(join(dir, 'all.args'), 'utf8'));
+    expect(all).toContain('openmig-demo-event-1.ics');
+    expect(all).toContain('openmig-demo-contact-2.vcf');
+    expect(all).toContain('openmig-demo-file-1.txt');
+  });
+
+  it('--fresh writes tagged names instead, never the fixed ones', () => {
+    const r = run(
+      {
+        SEED_DAV_TAG: 'tag001',
+        VERIFY_ANSWER:
+          'openmig-demo-event-tag001-1 openmig-demo-contact-tag001-1 openmig-demo-file-tag001-1',
+      },
+      ['--fresh'],
+    );
+    expect(r.status).toBe(0);
+    const all = readFileSync(join(dir, 'all.args'), 'utf8');
+    expect(all).toContain('openmig-demo-event-tag001-1.ics');
+    expect(all).toContain('openmig-demo-contact-tag001-2.vcf');
+    expect(all).toContain('openmig-demo-file-tag001-1.txt');
+    // The fixed keys are the spent ones. Writing them again is the no-op that
+    // cost run #20, so a fresh seed must not touch them at all.
+    expect(names(all)).not.toContain('openmig-demo-event-1.ics');
+  });
+
+  it('the UID travels with the name — the UID is what the ledger hashes', () => {
+    // calendar/contact natural keys are the VEVENT/vCard UID (see
+    // caldav-target-writer.ts / carddav-target-writer.ts). A tagged FILENAME
+    // over an untagged UID would produce the same natural key as the spent
+    // fixture and change nothing at all. The UID travels in the PUT BODY, so
+    // this reads what the stub was fed on stdin.
+    run({ SEED_DAV_TAG: 'tag001' }, ['--fresh']);
+    const bodies = readFileSync(join(dir, 'bodies.txt'), 'utf8');
+    expect(bodies).toContain('UID:openmig-demo-event-tag001-1');
+    expect(bodies).toContain('UID:openmig-demo-contact-tag001-1');
+    expect(bodies).not.toContain('UID:openmig-demo-event-1\n');
+  });
+
+  it('two --fresh runs never collide, even with no tag given', () => {
+    // The default tag is a UTC timestamp plus the pid. Two runs in the same
+    // second must still differ, or a same-second retry re-seeds spent keys.
+    const grab = () => {
+      rmSync(join(dir, 'all.args'), { force: true });
+      run({}, ['--fresh']);
+      return new Set(names(readFileSync(join(dir, 'all.args'), 'utf8')));
+    };
+    const a = grab();
+    const b = grab();
+    expect([...a].some((n) => b.has(n))).toBe(false);
+  });
+
+  it('an unknown argument is refused rather than silently seeding the fixed set', () => {
+    // `--fresk` quietly falling through to the fixed fixture would put the gate
+    // straight back into run #20, with every log line claiming it had seeded.
+    const r = run({}, ['--fresk']);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('unknown argument');
+  });
+
+  it('verification counts the TAGGED resources, not the fixed leftovers', () => {
+    // The fixed set is still sitting in the source from bring-up. Counting it
+    // would let a --fresh run that wrote nothing report itself present, which
+    // is the exact class of lie this script's verify step exists to prevent.
+    const r = run(
+      { SEED_DAV_TAG: 'tag001', VERIFY_ANSWER: 'openmig-demo-event-1 openmig-demo-contact-1' },
+      ['--fresh'],
+    );
+    expect(r.stdout).toContain('events:0 contacts:0 files:0');
+    expect(r.status).not.toBe(0);
+  });
+
+  it('counts resources, not matching lines — Nextcloud answers on one', () => {
+    // `grep -c` counts LINES and the multistatus is a single line, so it
+    // answered 1 however many resources were there. Run #20's evidence reads
+    // "event 1: HTTP 204 / event 2: HTTP 204 / present now — events:1".
+    const r = run({
+      VERIFY_ANSWER:
+        'openmig-demo-event-1 openmig-demo-event-2 openmig-demo-contact-1 openmig-demo-file-1',
+    });
+    expect(r.stdout).toContain('events:2 contacts:1 files:1');
   });
 });
