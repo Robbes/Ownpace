@@ -106,6 +106,7 @@ jobs:
           # proves green on its own PR instead of merging untested.
           files: |
             packages/ledger/migrations/**
+            packages/managed/migrations/**
             .github/workflows/ci.yml
 
   docs-hygiene:
@@ -197,15 +198,36 @@ jobs:
           "$RUNNER_TEMP/atlas" version
       - name: Lint all migrations against a disposable dev database
         run: |
+          # BOTH chains, replayed as ONE directory in the order a managed
+          # deployment applies them (ADR-0036).
+          #
+          # Not two lint runs. Atlas replays a directory against an EMPTY dev
+          # database, and every table in the managed chain has
+          # `REFERENCES public.tenant(id)` — so linting it on its own does not
+          # merely check less, it fails outright on a table the other chain
+          # creates. Staging them into one directory with the managed files
+          # renumbered above the shared ones reproduces the real order, which is
+          # also the only arrangement in which those foreign keys are checked at
+          # all.
+          #
+          # The renaming is confined to this scratch directory. Nothing reads
+          # these names but Atlas, and the runner keys on the real filenames.
+          staged="$RUNNER_TEMP/migrations-both"
+          mkdir -p "$staged"
+          cp packages/ledger/migrations/*.sql "$staged/"
+          for f in packages/managed/migrations/*.sql; do
+            cp "$f" "$staged/9$(basename "$f")"
+          done
+          ls "$staged"
           # atlas.sum is generated here, not committed: lint requires the
           # integrity file to exist, while append-only migration discipline is
           # enforced by review and scripts/squash-migrations.sh.
-          atlas migrate hash --dir "file://packages/ledger/migrations"
+          atlas migrate hash --dir "file://$staged"
           # --latest 999 = lint the whole directory every time. The set is
           # small, the replay is seconds, and it keeps the job deterministic
           # instead of depending on git-base resolution.
           atlas migrate lint \
-            --dir "file://packages/ledger/migrations" \
+            --dir "file://$staged" \
             --dev-url "docker://postgres/16/dev?search_path=public" \
             --latest 999
 
