@@ -16,60 +16,47 @@
  * permission to delete the thing that contains it (ADR-0024, hard rule 2).
  */
 
-import { describe, it, expect } from "vitest";
-import { assertRemovableTargetId } from "./dav-remove";
+import { describe, it, expect } from 'vitest';
+import { assertRemovableTargetId } from './dav-remove';
 
-describe("assertRemovableTargetId", () => {
+describe('assertRemovableTargetId', () => {
   it.each([
-    ["empty", ""],
-    ["whitespace", "   "],
-    ["a tab", "\t"],
-  ])("refuses %s — that URL would be the collection", (_label, id) => {
-    expect(() => assertRemovableTargetId(id, "this item")).toThrow(
-      /no target handle/i,
-    );
+    ['empty', ''],
+    ['whitespace', '   '],
+    ['a tab', '\t'],
+  ])('refuses %s — that URL would be the collection', (_label, id) => {
+    expect(() => assertRemovableTargetId(id, 'this item')).toThrow(/no target handle/i);
   });
 
-  it("says nothing was changed, because nothing was", () => {
+  it('says nothing was changed, because nothing was', () => {
     // A refusal that leaves the reader wondering whether it half-happened is
     // worse than the error it reports.
-    expect(() => assertRemovableTargetId("", "this item")).toThrow(
-      /Nothing was changed/,
-    );
+    expect(() => assertRemovableTargetId('', 'this item')).toThrow(/Nothing was changed/);
   });
 
-  it("allows a real handle through", () => {
+  it('allows a real handle through', () => {
     expect(() =>
-      assertRemovableTargetId("/dav/calendars/u/personal/x.ics", "this item"),
+      assertRemovableTargetId('/dav/calendars/u/personal/x.ics', 'this item'),
     ).not.toThrow();
   });
 });
 
-describe("every DAV writer guards its own removeItem", () => {
+describe('every DAV writer guards its own removeItem', () => {
   // Three writers, three chances to forget. Asserted by reading the sources
   // rather than by exercising each against a fake server: what matters is that
   // the guard is on the path, and a writer added later without it should fail
   // this rather than ship.
-  const files = [
-    "caldav-target-writer.ts",
-    "carddav-target-writer.ts",
-    "webdav-target-writer.ts",
-  ];
+  const files = ['caldav-target-writer.ts', 'carddav-target-writer.ts', 'webdav-target-writer.ts'];
 
-  it.each(files)("%s calls the guard before building a URL", async (name) => {
-    const { readFileSync } = await import("node:fs");
-    const { join, dirname } = await import("node:path");
-    const { fileURLToPath } = await import("node:url");
-    const src = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), name),
-      "utf8",
-    );
-    const removeItem = src.slice(src.indexOf("async removeItem("));
-    const body = removeItem.slice(0, removeItem.indexOf("\n  }"));
-    expect(body).toContain("assertRemovableTargetId");
+  it.each(files)('%s calls the guard before building a URL', async (name) => {
+    const { readFileSync } = await import('node:fs');
+    const { join, dirname } = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), name), 'utf8');
+    const removeItem = src.slice(src.indexOf('async removeItem('));
+    const body = removeItem.slice(0, removeItem.indexOf('\n  }'));
+    expect(body).toContain('assertRemovableTargetId');
     // Before buildUrl, not after — the point is that no URL is ever formed.
-    expect(body.indexOf("assertRemovableTargetId")).toBeLessThan(
-      body.indexOf("buildUrl"),
-    );
+    expect(body.indexOf('assertRemovableTargetId')).toBeLessThan(body.indexOf('buildUrl'));
   });
 });
