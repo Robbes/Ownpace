@@ -59,8 +59,62 @@ const git = (...args: string[]): string =>
     maxBuffer: 32 * 1024 * 1024,
   });
 
+/**
+ * Make sure `RELEASED_REF` is actually resolvable, and say so plainly if not.
+ *
+ * THE FAILURE THIS REPLACES, found 2026-08-19. A shallow clone has no tags —
+ * `actions/checkout` and every Claude Code web session get one — so `git
+ * ls-tree` died with `fatal: Not a valid object name v0.1.0-rc.1` and took the
+ * whole suite's 12 cases with it. The message named the tag but not the reason
+ * or the fix, so the honest reading of a local `pnpm test` became "290 passed,
+ * 1 failed, and the failure is environmental" — which is a sentence nobody
+ * should have to write twice about the same test.
+ *
+ * It fetches the ref rather than skipping. **A skip would be the worse bug**:
+ * this is the UPGRADE case — a database that predates the chain split, the one
+ * that broke the nightly — and a test that quietly does not run is exactly the
+ * shape this repository keeps having to dig out of a green. So: try to get it,
+ * and if that cannot be done, fail with the command that fixes it.
+ */
+function ensureReleasedRef(): void {
+  const resolvable = (): boolean => {
+    try {
+      git('rev-parse', '-q', '--verify', `${RELEASED_REF}^{commit}`);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  if (resolvable()) return;
+
+  // A tag first, because that is what the default ref is and the fetch is
+  // cheap; then the general form, so an overridden UPGRADE_FROM_REF pointing at
+  // a branch or a sha is not left out.
+  for (const args of [
+    ['fetch', '--depth=1', 'origin', 'tag', RELEASED_REF],
+    ['fetch', '--depth=1', 'origin', RELEASED_REF],
+  ]) {
+    try {
+      git(...args);
+      if (resolvable()) return;
+    } catch {
+      // Offline, or the ref is not a tag. Try the next form, then give up
+      // loudly below — never silently.
+    }
+  }
+
+  throw new Error(
+    `Cannot resolve ${RELEASED_REF}, so the pre-split schema cannot be materialised.\n` +
+      'This clone has no such ref — a shallow clone carries no tags, which is what\n' +
+      'CI checkouts and Claude Code web sessions get. Fetching it is enough:\n' +
+      `  git fetch --depth=1 origin tag ${RELEASED_REF}\n` +
+      'Set UPGRADE_FROM_REF to test the upgrade from a different released ref.',
+  );
+}
+
 /** The released shared chain, written out so the real loader reads it. */
 function materialiseReleasedMigrations(): string {
+  ensureReleasedRef();
   const dir = join(mkdtempSync(join(tmpdir(), 'openmig-presplit-')), 'migrations');
   mkdirSync(dir, { recursive: true });
   const names = git('ls-tree', '--name-only', RELEASED_REF, `${MIGRATIONS_PATH}/`)

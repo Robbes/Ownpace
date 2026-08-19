@@ -908,16 +908,52 @@ threatened at this size.
   object per run in the steady state, never pruned. It is cheap enough to leave
   alone and easy enough to bound later; what must not happen is pruning the
   ledger rows instead, which are the record of what this gate did.
-- **The mail side has the same hole, unnoticed.** Nothing seeds the three
-  Stalwart messages the verify half counts, so on any machine but this one the
-  verify half would have nothing to verify. The DAV seeder's equivalent for
-  mail does not exist.
-- **Healthchecks for the seven services that have none.** T7.1 asks that every
-  service the run touches be healthy; for `trigger-api`, `trigger-supervisor`,
-  `trigger-tls`, `minio`, `trigger-registry`, `trigger-docker-proxy` and
-  `nextcloud` this gate can only say they are running. `trigger-api` and
-  `trigger-supervisor` are on the path every executed task takes, so those two
-  are the ones worth doing first.
+- ~~**The mail side has the same hole, unnoticed.**~~ **Closed, and this entry
+  was stale — corrected 2026-08-19.** It said "the DAV seeder's equivalent for
+  mail does not exist". It does: `e2e-managed.yml`'s step **"The demo's mail
+  source has mail in it (0084)"** runs `test/e2e/seed-imap-source.mjs` against
+  the managed Stalwart's own IMAPS port with `SEED_COUNT=3` and
+  `SEED_ONLY_IF_EMPTY=true` — the guard being there precisely because that
+  seeder APPENDS and this stack is never torn down. The entry outlived the fix
+  by some weeks, which is its own small lesson: an owed-list nobody prunes
+  starts costing the same as the notes it replaced.
+- **Healthchecks: ~~seven~~ FOUR services, and not the ones this entry named.**
+  Corrected 2026-08-19 against the gate's own output rather than memory. The
+  "What state did we leave it in?" step prints the list every run, and for #21
+  and #22 it is `trigger-docker-proxy`, `trigger-minio`, `trigger-registry`,
+  `trigger-tls`. The two this entry called "the ones worth doing first" —
+  `trigger-api` and `trigger-supervisor` — **already have healthchecks** in
+  `managed.yml` (and print `(healthy)` in `docker compose ps`), as do
+  `nextcloud`, `postgres`, `pgbouncer`, `trigger-db`, `trigger-redis` and
+  `clickhouse`. `api` and `web` carry theirs at image level rather than in
+  compose, which is why grepping `managed.yml` undercounts and the gate's
+  printed list is the thing to trust.
+
+  Of the four left, `minio` and `trigger-tls` are already asserted
+  FUNCTIONALLY by the smoke (see the 0084 T7 note above), so the genuinely
+  unproven pair is **`trigger-registry` and `trigger-docker-proxy`** — and the
+  warning that governs the whole subject still applies hardest to exactly
+  those two: a probe runs INSIDE the image, nothing in this repository has ever
+  executed a command inside `registry:2` or `tecnativa/docker-socket-proxy`,
+  and under `up -d --wait` a probe naming a binary the image lacks does not
+  misreport — it fails the bring-up and takes the gate with it.
 - **The reading habit.** T4 describes what happens on red; making that real
   means a check-in that reads the run each morning, which is a standing
-  arrangement rather than a file in the repo.
+  arrangement rather than a file in the repo. **Arranged 2026-08-19**, as a
+  scheduled routine at 06:30 UTC — an hour after the 05:30 cron, and clear of
+  the existing 05:00 self-hosted watch. It is deliberately not a
+  read-the-conclusion check: it asserts the VERDICT line says `apply: applied`
+  or `refused` (run #6 went green with that half skipped), that prepare fires
+  about once in six runs rather than every night (more often means the fixture
+  is draining faster than the model says), and that `an eligible item appeared
+  after Ns` is not creeping toward the 120s budget.
+
+  **NOT yet verified**, and worth knowing before trusting it: the routine's
+  fired sessions must be able to reach the GitHub MCP tools, and the creation
+  call warned they may carry no `mcp__*` tools at all. The self-hosted watch
+  has the same shape and fires successfully, so this is probably about
+  claude.ai connectors rather than the harness-provided GitHub server — but
+  "probably" is not the standard this workplan has been held to anywhere else.
+  A verification firing was made the same day; **its result decides whether
+  this entry is closed or reopened**, and if it failed then the self-hosted
+  watch wants the same question asked of it.
