@@ -140,10 +140,17 @@ export const managedPurgeClosed = schedules.task({
     const db = drizzle(pool, { schema: schemaPg }) as unknown as PgDatabase;
     const now = new Date();
 
+    // The dates live in `tenant_closure` since ADR-0036, so this is a join
+    // rather than two columns. The `status = 'closed'` half is kept, and is not
+    // redundant: a closure row is written first and the status second, so a
+    // close interrupted between the two statements leaves a due date on a
+    // tenant that is still active. Requiring both means such a tenant is
+    // skipped by this job rather than purged by it.
     const { rows } = await pool.query<DueRow>(
       `SELECT t.id
          FROM tenant t
-        WHERE t.status = 'closed' AND t.purge_after IS NOT NULL AND t.purge_after <= $1`,
+         JOIN tenant_closure c ON c.tenant_id = t.id
+        WHERE t.status = 'closed' AND c.purge_after <= $1`,
       [now],
     );
 

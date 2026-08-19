@@ -36,13 +36,14 @@ import { getTableColumns, getTableName, is } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
 import { createPgliteDb } from './pglite-driver';
 import { runMigrations } from './migrate';
+import { runManagedMigrations } from '@openmig/managed';
 import * as schemaPg from './schema-pg';
 // The billing tables were declared in schema-pg.ts until ADR-0036 moved them to
 // @openmig/managed. There is still ONE database and ONE migration chain, so
 // there is still one guard over it — the import is test-only (a devDependency,
 // deliberately not a real one) and `covers every table the migrations create`
 // below fails if it is ever dropped.
-import * as schemaBilling from '@openmig/managed/schema-managed';
+import * as schemaManaged from '@openmig/managed/schema-managed';
 import type { LedgerDriver, LedgerConnection } from './driver';
 
 let driver: LedgerDriver;
@@ -77,7 +78,7 @@ const UNDECLARED_ON_PURPOSE: Readonly<Record<string, string>> = {
 /** Every table the ORM declares, by its real Postgres name. */
 function declaredTables(): Array<{ name: string; columns: string[] }> {
   const out: Array<{ name: string; columns: string[] }> = [];
-  for (const module of [schemaPg, schemaBilling]) {
+  for (const module of [schemaPg, schemaManaged]) {
     for (const value of Object.values(module)) {
       if (!is(value, PgTable)) continue;
       const columns = Object.values(getTableColumns(value)).map((c) => c.name);
@@ -91,6 +92,12 @@ beforeAll(async () => {
   const made = await createPgliteDb({});
   driver = made.driver;
   await runMigrations({ driver, logger: () => {} });
+  // Both chains, because there is one database (ADR-0036). Running only the
+  // shared one would leave the managed tables declared by `schemaBilling` and
+  // created by nothing, and the "declares no column the migrated database does
+  // not have" direction would report five phantom tables — a guard failing on
+  // its own incompleteness rather than on drift.
+  await runManagedMigrations({ driver, logger: () => {} });
   conn = await driver.acquire();
 }, 120_000);
 
@@ -116,7 +123,15 @@ describe('the Drizzle schema and the migrations describe the same database', () 
     // Named, so that dropping the schemaBilling import fails here with the
     // reason rather than nowhere.
     const names = new Set(declaredTables().map((t) => t.name));
-    for (const table of ['invoice', 'payment_method', 'usage_metric']) {
+    for (const table of [
+      'invoice',
+      'payment_method',
+      'usage_metric',
+      'tenant_member',
+      'erasure_record',
+      'tenant_pricing',
+      'tenant_closure',
+    ]) {
       expect(names.has(table), `${table} is created by the migrations but no ` +
         'schema module in this guard declares it, so nothing checks it for drift').toBe(true);
     }

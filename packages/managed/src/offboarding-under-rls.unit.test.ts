@@ -46,6 +46,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { pgliteDriver } from '@openmig/ledger';
 import { runMigrations } from '@openmig/ledger';
+import { runManagedMigrations } from './migrate-managed';
 import { withTenant } from '@openmig/ledger';
 import { closeTenant, reopenTenant } from './offboarding';
 import type { LedgerDriver } from '@openmig/ledger';
@@ -61,6 +62,10 @@ let driver: LedgerDriver;
 beforeAll(async () => {
   driver = pgliteDriver({ role: 'app_user' });
   await runMigrations({ driver, logger: () => {} });
+  // The managed chain too: `invoice`, `tenant_member`, `erasure_record`,
+  // `tenant_pricing` and `tenant_closure` are all in it (ADR-0036), and the
+  // purge under test is the thing that reads and empties them.
+  await runManagedMigrations({ driver, logger: () => {} });
 }, 120_000);
 
 afterAll(async () => {
@@ -117,10 +122,15 @@ describe('offboarding under the role the API really uses', () => {
     const conn = await driver.acquire();
     try {
       const { rows } = await conn.query<{ status: string; purge_after: Date | null }>(
-        `SELECT status, purge_after FROM tenant WHERE id = $1`,
+        `SELECT t.status, c.purge_after
+           FROM tenant t LEFT JOIN tenant_closure c ON c.tenant_id = t.id
+          WHERE t.id = $1`,
         [TENANT],
       );
       expect(rows[0]?.status).toBe('active');
+      // The closure ROW is gone, which is what "not closed" means now — and it
+      // is the assertion that matters: a tenant back to `active` with a due
+      // date still sitting against it is one the purge job would delete.
       expect(rows[0]?.purge_after).toBeNull();
     } finally {
       conn.release();

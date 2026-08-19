@@ -186,3 +186,49 @@ export const erasureRecord = pgTable('erasure_record', {
   purgedCounts: jsonb('purged_counts').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+
+// ========================= What a tenant agreed to pay =========================
+
+/**
+ * The agreement, not the current price list (migration `0001_the_managed_service`).
+ *
+ * Was a nullable `tenant.pricing` column until ADR-0036. `tenant` is the RLS
+ * anchor every other table keys on, so it is core by definition and cannot
+ * move; a price on it put money in the one table an appliance certainly has.
+ *
+ * NO ROW means "nothing agreed yet". As a column this needed a comment saying
+ * NULL was not zero — a distinction a reader could get wrong exactly once, on
+ * an invoice.
+ */
+export const tenantPricing = pgTable('tenant_pricing', {
+  tenantId: uuid('tenant_id')
+    .primaryKey()
+    .references(() => tenant.id, { onDelete: 'cascade' }),
+  pricing: jsonb('pricing').notNull(),
+  agreedAt: timestamp('agreed_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ========================= When we promised to delete them =========================
+
+/**
+ * A closed tenant's dates. No row means not closed.
+ *
+ * Split off `tenant` in ADR-0036 for the same reason as the pricing: the window
+ * a customer chose is a promise made to a customer. An appliance's operator has
+ * root and ends the service with `forget-me`, which revokes the credentials the
+ * wipe is about to destroy and does not wait for anything.
+ */
+export const tenantClosure = pgTable(
+  'tenant_closure',
+  {
+    tenantId: uuid('tenant_id')
+      .primaryKey()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    closedAt: timestamp('closed_at', { withTimezone: true }).notNull(),
+    /** now() for an immediate close, so one code path serves every window. */
+    purgeAfter: timestamp('purge_after', { withTimezone: true }).notNull(),
+    closedBy: text('closed_by'),
+  },
+  (t) => [index('ix_tenant_closure_due').on(t.purgeAfter)],
+);

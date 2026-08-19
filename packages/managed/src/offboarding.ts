@@ -84,6 +84,8 @@ export const PURGED_TABLES = [
   'payment_method',
   'usage_metric',
   'tenant_member',
+  'tenant_pricing',
+  'tenant_closure',
   'audit_log',
   'rate_budget',
 ] as const;
@@ -147,9 +149,18 @@ export async function closeTenant(
   const timeline = erasureTimeline({ closedAt: now, windowDays, backupRetentionDays });
   const purgeAfter = timeline.purgeAfter;
 
+  // The STATUS is on `tenant`, in the shared chain; the DATES are in
+  // `tenant_closure`, in the managed one (ADR-0036). What state a tenant is in
+  // is a fact about the tenant; when we promised to delete it is a promise made
+  // to a customer, and an appliance has no customers to promise anything to.
+  //
+  // The status update goes FIRST and is the one that decides whether this
+  // close is allowed to happen: it carries the `status <> 'deleting'` guard, so
+  // a close racing a purge that has already begun fails here, before any date
+  // is written.
   const rows = await db.execute(sql`
     UPDATE tenant
-       SET status = 'closed', closed_at = ${now}, purge_after = ${purgeAfter}, closed_by = ${closedBy}
+       SET status = 'closed'
      WHERE id = ${tenantId}::uuid AND status <> 'deleting'
     RETURNING id
   `);
@@ -158,6 +169,18 @@ export async function closeTenant(
       `Cannot close tenant ${tenantId}: it does not exist, or its purge has already started.`,
     );
   }
+
+  // Upsert, not insert: closing an already-closed tenant with a different
+  // window is a real thing to do, and it must move the date rather than fail on
+  // a primary key.
+  await db.execute(sql`
+    INSERT INTO tenant_closure (tenant_id, closed_at, purge_after, closed_by)
+    VALUES (${tenantId}::uuid, ${now}, ${purgeAfter}, ${closedBy})
+    ON CONFLICT (tenant_id) DO UPDATE
+       SET closed_at = EXCLUDED.closed_at,
+           purge_after = EXCLUDED.purge_after,
+           closed_by = EXCLUDED.closed_by
+  `);
 
   // The record is written at CLOSE, not at purge. A purge that never runs —
   // because the job is broken, or the process died — must still leave evidence
@@ -194,17 +217,24 @@ export async function closeTenant(
  * begun there is nothing to come back to and this refuses.
  */
 export async function reopenTenant(db: PgDatabase, tenantId: string, now: Date): Promise<void> {
+  // Deleting the closure row IS the reopen, and it carries the whole condition:
+  // there has to be a row (the tenant is closed) and its `purge_after` has to
+  // be in the future (the window is still open). Doing it in this order means a
+  // tenant can never be left `active` with a purge still scheduled against it —
+  // the failure that would have the purge job delete a live account.
   const rows = await db.execute(sql`
-    UPDATE tenant
-       SET status = 'active', closed_at = NULL, purge_after = NULL, closed_by = NULL
-     WHERE id = ${tenantId}::uuid AND status = 'closed' AND purge_after > ${now}
-    RETURNING id
+    DELETE FROM tenant_closure
+     WHERE tenant_id = ${tenantId}::uuid AND purge_after > ${now}
+    RETURNING tenant_id
   `);
   if (resultRows(rows).length === 0) {
     throw new Error(
       `Cannot reopen tenant ${tenantId}: it is not closed, or its purge window has already passed.`,
     );
   }
+  await db.execute(sql`
+    UPDATE tenant SET status = 'active' WHERE id = ${tenantId}::uuid AND status = 'closed'
+  `);
   await db.execute(sql`
     UPDATE erasure_record SET window_days = -1
      WHERE tenant_ref = ${tenantRef(tenantId)} AND purged_at IS NULL

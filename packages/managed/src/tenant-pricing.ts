@@ -9,7 +9,7 @@
  * line items.
  *
  * PIN ON FIRST USE. A tenant with no agreement gets today's template written
- * into `tenant.pricing`, and that is what it is billed at from then on. It
+ * into `tenant_pricing`, and that is what it is billed at from then on. It
  * happens here, on the read path, rather than at tenant creation because
  * tenants are created by several bootstrap paths (the managed seed, the
  * onboarding flow, `ensureTenant`) and a price that depends on which door a
@@ -18,7 +18,7 @@
  * computed.
  *
  * The write runs in whatever tenant context the caller already opened — the
- * `tenant` table's RLS policies scope select and update by
+ * `tenant_pricing` table's RLS policies scope select and insert by
  * `app.current_tenant`, so this can only ever pin the tenant it was asked
  * about.
  */
@@ -26,7 +26,7 @@
 import { eq } from 'drizzle-orm';
 import { log } from '@openmig/shared';
 import type { PgDatabase } from '@openmig/ledger/db';
-import * as schema from '@openmig/ledger/schema-pg';
+import { tenantPricing } from './schema-managed';
 import { type PricingConfig, parsePinnedPricing, pricingFromEnv } from './pricing';
 
 /**
@@ -46,26 +46,30 @@ export async function resolveTenantPricing(
   const template = pricingFromEnv();
   try {
     const rows = await db
-      .select({ pricing: schema.tenant.pricing })
-      .from(schema.tenant)
-      .where(eq(schema.tenant.id, tenantId));
+      .select({ pricing: tenantPricing.pricing })
+      .from(tenantPricing)
+      .where(eq(tenantPricing.tenantId, tenantId));
 
-    const row = rows[0];
-    if (!row) {
-      // No row under this tenant context. Price at the template rather than
-      // refusing: the caller is mid-request and the tenancy gate upstream has
-      // already decided this caller may ask about this tenant.
-      log.warn(`[pricing] tenant ${tenantId} not readable; using the operator template unpinned`);
-      return template;
-    }
-
-    const agreed = parsePinnedPricing(row.pricing);
+    // NO ROW is "nothing agreed yet" — the state this used to spell as a NULL
+    // column, where it had to be documented as not meaning free. It is not
+    // "tenant not readable": an unreadable tenant fails on the INSERT below,
+    // because `tenant_pricing`'s WITH CHECK policy keys on the same
+    // `app.current_tenant` the SELECT was scoped by, and that lands in the
+    // catch. The RLS policy enforces it rather than a read that could be
+    // skipped.
+    const agreed = parsePinnedPricing(rows[0]?.pricing);
     if (agreed) return agreed;
 
+    // Upsert, not insert. Two first-time reads can race — a billing page and
+    // the worker's metering, on a tenant that has never been priced — and both
+    // are writing the SAME template, so the loser must not fail. The DO UPDATE
+    // is also what replaces a stored value that no longer parses, which is the
+    // one case where following the template again is right: an unreadable
+    // agreement is not an agreement.
     await db
-      .update(schema.tenant)
-      .set({ pricing: template })
-      .where(eq(schema.tenant.id, tenantId));
+      .insert(tenantPricing)
+      .values({ tenantId, pricing: template })
+      .onConflictDoUpdate({ target: tenantPricing.tenantId, set: { pricing: template } });
     log.info(`[pricing] tenant ${tenantId} pinned to the current template`);
     return template;
   } catch (err) {

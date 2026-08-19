@@ -27,21 +27,16 @@ export const tenant = pgTable('tenant', {
     .notNull()
     .default('active'),
   settings: jsonb('settings').notNull().default({}),
-  // Ending the service (0085). CLOSED is not deleted: syncs and billing stop
-  // and the account goes read-only, then the purge runs when purgeAfter is
-  // reached. `deleting` keeps its old meaning — the purge actually running,
-  // which is brief.
-  closedAt: timestamp('closed_at', { withTimezone: true }),
-  /** now() for an immediate close, so one code path serves every window. */
-  purgeAfter: timestamp('purge_after', { withTimezone: true }),
-  closedBy: text('closed_by'),
-  // The prices this tenant AGREED to (migration 0007), integer cents. Pinned
-  // once from the operator's template and never following it again — see
-  // @openmig/managed's tenant-pricing.ts. Nullable: NULL is "no agreement
-  // yet", not "free". The one managed-only column left on a core table, named
-  // in no-managed-leakage.unit.test.ts so it cannot quietly acquire company
-  // (ADR-0036).
-  pricing: jsonb('pricing'),
+  // `status` KEEPS its `closed` and `deleting` values: what state a tenant is
+  // in is a fact about the tenant, and a CHECK constraint listing a value no
+  // appliance ever writes costs it nothing.
+  //
+  // The DATES that used to sit here — closed_at, purge_after, closed_by — and
+  // the agreed `pricing` do not (ADR-0036). Both are promises made to a
+  // CUSTOMER: the window they chose before we delete them, and the prices they
+  // signed up at. They live in `tenant_closure` and `tenant_pricing`, in
+  // @openmig/managed, where absence of a row means "not closed" and "nothing
+  // agreed" rather than a nullable column whose NULL had to be documented.
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -209,19 +209,19 @@ describe('self-host has no managed-only leakage (hard rule 5)', () => {
   /**
    * Managed-only COLUMNS on tables the appliance legitimately owns.
    *
-   * `tenant.pricing` is the whole list, and it is declared rather than removed:
-   * a table is declared in one place, and splitting one nullable jsonb column
-   * into a second declaration of `tenant` would leave the schema/migration
-   * drift guard with two rows of that name and no way to tell which it checked.
-   * The money LOGIC left (`tenant-pricing.ts` is in @openmig/managed); the
-   * column stays beside its table, and stays named here so it cannot quietly
-   * acquire company.
+   * EMPTY, and that is the finding. It held one entry — `tenant.pricing` —
+   * which I argued had to stay because splitting one nullable jsonb column into
+   * a second declaration of `tenant` would leave the drift guard with two rows
+   * of that name. The owner's question was the better one: don't keep the
+   * column. `tenant_pricing` and `tenant_closure` are rows in the managed chain
+   * now, where a MISSING ROW says "nothing agreed" and "not closed" without a
+   * NULL that has to be documented as not meaning zero.
+   *
+   * Kept as a list rather than deleted, because the next managed-only column
+   * will be proposed as an exception and this is where the reason has to be
+   * written down.
    */
-  const MANAGED_ONLY_COLUMNS: Readonly<Record<string, string>> = {
-    'tenant.pricing':
-      'the prices a tenant agreed to (migration 0007). Declared with its table; ' +
-      'nothing reachable from the appliance reads it.',
-  };
+  const MANAGED_ONLY_COLUMNS: Readonly<Record<string, string>> = {};
 
   it('declares no managed-only table anywhere in its reachable graph', () => {
     const found: string[] = [];
@@ -242,10 +242,7 @@ describe('self-host has no managed-only leakage (hard rule 5)', () => {
     ).toEqual([]);
   });
 
-  it('names every managed-only column it still carries, and no more', () => {
-    // The complement: `tenant.pricing` survives deliberately, so this asserts
-    // the exception is the ONE that was argued for. A second money column
-    // arriving on a core table fails here rather than being absorbed.
+  it('carries no managed-only column on a table the appliance owns', () => {
     const schemaFile = join(ROOT, 'packages/ledger/src/schema-pg.ts');
     expect(visited.has(schemaFile), 'the appliance no longer loads schema-pg.ts — ' +
       'this check is looking at a file that is not in the graph').toBe(true);
@@ -257,19 +254,19 @@ describe('self-host has no managed-only leakage (hard rule 5)', () => {
 
     const columns = [...tenantBody!.matchAll(/^\s{2}(\w+):/gm)].map((m) => m[1]!);
     expect(columns.length, 'no columns parsed out of the tenant table — the ' +
-      'check below would pass against an empty list').toBeGreaterThan(5);
+      'check below would pass against an empty list').toBeGreaterThan(3);
 
-    const MONEY = /^(pricing|price|billing|invoice|payment|vat|tax|currency|fee|rate)/i;
-    const money = columns.filter((c) => MONEY.test(c)).map((c) => `tenant.${c}`);
+    const MONEY = /^(pricing|price|billing|invoice|payment|vat|tax|currency|fee|rate|closed|purge)/i;
+    const managed = columns.filter((c) => MONEY.test(c)).map((c) => `tenant.${c}`);
     expect(
-      money.filter((c) => !(c in MANAGED_ONLY_COLUMNS)),
+      managed.filter((c) => !(c in MANAGED_ONLY_COLUMNS)),
       'a managed-only column arrived on a table the appliance loads. Either it ' +
-        'belongs in @openmig/managed, or add it to MANAGED_ONLY_COLUMNS with the ' +
-        'reason it has to live here (ADR-0036).',
+        'belongs in @openmig/managed as a row of its own, or add it to ' +
+        'MANAGED_ONLY_COLUMNS with the reason it has to live here (ADR-0036).',
     ).toEqual([]);
 
     for (const key of Object.keys(MANAGED_ONLY_COLUMNS)) {
-      expect(money, `${key}: allow-listed but no longer declared — remove the entry`).toContain(key);
+      expect(managed, `${key}: allow-listed but no longer declared — remove the entry`).toContain(key);
     }
   });
 });

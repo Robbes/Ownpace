@@ -31,4 +31,5 @@ export * from './pricing';
 export * from './tenant-pricing';
 export * from './usage-metering';
 export * from './offboarding';
+export * from './migrate-managed';
 export * as managedSchema from './schema-managed';
