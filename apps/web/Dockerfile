@@ -16,7 +16,21 @@ ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable
 WORKDIR /app
 COPY . .
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+# `--filter @openmig/web...` = this package AND its workspace dependencies.
+# Building a static SPA does not need the other twelve projects linked: it
+# saves 67 of 800 packages in the virtual store and skips a node_modules tree
+# for each app and package the web build never imports. Measured, not assumed.
+#
+# WHAT IT DOES NOT DO, because I claimed otherwise first and was wrong: it does
+# not stop `cpu-features` failing to compile. pnpm installs the WORKSPACE
+# ROOT's dependencies whatever the filter says, and that is where
+# `testcontainers` lives — so ssh2's optional native dep is pulled in either
+# way. The evidence that looked like success was a warm pnpm store, which had
+# the package already built and printed nothing. That is denied in
+# `pnpm-workspace.yaml`'s allowBuilds instead, where it takes effect for every
+# install rather than this one image.
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile --filter @openmig/web...
 
 ARG VITE_API_URL=/api
 ENV VITE_API_URL=$VITE_API_URL
