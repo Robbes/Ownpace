@@ -759,6 +759,108 @@ the way that note guessed. The eligible population was not being eaten by
 resource whose content genuinely changed per run would not have helped: a
 changed body under a spent key still classifies as `tombstoned`.
 
+### Runs #21 and #22 (2026-08-19) — the fix, proved on the box
+
+The run #20 entry above was written against a stubbed Nextcloud, and said so.
+Two runs on the Spark discharge that, and they prove **different halves** — which
+is the point, because either one alone would leave the other unproven.
+
+**#21 (`32285427467`) exercised the repair path.** Prepare fired, because nothing
+was eligible:
+
+```
+[seed-dav]   mode         FRESH, tag 20260819T181003Z-1685533 — natural keys the ledger has never seen
+[seed-dav] event 20260819T181003Z-1685533-1: HTTP 201
+[seed-dav] present now — events:2 contacts:2 files:2
+prepare: DAV source seeded with fresh, never-tombstoned natural keys
+prepare: sync enqueue -> HTTP 202
+prepare: an eligible item appeared after 4s
+eligible item hash: 2fa8674d4ef0593c25c13c13ee6f23d6680835cdd2587e5771b703f632ab18bd
+[poll 1] {"state":"applied", … "kind":"deleted"}
+verify: done   apply: applied
+```
+
+**`HTTP 201`, not 204, is the whole fix in one byte.** Every previous seed
+overwrote a fixed path and answered 204; these are resources that did not exist,
+under keys no tombstone can own. Six runner containers were captured, one of them
+the prepare-triggered `run-delta-sync` itself.
+
+**#22 (`32286057687`) exercised the steady state.** No `prepare:` line anywhere
+and no FRESH block — #21 seeded six and spent one, so an item was already
+waiting:
+
+```
+eligible item hash: 2088b4b78bab6e89614728baa13a1fe6ac592f0e6ad440a3a89986be09a2e6ca
+[poll 4] {"state":"applied", … "kind":"deleted"}
+verify: done   apply: applied
+```
+
+That is what bounds the growth: prepare is gated on there being nothing eligible,
+so it seeds roughly once every six runs, not every run.
+
+**The counting fix, visible on real state.** #22's bring-up seed reports
+`present now — events:4 contacts:4 files:4` — the two fixed resources plus #21's
+two tagged ones. The old `grep -c` would have said `1`, as it had every run since
+it was written.
+
+**A timing note, because a fast green is exactly the shape this workplan keeps
+mistrusting.** #22 finished in 74s against #21's 251s, and **174s of that 177s
+difference is the `Bring the stack up` step** (205s → 31s): same commit, stack
+already standing, no image to rebuild. `pnpm install --frozen-lockfile` was 3s in
+both, so the pnpm cache is saturated in each and is not what differs. The smoke
+itself was 16s and 14s. Its speed is not caching at all — prepare's sync landed in
+4s because the verify half had started a runner seconds earlier and Trigger.dev's
+warm-start keepalive is 300s. Worth knowing before reading a slow prepare as a
+fault: on a genuinely cold box that first sync has further to go, and
+`SMOKE_PREPARE_POLLS` (60 × 2s) is the whole budget.
+
+**Run #23 (`32287002028`) is the same steady state on `main`** — the merge
+commit, so the fix is proved on the mainline and not only on the branch. No
+`prepare:` line, `eligible item hash: 60d66f2d…`, `apply: applied`. Its bring-up
+seed reports `present now — events:4 contacts:4 files:4`: the two fixed
+resources, overwritten in place at `HTTP 204`, plus two survivors of #21's tagged
+set. Three numbers that would each have read `1` before the counting fix.
+
+### The wrap of the cycle, proved by hand (2026-08-19)
+
+The paragraph that stood here said the far end was untested — spending the last
+of a tagged set and watching prepare mint a *second* tag — and put it around run
+#27. Rather than wait four nightlies, the smoke was run five times directly
+against the standing stack (`SMOKE_PREPARE_APPLY=1`, which is a deliberate
+exception to that variable's CI-only posture: here the fixture machinery IS the
+thing under test).
+
+```
+--- run 1 ---   eligible item hash: 758eeca2…   verify: done   apply: applied
+--- run 2 ---   eligible item hash: 89e1f8a0…   verify: done   apply: applied
+--- run 3 ---   eligible item hash: c22b5edc…   verify: done   apply: applied
+--- run 4 ---
+[seed-dav]   mode         FRESH, tag 20260819T183201Z-1790425 — natural keys the ledger has never seen
+prepare: DAV source seeded with fresh, never-tombstoned natural keys
+prepare: an eligible item appeared after 4s
+                eligible item hash: a1f52606…   verify: done   apply: applied
+--- run 5 ---   eligible item hash: 2688e602…   verify: done   apply: applied
+```
+
+**The re-seed landed on the invocation the count predicted, not one either side
+of it.** #21 seeded six and #21, #22 and #23 spent one each, leaving three; runs
+1–3 spent those; run 4 found the shelf bare and minted
+`20260819T183201Z-1790425` — distinct from #21's `20260819T181003Z-1685533`, 22
+minutes earlier. Run 5 went quiet again, which is the new cycle behaving like the
+old one. A model that predicts the exact run at which a thing happens, and is
+right, is worth more than five more greens.
+
+**It also cross-checks #23 independently of its log.** Had #23 re-seeded, the
+wrap would have come at run 7; had it spent nothing, at run 5. It came at run 4,
+so #23 spent exactly one item and seeded nothing — which is what its log says.
+
+**Two things this measures that were previously estimates.** Growth is 1 object
+per run in the steady state, observed rather than reasoned: six seeded per six
+spent. And **accumulation has not slowed the prepare path** — `an eligible item
+appeared after 4s` both in #21, with six objects in the source, and in run 4,
+with eighteen. The `SMOKE_PREPARE_POLLS` budget (60 × 2s) is nowhere near
+threatened at this size.
+
 ## What is still owed
 
 - ~~**The DAV seeder is still not wired into the bring-up.**~~ **Done
@@ -792,11 +894,16 @@ changed body under a spent key still classifies as `tombstoned`.
   **What this does not do is make `docker compose ps` say "healthy"**, so
   T7.1's count of services without a healthcheck is unchanged at seven. What
   changed is that five of them are now proven by something.
-- **The `SMOKE_PREPARE_APPLY` path has run exactly once as a full seed.** Run
-  #11 exercised it end to end (seed, enqueue, poll) and it worked; runs #12 and
-  #13 found an eligible item already present and skipped it. So the branch is
-  proved, but it is not exercised by every run, and a regression in the seeder
-  would surface only on a stack with no copied items.
+- **The `SMOKE_PREPARE_APPLY` path has now run twice as a full seed**, and only
+  ever at the START of a fixture cycle. Run #11 exercised it end to end with the
+  fixed keys; run #21 did it again with `--fresh` (see above). Runs #12, #13 and
+  #22 found an eligible item already present and skipped it. The branch is
+  proved, but it is deliberately not exercised by every run — it fires only when
+  nothing is eligible — so a regression in the seeder still surfaces only on a
+  stack whose fixture has run down. ~~**The wrap of the cycle is the untested
+  part.**~~ **Proved by hand 2026-08-19** (see above): the re-seed fired on
+  exactly the predicted invocation, with a second, distinct tag, and the cycle
+  after it behaved like the first.
 - **`--fresh` grows the demo source, slowly and on purpose.** Roughly one new
   object per run in the steady state, never pruned. It is cheap enough to leave
   alone and easy enough to bound later; what must not happen is pruning the
