@@ -311,6 +311,68 @@ prints on `always()` rather than `failure()`: a green needs it more than a red
 does, because a red at least names the step that broke. **A gate whose
 conclusion cannot be read is not a gate, it is a colour.**
 
+## Closing T7.1's gap, and the vacuous verify underneath it (2026-08-19)
+
+Two things 0084 recorded as still owed. One is now closed for three of seven
+services; the other turned out to have a worse half hiding under it.
+
+### Healthchecks: three added on evidence, four argued rather than probed
+
+A healthcheck is not free here. `up -d --wait` blocks on it, so a probe naming
+a binary the image does not ship does not misreport — it **fails the bring-up**,
+and takes the gate with it. So these were added from evidence rather than from
+what the images probably contain:
+
+| service | probe | why it is safe to assert |
+|---|---|---|
+| `nextcloud` | `curl … /status.php` | **proven** — `setup-nextcloud-users.sh` has been running exactly this via `docker exec` against this image on the Spark since the demo existed |
+| `trigger-api` | `node -e fetch('http://127.0.0.1:3000/')` | Node application image, so the runtime its own entrypoint uses is the one binary certainly present; the appliance's healthcheck uses the same shape |
+| `trigger-supervisor` | `node -e fetch('http://127.0.0.1:8020/')` | same, and 8020 is the workload API a runner's own log names (`TRIGGER_SUPERVISOR_API_PORT`) |
+
+**Liveness, not a named endpoint.** `fetch` resolves on any HTTP response, 404
+included, and rejects only when nothing is listening. That is the question
+worth asking — *is this process serving?* — and unlike a probe on
+`/healthcheck` it cannot go quietly wrong when an upstream image moves its
+health path.
+
+**The four that remain, and why they are not simply unfinished.**
+`trigger-registry` and `trigger-docker-proxy` are proven **functionally** by the
+gate itself: a task deploy pushes an image through the registry and the
+supervisor starts runner containers through the proxy, so T7.2's "a runner
+executed" is a stronger statement about both than any liveness probe would be.
+`minio` and `trigger-tls` are genuinely unasserted — the smoke exercises
+neither (minio holds oversized payloads the demo never produces; the Caddy TLS
+front serves the dashboard, which only a human uses). That is the honest
+residue, and it is smaller and better understood than "seven services have no
+healthcheck".
+
+### The mail half: a verify that compared nothing was passing
+
+Chasing the second gap — nothing seeds the three Stalwart messages the verify
+half counts — found the more serious thing. **`state: done` says the run
+finished, not that it compared anything.** On a mailbox with no mail, verify
+reports `sourceCount: 0, targetCount: 0, PASS`. Perfectly true, and worth
+nothing.
+
+It is the same shape as the apply half's skip-that-passed, and it survived that
+fix untouched. It has never fired on the Spark only because that box happens to
+hold three messages somebody put there by hand, and **nothing in this
+repository seeds them** — so on any other machine this half has been vacuous
+and green for its whole existence.
+
+The smoke now refuses a verify that reached `done` having compared zero items,
+and refuses one whose report does not carry the count at all: a report shape
+that changed is not evidence that anything was verified. It does not
+double-report a verify that already failed for its own reason.
+
+**The seeder itself is NOT built, deliberately.** Stalwart publishes JMAP on
+8080 and IMAPS on 993 and no SMTP listener, so seeding means a four-round-trip
+JMAP flow — session, mailbox query, blob upload, `Email/import` — in shell,
+against a service this sandbox cannot start. Writing ~150 untestable lines and
+calling the row done would be the kind of claim this workplan exists to refuse.
+The guard makes its absence **loud** instead of silent, which is the half that
+was actually costing something.
+
 ## Run #6, and what the green actually covered (2026-08-18)
 
 The gate's first fully green run. Every one of its fourteen steps reports
@@ -568,9 +630,17 @@ one, which reads as green while proving nothing.
 
 ## What is still owed
 
-- **Healthchecks for the seven services that have none** — the one T7
-  criterion still only partly met. `trigger-api` and `trigger-supervisor` are
-  on the path every executed task takes, so those two are worth doing first.
+- **A seeder for the demo's mail source.** The verify half now REFUSES rather
+  than passing over an empty mailbox, so this is loud instead of silent — but
+  it is still owed. It needs a JMAP flow (session → `Mailbox/query` for the
+  Inbox → blob upload → `Email/import`) against `stalwart:8080` with the
+  demo account's basic auth, mirroring `seed-demo-dav-content.sh`, and it
+  should re-read what it wrote the same way that one does. Until it exists,
+  a fresh machine's gate is red on the verify half and correctly so.
+- **Healthchecks for `minio` and `trigger-tls`** — the two of the original
+  seven that are neither probed nor functionally proven. Three were added on
+  2026-08-19 and two others (`trigger-registry`, `trigger-docker-proxy`) are
+  covered by T7.2 instead; see above.
 - **The `SMOKE_PREPARE_APPLY` path has run exactly once as a full seed.** Run
   #11 exercised it end to end (seed, enqueue, poll) and it worked; runs #12 and
   #13 found an eligible item already present and skipped it. So the branch is

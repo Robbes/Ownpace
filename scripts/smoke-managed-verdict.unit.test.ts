@@ -329,3 +329,53 @@ describe('a green states its own verdict', () => {
     expect(body).not.toContain('if: failure()');
   });
 });
+
+describe('a verify that compared nothing is not a pass', () => {
+  // The same shape as the apply half's skip-that-passed, and it survived that
+  // fix: `state: done` says the run finished, not that it compared anything. On
+  // an empty mailbox verify reports sourceCount 0 / targetCount 0 / PASS —
+  // true, and worth nothing. It has never fired on the Spark only because that
+  // box happens to hold three messages somebody put there by hand; nothing in
+  // this repo seeds them.
+  const block = smoke.match(
+    /VERIFIED_ITEMS="\$\(json_number[\s\S]*?\nfi\n/,
+  )?.[0];
+
+  function verdict(setup: string) {
+    const helper = `json_number() { printf '%s' "$1" | grep -o "\\"$2\\":[0-9]*" | head -1 | cut -d: -f2; }`;
+    const out = execFileSync(
+      'bash',
+      ['-c', `fail=0\n${helper}\n${setup}\n${block}\necho "FAIL=$fail"`],
+      { encoding: 'utf8' },
+    );
+    return out.trim().split('\n').pop()!.replace('FAIL=', '');
+  }
+
+  it('is extractable — the guard still exists to test', () => {
+    expect(block).toBeDefined();
+  });
+
+  it('fails when verify finished having compared zero items', () => {
+    expect(verdict(`VERIFY_RESULT=done\nrbody='{"totalItemsSource":0}'`)).toBe('1');
+  });
+
+  it('passes when it actually compared something', () => {
+    expect(verdict(`VERIFY_RESULT=done\nrbody='{"totalItemsSource":3}'`)).toBe('0');
+  });
+
+  it('fails when the count is absent entirely, rather than assuming it was fine', () => {
+    // A report shape that changed is not evidence that anything was verified.
+    expect(verdict(`VERIFY_RESULT=done\nrbody='{"other":1}'`)).toBe('1');
+  });
+
+  it('does not double-report a verify that already failed for its own reason', () => {
+    // `fail` is already 1 from the state check; this must not claim the empty
+    // mailbox is why.
+    expect(verdict(`VERIFY_RESULT=timeout\nrbody='{"totalItemsSource":0}'`)).toBe('0');
+  });
+
+  it('says what is actually owed rather than only that it refused', () => {
+    expect(block).toMatch(/needs seeding/i);
+    expect(block).toMatch(/absence of data as the absence of problems/i);
+  });
+});

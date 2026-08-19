@@ -100,6 +100,10 @@ json_state() { # crude but dependency-free: first "state":"..." in the body
   printf '%s' "$1" | grep -o '"state":"[a-z-]*"' | head -1 | cut -d'"' -f4
 }
 
+json_number() { # json_number <body> <key> — first "key":N in the body, or empty
+  printf '%s' "$1" | grep -o "\"$2\":[0-9]*" | head -1 | cut -d: -f2
+}
+
 # ---------- preflights ----------
 note "preflights"
 if ! curl -sf "$API/health" >/dev/null; then
@@ -190,6 +194,29 @@ fi
 echo "latest verification_run row:"
 q "SELECT state, started_at, finished_at, left(coalesce(error,''),120) FROM verification_run WHERE tenant_id='$VERIFY_TENANT' AND mapping_id='$VERIFY_MAPPING' ORDER BY started_at DESC LIMIT 1"
 [ "$VERIFY_RESULT" = "done" ] || fail=1
+
+# A VERIFY THAT CHECKED NOTHING IS NOT A PASS.
+#
+# The same shape as the apply half's skip-that-passed, and it was still here
+# after that one was fixed: `state: done` says the run finished, not that it
+# compared anything. On a mailbox with no mail, verify reports
+# `sourceCount: 0, targetCount: 0, PASS` — perfectly true, and worth nothing.
+#
+# It has never fired on the Spark because that box happens to hold three
+# messages somebody put there by hand years into the demo's life. Nothing in
+# this repository seeds them (0084's remaining gap), so on any other machine
+# this half has been vacuous and green. Better to say so loudly than to keep
+# reporting a pass over an empty mailbox.
+VERIFIED_ITEMS="$(json_number "$rbody" totalItemsSource)"
+if [ "$VERIFY_RESULT" = "done" ] && [ "${VERIFIED_ITEMS:-0}" = "0" ]; then
+  echo ""
+  echo "verify reached 'done' but compared NOTHING: totalItemsSource=0."
+  echo "FAILING rather than passing: an empty mailbox verifies clean by definition, and a"
+  echo "gate that accepts it is reporting the absence of data as the absence of problems."
+  echo "The demo's mail source needs seeding — see 0084's 'what is still owed'. Until then"
+  echo "this half can only be honest by refusing."
+  fail=1
+fi
 
 # ---------- APPLY half ----------
 note "APPLY — mapping $APPLY_MAPPING (tenant $APPLY_TENANT, sub $APPLY_SUB)"
