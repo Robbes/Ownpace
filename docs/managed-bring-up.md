@@ -161,8 +161,11 @@ rotated. Then it pins `DEPLOY_IMAGE_PLATFORM` to this host's architecture.
   production on a localhost `API_URL`, because the alternative is payments
   that complete while invoices never leave `sent`.
 - `PRICING_*` — integer **cents**, never euros. They are a template for *new*
-  tenants; each tenant's agreed prices are pinned in `tenant.pricing` the first
-  time their money is computed and never follow this file again.
+  tenants; each tenant's agreed prices are pinned in the `tenant_pricing` table
+  the first time their money is computed and never follow this file again. That
+  table is created by the MANAGED migration chain (ADR-0036), which the API
+  applies after the shared one — an appliance applies only the shared chain and
+  has no such table.
 - `SMTP_*` / `NOTIFY_*` — set them all or none. Half-set, the channel stays off
   and names what is missing.
 - `OAUTH2_*` — only for a stack with a Microsoft Graph source or 0028's drift
@@ -232,9 +235,11 @@ DIRECT_DATABASE_URL=… JWT_SECRET=… SECRET_ENCRYPTION_KEY=… \
 ```
 
 Those exports matter. The seed runs **on the host** and inherits nothing;
-nothing in `apps/api` loads a dotenv file. It also runs the migrations itself
-(advisory-locked, so racing an API boot is safe), which is why the schema
-exists before the API has ever started.
+nothing in `apps/api` loads a dotenv file. It also runs the migrations itself —
+**both chains**, shared then managed (ADR-0036), each advisory-locked under its
+own key, so racing an API boot is safe — which is why the schema exists before
+the API has ever started. The order is not a preference: every table in the
+managed chain references `public.tenant`.
 
 **Verify:** the seed prints two demo owner tokens. Re-running it is a no-op.
 
@@ -323,7 +328,8 @@ the command opens a browser and waits for you. Note the address is the plain
 ### 8. `app` — API and web
 
 `docker compose up -d --build --wait`, with `GIT_SHA` passed so `GET /version`
-reports a commit rather than `unknown`. The API runs the migrations at boot.
+reports a commit rather than `unknown`. The API runs both migration chains at
+boot (ADR-0036), shared first.
 
 Without `--with-demo` the services are **named explicitly** rather than swept
 up, so a bare `up` does not start Nextcloud — whose admin password is
