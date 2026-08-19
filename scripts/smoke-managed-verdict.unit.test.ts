@@ -6,7 +6,7 @@
  * This gate's first green run (e2e-managed #6, 2026-08-18) printed these three
  * lines within four lines of each other:
  *
- *     no eligible item (status='copied' with a target_ref) — apply half SKIPPED.
+ *     no eligible item (status 'copied'/'updated' with a target_ref) — SKIPPED.
  *     verify: done   apply: skipped-no-item
  *     SMOKE PASS
  *
@@ -81,7 +81,10 @@ describe('the apply half is judged, including when it found nothing to do', () =
     // seed-managed.ts creates tenants, connections and mappings but no items —
     // so "run a sync" is the fix, and a failure that does not name it just
     // moves the puzzle. Rule 9.
-    expect(smoke).toContain("status='copied' with a target_ref");
+    // The sentence an operator reads first. It names both eligible statuses
+    // since run #18, where asking for one of them turned an eligible item into
+    // "there is nothing here".
+    expect(smoke).toContain("no eligible item (status 'copied' or 'updated' with a target_ref id)");
     expect(smoke).toMatch(/\/start\b/);
   });
 });
@@ -178,6 +181,81 @@ describe('unhealthy is reported as unhealthy, and nothing else is', () => {
   });
 });
 
+describe("the smoke's eligibility is the product's, not a paraphrase of it", () => {
+  // Run #18 went red with an eligible item sitting in its own printed
+  // diagnosis: `file|updated|1|1` — one updated file, with a target_ref id,
+  // which `ownershipCheck` in apply-deletion.ts would have accepted. The smoke
+  // asked for `status='copied'` alone, so it declared there was nothing to act
+  // on and failed the gate for a reason that was not true.
+  //
+  // `updated` means WE wrote over a copy we had written before; `copied` means
+  // we created it. Both are ours to remove. `adopted` is the one that is not,
+  // and the product refuses it deliberately — those bytes were the account
+  // owner's before we arrived (hard rule 2).
+  //
+  // This reads the PRODUCT'S function rather than restating its answer, so the
+  // two cannot drift in either direction: widen the gate and forget the smoke,
+  // or narrow the smoke and forget the gate, and this fails.
+  const applyDeletion = readFileSync(
+    join(REPO_ROOT, 'packages/core/src/apply-deletion.ts'),
+    'utf8',
+  );
+
+  /** The statuses `ownershipCheck` lets through, read from its own source. */
+  function statusesTheProductAccepts(): string[] {
+    const line = /if \(row\.status === 'copied' \|\| row\.status === 'updated'\) return undefined;/.exec(
+      applyDeletion,
+    );
+    if (!line) return [];
+    return [...line[0].matchAll(/'(\w+)'/g)].map((m) => m[1]!).sort();
+  }
+
+  /** The statuses the smoke's eligibility SQL asks for. */
+  function statusesTheSmokeAsksFor(): string[] {
+    const found = new Set<string>();
+    for (const m of smoke.matchAll(/status IN \(([^)]*)\)/g)) {
+      for (const s of m[1]!.matchAll(/'(\w+)'/g)) found.add(s[1]!);
+    }
+    return [...found].sort();
+  }
+
+  it("finds the product's gate, so the comparison below is not two empty lists", () => {
+    // If `ownershipCheck` is rewritten into a shape this regex does not match,
+    // every assertion here would pass against nothing at all.
+    expect(
+      statusesTheProductAccepts(),
+      'could not read the accepted statuses out of ownershipCheck — the shape ' +
+        'of that early return changed, and this guard is now blind',
+    ).not.toEqual([]);
+  });
+
+  it('asks for exactly what the apply path accepts', () => {
+    expect(statusesTheSmokeAsksFor()).toEqual(statusesTheProductAccepts());
+  });
+
+  it('asks for both, by name, so a silent narrowing fails here', () => {
+    // The specific regression, pinned as a sentence rather than as one entry
+    // in a list comparison.
+    expect(statusesTheSmokeAsksFor()).toEqual(['copied', 'updated']);
+  });
+
+  it('never treats an adopted item as eligible', () => {
+    // The one the product refuses on purpose. If it ever appears in the
+    // smoke's SQL, the gate would be asking to delete somebody else's bytes.
+    expect(smoke).not.toMatch(/status IN \([^)]*'adopted'/);
+    expect(applyDeletion).toContain("row.status === 'adopted'");
+  });
+
+  it('requires a target_ref id as well as a status', () => {
+    // The other half of eligibility, and the one that was vacuous before
+    // 2026-08-19: a status alone matched rows whose target handle was empty,
+    // which is how the apply half passed while acting on nothing.
+    for (const m of smoke.matchAll(/SELECT natural_key_hash FROM item[^"]*/g)) {
+      expect(m[0]).toContain("coalesce(target_ref->>'id','') <> ''");
+    }
+  });
+});
+
 describe('the two services nothing else speaks for (0084)', () => {
   // `minio` and `trigger-tls` were the last of the original seven that no
   // healthcheck probed and no other step proved. The workplan asked for
@@ -270,9 +348,13 @@ describe('the refusal says WHICH way there is nothing to act on', () => {
   const block = smoke.match(/ {2}echo "what IS on this mapping:"[\s\S]*?\n {2}fi\n/)?.[0];
 
   /** Drive the real branch with a `q` that answers as a given ledger would. */
-  function diagnose(total: string, copied: string, breakdown = '') {
+  function diagnose(total: string, eligible: string, breakdown = '') {
+    // The eligible-count query is told apart by its status list, not by the
+    // word "copied": that word appears in both queries' text now, and matching
+    // on it silently answered the ELIGIBLE query with the TOTAL — which made
+    // this stub report "6 eligible" for a ledger the test said had none.
     const q = `q() { case "$1" in
-      *"count(*) FROM item"*"status='copied'"*) echo "${copied}" ;;
+      *"count(*) FROM item"*"status IN ('copied','updated')"*) echo "${eligible}" ;;
       *"count(*) FROM item"*) echo "${total}" ;;
       *) printf '%s' "${breakdown}" ;;
     esac; }`;
@@ -296,7 +378,7 @@ describe('the refusal says WHICH way there is nothing to act on', () => {
 
   it('items but none copied names a product fault, not a fixture', () => {
     const out = diagnose('6', '0', 'calendar|pending|6|0');
-    expect(out).toContain("NONE is 'copied'");
+    expect(out).toContain("NONE is 'copied' or 'updated'");
     expect(out).toContain('product fault');
     // Points at the run log, because that is where a stalled copy explains itself.
     expect(out).toContain('run_event');
@@ -312,7 +394,7 @@ describe('the refusal says WHICH way there is nothing to act on', () => {
 
   it('always prints the actual breakdown, whichever state it is', () => {
     expect(diagnose('6', '0', 'calendar|pending|6|0')).toContain('calendar|pending|6|0');
-    expect(diagnose('0', '0')).toContain('(total 0, copied 0)');
+    expect(diagnose('0', '0')).toContain('(total 0, eligible 0');
   });
 });
 
