@@ -132,6 +132,32 @@ common, and which side breaks is an accident of how somebody named a file. Renam
 and it *is* the appliance, at boot, on a machine that never downgraded anything.
 `two-chains.unit.test.ts` runs that mistake and pins what it does.
 
+## This is a pre-release schema break, and the upgrade gate said so
+
+Removing the four tables from `0001_baseline.sql` edits a migration `v0.1.0-rc.1` already
+shipped, so the N-1 → N upgrade gate failed — correctly. A database upgraded from that tag
+KEEPS `invoice`, `payment_method`, `usage_metric` and `tenant_member`, empty, while a fresh
+install at HEAD never has them.
+
+**There is deliberately no migration that drops them.** It would have to live in the SHARED
+chain, because the appliance is the deployment we want rid of them on and it applies no other
+chain — and the managed edition applies that same chain, where `invoice` is not an empty table
+but the tax record we are legally required to keep. The managed chain would then
+`CREATE TABLE IF NOT EXISTS` a fresh empty one behind it. **A migration that destroys invoices
+to tidy four tables off an appliance is not a trade worth making**, and it would sit in the
+chain for ever.
+
+The remedy is the one `migrate.ts` already prescribes for a squash: recreate the database. The
+ledger is a rebuildable cache (ADR-0020), and a pre-release schema break is fixed by dropping
+it, not by migrating through it. Left alone, the leftovers are four empty tables an appliance
+never reads.
+
+**`v0.1.0-rc.1` is a release candidate with no known installs, which is the only reason that
+shrug is acceptable** — the same shrug after a real release would not be. So the gate does not
+merely tolerate the difference: `MOVED_TO_MANAGED_CHAIN` names the four tables with their
+reason, an upgraded database may carry **those and nothing else**, it may never LACK anything a
+fresh install has, and a declaration that has stopped covering anything fails its own test.
+
 ## Rejected: compressing the shared chain
 
 With zero installs the 27 files could collapse into one clean baseline, and the temptation is
