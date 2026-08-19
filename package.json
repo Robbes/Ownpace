@@ -8,7 +8,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "lint": "eslint .",
+    "lint": "eslint . --cache --cache-strategy content",
     "typecheck": "tsc --noEmit && pnpm --filter @openmig/web typecheck",
     "bench:pglite": "pnpm --filter @openmig/ledger exec tsx ../../scripts/bench-pglite-concurrency.mjs",
     "package:appliance": "pnpm --filter @openmig/web build:selfhost && node scripts/package-appliance.mjs",
@@ -17,7 +17,8 @@
     "test:e2e": "vitest run --project e2e",
     "test:ui": "vitest run --project ui",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "typecheck:legacy": "tsc6 --noEmit"
   },
   "dependencies": {
     "@azure/msal-node": "^5.5.0",
@@ -34,6 +35,7 @@
     "@types/supertest": "^7.2.1",
     "@typescript-eslint/eslint-plugin": "^8.67.0",
     "@typescript-eslint/parser": "^8.67.0",
+    "@typescript/native": "npm:typescript@7.0.2",
     "@vitest/coverage-v8": "4.1.10",
     "drizzle-kit": "^0.31.10",
     "drizzle-orm": "catalog:",
@@ -46,7 +48,7 @@
     "supertest": "^7.2.2",
     "testcontainers": "^12.1.0",
     "tsx": "^4.23.12",
-    "typescript": "6.0.3",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
     "typescript-eslint": "^8.67.0",
     "vitest": "4.1.10",
     "yaml": "^2.9.0"
