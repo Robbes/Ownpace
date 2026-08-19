@@ -34,7 +34,7 @@ first.
 | [0006](./0006-o365-access-model.md) | O365 access model | Accepted — amended twice; multi-tenant app retired 2026-08-09 |
 | [0007](./0007-reuse-engines-graph-extractor.md) | Reuse proven engines + a Graph rich extractor; no commercial SharePoint tools | Accepted 2026-06-20 — both halves since moved; only "no commercial SharePoint tools" survives |
 | [0008](./0008-pluggable-target-provisioner.md) | Pluggable TargetProvisioner (manual + API) | **Retracted 2026-08-02** (never built) |
-| [0009](./0009-repo-strategy-public-monorepo.md) | Public Apache-2.0 monorepo; ops/secrets private | Accepted — ⚠ in stated conflict with ADR-0036 on open-core; owner reconciliation pending |
+| [0009](./0009-repo-strategy-public-monorepo.md) | Public Apache-2.0 monorepo; ops/secrets private | Accepted — amended by 0039: no-open-core reaffirmed and CLOSED; the "private ops/IaC" clause corrected |
 | [0010](./0010-persistence-postgres-sqlite.md) | Persistence — Postgres+RLS (managed) / SQLite or small Postgres (self-host) | Accepted — superseded in part by 0023/0028; Postgres+RLS for managed survives |
 | [0011](./0011-targets-managed-eu-no-selfhosted-mail.md) | Targets default to managed EU/CH; self-hosted targets are user-operated | Accepted |
 | [0012](./0012-graph-over-ews-davmail.md) | Prefer Microsoft Graph; avoid EWS/DavMail | Accepted |
@@ -61,9 +61,10 @@ first.
 | [0033](./0033-domain-wide-delegation.md) | Whole-tenant Google migration — domain-wide delegation, opt-in and stated | Accepted 2026-08-17 — first slice built |
 | [0034](./0034-appliance-configuration-surface.md) | Personal / Organisation / Managed — naming the deployments, and giving each the configuration door it needs | Proposed 2026-08-17 — open questions resolved by the owner 2026-08-19; accept/reject of the reasoning outstanding |
 | [0035](./0035-who-signs-in-and-who-gets-a-link.md) | Who signs in, and who just gets a link | Proposed 2026-08-17 — substance owner-decided; restated 2026-08-19 |
-| [0036](./0036-the-managed-edition-is-its-own-package-and-its-own-chain.md) | The managed edition is its own package and its own migration chain | Accepted 2026-08-19 — ⚠ in stated conflict with ADR-0009 on open-core; owner reconciliation pending |
+| [0036](./0036-the-managed-edition-is-its-own-package-and-its-own-chain.md) | The managed edition is its own package and its own migration chain | Accepted 2026-08-19 — its parked two-repo options closed by 0039; the enforced boundary stands |
 | [0037](./0037-keys-credentials-and-transport-floors.md) | One credential store, two key providers, and TLS floors | Accepted 2026-08-19 |
 | [0038](./0038-operative-rules-and-the-growing-record.md) | Operative rules — keeping a growing decision record loadable | Accepted 2026-08-19 (this convention) |
+| [0039](./0039-no-open-core-and-what-ops-privacy-means.md) | No open-core — closed with a trigger; and what "private ops" means | Accepted 2026-08-19 (resolves the 0009 vs 0036 conflict) |
 
 ## Reading the statuses
 
