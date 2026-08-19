@@ -2,9 +2,26 @@
 
 ## Status — 2026-08-18 (update this block at the end of every session)
 
-**Nearly complete (2026-08-18, continued 2026-08-19).** T1–T8 are done.
-**T9 is the only task left, and it is a decision rather than an implementation**
-— see "T9: what forget means on self-host" below. Owner decisions recorded below, including the backup
+**Complete (2026-08-18, finished 2026-08-19).** T1–T9 are done. T9 was a
+decision as much as a task; the owner chose option A (a documented procedure
+plus the revocation helper, not a UI) and it is built.
+
+**A defect found while building T9, worth reading before the table.** Extracting
+T4a's revocation so both editions could share it exposed that it had never
+worked. It read `connection.encrypted_credentials` — a real column, from the
+baseline, never dropped — but **nothing has written to it for a long time**:
+every write path stores `secret_ref`, and so does every read on the live sync
+side. So it found NULL on every row and recorded *"No credentials were stored
+for this connection."* For every connection. Always. Google's revocation is the
+one that genuinely withdraws a token and it never ran, while the erasure record
+told the customer there had been nothing to revoke.
+
+That is the failure T4a was written to avoid, with the sign flipped. Its own
+argument was that *"a row of green ticks, four-fifths of them nothing, would be
+worse than no revocation at all, because it would stop the customer doing the
+one thing that works"* — and a false "nothing to do" stops them just as
+effectively, and is harder to doubt. Both columns are read now, `secret_ref`
+first. Owner decisions recorded below, including the backup
 retention window — **7 days** — which T5 was blocked on.
 
 | Task | Status | Notes |
@@ -18,7 +35,7 @@ retention window — **7 days** — which T5 was blocked on.
 | T6 what erasure must NEVER touch | ✅ **Built 2026-08-19** | `packages/shared/src/erasure-scope.ts` — the source and the target, bilingual, structured so each surface can place them. **The opener does the real work:** it names the ambiguity (*"delete my data" here means our data about you — not your own data*) instead of hoping the reader resolves it correctly, because two of the three readings a person can plausibly take are wrong and both wrong ones are frightening. The target entry is the longer of the two on purpose — that is the reading that costs something, so it says the copies **stay**, that closing does not reach into the new mailbox, and that what we erase is our RECORD of the move and not the copies themselves. Surfaced at **close** (the moment of decision) and on the **`DELETE` refusal** (the other way somebody tries to end the relationship). There is no close UI to put it in yet — 0086 T1 is that front door — so the API response is the surface that exists, and per the T4a gap below, close is the delivery point anyway: at purge time the tenant row is gone and there is nobody left to tell. Tests pin **meaning, not phrasing** — both sides present, the target explicitly not reached into, record distinguished from copies — because the failure to guard against is a rewrite that quietly drops one reassurance, not a typo. Five mutations, all caught. |
 | T7 a purge that cannot be proven did not happen | ✅ **Built 2026-08-18** | An integration test that seeds a tenant across every one of the 25 cascading tables, purges, and asserts **table by table** what is gone and what remains. Not a count — a named list, for the same reason 0081's guard names each stray 500. Plus a receipt the customer can keep. |
 | T8 mid-flight erasure is a duplication hazard | ✅ **Finished 2026-08-19** | `item` IS the idempotency ledger, so purging under a live pass re-copies everything **into the leaving customer's target**. The skip enforced that and nothing here weakens it. What was missing was the other direction: the skip was unconditional, so a row saying `running` after a worker was killed blocked the purge on every hourly attempt **for ever**, past the date T5 promised, with a warning nobody reads. **A row saying `running` is a claim by a process that may no longer exist**, so it is no longer taken at its word. `orchestratorRef` is now recorded (`ctx.run.id` — it was left unset as *"wire it when the v4 task model lands"*, and v4 is what we run), which makes the question answerable at all. `quiescePlan` decides from what the orchestrator says: **finished** rows are landed with the reason on the row and the purge proceeds; **live** ones are asked to stop and waited for; **anything we could not ask about blocks**. That last one is the asymmetry the whole design rests on — duplicating a leaving customer's mailbox is a data incident they experience, an erasure running late is a broken promise that is visible and recoverable, so *not knowing is not permission*, and it is reported as `needsAttention` rather than as ordinary waiting. Liveness is identified **positively in both directions** with anything unrecognised falling through to blocking, because reading `isCompleted` alone would be a guess and if it meant "succeeded" a failed run would block for ever — the exact bug being fixed. Close now asks in-flight passes to stop (active quiescing) but deliberately does **not** land their rows: a cancellation is a request, and landing a row while the pass is still mid-write is precisely the state that duplicates. Six mutations, including flipping the unknown verdict to allow purging, all caught. |
-| T9 what "forget" means on self-host | ⬜ **Planned** | Hard rule 5 says the editions must not differ, but here they genuinely do: on the appliance the operator owns the disk, and erasure is `docker compose down -v`. The honest answer is probably a documented procedure plus the same revocation helper, not a UI. **Decide it rather than inherit it.** |
+| T9 what "forget" means on self-host | ✅ **Decided and built 2026-08-19** (owner decision: option A) | Decided rather than inherited. **Three quarters of the managed flow does not transfer and building it anyway would be theatre:** the *window* exists so a mistaken click can be caught, and an operator with root needs no permission we could withhold; the *receipt* is evidence WE produce for a customer, and here the operator is both; *invoice retention* is a tax obligation on us as a processor, and theirs is theirs. **What does transfer is the whole reason this exists:** `docker compose down -v` destroys our copy of a credential and does nothing to the grant it authenticates with — a Google refresh token still mints tokens, a Nextcloud app password still logs in. So T9 is `forget-me` (`apps/selfhost/src/forget-me.ts`) plus `docs/selfhost-ending-the-service.md`, not a UI. **The ordering is the point and it is not recoverable:** revocation needs the credentials the wipe destroys, so the command REFUSES when there is nothing to read rather than printing a tidy zero — a reassuring summary is the one genuinely harmful thing to say at that moment. The refusal names each provider console, and allows for the other reading of "no tenants" (a wrong `DATABASE_URL` looks identical to an already-wiped appliance). `--dry-run` hands over `NO_REVOCATION` rather than trusting a boolean check downstream. |
 
 ## The gap T4a leaves, named rather than discovered later
 

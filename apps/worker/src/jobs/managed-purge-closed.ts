@@ -51,10 +51,9 @@ import {
   summariseRevocations,
   quiescePlan,
   type QuiescingRun,
-  type RevocationOutcome,
 } from '@openmig/shared';
 import { HttpTokenRevoker } from '@openmig/connectors';
-import { SecretStore } from '@openmig/core/secret-store';
+import { revokeStoredCredentials } from '@openmig/orchestration/revoke-stored-credentials';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
@@ -64,51 +63,15 @@ const pool = new Pool({ connectionString: DATABASE_URL });
 const revoker = new HttpTokenRevoker();
 
 /**
- * Attempt provider-side revocation for every credential this tenant stored
- * (T4a) — BEFORE the purge deletes the rows the credentials live in.
- *
- * Best effort, and never a reason to refuse the erasure. A provider being down
- * must not keep somebody on the books; the outcome is recorded as `failed` and
- * the purge proceeds, so the receipt says "we deleted our copy and could not
- * revoke it" rather than nothing happening at all.
- *
- * A credential that will not decrypt is the same story: recorded, not fatal.
- * It usually means SECRET_ENCRYPTION_KEY was rotated at some point, and there
- * is nothing useful to be done about it at erasure time except say so.
+ * T4a's revocation, now shared with the appliance (0085 T9) rather than
+ * private to this job — and reading the column that is actually written. It
+ * used to read `encrypted_credentials`, which nothing has written for a long
+ * time, so every connection reported `no_credential` and Google's revocation
+ * never ran. See revoke-stored-credentials.ts.
  */
-async function revokeCredentials(tenantId: string): Promise<RevocationOutcome[]> {
-  const { rows } = await pool.query<{ kind: string; encrypted_credentials: string | null }>(
-    `SELECT kind, encrypted_credentials FROM connection WHERE tenant_id = $1`,
-    [tenantId],
-  );
+const revokeCredentials = (tenantId: string) =>
+  revokeStoredCredentials(pool, tenantId, revoker);
 
-  const outcomes: RevocationOutcome[] = [];
-  for (const row of rows) {
-    if (!row.encrypted_credentials) {
-      outcomes.push({
-        kind: row.kind,
-        status: 'no_credential',
-        reason: 'No credentials were stored for this connection.',
-      });
-      continue;
-    }
-    let credentials: Record<string, string>;
-    try {
-      credentials = SecretStore.decryptCredentials(row.encrypted_credentials);
-    } catch (err) {
-      outcomes.push({
-        kind: row.kind,
-        status: 'failed',
-        reason: `Stored credentials could not be decrypted, so nothing could be revoked: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      });
-      continue;
-    }
-    outcomes.push(await revoker.revoke({ kind: row.kind, credentials }));
-  }
-  return outcomes;
-}
 
 /** Tenants closed long enough ago that their window has expired. */
 interface DueRow {

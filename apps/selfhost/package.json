@@ -9,7 +9,8 @@
     "start": "tsx src/index.ts",
     "test": "vitest run",
     "lint": "eslint src",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "forget-me": "tsx src/forget-me.ts"
   },
   "dependencies": {
     "@openmig/connectors": "workspace:*",
