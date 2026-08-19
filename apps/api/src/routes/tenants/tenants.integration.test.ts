@@ -387,8 +387,14 @@ describe('API Tenant Isolation', () => {
 
       // Closed is NOT deleted: the row is still here, which is what makes the
       // window worth having.
+      // The status is on `tenant`; the dates moved to `tenant_closure` in the
+      // managed chain (ADR-0036). Both halves are read, because a close that
+      // wrote one and not the other is exactly the state the purge job's
+      // `status = 'closed'` guard exists for.
       const afterClose = await superuserPool.query(
-        `SELECT status, purge_after FROM tenant WHERE id = $1`,
+        `SELECT t.status, c.purge_after
+           FROM tenant t LEFT JOIN tenant_closure c ON c.tenant_id = t.id
+          WHERE t.id = $1`,
         [tempId]
       );
       expect(afterClose.rows[0].status).toBe('closed');
@@ -407,10 +413,15 @@ describe('API Tenant Isolation', () => {
       expect(reopened.status).toBe(200);
 
       const afterReopen = await superuserPool.query(
-        `SELECT status, purge_after FROM tenant WHERE id = $1`,
+        `SELECT t.status, c.purge_after
+           FROM tenant t LEFT JOIN tenant_closure c ON c.tenant_id = t.id
+          WHERE t.id = $1`,
         [tempId]
       );
       expect(afterReopen.rows[0].status).toBe('active');
+      // No closure ROW is what "not closed" means now — and it is the half that
+      // matters: an active tenant with a due date still against it is one the
+      // purge job would delete.
       expect(afterReopen.rows[0].purge_after).toBeNull();
     });
 
