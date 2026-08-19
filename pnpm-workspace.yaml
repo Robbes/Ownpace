@@ -10,7 +10,25 @@ autoInstallPeers: true
 strictPeerDependencies: false
 allowBuilds:
   better-sqlite3: true
-  cpu-features: true
+  # DENIED, and the failure it silences is a real one that never mattered.
+  # Every install printed:
+  #
+  #   .../cpu-features install: Error: Unable to detect compiler type
+  #   .../cpu-features install: Failed
+  #
+  # `cpu-features` is an OPTIONAL dependency of ssh2 (<- docker-modem <-
+  # dockerode <- testcontainers, a dev dependency). It is a native CPU-feature
+  # detector ssh2 uses to pick a crypto implementation; without it ssh2 falls
+  # back to pure JS, and nothing here talks SSH anyway — testcontainers reaches
+  # dockerode over the docker socket. So the build was attempted, failed on
+  # images with no C compiler, and cost nothing but a red "Failed" in every
+  # green log. That is the expensive part: a failure people learn to scroll
+  # past is how a real one gets missed.
+  #
+  # `false` rather than deletion, because pnpm 11 treats an absent entry as
+  # "not yet decided" and an explicit false as decided — and a decision with
+  # its reason attached is the thing a list like this is for.
+  cpu-features: false
   esbuild: true
   libxmljs2: true
   protobufjs: true

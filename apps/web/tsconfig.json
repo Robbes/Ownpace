@@ -20,7 +20,15 @@
        `node` is here because the program compiles `@openmig/shared` from
        source, and parts of it (hashing, the logger) use node builtins; that
        was arriving through an ancestor `node_modules/@types` lookup, which is
-       exactly the kind of dependency that breaks on a compiler upgrade. */
+       exactly the kind of dependency that breaks on a compiler upgrade.
+
+       As of 2026-08-19 `@types/node` is also DECLARED in apps/web's own
+       package.json, which is what that sentence was asking for. It resolves to
+       the same version the root already had, so nothing is duplicated — what
+       changes is that the lookup no longer has to walk out of this package to
+       succeed. The workspace-deps guard exists for the same failure one level
+       over: two resolvers disagree, and only the forgiving one runs on the
+       fast path. */
     "types": ["node", "vite/client"],
 
     /* Linting */
