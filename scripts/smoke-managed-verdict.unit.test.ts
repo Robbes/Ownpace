@@ -27,7 +27,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, chmodSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -520,9 +521,7 @@ describe('a verify that compared nothing is not a pass', () => {
   // true, and worth nothing. It has never fired on the Spark only because that
   // box happens to hold three messages somebody put there by hand; nothing in
   // this repo seeds them.
-  const block = smoke.match(
-    /VERIFIED_ITEMS="\$\(json_number[\s\S]*?\nfi\n/,
-  )?.[0];
+  const block = smoke.match(/^VERIFIED_ITEMS="\$\(json_number[\s\S]*?\nfi$/m)?.[0];
 
   function verdict(setup: string) {
     const helper = `json_number() { printf '%s' "$1" | grep -o "\\"$2\\":[0-9]*" | head -1 | cut -d: -f2; }`;
@@ -560,6 +559,81 @@ describe('a verify that compared nothing is not a pass', () => {
   it('says what is actually owed rather than only that it refused', () => {
     expect(block).toMatch(/needs seeding/i);
     expect(block).toMatch(/absence of data as the absence of problems/i);
+    // It covers TWO mappings now, so it must name both seeders — the mail-only
+    // wording would send a reader of the DAV failure to the wrong script.
+    expect(block).toContain('seed-imap-source.mjs');
+    expect(block).toContain('seed-demo-dav-content.sh');
+  });
+});
+
+describe('a domain that was SKIPPED was not verified, whatever the status said', () => {
+  // FOUND 2026-08-19. The demo seed splits domains across two tenants, because
+  // `connection` has one source + one target row per tenant and cannot point at
+  // Stalwart and Nextcloud at once. This half only ever ran against tenant A,
+  // so every managed run reported `calendar/contacts/files: SKIPPED` and nobody
+  // read it as a gap: NO run had ever verified a calendar, a contact or a file.
+  // They were exercised by the sync and checked by nothing.
+  const block = smoke.match(/^for d in "\$\{REQUIRED_DOMAINS\[@\]\}"; do[\s\S]*?\ndone$/m)?.[0];
+
+  /** Drive the real loop with a report body and a required-domain list. */
+  function verdict(rbody: string, required: string[]) {
+    const setup = `rbody='${rbody}'\nVERIFY_LABEL=test\nREQUIRED_DOMAINS=(${required.join(' ')})`;
+    const out = execFileSync('bash', ['-c', `fail=0\n${setup}\n${block}\necho "FAIL=$fail"`], {
+      encoding: 'utf8',
+    });
+    return out.trim().split('\n').pop()!.replace('FAIL=', '');
+  }
+
+  // The real shape, from e2e-managed #20's evidence: the skip is announced by an
+  // issue id, and the per-domain blocks carry nested `issues` arrays — which is
+  // why the assertion matches that id and not a `"status"` field no `[^}]*`
+  // grep survives.
+  const skipped = (d: string) =>
+    `{"${d}":{"issues":[{"id":"SKIPPED_${d}","message":"${d} verification was disabled in the config — this domain was NOT checked.","severity":"WARNING"}],"status":"SKIPPED"}}`;
+  const checked = `{"calendar":{"issues":[],"status":"PASS"},"contacts":{"issues":[],"status":"PASS"},"files":{"issues":[],"status":"PASS"}}`;
+
+  it('is extractable — the guard still exists to test', () => {
+    expect(block).toBeDefined();
+  });
+
+  it('fails when a required domain was skipped', () => {
+    expect(verdict(skipped('calendar'), ['calendar'])).toBe('1');
+  });
+
+  it('fails when ANY one of several required domains was skipped', () => {
+    // The tenant-B call requires three. Two present and one skipped is still a
+    // gate that did not cover what it claims to.
+    expect(verdict(skipped('files'), ['calendar', 'contacts', 'files'])).toBe('1');
+  });
+
+  it('passes when every required domain was actually checked', () => {
+    expect(verdict(checked, ['calendar', 'contacts', 'files'])).toBe('0');
+  });
+
+  it('does not care about domains it was not asked for', () => {
+    // Tenant A's mapping legitimately skips the three DAV domains — that is the
+    // seed's design, not a fault — so requiring only `mail` must pass over them.
+    expect(verdict(skipped('calendar'), ['mail'])).toBe('0');
+  });
+});
+
+describe('both demo mappings are verified, not just the mail one', () => {
+  it('verifies tenant A for mail AND tenant B for the three DAV domains', () => {
+    expect(smoke).toMatch(
+      /verify_mapping "\$VERIFY_TENANT" "\$VERIFY_SUB" "\$VERIFY_MAPPING" mail mail/,
+    );
+    expect(smoke).toMatch(
+      /verify_mapping "\$APPLY_TENANT" "\$APPLY_SUB" "\$APPLY_MAPPING" dav calendar contacts files/,
+    );
+  });
+
+  it('does NOT assert PASS on the DAV mapping, because this script breaks it', () => {
+    // The apply half removes one real item per run and the tombstone is
+    // permanent, so the target legitimately lacks items the source still lists.
+    // `missingOnTarget` is EXPECTED here and grows by one per run; asserting
+    // PASS would make the gate red for its own correct behaviour.
+    expect(smoke).toMatch(/DELIBERATELY NOT ASSERTED `PASS`/);
+    expect(smoke).not.toMatch(/overallStatus.*PASS/);
   });
 });
 
@@ -611,5 +685,111 @@ describe("the demo's mail source is seeded, and only when it needs to be", () =>
 
   it('leaves the self-host e2e untouched — the option defaults to off', () => {
     expect(seeder).toMatch(/SEED_ONLY_IF_EMPTY \|\| 'false'/);
+  });
+});
+
+describe('the last two services nothing spoke for (0084 T7.1)', () => {
+  // The healthcheck audit was redone against the gate's OWN printed list rather
+  // than memory: four services define no healthcheck, not the seven the
+  // workplan claimed, and the two it named as most important — trigger-api and
+  // trigger-supervisor — already had them. Of the real four, minio and
+  // trigger-tls were already asserted here; these two were covered by nothing.
+  const registry = smoke.match(/^REGISTRY_PORT_CHECK=[\s\S]*?\nfi$/m)?.[0];
+  const proxy = smoke.match(
+    /^if docker exec "\$API_CONTAINER" node -e \\\n\s*"fetch\('http:\/\/trigger-docker-proxy[\s\S]*?\nfi$/m,
+  )?.[0];
+
+  /** Run an extracted block with `curl`/`docker` stubbed onto PATH. */
+  function verdict(block: string, stubs: Record<string, string>, setup = '') {
+    const dir = mkdtempSync(join(tmpdir(), 'smokesvc-'));
+    mkdirSync(join(dir, 'bin'));
+    for (const [name, body] of Object.entries(stubs)) {
+      writeFileSync(join(dir, 'bin', name), `#!/usr/bin/env bash\n${body}\n`);
+      chmodSync(join(dir, 'bin', name), 0o755);
+    }
+    try {
+      const out = execFileSync('bash', ['-c', `fail=0\n${setup}\n${block}\necho "FAIL=$fail"`], {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${join(dir, 'bin')}:${process.env.PATH}` },
+      });
+      return out.trim().split('\n').pop()!.replace('FAIL=', '');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  it('both blocks are extractable — they still exist to test', () => {
+    expect(registry).toBeDefined();
+    expect(proxy).toBeDefined();
+  });
+
+  it('the registry failing to answer at all is a failure', () => {
+    // `000` is curl for "no response". A dead registry means every task deploy
+    // fails, and it surfaces as a task that never starts — nothing in that
+    // message names the registry.
+    //
+    // THIS TEST FOUND A REAL ONE. The first draft ended the command with
+    // `|| echo 000`, and on a refused connection curl BOTH prints `000` and
+    // exits non-zero — so the fallback appended a second, `reg_code` became
+    // `000000`, and `!= "000"` was true. The assertion could not fail. A check
+    // that cannot fail is worse than no check: it reports as coverage.
+    expect(verdict(registry!, { curl: 'echo -n 000; exit 7' })).toBe('1');
+  });
+
+  it('a curl that cannot run at all is also a failure, not a pass', () => {
+    // Empty output must not read as a status code either.
+    expect(verdict(registry!, { curl: 'exit 127' })).toBe('1');
+  });
+
+  it('has no fallback that would mask the no-response case', () => {
+    // Code lines only — the comment above it quotes the bug it is warning about.
+    const code = registry!
+      .split('\n')
+      .filter((l) => !l.trimStart().startsWith('#'))
+      .join('\n');
+    expect(code).not.toMatch(/\|\|\s*echo\s*000/);
+  });
+
+  it.each([['200'], ['401']])('the registry answering HTTP %s is a pass', (code) => {
+    // ANY status counts on purpose. `/v2/` answers 200 or 401 depending on the
+    // build, and the claim that matters is "something is serving HTTP here",
+    // not a particular code an upstream image is free to change.
+    expect(verdict(registry!, { curl: `echo -n ${code}` })).toBe('0');
+  });
+
+  it('the docker proxy answering nothing is a failure', () => {
+    // This is workplan 0018's entire failure mode: the supervisor creates every
+    // runner container through this proxy, so when it is down an enqueue never
+    // becomes a runner — invisible in a green CI.
+    expect(verdict(proxy!, { docker: 'exit 1' }, 'API_CONTAINER=stub')).toBe('1');
+  });
+
+  it('the docker proxy answering is a pass', () => {
+    expect(verdict(proxy!, { docker: 'exit 0' }, 'API_CONTAINER=stub')).toBe('0');
+  });
+
+  it('asserts rather than probes, and says why', () => {
+    // The temptation is to "just add a healthcheck". A compose probe runs
+    // INSIDE the image and under `up -d --wait` one naming a missing binary
+    // does not misreport — it fails the bring-up and takes the gate with it.
+    // Nothing here has ever executed a command inside either image.
+    expect(smoke).toMatch(/has ever executed a command inside/);
+    expect(smoke).toContain('`registry:2` or `tecnativa/docker-socket-proxy`');
+    expect(smoke).toMatch(/closes the COVERAGE gap, not the healthcheck one/);
+  });
+
+  it('does not add a compose healthcheck to either image', () => {
+    // If this ever fails, somebody had the evidence — a Docker daemon and those
+    // images pulled — and should say so in the diff. Guessing is what costs a
+    // bring-up.
+    const managed = readFileSync(join(REPO_ROOT, 'deploy/compose/managed.yml'), 'utf8');
+    const block = (name: string) => {
+      const i = managed.indexOf(`  ${name}:`);
+      const rest = managed.slice(i + 1);
+      const j = rest.search(/\n {2}[a-z0-9_-]+:\n/);
+      return j === -1 ? rest : rest.slice(0, j);
+    };
+    expect(block('trigger-registry')).not.toContain('healthcheck:');
+    expect(block('trigger-docker-proxy')).not.toContain('healthcheck:');
   });
 });

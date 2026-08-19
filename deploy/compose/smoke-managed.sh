@@ -240,60 +240,196 @@ RUNNER_LOG_DIR="$(mktemp -d /tmp/openmig-runner-logs.XXXXXX)"
 WATCHER_PID=$!
 trap 'kill "$WATCHER_PID" 2>/dev/null || true' EXIT
 
-# ---------- VERIFY half ----------
-note "VERIFY — mapping $VERIFY_MAPPING (tenant $VERIFY_TENANT, sub $VERIFY_SUB)"
-TOK_V="$(mint "$VERIFY_SUB" "$VERIFY_TENANT")"
-read -r vcode vbody <<<"$(http POST "$API/api/migrations/$VERIFY_MAPPING/verify/start" "$TOK_V")"
-echo "verify/start: HTTP $vcode"
-echo "$vbody"
-VERIFY_RESULT="not-started"
-if [ "$vcode" = "202" ] || [ "$vcode" = "200" ]; then
-  i=0
-  while [ $i -lt "$POLLS" ]; do
-    sleep "$POLL_SLEEP"
-    i=$((i + 1))
-    read -r rcode rbody <<<"$(http GET "$API/api/migrations/$VERIFY_MAPPING/verify/report" "$TOK_V")"
-    state="$(json_state "$rbody")"
-    if [ "$state" = "done" ] || [ "$state" = "failed" ]; then
-      echo "[poll $i] $rbody"
-      VERIFY_RESULT="$state"
-      break
-    fi
-  done
-  if [ "$VERIFY_RESULT" = "not-started" ]; then
-    VERIFY_RESULT="timeout"
-    echo "TIMEOUT after $((POLLS * POLL_SLEEP))s — landing the stuck row by hand (never leave 'running' pointing at nothing):"
-    q "UPDATE verification_run SET state='failed', finished_at=now(), error='smoke-managed: landed by hand after $((POLLS * POLL_SLEEP))s poll timeout' WHERE tenant_id='$VERIFY_TENANT' AND mapping_id='$VERIFY_MAPPING' AND state='running'"
-  fi
-else
-  VERIFY_RESULT="start-http-$vcode"
-fi
-echo "latest verification_run row:"
-q "SELECT state, started_at, finished_at, left(coalesce(error,''),120) FROM verification_run WHERE tenant_id='$VERIFY_TENANT' AND mapping_id='$VERIFY_MAPPING' ORDER BY started_at DESC LIMIT 1"
-[ "$VERIFY_RESULT" = "done" ] || fail=1
+# ---------- the last two services nothing speaks for (0084 T7.1) ----------
+#
+# `trigger-registry` and `trigger-docker-proxy` are what is left after the
+# healthcheck audit was redone against the gate's own printed list rather than
+# memory: FOUR services define no healthcheck, not seven, and `minio` and
+# `trigger-tls` are already asserted above. These two were not asserted by
+# anything at all.
+#
+# ASSERTED HERE RATHER THAN PROBED, for exactly the reason the other two were,
+# and it is worth restating because the temptation is to "just add a
+# healthcheck". A compose probe runs INSIDE the image, so it may only name a
+# binary that image certainly has — and under `up -d --wait` a probe naming a
+# missing binary does not misreport, it fails the bring-up and takes the whole
+# gate with it. **Nothing in this repository has ever executed a command inside
+# `registry:2` or `tecnativa/docker-socket-proxy`**, and that evidence cannot be
+# gathered from a checkout: it needs a Docker daemon and those images pulled.
+# Until somebody has done that, "the image probably has wget" is the guess that
+# costs a bring-up, and an assertion from proven tooling is strictly better —
+# when it is wrong the gate goes red with a sentence instead of never starting.
+#
+# What this does NOT do is make `docker compose ps` say "healthy", so the count
+# of services without a healthcheck is unchanged at four. That is stated rather
+# than glossed: this closes the COVERAGE gap, not the healthcheck one.
+note "trigger-registry and trigger-docker-proxy (the last two unasserted services)"
 
-# A VERIFY THAT CHECKED NOTHING IS NOT A PASS.
+# THE REGISTRY publishes on 127.0.0.1:5000, so the host's own curl reaches it —
+# no exec, no assumption about what is inside the image.
 #
-# The same shape as the apply half's skip-that-passed, and it was still here
-# after that one was fixed: `state: done` says the run finished, not that it
-# compared anything. On a mailbox with no mail, verify reports
-# `sourceCount: 0, targetCount: 0, PASS` — perfectly true, and worth nothing.
+# Any HTTP status counts, `000` (no response at all) does not. `/v2/` is the
+# registry API's documented base and answers 200 or 401, but the assertion is
+# deliberately "something is serving HTTP here" rather than a specific code:
+# the claim that matters is the one the SUPERVISOR depends on, which is that
+# task images can be pushed and pulled. A dead registry means every deploy
+# fails, and the failure surfaces as a task that will not start rather than as
+# anything naming the registry.
+REGISTRY_PORT_CHECK="${SMOKE_REGISTRY_PORT:-5000}"
+# NO `|| echo 000` HERE, and the unit test is what found that out. On a refused
+# connection curl BOTH prints `000` (that is what `%{http_code}` is when there
+# was no response) AND exits non-zero — so the fallback appended a second one,
+# `reg_code` became `000000`, and `!= "000"` was true. The assertion could not
+# fail. A check that cannot fail is worse than no check, because it reports as
+# coverage.
+reg_code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "http://127.0.0.1:${REGISTRY_PORT_CHECK}/v2/" 2>/dev/null)"
+reg_code="${reg_code:-000}"
+if [ "$reg_code" != "000" ]; then
+  echo "trigger-registry: serving HTTP $reg_code on 127.0.0.1:${REGISTRY_PORT_CHECK}"
+else
+  echo "FAIL: nothing is serving HTTP on 127.0.0.1:${REGISTRY_PORT_CHECK}."
+  echo "      The supervisor pushes and pulls task images through this registry, so a"
+  echo "      dead one means every deploy fails — as a task that never starts, with"
+  echo "      nothing in the message naming the registry."
+  fail=1
+fi
+
+# THE DOCKER PROXY publishes no port; it is reachable only on the stack network,
+# so this goes through the API container exactly as the minio assertion does —
+# a Node image whose own entrypoint is node, which this script already execs
+# into to read JWT_SECRET.
 #
-# It has never fired on the Spark because that box happens to hold three
-# messages somebody put there by hand years into the demo's life. Nothing in
-# this repository seeds them (0084's remaining gap), so on any other machine
-# this half has been vacuous and green. Better to say so loudly than to keep
-# reporting a pass over an empty mailbox.
+# `tcp://trigger-docker-proxy:2375` is the address managed.yml gives the
+# supervisor as DOCKER_HOST, and `/_ping` is the Docker API's own liveness
+# endpoint. `fetch` resolving is the assertion: it settles on ANY HTTP response
+# and rejects only when nothing is listening.
+#
+# This is the service whose failure mode workplan 0018 spent itself on: the
+# supervisor creates every runner container through this proxy, so when it is
+# down an enqueue never becomes a runner — and that is invisible in a green CI,
+# which is the entire reason this script exists.
+if docker exec "$API_CONTAINER" node -e \
+  "fetch('http://trigger-docker-proxy:2375/_ping').then(r=>{console.log('trigger-docker-proxy HTTP '+r.status);process.exit(0)}).catch(e=>{console.log('trigger-docker-proxy unreachable: '+e.message);process.exit(1)})"
+then
+  echo "trigger-docker-proxy: reachable from the API container on the stack network"
+else
+  echo "FAIL: the supervisor's DOCKER_HOST (tcp://trigger-docker-proxy:2375) answers nothing."
+  echo "      Every runner container is created through this proxy, so an enqueue will"
+  echo "      never become a runner — the exact failure 0018 T5 spent itself finding,"
+  echo "      and the one a green CI hides."
+  fail=1
+fi
+
+# ---------- VERIFY half ----------
+#
+# TWO MAPPINGS, and until 2026-08-19 only one of them was ever verified.
+#
+# The demo seed splits the domains across two tenants because `connection` has
+# exactly one source + one target row per tenant, so a single tenant cannot
+# point at Stalwart AND Nextcloud at once: tenant A is mail, tenant B is
+# calendar/contact/file. This half ran against tenant A alone, so every managed
+# run has reported `calendar/contacts/files: SKIPPED — verification was
+# disabled in the config` and nobody read it as a gap. **No run had ever
+# verified a calendar, a contact or a file on the managed stack** — the three
+# domains were exercised by the sync (that is where the apply half's eligible
+# item comes from) and checked by nothing.
+verify_mapping() { # verify_mapping <tenant> <sub> <mapping> <label> <required-domains...>
+  local tenant="$1" sub="$2" mapping="$3" label="$4"
+  shift 4
+  # GLOBALS on purpose, not sloppiness: `smoke-managed-verdict.unit.test.ts`
+  # extracts these two guards out of this file and RUNS them, which is the only
+  # way a shell decision gets tested rather than restated. A `local` is a syntax
+  # error outside a function, so declaring them here would make the real lines
+  # unextractable and the tests would have to paraphrase — which is exactly the
+  # drift that let the apply half's skip-that-passed survive review.
+  REQUIRED_DOMAINS=("$@")
+  VERIFY_LABEL="$label"
+
+  note "VERIFY ($label) — mapping $mapping (tenant $tenant, sub $sub)"
+  local tok vcode vbody i rcode state
+  tok="$(mint "$sub" "$tenant")"
+  read -r vcode vbody <<<"$(http POST "$API/api/migrations/$mapping/verify/start" "$tok")"
+  echo "verify/start: HTTP $vcode"
+  echo "$vbody"
+  VERIFY_RESULT="not-started"
+  rbody=""
+  if [ "$vcode" = "202" ] || [ "$vcode" = "200" ]; then
+    i=0
+    while [ $i -lt "$POLLS" ]; do
+      sleep "$POLL_SLEEP"
+      i=$((i + 1))
+      read -r rcode rbody <<<"$(http GET "$API/api/migrations/$mapping/verify/report" "$tok")"
+      state="$(json_state "$rbody")"
+      if [ "$state" = "done" ] || [ "$state" = "failed" ]; then
+        echo "[poll $i] $rbody"
+        VERIFY_RESULT="$state"
+        break
+      fi
+    done
+    if [ "$VERIFY_RESULT" = "not-started" ]; then
+      VERIFY_RESULT="timeout"
+      echo "TIMEOUT after $((POLLS * POLL_SLEEP))s — landing the stuck row by hand (never leave 'running' pointing at nothing):"
+      q "UPDATE verification_run SET state='failed', finished_at=now(), error='smoke-managed: landed by hand after $((POLLS * POLL_SLEEP))s poll timeout' WHERE tenant_id='$tenant' AND mapping_id='$mapping' AND state='running'"
+    fi
+  else
+    VERIFY_RESULT="start-http-$vcode"
+  fi
+  echo "latest verification_run row:"
+  q "SELECT state, started_at, finished_at, left(coalesce(error,''),120) FROM verification_run WHERE tenant_id='$tenant' AND mapping_id='$mapping' ORDER BY started_at DESC LIMIT 1"
+  [ "$VERIFY_RESULT" = "done" ] || fail=1
+
+  # A VERIFY THAT CHECKED NOTHING IS NOT A PASS.
+  #
+  # The same shape as the apply half's skip-that-passed, and it was still here
+  # after that one was fixed: `state: done` says the run finished, not that it
+  # compared anything. On a mailbox with no mail, verify reports
+  # `sourceCount: 0, targetCount: 0, PASS` — perfectly true, and worth nothing.
 VERIFIED_ITEMS="$(json_number "$rbody" totalItemsSource)"
 if [ "$VERIFY_RESULT" = "done" ] && [ "${VERIFIED_ITEMS:-0}" = "0" ]; then
   echo ""
-  echo "verify reached 'done' but compared NOTHING: totalItemsSource=0."
-  echo "FAILING rather than passing: an empty mailbox verifies clean by definition, and a"
+  echo "verify ($VERIFY_LABEL) reached 'done' but compared NOTHING: totalItemsSource=0."
+  echo "FAILING rather than passing: an empty source verifies clean by definition, and a"
   echo "gate that accepts it is reporting the absence of data as the absence of problems."
-  echo "The demo's mail source needs seeding — see 0084's 'what is still owed'. Until then"
-  echo "this half can only be honest by refusing."
+  echo "The source for this mapping needs seeding: mail comes from"
+  echo "test/e2e/seed-imap-source.mjs, DAV from deploy/compose/seed-demo-dav-content.sh."
   fail=1
 fi
+
+  # AND A DOMAIN THAT WAS SKIPPED WAS NOT CHECKED, whatever the overall status
+  # says. The report spells this out itself — every skipped domain carries an
+  # issue with id `SKIPPED_<domain>` and the message "this domain was NOT
+  # checked" — so the assertion is simply that the ids we require are absent.
+  # Matching on that id rather than on the status field because the per-domain
+  # blocks contain nested `issues` arrays, which no `[^}]*` grep survives.
+for d in "${REQUIRED_DOMAINS[@]}"; do
+  if printf '%s' "$rbody" | grep -q "SKIPPED_${d}"; then
+    echo ""
+    echo "verify ($VERIFY_LABEL) SKIPPED the '${d}' domain, which this mapping exists to cover."
+    echo "The report says it plainly: 'this domain was NOT checked'. A verify that skips"
+    echo "the domain in question is the same lie as an apply half that never runs — the"
+    echo "run is green and the thing it was for did not happen."
+    echo "Check the mapping's configured domains (seed-managed.ts: DemoTenant.domains)."
+    fail=1
+  else
+    echo "verify ($VERIFY_LABEL): '${d}' was actually checked"
+  fi
+done
+}
+
+# Tenant A — mail, against the demo Stalwart.
+verify_mapping "$VERIFY_TENANT" "$VERIFY_SUB" "$VERIFY_MAPPING" mail mail
+
+# Tenant B — calendar, contacts and files, against the demo Nextcloud. The same
+# mapping the apply half then acts on.
+#
+# DELIBERATELY NOT ASSERTED `PASS`, and the reason is this script itself. The
+# apply half removes one real item from the target every run and the tombstone
+# is permanent, so the target legitimately lacks items the source still lists —
+# `missingOnTarget` is EXPECTED here and grows by one per run. Asserting PASS
+# would make the gate red for its own correct behaviour. What is asserted is
+# the part that was missing: that the three domains were CHECKED at all, and
+# that the comparison had something in it.
+verify_mapping "$APPLY_TENANT" "$APPLY_SUB" "$APPLY_MAPPING" dav calendar contacts files
 
 # ---------- APPLY half ----------
 note "APPLY — mapping $APPLY_MAPPING (tenant $APPLY_TENANT, sub $APPLY_SUB)"
