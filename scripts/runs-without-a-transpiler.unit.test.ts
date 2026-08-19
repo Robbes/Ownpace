@@ -29,8 +29,8 @@
 
 import { describe, it, expect } from 'vitest';
 import ts from 'typescript';
-import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -40,13 +40,27 @@ const RUNTIME_TREES = ['packages', 'apps'];
 
 const HAS_EXTENSION = /\.(ts|tsx|js|jsx|mjs|cjs|json|css|svg|png|jpg|wasm)$/;
 
+/**
+ * Every file under the runtime trees, and the .ts/.tsx subset of them.
+ *
+ * Both come out of ONE walk. The alternative — `existsSync` per specifier —
+ * is a syscall per import, and with ~1100 of them it is most of this test's
+ * cost. A Set membership test is not.
+ */
+const allFiles = new Set<string>();
+
 function sourceFiles(dir: string, out: string[] = []): string[] {
   if (!existsSync(dir)) return out;
-  for (const entry of readdirSync(dir)) {
-    if (entry === 'node_modules' || entry === 'dist' || entry === 'dist-selfhost') continue;
-    const p = join(dir, entry);
-    if (statSync(p).isDirectory()) sourceFiles(p, out);
-    else if (/\.(ts|tsx)$/.test(entry)) out.push(p);
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name === 'dist-selfhost') {
+      continue;
+    }
+    const p = join(dir, entry.name);
+    if (entry.isDirectory()) sourceFiles(p, out);
+    else {
+      allFiles.add(p);
+      if (/\.(ts|tsx)$/.test(entry.name)) out.push(p);
+    }
   }
   return out;
 }
@@ -64,30 +78,21 @@ function everySourceFile(): string[] {
 /**
  * Relative module specifiers, from `import`, `export … from` and `import()`.
  *
- * Read off the AST rather than matched with a regex. The first version of this
- * used `/(?:import|export)[\s\S]*?from\s*['"](\.[^'"]*)['"]/`, whose lazy
- * `[\s\S]*?` happily spans lines — so a prose comment containing the word
- * "from" between two quoted fragments parsed as an import of `'. The source now
- * lists it under '`. One false positive is enough to teach the lesson: the
- * thing being checked is syntax, so ask the parser.
+ * `preProcessFile` is the scanner tsserver uses for exactly this: it finds
+ * module references without building an AST. It replaced `createSourceFile`
+ * here because parsing 450+ files put this test at 2.1s locally and over
+ * vitest's default 5s budget on a loaded CI runner.
+ *
+ * It replaced a REGEX before that, and the regex is the more instructive
+ * failure: `/(?:import|export)[\s\S]*?from\s*['"](\.[^'"]*)['"]/` has a lazy
+ * `[\s\S]*?` that spans lines, so a prose comment containing the word "from"
+ * between two quoted fragments parsed as an import of `'. The source now lists
+ * it under '`. The thing being checked is syntax — ask a scanner, not a
+ * pattern.
  */
-function relativeSpecifiers(file: string, text: string): string[] {
-  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
-  const out: string[] = [];
-  const take = (node: ts.Node | undefined) => {
-    if (node && ts.isStringLiteral(node) && node.text.startsWith('.')) out.push(node.text);
-  };
-  const visit = (node: ts.Node) => {
-    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) take(node.moduleSpecifier);
-    else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
-      take(node.arguments[0]);
-    } else if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) {
-      take(node.argument.literal);
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(sf);
-  return out;
+function relativeSpecifiers(text: string): string[] {
+  const info = ts.preProcessFile(text, /* readImportFiles */ true, /* detectJavaScriptImports */ true);
+  return info.importedFiles.map((f) => f.fileName).filter((n) => n.startsWith('.'));
 }
 
 describe('the runtime needs no transpiler', () => {
@@ -111,16 +116,20 @@ describe('the runtime needs no transpiler', () => {
     // target catches both without needing to know which mistake was made.
     const offenders: string[] = [];
     for (const file of files) {
-      for (const spec of relativeSpecifiers(file, readFileSync(file, 'utf8'))) {
+      for (const spec of relativeSpecifiers(readFileSync(file, 'utf8'))) {
         if (!HAS_EXTENSION.test(spec)) {
           offenders.push(`${file.slice(ROOT.length + 1)} -> '${spec}' (no extension)`);
-        } else if (!existsSync(join(dirname(file), spec))) {
+        } else if (!allFiles.has(resolve(dirname(file), spec))) {
           offenders.push(`${file.slice(ROOT.length + 1)} -> '${spec}' (no such file)`);
         }
       }
     }
     expect(offenders, 'Node resolves these literally; point them at the real file').toEqual([]);
-  });
+    // The `unit` project declares no testTimeout, and an inline vitest project
+    // does NOT inherit the root's — the same gap `integration` and `e2e` call
+    // out in vitest.config.ts. So this whole-repo scan gets vitest's built-in
+    // 5s unless it says otherwise, and it once did not.
+  }, 60_000);
 
   it('keeps the two compiler options the eraser depends on', () => {
     const base = readFileSync(join(ROOT, 'tsconfig.base.json'), 'utf8');
