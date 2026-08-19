@@ -373,6 +373,18 @@ describe('API Tenant Isolation', () => {
       expect(closed.body.erasureCompletesText.en).toContain('live service');
       expect(closed.body.erasureCompletesText.nl).toContain('back-ups');
 
+      // What erasure will NOT do (0085 T6), said at the moment the customer is
+      // deciding rather than after the purge — by which point the tenant row is
+      // gone and there is nobody left to authenticate and be told. Both
+      // boundaries, both languages: the frightening reading of "delete my data"
+      // is that we take the migrated mail back out of the new mailbox, and an
+      // answer mentioning only the source leaves exactly that reading standing.
+      expect(closed.body.neverTouched.en).toMatch(/Delete my data/i);
+      expect(closed.body.neverTouched.nl).toMatch(/Verwijder mijn gegevens/i);
+      expect(
+        closed.body.neverTouched.boundaries.map((b: { side: string }) => b.side),
+      ).toEqual(['source', 'target']);
+
       // Closed is NOT deleted: the row is still here, which is what makes the
       // window worth having.
       const afterClose = await superuserPool.query(

@@ -21,37 +21,35 @@
  * own serialisation double-encodes.
  */
 
-import { it, expect, beforeAll, afterAll } from "vitest";
-import { createPgliteDb } from "./pglite-driver";
-import { runMigrations } from "./migrate";
-import { PgLedger } from "./ledger";
+import { it, expect, beforeAll, afterAll } from 'vitest';
+import { createPgliteDb } from './pglite-driver';
+import { runMigrations } from './migrate';
+import { PgLedger } from './ledger';
 
-const T = "9b2e0000-e29b-41d4-a716-4466554471a1";
-const C = "9b2e0000-e29b-41d4-a716-4466554471a2";
-const S = "9b2e0000-e29b-41d4-a716-4466554471a3";
-const D = "9b2e0000-e29b-41d4-a716-4466554471a4";
-const M = "9b2e0000-e29b-41d4-a716-4466554471a5";
+const T = '9b2e0000-e29b-41d4-a716-4466554471a1';
+const C = '9b2e0000-e29b-41d4-a716-4466554471a2';
+const S = '9b2e0000-e29b-41d4-a716-4466554471a3';
+const D = '9b2e0000-e29b-41d4-a716-4466554471a4';
+const M = '9b2e0000-e29b-41d4-a716-4466554471a5';
 
-let db: Awaited<ReturnType<typeof createPgliteDb>>["db"];
-let driver: Awaited<ReturnType<typeof createPgliteDb>>["driver"];
-let close: Awaited<ReturnType<typeof createPgliteDb>>["close"];
+let db: Awaited<ReturnType<typeof createPgliteDb>>['db'];
+let driver: Awaited<ReturnType<typeof createPgliteDb>>['driver'];
+let close: Awaited<ReturnType<typeof createPgliteDb>>['close'];
 let conn: Awaited<ReturnType<typeof driver.acquire>>;
 
 beforeAll(async () => {
   ({ db, driver, close } = await createPgliteDb());
   await runMigrations({ driver, logger: () => {} });
   conn = await driver.acquire();
-  await conn.query(`INSERT INTO tenant (id,name) VALUES ($1,'target-ref')`, [
-    T,
-  ]);
+  await conn.query(`INSERT INTO tenant (id,name) VALUES ($1,'target-ref')`, [T]);
   await conn.query(
     `INSERT INTO connection (id,tenant_id,role,kind,display_name,config,status)
      VALUES ($1,$2,'source','imap','t','{}'::jsonb,'connected')`,
     [C, T],
   );
   for (const [id, addr] of [
-    [S, "s@tref.local"],
-    [D, "d@tref.local"],
+    [S, 's@tref.local'],
+    [D, 'd@tref.local'],
   ]) {
     await conn.query(
       `INSERT INTO mailbox (id,tenant_id,connection_id,external_id,kind,primary_address,display_name,status)
@@ -67,14 +65,14 @@ beforeAll(async () => {
   await new PgLedger(db).recordIfAbsent({
     tenantId: T,
     mappingId: M,
-    itemType: "calendar",
-    naturalKeyHash: "h-handle",
-    contentHash: "c1",
-    targetId: "target-abc",
+    itemType: 'calendar',
+    naturalKeyHash: 'h-handle',
+    contentHash: 'c1',
+    targetId: 'target-abc',
     createdAt: new Date().toISOString(),
-    status: "copied",
-    collection: "personal",
-  } as Parameters<PgLedger["recordIfAbsent"]>[0]);
+    status: 'copied',
+    collection: 'personal',
+  } as Parameters<PgLedger['recordIfAbsent']>[0]);
 }, 120_000);
 
 afterAll(async () => {
@@ -82,12 +80,12 @@ afterAll(async () => {
   await close?.();
 });
 
-it("stores a jsonb OBJECT, not a string of one", async () => {
+it('stores a jsonb OBJECT, not a string of one', async () => {
   const { rows } = await conn.query<{ t: string }>(
     `SELECT jsonb_typeof(target_ref) AS t FROM item WHERE natural_key_hash='h-handle'`,
   );
   // Before the fix this was 'string'.
-  expect(rows[0]!.t).toBe("object");
+  expect(rows[0]!.t).toBe('object');
 });
 
 it("SQL can read the handle back with ->>'id'", async () => {
@@ -96,10 +94,10 @@ it("SQL can read the handle back with ->>'id'", async () => {
   const { rows } = await conn.query<{ id: string | null }>(
     `SELECT target_ref->>'id' AS id FROM item WHERE natural_key_hash='h-handle'`,
   );
-  expect(rows[0]!.id).toBe("target-abc");
+  expect(rows[0]!.id).toBe('target-abc');
 });
 
-it("and the read path hands back the id rather than an empty string", async () => {
+it('and the read path hands back the id rather than an empty string', async () => {
   // `mapRowToRecord` does `(row.targetRef as {id?}).id ?? ''`. Off a string
   // that is `undefined`, so apply-deletion received '' and passed it to
   // removeItem — see the empty-handle guard in dav-remove.ts.
@@ -107,6 +105,6 @@ it("and the read path hands back the id rather than an empty string", async () =
     `SELECT target_ref FROM item WHERE natural_key_hash='h-handle'`,
   );
   const ref = rows[0]!.target_ref;
-  expect(typeof ref).toBe("object");
-  expect((ref as { id?: string }).id).toBe("target-abc");
+  expect(typeof ref).toBe('object');
+  expect((ref as { id?: string }).id).toBe('target-abc');
 });

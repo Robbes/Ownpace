@@ -26,6 +26,8 @@ import {
   backupRetentionDaysFromEnv,
   erasureTimeline,
   erasureTimelineText,
+  erasureScopeText,
+  erasureNeverTouches,
 } from '@openmig/shared';
 import { eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
@@ -342,20 +344,41 @@ router.put(
  * gets an answer saying where to go (rule 9) instead of a 404 that reads as a
  * routing bug.
  */
+/**
+ * The 410 body, as a pure value so it can be tested without a database.
+ *
+ * Exported for the same reason `missingFieldsRefusal` is: the interesting part
+ * of a refusal is what it tells somebody to do next, and that is worth pinning
+ * without standing up Postgres to read one JSON object.
+ */
+export function deleteTenantRefusal(): {
+  error: string;
+  reason: string;
+  neverTouched: string;
+} {
+  return {
+    error: 'use_close',
+    reason:
+      'Deleting a tenant outright is no longer available: it destroyed invoices that must be ' +
+      'kept for tax purposes, and left no window in which to undo a mistake. Close the ' +
+      'account instead — POST /api/tenants/:tenantId/close with windowDays of 0, 7, 30 or 90. ' +
+      'Closing stops syncs and billing immediately; the erasure runs when the window is up, ' +
+      'and can be undone until then.',
+    // The other half of the answer, and the half nobody thinks to ask for
+    // (0085 T6). Somebody calling DELETE is trying to end the relationship, and
+    // the refusal above tells them how — but not what it will do to the two
+    // mailboxes they care about. Left unsaid, "erasure" is a word they have to
+    // guess the scope of, and the frightening guess is the plausible one.
+    neverTouched: erasureScopeText('en'),
+  };
+}
+
 router.delete(
   '/:tenantId',
   authenticate,
   requireRole('owner'),
   (_req: AuthenticatedRequest, res: Response) => {
-    res.status(410).json({
-      error: 'use_close',
-      reason:
-        'Deleting a tenant outright is no longer available: it destroyed invoices that must be ' +
-        'kept for tax purposes, and left no window in which to undo a mistake. Close the ' +
-        'account instead — POST /api/tenants/:tenantId/close with windowDays of 0, 7, 30 or 90. ' +
-        'Closing stops syncs and billing immediately; the erasure runs when the window is up, ' +
-        'and can be undone until then.',
-    });
+    res.status(410).json(deleteTenantRefusal());
   },
 );
 
@@ -454,6 +477,17 @@ router.post(
         outlivingAccess: {
           en: accessThatOutlivesErasure(kinds, 'en'),
           nl: accessThatOutlivesErasure(kinds, 'nl'),
+        },
+        // What erasure will NOT do (0085 T6). Sent at close rather than only in
+        // the completion report, because this is the moment the customer is
+        // deciding — and "delete my data" is the one phrase they could
+        // reasonably read as meaning we take the migrated mail back out of
+        // their new mailbox. Answering that after the purge would be answering
+        // it too late to be reassurance.
+        neverTouched: {
+          en: erasureScopeText('en'),
+          nl: erasureScopeText('nl'),
+          boundaries: erasureNeverTouches('en'),
         },
       });
     } catch (error) {

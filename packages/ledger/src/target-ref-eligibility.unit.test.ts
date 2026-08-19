@@ -22,19 +22,19 @@
  * in the test and the test proves only that I can type it twice.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-import { pgliteDriver } from "./pglite-driver";
-import { runMigrations } from "./migrate";
-import type { LedgerDriver, LedgerConnection } from "./driver";
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { pgliteDriver } from './pglite-driver';
+import { runMigrations } from './migrate';
+import type { LedgerDriver, LedgerConnection } from './driver';
 
-const TENANT = "7c1d0000-e29b-41d4-a716-4466554419a1";
-const CONN = "7c1d0000-e29b-41d4-a716-4466554419a2";
-const SRC = "7c1d0000-e29b-41d4-a716-4466554419a3";
-const DST = "7c1d0000-e29b-41d4-a716-4466554419a4";
-const MAPPING = "7c1d0000-e29b-41d4-a716-4466554419a5";
+const TENANT = '7c1d0000-e29b-41d4-a716-4466554419a1';
+const CONN = '7c1d0000-e29b-41d4-a716-4466554419a2';
+const SRC = '7c1d0000-e29b-41d4-a716-4466554419a3';
+const DST = '7c1d0000-e29b-41d4-a716-4466554419a4';
+const MAPPING = '7c1d0000-e29b-41d4-a716-4466554419a5';
 
 let driver: LedgerDriver;
 let conn: LedgerConnection;
@@ -42,9 +42,9 @@ let conn: LedgerConnection;
 const item = async (hash: string, status: string, targetRef: string | null) =>
   conn.query(
     `INSERT INTO item (tenant_id, mapping_id, domain, collection, natural_key, natural_key_hash, status${
-      targetRef === null ? "" : ", target_ref"
+      targetRef === null ? '' : ', target_ref'
     })
-     VALUES ($1,$2,'calendar','personal',$3,$3,$4${targetRef === null ? "" : ", $5::jsonb"})`,
+     VALUES ($1,$2,'calendar','personal',$3,$3,$4${targetRef === null ? '' : ', $5::jsonb'})`,
     targetRef === null
       ? [TENANT, MAPPING, hash, status]
       : [TENANT, MAPPING, hash, status, targetRef],
@@ -54,17 +54,15 @@ beforeAll(async () => {
   driver = pgliteDriver();
   await runMigrations({ driver, logger: () => {} });
   conn = await driver.acquire();
-  await conn.query(`INSERT INTO tenant (id, name) VALUES ($1, 'target-ref')`, [
-    TENANT,
-  ]);
+  await conn.query(`INSERT INTO tenant (id, name) VALUES ($1, 'target-ref')`, [TENANT]);
   await conn.query(
     `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
      VALUES ($1,$2,'source','imap','t','{}'::jsonb,'connected')`,
     [CONN, TENANT],
   );
   for (const [id, addr] of [
-    [SRC, "src@tref.local"],
-    [DST, "dst@tref.local"],
+    [SRC, 'src@tref.local'],
+    [DST, 'dst@tref.local'],
   ]) {
     await conn.query(
       `INSERT INTO mailbox (id, tenant_id, connection_id, external_id, kind, primary_address, display_name, status)
@@ -79,10 +77,10 @@ beforeAll(async () => {
   );
 
   // Deliberately inserted WITHOUT naming target_ref, because the default is the claim.
-  await item("h-default", "copied", null);
-  await item("h-empty-id", "copied", '{"id":""}');
-  await item("h-real", "copied", '{"id":"target-abc"}');
-  await item("h-not-copied", "pending", '{"id":"target-xyz"}');
+  await item('h-default', 'copied', null);
+  await item('h-empty-id', 'copied', '{"id":""}');
+  await item('h-real', 'copied', '{"id":"target-abc"}');
+  await item('h-not-copied', 'pending', '{"id":"target-xyz"}');
 }, 120_000);
 
 afterAll(async () => {
@@ -100,7 +98,7 @@ const hashes = async (predicate: string) =>
     )
   ).rows.map((r) => r.natural_key_hash);
 
-describe("target_ref", () => {
+describe('target_ref', () => {
   it("is NOT NULL with a '{}' default, so IS NOT NULL asks nothing", async () => {
     const { rows } = await conn.query<{
       is_nullable: string;
@@ -109,46 +107,37 @@ describe("target_ref", () => {
       `SELECT is_nullable, column_default FROM information_schema.columns
         WHERE table_name = 'item' AND column_name = 'target_ref'`,
     );
-    expect(rows[0]!.is_nullable).toBe("NO");
-    expect(rows[0]!.column_default).toContain("{}");
+    expect(rows[0]!.is_nullable).toBe('NO');
+    expect(rows[0]!.column_default).toContain('{}');
   });
 
-  it("the old predicate matched every copied row, landed or not", async () => {
-    expect(await hashes("target_ref IS NOT NULL")).toEqual([
-      "h-default",
-      "h-empty-id",
-      "h-real",
-    ]);
+  it('the old predicate matched every copied row, landed or not', async () => {
+    expect(await hashes('target_ref IS NOT NULL')).toEqual(['h-default', 'h-empty-id', 'h-real']);
   });
 
-  it("the id is what says it landed, and it discriminates", async () => {
-    expect(await hashes(`coalesce(target_ref->>'id','') <> ''`)).toEqual([
-      "h-real",
-    ]);
+  it('the id is what says it landed, and it discriminates', async () => {
+    expect(await hashes(`coalesce(target_ref->>'id','') <> ''`)).toEqual(['h-real']);
   });
 });
 
-describe("the smoke asks the discriminating question", () => {
+describe('the smoke asks the discriminating question', () => {
   // The two halves of this file are only worth anything together: the SQL above
   // is correct, and the script actually uses it.
   const smoke = readFileSync(
-    join(
-      dirname(fileURLToPath(import.meta.url)),
-      "../../../deploy/compose/smoke-managed.sh",
-    ),
-    "utf8",
+    join(dirname(fileURLToPath(import.meta.url)), '../../../deploy/compose/smoke-managed.sh'),
+    'utf8',
   );
 
   it("selects the apply half's item on target_ref->>'id'", () => {
     expect(smoke).toContain(`coalesce(target_ref->>'id','') <> ''`);
   });
 
-  it("no longer asks the question that could not fail", () => {
+  it('no longer asks the question that could not fail', () => {
     // Scoped to the query, not the file: the script's comment names the old
     // form on purpose, to explain what it used to ask and why that was empty.
-    const query = smoke.split("\n").find((l) => l.startsWith("HASH="));
+    const query = smoke.split('\n').find((l) => l.startsWith('HASH='));
     expect(query).toBeDefined();
-    expect(query).not.toContain("target_ref IS NOT NULL");
+    expect(query).not.toContain('target_ref IS NOT NULL');
     expect(query).toContain("target_ref->>'id'");
   });
 });
