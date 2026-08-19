@@ -15,8 +15,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { reconstructFileNodePath, fileNodeIndex, type FileNodeRef } from './jmap-file-path';
-import { fileNaturalKeyHash } from './hash';
+import { reconstructFileNodePath, fileNodeIndex, type FileNodeRef } from './jmap-file-path.ts';
+import { fileNaturalKeyHash } from './hash.ts';
 
 /** The tree the spike would have found: root folder, subfolder, file. */
 const TREE: FileNodeRef[] = [

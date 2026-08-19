@@ -20,7 +20,7 @@
  * a screen look tidier.
  */
 
-import { groupsNotEnumerable, type GroupListing } from './graph-groups';
+import { groupsNotEnumerable, type GroupListing } from './graph-groups.ts';
 
 /**
  * Always `not_enumerable`. There is no configuration under which IMAP can

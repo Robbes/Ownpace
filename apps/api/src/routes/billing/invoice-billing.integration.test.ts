@@ -48,8 +48,8 @@ vi.mock('../../services/mollie/index', () => ({
   }),
 }));
 
-import app from '../../index.js';
-import { seedMembership } from '../../__tests__/seed-membership.js';
+import app from '../../index.ts';
+import { seedMembership } from '../../__tests__/seed-membership.ts';
 
 const TENANT_A = '5f2b0000-e29b-41d4-a716-446655443101';
 const TENANT_B = '5f2b0000-e29b-41d4-a716-446655443102';

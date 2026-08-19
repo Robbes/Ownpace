@@ -11,7 +11,7 @@ import {
   ENV_BOX_CREDENTIAL_NAMES,
   STORED_BOX_CREDENTIAL_NAMES,
   buildBoxSourceFrom,
-} from './box-source-factory';
+} from './box-source-factory.ts';
 
 describe('refusing before anything is attempted', () => {
   it('names EVERY missing credential at once, in the appliance vocabulary', () => {

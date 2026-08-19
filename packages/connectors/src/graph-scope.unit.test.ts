@@ -20,7 +20,7 @@ import {
   scopePrefix,
   graphScopePrefix,
   directoryNotEnumerable,
-} from './graph-scope';
+} from './graph-scope.ts';
 
 const BASE = 'https://graph.microsoft.com/v1.0';
 

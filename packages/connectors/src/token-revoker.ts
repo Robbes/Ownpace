@@ -38,7 +38,7 @@ import {
   type RevocationOutcome,
   type TokenRevoker,
 } from '@openmig/shared';
-import type { TokenFetch } from './google-token-provider';
+import type { TokenFetch } from './google-token-provider.ts';
 
 /**
  * Google's OAuth 2.0 revocation endpoint.

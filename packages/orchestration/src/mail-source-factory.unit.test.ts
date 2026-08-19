@@ -20,7 +20,7 @@ import { GraphMailSource } from '@openmig/connectors';
 import {
   STORED_CREDENTIAL_NAMES,
   buildGraphMailSourceFrom,
-} from './mail-source-factory';
+} from './mail-source-factory.ts';
 
 const TENANT = { tenantId: 'contoso.example' };
 

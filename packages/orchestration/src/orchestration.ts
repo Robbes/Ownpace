@@ -44,8 +44,8 @@ import {
   fileNaturalKeyHash,
 } from '@openmig/shared';
 import type { TargetReindexer } from '@openmig/shared';
-import { buildDeps, buildDomainDeps, type LedgerOptions } from './build-deps';
-import { discoverDomains, type DomainDiscoveryTask, type DomainDiscoveryOutcome } from './discovery';
+import { buildDeps, buildDomainDeps, type LedgerOptions } from './build-deps.ts';
+import { discoverDomains, type DomainDiscoveryTask, type DomainDiscoveryOutcome } from './discovery.ts';
 import { log, metrics as registry, MAX_ITEM_ATTEMPTS, type PassMetrics } from '@openmig/shared';
 
 /**

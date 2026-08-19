@@ -13,8 +13,8 @@
 // - Idempotency: run twice, second run creates 0 items
 
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
-import { CalDAVSource } from './caldav-source';
-import type { CalDAVSourceConfig } from './caldav-source.types';
+import { CalDAVSource } from './caldav-source.ts';
+import type { CalDAVSourceConfig } from './caldav-source.types.ts';
 import type { RawCalendarEvent as _RawCalendarEvent } from '@openmig/shared';
 
 // Nextcloud CalDAV configuration from Testcontainers

@@ -10,7 +10,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { OAuth2Token, TokenProvider } from '@openmig/shared';
-import { googleDriveTransport, type DriveFetch } from './google-drive-transport';
+import { googleDriveTransport, type DriveFetch } from './google-drive-transport.ts';
 
 function tokenProvider(tokens: string[]): TokenProvider & { minted: number } {
   const queue = [...tokens];

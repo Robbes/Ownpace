@@ -28,7 +28,7 @@ import {
   type TargetReindexer,
   type TargetEntry,
 } from '@openmig/shared';
-import { createRealVerificationDeps } from './verification-implementations';
+import { createRealVerificationDeps } from './verification-implementations.ts';
 
 const TENANT = asTenantId('5f6e0000-e29b-41d4-a716-4466554434a1' as never);
 const MAPPING = asMappingId('5f6e0000-e29b-41d4-a716-4466554434a2' as never);

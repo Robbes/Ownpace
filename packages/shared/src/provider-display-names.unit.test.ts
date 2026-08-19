@@ -19,7 +19,7 @@ import {
   providerDisplayName,
   providerDisplayNamesCoverEveryType,
   typesNeedingDisplayNames,
-} from './credential-fields';
+} from './credential-fields.ts';
 
 describe('provider display names', () => {
   it('cover every type the product can connect to', () => {

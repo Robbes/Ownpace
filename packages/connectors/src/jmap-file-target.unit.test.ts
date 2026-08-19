@@ -34,7 +34,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { RawFileItem, TargetEntry } from '@openmig/shared';
 import { fileNaturalKeyHash, fileContentHash } from '@openmig/shared';
-import { JmapFileTarget } from './jmap-file-target';
+import { JmapFileTarget } from './jmap-file-target.ts';
 
 /**
  * The session document this writer connects against.

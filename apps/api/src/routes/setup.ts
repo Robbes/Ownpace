@@ -23,9 +23,9 @@ import {
 } from '@openmig/shared';
 import { PgLedger } from '@openmig/ledger';
 import type { TenantId } from '@openmig/shared';
-import { authenticate, getDbPool, withTenantDb } from '../middleware/auth';
-import type { AuthenticatedRequest } from '../types/api';
-import { serverFault } from '../server-fault';
+import { authenticate, getDbPool, withTenantDb } from '../middleware/auth.ts';
+import type { AuthenticatedRequest } from '../types/api.ts';
+import { serverFault } from '../server-fault.ts';
 
 const router = Router();
 

@@ -15,9 +15,9 @@ import {
   type SetupStepRow,
   type ShareGrantRow,
 } from '@openmig/shared';
-import type { PgDatabase } from './db';
+import type { PgDatabase } from './db.ts';
 import { eq, and, ne, gt, gte, isNull, isNotNull, or, desc, sql } from 'drizzle-orm';
-import * as schemaPg from './schema-pg';
+import * as schemaPg from './schema-pg.ts';
 
 /**
  * SQL-backed idempotency ledger for PostgreSQL — workplan 0001, T0.

@@ -28,8 +28,8 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { createPgDb, PgLedger } from '@openmig/ledger';
 import { asTenantId, asMappingId } from '@openmig/shared';
-import { MemorySource, MemoryTarget } from './__testing__/memory';
-import { runShadowPass } from './reconcile';
+import { MemorySource, MemoryTarget } from './__testing__/memory.ts';
+import { runShadowPass } from './reconcile.ts';
 
 const PG_CONNECTION_STRING = process.env.TEST_DATABASE_URL;
 if (!PG_CONNECTION_STRING) {

@@ -35,10 +35,10 @@
 
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { createPgDb } from '../../ledger/src/db';
-import { PgLedger } from '../../ledger/src/ledger';
-import { JmapContactTarget } from '../../connectors/src/jmap-contact-target';
-import { runContactSync } from './dav-sync';
+import { createPgDb } from '../../ledger/src/db.ts';
+import { PgLedger } from '../../ledger/src/ledger.ts';
+import { JmapContactTarget } from '../../connectors/src/jmap-contact-target.ts';
+import { runContactSync } from './dav-sync.ts';
 import {
   asTenantId,
   asMappingId,

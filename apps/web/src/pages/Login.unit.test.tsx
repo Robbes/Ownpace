@@ -4,8 +4,8 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import Login, { decodeTokenClaims } from './Login';
-import { useAuthStore } from '../stores/auth-store';
+import Login, { decodeTokenClaims } from './Login.tsx';
+import { useAuthStore } from '../stores/auth-store.ts';
 
 const navigateMock = vi.fn();
 vi.mock('react-router', async () => {

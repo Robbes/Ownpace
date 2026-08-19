@@ -21,7 +21,7 @@ import {
   renderEvent,
   wantsAttention,
   type MappingAttention,
-} from './notifications';
+} from './notifications.ts';
 
 const quiet: MappingAttention = {
   mappingId: 'acme-mail',

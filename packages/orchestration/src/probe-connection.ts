@@ -25,31 +25,31 @@
 import { isCredentialRefusal } from '@openmig/shared';
 import type { SourceConfig, ProbeOutcome, ProbeUnit } from '@openmig/shared';
 import { CalDAVSource, CarddavSource, WebdavFileSource } from '@openmig/connectors';
-import { buildImapSourceFrom } from './mail-source-factory';
+import { buildImapSourceFrom } from './mail-source-factory.ts';
 import {
   buildFileSourceFromConnection,
   buildSourceConnectorFromCredentials,
-} from './build-deps-from-mapping';
-import { GMAIL_CONNECTION_KIND, STORED_GMAIL_CREDENTIAL_NAMES, buildGmailSourceFrom } from './gmail-source-factory';
+} from './build-deps-from-mapping.ts';
+import { GMAIL_CONNECTION_KIND, STORED_GMAIL_CREDENTIAL_NAMES, buildGmailSourceFrom } from './gmail-source-factory.ts';
 import {
   DROPBOX_CONNECTION_KIND,
   STORED_DROPBOX_CREDENTIAL_NAMES,
   buildDropboxSourceFrom,
-} from './dropbox-source-factory';
-import { BOX_CONNECTION_KIND } from './box-source-factory';
+} from './dropbox-source-factory.ts';
+import { BOX_CONNECTION_KIND } from './box-source-factory.ts';
 import {
   GOOGLE_DRIVE_CONNECTION_KIND,
   STORED_GOOGLE_CREDENTIAL_NAMES,
   buildGoogleDriveSourceFrom,
-} from './drive-source-factory';
+} from './drive-source-factory.ts';
 import {
   GOOGLE_CALENDAR_CONNECTION_KIND,
   GOOGLE_CONTACTS_CONNECTION_KIND,
   STORED_GOOGLE_DAV_CREDENTIAL_NAMES,
   buildGoogleCalendarDavSourceFrom,
   buildGoogleContactsDavSourceFrom,
-} from './google-dav-source-factory';
-import { davEndpointFromCreds } from './dav-endpoint';
+} from './google-dav-source-factory.ts';
+import { davEndpointFromCreds } from './dav-endpoint.ts';
 
 /**
  * One probe's outcome. Never a throw for a provider-side failure: "your

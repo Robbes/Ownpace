@@ -19,7 +19,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { startupHint } from './index';
+import { startupHint } from './index.ts';
 
 describe('startupHint', () => {
   it('explains an EACCES on the state volume in terms an operator can act on', () => {

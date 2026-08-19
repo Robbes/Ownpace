@@ -14,26 +14,26 @@ import morgan from 'morgan';
 import { runMigrations, migrationConnectionString, poolerInFront } from '@openmig/ledger';
 
 // Import types
-import type { AuthenticatedRequest, JwtPayload } from './types/api';
+import type { AuthenticatedRequest, JwtPayload } from './types/api.ts';
 
 // Import routes
 // NOTE: there is deliberately no Trigger.dev webhook route (0020 T7). The old
 // /api/webhooks/trigger was an unauthenticated no-op sink expecting a payload
 // shape the self-hosted v4 platform never sends; job state lands on
 // verification_run/apply_receipt rows by the jobs themselves.
-import tenantRoutes from './routes/tenants/index';
-import mappingRoutes from './routes/migrations/index';
-import decisionRoutes from './routes/decisions';
-import sharedAddressRoutes from './routes/shared-addresses';
-import permissionRoutes from './routes/permissions';
-import billingRoutes from './routes/billing/index';
-import billingWebhookRoutes from './routes/billing/webhooks';
-import scopeManifestRoutes from './routes/scope-manifest';
-import setupRoutes from './routes/setup';
-import connectionRoutes from './routes/connections';
-import { assertProductionAuthConfig } from './middleware/auth';
-import { assertProductionUrlConfig } from './config-guards';
-import { serverFault } from './server-fault';
+import tenantRoutes from './routes/tenants/index.ts';
+import mappingRoutes from './routes/migrations/index.ts';
+import decisionRoutes from './routes/decisions.ts';
+import sharedAddressRoutes from './routes/shared-addresses.ts';
+import permissionRoutes from './routes/permissions.ts';
+import billingRoutes from './routes/billing/index.ts';
+import billingWebhookRoutes from './routes/billing/webhooks.ts';
+import scopeManifestRoutes from './routes/scope-manifest.ts';
+import setupRoutes from './routes/setup.ts';
+import connectionRoutes from './routes/connections.ts';
+import { assertProductionAuthConfig } from './middleware/auth.ts';
+import { assertProductionUrlConfig } from './config-guards.ts';
+import { serverFault } from './server-fault.ts';
 import { buildIdentity } from '@openmig/core';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
 import { runManagedMigrations } from '@openmig/managed';

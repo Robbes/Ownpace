@@ -38,8 +38,8 @@ import {
   validateSecretKey,
   parseEncryptedSecret,
   serializeEncryptedSecret,
-  EncryptedSecret,
-} from './secrets';
+  type EncryptedSecret,
+} from './secrets.ts';
 
 // Test encryption key (32 bytes / 256 bits in hex = 64 chars)
 const TEST_KEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';

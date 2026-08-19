@@ -19,7 +19,7 @@ import {
   STORED_GMAIL_CREDENTIAL_NAMES,
   buildGmailSourceFrom,
   gmailVisibleFolders,
-} from './gmail-source-factory';
+} from './gmail-source-factory.ts';
 
 const CREDS = {
   clientId: 'client-1.apps.googleusercontent.com',

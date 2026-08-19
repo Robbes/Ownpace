@@ -29,8 +29,8 @@
  */
 
 import { and, eq } from 'drizzle-orm';
-import type { PgDatabase } from './db-types';
-import * as schemaPg from './schema-pg';
+import type { PgDatabase } from './db-types.ts';
+import * as schemaPg from './schema-pg.ts';
 import type { TenantId } from '@openmig/shared';
 
 /** What to do when a decision in this category is raised. */

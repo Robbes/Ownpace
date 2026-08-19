@@ -24,12 +24,12 @@
 import { CREDENTIAL_STORE_NL, CredentialRefusalError, missingAccountAddress } from '@openmig/shared';
 import type { CalendarSource, ContactSource, TokenProvider } from '@openmig/shared';
 import { CalDAVSource, CarddavSource, GoogleTokenProvider } from '@openmig/connectors';
-import type { GoogleCredentialNaming, GoogleCredentialsAsFound } from './drive-source-factory';
+import type { GoogleCredentialNaming, GoogleCredentialsAsFound } from './drive-source-factory.ts';
 import {
   ENV_GOOGLE_DWD_KEY_NAME,
   STORED_GOOGLE_DWD_KEY_NAME,
   dwdTokenProviderIfConfigured,
-} from './google-dwd';
+} from './google-dwd.ts';
 
 /** The scope Google's CalDAV v2 endpoint requires. */
 export const GOOGLE_CALDAV_SCOPE = 'https://www.googleapis.com/auth/calendar';

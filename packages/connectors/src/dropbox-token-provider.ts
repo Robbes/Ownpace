@@ -20,7 +20,7 @@
  */
 
 import type { OAuth2Token, TokenProvider, TokenStatus } from '@openmig/shared';
-import type { TokenFetch } from './google-token-provider';
+import type { TokenFetch } from './google-token-provider.ts';
 
 const DROPBOX_TOKEN_ENDPOINT = 'https://api.dropboxapi.com/oauth2/token';
 /** Same buffer as the other providers: re-mint well before a pass can outlive the token. */

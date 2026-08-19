@@ -24,9 +24,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runMigrations } from './migrate';
-import type { LedgerConnection, LedgerDriver } from './driver';
-import type { PgDatabase } from './db-types';
+import { runMigrations } from './migrate.ts';
+import type { LedgerConnection, LedgerDriver } from './driver.ts';
+import type { PgDatabase } from './db-types.ts';
 
 /** A migrations directory with one trivial file. */
 function migrationsDirWith(...files: string[]): string {

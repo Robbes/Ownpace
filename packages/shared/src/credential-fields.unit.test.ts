@@ -16,7 +16,7 @@ import {
   connectableTypes,
   credentialFieldsFor,
   secretFieldKeys,
-} from './credential-fields';
+} from './credential-fields.ts';
 
 describe('secrets', () => {
   it('marks every value that must never be rendered in the clear', () => {

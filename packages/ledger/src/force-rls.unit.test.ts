@@ -27,10 +27,10 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { pgliteDriver } from './pglite-driver';
-import { runMigrations } from './migrate';
-import { withTenant } from './db';
-import type { LedgerDriver } from './driver';
+import { pgliteDriver } from './pglite-driver.ts';
+import { runMigrations } from './migrate.ts';
+import { withTenant } from './db.ts';
+import type { LedgerDriver } from './driver.ts';
 
 const TENANT_A = '5d3b0000-e29b-41d4-a716-446655441501';
 const TENANT_B = '5d3b0000-e29b-41d4-a716-446655441502';

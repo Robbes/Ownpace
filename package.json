@@ -9,8 +9,8 @@
   },
   "scripts": {
     "lint": "eslint . --cache --cache-strategy content",
-    "typecheck": "tsc --noEmit && pnpm --filter @openmig/web typecheck",
-    "bench:pglite": "pnpm --filter @openmig/ledger exec tsx ../../scripts/bench-pglite-concurrency.mjs",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p test/ui && pnpm --filter @openmig/web typecheck",
+    "bench:pglite": "pnpm --filter @openmig/ledger exec node ../../scripts/bench-pglite-concurrency.mjs",
     "package:appliance": "pnpm --filter @openmig/web build:selfhost && node scripts/package-appliance.mjs",
     "test": "vitest run --project unit --project unit-browser",
     "test:integration": "vitest run --project integration --no-file-parallelism",

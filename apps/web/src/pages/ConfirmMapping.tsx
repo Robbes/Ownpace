@@ -13,7 +13,7 @@
  */
 import React from 'react';
 import { useParams, useNavigate, Navigate } from 'react-router';
-import { ConfirmMigration } from '../components/ConfirmMigration';
+import { ConfirmMigration } from '../components/ConfirmMigration.tsx';
 
 const ConfirmMapping: React.FC = () => {
   const { mappingId } = useParams();

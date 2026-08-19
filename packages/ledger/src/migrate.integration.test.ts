@@ -11,7 +11,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { Pool } from 'pg';
-import { runMigrations, listMigrationVersions } from './migrate';
+import { runMigrations, listMigrationVersions } from './migrate.ts';
 
 const ADMIN_URL = process.env.TEST_DATABASE_URL;
 if (!ADMIN_URL) {

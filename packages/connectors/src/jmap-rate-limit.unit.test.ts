@@ -14,9 +14,9 @@
 // the retry shows up here rather than as failed items in a migration window.
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { JmapTargetWriter } from './jmap-target';
-import { loadJmapSession } from './jmap-session';
-import { RATE_LIMIT_MAX_WAIT_MS, RATE_LIMIT_TOTAL_BUDGET_MS } from './http-rate-limit';
+import { JmapTargetWriter } from './jmap-target.ts';
+import { loadJmapSession } from './jmap-session.ts';
+import { RATE_LIMIT_MAX_WAIT_MS, RATE_LIMIT_TOTAL_BUDGET_MS } from './http-rate-limit.ts';
 
 const CONFIG = {
   baseUrl: 'https://mail.example.com',

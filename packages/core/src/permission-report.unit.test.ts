@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { PermissionGrant } from '@openmig/shared';
-import { renderPermissionReport } from './permission-report';
+import { renderPermissionReport } from './permission-report.ts';
 
 const grant = (overrides: Partial<PermissionGrant> = {}): PermissionGrant => ({
   subject: 'calendar',

@@ -32,7 +32,7 @@ let DIGEST_RECIPIENTS_SQL: string;
 
 beforeAll(async () => {
   process.env.DATABASE_URL ??= 'postgres://unused:unused@127.0.0.1:5432/none';
-  const mod = await import('./managed-digest');
+  const mod = await import('./managed-digest.ts');
   ACTIVE_TENANTS_SQL = mod.ACTIVE_TENANTS_SQL;
   DIGEST_RECIPIENTS_SQL = mod.DIGEST_RECIPIENTS_SQL;
 });

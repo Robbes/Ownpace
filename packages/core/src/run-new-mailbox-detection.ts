@@ -27,7 +27,7 @@
  */
 
 import type { RaiseDecisionInput, TenantId } from '@openmig/shared';
-import { detectNewMailboxes, type DirectoryListing } from './detect-new-mailboxes';
+import { detectNewMailboxes, type DirectoryListing } from './detect-new-mailboxes.ts';
 
 export interface DetectionDeps {
   readonly tenantId: TenantId;

@@ -12,12 +12,12 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 import { sql } from 'drizzle-orm';
-import { createPgDb } from '../../../packages/ledger/src/db';
-import { PgLedger } from '../../../packages/ledger/src/ledger';
-import { ImapFlowSource } from '../../../packages/connectors/src/imapflow-source';
-import { JmapTargetWriter } from '../../../packages/connectors/src/jmap-target';
-import { runShadowPass } from '../../../packages/core/src/reconcile';
-import { reindexFromTarget } from '../../../packages/core/src/reindex';
+import { createPgDb } from '../../../packages/ledger/src/db.ts';
+import { PgLedger } from '../../../packages/ledger/src/ledger.ts';
+import { ImapFlowSource } from '../../../packages/connectors/src/imapflow-source.ts';
+import { JmapTargetWriter } from '../../../packages/connectors/src/jmap-target.ts';
+import { runShadowPass } from '../../../packages/core/src/reconcile.ts';
+import { reindexFromTarget } from '../../../packages/core/src/reindex.ts';
 import { asTenantId, asMappingId, type MailItem } from '@openmig/shared';
 import {
   withImapTestClient,
@@ -25,7 +25,7 @@ import {
   purgeMailbox,
   seedMailbox,
   type ImapTestClientConfig,
-} from '../../../packages/testing/src/imap-test-client';
+} from '../../../packages/testing/src/imap-test-client.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

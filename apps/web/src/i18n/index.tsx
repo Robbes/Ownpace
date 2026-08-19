@@ -9,8 +9,8 @@
  */
 
 import React from 'react';
-import { STRINGS, type Locale, type StringKey } from './strings';
-import { formatRelativeToNow, formatDateTime, formatNumber, formatCurrency } from './datetime';
+import { STRINGS, type Locale, type StringKey } from './strings.ts';
+import { formatRelativeToNow, formatDateTime, formatNumber, formatCurrency } from './datetime.ts';
 
 const STORAGE_KEY = 'openmig.locale';
 

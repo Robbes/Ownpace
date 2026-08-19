@@ -1,6 +1,6 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
-import { useAuthStore } from '../stores/auth-store';
+import { useAuthStore } from '../stores/auth-store.ts';
 
 /**
  * Clear all auth state on an unauthorized response. The token is mirrored in the

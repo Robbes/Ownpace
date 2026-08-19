@@ -16,8 +16,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { AxiosError, AxiosHeaders } from 'axios';
 import { credentialFieldsFor, wizardTypeForConnectionKind } from '@openmig/shared';
-import type { ConnectionSummary } from '../services/mapping-service';
-import { STRINGS } from '../i18n/strings';
+import type { ConnectionSummary } from '../services/mapping-service.ts';
+import { STRINGS } from '../i18n/strings.ts';
 
 /** An axios-shaped 400, the way the real apiClient delivers a refusal. */
 const axiosStatus = (status: number, statusText: string, data: unknown): AxiosError => {
@@ -55,7 +55,7 @@ vi.mock('../services/mapping-service', () => ({
   connectionsApi: { list, test: testConnection, rotate, remove },
 }));
 
-import Connections from './Connections';
+import Connections from './Connections.tsx';
 
 const conn = (over: Partial<ConnectionSummary> = {}): ConnectionSummary => ({
   id: 'c1',

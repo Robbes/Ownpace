@@ -21,8 +21,8 @@
  * gone would tell an operator their mistake is recoverable when it is not.
  */
 
-import { readEtag, ownershipOf } from './dav-target-version';
-import { requestWithDavRetry } from './dav-retry';
+import { readEtag, ownershipOf } from './dav-target-version.ts';
+import { requestWithDavRetry } from './dav-retry.ts';
 import type { RemovalResult, RemovalKind } from '@openmig/shared';
 
 /**

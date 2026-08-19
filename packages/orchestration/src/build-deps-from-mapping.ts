@@ -33,44 +33,44 @@ import {
   buildCalendarTarget,
   buildContactSource,
   buildFileSource,
-} from './dav-factories';
-import { davEndpointFromCreds, fileEndpointFromCreds } from './dav-endpoint';
-import { buildContactTargetFor, contactTargetProtocol } from './contact-target-factory';
-import { buildFileTargetFor, fileTargetProtocol } from './file-target-factory';
+} from './dav-factories.ts';
+import { davEndpointFromCreds, fileEndpointFromCreds } from './dav-endpoint.ts';
+import { buildContactTargetFor, contactTargetProtocol } from './contact-target-factory.ts';
+import { buildFileTargetFor, fileTargetProtocol } from './file-target-factory.ts';
 import {
   GOOGLE_DRIVE_CONNECTION_KIND,
   STORED_GOOGLE_CREDENTIAL_NAMES,
   buildGoogleDriveSourceFrom,
-} from './drive-source-factory';
+} from './drive-source-factory.ts';
 import {
   DROPBOX_CONNECTION_KIND,
   STORED_DROPBOX_CREDENTIAL_NAMES,
   buildDropboxSourceFrom,
-} from './dropbox-source-factory';
+} from './dropbox-source-factory.ts';
 import {
   BOX_CONNECTION_KIND,
   STORED_BOX_CREDENTIAL_NAMES,
   buildBoxSourceFrom,
-} from './box-source-factory';
-import { STORED_GMAIL_CREDENTIAL_NAMES, buildGmailSourceFrom } from './gmail-source-factory';
+} from './box-source-factory.ts';
+import { STORED_GMAIL_CREDENTIAL_NAMES, buildGmailSourceFrom } from './gmail-source-factory.ts';
 import {
   GOOGLE_CALENDAR_CONNECTION_KIND,
   GOOGLE_CONTACTS_CONNECTION_KIND,
   STORED_GOOGLE_DAV_CREDENTIAL_NAMES,
   buildGoogleCalendarDavSourceFrom,
   buildGoogleContactsDavSourceFrom,
-} from './google-dav-source-factory';
+} from './google-dav-source-factory.ts';
 import { PgLedger, PgCursorStore, createPgDb, withTenant } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import { mailboxMapping } from '@openmig/ledger';
-import { withClose, type WithClose } from './deps-lifecycle';
+import { withClose, type WithClose } from './deps-lifecycle.ts';
 import {
   STORED_CREDENTIAL_NAMES,
   buildGraphMailSourceFrom,
   buildImapSourceFrom,
   withGraphFallback,
-} from './mail-source-factory';
-import { buildJmapTargetFrom, buildImapDavTargetFrom } from './mail-target-factory';
+} from './mail-source-factory.ts';
+import { buildJmapTargetFrom, buildImapDavTargetFrom } from './mail-target-factory.ts';
 
 /**
  * Build dependencies from database-stored connections with encrypted credentials.

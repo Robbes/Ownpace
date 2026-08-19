@@ -33,8 +33,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import CreateMapping from './CreateMapping';
-import { connectionsApi, mappingApi } from '../services/mapping-service';
+import CreateMapping from './CreateMapping.tsx';
+import { connectionsApi, mappingApi } from '../services/mapping-service.ts';
 
 vi.mock('../services/mapping-service', () => ({
   mappingApi: { create: vi.fn(), testConnection: vi.fn() },

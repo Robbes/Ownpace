@@ -24,8 +24,8 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Pool } from 'pg';
-import { pgDriver, withTenant } from './db';
-import { connection } from './schema-pg';
+import { pgDriver, withTenant } from './db.ts';
+import { connection } from './schema-pg.ts';
 
 const URL = process.env.TEST_DATABASE_URL;
 if (!URL) {

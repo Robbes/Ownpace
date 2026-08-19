@@ -42,8 +42,8 @@ const getAppUserConnectionString = (originalUrl: string): string => {
 };
 process.env.APP_DATABASE_URL = getAppUserConnectionString(PG_CONNECTION_STRING);
 
-import app from '../../index.js';
-import { seedMembership } from '../../__tests__/seed-membership.js';
+import app from '../../index.ts';
+import { seedMembership } from '../../__tests__/seed-membership.ts';
 // import * as schema from '@open-migrate/ledger'; // Not needed - using raw SQL queries
 
 // UUIDs for migration tests

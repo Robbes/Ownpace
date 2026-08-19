@@ -17,7 +17,7 @@ import {
   hrefRelativeTo,
   unescapeXml,
   extractUid,
-} from './dav-multistatus';
+} from './dav-multistatus.ts';
 
 describe('parseMultiStatus', () => {
   it('reads responses whatever prefix the server binds DAV: to', () => {

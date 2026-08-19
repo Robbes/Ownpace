@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadConfigDir } from './config-dir';
+import { loadConfigDir } from './config-dir.ts';
 
 function validConfig(mappingId: string): string {
   return JSON.stringify({

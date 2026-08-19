@@ -24,8 +24,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { Pool } from 'pg';
 import { log as appLog } from '@openmig/shared';
-import { pgDriver } from './db';
-import type { LedgerConnection, LedgerDriver } from './driver';
+import { pgDriver } from './db.ts';
+import type { LedgerConnection, LedgerDriver } from './driver.ts';
 
 /** Dedicated advisory-lock key for schema migrations (distinct from app locks). */
 const MIGRATION_ADVISORY_LOCK_KEY = 727_0010;

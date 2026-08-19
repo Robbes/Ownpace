@@ -21,8 +21,8 @@ import {
   readMessageId,
   isGeneratedMessageId,
   GENERATED_MESSAGE_ID_DOMAIN,
-} from './generated-message-id';
-import { naturalKeyHash } from './hash';
+} from './generated-message-id.ts';
+import { naturalKeyHash } from './hash.ts';
 
 const enc = (s: string) => new TextEncoder().encode(s);
 const dec = (b: Uint8Array) => new TextDecoder().decode(b);

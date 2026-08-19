@@ -128,7 +128,7 @@ function maybeFail(): void {
 }
 
 // Imported AFTER the mock is declared, the way vitest hoisting requires.
-const { ImapFlowSource, isCertificateError } = await import('./imapflow-source');
+const { ImapFlowSource, isCertificateError } = await import('./imapflow-source.ts');
 
 function source(extra: Record<string, unknown> = {}) {
   return new ImapFlowSource({

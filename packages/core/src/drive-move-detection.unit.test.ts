@@ -33,8 +33,8 @@ import {
   type UpsertResult,
   type FileFolder,
 } from '@openmig/shared';
-import { runFileSync } from './dav-sync';
-import { MemoryLedger, MemoryCursorStore } from './__testing__/memory';
+import { runFileSync } from './dav-sync.ts';
+import { MemoryLedger, MemoryCursorStore } from './__testing__/memory.ts';
 
 const TENANT = asTenantId('a7d40000-e29b-41d4-a716-4466554409aa');
 const MAPPING = asMappingId('a7d40000-e29b-41d4-a716-4466554409bb');

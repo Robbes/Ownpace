@@ -34,7 +34,7 @@ import {
   ENV_GOOGLE_DWD_KEY_NAME,
   STORED_GOOGLE_DWD_KEY_NAME,
   dwdTokenProviderIfConfigured,
-} from './google-dwd';
+} from './google-dwd.ts';
 
 /**
  * Where the Drive is, with no trace of whether a file or a database row said so.

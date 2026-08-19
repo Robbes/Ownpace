@@ -5,10 +5,9 @@
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "seed:managed": "tsx src/scripts/seed-managed.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
+    "dev": "node --watch src/index.ts",
+    "seed:managed": "node src/scripts/seed-managed.ts",
+    "start": "node src/index.ts",
     "test": "vitest run",
     "test:coverage": "vitest --coverage",
     "typecheck": "tsc --noEmit"
@@ -38,7 +37,6 @@
     "@types/morgan": "^1.9.9",
     "@types/node": "^26.2.0",
     "@typescript/native": "npm:typescript@7.0.2",
-    "tsx": "^4.23.12",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "vitest": "^4.1.10",
     "yaml": "^2.9.0"

@@ -20,7 +20,7 @@ import {
   withTenantNotificationPrefs,
   digestDueToday,
   DEFAULT_TENANT_NOTIFICATION_PREFS,
-} from './notifications';
+} from './notifications.ts';
 
 describe('reading a stored preference', () => {
   it('takes what was stored', () => {

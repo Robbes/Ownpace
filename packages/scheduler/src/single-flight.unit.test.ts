@@ -1,6 +1,6 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import { describe, it, expect } from 'vitest';
-import { SingleFlight } from './single-flight';
+import { SingleFlight } from './single-flight.ts';
 
 describe('SingleFlight', () => {
   it('reports running state and clears after completion', async () => {

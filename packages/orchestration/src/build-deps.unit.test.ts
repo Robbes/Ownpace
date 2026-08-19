@@ -8,7 +8,7 @@
 // "No supported authentication method(s) available".
 
 import { describe, it, expect, vi } from 'vitest';
-import { buildDeps, buildDomainDeps } from './build-deps';
+import { buildDeps, buildDomainDeps } from './build-deps.ts';
 import {
   GraphMailSource,
   MailSourceWithGraphFallback,

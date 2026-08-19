@@ -11,8 +11,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { HttpTokenRevoker, GOOGLE_REVOKE_ENDPOINT } from './token-revoker';
-import type { TokenFetch } from './google-token-provider';
+import { HttpTokenRevoker, GOOGLE_REVOKE_ENDPOINT } from './token-revoker.ts';
+import type { TokenFetch } from './google-token-provider.ts';
 
 /** Records what was sent, so the assertions can be about the request. */
 function recordingFetch(

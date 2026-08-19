@@ -18,8 +18,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Pool } from 'pg';
 import { asTenantId, asMappingId } from '@openmig/shared';
-import { createPgDb } from './db';
-import { RunStore } from './run-store';
+import { createPgDb } from './db.ts';
+import { RunStore } from './run-store.ts';
 
 const PG_CONNECTION_STRING = process.env.TEST_DATABASE_URL;
 if (!PG_CONNECTION_STRING) {

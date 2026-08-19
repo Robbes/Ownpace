@@ -13,9 +13,9 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { GraphContactsSource } from './graph-contacts-source';
-import type { GraphContactsSourceConfig as _GraphContactsSourceConfig } from './graph-contacts-source.types';
-import type { HttpClient, HttpResponse } from './dav-http.types';
+import { GraphContactsSource } from './graph-contacts-source.ts';
+import type { GraphContactsSourceConfig as _GraphContactsSourceConfig } from './graph-contacts-source.types.ts';
+import type { HttpClient, HttpResponse } from './dav-http.types.ts';
 import type { TokenProvider, OAuth2Token } from '@openmig/shared';
 
 // Mock token provider

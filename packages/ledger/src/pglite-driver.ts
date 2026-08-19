@@ -56,10 +56,10 @@ import { PGlite } from '@electric-sql/pglite';
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
 import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
 
-import * as schemaPg from './schema-pg';
+import * as schemaPg from './schema-pg.ts';
 import { log } from '@openmig/shared';
-import { assertRoleName, type LedgerConnection, type LedgerDriver } from './driver';
-import type { PgDatabase } from './db-types';
+import { assertRoleName, type LedgerConnection, type LedgerDriver } from './driver.ts';
+import type { PgDatabase } from './db-types.ts';
 
 export interface PgliteDriverOptions {
   /**

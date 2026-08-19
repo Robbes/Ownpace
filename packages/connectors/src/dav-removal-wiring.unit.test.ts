@@ -19,9 +19,9 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { CalDAVSource } from './caldav-source';
-import { CarddavSource } from './carddav-source';
-import type { HttpClient, HttpResponse } from './dav-http.types';
+import { CalDAVSource } from './caldav-source.ts';
+import { CarddavSource } from './carddav-source.ts';
+import type { HttpClient, HttpResponse } from './dav-http.types.ts';
 
 function client(response: HttpResponse): HttpClient {
   return { request: vi.fn().mockResolvedValue(response) };

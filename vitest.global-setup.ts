@@ -1,4 +1,4 @@
-import { startTestEnvironment, stopTestEnvironment } from './packages/testing/src/testcontainers-setup.js';
+import { startTestEnvironment, stopTestEnvironment } from './packages/testing/src/testcontainers-setup.ts';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -34,7 +34,10 @@ async function runMigration(postgresUrl: string): Promise<void> {
             EXISTS (SELECT 1 FROM information_schema.tables
                      WHERE table_schema = 'public' AND table_name = 'tenant_pricing') AS managed`);
 
-          if (result.rows[0].shared && result.rows[0].managed) {
+          // `EXISTS` always returns exactly one row, so this is never
+          // undefined — but say that rather than assert it away.
+          const present = result.rows[0] ?? { shared: false, managed: false };
+          if (present.shared && present.managed) {
             console.log('[Migration] Full schema already exists, skipping.');
             return;
           }
@@ -223,7 +226,7 @@ export default async function (ctx?: unknown) {
       console.error('[Vitest Global Teardown] Capturing diagnostics...');
       try {
         // Capture Stalwart diagnostics
-        const { captureContainerDiagnostics } = await import('./packages/testing/src/testcontainers-setup.js');
+        const { captureContainerDiagnostics } = await import('./packages/testing/src/testcontainers-setup.ts');
         await captureContainerDiagnostics(
           testEnv.stalwart.container,
           'stalwart-phase2-error',

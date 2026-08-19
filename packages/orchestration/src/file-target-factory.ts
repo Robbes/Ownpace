@@ -28,7 +28,7 @@
 import { WebDAVTargetWriter } from '@openmig/engines';
 import { JmapFileTarget } from '@openmig/connectors';
 import type { FileTargetWriter } from '@openmig/shared';
-import type { DavEndpoint, DavTargetDeps } from './dav-factories';
+import type { DavEndpoint, DavTargetDeps } from './dav-factories.ts';
 
 /** The protocols this product can carry files over. */
 export type FileTargetProtocol = 'webdav' | 'jmap';

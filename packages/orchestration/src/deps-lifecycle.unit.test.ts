@@ -1,8 +1,8 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 
 import { describe, it, expect, vi } from 'vitest';
-import { withClose } from './deps-lifecycle';
-import { buildDeps, buildDomainDeps } from './build-deps';
+import { withClose } from './deps-lifecycle.ts';
+import { buildDeps, buildDomainDeps } from './build-deps.ts';
 import type { MappingConfig } from '@openmig/shared';
 
 describe('withClose', () => {

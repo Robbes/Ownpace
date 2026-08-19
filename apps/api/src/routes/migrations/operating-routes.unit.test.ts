@@ -19,7 +19,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import router from './operating-routes';
+import router from './operating-routes.ts';
 
 interface Layer {
   route?: { path: string; methods: Record<string, boolean> };

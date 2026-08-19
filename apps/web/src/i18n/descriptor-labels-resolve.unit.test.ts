@@ -17,7 +17,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { connectableTypes, credentialFieldsFor } from '@openmig/shared';
-import { STRINGS } from './strings';
+import { STRINGS } from './strings.ts';
 
 const everyField = (['source', 'target'] as const).flatMap((role) =>
   connectableTypes(role).flatMap((type) =>

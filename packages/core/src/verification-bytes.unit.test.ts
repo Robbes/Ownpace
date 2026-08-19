@@ -14,7 +14,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { asTenantId, asMappingId } from '@openmig/shared';
-import { runVerification, type VerificationDeps } from './verification';
+import { runVerification, type VerificationDeps } from './verification.ts';
 
 const TENANT = asTenantId('5f5d0000-e29b-41d4-a716-4466554433a1' as never);
 const MAPPING = asMappingId('5f5d0000-e29b-41d4-a716-4466554433a2' as never);

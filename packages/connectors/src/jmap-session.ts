@@ -38,7 +38,7 @@
  * @see docs/workplans/0031-jmap-full-target.md — T4
  */
 
-import { fetchWithRateLimitRetry } from './http-rate-limit';
+import { fetchWithRateLimitRetry } from './http-rate-limit.ts';
 
 /** The fields every caller here reads off a session. */
 export interface JmapSessionLike {

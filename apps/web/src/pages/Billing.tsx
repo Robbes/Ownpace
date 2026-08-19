@@ -17,11 +17,11 @@
 import React from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { CreditCard, TrendingUp, DollarSign, FileText, AlertCircle, Loader2 } from 'lucide-react';
-import { billingApi, type Invoice } from '../services/billing-service';
-import { serverMessage } from '../services/api';
-import { useAuthStore } from '../stores/auth-store';
-import { useT, useFormatters } from '../i18n';
-import StateChip from '../components/StateChip';
+import { billingApi, type Invoice } from '../services/billing-service.ts';
+import { serverMessage } from '../services/api.ts';
+import { useAuthStore } from '../stores/auth-store.ts';
+import { useT, useFormatters } from '../i18n/index.tsx';
+import StateChip from '../components/StateChip.tsx';
 
 /** A failed read said as such (hard rule 9 / 0033 T2) — before this, a failed
  *  usage read rendered "No usage data available yet" and a failed invoices

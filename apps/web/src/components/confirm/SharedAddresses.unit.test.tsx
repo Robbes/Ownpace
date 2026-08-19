@@ -16,8 +16,8 @@ import { MemoryRouter } from 'react-router';
 const { fetchGroupRunbook } = vi.hoisted(() => ({ fetchGroupRunbook: vi.fn() }));
 vi.mock('../../services/operating-service', () => ({ fetchGroupRunbook }));
 
-import SharedAddresses from './SharedAddresses';
-import type { SharedAddressRow } from '../../services/operating-service';
+import SharedAddresses from './SharedAddresses.tsx';
+import type { SharedAddressRow } from '../../services/operating-service.ts';
 
 beforeEach(() => {
   vi.clearAllMocks();

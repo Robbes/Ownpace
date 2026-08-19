@@ -34,17 +34,17 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { getTableColumns, getTableName, is } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
-import { createPgliteDb } from './pglite-driver';
-import { runMigrations } from './migrate';
+import { createPgliteDb } from './pglite-driver.ts';
+import { runMigrations } from './migrate.ts';
 import { runManagedMigrations } from '@openmig/managed';
-import * as schemaPg from './schema-pg';
+import * as schemaPg from './schema-pg.ts';
 // The billing tables were declared in schema-pg.ts until ADR-0036 moved them to
 // @openmig/managed. There is still ONE database and ONE migration chain, so
 // there is still one guard over it — the import is test-only (a devDependency,
 // deliberately not a real one) and `covers every table the migrations create`
 // below fails if it is ever dropped.
 import * as schemaManaged from '@openmig/managed/schema-managed';
-import type { LedgerDriver, LedgerConnection } from './driver';
+import type { LedgerDriver, LedgerConnection } from './driver.ts';
 
 let driver: LedgerDriver;
 let conn: LedgerConnection;

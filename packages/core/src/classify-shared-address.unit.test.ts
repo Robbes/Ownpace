@@ -18,7 +18,7 @@ import {
   membersUsable,
   sharedAddressQuestion,
   sharedAddressAnswer,
-} from './classify-shared-address';
+} from './classify-shared-address.ts';
 
 const group = (overrides: Partial<DiscoveredGroup> = {}): DiscoveredGroup => ({
   id: 'g1',

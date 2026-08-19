@@ -46,7 +46,7 @@
  * @see scripts/jmap-target-spike.ts — where these URNs were established
  */
 
-import { loadJmapSession } from './jmap-session';
+import { loadJmapSession } from './jmap-session.ts';
 
 /** The four domains a mapping can carry. */
 export type JmapDomain = 'mail' | 'calendar' | 'contact' | 'file';

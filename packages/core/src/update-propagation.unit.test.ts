@@ -18,8 +18,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { classifyKnownItem, runDomainSync } from './domain-sync';
-import { MemoryLedger } from './__testing__/memory';
+import { classifyKnownItem, runDomainSync } from './domain-sync.ts';
+import { MemoryLedger } from './__testing__/memory.ts';
 import { asTenantId, asMappingId, type UpsertOptions, type UpsertResult } from '@openmig/shared';
 
 const TENANT = asTenantId('6b110000-e29b-41d4-a716-4466554401aa');

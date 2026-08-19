@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { directoryAvailability } from './directory-availability';
+import { directoryAvailability } from './directory-availability.ts';
 
 const TENANT = 'contoso.onmicrosoft.com';
 

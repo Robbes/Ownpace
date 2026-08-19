@@ -51,7 +51,7 @@ import {
   decryptSecret as doDecrypt,
   validateSecretKey,
   parseEncryptedSecret,
-  EncryptedSecret,
+  type EncryptedSecret,
 } from '@openmig/core/secrets';
 
 /**

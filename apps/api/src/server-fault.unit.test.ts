@@ -19,7 +19,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Response } from 'express';
 import { log } from '@openmig/shared';
-import { serverFault } from './server-fault';
+import { serverFault } from './server-fault.ts';
 
 /** Just enough Express Response to see what was sent. */
 function fakeRes() {

@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { enabledDomainsForMappings } from './enabled-domains';
+import { enabledDomainsForMappings } from './enabled-domains.ts';
 import type { Pool } from 'pg';
 
 const T1 = '7d1b0000-e29b-41d4-a716-446655441601';

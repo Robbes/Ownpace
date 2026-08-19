@@ -27,8 +27,8 @@ vi.mock('../services/mapping-service', () => ({
   },
 }));
 
-import { ConfirmMigration } from './ConfirmMigration';
-import { mappingApi } from '../services/mapping-service';
+import { ConfirmMigration } from './ConfirmMigration.tsx';
+import { mappingApi } from '../services/mapping-service.ts';
 
 function renderWithClient(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

@@ -29,8 +29,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { runDomainSync } from './domain-sync';
-import { MemoryLedger, MemoryCursorStore } from './__testing__/memory';
+import { runDomainSync } from './domain-sync.ts';
+import { MemoryLedger, MemoryCursorStore } from './__testing__/memory.ts';
 import { asTenantId, asMappingId, DELETION_CONFIRMATIONS, type UpsertResult } from '@openmig/shared';
 
 const TENANT = asTenantId('a1330000-e29b-41d4-a716-4466554402aa');

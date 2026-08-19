@@ -26,8 +26,8 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { Users } from 'lucide-react';
-import { useT } from '../../i18n';
-import { fetchGroupRunbook, type SharedAddressRow } from '../../services/operating-service';
+import { useT } from '../../i18n/index.tsx';
+import { fetchGroupRunbook, type SharedAddressRow } from '../../services/operating-service.ts';
 
 const PATTERN_KEY = {
   shared_s: 'sharedAddresses.pattern.shared_s',

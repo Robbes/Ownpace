@@ -19,13 +19,13 @@ import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ShieldCheck, ShieldOff } from 'lucide-react';
 import { APPLY_FLAG_WARNING, APPLY_FLAG_WARNING_NL } from '@openmig/shared';
-import { useLocale, useT } from '../../i18n';
-import { ActionButton, DestructiveButton, Refused } from './primitives';
+import { useLocale, useT } from '../../i18n/index.tsx';
+import { ActionButton, DestructiveButton, Refused } from './primitives.tsx';
 import {
   DecisionRefusedError,
   fetchApplyDeletionsFlag,
   setApplyDeletionsFlag,
-} from '../../services/operating-service';
+} from '../../services/operating-service.ts';
 
 export const ApplyDeletionsPanel: React.FC<{ mappingId: string }> = ({ mappingId }) => {
   const queryClient = useQueryClient();

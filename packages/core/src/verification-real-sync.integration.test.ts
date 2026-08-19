@@ -27,10 +27,10 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { createPgDb, PgLedger, createLedgerVerificationReader } from '@openmig/ledger';
 import { asTenantId, asMappingId } from '@openmig/shared';
-import { MemorySource, MemoryTarget } from './__testing__/memory';
-import { runShadowPass } from './reconcile';
-import { runVerification } from './verification';
-import { createRealVerificationDeps } from './verification-implementations';
+import { MemorySource, MemoryTarget } from './__testing__/memory.ts';
+import { runShadowPass } from './reconcile.ts';
+import { runVerification } from './verification.ts';
+import { createRealVerificationDeps } from './verification-implementations.ts';
 
 const PG_CONNECTION_STRING = process.env.TEST_DATABASE_URL;
 if (!PG_CONNECTION_STRING) {

@@ -37,7 +37,7 @@ vi.mock('../services/operating-service', () => ({
   startMigration,
 }));
 
-import Confirm from './Confirm';
+import Confirm from './Confirm.tsx';
 
 function status(migrationStatus: StatusReport['mappings'][number]['migrationStatus']): StatusReport {
   return {

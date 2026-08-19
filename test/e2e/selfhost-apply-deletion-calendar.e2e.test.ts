@@ -49,7 +49,7 @@ import {
   getDomainStatus,
   waitForNextPass,
   davAuthHeader,
-} from './apply-deletion-lib';
+} from './apply-deletion-lib.ts';
 
 describe('apply — calendar domain (CalDAV/Nextcloud)', () => {
   const EVENT_UID = 'dav-seed-event-2@dev.local';

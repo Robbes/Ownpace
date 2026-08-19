@@ -10,9 +10,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { WebdavFileSource } from './webdav-source';
-import type { WebDAVSourceConfig, PropfindResponseEntry } from './webdav-source.types';
-import type { HttpClient, HttpResponse } from './dav-http.types';
+import { WebdavFileSource } from './webdav-source.ts';
+import type { WebDAVSourceConfig, PropfindResponseEntry } from './webdav-source.types.ts';
+import type { HttpClient, HttpResponse } from './dav-http.types.ts';
 
 // Test configuration
 const testConfig: WebDAVSourceConfig = {

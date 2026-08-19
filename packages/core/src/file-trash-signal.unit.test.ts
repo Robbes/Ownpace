@@ -17,8 +17,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { runFileSync } from './dav-sync';
-import { MemoryLedger } from './__testing__/memory';
+import { runFileSync } from './dav-sync.ts';
+import { MemoryLedger } from './__testing__/memory.ts';
 import {
   asTenantId,
   asMappingId,

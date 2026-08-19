@@ -7,9 +7,9 @@
  */
 
 import type { TenantId, MappingId } from '@openmig/shared';
-import { createPgDb } from './db';
-import type { PgDatabase } from './db-types';
-import * as schema from './schema-pg';
+import { createPgDb } from './db.ts';
+import type { PgDatabase } from './db-types.ts';
+import * as schema from './schema-pg.ts';
 import { eq, and, sql, ne } from 'drizzle-orm';
 
 /**

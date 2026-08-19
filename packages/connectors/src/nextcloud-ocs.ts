@@ -25,7 +25,7 @@
  * The sharing queue shows that sentence verbatim and the row stays open.
  */
 
-import type { HttpClient } from './dav-http.types';
+import type { HttpClient } from './dav-http.types.ts';
 
 export interface NextcloudShareOptions {
   /** The WebDAV url the target connection already stores — any path on the server. */

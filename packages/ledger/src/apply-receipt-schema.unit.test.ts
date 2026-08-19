@@ -17,9 +17,9 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { pgliteDriver } from './pglite-driver';
-import { runMigrations } from './migrate';
-import type { LedgerDriver, LedgerConnection } from './driver';
+import { pgliteDriver } from './pglite-driver.ts';
+import { runMigrations } from './migrate.ts';
+import type { LedgerDriver, LedgerConnection } from './driver.ts';
 
 const TENANT = '5a4b0000-e29b-41d4-a716-446655441801';
 const CONN = '5a4b0000-e29b-41d4-a716-446655441811';

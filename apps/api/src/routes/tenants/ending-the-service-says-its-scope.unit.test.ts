@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { deleteTenantRefusal } from './index';
+import { deleteTenantRefusal } from './index.ts';
 import { erasureScopeText, erasureNeverTouches } from '@openmig/shared';
 
 describe('the refusal that redirects to close', () => {

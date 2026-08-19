@@ -1,8 +1,8 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import { describe, it, expect } from 'vitest';
 import { asMappingId, asTenantId, type ReconcileDeps } from '@openmig/shared';
-import { runShadowPass } from './reconcile';
-import { MemoryCursorStore, MemoryLedger, MemorySource, MemoryTarget } from './__testing__/memory';
+import { runShadowPass } from './reconcile.ts';
+import { MemoryCursorStore, MemoryLedger, MemorySource, MemoryTarget } from './__testing__/memory.ts';
 
 function seededSource(): MemorySource {
   const s = new MemorySource();

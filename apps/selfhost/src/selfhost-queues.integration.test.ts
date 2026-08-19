@@ -30,9 +30,9 @@ import { createHash } from 'node:crypto';
 
 import { createPgDb, PgLedger, PgDecisionStore } from '@openmig/ledger';
 import { asTenantId, asMappingId, MAX_ITEM_ATTEMPTS, wantsAttention } from '@openmig/shared';
-import { start, type SelfhostHandle } from './index';
-import { uuidFromString } from './config-dir';
-import { collectAttention } from './digest-collect';
+import { start, type SelfhostHandle } from './index.ts';
+import { uuidFromString } from './config-dir.ts';
+import { collectAttention } from './digest-collect.ts';
 
 const ADMIN_URL = process.env.TEST_DATABASE_URL;
 if (!ADMIN_URL) {

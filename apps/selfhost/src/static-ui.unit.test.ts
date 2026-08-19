@@ -17,7 +17,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { contentTypeFor, resolveWithinRoot, serveUi, UI_MOUNT } from './static-ui';
+import { contentTypeFor, resolveWithinRoot, serveUi, UI_MOUNT } from './static-ui.ts';
 
 let root: string;
 let outside: string;

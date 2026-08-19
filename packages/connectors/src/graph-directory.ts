@@ -16,8 +16,8 @@
  */
 
 import { log, type DirectoryListing } from '@openmig/shared';
-import type { HttpClient } from './dav-http.types';
-import { directoryNotEnumerable } from './graph-scope';
+import type { HttpClient } from './dav-http.types.ts';
+import { directoryNotEnumerable } from './graph-scope.ts';
 
 /** Just the fields the detector needs from a Graph user. */
 interface GraphUser {

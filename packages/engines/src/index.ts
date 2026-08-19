@@ -22,14 +22,14 @@ export const packageName = '@openmig/engines';
 export {
   CalDAVTargetWriter,
   type CalDAVTargetConfig,
-} from './caldav-target-writer';
+} from './caldav-target-writer.ts';
 
 export {
   CardDAVTargetWriter,
   type CardDAVTargetConfig,
-} from './carddav-target-writer';
+} from './carddav-target-writer.ts';
 
 export {
   WebDAVTargetWriter,
   type WebDAVTargetConfig,
-} from './webdav-target-writer';
+} from './webdav-target-writer.ts';

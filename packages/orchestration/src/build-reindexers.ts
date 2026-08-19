@@ -16,7 +16,7 @@
 
 import type { Pool } from 'pg';
 import type { TargetReindexer } from '@openmig/shared';
-import { buildDomainDepsFromMapping } from './build-deps-from-mapping';
+import { buildDomainDepsFromMapping } from './build-deps-from-mapping.ts';
 import { log } from '@openmig/shared';
 
 /** Domains the verification gate knows about. */

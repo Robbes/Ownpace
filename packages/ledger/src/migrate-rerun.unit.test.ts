@@ -18,9 +18,9 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { pgliteDriver } from './pglite-driver';
-import { runMigrations } from './migrate';
-import type { LedgerDriver } from './driver';
+import { pgliteDriver } from './pglite-driver.ts';
+import { runMigrations } from './migrate.ts';
+import type { LedgerDriver } from './driver.ts';
 
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
 

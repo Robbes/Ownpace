@@ -21,7 +21,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { loadJmapSession } from './jmap-session';
+import { loadJmapSession } from './jmap-session.ts';
 
 const URL_UNDER_TEST = 'http://jmap.test/.well-known/jmap';
 const AUTH = 'Basic dGFyZ2V0OnB3';

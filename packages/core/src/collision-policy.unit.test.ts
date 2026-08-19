@@ -20,9 +20,9 @@
 
 import { describe, it, expect } from 'vitest';
 import { parseMappingConfig } from '@openmig/shared';
-import { runShadowPass } from './reconcile';
-import { MemorySource, MemoryTarget } from './__testing__/memory';
-import { MemoryLedger } from './__testing__/memory';
+import { runShadowPass } from './reconcile.ts';
+import { MemorySource, MemoryTarget } from './__testing__/memory.ts';
+import { MemoryLedger } from './__testing__/memory.ts';
 import { asTenantId, asMappingId } from '@openmig/shared';
 
 const TENANT = asTenantId('9d360000-e29b-41d4-a716-446655440001' as never);

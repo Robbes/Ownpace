@@ -20,7 +20,7 @@ import {
   versionOf,
   CALENDAR_FINGERPRINT_VERSION,
   CONTACT_FINGERPRINT_VERSION,
-} from './dav-canonical';
+} from './dav-canonical.ts';
 
 const EVENT = [
   'BEGIN:VCALENDAR',

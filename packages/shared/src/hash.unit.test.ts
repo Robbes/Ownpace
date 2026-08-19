@@ -1,6 +1,6 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import { describe, it, expect } from 'vitest';
-import { naturalKeyHash, normalizeMessageId, contentHash } from './hash';
+import { naturalKeyHash, normalizeMessageId, contentHash } from './hash.ts';
 
 describe('hash helpers', () => {
   it('natural key ignores angle brackets and surrounding whitespace', () => {

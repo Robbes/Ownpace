@@ -51,7 +51,7 @@ vi.mock('./pages/Verify', () => ({ default: () => <div>screen:verify</div> }));
 vi.mock('./pages/Finish', () => ({ default: () => <div>screen:finish</div> }));
 vi.mock('./pages/Confirm', () => ({ default: () => <div>screen:confirm</div> }));
 
-import AppRoutes from './AppRoutes';
+import AppRoutes from './AppRoutes.tsx';
 
 const renderAt = (path: string) =>
   render(

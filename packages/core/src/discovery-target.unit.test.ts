@@ -19,7 +19,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { naturalKeyHash } from '@openmig/shared';
-import { discoverTarget, type CountableTarget } from './discovery';
+import { discoverTarget, type CountableTarget } from './discovery.ts';
 
 function target(keys: string[]): CountableTarget {
   return {

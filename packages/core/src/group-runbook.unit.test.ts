@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { renderGroupRunbook, type RunbookGroup } from './group-runbook';
+import { renderGroupRunbook, type RunbookGroup } from './group-runbook.ts';
 
 const list = (overrides: Partial<RunbookGroup> = {}): RunbookGroup => ({
   address: 'sales@acme.nl',

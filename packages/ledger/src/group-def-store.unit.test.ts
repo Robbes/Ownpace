@@ -15,12 +15,12 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { asTenantId } from '@openmig/shared';
 import { eq } from 'drizzle-orm';
-import { createPgliteDb } from './pglite-driver';
-import { runMigrations } from './migrate';
-import { PgGroupDefStore } from './group-def-store';
-import * as schemaPg from './schema-pg';
-import type { PgDatabase } from './db';
-import type { LedgerDriver } from './driver';
+import { createPgliteDb } from './pglite-driver.ts';
+import { runMigrations } from './migrate.ts';
+import { PgGroupDefStore } from './group-def-store.ts';
+import * as schemaPg from './schema-pg.ts';
+import type { PgDatabase } from './db.ts';
+import type { LedgerDriver } from './driver.ts';
 
 const TENANT = asTenantId('7c1d0000-e29b-41d4-a716-446655443001');
 const OTHER = asTenantId('7c1d0000-e29b-41d4-a716-446655443002');

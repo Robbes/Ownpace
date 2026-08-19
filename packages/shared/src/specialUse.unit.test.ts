@@ -1,6 +1,6 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import { describe, it, expect } from 'vitest';
-import { specialUseFromAttributes, specialUseFromName, detectSpecialUse } from './specialUse';
+import { specialUseFromAttributes, specialUseFromName, detectSpecialUse } from './specialUse.ts';
 
 describe('special-use detection', () => {
   it('reads RFC 6154 attributes', () => {

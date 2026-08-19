@@ -36,7 +36,7 @@ import {
   type ItemMove,
   type MovesQueue,
 } from '@openmig/shared';
-import { QueueScreen, type ItemOutcome } from '../components/queues/QueueScreen';
+import { QueueScreen, type ItemOutcome } from '../components/queues/QueueScreen.tsx';
 import {
   ActionButton,
   DestructiveButton,
@@ -48,15 +48,15 @@ import {
   ReceiptStatus,
   Refused,
   Resolved,
-} from '../components/queues/primitives';
+} from '../components/queues/primitives.tsx';
 import {
   applyMove,
   fetchMoveApplyReceipt,
   fetchMoves,
   keepMove,
   DecisionRefusedError,
-} from '../services/operating-service';
-import { useT, useFormatters } from '../i18n';
+} from '../services/operating-service.ts';
+import { useT, useFormatters } from '../i18n/index.tsx';
 
 /**
  * A move that changed the item's NAME without changing its folder.

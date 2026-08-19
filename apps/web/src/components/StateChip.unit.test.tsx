@@ -8,8 +8,8 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
-import StateChip, { STATE_TABLE } from './StateChip';
-import { STRINGS, LOCALES } from '../i18n/strings';
+import StateChip, { STATE_TABLE } from './StateChip.tsx';
+import { STRINGS, LOCALES } from '../i18n/strings.ts';
 
 describe('the canonical state table', () => {
   it('resolves every entry in BOTH languages', () => {

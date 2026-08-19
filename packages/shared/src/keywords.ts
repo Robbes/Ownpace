@@ -1,5 +1,5 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
-import type { MailKeyword } from './mail';
+import type { MailKeyword } from './mail.ts';
 
 /**
  * Map IMAP system flags (RFC 3501) to the JMAP keywords we model, and back.

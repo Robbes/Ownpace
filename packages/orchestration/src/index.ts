@@ -30,4 +30,4 @@ export {
   planDomainLanes,
   type DomainSyncResult,
   type SyncDomain,
-} from './orchestration';
+} from './orchestration.ts';

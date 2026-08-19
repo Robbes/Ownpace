@@ -26,8 +26,8 @@ import {
   evaluateApplyDeletion,
   evaluateApplyRelocation,
   MASS_DELETION_MIN_ITEMS,
-} from './apply-deletion';
-import { MemoryLedger } from './__testing__/memory';
+} from './apply-deletion.ts';
+import { MemoryLedger } from './__testing__/memory.ts';
 import { asTenantId, asMappingId, type LedgerRecord } from '@openmig/shared';
 
 const TENANT = asTenantId('d2aa0000-e29b-41d4-a716-4466554406aa');

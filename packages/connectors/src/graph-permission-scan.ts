@@ -28,12 +28,12 @@ import {
   type PermissionGrant,
   type PermissionListing,
 } from '@openmig/shared';
-import type { HttpClient } from './dav-http.types';
+import type { HttpClient } from './dav-http.types.ts';
 import {
   listCalendarPermissions,
   listDriveItemPermissions,
   type GraphPermissionOptions,
-} from './graph-permissions';
+} from './graph-permissions.ts';
 
 export interface ScanOptions extends GraphPermissionOptions {
   /** Folders to descend into before refusing to keep going. */

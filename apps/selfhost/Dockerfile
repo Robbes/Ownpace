@@ -42,13 +42,13 @@ ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable
 WORKDIR /app
 
-# ---- build: install the whole workspace (source-ships-TS, run under tsx) ----
+# ---- build: install the whole workspace (packages ship TS source) ----
 FROM base AS build
 COPY . .
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 # The operating UI (ADR-0026). This is the one thing in the image that IS
-# compiled — the @openmig/* packages ship TypeScript and run under tsx, but a
-# browser cannot. Built with `--base=/ui/` and VITE_EDITION=selfhost, which the
+# compiled — the @openmig/* packages ship TypeScript that Node erases and runs
+# as-is, but a browser cannot. Built with `--base=/ui/` and VITE_EDITION=selfhost, which the
 # `build:selfhost` script sets, so the bundle matches the mount the appliance
 # serves it from and knows it has no login to offer.
 RUN pnpm --filter @openmig/web build:selfhost

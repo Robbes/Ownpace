@@ -17,7 +17,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { start, type SelfhostHandle } from './index';
+import { start, type SelfhostHandle } from './index.ts';
 import type { RunsResponse } from '@openmig/shared';
 
 const MAPPING = '11111111-1111-4111-8111-1111111111ee';

@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { quiescePlan, DEFAULT_STALE_AFTER_MS, type QuiescingRun } from './quiesce';
+import { quiescePlan, DEFAULT_STALE_AFTER_MS, type QuiescingRun } from './quiesce.ts';
 
 const NOW = new Date('2026-08-19T12:00:00Z');
 const agoMs = (ms: number) => new Date(NOW.getTime() - ms);

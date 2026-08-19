@@ -11,8 +11,8 @@
  * - Budgets configurable via mapping config
  */
 
-import { mapWithConcurrency } from './concurrency';
-import type { RateBudget } from './rate-budget';
+import { mapWithConcurrency } from './concurrency.ts';
+import type { RateBudget } from './rate-budget.ts';
 
 /**
  * Throttle budget configuration

@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { wellKnownUrl } from './dav-http.types';
+import { wellKnownUrl } from './dav-http.types.ts';
 
 describe('wellKnownUrl (RFC 6764 §4)', () => {
   it('roots the URI at the origin, discarding the configured DAV path', () => {

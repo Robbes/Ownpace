@@ -27,7 +27,7 @@ import {
   type NotifierConfig,
   type NotificationLocale,
 } from '@openmig/shared';
-import { smtpTransport } from './smtp-transport';
+import { smtpTransport } from './smtp-transport.ts';
 
 export interface EnvNotifier {
   /** Always present. A channel that is off is an honest no-op, never absent. */

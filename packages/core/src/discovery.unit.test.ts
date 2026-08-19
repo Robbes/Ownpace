@@ -2,8 +2,8 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import type { SyncCursor } from '@openmig/shared';
-import { discoverSource, type ListingSource } from './discovery';
-import { MemorySource } from './__testing__/memory';
+import { discoverSource, type ListingSource } from './discovery.ts';
+import { MemorySource } from './__testing__/memory.ts';
 
 describe('discoverSource (0013 T1)', () => {
   it('counts collections and items across a mail source, in listing order', async () => {

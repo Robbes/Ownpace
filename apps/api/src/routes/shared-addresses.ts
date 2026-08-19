@@ -18,12 +18,12 @@
 
 import { Router } from 'express';
 import type { Response } from 'express';
-import { authenticate, getDbPool, withTenantDb } from '../middleware/auth';
-import type { AuthenticatedRequest } from '../types/api';
+import { authenticate, getDbPool, withTenantDb } from '../middleware/auth.ts';
+import type { AuthenticatedRequest } from '../types/api.ts';
 import { PgGroupDefStore } from '@openmig/ledger';
 import { asTenantId } from '@openmig/shared';
 import { renderGroupRunbook } from '@openmig/core';
-import { serverFault } from '../server-fault';
+import { serverFault } from '../server-fault.ts';
 
 const router = Router();
 

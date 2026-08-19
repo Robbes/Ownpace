@@ -16,7 +16,7 @@
 import React from 'react';
 import { Link, useParams } from 'react-router';
 import type { FailuresQueue, ItemFailure } from '@openmig/shared';
-import { QueueScreen, type ItemOutcome } from '../components/queues/QueueScreen';
+import { QueueScreen, type ItemOutcome } from '../components/queues/QueueScreen.tsx';
 import {
   ActionButton,
   DomainTag,
@@ -26,9 +26,9 @@ import {
   QueueSection,
   Refused,
   Resolved,
-} from '../components/queues/primitives';
-import { acceptFailure, fetchFailures, retryFailure } from '../services/operating-service';
-import { useT } from '../i18n';
+} from '../components/queues/primitives.tsx';
+import { acceptFailure, fetchFailures, retryFailure } from '../services/operating-service.ts';
+import { useT } from '../i18n/index.tsx';
 
 const Row: React.FC<{
   f: ItemFailure;

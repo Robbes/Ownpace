@@ -13,13 +13,13 @@ import {
   listMailboxPaths,
   ensureMailbox,
   type ImapTestClientConfig,
-} from '../../../packages/testing/src/imap-test-client';
-import { createPgDb } from '../../../packages/ledger/src/db';
-import { PgLedger } from '../../../packages/ledger/src/ledger';
-import { PgCursorStore } from '../../../packages/ledger/src/cursor-store';
-import { ImapFlowSource } from '../../../packages/connectors/src/imapflow-source';
-import { JmapTargetWriter } from '../../../packages/connectors/src/jmap-target';
-import { runShadowPass } from '../../../packages/core/src/reconcile';
+} from '../../../packages/testing/src/imap-test-client.ts';
+import { createPgDb } from '../../../packages/ledger/src/db.ts';
+import { PgLedger } from '../../../packages/ledger/src/ledger.ts';
+import { PgCursorStore } from '../../../packages/ledger/src/cursor-store.ts';
+import { ImapFlowSource } from '../../../packages/connectors/src/imapflow-source.ts';
+import { JmapTargetWriter } from '../../../packages/connectors/src/jmap-target.ts';
+import { runShadowPass } from '../../../packages/core/src/reconcile.ts';
 import { asTenantId, asMappingId } from '@openmig/shared';
 
 const __filename = fileURLToPath(import.meta.url);

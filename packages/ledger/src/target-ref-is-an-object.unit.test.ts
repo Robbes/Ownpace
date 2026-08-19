@@ -22,9 +22,9 @@
  */
 
 import { it, expect, beforeAll, afterAll } from 'vitest';
-import { createPgliteDb } from './pglite-driver';
-import { runMigrations } from './migrate';
-import { PgLedger } from './ledger';
+import { createPgliteDb } from './pglite-driver.ts';
+import { runMigrations } from './migrate.ts';
+import { PgLedger } from './ledger.ts';
 
 const T = '9b2e0000-e29b-41d4-a716-4466554471a1';
 const C = '9b2e0000-e29b-41d4-a716-4466554471a2';

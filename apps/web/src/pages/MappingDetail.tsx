@@ -25,15 +25,15 @@ import {
   Share2,
   Trash2,
 } from 'lucide-react';
-import { isSelfHost } from '../services/edition';
-import { mappingApi } from '../services/mapping-service';
-import { fetchStatus } from '../services/operating-service';
-import { useT } from '../i18n';
-import RunsPanel from '../components/RunsPanel';
-import CompletionReportDownload from '../components/CompletionReportDownload';
-import LiveProgress from '../components/LiveProgress';
-import StateChip from '../components/StateChip';
-import type { StringKey } from '../i18n';
+import { isSelfHost } from '../services/edition.ts';
+import { mappingApi } from '../services/mapping-service.ts';
+import { fetchStatus } from '../services/operating-service.ts';
+import { useT } from '../i18n/index.tsx';
+import RunsPanel from '../components/RunsPanel.tsx';
+import CompletionReportDownload from '../components/CompletionReportDownload.tsx';
+import LiveProgress from '../components/LiveProgress.tsx';
+import StateChip from '../components/StateChip.tsx';
+import type { StringKey } from '../i18n/index.tsx';
 
 const SCREENS: ReadonlyArray<{
   nameKey: StringKey;

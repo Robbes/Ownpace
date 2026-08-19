@@ -18,7 +18,7 @@ import {
   selectAuthMode,
   assertProductionAuthConfig,
   __setMembershipLookupForTests,
-} from './auth';
+} from './auth.ts';
 
 const SECRET = 'unit-test-secret';
 

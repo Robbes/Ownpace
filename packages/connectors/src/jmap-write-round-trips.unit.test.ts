@@ -22,7 +22,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { JmapTargetWriter } from './jmap-target';
+import { JmapTargetWriter } from './jmap-target.ts';
 
 const CONFIG = {
   baseUrl: 'https://mail.example.com',

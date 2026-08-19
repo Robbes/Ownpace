@@ -1,6 +1,6 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { InProcessScheduler } from './scheduler';
+import { InProcessScheduler } from './scheduler.ts';
 
 describe('InProcessScheduler.runOnce (single-flight)', () => {
   it('coalesces concurrent runs of the same job', async () => {

@@ -19,9 +19,9 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { WebdavFileSource } from './webdav-source';
-import { GraphDriveSource } from './graph-drive-source';
-import type { HttpClient, HttpResponse } from './dav-http.types';
+import { WebdavFileSource } from './webdav-source.ts';
+import { GraphDriveSource } from './graph-drive-source.ts';
+import type { HttpClient, HttpResponse } from './dav-http.types.ts';
 
 function client(handler: (opts: { method?: string; url: string }) => HttpResponse): HttpClient {
   return { request: vi.fn(async (opts) => handler(opts as { method?: string; url: string })) };

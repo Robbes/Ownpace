@@ -12,10 +12,10 @@ import {
   Edit,
   AlertCircle
 } from 'lucide-react';
-import { mappingApi } from '../services/mapping-service';
-import { serverMessage } from '../services/api';
-import StateChip from '../components/StateChip';
-import { useT, useFormatters, type StringKey } from '../i18n';
+import { mappingApi } from '../services/mapping-service.ts';
+import { serverMessage } from '../services/api.ts';
+import StateChip from '../components/StateChip.tsx';
+import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
 
 const Mappings: React.FC = () => {
   const t = useT();

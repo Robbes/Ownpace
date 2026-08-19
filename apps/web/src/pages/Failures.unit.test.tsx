@@ -27,7 +27,7 @@ vi.mock('../services/operating-service', () => ({
   DecisionRefusedError: class extends Error {},
 }));
 
-import Failures from './Failures';
+import Failures from './Failures.tsx';
 
 const FAILURE = {
   naturalKeyHash: 'h-1',

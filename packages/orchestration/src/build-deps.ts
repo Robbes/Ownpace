@@ -39,38 +39,38 @@ import {
   buildCalendarTarget,
   buildContactSource,
   buildFileSource,
-} from './dav-factories';
-import { buildContactTargetFor, contactTargetProtocol } from './contact-target-factory';
-import { buildFileTargetFor, fileTargetProtocol } from './file-target-factory';
+} from './dav-factories.ts';
+import { buildContactTargetFor, contactTargetProtocol } from './contact-target-factory.ts';
+import { buildFileTargetFor, fileTargetProtocol } from './file-target-factory.ts';
 import {
   ENV_GOOGLE_CREDENTIAL_NAMES,
   buildGoogleDriveSourceFrom,
-} from './drive-source-factory';
-import { ENV_GMAIL_CREDENTIAL_NAMES, buildGmailSourceFrom } from './gmail-source-factory';
+} from './drive-source-factory.ts';
+import { ENV_GMAIL_CREDENTIAL_NAMES, buildGmailSourceFrom } from './gmail-source-factory.ts';
 import {
   ENV_GOOGLE_CALENDAR_CREDENTIAL_NAMES,
   ENV_GOOGLE_CONTACTS_CREDENTIAL_NAMES,
   buildGoogleCalendarDavSourceFrom,
   buildGoogleContactsDavSourceFrom,
-} from './google-dav-source-factory';
+} from './google-dav-source-factory.ts';
 import {
   ENV_DROPBOX_CREDENTIAL_NAMES,
   buildDropboxSourceFrom,
-} from './dropbox-source-factory';
-import { ENV_BOX_CREDENTIAL_NAMES, buildBoxSourceFrom } from './box-source-factory';
+} from './dropbox-source-factory.ts';
+import { ENV_BOX_CREDENTIAL_NAMES, buildBoxSourceFrom } from './box-source-factory.ts';
 import {
   buildGraphCalendarSourceFrom,
   buildGraphContactsSourceFrom,
   buildGraphDriveSourceFrom,
   graphEntraCredsFromEnv,
-} from './graph-domain-source-factory';
-import { withClose, type WithClose } from './deps-lifecycle';
+} from './graph-domain-source-factory.ts';
+import { withClose, type WithClose } from './deps-lifecycle.ts';
 import {
   buildGraphMailSourceFrom,
   buildImapSourceFrom,
   withGraphFallback,
-} from './mail-source-factory';
-import { buildJmapTargetFrom, buildImapDavTargetFrom } from './mail-target-factory';
+} from './mail-source-factory.ts';
+import { buildJmapTargetFrom, buildImapDavTargetFrom } from './mail-target-factory.ts';
 
 /**
  * Items in flight per collection when the config does not say.

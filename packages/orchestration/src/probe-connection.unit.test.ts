@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { probeSourceConnection, probeTargetConnection } from './probe-connection';
+import { probeSourceConnection, probeTargetConnection } from './probe-connection.ts';
 
 describe('probeSourceConnection: refusals are answers, in the builders\' own words', () => {
   it('a gmail source with missing credentials refuses in the STORED vocabulary', async () => {

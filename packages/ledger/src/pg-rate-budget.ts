@@ -32,7 +32,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import type { PgDatabase } from './db-types';
+import type { PgDatabase } from './db-types.ts';
 import type { RateBudget, RateBudgetConfig } from '@openmig/shared';
 
 /** How long to sleep when a bucket is empty and the server did not say. */

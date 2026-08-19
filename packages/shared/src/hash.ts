@@ -1,10 +1,10 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import { createHash } from 'node:crypto';
-import { calendarFingerprint, contactFingerprint } from './dav-canonical';
-import type { MailItem } from './mail';
-import type { CalendarEvent } from './calendar';
-import type { Contact } from './contact';
-import type { FileItem } from './file';
+import { calendarFingerprint, contactFingerprint } from './dav-canonical.ts';
+import type { MailItem } from './mail.ts';
+import type { CalendarEvent } from './calendar.ts';
+import type { Contact } from './contact.ts';
+import type { FileItem } from './file.ts';
 
 /**
  * Normalize an RFC 5322 Message-ID for use as a stable natural key:

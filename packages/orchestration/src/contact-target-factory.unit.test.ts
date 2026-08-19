@@ -19,7 +19,7 @@ import { describe, it, expect } from 'vitest';
 import { CardDAVTargetWriter } from '@openmig/engines';
 import { JmapContactTarget } from '@openmig/connectors';
 import type { Ledger, TenantId, MappingId } from '@openmig/shared';
-import { buildContactTargetFor, contactTargetProtocol } from './contact-target-factory';
+import { buildContactTargetFor, contactTargetProtocol } from './contact-target-factory.ts';
 
 const endpoint = { url: 'http://target.test', username: 'a@dev.local', password: 'pw' };
 const deps = {

@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { parseMappingConfigJson } from './config';
+import { parseMappingConfigJson } from './config.ts';
 
 const base = (source: Record<string, unknown>) =>
   JSON.stringify({

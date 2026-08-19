@@ -1,7 +1,7 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 
 import { describe, it, expect } from 'vitest';
-import { startTransition, finishTransition } from './lifecycle';
+import { startTransition, finishTransition } from './lifecycle.ts';
 
 describe('startTransition', () => {
   it('activates a paused (draft) mapping', () => {

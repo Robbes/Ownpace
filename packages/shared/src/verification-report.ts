@@ -15,7 +15,7 @@
  * there is still exactly one declaration.
  */
 
-import type { TenantId, MappingId } from './ids';
+import type { TenantId, MappingId } from './ids.ts';
 
 /**
  * Verification status for a single data type.

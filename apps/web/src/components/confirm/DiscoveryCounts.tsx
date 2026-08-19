@@ -18,8 +18,8 @@
 
 import React from 'react';
 import type { DiscoveryDomain, DiscoveryRecord } from '@openmig/shared';
-import { useT } from '../../i18n';
-import type { StringKey } from '../../i18n';
+import { useT } from '../../i18n/index.tsx';
+import type { StringKey } from '../../i18n/index.tsx';
 
 // The dictionary's own domain words — the old local map silently bypassed
 // them, so the table said "Email" beside screens saying the translated word.

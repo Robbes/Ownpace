@@ -24,8 +24,8 @@ import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AxiosError, AxiosHeaders } from 'axios';
-import CreateMapping from './CreateMapping';
-import { mappingApi } from '../services/mapping-service';
+import CreateMapping from './CreateMapping.tsx';
+import { mappingApi } from '../services/mapping-service.ts';
 
 vi.mock('../services/mapping-service', () => ({
   mappingApi: { create: vi.fn() },

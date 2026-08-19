@@ -35,7 +35,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { JmapContactTarget } from './jmap-contact-target';
+import { JmapContactTarget } from './jmap-contact-target.ts';
 import type { RawContact, TargetEntry } from '@openmig/shared';
 import { contactNaturalKeyHash } from '@openmig/shared';
 

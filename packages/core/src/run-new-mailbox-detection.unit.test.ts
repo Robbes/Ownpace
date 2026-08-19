@@ -12,7 +12,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { asTenantId } from '@openmig/shared';
-import { runNewMailboxDetection, type DetectionDeps } from './run-new-mailbox-detection';
+import { runNewMailboxDetection, type DetectionDeps } from './run-new-mailbox-detection.ts';
 
 const TENANT = asTenantId('11111111-1111-4111-8111-111111111111' as never);
 

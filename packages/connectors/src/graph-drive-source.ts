@@ -16,9 +16,9 @@
  */
 
 import type { FileSource, FileFolder, RawFileItem, SyncCursor, ThrottleLimiter, FileItem } from '@openmig/shared';
-import type { GraphDriveSourceConfig, GraphDriveItem, GraphDriveDeltaResponse, GraphDriveDeltaCursor, ParsedPath, NormalizePathOptions } from './graph-drive-source.types';
-import { graphScopePrefix } from './graph-scope';
-import type { HttpClient as _HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types';
+import type { GraphDriveSourceConfig, GraphDriveItem, GraphDriveDeltaResponse, GraphDriveDeltaCursor, ParsedPath, NormalizePathOptions } from './graph-drive-source.types.ts';
+import { graphScopePrefix } from './graph-scope.ts';
+import type { HttpClient as _HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import { log } from '@openmig/shared';
 
 /**

@@ -13,7 +13,7 @@ import { describe, it, expect } from 'vitest';
 import {
   driveSharingAvailability,
   DRIVE_SHARING_NOT_CONSENTED,
-} from './drive-sharing-availability';
+} from './drive-sharing-availability.ts';
 
 describe('which way an unconfigured deployment falls', () => {
   it('refuses when the flag was never set', () => {

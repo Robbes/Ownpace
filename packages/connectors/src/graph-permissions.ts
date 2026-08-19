@@ -35,7 +35,7 @@ import {
   type PermissionGrant,
   type PermissionListing,
 } from '@openmig/shared';
-import type { HttpClient } from './dav-http.types';
+import type { HttpClient } from './dav-http.types.ts';
 
 export interface GraphPermissionOptions {
   readonly baseUrl?: string;

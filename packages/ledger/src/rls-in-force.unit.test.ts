@@ -34,11 +34,11 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { pgliteDriver } from './pglite-driver';
-import { runMigrations } from './migrate';
-import { withTenant } from './db';
-import { connection } from './schema-pg';
-import type { LedgerDriver } from './driver';
+import { pgliteDriver } from './pglite-driver.ts';
+import { runMigrations } from './migrate.ts';
+import { withTenant } from './db.ts';
+import { connection } from './schema-pg.ts';
+import type { LedgerDriver } from './driver.ts';
 
 // UUID family 5c3b0000-…, a prefix of this file's own. `5c2b` was the first
 // choice and is already owned by `rls.integration.test.ts`; the collision guard

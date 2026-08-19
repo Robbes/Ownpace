@@ -751,8 +751,13 @@ describe('Restart-Resume Idempotency Gate (T5)', () => {
       met,
       describeTimeout(POISON_DOMAIN, 'a completed pass alongside the unmigratable item', fileStatus),
     ).toBe(true);
+    // `met` is only true when waitForDomain actually observed a status, but the
+    // expect above does not narrow. Say it once here so the three reads below
+    // need no `!` — and so a contract change fails with this sentence rather
+    // than a null dereference two lines on.
+    if (!fileStatus) throw new Error(`${POISON_DOMAIN}: predicate met but no status returned`);
     expect(
-      fileStatus!.itemsSynced,
+      fileStatus.itemsSynced,
       'one unmigratable item must not stop the rest of its domain',
     ).toBeGreaterThan(SEEDED_COUNT);
     console.log(

@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { erasureNeverTouches, erasureScopeText } from './erasure-scope';
+import { erasureNeverTouches, erasureScopeText } from './erasure-scope.ts';
 
 describe('both sides are covered, in both languages', () => {
   it.each(['en', 'nl'] as const)('%s names the source and the target', (lang) => {

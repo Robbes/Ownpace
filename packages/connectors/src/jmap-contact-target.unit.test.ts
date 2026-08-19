@@ -28,7 +28,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { RawContact } from '@openmig/shared';
-import { JmapContactTarget, extractUidFromVcard } from './jmap-contact-target';
+import { JmapContactTarget, extractUidFromVcard } from './jmap-contact-target.ts';
 
 /**
  * The session document this writer connects against.

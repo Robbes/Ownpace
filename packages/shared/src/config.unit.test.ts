@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { parseTargetFolderPrefix, applyTargetFolderPrefix, parseMappingConfig, parseMappingConfigJson, ConfigError } from './config';
+import { parseTargetFolderPrefix, applyTargetFolderPrefix, parseMappingConfig, parseMappingConfigJson, ConfigError } from './config.ts';
 
 const example = {
   tenantId: 'tenant-1',

@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { removeDavResource, davDeleteIsRecoverable } from './dav-remove';
+import { removeDavResource, davDeleteIsRecoverable } from './dav-remove.ts';
 
 describe('davDeleteIsRecoverable', () => {
   it('is true only for a Nextcloud files endpoint', () => {

@@ -13,12 +13,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { HttpClient, HttpRequestOptions } from './dav-http.types';
+import type { HttpClient, HttpRequestOptions } from './dav-http.types.ts';
 import {
   createNextcloudUserShare,
   nextcloudPermissionsFor,
   ocsOriginFrom,
-} from './nextcloud-ocs';
+} from './nextcloud-ocs.ts';
 
 function fakeHttp(status: number, body: string) {
   const calls: HttpRequestOptions[] = [];

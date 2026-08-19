@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { collectAttention, type CollectDeps, collectTenantAttention } from './digest-collect';
+import { collectAttention, type CollectDeps, collectTenantAttention } from './digest-collect.ts';
 import { wantsAttention } from '@openmig/shared';
 
 const MAPPING = { mappingId: 'm-1', tenantId: 't-1' };

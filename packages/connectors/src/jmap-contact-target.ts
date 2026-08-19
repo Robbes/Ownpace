@@ -67,7 +67,7 @@
  * @see docs/workplans/0031-jmap-full-target.md — T2, the three rungs and their output
  */
 
-import { loadJmapSession } from './jmap-session';
+import { loadJmapSession } from './jmap-session.ts';
 import type {
   ContactTargetWriter,
   ContactFolder,

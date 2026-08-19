@@ -34,8 +34,8 @@ const appUserUrl = (u: string): string => {
 };
 process.env.APP_DATABASE_URL = appUserUrl(PG);
 
-import app from '../../index.js';
-import { seedMembership } from '../../__tests__/seed-membership.js';
+import app from '../../index.ts';
+import { seedMembership } from '../../__tests__/seed-membership.ts';
 
 const TENANT = '5f5b0000-e29b-41d4-a716-446655440001';
 const OTHER_TENANT = '5f5b0000-e29b-41d4-a716-446655440002';

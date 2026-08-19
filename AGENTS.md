@@ -35,10 +35,23 @@ Before any Stalwart or integration-test work: read `docs/stalwart-integration-fi
   `no-floating-promises` and `no-misused-promises` — so a COLD lint is ~47s and a
   warm one ~2.4s. Do not drop `--cache --cache-strategy content` from the script
   to "simplify" it: `--cache` alone keys on mtime, which every checkout
-  invalidates. The type-aware block is scoped to the globs a tsconfig actually
-  covers; `test/`, `scripts/` and root-level `.ts` are in no `include` and are
-  therefore neither typechecked nor type-linted (29 real type errors are waiting
-  there whenever someone widens it).
+  invalidates. Every `.ts` in the repo is inside a
+  tsconfig, so lint and `pnpm typecheck` both cover the GATES themselves and not
+  only the shipped source — that gap once hid 29 real errors, including a
+  function the integration teardown imports and calls that was never exported.
+  `test/ui` is its own project because it needs DOM lib (a `lib` is
+  program-wide, so it cannot be widened centrally); `pnpm typecheck` runs it as
+  a second `tsc`. Do not narrow either scope back to `packages`/`apps`.
+- **Nothing transpiles at runtime.** The API image runs `node apps/api/src/index.ts`
+  and the appliance runs an esbuild bundle; Node erases the types itself. Three
+  source rules keep that working — every relative import carries its extension,
+  `erasableSyntaxOnly`, `verbatimModuleSyntax` — and
+  `scripts/runs-without-a-transpiler.unit.test.ts` fails if any of them slips.
+  **`tsx` is still a root devDependency, on purpose**: it applies tsconfig
+  `paths`, which Node does not, and the ad-hoc `scripts/*.ts` that docs invoke
+  as `pnpm exec tsx scripts/x.ts` import `@openmig/*` from a directory where
+  nothing declares those as dependencies. Keep using tsx for those; do not use
+  it for anything that ships.
 - Unit: `pnpm test` · Integration: `pnpm test:integration` (self-manages its stack via Testcontainers) · UI smoke: `pnpm test:ui` (real Chromium over the built bundle; runs on every PR) · E2E: `pnpm test:e2e`
 - Optional dev stack: `docker compose -f deploy/compose/dev.yml up -d` (Postgres + Nextcloud).
   Stalwart isn't part of it — its two-phase startup can't be expressed as one compose service —

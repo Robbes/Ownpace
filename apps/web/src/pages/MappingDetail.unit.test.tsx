@@ -38,7 +38,7 @@ vi.mock('../services/operating-service', () => ({
   fetchStatus: fetchStatusMock,
 }));
 
-import MappingDetail from './MappingDetail';
+import MappingDetail from './MappingDetail.tsx';
 
 function renderHub(id = 'acme-mail') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

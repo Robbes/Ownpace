@@ -18,7 +18,7 @@ import {
   getUsageMetricsForPeriod,
   type ComputeUsageInput,
   type ApiCallUsageInput,
-} from './usage-metering';
+} from './usage-metering.ts';
 import {
   tenant as tenantTable,
   connection as connectionTable,
@@ -27,7 +27,7 @@ import {
   item as itemTable,
   migrationStatus as migrationStatusTable,
 } from '@openmig/ledger/schema-pg';
-import { usageMetric as usageMetricTable } from './schema-managed';
+import { usageMetric as usageMetricTable } from './schema-managed.ts';
 import type { TenantId, MappingId } from '@openmig/shared';
 import { randomUUID } from 'crypto';
 

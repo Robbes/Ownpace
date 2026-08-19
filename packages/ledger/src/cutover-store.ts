@@ -11,7 +11,7 @@
 import { randomUUID } from 'node:crypto';
 import type { TenantId, MappingId } from '@openmig/shared';
 import { eq, and, asc } from 'drizzle-orm';
-import * as schema from './schema-pg';
+import * as schema from './schema-pg.ts';
 
 // Generic database type that works with both pg and postgres-js drivers
 // We use unknown and cast at call sites to avoid version mismatch issues

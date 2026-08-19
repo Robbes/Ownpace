@@ -47,6 +47,21 @@
     "types": ["node"],
     "noEmit": true,
 
+    /* The second half of "a pure eraser can run this", alongside
+       `erasableSyntaxOnly` below.
+
+       An eraser works one file at a time and never resolves a symbol, so it
+       cannot know that `import { EncryptedSecret } from './secrets.ts'` names a
+       TYPE. It leaves the named import in place, and Node then fails at link
+       time with "does not provide an export named 'EncryptedSecret'" — which
+       points at the importing file and says nothing about the real cause. This
+       option makes tsc reject the ambiguous spelling instead, at the site.
+
+       Nine imports needed marking. tsx never cared, because esbuild drops
+       type-only bindings by inference; that inference is exactly what a plain
+       eraser does not do. */
+    "verbatimModuleSyntax": true,
+
     /* Every construct here must be removable by deleting characters — no
        enums, no namespaces, no parameter properties.
 

@@ -21,7 +21,7 @@ import {
   parseTrashbinOriginalLocations,
   nextcloudTrashbinUrl,
   trashbinPathToKeyPath,
-} from './webdav-trashbin';
+} from './webdav-trashbin.ts';
 
 /** What Nextcloud actually answers: mangled hrefs, real paths in the property. */
 const TRASHBIN_BODY = `<?xml version="1.0"?>

@@ -21,7 +21,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { JmapTargetWriter } from './jmap-target';
+import { JmapTargetWriter } from './jmap-target.ts';
 
 const PAGE = 100;
 

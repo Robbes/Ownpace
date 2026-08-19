@@ -15,7 +15,7 @@ import {
   buildGraphCalendarSourceFrom,
   buildGraphContactsSourceFrom,
   buildGraphDriveSourceFrom,
-} from './graph-domain-source-factory';
+} from './graph-domain-source-factory.ts';
 
 const ENDPOINT = { tenantId: 'contoso.example' };
 const CLIENT_CREDS = { clientId: 'app-id', clientSecret: 'shh' };

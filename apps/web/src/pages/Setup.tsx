@@ -26,10 +26,10 @@ import React from 'react';
 import { useParams, useLocation, Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, CircleDashed, SkipForward, UserCog } from 'lucide-react';
-import { setupApi, type SetupChecklist, type SetupStepStatusDto } from '../services/mapping-service';
+import { setupApi, type SetupChecklist, type SetupStepStatusDto } from '../services/mapping-service.ts';
 import { providersWithSetup, providerDisplayName } from '@openmig/shared';
-import { useT, useFormatters, type StringKey } from '../i18n';
-import { serverMessage } from '../services/api';
+import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
+import { serverMessage } from '../services/api.ts';
 
 const StepRow: React.FC<{
   status: SetupStepStatusDto;

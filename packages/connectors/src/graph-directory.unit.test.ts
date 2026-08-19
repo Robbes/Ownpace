@@ -10,8 +10,8 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { listTenantMailboxes } from './graph-directory';
-import type { HttpClient } from './dav-http.types';
+import { listTenantMailboxes } from './graph-directory.ts';
+import type { HttpClient } from './dav-http.types.ts';
 
 const token = async () => 'tok';
 

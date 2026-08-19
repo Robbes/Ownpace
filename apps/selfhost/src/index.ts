@@ -68,11 +68,11 @@ import type {
   FinishAccepted,
   VerificationResult,
 } from '@openmig/shared';
-import { loadConfigDir, uuidFromString, type LoadedMapping } from './config-dir';
-import { buildStatusReport, type MappingStatusInput } from './status';
-import { startTransition, finishTransition } from './lifecycle';
-import { serveUi, UI_MOUNT } from './static-ui';
-import { createVerifyRunner } from './verify-run';
+import { loadConfigDir, uuidFromString, type LoadedMapping } from './config-dir.ts';
+import { buildStatusReport, type MappingStatusInput } from './status.ts';
+import { startTransition, finishTransition } from './lifecycle.ts';
+import { serveUi, UI_MOUNT } from './static-ui.ts';
+import { createVerifyRunner } from './verify-run.ts';
 import {
   log,
   permissionsNotDiscoverable,
@@ -138,7 +138,7 @@ const detectorHttpClient: HttpClient = {
 import {
   collectAttention as collectAttentionFrom,
   collectTenantAttention,
-} from './digest-collect';
+} from './digest-collect.ts';
 
 const DEFAULT_CONFIG_DIR = '/data/config';
 

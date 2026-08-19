@@ -9,8 +9,8 @@
 import { Router } from 'express';
 import type { Response } from 'express';
 import { z } from 'zod';
-import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth';
-import type { AuthenticatedRequest } from '../../types/api';
+import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth.ts';
+import type { AuthenticatedRequest } from '../../types/api.ts';
 import { eq, and, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { PgMigrationStatusStore, PgLedger, RunStore } from '@openmig/ledger';
@@ -18,7 +18,7 @@ import { buildDomainStatusReports } from '@openmig/shared';
 import { SecretStore } from '@openmig/core/secret-store';
 import { getTriggerClient } from '@openmig/scheduler';
 import type { DiscoveryDomain, TenantId, MappingId } from '@openmig/shared';
-import { resolveSyncJob, resolveCutoverJob } from './job-resolution';
+import { resolveSyncJob, resolveCutoverJob } from './job-resolution.ts';
 import {
   listDropboxSharedFolders,
   listGoogleSharedDrives,
@@ -29,7 +29,7 @@ import {
 // The §11.2 decision queues and the decisions on them (ADR-0026). Mounted on
 // this same router so they sit under /api/migrations/:mappingId/... alongside
 // discovery and start, which is where the appliance's equivalents live too.
-import operatingRoutes from './operating-routes';
+import operatingRoutes from './operating-routes.ts';
 import {
   DISTRIBUTION_D_NOT_A_MAPPING,
   targetDomainRefusal,
@@ -41,7 +41,7 @@ import {
   describeCronScheduleProblem,
   credentialFieldsFor,
 } from '@openmig/shared';
-import { serverFault } from '../../server-fault';
+import { serverFault } from '../../server-fault.ts';
 
 /** Take the first row of a RETURNING result or fail loudly (no silent nulls). */
 function firstOrThrow<T>(rows: T[], what: string): T {

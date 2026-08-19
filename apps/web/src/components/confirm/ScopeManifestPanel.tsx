@@ -12,7 +12,7 @@
  */
 
 import React from 'react';
-import { useT } from '../../i18n';
+import { useT } from '../../i18n/index.tsx';
 import type { ScopeManifest } from '@openmig/shared';
 
 const Column: React.FC<{

@@ -59,7 +59,7 @@ vi.mock('../services/operating-service', () => ({
   FinishRefusedError,
 }));
 
-import Finish from './Finish';
+import Finish from './Finish.tsx';
 
 function statusReport(migrationStatus: StatusReport['mappings'][number]['migrationStatus'], needingDecision = 0): StatusReport {
   return {

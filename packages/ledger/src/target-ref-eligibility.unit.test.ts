@@ -26,9 +26,9 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { pgliteDriver } from './pglite-driver';
-import { runMigrations } from './migrate';
-import type { LedgerDriver, LedgerConnection } from './driver';
+import { pgliteDriver } from './pglite-driver.ts';
+import { runMigrations } from './migrate.ts';
+import type { LedgerDriver, LedgerConnection } from './driver.ts';
 
 const TENANT = '7c1d0000-e29b-41d4-a716-4466554419a1';
 const CONN = '7c1d0000-e29b-41d4-a716-4466554419a2';

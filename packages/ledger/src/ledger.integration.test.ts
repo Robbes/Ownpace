@@ -3,12 +3,12 @@
 
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { createPgDb } from './db';
-import { PgLedger } from './ledger';
-import { PgCursorStore } from './cursor-store';
+import { createPgDb } from './db.ts';
+import { PgLedger } from './ledger.ts';
+import { PgCursorStore } from './cursor-store.ts';
 import type { LedgerRecord } from '@openmig/shared';
 import { asTenantId, asMappingId, MAX_ITEM_ATTEMPTS } from '@openmig/shared';
-import type { PgDatabase } from './db';
+import type { PgDatabase } from './db.ts';
 
 // Connection string from Testcontainers (set by vitest.global-setup.ts)
 // Fails loudly if TEST_DATABASE_URL is not set, rather than silently using wrong defaults.

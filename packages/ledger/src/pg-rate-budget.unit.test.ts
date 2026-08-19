@@ -16,11 +16,11 @@
  */
 
 import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
-import { createPgliteDb } from './pglite-driver';
-import { runMigrations } from './migrate';
-import { PgRateBudget } from './pg-rate-budget';
-import type { LedgerDriver, LedgerConnection } from './driver';
-import type { PgDatabase } from './db-types';
+import { createPgliteDb } from './pglite-driver.ts';
+import { runMigrations } from './migrate.ts';
+import { PgRateBudget } from './pg-rate-budget.ts';
+import type { LedgerDriver, LedgerConnection } from './driver.ts';
+import type { PgDatabase } from './db-types.ts';
 
 // UUID family 5aab0000-…, unused elsewhere in the repo.
 const TENANT = '5aab0000-e29b-41d4-a716-446655441701';

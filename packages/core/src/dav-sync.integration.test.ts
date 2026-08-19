@@ -12,15 +12,15 @@
 
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { createPgDb } from '../../ledger/src/db';
-import { PgLedger } from '../../ledger/src/ledger';
-import { CalDAVSource } from '../../connectors/src/caldav-source';
-import { CarddavSource } from '../../connectors/src/carddav-source';
-import { WebdavFileSource } from '../../connectors/src/webdav-source';
-import { CalDAVTargetWriter } from '../../engines/src/caldav-target-writer';
-import { CardDAVTargetWriter } from '../../engines/src/carddav-target-writer';
-import { WebDAVTargetWriter } from '../../engines/src/webdav-target-writer';
-import { runCalendarSync, runContactSync, runFileSync } from './dav-sync';
+import { createPgDb } from '../../ledger/src/db.ts';
+import { PgLedger } from '../../ledger/src/ledger.ts';
+import { CalDAVSource } from '../../connectors/src/caldav-source.ts';
+import { CarddavSource } from '../../connectors/src/carddav-source.ts';
+import { WebdavFileSource } from '../../connectors/src/webdav-source.ts';
+import { CalDAVTargetWriter } from '../../engines/src/caldav-target-writer.ts';
+import { CardDAVTargetWriter } from '../../engines/src/carddav-target-writer.ts';
+import { WebDAVTargetWriter } from '../../engines/src/webdav-target-writer.ts';
+import { runCalendarSync, runContactSync, runFileSync } from './dav-sync.ts';
 import {
   asTenantId,
   asMappingId,

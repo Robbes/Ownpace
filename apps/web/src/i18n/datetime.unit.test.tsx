@@ -14,8 +14,8 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import React from 'react';
 import { render, screen, cleanup } from '@testing-library/react';
-import { LocaleProvider, useFormatters } from './index';
-import { formatRelativeToNow, formatDateTime, formatNumber, formatCurrency } from './datetime';
+import { LocaleProvider, useFormatters } from './index.tsx';
+import { formatRelativeToNow, formatDateTime, formatNumber, formatCurrency } from './datetime.ts';
 
 const NOW = new Date('2026-08-02T12:00:00Z');
 

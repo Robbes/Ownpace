@@ -1,6 +1,6 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import { describe, it, expect } from 'vitest';
-import { imapFlagToKeyword, keywordToImapFlag, imapFlagsToKeywords } from './keywords';
+import { imapFlagToKeyword, keywordToImapFlag, imapFlagsToKeywords } from './keywords.ts';
 
 describe('keyword mapping', () => {
   it('maps IMAP system flags to JMAP keywords', () => {

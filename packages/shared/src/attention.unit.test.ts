@@ -20,7 +20,7 @@ import {
   summariseQueues,
   reportsToDigest,
   type QueueReads,
-} from './notifications';
+} from './notifications.ts';
 
 const EMPTY: QueueReads = {
   deletions: [],

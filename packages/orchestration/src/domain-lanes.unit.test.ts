@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { planDomainLanes, type SyncDomain } from './orchestration';
+import { planDomainLanes, type SyncDomain } from './orchestration.ts';
 import type { MappingConfig } from '@openmig/shared';
 
 const ALL: SyncDomain[] = ['email', 'calendar', 'contact', 'file'];

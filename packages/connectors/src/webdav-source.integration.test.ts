@@ -9,8 +9,8 @@
 // - Idempotency: run twice, second run creates 0 items
 
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
-import { WebdavFileSource } from './webdav-source';
-import type { WebDAVSourceConfig } from './webdav-source.types';
+import { WebdavFileSource } from './webdav-source.ts';
+import type { WebDAVSourceConfig } from './webdav-source.types.ts';
 import type { RawFileItem as _RawFileItem } from '@openmig/shared';
 
 // Nextcloud WebDAV configuration from Testcontainers

@@ -10,7 +10,7 @@
 // Docker-free o365-scenario.unit.test.ts).
 
 import { describe, it, expect, beforeAll } from 'vitest';
-import { type O365Config, O365ShadowSync, type ShadowSyncStats } from './o365-scenario';
+import { type O365Config, O365ShadowSync, type ShadowSyncStats } from './o365-scenario.ts';
 
 describe('O365 End-to-End Scenario', () => {
   let config: O365Config;

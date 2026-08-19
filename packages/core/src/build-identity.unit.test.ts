@@ -1,7 +1,7 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 /** The /version endpoints' data source: env wins, package.json answers otherwise. */
 import { describe, it, expect, afterEach } from 'vitest';
-import { buildIdentity } from './build-identity';
+import { buildIdentity } from './build-identity.ts';
 
 const saved = { ...process.env };
 afterEach(() => {

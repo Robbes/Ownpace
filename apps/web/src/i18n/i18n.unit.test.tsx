@@ -14,10 +14,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-import { STRINGS, LOCALES } from './strings';
+import { STRINGS, LOCALES } from './strings.ts';
 import { APPLY_FLAG_WARNING, APPLY_FLAG_WARNING_NL } from '@openmig/shared';
-import { LocaleProvider, useLocale, detectLocale } from './index';
-import { ReceiptStatus } from '../components/queues/primitives';
+import { LocaleProvider, useLocale, detectLocale } from './index.tsx';
+import { ReceiptStatus } from '../components/queues/primitives.tsx';
 
 afterEach(() => {
   cleanup();

@@ -17,7 +17,7 @@ import {
   verifyAllDns,
   checkPropagation,
   generateDnsRunbook,
-} from './dns-verify-only';
+} from './dns-verify-only.ts';
 
 /** Which of the three public resolvers a DoH URL targets. */
 function resolverNameFromUrl(url: string): string {

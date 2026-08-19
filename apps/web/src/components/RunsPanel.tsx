@@ -17,10 +17,10 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { RunReport } from '@openmig/shared';
-import { fetchRuns } from '../services/operating-service';
-import { useT, useLocale } from '../i18n';
-import StateChip from './StateChip';
-import { formatDateTime, formatNumber } from '../i18n/datetime';
+import { fetchRuns } from '../services/operating-service.ts';
+import { useT, useLocale } from '../i18n/index.tsx';
+import StateChip from './StateChip.tsx';
+import { formatDateTime, formatNumber } from '../i18n/datetime.ts';
 
 const EventLine: React.FC<{ event: RunReport['events'][number] }> = ({ event }) => (
   <li

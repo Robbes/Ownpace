@@ -14,8 +14,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import * as schema from './schema-pg';
-import { withTenant } from './db';
+import * as schema from './schema-pg.ts';
+import { withTenant } from './db.ts';
 import { eq } from 'drizzle-orm';
 
 // Connection string from Testcontainers (set by vitest.global-setup.ts)

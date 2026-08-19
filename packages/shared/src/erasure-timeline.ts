@@ -40,7 +40,7 @@
  * them, and `apps/selfhost` needs it as much as the console does.
  */
 
-import type { RefusalLocale } from './credential-refusals';
+import type { RefusalLocale } from './credential-refusals.ts';
 
 /**
  * The reference deployment's backup retention window, in days (owner decision,

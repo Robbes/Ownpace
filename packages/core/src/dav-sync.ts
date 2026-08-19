@@ -30,7 +30,7 @@ import { applyTargetFolderPrefix,
   fileNaturalKeyHash,
   fileContentHash,
 } from '@openmig/shared';
-import { runDomainSync, type DomainSyncResult } from './domain-sync';
+import { runDomainSync, type DomainSyncResult } from './domain-sync.ts';
 
 /**
  * Dependencies for calendar (CalDAV) sync.

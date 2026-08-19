@@ -4,8 +4,8 @@
 // T3 from workplan 0001-first-slice-jmap-mail.
 
 import JamClient from "jmap-jam";
-import { loadJmapSession } from './jmap-session';
-import { fetchWithRateLimitRetry } from './http-rate-limit';
+import { loadJmapSession } from './jmap-session.ts';
+import { fetchWithRateLimitRetry } from './http-rate-limit.ts';
 import type {
   TargetWriter,
   TargetReindexer,

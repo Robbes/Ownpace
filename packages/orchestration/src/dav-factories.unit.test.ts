@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { asTenantId, asMappingId, type Ledger } from '@openmig/shared';
-import { buildCalendarTarget, buildContactTarget, buildFileTarget } from './dav-factories';
+import { buildCalendarTarget, buildContactTarget, buildFileTarget } from './dav-factories.ts';
 
 const deps = {
   ledger: {} as Ledger,

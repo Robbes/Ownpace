@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { migrationConnectionString, poolerInFront } from './direct-url';
+import { migrationConnectionString, poolerInFront } from './direct-url.ts';
 
 const POOLED = 'postgresql://owner:pw@pgbouncer:6432/openmigrate';
 const DIRECT = 'postgresql://owner:pw@postgres:5432/openmigrate';

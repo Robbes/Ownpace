@@ -9,7 +9,7 @@
  * hrefs; `/mappings` wins on managed).
  */
 import { describe, it, expect } from 'vitest';
-import { activeNavHref, mappingRouteContext, truncateMiddle } from './layout-context';
+import { activeNavHref, mappingRouteContext, truncateMiddle } from './layout-context.ts';
 
 const SELFHOST_HREFS = ['/confirm', '/deletions', '/moves', '/failures', '/verify', '/finish', '/decisions'];
 const MANAGED_HREFS = ['/dashboard', '/mappings', '/decisions', '/tenants', '/billing'];

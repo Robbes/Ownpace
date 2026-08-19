@@ -33,7 +33,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { JmapFileTarget } from './jmap-file-target';
+import { JmapFileTarget } from './jmap-file-target.ts';
 import type { RawFileItem, TargetEntry } from '@openmig/shared';
 import { fileNaturalKeyHash, fileContentHash } from '@openmig/shared';
 

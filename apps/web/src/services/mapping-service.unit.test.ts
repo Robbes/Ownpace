@@ -18,7 +18,7 @@ import {
   MappingListItemSchema,
   MappingSchema,
   CreateMappingResponseSchema,
-} from './mapping-service';
+} from './mapping-service.ts';
 
 /** GET /migrations — one list item per real lifecycle state, as the route
  *  mapper builds them (index.ts, the res.json({mappings: ...}) block). */

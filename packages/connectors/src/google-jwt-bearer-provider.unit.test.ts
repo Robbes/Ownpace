@@ -16,7 +16,7 @@ import { generateKeyPairSync, createVerify } from 'node:crypto';
 import {
   GoogleJwtBearerProvider,
   parseServiceAccountKey,
-} from './google-jwt-bearer-provider';
+} from './google-jwt-bearer-provider.ts';
 
 const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const KEY_JSON = JSON.stringify({

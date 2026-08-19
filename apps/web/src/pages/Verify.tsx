@@ -24,12 +24,12 @@ import type {
   VerificationResult,
   VerifyResponse,
 } from '@openmig/shared';
-import { startVerification, fetchVerifyReport } from '../services/operating-service';
-import { useT, useFormatters } from '../i18n';
-import { isSelfHost } from '../services/edition';
-import MappingHubLink from '../components/MappingHubLink';
-import type { StringKey } from '../i18n';
-import { serverMessage } from '../services/api';
+import { startVerification, fetchVerifyReport } from '../services/operating-service.ts';
+import { useT, useFormatters } from '../i18n/index.tsx';
+import { isSelfHost } from '../services/edition.ts';
+import MappingHubLink from '../components/MappingHubLink.tsx';
+import type { StringKey } from '../i18n/index.tsx';
+import { serverMessage } from '../services/api.ts';
 
 // The status WORD (PASS/FAIL/…) stays the server's vocabulary; the hover help
 // is client prose and translates (workplan 0024 T2).

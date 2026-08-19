@@ -19,7 +19,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { credentialFieldsFor } from '@openmig/shared';
-import { knownConnectionValues } from './index';
+import { knownConnectionValues } from './index.ts';
 
 describe('knownConnectionValues', () => {
   it('NEVER returns a field the descriptor marks secret', () => {

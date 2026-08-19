@@ -19,7 +19,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { WebdavFileSource } from './webdav-source';
+import { WebdavFileSource } from './webdav-source.ts';
 
 /** Bytes that are not valid UTF-8 — the population this matters for. */
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46]);

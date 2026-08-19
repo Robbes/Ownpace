@@ -2,7 +2,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { MigrationStatus } from '@openmig/shared';
-import { buildStatusReport } from './status';
+import { buildStatusReport } from './status.ts';
 
 function status(over: Partial<MigrationStatus>): MigrationStatus {
   return {

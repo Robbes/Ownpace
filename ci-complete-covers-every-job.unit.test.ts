@@ -40,6 +40,20 @@ const jobs = workflow.jobs ?? {};
 const jobNames = Object.keys(jobs);
 const gated = jobNames.filter((n) => n !== AGGREGATOR);
 
+/**
+ * The aggregator job itself.
+ *
+ * A module-level throw rather than `jobs[AGGREGATOR]!` at five call sites:
+ * `noUncheckedIndexedAccess` is right that a lookup can miss, and the honest
+ * answer is that this whole file is meaningless if it does. The vacuity guard
+ * below asserts the same thing as a test, so a rename of the job fails with a
+ * sentence rather than with `Cannot read properties of undefined`.
+ */
+const aggregator = jobs[AGGREGATOR];
+if (!aggregator) {
+  throw new Error(`ci.yml has no \`${AGGREGATOR}\` job — this file's entire premise is gone`);
+}
+
 describe('ci-complete is a truthful aggregate of every CI gate', () => {
   it('has gates to aggregate at all', () => {
     // The vacuity guard. Every assertion below passes trivially against an
@@ -52,9 +66,9 @@ describe('ci-complete is a truthful aggregate of every CI gate', () => {
 
   it('waits for EVERY other job in the workflow', () => {
     const needs = new Set(
-      Array.isArray(jobs[AGGREGATOR].needs)
-        ? (jobs[AGGREGATOR].needs as string[])
-        : [jobs[AGGREGATOR].needs as string],
+      Array.isArray(aggregator.needs)
+        ? (aggregator.needs as string[])
+        : [aggregator.needs as string],
     );
     const uncovered = gated.filter((j) => !needs.has(j));
 
@@ -72,7 +86,7 @@ describe('ci-complete is a truthful aggregate of every CI gate', () => {
     // required check reports no failure, so the gate would stop gating at
     // exactly the moment something broke — green by absence.
     expect(
-      String(jobs[AGGREGATOR].if ?? ''),
+      String(aggregator.if ?? ''),
       'ci-complete needs `if: always()` or it is skipped by an upstream failure',
     ).toContain('always()');
   });
@@ -80,7 +94,7 @@ describe('ci-complete is a truthful aggregate of every CI gate', () => {
   it('fails the run when an upstream gate failed', () => {
     // `if: always()` alone would make this job green no matter what happened.
     // Something in it has to inspect the results and exit non-zero.
-    const conditions = (jobs[AGGREGATOR].steps ?? []).map((s) => String(s.if ?? ''));
+    const conditions = (aggregator.steps ?? []).map((s) => String(s.if ?? ''));
     expect(
       conditions.some((c) => c.includes("needs.*.result") && c.includes('failure')),
       'no step fails on an upstream failure — ci-complete would report green for a red run',

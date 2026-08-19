@@ -27,9 +27,9 @@
  * one part of "ending it" the operator cannot do for themselves.
  */
 
-export * from './pricing';
-export * from './tenant-pricing';
-export * from './usage-metering';
-export * from './offboarding';
-export * from './migrate-managed';
-export * as managedSchema from './schema-managed';
+export * from './pricing.ts';
+export * from './tenant-pricing.ts';
+export * from './usage-metering.ts';
+export * from './offboarding.ts';
+export * from './migrate-managed.ts';
+export * as managedSchema from './schema-managed.ts';

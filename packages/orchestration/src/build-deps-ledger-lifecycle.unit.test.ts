@@ -29,7 +29,7 @@ vi.mock('@openmig/ledger', async (importOriginal) => {
   return { ...actual, createPgDb: () => ({ close: closeSpy }) };
 });
 
-import { buildDomainDeps } from './build-deps';
+import { buildDomainDeps } from './build-deps.ts';
 
 function mapping(domains: Record<string, unknown>) {
   return {

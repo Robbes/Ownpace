@@ -49,7 +49,7 @@ import {
   waitForNextPass,
   davAuthHeader,
   readTargetTrashbin,
-} from './apply-deletion-lib';
+} from './apply-deletion-lib.ts';
 
 describe('apply — file domain (WebDAV/Nextcloud)', () => {
   const FILE_NAME = 'dav-seed-file-2.txt';

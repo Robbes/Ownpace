@@ -20,7 +20,7 @@ import {
   executeCutover,
   completeCutover,
   type CutoverCliDeps,
-} from './cutover-commands';
+} from './cutover-commands.ts';
 
 const TENANT = asTenantId('5e1b0000-e29b-41d4-a716-4466554402a1' as never);
 const MAPPING = asMappingId('5e1b0000-e29b-41d4-a716-4466554402a2' as never);

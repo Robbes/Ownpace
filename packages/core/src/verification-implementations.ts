@@ -21,7 +21,7 @@ import {
   contactNaturalKeyHash,
   fileNaturalKeyHash,
 } from '@openmig/shared';
-import type { VerificationDeps } from './verification';
+import type { VerificationDeps } from './verification.ts';
 
 /**
  * Verification dependencies backed by ledger reader and target
@@ -29,7 +29,7 @@ import type { VerificationDeps } from './verification';
 export interface RealVerificationDeps {
   tenantId: TenantId;
   mappingId: MappingId;
-  config: import('./verification').VerificationConfig;
+  config: import('./verification.ts').VerificationConfig;
   // No `ledger` here. It was a REQUIRED field that this module never read —
   // verification goes through `verificationReader` — and every call site
   // silenced it with `as never`. That cast disabled type checking on the whole

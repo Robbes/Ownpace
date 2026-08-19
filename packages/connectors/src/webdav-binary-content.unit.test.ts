@@ -28,8 +28,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { WebdavFileSource } from './webdav-source';
-import type { HttpClient, HttpResponse } from './dav-http.types';
+import { WebdavFileSource } from './webdav-source.ts';
+import type { HttpClient, HttpResponse } from './dav-http.types.ts';
 
 /** A client that answers every request with these exact bytes. */
 function clientReturning(bytes: Uint8Array, opts: { withBytes?: boolean } = {}): HttpClient {

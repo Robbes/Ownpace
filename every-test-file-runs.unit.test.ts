@@ -27,6 +27,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { readdirSync } from 'node:fs';
+import type { Dirent } from 'node:fs';
 import { join } from 'node:path';
 
 /** The infixes `vitest.config.ts` splits projects on. */
@@ -40,7 +41,10 @@ const SKIP = new Set(['node_modules', '.git', 'dist', 'dist-selfhost', 'coverage
 
 function testFilesUnder(dir: string, rel = ''): string[] {
   const out: string[] = [];
-  let entries: ReturnType<typeof readdirSync<{ withFileTypes: true }>>;
+  // `ReturnType<typeof readdirSync<…>>` does not type-check: readdirSync is
+  // OVERLOADED, not generic, so there is no type argument list to apply. The
+  // element type is what this actually wanted.
+  let entries: Dirent[];
   try {
     entries = readdirSync(dir, { withFileTypes: true });
   } catch {

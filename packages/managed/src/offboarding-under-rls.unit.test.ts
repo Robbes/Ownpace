@@ -46,9 +46,9 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { pgliteDriver } from '@openmig/ledger';
 import { runMigrations } from '@openmig/ledger';
-import { runManagedMigrations } from './migrate-managed';
+import { runManagedMigrations } from './migrate-managed.ts';
 import { withTenant } from '@openmig/ledger';
-import { closeTenant, reopenTenant } from './offboarding';
+import { closeTenant, reopenTenant } from './offboarding.ts';
 import type { LedgerDriver } from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger';
 
