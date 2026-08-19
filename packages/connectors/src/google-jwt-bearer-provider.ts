@@ -101,13 +101,17 @@ export class GoogleJwtBearerProvider implements TokenProvider {
   private cached: OAuth2Token | null = null;
   private inFlight: Promise<OAuth2Token> | null = null;
 
+  private readonly subject: string;
+  private readonly scope: string;
   constructor(
     serviceAccountKey: string,
     /** The ONE user this instance impersonates — a mapping's subject. */
-    private readonly subject: string,
-    private readonly scope: string,
+    subject: string,
+    scope: string,
     options: GoogleDwdOptions = {},
   ) {
+    this.subject = subject;
+    this.scope = scope;
     // Refused at construction, before any request: a key that cannot parse or
     // a missing subject would otherwise surface mid-pass as a mint failure.
     this.key = parseServiceAccountKey(serviceAccountKey);

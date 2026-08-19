@@ -23,6 +23,50 @@ export default tseslint.config(
     },
   },
   {
+    /* TYPE-AWARE rules, and deliberately only two of them.
+     *
+     * `recommendedTypeChecked` in full reports 2275 problems here, almost all
+     * of it stylistic debt (`require-await` 751, the `no-unsafe-*` family 924,
+     * `no-unnecessary-type-assertion` 412) that would have to be suppressed
+     * wholesale to get a green build — and a rule everybody suppresses is not
+     * a rule. These two are different: they catch a promise that is never
+     * awaited, in a codebase whose entire job is async I/O against remote
+     * mailboxes and calendars. That defect does not throw. It returns early,
+     * reports success, and loses the write.
+     *
+     * The cost is a real TS Program, so a COLD lint goes ~15s -> ~68s. Warm it
+     * is ~1.5s, which is what nearly every run is: `--cache-strategy content`
+     * survives CI's checkout, and only changed files are re-linted.
+     */
+    // Scoped to the files a tsconfig actually covers. The `test` and `scripts`
+    // trees and the root-level .ts files are in NO tsconfig `include`, so the
+    // project service cannot type them and each would report a parsing error.
+    // That gap is real and worth closing on its own — widening the root
+    // include surfaces 29 genuine type errors in files nothing has ever
+    // checked — but it is a separate change, and silently linting a subset is
+    // how a gate ends up meaning less than it appears to. Hence the explicit
+    // list here rather than a catch-all plus 35 suppressions.
+    files: ['packages/*/src/**/*.ts', 'apps/*/src/**/*.ts', 'apps/web/src/**/*.tsx'],
+    languageOptions: {
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+    },
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': [
+        'error',
+        // `attributes` OFF, and this is a finding rather than a shortcut: all
+        // 22 sites it reported are React event handlers, and every one of them
+        // already opens a try/catch and sets its own failure state — checked
+        // individually, not sampled. React ignores a handler's return value by
+        // design, so `onClick={someAsyncFn}` is the idiomatic spelling and the
+        // sub-check has no true positive to find here. The rest of the rule
+        // stays on: an async function passed where a void callback is expected
+        // in ordinary code IS a bug, and `arguments` is what catches it.
+        { checksVoidReturn: { attributes: false } },
+      ],
+    },
+  },
+  {
     rules: {
       '@typescript-eslint/no-unused-vars': [
         'error',

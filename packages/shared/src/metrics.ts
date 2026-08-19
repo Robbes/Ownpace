@@ -72,10 +72,15 @@ interface Series {
 
 abstract class Metric {
   protected readonly series = new Map<string, Series>();
+  readonly name: string;
+  readonly help: string;
   constructor(
-    readonly name: string,
-    readonly help: string,
-  ) {}
+    name: string,
+    help: string,
+  ) {
+    this.name = name;
+    this.help = help;
+  }
   abstract get type(): string;
   protected slot(labels: Labels): Series {
     const key = labelKey(labels);
@@ -128,11 +133,18 @@ export class Gauge extends Metric {
  */
 export class Histogram {
   private readonly counts = new Map<string, { labels: Labels; buckets: number[]; sum: number; count: number }>();
+  readonly name: string;
+  readonly help: string;
+  readonly buckets: readonly number[];
   constructor(
-    readonly name: string,
-    readonly help: string,
-    readonly buckets: readonly number[] = [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30],
-  ) {}
+    name: string,
+    help: string,
+    buckets: readonly number[] = [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30],
+  ) {
+    this.name = name;
+    this.help = help;
+    this.buckets = buckets;
+  }
   observe(labels: Labels, seconds: number): void {
     const key = labelKey(labels);
     let s = this.counts.get(key);

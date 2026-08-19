@@ -78,10 +78,15 @@ const FOLDER = 'openmig-jmap-sync/Sync files';
 
 /** Synthetic in-memory source: isolates the target-write path under test. */
 class StubFileSource implements FileSource {
+  private readonly folder: FileFolder;
+  private readonly files: ReadonlyArray<RawFileItem>;
   constructor(
-    private readonly folder: FileFolder,
-    private readonly files: ReadonlyArray<RawFileItem>,
-  ) {}
+    folder: FileFolder,
+    files: ReadonlyArray<RawFileItem>,
+  ) {
+    this.folder = folder;
+    this.files = files;
+  }
 
   async listFolders(): Promise<ReadonlyArray<FileFolder>> {
     return [this.folder];

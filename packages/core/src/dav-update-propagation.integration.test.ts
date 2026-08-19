@@ -202,10 +202,15 @@ function calendarEvent(uid: string, summary: string, etag: string): RawCalendarE
 }
 
 class StubCalendarSource implements CalendarSource {
+  private readonly folder: CalendarFolder;
+  private readonly events: ReadonlyArray<RawCalendarEvent>;
   constructor(
-    private readonly folder: CalendarFolder,
-    private readonly events: ReadonlyArray<RawCalendarEvent>,
-  ) {}
+    folder: CalendarFolder,
+    events: ReadonlyArray<RawCalendarEvent>,
+  ) {
+    this.folder = folder;
+    this.events = events;
+  }
   async listFolders(): Promise<ReadonlyArray<CalendarFolder>> {
     return [this.folder];
   }
@@ -506,10 +511,15 @@ function contact(uid: string, fn: string, etag: string): RawContact {
 }
 
 class StubContactSource implements ContactSource {
+  private readonly folder: ContactFolder;
+  private readonly contacts: ReadonlyArray<RawContact>;
   constructor(
-    private readonly folder: ContactFolder,
-    private readonly contacts: ReadonlyArray<RawContact>,
-  ) {}
+    folder: ContactFolder,
+    contacts: ReadonlyArray<RawContact>,
+  ) {
+    this.folder = folder;
+    this.contacts = contacts;
+  }
   async listFolders(): Promise<ReadonlyArray<ContactFolder>> {
     return [this.folder];
   }
@@ -687,10 +697,15 @@ function fileItem(name: string, body: string, etag: string): RawFileItem {
 }
 
 class StubFileSource implements FileSource {
+  private readonly folder: FileFolder;
+  private readonly files: ReadonlyArray<RawFileItem>;
   constructor(
-    private readonly folder: FileFolder,
-    private readonly files: ReadonlyArray<RawFileItem>,
-  ) {}
+    folder: FileFolder,
+    files: ReadonlyArray<RawFileItem>,
+  ) {
+    this.folder = folder;
+    this.files = files;
+  }
   async listFolders(): Promise<ReadonlyArray<FileFolder>> {
     return [this.folder];
   }
@@ -873,7 +888,10 @@ const targetPathFor = (name: string) => `calendars/${NEXTCLOUD_USERNAME}/${name}
 
 /** A source with two calendars, so an event can be listed in either. */
 class StubTwoCalendarSource implements CalendarSource {
-  constructor(private readonly byFolder: ReadonlyMap<string, ReadonlyArray<RawCalendarEvent>>) {}
+  private readonly byFolder: ReadonlyMap<string, ReadonlyArray<RawCalendarEvent>>;
+  constructor(byFolder: ReadonlyMap<string, ReadonlyArray<RawCalendarEvent>>) {
+    this.byFolder = byFolder;
+  }
   async listFolders(): Promise<ReadonlyArray<CalendarFolder>> {
     return [folderA, folderB];
   }

@@ -45,10 +45,12 @@ export class PgRateBudget implements RateBudget {
   private readonly rate: number;
   private readonly burst: number;
 
+  private readonly db: PgDatabase;
   constructor(
-    private readonly db: PgDatabase,
+    db: PgDatabase,
     config: RateBudgetConfig,
   ) {
+    this.db = db;
     this.rate = config.requestsPerSecond;
     this.burst = config.burst ?? config.requestsPerSecond;
     if (!(this.rate > 0)) throw new Error(`requestsPerSecond must be positive, got ${this.rate}`);

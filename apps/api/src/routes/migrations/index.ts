@@ -389,9 +389,11 @@ const router = Router();
  * open, where "a mapping already exists" is something they can only stare at.
  */
 export class DuplicateMappingError extends Error {
+  readonly existingId: string;
+  readonly existingName: string | null;
   constructor(
-    readonly existingId: string,
-    readonly existingName: string | null,
+    existingId: string,
+    existingName: string | null,
   ) {
     super(
       `A migration between these two accounts already exists${
@@ -400,6 +402,8 @@ export class DuplicateMappingError extends Error {
         `double everything on the target. Give this one a different target ` +
         `folder, or open the existing migration instead.`,
     );
+    this.existingId = existingId;
+    this.existingName = existingName;
     this.name = 'DuplicateMappingError';
   }
 }

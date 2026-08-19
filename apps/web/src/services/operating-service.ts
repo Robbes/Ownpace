@@ -244,11 +244,15 @@ export async function dismissDriftDecision(
  * product declined to delete their data.
  */
 export class DecisionRefusedError extends Error {
+  readonly refusal: DecisionRefused;
+  readonly httpStatus: number;
   constructor(
-    readonly refusal: DecisionRefused,
-    readonly httpStatus: number,
+    refusal: DecisionRefused,
+    httpStatus: number,
   ) {
     super(refusal.reason ?? refusal.hint ?? refusal.error);
+    this.refusal = refusal;
+    this.httpStatus = httpStatus;
     this.name = 'DecisionRefusedError';
   }
 }
@@ -580,11 +584,15 @@ export async function requestFinalPass(mappingId: string): Promise<'finished' | 
 
 /** A refusal to finish, kept distinct from a transport failure — see `DecisionRefusedError`. */
 export class FinishRefusedError extends Error {
+  readonly refusal: FinishRefused;
+  readonly httpStatus: number;
   constructor(
-    readonly refusal: FinishRefused,
-    readonly httpStatus: number,
+    refusal: FinishRefused,
+    httpStatus: number,
   ) {
     super(refusal.error);
+    this.refusal = refusal;
+    this.httpStatus = httpStatus;
     this.name = 'FinishRefusedError';
   }
 }

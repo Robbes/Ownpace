@@ -31,6 +31,14 @@ Before any Stalwart or integration-test work: read `docs/stalwart-integration-fi
   back to plain `typescript@7` and `typecheck:legacy` goes away.
   `scripts/toolchain-split.unit.test.ts` guards the arrangement and should be
   deleted in the same change.
+- **`pnpm lint` is type-aware, and cached.** Two rules need a real TS Program —
+  `no-floating-promises` and `no-misused-promises` — so a COLD lint is ~47s and a
+  warm one ~2.4s. Do not drop `--cache --cache-strategy content` from the script
+  to "simplify" it: `--cache` alone keys on mtime, which every checkout
+  invalidates. The type-aware block is scoped to the globs a tsconfig actually
+  covers; `test/`, `scripts/` and root-level `.ts` are in no `include` and are
+  therefore neither typechecked nor type-linted (29 real type errors are waiting
+  there whenever someone widens it).
 - Unit: `pnpm test` · Integration: `pnpm test:integration` (self-manages its stack via Testcontainers) · UI smoke: `pnpm test:ui` (real Chromium over the built bundle; runs on every PR) · E2E: `pnpm test:e2e`
 - Optional dev stack: `docker compose -f deploy/compose/dev.yml up -d` (Postgres + Nextcloud).
   Stalwart isn't part of it — its two-phase startup can't be expressed as one compose service —

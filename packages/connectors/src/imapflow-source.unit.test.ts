@@ -67,7 +67,9 @@ let lastErrorHandler: ((err: Error) => void) | undefined;
 vi.mock('imapflow', () => {
   class FakeImapFlow {
     mailbox: unknown = false;
-    constructor(public readonly options: Record<string, unknown>) {
+    public readonly options: Record<string, unknown>;
+    constructor(options: Record<string, unknown>) {
+      this.options = options;
       lastOptions = options;
       calls.push(`new(${String(options.host)}:${String(options.port)})`);
     }

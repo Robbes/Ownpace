@@ -68,10 +68,12 @@ export class DropboxFileSource implements FileSource {
   /** Consume-once memo for `listKeys`, exactly like the Drive source's. */
   private lastListing?: { readonly path: string; readonly keys: ReadonlyArray<string> };
 
+  private readonly transport: DropboxTransport;
   constructor(
-    private readonly transport: DropboxTransport,
+    transport: DropboxTransport,
     config: DropboxFileSourceConfig = {},
   ) {
+    this.transport = transport;
     this.apiBase = (config.apiBaseUrl ?? DEFAULT_API_BASE).replace(/\/$/, '');
     this.contentBase = (config.contentBaseUrl ?? DEFAULT_CONTENT_BASE).replace(/\/$/, '');
     // Dropbox's API spells the root '' and everything else '/x/y' — normalise

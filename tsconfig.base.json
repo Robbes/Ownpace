@@ -46,6 +46,28 @@
     "resolveJsonModule": true,
     "types": ["node"],
     "noEmit": true,
+
+    /* Every construct here must be removable by deleting characters — no
+       enums, no namespaces, no parameter properties.
+
+       NOT because the current runtime cannot handle those. `tsx` (esbuild)
+       TRANSFORMS as well as erases, so it happily emits the constructor
+       assignments a parameter property implies; the 45 this repo had all
+       worked. What cannot handle them is a PURE eraser, and Node's own type
+       stripping is one — checked rather than assumed:
+
+           class C { constructor(private readonly x: number) {} }
+           node --experimental-strip-types  ->  SyntaxError
+           tsx                              ->  runs
+
+       So this option is what makes `node src/index.ts` a possible runtime for
+       this workspace instead of `tsx src/index.ts`. It does not take that step
+       — the apps still run under tsx — it removes the reason they had to.
+
+       Turning it on meant rewriting those 45 parameter properties into
+       explicit fields, done mechanically through the TypeScript AST so that
+       defaults, optional markers and `super()` ordering survived. */
+    "erasableSyntaxOnly": true,
     "paths": {
       "@openmig/managed": ["./packages/managed/src/index.ts"],
       "@openmig/managed/*": ["./packages/managed/src/*"],

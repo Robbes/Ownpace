@@ -69,10 +69,14 @@ export class MailSourceWithGraphFallback implements SourceConnector {
    *   the IMAP listing fails with an auth-class error, so a mapping whose
    *   IMAP works never pays for (or validates) the Graph credentials.
    */
+  private readonly imap: SourceConnector;
+  private readonly buildGraph: () => SourceConnector;
   constructor(
-    private readonly imap: SourceConnector,
-    private readonly buildGraph: () => SourceConnector,
+    imap: SourceConnector,
+    buildGraph: () => SourceConnector,
   ) {
+    this.imap = imap;
+    this.buildGraph = buildGraph;
     this.active = imap;
   }
 

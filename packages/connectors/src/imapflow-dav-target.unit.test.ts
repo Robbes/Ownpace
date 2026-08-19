@@ -58,7 +58,10 @@ vi.mock('imapflow', () => {
   class FakeImapFlow {
     mailbox: unknown = false;
     capabilities = new Map<string, boolean>();
-    constructor(public readonly options: Record<string, unknown>) {}
+    public readonly options: Record<string, unknown>;
+    constructor(options: Record<string, unknown>) {
+      this.options = options;
+    }
     on(event: string, handler: (err: Error) => void): void {
       calls.push(`on(${event})`);
       if (event === 'error') lastErrorHandler = handler;

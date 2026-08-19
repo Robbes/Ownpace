@@ -45,10 +45,12 @@ export class DropboxTokenProvider implements TokenProvider {
   private cached: OAuth2Token | null = null;
   private inFlight: Promise<OAuth2Token> | null = null;
 
+  private readonly creds: DropboxOAuthCredentials;
   constructor(
-    private readonly creds: DropboxOAuthCredentials,
+    creds: DropboxOAuthCredentials,
     options: DropboxTokenProviderOptions = {},
   ) {
+    this.creds = creds;
     const missing = (['appKey', 'appSecret', 'refreshToken'] as const).filter((k) => !creds[k]);
     if (missing.length > 0) {
       throw new Error(

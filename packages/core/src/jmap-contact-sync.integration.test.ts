@@ -90,10 +90,15 @@ function buildVcard(uid: string, fn: string): string {
 
 /** Synthetic in-memory source: isolates the target-write path under test. */
 class StubContactSource implements ContactSource {
+  private readonly folder: ContactFolder;
+  private readonly contacts: ReadonlyArray<RawContact>;
   constructor(
-    private readonly folder: ContactFolder,
-    private readonly contacts: ReadonlyArray<RawContact>,
-  ) {}
+    folder: ContactFolder,
+    contacts: ReadonlyArray<RawContact>,
+  ) {
+    this.folder = folder;
+    this.contacts = contacts;
+  }
 
   async listFolders(): Promise<ReadonlyArray<ContactFolder>> {
     return [this.folder];

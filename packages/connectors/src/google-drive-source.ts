@@ -123,10 +123,12 @@ export class GoogleDriveSource implements FileSource {
   /** The ACTUAL id behind a `rootFolderId` of `'root'` — see `actualRootId`. */
   private rootIdResolved?: string;
 
+  private readonly transport: DriveTransport;
   constructor(
-    private readonly transport: DriveTransport,
+    transport: DriveTransport,
     config: GoogleDriveSourceConfig = {},
   ) {
+    this.transport = transport;
     this.baseUrl = (config.baseUrl ?? DEFAULT_BASE).replace(/\/$/, '');
     this.rootFolderId = config.rootFolderId ?? 'root';
     // Defaults to refusing, not exporting. See NativeFilePolicy: of the two ways

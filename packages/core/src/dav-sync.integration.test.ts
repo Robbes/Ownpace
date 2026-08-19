@@ -80,7 +80,12 @@ END:VCALENDAR`;
 
 /** Synthetic in-memory calendar source: isolates the target-write path under test. */
 class StubCalendarSource implements CalendarSource {
-  constructor(private readonly folder: CalendarFolder, private readonly events: ReadonlyArray<RawCalendarEvent>) {}
+  private readonly folder: CalendarFolder;
+  private readonly events: ReadonlyArray<RawCalendarEvent>;
+  constructor(folder: CalendarFolder, events: ReadonlyArray<RawCalendarEvent>) {
+    this.folder = folder;
+    this.events = events;
+  }
 
   async listFolders(): Promise<ReadonlyArray<CalendarFolder>> {
     return [this.folder];
@@ -324,7 +329,12 @@ END:VCARD`;
 
 /** Synthetic in-memory contact source: isolates the target-write path under test. */
 class StubContactSource implements ContactSource {
-  constructor(private readonly folder: ContactFolder, private readonly contacts: ReadonlyArray<RawContact>) {}
+  private readonly folder: ContactFolder;
+  private readonly contacts: ReadonlyArray<RawContact>;
+  constructor(folder: ContactFolder, contacts: ReadonlyArray<RawContact>) {
+    this.folder = folder;
+    this.contacts = contacts;
+  }
 
   async listFolders(): Promise<ReadonlyArray<ContactFolder>> {
     return [this.folder];
@@ -534,7 +544,12 @@ const FILE_COUNT = 3;
 
 /** Synthetic in-memory file source: isolates the target-write path under test. */
 class StubFileSource implements FileSource {
-  constructor(private readonly folder: FileFolder, private readonly files: ReadonlyArray<RawFileItem>) {}
+  private readonly folder: FileFolder;
+  private readonly files: ReadonlyArray<RawFileItem>;
+  constructor(folder: FileFolder, files: ReadonlyArray<RawFileItem>) {
+    this.folder = folder;
+    this.files = files;
+  }
 
   async listFolders(): Promise<ReadonlyArray<FileFolder>> {
     return [this.folder];

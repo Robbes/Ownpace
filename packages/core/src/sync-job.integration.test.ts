@@ -297,7 +297,7 @@ describe('Sync Jobs with Encrypted Credentials (integration)', () => {
     await db.execute(sql`DELETE FROM mailbox WHERE tenant_id IN (${TENANT_A_ID}, ${TENANT_B_ID})`);
     await db.execute(sql`DELETE FROM connection WHERE tenant_id IN (${TENANT_A_ID}, ${TENANT_B_ID})`);
     await db.execute(sql`DELETE FROM tenant WHERE id IN (${TENANT_A_ID}, ${TENANT_B_ID})`);
-    pool.end();
+    await pool.end();
   });
 
   beforeEach(async () => {
