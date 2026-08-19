@@ -3,6 +3,15 @@
 - **Status:** Accepted
 - **Date:** 2026-06-20
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- **English** for code, comments, docs and ADRs; the end-user UI is **bilingual EN+NL** (built: typed dictionary in `@openmig/shared`, `Intl` formatting keyed on app locale).
+- The prose boundary (docs/i18n-prose-boundary.md): **translate the frame, never the finding** — server refusal prose renders verbatim, untranslated.
+
 > **Update 2026-08-02 (workplan 0021 T5, owner decision: keep + build).** The
 > bilingual promise had zero i18n behind it for the project's whole life —
 > Dutch existed only in the cutover comms templates. Kept, and the build is

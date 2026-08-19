@@ -3,6 +3,15 @@
 - **Status:** Accepted
 - **Date:** 2026-06-20
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- One `Scheduler`/`JobRunner` seam: **in-process scheduler** on the appliance, **Trigger.dev** on managed.
+- The orchestrator never sees content: task payloads carry ids only; bytes move inside the task process (SAD §17).
+
 > **Update 2026-08-02:** "imapsync/rclone move data directly source->target"
 > is historical — the bytes now flow through OUR connector code executing as
 > deployed Trigger.dev tasks (workplans 0018/0022; since 0022 the managed

@@ -3,6 +3,15 @@
 - **Status:** Accepted
 - **Date:** 2026-06-20
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- **Microsoft Graph** for calendar/contacts/files as sources; **never DavMail/EWS** (EWS is being retired).
+- Mail stays IMAP+OAuth2 primary with the Graph fallback (ADR-0006).
+
 ## Context
 Microsoft is retiring Exchange Web Services (enforcement begins in 2026) and shipped Graph-based migration APIs (Mailbox Import/Export GA 2026). DavMail relies on EWS.
 

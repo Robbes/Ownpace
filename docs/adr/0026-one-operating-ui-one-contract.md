@@ -4,6 +4,16 @@
 - **Date:** 2026-07-30
 - **Relates to:** ADR-0016 (ledger schema), ADR-0019 (packaging), ADR-0020 (ledger is a rebuildable cache), ADR-0023 (Postgres everywhere), ADR-0024 (`apply`), SAD §11.1/§11.2 (owner decides; decision queues), §17 (personal data), §20 (verification). Prerequisite for workplan 0015 (native Windows installer).
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- **One operating UI and one wire contract for both editions**; shapes live in `packages/shared/src/operating-contract.ts`; the managed API implements the same operating surface.
+- The appliance UI is **not** a reduced or "basic" mode.
+- Refusal prose is operating semantics: rendered verbatim, never decorated away.
+
 ## Context
 
 Everything before the green light has a UI. Everything after it does not.

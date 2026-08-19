@@ -4,6 +4,16 @@
 - **Date:** 2026-08-11
 - **Deciders:** Owner
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- The public site is **server-rendered semantic HTML** — content readable without executing JavaScript; the app stays an SPA and scoring badly on agent-readiness scans is **correct**.
+- Ships `llms.txt` curated as links to maintained docs; `robots.txt` welcomes assistants on marketing pages, excludes the app host.
+- **No agent write surface** (no WebMCP/A2A/MCP): ledger-derived strings are attacker-controllable and must stay data, never instruction. Read-only access is a separate future decision.
+
 ## Context
 
 There is no public site yet. The product ships a React SPA for the

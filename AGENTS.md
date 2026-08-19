@@ -62,11 +62,16 @@ Sovereign migration/sync: families and SMBs move off US cloud (O365/Google/Dropb
 Nextcloud) — both in MVP (ADR-0018). The **O365 source stays IMAP+OAuth2/Graph**. Migration is idempotent, shadow-runs as long as the user wants, and the user stays in control via the UI.
 
 ## Decided stack (details in the ADRs — follow them, don't re-decide)
+**ADR reading protocol (ADR-0038): load [`docs/adr/OPERATIVE.md`](docs/adr/OPERATIVE.md) for
+what holds now — it is generated from every ADR's own `## Operative rules` section and
+drift-guarded. Open a full ADR only to challenge or amend that decision; never bulk-read
+`docs/adr/`. Statuses live in the register (`docs/adr/README.md`). After amending an
+operative section, regenerate: `node scripts/adr-operative.mjs --write`.**
 - TypeScript, Node 24, pnpm workspaces monorepo (ADR-0002); Apache-2.0 (ADR-0001).
 - `Scheduler` interface: in-process croner (self-host) / Trigger.dev (managed) (ADR-0004).
 - Ledger: **Postgres everywhere** — managed Postgres+RLS (managed) / bundled small Postgres (self-host), one schema (ADR-0016, **ADR-0023** supersedes the SQLite option in ADR-0010); migrations via Drizzle Kit + Atlas lint (ADR-0017). **No SQLite** — do not reintroduce a second dialect.
 - Engines: **JS-native, all of them. No Perl, no Python, no external binaries.** JMAP writer (jmap-jam) for JMAP; `imapflow` for IMAP; `webdav`/`ical.js` for DAV. The imapsync/vdirsyncer/rclone shell-outs this line used to name are **gone** — see ADR-0019's update note, "there are no shell-out engines left", and ADR-0007's status line (ADR-0007/0018/0019).
-- O365: one multi-tenant Entra app; IMAP+OAuth2 primary, Graph fallback (ADR-0006).
+- O365: per-customer single-tenant Entra app (the multi-tenant app was retired 2026-08-09 — ADR-0006's second update); IMAP+OAuth2 primary, Graph fallback.
 - Target provisioning: RETRACTED (ADR-0008, owner decision 2026-08-02) — the owner supplies existing-account credentials; provisioning guidance lives in docs, not an interface.
 
 ## Repo map (top level; don't trust paths blindly — verify before editing)
@@ -83,7 +88,7 @@ Nextcloud) — both in MVP (ADR-0018). The **O365 source stays IMAP+OAuth2/Graph
 4. **Respect provider limits.** Honor 429/`Retry-After`; keep per-tenant/provider concurrency budgets.
 5. **Self-host must keep working.** No managed-only dependency in `packages/` or `apps/selfhost`; orchestration stays behind `Scheduler`. **The one exception is `packages/managed`, which IS managed-only and is named as such** (ADR-0036) — it exists so that everything presuming a CUSTOMER (prices, invoices, seats, closing an account, erasure receipts) has somewhere to live that is not `shared` or `ledger`. Its DDL goes in `packages/managed/migrations`, never the shared chain. The rule is enforced, not remembered: `apps/selfhost/src/no-managed-leakage.unit.test.ts` walks the appliance's real import graph, and it passed for as long as billing lived in the shared packages because its forbidden list said "billing" while the modules were called `pricing`, `usage-metering` and `offboarding`. **Managed-only code that is not named after an invoice still belongs in `packages/managed` or an `apps/` managed app** — add the specifier to that guard when you add the code, and a managed thing hanging off a core table becomes a ROW of its own, never a column.
 6. **Docs discipline.** `docs/` is the only home for documentation; keep the root `.md` allowlist (CONTRIBUTING.md); Apache-2.0 headers on source files.
-7. **Decisions → ADRs** (append-only; supersede, don't delete). Operational findings → a Rule + one-line rationale in the relevant reference doc (e.g. the Stalwart fix doc).
+7. **Decisions → ADRs** (append-only; supersede, don't delete — except each ADR's `## Operative rules` section, which is amended IN PLACE and regenerated into `OPERATIVE.md`, ADR-0038). Operational findings → a Rule + one-line rationale in the relevant reference doc (e.g. the Stalwart fix doc).
 8. **Gates before "done":** lint + typecheck + unit + relevant integration; update docs.
 9. **Never mask errors.** No null-fallbacks or catch-and-continue that turn failures into empty results (`scanned=0` must be unreachable via a swallowed error) — unmask, quote, fix the root cause. Connector (IMAP/JMAP) failures must surface.
 

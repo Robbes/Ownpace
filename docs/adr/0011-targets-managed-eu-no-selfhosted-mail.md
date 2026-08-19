@@ -3,6 +3,15 @@
 - **Status:** Accepted
 - **Date:** 2026-06-20
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- Default/recommended targets are **managed EU/CH platforms**; the connector layer stays target-agnostic.
+- Self-hosted targets (incl. mail) are permitted but **user-operated** — no responsibility for their hosting, deliverability, reputation or uptime, and docs/UI must say so.
+
 ## Context
 Self-hosting a mail server brings IP/domain reputation, deliverability and uptime burdens. The stack is standards-based, so any compliant endpoint can be a target.
 

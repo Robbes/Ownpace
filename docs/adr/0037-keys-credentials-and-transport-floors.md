@@ -12,6 +12,19 @@
   (the boundary-by-walk style decision 1 borrows), `packages/core/src/secrets.ts` and
   `secret-store.ts` (the mechanism, unchanged).
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- **One credential store in every deployment** (grants arrive from people at runtime — ADR-0035); the four env-indirection auth kinds stay per connection as the no-secret-at-rest escape hatch; files never hold secrets.
+- One `KeyProvider` seam, **exactly two providers**: env (`SECRET_ENCRYPTION_KEY`, always wins) and a generated key file for Personal on **every** platform; OS keystores deferred.
+- The key is required at **first store, not at boot** — a pure files+env fleet gains no knob; a grant with no key is refused naming the fix.
+- **AES-256-GCM stands**; the blob's version byte becomes a **dispatcher, not a rejector** (the whole crypto-agility mechanism); Argon2id if a passphrase mode is ever added; no PQ KEM anywhere (its future home is a KMS envelope wrap).
+- TLS floors: named cloud providers (Graph, Google, Dropbox) → **1.3**; customer/legacy endpoints → **1.2 restricted to ECDHE+AEAD**, 1.3 preferred, negotiated version surfaced. `rejectUnauthorized: false` is test-fixture-only plus the existing surfaced opt-out.
+- Managed's plaintext `.env` key is a **named open gap**; the exit is platform injection through the same env provider.
+
 ## Context, in five verified facts
 
 1. `SecretStore` is AES-256-GCM under one 32-byte key from `SECRET_ENCRYPTION_KEY`; the

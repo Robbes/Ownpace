@@ -22,6 +22,19 @@
   rebuildable cache — which credentials are not), workplan 0010 (which chose the current
   arrangement, as an implementation detail, and never claimed more than that).
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- Deployments are named **Personal / Organisation / Managed** (orthogonal to edition); an Organisation's ~1000 is migrated accounts run by a small admin team.
+- **Split by concern (owner, 2026-08-19):** topology's door differs — **files are Organisation's sole door, the UI is Personal's, the API/UI is Managed's**; credentials & grants live in the one secret store everywhere (ADR-0037); `passwordFromEnv`/`tokenFromEnv` stays per connection. Files never hold secrets.
+- No two-door merge machinery (no ownership column, no collision check). File-seeded rows record their origin path; Organisation's UI shows file topology read-only, naming the file.
+- The deployment mode is **explicit** (Personal default); contradictions refuse loudly (Personal+files at start; Organisation topology writes via UI/API). Deleting a file-declared connection revokes/parks its stored credential.
+- Authentication is a prerequisite for Organisation (decision 6, restated by ADR-0035).
+- Still open: the formal accept/reject of this ADR's surrounding reasoning.
+
 ## Context
 
 ### What is true today

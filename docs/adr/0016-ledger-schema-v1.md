@@ -3,6 +3,15 @@
 - **Status:** Accepted; the **"Drizzle ORM (dual pg/sqlite)" access-layer clause is superseded by [ADR-0023](0023-persistence-postgres-only.md)** (2026-07-16) — the schema is now Postgres-only. The schema design itself (the `item` idempotency anchor, tables, non-destructive semantics) is unchanged.
 - **Date:** 2026-06-20
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- The schema design stands: `item` anchored on `UNIQUE (tenant_id, mapping_id, natural_key_hash)` + `content_hash`; `text`+CHECK instead of enums; secrets only as `secret_ref`; `ON DELETE CASCADE` from `tenant`; RLS in managed.
+- The "dual pg/sqlite access layer" clause is superseded by ADR-0023; the baseline is `0001_baseline.sql`; managed-only tables moved to the managed chain (ADR-0036).
+
 ## Context
 The ledger is the correctness core (idempotency, mapping, drift decisions, runs, verification, cutover). It must work identically in the managed (PostgreSQL) and self-host (SQLite/small Postgres) editions, support multi-tenant isolation, and never store secrets.
 

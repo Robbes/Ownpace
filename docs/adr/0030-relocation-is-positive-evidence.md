@@ -5,6 +5,16 @@
 - **Deciders:** owner
 - **Relates to:** ADR-0024 (`apply` — the one destructive path, and its gate 3), ADR-0005 (non-destructive by default), ADR-0020 (natural keys preserved on the target). Arch doc §11.1. Workplan 0042 T2.
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- A **correlated relocation** (disappearance + same-content-hash arrival in one pass) is positive evidence; `apply` may remove the OLD copy. Recorded by `movedToNaturalKeyHash` — a cross-folder move and a rename are the same event.
+- All ADR-0024 gates stand, plus: the arrival must be **ours** (`copied`/`updated`, same `contentHash`, never `adopted` — refusal `relocation_unconfirmed`); the target is **asked** (`hasItem`) immediately before removal; a two-halves mass-relocation breaker; `keep` enforced server-side.
+- Relocated rows no longer count as absent — no phantom deletions. Manual relocation apply is appliance-only; the managed edition executes relocations via ADR-0031's auto path with receipts.
+
 ## Context
 
 **A file that is moved or renamed on the source leaves a copy on the target that this

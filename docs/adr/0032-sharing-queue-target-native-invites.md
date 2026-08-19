@@ -11,6 +11,17 @@
   workplan 0027 (Pattern D: definitions discovered, a person executes), ADR-0030/0031
   (the queue-and-gates idiom this reuses). Arch doc §14.2.
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- Grants are **rows** (`share_grant`) with verbatim source evidence; applying a share is a **per-grant owner decision** (apply/skip/edit) — never a pass side-effect; bulk is a loop over the same gated per-row apply.
+- **Nextcloud OCS is the only apply-capable target**; every other row stays manual with the protocol gap named. Link shares are **never auto-recreated**.
+- The **target's own messaging notifies the grantee** — open-migrate never emails third parties, ever. Apply is refused until the mapping's lifecycle says done/cutover.
+- Grantee addresses are proposed by the machine and **confirmed by a person**; attribution names the decider.
+
 ## Context
 
 The inventory half of §14.2 exists: every grant on the source, in the source's own words,

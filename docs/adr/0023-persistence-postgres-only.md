@@ -8,6 +8,16 @@
 - **Date:** 2026-07-16
 - **Supersedes (in part):** ADR-0010 (the SQLite / dual-backend option), ADR-0016 (its "dual pg/sqlite access layer" clause). The rest of both ADRs — Postgres+RLS for managed, the ledger schema v1, non-destructive/idempotency semantics — still stands.
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- **PostgreSQL is the single ledger dialect for both editions** — one migration set, one access layer; SQLite is gone.
+- The self-host compose default bundles a small Postgres; RLS remains a managed-edition mechanism.
+- Amended by ADR-0028: two **engines** (pg | PGlite) behind the `LedgerDriver` seam, appliance only.
+
 ## Context
 ADR-0010/0016 specified **two** ledger backends: SQLite (or small Postgres) for self-host, managed Postgres+RLS for the service, behind one Drizzle "dual pg/sqlite" schema. In practice the SQLite path was never gated (no parity tests), and the multi-tenant/RLS/cutover work (migrations `0002`–`0010`) evolved the schema into **Postgres-specific SQL** — `DO $$…$$` blocks, `CREATE ROLE`, RLS `POLICY`/`FORCE ROW LEVEL SECURITY`, `bigint`, advisory locks — none of which SQLite understands. Commit `6d9ecd4` then deleted `schema-sqlite.ts`/`sqlite-ledger.ts` as "unapproved scope." That left the tree Postgres-only in fact while the ADRs still promised SQLite — an unowned drift.
 

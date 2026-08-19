@@ -3,6 +3,15 @@
 - **Status:** Accepted
 - **Date:** 2026-06-20
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- **TypeScript** (Node, pnpm workspaces) for everything: control plane, workers, scheduler, connectors, UI.
+- The runtime is pure TS/JS — no shell-out engines remain (ADR-0019 update); esbuild bundles the appliance.
+
 > **Update 2026-08-02:** the "engines are invoked via shell-out" half of this
 > decision is dead — the wrappers were deleted 2026-07-30 and all four domains
 > run in pure TypeScript (see ADR-0019's update note). The language decision

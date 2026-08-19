@@ -4,6 +4,15 @@
 - **Date:** 2026-06-22
 - **Relates to:** ADR-0007 (reuse/engines), ADR-0009 (repo strategy), ADR-0011 (sovereignty), ADR-0015 (backup/data scope), ADR-0020 (rebuildable cache / natural-key idempotency).
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- **Nothing is operative — retracted 2026-08-05, never built.** No `KnowledgeSink`, no OKF writer; the scope manifest does not name it.
+- Revisit trigger: somebody asks for a knowledge side-output **with a use for it**; the opt-in-sink-off-the-critical-path shape remains the right one if revived.
+
 > **Update 2026-08-05 (owner decision, workplan 0026 T3 row 16) — RETRACTED.**
 > This ADR was accepted with a deferral: build it *after the file slices*. Those
 > landed, the precondition expired, and in the whole time since **not one line

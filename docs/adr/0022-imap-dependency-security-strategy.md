@@ -5,6 +5,15 @@
 **Authors:** OpenHands Agent  
 **Supersedes:** None
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- The vulnerable chain is **gone, not overridden**: `imap-simple`→`utf7`→`semver@5.3.0` left the lockfile with the imapflow migration (workplan 0032).
+- The `semver: ^7.5.2` pnpm override **stays** — it was never only about that chain; removing it is a separate decision with its own blast radius.
+
 > ## Update, 2026-08-06 — the workaround is no longer load-bearing
 >
 > This ADR chose a `pnpm` override over migrating, and listed as its own

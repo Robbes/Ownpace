@@ -5,6 +5,17 @@
 - **Supersedes:** the "optional Tauri tray variant (planned)" in [ADR-0019](./0019-packaging-runtime-targets.md) §2, as the *first* packaging target. Tauri is not rejected — it is deferred, with a named revisit condition below.
 - **Relates to:** ADR-0023 (Postgres everywhere), [ADR-0026](./0026-one-operating-ui-one-contract.md) (one operating UI), workplans [0015](../workplans/0015-native-windows-installer.md) T2–T4 and [0016](../workplans/0016-pglite-adoption.md).
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- The Windows appliance is a **Task Scheduler task** (At-Startup, `LocalService`) plus a Start-menu shortcut to the UI — **not** a Windows Service, and no wrapper binaries (WinSW/nssm rejected).
+- The payload ships its **own pinned Node runtime** (checksum-verified, opt-in at the packaging flag); PGlite's crash-safety under hard kill is proven, ledger included.
+- `install-task.ps1` must zero `ExecutionTimeLimit` (default 3 days would stop a healthy appliance — the likeliest quiet failure). The uninstaller preserves `C:\ProgramData\OpenMigrate` unless `-IncludeData`.
+- Tauri revisit: only when "must look native" becomes a stated requirement — never on size (the Node runtime is the bulk).
+
 ## Context
 
 Workplan 0015's goal, in the owner's words: a single `.msi`/`.exe` where **end

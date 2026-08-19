@@ -3,6 +3,15 @@
 - **Status:** Accepted
 - **Date:** 2026-06-20
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- The whole product is **Apache-2.0**; source headers and NOTICE conventions apply.
+- No copyleft: a third party running the code as a closed SaaS is an accepted trade.
+
 ## Context
 The project optimizes for maximal adoption AND being open. Copyleft (AGPL) protects "stays open" but deters commercial/MSP adoption.
 

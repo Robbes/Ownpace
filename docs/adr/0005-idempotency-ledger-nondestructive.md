@@ -3,6 +3,16 @@
 - **Status:** Accepted
 - **Date:** 2026-06-20
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- Idempotency rides a **ledger keyed on natural keys** (Message-ID; iCal UID+RECURRENCE-ID; vCard UID; file path) plus content hashes; re-runs converge.
+- **Deletions are never auto-propagated.** The one gated exception is ADR-0024's `apply` — explicit, per item, owner-decided.
+- Renames are updates, not delete+create (immutable external ids).
+
 > **Update 2026-08-02:** "deletions are never auto-propagated" still holds —
 > and [ADR-0024](./0024-explicit-owner-deletion-apply.md) records the ONE
 > deliberate, gated exception built since: `apply`, an explicit per-item owner

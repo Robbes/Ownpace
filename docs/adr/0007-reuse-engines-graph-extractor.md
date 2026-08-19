@@ -3,6 +3,15 @@
 - **Status:** Accepted 2026-06-20 — **both halves have since moved. Read the Update below before the Decision above.** The rich Graph extractor is **retracted 2026-08-02** (owner decision, workplan 0026 T3). The "reuse proven engines" half is **historical**: ADR-0019's update records that no shell-out engines remain and the runtime is pure JavaScript.
 - **Date:** 2026-06-20
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- Only one rule survives: **no commercial SharePoint tools** (Metalogix/ShareGate/AvePoint/MetaVis).
+- The shell-out engines are gone (ADR-0019) and the rich Graph extractor is retracted (2026-08-02) — the scope manifest lists the rich layer under *does not migrate*. Revisit: real SMB demand.
+
 ## Context
 We want high-fidelity, idempotent transfer without reinventing sync, and "as complete as possible" extraction from OneDrive/SharePoint — but the destination (Nextcloud) is not a SharePoint clone.
 

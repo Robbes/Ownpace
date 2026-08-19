@@ -3,6 +3,15 @@
 - **Status:** Accepted; the **"optional user-controlled extra backup" bullet is RETRACTED 2026-08-02** (owner decision, workplan 0021 T5) — the other two bullets stand
 - **Date:** 2026-06-20
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- **Stack DR is ours** (control plane + ledger); **end-user data durability is the target's** — never duplicated by default.
+- The opt-in extra-backup feature is **retracted** (2026-08-02): a second instance/mapping achieves the same through tested machinery. `backup_target` stays as reserved schema.
+
 > **Retraction note (2026-08-02).** The opt-in extra-backup feature was never
 > built — `backup_target` sat in the schema with nothing reading or writing
 > it. The owner's rationale for retracting rather than parking: **a second

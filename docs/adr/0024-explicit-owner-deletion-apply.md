@@ -4,6 +4,16 @@
 - **Date:** 2026-07-30
 - **Relates to:** ADR-0005 (idempotency via ledger, non-destructive by default), ADR-0020 (ledger as rebuildable cache). Arch doc §11.1, §11.2, §20.
 
+## Operative rules
+
+<!-- What holds NOW. Amend these bullets in place when a later decision changes them;
+     the narrative below stays append-only. Assembled into OPERATIVE.md by
+     scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
+
+- `apply` is the **only destructive code path**, per item, owner-called, never automatic (relocations gained a second caller under ADR-0030/0031 — same function, same gates).
+- Seven gates, all enforced and re-checked in the ledger's conditional UPDATE: per-mapping opt-in; `TargetRemover` capability; **positive evidence only** (`reported`/`trashed`, never `inferred`); ownership (`copied`/`updated` only — `adopted` is never touched); no-edit-since (ETag; UIDVALIDITY on IMAP); mass-deletion breaker (20% of ≥20); concurrent-apply re-check.
+- Order is **remove-then-record**; rows are tombstoned, never deleted; a reappearance is **never re-copied**; outcomes state `kind: binned|deleted`, understating recoverability.
+
 ## Context
 Hard rule 2 and ADR-0005 say the target is never auto-deleted or overwritten, and that source deletions surface as user decisions rather than being propagated. That produced a **deletions queue** (§11.1): items the source no longer lists, evidenced as `reported` (the source's own removal report), `trashed` (found in the owner's bin) or `inferred` (repeated absence), reported at `GET /deletions` with a `keep` action that only ever acknowledges.
 
