@@ -1149,6 +1149,10 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     return reports;
   });
 
+  // Node ignores a listener's return value, and this handler wraps its whole
+  // body in try/catch and answers on every path — there is no promise left to
+  // float. Rewriting it as a sync wrapper would change nothing but the shape.
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises
   const server = createServer(async (req, res) => {
     try {
       // The operating UI (ADR-0026), under /ui so it cannot collide with the

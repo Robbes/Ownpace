@@ -343,7 +343,7 @@ const CreateMapping: React.FC = () => {
       // The draft has become a migration; keeping it would re-seed the next
       // wizard with the last one's name and schedule.
       clearDraft();
-      navigate(`/mappings/${mapping.id}/confirm`);
+      void navigate(`/mappings/${mapping.id}/confirm`);
     },
   });
 
@@ -510,7 +510,7 @@ const CreateMapping: React.FC = () => {
       clientSecret: formData.sourceClientSecret,
       refreshToken: formData.sourceRefreshToken,
     };
-    Promise.allSettled([
+    void Promise.allSettled([
       mappingApi.listSharedDrives(creds),
       mappingApi.listSharedFolders(creds),
     ])
@@ -730,7 +730,7 @@ const CreateMapping: React.FC = () => {
     // probing the other would report on credentials the person has not been
     // asked for yet.
     const sides: Array<'source' | 'target'> = only ? [only] : ['source', 'target'];
-    Promise.allSettled(sides.map(saveSide))
+    void Promise.allSettled(sides.map(saveSide))
       .then((settled) =>
         setProbeResults((prev) => ({
           ...prev,
@@ -750,7 +750,7 @@ const CreateMapping: React.FC = () => {
       setCurrentStep(currentStep - 1);
     } else {
       if (dirty && !window.confirm(t('wizard.leaveConfirm'))) return;
-      navigate('/mappings');
+      void navigate('/mappings');
     }
   };
 

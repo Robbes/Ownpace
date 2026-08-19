@@ -92,6 +92,10 @@ describe('GraphDriveSource', () => {
         },
         '/me/drive/items/folder2/children': { value: [] },
       };
+      // This mocks `fetch`, whose implementation is SUPPOSED to be async. The
+      // void-return complaint comes from the mock's own loose signature, not
+      // from anything this code does.
+      // eslint-disable-next-line @typescript-eslint/no-misused-promises
       fetchMock.mockImplementation(async (url: string) => {
         const match = Object.keys(byUrl).find((k) => String(url).includes(k));
         return {
@@ -140,6 +144,10 @@ describe('GraphDriveSource', () => {
         ],
       };
 
+      // This mocks `fetch`, whose implementation is SUPPOSED to be async. The
+      // void-return complaint comes from the mock's own loose signature, not
+      // from anything this code does.
+      // eslint-disable-next-line @typescript-eslint/no-misused-promises
       fetchMock.mockImplementation(async (url: string) => {
         const u = String(url);
         const body = u.includes('page=2')
@@ -709,6 +717,10 @@ describe('GraphDriveSource', () => {
 
       // listSince is metadata-only: 2 calls for the 2 delta pages
       // Content fetching happens separately via fetch() (not tested here)
+      // This mocks `fetch`, whose implementation is SUPPOSED to be async. The
+      // void-return complaint comes from the mock's own loose signature, not
+      // from anything this code does.
+      // eslint-disable-next-line @typescript-eslint/no-misused-promises
       fetchMock.mockImplementation(async (url: string) => {
         const body = String(url).includes('page=2') ? page2 : page1;
         return { status: 200, text: async () => JSON.stringify(body), headers: new Map() };

@@ -42,7 +42,10 @@ export interface PolicyPreset {
 }
 
 export class PgPolicyPresetStore {
-  constructor(private readonly db: PgDatabase) {}
+  private readonly db: PgDatabase;
+  constructor(db: PgDatabase) {
+    this.db = db;
+  }
 
   /**
    * The standing answer for a category, or `ask` when none was ever set.

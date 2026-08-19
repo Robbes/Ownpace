@@ -88,7 +88,7 @@ describe('runShadowPass with incremental cursors', () => {
     const d = { ...deps(source, target, ledger), cursors };
     await runShadowPass(d);
 
-    cursors.clear(); // lost cursors -> full re-scan; ledger keeps it a no-op
+    await cursors.clear(); // lost cursors -> full re-scan; ledger keeps it a no-op
     const r = await runShadowPass(d);
     expect(r).toMatchObject({ scanned: 3, created: 0, skipped: 3 });
     expect(target.size()).toBe(3);

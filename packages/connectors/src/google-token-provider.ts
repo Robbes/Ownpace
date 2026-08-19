@@ -86,10 +86,12 @@ export class GoogleTokenProvider implements TokenProvider {
   /** Held for the duration of one mint, so concurrent callers share it. */
   private inFlight: Promise<OAuth2Token> | null = null;
 
+  private readonly creds: GoogleOAuthCredentials;
   constructor(
-    private readonly creds: GoogleOAuthCredentials,
+    creds: GoogleOAuthCredentials,
     options: GoogleTokenProviderOptions = {},
   ) {
+    this.creds = creds;
     // Refused HERE, before any request, rather than letting Google answer
     // `invalid_client` — which is the same error it returns for a client id
     // that was deleted, and an operator cannot tell those apart (rule 9).

@@ -69,10 +69,12 @@ export class BoxFileSource implements FileSource {
   /** Consume-once memo for `listKeys`, exactly like the Drive source's. */
   private lastListing?: { readonly path: string; readonly keys: ReadonlyArray<string> };
 
+  private readonly transport: BoxTransport;
   constructor(
-    private readonly transport: BoxTransport,
+    transport: BoxTransport,
     config: BoxFileSourceConfig = {},
   ) {
+    this.transport = transport;
     this.baseUrl = (config.baseUrl ?? DEFAULT_BASE).replace(/\/$/, '');
     this.rootFolderId = config.rootFolderId ?? BOX_ROOT;
   }

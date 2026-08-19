@@ -76,7 +76,7 @@ const Login: React.FC = () => {
       },
       claims.tenantId,
     );
-    navigate('/dashboard');
+    void navigate('/dashboard');
   };
 
   return (

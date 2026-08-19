@@ -55,7 +55,9 @@ export class InProcessRateBudget implements RateBudget {
   private readonly rate: number;
   private readonly burst: number;
 
-  constructor(config: RateBudgetConfig, private readonly now: () => number = Date.now) {
+  private readonly now: () => number;
+  constructor(config: RateBudgetConfig, now: () => number = Date.now) {
+    this.now = now;
     this.rate = config.requestsPerSecond;
     this.burst = config.burst ?? config.requestsPerSecond;
   }

@@ -67,7 +67,7 @@ const Mappings: React.FC = () => {
     try {
       await mappingApi.delete(mappingId);
       setDeleteArm(null);
-      refetch();
+      await refetch();
     } catch (error) {
       setDeleteFailed(serverMessage(error));
     } finally {
@@ -83,7 +83,7 @@ const Mappings: React.FC = () => {
         const { [mappingId]: _done, ...rest } = o;
         return rest;
       });
-      refetch();
+      await refetch();
     } catch (error) {
       setSyncOutcomes((o) => ({
         ...o,

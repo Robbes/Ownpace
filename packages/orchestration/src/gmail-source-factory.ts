@@ -114,7 +114,10 @@ export function gmailVisibleFolders(
  * worth pinning, and they need no IMAP server to prove.
  */
 export class GmailFolderView implements SourceConnector {
-  constructor(private readonly inner: SourceConnector) {}
+  private readonly inner: SourceConnector;
+  constructor(inner: SourceConnector) {
+    this.inner = inner;
+  }
 
   async listFolders(): Promise<ReadonlyArray<MailFolder>> {
     return gmailVisibleFolders(await this.inner.listFolders());

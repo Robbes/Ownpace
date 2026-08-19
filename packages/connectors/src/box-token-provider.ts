@@ -47,10 +47,12 @@ export class BoxTokenProvider implements TokenProvider {
   private cached: OAuth2Token | null = null;
   private inFlight: Promise<OAuth2Token> | null = null;
 
+  private readonly creds: BoxCcgCredentials;
   constructor(
-    private readonly creds: BoxCcgCredentials,
+    creds: BoxCcgCredentials,
     options: BoxTokenProviderOptions = {},
   ) {
+    this.creds = creds;
     const missing = (['clientId', 'clientSecret', 'subjectUserId'] as const).filter(
       (k) => !creds[k],
     );

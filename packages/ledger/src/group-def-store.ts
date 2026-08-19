@@ -58,7 +58,10 @@ export interface GroupDefRow {
 }
 
 export class PgGroupDefStore {
-  constructor(private readonly db: PgDatabase) {}
+  private readonly db: PgDatabase;
+  constructor(db: PgDatabase) {
+    this.db = db;
+  }
 
   /**
    * Record a discovered group, or update the one already recorded.
