@@ -144,3 +144,46 @@ describe('it never hands the smoke its precondition', () => {
     expect(new Set(sql.map((k) => k.toUpperCase()))).toEqual(new Set(['SELECT']));
   });
 });
+
+describe('it runs at bring-up, not only when something is already missing (0084)', () => {
+  const demo = readFileSync(join(REPO_ROOT, 'deploy/compose/setup-managed-demo.sh'), 'utf8');
+  const smoke = readFileSync(join(REPO_ROOT, 'deploy/compose/smoke-managed.sh'), 'utf8');
+
+  it('the demo bring-up seeds the source, beside the accounts it fills', () => {
+    // It used to run ONLY from the smoke's prepare phase, which fires when the
+    // apply half has nothing to act on. A precondition that appears only once
+    // something is already missing is one nobody can reason about: on a stack
+    // that happened to have content it never ran at all, and on a fresh one it
+    // ran in the middle of a gate that was already in trouble.
+    expect(demo).toContain('seed-demo-dav-content.sh');
+  });
+
+  it('seeds the account setup-managed-demo.sh just provisioned', () => {
+    // The seeder's own default is tenant-b-source, but a bring-up that passed a
+    // different user would seed a mailbox nothing syncs — silently, because
+    // every PUT would still return 201.
+    const call = demo.match(/DAV_USER=(\S+)/)?.[1];
+    expect(call).toBe('tenant-b-source');
+    expect(demo).toContain('NEXTCLOUD_SOURCE_USER=tenant-b-source');
+  });
+
+  it('needs no only-if-empty guard, because it overwrites rather than appends', () => {
+    // The MAIL seeder appends, so an unguarded re-run on this long-lived stack
+    // grows the mailbox every night — hence SEED_ONLY_IF_EMPTY there. This one
+    // PUTs to fixed paths and accepts 201 or 204, created or overwritten, so
+    // re-running converges instead of growing. If that ever stops being true,
+    // this bring-up call needs a guard and this test should fail first.
+    const text = readFileSync(SEEDER, 'utf8');
+    expect(text).toMatch(/openmig-demo-event-\$\{?n\}?\.ics/);
+    expect(text).toContain('201|204');
+    expect(demo).not.toContain('ONLY_IF_EMPTY');
+  });
+
+  it('the smoke keeps it as a fallback, and says it is one', () => {
+    // Removing it there would strand any stack brought up before this change,
+    // and a prepare phase that assumed its precondition would be the same
+    // mistake in a different place.
+    expect(smoke).toContain('seed-demo-dav-content.sh');
+    expect(smoke).toMatch(/FALLBACK|fallback/);
+  });
+});

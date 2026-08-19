@@ -178,6 +178,81 @@ describe('unhealthy is reported as unhealthy, and nothing else is', () => {
   });
 });
 
+describe('the two services nothing else speaks for (0084)', () => {
+  // `minio` and `trigger-tls` were the last of the original seven that no
+  // healthcheck probed and no other step proved. The workplan asked for
+  // healthchecks; they are assertions instead, and the substitution is the
+  // thing worth pinning: a compose probe runs INSIDE the image, so under
+  // `up -d --wait` one naming a binary that image lacks does not misreport —
+  // it fails the bring-up. Nothing in this repo has ever run a command inside
+  // `bitnamilegacy/minio` or `caddy:2-alpine`, so there is no evidence to
+  // write such a probe from, and an assertion has none of that exposure.
+  const minio = smoke.match(
+    /if docker exec "\$API_CONTAINER" node -e \\\n[\s\S]*?\nfi/,
+  )?.[0];
+  const tls = smoke.match(/TLS_PORT="\$\{TRIGGER_TLS_PORT[\s\S]*?\nfi/)?.[0];
+
+  it('both blocks are extractable — there is something to test', () => {
+    expect(minio, 'the minio assertion is gone from smoke-managed.sh').toBeDefined();
+    expect(tls, 'the trigger-tls assertion is gone from smoke-managed.sh').toBeDefined();
+  });
+
+  it('each SETS FAIL rather than merely remarking on it', () => {
+    // The 0084 lesson in one line: run #6 went green with half the gate
+    // unasserted because the diagnosis was an echo.
+    expect(minio).toContain('fail=1');
+    expect(tls).toContain('fail=1');
+  });
+
+  it('minio unreachable fails the smoke', () => {
+    expect(verdict(minio!, 'API_CONTAINER=x\ndocker() { return 1; }')).toBe('1');
+  });
+
+  it('minio answering leaves the smoke alone', () => {
+    expect(verdict(minio!, 'API_CONTAINER=x\ndocker() { return 0; }')).toBe('0');
+  });
+
+  it('nothing on the TLS port fails the smoke', () => {
+    // curl exiting non-zero — connection refused, handshake dead — leaves the
+    // `|| echo 000` value, which is the case this exists for.
+    expect(verdict(tls!, 'curl() { return 7; }')).toBe('1');
+  });
+
+  it('any HTTP status from the TLS front leaves the smoke alone', () => {
+    // ANY status. Caddy answering 502 still means TLS terminated, which is the
+    // claim — a probe that demanded 200 would go red whenever the thing behind
+    // the proxy was restarting.
+    expect(verdict(tls!, 'curl() { echo 502; }')).toBe('0');
+  });
+
+  it('reaches minio through a container, because it publishes no port', () => {
+    // managed.yml gives minio no `ports:` — it is reachable only on the stack
+    // network, and `http://minio:9000` is the address trigger-api is
+    // configured with. Asserting it from the host would be asserting a
+    // different thing, and would fail for the wrong reason.
+    expect(minio).toContain('docker exec');
+    expect(minio).toContain('minio:9000');
+    expect(
+      /ports:\s*\n\s*-\s*"\$\{MINIO/.test(readFileSync(join(REPO_ROOT, 'deploy/compose/managed.yml'), 'utf8')),
+      'minio now publishes a port — the assertion could go direct, and this comment is stale',
+    ).toBe(false);
+  });
+
+  it('reaches the TLS front BY IP, because an IP sends no SNI', () => {
+    // trigger-tls.Caddyfile's rule 2, learned live on 2026-08-01: browsers
+    // connecting by IP send no SNI and get no certificate unless default_sni
+    // is set. The site address is the operator's own host, so a request to
+    // `localhost` sends an SNI matching no site — a false red waiting to
+    // happen on any box where TRIGGER_TLS_HOST is not `localhost`.
+    expect(tls).toContain('127.0.0.1');
+    expect(tls).not.toContain('https://localhost');
+    expect(
+      readFileSync(join(REPO_ROOT, 'deploy/compose/trigger-tls.Caddyfile'), 'utf8'),
+      'default_sni is gone from the Caddyfile — connecting by IP no longer works',
+    ).toContain('default_sni');
+  });
+});
+
 describe('the header and the code agree', () => {
   // The original defect was not a typo, it was a contract the code stopped
   // honouring while the comment kept promising it.

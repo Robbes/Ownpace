@@ -112,6 +112,37 @@ NEXTCLOUD_SOURCE_USER=tenant-b-source NEXTCLOUD_SOURCE_PASSWORD=tenant_b_source_
 NEXTCLOUD_TARGET_USER=tenant-b-target NEXTCLOUD_TARGET_PASSWORD=tenant_b_target_pw \
   "${REPO_ROOT}/deploy/selfhost/setup-nextcloud-users.sh"
 
+# CONTENT, not just accounts (workplan 0084 "what is still owed").
+#
+# `setup-nextcloud-users.sh` above provisions ACCOUNTS — grep it for PUT and
+# nothing comes back. So the demo DAV source was empty for as long as the demo
+# existed, every sync of demo tenant B correctly copied nothing, and the
+# managed smoke's apply half found "no eligible item" the first night a skip
+# was allowed to fail rather than pass (run #7).
+#
+# It was seeded from the SMOKE's prepare phase, which only fires when the apply
+# half has nothing to act on. A precondition that appears only once something
+# is already missing is one nobody can reason about: on a stack that happened
+# to have content it never ran, so nothing exercised it, and on a fresh one it
+# ran in the middle of a gate that was already in trouble. It belongs at
+# bring-up, next to the accounts it fills — where the by-hand path and the
+# nightly get the same demo.
+#
+# NO "only if empty" GUARD, unlike the mail seeder. That one APPENDS, so an
+# unguarded re-run on this long-lived stack would leave the mailbox a few
+# messages larger every night. This one PUTs to fixed paths
+# (`openmig-demo-event-1.ics` and friends) and accepts 201 or 204 — created or
+# overwritten — so re-running converges on the same handful of resources
+# instead of growing. Idempotent by construction rather than by a check.
+#
+# It fails the phase if it cannot write, deliberately: a demo backend with no
+# content in it is the exact condition that cost run #7, and finding out at
+# bring-up is cheaper than finding out from a smoke three hours later.
+echo "[setup-managed-demo] Seeding calendar, contact and file content into the demo DAV source..."
+NEXTCLOUD_CONTAINER="${NEXTCLOUD_CONTAINER}" \
+DAV_USER=tenant-b-source DAV_PASSWORD=tenant_b_source_pw \
+  "${REPO_ROOT}/deploy/compose/seed-demo-dav-content.sh"
+
 echo "[setup-managed-demo] Done. Demo backend ready for seed-managed.ts:"
 echo "[setup-managed-demo]   Mail:  stalwart:993 (IMAPS) / stalwart:8080 (JMAP) on ${MANAGED_NETWORK}"
 echo "[setup-managed-demo]   DAV:   http://nextcloud/ on ${MANAGED_NETWORK}"
