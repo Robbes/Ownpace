@@ -38,10 +38,14 @@
 #   SMOKE_VERIFY_TENANT/SUB/MAPPING (demo tenant A, mail)
 #   SMOKE_APPLY_TENANT/SUB/MAPPING  (demo tenant B, DAV)
 #   SMOKE_POLLS (45) SMOKE_POLL_SLEEP (2) SMOKE_OUT (evidence file path)
-#   SMOKE_PREPARE_APPLY (0)  1 = seed the demo DAV source and enqueue a sync when
-#                            the apply half has nothing to act on. For CI, which
-#                            has nobody to prepare the box; OFF by hand, where
-#                            manufacturing the fixture would hide the real state.
+#   SMOKE_PREPARE_APPLY (0)  1 = seed the demo DAV source with FRESH natural keys
+#                            and enqueue a sync when the apply half has nothing
+#                            to act on. For CI, which has nobody to prepare the
+#                            box; OFF by hand, where manufacturing the fixture
+#                            would hide the real state. Fresh rather than the
+#                            fixed demo keys because this script tombstones one
+#                            item per pass and a tombstone is never re-copied —
+#                            see the prepare phase for what that cost (run #20).
 #   SMOKE_PREPARE_POLLS (60) how long that preparation may wait, in POLL_SLEEPs.
 #
 # NOTE: runner debug logs print the full task environment (DATABASE_URL,
@@ -334,11 +338,27 @@ HASH="$(q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND
 # matters. It stays because a stack older than that change, or one whose demo
 # was reprovisioned by hand, still needs it, and because a prepare phase that
 # assumes its precondition would be the same mistake in a different place.
+#
+# `--fresh`, AND WHY THE PLAIN CALL COULD NOT WORK HERE (run #20, 2026-08-19).
+# The apply half below applies a REAL deletion, and `applyDeletion` writes
+# `status='tombstoned'`. `classifyKnownItem` then refuses forever to re-create a
+# tombstoned natural key — deliberately: it cannot tell a change of mind from an
+# erasure request. The bring-up seed writes FIXED keys (`openmig-demo-event-1`
+# and friends), so one green run spent one of exactly six items and re-seeding
+# could never give it back. Run #19 spent the last one; run #20, on a commit
+# whose PR was green and whose self-hosted e2e was green, failed with "no
+# eligible item" against 73 rows that were all `tombstoned` or `adopted`. The
+# gate was eating its own fixture, one run at a time, and nothing about it was
+# self-correcting.
+#
+# So prepare asks for keys the ledger has NEVER seen. That is the one kind a
+# tombstone cannot already own, and it is still an honest fixture: it goes into
+# the SOURCE, and a real sync has to copy it before anything here is eligible.
 if [ -z "$HASH" ] && [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
   note "prepare (SMOKE_PREPARE_APPLY=1) — give the apply half something real to act on"
 
-  if "$SCRIPT_DIR/seed-demo-dav-content.sh"; then
-    echo "prepare: DAV source seeded"
+  if "$SCRIPT_DIR/seed-demo-dav-content.sh" --fresh; then
+    echo "prepare: DAV source seeded with fresh, never-tombstoned natural keys"
   else
     echo "prepare: SEEDING FAILED — the diagnosis below will say what the ledger holds."
   fi
@@ -394,6 +414,9 @@ if [ -z "$HASH" ]; then
   q "SELECT domain, status, count(*), count(*) FILTER (WHERE coalesce(target_ref->>'id','') <> '') AS with_target_id FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' GROUP BY 1,2 ORDER BY 1,2" \
     | sed 's/^/  /'
   echo "  (total ${TOTAL:-0}, eligible ${COPIED:-0} — status copied or updated)"
+  # Told apart from a copy failure, because the fixes have nothing in common.
+  # See the TOMBSTONE branch below.
+  SPENT="$(q "SELECT count(*) FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND status='tombstoned'")"
   echo ""
 
   if [ "${TOTAL:-0}" = "0" ]; then
@@ -406,10 +429,30 @@ if [ -z "$HASH" ]; then
     echo "  ./deploy/compose/seed-demo-dav-content.sh --verify   # is the content there?"
     echo "  ./deploy/compose/seed-demo-dav-content.sh            # put it there"
     echo "  # then let the scheduler's sync tick copy it, and re-run this smoke"
+  elif [ "${COPIED:-0}" = "0" ] && [ "${SPENT:-0}" != "0" ]; then
+    # THE RUN #20 FAILURE, and the reason it is not the branch below.
+    #
+    # This half applies a real deletion, `applyDeletion` writes
+    # `status='tombstoned'`, and `classifyKnownItem` refuses forever to
+    # re-create a tombstoned natural key. The bring-up seed writes FIXED keys,
+    # so every green run spent one of six items and re-seeding could not give it
+    # back. Run #19 spent the last; run #20 found nothing eligible and reported
+    # "a product fault" — which sent the next reader hunting a copy bug in a
+    # sync that had never once failed.
+    echo "DIAGNOSIS: this mapping's fixture is SPENT, not broken. ${SPENT} of ${TOTAL:-0} items"
+    echo "are 'tombstoned' — removed by an apply, which is what THIS SCRIPT does to one"
+    echo "item every time it passes. A tombstoned natural key is never re-copied"
+    echo "(classifyKnownItem: it cannot tell a change of mind from an erasure request),"
+    echo "so re-seeding the FIXED demo keys cannot restore eligibility. Seed keys the"
+    echo "ledger has never seen instead — which is what the prepare phase above does,"
+    echo "and seeing this line means that phase did not run or did not take:"
+    echo "  ./deploy/compose/seed-demo-dav-content.sh --fresh   # new UIDs and paths"
+    echo "  # then enqueue a sync on this mapping and re-run this smoke"
   elif [ "${COPIED:-0}" = "0" ]; then
-    echo "DIAGNOSIS: items exist but NONE is 'copied' or 'updated' — a sync ran and"
-    echo "the copying did not succeed. This is a product fault, not a missing"
-    echo "fixture; the breakdown above says which domain and status it stalled in."
+    echo "DIAGNOSIS: items exist, none is 'copied' or 'updated', and none is a spent"
+    echo "tombstone either — a sync ran and the copying did not succeed. This is a"
+    echo "product fault, not a missing fixture; the breakdown above says which domain"
+    echo "and status it stalled in."
     echo "  docker exec $DB_CONTAINER psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -Atc \\"
     echo "    \"SELECT level,message,at FROM run_event WHERE tenant_id='$APPLY_TENANT' ORDER BY at DESC LIMIT 20\""
   else
