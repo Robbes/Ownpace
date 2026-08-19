@@ -425,7 +425,7 @@ the same date twice.
 ### 2. Purge — runs when the window has passed
 
 The purge deletes from an explicit list of tables (`PURGED_TABLES` in
-`packages/ledger/src/offboarding.ts`), **written out rather than derived from
+`packages/managed/src/offboarding.ts`), **written out rather than derived from
 the cascade** — that list is reviewable and the cascade is not. It writes an
 `erasure_record` holding the tenant's sha256 reference (never the id), the
 window, the retention promise, what was purged per table, and which invoices
