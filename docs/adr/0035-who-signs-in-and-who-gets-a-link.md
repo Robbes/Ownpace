@@ -7,6 +7,14 @@
   organisation**; (d) the billing/seat question is answered **inside this ADR** rather than
   alongside it. What awaits an accept/reject is the reasoning and the consequences, not
   those four choices.
+  **Restated by the owner 2026-08-19, in these words: "owners login, and owner decides who
+  gets a link to manage and grant their migration."** That confirms (a), (b) and (c) and
+  sharpens who holds the initiative: **the owner is the only party who signs in**, and the
+  link is not merely a status view — it is how the migrated person GRANTS their own
+  migration, which is the only place their source credential is ever handled. The formal
+  accept/reject of the reasoning and consequences is still outstanding, and is deliberately
+  NOT being inferred from this restatement — see ADR-0034's correction for why an
+  unstated answer must never be recorded as one.
 - **Date:** 2026-08-17
 - **Deciders:** owner
 - **Relates to:** [ADR-0034](./0034-appliance-configuration-surface.md) (**decision 6 is

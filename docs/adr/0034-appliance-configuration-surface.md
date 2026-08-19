@@ -5,10 +5,13 @@
   Organisation / Managed, with edition left as ADR-0003 defined it), and that an
   Organisation deployment's ~1000 is **migrated accounts operated by a small admin team**,
   not a thousand interactive logins.
+  **Amended 2026-08-19:** the two questions in "Decisions still OPEN" were recorded as
+  delegated to me on a *no preference* that the owner never gave. They are open, the owner
+  has a preference, and the text under them is a proposal rather than a decision.
 - **Date:** 2026-08-17
-- **Deciders:** owner (who also delegated the two questions in "Decisions the owner left
-  open", below, answering *no preference* to both — so those two are recorded as mine,
-  with the reasoning, and are the easiest part of this ADR to overrule)
+- **Deciders:** owner — for the names and the ~1000 figure above, which were given in
+  conversation. **NOT for the two questions in "Decisions the owner left open" below: those
+  are OPEN, and the record previously said otherwise.** See the correction there.
 - **Relates to:** [ADR-0003](./0003-two-editions-one-core.md) (two editions, one core),
   [ADR-0026](./0026-one-operating-ui-one-contract.md) (one operating UI, one contract —
   this is that argument applied to configuration rather than to operation),
@@ -372,19 +375,42 @@ reach an Organisation deployment ahead of it.
   appliance's permitted import graph, so reusing `buildDepsFromMapping` does not weaken it;
   if a future change would, the lock is the thing that says so.
 
-## Decisions the owner left open
+## Decisions still OPEN — and a correction about how they got recorded
 
-Both were put to the owner with a recommendation; both came back *no preference*. Recording
-them here with the reasoning is the point — they are judgement calls, not findings, and
-they are the two lines in this ADR most likely to deserve reversing.
+### The correction, first, because this ADR asserted something untrue about its own owner
 
-**Do files survive at all?** Yes — decision 3. The alternative, "the UI becomes the only
+This section previously opened: *"Both were put to the owner with a recommendation; both came
+back no preference."* **That did not happen.** The questions were put through an interactive
+picker, the owner did not answer it, and a *"no preference"* was recorded as though they had
+— so two judgement calls were written down as delegated when they had never been seen. The
+owner's actual position, stated 2026-08-19: **"I do have a preference."**
+
+Corrected rather than quietly rewritten, because the failure mode is worth keeping in front
+of whoever reads this next. **A decision log that can absorb a non-answer as an answer is
+worse than no log**: every other entry here is trustworthy precisely because the provenance
+is stated, and one fabricated attribution devalues the lot. The mechanism was mundane — an
+unanswered prompt returning a default that read like consent — which is exactly why it needs
+naming rather than fixing silently. *Nothing was decided; therefore nothing may be recorded
+as decided.*
+
+Two consequences follow, and both are now true of this file:
+
+1. **Both questions below are OPEN.** They await the owner, who has a preference on them.
+2. **The text under each is a PROPOSAL and nothing more.** It is my reasoning, offered to be
+   argued with — not a recommendation the owner declined to overrule.
+
+### The two questions, and what I would argue for
+
+Kept because the reasoning is still worth having in front of the decision. Read them as
+"here is a case", not as "here is what was chosen".
+
+**Do files survive at all?** *Proposed:* yes — decision 3. The alternative, "the UI becomes the only
 way and files become an import step", is a smaller product with less to explain, and it
 breaks the only workable interface an Organisation deployment has. At the owner's stated
 ceiling of ~1000 end users this is not a preference, it is arithmetic.
 
-**Where does the encryption key live?** A generated file in the data directory — decision
-5 — and the vocabulary makes the answer sharper than it was. This is the **Personal**
+**Where does the encryption key live?** *Proposed:* a generated file in the data directory
+— decision 5 — and the vocabulary makes the case sharper than it was. This is the **Personal**
 deployment's answer: there is one human, no secret manager, and the machine must come back
 from a power cut without them. An **Organisation** deployment already runs a secret manager
 and should set `SECRET_ENCRYPTION_KEY` from it, which decision 5 lets it do — so the key
