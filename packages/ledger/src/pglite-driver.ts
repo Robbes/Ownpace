@@ -81,6 +81,45 @@ export interface PgliteDriverOptions {
 }
 
 /**
+ * A snapshot of a pristine, freshly-initialised cluster, kept for the life of
+ * the process.
+ *
+ * Booting an in-memory PGlite is not mostly WASM loading — it is `initdb`,
+ * which builds a whole Postgres cluster from nothing. Measured on this repo:
+ *
+ *     new PGlite()                          3242ms / 2857ms
+ *     PGlite.create({ loadDataDir: dump })   783ms /  768ms
+ *     dumpDataDir('none')                    150ms   (39 MB, uncompressed)
+ *
+ * The unit tier creates 32 of these, so `initdb` was running 32 times to
+ * produce 32 byte-identical empty clusters. This runs it ONCE per process and
+ * restores the rest from the dump.
+ *
+ * **It changes nothing about what a caller gets.** The snapshot is taken
+ * immediately after `waitReady` and before any migration or query, so a
+ * restored database is the same empty cluster `initdb` would have produced —
+ * every test still applies its own migrations and still gets its own isolated
+ * database. This is not a shared instance and not a pre-migrated fixture;
+ * caching a MIGRATED snapshot would have been the tempting version and would
+ * have quietly stopped the migration tests from running migrations.
+ *
+ * Only the in-memory path uses it. The appliance passes `dataDir` and opens
+ * its real database on disk, untouched by any of this.
+ */
+let pristineCluster: Promise<Blob> | null = null;
+
+async function openInMemory(): Promise<PGlite> {
+  pristineCluster ??= (async () => {
+    const seed = new PGlite({ extensions: { pgcrypto } });
+    await seed.waitReady;
+    const dump = await seed.dumpDataDir('none');
+    await seed.close();
+    return dump;
+  })();
+  return PGlite.create({ loadDataDir: await pristineCluster, extensions: { pgcrypto } });
+}
+
+/**
  * A PGlite-backed `LedgerDriver`.
  *
  * Opening is lazy and happens once: PGlite's cold start is ~3 s (it is a WASM
@@ -99,7 +138,7 @@ export function pgliteDriver(options: PgliteDriverOptions = {}): LedgerDriver {
       opening = (async () => {
         const db = options.dataDir
           ? new PGlite(options.dataDir, { extensions: { pgcrypto } })
-          : new PGlite({ extensions: { pgcrypto } });
+          : await openInMemory();
         await db.waitReady;
 
         log.info(`[pglite] ready (${options.dataDir ?? 'in-memory'})`);
