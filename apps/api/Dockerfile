@@ -14,7 +14,25 @@ WORKDIR /app
 
 FROM base AS build
 COPY . .
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+# `--filter @openmig/api...` = this app AND its workspace dependencies. Measured
+# against an unfiltered install of the same tree: 698 packages instead of 800,
+# and no node_modules for apps/web, apps/worker, apps/selfhost or
+# packages/testing — none of which this image runs.
+#
+# It does NOT drop the workspace ROOT's dependencies; pnpm installs those
+# whatever the filter says, which is why `tsx` (a root devDep, and what CMD
+# below invokes) is still here. See apps/web/Dockerfile, where believing
+# otherwise cost a wrong claim.
+#
+# THIS IS A RUNTIME IMAGE, not a build one, so a pruned package is a resolution
+# failure in production rather than a red build. Two things cover that:
+# `scripts/workspace-deps.unit.test.ts` asserts every `@openmig/*` specifier in
+# this app's source — static, dynamic `import()` and `require()` alike — is a
+# DECLARED dependency, which is exactly what the filter follows; and the managed
+# gate's first preflight is `curl $API/health`, so an image that cannot resolve
+# its own modules fails loudly at the top of the run.
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile --filter @openmig/api...
 
 FROM base AS runtime
 ENV NODE_ENV=production

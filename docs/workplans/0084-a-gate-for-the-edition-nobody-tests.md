@@ -695,6 +695,12 @@ content genuinely changes per run, and that is a deliberate change to make with
 the evidence in hand rather than now, on a hunch about which status a writer
 picks.
 
+**Run #19 (2026-08-19) is green**, which settles the fix: the apply half found
+an eligible item on the same stack that had none the run before, so the
+predicate was the whole of the fault. It does NOT settle the `adopted` question
+— a green tells us the eligible population was not empty, not which status
+filled it. That still wants a few more runs.
+
 ## What is still owed
 
 - ~~**The DAV seeder is still not wired into the bring-up.**~~ **Done
