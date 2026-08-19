@@ -92,7 +92,7 @@ describe('the managed-only screens still mount on managed', () => {
   // The redirect suite above proves /billing does NOT mount on the appliance,
   // and passes just as well if the route is broken on BOTH editions. That
   // stopped being a theoretical gap when Billing became a lazily-loaded chunk
-  // (ADR-0032): a route whose element never resolves fails silently, under a
+  // (ADR-0036): a route whose element never resolves fails silently, under a
   // Suspense fallback, on the only edition that has the screen.
   it('/billing mounts the billing screen', async () => {
     renderAt('/billing');

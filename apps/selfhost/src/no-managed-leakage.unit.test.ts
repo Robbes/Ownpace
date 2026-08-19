@@ -40,7 +40,7 @@ function forbiddenReason(spec: string): string | null {
   if (/^@trigger\.dev(\/|$)/.test(spec)) return 'Trigger.dev SDK (managed orchestration)';
   if (/^@mollie(\/|$)/.test(spec) || /mollie/i.test(spec)) return 'Mollie billing client';
   if (/(^|\/)billing(\/|$)/.test(spec)) return 'billing module';
-  // ADR-0032. `billing` alone was not enough: the modules that priced a tenant
+  // ADR-0036. `billing` alone was not enough: the modules that priced a tenant
   // and metered its usage were called `pricing`, `tenant-pricing` and
   // `usage-metering`, they were re-exported from `@openmig/shared` and
   // `@openmig/ledger` — which ARE the appliance — and this guard walked
@@ -180,7 +180,7 @@ describe('self-host has no managed-only leakage (hard rule 5)', () => {
     expect(violations).toEqual([]);
   });
 
-  // ======================= the schema half (ADR-0032) =======================
+  // ======================= the schema half (ADR-0036) =======================
   //
   // The checks above prove the appliance loads no managed CODE. They said
   // nothing about the TABLES it can name, and for as long as `invoice`,
@@ -251,7 +251,7 @@ describe('self-host has no managed-only leakage (hard rule 5)', () => {
       money.filter((c) => !(c in MANAGED_ONLY_COLUMNS)),
       'a managed-only column arrived on a table the appliance loads. Either it ' +
         'belongs in @openmig/billing, or add it to MANAGED_ONLY_COLUMNS with the ' +
-        'reason it has to live here (ADR-0032).',
+        'reason it has to live here (ADR-0036).',
     ).toEqual([]);
 
     for (const key of Object.keys(MANAGED_ONLY_COLUMNS)) {

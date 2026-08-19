@@ -3,7 +3,7 @@
  * The three tables that only exist because somebody is being charged.
  *
  * They lived in `@openmig/ledger`'s `schema-pg.ts` until the edition boundary
- * was drawn (ADR-0032). Nothing in the appliance reads or writes them, but
+ * was drawn (ADR-0036). Nothing in the appliance reads or writes them, but
  * every appliance imports `@openmig/ledger`'s index, so the appliance's own
  * type surface carried `invoice`, `payment_method` and `usage_metric` — and a
  * `db.select().from(schema.invoice)` written by mistake in shared code would

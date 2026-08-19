@@ -37,7 +37,7 @@ import { PgTable } from 'drizzle-orm/pg-core';
 import { createPgliteDb } from './pglite-driver';
 import { runMigrations } from './migrate';
 import * as schemaPg from './schema-pg';
-// The billing tables were declared in schema-pg.ts until ADR-0032 moved them to
+// The billing tables were declared in schema-pg.ts until ADR-0036 moved them to
 // @openmig/billing. There is still ONE database and ONE migration chain, so
 // there is still one guard over it — the import is test-only (a devDependency,
 // deliberately not a real one) and `covers every table the migrations create`
@@ -108,7 +108,7 @@ describe('the Drizzle schema and the migrations describe the same database', () 
   it('covers every table the migrations create, in both schema modules', () => {
     // The vacuity check above counts tables, so it stays green if a whole
     // module drops out of the walk: `schema-pg` alone still declares far more
-    // than 20. When the billing tables moved to @openmig/billing (ADR-0032)
+    // than 20. When the billing tables moved to @openmig/billing (ADR-0036)
     // this guard silently stopped covering three of them — the direction that
     // finds undeclared columns skips any table the ORM does not model, so the
     // loss looked exactly like success.

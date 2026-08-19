@@ -16,7 +16,7 @@ import * as ledgerSchema from '@openmig/ledger/schema-pg';
 import * as billingSchema from './schema-billing';
 
 // One `schema` namespace over two modules, so the query bodies below read
-// exactly as they did before the tables moved (ADR-0032). The core tables this
+// exactly as they did before the tables moved (ADR-0036). The core tables this
 // meters FROM stay in the ledger; the table it meters INTO is billing's.
 const schema = { ...ledgerSchema, ...billingSchema };
 import type { TenantId, MappingId } from '@openmig/shared';

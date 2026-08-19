@@ -1,6 +1,6 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 /**
- * Does the APPLIANCE's bundle still contain the billing screen? (ADR-0032)
+ * Does the APPLIANCE's bundle still contain the billing screen? (ADR-0036)
  *
  * `ManagedOnly` in AppRoutes has always refused to render Billing on the
  * appliance, and `AppRoutes.unit.test.tsx` has always proved it. Neither says
@@ -72,7 +72,7 @@ beforeAll(async () => {
   [managed, selfhost] = await Promise.all([bundleFor('managed'), bundleFor('selfhost')]);
 }, 300_000);
 
-describe('the appliance bundle carries no billing screen (ADR-0032)', () => {
+describe('the appliance bundle carries no billing screen (ADR-0036)', () => {
   it('builds two bundles with code in them, so the searches below are not vacuous', () => {
     // A build that emitted nothing would satisfy every "is absent" assertion
     // perfectly. This is the check that the tool ran.

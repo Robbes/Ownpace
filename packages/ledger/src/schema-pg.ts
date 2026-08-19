@@ -40,7 +40,7 @@ export const tenant = pgTable('tenant', {
   // @openmig/billing's tenant-pricing.ts. Nullable: NULL is "no agreement
   // yet", not "free". The one managed-only column left on a core table, named
   // in no-managed-leakage.unit.test.ts so it cannot quietly acquire company
-  // (ADR-0032).
+  // (ADR-0036).
   pricing: jsonb('pricing'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -991,7 +991,7 @@ export const tenantMember = pgTable(
 
 // The billing tables — `usage_metric`, `invoice`, `payment_method` — used to be
 // declared here. They moved to `@openmig/billing`'s `schema-billing.ts` when the
-// edition boundary was drawn (ADR-0032): every appliance imports this module, and
+// edition boundary was drawn (ADR-0036): every appliance imports this module, and
 // a schema is a list of things the code that loads it is allowed to name.
 //
 // The TABLES did not move — they are still created by `0001_baseline.sql` and are

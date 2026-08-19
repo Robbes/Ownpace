@@ -37,7 +37,7 @@ import Confirm from './pages/Confirm';
 import { isSelfHost } from './services/edition';
 
 /**
- * The billing screen, and only on the edition that bills (ADR-0032).
+ * The billing screen, and only on the edition that bills (ADR-0036).
  *
  * `ManagedOnly` below already refuses to RENDER it on the appliance, which is
  * the correct behaviour and was never the problem. A static import is a

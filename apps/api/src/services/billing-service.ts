@@ -10,7 +10,7 @@
 
 // Pricing lives in @openmig/billing (ONE copy — the worker meters against the
 // same numbers this file invoices from; they used to be two literals in two
-// packages). It moved out of @openmig/shared in ADR-0032: shared is loaded by
+// packages). It moved out of @openmig/shared in ADR-0036: shared is loaded by
 // the appliance too, and an appliance is never invoiced. `defaultPricing` is the built-in template, kept as a named export
 // because it is a sensible last-resort default for the pure calculator; every
 // route that prices a REAL tenant passes that tenant's agreed prices instead

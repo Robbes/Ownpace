@@ -19,7 +19,7 @@ export * from './discovery-store';
 export * from './decision-store';
 export * from './policy-preset-store';
 export * from './group-def-store';
-// Usage metering and tenant pricing moved to @openmig/billing (ADR-0032).
+// Usage metering and tenant pricing moved to @openmig/billing (ADR-0036).
 // The appliance imports this index, so anything re-exported here is on the
 // appliance whether it calls it or not.
 export * from './run-store';

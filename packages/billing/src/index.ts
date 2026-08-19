@@ -1,6 +1,6 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 /**
- * Money. The managed edition only (ADR-0032).
+ * Money. The managed edition only (ADR-0036).
  *
  * Nothing an appliance runs may import this package, and nothing here may be
  * re-exported from `@openmig/shared` or `@openmig/ledger`, because those two
