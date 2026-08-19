@@ -22,7 +22,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { Cron } from 'croner';
-import { defaultScheduleFor, isSyncDue, DEFAULT_SYNC_SCHEDULE } from './sync-due';
+import { defaultScheduleFor, isSyncDue, DEFAULT_SYNC_SCHEDULE } from './sync-due.ts';
 
 /** Realistic ids: the real input is a v4 UUID, not a counter. */
 const ids = Array.from({ length: 400 }, (_, i) =>

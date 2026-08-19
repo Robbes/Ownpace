@@ -13,10 +13,10 @@
  */
 
 import type { CalendarSource, CalendarFolder, SyncCursor, RawCalendarEvent } from '@openmig/shared';
-import type { CalDAVSourceConfig, CalDAVSyncToken, CalDAVCalendarObject } from './caldav-source.types';
-import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types';
-import { wellKnownUrl as buildWellKnownUrl } from './dav-http.types';
-import { parseRemovedHrefs } from './dav-removals';
+import type { CalDAVSourceConfig, CalDAVSyncToken, CalDAVCalendarObject } from './caldav-source.types.ts';
+import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
+import { wellKnownUrl as buildWellKnownUrl } from './dav-http.types.ts';
+import { parseRemovedHrefs } from './dav-removals.ts';
 
 /**
  * CalDAV source connector implementation.
@@ -805,7 +805,7 @@ export class CalDAVSource implements CalendarSource {
    * it after — the caps an owner configured, enforced. Without one this is
    * exactly `httpClient.request`.
    */
-  private async send(options: import('./dav-http.types').HttpRequestOptions): Promise<import('./dav-http.types').HttpResponse> {
+  private async send(options: import('./dav-http.types.ts').HttpRequestOptions): Promise<import('./dav-http.types.ts').HttpResponse> {
     const limiter = this.config.throttleLimiter;
     if (!limiter) return this.httpClient.request(options);
     await limiter.waitForSlot('dav', this.limiterHost());

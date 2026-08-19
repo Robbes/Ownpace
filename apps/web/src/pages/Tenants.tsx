@@ -34,13 +34,13 @@ import {
   memberApi,
   type Member,
   type TenantNotificationPrefs,
-} from '../services/mapping-service';
+} from '../services/mapping-service.ts';
 // The SAME reader the API and the digest task use, so what this screen shows
 // and what the morning job acts on cannot be two different defaults.
 import { readTenantNotificationPrefs } from '@openmig/shared';
-import { useAuthStore } from '../stores/auth-store';
-import { useT, useFormatters } from '../i18n';
-import type { StringKey } from '../i18n';
+import { useAuthStore } from '../stores/auth-store.ts';
+import { useT, useFormatters } from '../i18n/index.tsx';
+import type { StringKey } from '../i18n/index.tsx';
 
 const ROLES: ReadonlyArray<Member['role']> = ['owner', 'admin', 'member', 'viewer'];
 

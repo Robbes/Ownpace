@@ -75,7 +75,7 @@ import {
   messageIdFromEnvelopeValue,
   uidFromSourceRef,
   type ImapSourceConfigWithTokenProvider,
-} from './imap-conventions';
+} from './imap-conventions.ts';
 
 /**
  * How many times to re-ask for a message that is not there yet, and how long

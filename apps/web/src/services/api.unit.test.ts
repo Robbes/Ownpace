@@ -7,8 +7,8 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { onUnauthorized, serverMessage } from './api';
-import { useAuthStore } from '../stores/auth-store';
+import { onUnauthorized, serverMessage } from './api.ts';
+import { useAuthStore } from '../stores/auth-store.ts';
 
 describe('onUnauthorized (401 handler)', () => {
   beforeEach(() => {

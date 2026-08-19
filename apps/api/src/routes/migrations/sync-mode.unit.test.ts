@@ -28,7 +28,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { CreateMappingSchema, UpdateMappingSchema } from './index';
+import { CreateMappingSchema, UpdateMappingSchema } from './index.ts';
 
 /** The minimum a create body needs; every test varies only the mode. */
 function body(mode?: string) {

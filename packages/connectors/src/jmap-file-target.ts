@@ -61,7 +61,7 @@
  * @see packages/shared/src/jmap-file-path.ts — the path reconstruction
  */
 
-import { loadJmapSession } from './jmap-session';
+import { loadJmapSession } from './jmap-session.ts';
 import type {
   FileTargetWriter,
   FileFolder,

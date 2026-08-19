@@ -43,7 +43,7 @@ import type {
   DropboxFileSourceConfig,
   DropboxListFolderResponse,
   DropboxTransport,
-} from './dropbox-file-source.types';
+} from './dropbox-file-source.types.ts';
 
 const DEFAULT_API_BASE = 'https://api.dropboxapi.com/2';
 const DEFAULT_CONTENT_BASE = 'https://content.dropboxapi.com/2';

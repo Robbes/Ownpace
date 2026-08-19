@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { resolveSyncJob, resolveCutoverJob } from './job-resolution';
+import { resolveSyncJob, resolveCutoverJob } from './job-resolution.ts';
 
 const TENANT = '00000000-0000-4000-8000-000000000001';
 const MAPPING = '11111111-1111-4111-8111-111111111111';

@@ -24,7 +24,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   revokeStoredCredentials,
   type QueryableForRevocation,
-} from './revoke-stored-credentials';
+} from './revoke-stored-credentials.ts';
 import type { RevocationOutcome, TokenRevoker } from '@openmig/shared';
 
 vi.mock('@openmig/core/secret-store', () => ({

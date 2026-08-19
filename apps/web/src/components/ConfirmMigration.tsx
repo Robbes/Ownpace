@@ -1,11 +1,11 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 
 import React from 'react';
-import DiscoveryCounts from './confirm/DiscoveryCounts';
-import ScopeManifestPanel from './confirm/ScopeManifestPanel';
+import DiscoveryCounts from './confirm/DiscoveryCounts.tsx';
+import ScopeManifestPanel from './confirm/ScopeManifestPanel.tsx';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { mappingApi, scopeManifestApi } from '../services/mapping-service';
-import { useT } from '../i18n';
+import { mappingApi, scopeManifestApi } from '../services/mapping-service.ts';
+import { useT } from '../i18n/index.tsx';
 
 export interface ConfirmMigrationProps {
   readonly mappingId: string;

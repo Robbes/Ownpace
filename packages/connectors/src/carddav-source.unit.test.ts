@@ -10,9 +10,9 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { CarddavSource } from './carddav-source';
-import type { CardDAVSourceConfig, CardDAVSyncToken } from './carddav-source.types';
-import type { HttpClient, HttpResponse } from './dav-http.types';
+import { CarddavSource } from './carddav-source.ts';
+import type { CardDAVSourceConfig, CardDAVSyncToken } from './carddav-source.types.ts';
+import type { HttpClient, HttpResponse } from './dav-http.types.ts';
 
 // Mock HTTP client for testing
 function createMockHttpClient(response: HttpResponse): HttpClient {

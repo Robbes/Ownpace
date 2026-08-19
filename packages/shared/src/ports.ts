@@ -1,10 +1,10 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
-import type { TenantId, MappingId } from './ids';
-import type { DomainDiscovery, DiscoveryRecord, DiscoveryDomain } from './discovery';
-import type { MailFolder, MailItem, RawMessage, MailKeyword, SpecialUse } from './mail';
-import type { CalendarFolder, RawCalendarEvent } from './calendar';
-import type { ContactFolder, RawContact } from './contact';
-import type { FileFolder, FileItem, RawFileItem } from './file';
+import type { TenantId, MappingId } from './ids.ts';
+import type { DomainDiscovery, DiscoveryRecord, DiscoveryDomain } from './discovery.ts';
+import type { MailFolder, MailItem, RawMessage, MailKeyword, SpecialUse } from './mail.ts';
+import type { CalendarFolder, RawCalendarEvent } from './calendar.ts';
+import type { ContactFolder, RawContact } from './contact.ts';
+import type { FileFolder, FileItem, RawFileItem } from './file.ts';
 
 /** Opaque, source-defined cursor for incremental listing (e.g. UIDVALIDITY+UIDNEXT). */
 export interface SyncCursor {

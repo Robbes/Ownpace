@@ -24,10 +24,10 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { runMigrations } from './migrate';
-import { withTenant } from './db';
-import { pgliteDriver } from './pglite-driver';
-import type { LedgerDriver } from './driver';
+import { runMigrations } from './migrate.ts';
+import { withTenant } from './db.ts';
+import { pgliteDriver } from './pglite-driver.ts';
+import type { LedgerDriver } from './driver.ts';
 
 let driver: LedgerDriver;
 

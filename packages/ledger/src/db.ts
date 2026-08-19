@@ -6,15 +6,15 @@
 import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 
-import * as schemaPg from './schema-pg';
+import * as schemaPg from './schema-pg.ts';
 import { log } from '@openmig/shared';
 import {
   assertRoleName,
   isLedgerDriver,
   type LedgerConnection,
   type LedgerDriver,
-} from './driver';
-import type { PgDatabase } from './db-types';
+} from './driver.ts';
+import type { PgDatabase } from './db-types.ts';
 
 export type { PgDatabase };
 

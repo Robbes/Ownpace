@@ -14,27 +14,27 @@
  */
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router';
-import { useAuthStore } from './stores/auth-store';
-import Layout from './components/Layout';
-import Dashboard from './pages/Dashboard';
-import Mappings from './pages/Mappings';
-import MappingDetail from './pages/MappingDetail';
-import CreateMapping from './pages/CreateMapping';
-import ConfirmMapping from './pages/ConfirmMapping';
-import Tenants from './pages/Tenants';
-import Login from './pages/Login';
-import Decisions from './pages/Decisions';
-import Deletions from './pages/Deletions';
-import Moves from './pages/Moves';
-import Connections from './pages/Connections';
-import Docs from './pages/Docs';
-import Setup from './pages/Setup';
-import Sharing from './pages/Sharing';
-import Failures from './pages/Failures';
-import Verify from './pages/Verify';
-import Finish from './pages/Finish';
-import Confirm from './pages/Confirm';
-import { isSelfHost } from './services/edition';
+import { useAuthStore } from './stores/auth-store.ts';
+import Layout from './components/Layout.tsx';
+import Dashboard from './pages/Dashboard.tsx';
+import Mappings from './pages/Mappings.tsx';
+import MappingDetail from './pages/MappingDetail.tsx';
+import CreateMapping from './pages/CreateMapping.tsx';
+import ConfirmMapping from './pages/ConfirmMapping.tsx';
+import Tenants from './pages/Tenants.tsx';
+import Login from './pages/Login.tsx';
+import Decisions from './pages/Decisions.tsx';
+import Deletions from './pages/Deletions.tsx';
+import Moves from './pages/Moves.tsx';
+import Connections from './pages/Connections.tsx';
+import Docs from './pages/Docs.tsx';
+import Setup from './pages/Setup.tsx';
+import Sharing from './pages/Sharing.tsx';
+import Failures from './pages/Failures.tsx';
+import Verify from './pages/Verify.tsx';
+import Finish from './pages/Finish.tsx';
+import Confirm from './pages/Confirm.tsx';
+import { isSelfHost } from './services/edition.ts';
 
 /**
  * The billing screen, and only on the edition that bills (ADR-0036).
@@ -57,7 +57,7 @@ import { isSelfHost } from './services/edition';
 const Billing =
   import.meta.env.VITE_EDITION === 'selfhost'
     ? null
-    : React.lazy(() => import('./pages/Billing'));
+    : React.lazy(() => import('./pages/Billing.tsx'));
 
 // Protected route component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {

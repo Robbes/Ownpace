@@ -25,9 +25,9 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { pgliteDriver } from './pglite-driver';
-import { runMigrations } from './migrate';
-import type { LedgerDriver, LedgerConnection } from './driver';
+import { pgliteDriver } from './pglite-driver.ts';
+import { runMigrations } from './migrate.ts';
+import type { LedgerDriver, LedgerConnection } from './driver.ts';
 
 let driver: LedgerDriver;
 let conn: LedgerConnection;

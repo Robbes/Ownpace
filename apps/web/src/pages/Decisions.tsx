@@ -23,13 +23,13 @@ import {
   dismissDriftDecision,
   fetchDecisionPresets,
   setDecisionPreset,
-} from '../services/operating-service';
-import { useAuthStore } from '../stores/auth-store';
-import { isSelfHost } from '../services/edition';
-import { useT, useFormatters } from '../i18n';
-import StateChip from '../components/StateChip';
-import AsOf from '../components/AsOf';
-import type { StringKey } from '../i18n';
+} from '../services/operating-service.ts';
+import { useAuthStore } from '../stores/auth-store.ts';
+import { isSelfHost } from '../services/edition.ts';
+import { useT, useFormatters } from '../i18n/index.tsx';
+import StateChip from '../components/StateChip.tsx';
+import AsOf from '../components/AsOf.tsx';
+import type { StringKey } from '../i18n/index.tsx';
 
 /** The server's message for a failed request, verbatim; dictionary fallback. */
 function errorText(err: unknown, fallback: string): string {

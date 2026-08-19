@@ -9,9 +9,9 @@
 
 import { describe, it, expect } from 'vitest';
 import { asTenantId, asMappingId, type Ledger } from '@openmig/shared';
-import { CalDAVTargetWriter, type HttpClient } from './caldav-target-writer';
-import { CardDAVTargetWriter } from './carddav-target-writer';
-import { WebDAVTargetWriter } from './webdav-target-writer';
+import { CalDAVTargetWriter, type HttpClient } from './caldav-target-writer.ts';
+import { CardDAVTargetWriter } from './carddav-target-writer.ts';
+import { WebDAVTargetWriter } from './webdav-target-writer.ts';
 
 const TENANT = asTenantId('6d330000-e29b-41d4-a716-4466554472a1' as never);
 const MAPPING = asMappingId('6d330000-e29b-41d4-a716-4466554472a2' as never);

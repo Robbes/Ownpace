@@ -10,8 +10,8 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { scanCalendarPermissions, scanDrivePermissions } from './graph-permission-scan';
-import type { HttpClient } from './dav-http.types';
+import { scanCalendarPermissions, scanDrivePermissions } from './graph-permission-scan.ts';
+import type { HttpClient } from './dav-http.types.ts';
 
 const token = async () => 'tok';
 const APP = { applicationPermissions: true } as const;

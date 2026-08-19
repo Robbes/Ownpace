@@ -3,9 +3,9 @@ import React from 'react';
 import { BrowserRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import AppRoutes from './AppRoutes';
-import { uiBasename } from './services/edition';
-import { LocaleProvider } from './i18n';
+import AppRoutes from './AppRoutes.tsx';
+import { uiBasename } from './services/edition.ts';
+import { LocaleProvider } from './i18n/index.tsx';
 
 const queryClient = new QueryClient({
   defaultOptions: {

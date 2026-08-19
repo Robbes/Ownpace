@@ -5,7 +5,7 @@
  * boot — with billing live — or warn, in words that name the consequence.
  */
 import { describe, it, expect } from 'vitest';
-import { describeUrlConfigProblems, assertProductionUrlConfig } from './config-guards';
+import { describeUrlConfigProblems, assertProductionUrlConfig } from './config-guards.ts';
 
 const prodBilling = {
   NODE_ENV: 'production',

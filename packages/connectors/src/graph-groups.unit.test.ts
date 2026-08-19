@@ -11,9 +11,9 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { listMailEnabledGroups, listGroupMembers } from './graph-groups';
-import { listImapGroups } from './imap-groups';
-import type { HttpClient } from './dav-http.types';
+import { listMailEnabledGroups, listGroupMembers } from './graph-groups.ts';
+import { listImapGroups } from './imap-groups.ts';
+import type { HttpClient } from './dav-http.types.ts';
 
 const token = async () => 'tok';
 

@@ -22,9 +22,9 @@
 
 import type { ContactSource, ContactFolder, RawContact, SyncCursor, ContactPhone, ContactEmail, ContactAddress, ContactUrl, EmailType, UrlType, Contact } from '@openmig/shared';
 import type { TokenProvider } from '@openmig/shared';
-import type { GraphContactsSourceConfig, GraphContactFolder, GraphContact, GraphContactsDeltaCursor, VCardFieldMapping, GraphContactWithPhoto } from './graph-contacts-source.types';
-import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types';
-import { graphScopePrefix } from './graph-scope';
+import type { GraphContactsSourceConfig, GraphContactFolder, GraphContact, GraphContactsDeltaCursor, VCardFieldMapping, GraphContactWithPhoto } from './graph-contacts-source.types.ts';
+import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
+import { graphScopePrefix } from './graph-scope.ts';
 import type { ThrottleLimiter } from '@openmig/shared';
 import { log } from '@openmig/shared';
 

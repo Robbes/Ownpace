@@ -6,7 +6,7 @@
  * so they are cheaply unit-testable (review findings #4).
  */
 
-import type { DavEndpoint } from './dav-factories';
+import type { DavEndpoint } from './dav-factories.ts';
 
 /** Build a DAV endpoint URL from a stored connection config (url/baseUrl/host+port). */
 export function davUrl(config: Record<string, unknown>): string {

@@ -15,8 +15,8 @@
 
 import { describe, it, expect } from 'vitest';
 import type { ProbeOutcome } from '@openmig/shared';
-import { probeText } from './probe-text';
-import { STRINGS, type StringKey } from './strings';
+import { probeText } from './probe-text.ts';
+import { STRINGS, type StringKey } from './strings.ts';
 
 /** A `t` bound to one locale, with the same interpolation the app uses. */
 const translator =

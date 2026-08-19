@@ -61,7 +61,7 @@ import {
   type DriveTransport,
   type GoogleDriveSourceConfig,
   type NativeFilePolicy,
-} from './google-drive-source.types';
+} from './google-drive-source.types.ts';
 
 const DEFAULT_BASE = 'https://www.googleapis.com/drive/v3';
 

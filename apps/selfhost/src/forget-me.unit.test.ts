@@ -67,7 +67,7 @@ beforeEach(async () => {
 afterEach(() => vi.restoreAllMocks());
 
 const run = async (argv: string[] = []) => {
-  const { forgetMe } = await import('./forget-me');
+  const { forgetMe } = await import('./forget-me.ts');
   return forgetMe(argv);
 };
 

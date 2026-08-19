@@ -184,7 +184,7 @@ function maybeFail(): void {
   }
 }
 
-const { ImapFlowDavMailTarget } = await import('./imapflow-dav-target');
+const { ImapFlowDavMailTarget } = await import('./imapflow-dav-target.ts');
 
 function target() {
   return new ImapFlowDavMailTarget({

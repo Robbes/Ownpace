@@ -24,7 +24,7 @@
  */
 
 import { refusalText, type ProbeOutcome, type ProbeUnit, type RefusalLocale } from '@openmig/shared';
-import type { StringKey } from './strings';
+import type { StringKey } from './strings.ts';
 
 type Translate = (key: StringKey, vars?: Readonly<Record<string, string | number>>) => string;
 

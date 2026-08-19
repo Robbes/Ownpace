@@ -11,13 +11,13 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { jwtVerify, createRemoteJWKSet, decodeJwt } from 'jose';
-import type { AuthenticatedRequest } from '../types/api';
+import type { AuthenticatedRequest } from '../types/api.ts';
 import { Pool } from 'pg';
 import { eq, and } from 'drizzle-orm';
 import { withTenant as ledgerWithTenant, type PgDatabase } from '@openmig/ledger';
 import { tenantMember } from '@openmig/managed/schema-managed';
 import { log } from '@openmig/shared';
-import { serverFault } from '../server-fault';
+import { serverFault } from '../server-fault.ts';
 
 export interface JwtPayload {
   sub: string;

@@ -27,14 +27,14 @@ import type {
   WebDAVFolder, 
   PropfindResponseEntry,
   PropfindResponse,
-} from './webdav-source.types';
-import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types';
+} from './webdav-source.types.ts';
+import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import {
   TRASHBIN_PROPFIND_BODY,
   nextcloudTrashbinUrl,
   parseTrashbinOriginalLocations,
   classifyTrashbinLocation,
-} from './webdav-trashbin';
+} from './webdav-trashbin.ts';
 
 /**
  * WebDAV source connector implementation.
@@ -47,7 +47,7 @@ export class WebdavFileSource implements FileSource {
    * it after — the caps an owner configured, enforced. Without one this is
    * exactly `httpClient.request`.
    */
-  private async send(options: import('./dav-http.types').HttpRequestOptions): Promise<import('./dav-http.types').HttpResponse> {
+  private async send(options: import('./dav-http.types.ts').HttpRequestOptions): Promise<import('./dav-http.types.ts').HttpResponse> {
     const limiter = this.config.throttleLimiter;
     if (!limiter) return this.httpClient.request(options);
     await limiter.waitForSlot('dav', this.limiterHost());

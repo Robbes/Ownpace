@@ -23,8 +23,8 @@ import {
   type TargetReindexer,
   type TargetEntry,
 } from '@openmig/shared';
-import { runVerification } from './verification';
-import { createRealVerificationDeps } from './verification-implementations';
+import { runVerification } from './verification.ts';
+import { createRealVerificationDeps } from './verification-implementations.ts';
 
 const TENANT = asTenantId('5fad0000-e29b-41d4-a716-4466554439a1' as never);
 const MAPPING = asMappingId('5fad0000-e29b-41d4-a716-4466554439a2' as never);

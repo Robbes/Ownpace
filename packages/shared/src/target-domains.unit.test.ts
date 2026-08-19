@@ -12,7 +12,7 @@ import {
   incoherentTargetDomains,
   sourceDomainRefusal,
   targetDomainRefusal,
-} from './target-domains';
+} from './target-domains.ts';
 
 describe('TARGET_TYPE_DOMAINS mirrors the engines', () => {
   it('jmap carries email, contact and file — and deliberately NOT calendar (0031 T1 parked)', () => {

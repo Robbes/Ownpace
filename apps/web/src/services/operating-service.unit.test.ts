@@ -35,7 +35,7 @@ vi.mock('axios', async (importOriginal) => {
   };
 });
 
-import { fetchPermissionReport, fetchGroupRunbook } from './operating-service';
+import { fetchPermissionReport, fetchGroupRunbook } from './operating-service.ts';
 
 /** An axios rejection as `responseType: 'text'` actually delivers it: the
  *  JSON error body is an UNPARSED STRING. `isAxiosError: true` is the flag

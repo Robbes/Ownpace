@@ -53,7 +53,7 @@
  * an incremental `pnpm add`. A clean install resolves one. See workplan 0016.
  */
 
-import type { PgDatabase } from './db-types';
+import type { PgDatabase } from './db-types.ts';
 
 /**
  * One connection, held for the duration of a transaction.

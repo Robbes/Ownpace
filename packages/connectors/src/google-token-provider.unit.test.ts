@@ -15,7 +15,7 @@ import {
   GoogleTokenProvider,
   DRIVE_READONLY_SCOPE,
   type TokenFetch,
-} from './google-token-provider';
+} from './google-token-provider.ts';
 
 const CREDS = {
   clientId: 'client-1.apps.googleusercontent.com',

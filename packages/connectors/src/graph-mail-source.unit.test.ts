@@ -12,8 +12,8 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import type { TokenProvider } from '@openmig/shared';
-import type { HttpClient, HttpResponse } from './dav-http.types';
-import { GraphMailSource } from './graph-mail-source';
+import type { HttpClient, HttpResponse } from './dav-http.types.ts';
+import { GraphMailSource } from './graph-mail-source.ts';
 
 const BASE = 'https://graph.microsoft.com/v1.0';
 

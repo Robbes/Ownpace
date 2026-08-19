@@ -23,7 +23,7 @@
  */
 
 import type { TokenProvider } from '@openmig/shared';
-import type { DriveResponse, DriveTransport } from './google-drive-source.types';
+import type { DriveResponse, DriveTransport } from './google-drive-source.types.ts';
 
 /** The seam to the network. A `fetch` Response satisfies `DriveResponse` as it is. */
 export type DriveFetch = (

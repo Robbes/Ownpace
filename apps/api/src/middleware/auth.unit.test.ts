@@ -54,7 +54,7 @@ vi.mock('jose', async (importOriginal) => {
 });
 
 const { SignJWT, exportJWK, generateKeyPair, importJWK } = await import('jose');
-const { authenticate, __setMembershipLookupForTests } = await import('./auth');
+const { authenticate, __setMembershipLookupForTests } = await import('./auth.ts');
 
 const ISSUER = 'https://issuer.example';
 const AUDIENCE = 'openmig-api';

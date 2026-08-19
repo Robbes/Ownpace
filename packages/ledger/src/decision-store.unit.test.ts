@@ -13,11 +13,11 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { asTenantId, asMappingId } from '@openmig/shared';
-import { createPgliteDb } from './pglite-driver';
-import { runMigrations } from './migrate';
-import { PgDecisionStore } from './decision-store';
-import type { PgDatabase } from './db';
-import type { LedgerDriver } from './driver';
+import { createPgliteDb } from './pglite-driver.ts';
+import { runMigrations } from './migrate.ts';
+import { PgDecisionStore } from './decision-store.ts';
+import type { PgDatabase } from './db.ts';
+import type { LedgerDriver } from './driver.ts';
 
 const TENANT = asTenantId('5a4b0000-e29b-41d4-a716-446655442801');
 const CONN = '5a4b0000-e29b-41d4-a716-446655442811';

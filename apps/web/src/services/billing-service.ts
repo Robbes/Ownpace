@@ -17,7 +17,7 @@
  */
 
 import { z } from 'zod';
-import apiClient from './api';
+import apiClient from './api.ts';
 
 /** calculateCost's breakdown — baseFee and taxRate included (0039 T2), so
  *  the Base Fee line and the VAT label render served numbers, not guesses. */

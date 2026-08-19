@@ -14,7 +14,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
-import Docs from './Docs';
+import Docs from './Docs.tsx';
 
 function renderAt(path: string) {
   return render(

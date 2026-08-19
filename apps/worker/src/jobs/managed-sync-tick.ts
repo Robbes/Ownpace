@@ -39,7 +39,7 @@ import {
   enabledDomainsForMappings,
   type SyncDomain,
 } from '@openmig/orchestration/enabled-domains';
-import { runDeltaSync } from './run-delta-sync';
+import { runDeltaSync } from './run-delta-sync.ts';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {

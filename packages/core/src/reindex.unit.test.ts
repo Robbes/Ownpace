@@ -1,9 +1,9 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import { describe, it, expect } from 'vitest';
 import { asMappingId, asTenantId, type ReindexDeps } from '@openmig/shared';
-import { reindexFromTarget } from './reindex';
-import { runShadowPass } from './reconcile';
-import { MemoryLedger, MemorySource, MemoryTarget } from './__testing__/memory';
+import { reindexFromTarget } from './reindex.ts';
+import { runShadowPass } from './reconcile.ts';
+import { MemoryLedger, MemorySource, MemoryTarget } from './__testing__/memory.ts';
 
 describe('reindexFromTarget (lost-ledger recovery)', () => {
   it('adopts existing target items into an empty ledger; a later pass creates nothing', async () => {

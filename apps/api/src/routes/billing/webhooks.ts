@@ -17,10 +17,10 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { and, eq } from 'drizzle-orm';
 import * as schema from '@openmig/managed/schema-managed';
-import { getMollieService, type MolliePayment } from '../../services/mollie/index';
-import { getDbPool, withTenantDb } from '../../middleware/auth';
+import { getMollieService, type MolliePayment } from '../../services/mollie/index.ts';
+import { getDbPool, withTenantDb } from '../../middleware/auth.ts';
 import { log } from '@openmig/shared';
-import { serverFault } from '../../server-fault';
+import { serverFault } from '../../server-fault.ts';
 
 const router = Router();
 

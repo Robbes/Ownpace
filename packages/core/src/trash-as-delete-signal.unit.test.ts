@@ -21,8 +21,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { runShadowPass } from './reconcile';
-import { MemorySource, MemoryTarget, MemoryLedger, MemoryCursorStore } from './__testing__/memory';
+import { runShadowPass } from './reconcile.ts';
+import { MemorySource, MemoryTarget, MemoryLedger, MemoryCursorStore } from './__testing__/memory.ts';
 import {
   asTenantId,
   asMappingId,

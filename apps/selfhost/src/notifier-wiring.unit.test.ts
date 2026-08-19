@@ -17,7 +17,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { start, type SelfhostHandle } from './index';
+import { start, type SelfhostHandle } from './index.ts';
 
 let handle: SelfhostHandle;
 /** Reused by the configured-appliance suite below, so the mapping is one fact. */

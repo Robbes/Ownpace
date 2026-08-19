@@ -16,7 +16,7 @@ import {
   getTokenExpiryMs,
   IdempotencyTracker,
   type TokenClaims,
-} from './o365-scenario';
+} from './o365-scenario.ts';
 
 // ============================================================================
 // JWT Token Decoding Tests

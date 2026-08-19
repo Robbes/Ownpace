@@ -44,7 +44,7 @@ import {
   runManagedMigrations,
   managedMigrationsDir,
   MANAGED_BOOKKEEPING_TABLE,
-} from './migrate-managed';
+} from './migrate-managed.ts';
 
 // packages/managed/src -> repo root
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');

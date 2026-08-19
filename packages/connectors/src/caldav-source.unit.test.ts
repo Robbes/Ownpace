@@ -10,9 +10,9 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { CalDAVSource } from './caldav-source';
-import type { CalDAVSourceConfig, CalDAVSyncToken } from './caldav-source.types';
-import type { HttpClient, HttpResponse } from './dav-http.types';
+import { CalDAVSource } from './caldav-source.ts';
+import type { CalDAVSourceConfig, CalDAVSyncToken } from './caldav-source.types.ts';
+import type { HttpClient, HttpResponse } from './dav-http.types.ts';
 
 // Mock HTTP client for testing
 function createMockHttpClient(response: HttpResponse): HttpClient {

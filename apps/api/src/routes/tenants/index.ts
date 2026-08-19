@@ -9,10 +9,10 @@
 import { Router } from 'express';
 import type { Response } from 'express';
 import { z } from 'zod';
-import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middleware/auth';
-import type { AuthenticatedRequest } from '../../types/api';
-import membersRoutes from './members';
-import { serverFault } from '../../server-fault';
+import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middleware/auth.ts';
+import type { AuthenticatedRequest } from '../../types/api.ts';
+import membersRoutes from './members.ts';
+import { serverFault } from '../../server-fault.ts';
 import type { PgDatabase } from '@openmig/ledger';
 import { closeTenant, reopenTenant, isCloseWindow, CLOSE_WINDOWS_DAYS } from '@openmig/managed';
 import {

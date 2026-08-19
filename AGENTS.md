@@ -39,6 +39,16 @@ Before any Stalwart or integration-test work: read `docs/stalwart-integration-fi
   covers; `test/`, `scripts/` and root-level `.ts` are in no `include` and are
   therefore neither typechecked nor type-linted (29 real type errors are waiting
   there whenever someone widens it).
+- **Nothing transpiles at runtime.** The API image runs `node apps/api/src/index.ts`
+  and the appliance runs an esbuild bundle; Node erases the types itself. Three
+  source rules keep that working — every relative import carries its extension,
+  `erasableSyntaxOnly`, `verbatimModuleSyntax` — and
+  `scripts/runs-without-a-transpiler.unit.test.ts` fails if any of them slips.
+  **`tsx` is still a root devDependency, on purpose**: it applies tsconfig
+  `paths`, which Node does not, and the ad-hoc `scripts/*.ts` that docs invoke
+  as `pnpm exec tsx scripts/x.ts` import `@openmig/*` from a directory where
+  nothing declares those as dependencies. Keep using tsx for those; do not use
+  it for anything that ships.
 - Unit: `pnpm test` · Integration: `pnpm test:integration` (self-manages its stack via Testcontainers) · UI smoke: `pnpm test:ui` (real Chromium over the built bundle; runs on every PR) · E2E: `pnpm test:e2e`
 - Optional dev stack: `docker compose -f deploy/compose/dev.yml up -d` (Postgres + Nextcloud).
   Stalwart isn't part of it — its two-phase startup can't be expressed as one compose service —

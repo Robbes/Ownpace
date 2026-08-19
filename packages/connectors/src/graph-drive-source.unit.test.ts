@@ -13,9 +13,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { GraphDriveSource } from './graph-drive-source';
+import { GraphDriveSource } from './graph-drive-source.ts';
 import type { TokenProvider, OAuth2Token, SyncCursor, ThrottleLimiter } from '@openmig/shared';
-import type { GraphDriveSourceConfig, GraphDriveItem } from './graph-drive-source.types';
+import type { GraphDriveSourceConfig, GraphDriveItem } from './graph-drive-source.types.ts';
 
 describe('GraphDriveSource', () => {
   let mockTokenProvider: TokenProvider;

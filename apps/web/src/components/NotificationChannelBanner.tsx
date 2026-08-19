@@ -21,8 +21,8 @@
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useT } from '../i18n';
-import { fetchStatus } from '../services/operating-service';
+import { useT } from '../i18n/index.tsx';
+import { fetchStatus } from '../services/operating-service.ts';
 
 export function NotificationChannelBanner(): React.ReactElement | null {
   const t = useT();

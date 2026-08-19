@@ -17,7 +17,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import type { DiscoveryRecord } from '@openmig/shared';
-import DiscoveryCounts, { formatBytes } from './DiscoveryCounts';
+import DiscoveryCounts, { formatBytes } from './DiscoveryCounts.tsx';
 
 function record(over: Partial<DiscoveryRecord> = {}): DiscoveryRecord {
   return {

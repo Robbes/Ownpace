@@ -21,15 +21,15 @@
  */
 
 import { describe, it, expect, beforeEach, afterAll, beforeAll } from 'vitest';
-import { runMigrations } from './migrate';
+import { runMigrations } from './migrate.ts';
 import {
   pruneRunEvents,
   retentionDaysFromEnv,
   DEFAULT_RUN_EVENT_RETENTION_DAYS,
-} from './retention';
-import { createPgliteDb } from './pglite-driver';
-import type { LedgerDriver, LedgerConnection } from './driver';
-import type { PgDatabase } from './db-types';
+} from './retention.ts';
+import { createPgliteDb } from './pglite-driver.ts';
+import type { LedgerDriver, LedgerConnection } from './driver.ts';
+import type { PgDatabase } from './db-types.ts';
 
 // UUID family 5a9b0000-…, unused elsewhere in the repo.
 const TENANT = '5a9b0000-e29b-41d4-a716-446655441501';

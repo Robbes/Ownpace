@@ -27,7 +27,7 @@ import type { PgDatabase } from '@openmig/ledger';
 import { getUsageMetricsForPeriod, resolveTenantPricing, VAT_RATE } from '@openmig/managed';
 import * as schema from '@openmig/managed/schema-managed';
 import type { TenantId } from '@openmig/shared';
-import { calculateCost, type PricingConfig } from './billing-service';
+import { calculateCost, type PricingConfig } from './billing-service.ts';
 
 // VAT_RATE is imported, not redeclared: this file used to carry its own
 // `const VAT_RATE = 0.21` — a third copy, and the one actually STAMPED ON THE

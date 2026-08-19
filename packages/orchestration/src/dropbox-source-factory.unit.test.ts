@@ -10,7 +10,7 @@ import {
   ENV_DROPBOX_CREDENTIAL_NAMES,
   STORED_DROPBOX_CREDENTIAL_NAMES,
   buildDropboxSourceFrom,
-} from './dropbox-source-factory';
+} from './dropbox-source-factory.ts';
 
 describe('refusing before anything is attempted', () => {
   it('names EVERY missing credential at once, in the appliance vocabulary', () => {

@@ -31,16 +31,16 @@ import {
   ActionButton,
   DestructiveButton,
   Refused,
-} from '../components/queues/primitives';
+} from '../components/queues/primitives.tsx';
 import {
   DecisionRefusedError,
   decideSharing,
   fetchSharing,
   rescanSharing,
-} from '../services/operating-service';
-import MappingHubLink from '../components/MappingHubLink';
-import { useT, useFormatters } from '../i18n';
-import { serverMessage } from '../services/api';
+} from '../services/operating-service.ts';
+import MappingHubLink from '../components/MappingHubLink.tsx';
+import { useT, useFormatters } from '../i18n/index.tsx';
+import { serverMessage } from '../services/api.ts';
 
 const StateBadge: React.FC<{ row: ShareGrantRow }> = ({ row }) => {
   const t = useT();

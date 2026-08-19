@@ -11,6 +11,6 @@
  */
 
 import type { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
-import type * as schemaPg from './schema-pg';
+import type * as schemaPg from './schema-pg.ts';
 
 export type PgDatabase = ReturnType<typeof drizzlePg<typeof schemaPg>>;

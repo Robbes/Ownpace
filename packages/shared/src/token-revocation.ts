@@ -50,7 +50,7 @@
  * may still be live at the provider until the customer removes it.
  */
 
-import type { RefusalLocale } from './credential-refusals';
+import type { RefusalLocale } from './credential-refusals.ts';
 
 /** What happened when we tried to revoke one connection's credential. */
 export type RevocationStatus =

@@ -8,8 +8,8 @@
 
 import { describe, it, expect } from 'vitest';
 import type { MappingConfig, SourceConfig, TargetConfig } from '@openmig/shared';
-import { DEFAULT_CONCURRENCY, resolveMailConfig } from './build-deps';
-import { davEndpointFromCreds } from './dav-endpoint';
+import { DEFAULT_CONCURRENCY, resolveMailConfig } from './build-deps.ts';
+import { davEndpointFromCreds } from './dav-endpoint.ts';
 
 const topSource: SourceConfig = {
   type: 'imap-oauth2',

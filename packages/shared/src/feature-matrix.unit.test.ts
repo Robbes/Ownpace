@@ -22,7 +22,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { SOURCE_TYPE_DOMAINS, TARGET_TYPE_DOMAINS } from './target-domains';
+import { SOURCE_TYPE_DOMAINS, TARGET_TYPE_DOMAINS } from './target-domains.ts';
 
 const matrix = readFileSync(
   fileURLToPath(new URL('../../../docs/feature-matrix.md', import.meta.url)),

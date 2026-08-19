@@ -14,8 +14,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { GoogleDriveSource, NativeFileRefused, isNativeEditorFile } from './google-drive-source';
-import type { DriveTransport } from './google-drive-source.types';
+import { GoogleDriveSource, NativeFileRefused, isNativeEditorFile } from './google-drive-source.ts';
+import type { DriveTransport } from './google-drive-source.types.ts';
 
 const BASE = 'https://drive.test/v3';
 

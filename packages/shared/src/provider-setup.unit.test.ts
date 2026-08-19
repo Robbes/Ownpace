@@ -17,7 +17,7 @@ import {
   setupStepsFor,
   summariseSetup,
   type SetupStepStatus,
-} from './provider-setup';
+} from './provider-setup.ts';
 
 const status = (
   key: string,

@@ -20,7 +20,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { credentialFieldsFor } from '@openmig/shared';
-import { missingFieldsRefusal } from './connections';
+import { missingFieldsRefusal } from './connections.ts';
 
 describe('the missing-fields refusal', () => {
   it('carries the field KEYS as data, not only inside a sentence', () => {

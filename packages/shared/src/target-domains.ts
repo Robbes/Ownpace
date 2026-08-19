@@ -26,7 +26,7 @@
  * with a `contact` domain would aim a CardDAV client at an IMAP host.
  */
 
-import type { DiscoveryDomain } from './discovery';
+import type { DiscoveryDomain } from './discovery.ts';
 
 /** The wizard's target vocabulary (mirrors CreateMappingSchema.targetType). */
 export type WizardTargetType = 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav';

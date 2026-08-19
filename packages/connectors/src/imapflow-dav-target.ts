@@ -76,8 +76,8 @@ import {
   KEYWORD_TO_FLAG,
   extractMessageIdFromRfc822,
   type ImapDavTargetConfig,
-} from './imap-conventions';
-import { isCertificateError } from './imapflow-source';
+} from './imap-conventions.ts';
+import { isCertificateError } from './imapflow-source.ts';
 
 /**
  * The mail write path, on `imapflow`.

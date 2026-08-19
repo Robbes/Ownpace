@@ -42,9 +42,9 @@ import {
   type ItemMove,
   type MigrationStatus,
   type PassMetrics,
-} from './ports';
-import type { VerificationResult } from './verification-report';
-import type { FinishRefuseCode } from './lifecycle';
+} from './ports.ts';
+import type { VerificationResult } from './verification-report.ts';
+import type { FinishRefuseCode } from './lifecycle.ts';
 
 /**
  * Where a mapping is in its life, as the operating surface reports it.

@@ -13,8 +13,8 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
-import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middleware/auth';
-import type { AuthenticatedRequest } from '../../types/api';
+import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middleware/auth.ts';
+import type { AuthenticatedRequest } from '../../types/api.ts';
 import { eq, and, count } from 'drizzle-orm';
 import * as schema from '@openmig/managed/schema-managed';
 import {
@@ -22,8 +22,8 @@ import {
   removesLastOwner,
   grantsOwnerWithoutPermission,
   isSelfRemoval,
-} from './member-guards';
-import { serverFault } from '../../server-fault';
+} from './member-guards.ts';
+import { serverFault } from '../../server-fault.ts';
 
 const router = Router();
 

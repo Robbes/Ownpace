@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { createRecordingTransport, type RecordableTransport } from './drive-capture';
+import { createRecordingTransport, type RecordableTransport } from './drive-capture.ts';
 
 const REAL_LISTING = {
   files: [

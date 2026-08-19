@@ -13,10 +13,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   ThrottleLimiter,
-  ThrottleConfig,
+  type ThrottleConfig,
   DEFAULT_THROTTLE_CONFIG,
   createThrottleLimiterFromMapping,
-} from './throttling';
+} from './throttling.ts';
 
 /** A config that only varies where a test says it does. */
 const FAST: ThrottleConfig = {

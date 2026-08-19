@@ -8,7 +8,7 @@
  * complete.
  */
 import { describe, it, expect } from 'vitest';
-import { describeAbsentDomains, ALL_SYNC_DOMAINS, type SyncDomain } from './enabled-domains';
+import { describeAbsentDomains, ALL_SYNC_DOMAINS, type SyncDomain } from './enabled-domains.ts';
 
 const set = (...d: SyncDomain[]) => new Set<SyncDomain>(d);
 

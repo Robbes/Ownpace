@@ -1,7 +1,7 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 
 import { describe, it, expect } from 'vitest';
-import { davEndpointFromCreds, fileEndpointFromCreds } from './dav-endpoint';
+import { davEndpointFromCreds, fileEndpointFromCreds } from './dav-endpoint.ts';
 
 const creds = { username: 'tenant-b-target', password: 'secret' };
 

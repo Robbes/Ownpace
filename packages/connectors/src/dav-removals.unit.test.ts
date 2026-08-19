@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { parseRemovedHrefs } from './dav-removals';
+import { parseRemovedHrefs } from './dav-removals.ts';
 
 /** A response for an object that is still there, with its data. */
 function present(href: string): string {

@@ -30,8 +30,8 @@ import type {
   MappingLifecycle,
   ShareGrantRow,
 } from '@openmig/shared';
-import { isSelfHost, mappingPath, operatingBaseUrl, queuePath, verifyPath } from './edition';
-import { onUnauthorized } from './api';
+import { isSelfHost, mappingPath, operatingBaseUrl, queuePath, verifyPath } from './edition.ts';
+import { onUnauthorized } from './api.ts';
 
 const client: AxiosInstance = axios.create({
   baseURL: operatingBaseUrl(),

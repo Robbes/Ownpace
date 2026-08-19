@@ -14,12 +14,12 @@
 import { Router } from 'express';
 import type { Response } from 'express';
 import { z } from 'zod';
-import { authenticate, requireRole, getDbPool, withTenantDb } from '../middleware/auth';
-import type { AuthenticatedRequest } from '../types/api';
+import { authenticate, requireRole, getDbPool, withTenantDb } from '../middleware/auth.ts';
+import type { AuthenticatedRequest } from '../types/api.ts';
 import { PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore } from '@openmig/ledger';
 import { DECISION_EFFECTS, asTenantId, asMappingId, log, type DecisionStatus } from '@openmig/shared';
 import { sharedAddressAnswer } from '@openmig/core';
-import { serverFault } from '../server-fault';
+import { serverFault } from '../server-fault.ts';
 
 const router = Router();
 

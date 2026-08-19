@@ -43,7 +43,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import type { PgDatabase } from './db-types';
+import type { PgDatabase } from './db-types.ts';
 
 /** How long run logs are kept. Generous: the UI only ever shows the newest few. */
 export const DEFAULT_RUN_EVENT_RETENTION_DAYS = 90;

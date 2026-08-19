@@ -27,7 +27,7 @@
 
 import { createSign } from 'node:crypto';
 import type { OAuth2Token, TokenProvider, TokenStatus } from '@openmig/shared';
-import type { TokenFetch } from './google-token-provider';
+import type { TokenFetch } from './google-token-provider.ts';
 
 const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const JWT_BEARER_GRANT = 'urn:ietf:params:oauth:grant-type:jwt-bearer';

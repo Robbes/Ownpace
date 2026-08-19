@@ -26,7 +26,7 @@ import {
   mayOfferApply,
   type DecisionOutcome,
   type ItemDeletion,
-} from './index';
+} from './index.ts';
 
 function deletion(over: Partial<ItemDeletion> = {}): ItemDeletion {
   return {

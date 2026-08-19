@@ -24,9 +24,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { probeJmapCapabilities, usableJmapDomains } from './jmap-capabilities';
-import { JmapContactTarget } from './jmap-contact-target';
-import { JmapFileTarget } from './jmap-file-target';
+import { probeJmapCapabilities, usableJmapDomains } from './jmap-capabilities.ts';
+import { JmapContactTarget } from './jmap-contact-target.ts';
+import { JmapFileTarget } from './jmap-file-target.ts';
 
 const BASE = process.env.STALWART_JMAP_URL;
 const USER = process.env.STALWART_JMAP_USERNAME ?? 'target@dev.local';

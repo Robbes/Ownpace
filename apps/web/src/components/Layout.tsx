@@ -16,17 +16,17 @@ import {
   ClipboardCheck,
   ListChecks,
   Flag, Plug, BookOpen } from 'lucide-react';
-import { useAuthStore } from '../stores/auth-store';
-import { isSelfHost } from '../services/edition';
-import { useLocale } from '../i18n';
-import type { StringKey } from '../i18n';
-import { LOCALES } from '../i18n/strings';
+import { useAuthStore } from '../stores/auth-store.ts';
+import { isSelfHost } from '../services/edition.ts';
+import { useLocale } from '../i18n/index.tsx';
+import type { StringKey } from '../i18n/index.tsx';
+import { LOCALES } from '../i18n/strings.ts';
 import {
   activeNavHref,
   mappingRouteContext,
   truncateMiddle,
   type MappingScreen,
-} from './layout-context';
+} from './layout-context.ts';
 
 /** Header titles for the per-mapping screens — the same words as the nav. */
 const SCREEN_TITLE_KEY: Record<MappingScreen, StringKey> = {

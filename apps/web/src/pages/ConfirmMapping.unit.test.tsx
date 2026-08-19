@@ -12,7 +12,7 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { describe, it, expect, vi } from 'vitest';
-import ConfirmMapping from './ConfirmMapping';
+import ConfirmMapping from './ConfirmMapping.tsx';
 
 vi.mock('../components/ConfirmMigration', () => ({
   ConfirmMigration: ({ mappingId, onStarted }: { mappingId: string; onStarted: () => void }) => (

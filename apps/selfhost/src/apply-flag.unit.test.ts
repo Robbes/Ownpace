@@ -14,7 +14,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { start, type SelfhostHandle } from './index';
+import { start, type SelfhostHandle } from './index.ts';
 
 const MAPPING_ON = '22222222-2222-4222-8222-2222222222aa';
 const MAPPING_OFF = '22222222-2222-4222-8222-2222222222bb';

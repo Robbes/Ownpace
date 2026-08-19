@@ -22,8 +22,8 @@ import {
   buildFileSourceFromConnection,
   buildSourceConnectorFromCredentials,
   buildTargetWriterFromCredentials,
-} from './build-deps-from-mapping';
-import { GmailFolderView } from './gmail-source-factory';
+} from './build-deps-from-mapping.ts';
+import { GmailFolderView } from './gmail-source-factory.ts';
 import type { SourceConfig, TargetConfig } from '@openmig/shared';
 
 const GRAPH_MAIL: SourceConfig = { type: 'graph-mail', tenantId: 'contoso.example' };

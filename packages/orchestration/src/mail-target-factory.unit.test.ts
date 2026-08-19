@@ -15,7 +15,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { JmapTargetWriter, ImapFlowDavMailTarget } from '@openmig/connectors';
-import { buildJmapTargetFrom, buildImapDavTargetFrom } from './mail-target-factory';
+import { buildJmapTargetFrom, buildImapDavTargetFrom } from './mail-target-factory.ts';
 
 const IMAP_DAV = { host: 'mail.example', port: 993, user: 'target@example' };
 

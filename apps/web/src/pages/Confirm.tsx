@@ -23,25 +23,25 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Loader2, Play } from 'lucide-react';
 import { Link } from 'react-router';
 import type { MappingLifecycle } from '@openmig/shared';
-import { useT, useLocale } from '../i18n';
-import { formatDateTime } from '../i18n/datetime';
-import type { StringKey } from '../i18n';
-import DiscoveryCounts from '../components/confirm/DiscoveryCounts';
-import ScopeManifestPanel from '../components/confirm/ScopeManifestPanel';
-import SharedAddresses from '../components/confirm/SharedAddresses';
+import { useT, useLocale } from '../i18n/index.tsx';
+import { formatDateTime } from '../i18n/datetime.ts';
+import type { StringKey } from '../i18n/index.tsx';
+import DiscoveryCounts from '../components/confirm/DiscoveryCounts.tsx';
+import ScopeManifestPanel from '../components/confirm/ScopeManifestPanel.tsx';
+import SharedAddresses from '../components/confirm/SharedAddresses.tsx';
 // The live strip is shared with the managed hub (0033 T5) — one component,
 // two data sources, same DomainStatusReport rows underneath.
-import LiveProgress from '../components/LiveProgress';
-import MappingHubLink from '../components/MappingHubLink';
-import StateChip from '../components/StateChip';
-import { serverMessage } from '../services/api';
+import LiveProgress from '../components/LiveProgress.tsx';
+import MappingHubLink from '../components/MappingHubLink.tsx';
+import StateChip from '../components/StateChip.tsx';
+import { serverMessage } from '../services/api.ts';
 import {
   fetchAllDiscovery,
   fetchScopeManifest,
   fetchSharedAddresses,
   fetchStatus,
   startMigration,
-} from '../services/operating-service';
+} from '../services/operating-service.ts';
 
 const LIFECYCLE_NOTE_KEY: Record<MappingLifecycle, StringKey | null> = {
   paused: null,

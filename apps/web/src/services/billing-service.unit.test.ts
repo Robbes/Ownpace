@@ -8,7 +8,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
-import { InvoiceSchema, UsageResponseSchema, PaymentMethodSchema } from './billing-service';
+import { InvoiceSchema, UsageResponseSchema, PaymentMethodSchema } from './billing-service.ts';
 
 /** GET /billing/invoices — a row as the route's Drizzle select serves it. */
 const invoiceRow = {

@@ -23,7 +23,7 @@ import {
   digestSchedule,
   DIGEST_CRON,
   type MailTransport,
-} from './notifications';
+} from './notifications.ts';
 
 const FULL = {
   SMTP_HOST: 'smtp.example.nl',

@@ -22,9 +22,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { runShadowPass } from './reconcile';
-import { discoverSource } from './discovery';
-import { MemorySource, MemoryTarget, MemoryLedger } from './__testing__/memory';
+import { runShadowPass } from './reconcile.ts';
+import { discoverSource } from './discovery.ts';
+import { MemorySource, MemoryTarget, MemoryLedger } from './__testing__/memory.ts';
 import {
   asTenantId,
   asMappingId,

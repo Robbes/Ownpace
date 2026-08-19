@@ -31,7 +31,7 @@ vi.mock('../services/operating-service', () => ({
 }));
 vi.mock('../services/edition', () => ({ isSelfHost: isSelfHostMock }));
 
-import Moves from './Moves';
+import Moves from './Moves.tsx';
 
 const MOVE = {
   naturalKeyHash: 'h-m1',

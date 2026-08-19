@@ -18,8 +18,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
-import { createReplayTransport } from './drive-replay';
-import type { DriveCapture } from './drive-capture';
+import { createReplayTransport } from './drive-replay.ts';
+import type { DriveCapture } from './drive-capture.ts';
 
 const LIST_URL = 'https://www.googleapis.com/drive/v3/files?q=root';
 const EXPORT_URL = 'https://www.googleapis.com/drive/v3/files/id-1/export?mimeType=x';

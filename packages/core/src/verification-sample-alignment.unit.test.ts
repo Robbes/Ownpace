@@ -27,8 +27,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { naturalKeyHash, type LedgerVerificationReader, type TargetEntry, type TargetReindexer } from '@openmig/shared';
-import { runVerification, type VerificationDeps } from './verification';
-import { createRealVerificationDeps } from './verification-implementations';
+import { runVerification, type VerificationDeps } from './verification.ts';
+import { createRealVerificationDeps } from './verification-implementations.ts';
 
 const BASE_CONFIG = {
   checksumSamplePercentage: 100,

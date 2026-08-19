@@ -11,12 +11,12 @@ import {
   Plus,
   Building2
 } from 'lucide-react';
-import { mappingApi } from '../services/mapping-service';
-import { fetchRuns } from '../services/operating-service';
-import { serverMessage } from '../services/api';
-import { useT, useFormatters } from '../i18n';
-import { NotificationChannelBanner } from '../components/NotificationChannelBanner';
-import StateChip from '../components/StateChip';
+import { mappingApi } from '../services/mapping-service.ts';
+import { fetchRuns } from '../services/operating-service.ts';
+import { serverMessage } from '../services/api.ts';
+import { useT, useFormatters } from '../i18n/index.tsx';
+import { NotificationChannelBanner } from '../components/NotificationChannelBanner.tsx';
+import StateChip from '../components/StateChip.tsx';
 
 const Dashboard: React.FC = () => {
   const t = useT();

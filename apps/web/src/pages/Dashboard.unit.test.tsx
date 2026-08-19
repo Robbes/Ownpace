@@ -4,9 +4,9 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import Dashboard from './Dashboard';
-import { mappingApi, type MappingListItem } from '../services/mapping-service';
-import { fetchRuns } from '../services/operating-service';
+import Dashboard from './Dashboard.tsx';
+import { mappingApi, type MappingListItem } from '../services/mapping-service.ts';
+import { fetchRuns } from '../services/operating-service.ts';
 
 // The Dashboard loads data through the real service layer (mappingApi -> apiClient
 // -> /api). We mock the service so the test drives loading / data / error states

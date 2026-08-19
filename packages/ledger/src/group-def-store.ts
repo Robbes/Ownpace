@@ -20,8 +20,8 @@
  */
 
 import { and, eq, sql } from 'drizzle-orm';
-import type { PgDatabase } from './db-types';
-import * as schemaPg from './schema-pg';
+import type { PgDatabase } from './db-types.ts';
+import * as schemaPg from './schema-pg.ts';
 import type { TenantId } from '@openmig/shared';
 
 /** §14.1's two patterns. `undefined` means discovery could not tell. */

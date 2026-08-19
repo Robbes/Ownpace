@@ -22,7 +22,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { SyncCursor } from '@openmig/shared';
-import { discoverSource, type ListingSource } from './discovery';
+import { discoverSource, type ListingSource } from './discovery.ts';
 
 interface Folder {
   name: string;

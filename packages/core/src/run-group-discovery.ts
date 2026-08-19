@@ -39,7 +39,7 @@ import {
   classifySharedAddress,
   membersUsable,
   sharedAddressQuestion,
-} from './classify-shared-address';
+} from './classify-shared-address.ts';
 
 /** What discovery hands the ledger for one address. */
 export interface RecordGroupInput {

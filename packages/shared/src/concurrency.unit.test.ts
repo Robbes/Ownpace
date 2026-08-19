@@ -1,6 +1,6 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import { describe, it, expect } from 'vitest';
-import { mapWithConcurrency } from './concurrency';
+import { mapWithConcurrency } from './concurrency.ts';
 
 describe('mapWithConcurrency', () => {
   it('processes every item exactly once', async () => {

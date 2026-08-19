@@ -71,7 +71,7 @@ import type {
   MappingId,
   TenantId,
 } from '@openmig/shared';
-import { authenticate, getDbPool, requireRole, withTenantDb } from '../../middleware/auth';
+import { authenticate, getDbPool, requireRole, withTenantDb } from '../../middleware/auth.ts';
 import { getTriggerClient } from '@openmig/scheduler';
 import {
   applyShareGrant,
@@ -84,9 +84,9 @@ import {
 import { SecretStore } from '@openmig/core/secret-store';
 import { createNextcloudUserShare } from '@openmig/connectors';
 import type { ShareGrantRow } from '@openmig/shared';
-import { resolveMappingMailbox, tenantInventoryScans } from '../permissions';
-import type { AuthenticatedRequest } from '../../types/api';
-import { serverFault } from '../../server-fault';
+import { resolveMappingMailbox, tenantInventoryScans } from '../permissions.ts';
+import type { AuthenticatedRequest } from '../../types/api.ts';
+import { serverFault } from '../../server-fault.ts';
 
 const router = Router({ mergeParams: true });
 

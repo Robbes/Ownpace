@@ -54,7 +54,7 @@ vi.mock('../stores/auth-store', () => ({
   useAuthStore: () => auth,
 }));
 
-import Tenants from './Tenants';
+import Tenants from './Tenants.tsx';
 
 const MEMBERS = [
   {

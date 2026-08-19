@@ -16,8 +16,8 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { applyRelocation } from './apply-deletion';
-import { MemoryLedger } from './__testing__/memory';
+import { applyRelocation } from './apply-deletion.ts';
+import { MemoryLedger } from './__testing__/memory.ts';
 import {
   asTenantId,
   asMappingId,

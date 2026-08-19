@@ -33,7 +33,7 @@ vi.mock('../stores/auth-store', () => ({
     selector ? selector(authState) : authState,
 }));
 
-import Layout from './Layout';
+import Layout from './Layout.tsx';
 
 const renderLayout = (path = '/') =>
   render(

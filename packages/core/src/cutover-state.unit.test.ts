@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { asTenantId, asMappingId } from '@openmig/shared';
-import type { CutoverState } from './cutover-state';
+import type { CutoverState } from './cutover-state.ts';
 import {
   isValidTransition,
   getStatePhase,
@@ -16,7 +16,7 @@ import {
   createInitialCutoverStatus,
   updateCutoverStatus,
   createCutoverEvent,
-} from '../src/cutover-state';
+} from '../src/cutover-state.ts';
 
 describe('Cutover State Machine', () => {
   describe('isValidTransition', () => {
@@ -266,7 +266,7 @@ describe('VALID_TRANSITIONS Table Snapshot', () => {
 
     // Access the internal VALID_TRANSITIONS via module inspection
     // This enforces that any table modification fails CI unless the test is explicitly updated
-    await import('./cutover-state');
+    await import('./cutover-state.ts');
     
     // Build actual from the exported isValidTransition function by testing all combinations
     const states: CutoverState[] = [

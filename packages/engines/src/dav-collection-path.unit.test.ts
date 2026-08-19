@@ -1,6 +1,6 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import { describe, it, expect } from 'vitest';
-import { collectionSlug } from './dav-collection-path';
+import { collectionSlug } from './dav-collection-path.ts';
 
 describe('collectionSlug', () => {
   it('prefers the folder name over the path', () => {

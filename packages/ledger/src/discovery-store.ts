@@ -7,9 +7,9 @@ import {
   type TenantId,
   type MappingId,
 } from '@openmig/shared';
-import type { PgDatabase } from './db';
+import type { PgDatabase } from './db.ts';
 import { eq, and, sql } from 'drizzle-orm';
-import * as schemaPg from './schema-pg';
+import * as schemaPg from './schema-pg.ts';
 
 /**
  * PostgreSQL implementation of {@link DiscoveryStore} (workplan 0013 T2).

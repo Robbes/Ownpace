@@ -21,8 +21,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { runDomainSync, classifyKnownItem } from './domain-sync';
-import { MemoryLedger } from './__testing__/memory';
+import { runDomainSync, classifyKnownItem } from './domain-sync.ts';
+import { MemoryLedger } from './__testing__/memory.ts';
 import {
   asTenantId,
   asMappingId,

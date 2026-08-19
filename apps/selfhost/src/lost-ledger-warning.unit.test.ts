@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { lostLedgerWarning } from './index';
+import { lostLedgerWarning } from './index.ts';
 
 describe('lostLedgerWarning', () => {
   it('warns on an active mapping with zero ledger rows, naming the reindex doorway', () => {

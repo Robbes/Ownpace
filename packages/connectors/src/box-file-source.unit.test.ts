@@ -18,9 +18,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { BoxFileSource } from './box-file-source';
-import { BoxTokenProvider } from './box-token-provider';
-import type { BoxTransport } from './box-file-source.types';
+import { BoxFileSource } from './box-file-source.ts';
+import { BoxTokenProvider } from './box-token-provider.ts';
+import type { BoxTransport } from './box-file-source.types.ts';
 
 const API = 'https://api.test/2.0';
 

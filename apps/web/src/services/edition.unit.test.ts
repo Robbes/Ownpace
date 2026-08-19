@@ -28,7 +28,7 @@ import {
   operatingBaseUrlFor,
   queuePathFor,
   verifyPathFor,
-} from './edition';
+} from './edition.ts';
 
 describe('edition detection', () => {
   it('is managed in this build, and cannot be talked out of it at runtime', () => {

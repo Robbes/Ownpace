@@ -13,7 +13,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { asTenantId } from '@openmig/shared';
 import type { DiscoveredGroup } from '@openmig/shared';
 import { listImapGroups } from '@openmig/connectors';
-import { runGroupDiscovery, type GroupDiscoveryDeps, type RecordGroupInput } from './run-group-discovery';
+import { runGroupDiscovery, type GroupDiscoveryDeps, type RecordGroupInput } from './run-group-discovery.ts';
 
 const TENANT = asTenantId('22222222-2222-4222-8222-222222222222' as never);
 const CONN = '33333333-3333-4333-8333-333333333333';

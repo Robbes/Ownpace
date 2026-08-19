@@ -17,7 +17,7 @@ import userEvent from '@testing-library/user-event';
 const { fetchPermissionReport } = vi.hoisted(() => ({ fetchPermissionReport: vi.fn() }));
 vi.mock('../../services/operating-service', () => ({ fetchPermissionReport }));
 
-import PermissionsHandover from './PermissionsHandover';
+import PermissionsHandover from './PermissionsHandover.tsx';
 
 beforeEach(() => {
   vi.clearAllMocks();

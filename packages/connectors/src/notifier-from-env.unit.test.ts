@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { notifierFromEnv } from './notifier-from-env';
+import { notifierFromEnv } from './notifier-from-env.ts';
 
 const FULL = {
   SMTP_HOST: 'smtp.example.nl',

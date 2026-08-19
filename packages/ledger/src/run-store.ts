@@ -14,9 +14,9 @@
 // into a silent success.
 
 import type { TenantId, MappingId, RunReport, RunEventReport } from '@openmig/shared';
-import type { PgDatabase } from './db';
+import type { PgDatabase } from './db.ts';
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import * as schemaPg from './schema-pg';
+import * as schemaPg from './schema-pg.ts';
 
 /** What kind of work a run represents (mirrors the `run.kind` CHECK). */
 export type RunKind = 'initial_copy' | 'incremental' | 'cutover' | 'verify' | 'discovery' | 'backup';

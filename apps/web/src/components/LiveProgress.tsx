@@ -17,10 +17,10 @@
 
 import React from 'react';
 import type { DomainStatusReport } from '@openmig/shared';
-import { useT, useLocale, useFormatters } from '../i18n';
-import StateChip from './StateChip';
-import { formatNumber } from '../i18n/datetime';
-import type { StringKey } from '../i18n';
+import { useT, useLocale, useFormatters } from '../i18n/index.tsx';
+import StateChip from './StateChip.tsx';
+import { formatNumber } from '../i18n/datetime.ts';
+import type { StringKey } from '../i18n/index.tsx';
 
 export const DOMAIN_KEY: Record<DomainStatusReport['domain'], StringKey> = {
   email: 'domain.email',

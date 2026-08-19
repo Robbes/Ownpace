@@ -20,7 +20,7 @@
  * each side is a contract that drifts.
  */
 
-import type { BilingualRefusal } from './credential-refusals';
+import type { BilingualRefusal } from './credential-refusals.ts';
 
 /** What a source counts when it lists. */
 export type ProbeUnit = 'folder' | 'calendar' | 'addressBook' | 'collection';

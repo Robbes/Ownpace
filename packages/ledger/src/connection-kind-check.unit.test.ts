@@ -18,10 +18,10 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { pgliteDriver } from './pglite-driver';
-import { runMigrations } from './migrate';
-import { connection } from './schema-pg';
-import type { LedgerDriver } from './driver';
+import { pgliteDriver } from './pglite-driver.ts';
+import { runMigrations } from './migrate.ts';
+import { connection } from './schema-pg.ts';
+import type { LedgerDriver } from './driver.ts';
 
 let driver: LedgerDriver;
 let allowedInTheDatabase: string[];

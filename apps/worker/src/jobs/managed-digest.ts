@@ -37,7 +37,7 @@ import * as schemaPg from '@openmig/ledger/schema-pg';
 import { PgLedger, PgDecisionStore } from '@openmig/ledger';
 import { log, createNotifier, asTenantId, asMappingId } from '@openmig/shared';
 import { notifierFromEnv, smtpTransport } from '@openmig/connectors';
-import { runDigest, type DigestTenant, type DigestMapping } from './managed-digest-run';
+import { runDigest, type DigestTenant, type DigestMapping } from './managed-digest-run.ts';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {

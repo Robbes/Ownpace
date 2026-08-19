@@ -8,7 +8,7 @@ import type {
   TenantId,
   MappingId,
 } from '@openmig/shared';
-import { discoverDomains, type DomainDiscoveryTask } from './discovery';
+import { discoverDomains, type DomainDiscoveryTask } from './discovery.ts';
 
 const TENANT = 'tenant-1' as TenantId;
 const MAPPING = 'mapping-1' as MappingId;

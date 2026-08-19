@@ -25,9 +25,9 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { and, eq, sql } from 'drizzle-orm';
-import { createPgDb } from './db';
-import { PgRateBudget } from './pg-rate-budget';
-import * as schemaPg from './schema-pg';
+import { createPgDb } from './db.ts';
+import { PgRateBudget } from './pg-rate-budget.ts';
+import * as schemaPg from './schema-pg.ts';
 
 const TEST_DB_URL = process.env.TEST_DATABASE_URL;
 if (!TEST_DB_URL) {

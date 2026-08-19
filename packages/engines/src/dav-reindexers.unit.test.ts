@@ -25,9 +25,9 @@ import {
   contactContentHash,
   type Ledger,
 } from '@openmig/shared';
-import { CalDAVTargetWriter, type HttpClient as CalHttp } from './caldav-target-writer';
-import { CardDAVTargetWriter } from './carddav-target-writer';
-import { WebDAVTargetWriter } from './webdav-target-writer';
+import { CalDAVTargetWriter, type HttpClient as CalHttp } from './caldav-target-writer.ts';
+import { CardDAVTargetWriter } from './carddav-target-writer.ts';
+import { WebDAVTargetWriter } from './webdav-target-writer.ts';
 
 const TENANT = asTenantId('5f9b0000-e29b-41d4-a716-4466554437a1' as never);
 const MAPPING = asMappingId('5f9b0000-e29b-41d4-a716-4466554437a2' as never);

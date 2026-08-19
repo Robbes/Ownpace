@@ -24,7 +24,7 @@ import {
   resetMetrics,
   assertOpaqueLabel,
   METRICS_CONTENT_TYPE,
-} from './metrics';
+} from './metrics.ts';
 
 afterEach(() => {
   resetMetrics();

@@ -20,7 +20,7 @@ import {
   revocationSummaryText,
   summariseRevocations,
   type RevocationOutcome,
-} from './token-revocation';
+} from './token-revocation.ts';
 
 describe('revocationCapability', () => {
   it.each(['gmail', 'google_drive', 'google_calendar', 'google_contacts'])(

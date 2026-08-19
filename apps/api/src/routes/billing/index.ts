@@ -12,16 +12,16 @@
 import { Router } from 'express';
 import type { Response } from 'express';
 import { z } from 'zod';
-import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middleware/auth';
-import type { AuthenticatedRequest } from '../../types/api';
-import { calculateCost } from '../../services/billing-service';
-import { generateInvoiceForPeriod } from '../../services/invoice-generation';
-import { getMollieService } from '../../services/mollie/index';
+import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middleware/auth.ts';
+import type { AuthenticatedRequest } from '../../types/api.ts';
+import { calculateCost } from '../../services/billing-service.ts';
+import { generateInvoiceForPeriod } from '../../services/invoice-generation.ts';
+import { getMollieService } from '../../services/mollie/index.ts';
 import { eq, and, desc } from 'drizzle-orm';
 import { getUsageMetricsForPeriod, resolveTenantPricing } from '@openmig/managed';
 import * as schema from '@openmig/managed/schema-managed';
 import { log } from '@openmig/shared';
-import { serverFault } from '../../server-fault';
+import { serverFault } from '../../server-fault.ts';
 
 const router = Router();
 

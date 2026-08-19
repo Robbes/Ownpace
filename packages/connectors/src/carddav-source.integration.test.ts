@@ -13,8 +13,8 @@
 // - Idempotency: run twice, second run creates 0 items
 
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
-import { CarddavSource } from './carddav-source';
-import type { CardDAVSourceConfig } from './carddav-source.types';
+import { CarddavSource } from './carddav-source.ts';
+import type { CardDAVSourceConfig } from './carddav-source.types.ts';
 import type { RawContact as _RawContact } from '@openmig/shared';
 
 // Nextcloud CardDAV configuration from Testcontainers

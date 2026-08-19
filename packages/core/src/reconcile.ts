@@ -17,7 +17,7 @@ import { applyTargetFolderPrefix,
   DEFAULT_CONCURRENCY,
   discardedScanCursorKey,
 } from '@openmig/shared';
-import { runDomainSync, type DomainSyncDeps as _DomainSyncDeps } from './domain-sync';
+import { runDomainSync, type DomainSyncDeps as _DomainSyncDeps } from './domain-sync.ts';
 
 /**
  * One-way, non-destructive shadow pass for a single mapping — workplan 0001, T4.

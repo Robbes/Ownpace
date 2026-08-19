@@ -28,15 +28,15 @@ import {
   connectionsApi,
   type ConnectionSummary,
   type TestConnectionResult,
-} from '../services/mapping-service';
-import { useT, useLocale, useFormatters, type StringKey } from '../i18n';
-import { probeText } from '../i18n/probe-text';
+} from '../services/mapping-service.ts';
+import { useT, useLocale, useFormatters, type StringKey } from '../i18n/index.tsx';
+import { probeText } from '../i18n/probe-text.ts';
 import {
   inUseMigrations,
   invalidCredentialFields,
   missingCredentialFields,
   serverMessage,
-} from '../services/api';
+} from '../services/api.ts';
 
 /**
  * A refusal in the reader's own language wherever we authored it (0071).

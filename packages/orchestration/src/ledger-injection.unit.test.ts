@@ -25,7 +25,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { buildDeps, buildDomainDeps } from './build-deps';
+import { buildDeps, buildDomainDeps } from './build-deps.ts';
 import type { PgDatabase } from '@openmig/ledger';
 
 /**

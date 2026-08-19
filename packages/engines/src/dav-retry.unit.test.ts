@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { requestWithDavRetry, isTransientDavStatus } from './dav-retry';
+import { requestWithDavRetry, isTransientDavStatus } from './dav-retry.ts';
 
 /** Real Nextcloud lock response, for the status that actually matters. */
 const LOCKED = 500;

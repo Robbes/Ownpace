@@ -9,8 +9,8 @@
  */
 
 import React from 'react';
-import { useT } from '../i18n';
-import { fetchCompletionReport } from '../services/operating-service';
+import { useT } from '../i18n/index.tsx';
+import { fetchCompletionReport } from '../services/operating-service.ts';
 
 export const CompletionReportDownload: React.FC<{ mappingId: string }> = ({ mappingId }) => {
   const t = useT();

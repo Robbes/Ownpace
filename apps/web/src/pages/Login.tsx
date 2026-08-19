@@ -3,8 +3,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { LogIn } from 'lucide-react';
-import { useAuthStore } from '../stores/auth-store';
-import { useT } from '../i18n';
+import { useAuthStore } from '../stores/auth-store.ts';
+import { useT } from '../i18n/index.tsx';
 
 interface TokenClaims {
   sub: string;

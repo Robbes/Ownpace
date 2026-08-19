@@ -11,8 +11,8 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { checkGraphAccess, renderAccessCheck } from './graph-access-check';
-import type { HttpClient } from './dav-http.types';
+import { checkGraphAccess, renderAccessCheck } from './graph-access-check.ts';
+import type { HttpClient } from './dav-http.types.ts';
 
 const token = async () => 'tok';
 

@@ -6,7 +6,7 @@
  * Handles payment creation, webhook processing, and customer management.
  */
 
-import { createMollieClient, Mandate, Method, PaymentMethod, MandateMethod } from '@mollie/api-client';
+import { createMollieClient, type Mandate, type Method, PaymentMethod, MandateMethod } from '@mollie/api-client';
 
 export interface MolliePayment {
   id: string;

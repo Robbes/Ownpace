@@ -53,7 +53,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # The operating UI is the one thing in the payload that is COMPILED —
-      # the @openmig/* packages ship TypeScript and run under tsx, but a browser
+      # the @openmig/* packages ship TypeScript that Node runs directly, but a browser
       # cannot. `package-appliance.mjs` refuses to stage without it rather than
       # producing a payload whose /ui is a build instruction.
       #

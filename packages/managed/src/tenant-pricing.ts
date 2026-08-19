@@ -26,8 +26,8 @@
 import { eq } from 'drizzle-orm';
 import { log } from '@openmig/shared';
 import type { PgDatabase } from '@openmig/ledger/db';
-import { tenantPricing } from './schema-managed';
-import { type PricingConfig, parsePinnedPricing, pricingFromEnv } from './pricing';
+import { tenantPricing } from './schema-managed.ts';
+import { type PricingConfig, parsePinnedPricing, pricingFromEnv } from './pricing.ts';
 
 /**
  * The tenant's agreed prices, pinning the operator's template if it has none.

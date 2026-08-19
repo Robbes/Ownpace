@@ -43,13 +43,13 @@ import {
   finishMigration,
   requestFinalPass,
   FinishRefusedError,
-} from '../services/operating-service';
-import { useT, useFormatters } from '../i18n';
-import MappingHubLink from '../components/MappingHubLink';
-import PermissionsHandover from '../components/finish/PermissionsHandover';
-import CompletionReportDownload from '../components/CompletionReportDownload';
-import type { StringKey } from '../i18n';
-import { serverMessage } from '../services/api';
+} from '../services/operating-service.ts';
+import { useT, useFormatters } from '../i18n/index.tsx';
+import MappingHubLink from '../components/MappingHubLink.tsx';
+import PermissionsHandover from '../components/finish/PermissionsHandover.tsx';
+import CompletionReportDownload from '../components/CompletionReportDownload.tsx';
+import type { StringKey } from '../i18n/index.tsx';
+import { serverMessage } from '../services/api.ts';
 
 type Outcome =
   | { readonly state: 'pending' }

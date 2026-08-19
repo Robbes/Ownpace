@@ -1,7 +1,7 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 
 import { describe, it, expect } from 'vitest';
-import { isSyncDue, DEFAULT_SYNC_SCHEDULE } from './sync-due';
+import { isSyncDue, DEFAULT_SYNC_SCHEDULE } from './sync-due.ts';
 
 const T = (iso: string) => new Date(iso);
 

@@ -12,9 +12,9 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { GraphCalendarSource } from './graph-calendar-source';
-import type { GraphCalendarSourceConfig as _GraphCalendarSourceConfig } from './graph-calendar-source.types';
-import type { HttpClient, HttpResponse } from './dav-http.types';
+import { GraphCalendarSource } from './graph-calendar-source.ts';
+import type { GraphCalendarSourceConfig as _GraphCalendarSourceConfig } from './graph-calendar-source.types.ts';
+import type { HttpClient, HttpResponse } from './dav-http.types.ts';
 import type { TokenProvider, OAuth2Token } from '@openmig/shared';
 import { naturalKeyForCalendar, calendarNaturalKeyHash } from '@openmig/shared';
 

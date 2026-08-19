@@ -28,8 +28,8 @@ import React from 'react';
 import { useParams } from 'react-router';
 import type { ApplyReceipt, DeletionsQueue, ItemDeletion } from '@openmig/shared';
 import { mayOfferApply } from '@openmig/shared';
-import { QueueScreen, type ItemOutcome } from '../components/queues/QueueScreen';
-import { ApplyDeletionsPanel } from '../components/queues/ApplyDeletionsPanel';
+import { QueueScreen, type ItemOutcome } from '../components/queues/QueueScreen.tsx';
+import { ApplyDeletionsPanel } from '../components/queues/ApplyDeletionsPanel.tsx';
 import {
   ActionButton,
   DestructiveButton,
@@ -42,15 +42,15 @@ import {
   ReceiptStatus,
   Refused,
   Resolved,
-} from '../components/queues/primitives';
+} from '../components/queues/primitives.tsx';
 import {
   applyDeletion,
   DecisionRefusedError,
   fetchApplyReceipt,
   fetchDeletions,
   keepDeletion,
-} from '../services/operating-service';
-import { useT } from '../i18n';
+} from '../services/operating-service.ts';
+import { useT } from '../i18n/index.tsx';
 
 const Row: React.FC<{
   d: ItemDeletion;

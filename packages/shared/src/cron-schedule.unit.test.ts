@@ -10,7 +10,7 @@
  * (cron-schedule-parity.unit.test.ts), next to the version the tick uses.
  */
 import { describe, it, expect } from 'vitest';
-import { describeCronScheduleProblem } from './cron-schedule';
+import { describeCronScheduleProblem } from './cron-schedule.ts';
 
 describe('describeCronScheduleProblem accepts the classic five-field grammar', () => {
   const valid = [

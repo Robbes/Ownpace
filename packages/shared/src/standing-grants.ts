@@ -40,7 +40,7 @@
  * console does.
  */
 
-import type { RefusalLocale } from './credential-refusals';
+import type { RefusalLocale } from './credential-refusals.ts';
 
 /** Where a standing grant lives, and what it is called there. */
 export interface StandingGrant {

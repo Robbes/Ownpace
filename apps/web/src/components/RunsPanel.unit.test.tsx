@@ -27,7 +27,7 @@ vi.mock('../services/operating-service', () => ({
   fetchRuns: fetchRunsMock,
 }));
 
-import RunsPanel from './RunsPanel';
+import RunsPanel from './RunsPanel.tsx';
 
 function renderPanel() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

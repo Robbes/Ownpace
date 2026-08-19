@@ -20,7 +20,7 @@ import {
   credentialFieldsFor,
   wizardTypeForConnectionKind,
 } from '@openmig/shared';
-import { CreateMappingBase, sourceKindFor } from './index';
+import { CreateMappingBase, sourceKindFor } from './index.ts';
 
 /** The wizard vocabularies the create route accepts, read off the schema itself. */
 function acceptedTypes(field: 'sourceType' | 'targetType'): string[] {

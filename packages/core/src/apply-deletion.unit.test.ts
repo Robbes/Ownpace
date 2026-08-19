@@ -13,8 +13,8 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { applyDeletion, MASS_DELETION_FRACTION, MASS_DELETION_MIN_ITEMS } from './apply-deletion';
-import { MemoryLedger } from './__testing__/memory';
+import { applyDeletion, MASS_DELETION_FRACTION, MASS_DELETION_MIN_ITEMS } from './apply-deletion.ts';
+import { MemoryLedger } from './__testing__/memory.ts';
 import {
   asTenantId,
   asMappingId,

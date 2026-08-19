@@ -14,7 +14,7 @@
 // throws, and — critically — no write reaches the target.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { JmapTargetWriter } from './jmap-target';
+import { JmapTargetWriter } from './jmap-target.ts';
 
 describe('JmapTargetWriter.findByNaturalKey — lookup failure', () => {
   let writer: JmapTargetWriter;

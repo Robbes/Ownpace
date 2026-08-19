@@ -14,7 +14,7 @@ import type { SourceConnector, MailFolder } from '@openmig/shared';
 import {
   MailSourceWithGraphFallback,
   isImapAuthFailure,
-} from './mail-source-with-graph-fallback';
+} from './mail-source-with-graph-fallback.ts';
 
 const IMAP_FOLDERS: MailFolder[] = [{ path: 'INBOX', specialUse: 'inbox' }];
 const GRAPH_FOLDERS: MailFolder[] = [{ path: 'Inbox', specialUse: 'inbox' }];

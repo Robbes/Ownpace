@@ -1,5 +1,5 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
-import apiClient from './api';
+import apiClient from './api.ts';
 import { z } from 'zod';
 import type { ProbeOutcome } from '@openmig/shared';
 import { MAPPING_LIFECYCLES } from '@openmig/shared';

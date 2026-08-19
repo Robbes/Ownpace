@@ -15,7 +15,7 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { asTenantId, asMappingId, setLogLevel, resetLogLevel, type Ledger } from '@openmig/shared';
-import { runDomainSync } from './domain-sync';
+import { runDomainSync } from './domain-sync.ts';
 
 const TENANT = asTenantId('9a110000-e29b-41d4-a716-446655449901' as never);
 const MAPPING = asMappingId('9a110000-e29b-41d4-a716-446655449902' as never);

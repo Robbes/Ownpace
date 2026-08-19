@@ -15,8 +15,8 @@ import {
   mailboxDelegations,
   listCalendarPermissions,
   listDriveItemPermissions,
-} from './graph-permissions';
-import type { HttpClient } from './dav-http.types';
+} from './graph-permissions.ts';
+import type { HttpClient } from './dav-http.types.ts';
 
 const token = async () => 'tok';
 const APP = { applicationPermissions: true } as const;

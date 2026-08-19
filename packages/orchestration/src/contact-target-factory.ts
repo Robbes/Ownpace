@@ -24,7 +24,7 @@
 import { CardDAVTargetWriter } from '@openmig/engines';
 import { JmapContactTarget } from '@openmig/connectors';
 import type { ContactTargetWriter } from '@openmig/shared';
-import type { DavEndpoint, DavTargetDeps } from './dav-factories';
+import type { DavEndpoint, DavTargetDeps } from './dav-factories.ts';
 
 /** The protocols this product can carry contacts over. */
 export type ContactTargetProtocol = 'carddav' | 'jmap';

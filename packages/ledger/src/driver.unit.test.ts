@@ -22,9 +22,9 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import type { Pool } from 'pg';
-import { withTenant } from './db';
-import type { LedgerConnection, LedgerDriver } from './driver';
-import type { PgDatabase } from './db-types';
+import { withTenant } from './db.ts';
+import type { LedgerConnection, LedgerDriver } from './driver.ts';
+import type { PgDatabase } from './db-types.ts';
 
 /** Every statement issued, in order, across the whole driver. */
 type Journal = string[];

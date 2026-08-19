@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { resolveCoverage, coverageIncompleteReason } from './mapping-coverage';
+import { resolveCoverage, coverageIncompleteReason } from './mapping-coverage.ts';
 import type { MappingConfig } from '@openmig/shared';
 
 const imap = (user: string): MappingConfig['source'] => ({

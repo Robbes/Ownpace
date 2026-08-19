@@ -32,8 +32,8 @@ import {
 } from '@openmig/orchestration/probe-connection';
 import { z } from 'zod';
 import { credentialFieldsFor, wizardTypeForConnectionKind } from '@openmig/shared';
-import { authenticate, getDbPool, withTenantDb } from '../middleware/auth';
-import type { AuthenticatedRequest } from '../types/api';
+import { authenticate, getDbPool, withTenantDb } from '../middleware/auth.ts';
+import type { AuthenticatedRequest } from '../types/api.ts';
 // The SHAPE builders stay the create route's, deliberately: what a connection
 // stores must match what a sync pass reads, and one authority for that is the
 // whole point of workplan 0063's descriptor only describing INPUTS.
@@ -44,8 +44,8 @@ import {
   knownConnectionValues,
   sourceKindFor,
   targetConnectionConfig,
-} from './migrations/index';
-import { serverFault } from '../server-fault';
+} from './migrations/index.ts';
+import { serverFault } from '../server-fault.ts';
 
 const router = Router();
 

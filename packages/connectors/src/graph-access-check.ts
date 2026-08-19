@@ -30,7 +30,7 @@
  * operator ends up re-doing the step that was already right.
  */
 
-import type { HttpClient } from './dav-http.types';
+import type { HttpClient } from './dav-http.types.ts';
 
 /** What one permission's smallest possible proof came back with. */
 export interface AccessProbe {

@@ -17,7 +17,7 @@ import {
   backupRetentionDaysFromEnv,
   erasureTimeline,
   erasureTimelineText,
-} from './erasure-timeline';
+} from './erasure-timeline.ts';
 
 const CLOSED_AT = new Date('2026-08-18T09:30:00.000Z');
 

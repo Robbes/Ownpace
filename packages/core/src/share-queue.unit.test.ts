@@ -16,14 +16,14 @@
 
 import { describe, it, expect } from 'vitest';
 import type { MappingId, PermissionGrant, TenantId } from '@openmig/shared';
-import { MemoryLedger } from './__testing__/memory';
+import { MemoryLedger } from './__testing__/memory.ts';
 import {
   applyShareGrant,
   markShareGrant,
   refreshShareGrants,
   shareGrantHash,
   summariseShareGrants,
-} from './share-queue';
+} from './share-queue.ts';
 
 const TENANT = 'tenant-1' as TenantId;
 const MAPPING = 'mapping-1' as MappingId;

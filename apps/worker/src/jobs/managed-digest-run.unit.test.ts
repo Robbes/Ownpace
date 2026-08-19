@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { runDigest, type DigestDeps } from './managed-digest-run';
+import { runDigest, type DigestDeps } from './managed-digest-run.ts';
 
 const MONDAY = 1;
 const THURSDAY = 4;

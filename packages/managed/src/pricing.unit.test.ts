@@ -14,7 +14,7 @@ import {
   parsePinnedPricing,
   pricingFromEnv,
   type PricingConfig,
-} from './pricing';
+} from './pricing.ts';
 
 describe('pricingFromEnv — the operator template', () => {
   it('is the built-in price list when nothing is set', () => {

@@ -24,9 +24,9 @@ import {
   accessThatOutlivesErasure,
   type StandingGrant,
   type OutlivingAccess,
-} from './standing-grants';
-import type { DomainStatusReport } from './operating-contract';
-import type { ItemDeletion, ItemFailure, ItemMove } from './ports';
+} from './standing-grants.ts';
+import type { DomainStatusReport } from './operating-contract.ts';
+import type { ItemDeletion, ItemFailure, ItemMove } from './ports.ts';
 
 /** One domain's line in the report. */
 export interface CompletionDomainLine {

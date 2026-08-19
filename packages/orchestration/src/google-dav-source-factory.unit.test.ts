@@ -23,7 +23,7 @@ import {
   buildGoogleContactsDavSourceFrom,
   googleCalDavPrincipalUrl,
   googleCardDavPrincipalUrl,
-} from './google-dav-source-factory';
+} from './google-dav-source-factory.ts';
 
 const CREDS = {
   clientId: 'client-1.apps.googleusercontent.com',

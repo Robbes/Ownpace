@@ -41,7 +41,7 @@ vi.mock('../services/operating-service', () => ({
   DecisionRefusedError,
 }));
 
-import Sharing from './Sharing';
+import Sharing from './Sharing.tsx';
 
 const row = (over: Partial<ShareGrantRow> & { id: string }): ShareGrantRow => ({
   grantHash: `hash-${over.id}`,

@@ -14,7 +14,7 @@
  */
 import React from 'react';
 import { RefreshCw } from 'lucide-react';
-import { useT, useFormatters } from '../i18n';
+import { useT, useFormatters } from '../i18n/index.tsx';
 
 const AsOf: React.FC<{
   /** Epoch ms (react-query's dataUpdatedAt) or ISO string. */

@@ -26,8 +26,8 @@
 
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { createPgDb } from './db';
-import { CutoverStore } from './cutover-store';
+import { createPgDb } from './db.ts';
+import { CutoverStore } from './cutover-store.ts';
 import type { TenantId, MappingId } from '@openmig/shared';
 
 const PG_CONNECTION_STRING = process.env.TEST_DATABASE_URL;

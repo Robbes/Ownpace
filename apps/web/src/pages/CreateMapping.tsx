@@ -1,8 +1,8 @@
 // Copyright 2026 The Open Migration Stack authors (Apache-2.0)
 import React, { useState } from 'react';
-import { useT, useLocale, useFormatters } from '../i18n';
-import { probeText } from '../i18n/probe-text';
-import type { StringKey } from '../i18n';
+import { useT, useLocale, useFormatters } from '../i18n/index.tsx';
+import { probeText } from '../i18n/probe-text.ts';
+import type { StringKey } from '../i18n/index.tsx';
 import { useNavigate, Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -38,8 +38,8 @@ import {
   mappingApi,
   type ConnectionSummary,
   type TestConnectionResult,
-} from '../services/mapping-service';
-import { duplicateMapping, serverMessage } from '../services/api';
+} from '../services/mapping-service.ts';
+import { duplicateMapping, serverMessage } from '../services/api.ts';
 import { useMutation } from '@tanstack/react-query';
 
 type Step = 'source' | 'target' | 'migration' | 'review';

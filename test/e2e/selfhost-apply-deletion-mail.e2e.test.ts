@@ -49,7 +49,7 @@ import {
   messageLocations,
   isBin,
   describeLocations,
-} from './apply-deletion-lib';
+} from './apply-deletion-lib.ts';
 
 describe('apply — mail domain (JMAP/Stalwart)', () => {
   const MESSAGE_ID = '<seed-2@dev.local>';

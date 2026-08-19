@@ -9,8 +9,8 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { autoApplyRelocations, AUTO_APPLY_RELOCATIONS_CAP } from './apply-deletion';
-import { MemoryLedger } from './__testing__/memory';
+import { autoApplyRelocations, AUTO_APPLY_RELOCATIONS_CAP } from './apply-deletion.ts';
+import { MemoryLedger } from './__testing__/memory.ts';
 import { asTenantId, asMappingId, type LedgerRecord, type RemovalResult } from '@openmig/shared';
 
 const TENANT = asTenantId('a3110000-e29b-41d4-a716-4466554408aa');

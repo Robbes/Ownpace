@@ -17,9 +17,9 @@
 
 import type { CalendarSource, CalendarFolder, RawCalendarEvent, SyncCursor } from '@openmig/shared';
 import type { TokenProvider } from '@openmig/shared';
-import type { GraphCalendarSourceConfig, GraphCalendar, GraphEvent, GraphDeltaCursor, ParsedIcalComponent } from './graph-calendar-source.types';
-import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types';
-import { graphScopePrefix } from './graph-scope';
+import type { GraphCalendarSourceConfig, GraphCalendar, GraphEvent, GraphDeltaCursor, ParsedIcalComponent } from './graph-calendar-source.types.ts';
+import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
+import { graphScopePrefix } from './graph-scope.ts';
 import type { ThrottleLimiter } from '@openmig/shared';
 import { log } from '@openmig/shared';
 

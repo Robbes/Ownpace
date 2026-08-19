@@ -11,8 +11,8 @@
 import React from 'react';
 import { AlertCircle, AlertTriangle, Check, Info, Loader2, Trash2 } from 'lucide-react';
 import type { ApplyReceipt, DeletionEvidence, MappingLifecycle } from '@openmig/shared';
-import { useT } from '../../i18n';
-import type { StringKey } from '../../i18n';
+import { useT } from '../../i18n/index.tsx';
+import type { StringKey } from '../../i18n/index.tsx';
 
 // Client-authored strings here go through the dictionary (workplan 0024 T2);
 // SERVER prose (guidance entries, refusal reasons, whatThisMeans) renders

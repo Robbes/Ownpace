@@ -16,7 +16,7 @@
  * must not import from a `.tsx` one.)
  */
 
-import type { Locale } from './strings';
+import type { Locale } from './strings.ts';
 
 // Largest-fitting-unit ladder for relative times. `numeric: 'auto'` lets Intl
 // say "yesterday"/"gisteren" instead of the stilted "1 day ago".

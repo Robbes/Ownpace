@@ -29,8 +29,8 @@
 
 import { Router } from 'express';
 import type { Response } from 'express';
-import { authenticate } from '../middleware/auth';
-import type { AuthenticatedRequest } from '../types/api';
+import { authenticate } from '../middleware/auth.ts';
+import type { AuthenticatedRequest } from '../types/api.ts';
 import { log, permissionsNotDiscoverable, type PermissionListing } from '@openmig/shared';
 import {
   createTokenProvider,
@@ -49,7 +49,7 @@ import {
   STORED_GOOGLE_CREDENTIAL_NAMES,
 } from '@openmig/orchestration/drive-source-factory';
 import { Pool } from 'pg';
-import { serverFault } from '../server-fault';
+import { serverFault } from '../server-fault.ts';
 
 const router = Router();
 

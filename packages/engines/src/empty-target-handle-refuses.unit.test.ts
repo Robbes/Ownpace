@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { assertRemovableTargetId } from './dav-remove';
+import { assertRemovableTargetId } from './dav-remove.ts';
 
 describe('assertRemovableTargetId', () => {
   it.each([

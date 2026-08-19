@@ -21,7 +21,7 @@ import type {
   RemovalResult,
 } from '@openmig/shared';
 import { calendarNaturalKeyHash, calendarContentHash, isOnTarget } from '@openmig/shared';
-import { collectionSlug } from './dav-collection-path';
+import { collectionSlug } from './dav-collection-path.ts';
 import {
   parseMultiStatus,
   firstElementText,
@@ -31,10 +31,10 @@ import {
   hrefRelativeTo,
   unescapeXml,
   sizeOf,
-} from './dav-multistatus';
-import { requestWithDavRetry } from './dav-retry';
-import { readEtag, ownershipOf } from './dav-target-version';
-import { removeDavResource, assertRemovableTargetId } from './dav-remove';
+} from './dav-multistatus.ts';
+import { requestWithDavRetry } from './dav-retry.ts';
+import { readEtag, ownershipOf } from './dav-target-version.ts';
+import { removeDavResource, assertRemovableTargetId } from './dav-remove.ts';
 import { log } from '@openmig/shared';
 
 /**

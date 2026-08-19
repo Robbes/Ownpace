@@ -14,8 +14,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { DropboxFileSource } from './dropbox-file-source';
-import type { DropboxTransport } from './dropbox-file-source.types';
+import { DropboxFileSource } from './dropbox-file-source.ts';
+import type { DropboxTransport } from './dropbox-file-source.types.ts';
 
 const API = 'https://api.test/2';
 const CONTENT = 'https://content.test/2';

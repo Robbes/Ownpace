@@ -19,8 +19,8 @@
 
 import React from 'react';
 import { KeyRound } from 'lucide-react';
-import { useT } from '../../i18n';
-import { fetchPermissionReport } from '../../services/operating-service';
+import { useT } from '../../i18n/index.tsx';
+import { fetchPermissionReport } from '../../services/operating-service.ts';
 
 export const PermissionsHandover: React.FC<{
   /** Which migration's mailbox to report on. */

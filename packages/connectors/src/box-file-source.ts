@@ -42,7 +42,7 @@ import type {
   TokenProvider,
   TrashListing,
 } from '@openmig/shared';
-import type { BoxFileSourceConfig, BoxItem, BoxItemList, BoxTransport } from './box-file-source.types';
+import type { BoxFileSourceConfig, BoxItem, BoxItemList, BoxTransport } from './box-file-source.types.ts';
 
 const DEFAULT_BASE = 'https://api.box.com/2.0';
 /** Box's spelling of the account root ("All Files"). */

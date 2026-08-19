@@ -24,7 +24,7 @@
  */
 
 import type { PermissionGrant, PermissionListing } from '@openmig/shared';
-import { mapGrant } from './permission-map';
+import { mapGrant } from './permission-map.ts';
 
 export interface PermissionSection {
   /** What this group of rights is, in the owner's terms. */

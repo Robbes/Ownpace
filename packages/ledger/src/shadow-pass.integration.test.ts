@@ -13,13 +13,13 @@ import {
   countMessages,
   mailboxState,
   type ImapTestClientConfig,
-} from '../../testing/src/imap-test-client';
-import { createPgDb } from './db';
-import { PgLedger } from './ledger';
-import { PgCursorStore } from './cursor-store';
-import { ImapFlowSource } from '../../connectors/src/imapflow-source';
-import { JmapTargetWriter } from '../../connectors/src/jmap-target';
-import { runShadowPass } from '../../core/src/reconcile';
+} from '../../testing/src/imap-test-client.ts';
+import { createPgDb } from './db.ts';
+import { PgLedger } from './ledger.ts';
+import { PgCursorStore } from './cursor-store.ts';
+import { ImapFlowSource } from '../../connectors/src/imapflow-source.ts';
+import { JmapTargetWriter } from '../../connectors/src/jmap-target.ts';
+import { runShadowPass } from '../../core/src/reconcile.ts';
 import { asTenantId, asMappingId } from '@openmig/shared';
 
 const __filename = fileURLToPath(import.meta.url);

@@ -197,9 +197,6 @@ importers:
       '@typescript/native':
         specifier: npm:typescript@7.0.2
         version: typescript@7.0.2
-      tsx:
-        specifier: ^4.23.12
-        version: 4.23.12
       typescript:
         specifier: npm:@typescript/typescript6@6.0.2
         version: '@typescript/typescript6@6.0.2'
@@ -231,9 +228,6 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
     devDependencies:
-      tsx:
-        specifier: ^4.23.12
-        version: 4.23.12
       vitest:
         specifier: ^4.1.10
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.2.0)(@vitest/coverage-v8@4.1.10)(jsdom@30.0.1(@noble/hashes@1.8.0))(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))

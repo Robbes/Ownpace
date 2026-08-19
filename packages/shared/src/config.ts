@@ -8,8 +8,8 @@ export class ConfigError extends Error {
 }
 
 // Import ThrottleConfig from throttling module for type reference
-import type { ThrottleConfig } from './throttling';
-import type { SpecialUse } from './mail';
+import type { ThrottleConfig } from './throttling.ts';
+import type { SpecialUse } from './mail.ts';
 
 export type SourceAuth =
   | { readonly kind: 'xoauth2'; readonly tokenFromEnv: string }

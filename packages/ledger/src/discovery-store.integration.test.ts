@@ -9,9 +9,9 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { Pool } from 'pg';
-import { createPgDb, withTenant } from './db';
-import { PgDiscoveryStore } from './discovery-store';
-import * as schemaPg from './schema-pg';
+import { createPgDb, withTenant } from './db.ts';
+import { PgDiscoveryStore } from './discovery-store.ts';
+import * as schemaPg from './schema-pg.ts';
 import { inArray } from 'drizzle-orm';
 import type { TenantId, MappingId } from '@openmig/shared';
 

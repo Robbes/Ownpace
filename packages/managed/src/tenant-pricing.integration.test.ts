@@ -12,9 +12,9 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { createPgDb } from '@openmig/ledger/db';
 import * as schemaPg from '@openmig/ledger/schema-pg';
-import { DEFAULT_PRICING } from './pricing';
-import { resolveTenantPricing } from './tenant-pricing';
-import { tenantPricing } from './schema-managed';
+import { DEFAULT_PRICING } from './pricing.ts';
+import { resolveTenantPricing } from './tenant-pricing.ts';
+import { tenantPricing } from './schema-managed.ts';
 
 const TEST_DB_URL = process.env.TEST_DATABASE_URL;
 if (!TEST_DB_URL) {

@@ -34,7 +34,7 @@ import {
   CredentialRefusalError,
   CREDENTIAL_STORE_NL,
   type BilingualRefusal,
-} from './credential-refusals';
+} from './credential-refusals.ts';
 
 /** One of each shape, which is the whole surface. */
 const ALL: ReadonlyArray<{ what: string; refusal: BilingualRefusal; fields: string[] }> = [

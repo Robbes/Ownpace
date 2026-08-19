@@ -33,8 +33,8 @@
  * server-vocabulary word does not compile.
  */
 import React from 'react';
-import { useT } from '../i18n';
-import type { StringKey } from '../i18n';
+import { useT } from '../i18n/index.tsx';
+import type { StringKey } from '../i18n/index.tsx';
 
 type Tone = 'gray' | 'muted' | 'blue' | 'green' | 'emerald' | 'yellow' | 'red' | 'void';
 

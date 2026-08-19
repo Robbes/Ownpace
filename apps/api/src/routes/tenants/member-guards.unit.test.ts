@@ -12,7 +12,7 @@ import {
   removesLastOwner,
   grantsOwnerWithoutPermission,
   isSelfRemoval,
-} from './member-guards';
+} from './member-guards.ts';
 
 describe('demotesLastOwner', () => {
   it('blocks demoting the sole owner (the bug: this used to slip through)', () => {

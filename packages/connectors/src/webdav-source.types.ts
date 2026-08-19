@@ -6,7 +6,7 @@
  * Follows RFC 4918 (WebDAV) for PROPFIND and property handling.
  */
 
-import type { HttpClient as _HttpClient, HttpRequestOptions as _HttpRequestOptions, HttpResponse as _HttpResponse } from './dav-http.types';
+import type { HttpClient as _HttpClient, HttpRequestOptions as _HttpRequestOptions, HttpResponse as _HttpResponse } from './dav-http.types.ts';
 
 /**
  * Configuration for WebDAV source connector.

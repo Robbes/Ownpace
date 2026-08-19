@@ -20,7 +20,7 @@
 import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { createPgliteDb } from '@openmig/ledger';
 import { runMigrations } from '@openmig/ledger';
-import { runManagedMigrations } from './migrate-managed';
+import { runManagedMigrations } from './migrate-managed.ts';
 import {
   closeTenant,
   reopenTenant,
@@ -30,7 +30,7 @@ import {
   RETAINED_TABLES,
   CLOSE_WINDOWS_DAYS,
   isCloseWindow,
-} from './offboarding';
+} from './offboarding.ts';
 import type { LedgerDriver, LedgerConnection } from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger';
 

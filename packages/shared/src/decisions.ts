@@ -13,7 +13,7 @@
  * simply never gets raised.
  */
 
-import type { TenantId, MappingId } from './ids';
+import type { TenantId, MappingId } from './ids.ts';
 
 export const DECISION_CATEGORIES = [
   'new_mailbox',

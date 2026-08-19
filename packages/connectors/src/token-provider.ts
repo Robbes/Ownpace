@@ -2,7 +2,7 @@
 // MSAL-based OAuth2 Token Provider with expiry-aware caching and single-flight refresh.
 // Supports client-credentials flow (client secret or certificate) and refresh-token flow (delegated).
 
-import {
+import type {
   TokenProvider,
   TokenProviderConfig,
   OAuth2Token,

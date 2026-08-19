@@ -11,7 +11,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { PermissionGrant } from '@openmig/shared';
-import { mapGrant } from './permission-map';
+import { mapGrant } from './permission-map.ts';
 
 const grant = (overrides: Partial<PermissionGrant> = {}): PermissionGrant => ({
   subject: 'calendar',

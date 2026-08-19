@@ -36,9 +36,9 @@ import type {
   SpecialUse,
 } from '@openmig/shared';
 import { specialUseFromName, log } from '@openmig/shared';
-import type { GraphMailFolder, GraphMessage, GraphPage } from './graph-mail-source.types';
-import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types';
-import { graphScopePrefix } from './graph-scope';
+import type { GraphMailFolder, GraphMessage, GraphPage } from './graph-mail-source.types.ts';
+import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
+import { graphScopePrefix } from './graph-scope.ts';
 
 /** Graph well-known folder name -> our SpecialUse. */
 const WELL_KNOWN_TO_SPECIAL_USE: ReadonlyArray<readonly [string, SpecialUse]> = [

@@ -15,12 +15,12 @@ import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import type { ApplyReceipt, QueueEnvelope } from '@openmig/shared';
-import { ClosedBanner, LIFECYCLE_NOTE_KEY } from './primitives';
-import MappingHubLink from '../MappingHubLink';
-import StateChip from '../StateChip';
-import AsOf from '../AsOf';
-import { useT } from '../../i18n';
-import { DecisionRefusedError } from '../../services/operating-service';
+import { ClosedBanner, LIFECYCLE_NOTE_KEY } from './primitives.tsx';
+import MappingHubLink from '../MappingHubLink.tsx';
+import StateChip from '../StateChip.tsx';
+import AsOf from '../AsOf.tsx';
+import { useT } from '../../i18n/index.tsx';
+import { DecisionRefusedError } from '../../services/operating-service.ts';
 
 /**
  * What happened to one item after the operator acted on it.

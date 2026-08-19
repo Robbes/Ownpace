@@ -15,8 +15,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const { fetchStatusMock } = vi.hoisted(() => ({ fetchStatusMock: vi.fn() }));
 vi.mock('../services/operating-service', () => ({ fetchStatus: fetchStatusMock }));
 
-import { NotificationChannelBanner } from './NotificationChannelBanner';
-import { LocaleProvider } from '../i18n';
+import { NotificationChannelBanner } from './NotificationChannelBanner.tsx';
+import { LocaleProvider } from '../i18n/index.tsx';
 
 function renderBanner() {
   const client = new QueryClient({

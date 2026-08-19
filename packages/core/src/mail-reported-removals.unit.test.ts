@@ -15,8 +15,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { runShadowPass } from './reconcile';
-import { MemorySource, MemoryTarget, MemoryLedger, MemoryCursorStore } from './__testing__/memory';
+import { runShadowPass } from './reconcile.ts';
+import { MemorySource, MemoryTarget, MemoryLedger, MemoryCursorStore } from './__testing__/memory.ts';
 import { asTenantId, asMappingId, naturalKeyHash } from '@openmig/shared';
 
 const TENANT = asTenantId('b7550000-e29b-41d4-a716-4466554403aa');

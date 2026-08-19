@@ -30,7 +30,7 @@ import {
   createTokenProvider,
   directoryAvailability,
 } from '@openmig/connectors';
-import * as cutoverCli from './cutover-commands';
+import * as cutoverCli from './cutover-commands.ts';
 import { log } from '@openmig/shared';
 
 /** Parse cutover CLI arguments */

@@ -21,7 +21,7 @@
 
 import React from 'react';
 import { useParams, Link } from 'react-router';
-import { useT } from '../i18n';
+import { useT } from '../i18n/index.tsx';
 
 /** Every guide in the repo's docs/ directory, inlined at build time. */
 const GUIDES = import.meta.glob('../../../../docs/*-setup.md', {

@@ -40,7 +40,7 @@ vi.mock('../services/edition', () => ({
   isSelfHost: () => editionFlag.selfhost,
 }));
 
-import Decisions from './Decisions';
+import Decisions from './Decisions.tsx';
 
 const PENDING = {
   id: 'dec-1',

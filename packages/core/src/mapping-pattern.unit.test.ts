@@ -16,7 +16,7 @@ import {
   patternForSource,
   assertMappingPattern,
   resolveMappingPattern,
-} from './mapping-pattern';
+} from './mapping-pattern.ts';
 
 const base = (overrides: Partial<MappingConfig> = {}): MappingConfig =>
   ({

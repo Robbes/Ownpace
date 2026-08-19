@@ -39,7 +39,7 @@
  * nobody can make a failing assertion pass that way.
  */
 
-import type { DriveCapture, DriveExchange, RecordableTransport } from './drive-capture';
+import type { DriveCapture, DriveExchange, RecordableTransport } from './drive-capture.ts';
 
 /**
  * What a replayed download is filled with.

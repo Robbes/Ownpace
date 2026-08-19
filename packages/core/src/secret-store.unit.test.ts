@@ -19,7 +19,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { SecretStore, initSecretStore } from './secret-store';
+import { SecretStore, initSecretStore } from './secret-store.ts';
 
 const TEST_KEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 

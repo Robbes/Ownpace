@@ -30,7 +30,7 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { ImapFlow } from 'imapflow';
-import { smtpTransport } from './smtp-transport';
+import { smtpTransport } from './smtp-transport.ts';
 
 const SMTP_HOST = process.env.STALWART_IMAP_HOST;
 const SMTP_PORT = process.env.STALWART_SMTP_PORT;

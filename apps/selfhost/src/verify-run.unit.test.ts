@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { createVerifyRunner } from './verify-run';
+import { createVerifyRunner } from './verify-run.ts';
 import type { VerifyResponse } from '@openmig/shared';
 
 /** A scan whose completion belongs to the test. */

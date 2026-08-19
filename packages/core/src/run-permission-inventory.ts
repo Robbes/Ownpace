@@ -21,7 +21,7 @@
  */
 
 import type { PermissionListing } from '@openmig/shared';
-import { renderPermissionReport, type PermissionSection } from './permission-report';
+import { renderPermissionReport, type PermissionSection } from './permission-report.ts';
 
 export interface PermissionInventoryDeps {
   /** Rendered into the header so the reader knows which migration this is. */

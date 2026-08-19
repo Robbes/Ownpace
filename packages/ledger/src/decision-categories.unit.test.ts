@@ -27,7 +27,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DECISION_CATEGORIES } from '@openmig/shared';
-import * as schemaPg from './schema-pg';
+import * as schemaPg from './schema-pg.ts';
 
 const MIGRATIONS = join(dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
 

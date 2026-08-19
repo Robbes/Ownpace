@@ -19,7 +19,7 @@ import {
   resetLogLevel,
   isLevelEnabled,
   DEFAULT_LOG_LEVEL,
-} from './logger';
+} from './logger.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();

@@ -38,7 +38,7 @@ vi.mock('../../services/operating-service', () => ({
   DecisionRefusedError,
 }));
 
-import { ApplyDeletionsPanel } from './ApplyDeletionsPanel';
+import { ApplyDeletionsPanel } from './ApplyDeletionsPanel.tsx';
 
 function renderPanel() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

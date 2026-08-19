@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { runPermissionInventory } from './run-permission-inventory';
+import { runPermissionInventory } from './run-permission-inventory.ts';
 
 const REASON = 'Graph does not expose them — use Get-MailboxPermission';
 

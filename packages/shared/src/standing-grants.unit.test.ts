@@ -22,7 +22,7 @@ import {
   credentialRetirementsFor,
   identifiersWithRetirableCredentials,
   accessThatOutlivesErasure,
-} from './standing-grants';
+} from './standing-grants.ts';
 
 describe('standing grants', () => {
   it('names a grant for the providers that keep one', () => {
@@ -103,7 +103,7 @@ describe('standing grants', () => {
 describe('the completion report carries it (workplan 0085 T4b)', () => {
   it('names the grant on a finished Microsoft → JMAP migration', async () => {
     const { buildCompletionReport, renderCompletionReportMarkdown } = await import(
-      './completion-report'
+      './completion-report.ts'
     );
     const report = buildCompletionReport({
       mappingId: 'm1',
@@ -127,7 +127,7 @@ describe('the completion report carries it (workplan 0085 T4b)', () => {
 
   const reportFor = async (sourceType: string, targetType: string) => {
     const { buildCompletionReport, renderCompletionReportMarkdown } = await import(
-      './completion-report'
+      './completion-report.ts'
     );
     const report = buildCompletionReport({
       mappingId: 'm2',

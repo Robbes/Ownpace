@@ -30,13 +30,13 @@
 import { CREDENTIAL_STORE_NL, CredentialRefusalError, missingAccountAddress } from '@openmig/shared';
 import type { MailFolder, MailItem, RawMessage, SourceConnector, SyncCursor, TokenProvider } from '@openmig/shared';
 import { GoogleTokenProvider } from '@openmig/connectors';
-import { buildImapSourceFrom } from './mail-source-factory';
-import type { GoogleCredentialNaming, GoogleCredentialsAsFound } from './drive-source-factory';
+import { buildImapSourceFrom } from './mail-source-factory.ts';
+import type { GoogleCredentialNaming, GoogleCredentialsAsFound } from './drive-source-factory.ts';
 import {
   ENV_GOOGLE_DWD_KEY_NAME,
   STORED_GOOGLE_DWD_KEY_NAME,
   dwdTokenProviderIfConfigured,
-} from './google-dwd';
+} from './google-dwd.ts';
 
 /**
  * The one scope Google's IMAP endpoint accepts for XOAUTH2.

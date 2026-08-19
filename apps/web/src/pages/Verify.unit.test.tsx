@@ -18,8 +18,8 @@ vi.mock('../services/edition', () => ({
   isSelfHost: () => editionFlag.selfhost,
 }));
 
-import Verify from './Verify';
-import * as service from '../services/operating-service';
+import Verify from './Verify.tsx';
+import * as service from '../services/operating-service.ts';
 import type { VerificationResult } from '@openmig/shared';
 
 vi.mock('../services/operating-service', () => ({

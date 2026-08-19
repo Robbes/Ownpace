@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { probeJmapCapabilities, usableJmapDomains } from './jmap-capabilities';
+import { probeJmapCapabilities, usableJmapDomains } from './jmap-capabilities.ts';
 
 let session: unknown;
 /** A transport-level failure — DNS, TLS, connection refused. */

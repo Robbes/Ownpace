@@ -19,8 +19,8 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { createPgDb } from './db';
-import { createLedgerVerificationReader } from './verification-queries';
+import { createPgDb } from './db.ts';
+import { createLedgerVerificationReader } from './verification-queries.ts';
 import type { TenantId, MappingId } from '@openmig/shared';
 
 const PG_CONNECTION_STRING = process.env.TEST_DATABASE_URL;

@@ -12,8 +12,8 @@ import {
   buildCompletionReport,
   renderCompletionReportMarkdown,
   type CompletionReportInputs,
-} from './completion-report';
-import type { DomainStatusReport, ItemDeletion, ItemFailure, ItemMove } from './index';
+} from './completion-report.ts';
+import type { DomainStatusReport, ItemDeletion, ItemFailure, ItemMove } from './index.ts';
 
 const domain = (over: Partial<DomainStatusReport> = {}): DomainStatusReport => ({
   domain: 'email',

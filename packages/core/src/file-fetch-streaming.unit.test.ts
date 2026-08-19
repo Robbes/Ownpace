@@ -35,7 +35,7 @@ import type {
   FileTargetWriter,
   Ledger,
 } from '@openmig/shared';
-import { runFileSync } from './dav-sync';
+import { runFileSync } from './dav-sync.ts';
 
 const TENANT = asTenantId('7f110000-e29b-41d4-a716-446655446601' as never);
 const MAPPING = asMappingId('7f110000-e29b-41d4-a716-446655446602' as never);

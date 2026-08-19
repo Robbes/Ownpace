@@ -16,7 +16,7 @@
  * throws in croner at scheduler registration.
  */
 import { describe, it, expect } from 'vitest';
-import { CreateMappingSchema, sourceConfigOverride } from './index';
+import { CreateMappingSchema, sourceConfigOverride } from './index.ts';
 
 function body(over: Record<string, unknown> = {}) {
   return {

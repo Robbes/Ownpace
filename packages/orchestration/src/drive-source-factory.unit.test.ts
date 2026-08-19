@@ -17,7 +17,7 @@ import {
   ENV_GOOGLE_CREDENTIAL_NAMES,
   STORED_GOOGLE_CREDENTIAL_NAMES,
   buildGoogleDriveSourceFrom,
-} from './drive-source-factory';
+} from './drive-source-factory.ts';
 
 const CREDS = {
   clientId: 'client-1.apps.googleusercontent.com',
