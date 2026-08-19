@@ -13,7 +13,7 @@
 import { type PgDatabase } from '@openmig/ledger/db';
 import { and, eq, inArray, gte, lte, sql, type SQL } from 'drizzle-orm';
 import * as ledgerSchema from '@openmig/ledger/schema-pg';
-import * as billingSchema from './schema-billing';
+import * as billingSchema from './schema-managed';
 
 // One `schema` namespace over two modules, so the query bodies below read
 // exactly as they did before the tables moved (ADR-0036). The core tables this

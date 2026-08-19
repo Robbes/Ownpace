@@ -4,7 +4,7 @@
  * Erase the tenants whose window has run out (workplan 0085 T2/T8) — the
  * wiring half.
  *
- * The rules live in `@openmig/ledger`'s `offboarding.ts`, which decides what is
+ * The rules live in `@openmig/managed`'s `offboarding.ts`, which decides what is
  * purged, what survives and why, and tests that against a real database. THIS
  * FILE IS ONLY THE WIRING: the pool, the schedule, the quiesce check and the
  * log line.
@@ -45,7 +45,8 @@ import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
 import * as schemaPg from '@openmig/ledger/schema-pg';
-import { purgeTenant, type PgDatabase } from '@openmig/ledger';
+import type { PgDatabase } from '@openmig/ledger';
+import { purgeTenant } from '@openmig/managed';
 import {
   log,
   summariseRevocations,

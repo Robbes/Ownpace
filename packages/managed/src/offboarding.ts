@@ -36,7 +36,7 @@ import {
   erasureTimeline,
   type RevocationOutcome,
 } from '@openmig/shared';
-import type { PgDatabase } from './db-types';
+import type { PgDatabase } from '@openmig/ledger';
 
 /** The windows a customer may choose (owner decision, 2026-08-18). */
 export const CLOSE_WINDOWS_DAYS = [0, 7, 30, 90] as const;

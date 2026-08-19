@@ -8,7 +8,7 @@
  * `billingApi` mock was removed once those moved to real persistence.
  */
 
-// Pricing lives in @openmig/billing (ONE copy — the worker meters against the
+// Pricing lives in @openmig/managed (ONE copy — the worker meters against the
 // same numbers this file invoices from; they used to be two literals in two
 // packages). It moved out of @openmig/shared in ADR-0036: shared is loaded by
 // the appliance too, and an appliance is never invoiced. `defaultPricing` is the built-in template, kept as a named export
@@ -20,8 +20,8 @@ export {
   type PricingConfig,
   DEFAULT_PRICING as defaultPricing,
   VAT_RATE,
-} from '@openmig/billing';
-import { type PricingConfig, DEFAULT_PRICING, VAT_RATE } from '@openmig/billing';
+} from '@openmig/managed';
+import { type PricingConfig, DEFAULT_PRICING, VAT_RATE } from '@openmig/managed';
 
 // Usage metrics
 export interface UsageMetrics {

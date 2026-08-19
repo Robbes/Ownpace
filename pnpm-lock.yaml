@@ -130,9 +130,6 @@ importers:
       '@mollie/api-client':
         specifier: ^4.6.0
         version: 4.6.0(encoding@0.1.13)
-      '@openmig/billing':
-        specifier: workspace:*
-        version: link:../../packages/billing
       '@openmig/connectors':
         specifier: workspace:*
         version: link:../../packages/connectors
@@ -142,6 +139,9 @@ importers:
       '@openmig/ledger':
         specifier: workspace:*
         version: link:../../packages/ledger
+      '@openmig/managed':
+        specifier: workspace:*
+        version: link:../../packages/managed
       '@openmig/orchestration':
         specifier: workspace:*
         version: link:../../packages/orchestration
@@ -325,9 +325,6 @@ importers:
 
   apps/worker:
     dependencies:
-      '@openmig/billing':
-        specifier: workspace:*
-        version: link:../../packages/billing
       '@openmig/connectors':
         specifier: workspace:*
         version: link:../../packages/connectors
@@ -340,6 +337,9 @@ importers:
       '@openmig/ledger':
         specifier: workspace:*
         version: link:../../packages/ledger
+      '@openmig/managed':
+        specifier: workspace:*
+        version: link:../../packages/managed
       '@openmig/orchestration':
         specifier: workspace:*
         version: link:../../packages/orchestration
@@ -365,22 +365,6 @@ importers:
       imapflow:
         specifier: ^1.7.0
         version: 1.7.0
-      vitest:
-        specifier: ^4.1.10
-        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.2.0)(@vitest/coverage-v8@4.1.10)(jsdom@30.0.1(@noble/hashes@1.8.0))(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
-
-  packages/billing:
-    dependencies:
-      '@openmig/ledger':
-        specifier: workspace:*
-        version: link:../ledger
-      '@openmig/shared':
-        specifier: workspace:*
-        version: link:../shared
-      drizzle-orm:
-        specifier: 'catalog:'
-        version: 0.45.2(@electric-sql/pglite@0.5.5)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.21.0)(better-sqlite3@12.11.1)(pg@8.23.0)(postgres@3.4.9)
-    devDependencies:
       vitest:
         specifier: ^4.1.10
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.2.0)(@vitest/coverage-v8@4.1.10)(jsdom@30.0.1(@noble/hashes@1.8.0))(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
@@ -453,12 +437,28 @@ importers:
         specifier: 'catalog:'
         version: 8.23.0
     devDependencies:
-      '@openmig/billing':
+      '@openmig/managed':
         specifier: workspace:*
-        version: link:../billing
+        version: link:../managed
       imapflow:
         specifier: ^1.7.0
         version: 1.7.0
+
+  packages/managed:
+    dependencies:
+      '@openmig/ledger':
+        specifier: workspace:*
+        version: link:../ledger
+      '@openmig/shared':
+        specifier: workspace:*
+        version: link:../shared
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.2(@electric-sql/pglite@0.5.5)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.21.0)(better-sqlite3@12.11.1)(pg@8.23.0)(postgres@3.4.9)
+    devDependencies:
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.2.0)(@vitest/coverage-v8@4.1.10)(jsdom@30.0.1(@noble/hashes@1.8.0))(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
 
   packages/orchestration:
     dependencies:

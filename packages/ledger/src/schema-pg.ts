@@ -37,7 +37,7 @@ export const tenant = pgTable('tenant', {
   closedBy: text('closed_by'),
   // The prices this tenant AGREED to (migration 0007), integer cents. Pinned
   // once from the operator's template and never following it again — see
-  // @openmig/billing's tenant-pricing.ts. Nullable: NULL is "no agreement
+  // @openmig/managed's tenant-pricing.ts. Nullable: NULL is "no agreement
   // yet", not "free". The one managed-only column left on a core table, named
   // in no-managed-leakage.unit.test.ts so it cannot quietly acquire company
   // (ADR-0036).
@@ -964,33 +964,13 @@ export const migrationDiscovery = pgTable(
   ],
 );
 
-// ========================= Tenant Members =========================
+// `tenant_member` used to be declared here. Accounts are a managed concept —
+// the appliance is single-user and its HTTP surface has no login at all — so it
+// moved to `@openmig/managed` with the rest of the boundary (ADR-0036).
 
-export const tenantMember = pgTable(
-  'tenant_member',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    tenantId: uuid('tenant_id').notNull().references(() => tenant.id, { onDelete: 'cascade' }),
-    userId: text('user_id').notNull(),
-    email: text('email').notNull(),
-    role: text('role', { enum: ['owner', 'admin', 'member', 'viewer'] }).notNull().default('member'),
-    status: text('status', { enum: ['active', 'invited', 'suspended', 'removed'] })
-      .notNull()
-      .default('active'),
-    invitedAt: timestamp('invited_at', { withTimezone: true }),
-    joinedAt: timestamp('joined_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    index('ix_tenant_member_tenant').on(t.tenantId),
-    index('ix_tenant_member_user').on(t.userId),
-    uniqueIndex('uk_tenant_member').on(t.tenantId, t.userId),
-  ],
-);
 
 // The billing tables — `usage_metric`, `invoice`, `payment_method` — used to be
-// declared here. They moved to `@openmig/billing`'s `schema-billing.ts` when the
+// declared here. They moved to `@openmig/managed`'s `schema-managed.ts` when the
 // edition boundary was drawn (ADR-0036): every appliance imports this module, and
 // a schema is a list of things the code that loads it is allowed to name.
 //
@@ -1019,29 +999,8 @@ export const rateBudget = pgTable(
   (t) => [primaryKey({ columns: [t.tenantId, t.provider] })],
 );
 
-/**
- * Proof that an erasure happened, holding no personal data of its own —
- * migration 0025, workplan 0085.
- *
- * `tenantRef` is a sha256 of the tenant id, never the id: an auditor holding
- * the id can verify the record, and the table cannot be read back into a list
- * of former customers. No tenant foreign key (a record that cascades away with
- * its subject is not a record) and no RLS (system-level code reads it, with no
- * tenant context to key a policy on).
- */
-export const erasureRecord = pgTable('erasure_record', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  tenantRef: text('tenant_ref').notNull(),
-  requestedAt: timestamp('requested_at', { withTimezone: true }).notNull(),
-  windowDays: integer('window_days').notNull(),
-  // Nullable on purpose: records written before 0085 T5 carry no promise about
-  // backups, and inventing one for them retroactively would be writing a
-  // commitment nobody gave.
-  backupRetentionDays: integer('backup_retention_days'),
-  backupsExpireAt: timestamp('backups_expire_at', { withTimezone: true }),
-  purgedAt: timestamp('purged_at', { withTimezone: true }),
-  retainedInvoiceIds: uuid('retained_invoice_ids').array().notNull().default([]),
-  revocations: jsonb('revocations').notNull().default({}),
-  purgedCounts: jsonb('purged_counts').notNull().default({}),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+// `erasure_record` used to be declared here. It is the receipt WE produce for a
+// customer as their processor, and it moved to `@openmig/managed` (ADR-0036).
+// The appliance produces no receipt: its operator IS the customer, and a
+// receipt we generate proves nothing to them they did not already know.
+

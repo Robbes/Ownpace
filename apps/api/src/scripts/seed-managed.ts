@@ -55,12 +55,12 @@ import {
   runMigrations,
   migrationConnectionString,
   tenant,
-  tenantMember,
   connection,
   mailbox,
   mailboxMapping,
   scopeSelection,
 } from '@openmig/ledger';
+import { tenantMember } from '@openmig/managed/schema-managed';
 import { SecretStore } from '@openmig/core/secret-store';
 import { log } from '@openmig/shared';
 

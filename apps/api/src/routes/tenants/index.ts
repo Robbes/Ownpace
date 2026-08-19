@@ -13,13 +13,8 @@ import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middle
 import type { AuthenticatedRequest } from '../../types/api';
 import membersRoutes from './members';
 import { serverFault } from '../../server-fault';
-import {
-  closeTenant,
-  reopenTenant,
-  isCloseWindow,
-  CLOSE_WINDOWS_DAYS,
-  type PgDatabase,
-} from '@openmig/ledger';
+import type { PgDatabase } from '@openmig/ledger';
+import { closeTenant, reopenTenant, isCloseWindow, CLOSE_WINDOWS_DAYS } from '@openmig/managed';
 import {
   standingGrantReminders,
   accessThatOutlivesErasure,
@@ -32,7 +27,7 @@ import {
 } from '@openmig/shared';
 import { eq } from 'drizzle-orm';
 import { getTriggerClient } from '@openmig/scheduler';
-import * as schema from '@openmig/ledger';
+import * as schema from '@openmig/ledger/schema-pg';
 import {
   readTenantNotificationPrefs,
   withTenantNotificationPrefs,

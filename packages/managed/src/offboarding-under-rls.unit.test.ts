@@ -44,12 +44,12 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { pgliteDriver } from './pglite-driver';
-import { runMigrations } from './migrate';
-import { withTenant } from './db';
+import { pgliteDriver } from '@openmig/ledger';
+import { runMigrations } from '@openmig/ledger';
+import { withTenant } from '@openmig/ledger';
 import { closeTenant, reopenTenant } from './offboarding';
-import type { LedgerDriver } from './driver';
-import type { PgDatabase } from './db-types';
+import type { LedgerDriver } from '@openmig/ledger';
+import type { PgDatabase } from '@openmig/ledger';
 
 // UUID family 5acb0000-…, unused elsewhere in the repo.
 const TENANT = '5acb0000-e29b-41d4-a716-446655441901';

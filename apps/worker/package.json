@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@openmig/billing": "workspace:*",
+    "@openmig/managed": "workspace:*",
     "@openmig/connectors": "workspace:*",
     "@openmig/core": "workspace:*",
     "@openmig/engines": "workspace:*",

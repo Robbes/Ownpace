@@ -132,3 +132,57 @@ export const paymentMethod = pgTable(
   (t) => [index('ix_payment_method_tenant').on(t.tenantId)],
 );
 
+
+// ========================= Accounts =========================
+
+export const tenantMember = pgTable(
+  'tenant_member',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenant.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    email: text('email').notNull(),
+    role: text('role', { enum: ['owner', 'admin', 'member', 'viewer'] }).notNull().default('member'),
+    status: text('status', { enum: ['active', 'invited', 'suspended', 'removed'] })
+      .notNull()
+      .default('active'),
+    invitedAt: timestamp('invited_at', { withTimezone: true }),
+    joinedAt: timestamp('joined_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('ix_tenant_member_tenant').on(t.tenantId),
+    index('ix_tenant_member_user').on(t.userId),
+    uniqueIndex('uk_tenant_member').on(t.tenantId, t.userId),
+  ],
+);
+
+// ========================= Erasure receipts =========================
+
+/**
+ * Proof that an erasure happened, holding no personal data of its own —
+ * migration 0025, workplan 0085.
+ *
+ * `tenantRef` is a sha256 of the tenant id, never the id: an auditor holding
+ * the id can verify the record, and the table cannot be read back into a list
+ * of former customers. No tenant foreign key (a record that cascades away with
+ * its subject is not a record) and no RLS (system-level code reads it, with no
+ * tenant context to key a policy on).
+ */
+export const erasureRecord = pgTable('erasure_record', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantRef: text('tenant_ref').notNull(),
+  requestedAt: timestamp('requested_at', { withTimezone: true }).notNull(),
+  windowDays: integer('window_days').notNull(),
+  // Nullable on purpose: records written before 0085 T5 carry no promise about
+  // backups, and inventing one for them retroactively would be writing a
+  // commitment nobody gave.
+  backupRetentionDays: integer('backup_retention_days'),
+  backupsExpireAt: timestamp('backups_expire_at', { withTimezone: true }),
+  purgedAt: timestamp('purged_at', { withTimezone: true }),
+  retainedInvoiceIds: uuid('retained_invoice_ids').array().notNull().default([]),
+  revocations: jsonb('revocations').notNull().default({}),
+  purgedCounts: jsonb('purged_counts').notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});

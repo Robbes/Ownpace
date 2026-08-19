@@ -51,7 +51,7 @@ the ratio was never the problem. The absence of an enforced boundary was.
 
 ## Decision
 
-**1. Managed-only code lives in `@openmig/billing`, which the appliance may not import.**
+**1. Managed-only code lives in `@openmig/managed`, which the appliance may not import.**
 `pricing.ts`, `tenant-pricing.ts`, `usage-metering.ts` and the three billing tables move
 there. Only `apps/api` and `apps/worker` depend on it.
 
@@ -103,7 +103,7 @@ with the reason in the message.
 **Two repositories get easier, not harder.** The parked options both need a line drawn
 between what is shared and what is managed. That line now exists, is enforced, and was drawn
 while both editions still build and test together — which is the cheapest time to draw it. If
-the split never happens, nothing has been wasted; if it does, `packages/billing` and
+the split never happens, nothing has been wasted; if it does, `packages/managed` and
 `apps/api`'s billing routes are the extraction boundary, already separated.
 
 **Apache-2.0 is untouched.** Nothing here changes what is licensed or published. A package

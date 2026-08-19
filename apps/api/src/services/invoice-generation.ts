@@ -24,8 +24,8 @@
 
 import { and, eq, notInArray } from 'drizzle-orm';
 import type { PgDatabase } from '@openmig/ledger';
-import { getUsageMetricsForPeriod, resolveTenantPricing, VAT_RATE } from '@openmig/billing';
-import * as schema from '@openmig/billing/schema-billing';
+import { getUsageMetricsForPeriod, resolveTenantPricing, VAT_RATE } from '@openmig/managed';
+import * as schema from '@openmig/managed/schema-managed';
 import type { TenantId } from '@openmig/shared';
 import { calculateCost, type PricingConfig } from './billing-service';
 

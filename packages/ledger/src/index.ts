@@ -19,7 +19,7 @@ export * from './discovery-store';
 export * from './decision-store';
 export * from './policy-preset-store';
 export * from './group-def-store';
-// Usage metering and tenant pricing moved to @openmig/billing (ADR-0036).
+// Usage metering and tenant pricing moved to @openmig/managed (ADR-0036).
 // The appliance imports this index, so anything re-exported here is on the
 // appliance whether it calls it or not.
 export * from './run-store';
@@ -27,4 +27,8 @@ export * from './migrate';
 export * from './retention';
 export * from './direct-url';
 export * from './pg-rate-budget';
-export * from './offboarding';
+// Offboarding moved to @openmig/managed (ADR-0036). Closing an account, the
+// purge window and the erasure receipt are things a SERVICE does for a
+// customer; `purgeTenant` is executed only by apps/worker. The appliance's
+// own ending is `apps/selfhost/src/forget-me.ts`, which revokes and nothing
+// else, because that is the only part its operator cannot do themselves.

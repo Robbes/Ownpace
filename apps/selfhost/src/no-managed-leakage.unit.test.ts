@@ -40,6 +40,11 @@ function forbiddenReason(spec: string): string | null {
   if (/^@trigger\.dev(\/|$)/.test(spec)) return 'Trigger.dev SDK (managed orchestration)';
   if (/^@mollie(\/|$)/.test(spec) || /mollie/i.test(spec)) return 'Mollie billing client';
   if (/(^|\/)billing(\/|$)/.test(spec)) return 'billing module';
+  // The managed package itself. Listed by name because the rules below are
+  // about what a module is CALLED, and this one is named after the edition —
+  // which is the point: everything that exists because there is a customer on
+  // the other side lives there, and none of it is reachable from here.
+  if (/^@openmig\/managed(\/|$)/.test(spec)) return 'the managed edition package (ADR-0036)';
   // ADR-0036. `billing` alone was not enough: the modules that priced a tenant
   // and metered its usage were called `pricing`, `tenant-pricing` and
   // `usage-metering`, they were re-exported from `@openmig/shared` and
@@ -189,8 +194,17 @@ describe('self-host has no managed-only leakage (hard rule 5)', () => {
   // in shared code compiled on both editions and typechecked clean. The rule
   // was real; only the code half of it was enforced.
 
-  /** Tables that only exist because somebody is being charged. */
-  const MANAGED_ONLY_TABLES = ['invoice', 'payment_method', 'usage_metric'] as const;
+  /** Tables that only exist because there is a customer on the other side. */
+  const MANAGED_ONLY_TABLES = [
+    'invoice',
+    'payment_method',
+    'usage_metric',
+    // Accounts. The appliance is single-user and its HTTP surface has no login.
+    'tenant_member',
+    // The receipt WE produce as somebody's processor. The appliance's operator
+    // is the customer; a receipt we generate proves nothing to them.
+    'erasure_record',
+  ] as const;
 
   /**
    * Managed-only COLUMNS on tables the appliance legitimately owns.
@@ -199,7 +213,7 @@ describe('self-host has no managed-only leakage (hard rule 5)', () => {
    * a table is declared in one place, and splitting one nullable jsonb column
    * into a second declaration of `tenant` would leave the schema/migration
    * drift guard with two rows of that name and no way to tell which it checked.
-   * The money LOGIC left (`tenant-pricing.ts` is in @openmig/billing); the
+   * The money LOGIC left (`tenant-pricing.ts` is in @openmig/managed); the
    * column stays beside its table, and stays named here so it cannot quietly
    * acquire company.
    */
@@ -250,7 +264,7 @@ describe('self-host has no managed-only leakage (hard rule 5)', () => {
     expect(
       money.filter((c) => !(c in MANAGED_ONLY_COLUMNS)),
       'a managed-only column arrived on a table the appliance loads. Either it ' +
-        'belongs in @openmig/billing, or add it to MANAGED_ONLY_COLUMNS with the ' +
+        'belongs in @openmig/managed, or add it to MANAGED_ONLY_COLUMNS with the ' +
         'reason it has to live here (ADR-0036).',
     ).toEqual([]);
 

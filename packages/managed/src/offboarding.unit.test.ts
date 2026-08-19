@@ -18,8 +18,8 @@
  */
 
 import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
-import { createPgliteDb } from './pglite-driver';
-import { runMigrations } from './migrate';
+import { createPgliteDb } from '@openmig/ledger';
+import { runMigrations } from '@openmig/ledger';
 import {
   closeTenant,
   reopenTenant,
@@ -30,8 +30,8 @@ import {
   CLOSE_WINDOWS_DAYS,
   isCloseWindow,
 } from './offboarding';
-import type { LedgerDriver, LedgerConnection } from './driver';
-import type { PgDatabase } from './db-types';
+import type { LedgerDriver, LedgerConnection } from '@openmig/ledger';
+import type { PgDatabase } from '@openmig/ledger';
 
 // UUID family 5abb0000-…, unused elsewhere in the repo.
 const LEAVING = '5abb0000-e29b-41d4-a716-446655441801';

@@ -28,7 +28,7 @@ import {
   PgMigrationStatusStore,
   RunStore,
 } from '@openmig/ledger';
-import { recordComputeForRun, recordApiCallForRun, resolveTenantPricing } from '@openmig/billing';
+import { recordComputeForRun, recordApiCallForRun, resolveTenantPricing } from '@openmig/managed';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import { log } from '@openmig/shared';
 
@@ -132,7 +132,7 @@ const pool = new Pool({ connectionString: DATABASE_URL });
 // config/env in production" comment, while the API invoiced from its own
 // separate copy — two numbers that must agree, in two packages, either of
 // which could be changed alone. Metering now prices each pass at the tenant's
-// own agreed rates via resolveTenantPricing (@openmig/billing), which is the
+// own agreed rates via resolveTenantPricing (@openmig/managed), which is the
 // same function the invoice uses.
 
 /**

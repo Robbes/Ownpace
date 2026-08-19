@@ -18,8 +18,8 @@ import { calculateCost } from '../../services/billing-service';
 import { generateInvoiceForPeriod } from '../../services/invoice-generation';
 import { getMollieService } from '../../services/mollie/index';
 import { eq, and, desc } from 'drizzle-orm';
-import { getUsageMetricsForPeriod, resolveTenantPricing } from '@openmig/billing';
-import * as schema from '@openmig/billing/schema-billing';
+import { getUsageMetricsForPeriod, resolveTenantPricing } from '@openmig/managed';
+import * as schema from '@openmig/managed/schema-managed';
 import { log } from '@openmig/shared';
 import { serverFault } from '../../server-fault';
 
