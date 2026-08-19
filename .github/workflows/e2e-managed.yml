@@ -235,6 +235,34 @@ jobs:
           set -euo pipefail
           ./deploy/compose/bootstrap-managed.sh --from data --with-demo --no-smoke
 
+      - name: The demo's mail source has mail in it (0084)
+        # The verify half compares a source against a target. On an empty
+        # mailbox it compares nothing, reports PASS, and means it — which is why
+        # the smoke now refuses that outcome outright.
+        #
+        # This is the other half of that fix. `seed-imap-source.mjs` is the
+        # seeder `e2e.yml` has used every night since 0010 T5 — imapflow, the
+        # same client the app's own IMAP connector uses, stable Message-IDs, and
+        # `rejectUnauthorized: false` for Stalwart's self-signed certificate. It
+        # needed no new protocol work here, only pointing at the managed
+        # instance: `setup-managed-demo.sh` publishes its IMAPS on 1994 (its own
+        # port, deliberately not the dev stack's 1993), and the demo's tenant A
+        # source is `source@dev.local` — which is this script's own default.
+        #
+        # SEED_ONLY_IF_EMPTY because this stack is long-lived and never torn
+        # down: `append` is an append, so an unguarded re-run would leave the
+        # source a few messages larger every night. The gate wants this mailbox
+        # non-empty, not growing.
+        env:
+          SEED_IMAP_HOST: 127.0.0.1
+          SEED_IMAP_PORT: ${{ vars.MANAGED_STALWART_IMAPS_PORT || '1994' }}
+          SEED_IMAP_TLS: 'true'
+          SEED_IMAP_USER: source@dev.local
+          SEED_IMAP_PASSWORD: source_password
+          SEED_COUNT: '3'
+          SEED_ONLY_IF_EMPTY: 'true'
+        run: node test/e2e/seed-imap-source.mjs
+
       - name: The app talks through PgBouncer, and migrations do not (0082 T4)
         # The reason this workflow exists. Asserted against the pooler's own
         # admin console rather than inferred from a working app: an app that

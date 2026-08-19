@@ -365,13 +365,32 @@ and refuses one whose report does not carry the count at all: a report shape
 that changed is not evidence that anything was verified. It does not
 double-report a verify that already failed for its own reason.
 
-**The seeder itself is NOT built, deliberately.** Stalwart publishes JMAP on
-8080 and IMAPS on 993 and no SMTP listener, so seeding means a four-round-trip
-JMAP flow — session, mailbox query, blob upload, `Email/import` — in shell,
-against a service this sandbox cannot start. Writing ~150 untestable lines and
-calling the row done would be the kind of claim this workplan exists to refuse.
-The guard makes its absence **loud** instead of silent, which is the half that
-was actually costing something.
+**And the seeder is built — it already existed.** My first answer here was that
+this needed a four-round-trip JMAP flow written from scratch and untestable
+without containers, so I shipped the guard and left the row open. That was
+wrong, and the owner said so: *"don't we have examples of this seeding
+elsewhere?"*
+
+`test/e2e/seed-imap-source.mjs` has been seeding mail for `e2e.yml` every night
+since 0010 T5 — imapflow (the same client the app's own IMAP connector uses),
+stable Message-IDs, `rejectUnauthorized: false` for Stalwart's self-signed
+certificate. Its defaults are `source@dev.local` / `source_password`, which is
+**exactly** the managed demo's tenant A source. There was no protocol work to
+do at all; there was a port to point at, and I had looked for `APPEND` and
+`seed-mail` in the source instead of asking how the existing mail e2e gets its
+data. The lesson is the cheap one: *before concluding a thing cannot be built,
+check whether it has already been built.*
+
+The one genuine change it needed is `SEED_ONLY_IF_EMPTY`. `append` is an
+append: the self-host e2e starts from a mailbox it has just destroyed, so a
+re-run is harmless there, but this gate runs against a stack it deliberately
+never tears down (T6's withdrawal) — unguarded, the demo source would gain
+three messages every night and the count the verify half compares would drift
+for ever. The option defaults OFF, so `e2e.yml` is untouched.
+
+`setup-managed-demo.sh` publishes the managed Stalwart's IMAPS on **1994**,
+chosen so it cannot collide with the dev stack's 1993 — which makes "seeded the
+wrong instance" a real way to be quietly wrong, and is asserted in the tests.
 
 ## Run #6, and what the green actually covered (2026-08-18)
 
@@ -630,13 +649,12 @@ one, which reads as green while proving nothing.
 
 ## What is still owed
 
-- **A seeder for the demo's mail source.** The verify half now REFUSES rather
-  than passing over an empty mailbox, so this is loud instead of silent — but
-  it is still owed. It needs a JMAP flow (session → `Mailbox/query` for the
-  Inbox → blob upload → `Email/import`) against `stalwart:8080` with the
-  demo account's basic auth, mirroring `seed-demo-dav-content.sh`, and it
-  should re-read what it wrote the same way that one does. Until it exists,
-  a fresh machine's gate is red on the verify half and correctly so.
+- **The DAV seeder is still not wired into the bring-up.**
+  `seed-demo-dav-content.sh` runs from the smoke's prepare phase, which only
+  fires when the apply half has nothing to act on. The mail seeder is now a
+  bring-up step; the DAV one should probably become one too, for the same
+  reason — a precondition that only appears when something is already missing
+  is a precondition nobody can reason about.
 - **Healthchecks for `minio` and `trigger-tls`** — the two of the original
   seven that are neither probed nor functionally proven. Three were added on
   2026-08-19 and two others (`trigger-registry`, `trigger-docker-proxy`) are

@@ -379,3 +379,54 @@ describe('a verify that compared nothing is not a pass', () => {
     expect(block).toMatch(/absence of data as the absence of problems/i);
   });
 });
+
+describe("the demo's mail source is seeded, and only when it needs to be", () => {
+  // The other half of the vacuous-verify fix. The seeder is not new — it is the
+  // one e2e.yml has used nightly since 0010 T5 — so the risk here is not the
+  // protocol, it is pointing it at the wrong instance or letting it grow a
+  // long-lived mailbox every run.
+  const step = workflow.slice(workflow.indexOf("The demo's mail source has mail in it"));
+  const body = step.slice(0, step.indexOf('- name: The app talks through'));
+  const seeder = readFileSync(join(REPO_ROOT, 'test/e2e/seed-imap-source.mjs'), 'utf8');
+
+  it('runs before the smoke, not after it', () => {
+    expect(workflow.indexOf("The demo's mail source has mail in it")).toBeLessThan(
+      workflow.indexOf('The acceptance smoke'),
+    );
+  });
+
+  it('points at the MANAGED Stalwart, not the dev one', () => {
+    // setup-managed-demo.sh publishes 1994 deliberately, so the managed
+    // instance cannot collide with the dev/e2e stack's 1993. Seeding 1993 would
+    // put mail in the wrong mailbox and leave this gate still verifying nothing.
+    // The PORT VALUE, not the prose: the comment above it names 1993 precisely
+    // to say why this is not that.
+    const portLine = body.split('\n').find((l) => l.includes('SEED_IMAP_PORT'));
+    expect(portLine).toBeDefined();
+    expect(portLine).toContain('1994');
+    expect(portLine).not.toContain('1993');
+  });
+
+  it('uses the demo tenant A source account', () => {
+    expect(body).toContain('source@dev.local');
+  });
+
+  it('does not grow the mailbox on every run', () => {
+    // `append` is an append. Unguarded, a stack that is never torn down gets a
+    // few more messages nightly and a source whose count drifts is a poor thing
+    // to verify against.
+    expect(body).toContain("SEED_ONLY_IF_EMPTY: 'true'");
+  });
+
+  it('and the seeder honours that by returning before appending', () => {
+    expect(seeder).toContain('SEED_ONLY_IF_EMPTY');
+    const guard = seeder.slice(seeder.indexOf('if (onlyIfEmpty)'));
+    const upToAppend = guard.slice(0, guard.indexOf('client.append'));
+    expect(upToAppend).toMatch(/mailboxOpen\('INBOX'\)/);
+    expect(upToAppend).toMatch(/return;/);
+  });
+
+  it('leaves the self-host e2e untouched — the option defaults to off', () => {
+    expect(seeder).toMatch(/SEED_ONLY_IF_EMPTY \|\| 'false'/);
+  });
+});
