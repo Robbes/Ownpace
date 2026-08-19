@@ -55,12 +55,13 @@ import {
   runMigrations,
   migrationConnectionString,
   tenant,
-  tenantMember,
   connection,
   mailbox,
   mailboxMapping,
   scopeSelection,
 } from '@openmig/ledger';
+import { tenantMember } from '@openmig/managed/schema-managed';
+import { runManagedMigrations } from '@openmig/managed';
 import { SecretStore } from '@openmig/core/secret-store';
 import { log } from '@openmig/shared';
 
@@ -297,6 +298,9 @@ async function main(): Promise<void> {
   // `direct-url.ts` — and doubly so here, where the whole point of the call is
   // that it may be racing an API boot doing the same thing.
   await runMigrations({ connectionString: migrationConnectionString(process.env) });
+  // The managed chain too, and after: this script seeds `tenant_member` rows,
+  // which that chain creates (ADR-0036).
+  await runManagedMigrations({ connectionString: migrationConnectionString(process.env) });
 
   const tokens: Array<{ tenant: string; email: string; token: string }> = [];
   for (const t of DEMO_TENANTS) {

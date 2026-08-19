@@ -41,9 +41,12 @@ export const aliases = {
   '@openmig/core/secret-store': resolve(rootDir, 'packages/core/src/secret-store.ts'),
   '@openmig/core/secrets': resolve(rootDir, 'packages/core/src/secrets.ts'),
   '@openmig/ledger/schema-pg': resolve(rootDir, 'packages/ledger/src/schema-pg.ts'),
+  '@openmig/ledger/db': resolve(rootDir, 'packages/ledger/src/db.ts'),
+  '@openmig/managed/schema-managed': resolve(rootDir, 'packages/managed/src/schema-managed.ts'),
   '@openmig/scheduler/in-process': resolve(rootDir, 'packages/scheduler/src/scheduler.ts'),
 
   // Bare specifiers.
+  '@openmig/managed': resolve(rootDir, 'packages/managed/src/index.ts'),
   '@openmig/shared': resolve(rootDir, 'packages/shared/src/index.ts'),
   '@openmig/ledger': resolve(rootDir, 'packages/ledger/src/index.ts'),
   '@openmig/core': resolve(rootDir, 'packages/core/src/index.ts'),

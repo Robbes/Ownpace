@@ -29,6 +29,8 @@
     "types": ["node"],
     "noEmit": true,
     "paths": {
+      "@openmig/managed": ["./packages/managed/src/index.ts"],
+      "@openmig/managed/*": ["./packages/managed/src/*"],
       "@openmig/shared": ["./packages/shared/src/index.ts"],
       "@openmig/shared/*": ["./packages/shared/src/*"],
       "@openmig/ledger": ["./packages/ledger/src/index.ts"],

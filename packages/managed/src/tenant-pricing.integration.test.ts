@@ -10,10 +10,11 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { DEFAULT_PRICING } from '@openmig/shared';
-import { createPgDb } from './db';
+import { createPgDb } from '@openmig/ledger/db';
+import * as schemaPg from '@openmig/ledger/schema-pg';
+import { DEFAULT_PRICING } from './pricing';
 import { resolveTenantPricing } from './tenant-pricing';
-import * as schemaPg from './schema-pg';
+import { tenantPricing } from './schema-managed';
 
 const TEST_DB_URL = process.env.TEST_DATABASE_URL;
 if (!TEST_DB_URL) {
@@ -61,8 +62,10 @@ describe('resolveTenantPricing', () => {
   beforeEach(async () => {
     setTemplate({});
     // Both tenants start with no agreement; each case pins what it needs.
+    // "No agreement" is now the ABSENCE of a row rather than a NULL column
+    // (ADR-0036), which is why this deletes instead of nulling.
     for (const id of [EXISTING, FRESH]) {
-      await db.update(schemaPg.tenant).set({ pricing: null }).where(eq(schemaPg.tenant.id, id));
+      await db.delete(tenantPricing).where(eq(tenantPricing.tenantId, id));
     }
   });
 
@@ -76,14 +79,14 @@ describe('resolveTenantPricing', () => {
     expect(resolved.egressPricePerGB).toBe(DEFAULT_PRICING.egressPricePerGB);
 
     const [row] = await db
-      .select({ pricing: schemaPg.tenant.pricing })
-      .from(schemaPg.tenant)
-      .where(eq(schemaPg.tenant.id, FRESH));
+      .select({ pricing: tenantPricing.pricing })
+      .from(tenantPricing)
+      .where(eq(tenantPricing.tenantId, FRESH));
     expect(row?.pricing).toMatchObject({ baseFee: 1500, computePricePerHour: 7 });
   });
 
   it('KEEPS an existing tenant on its agreed prices when the template changes', async () => {
-    // The whole point of the column. Tenant signs up at 1500…
+    // The whole point of the table. Tenant signs up at 1500…
     setTemplate({ PRICING_BASE_FEE_CENTS: '1500' });
     const atSignup = await resolveTenantPricing(db, EXISTING);
     expect(atSignup.baseFee).toBe(1500);
@@ -113,9 +116,9 @@ describe('resolveTenantPricing', () => {
     // price list, and merging it with the template would invent an agreement
     // nobody made.
     await db
-      .update(schemaPg.tenant)
-      .set({ pricing: { baseFee: 1234 } })
-      .where(eq(schemaPg.tenant.id, EXISTING));
+      .insert(tenantPricing)
+      .values({ tenantId: EXISTING, pricing: { baseFee: 1234 } })
+      .onConflictDoUpdate({ target: tenantPricing.tenantId, set: { pricing: { baseFee: 1234 } } });
     setTemplate({ PRICING_BASE_FEE_CENTS: '2000' });
 
     const resolved = await resolveTenantPricing(db, EXISTING);

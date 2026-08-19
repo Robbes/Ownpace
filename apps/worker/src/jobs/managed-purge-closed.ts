@@ -4,7 +4,7 @@
  * Erase the tenants whose window has run out (workplan 0085 T2/T8) — the
  * wiring half.
  *
- * The rules live in `@openmig/ledger`'s `offboarding.ts`, which decides what is
+ * The rules live in `@openmig/managed`'s `offboarding.ts`, which decides what is
  * purged, what survives and why, and tests that against a real database. THIS
  * FILE IS ONLY THE WIRING: the pool, the schedule, the quiesce check and the
  * log line.
@@ -20,18 +20,41 @@
  *
  * Closing already stops the sync tick picking the mapping up (status is no
  * longer `active`), so a run still in flight means one that was already
- * underway. Waiting a day is the correct response.
+ * underway.
+ *
+ * ## Why waiting was not enough on its own (T8's second half)
+ *
+ * Waiting is right for a pass that is genuinely running. It was also the ONLY
+ * thing this job did, and that is the gap: a row saying `running` is a claim by
+ * a process that may no longer exist. A worker killed between its last write
+ * and its `finishRun` leaves one behind for ever, and this job then skipped
+ * that tenant on every hourly attempt, indefinitely, past the date the customer
+ * was given (T5) — with a warning and nothing else.
+ *
+ * So the row is no longer taken at its word. `quiescePlan` in `@openmig/shared`
+ * decides from what the ORCHESTRATOR says: finished rows are landed and the
+ * purge proceeds, live ones are asked to stop and waited for, and anything we
+ * could not ask about blocks — because not knowing is not permission, and
+ * duplicating a leaving customer's mailbox is worse than an erasure running
+ * late. That asymmetry is the whole design and it is tested in
+ * `quiesce.unit.test.ts`.
  */
 
-import { schedules } from '@trigger.dev/sdk';
+import { schedules, runs } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
 import * as schemaPg from '@openmig/ledger/schema-pg';
-import { purgeTenant, type PgDatabase } from '@openmig/ledger';
-import { log, summariseRevocations, type RevocationOutcome } from '@openmig/shared';
+import type { PgDatabase } from '@openmig/ledger';
+import { purgeTenant } from '@openmig/managed';
+import {
+  log,
+  summariseRevocations,
+  quiescePlan,
+  type QuiescingRun,
+} from '@openmig/shared';
 import { HttpTokenRevoker } from '@openmig/connectors';
-import { SecretStore } from '@openmig/core/secret-store';
+import { revokeStoredCredentials } from '@openmig/orchestration/revoke-stored-credentials';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
@@ -41,56 +64,70 @@ const pool = new Pool({ connectionString: DATABASE_URL });
 const revoker = new HttpTokenRevoker();
 
 /**
- * Attempt provider-side revocation for every credential this tenant stored
- * (T4a) — BEFORE the purge deletes the rows the credentials live in.
- *
- * Best effort, and never a reason to refuse the erasure. A provider being down
- * must not keep somebody on the books; the outcome is recorded as `failed` and
- * the purge proceeds, so the receipt says "we deleted our copy and could not
- * revoke it" rather than nothing happening at all.
- *
- * A credential that will not decrypt is the same story: recorded, not fatal.
- * It usually means SECRET_ENCRYPTION_KEY was rotated at some point, and there
- * is nothing useful to be done about it at erasure time except say so.
+ * T4a's revocation, now shared with the appliance (0085 T9) rather than
+ * private to this job — and reading the column that is actually written. It
+ * used to read `encrypted_credentials`, which nothing has written for a long
+ * time, so every connection reported `no_credential` and Google's revocation
+ * never ran. See revoke-stored-credentials.ts.
  */
-async function revokeCredentials(tenantId: string): Promise<RevocationOutcome[]> {
-  const { rows } = await pool.query<{ kind: string; encrypted_credentials: string | null }>(
-    `SELECT kind, encrypted_credentials FROM connection WHERE tenant_id = $1`,
-    [tenantId],
-  );
+const revokeCredentials = (tenantId: string) =>
+  revokeStoredCredentials(pool, tenantId, revoker);
 
-  const outcomes: RevocationOutcome[] = [];
-  for (const row of rows) {
-    if (!row.encrypted_credentials) {
-      outcomes.push({
-        kind: row.kind,
-        status: 'no_credential',
-        reason: 'No credentials were stored for this connection.',
-      });
-      continue;
-    }
-    let credentials: Record<string, string>;
-    try {
-      credentials = SecretStore.decryptCredentials(row.encrypted_credentials);
-    } catch (err) {
-      outcomes.push({
-        kind: row.kind,
-        status: 'failed',
-        reason: `Stored credentials could not be decrypted, so nothing could be revoked: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      });
-      continue;
-    }
-    outcomes.push(await revoker.revoke({ kind: row.kind, credentials }));
-  }
-  return outcomes;
-}
 
 /** Tenants closed long enough ago that their window has expired. */
 interface DueRow {
   readonly id: string;
-  readonly running: boolean;
+}
+
+interface LiveRunRow {
+  readonly id: string;
+  readonly orchestrator_ref: string | null;
+  readonly status: 'queued' | 'running';
+  readonly since: Date;
+}
+
+/**
+ * Ask the orchestrator what it actually thinks about each live row.
+ *
+ * Never throws: an orchestrator we cannot reach is a `unknown` verdict, which
+ * `quiescePlan` treats as "do not purge" rather than as "nothing is running".
+ * Getting that backwards would turn an outage into a data incident.
+ */
+async function verdictsFor(rows: readonly LiveRunRow[]): Promise<QuiescingRun[]> {
+  return Promise.all(
+    rows.map(async (r): Promise<QuiescingRun> => {
+      const base = {
+        id: r.id,
+        orchestratorRef: r.orchestrator_ref,
+        status: r.status,
+        since: r.since,
+      };
+      if (!r.orchestrator_ref) return { ...base, verdict: 'unknown' };
+      try {
+        const remote = await runs.retrieve(r.orchestrator_ref);
+        // Both directions identified POSITIVELY, with anything unrecognised
+        // falling through to `unknown` — which blocks. `isCompleted` looks like
+        // the umbrella flag and reading it alone would be a guess; if it turned
+        // out to mean "succeeded", a failed run would read as live and block
+        // the erasure for ever, which is the exact bug being fixed here. A
+        // status this code has never heard of should make it wait for a person,
+        // not decide.
+        const stillGoing = remote.isExecuting || remote.isQueued || remote.isWaiting;
+        const terminal = remote.isCompleted || remote.isFailed || remote.isCancelled;
+        return {
+          ...base,
+          verdict: stillGoing ? 'live' : terminal ? 'finished' : 'unknown',
+        };
+      } catch (error) {
+        log.warn(
+          `[purge] could not ask the orchestrator about run ${r.id} (${r.orchestrator_ref}): ` +
+            `${error instanceof Error ? error.message : String(error)}. Treating as unknown, ` +
+            'which blocks the purge rather than risking one under a live pass.',
+        );
+        return { ...base, verdict: 'unknown' };
+      }
+    }),
+  );
 }
 
 export const managedPurgeClosed = schedules.task({
@@ -103,28 +140,85 @@ export const managedPurgeClosed = schedules.task({
     const db = drizzle(pool, { schema: schemaPg }) as unknown as PgDatabase;
     const now = new Date();
 
+    // The dates live in `tenant_closure` since ADR-0036, so this is a join
+    // rather than two columns. The `status = 'closed'` half is kept, and is not
+    // redundant: a closure row is written first and the status second, so a
+    // close interrupted between the two statements leaves a due date on a
+    // tenant that is still active. Requiring both means such a tenant is
+    // skipped by this job rather than purged by it.
     const { rows } = await pool.query<DueRow>(
-      `SELECT t.id,
-              EXISTS (SELECT 1 FROM run r
-                       WHERE r.tenant_id = t.id AND r.status IN ('running', 'queued')) AS running
+      `SELECT t.id
          FROM tenant t
-        WHERE t.status = 'closed' AND t.purge_after IS NOT NULL AND t.purge_after <= $1`,
+         JOIN tenant_closure c ON c.tenant_id = t.id
+        WHERE t.status = 'closed' AND c.purge_after <= $1`,
       [now],
     );
 
     let purged = 0;
     let skippedRunning = 0;
+    let landed = 0;
+    let needsAttention = 0;
     const failed: string[] = [];
 
     for (const row of rows) {
-      if (row.running) {
+      // What the ledger still calls live, and what the orchestrator says about
+      // each. `since` is when it actually started, falling back to when it was
+      // created for a row that never did.
+      const live = await pool.query<LiveRunRow>(
+        `SELECT id, orchestrator_ref, status, COALESCE(started_at, created_at) AS since
+           FROM run
+          WHERE tenant_id = $1 AND status IN ('running', 'queued')`,
+        [row.id],
+      );
+
+      const plan = quiescePlan(await verdictsFor(live.rows), now);
+
+      // Ask the live ones to stop. This is the "active" in active quiescing —
+      // waiting was all this job did before, and a pass nobody has asked to
+      // stop has no reason to.
+      for (const runId of plan.cancel) {
+        const ref = live.rows.find((r) => r.id === runId)?.orchestrator_ref;
+        if (!ref) continue;
+        try {
+          await runs.cancel(ref);
+          log.info(`[purge] asked the orchestrator to cancel run ${runId} (${ref}) for ${row.id}.`);
+        } catch (error) {
+          log.warn(
+            `[purge] could not cancel run ${runId} (${ref}): ` +
+              `${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
+
+      // Land the rows that cannot be live, with the reason on the row rather
+      // than only in this log — whoever reads that run next needs to know why
+      // it says cancelled.
+      for (const stale of plan.landStale) {
+        await pool.query(
+          `UPDATE run SET status = 'cancelled', finished_at = now(),
+                  stats = COALESCE(stats, '{}'::jsonb) || jsonb_build_object('quiesceReason', $2::text)
+            WHERE id = $1`,
+          [stale.id, stale.reason],
+        );
+        landed++;
+        log.info(`[purge] ${stale.reason} (run ${stale.id}, tenant ${row.id})`);
+      }
+
+      if (!plan.mayPurge) {
         skippedRunning++;
+        if (plan.needsAttention) needsAttention++;
         // Loud, because a tenant that never quiesces would otherwise sit past
         // its promised window in silence — and the promise was to the person
-        // who asked to be forgotten.
+        // who asked to be forgotten. `needsAttention` separates the two cases
+        // that look identical in a log and are not: waiting for a pass that
+        // will end, and blocking on an orchestrator we cannot reach.
+        const how = plan.needsAttention
+          ? 'BLOCKED WITHOUT KNOWING — the orchestrator could not be asked, so this will not ' +
+            'resolve on its own and needs a person'
+          : 'still in flight; cancellation requested, will retry next pass';
         log.warn(
-          `[purge] tenant ${row.id} is past its erasure window but still has a run in flight; ` +
-            'skipped this pass rather than purging under it. If this repeats, the run is stuck.',
+          `[purge] tenant ${row.id} is past its erasure window: ${how}. ` +
+            plan.blockedBy.join('; '),
         );
         continue;
       }
@@ -169,7 +263,14 @@ export const managedPurgeClosed = schedules.task({
       }
     }
 
-    const summary = { due: rows.length, purged, skippedRunning, failed: failed.length };
+    const summary = {
+      due: rows.length,
+      purged,
+      skippedRunning,
+      landedStale: landed,
+      needsAttention,
+      failed: failed.length,
+    };
     log.info('[purge]', summary);
     return summary;
   },

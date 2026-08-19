@@ -13,6 +13,8 @@
 //   SEED_IMAP_USER      (default source@dev.local)
 //   SEED_IMAP_PASSWORD  (default source_password)
 //   SEED_COUNT          (default 5) — number of messages to append
+//   SEED_ONLY_IF_EMPTY  (default false) — append nothing if the INBOX already has
+//                       messages. For long-lived stacks that must not grow every run.
 //
 // Idempotent-ish: it appends SEED_COUNT messages with stable Message-IDs, so a
 // re-run against a fresh mailbox produces the same corpus. Exits non-zero on any
@@ -39,6 +41,21 @@ const count = Number(process.env.SEED_COUNT || '5');
  * already being shadow-synced.
  */
 const offset = Number(process.env.SEED_OFFSET || '0');
+/**
+ * Append nothing if the INBOX already holds anything (default off).
+ *
+ * The stable Message-IDs make this script idempotent *from the ledger's* point
+ * of view — a re-seed produces the same natural keys, so nothing new is
+ * recorded. The MAILBOX is a different story: `append` is an append, so running
+ * it twice leaves two copies of every message, and a source whose message count
+ * drifts every run is a poor thing to verify against.
+ *
+ * That does not matter for the self-host e2e, which starts from a mailbox it
+ * has just destroyed and recreated. It matters for the MANAGED gate (0084),
+ * which runs against a long-lived stack it must not tear down — so that caller
+ * sets this and gets "make sure there is mail here", not "add more mail".
+ */
+const onlyIfEmpty = (process.env.SEED_ONLY_IF_EMPTY || 'false') === 'true';
 
 function buildMessage(i) {
   // Stable, valid RFC 822 message. Fixed Message-ID + Date so repeated seeds of a
@@ -76,6 +93,20 @@ async function main() {
   await client.connect();
 
   try {
+    if (onlyIfEmpty) {
+      // `exists` is the message count IMAP reports on SELECT — the same number
+      // the verify half will later compare against the target.
+      const box = await client.mailboxOpen('INBOX');
+      if (box.exists > 0) {
+        console.log(
+          `[seed] SEED_ONLY_IF_EMPTY and ${user} INBOX already holds ${box.exists} message(s) — ` +
+            'appending nothing. The gate needs this mailbox non-empty, not larger every run.',
+        );
+        return;
+      }
+      console.log(`[seed] ${user} INBOX is empty — seeding ${count}.`);
+    }
+
     for (let n = 1; n <= count; n++) {
       const i = offset + n;
       // `\\Seen` so the seeded corpus does not change the account's unread count,

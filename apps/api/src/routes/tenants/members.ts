@@ -16,7 +16,7 @@ import { randomUUID } from 'node:crypto';
 import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middleware/auth';
 import type { AuthenticatedRequest } from '../../types/api';
 import { eq, and, count } from 'drizzle-orm';
-import * as schema from '@openmig/ledger';
+import * as schema from '@openmig/managed/schema-managed';
 import {
   demotesLastOwner,
   removesLastOwner,

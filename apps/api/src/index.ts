@@ -36,6 +36,7 @@ import { assertProductionUrlConfig } from './config-guards';
 import { serverFault } from './server-fault';
 import { buildIdentity } from '@openmig/core';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
+import { runManagedMigrations } from '@openmig/managed';
 import { log } from '@openmig/shared';
 
 // Re-export for backwards compatibility
@@ -147,7 +148,12 @@ if (process.env.NODE_ENV !== 'test') {
   if (poolerInFront(process.env)) {
     log.info('[api] a connection pooler is in front of Postgres; migrations bypass it');
   }
+  // Both chains, shared first: every table in the managed chain references
+  // `public.tenant` (ADR-0036). The API is a MANAGED process, so it applies
+  // both; the appliance's entrypoint applies only the shared one, which is the
+  // whole mechanism by which it ends up without the managed tables.
   runMigrations({ connectionString: migrationUrl })
+    .then(() => runManagedMigrations({ connectionString: migrationUrl }))
     .then(() => {
       app.listen(PORT, () => {
         log.info(`API server running on port ${PORT}`);

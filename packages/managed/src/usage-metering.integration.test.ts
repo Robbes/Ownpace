@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { createPgDb } from './db';
+import { createPgDb } from '@openmig/ledger/db';
 import { 
   deriveStorageAndEgressForPeriod,
   recordComputeForRun,
@@ -18,16 +18,16 @@ import {
   getUsageMetricsForPeriod,
   type ComputeUsageInput,
   type ApiCallUsageInput,
-} from '@openmig/ledger';
+} from './usage-metering';
 import {
   tenant as tenantTable,
   connection as connectionTable,
   mailbox as mailboxTable,
   mailboxMapping as mailboxMappingTable,
   item as itemTable,
-  usageMetric as usageMetricTable,
   migrationStatus as migrationStatusTable,
-} from './schema-pg';
+} from '@openmig/ledger/schema-pg';
+import { usageMetric as usageMetricTable } from './schema-managed';
 import type { TenantId, MappingId } from '@openmig/shared';
 import { randomUUID } from 'crypto';
 

@@ -329,3 +329,104 @@ describe('a green states its own verdict', () => {
     expect(body).not.toContain('if: failure()');
   });
 });
+
+describe('a verify that compared nothing is not a pass', () => {
+  // The same shape as the apply half's skip-that-passed, and it survived that
+  // fix: `state: done` says the run finished, not that it compared anything. On
+  // an empty mailbox verify reports sourceCount 0 / targetCount 0 / PASS —
+  // true, and worth nothing. It has never fired on the Spark only because that
+  // box happens to hold three messages somebody put there by hand; nothing in
+  // this repo seeds them.
+  const block = smoke.match(
+    /VERIFIED_ITEMS="\$\(json_number[\s\S]*?\nfi\n/,
+  )?.[0];
+
+  function verdict(setup: string) {
+    const helper = `json_number() { printf '%s' "$1" | grep -o "\\"$2\\":[0-9]*" | head -1 | cut -d: -f2; }`;
+    const out = execFileSync(
+      'bash',
+      ['-c', `fail=0\n${helper}\n${setup}\n${block}\necho "FAIL=$fail"`],
+      { encoding: 'utf8' },
+    );
+    return out.trim().split('\n').pop()!.replace('FAIL=', '');
+  }
+
+  it('is extractable — the guard still exists to test', () => {
+    expect(block).toBeDefined();
+  });
+
+  it('fails when verify finished having compared zero items', () => {
+    expect(verdict(`VERIFY_RESULT=done\nrbody='{"totalItemsSource":0}'`)).toBe('1');
+  });
+
+  it('passes when it actually compared something', () => {
+    expect(verdict(`VERIFY_RESULT=done\nrbody='{"totalItemsSource":3}'`)).toBe('0');
+  });
+
+  it('fails when the count is absent entirely, rather than assuming it was fine', () => {
+    // A report shape that changed is not evidence that anything was verified.
+    expect(verdict(`VERIFY_RESULT=done\nrbody='{"other":1}'`)).toBe('1');
+  });
+
+  it('does not double-report a verify that already failed for its own reason', () => {
+    // `fail` is already 1 from the state check; this must not claim the empty
+    // mailbox is why.
+    expect(verdict(`VERIFY_RESULT=timeout\nrbody='{"totalItemsSource":0}'`)).toBe('0');
+  });
+
+  it('says what is actually owed rather than only that it refused', () => {
+    expect(block).toMatch(/needs seeding/i);
+    expect(block).toMatch(/absence of data as the absence of problems/i);
+  });
+});
+
+describe("the demo's mail source is seeded, and only when it needs to be", () => {
+  // The other half of the vacuous-verify fix. The seeder is not new — it is the
+  // one e2e.yml has used nightly since 0010 T5 — so the risk here is not the
+  // protocol, it is pointing it at the wrong instance or letting it grow a
+  // long-lived mailbox every run.
+  const step = workflow.slice(workflow.indexOf("The demo's mail source has mail in it"));
+  const body = step.slice(0, step.indexOf('- name: The app talks through'));
+  const seeder = readFileSync(join(REPO_ROOT, 'test/e2e/seed-imap-source.mjs'), 'utf8');
+
+  it('runs before the smoke, not after it', () => {
+    expect(workflow.indexOf("The demo's mail source has mail in it")).toBeLessThan(
+      workflow.indexOf('The acceptance smoke'),
+    );
+  });
+
+  it('points at the MANAGED Stalwart, not the dev one', () => {
+    // setup-managed-demo.sh publishes 1994 deliberately, so the managed
+    // instance cannot collide with the dev/e2e stack's 1993. Seeding 1993 would
+    // put mail in the wrong mailbox and leave this gate still verifying nothing.
+    // The PORT VALUE, not the prose: the comment above it names 1993 precisely
+    // to say why this is not that.
+    const portLine = body.split('\n').find((l) => l.includes('SEED_IMAP_PORT'));
+    expect(portLine).toBeDefined();
+    expect(portLine).toContain('1994');
+    expect(portLine).not.toContain('1993');
+  });
+
+  it('uses the demo tenant A source account', () => {
+    expect(body).toContain('source@dev.local');
+  });
+
+  it('does not grow the mailbox on every run', () => {
+    // `append` is an append. Unguarded, a stack that is never torn down gets a
+    // few more messages nightly and a source whose count drifts is a poor thing
+    // to verify against.
+    expect(body).toContain("SEED_ONLY_IF_EMPTY: 'true'");
+  });
+
+  it('and the seeder honours that by returning before appending', () => {
+    expect(seeder).toContain('SEED_ONLY_IF_EMPTY');
+    const guard = seeder.slice(seeder.indexOf('if (onlyIfEmpty)'));
+    const upToAppend = guard.slice(0, guard.indexOf('client.append'));
+    expect(upToAppend).toMatch(/mailboxOpen\('INBOX'\)/);
+    expect(upToAppend).toMatch(/return;/);
+  });
+
+  it('leaves the self-host e2e untouched — the option defaults to off', () => {
+    expect(seeder).toMatch(/SEED_ONLY_IF_EMPTY \|\| 'false'/);
+  });
+});

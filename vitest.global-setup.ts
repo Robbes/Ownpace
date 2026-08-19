@@ -22,13 +22,19 @@ async function runMigration(postgresUrl: string): Promise<void> {
       try {
         await client.query(`SELECT pg_advisory_lock(727001)`);
         try {
-          // Check if full schema exists by looking for cutover_state table (created in 0004)
-          const result = await client.query<{ exists: boolean }>(`SELECT EXISTS (
-            SELECT 1 FROM information_schema.tables
-            WHERE table_schema = 'public' AND table_name = 'cutover_state'
-          ) as exists`);
+          // Is the full schema here? ONE table from EACH chain (ADR-0036).
+          // `cutover_state` alone (the old check) is created by the shared
+          // chain's 0004, so a container migrated before the managed chain
+          // existed would report "full schema" and skip it — and every
+          // integration test that touches an invoice or a seat would fail on a
+          // missing table with nothing pointing at the cause.
+          const result = await client.query<{ shared: boolean; managed: boolean }>(`SELECT
+            EXISTS (SELECT 1 FROM information_schema.tables
+                     WHERE table_schema = 'public' AND table_name = 'cutover_state') AS shared,
+            EXISTS (SELECT 1 FROM information_schema.tables
+                     WHERE table_schema = 'public' AND table_name = 'tenant_pricing') AS managed`);
 
-          if (result.rows[0].exists) {
+          if (result.rows[0].shared && result.rows[0].managed) {
             console.log('[Migration] Full schema already exists, skipping.');
             return;
           }
@@ -45,18 +51,27 @@ async function runMigration(postgresUrl: string): Promise<void> {
             await client.query(`DROP TABLE IF EXISTS ${tablesResult.rows.map((r: { tablename: string }) => `"${r.tablename}"`).join(', ')} CASCADE`);
           }
 
-          // Run all migrations in order
-          const migrationsDir = join(__dirname, 'packages/ledger/migrations');
-          const migrationFiles = readdirSync(migrationsDir)
-            .filter(f => f.endsWith('.sql'))
-            .sort();
+          // BOTH chains, shared first (ADR-0036). The integration tier's
+          // database stands in for a MANAGED deployment — it is where the
+          // billing routes, the seats and the purge are exercised — so it gets
+          // what a managed deployment gets. The order is load-bearing: every
+          // table in the managed chain references `public.tenant`.
+          const chains = [
+            join(__dirname, 'packages/ledger/migrations'),
+            join(__dirname, 'packages/managed/migrations'),
+          ];
 
           console.log('[Migration] Running ledger schema migrations...');
-          for (const migrationFile of migrationFiles) {
-            const migrationPath = join(migrationsDir, migrationFile);
-            const migrationSql = readFileSync(migrationPath, 'utf-8');
-            console.log(`[Migration] Running ${migrationFile}...`);
-            await client.query(migrationSql);
+          for (const migrationsDir of chains) {
+            const migrationFiles = readdirSync(migrationsDir)
+              .filter(f => f.endsWith('.sql'))
+              .sort();
+            for (const migrationFile of migrationFiles) {
+              const migrationPath = join(migrationsDir, migrationFile);
+              const migrationSql = readFileSync(migrationPath, 'utf-8');
+              console.log(`[Migration] Running ${migrationFile}...`);
+              await client.query(migrationSql);
+            }
           }
           console.log('[Migration] All schema migrations complete.');
           return; // Success

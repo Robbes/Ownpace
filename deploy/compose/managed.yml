@@ -214,6 +214,29 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_healthy
+    # LIVENESS, deliberately — not a named endpoint (0084 T7.1).
+    #
+    # `fetch` resolves on ANY http response, 404 included, and rejects only
+    # when nothing is listening. That is exactly the question worth asking here
+    # ("is this process serving?") and it cannot be wrong about a health path
+    # that moves between releases — which a probe on `/healthcheck` could be,
+    # silently, on the next image bump.
+    #
+    # `node` rather than curl or wget: this is a Node application image, so the
+    # runtime the entrypoint itself uses is the one binary certainly present.
+    # The appliance's own healthcheck uses the same shape.
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000/').then(()=>process.exit(0)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      # The webapp runs migrations before it serves. Generous on purpose: a
+      # start_period too short turns a slow boot into a failed bring-up.
+      start_period: 120s
     networks:
       - open-migrate-network
 
@@ -305,6 +328,21 @@ services:
         condition: service_started
       trigger-docker-proxy:
         condition: service_started
+    # The workload API the runners themselves connect to — a runner's own log
+    # names it (`TRIGGER_SUPERVISOR_API_DOMAIN: trigger-supervisor`,
+    # `TRIGGER_SUPERVISOR_API_PORT: 8020`), so a supervisor not serving on it is
+    # a supervisor no task can execute through. Same liveness shape as the
+    # webapp above.
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:8020/').then(()=>process.exit(0)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
     networks:
       - open-migrate-network
 
@@ -457,6 +495,20 @@ services:
       NEXTCLOUD_TRUSTED_DOMAINS: "localhost nextcloud"
     ports:
       - "${NEXTCLOUD_PORT:-8083}:80"
+    # The one probe here that is not an inference: `setup-nextcloud-users.sh`
+    # has been running `docker exec <nextcloud> curl … http://localhost/status.php`
+    # against this image on the Spark since the demo existed, so both the binary
+    # and the endpoint are proven rather than assumed.
+    #
+    # `start_period` is long because first boot INSTALLS Nextcloud, and
+    # status.php does not answer 200 until it has. That is also why the demo
+    # setup script polls it.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null http://localhost/status.php || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 180s
     networks:
       - open-migrate-network
 

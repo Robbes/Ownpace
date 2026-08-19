@@ -311,6 +311,87 @@ prints on `always()` rather than `failure()`: a green needs it more than a red
 does, because a red at least names the step that broke. **A gate whose
 conclusion cannot be read is not a gate, it is a colour.**
 
+## Closing T7.1's gap, and the vacuous verify underneath it (2026-08-19)
+
+Two things 0084 recorded as still owed. One is now closed for three of seven
+services; the other turned out to have a worse half hiding under it.
+
+### Healthchecks: three added on evidence, four argued rather than probed
+
+A healthcheck is not free here. `up -d --wait` blocks on it, so a probe naming
+a binary the image does not ship does not misreport — it **fails the bring-up**,
+and takes the gate with it. So these were added from evidence rather than from
+what the images probably contain:
+
+| service | probe | why it is safe to assert |
+|---|---|---|
+| `nextcloud` | `curl … /status.php` | **proven** — `setup-nextcloud-users.sh` has been running exactly this via `docker exec` against this image on the Spark since the demo existed |
+| `trigger-api` | `node -e fetch('http://127.0.0.1:3000/')` | Node application image, so the runtime its own entrypoint uses is the one binary certainly present; the appliance's healthcheck uses the same shape |
+| `trigger-supervisor` | `node -e fetch('http://127.0.0.1:8020/')` | same, and 8020 is the workload API a runner's own log names (`TRIGGER_SUPERVISOR_API_PORT`) |
+
+**Liveness, not a named endpoint.** `fetch` resolves on any HTTP response, 404
+included, and rejects only when nothing is listening. That is the question
+worth asking — *is this process serving?* — and unlike a probe on
+`/healthcheck` it cannot go quietly wrong when an upstream image moves its
+health path.
+
+**The four that remain, and why they are not simply unfinished.**
+`trigger-registry` and `trigger-docker-proxy` are proven **functionally** by the
+gate itself: a task deploy pushes an image through the registry and the
+supervisor starts runner containers through the proxy, so T7.2's "a runner
+executed" is a stronger statement about both than any liveness probe would be.
+`minio` and `trigger-tls` are genuinely unasserted — the smoke exercises
+neither (minio holds oversized payloads the demo never produces; the Caddy TLS
+front serves the dashboard, which only a human uses). That is the honest
+residue, and it is smaller and better understood than "seven services have no
+healthcheck".
+
+### The mail half: a verify that compared nothing was passing
+
+Chasing the second gap — nothing seeds the three Stalwart messages the verify
+half counts — found the more serious thing. **`state: done` says the run
+finished, not that it compared anything.** On a mailbox with no mail, verify
+reports `sourceCount: 0, targetCount: 0, PASS`. Perfectly true, and worth
+nothing.
+
+It is the same shape as the apply half's skip-that-passed, and it survived that
+fix untouched. It has never fired on the Spark only because that box happens to
+hold three messages somebody put there by hand, and **nothing in this
+repository seeds them** — so on any other machine this half has been vacuous
+and green for its whole existence.
+
+The smoke now refuses a verify that reached `done` having compared zero items,
+and refuses one whose report does not carry the count at all: a report shape
+that changed is not evidence that anything was verified. It does not
+double-report a verify that already failed for its own reason.
+
+**And the seeder is built — it already existed.** My first answer here was that
+this needed a four-round-trip JMAP flow written from scratch and untestable
+without containers, so I shipped the guard and left the row open. That was
+wrong, and the owner said so: *"don't we have examples of this seeding
+elsewhere?"*
+
+`test/e2e/seed-imap-source.mjs` has been seeding mail for `e2e.yml` every night
+since 0010 T5 — imapflow (the same client the app's own IMAP connector uses),
+stable Message-IDs, `rejectUnauthorized: false` for Stalwart's self-signed
+certificate. Its defaults are `source@dev.local` / `source_password`, which is
+**exactly** the managed demo's tenant A source. There was no protocol work to
+do at all; there was a port to point at, and I had looked for `APPEND` and
+`seed-mail` in the source instead of asking how the existing mail e2e gets its
+data. The lesson is the cheap one: *before concluding a thing cannot be built,
+check whether it has already been built.*
+
+The one genuine change it needed is `SEED_ONLY_IF_EMPTY`. `append` is an
+append: the self-host e2e starts from a mailbox it has just destroyed, so a
+re-run is harmless there, but this gate runs against a stack it deliberately
+never tears down (T6's withdrawal) — unguarded, the demo source would gain
+three messages every night and the count the verify half compares would drift
+for ever. The option defaults OFF, so `e2e.yml` is untouched.
+
+`setup-managed-demo.sh` publishes the managed Stalwart's IMAPS on **1994**,
+chosen so it cannot collide with the dev stack's 1993 — which makes "seeded the
+wrong instance" a real way to be quietly wrong, and is asserted in the tests.
+
 ## Run #6, and what the green actually covered (2026-08-18)
 
 The gate's first fully green run. Every one of its fourteen steps reports
@@ -568,9 +649,16 @@ one, which reads as green while proving nothing.
 
 ## What is still owed
 
-- **Healthchecks for the seven services that have none** — the one T7
-  criterion still only partly met. `trigger-api` and `trigger-supervisor` are
-  on the path every executed task takes, so those two are worth doing first.
+- **The DAV seeder is still not wired into the bring-up.**
+  `seed-demo-dav-content.sh` runs from the smoke's prepare phase, which only
+  fires when the apply half has nothing to act on. The mail seeder is now a
+  bring-up step; the DAV one should probably become one too, for the same
+  reason — a precondition that only appears when something is already missing
+  is a precondition nobody can reason about.
+- **Healthchecks for `minio` and `trigger-tls`** — the two of the original
+  seven that are neither probed nor functionally proven. Three were added on
+  2026-08-19 and two others (`trigger-registry`, `trigger-docker-proxy`) are
+  covered by T7.2 instead; see above.
 - **The `SMOKE_PREPARE_APPLY` path has run exactly once as a full seed.** Run
   #11 exercised it end to end (seed, enqueue, poll) and it worked; runs #12 and
   #13 found an eligible item already present and skipped it. So the branch is

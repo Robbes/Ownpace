@@ -23,9 +23,10 @@
  */
 
 import { and, eq, notInArray } from 'drizzle-orm';
-import * as schema from '@openmig/ledger';
-import { getUsageMetricsForPeriod, resolveTenantPricing, type PgDatabase } from '@openmig/ledger';
-import { VAT_RATE, type TenantId } from '@openmig/shared';
+import type { PgDatabase } from '@openmig/ledger';
+import { getUsageMetricsForPeriod, resolveTenantPricing, VAT_RATE } from '@openmig/managed';
+import * as schema from '@openmig/managed/schema-managed';
+import type { TenantId } from '@openmig/shared';
 import { calculateCost, type PricingConfig } from './billing-service';
 
 // VAT_RATE is imported, not redeclared: this file used to carry its own

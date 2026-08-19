@@ -260,16 +260,18 @@ Two things carry a price, and they are deliberately not the same thing:
 
 - **The template** — `PRICING_*` in `.env` (integer cents; see `managed.env.example`). What a
   tenant is offered when it has agreed to nothing yet.
-- **The agreement** — `tenant.pricing`, a JSON snapshot pinned the first time that tenant's
-  money is computed. What the tenant is actually billed at, on every screen, every metered row
-  and every invoice, for as long as it exists.
+- **The agreement** — a row in `tenant_pricing`, pinned the first time that tenant's money is
+  computed. What the tenant is actually billed at, on every screen, every metered row and every
+  invoice, for as long as it exists. (It was a `tenant.pricing` column until ADR-0036 moved it
+  into the managed edition's own migration chain — an appliance has an owner, not customers, and
+  has no such table at all.)
 
 An agreement never follows the template. Raising the list price for new customers is an `.env`
 edit and an api restart; it does not reach into an existing customer's open invoice, and no
 amount of editing that file will re-price them. That is the property this split exists to give
 you, and the reason there is no "prices" screen to click by accident.
 
-VAT is neither: 21%, one constant in `@openmig/shared`, because a tax rate is set by a
+VAT is neither: 21%, one constant in `@openmig/managed`, because a tax rate is set by a
 government and changes for everyone at once.
 
 **Change the template (new tenants):**
@@ -289,21 +291,29 @@ amount on every invoice until somebody checked the bank.
 
 ```bash
 docker exec open-migrate-db psql -U openmigrate -d openmigrate -c \
-  "SELECT id, name, pricing FROM tenant ORDER BY created_at;"
+  "SELECT t.id, t.name, p.pricing, p.agreed_at
+     FROM tenant t LEFT JOIN tenant_pricing p ON p.tenant_id = t.id
+    ORDER BY t.created_at;"
 ```
 
-`NULL` means no agreement yet — that tenant will be pinned to the current template the next time
-its billing page is opened or its metering runs.
+A NULL `pricing` here means **no row**, which is "no agreement yet" — that tenant will be pinned
+to the current template the next time its billing page is opened or its metering runs. It used
+to be a nullable column whose NULL had to be documented as not meaning free; a row that is
+simply absent cannot be misread that way.
 
 **Re-price ONE existing tenant** — deliberate, per customer, after you have agreed it with them:
 
 ```bash
 docker exec open-migrate-db psql -U openmigrate -d openmigrate -c \
-  "UPDATE tenant SET pricing = jsonb_build_object(
+  "INSERT INTO tenant_pricing (tenant_id, pricing) VALUES ('<tenant-uuid>', jsonb_build_object(
        'baseFee', 1250, 'storagePricePerGB', 10,
-       'egressPricePerGB', 20, 'computePricePerHour', 5)
-    WHERE id = '<tenant-uuid>';"
+       'egressPricePerGB', 20, 'computePricePerHour', 5))
+   ON CONFLICT (tenant_id) DO UPDATE SET pricing = EXCLUDED.pricing;"
 ```
+
+An UPSERT, not an UPDATE: a tenant that has never been priced has no row yet, and a bare UPDATE
+would report success having changed nothing — the worst possible outcome for a command whose
+whole purpose is to be deliberate.
 
 All four keys, all integer cents: a partial object reads as *no agreement* and gets re-pinned to
 the template on the next billing touch, rather than half-merging into a price nobody quoted.
@@ -425,7 +435,7 @@ the same date twice.
 ### 2. Purge — runs when the window has passed
 
 The purge deletes from an explicit list of tables (`PURGED_TABLES` in
-`packages/ledger/src/offboarding.ts`), **written out rather than derived from
+`packages/managed/src/offboarding.ts`), **written out rather than derived from
 the cascade** — that list is reviewable and the cascade is not. It writes an
 `erasure_record` holding the tenant's sha256 reference (never the id), the
 window, the retention promise, what was purged per table, and which invoices

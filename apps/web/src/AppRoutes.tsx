@@ -22,7 +22,6 @@ import MappingDetail from './pages/MappingDetail';
 import CreateMapping from './pages/CreateMapping';
 import ConfirmMapping from './pages/ConfirmMapping';
 import Tenants from './pages/Tenants';
-import Billing from './pages/Billing';
 import Login from './pages/Login';
 import Decisions from './pages/Decisions';
 import Deletions from './pages/Deletions';
@@ -36,6 +35,29 @@ import Verify from './pages/Verify';
 import Finish from './pages/Finish';
 import Confirm from './pages/Confirm';
 import { isSelfHost } from './services/edition';
+
+/**
+ * The billing screen, and only on the edition that bills (ADR-0036).
+ *
+ * `ManagedOnly` below already refuses to RENDER it on the appliance, which is
+ * the correct behaviour and was never the problem. A static import is a
+ * build-time fact, not a runtime one: the screen and its Mollie-shaped API
+ * client went into the appliance's bundle either way, and shipping the payment
+ * UI of a service the appliance's owner is not a customer of is exactly the
+ * contamination this boundary exists to stop.
+ *
+ * The comparison is against a literal — Vite's `define` substitutes
+ * `import.meta.env.VITE_EDITION` at build time (see vite.config.ts), so on the
+ * self-host build this whole expression folds to `null`, the dynamic import
+ * becomes unreachable, and Rollup emits no chunk for it at all. Using
+ * `isSelfHost()` here instead would read the same flag and be correct at
+ * runtime, but a function call is opaque to the bundler and the chunk would
+ * ship regardless — which is the entire difference this is written for.
+ */
+const Billing =
+  import.meta.env.VITE_EDITION === 'selfhost'
+    ? null
+    : React.lazy(() => import('./pages/Billing'));
 
 // Protected route component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -231,7 +253,11 @@ const AppRoutes: React.FC = () => {
           path="billing"
           element={
             <ManagedOnly>
-              <Billing />
+              {Billing ? (
+                <React.Suspense fallback={null}>
+                  <Billing />
+                </React.Suspense>
+              ) : null}
             </ManagedOnly>
           }
         />

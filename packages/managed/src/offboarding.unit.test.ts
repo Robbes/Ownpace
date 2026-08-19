@@ -18,8 +18,9 @@
  */
 
 import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
-import { createPgliteDb } from './pglite-driver';
-import { runMigrations } from './migrate';
+import { createPgliteDb } from '@openmig/ledger';
+import { runMigrations } from '@openmig/ledger';
+import { runManagedMigrations } from './migrate-managed';
 import {
   closeTenant,
   reopenTenant,
@@ -30,8 +31,8 @@ import {
   CLOSE_WINDOWS_DAYS,
   isCloseWindow,
 } from './offboarding';
-import type { LedgerDriver, LedgerConnection } from './driver';
-import type { PgDatabase } from './db-types';
+import type { LedgerDriver, LedgerConnection } from '@openmig/ledger';
+import type { PgDatabase } from '@openmig/ledger';
 
 // UUID family 5abb0000-…, unused elsewhere in the repo.
 const LEAVING = '5abb0000-e29b-41d4-a716-446655441801';
@@ -111,6 +112,14 @@ async function seed(tenantId: string, suffix: string): Promise<void> {
     `INSERT INTO rate_budget (tenant_id, provider, tokens) VALUES ($1, 'graph', 5)`,
     [tenantId],
   );
+  // An agreed price list. `tenant_closure` is seeded by `closeTenant` in each
+  // case rather than here, since closing is what creates it — but this one has
+  // no other writer in the fixture, and an unseeded table makes the "empties
+  // every table it names" assertion pass without testing anything.
+  await conn.query(
+    `INSERT INTO tenant_pricing (tenant_id, pricing) VALUES ($1, '{"baseFee": 999}'::jsonb)`,
+    [tenantId],
+  );
   // Seeded because the purge names them: without a row, "it was deleted" is a
   // vacuous truth and the assertion proves nothing.
   await conn.query(
@@ -130,6 +139,10 @@ beforeAll(async () => {
   driver = made.driver;
   db = made.db;
   await runMigrations({ driver, logger: () => {} });
+  // The managed chain too: `invoice`, `tenant_member`, `erasure_record`,
+  // `tenant_pricing` and `tenant_closure` are all in it (ADR-0036), and the
+  // purge under test is the thing that reads and empties them.
+  await runManagedMigrations({ driver, logger: () => {} });
   conn = await driver.acquire();
 }, 120_000);
 
@@ -151,11 +164,18 @@ describe('closing a tenant', () => {
     const result = await closeTenant(db, LEAVING, 30, 'owner@acme.example', NOW);
     expect(result.windowDays).toBe(30);
 
-    const { rows } = await conn.query<{ status: string; purge_after: Date }>(
-      `SELECT status, purge_after FROM tenant WHERE id = $1`,
+    // The status is on `tenant` and the dates are in `tenant_closure`
+    // (ADR-0036). Both halves are asserted: a close that wrote one and not the
+    // other is the state the purge job's `status = 'closed'` guard exists for,
+    // and a test that read only one would not see it.
+    const { rows } = await conn.query<{ status: string; purge_after: Date | null }>(
+      `SELECT t.status, c.purge_after
+         FROM tenant t LEFT JOIN tenant_closure c ON c.tenant_id = t.id
+        WHERE t.id = $1`,
       [LEAVING],
     );
     expect(rows[0]?.status).toBe('closed');
+    expect(rows[0]?.purge_after).not.toBeNull();
     // Closed is not deleted: everything is still here, which is what makes the
     // window worth having.
     expect(await count('item')).toBe(2);
@@ -204,8 +224,8 @@ describe('closing a tenant', () => {
       backups_expire_at: Date | null;
       purge_after_from_tenant: Date;
     }>(
-      `SELECT e.backup_retention_days, e.backups_expire_at, t.purge_after AS purge_after_from_tenant
-         FROM erasure_record e, tenant t WHERE t.id = $1`,
+      `SELECT e.backup_retention_days, e.backups_expire_at, c.purge_after AS purge_after_from_tenant
+         FROM erasure_record e, tenant_closure c WHERE c.tenant_id = $1`,
       [LEAVING],
     );
     expect(rows[0]?.backup_retention_days).toBe(7);

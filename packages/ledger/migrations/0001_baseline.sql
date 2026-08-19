@@ -269,35 +269,6 @@ ALTER TABLE ONLY public.group_def FORCE ROW LEVEL SECURITY;
 
 
 --
--- Name: invoice; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.invoice (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    tenant_id uuid NOT NULL,
-    period_start date NOT NULL,
-    period_end date NOT NULL,
-    status text DEFAULT 'draft'::text NOT NULL,
-    subtotal numeric DEFAULT 0 NOT NULL,
-    tax_rate numeric DEFAULT 0 NOT NULL,
-    tax_amount numeric DEFAULT 0 NOT NULL,
-    total numeric DEFAULT 0 NOT NULL,
-    currency text DEFAULT 'EUR'::text NOT NULL,
-    payment_method text,
-    payment_id text,
-    paid_at timestamp with time zone,
-    due_date date,
-    sent_at timestamp with time zone,
-    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT invoice_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'sent'::text, 'paid'::text, 'overdue'::text, 'void'::text])))
-);
-
-ALTER TABLE ONLY public.invoice FORCE ROW LEVEL SECURITY;
-
-
---
 -- Name: item; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -428,29 +399,6 @@ CREATE TABLE public.migration_status (
 
 
 --
--- Name: payment_method; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.payment_method (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    tenant_id uuid NOT NULL,
-    mollie_id text NOT NULL,
-    type text NOT NULL,
-    brand text,
-    last_four text,
-    expiry_month integer,
-    expiry_year integer,
-    is_default boolean DEFAULT false NOT NULL,
-    status text DEFAULT 'active'::text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT payment_method_status_check CHECK ((status = ANY (ARRAY['active'::text, 'expired'::text, 'revoked'::text])))
-);
-
-ALTER TABLE ONLY public.payment_method FORCE ROW LEVEL SECURITY;
-
-
---
 -- Name: policy_preset; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -561,52 +509,6 @@ CREATE TABLE public.tenant (
 );
 
 ALTER TABLE ONLY public.tenant FORCE ROW LEVEL SECURITY;
-
-
---
--- Name: tenant_member; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.tenant_member (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    tenant_id uuid NOT NULL,
-    user_id text NOT NULL,
-    email text NOT NULL,
-    role text DEFAULT 'member'::text NOT NULL,
-    status text DEFAULT 'active'::text NOT NULL,
-    invited_at timestamp with time zone,
-    joined_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT tenant_member_role_check CHECK ((role = ANY (ARRAY['owner'::text, 'admin'::text, 'member'::text, 'viewer'::text]))),
-    CONSTRAINT tenant_member_status_check CHECK ((status = ANY (ARRAY['active'::text, 'invited'::text, 'suspended'::text, 'removed'::text])))
-);
-
-ALTER TABLE ONLY public.tenant_member FORCE ROW LEVEL SECURITY;
-
-
---
--- Name: usage_metric; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.usage_metric (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    tenant_id uuid NOT NULL,
-    period_start date NOT NULL,
-    period_end date NOT NULL,
-    metric_type text NOT NULL,
-    resource text,
-    quantity numeric DEFAULT 0 NOT NULL,
-    unit text NOT NULL,
-    unit_price numeric DEFAULT 0 NOT NULL,
-    total_cost numeric DEFAULT 0 NOT NULL,
-    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT usage_metric_metric_type_check CHECK ((metric_type = ANY (ARRAY['storage'::text, 'egress'::text, 'compute'::text, 'api_calls'::text])))
-);
-
-ALTER TABLE ONLY public.usage_metric FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -740,22 +642,6 @@ ALTER TABLE ONLY public.group_def
 
 
 --
--- Name: invoice invoice_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.invoice
-    ADD CONSTRAINT invoice_pkey PRIMARY KEY (id);
-
-
---
--- Name: invoice invoice_tenant_id_period_start_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.invoice
-    ADD CONSTRAINT invoice_tenant_id_period_start_key UNIQUE (tenant_id, period_start);
-
-
---
 -- Name: item item_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -836,22 +722,6 @@ ALTER TABLE ONLY public.migration_status
 
 
 --
--- Name: payment_method payment_method_mollie_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.payment_method
-    ADD CONSTRAINT payment_method_mollie_id_key UNIQUE (mollie_id);
-
-
---
--- Name: payment_method payment_method_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.payment_method
-    ADD CONSTRAINT payment_method_pkey PRIMARY KEY (id);
-
-
---
 -- Name: policy_preset policy_preset_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -916,43 +786,11 @@ ALTER TABLE ONLY public.sync_checkpoint
 
 
 --
--- Name: tenant_member tenant_member_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.tenant_member
-    ADD CONSTRAINT tenant_member_pkey PRIMARY KEY (id);
-
-
---
--- Name: tenant_member tenant_member_tenant_id_user_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.tenant_member
-    ADD CONSTRAINT tenant_member_tenant_id_user_id_key UNIQUE (tenant_id, user_id);
-
-
---
 -- Name: tenant tenant_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.tenant
     ADD CONSTRAINT tenant_pkey PRIMARY KEY (id);
-
-
---
--- Name: usage_metric usage_metric_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.usage_metric
-    ADD CONSTRAINT usage_metric_pkey PRIMARY KEY (id);
-
-
---
--- Name: usage_metric usage_metric_tenant_id_period_start_metric_type_resource_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.usage_metric
-    ADD CONSTRAINT usage_metric_tenant_id_period_start_metric_type_resource_key UNIQUE (tenant_id, period_start, metric_type, resource);
 
 
 --
@@ -1024,20 +862,6 @@ CREATE INDEX ix_decision_pending ON public.decision USING btree (tenant_id, stat
 --
 
 CREATE INDEX ix_group_tenant ON public.group_def USING btree (tenant_id);
-
-
---
--- Name: ix_invoice_status; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX ix_invoice_status ON public.invoice USING btree (status, period_start);
-
-
---
--- Name: ix_invoice_tenant; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX ix_invoice_tenant ON public.invoice USING btree (tenant_id, period_start DESC);
 
 
 --
@@ -1132,13 +956,6 @@ CREATE INDEX ix_migration_status_tenant_mapping ON public.migration_status USING
 
 
 --
--- Name: ix_payment_method_tenant; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX ix_payment_method_tenant ON public.payment_method USING btree (tenant_id);
-
-
---
 -- Name: ix_run_event_run; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1157,34 +974,6 @@ CREATE INDEX ix_run_mapping ON public.run USING btree (mapping_id, created_at DE
 --
 
 CREATE INDEX ix_run_tenant ON public.run USING btree (tenant_id, created_at DESC);
-
-
---
--- Name: ix_tenant_member_tenant; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX ix_tenant_member_tenant ON public.tenant_member USING btree (tenant_id);
-
-
---
--- Name: ix_tenant_member_user; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX ix_tenant_member_user ON public.tenant_member USING btree (user_id);
-
-
---
--- Name: ix_usage_period_type; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX ix_usage_period_type ON public.usage_metric USING btree (period_start, metric_type);
-
-
---
--- Name: ix_usage_tenant_period; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX ix_usage_tenant_period ON public.usage_metric USING btree (tenant_id, period_start DESC);
 
 
 --
@@ -1339,14 +1128,6 @@ ALTER TABLE ONLY public.group_def
 
 
 --
--- Name: invoice invoice_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.invoice
-    ADD CONSTRAINT invoice_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenant(id) ON DELETE CASCADE;
-
-
---
 -- Name: item item_mapping_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1435,14 +1216,6 @@ ALTER TABLE ONLY public.migration_status
 
 
 --
--- Name: payment_method payment_method_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.payment_method
-    ADD CONSTRAINT payment_method_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenant(id) ON DELETE CASCADE;
-
-
---
 -- Name: policy_preset policy_preset_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1512,22 +1285,6 @@ ALTER TABLE ONLY public.sync_checkpoint
 
 ALTER TABLE ONLY public.sync_checkpoint
     ADD CONSTRAINT sync_checkpoint_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenant(id) ON DELETE CASCADE;
-
-
---
--- Name: tenant_member tenant_member_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.tenant_member
-    ADD CONSTRAINT tenant_member_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenant(id) ON DELETE CASCADE;
-
-
---
--- Name: usage_metric usage_metric_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.usage_metric
-    ADD CONSTRAINT usage_metric_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenant(id) ON DELETE CASCADE;
 
 
 --
@@ -1603,12 +1360,6 @@ ALTER TABLE public.decision ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.group_def ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: invoice; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.invoice ENABLE ROW LEVEL SECURITY;
-
---
 -- Name: item; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -1637,12 +1388,6 @@ ALTER TABLE public.migration_discovery ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.migration_status ENABLE ROW LEVEL SECURITY;
-
---
--- Name: payment_method; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.payment_method ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: policy_preset; Type: ROW SECURITY; Schema: public; Owner: -
@@ -1737,13 +1482,6 @@ CREATE POLICY tenant_isolation_delete ON public.group_def FOR DELETE USING ((ten
 
 
 --
--- Name: invoice tenant_isolation_delete; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY tenant_isolation_delete ON public.invoice FOR DELETE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
-
-
---
 -- Name: item tenant_isolation_delete; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -1776,13 +1514,6 @@ CREATE POLICY tenant_isolation_delete ON public.migration_discovery FOR DELETE U
 --
 
 CREATE POLICY tenant_isolation_delete ON public.migration_status FOR DELETE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
-
-
---
--- Name: payment_method tenant_isolation_delete; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY tenant_isolation_delete ON public.payment_method FOR DELETE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
 --
@@ -1825,20 +1556,6 @@ CREATE POLICY tenant_isolation_delete ON public.sync_checkpoint FOR DELETE USING
 --
 
 CREATE POLICY tenant_isolation_delete ON public.tenant FOR DELETE USING ((id = (current_setting('app.current_tenant'::text, true))::uuid));
-
-
---
--- Name: tenant_member tenant_isolation_delete; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY tenant_isolation_delete ON public.tenant_member FOR DELETE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
-
-
---
--- Name: usage_metric tenant_isolation_delete; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY tenant_isolation_delete ON public.usage_metric FOR DELETE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
 --
@@ -1905,13 +1622,6 @@ CREATE POLICY tenant_isolation_insert ON public.group_def FOR INSERT WITH CHECK 
 
 
 --
--- Name: invoice tenant_isolation_insert; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY tenant_isolation_insert ON public.invoice FOR INSERT WITH CHECK ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
-
-
---
 -- Name: item tenant_isolation_insert; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -1944,13 +1654,6 @@ CREATE POLICY tenant_isolation_insert ON public.migration_discovery FOR INSERT W
 --
 
 CREATE POLICY tenant_isolation_insert ON public.migration_status FOR INSERT WITH CHECK ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
-
-
---
--- Name: payment_method tenant_isolation_insert; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY tenant_isolation_insert ON public.payment_method FOR INSERT WITH CHECK ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
 --
@@ -1993,20 +1696,6 @@ CREATE POLICY tenant_isolation_insert ON public.sync_checkpoint FOR INSERT WITH 
 --
 
 CREATE POLICY tenant_isolation_insert ON public.tenant FOR INSERT WITH CHECK ((id = (current_setting('app.current_tenant'::text, true))::uuid));
-
-
---
--- Name: tenant_member tenant_isolation_insert; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY tenant_isolation_insert ON public.tenant_member FOR INSERT WITH CHECK ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
-
-
---
--- Name: usage_metric tenant_isolation_insert; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY tenant_isolation_insert ON public.usage_metric FOR INSERT WITH CHECK ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
 --
@@ -2073,13 +1762,6 @@ CREATE POLICY tenant_isolation_select ON public.group_def FOR SELECT USING ((ten
 
 
 --
--- Name: invoice tenant_isolation_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY tenant_isolation_select ON public.invoice FOR SELECT USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
-
-
---
 -- Name: item tenant_isolation_select; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -2112,13 +1794,6 @@ CREATE POLICY tenant_isolation_select ON public.migration_discovery FOR SELECT U
 --
 
 CREATE POLICY tenant_isolation_select ON public.migration_status FOR SELECT USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
-
-
---
--- Name: payment_method tenant_isolation_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY tenant_isolation_select ON public.payment_method FOR SELECT USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
 --
@@ -2161,20 +1836,6 @@ CREATE POLICY tenant_isolation_select ON public.sync_checkpoint FOR SELECT USING
 --
 
 CREATE POLICY tenant_isolation_select ON public.tenant FOR SELECT USING ((id = (current_setting('app.current_tenant'::text, true))::uuid));
-
-
---
--- Name: tenant_member tenant_isolation_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY tenant_isolation_select ON public.tenant_member FOR SELECT USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
-
-
---
--- Name: usage_metric tenant_isolation_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY tenant_isolation_select ON public.usage_metric FOR SELECT USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
 --
@@ -2241,13 +1902,6 @@ CREATE POLICY tenant_isolation_update ON public.group_def FOR UPDATE USING ((ten
 
 
 --
--- Name: invoice tenant_isolation_update; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY tenant_isolation_update ON public.invoice FOR UPDATE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)) WITH CHECK ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
-
-
---
 -- Name: item tenant_isolation_update; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -2280,13 +1934,6 @@ CREATE POLICY tenant_isolation_update ON public.migration_discovery FOR UPDATE U
 --
 
 CREATE POLICY tenant_isolation_update ON public.migration_status FOR UPDATE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
-
-
---
--- Name: payment_method tenant_isolation_update; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY tenant_isolation_update ON public.payment_method FOR UPDATE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)) WITH CHECK ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
 
 --
@@ -2332,37 +1979,11 @@ CREATE POLICY tenant_isolation_update ON public.tenant FOR UPDATE USING ((id = (
 
 
 --
--- Name: tenant_member tenant_isolation_update; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY tenant_isolation_update ON public.tenant_member FOR UPDATE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)) WITH CHECK ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
-
-
---
--- Name: usage_metric tenant_isolation_update; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY tenant_isolation_update ON public.usage_metric FOR UPDATE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)) WITH CHECK ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
-
-
---
 -- Name: verification tenant_isolation_update; Type: POLICY; Schema: public; Owner: -
 --
 
 CREATE POLICY tenant_isolation_update ON public.verification FOR UPDATE USING ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)) WITH CHECK ((tenant_id = (current_setting('app.current_tenant'::text, true))::uuid));
 
-
---
--- Name: tenant_member; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.tenant_member ENABLE ROW LEVEL SECURITY;
-
---
--- Name: usage_metric; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.usage_metric ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: verification; Type: ROW SECURITY; Schema: public; Owner: -
@@ -2448,13 +2069,6 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.group_def TO app_user;
 
 
 --
--- Name: TABLE invoice; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.invoice TO app_user;
-
-
---
 -- Name: TABLE item; Type: ACL; Schema: public; Owner: -
 --
 
@@ -2487,13 +2101,6 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.migration_discovery TO app_use
 --
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.migration_status TO app_user;
-
-
---
--- Name: TABLE payment_method; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.payment_method TO app_user;
 
 
 --
@@ -2536,20 +2143,6 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sync_checkpoint TO app_user;
 --
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.tenant TO app_user;
-
-
---
--- Name: TABLE tenant_member; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.tenant_member TO app_user;
-
-
---
--- Name: TABLE usage_metric; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.usage_metric TO app_user;
 
 
 --

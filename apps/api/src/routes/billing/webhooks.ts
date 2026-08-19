@@ -16,7 +16,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { and, eq } from 'drizzle-orm';
-import * as schema from '@openmig/ledger';
+import * as schema from '@openmig/managed/schema-managed';
 import { getMollieService, type MolliePayment } from '../../services/mollie/index';
 import { getDbPool, withTenantDb } from '../../middleware/auth';
 import { log } from '@openmig/shared';

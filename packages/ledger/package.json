@@ -7,8 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./schema-pg": "./src/schema-pg.ts",
-    "./db": "./src/db.ts",
-    "./usage-metering": "./src/usage-metering.ts"
+    "./db": "./src/db.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.5",
@@ -19,6 +18,7 @@
     "pg": "catalog:"
   },
   "devDependencies": {
+    "@openmig/managed": "workspace:*",
     "imapflow": "^1.7.0"
   }
 }

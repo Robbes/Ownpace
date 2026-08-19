@@ -14,7 +14,8 @@ import { jwtVerify, createRemoteJWKSet, decodeJwt } from 'jose';
 import type { AuthenticatedRequest } from '../types/api';
 import { Pool } from 'pg';
 import { eq, and } from 'drizzle-orm';
-import { withTenant as ledgerWithTenant, tenantMember, type PgDatabase } from '@openmig/ledger';
+import { withTenant as ledgerWithTenant, type PgDatabase } from '@openmig/ledger';
+import { tenantMember } from '@openmig/managed/schema-managed';
 import { log } from '@openmig/shared';
 import { serverFault } from '../server-fault';
 

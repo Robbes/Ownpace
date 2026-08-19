@@ -30,6 +30,30 @@ import type { LedgerConnection, LedgerDriver } from './driver';
 /** Dedicated advisory-lock key for schema migrations (distinct from app locks). */
 const MIGRATION_ADVISORY_LOCK_KEY = 727_0010;
 
+/**
+ * A chain's own bookkeeping table. Defaults to the one every install has.
+ *
+ * There are TWO chains now (ADR-0036): the shared one every edition applies,
+ * and a managed-only one that adds the tables an appliance has no use for. They
+ * cannot share `schema_migrations`, and the reason is the downgrade guard below
+ * rather than tidiness.
+ *
+ * That guard refuses to start when the highest RECORDED version exceeds the
+ * highest one on disk. **The two chains' versions were never ordered against
+ * each other**, so one ledger has it comparing numbers with nothing in common
+ * — and which side breaks is an accident of how somebody named a file. With
+ * today's names it is the managed chain, immediately, because
+ * `0001_the_managed_service.sql` sorts below the shared chain's `0027_...`.
+ * Name that file `0100_` and it becomes the appliance instead, at boot, on a
+ * machine that never downgraded anything. `two-chains.unit.test.ts` pins it.
+ *
+ * Separate advisory-lock keys for the same reason in the concurrency dimension:
+ * one key would make the two chains serialise against each other for no
+ * benefit, and — worse — a chain that failed while holding it would block the
+ * other one's migrator on a lock it has no business waiting for.
+ */
+const DEFAULT_BOOKKEEPING_TABLE = 'schema_migrations';
+
 export interface RunMigrationsOptions {
   /**
    * Owner/superuser connection string (migrations create roles + RLS).
@@ -53,6 +77,12 @@ export interface RunMigrationsOptions {
   migrationsDir?: string;
   /** Optional logger; defaults to console.log. */
   logger?: (message: string) => void;
+  /**
+   * Which chain this is. Both default to the shared chain's values, so every
+   * existing caller keeps its exact behaviour.
+   */
+  bookkeepingTable?: string;
+  advisoryLockKey?: number;
 }
 
 export interface RunMigrationsResult {
@@ -86,6 +116,15 @@ export async function runMigrations(options: RunMigrationsOptions): Promise<RunM
   }
   const migrationsDir = options.migrationsDir ?? defaultMigrationsDir();
   const log = options.logger ?? ((m: string) => appLog.info(m));
+  const bookkeeping = options.bookkeepingTable ?? DEFAULT_BOOKKEEPING_TABLE;
+  const lockKey = options.advisoryLockKey ?? MIGRATION_ADVISORY_LOCK_KEY;
+  // Interpolated into DDL below — a parameter cannot carry an identifier, so
+  // the check is the only thing standing between a caller's string and the
+  // statement. Callers are all in-repo constants today; that is exactly the
+  // fact that quietly stops being true.
+  if (!/^[a-z][a-z0-9_]*$/.test(bookkeeping)) {
+    throw new Error(`Not a usable bookkeeping table name: ${bookkeeping}`);
+  }
 
   const versions = listMigrationVersions(migrationsDir);
   if (versions.length === 0) {
@@ -102,17 +141,17 @@ export async function runMigrations(options: RunMigrationsOptions): Promise<RunM
   try {
     // Serialize concurrent migrators. The loser blocks here until the winner
     // releases the lock, then finds every migration already applied.
-    await client.query('SELECT pg_advisory_lock($1)', [MIGRATION_ADVISORY_LOCK_KEY]);
+    await client.query('SELECT pg_advisory_lock($1)', [lockKey]);
     try {
       await client.query(
-        `CREATE TABLE IF NOT EXISTS schema_migrations (
+        `CREATE TABLE IF NOT EXISTS ${bookkeeping} (
            version text PRIMARY KEY,
            applied_at timestamptz NOT NULL DEFAULT now()
          )`,
       );
 
       const appliedRows = await client.query<{ version: string }>(
-        'SELECT version FROM schema_migrations',
+        `SELECT version FROM ${bookkeeping}`,
       );
       const alreadyApplied = new Set(appliedRows.rows.map((r) => r.version));
 
@@ -133,7 +172,7 @@ export async function runMigrations(options: RunMigrationsOptions): Promise<RunM
       const applied: string[] = [];
       for (const version of versions) {
         if (alreadyApplied.has(version)) continue;
-        await applyOne(client, migrationsDir, version, log);
+        await applyOne(client, migrationsDir, version, bookkeeping, log);
         applied.push(version);
       }
 
@@ -148,7 +187,7 @@ export async function runMigrations(options: RunMigrationsOptions): Promise<RunM
 
       return { applied, alreadyApplied: [...alreadyApplied], currentVersion };
     } finally {
-      await client.query('SELECT pg_advisory_unlock($1)', [MIGRATION_ADVISORY_LOCK_KEY]);
+      await client.query('SELECT pg_advisory_unlock($1)', [lockKey]);
     }
   } finally {
     client.release();
@@ -161,6 +200,7 @@ async function applyOne(
   client: LedgerConnection,
   migrationsDir: string,
   version: string,
+  bookkeeping: string,
   log: (m: string) => void,
 ): Promise<void> {
   const sql = readFileSync(join(migrationsDir, version), 'utf-8');
@@ -170,7 +210,7 @@ async function applyOne(
     // exec, not query: a migration file is many statements, and the extended
     // protocol accepts one. See `LedgerConnection.exec`.
     await client.exec(sql);
-    await client.query('INSERT INTO schema_migrations (version) VALUES ($1)', [version]);
+    await client.query(`INSERT INTO ${bookkeeping} (version) VALUES ($1)`, [version]);
     await client.query('COMMIT');
   } catch (err) {
     await client.query('ROLLBACK');

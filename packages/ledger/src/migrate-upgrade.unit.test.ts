@@ -165,6 +165,58 @@ async function indexFingerprint(driver: LedgerDriver): Promise<string> {
   }
 }
 
+/**
+ * Objects a PRE-RELEASE schema break removed from the released baseline.
+ *
+ * ADR-0036 moved the managed edition's tables out of `0001_baseline.sql` and
+ * into `packages/managed/migrations`, so an appliance no longer creates them.
+ * `v0.1.0-rc.1`'s baseline still does, and nothing in the shared chain drops
+ * them — so a database upgraded from that tag KEEPS them, empty, while a fresh
+ * one at HEAD never has them. That is a real, permanent difference between the
+ * two routes, and this gate is right to see it.
+ *
+ * ## Why there is no migration that drops them
+ *
+ * It would have to live in the SHARED chain, because the appliance is the
+ * deployment we want rid of them on and it applies no other chain. The managed
+ * edition applies that same chain, where `invoice` is not an empty table — it
+ * is the tax record we are legally required to keep, which is exactly why
+ * `offboarding.ts` detaches invoices instead of deleting them. The managed
+ * chain would then `CREATE TABLE IF NOT EXISTS` a fresh empty one behind it.
+ * A migration that destroys invoices to tidy four tables off an appliance is
+ * not a trade worth making, and it would sit in the chain for ever.
+ *
+ * ## What an operator does instead
+ *
+ * Nothing, or recreate the database — the same remedy `migrate.ts`'s downgrade
+ * guard already prescribes for a squash, for the same reason: **the ledger is a
+ * rebuildable cache (ADR-0020), and a pre-release schema break is fixed by
+ * dropping it, not by migrating through it.** Left alone, the leftovers are
+ * four empty tables an appliance never reads. `v0.1.0-rc.1` is a release
+ * CANDIDATE with no known installs, which is what makes that acceptable — and
+ * what would make the same shrug unacceptable after a real release.
+ *
+ * THE EXCEPTION IS ONE-DIRECTIONAL AND NAMED. An upgraded database may carry
+ * these and nothing else; it may never LACK anything a fresh install has. That
+ * second half is the bug this file was written for and it stays absolute.
+ */
+const MOVED_TO_MANAGED_CHAIN: Readonly<Record<string, string>> = {
+  invoice: 'ADR-0036 — managed chain. Tax retention; never dropped by a migration.',
+  payment_method: 'ADR-0036 — managed chain.',
+  usage_metric: 'ADR-0036 — managed chain.',
+  tenant_member: 'ADR-0036 — managed chain. Accounts; the appliance has no login.',
+};
+
+/** Does this fingerprint line belong to a table the break left behind? */
+function isDeclaredLeftover(line: string): boolean {
+  const table = line.split('.')[0]!;
+  if (table in MOVED_TO_MANAGED_CHAIN) return true;
+  // Index lines are `indexname:indexdef`; the definition names its table.
+  return Object.keys(MOVED_TO_MANAGED_CHAIN).some((t) =>
+    new RegExp(`\\bON public\\.${t}\\b`).test(line),
+  );
+}
+
 const HAVE_REF = refExists(FROM_REF);
 let releasedDir: string;
 let upgraded: LedgerDriver;
@@ -245,17 +297,62 @@ describe(`upgrading from ${FROM_REF} (§22.1 N-1 -> N gate)`, () => {
   );
 
   it.skipIf(!HAVE_REF)(
-    'lands on a schema INDISTINGUISHABLE from a fresh install at HEAD',
+    'lands on a schema a fresh install at HEAD can account for',
     { timeout: 120_000 },
     async () => {
       await runMigrations({ driver: fresh, logger: () => {} });
 
-      // The assertion this gate exists for. Editing the baseline instead of
-      // writing a new migration passes every other test in the repo and leaves
-      // upgraded installs — the oldest, most valuable ones — missing the
-      // change. Nothing but this comparison notices.
-      expect(await schemaFingerprint(upgraded)).toBe(await schemaFingerprint(fresh));
-      expect(await indexFingerprint(upgraded)).toBe(await indexFingerprint(fresh));
+      for (const [what, take] of [
+        ['columns', schemaFingerprint],
+        ['indexes', indexFingerprint],
+      ] as const) {
+        const up = (await take(upgraded)).split('\n').filter(Boolean);
+        const at = new Set((await take(fresh)).split('\n').filter(Boolean));
+
+        // THE ASSERTION THIS GATE EXISTS FOR, and it is absolute. Editing the
+        // baseline instead of writing a new migration passes every other test
+        // in the repo and leaves upgraded installs — the oldest, most valuable
+        // ones — missing the change. Nothing but this comparison notices.
+        const missing = [...at].filter((line) => !up.includes(line));
+        expect(
+          missing,
+          `a fresh install at HEAD has ${what} an upgraded one does not. This is ` +
+            'the drift this gate exists for: something was added by editing an ' +
+            'already-released migration instead of writing a new one.\n' +
+            missing.map((m) => `  - ${m}`).join('\n'),
+        ).toEqual([]);
+
+        // The other direction is where a DECLARED pre-release break is allowed
+        // to show, and only there. Anything undeclared fails.
+        const undeclared = up.filter((line) => !at.has(line) && !isDeclaredLeftover(line));
+        expect(
+          undeclared,
+          `an upgraded database carries ${what} a fresh install does not, and ` +
+            'nothing declares them. Either the working tree stopped creating ' +
+            'something a released migration made, or MOVED_TO_MANAGED_CHAIN ' +
+            'needs the new entry and the reason for it.\n' +
+            undeclared.map((m) => `  - ${m}`).join('\n'),
+        ).toEqual([]);
+      }
+    },
+  );
+
+  it.skipIf(!HAVE_REF)(
+    'still finds every leftover it declares, so the exception cannot go stale',
+    { timeout: 60_000 },
+    async () => {
+      // An allow-list that has stopped covering anything reads to the next
+      // person as a rule that still applies — and quietly widens what the
+      // check above will forgive. The moment `v0.1.0-rc.1` stops being the
+      // reference, every one of these should disappear with it.
+      const up = (await schemaFingerprint(upgraded)).split('\n');
+      for (const table of Object.keys(MOVED_TO_MANAGED_CHAIN)) {
+        expect(
+          up.some((line) => line.startsWith(`${table}.`)),
+          `${table}: declared as left behind by ${FROM_REF}, but an upgraded ` +
+            'database does not have it — remove the MOVED_TO_MANAGED_CHAIN entry',
+        ).toBe(true);
+      }
     },
   );
 
