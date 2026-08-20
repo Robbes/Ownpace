@@ -300,7 +300,7 @@ live in [README.md](./README.md), the register.
 
 - Grants are **rows** (`share_grant`) with verbatim source evidence; applying a share is a **per-grant owner decision** (apply/skip/edit) — never a pass side-effect; bulk is a loop over the same gated per-row apply.
 - **Nextcloud OCS is the only apply-capable target**; every other row stays manual with the protocol gap named. Link shares are **never auto-recreated**.
-- The **target's own messaging notifies the grantee** — open-migrate never emails third parties, ever. Apply is refused until the mapping's lifecycle says done/cutover.
+- The **target's own messaging notifies the grantee** — Ownpace never emails third parties, ever. Apply is refused until the mapping's lifecycle says done/cutover.
 - Grantee addresses are proposed by the machine and **confirmed by a person**; attribution names the decider.
 
 ## [ADR-0033: Whole-tenant Google migration — domain-wide delegation, opt-in and stated](./0033-domain-wide-delegation.md)
@@ -447,6 +447,30 @@ live in [README.md](./README.md), the register.
   **seven days** in that publishing status, which reads as a random `invalid_grant` weeks in.
   Both editions' setup paths must steer to Internal (Workspace) or Production (personal), and
   the refusal for an expired token must name this cause first.
-- **The assessment is a cost-recovery line, never a gate.** If it is paid, it is funded the way
-  every other cost is (ADR-0014, cross-subsidy inside one envelope); it never becomes a reason
-  to charge for mail, to hold a scope back from self-host, or to quote-gate a tier.
+- **The assessment buys CONVENIENCE, never CAPABILITY, so it is always deferrable.** Every
+  source is migratable today at zero cost through the customer's own client — Workspace via
+  Internal consent, personal Google via External+Production. What an assessment buys is a popup
+  instead of a console, for consumers, in the managed edition. Nothing is ever gated behind it,
+  and if it is paid it is funded like every other cost (ADR-0014), never as a line named after
+  a Google audit.
+- **An ACCOUNT password is closed; an APP password is not. Do not conflate them** — this ADR did,
+  in both directions, in one sitting. Google withdrew account-password sign-in for third-party
+  clients ([answer/6010255](https://support.google.com/mail/answer/6010255)) **and separately
+  keeps app passwords as the documented fallback** *"als Inloggen met Google niet beschikbaar is
+  voor de app"* ([answer/185833](https://support.google.com/accounts/answer/185833)), 2SV
+  required, and labelled *afgeraden*.
+- **Personal Gmail may therefore be connected with an app password, as an opt-in fallback that is
+  never the default.** Gmail is already an IMAP source (`gmail-source-factory.ts:218`) and
+  `imapflow-source.ts:129–132` already carries the plain-password branch, so this is a credential
+  choice rather than a connector — same folder view, same Message-ID natural key, no fidelity
+  loss. It must be offered with Google's own discouragement quoted, not laundered.
+- **It narrows the restricted-scope exposure to Drive alone**, which is the practical point:
+  contacts and calendar are *sensitive* (cheap verification), personal mail can avoid OAuth
+  entirely, and Drive is then the only product for which an assessment could ever be worth
+  buying. Workspace cannot use this (app passwords are withdrawn or admin-disabled there) and
+  does not need to — Internal consent is already free.
+- **Drive has no password path at all and we do not invent one.** No such protocol exists, and
+  Takeout is a snapshot rather than a sync — this product sells a period, not a copy.
+- **Gmail IMAP is always on since March 2025** (*"Vanaf maart 2025 is de optie om IMAP aan of uit
+  te zetten niet meer beschikbaar. IMAP-toegang staat altijd aan in Gmail"*), so no setup path
+  should ask a personal-account user to enable it, and no refusal should suggest it as a cause.

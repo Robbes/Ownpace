@@ -19,7 +19,7 @@
 
 - Grants are **rows** (`share_grant`) with verbatim source evidence; applying a share is a **per-grant owner decision** (apply/skip/edit) — never a pass side-effect; bulk is a loop over the same gated per-row apply.
 - **Nextcloud OCS is the only apply-capable target**; every other row stays manual with the protocol gap named. Link shares are **never auto-recreated**.
-- The **target's own messaging notifies the grantee** — open-migrate never emails third parties, ever. Apply is refused until the mapping's lifecycle says done/cutover.
+- The **target's own messaging notifies the grantee** — Ownpace never emails third parties, ever. Apply is refused until the mapping's lifecycle says done/cutover.
 - Grantee addresses are proposed by the machine and **confirmed by a person**; attribution names the decider.
 
 ## Context
@@ -39,7 +39,7 @@ is today entirely the owner's problem, by hand, with no tooling.
 
 ## The question
 
-May open-migrate **recreate a share on the target** — and if so, who says so, when does it
+May Ownpace **recreate a share on the target** — and if so, who says so, when does it
 happen, and **who tells the person on the receiving end**?
 
 ## Decision (proposed)
@@ -93,7 +93,7 @@ deliberately the preferred channel, for four reasons:
 - It arrives **only when the share is real**: notification and access cannot disagree,
   because they are the same act. No "you've been invited" mail before the grant exists, no
   grant nobody was told about.
-- open-migrate **never emails third parties itself**. The digest mails the owner; grantees
+- Ownpace **never emails third parties itself**. The digest mails the owner; grantees
   are reached only through the target platform's own machinery, triggered by an
   owner-decided apply. This tool holding its own list of other people's addresses and
   mailing them is a line this ADR proposes never to cross.

@@ -39,7 +39,7 @@ console; the tool then mints tokens impersonating any user in the domain
 
 ## The question
 
-May open-migrate hold a credential that can read **every user in the domain** — and if
+May Ownpace hold a credential that can read **every user in the domain** — and if
 so, under what constraints?
 
 ## Why this is ADR-shaped and not a feature request

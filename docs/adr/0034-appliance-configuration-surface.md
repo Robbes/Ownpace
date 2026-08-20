@@ -392,7 +392,7 @@ reach an Organisation deployment ahead of it.
 > Appended rather than edited, per hard rule 7. Decision 6 and its bound both **hold**: the
 > owner's "not a thousand interactive logins" survives, because ADR-0035 gives migrated
 > people a signed, mapping-scoped **link** rather than an account — they authenticate to
-> their own provider, never to open-migrate, and hold no session, password or role here.
+> their own provider, never to Ownpace, and hold no session, password or role here.
 > What ADR-0035 adds is that there are now **two** boundaries of different shapes: the admin
 > login this decision demands, in front of the operator surface; and the migrator's link, in
 > front of exactly one mapping. Neither is RBAC. Read decision 6 with that addition — its

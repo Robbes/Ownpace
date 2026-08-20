@@ -120,7 +120,7 @@ seed script first) showing zero item-count growth across a restart for mail, cal
 contact. Both 0010 and 0011 are now **fully done**, and 0013 (discovery/preview/confirm) turned
 out to already be fully done too — this index just hadn't caught up.
 **ADR-0023 (Postgres-only)** still stands — **do not reintroduce SQLite / a second dialect** in
-open-migrate's own schema (the managed edition's *demo* Nextcloud backend is a third-party app
+Ownpace's own schema (the managed edition's *demo* Nextcloud backend is a third-party app
 with its own SQLite default — unrelated, and already worked around with a write-retry rather than
 migrated, see 0011's Status block).
 

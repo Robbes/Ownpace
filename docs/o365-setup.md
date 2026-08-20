@@ -1,12 +1,12 @@
 # O365 Setup Documentation
 
 This guide walks you through setting up a Microsoft Entra (formerly Azure AD)
-application for Open-Migrate to access O365 resources (mail, calendar,
+application for Ownpace to access O365 resources (mail, calendar,
 contacts, OneDrive) — **in your own tenant, registered by you**.
 
 > **Model change, 2026-08-09.**
 > This document originally described ONE multi-tenant app, published by the
-> Open-Migrate project, that every customer tenant consented to. That model is
+> Ownpace project, that every customer tenant consented to. That model is
 > retired: **each customer registers their own single-tenant app in their own
 > tenant** and consents to it there. What that buys, concretely: consent to
 > your own first-party app has **no Microsoft publisher-verification wall**
@@ -42,7 +42,7 @@ contacts, OneDrive) — **in your own tenant, registered by you**.
 > tenant-specific form (`apps/api/src/routes/permissions.ts`, `apps/selfhost/src/index.ts`); this
 > document said `/common/` in four places until 2026-08-13.
 
-Open-Migrate uses **an Entra application you register in your own tenant**.
+Ownpace uses **an Entra application you register in your own tenant**.
 This approach:
 
 - **Keeps trust at home**: the app, the consent and the credential all live in
@@ -96,7 +96,7 @@ Both paths use the same app registration but different permission configurations
 1. In the left menu, select **App registrations**
 2. Click **+ New registration**
 3. Fill in the form:
-   - **Name**: `Open-Migrate` (or your organization's preferred name)
+   - **Name**: `Ownpace` (or your organization's preferred name)
    - **Supported account types**: **Accounts in this organizational directory only (Single tenant)** — the per-customer model (2026-08-09); multi-tenant would only invite the publisher-verification wall this model exists to avoid
    - **Redirect URI**: Not required for application credentials; for delegated flow, you can use `http://localhost` for testing
 4. Click **Register**
@@ -148,7 +148,7 @@ For application permissions to work, an admin must grant consent:
 1. Navigate to **Certificates & secrets** in the left menu
 2. Click **+ New client secret**
 3. Fill in:
-   - **Description**: `Open-Migrate Production` (or descriptive name)
+   - **Description**: `Ownpace Production` (or descriptive name)
    - **Expires**: Choose appropriate duration (12-24 months recommended)
 4. Click **Add**
 5. **Immediately copy the Value** - this is your `OAUTH2_CLIENT_SECRET`
@@ -342,7 +342,7 @@ two proof steps. Removed here 2026-08-13 rather than corrected in both places.
 
 ### Environment Variables
 
-The following environment variables are required for Open-Migrate to connect to O365:
+The following environment variables are required for Ownpace to connect to O365:
 
 | Variable | Required | Description | Example |
 |----------|----------|-------------|---------|

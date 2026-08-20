@@ -1,6 +1,6 @@
 # DNS Management Guide
 
-This document provides comprehensive guidance for managing DNS records during the cutover process for OpenMigrate.
+This document provides comprehensive guidance for managing DNS records during the cutover process for Ownpace.
 
 ## Overview
 

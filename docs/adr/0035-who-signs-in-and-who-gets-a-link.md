@@ -21,7 +21,7 @@
   restated by this ADR** — see decision 7), [ADR-0033](./0033-domain-wide-delegation.md)
   (whose credential-transport problem this largely removes, and whose honesty discipline
   decision 3 borrows wholesale), [ADR-0032](./0032-sharing-queue-target-native-invites.md)
-  ("open-migrate never mails third parties itself" — which settles who sends the link),
+  ("Ownpace never mails third parties itself" — which settles who sends the link),
   [ADR-0014](./0014-cost-recovery-billing.md) (cost recovery — which settles the seat
   question), [ADR-0006](./0006-o365-access-model.md), SAD §7.3 (the `Auth` row this
   changes).
@@ -133,7 +133,7 @@ carries counts and states rather than content, which is what makes the longer wi
 acceptable.
 
 **The admin distributes the link. We never do.** [ADR-0032](./0032-sharing-queue-target-native-invites.md)
-already decided that open-migrate never mails third parties itself, routing share invites
+already decided that Ownpace never mails third parties itself, routing share invites
 through the target's own messaging. The same reasoning applies with more force here: an
 email from an unfamiliar domain asking someone to authorise access to their mailbox is
 indistinguishable from an attack, and training people to click it is a harm that outlives
@@ -249,7 +249,7 @@ config edit.
 ADR-0034 required an admin login and a session before credential-editing routes reach an
 Organisation deployment, and bounded that to "not per-user identity, not RBAC, not
 per-migrator scoping" on the owner's "not a thousand interactive logins". Every word of that
-survives. Migrators authenticate to **their own provider**, not to open-migrate; they hold a
+survives. Migrators authenticate to **their own provider**, not to Ownpace; they hold a
 signed link, not a session; there is no user record, no password and no role for them. The
 thousand logins never happen.
 
@@ -302,7 +302,7 @@ difference should be stated to customers rather than smoothed over.
 
 **An account for every migrated person.** The literal reading of "everyone logs in". Rejected: it
 reverses the owner's "not a thousand interactive logins", and it buys nothing the link does not —
-migrators authenticate to their *provider*, so an open-migrate password is a second credential
+migrators authenticate to their *provider*, so an Ownpace password is a second credential
 protecting a page that shows counts. It also drags in registration, password reset, session
 management and support for a population that interacts with us roughly twice.
 

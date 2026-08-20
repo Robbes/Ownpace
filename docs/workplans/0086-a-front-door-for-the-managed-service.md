@@ -18,7 +18,7 @@ request, with two decisions already taken (recorded below).
 ## What this is
 
 The owner's requirement: *"someone publicly needs to be able to see an overview
-of the Open-Migrate managed service, have insight in features and costs,
+of the Ownpace managed service, have insight in features and costs,
 register for it / buy it / pay, and then use it."*
 
 Most of the machinery for the second half already exists — Mollie, invoices,

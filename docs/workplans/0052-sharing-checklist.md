@@ -25,7 +25,7 @@ answers, not a memory.
 
 **The invite IS the notification** (ADR-0032 §4). `apply` creates the share through the
 target's own API and the target tells the grantee — in its branding, with a working
-link, only when the access is real. open-migrate never mails third parties: the digest
+link, only when the access is real. Ownpace never mails third parties: the digest
 mails the owner, and everyone else hears from the platform they will actually use. The
 cutover gate (§5) exists for the same reason in reverse — an invite into a half-filled
 target is the wrong announcement from the right channel.

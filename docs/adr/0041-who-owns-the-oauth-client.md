@@ -42,9 +42,33 @@
   **seven days** in that publishing status, which reads as a random `invalid_grant` weeks in.
   Both editions' setup paths must steer to Internal (Workspace) or Production (personal), and
   the refusal for an expired token must name this cause first.
-- **The assessment is a cost-recovery line, never a gate.** If it is paid, it is funded the way
-  every other cost is (ADR-0014, cross-subsidy inside one envelope); it never becomes a reason
-  to charge for mail, to hold a scope back from self-host, or to quote-gate a tier.
+- **The assessment buys CONVENIENCE, never CAPABILITY, so it is always deferrable.** Every
+  source is migratable today at zero cost through the customer's own client — Workspace via
+  Internal consent, personal Google via External+Production. What an assessment buys is a popup
+  instead of a console, for consumers, in the managed edition. Nothing is ever gated behind it,
+  and if it is paid it is funded like every other cost (ADR-0014), never as a line named after
+  a Google audit.
+- **An ACCOUNT password is closed; an APP password is not. Do not conflate them** — this ADR did,
+  in both directions, in one sitting. Google withdrew account-password sign-in for third-party
+  clients ([answer/6010255](https://support.google.com/mail/answer/6010255)) **and separately
+  keeps app passwords as the documented fallback** *"als Inloggen met Google niet beschikbaar is
+  voor de app"* ([answer/185833](https://support.google.com/accounts/answer/185833)), 2SV
+  required, and labelled *afgeraden*.
+- **Personal Gmail may therefore be connected with an app password, as an opt-in fallback that is
+  never the default.** Gmail is already an IMAP source (`gmail-source-factory.ts:218`) and
+  `imapflow-source.ts:129–132` already carries the plain-password branch, so this is a credential
+  choice rather than a connector — same folder view, same Message-ID natural key, no fidelity
+  loss. It must be offered with Google's own discouragement quoted, not laundered.
+- **It narrows the restricted-scope exposure to Drive alone**, which is the practical point:
+  contacts and calendar are *sensitive* (cheap verification), personal mail can avoid OAuth
+  entirely, and Drive is then the only product for which an assessment could ever be worth
+  buying. Workspace cannot use this (app passwords are withdrawn or admin-disabled there) and
+  does not need to — Internal consent is already free.
+- **Drive has no password path at all and we do not invent one.** No such protocol exists, and
+  Takeout is a snapshot rather than a sync — this product sells a period, not a copy.
+- **Gmail IMAP is always on since March 2025** (*"Vanaf maart 2025 is de optie om IMAP aan of uit
+  te zetten niet meer beschikbaar. IMAP-toegang staat altijd aan in Gmail"*), so no setup path
+  should ask a personal-account user to enable it, and no refusal should suggest it as a cause.
 
 ## Context
 
@@ -67,14 +91,102 @@ the customer's own client — same custody, same secret, three fewer steps and n
 That is a missing feature rather than a trade-off, and it is [workplan
 0089](../workplans/0089-a-consent-you-can-click.md).
 
-**2. An app password is not available for this connector, at any price.** Google contacts go
-over CardDAV — `packages/orchestration/src/google-dav-source-factory.ts:51` requests
+**2. An app password is available for personal Gmail and for nothing else** — see *"Is there a
+way round the assessment?"* below. For contacts the door was never open at all: they go over
+CardDAV — `packages/orchestration/src/google-dav-source-factory.ts:51` requests
 `googleapis.com/carddav/v1/principals/…` with scope `.../auth/carddav`. Google's CardDAV and
 CalDAV endpoints have been OAuth-only from the start and never accepted a password of any kind.
 Separately, Google withdrew app-password and less-secure-app sign-in for Workspace accounts
 (believed September 2024 — **verify before quoting**). There is no password path to build.
 
 **3. Owning the OAuth client is the part that is genuinely a decision** — and it is this ADR.
+
+### Is there a way round the assessment? For mail yes, for files no
+
+Asked by the owner after the first draft: could mail go over IMAP with an app password, dodging
+the restricted Gmail scope, and does Drive have anything similar?
+
+**This section was written wrong twice before it was written right, and the reason is worth
+keeping**: Google publishes two withdrawal-shaped statements about two different credentials, and
+they read as one if you are not looking for the seam.
+
+> **The account password is gone.** *"Je kunt Gmail niet meer gebruiken met apps of apparaten van
+> derden waarmee je je gebruikersnaam en wachtwoord van Google moet delen … Zoek in plaats
+> daarvan de optie Inloggen met Google."*
+> ([answer/6010255](https://support.google.com/mail/answer/6010255))
+>
+> **The app password is not.** *"Een app-wachtwoord is een toegangscode van 16 cijfers waarmee
+> een minder goed beveiligde app … toegang krijgt tot je Google-account … Als Inloggen met Google
+> niet beschikbaar is voor de app, kun je het volgende doen: App-wachtwoorden gebruiken."*
+> ([answer/185833](https://support.google.com/accounts/answer/185833)) — 2SV required, and
+> Google's own word for it is *afgeraden*.
+
+Both quoted as supplied by the owner: this sandbox's egress proxy blocks `support.google.com`,
+so neither page could be read here. **Re-read both before acting on this section.**
+
+So an app password is a *supported, discouraged, 2SV-gated fallback* — not a closed door, and
+not a blessed path either.
+
+**And it fits this product almost too neatly.** Gmail *is* already an IMAP source —
+`packages/orchestration/src/gmail-source-factory.ts:218` builds `buildImapSourceFrom({ host:
+'imap.gmail.com', port: 993, tls: true }, { authType: 'XOAUTH2', tokenProvider })` — and
+`imapflow-source.ts:129–132` carries a plain-password branch beside XOAUTH2, so a password
+credential would have been a *config change rather than a connector*, with no fidelity loss at
+all: same `GmailFolderView`, same dropped `\All`/`\Flagged`/`\Important` views, same
+Message-ID natural key.
+
+**So it is offered, and it is offered honestly.** An opt-in fallback for a **personal** Gmail,
+never the default, with three things said rather than smoothed over:
+
+- **Google discourages it**, in that word, and the setup path should say so instead of presenting
+  it as the easy option. Somebody who would rather use a consent screen should be able to see
+  that we agree with Google about which is better.
+- **It is not scoped.** An OAuth token carries `https://mail.google.com/`, which is already full
+  mail access, so for *mail* the width is the same — but an app password is a credential class
+  rather than a grant, and it is revoked from a different place. Say where: the account's own
+  app-password list, one row, revocable without touching Ownpace.
+- **It may be withdrawn.** Google's direction of travel is unambiguous even though the door is
+  open, so this cannot be the only consumer on-ramp. Its failure mode is not a rejected login at
+  setup time — it is a migration that runs for weeks and then stops, on the tier whose whole
+  promise is that it takes as long as you like.
+- **And it inherits a ceiling nobody here counts.** Gmail's IMAP endpoint is reported to cap
+  downloads around 2,500 MB/day, with a temporary account lockout as the penalty — and this
+  repository counts requests, not bytes, and wires no IMAP source to a budget at all. That
+  governs the **OAuth path already shipping** as much as this one, which is why it is
+  [workplan 0090](../workplans/0090-the-cap-we-do-not-count.md) rather than a caveat here.
+
+**Workspace cannot use it and does not need to.** App passwords are withdrawn or
+admin-disabled there, and Internal consent is already free and banner-free.
+
+**What this actually buys is a narrower question.** Contacts and calendar are *sensitive* —
+verification, no assessment. Personal mail can now skip OAuth entirely. So **Drive is the only
+product for which an assessment could ever be worth buying**, which is a much smaller decision
+than "do we pay for restricted scopes".
+
+One useful thing falls out of the first page: *"Vanaf maart 2025 is de optie om IMAP aan of
+uit te zetten niet meer beschikbaar. IMAP-toegang staat altijd aan in Gmail."* IMAP is always on
+for personal accounts, so no setup path should ask anyone to enable it and no refusal should
+offer it as a cause.
+
+**Drive never had anything equivalent, and inventing one would cost more than the assessment.**
+There is
+no password protocol — no IMAP, no WebDAV, no FTP. Three near-misses, and what each really is:
+
+- `drive.file` is genuinely non-restricted, but reaches only files the app created or the user
+  picked through the Google Picker. Whether a picked folder's grant survives as a durable
+  server-side refresh token is **unverified**, and per-selection consent fits continuous sync
+  badly.
+- **Google Takeout** needs no OAuth at all and therefore dodges everything — but it is a
+  one-shot snapshot: no deltas, no continuous sync, no cutover. That is the "sell a copy" model
+  ADR-0014 defines this product against. A fallback, never a substitute.
+- Borrowing another tool's published client id is a terms violation and is not considered.
+
+**And the reframe still matters more than either answer.** Underneath all of it is the thing
+that is easy to miss: the assessment is not standing between anyone and a migration. The customer's-own-client path is already free for
+everyone: Workspace through Internal consent, personal Google through External+Production, whose
+100-user cap is *per client* and so never binds when every customer has their own. **CASA buys a
+popup, not a capability.** It is deferrable for as long as we like, and the honest description of
+it is a convenience purchase for consumers in the managed edition.
 
 ## The question
 
@@ -148,6 +260,13 @@ customer should be told which trade they are taking.
 
 Four places. Two are real money, one is real time, one is a trap that costs nothing to avoid
 and a lot to hit.
+
+**0. First, what it is not: a blocker.** See *"Is there a way round the assessment?"* above.
+Every source migrates today at zero cost through the customer's own client — Workspace via
+Internal consent, personal Google via External+Production, whose 100-user cap is per client and
+so never binds — and personal mail has a second free path through an app password over the IMAP
+connector that already exists. The figures below price a *convenience*, and can be deferred
+indefinitely without any customer being unable to migrate anything.
 
 **1. The annual security assessment (CASA) — the only large number, and only for mail and
 files.** Restricted scopes require a third-party assessment every year. Google's published

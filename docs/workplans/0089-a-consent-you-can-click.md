@@ -10,6 +10,7 @@
 | T4 The grant link opens a consent screen | 📋 Planned (needs T1) | ADR-0035's link, made real: the migrated person consents in their own browser and the owner never touches their credential. |
 | T5 The managed client | 🚧 Blocked on [ADR-0041](../adr/0041-who-owns-the-oauth-client.md) | Contacts and calendar first, mail and files only after an assessment is paid for. Managed-only secret; `no-managed-leakage` is the guard. |
 | T6 Appliance without a loopback browser | 📋 Planned (open question, not a decision) | Google forbids raw-IP redirect URIs; the owner browses to `https://100.97.25.131:3123`. Two candidate answers, both needing verification before anyone builds on them. |
+| T7 Personal Gmail by app password, opt-in | 📋 Planned (needs [0090](./0090-the-cap-we-do-not-count.md) T1) | A credential choice, not a connector — the IMAP source already has the branch. Google's own *afgeraden* travels with it, and it is never the default. Blocked on verifying Gmail's IMAP byte ceiling and whether it differs by credential type. |
 
 ## Why this exists
 
@@ -26,10 +27,18 @@ Google's **OAuth Playground** to mint one by hand. Nothing forces that. The wiza
 authorization-code round-trip itself, against the customer's own OAuth client, with no change to
 custody: same client id, same secret, same token, three fewer steps and no developer tool.
 
-**An app password is not available for this connector at any price.** Google contacts go over
-CardDAV — `packages/orchestration/src/google-dav-source-factory.ts:51` requests
-`googleapis.com/carddav/v1/principals/…` under `.../auth/carddav`. Google's CardDAV and CalDAV
-endpoints have been OAuth-only from the start. There is nothing to build.
+**An app password works for personal Gmail, and for nothing else.** Contacts go over CardDAV —
+`packages/orchestration/src/google-dav-source-factory.ts:51` requests
+`googleapis.com/carddav/v1/principals/…` under `.../auth/carddav` — and Google's CardDAV and
+CalDAV endpoints have been OAuth-only from the start; Drive has no password protocol at all. Mail
+is the exception, and cheaply: the Gmail source is *already* IMAP
+(`gmail-source-factory.ts:218`), `imapflow-source.ts:129–132` already carries the plain-password
+branch, and `'imap'` is already a connection kind — so it is a credential choice, not a
+connector. Google keeps app passwords as the documented fallback *"als Inloggen met Google niet
+beschikbaar is voor de app"* while calling them *afgeraden*; that word travels with the feature.
+[ADR-0041](../adr/0041-who-owns-the-oauth-client.md) carries both citations and the
+account-password-vs-app-password distinction that this repository got wrong twice in one
+sitting.
 
 **And the banners are mostly self-inflicted.** The manual already says Internal skips
 verification entirely; a Workspace account that picked External gets the unverified warning for
@@ -87,6 +96,9 @@ consent screens, and the current refusal lists four other causes.
   recently-configured personal-account source and the only one with a one-click fix (publishing
   status → Production).
 - Add it to the manual (done in T3).
+- While there: **never suggest "enable IMAP" as a cause for a personal Gmail.** Google made IMAP
+  always-on in March 2025 and removed the toggle, so that advice sends someone looking for a
+  setting that no longer exists.
 - A unit test asserts the refusal text names it — the house pattern for
   a refusal that has to keep saying a specific thing.
 
@@ -125,6 +137,41 @@ ever seeing it.
 
 Needs one addition beyond T1: the flow must be reachable by a **link holder** rather than only
 by an authenticated owner, which is a different auth path and the reason this is its own task.
+
+## T7 — personal Gmail by app password, opt-in and honestly labelled
+
+The one Google product with a path that skips OAuth entirely. Nothing new to build in the
+connector: `imapflow-source.ts:129–132` picks `pass` over `XOAUTH2` on `authType`,
+`gmail-source-factory.ts:218` already points at `imap.gmail.com:993`, and `GmailFolderView` —
+which drops the `\All`, `\Flagged` and `\Important` views so nothing duplicates — sits outside
+the auth decision. Same folders, same Message-ID natural key, **no fidelity loss**.
+
+**One thing this task must not be allowed to claim, though.** An earlier draft called the
+throughput ceiling "neutral" because Gmail's IMAP bandwidth limit (believed ~2,500 MB/day
+download) belongs to the endpoint and so already governs today's OAuth path. That is probably
+true and it is **not** reassuring: checking it found that nothing in this repository counts
+bytes at all, and no IMAP source consumes a rate budget of any kind. The penalty for exceeding
+it is reported to be a temporary account lockout — the customer losing access to their own live
+mail, during their migration. That is [workplan 0090](./0090-the-cap-we-do-not-count.md), it
+affects shipped code rather than this proposal, and **T7 should not ship before 0090 T1 has
+verified the number** — including whether the ceiling differs by credential type, which would
+change this task's value in either direction.
+
+What the task is actually about is how it is *presented*:
+
+- **Never the default**, and never offered to a Workspace account, where app passwords are
+  withdrawn or admin-disabled and Internal consent is free anyway.
+- **Google's own discouragement quoted**, not paraphrased into something warmer. A reader who
+  would rather use a consent screen should be able to see that we agree with Google.
+- **2SV is a prerequisite** — no 2-step verification, no app password — and the refusal should
+  say that rather than reporting an authentication failure.
+- **Say where it is revoked:** the account's own app-password list, one row, without touching
+  Ownpace. That is a real advantage over a refresh token and worth stating.
+- **Do not tell anyone to enable IMAP.** Always-on since March 2025, toggle removed.
+
+Its strategic value is narrowing the expensive question: with contacts and calendar *sensitive*
+and personal mail able to skip OAuth, **Drive becomes the only product for which an assessment
+could ever be worth buying.**
 
 ## T5 — the managed client (blocked on ADR-0041)
 
