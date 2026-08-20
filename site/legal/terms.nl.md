@@ -1,0 +1,173 @@
+<!-- Copyright 2026 The Ownpace authors (Apache-2.0) -->
+<!-- Dutch translation of terms.md. Keep the SECTION NUMBERING identical, so the
+     two can be diffed against each other when either changes. §12 names the
+     English version as the authoritative text. -->
+
+# Servicevoorwaarden
+
+**Gelden voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`.
+**Versie:** 1.0 (concept — nog niet gepubliceerd; zie `site/legal/README.md`)
+**Laatst bijgewerkt:** 2026-08-20
+
+> **Deze voorwaarden gelden niet voor de software.** Ownpace is open source onder de Apache
+> License 2.0, en het zelf draaien valt onder die licentie en niets hiervan. Deze voorwaarden
+> gelden voor de *dienst* die wij voor u draaien. Dat onderscheid is echt: de licentie geeft u
+> het recht de software te draaien, te wijzigen en te verspreiden; deze voorwaarden zijn een
+> overeenkomst over een dienst die wij leveren. Geen van beide beperkt de ander.
+
+---
+
+## 1. Met wie u een overeenkomst sluit
+
+«LEGAL_ENTITY», «REGISTERED_ADDRESS», ingeschreven onder «COMPANY_NUMBER», btw «VAT_NUMBER».
+Contact: **support@ownpace.eu**.
+
+Door een account aan te maken of de dienst te gebruiken aanvaardt u deze voorwaarden. Aanvaardt
+u namens een organisatie, dan bevestigt u dat u die mag binden.
+
+## 2. Wat de dienst doet
+
+Ownpace kopieert uw e-mail, contacten, agenda's en bestanden van een bronaccount dat u beheert
+naar een doelaccount dat u beheert, houdt de kopie bij tot u besluit over te stappen, en geeft
+u een overzicht van wat er is verhuisd.
+
+**Wat het niet doet, hier gezegd in plaats van later ontdekt:**
+
+- **Het verwijdert nooit iets bij uw bron.** Verwijderen bij het doel gebeurt alleen via een pad
+  dat u zelf aanzet en per item goedkeurt.
+- **Het synchroniseert niet terug.** Gegevens gaan van bron naar doel. Uw bron blijft uw
+  vangnet zolang u die aanhoudt.
+- **Het kan geen perfecte kopie van alles beloven.** Formaten verschillen per aanbieder en
+  sommige dingen overleven de oversteek niet. Wat we niet kunnen verhuizen, **melden we u stuk
+  voor stuk, met de reden** — het verdwijnt nooit stilletjes.
+- **Het is geen back-updienst.** Zodra u een verhuizing hebt afgerond, is die klaar. Daarna een
+  kopie bijhouden is een nieuwe verhuizing die u instelt, en die wordt ook zo geprijsd.
+
+## 3. Uw account
+
+U bent verantwoordelijk voor uw inloggegevens en voor wat er onder uw account gebeurt. Laat het
+ons weten op support@ownpace.eu als u denkt dat het gecompromitteerd is.
+
+U moet gerechtigd zijn tot de accounts die u koppelt. **Koppel geen account dat niet van u is of
+dat u niet gemachtigd bent te verhuizen.** Voor accounts van een organisatie betekent dat
+toestemming van die organisatie.
+
+## 4. Uw gegevens, en wat wij ermee mogen
+
+Uw gegevens blijven van u. We verwerken ze uitsluitend om de verhuizingen uit te voeren die u
+instelt, zoals beschreven in de [privacyverklaring](./privacy.html), die deel uitmaakt van deze
+voorwaarden. Zakelijke klanten vallen daarnaast onder onze verwerkersovereenkomst op «DPA_URL».
+
+**Wij lezen uw e-mail, bestanden, contacten of agenda's niet**, anders dan in de nauwe gevallen
+die de privacyverklaring noemt — uw eigen verzoek om bepaalde items, noodzaak voor beveiliging
+of wet, en geaggregeerde cijfers waarin niemand herkenbaar is. We gebruiken uw gegevens niet om
+AI-modellen te trainen.
+
+## 5. Toelaatbaar gebruik
+
+Gebruik de dienst niet om rechten van anderen te schenden, om de wet te overtreden, om gegevens
+te verhuizen waar u geen recht op hebt, of om de dienst of de aanbieders waarmee die koppelt aan
+te vallen. Verkoop de dienst niet door als de uwe zonder schriftelijke afspraak — daar bestaat
+een MSP-pakket voor en we praten er liever over.
+
+We kunnen een account opschorten dat een van die dingen doet. Behalve waar de wet of een lopende
+aanval dat onmogelijk maakt, **laten we u eerst weten waarom en krijgt u gelegenheid te
+reageren**.
+
+## 6. Prijzen, en waarvoor u betaalt
+
+Prijzen staan volledig gepubliceerd op «PRICING_URL». Geen offertemuur en geen prijs die u pas
+hoort na een gesprek.
+
+- Uw pakket wordt **afgeleid uit wat u gebruikt** — hoeveel verhuizingen tegelijk lopen en
+  hoeveel gegevens u hebt verhuisd — niet gekozen uit een menu.
+- **Verhuizingen afronden verlaagt uw rekening automatisch**, zonder dat u erom vraagt. De
+  hoeveelheid verhuisde gegevens legt daarbij een ondergrens.
+- De inrichtingskosten worden **één keer** gerekend, over het hoogste pakket dat u bereikt.
+  Later omhoog kost alleen het verschil; weer omlaag betekent nooit opnieuw rekenen.
+- Prijzen zijn exclusief btw, die erbij komt waar die van toepassing is.
+
+**Kostendekking, geen winst**: de dienst is geprijsd om te dekken wat het kost om te draaien.
+Dat is een uitspraak over hoe prijzen tot stand komen, geen belofte dat een bepaalde prijs nooit
+verandert.
+
+## 7. Facturatie, opzeggen, en niet betalen voor vergeten
+
+Er wordt maandelijks achteraf gefactureerd, via de betaalwijze die u hebt vastgelegd, door onze
+betaaldienstverlener Mollie.
+
+**U kunt op elk moment opzeggen**, per het einde van de lopende maand. Geen minimumduur, geen
+opzegtermijn, geen opzegkosten. Al betaalde inrichtingskosten worden niet terugbetaald — het
+werk waarvoor ze betaald zijn, is gedaan.
+
+Twee toezeggingen die ons beperken in plaats van u:
+
+- **We verdienen niet aan onoplettendheid.** Loopt er een verhuizing zonder dat er nog iets te
+  doen valt, dan vragen we u met één klik of u hem wilt houden of afronden.
+- **We factureren niet langer dan twaalf maanden zonder uw uitdrukkelijke bevestiging.** Loopt
+  een verhuizing een jaar, dan moet u het opnieuw zeggen.
+
+Mislukt een betaling, dan laten we het u weten en proberen we het opnieuw voordat er iets wordt
+opgeschort. We verwijderen uw verhuisgegevens niet vanwege een mislukte betaling zonder u eerst
+te waarschuwen.
+
+## 8. Beschikbaarheid
+
+We streven ernaar de dienst draaiend te houden en melden gepland onderhoud vooraf. **We bieden
+bij deze prijzen geen contractuele beschikbaarheidsgarantie**, en dat ronduit zeggen is beter dan
+een percentage dat niemand van plan is na te komen.
+
+Een verhuizing is gebouwd om onderbreking te overleven: hij hervat in plaats van opnieuw te
+beginnen, en een tweede ronde komt samen in plaats van te dupliceren. Uitval kost u tijd, geen
+juistheid.
+
+## 9. Als wij het fout doen
+
+Dan herstellen we het. Laat het ons weten op support@ownpace.eu.
+
+Voor zover de wet dat toestaat is onze totale aansprakelijkheid jegens u voor enige aanspraak
+beperkt tot **het bedrag dat u ons in de twaalf maanden vóór die aanspraak hebt betaald**. We
+zijn niet aansprakelijk voor indirecte of gevolgschade, of voor verlies van gegevens bij uw bron
+of doel waar dat niet door ons is veroorzaakt.
+
+**Niets hierin beperkt aansprakelijkheid die niet rechtsgeldig beperkt kan worden** — waaronder
+overlijden of letsel door nalatigheid, fraude, of, bent u consument, uw wettelijke rechten. Bent
+u consument in de EU, dan behoudt u elk recht dat uw nationale wet u geeft, en geldt de vorige
+alinea alleen voor zover die wet dat toelaat.
+
+**Houd uw bronaccount aan tot u uw doel hebt gecontroleerd.** Het product is er zo op gebouwd
+dat dat kan — dat is wat overstappen op uw eigen moment betekent — en het is de beste bescherming
+tegen alles in dit hoofdstuk.
+
+## 10. Beëindigen
+
+**U** kunt uw account op elk moment sluiten. Bij sluiting verwijderen we uw toegangsgegevens en
+uw verhuisregister zoals beschreven in de privacyverklaring; facturen bewaren we zolang de
+belastingwet dat vereist.
+
+**Wij** kunnen deze voorwaarden beëindigen met 30 dagen opzegtermijn, of onmiddellijk bij een
+ernstige schending van §5. Stoppen we met de dienst, dan krijgt u **minstens 90 dagen vooraf
+bericht en een export van alles wat de dienst over uw verhuizingen bewaart** — en de software is
+Apache-2.0, dus u kunt hem zelf blijven draaien.
+
+## 11. Wijzigingen in deze voorwaarden
+
+Wezenlijke wijzigingen melden we per e-mail, minstens **30 dagen** vooraf. Aanvaardt u ze niet,
+dan zegt u op voordat ze ingaan. Doorgaan met de dienst daarna geldt als aanvaarding.
+
+## 12. Recht en geschillen
+
+Op deze voorwaarden is **Nederlands recht** van toepassing, en geschillen worden voorgelegd aan
+de bevoegde rechter in «COURT_DISTRICT». Bent u consument, dan ontneemt dit u niet de bescherming
+van het dwingende recht van uw land van verblijf, en kunt u ook het onlinegeschillenplatform van
+de Europese Commissie gebruiken.
+
+**Taal.** Deze Nederlandse tekst is een vertaling voor uw gemak. Bij verschillen tussen deze
+tekst en de Engelse versie geldt de **Engelse versie**, behalve waar dwingend consumentenrecht
+anders bepaalt.
+
+## 13. De rest
+
+Is een bepaling niet afdwingbaar, dan blijft de rest gelden. Iets één keer niet afdwingen is geen
+afstand ervan. U kunt deze voorwaarden niet overdragen zonder onze toestemming; wij kunnen ze
+overdragen aan een rechtsopvolger van de onderneming, en laten u dat dan weten.

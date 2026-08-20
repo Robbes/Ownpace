@@ -5,7 +5,7 @@
 | Task | Status | Evidence |
 |---|---|---|
 | T1 The four variables that carry the browser-visible address | 📋 Planned | `WEB_URL`, `CORS_ORIGIN`, `API_URL`, `VITE_API_URL` — and **one of them is baked into the build**, so a wrong value survives every restart. |
-| T2 `www` — the smallest real site, which is the one Google needs | 📋 Planned | `site/legal/` and `site/brand/` exist and are exactly what OAuth verification requires to be reachable. The marketing pages are workplan 0086 T1 and are not this. |
+| T2 `www` — the site | ✅ **Done 2026-08-20** | `site/build.mjs` generates 10 pages — landing, how-it-works, pricing, privacy, terms — in **EN and NL** (ADR-0013), into `site/dist/`, with no workspace import and no npm dependency. Served by `deploy/compose/www.yml`. 6 guards in `site/site.unit.test.ts`, one of which caught a wrong price on its first run. |
 | T3 `ota` — the stack that already exists, under its own name | 📋 Planned (needs T1) | Nothing to build; the stack runs. What changes is the address it believes it has. |
 | T4 `app` stays dark until it means production | 📋 Planned (owner decision) | The wildcard already resolves it *to the test box*, so the URI registered as production points at development. |
 | T5 What cannot work on the spark, said rather than discovered | 📋 Planned | Mollie's webhooks and Google's verification fetch both need public reachability; a mesh-only host has none. |
@@ -108,29 +108,55 @@ The env example already carries a warning against a `localhost` `API_URL` for th
 That warning should say *"or any address only reachable from your own network"*, since a
 hostname on a private mesh is the same problem wearing better clothes.
 
-## T2 — `www`, the smallest real site
+## T2 — `www`, the site ✅
 
-**There is nothing built for the marketing site**: it is workplan 0086 T1. Waiting for it would
-block the thing that *is* ready and *is* on the critical path.
+Built 2026-08-20. `node site/build.mjs` generates ten pages into `site/dist/`, and
+`deploy/compose/www.yml` serves them.
 
-Google's OAuth verification requires a privacy policy and terms **reachable on the verified
-domain**, plus an app logo. All three exist as of today:
+**Five pages, two languages.** Landing, how it works, pricing, privacy, terms — in English at
+the root and Dutch under `/nl/`, with a switcher in the header and `hreflang` alternates on
+every page. ADR-0013 makes the end-user surface bilingual EN+NL and the public site is the most
+end-user surface there is: it is where somebody who has never heard of this lands, and the
+audience this product is for is largely Dutch. An English-only front door would have been the
+one place the bilingual decision was quietly dropped.
 
-- `site/legal/privacy.md`
-- `site/legal/terms.md`
-- `site/brand/logo-120.png`
+**It imports nothing.** No workspace package, no npm dependency — deliberately, twice over:
+workplan 0086 T7 wants the public pages splittable into their own deploy without a migration,
+and a public site that cannot reach the app is one fewer thing for `no-managed-leakage` to
+worry about. The cost is a small Markdown renderer inside `build.mjs`, and a test that fails if
+a document grows a construct the renderer does not cover.
 
-So `www` starts as a static file server over `site/`, rendering the two documents and serving
-the logo. No framework, no meaningful build step, no coupling to `apps/web` — which is also what
-keeps workplan 0086's T1/T7 seam honest, since a placeholder that imports nothing is a
-placeholder that can be replaced without a migration. When 0086 T1 lands it takes over the same
-URLs.
+**The prices are a copy, and the copy is guarded.** 0088 T4 asks for a drift guard between the
+page and the invoice; it cannot be an import, so `site/site.unit.test.ts` parses **ADR-0014's
+own tier table** and fails if `site/prices.mjs` disagrees. That guard earned itself on its first
+run: Large's data ceiling was typed as 4 TB when the ADR says 7.5 TB, and the built page was
+already showing the wrong number.
 
-⚠️ **The documents are drafts and carry twelve `«PLACEHOLDER»` tokens** — `site/legal/README.md`
-lists every one, and `scripts/legal-docs.unit.test.ts` fails on an unlisted one. Serving them
-publicly as they stand puts `«LEGAL_ENTITY»` on the internet. **Fill them before `www` is
-public**, and note that "serve it on the mesh only until then" stops being an option the moment
-Google needs to fetch the privacy policy.
+**The order button is a mailto.** `POST /api/tenants` is 501 by design (0086 T4: no public write
+path into tenancy), so the honest button is one that opens a message rather than one that
+pretends to create an account. It becomes a real form when 0086 T4 lands.
+
+⚠️ **The legal documents are still drafts** carrying twelve `«PLACEHOLDER»` tokens, and the
+build renders them **visibly** — a yellow marker, plus a banner at the top of the page and a
+count printed at the end of the build. A draft that looks finished is the thing to avoid.
+
+That makes them right for `www.ota.ownpace.eu`, which is mesh-only, and **wrong for
+`www.ownpace.eu`**, which is public. Fill them first (`site/legal/README.md` lists all twelve);
+"serve it on the mesh until then" stops being an option the moment Google's verification needs
+to fetch the privacy policy.
+
+### What was checked by looking, not only by asserting
+
+This repository has shipped a completely unstyled UI in both editions because *"nothing caught
+it because nothing looked"* (workplan 0015). So the pages were rendered in Chromium and read:
+the logo resolves, no request 4xxs, no page scrolls horizontally at 390px, the five tier cards
+sit on one row with their prices on one baseline, and both languages render.
+
+Two defects were found that way and fixed. The renderer parked code spans as ` 0 `, ` 1 ` … and
+therefore rewrote bare numbers in prose — *"we keep logs for 5 days"* rendered as
+*"forundefineddays"*, and a real `0` next to a code span was swallowed and replaced by it. And
+the tier cards wrapped 4 + 1 with their prices at different heights, which on a pricing page
+reads as carelessness in the one place it costs most.
 
 ## T3 — `ota`, the stack that already exists
 
