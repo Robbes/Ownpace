@@ -366,6 +366,19 @@ describe('trigger_cli_logged_in (trigger-cli-lib.sh)', () => {
     return r.status === 0;
   }
 
+  it('the login phase does not claim to have verified TRIGGER_ACCESS_TOKEN', () => {
+    // e2e-managed printed "already logged in" and then died inside `deploy`
+    // with "Invalid or Missing Access Token": the check short-circuits on
+    // TRIGGER_ACCESS_TOKEN WITHOUT validating it (whoami structurally cannot
+    // see that variable), so on CI the phase was reporting a trust decision as
+    // a verification. The trust is fine; the wording was not.
+    const bootstrap = readFileSync(join(REPO_ROOT, 'deploy/compose/bootstrap-managed.sh'), 'utf8');
+    const phase = bootstrap.slice(bootstrap.indexOf('phase_login()'));
+    expect(phase).toMatch(/TRIGGER_ACCESS_TOKEN[\s\S]{0,400}NOT verified here/);
+    // And the profile path must still report itself as the verified one.
+    expect(phase).toContain('already logged in (profile');
+  });
+
   it('recognises a real successful lookup by its User ID line', () => {
     expect(
       loggedIn(stub('echo "User ID: user_abc123"; echo "Email:   owner@example.test"')),

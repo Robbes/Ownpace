@@ -189,4 +189,22 @@ if [ "$WRITE" -eq 1 ]; then
     "TRIGGER_PROJECT_REF=${ref}" "TRIGGER_SECRET_KEY=${key}" >&2
   echo "[trigger-credentials] written to ${ENV_FILE} — restart the api so it reads the key:" >&2
   echo "[trigger-credentials]   docker compose -f deploy/compose/managed.yml up -d api" >&2
+
+  # THE CHECKOUT IS NOT THE ONLY COPY. The CI runner restores .env from a
+  # persist directory outside any checkout (actions/checkout cleans ignored
+  # files), so fixing the working tree leaves the persisted copy stale — and
+  # bootstrap-managed.sh's `account` phase short-circuits on "already in .env",
+  # unable to tell a stale ref from a good one. e2e-managed #27 failed exactly
+  # that way, uploading task env to a project ref belonging to a destroyed
+  # instance, hours after the working checkout had been repaired.
+  #
+  # Compared rather than announced unconditionally: a line printed every time
+  # is a line nobody reads. This speaks only when the two copies disagree.
+  PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/ownpace-managed}"
+  if [ -f "${PERSIST_DIR}/.env" ] && ! cmp -s "$ENV_FILE" "${PERSIST_DIR}/.env"; then
+    echo "[trigger-credentials]" >&2
+    echo "[trigger-credentials] WARNING: ${PERSIST_DIR}/.env differs and is what CI restores." >&2
+    echo "[trigger-credentials] It still holds whatever credentials it had; this run did not touch it." >&2
+    echo "[trigger-credentials]   cp ${ENV_FILE} ${PERSIST_DIR}/.env" >&2
+  fi
 fi

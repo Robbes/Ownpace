@@ -150,6 +150,25 @@ jobs:
         # account/project's credentials already do via `.env`.
         run: |
           set -euo pipefail
+          # A repository VARIABLE is passed verbatim: GitHub does not expand
+          # `$HOME` in it, and neither does the shell, because `${VAR:-default}`
+          # substitutes the value without re-expanding it. So a variable set to
+          # "$HOME/.persistent/ownpace-managed" yields a literal path starting
+          # with a dollar sign, nothing is ever restored, and the check below
+          # reports "this runner has never had the managed stack set up" —
+          # naming a symptom that is three steps from the cause. Observed on
+          # e2e-managed #26. Refuse with the real state instead (hard rule 9).
+          case "${MANAGED_ENV_PERSIST_DIR:-}" in
+            *'$'*)
+              echo "::error::MANAGED_ENV_PERSIST_DIR contains an unexpanded variable: ${MANAGED_ENV_PERSIST_DIR}"
+              echo "A repository variable is used literally — GitHub does not expand \$HOME in it."
+              echo "Set it to an absolute path (e.g. /home/<user>/.persistent/ownpace-managed),"
+              echo "or DELETE the variable entirely: this workflow's own default already expands"
+              echo "\$HOME correctly, because there it is a literal in the script rather than a value."
+              echo "Settings -> Secrets and variables -> Actions -> Variables."
+              exit 1
+              ;;
+          esac
           PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/ownpace-managed}"
           if [ -f "${PERSIST_DIR}/.env" ]; then
             mkdir -p deploy/compose/pgbouncer

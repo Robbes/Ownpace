@@ -529,7 +529,22 @@ phase_login() {
   url="http://localhost:${TRIGGER_PORT:-3090}"
 
   if trigger_cli_logged_in "$cli_version" "$profile"; then
-    note "already logged in (profile ${profile}, CLI ${cli_version})"
+    # SAY WHICH ANSWER THIS IS. `trigger_cli_logged_in` short-circuits on
+    # TRIGGER_ACCESS_TOKEN without validating it — deliberately, since `whoami`
+    # structurally cannot see that variable — so on CI this phase reports
+    # success for a token it never checked. e2e-managed then printed "already
+    # logged in" and died three steps later inside `deploy` with "Invalid or
+    # Missing Access Token", because the token was a PAT minted against a
+    # Trigger.dev instance that had since been destroyed.
+    #
+    # The trust is fine; claiming to have verified it is not. A phase that says
+    # what it actually established costs one line and saves reading the deploy
+    # log to find out what "logged in" meant (hard rule 9).
+    if [ -n "${TRIGGER_ACCESS_TOKEN:-}" ]; then
+      note "trusting TRIGGER_ACCESS_TOKEN — NOT verified here; a stale one fails inside deploy"
+    else
+      note "already logged in (profile ${profile}, CLI ${cli_version})"
+    fi
     return 0
   fi
 
