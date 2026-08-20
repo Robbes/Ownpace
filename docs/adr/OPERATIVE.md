@@ -428,6 +428,36 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0041: Who owns the OAuth client — the managed edition brings its own, the appliance never does](./0041-who-owns-the-oauth-client.md)
 
+- **Verification has a published surface, and it is the same surface the GDPR needs.** A
+  privacy policy and terms on `ownpace.eu`, a support address that a person answers
+  (**support@ownpace.eu**), an app logo of at least 120×120, and an in-product disclosure before
+  the consent screen. Drafted in [`site/legal/`](../../site/legal/) and
+  [`site/brand/`](../../site/brand/); the checklist and every unverified Google claim are in
+  [`docs/google-oauth-verification.md`](../google-oauth-verification.md).
+- **The Limited Use commitments are made in the privacy policy and are true of the code**: the
+  data serves only the migration the user configured, goes only to the target they chose, is
+  never used for advertising or model training, and is never read by a person outside the
+  narrow cases the policy names. Two structural facts carry more weight than any promise —
+  **Google is never a migration target**, and **nothing is ever deleted at the source**.
+- **The redirect endpoint is `/oauth/google/callback`, never `/webhooks/…`.** An OAuth redirect
+  is a **browser GET carrying the user's authorization code**; a webhook is an unauthenticated
+  server-to-server POST. Filing the callback under a webhook path is how it ends up mounted in a
+  router that skips CSRF and accepts POST, which is precisely the mapping-hijack that 0089 T1's
+  signed `state` exists to prevent. Different trust model, different route tree, different name.
+- **No authorized JavaScript origin is registered.** The flow is server-side
+  authorization-code: the browser is redirected, and the token exchange happens on the server
+  with the client secret. A JS origin is only needed for browser-side OAuth, which this is not,
+  and registering one that nothing uses widens the client for no benefit.
+- **Environments get separate CLIENTS, not separate paths on one host.** Test and production
+  sharing an origin share a cookie jar and a `state`-signing context, so a bug in test reaches
+  production sessions. One client per environment also means a leaked test secret is not a
+  production incident. Where one client must serve both, they get separate **hosts** at
+  minimum — never `/x/` and `/_ota_/x/` on the same origin.
+- **The canonical host is decided once and registered exactly.** Google matches the redirect URI
+  byte-for-byte before any redirect of ours runs, so `www` vs apex is a real choice and not a
+  formatting detail: an apex-canonical site with a `www` URI registered fails before it starts.
+  Register the host the service actually serves on, and the same host the privacy policy and
+  home page are verified on.
 - **The appliance never carries an Ownpace OAuth client secret.** Shipping one publishes it,
   which breaks Google's terms and makes one leak everybody's problem. Bring-your-own client
   stays the appliance's only mode, and `no-managed-leakage` (ADR-0036) is what keeps it true.

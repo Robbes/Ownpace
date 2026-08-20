@@ -8,8 +8,9 @@
 | T2 The seven-day trap, named everywhere it bites | 📋 Planned | External+Testing expires refresh tokens after 7 days. Add it to the `invalid_grant` refusal **first**, and to the manual. Cheapest fix in this plan. |
 | T3 The manual's front door | ✅ **Done 2026-08-20** | `docs/google-workspace-setup.md` now branches on *whose account is it* before anything else, and the Internal/External/Testing choice is made for the reader rather than explained to them. |
 | T4 The grant link opens a consent screen | 📋 Planned (needs T1) | ADR-0035's link, made real: the migrated person consents in their own browser and the owner never touches their credential. |
-| T5 The managed client | 🚧 Blocked on [ADR-0041](../adr/0041-who-owns-the-oauth-client.md) | Contacts and calendar first, mail and files only after an assessment is paid for. Managed-only secret; `no-managed-leakage` is the guard. |
+| T5 The managed client | 🚧 Blocked on [ADR-0041](../adr/0041-who-owns-the-oauth-client.md) | Contacts and calendar first, mail and files only after an assessment is paid for. Managed-only secret; `no-managed-leakage` is the guard. The submission checklist is [`docs/google-oauth-verification.md`](../google-oauth-verification.md); privacy policy, terms, support address and logo are drafted (0086 T5). |
 | T6 Appliance without a loopback browser | 📋 Planned (open question, not a decision) | Google forbids raw-IP redirect URIs; the owner browses to `https://100.97.25.131:3123`. Two candidate answers, both needing verification before anyone builds on them. |
+| T8 "Use Ownpace's connection" as a choice in the managed wizard | 📋 Planned (needs T1, T5) | The owner registered a client 2026-08-20. Two named options on the credentials step, the managed one only in managed builds. Config decisions in [`docs/google-oauth-verification.md`](../google-oauth-verification.md) §4b. |
 | T7 Personal Gmail by app password, opt-in | 📋 Planned (needs [0090](./0090-the-cap-we-do-not-count.md) T1) | A credential choice, not a connector — the IMAP source already has the branch. Google's own *afgeraden* travels with it, and it is never the default. Blocked on verifying Gmail's IMAP byte ceiling and whether it differs by credential type. |
 
 ## Why this exists
@@ -172,6 +173,32 @@ What the task is actually about is how it is *presented*:
 Its strategic value is narrowing the expensive question: with contacts and calendar *sensitive*
 and personal mail able to skip OAuth, **Drive becomes the only product for which an assessment
 could ever be worth buying.**
+
+## T8 — "use Ownpace's connection" as a choice, not a hidden default
+
+The owner registered a Google client on 2026-08-20 (External, 100 users), which turns T5 from a
+hypothetical into a configuration. What is left is the *choice*, on the wizard's credentials
+step, between two named options:
+
+- **Use Ownpace's connection** — one click, Google's consent screen, nothing to register. Only
+  offered in managed builds, because the appliance has no client secret and never will
+  (ADR-0041, guarded by `no-managed-leakage`).
+- **Use my own Google client** — today's path, kept as a first-class option rather than a
+  fallback for experts. It is the one that leaves revocation entirely in the customer's hands:
+  delete the client and every token dies, without asking us. **Say that where the choice is
+  made**, since it is the real trade and the customer cannot otherwise see it.
+
+The stored shape is the same either way — a per-user refresh token encrypted through
+`SecretStore.encryptCredentials` — so this changes which `clientId`/`clientSecret` the exchange
+uses and nothing downstream. The managed client's secret is configuration in
+`@openmig/managed`, never a column on a connection.
+
+**Two constraints inherited from ADR-0041**, both easy to get wrong in a wizard:
+
+- The scopes are shown **as scopes**, not summarised, whichever option is chosen.
+- The option list must state which object types the managed client actually covers. Offering it
+  for Drive before the assessment exists produces a refusal at Google's consent screen, which
+  is the worst place to discover it.
 
 ## T5 — the managed client (blocked on ADR-0041)
 
