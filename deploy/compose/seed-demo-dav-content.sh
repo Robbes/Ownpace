@@ -228,7 +228,10 @@ cat <<'NEXT'
   1. The scheduler's sync tick copies these into the demo TARGET account.
   2. That pass writes `item` rows with status='copied' and a target_ref id.
   3. Only then does smoke-managed.sh's apply half have an eligible item.
-Watch it land:
-  docker exec ownpace-db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc \
-    "SELECT item_type, status, count(*) FROM item WHERE mapping_id='b0000000-0000-4000-8000-0000000000d1' GROUP BY 1,2"
+Watch it land (the scheduler ticks every minute, so give it one):
+  docker exec -i ownpace-db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At' <<'SQL'
+  SELECT item_type, status, count(*) FROM item
+   WHERE mapping_id='b0000000-0000-4000-8000-0000000000d1'
+   GROUP BY 1,2;
+SQL
 NEXT
