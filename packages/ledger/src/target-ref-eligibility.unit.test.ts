@@ -135,9 +135,23 @@ describe('the smoke asks the discriminating question', () => {
   it('no longer asks the question that could not fail', () => {
     // Scoped to the query, not the file: the script's comment names the old
     // form on purpose, to explain what it used to ask and why that was empty.
-    const query = smoke.split('\n').find((l) => l.startsWith('HASH='));
-    expect(query).toBeDefined();
+    //
+    // The query used to sit inline on the `HASH=` line. It now has ONE
+    // definition — `ELIGIBLE=` — interpolated into every item lookup, because
+    // the apply half grew a second picker (it must not select a fixed demo
+    // fixture, whose key its own deletion would tombstone forever). Two
+    // hand-copied predicates could drift apart; one cannot, so this looks at
+    // the definition and then checks that nothing bypasses it.
+    const query = smoke.split('\n').find((l) => l.startsWith('ELIGIBLE='));
+    expect(query, 'no ELIGIBLE= definition in smoke-managed.sh').toBeDefined();
     expect(query).not.toContain('target_ref IS NOT NULL');
     expect(query).toContain("target_ref->>'id'");
+
+    // The definition only binds if it is the one in force.
+    const selects = [...smoke.matchAll(/SELECT natural_key_hash FROM item[^"]*/g)];
+    expect(selects.length).toBeGreaterThan(0);
+    for (const m of selects) {
+      expect(m[0], 'an item query that bypasses $ELIGIBLE').toContain('$ELIGIBLE');
+    }
   });
 });

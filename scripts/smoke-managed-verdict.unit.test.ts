@@ -251,8 +251,16 @@ describe("the smoke's eligibility is the product's, not a paraphrase of it", () 
     // The other half of eligibility, and the one that was vacuous before
     // 2026-08-19: a status alone matched rows whose target handle was empty,
     // which is how the apply half passed while acting on nothing.
-    for (const m of smoke.matchAll(/SELECT natural_key_hash FROM item[^"]*/g)) {
-      expect(m[0]).toContain("coalesce(target_ref->>'id','') <> ''");
+    //
+    // Eligibility is now defined ONCE in $ELIGIBLE and interpolated, so this
+    // asserts the stronger property the factoring bought: the clause exists in
+    // that one definition, and every query that selects an item uses it rather
+    // than open-coding a filter that could drift from it.
+    expect(smoke).toMatch(/ELIGIBLE="status IN \('copied','updated'\) AND coalesce\(target_ref->>'id',''\) <> ''"/);
+    const selects = [...smoke.matchAll(/SELECT natural_key_hash FROM item[^"]*/g)];
+    expect(selects.length).toBeGreaterThan(0);
+    for (const m of selects) {
+      expect(m[0], 'an item query that does not use $ELIGIBLE').toContain('$ELIGIBLE');
     }
   });
 });
@@ -349,7 +357,14 @@ describe('the refusal says WHICH way there is nothing to act on', () => {
   const block = smoke.match(/ {2}echo "what IS on this mapping:"[\s\S]*?\n {2}fi\n/)?.[0];
 
   /** Drive the real branch with a `q` that answers as a given ledger would. */
-  function diagnose(total: string, eligible: string, breakdown = '', spent = '0') {
+  function diagnose(total: string, eligible: string, breakdown = '', spent = '0', fixture = '') {
+    // `pick_fixture` is defined further up the real script, outside this block.
+    // Left undefined, bash printed "command not found", the branch that calls it
+    // silently took the empty path, and every test here still passed — a
+    // vacuous pass hiding the newest branch entirely. Stubbed rather than
+    // extracted because what this suite drives is the DECISION, not the SQL:
+    // the SQL has its own guards in packages/ledger.
+    const pickers = `pick_fixture() { printf '%s' "${fixture}"; }`;
     // The eligible-count query is told apart by its status list, not by the
     // word "copied": that word appears in both queries' text now, and matching
     // on it silently answered the ELIGIBLE query with the TOTAL — which made
@@ -363,10 +378,22 @@ describe('the refusal says WHICH way there is nothing to act on', () => {
     esac; }`;
     return execFileSync(
       'bash',
-      ['-c', `set -u\nAPPLY_TENANT=t\nAPPLY_MAPPING=m\nDB_CONTAINER=db\n${q}\n${block}`],
+      ['-c', `set -u\nAPPLY_TENANT=t\nAPPLY_MAPPING=m\nDB_CONTAINER=db\n${q}\n${pickers}\n${block}`],
       { encoding: 'utf8' },
     );
   }
+
+  it('refuses the fixed fixtures instead of spending one, and says so first', () => {
+    // The branch added 2026-08-20. Eligible items EXIST here — that is the
+    // point: this is the only state where the gate declines work it could do.
+    // It must be reported as a refusal, not as one of the three absences, or
+    // the reader goes hunting a sync bug (which is how #20 was misread).
+    const out = diagnose('66', '6', '', '4', 'h-fixture');
+    expect(out).toContain('only the FIXED demo fixtures');
+    expect(out).toContain('--fresh');
+    expect(out).not.toContain('nothing has ever synced here');
+    expect(out).not.toContain('is SPENT, not broken');
+  });
 
   it('is extractable — the branch still exists to test', () => {
     expect(block).toBeDefined();
@@ -463,8 +490,30 @@ describe('the prepare phase (SMOKE_PREPARE_APPLY)', () => {
   it('re-checks the SAME question rather than assuming it worked', () => {
     // The poll re-runs the eligibility query; it does not set HASH to something
     // it hoped for. A seeding failure still lands in the diagnosis below.
-    expect(block).toContain("coalesce(target_ref->>'id','') <> ''");
+    //
+    // It now re-runs it by calling the SAME picker the first selection used —
+    // which is what makes "the same question" literally true rather than a
+    // claim about two hand-copied SQL strings that could drift apart.
+    expect(block).toContain('pick_disposable');
     expect(block).toContain('SEEDING FAILED');
+  });
+
+  it('the apply half never spends a fixed demo fixture', () => {
+    // The regression this pins was found on a live stack, 2026-08-20. The
+    // selection was `ORDER BY natural_key_hash LIMIT 1`, so it took whichever
+    // FIXED fixture sorted first; the apply then tombstoned its natural key,
+    // and classifyKnownItem never re-creates one. Three runs left four
+    // tombstones and drove the verify half from 66/66 files and 3/3 calendar to
+    // 65/66 and 1/3 — the gate degrading the fixtures its other half measures,
+    // unrepairable by re-seeding because the keys were spent.
+    //
+    // So the picker excludes fixed fixtures by shape (digits straight before
+    // the extension; --fresh keys carry a tag there), and the refusal branch
+    // exists so "only fixtures left" reports itself instead of being paid for.
+    expect(smoke).toContain('pick_disposable()');
+    expect(smoke).toMatch(/FIXTURE_RE=.*openmig-demo-\(event\|contact\|file\)/);
+    expect(smoke).toContain('!~');
+    expect(smoke).toMatch(/REFUS|refuses to spend|now REFUSES/i);
   });
 
   it('the workflow turns it on, and nothing else does', () => {
