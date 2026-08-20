@@ -357,7 +357,14 @@ describe('the refusal says WHICH way there is nothing to act on', () => {
   const block = smoke.match(/ {2}echo "what IS on this mapping:"[\s\S]*?\n {2}fi\n/)?.[0];
 
   /** Drive the real branch with a `q` that answers as a given ledger would. */
-  function diagnose(total: string, eligible: string, breakdown = '', spent = '0') {
+  function diagnose(total: string, eligible: string, breakdown = '', spent = '0', fixture = '') {
+    // `pick_fixture` is defined further up the real script, outside this block.
+    // Left undefined, bash printed "command not found", the branch that calls it
+    // silently took the empty path, and every test here still passed — a
+    // vacuous pass hiding the newest branch entirely. Stubbed rather than
+    // extracted because what this suite drives is the DECISION, not the SQL:
+    // the SQL has its own guards in packages/ledger.
+    const pickers = `pick_fixture() { printf '%s' "${fixture}"; }`;
     // The eligible-count query is told apart by its status list, not by the
     // word "copied": that word appears in both queries' text now, and matching
     // on it silently answered the ELIGIBLE query with the TOTAL — which made
@@ -371,10 +378,22 @@ describe('the refusal says WHICH way there is nothing to act on', () => {
     esac; }`;
     return execFileSync(
       'bash',
-      ['-c', `set -u\nAPPLY_TENANT=t\nAPPLY_MAPPING=m\nDB_CONTAINER=db\n${q}\n${block}`],
+      ['-c', `set -u\nAPPLY_TENANT=t\nAPPLY_MAPPING=m\nDB_CONTAINER=db\n${q}\n${pickers}\n${block}`],
       { encoding: 'utf8' },
     );
   }
+
+  it('refuses the fixed fixtures instead of spending one, and says so first', () => {
+    // The branch added 2026-08-20. Eligible items EXIST here — that is the
+    // point: this is the only state where the gate declines work it could do.
+    // It must be reported as a refusal, not as one of the three absences, or
+    // the reader goes hunting a sync bug (which is how #20 was misread).
+    const out = diagnose('66', '6', '', '4', 'h-fixture');
+    expect(out).toContain('only the FIXED demo fixtures');
+    expect(out).toContain('--fresh');
+    expect(out).not.toContain('nothing has ever synced here');
+    expect(out).not.toContain('is SPENT, not broken');
+  });
 
   it('is extractable — the branch still exists to test', () => {
     expect(block).toBeDefined();
