@@ -111,44 +111,42 @@ origin is only required for browser-side OAuth. Leave this empty.
 byte-for-byte, before any redirect of ours runs, so a trailing slash or a missing port is a
 failure and not a near-miss:
 
+**One subdomain per environment** — the owner's own suggestion, and better than the loopback
+workaround it replaces:
+
 ```
 https://app.ownpace.eu/oauth/google/callback      production
-https://ota.ownpace.eu/oauth/google/callback      testing, on the internet
-http://localhost:3123/oauth/google/callback       testing, on the netbird box
+https://ota.ownpace.eu/oauth/google/callback      the test box, reached over netbird
+http://localhost:3123/oauth/google/callback       a developer's own machine, optional
 ```
 
-**Why the third one is loopback rather than the box's own address.** Google refuses a **raw IP**
-as a redirect URI, and refuses **`http://`** for anything except loopback — and the box serves
-plain HTTP on 3123 (`SSL_ERROR_RX_RECORD_TOO_LONG` at `https://100.97.25.131:3123` is a server
-speaking HTTP on that port). So `https://100.97.25.131:3123/…` fails twice over.
+If the internet-facing test environment and the netbird box are the same machine, that is two
+URIs and not three.
 
-Loopback works because **Google never connects to the callback**: it issues a 302 and the
-*browser* follows it. Forward the port from the laptop to the box —
+**Why a subdomain and not the box's address.** Google refuses a **raw IP** as a redirect URI,
+and refuses **`http://`** for anything but loopback — and the box currently serves plain HTTP on
+3123 (`SSL_ERROR_RX_RECORD_TOO_LONG` against `https://100.97.25.131:3123` is a server speaking
+HTTP on that port). So `https://100.97.25.131:3123/…` fails twice over.
 
-```sh
-ssh -N -L 3123:localhost:3123 «user»@100.97.25.131
-```
+**"It cannot be an IP" reads as a blocker and is not one, because Google never resolves the
+name.** It hands the browser a 302 and stops caring. Only the machine doing the consent has to
+reach the address. So:
 
-— and `http://localhost:3123` reaches the appliance from the browser that is doing the consent.
-No TLS, no certificate, no DNS.
+- **`ota.ownpace.eu` → an `A` record at the netbird address** (`100.97.25.131`). A private or
+  CGNAT address in public DNS is perfectly legal; Google's objection is to the IP *literal* in
+  the redirect URI, not to where the name points. Anyone not on the mesh gets a timeout, which
+  is the correct outcome for a test box.
+- **TLS on that name is the one real cost**, since everything except loopback must be `https`.
+  A self-signed certificate is enough to proceed — the browser warns once and lets you through,
+  and Google is not looking. Better, and not much more work when you already control the zone:
+  a **DNS-01** certificate, which proves control by a TXT record rather than by being reachable,
+  so a host the internet cannot reach still gets a real certificate and no warning.
+  (`packages/core/src/dns-provider-desec.ts` exists but is not wired to production.)
 
-`localhost` and `127.0.0.1` are **different strings** to Google. Register the one that will
-actually be in the URL bar.
-
-**The key point, because "it cannot be an IP" reads as a blocker and is not one: Google never
-resolves this hostname.** It hands the browser a 302 and stops caring. Only the machine doing
-the consent has to reach the address — which is why a mesh-private name is perfectly legal here
-even though the public internet cannot resolve it.
-
-That gives a second option, if the port-forward becomes tiresome: **use the netbird DNS name the
-box already has** (or a name under a domain you own, pointed at the netbird address — a private
-IP in public DNS is allowed). Google accepts it because it is a hostname rather than an IP
-literal, and netbird resolves it on the laptop.
-
-The cost of that option is TLS: everything except loopback must be `https`, so the box has to
-terminate TLS on that name. A self-signed certificate is enough — the browser will warn once and
-let you through, and Google is not looking. Worth it if several machines need to reach the box;
-otherwise the port-forward is less setup for the same result.
+**Loopback stays as a developer convenience, not the answer.** It needs a port forward
+(`ssh -N -L 3123:localhost:3123 «user»@100.97.25.131`) and gives nothing the subdomain does not.
+Note that `localhost` and `127.0.0.1` are **different strings** to Google — register whichever
+will actually be in the URL bar.
 
 **Production on `app.` rather than `www.`** — a recommendation, not a requirement. The managed
 application and the marketing site want different cookie scopes, different CSP, and independent
