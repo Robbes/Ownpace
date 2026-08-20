@@ -4,7 +4,7 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T1 Decide the pricing shape this quotes (owner) | ✅ **Done 2026-08-20** — T2–T5 unblocked | [ADR-0014 amended](../adr/0014-cost-recovery-billing.md): five tiers on **paths running at the same time** (Tiny 1 / Small ≤4 / Medium ≤20 / Large ≤50 / XL ≤200), where a **path is one object type from one account to one account**, billed on the **month's peak**; no per-GB or compute line on any invoice; fair-use ceilings; metering kept internal. The tier is **derived, never picked** — downgrade automatic, upgrade consented — and each tier's price splits into a one-off setup and a monthly, with step-ups charging only the difference. Both findings recorded — the ~200× egress markup and bytes-priced-where-cost-is-hours. **Four** schema consequences named there and not solved: `mailbox_mapping.status` defaults to `'active'` when billing needs `'ready'`; there is no `activated_at`; peak occupancy needs `ended_at` plus a per-tenant per-month high-water record; and — the blocking one — **the lifecycle is per-mapping while the billing unit is per-`(mapping, domain)`**, so a path cannot be cut over on its own today. |
+| T1 Decide the pricing shape this quotes (owner) | ✅ **Done 2026-08-20** — T2–T5 unblocked | [ADR-0014 amended](../adr/0014-cost-recovery-billing.md): five tiers on **two axes, higher wins** — paths running at the same time (Tiny 1 / Small 4 / Medium 20 / Large 50 / XL 200), billed on the **month's peak**, and **cumulative data moved** (250 GB / 750 GB / 1.5 TB / 4 TB / 15 TB), counting each item's first copy only and never falling. A **path is one object type from one account to one account**; no per-GB or compute line on any invoice; fair-use ceilings; metering kept internal. The tier is **derived, never picked** — downgrade automatic, upgrade consented — and each tier's price splits into a one-off setup and a monthly, with step-ups charging only the difference. Both findings recorded — the ~200× egress markup and bytes-priced-where-cost-is-hours. **Five** schema consequences named there and not solved: `mailbox_mapping.status` defaults to `'active'` when billing needs `'ready'`; there is no `activated_at`; peak occupancy needs `ended_at` plus a per-tenant per-month high-water record; — the blocking one — **the lifecycle is per-mapping while the billing unit is per-`(mapping, domain)`**, so a path cannot be cut over on its own today; and the byte meter needs an append-only counter, since `migration-status-store.ts:182` sums live rows and counts `'skipped'`. |
 | T2 `INDICATIVE_PROFILES` — the assumptions, versioned | 📋 Planned | Customer type × object type → item counts and GB, every number carrying a provenance comment; covered by a unit test that refuses a silent gap. |
 | T3 The static page | 📋 Planned (needs T1, T2) | One self-contained file under `site/pricing/`, no workspace imports, no account, no server state, five inputs. |
 | T4 The drift guard, on the managed side | 📋 Planned (needs T3) | The page's numbers vs `packages/managed/src/pricing.ts`, plus an assertion that the appliance graph never reaches the calculator. |
@@ -129,6 +129,9 @@ Constraints, all load-bearing:
   Microsoft, Dropbox, Apple, other); what (object types); how much ("your provider already
   shows this number" + a link per provider, plus an honest *I don't know* → the T2 median);
   **until when** (1 / 3 / 6 months / *when I'm ready*).
+- **Both axes shown, with the higher one highlighted as it changes.** The tier is
+  `max(paths, data)`, so a page that shows only the path count will quote the wrong tier for
+  every photo-heavy visitor — the single most likely way this calculator lies.
 - **The path count, visible and adding up as they tick object types.** *"Mail, contacts,
   calendar, files — that is four paths."* Nothing else on the page means anything until this
   has landed, and it is the one place the page can teach the unit without a paragraph.
@@ -170,6 +173,9 @@ later edit cannot quietly drop them:
 - **The bill-goes-down sentence, stated up front rather than discovered:** finishing paths
   lowers the tier by itself, automatically and without asking — the counterpart to the
   pausing-does-not sentence, and the reason the page does not need a "cancel" story.
+- **And its limit, in the same breath:** the data axis never falls, so the size of what was
+  moved sets a floor. A page that promises the fall without naming the floor is the version of
+  this that generates the complaint.
 
 ## T6 — name the three rungs, and what a free preflight may keep
 

@@ -19,9 +19,30 @@
   plainly wherever a price appears, because it is the number every tier is counted in. In the
   schema it is one **`scope_selection` row**: `(mapping_id, domain)`, one per domain, created
   with the mapping (`apps/api/src/routes/migrations/index.ts:1122`).
-- **Five tiers on PATHS RUNNING AT THE SAME TIME, not metered bytes.** Tiny 1 · Small ≤4 ·
-  Medium ≤20 · Large ≤50 · Extra large ≤200, each with a data ceiling that exists as fair use.
-  **No per-GB line and no compute line appears on any invoice.** Self-host stays free.
+- **A tier has TWO axes, and you are on the higher of them.** How many paths run at the same
+  time — Tiny 1 · Small 4 · Medium 20 · Large 50 · XL 200 — and how much data you have moved:
+  Tiny 250 GB · Small 750 GB · Medium 1.5 TB · Large 4 TB · XL 15 TB. One path and 400 GB is
+  **Small**, because size says so. Past XL on either axis, **talk to us** — that is the one
+  place a number is not published, because past the end of the scale we have to actually look.
+- **The data axis is CUMULATIVE and it counts each item's FIRST successful copy.** Not a monthly
+  allowance: the cost it stands for — the initial copy — is one-off, so a monthly allowance
+  would be blown in month one and idle ever after. Re-copies, retries, updates and delta passes
+  **do not count**; nobody pays twice for the same item, and a failed pass that runs again does
+  not eat the allowance. The meter therefore reads as *"how much of your stuff we have moved"*,
+  which is a number the customer can predict before starting — the same number the
+  pre-preflight estimates.
+- **Paths fall; data does not.** The path axis is elastic and downgrades automatically as paths
+  end. The data axis only ever rises, so it sets a **floor** under the tier. Say it on the page
+  in those words: *finishing paths lowers your bill; the size of what you moved sets a floor.*
+  It is cost-honest — a big account is expensive on every later pass too, not only on the first
+  — and it is the reason a ratchet here is not the ratchet this project exists to be the
+  opposite of: it is bounded by the tier table, published in advance, and it stops when the last
+  path ends.
+- **No per-GB line and no compute line appears on any invoice**, and **no "per path per month"
+  figure is published either.** The monthly is not rent on a path; it is rent on an envelope
+  with two dimensions, which is why a one-path 700 GB account costs more than a one-path 5 GB
+  account. Publishing a division invites a question the model does not answer. Self-host stays
+  free.
 - **Flat within a band; no per-path price inside a tier.** Labour per path is **sublinear** —
   one household is one relationship, one set of credentials, one cutover conversation — so a
   per-path monthly would contradict the reason paths were chosen as the unit at all. The
@@ -50,7 +71,8 @@
   arithmetic is ever wrong it must **under-bill, never halt a migration**.
 - **The setup fee is on the HIGHEST tier ever reached, and it is paid in steps.** Each tier
   splits into a one-off setup plus a monthly — Tiny €5 + €2 · Small €8 + €4 · Medium €11 + €8 ·
-  Large €60 + €39 · XL €150 + €99. Stepping up later costs the **difference** in setup, once; stepping down
+  Large €60 + €39 · XL €150 + €99. A tier reached on the **data** axis charges its step the same
+  way a tier reached on the path axis does. Stepping up later costs the **difference** in setup, once; stepping down
   refunds nothing, because the onboarding was consumed. This makes the total independent of
   whether a customer ramped up or started at full size, so understating gains nothing and
   guessing wrong costs nothing.
@@ -63,9 +85,12 @@
   size; that is what makes it explicable.
 - **Prices are published in full on the public page.** No "contact sales", no quote-gating.
   Deliberate contrast with the incumbents, and part of the same honesty claim as `SKIPPED`.
-- **Fair use states numbers and a named remedy**: pass the ceiling and we talk to you and move
-  you a tier — never a silent throttle, never a surprise invoice — with a warning at 80%, which
-  the ledger can see coming.
+- **The data ceiling is a PRICE, not a policy.** Crossing it moves the tier automatically and
+  announced, the same way crossing a path ceiling does — never a silent throttle, never a
+  surprise invoice — with a warning at 80% that names what the next band costs. Calling that
+  "fair use" was a hedge; a number that changes a bill is a price, and saying so is the more
+  explicit position, not the harsher one. **A residual fair-use clause remains** for what a
+  number cannot express — reselling, pathological churn — and for nothing else.
 - **There is no separate "backup" product or price.** Cutover is terminal, so keeping a copy in
   sync is a NEW path with its own initial copy — and it is billed as one. A household that
   finishes eight paths and keeps one running falls to Small the following month, by the
@@ -139,7 +164,8 @@ reason the managed edition can exist at all.
 
 Two smaller ones worth keeping: **licences that expire in 12 months** are a real irritant we
 simply do not have, and **CloudFuze's 50 GB/month cap on its published plan** is below what a
-single person's photo library needs — our Small ceiling is 500 GB.
+single person's photo library needs — our Small ceiling is 750 GB, and cumulative rather than
+monthly, so it is a description of the customer's own footprint rather than a monthly gate.
 
 ### The limit that decides it: they meter PASSES
 
@@ -161,7 +187,8 @@ That reframes the competitive claim entirely, and it is worth stating in exactly
 rather than as a feature list:
 
 - **They sell a copy, metered in passes and capped in gigabytes per user.**
-- **We sell a period, metered in paths and bounded only by fair use.**
+- **We sell a period, priced on two axes we publish: paths at the same time, and total data
+  moved.**
 
 It also settles the owner's suspicion that "all other offers seem to have a form of data
 limits" — **they do**, and the plain mailbox licence names it at 50 GB. Any "unlimited data"
@@ -202,13 +229,16 @@ means everything, and the preflight already measures it.
 
 ### The tiers
 
-| tier | who | paths at the same time | ceiling | setup | monthly | first month | typical total |
+| tier | who | paths at the same time | data moved | setup | monthly | first month | typical total |
 |---|---|---|---|---|---|---|---|
 | **Tiny** | one person, one thing at a time | 1 | 250 GB | €5 | €2 | €7 | €13 for all four, over four months |
-| **Small** | one person, everything at once | 4 | 500 GB | €8 | €4 | €12 | €20 over 3 months |
+| **Small** | one person, everything at once | 4 | 750 GB | €8 | €4 | €12 | €20 over 3 months |
 | **Medium** | a household | 20 | 1.5 TB | €11 | €8 | €19 | €35 (3 mo) · €59 (6 mo) |
 | **Large** | a small business | 50 | 4 TB | €60 | €39 | €99 | €294 over 6 months |
 | **Extra large** | an organisation, or an MSP's first customers | 200 | 15 TB | €150 | €99 | €249 | €744 over 6 months |
+| *beyond* | — | >200 | >15 TB | — | — | — | **talk to us** |
+
+**You are on the higher of the two middle columns.** Not the sum, not the average — the higher.
 
 The setup column is not a new charge — it is the first-month price named, so that stepping up a
 tier later can cost the *difference* rather than the whole thing again. See *"Nobody picks a
@@ -232,8 +262,8 @@ the page. That step should be crossed by businesses, not by families who added a
 calendar, then files, one at a time, pays €5 once and €2 a month: **€13 for the whole
 migration** against €20 for the same person doing all four at once on Small. Patience is
 cheaper, impatience costs seven euro, and neither is punished. Its 250 GB ceiling is the one
-real constraint — a single 400 GB photo library does not fit, and fair use then says what it
-always says: we talk to you and move you to Small.
+real constraint — a single 400 GB photo library does not fit, and the data axis then does what
+it always does: Small, one step of setup, carry on.
 
 **Why Medium is €8 and not €12.** Google One 2 TB is €9.99/month, and the customer is *leaving*
 it while also paying their new European provider. Our fee stacks on top of both. Anything at or
@@ -344,6 +374,88 @@ The fix is therefore not a staffel but a ceiling in the right place — hence Me
 than 16, so that a household growing a little does not fall off a service cliff it did not ask
 to cross.
 
+### The data ceiling was never fair use. It is the second axis of the price
+
+The owner's question — *"so the number of GB does bump the tier?"* — has one answer, **yes**, and
+finding that out exposed a hedge in this ADR. The ceilings were described as *"a data ceiling
+that exists as fair use"*, with the remedy *"we talk to you and move you a tier"*. But a number
+that moves a tier moves a bill, and a thing that moves a bill is a **price**, not a policy.
+Calling it fair use made it sound softer while making it less predictable, which is the wrong
+trade in both directions.
+
+So: **a tier has two axes and you are on the higher of them.** Paths running at the same time,
+and data moved. The owner's own example is the clean case — one path, 400 GB: the path axis says
+Tiny, the data axis says Small, and Small wins. They pay the €3 step-up in setup once and carry
+on with their one large files path.
+
+**A residual fair-use clause still earns its place**, but a much smaller one: reselling,
+pathological churn, the things a number cannot express. Everything a number *can* express is now
+a published price.
+
+### Per path per month is the wrong division
+
+Follow-up from the owner, and it is the question a customer will ask next: if that 400 GB
+customer is on Small with one path, what did their path cost per month? €4, where a Tiny
+customer's path costs €2. Double, for the same one path.
+
+**The division is the mistake, not the answer.** The monthly is not rent on a path. It is rent
+on an envelope with two dimensions, and the data dimension is exactly what separates those two
+customers: a 700 GB account is more expensive than a 5 GB account on every pass, not only on the
+first — more items to enumerate, more to verify, more ledger to carry. The one-path 700 GB
+customer is not being charged for a second path they do not have; they are being charged for
+size, which they do have.
+
+Arithmetic makes the point badly if published. At full fill the monthly per path runs €2.00 ·
+€1.00 · €0.40 · €0.78 · €0.50 — **not monotonic**, because Medium → Large is a service boundary
+rather than a capacity one, and Large buys engagement. A published per-path figure would invite
+exactly that question and then answer it wrongly. **So no per-path figure is published**, which
+is now an operative rule.
+
+### Cumulative, not monthly — and only the first copy
+
+The owner's instinct, and it is right for a reason worth writing down: **the cost the ceiling
+stands for is one-off.** This service does not warehouse anyone's data; it reads from a source
+and writes to a target. The dominant real cost is bytes moved — transit and the compute that
+moves them — and that is spent once, on the initial copy. A monthly allowance would be blown in
+month one and idle in every month after, which describes no cost anyone has.
+
+Cumulative also produces a number the customer can *predict*. "You have moved 380 GB of 750 GB"
+is a fact about their own footprint, not a usage bill — and it is the same number the
+pre-preflight already estimates from their own provider's storage page. A monthly meter would
+match nothing the calculator can show them before they connect.
+
+**And it counts each item's first successful copy only.** Re-copies, retries, updates and delta
+passes do not count. Three things follow, all of them good: nobody pays twice for the same item;
+a failed pass that runs again does not eat the allowance, so the meter never punishes our own
+bugs; and a long-lived sync path stops accumulating once it has caught up, which removes the
+ratchet that would otherwise creep up on a customer whose actual monthly usage is a few
+megabytes of deltas.
+
+**The asymmetry this creates has to be said out loud.** Paths fall; data does not. Automatic
+downgrade can lower a bill only as far as the data axis allows, so the size of what someone moved
+sets a **floor** under their tier. That is defensible — the account stays expensive — but it is
+the kind of thing that must appear on the pricing page rather than on the seventh invoice:
+*finishing paths lowers your bill; the size of what you moved sets a floor.* It is bounded by
+the published table, it is announced before it happens, and it stops entirely when the last path
+ends, because cutover is terminal and billing ends with it.
+
+### Why Small moved to 750 GB, and why the top of the scale is a conversation
+
+Small is *one person, everything at once*, and workplan 0088's own profile table puts that person
+at roughly 100 GB. 500 GB was already five times that. The reason to go to 750 is the shape of
+the ladder rather than the typical case: 250 → 500 → 1500 steps ×2 then ×3, and the ×3 lands
+exactly where consumer storage plans cluster. Somebody on a 2 TB Google One that is a third full
+is a **single person doing a single-person migration**, and pushing them to Medium at twice the
+monthly for that is the wrong answer. At 750 the ladder reads 250 → 750 → 1.5 TB → 4 TB → 15 TB,
+and the marginal cost of the extra 250 GB is around €0.25 of transit — cheap enough that
+generosity here is not a subsidy worth defending.
+
+**Past XL, talk to us.** This is the single exception to *"prices are published in full, no
+contact sales"*, and it does not contradict it: everything **on** the scale is published, and the
+exception is for what is off the end of it. Beyond 200 paths or 15 TB the honest position is that
+we have to look at the actual case before quoting, and saying that is more truthful than
+publishing a number we would not stand behind.
+
 ### A tier is a capacity, not a tally
 
 The first draft of this amendment carried a contradiction the owner caught. Deleting the backup
@@ -362,9 +474,9 @@ path is reserved capacity; a finished path is released capacity.**
 
 Capacity also disposes of a worry a tally would have forced us to defend against, and disposes of
 it better than a tally would. Somebody running two paths at a time, forty over a month, stays on
-Small — and hits the 500 GB ceiling long before that becomes interesting. **Fair use is the
-anti-abuse mechanism. The path count does not need to be one, and should not try**, because the
-moment it does the cutover month goes absurd: eight finished paths plus one new sync path bills
+Small — and crosses the 750 GB data axis long before that becomes interesting, which moves the
+tier by itself. **The data axis is what bounds volume. The path count does not need to be, and
+should not try**, because the moment it does the cutover month goes absurd: eight finished paths plus one new sync path bills
 Large in the month the customer *stopped migrating*.
 
 **Peak, not a sample.** Within a calendar month the billed number is the most paths running at
@@ -471,7 +583,7 @@ first — `apps/api/src/routes/migrations/index.ts:1329`) *and* would mean "was 
 Those two must be told apart, because one is free and one is not. **A billing key cannot be
 built on a status that conflates the free case with the charged one.**
 
-**Four schema consequences follow. None is solved here.**
+**Five schema consequences follow. None is solved here.**
 
 **1. The column default is the wrong way round for a billing key.** The definition is
 
@@ -521,15 +633,38 @@ refinement of it: `active`/`paused`/`cutover`/`done` (plus `ready`, and `first_a
 `cutover_state` following. Until it exists, the honest position is that the tiers describe what
 the service will do, and Tiny — one path at a time — is the tier that depends on it most.
 
+**5. The byte meter needs a counter, and what exists is a sum over live rows.** `item.size_bytes`
+is populated by the sync path (`packages/core/src/domain-sync.ts`, `dav-sync.ts`), and
+`packages/ledger/src/migration-status-store.ts:182` already sums it. That sum cannot be the
+billing meter, for two reasons and one caveat:
+
+- It sums **current** rows, so it is not monotonic. An item that was copied and later
+  `tombstoned` leaves the sum, and a cumulative ceiling that can go *down* is not cumulative.
+  The meter has to be an append-only counter written at the transition into `copied` — one row
+  per period, or a single running total per tenant — not a `SUM` recomputed from state.
+- It includes `'skipped'`, which by definition transferred nothing. Correct for a
+  "how far along are we" display, wrong for a byte meter, and the two must not share a query.
+- `size_bytes` is **nullable**, and whether every domain populates it is unverified. A ceiling
+  measured with silent nulls under-counts, which is the safe direction but still a lie. The
+  coverage should be asserted per domain before the number reaches an invoice — the same
+  discipline as ADR-0029's `SKIPPED`: an unmeasured thing is stated, not assumed to be zero.
+
 ### Fair use, written the way this project writes things
+
+*(Superseded in part by "The data ceiling was never fair use" below — the ceilings became a
+price axis. What survives is the tone, and the small clause that remains.)*
 
 The ceiling replaces the per-GB pass-through, so it has to exist. What it must not be is the
 usual *"we reserve the right to limit excessive use"* — that sentence is the opposite of this
-product's entire posture. Written honestly it says: the real number per tier; that passing it
-means **we talk to you and move you a tier**, never a silent throttle and never a surprise
-invoice; that we warn at 80%, because the ledger can see it coming; and plainly what it is for —
-*"so that one unusual customer does not set the price for everyone else."* That last sentence is
-true, and saying it is cheaper than pretending the limit is technical.
+product's entire posture. Written honestly it says the real number per tier, warns at 80%
+because the ledger can see it coming, and says plainly what it is for — *"so that one unusual
+customer does not set the price for everyone else."*
+
+What changed in the later round is the **remedy**. "We talk to you and move you a tier" is a
+conversation where a price belongs: crossing a published number moves the tier automatically and
+announced, exactly as crossing a path ceiling does. The residual clause — for reselling and
+pathological churn, the things a number cannot express — keeps this section's tone and none of
+its vagueness.
 
 ## The public page
 
@@ -552,7 +687,11 @@ page should *say*.
    your files are four separate paths."* The tiers are counted in paths, so a visitor who has
    not understood this has not understood any number underneath it. Show it as the four things,
    named, with the count adding up in front of them — not as a definition in prose.
-5. **The prices, in full, on the page.** All five tiers, with the setup and the monthly shown
+5. **Both axes, side by side, and the word "higher".** *"How many at the same time, and how much
+   in total — you are on the higher of the two."* Two columns in one table, never two tables,
+   because two tables read as two bills. And the floor sentence with it: *finishing paths lowers
+   your bill; the size of what you moved sets a floor.* No per-path-per-month figure anywhere.
+6. **The prices, in full, on the page.** All five tiers, with the setup and the monthly shown
    separately and the step-up rule stated, plus the sentence that finishing paths lowers the
    bill by itself. And the advice stated outright, because the natural fear is of the tier
    above: **start everything at once — as each thing finishes, the bill falls on its own.**
@@ -560,10 +699,10 @@ page should *say*.
    never as the way to avoid a tier. CloudFuze
    quote-gates its business plan; publishing is both a real contrast and the same honesty claim
    the product makes about its own reports.
-6. **What we do not do** — the honest limits, on the page rather than discovered later:
+7. **What we do not do** — the honest limits, on the page rather than discovered later:
    `SKIPPED` means nobody checked; adopted files are not ours to delete; some things cannot be
    moved and we will name them before you pay.
-7. **Self-host**, prominent, not hidden: Apache-2.0, run it yourself, we would rather you moved
+8. **Self-host**, prominent, not hidden: Apache-2.0, run it yourself, we would rather you moved
    than that you paid us (ADR-0039's mission test, stated where customers can see it).
 
 **Tone: numbers, not adjectives.** No "seamless", no "effortless", no "enterprise-grade". The
@@ -589,6 +728,15 @@ refinement.
 makes the cutover month bill *higher* than the months of actual migrating (eight finished plus
 one sync path = nine), it contradicts the backup-row deletion, and the only thing it buys is
 protection against slot churn — which fair use already provides, better and more honestly.
+
+**A monthly data allowance instead of a cumulative one.** Rejected: the cost the ceiling stands
+for is the initial copy, which is spent once. A monthly allowance is blown in month one and idle
+in every month after, it matches no cost anyone has, and it cannot be predicted from the one
+number a visitor can look up before connecting — the size of their own account.
+
+**Counting every byte moved, including re-copies and deltas.** Rejected: it charges twice for the
+same item, it makes our own retries eat a customer's allowance, and it turns a long-lived sync
+path into a slow ratchet on somebody whose real usage is megabytes of deltas a month.
 
 **A per-path price inside each tier — a band plus a rate.** Rejected in its own section above:
 labour per path is sublinear, so a flat per-path monthly asserts something false, and a

@@ -85,9 +85,30 @@ live in [README.md](./README.md), the register.
   plainly wherever a price appears, because it is the number every tier is counted in. In the
   schema it is one **`scope_selection` row**: `(mapping_id, domain)`, one per domain, created
   with the mapping (`apps/api/src/routes/migrations/index.ts:1122`).
-- **Five tiers on PATHS RUNNING AT THE SAME TIME, not metered bytes.** Tiny 1 · Small ≤4 ·
-  Medium ≤20 · Large ≤50 · Extra large ≤200, each with a data ceiling that exists as fair use.
-  **No per-GB line and no compute line appears on any invoice.** Self-host stays free.
+- **A tier has TWO axes, and you are on the higher of them.** How many paths run at the same
+  time — Tiny 1 · Small 4 · Medium 20 · Large 50 · XL 200 — and how much data you have moved:
+  Tiny 250 GB · Small 750 GB · Medium 1.5 TB · Large 4 TB · XL 15 TB. One path and 400 GB is
+  **Small**, because size says so. Past XL on either axis, **talk to us** — that is the one
+  place a number is not published, because past the end of the scale we have to actually look.
+- **The data axis is CUMULATIVE and it counts each item's FIRST successful copy.** Not a monthly
+  allowance: the cost it stands for — the initial copy — is one-off, so a monthly allowance
+  would be blown in month one and idle ever after. Re-copies, retries, updates and delta passes
+  **do not count**; nobody pays twice for the same item, and a failed pass that runs again does
+  not eat the allowance. The meter therefore reads as *"how much of your stuff we have moved"*,
+  which is a number the customer can predict before starting — the same number the
+  pre-preflight estimates.
+- **Paths fall; data does not.** The path axis is elastic and downgrades automatically as paths
+  end. The data axis only ever rises, so it sets a **floor** under the tier. Say it on the page
+  in those words: *finishing paths lowers your bill; the size of what you moved sets a floor.*
+  It is cost-honest — a big account is expensive on every later pass too, not only on the first
+  — and it is the reason a ratchet here is not the ratchet this project exists to be the
+  opposite of: it is bounded by the tier table, published in advance, and it stops when the last
+  path ends.
+- **No per-GB line and no compute line appears on any invoice**, and **no "per path per month"
+  figure is published either.** The monthly is not rent on a path; it is rent on an envelope
+  with two dimensions, which is why a one-path 700 GB account costs more than a one-path 5 GB
+  account. Publishing a division invites a question the model does not answer. Self-host stays
+  free.
 - **Flat within a band; no per-path price inside a tier.** Labour per path is **sublinear** —
   one household is one relationship, one set of credentials, one cutover conversation — so a
   per-path monthly would contradict the reason paths were chosen as the unit at all. The
@@ -116,7 +137,8 @@ live in [README.md](./README.md), the register.
   arithmetic is ever wrong it must **under-bill, never halt a migration**.
 - **The setup fee is on the HIGHEST tier ever reached, and it is paid in steps.** Each tier
   splits into a one-off setup plus a monthly — Tiny €5 + €2 · Small €8 + €4 · Medium €11 + €8 ·
-  Large €60 + €39 · XL €150 + €99. Stepping up later costs the **difference** in setup, once; stepping down
+  Large €60 + €39 · XL €150 + €99. A tier reached on the **data** axis charges its step the same
+  way a tier reached on the path axis does. Stepping up later costs the **difference** in setup, once; stepping down
   refunds nothing, because the onboarding was consumed. This makes the total independent of
   whether a customer ramped up or started at full size, so understating gains nothing and
   guessing wrong costs nothing.
@@ -129,9 +151,12 @@ live in [README.md](./README.md), the register.
   size; that is what makes it explicable.
 - **Prices are published in full on the public page.** No "contact sales", no quote-gating.
   Deliberate contrast with the incumbents, and part of the same honesty claim as `SKIPPED`.
-- **Fair use states numbers and a named remedy**: pass the ceiling and we talk to you and move
-  you a tier — never a silent throttle, never a surprise invoice — with a warning at 80%, which
-  the ledger can see coming.
+- **The data ceiling is a PRICE, not a policy.** Crossing it moves the tier automatically and
+  announced, the same way crossing a path ceiling does — never a silent throttle, never a
+  surprise invoice — with a warning at 80% that names what the next band costs. Calling that
+  "fair use" was a hedge; a number that changes a bill is a price, and saying so is the more
+  explicit position, not the harsher one. **A residual fair-use clause remains** for what a
+  number cannot express — reselling, pathological churn — and for nothing else.
 - **There is no separate "backup" product or price.** Cutover is terminal, so keeping a copy in
   sync is a NEW path with its own initial copy — and it is billed as one. A household that
   finishes eight paths and keeps one running falls to Small the following month, by the
