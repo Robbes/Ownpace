@@ -120,7 +120,7 @@ const Layout: React.FC = () => {
           <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
             <Link to="/" className="flex items-center space-x-2">
               <FolderGit2 className="w-8 h-8 text-blue-600" />
-              <span className="text-xl font-bold text-gray-900">Open Migrate</span>
+              <span className="text-xl font-bold text-gray-900">Ownpace</span>
             </Link>
             <button
               onClick={() => setSidebarOpen(false)}
@@ -244,7 +244,7 @@ const Layout: React.FC = () => {
               return (
                 <h1 className="text-xl font-semibold text-gray-900">
                   {navigation.find((n) => location.pathname.startsWith(n.href))?.name ||
-                    'Open Migrate'}
+                    'Ownpace'}
                 </h1>
               );
             })()}

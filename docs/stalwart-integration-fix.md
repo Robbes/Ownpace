@@ -288,7 +288,7 @@ if it ever needs to run inside a DooD sandbox") is done, not still-open — don'
 
 Reproduced from inside `oh-agent-server` (a DooD sandbox) after the fixes above: `setup-stalwart.sh`
 reported "Recovery listener never came up after 60s" exactly as described below. Following this
-section's own checklist item 2, ran `docker exec open-migrate-stalwart curl -sf -o /dev/null -w
+section's own checklist item 2, ran `docker exec ownpace-stalwart curl -sf -o /dev/null -w
 "HTTP %{http_code}" http://127.0.0.1:8080/.well-known/jmap` — returned `HTTP 307` immediately.
 **Confirmed**: Stalwart was genuinely up and responding the whole time; `wait_for_jmap`'s check
 (`curl http://127.0.0.1:${JMAP_PORT}` from the *caller's* shell) was hitting the DooD loopback trap

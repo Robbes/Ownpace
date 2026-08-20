@@ -33,8 +33,8 @@
 # the repo (the JWT is minted with apps/api's own jsonwebtoken).
 #
 # Everything is overridable via env; defaults match the demo seed:
-#   SMOKE_API (http://localhost:3001)   SMOKE_DB_CONTAINER (open-migrate-db)
-#   SMOKE_API_CONTAINER (open-migrate-api)
+#   SMOKE_API (http://localhost:3001)   SMOKE_DB_CONTAINER (ownpace-db)
+#   SMOKE_API_CONTAINER (ownpace-api)
 #   SMOKE_VERIFY_TENANT/SUB/MAPPING (demo tenant A, mail)
 #   SMOKE_APPLY_TENANT/SUB/MAPPING  (demo tenant B, DAV)
 #   SMOKE_POLLS (45) SMOKE_POLL_SLEEP (2) SMOKE_OUT (evidence file path)
@@ -57,8 +57,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 API="${SMOKE_API:-http://localhost:3001}"
-DB_CONTAINER="${SMOKE_DB_CONTAINER:-open-migrate-db}"
-API_CONTAINER="${SMOKE_API_CONTAINER:-open-migrate-api}"
+DB_CONTAINER="${SMOKE_DB_CONTAINER:-ownpace-db}"
+API_CONTAINER="${SMOKE_API_CONTAINER:-ownpace-api}"
 POLLS="${SMOKE_POLLS:-45}"
 POLL_SLEEP="${SMOKE_POLL_SLEEP:-2}"
 # The prepare phase waits on a whole sync pass (runner start + DAV round trips),
@@ -173,7 +173,7 @@ echo "preflights OK (API up, db reachable, jsonwebtoken present, secret read)"
 note "minio and trigger-tls (0084 — the last two unasserted services)"
 
 # MINIO is network-internal (no published port), so this goes through a
-# container on `open-migrate-network`. The API container, because it is a Node
+# container on `ownpace-network`. The API container, because it is a Node
 # image whose own entrypoint is node — the same reasoning the trigger probes
 # use — and because this script already execs into it to read JWT_SECRET.
 #

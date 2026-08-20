@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * What a person must do IN THE PROVIDER before Open Migrate can read anything
+ * What a person must do IN THE PROVIDER before Ownpace can read anything
  * (workplan 0061) — the platform-side prerequisites, as a checklist.
  *
  * WHY THIS EXISTS. Until now the wizard said all of this in one amber

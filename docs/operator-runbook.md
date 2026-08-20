@@ -290,7 +290,7 @@ amount on every invoice until somebody checked the bank.
 **Read what one tenant actually pays:**
 
 ```bash
-docker exec open-migrate-db psql -U openmigrate -d openmigrate -c \
+docker exec ownpace-db psql -U openmigrate -d openmigrate -c \
   "SELECT t.id, t.name, p.pricing, p.agreed_at
      FROM tenant t LEFT JOIN tenant_pricing p ON p.tenant_id = t.id
     ORDER BY t.created_at;"
@@ -304,7 +304,7 @@ simply absent cannot be misread that way.
 **Re-price ONE existing tenant** — deliberate, per customer, after you have agreed it with them:
 
 ```bash
-docker exec open-migrate-db psql -U openmigrate -d openmigrate -c \
+docker exec ownpace-db psql -U openmigrate -d openmigrate -c \
   "INSERT INTO tenant_pricing (tenant_id, pricing) VALUES ('<tenant-uuid>', jsonb_build_object(
        'baseFee', 1250, 'storagePricePerGB', 10,
        'egressPricePerGB', 20, 'computePricePerHour', 5))
@@ -331,7 +331,7 @@ reason is not hypothetical — it has already nearly happened twice:
 - **A drill nearly took a live appliance down.** `container_name` in
   `compose.yml` is a fixed string and `docker compose -p` does not namespace
   it, so `upgrade-drill.sh` under its own project still tried to create a
-  container named `open-migrate-selfhost-app`. The first run only got away
+  container named `ownpace-selfhost-app`. The first run only got away
   with it because no appliance happened to be up. Fixed with
   `compose.drill.yml`, but the class of problem is "CI and production share a
   Docker daemon", and that is still true.

@@ -21,19 +21,19 @@
 # derives the resource-name prefix from the CURRENT DIRECTORY'S BASENAME ("compose"), so on a
 # shared host, any other unrelated project also run from a directory literally named `compose`
 # collides on the exact same volume/network names (compose_postgres_data,
-# compose_open-migrate-network, ...). Confirmed live on the Spark box (2026-07-25): `open-migrate-db`
+# compose_ownpace-network, ...). Confirmed live on the Spark box (2026-07-25): `ownpace-db`
 # silently mounted a `compose_postgres_data` volume created two days earlier -- NOT this project's
 # data -- so its `openmigrate` role's real password didn't match this stack's own .env, and every
 # app-tier connection failed with "password authentication failed" despite .env, the container's
 # own POSTGRES_PASSWORD env var, and a local-socket/127.0.0.1 psql check all agreeing (the latter
 # two are trusted by Postgres's default pg_hba.conf and never actually check the password -- only
 # a connection from another container's real IP exercises the scram-sha-256 rule and exposed this).
-name: open-migrate-managed
+name: ownpace-managed
 services:
   # PostgreSQL Database
   postgres:
     image: postgres:18-alpine
-    container_name: open-migrate-db
+    container_name: ownpace-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-openmigrate}
@@ -56,7 +56,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - open-migrate-network
+      - ownpace-network
 
   # PgBouncer — transaction-mode pooler in front of the ledger (workplan 0082 T4)
   #
@@ -75,7 +75,7 @@ services:
   # whole stack back on direct connections without touching this file.
   pgbouncer:
     image: edoburu/pgbouncer:v1.24.1-p1
-    container_name: open-migrate-pgbouncer
+    container_name: ownpace-pgbouncer
     restart: unless-stopped
     depends_on:
       postgres:
@@ -96,7 +96,7 @@ services:
     environment:
       PGBOUNCER_AUTH_PASSWORD: ${PGBOUNCER_AUTH_PASSWORD:?run deploy/compose/pgbouncer/setup-auth.sql and set this in .env}
     networks:
-      - open-migrate-network
+      - ownpace-network
 
   # Trigger.dev Backend
   trigger-db:
@@ -115,7 +115,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - open-migrate-network
+      - ownpace-network
 
   trigger-redis:
     image: redis:7-alpine
@@ -130,7 +130,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - open-migrate-network
+      - ownpace-network
 
   trigger-api:
     # ONE tag for webapp and supervisor, pinned to the exact @trigger.dev/sdk
@@ -238,7 +238,7 @@ services:
       # start_period too short turns a slow boot into a failed bring-up.
       start_period: 120s
     networks:
-      - open-migrate-network
+      - ownpace-network
 
   # Task-event store the webapp actually queries (see the CLICKHOUSE comment
   # above). The reference stack's service, with its own <16GB-RAM tuning file.
@@ -259,7 +259,7 @@ services:
       retries: 5
       start_period: 10s
     networks:
-      - open-migrate-network
+      - ownpace-network
 
   # Where `trigger deploy` pushes task images and the host's docker daemon
   # pulls them from (0018 T3). Bound to 127.0.0.1 ON PURPOSE: both consumers
@@ -277,7 +277,7 @@ services:
     volumes:
       - registry_data:/var/lib/registry
     networks:
-      - open-migrate-network
+      - ownpace-network
 
   # The supervisor talks to docker through this proxy rather than holding the
   # raw socket: the whitelist below is exactly what running task containers
@@ -296,7 +296,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
-      - open-migrate-network
+      - ownpace-network
 
   # The component that actually EXECUTES deployed tasks (0018 T0/T3): it
   # authenticates to trigger-api with the bootstrap worker token the webapp
@@ -319,7 +319,7 @@ services:
       # Run containers join THIS network, so tasks reach postgres, stalwart
       # and nextcloud by the same names the worker container uses. The value
       # is the REAL network name — compose prefixes the pinned project name.
-      DOCKER_RUNNER_NETWORKS: open-migrate-managed_open-migrate-network
+      DOCKER_RUNNER_NETWORKS: ownpace-managed_ownpace-network
       DOCKER_REGISTRY_URL: localhost:${REGISTRY_PORT:-5000}
     volumes:
       - trigger_shared:/home/node/shared
@@ -344,7 +344,7 @@ services:
       retries: 10
       start_period: 60s
     networks:
-      - open-migrate-network
+      - ownpace-network
 
   # Object store for large task payloads/outputs. trigger-api has pointed at
   # http://minio:9000 since the stack was written — the service just never
@@ -362,7 +362,7 @@ services:
     volumes:
       - minio_data:/bitnami/minio/data
     networks:
-      - open-migrate-network
+      - ownpace-network
 
   # TLS front for the trigger dashboard (0020 T3) — the hand-run Caddy sidecar
   # from the 2026-08-01 live bring-up, folded in. The dashboard's
@@ -392,7 +392,7 @@ services:
       trigger-api:
         condition: service_started
     networks:
-      - open-migrate-network
+      - ownpace-network
 
   # Open Migration API
   api:
@@ -405,7 +405,7 @@ services:
         # answers commit "unknown" — build with:
         #   GIT_SHA=$(git rev-parse HEAD) docker compose -f managed.yml build
         GIT_SHA: ${GIT_SHA:-unknown}
-    container_name: open-migrate-api
+    container_name: ownpace-api
     restart: unless-stopped
     environment:
       NODE_ENV: ${NODE_ENV:-development}
@@ -455,7 +455,7 @@ services:
       trigger-api:
         condition: service_started
     networks:
-      - open-migrate-network
+      - ownpace-network
 
   # There is deliberately NO worker/poller service (0022 T4): syncs are
   # started by the deployed `managed-sync-tick` scheduled task, and every job
@@ -471,14 +471,14 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-/api}
-    container_name: open-migrate-web
+    container_name: ownpace-web
     restart: unless-stopped
     ports:
       - "${WEB_PORT:-3123}:80"
     depends_on:
       - api
     networks:
-      - open-migrate-network
+      - ownpace-network
 
   # Demo CalDAV/CardDAV/WebDAV backend (T7 DoD demo). Two accounts per demo
   # tenant get provisioned on it by setup-managed-demo.sh; the worker reaches
@@ -486,7 +486,7 @@ services:
   # deployment — operators bring their own calendar/contacts/file targets.
   nextcloud:
     image: nextcloud:34-apache
-    container_name: open-migrate-nextcloud
+    container_name: ownpace-nextcloud
     restart: unless-stopped
     environment:
       SQLITE_DATABASE: nextcloud
@@ -510,10 +510,10 @@ services:
       retries: 10
       start_period: 180s
     networks:
-      - open-migrate-network
+      - ownpace-network
 
 networks:
-  open-migrate-network:
+  ownpace-network:
     driver: bridge
 
 volumes:

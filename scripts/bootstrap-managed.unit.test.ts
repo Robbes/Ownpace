@@ -239,7 +239,7 @@ describe('trigger-credentials.sh', () => {
   }
 
   it('prints the ref and the prod key as env lines', () => {
-    const r = run(CREDENTIALS, [], stubPsql(FULL_SCHEMA, 'proj_abc123|tr_prod_XYZ789|open-migrate\\n'));
+    const r = run(CREDENTIALS, [], stubPsql(FULL_SCHEMA, 'proj_abc123|tr_prod_XYZ789|ownpace\\n'));
     expect(r.status).toBe(0);
     expect(r.stdout.trim().split('\n')).toEqual([
       'TRIGGER_PROJECT_REF=proj_abc123',
@@ -252,7 +252,7 @@ describe('trigger-credentials.sh', () => {
     writeFileSync(envFile, 'TRIGGER_PROJECT_REF=\nTRIGGER_SECRET_KEY=\nAPI_PORT=3001\n');
     // The script writes to the .env NEXT TO ITSELF, so drive the write through
     // env-upsert directly on a temp file and assert the pair it would hand over.
-    const r = run(CREDENTIALS, [], stubPsql(FULL_SCHEMA, 'proj_abc123|tr_prod_XYZ789|open-migrate\\n'));
+    const r = run(CREDENTIALS, [], stubPsql(FULL_SCHEMA, 'proj_abc123|tr_prod_XYZ789|ownpace\\n'));
     run(UPSERT, [envFile, ...r.stdout.trim().split('\n')]);
 
     expect(readFileSync(envFile, 'utf8')).toBe(
@@ -274,7 +274,7 @@ describe('trigger-credentials.sh', () => {
   it('refuses a value of the wrong shape rather than writing a plausible one', () => {
     // The column exists but holds something else — the failure mode that would
     // otherwise be believed for the rest of the deployment's life.
-    const r = run(CREDENTIALS, [], stubPsql(FULL_SCHEMA, 'cm9iYmVz|tr_prod_XYZ789|open-migrate\\n'));
+    const r = run(CREDENTIALS, [], stubPsql(FULL_SCHEMA, 'cm9iYmVz|tr_prod_XYZ789|ownpace\\n'));
 
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/does not look like a project ref/);
@@ -284,7 +284,7 @@ describe('trigger-credentials.sh', () => {
   it('refuses a dev key where a prod key belongs', () => {
     // A `tr_dev_` key is personal to a CLI session and would not work from a
     // container — and it is the one an operator is most likely to copy.
-    const r = run(CREDENTIALS, [], stubPsql(FULL_SCHEMA, 'proj_abc123|tr_dev_XYZ789|open-migrate\\n'));
+    const r = run(CREDENTIALS, [], stubPsql(FULL_SCHEMA, 'proj_abc123|tr_dev_XYZ789|ownpace\\n'));
 
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/does not look like a tr_prod_ key/);

@@ -114,7 +114,7 @@ describe('smtpTransport against a real mail server', () => {
       to: [USER],
       subject: SUBJECT,
       body: [
-        'Open Migrate summary',
+        'Ownpace summary',
         '',
         'Migration: inbox',
         `  - 3 ${MARKER}`,

@@ -41,6 +41,54 @@ Two of those are yours. Everything else is one command.
 
 ---
 
+## Cutting over from the pre-rename stack (one time, ADR-0040)
+
+The product was renamed, and with it the compose project, container, network and
+volume names (`open-migrate-*` → `ownpace-*`). **Docker does not follow a rename.**
+Bringing the new stack up next to an old one gives you a second, empty set of
+volumes while the old data sits there dangling — the stack looks freshly broken
+rather than un-migrated, which is the confusing failure this section exists to
+prevent.
+
+Deleting the checkout is **not** what does it: the state lives in Docker, not in
+the working tree.
+
+```bash
+# 1. Tear the OLD project down WITH its volumes. This destroys its data — that is
+#    the point, and it is only correct because nothing live is running.
+docker compose -p open-migrate-managed down -v --remove-orphans
+docker compose -p open-migrate-selfhost down -v --remove-orphans   # if present
+
+# 2. `container_name:` is a fixed string, so `-p` never namespaced these. Any that
+#    survived step 1 would collide with the new stack by name.
+docker rm -f open-migrate-db open-migrate-pgbouncer open-migrate-api \
+             open-migrate-web open-migrate-nextcloud \
+             open-migrate-selfhost-db open-migrate-selfhost-app 2>/dev/null || true
+
+# 3. Confirm nothing is left holding the old name before you bring the new one up.
+docker volume ls  --filter name=open-migrate
+docker network ls --filter name=open-migrate
+```
+
+**Do NOT delete `~/.persistent/open-migrate-managed`.** It holds the stack's `.env`
+— including `SECRET_ENCRYPTION_KEY`, the key that decrypts every stored credential
+in the database — and `pgbouncer/userlist.txt`. It lives outside the checkout
+precisely so `actions/checkout`'s clean cannot reach it, which also means nothing
+else will recreate it. **Move it:**
+
+```bash
+mv ~/.persistent/open-migrate-managed ~/.persistent/ownpace-managed
+```
+
+If the repository variable **`MANAGED_ENV_PERSIST_DIR`** is set explicitly, it
+overrides the workflow default and still points at the old path — update it in
+GitHub → Settings → Variables, or the nightly e2e restores `.env` from a directory
+that is no longer there.
+
+The Trigger.dev platform containers (`trigger-db`, `trigger-api`, `trigger-tls`, …)
+are **not** product-named and keep their names; nothing above touches them.
+
+
 ## Before you start
 
 **Host**
@@ -283,7 +331,7 @@ if the instance genuinely has no project does it stop, and then:
 
 4. **Name an organisation**, then **name a project**. Both are yours to choose
    and nothing in this repository depends on either. (Suggestion:
-   organisation `Open Migrate`, project `open-migrate`.)
+   organisation `Ownpace`, project `ownpace`.)
 
 5. **Do not hand-copy anything.** Resume:
 
@@ -399,7 +447,7 @@ Worse: `actions/checkout` defaults to `clean: true`, which runs `git clean
 among them. So even hand-placing `.env` in the runner's checkout once does
 not survive the *next* run. `e2e-managed.yml` now works around this by
 persisting the one-time setup **outside** any checkout — at
-`$MANAGED_ENV_PERSIST_DIR` (default `~/.persistent/open-migrate-managed` on
+`$MANAGED_ENV_PERSIST_DIR` (default `~/.persistent/ownpace-managed` on
 the runner, overridable as a repository variable) — and restoring it into
 the checkout at the start of every run, before the refuse-early check.
 
@@ -410,9 +458,9 @@ the one-time setup for CI is not a second bring-up — it is copying your
 already-correct `.env` into the persist directory:
 
 ```bash
-mkdir -p ~/.persistent/open-migrate-managed
-cp deploy/compose/.env ~/.persistent/open-migrate-managed/.env
-cp deploy/compose/pgbouncer/userlist.txt ~/.persistent/open-migrate-managed/userlist.txt
+mkdir -p ~/.persistent/ownpace-managed
+cp deploy/compose/.env ~/.persistent/ownpace-managed/.env
+cp deploy/compose/pgbouncer/userlist.txt ~/.persistent/ownpace-managed/userlist.txt
 ```
 
 **Do not run a fresh `bootstrap-managed.sh` or `ensure-env-secrets.sh` in the
@@ -445,9 +493,9 @@ because unset, the CLI's env-var login path defaults to the SAAS cloud
 gets restored the same way `.env` does —
 
 ```bash
-mkdir -p ~/.persistent/open-migrate-managed
+mkdir -p ~/.persistent/ownpace-managed
 cp "${XDG_CONFIG_HOME:-$HOME/.config}/trigger/config.json" \
-   ~/.persistent/open-migrate-managed/trigger-cli-config.json
+   ~/.persistent/ownpace-managed/trigger-cli-config.json
 ```
 
 — though note `whoami` structurally cannot see `TRIGGER_ACCESS_TOKEN` (it
@@ -471,7 +519,7 @@ let a credential obtained once survive to the next run.
 | `pgbouncer` reports `unhealthy` after ~80s, and its own log says the user is not allowed | The healthcheck reads `SHOW POOLS` from the admin console, which PgBouncer refuses to anyone not in `stats_users`/`admin_users` | Fixed in `pgbouncer/pgbouncer.ini` (`stats_users = pgbouncer_auth`). On an older checkout, pull and `--only data` |
 | Any `docker compose` command fails with `required variable X is missing a value` | Compose interpolates the **whole** file before running anything, so one unset variable breaks every command — including ones that never touch the service named in the error. An `.env` that predates the pooler hits this on `PGBOUNCER_AUTH_PASSWORD` | `./deploy/compose/ensure-env-secrets.sh`, then `--only data` to create the matching Postgres role and start the pooler |
 | `pgbouncer` never becomes healthy, complains about a password | `setup-auth.sql` has not run, or ran without `my.pw` set | `--only data`. The SQL now refuses an unset `my.pw` rather than creating a role with no password |
-| Every app connection: `password authentication failed`, though `.env` and the container agree | A volume from a *different* project — compose's project name derived from the directory basename | `managed.yml` pins `name: open-migrate-managed`. Check `docker volume ls` for a stray `compose_postgres_data` |
+| Every app connection: `password authentication failed`, though `.env` and the container agree | A volume from a *different* project — compose's project name derived from the directory basename | `managed.yml` pins `name: ownpace-managed`. Check `docker volume ls` for a stray `compose_postgres_data` |
 | `trigger-magic-link.sh` finds nothing | The link is only written when one is **requested** | Submit your email on the dashboard's login page first, then re-run |
 | Dashboard loads but the login never completes | `TRIGGER_APP_ORIGIN` / `TRIGGER_LOGIN_ORIGIN` do not match the address the browser is using; the `Secure` cookie is dropped | Set both (and `TRIGGER_TLS_HOST`) to the real address, then `--from trigger` |
 | `npx trigger.dev deploy` dies with a bare `Connection error` | The CLI was pointed at the https front | Log in against `http://localhost:3090` |
@@ -658,7 +706,7 @@ it populated, reports "nothing to do", and skips the human step that is now
 mandatory.
 
 The reset destroys the orchestration database only. The ledger, tenants,
-mappings, items and invoices live in `open-migrate-db`, a different volume, and
+mappings, items and invoices live in `ownpace-db`, a different volume, and
 are untouched; the API and pooler keep serving throughout. You are then back at
 the one human step, and `trigger-credentials.sh` reads the new project's
 credentials.

@@ -13,7 +13,7 @@
 # project (so its `proj_` ref and `tr_prod_` key), every deployment, and the run
 # history.
 #
-# WHAT IT DOES NOT TOUCH: `open-migrate-db`. Tenants, mappings, items,
+# WHAT IT DOES NOT TOUCH: `ownpace-db`. Tenants, mappings, items,
 # connections, invoices and the audit log are in a different database and a
 # different volume, and this script names the one it removes rather than
 # sweeping. The API and the pooler keep serving throughout.
@@ -31,7 +31,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env"
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml")
-VOLUME="open-migrate-managed_trigger_db_data"
+VOLUME="ownpace-managed_trigger_db_data"
 
 if [ "${1:-}" != "--yes" ]; then
   cat >&2 <<EOF
@@ -41,7 +41,7 @@ reset-trigger.sh destroys the Trigger.dev database:
   - every deployment
   - the entire run history
 
-It does NOT touch open-migrate-db — tenants, mappings, items, connections and
+It does NOT touch ownpace-db — tenants, mappings, items, connections and
 invoices are in a different database and are not affected.
 
 Afterwards you do the one human step again (dashboard: sign in, name an

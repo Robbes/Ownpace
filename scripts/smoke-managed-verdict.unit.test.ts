@@ -163,7 +163,7 @@ describe('unhealthy is reported as unhealthy, and nothing else is', () => {
 
   it('the awk selects unhealthy without catching the healthcheck-less', () => {
     const sample = [
-      'open-migrate-api healthy',
+      'ownpace-api healthy',
       'trigger-api ', // no healthcheck: .Health is empty
       'trigger-supervisor ',
       'some-broken unhealthy',

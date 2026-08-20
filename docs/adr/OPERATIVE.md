@@ -287,14 +287,21 @@ live in [README.md](./README.md), the register.
 - The **GDPR Article 20 framing belongs in the copy, never in the name** — "transmitted
   directly from one controller to another, where technically feasible" is a claim no competitor
   can take and no registry has to grant.
-- **Operational identifiers keep the old string and are NOT renamed with the brand:** GHCR
-  image names (`ghcr.io/robbes/open-migrate-{api,web,selfhost}`), the compose project, container,
-  network and volume names, the persist directory, and the `openmigrate` DB role. Renaming a
-  compose project **detaches its live volumes** — the running stack would come up empty with the
-  real data dangling — and the published images are cosign-signed against
-  `--certificate-identity-regexp '^https://github.com/Robbes/open-migrate/'`, so a rename breaks
-  signature verification for everything already released. Any change here is a migration, not a
-  rename, and needs its own plan.
-- **Still OPEN, the owner's, not to be inferred:** the npm scope `@openmig/*` (13 packages, all
-  `private: true`, so no external consumer); whether to assert the mark in `NOTICE` (still held);
-  and whether the post-cutover backup gets its own brand or is a plan name under Ownpace.
+- **Renamed to `ownpace-*`:** compose project, container, network and volume names, the
+  persist directory, and future GHCR image names. **This is not a rename on a live stack** —
+  a compose project rename detaches its volumes, so an operator with data must destroy the old
+  project deliberately (`docker compose -p <old> down -v`) rather than discover it. Done here
+  only because nothing was live.
+- **Kept, deliberately:** the npm scope **`@openmig/*`** (13 packages, all `private: true`), and
+  everything that follows it — the `openmigrate` Postgres role/database and the
+  **`openmigrate_*` Prometheus metric prefix**, which a rename would silently break for every
+  existing dashboard and alert. Rule of thumb: rename what is named after the *product*, keep
+  what is named after the *scope*.
+- **An image already published never moves.** Tags up to `v0.1.0-rc.1` live at
+  `ghcr.io/robbes/open-migrate-selfhost` forever; `v0.1.0` on lives at `ownpace-selfhost`.
+  `scripts/upgrade-drill.sh` derives its registry from the tag for exactly this reason — a
+  hardcoded path makes the drill pull a tag that does not exist, silently, from the script whose
+  job is proving upgrades work. The cosign identity regexp matches **both** repo paths.
+- **Still OPEN, the owner's, not to be inferred:** whether to assert the mark in `NOTICE`
+  (still held, pending TMview); and whether the post-cutover backup gets its own brand or is a
+  plan name under Ownpace.

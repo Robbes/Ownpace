@@ -16,12 +16,12 @@
 # HARD RULE 5: no managed-only service here — no Trigger.dev, no billing. The
 # app runs the worker's multi-domain orchestration in-process.
 
-name: open-migrate-selfhost
+name: ownpace-selfhost
 
 services:
   postgres:
     image: postgres@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
-    container_name: open-migrate-selfhost-db
+    container_name: ownpace-selfhost-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-openmigrate}
@@ -44,8 +44,8 @@ services:
     build:
       context: ../..
       dockerfile: apps/selfhost/Dockerfile
-    image: ${SELFHOST_IMAGE:-ghcr.io/robbes/open-migrate-selfhost:edge}
-    container_name: open-migrate-selfhost-app
+    image: ${SELFHOST_IMAGE:-ghcr.io/robbes/ownpace-selfhost:edge}
+    container_name: ownpace-selfhost-app
     restart: unless-stopped
     env_file:
       # tokenFromEnv/passwordFromEnv secrets referenced by the mapping configs

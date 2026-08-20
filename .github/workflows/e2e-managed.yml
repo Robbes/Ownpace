@@ -150,7 +150,7 @@ jobs:
         # account/project's credentials already do via `.env`.
         run: |
           set -euo pipefail
-          PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/open-migrate-managed}"
+          PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/ownpace-managed}"
           if [ -f "${PERSIST_DIR}/.env" ]; then
             mkdir -p deploy/compose/pgbouncer
             cp "${PERSIST_DIR}/.env" deploy/compose/.env
@@ -187,7 +187,7 @@ jobs:
             grep -qE "^${key}=." "$ENV_FILE" 2>/dev/null || missing+=("$key")
           done
           if [ ${#missing[@]} -gt 0 ]; then
-            PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/open-migrate-managed}"
+            PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/ownpace-managed}"
             echo "::error::This runner has never had the managed stack set up: missing ${missing[*]}."
             echo "The Trigger.dev half cannot be bootstrapped unattended — see the ONE-TIME"
             echo "prerequisites in deploy/compose/deploy-tasks.sh: create the account and project"

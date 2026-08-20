@@ -109,7 +109,7 @@ const PG_DB = process.env.POSTGRES_DB || 'openmigrate';
  * fail loudly (good) or remove somebody else's volume (not good) — hence the
  * existence check before the destroy step.
  */
-const PROJECT = 'open-migrate-selfhost';
+const PROJECT = 'ownpace-selfhost';
 const PG_VOLUME = `${PROJECT}_pgdata`;
 const APP_VOLUME = `${PROJECT}_appdata`;
 

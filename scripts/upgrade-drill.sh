@@ -42,8 +42,18 @@ set -euo pipefail
 
 FROM_TAG="${1:-v0.1.0-rc.1}"
 FROM_VERSION="${FROM_TAG#v}"
-REGISTRY="ghcr.io/robbes/open-migrate-selfhost"
-PROJECT="open-migrate-upgrade-drill"
+
+# The registry path depends on WHICH release we are upgrading FROM, because the
+# product was renamed (ADR-0040) and an image already published does not move.
+# Everything up to and including v0.1.0-rc.1 was pushed as `open-migrate-selfhost`;
+# from v0.1.0 on it is `ownpace-selfhost`. Deriving this from the tag is the whole
+# point: hardcoding either one makes the drill pull a tag that does not exist —
+# silently, from a script whose entire job is to prove upgrades work.
+case "$FROM_VERSION" in
+  0.1.0-rc.*) REGISTRY="ghcr.io/robbes/open-migrate-selfhost" ;;
+  *)          REGISTRY="ghcr.io/robbes/ownpace-selfhost" ;;
+esac
+PROJECT="ownpace-upgrade-drill"
 PORT="${DRILL_PORT:-8099}"
 BASE="http://127.0.0.1:${PORT}"
 
@@ -157,7 +167,7 @@ say "    released image wrote its PGlite state directory"
 #    a fresh install beside it.
 # ---------------------------------------------------------------------------
 say "2/5  Building the appliance from the working tree"
-export SELFHOST_IMAGE="open-migrate-selfhost:upgrade-drill-head"
+export SELFHOST_IMAGE="ownpace-selfhost:upgrade-drill-head"
 "${COMPOSE[@]}" build app
 
 say "3/5  Swapping the image in place (volumes kept)"

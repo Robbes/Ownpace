@@ -471,7 +471,7 @@ phase_account() {
 
     4. The dashboard now asks for an organisation name, then a project name.
        Both are yours to choose; nothing in this repository depends on either.
-       (Suggestion: organisation "Open Migrate", project "open-migrate".)
+       (Suggestion: organisation "Ownpace", project "ownpace".)
 
     5. That is all. Do NOT hand-copy the project ref or the API key —
        the resume command below reads both out of the instance and checks

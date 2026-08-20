@@ -12,7 +12,10 @@ Low-maintenance, open-source stack to migrate families and small/medium business
 Published builds — no toolchain needed:
 
 - **Self-host (Docker Compose):** signed multi-arch images on GHCR —
-  `docker pull ghcr.io/robbes/open-migrate-selfhost:0.1.0-rc.1` (also
+  `docker pull ghcr.io/robbes/open-migrate-selfhost:0.1.0-rc.1` — the old
+  image name is deliberate: rc.1 was published before the rename (ADR-0040)
+  and that tag exists only at that path. Releases from v0.1.0 on are
+  `ghcr.io/robbes/ownpace-selfhost`. (also
   `-api` and `-web` for the managed stack; `edge` is the per-merge rolling
   build). Install guide: [`docs/selfhost-quickstart.md`](./docs/selfhost-quickstart.md);
   channels + signature verification: [`deploy/selfhost/README.md`](./deploy/selfhost/README.md).

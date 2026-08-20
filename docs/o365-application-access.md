@@ -171,7 +171,7 @@ New-ApplicationAccessPolicy `
   -AppId "00000000-0000-0000-0000-000000000000" `
   -PolicyScopeGroupId openmigrate-scope@yourtenant.nl `
   -AccessRight RestrictAccess `
-  -Description "Open Migrate: read only the mailboxes in OpenMigrate Scope"
+  -Description "Ownpace: read only the mailboxes in OpenMigrate Scope"
 ```
 
 **Give it up to an hour.** The policy is evaluated by Exchange Online and does
@@ -199,7 +199,7 @@ a mailbox outside the group is denied.
 
 ## 6. Prove that *this product* can read
 
-Step 5 proves the **policy**. It does not prove that Open Migrate can read
+Step 5 proves the **policy**. It does not prove that Ownpace can read
 anything — the client secret could be wrong, the consent could sit on a
 different app registration, a permission could have been added and never
 consented. Every one of those looks identical from PowerShell.

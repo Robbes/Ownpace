@@ -119,16 +119,16 @@ jobs:
           **Container images** (multi-arch, cosign-signed):
 
           \`\`\`
-          docker pull ghcr.io/robbes/open-migrate-selfhost:${VER}
-          docker pull ghcr.io/robbes/open-migrate-api:${VER}
-          docker pull ghcr.io/robbes/open-migrate-web:${VER}
+          docker pull ghcr.io/robbes/ownpace-selfhost:${VER}
+          docker pull ghcr.io/robbes/ownpace-api:${VER}
+          docker pull ghcr.io/robbes/ownpace-web:${VER}
           \`\`\`
 
           **Verify a signature** (keyless, against the public Sigstore log):
 
           \`\`\`
-          cosign verify ghcr.io/robbes/open-migrate-selfhost:${VER} \
-            --certificate-identity-regexp '^https://github.com/Robbes/(open-migrate|Ownpace)/' \
+          cosign verify ghcr.io/robbes/ownpace-selfhost:${VER} \
+            --certificate-identity-regexp '^https://github.com/Robbes/(ownpace|Ownpace)/' \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com
           \`\`\`
 
