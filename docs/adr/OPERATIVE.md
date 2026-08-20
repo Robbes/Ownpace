@@ -302,6 +302,12 @@ live in [README.md](./README.md), the register.
   `scripts/upgrade-drill.sh` derives its registry from the tag for exactly this reason — a
   hardcoded path makes the drill pull a tag that does not exist, silently, from the script whose
   job is proving upgrades work. The cosign identity regexp matches **both** repo paths.
-- **Still OPEN, the owner's, not to be inferred:** whether to assert the mark in `NOTICE`
-  (still held, pending TMview); and whether the post-cutover backup gets its own brand or is a
-  plan name under Ownpace.
+- **The mark is asserted in `NOTICE`** — the one restriction on an otherwise permissive
+  licence, guarded by `scripts/notice-and-trademark.unit.test.ts`. It is an **unregistered**
+  claim: no `®`, no "registered trade mark of". The assertion states what needs **no**
+  permission (nominative use, forking, private instances) as explicitly as what does, so it
+  cannot be misread as a restriction on the code.
+- **Still OPEN, the owner's, not to be inferred:** whether to file an EUTM (a separate step
+  from asserting — see the two extra searches named below); the legal proprietor named in
+  `NOTICE`, currently "the Ownpace project maintainers" rather than a company; and whether the
+  post-cutover backup gets its own brand or is a plan name under Ownpace.
