@@ -221,7 +221,24 @@ explicitly rather than resting on the absence of a mistake, the same reasoning a
 Google will not accept a raw IP address as a redirect URI, and the owner browses to their
 appliance at `https://100.97.25.131:3123`. So T1's callback needs somewhere to land.
 
-Two candidates, **both unverified, neither decided here**:
+**The problem is smaller than this task first framed it**, and the reason matters. ADR-0041 says
+the appliance never uses an Ownpace client — it uses the **customer's own**, which means the
+customer registers their own redirect URI for their own appliance's address. So the constraint
+is not "we must solve callbacks for appliances"; it is "an appliance reached at a raw IP cannot
+be an OAuth redirect target, and the customer must give it a name or forward a port." That is a
+documentation answer with two supported shapes, not an engineering one:
+
+- **Forward the port** and use `http://localhost:<port>/oauth/google/callback`. Google permits
+  loopback over plain HTTP, and never connects to the callback itself — it 302s the browser,
+  which is where the forward lives. No TLS, no DNS, no certificate.
+- **Give the appliance a hostname** under a domain the customer owns, with TLS. A private
+  address in public DNS is allowed; Google's objection is to the IP *literal*, not the network.
+
+Both belong in `docs/google-workspace-setup.md` next to the redirect-URI step, and the refusal
+for a raw-IP callback should name them.
+
+What remains genuinely open is only the case where neither is acceptable — no port forward, no
+DNS control. Two candidates, **both unverified, neither decided here**:
 
 1. **A "Desktop app" client with a `http://localhost:<port>` redirect.** Google permits loopback
    redirects for that client type. Works when the browser and the appliance share a host;

@@ -13,7 +13,7 @@ rest of this guide assumes you have already answered. **Get it wrong and everyth
 works, but with banners, a test-user list, and a token that quietly dies every seven days.**
 
 > **A Workspace account, and you are migrating it inside its own organisation.**
-> Choose **Internal** at the consent screen (§2). Google skips verification entirely: no
+> Choose **Internal** at the consent screen step below. Google skips verification entirely: no
 > "Google hasn't verified this app" warning, no test-user list, no token expiry. This is most
 > readers, and it costs nothing.
 >
@@ -35,13 +35,15 @@ first — it replaces one consent ceremony per person per product with a single 
 project, registered by you; the credential never leaves your custody; and revoking it is yours
 — delete the OAuth client and every token dies.
 
-That is a deliberate trade, and it is the reason this guide exists at all rather than a
-**Connect with Google** button: an appliance is software you run, so a button backed by *our*
-OAuth client would mean shipping our client secret to everyone who downloads it. What we can
-do — and have not built yet — is run the consent step for you against **your** client, which
-removes §3's redirect URI and all of §4. That is
-[workplan 0089](./workplans/0089-a-consent-you-can-click.md), and who may own an OAuth client
-is [ADR-0041](./adr/0041-who-owns-the-oauth-client.md).
+That is a deliberate trade, and it is the reason this guide exists at all rather than a single
+**Connect with Google** button. Ownpace is software you can run yourself, so a button backed by
+*our* Google credentials would mean shipping those credentials to everyone who downloads it —
+which is exactly the thing nobody should do with a secret.
+
+What we can do, and have not built yet, is run the consent step for you against **your own**
+client. That would remove the redirect URI in step 3 and the whole of step 4 — the two most
+awkward parts of this guide — while changing nothing about who holds the credential. It is
+planned.
 
 ---
 

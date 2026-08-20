@@ -107,15 +107,62 @@ The owner registered a client on 2026-08-20. What goes in the console, and why:
 browser is redirected and the token exchange happens on the server with the client secret. A JS
 origin is only required for browser-side OAuth. Leave this empty.
 
-**Authorized redirect URIs**, exactly as registered (Google matches byte-for-byte, before any
-redirect of ours runs):
+**Authorized redirect URIs** — three environments, exactly as registered. Google matches
+byte-for-byte, before any redirect of ours runs, so a trailing slash or a missing port is a
+failure and not a near-miss:
 
 ```
-https://«CANONICAL_HOST»/oauth/google/callback
-http://localhost:8081/oauth/google/callback
+https://app.ownpace.eu/oauth/google/callback      production
+https://ota.ownpace.eu/oauth/google/callback      testing, on the internet
+http://localhost:3123/oauth/google/callback       testing, on the netbird box
 ```
 
-Three things decided here rather than improvised in the console:
+**Why the third one is loopback rather than the box's own address.** Google refuses a **raw IP**
+as a redirect URI, and refuses **`http://`** for anything except loopback — and the box serves
+plain HTTP on 3123 (`SSL_ERROR_RX_RECORD_TOO_LONG` at `https://100.97.25.131:3123` is a server
+speaking HTTP on that port). So `https://100.97.25.131:3123/…` fails twice over.
+
+Loopback works because **Google never connects to the callback**: it issues a 302 and the
+*browser* follows it. Forward the port from the laptop to the box —
+
+```sh
+ssh -N -L 3123:localhost:3123 «user»@100.97.25.131
+```
+
+— and `http://localhost:3123` reaches the appliance from the browser that is doing the consent.
+No TLS, no certificate, no DNS.
+
+`localhost` and `127.0.0.1` are **different strings** to Google. Register the one that will
+actually be in the URL bar.
+
+**The key point, because "it cannot be an IP" reads as a blocker and is not one: Google never
+resolves this hostname.** It hands the browser a 302 and stops caring. Only the machine doing
+the consent has to reach the address — which is why a mesh-private name is perfectly legal here
+even though the public internet cannot resolve it.
+
+That gives a second option, if the port-forward becomes tiresome: **use the netbird DNS name the
+box already has** (or a name under a domain you own, pointed at the netbird address — a private
+IP in public DNS is allowed). Google accepts it because it is a hostname rather than an IP
+literal, and netbird resolves it on the laptop.
+
+The cost of that option is TLS: everything except loopback must be `https`, so the box has to
+terminate TLS on that name. A self-signed certificate is enough — the browser will warn once and
+let you through, and Google is not looking. Worth it if several machines need to reach the box;
+otherwise the port-forward is less setup for the same result.
+
+**Production on `app.` rather than `www.`** — a recommendation, not a requirement. The managed
+application and the marketing site want different cookie scopes, different CSP, and independent
+deploys, and Google's verification cares about the registrable domain rather than the label, so
+a subdomain costs nothing. `https://www.ownpace.eu/oauth/google/callback` works if the app is
+genuinely served there; what must not happen is registering `www` while the site is canonical on
+the apex, because Google's match runs before any redirect of ours.
+
+**One client now, split before production.** Three URIs on one client is fine while nothing is
+live. Before real customers exist, production gets its own client with **exactly one** redirect
+URI, and the two test environments share a second — so a leaked development secret is not a
+production incident, per ADR-0041.
+
+Three further things decided here rather than improvised in the console:
 
 1. **`/oauth/google/callback`, not `/webhooks/google`.** A webhook is an unauthenticated
    server-to-server POST; an OAuth redirect is a browser GET carrying the user's authorization
