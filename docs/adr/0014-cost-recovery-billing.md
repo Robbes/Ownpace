@@ -31,9 +31,24 @@
   not eat the allowance. The meter therefore reads as *"how much of your stuff we have moved"*,
   which is a number the customer can predict before starting — the same number the
   pre-preflight estimates.
-- **Paths fall; data does not.** The path axis is elastic and downgrades automatically as paths
-  end. The data axis only ever rises, so it sets a **floor** under the tier. Say it on the page
-  in those words: *finishing paths lowers your bill; the size of what you moved sets a floor.*
+- **Running out of room does not have to mean moving up. Pay your setup fee again and your
+  allowance grows by another whole band.** Small: €8 buys another 750 GB, on Small, at €4 a
+  month. **Tiers buy lanes; top-ups buy room** — and which one someone needs is a question they
+  can answer about themselves. Buyable repeatedly, never expiring, never refunded, and it is the
+  customer's own tier's fee, so the page gains a mechanism without gaining a price.
+- **Implement it as a higher ceiling, never as a reset meter.** Same thing to the customer —
+  *"another 750 GB"* — but the counter must stay monotonic or a past invoice stops being
+  reconstructible (schema consequence 5). Allowance goes up; the meter is never rewound.
+- **At 80%, offer BOTH and show the break-even.** *"You are at 80% of 750 GB. Another 750 GB is
+  €8 once and you stay at €4 a month; Medium is €3 now and €8 a month, and gives you 20 paths
+  instead of 4."* Topping up costs €5 more up front and saves €4 a month, so it pays back in
+  about six weeks — **say that**, and say plainly when the tier is the better buy. Taking no
+  profit means having no reason to steer, so we do not.
+- **Paths fall; data does not — but room is purchasable.** The path axis is elastic and
+  downgrades automatically as paths end. The data axis only ever rises, so it sets a **floor**
+  under the tier unless the customer buys room instead. Say it on the page in those words:
+  *finishing paths lowers your bill; the size of what you moved sets a floor — or top up and
+  stay where you are.*
   It is cost-honest — a big account is expensive on every later pass too, not only on the first
   — and it is the reason a ratchet here is not the ratchet this project exists to be the
   opposite of: it is bounded by the tier table, published in advance, and it stops when the last
@@ -240,6 +255,10 @@ means everything, and the preflight already measures it.
 
 **You are on the higher of the two middle columns.** Not the sum, not the average — the higher.
 
+**And the data column is the one you can buy more of.** Paying a tier's setup fee again adds
+another whole band of allowance without moving the tier: €8 buys another 750 GB on Small, €11
+another 1.5 TB on Medium. Repeatable, never expiring. *Tiers buy lanes; top-ups buy room.*
+
 The setup column is not a new charge — it is the first-month price named, so that stepping up a
 tier later can cost the *difference* rather than the whole thing again. See *"Nobody picks a
 tier, so nobody can pick wrong"* below. **Every "typical total" is `setup + monthly × months`,
@@ -433,11 +452,51 @@ megabytes of deltas.
 
 **The asymmetry this creates has to be said out loud.** Paths fall; data does not. Automatic
 downgrade can lower a bill only as far as the data axis allows, so the size of what someone moved
-sets a **floor** under their tier. That is defensible — the account stays expensive — but it is
+sets a **floor** under their tier — unless they buy room instead, which is what the next section
+is for. That is defensible — the account stays expensive — but it is
 the kind of thing that must appear on the pricing page rather than on the seventh invoice:
 *finishing paths lowers your bill; the size of what you moved sets a floor.* It is bounded by
 the published table, it is announced before it happens, and it stops entirely when the last path
 ends, because cutover is terminal and billing ends with it.
+
+### Tiers buy lanes; top-ups buy room
+
+The owner's proposal: let a customer pay a tier's one-off fee again and get the data allowance
+back, or another band's worth on top. **Adopted**, and it repairs the weakest joint in the model.
+
+The ratchet was justified two sections up on the grounds that a large account stays expensive on
+every later pass. That is true **while its paths are still running** and false once they have cut
+over — and the ratchet does not know the difference. A customer who moved 700 GB, finished, and
+now wants to move another 400 GB would cross to Medium and pay double the monthly **forever**,
+for work that is one-off. The top-up is the honest answer to that, and it is honest precisely
+because bytes are a one-off cost: **a one-off cost should be buyable with a one-off payment.**
+
+**The choice it creates is a real one, not a trick.** Crossing to Medium costs €3 now and €8 a
+month, and gives 20 paths. Topping up Small costs €8 now, keeps €4 a month, and gives no extra
+paths. So: €5 more up front, €4 a month less — **break-even at about six weeks.** Still running
+in six weeks, and four paths is enough? Top up. Need more lanes, or nearly done? Cross. Both
+sentences belong on the page, because taking no profit means having no reason to steer and the
+absence of a reason should be visible.
+
+**Raise the ceiling; never reset the meter.** To the customer these are the same sentence —
+*"another 750 GB"* — but schema consequence 5 requires the byte counter to be append-only, and a
+counter that gets rewound on payment cannot reconstruct a past invoice. So the allowance is a sum
+of granted bands and the meter is monotonic. Identical experience, one of them auditable.
+
+**A sanity check on the price, since a top-up is the closest thing left to a byte price.** Per
+gigabyte the bands come to €0.020 (Tiny) · €0.0107 (Small) · €0.0073 (Medium) · €0.015 (Large) ·
+€0.010 (XL). Against a Hetzner-class transit price of about €0.001/GB that is **7× to 20×** — the
+right order for cost recovery that also has to carry compute and a share of support, and **about
+nineteen times cheaper** than the €0.20/GB egress line this ADR replaced, whose ~200× markup was
+finding 1 of the amendment. The spread across the ladder is a factor of 2.7 and is a wobble
+rather than a policy: setup fees were designed to carry onboarding labour, not bytes, so Large's
+block is the poorest value per gigabyte because Large's setup is mostly a human. Small enough to
+accept; large enough to re-check when there is real usage to check it against.
+
+**This does not reintroduce metered pricing.** The banned thing was a per-GB line item appearing
+on every invoice, recovering labour under a bandwidth name, making bills unpredictable. A top-up
+is opt-in, priced in advance, bought in one chunk, and appears on an invoice only when someone
+chose to buy one. It is a purchase, not a meter.
 
 ### Why Small moved to 750 GB, and why the top of the scale is a conversation
 
@@ -644,6 +703,10 @@ billing meter, for two reasons and one caveat:
   per period, or a single running total per tenant — not a `SUM` recomputed from state.
 - It includes `'skipped'`, which by definition transferred nothing. Correct for a
   "how far along are we" display, wrong for a byte meter, and the two must not share a query.
+- The **allowance** is a second quantity beside the counter: a sum of granted bands (the tier's
+  own, plus each top-up bought), append-only like the counter, so that "you have moved 380 GB of
+  1,500 GB" is two auditable numbers rather than one derived from a mutable tier. A top-up adds
+  a row; nothing is ever rewound.
 - `size_bytes` is **nullable**, and whether every domain populates it is unverified. A ceiling
   measured with silent nulls under-counts, which is the safe direction but still a lie. The
   coverage should be asserted per domain before the number reaches an invoice — the same
@@ -690,8 +753,12 @@ page should *say*.
 5. **Both axes, side by side, and the word "higher".** *"How many at the same time, and how much
    in total — you are on the higher of the two."* Two columns in one table, never two tables,
    because two tables read as two bills. And the floor sentence with it: *finishing paths lowers
-   your bill; the size of what you moved sets a floor.* No per-path-per-month figure anywhere.
-6. **The prices, in full, on the page.** All five tiers, with the setup and the monthly shown
+   your bill; the size of what you moved sets a floor — or top up and stay where you are.* No
+   per-path-per-month figure anywhere.
+6. **Tiers buy lanes; top-ups buy room.** One line, with the two prices beside each other and
+   the break-even said out loud, because this is the only place on the page a visitor has a
+   genuine choice to make and the only place we could profit from making it badly.
+7. **The prices, in full, on the page.** All five tiers, with the setup and the monthly shown
    separately and the step-up rule stated, plus the sentence that finishing paths lowers the
    bill by itself. And the advice stated outright, because the natural fear is of the tier
    above: **start everything at once — as each thing finishes, the bill falls on its own.**
@@ -699,10 +766,10 @@ page should *say*.
    never as the way to avoid a tier. CloudFuze
    quote-gates its business plan; publishing is both a real contrast and the same honesty claim
    the product makes about its own reports.
-7. **What we do not do** — the honest limits, on the page rather than discovered later:
+8. **What we do not do** — the honest limits, on the page rather than discovered later:
    `SKIPPED` means nobody checked; adopted files are not ours to delete; some things cannot be
    moved and we will name them before you pay.
-8. **Self-host**, prominent, not hidden: Apache-2.0, run it yourself, we would rather you moved
+9. **Self-host**, prominent, not hidden: Apache-2.0, run it yourself, we would rather you moved
    than that you paid us (ADR-0039's mission test, stated where customers can see it).
 
 **Tone: numbers, not adjectives.** No "seamless", no "effortless", no "enterprise-grade". The

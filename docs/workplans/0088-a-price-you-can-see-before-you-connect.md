@@ -4,7 +4,7 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T1 Decide the pricing shape this quotes (owner) | ✅ **Done 2026-08-20** — T2–T5 unblocked | [ADR-0014 amended](../adr/0014-cost-recovery-billing.md): five tiers on **two axes, higher wins** — paths running at the same time (Tiny 1 / Small 4 / Medium 20 / Large 50 / XL 200), billed on the **month's peak**, and **cumulative data moved** (250 GB / 750 GB / 1.5 TB / 4 TB / 15 TB), counting each item's first copy only and never falling. A **path is one object type from one account to one account**; no per-GB or compute line on any invoice; fair-use ceilings; metering kept internal. The tier is **derived, never picked** — downgrade automatic, upgrade consented — and each tier's price splits into a one-off setup and a monthly, with step-ups charging only the difference. Both findings recorded — the ~200× egress markup and bytes-priced-where-cost-is-hours. **Five** schema consequences named there and not solved: `mailbox_mapping.status` defaults to `'active'` when billing needs `'ready'`; there is no `activated_at`; peak occupancy needs `ended_at` plus a per-tenant per-month high-water record; — the blocking one — **the lifecycle is per-mapping while the billing unit is per-`(mapping, domain)`**, so a path cannot be cut over on its own today; and the byte meter needs an append-only counter, since `migration-status-store.ts:182` sums live rows and counts `'skipped'`. |
+| T1 Decide the pricing shape this quotes (owner) | ✅ **Done 2026-08-20** — T2–T5 unblocked | [ADR-0014 amended](../adr/0014-cost-recovery-billing.md): five tiers on **two axes, higher wins** — paths running at the same time (Tiny 1 / Small 4 / Medium 20 / Large 50 / XL 200), billed on the **month's peak**, and **cumulative data moved** (250 GB / 750 GB / 1.5 TB / 4 TB / 15 TB), counting each item's first copy only and never falling — though a **top-up** buys another band of room for that tier's setup fee, without moving the tier. A **path is one object type from one account to one account**; no per-GB or compute line on any invoice; fair-use ceilings; metering kept internal. The tier is **derived, never picked** — downgrade automatic, upgrade consented — and each tier's price splits into a one-off setup and a monthly, with step-ups charging only the difference. Both findings recorded — the ~200× egress markup and bytes-priced-where-cost-is-hours. **Five** schema consequences named there and not solved: `mailbox_mapping.status` defaults to `'active'` when billing needs `'ready'`; there is no `activated_at`; peak occupancy needs `ended_at` plus a per-tenant per-month high-water record; — the blocking one — **the lifecycle is per-mapping while the billing unit is per-`(mapping, domain)`**, so a path cannot be cut over on its own today; and the byte meter needs an append-only counter, since `migration-status-store.ts:182` sums live rows and counts `'skipped'`. |
 | T2 `INDICATIVE_PROFILES` — the assumptions, versioned | 📋 Planned | Customer type × object type → item counts and GB, every number carrying a provenance comment; covered by a unit test that refuses a silent gap. |
 | T3 The static page | 📋 Planned (needs T1, T2) | One self-contained file under `site/pricing/`, no workspace imports, no account, no server state, five inputs. |
 | T4 The drift guard, on the managed side | 📋 Planned (needs T3) | The page's numbers vs `packages/managed/src/pricing.ts`, plus an assertion that the appliance graph never reaches the calculator. |
@@ -174,8 +174,12 @@ later edit cannot quietly drop them:
   lowers the tier by itself, automatically and without asking — the counterpart to the
   pausing-does-not sentence, and the reason the page does not need a "cancel" story.
 - **And its limit, in the same breath:** the data axis never falls, so the size of what was
-  moved sets a floor. A page that promises the fall without naming the floor is the version of
-  this that generates the complaint.
+  moved sets a floor — or a top-up keeps them where they are. A page that promises the fall
+  without naming the floor is the version of this that generates the complaint.
+- **The top-up choice, with its break-even shown**, since it is the one decision on the page a
+  visitor can get wrong and the one place a no-profit service could quietly profit from steering.
+  T4's drift guard covers the top-up prices too: they are the setup fees, so a page that lets
+  the two drift apart is offering a block at a price the invoice will not honour.
 
 ## T6 — name the three rungs, and what a free preflight may keep
 

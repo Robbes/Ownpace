@@ -97,9 +97,24 @@ live in [README.md](./README.md), the register.
   not eat the allowance. The meter therefore reads as *"how much of your stuff we have moved"*,
   which is a number the customer can predict before starting — the same number the
   pre-preflight estimates.
-- **Paths fall; data does not.** The path axis is elastic and downgrades automatically as paths
-  end. The data axis only ever rises, so it sets a **floor** under the tier. Say it on the page
-  in those words: *finishing paths lowers your bill; the size of what you moved sets a floor.*
+- **Running out of room does not have to mean moving up. Pay your setup fee again and your
+  allowance grows by another whole band.** Small: €8 buys another 750 GB, on Small, at €4 a
+  month. **Tiers buy lanes; top-ups buy room** — and which one someone needs is a question they
+  can answer about themselves. Buyable repeatedly, never expiring, never refunded, and it is the
+  customer's own tier's fee, so the page gains a mechanism without gaining a price.
+- **Implement it as a higher ceiling, never as a reset meter.** Same thing to the customer —
+  *"another 750 GB"* — but the counter must stay monotonic or a past invoice stops being
+  reconstructible (schema consequence 5). Allowance goes up; the meter is never rewound.
+- **At 80%, offer BOTH and show the break-even.** *"You are at 80% of 750 GB. Another 750 GB is
+  €8 once and you stay at €4 a month; Medium is €3 now and €8 a month, and gives you 20 paths
+  instead of 4."* Topping up costs €5 more up front and saves €4 a month, so it pays back in
+  about six weeks — **say that**, and say plainly when the tier is the better buy. Taking no
+  profit means having no reason to steer, so we do not.
+- **Paths fall; data does not — but room is purchasable.** The path axis is elastic and
+  downgrades automatically as paths end. The data axis only ever rises, so it sets a **floor**
+  under the tier unless the customer buys room instead. Say it on the page in those words:
+  *finishing paths lowers your bill; the size of what you moved sets a floor — or top up and
+  stay where you are.*
   It is cost-honest — a big account is expensive on every later pass too, not only on the first
   — and it is the reason a ratchet here is not the ratchet this project exists to be the
   opposite of: it is bounded by the tier table, published in advance, and it stops when the last
