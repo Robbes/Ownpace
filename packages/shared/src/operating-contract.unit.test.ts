@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
  * The operating contract (ADR-0026). Most of this file is types, which the

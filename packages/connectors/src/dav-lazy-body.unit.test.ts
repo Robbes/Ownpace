@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
  * A file download must not be UTF-8 decoded just because it arrived.

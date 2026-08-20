@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * The bilingual dictionary (workplan 0024 T1, ADR-0013).
  *
@@ -76,7 +76,7 @@ const en = {
   'scope.migrates': 'Migrates',
   'scope.partial': 'Partial',
   'scope.doesNotMigrate': 'Does not migrate',
-  'login.title': 'Sign in to Open Migrate',
+  'login.title': 'Sign in to Ownpace',
   'login.tagline': 'Sovereign data migration for families and SMBs',
   'login.tokenLabel': 'Access token',
   'login.invalidToken':
@@ -1013,7 +1013,7 @@ const nl: Record<keyof typeof en, string> = {
   'scope.migrates': 'Migreert',
   'scope.partial': 'Gedeeltelijk',
   'scope.doesNotMigrate': 'Migreert niet',
-  'login.title': 'Aanmelden bij Open Migrate',
+  'login.title': 'Aanmelden bij Ownpace',
   'login.tagline': 'Soevereine datamigratie voor gezinnen en mkb',
   'login.tokenLabel': 'Toegangstoken',
   'login.invalidToken':

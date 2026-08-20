@@ -17,7 +17,7 @@
 #
 #   1. `host.docker.internal` doesn't resolve on native Linux without an explicit
 #      `extra_hosts` entry (Docker Desktop adds this automatically; Linux does not).
-#   2. This compose project creates its own network (open-migrate-selfhost_selfhost),
+#   2. This compose project creates its own network (ownpace-selfhost_selfhost),
 #      separate from setup-stalwart.sh's `openmig_dev-network` — so a mapping.json that
 #      addresses Stalwart as `stalwart` (by name, not host.docker.internal) needs the
 #      app on that network too. Requires `openmig_dev-network` to already exist (run

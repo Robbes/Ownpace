@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
  * Does a pass use the ledger it was GIVEN, or one it goes and finds?

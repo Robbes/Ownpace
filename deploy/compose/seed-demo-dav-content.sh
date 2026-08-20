@@ -66,7 +66,7 @@
 #   ./deploy/compose/seed-demo-dav-content.sh --fresh    # seed a uniquely-tagged set (never tombstoned)
 #
 # Env overrides:
-#   NEXTCLOUD_CONTAINER  (default open-migrate-nextcloud, matches managed.yml)
+#   NEXTCLOUD_CONTAINER  (default ownpace-nextcloud, matches managed.yml)
 #   DAV_USER / DAV_PASSWORD  the demo SOURCE account; the defaults match
 #                            seed-managed.ts's tenant B source credentials.
 #   SEED_DAV_TAG         the tag `--fresh` uses; defaults to a UTC timestamp
@@ -80,7 +80,7 @@
 # the host that happened to work.
 set -uo pipefail
 
-NC="${NEXTCLOUD_CONTAINER:-open-migrate-nextcloud}"
+NC="${NEXTCLOUD_CONTAINER:-ownpace-nextcloud}"
 DAVUSER="${DAV_USER:-tenant-b-source}"
 PASS="${DAV_PASSWORD:-tenant_b_source_pw}"
 VERIFY_ONLY=0
@@ -166,7 +166,7 @@ UID:openmig-demo-event-${SUFFIX}${n}
 DTSTAMP:20260101T000000Z
 DTSTART:2026010${n}T100000Z
 DTEND:2026010${n}T110000Z
-SUMMARY:Open Migrate demo event ${SUFFIX}${n}
+SUMMARY:Ownpace demo event ${SUFFIX}${n}
 DESCRIPTION:Seeded by seed-demo-dav-content.sh so the demo has something to sync.
 STATUS:CONFIRMED
 END:VEVENT
@@ -186,7 +186,7 @@ END:VCARD")
     case "$code" in 201|204) ;; *) fail "contact PUT ${SUFFIX}${n} returned ${code}" ;; esac
 
     code=$(dav PUT "${FILES}openmig-demo-file-${SUFFIX}${n}.txt" 'text/plain' \
-"Open Migrate demo file ${n}. Seeded so the file lane has something to copy.")
+"Ownpace demo file ${n}. Seeded so the file lane has something to copy.")
     echo "[seed-dav] file ${SUFFIX}${n}: HTTP ${code}"
     case "$code" in 201|204) ;; *) fail "file PUT ${SUFFIX}${n} returned ${code}" ;; esac
   done
@@ -229,6 +229,6 @@ cat <<'NEXT'
   2. That pass writes `item` rows with status='copied' and a target_ref id.
   3. Only then does smoke-managed.sh's apply half have an eligible item.
 Watch it land:
-  docker exec open-migrate-db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc \
+  docker exec ownpace-db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc \
     "SELECT item_type, status, count(*) FROM item WHERE mapping_id='b0000000-0000-4000-8000-0000000000d1' GROUP BY 1,2"
 NEXT

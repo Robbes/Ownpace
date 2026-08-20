@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
  * Does the managed sync tick's query actually USE the indexes 0023 adds?

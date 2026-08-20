@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
  * Box as a file source (workplan 0056) — the fourth file provider, MODELLED

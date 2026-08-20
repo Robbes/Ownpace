@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
  * Group discovery over IMAP: the honest "no" (workplan 0027 T1, hard rule 9).

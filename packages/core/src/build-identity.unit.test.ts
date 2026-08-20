@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /** The /version endpoints' data source: env wins, package.json answers otherwise. */
 import { describe, it, expect, afterEach } from 'vitest';
 import { buildIdentity } from './build-identity.ts';

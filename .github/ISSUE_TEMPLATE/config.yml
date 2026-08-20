@@ -1,13 +1,13 @@
 blank_issues_enabled: true
 contact_links:
   - name: Report a security vulnerability
-    url: https://github.com/Robbes/open-migrate/security/advisories/new
+    url: https://github.com/Robbes/Ownpace/security/advisories/new
     about: >
       Private disclosure via GitHub Security Advisories. This is the ONLY reporting
       channel for vulnerabilities - please do not open a public issue. See SECURITY.md.
   - name: Architecture, decisions and why things are the way they are
-    url: https://github.com/Robbes/open-migrate/blob/main/docs/architecture/solution-architecture.md
+    url: https://github.com/Robbes/Ownpace/blob/main/docs/architecture/solution-architecture.md
     about: The source of truth, with the decision records linked from section 24.
   - name: Running the self-host appliance
-    url: https://github.com/Robbes/open-migrate/blob/main/docs/selfhost-quickstart.md
+    url: https://github.com/Robbes/Ownpace/blob/main/docs/selfhost-quickstart.md
     about: Setup and operating guide - worth reading before filing a setup problem.

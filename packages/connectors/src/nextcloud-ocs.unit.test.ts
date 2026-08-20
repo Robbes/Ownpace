@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * The OCS share call (ADR-0032, workplan 0052 T3). What these pin:
  *

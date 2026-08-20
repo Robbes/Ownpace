@@ -38,7 +38,7 @@ stay `0.0.0` deliberately — they are never published individually). The
 ## 2. The tag
 
 ```bash
-git tag -a v<X.Y.Z> -m "open-migrate v<X.Y.Z>"
+git tag -a v<X.Y.Z> -m "Ownpace v<X.Y.Z>"
 git push origin v<X.Y.Z>
 ```
 
@@ -52,7 +52,7 @@ time the `latest` channel exists — check it appeared.
 | Workflow | Produces | Check |
 |---|---|---|
 | `ci.yml` | the test gate on the release ref | green before announcing |
-| `images.yml` | `open-migrate-{api,web,selfhost}:<X.Y.Z>` multi-arch on GHCR, cosign-signed by digest | `cosign verify ghcr.io/robbes/open-migrate-selfhost:<X.Y.Z> --certificate-identity-regexp '^https://github.com/Robbes/open-migrate/' --certificate-oidc-issuer https://token.actions.githubusercontent.com` |
+| `images.yml` | `ownpace-{api,web,selfhost}:<X.Y.Z>` multi-arch on GHCR, cosign-signed by digest | `cosign verify ghcr.io/robbes/ownpace-selfhost:<X.Y.Z> --certificate-identity-regexp '^https://github.com/Robbes/(ownpace|Ownpace)/' --certificate-oidc-issuer https://token.actions.githubusercontent.com` |
 | `security-scan.yml` | the GitHub release itself, with `bom.json` (CycloneDX SBOM) attached and the generated body (pull lines, verify one-liner, changelog link) | the release page reads like a release, not an unlabelled SBOM |
 | `windows-payload.yml` | `openmig-appliance-win-x64-v<X.Y.Z>.zip` attached to the release (unsigned — SmartScreen prompt documented in the runbook) | asset present; `SHA256SUMS.txt` inside |
 

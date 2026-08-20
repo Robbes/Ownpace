@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
  * What `smoke-managed.sh` is allowed to call a pass.
@@ -163,7 +163,7 @@ describe('unhealthy is reported as unhealthy, and nothing else is', () => {
 
   it('the awk selects unhealthy without catching the healthcheck-less', () => {
     const sample = [
-      'open-migrate-api healthy',
+      'ownpace-api healthy',
       'trigger-api ', // no healthcheck: .Health is empty
       'trigger-supervisor ',
       'some-broken unhealthy',

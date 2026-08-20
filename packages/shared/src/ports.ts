@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 import type { TenantId, MappingId } from './ids.ts';
 import type { DomainDiscovery, DiscoveryRecord, DiscoveryDomain } from './discovery.ts';
 import type { MailFolder, MailItem, RawMessage, MailKeyword, SpecialUse } from './mail.ts';

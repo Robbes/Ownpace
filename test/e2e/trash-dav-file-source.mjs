@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 //
 // Delete ONE already-migrated file on the SOURCE Nextcloud, then check that its
 // trashbin entry reports a path our natural keys can actually match.

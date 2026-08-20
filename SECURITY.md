@@ -3,7 +3,7 @@
 ## Reporting
 Report vulnerabilities privately via **GitHub Security Advisories**: open the
 repository's **Security** tab and use **"Report a vulnerability"**
-(<https://github.com/Robbes/open-migrate/security/advisories/new>). This is
+(<https://github.com/Robbes/Ownpace/security/advisories/new>). This is
 the only reporting channel. Do not open public issues for security reports.
 
 ## Principles

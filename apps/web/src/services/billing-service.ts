@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * Billing Service — API client, reconciled against the ROUTES' literal
  * responses (0039 T3), the same discipline as mapping-service.ts (whose

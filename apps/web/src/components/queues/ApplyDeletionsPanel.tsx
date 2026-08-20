@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * Gate 1 of the destructive path, visible and — on managed, for an owner —
  * switchable (workplan 0019 T3).

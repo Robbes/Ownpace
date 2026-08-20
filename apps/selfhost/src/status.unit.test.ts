@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 
 import { describe, it, expect } from 'vitest';
 import type { MigrationStatus } from '@openmig/shared';

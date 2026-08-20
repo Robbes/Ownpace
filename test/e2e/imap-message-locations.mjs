@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 //
 // Print, as JSON on stdout, every mailbox in an IMAP account that currently holds a
 // message with the given Message-ID — each as `{ path, attribs }`.

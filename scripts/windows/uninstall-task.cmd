@@ -1,5 +1,5 @@
 @echo off
-REM Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+REM Copyright 2026 The Ownpace authors (Apache-2.0)
 REM
 REM Run uninstall-task.ps1 without fighting the execution policy, and from an
 REM elevated prompt (both scripts declare #Requires -RunAsAdministrator).

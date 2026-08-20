@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * Coalesces concurrent runs by key: while a run for `key` is in flight, additional calls join the
  * same promise instead of starting a second concurrent run (single-flight). Used by the in-process

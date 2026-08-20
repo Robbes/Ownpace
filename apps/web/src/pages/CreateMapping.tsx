@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 import React, { useState } from 'react';
 import { useT, useLocale, useFormatters } from '../i18n/index.tsx';
 import { probeText } from '../i18n/probe-text.ts';

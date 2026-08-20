@@ -1,4 +1,4 @@
-# Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+# Copyright 2026 The Ownpace authors (Apache-2.0)
 #
 # Start the packaged appliance the way an INSTALLED copy has to run it
 # (workplan 0015 T3, Phase 2 of docs/windows-appliance-runbook.md).

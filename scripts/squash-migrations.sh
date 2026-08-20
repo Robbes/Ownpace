@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+# Copyright 2026 The Ownpace authors (Apache-2.0)
 #
 # Squash packages/ledger/migrations/*.sql into ONE baseline file, by applying the
 # existing chain to a throwaway database and dumping the result — never by

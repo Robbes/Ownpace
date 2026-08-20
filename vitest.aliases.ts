@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 //
 // THE ONE alias map, imported by the root vitest config and by every per-app
 // config. It exists because there used to be four copies of it, and the three

@@ -4,7 +4,7 @@
 # by running the drill for real on 2026-08-04:
 #
 # 1. `container_name` IS NOT NAMESPACED BY THE PROJECT. The base file pins
-#    `open-migrate-selfhost-app`, so a drill run under its own project still
+#    `ownpace-selfhost-app`, so a drill run under its own project still
 #    tries to create a container with the same name as a REAL appliance. The
 #    first run got away with it only because no appliance happened to be up;
 #    with one running it would have collided, and a script whose own output
@@ -24,7 +24,7 @@
 
 services:
   app:
-    container_name: open-migrate-upgrade-drill-app
+    container_name: ownpace-upgrade-drill-app
     volumes:
       - appdata:/data/state
       - ${DRILL_CONFIG_DIR:?the drill sets this}:/data/config:ro

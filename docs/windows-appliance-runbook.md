@@ -205,8 +205,8 @@ not block one. It needs Git and pnpm, which is exactly why it is not the main
 path:
 
 ```powershell
-git clone https://github.com/Robbes/open-migrate.git
-cd open-migrate
+git clone https://github.com/Robbes/Ownpace.git
+cd Ownpace
 pnpm install --frozen-lockfile
 pnpm package:appliance --with-node win-x64
 cd dist\appliance
@@ -547,7 +547,7 @@ without cloning:
 
 ```powershell
 $dst  = "$env:USERPROFILE\openmig-scripts"
-$base = "https://raw.githubusercontent.com/Robbes/open-migrate/main/scripts/windows"
+$base = "https://raw.githubusercontent.com/Robbes/Ownpace/main/scripts/windows"
 New-Item -ItemType Directory -Force $dst | Out-Null
 foreach ($f in 'install-task.ps1','install-task.cmd','uninstall-task.ps1','uninstall-task.cmd',
                 'run-appliance.ps1','run-appliance.cmd','collect-evidence.ps1','collect-evidence.cmd') {

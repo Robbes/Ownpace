@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
  * Workplan 0031 T0 — the spike that can end the plan.
@@ -528,7 +528,7 @@ async function main(): Promise<number> {
       `UID:${parseUid}`,
       'FN:Openmig Spike Vcard',
       'N:Vcard;Openmig;Spike;;',
-      'ORG:Open Migration Stack;Engineering',
+      'ORG:Ownpace;Engineering',
       'TITLE:Test Fixture',
       'ROLE:Probe',
       'EMAIL;TYPE=work:spike@dev.local',

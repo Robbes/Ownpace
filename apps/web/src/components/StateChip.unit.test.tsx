@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * One state vocabulary (0035 T1): the table is complete in both languages,
  * server vocabulary stays OUT of it, and no screen renders a raw state enum

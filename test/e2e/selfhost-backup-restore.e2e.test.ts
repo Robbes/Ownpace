@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 //
 // The backup/restore drill — §22.1's last unbuilt CI gate (workplan 0025 T5).
 //
@@ -109,7 +109,7 @@ const PG_DB = process.env.POSTGRES_DB || 'openmigrate';
  * fail loudly (good) or remove somebody else's volume (not good) — hence the
  * existence check before the destroy step.
  */
-const PROJECT = 'open-migrate-selfhost';
+const PROJECT = 'ownpace-selfhost';
 const PG_VOLUME = `${PROJECT}_pgdata`;
 const APP_VOLUME = `${PROJECT}_appdata`;
 

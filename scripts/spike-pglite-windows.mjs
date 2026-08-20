@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 //
 // SPIKE: can the self-host edition run on PGlite (Postgres compiled to WASM)
 // instead of a Postgres SERVER?

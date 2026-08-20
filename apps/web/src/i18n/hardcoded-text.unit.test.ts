@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * The guard that ends the class (0035 T2): no new hardcoded English
  * sentences in pages/ or components/.
@@ -24,11 +24,11 @@ const ROOTS = [join(__dirname, '..', 'pages'), join(__dirname, '..', 'components
 /** file (relative to src/) -> reason. Keep this SHORT. */
 const ALLOWLIST: Record<string, string> = {
   // The brand name in the sidebar/header and the login page's code literal.
-  'components/Layout.tsx': 'brand name "Open Migrate" in logo/header fallback',
+  'components/Layout.tsx': 'brand name "Ownpace" in logo/header fallback',
 };
 
 // Sentence shape: a capitalized word followed by a lowercase word — the
-// signature of prose a user reads. Proper-noun pairs ("Open Migrate") and
+// signature of prose a user reads. Proper-noun pairs ("Ownpace") and
 // single words ("IMAP") pass.
 const SENTENCE = /^[A-Z][A-Za-z'\u2019&-]*\s+[a-z]/;
 // Text physically between tags on one line: >Some words<  or  >Some words[EOL]

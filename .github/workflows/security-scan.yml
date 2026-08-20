@@ -114,25 +114,25 @@ jobs:
         run: |
           VER="${GITHUB_REF_NAME#v}"
           cat > release-body.md <<EOF
-          Open Migration Stack ${GITHUB_REF_NAME}. What changed: [CHANGELOG.md](https://github.com/Robbes/open-migrate/blob/${GITHUB_REF_NAME}/CHANGELOG.md).
+          Ownpace ${GITHUB_REF_NAME}. What changed: [CHANGELOG.md](https://github.com/Robbes/Ownpace/blob/${GITHUB_REF_NAME}/CHANGELOG.md).
 
           **Container images** (multi-arch, cosign-signed):
 
           \`\`\`
-          docker pull ghcr.io/robbes/open-migrate-selfhost:${VER}
-          docker pull ghcr.io/robbes/open-migrate-api:${VER}
-          docker pull ghcr.io/robbes/open-migrate-web:${VER}
+          docker pull ghcr.io/robbes/ownpace-selfhost:${VER}
+          docker pull ghcr.io/robbes/ownpace-api:${VER}
+          docker pull ghcr.io/robbes/ownpace-web:${VER}
           \`\`\`
 
           **Verify a signature** (keyless, against the public Sigstore log):
 
           \`\`\`
-          cosign verify ghcr.io/robbes/open-migrate-selfhost:${VER} \
-            --certificate-identity-regexp '^https://github.com/Robbes/open-migrate/' \
+          cosign verify ghcr.io/robbes/ownpace-selfhost:${VER} \
+            --certificate-identity-regexp '^https://github.com/Robbes/(ownpace|Ownpace)/' \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com
           \`\`\`
 
-          Install: see [docs/selfhost-quickstart.md](https://github.com/Robbes/open-migrate/blob/${GITHUB_REF_NAME}/docs/selfhost-quickstart.md); Windows without Docker: [docs/windows-appliance-runbook.md](https://github.com/Robbes/open-migrate/blob/${GITHUB_REF_NAME}/docs/windows-appliance-runbook.md).
+          Install: see [docs/selfhost-quickstart.md](https://github.com/Robbes/Ownpace/blob/${GITHUB_REF_NAME}/docs/selfhost-quickstart.md); Windows without Docker: [docs/windows-appliance-runbook.md](https://github.com/Robbes/Ownpace/blob/${GITHUB_REF_NAME}/docs/windows-appliance-runbook.md).
 
           The attached \`bom.json\` is this build's CycloneDX SBOM.
           EOF

@@ -271,3 +271,37 @@ live in [README.md](./README.md), the register.
   and it holds *only* those, pointing at the public recipe.
 - The trademark is the **mission-compatible moat** — Apache-2.0 §6 grants no trade-mark
   rights — but asserting it in `NOTICE` is **recommended, not yet decided**.
+
+## [ADR-0040: The service is Ownpace; the project keeps its own name](./0040-the-service-is-ownpace.md)
+
+- **One name: Ownpace** (`ownpace.eu`) — service *and* project. The repository, every
+  copyright header, `NOTICE`, the README title, the API title and the root package all say
+  Ownpace. The project/service split this ADR first recorded lasted one day and is superseded
+  by the owner's 2026-08-20 instruction; the reasoning that produced it is kept above.
+- **Never draw a name from the category's own vocabulary.** Three rounds found a prior user
+  each time: *migrate* → TSG's OpenMigrate (2006); *safe* → SETsafe; *keep* → Keepit A/S.
+  A candidate gets a prior-user check **before** a domain is bought, not after.
+- **A domain is not clearance.** DNS availability is a hint (port 43 and RDAP are blocked from
+  our sandbox, so even "unregistered" is unproven); **TMview classes 9, 38 and 42** before any
+  filing or any assertion of the mark.
+- The **GDPR Article 20 framing belongs in the copy, never in the name** — "transmitted
+  directly from one controller to another, where technically feasible" is a claim no competitor
+  can take and no registry has to grant.
+- **Renamed to `ownpace-*`:** compose project, container, network and volume names, the
+  persist directory, and future GHCR image names. **This is not a rename on a live stack** —
+  a compose project rename detaches its volumes, so an operator with data must destroy the old
+  project deliberately (`docker compose -p <old> down -v`) rather than discover it. Done here
+  only because nothing was live.
+- **Kept, deliberately:** the npm scope **`@openmig/*`** (13 packages, all `private: true`), and
+  everything that follows it — the `openmigrate` Postgres role/database and the
+  **`openmigrate_*` Prometheus metric prefix**, which a rename would silently break for every
+  existing dashboard and alert. Rule of thumb: rename what is named after the *product*, keep
+  what is named after the *scope*.
+- **An image already published never moves.** Tags up to `v0.1.0-rc.1` live at
+  `ghcr.io/robbes/open-migrate-selfhost` forever; `v0.1.0` on lives at `ownpace-selfhost`.
+  `scripts/upgrade-drill.sh` derives its registry from the tag for exactly this reason — a
+  hardcoded path makes the drill pull a tag that does not exist, silently, from the script whose
+  job is proving upgrades work. The cosign identity regexp matches **both** repo paths.
+- **Still OPEN, the owner's, not to be inferred:** whether to assert the mark in `NOTICE`
+  (still held, pending TMview); and whether the post-cutover backup gets its own brand or is a
+  plan name under Ownpace.

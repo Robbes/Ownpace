@@ -1,4 +1,4 @@
-# Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+# Copyright 2026 The Ownpace authors (Apache-2.0)
 #
 # Collect everything needed to diagnose a Windows appliance run, into one file
 # (workplan 0015 T3; docs/windows-appliance-runbook.md, "What to send back").

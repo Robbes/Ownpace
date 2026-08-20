@@ -40,8 +40,8 @@ Clone the repo (or copy the `deploy/selfhost/` directory and the source it
 builds from) onto the host:
 
 ```sh
-git clone https://github.com/robbes/open-migrate.git
-cd open-migrate
+git clone https://github.com/robbes/Ownpace.git
+cd Ownpace
 ```
 
 ## 2. Configure secrets
@@ -509,11 +509,11 @@ mid-write is not a consistent snapshot):
 ```sh
 COMPOSE="-f deploy/selfhost/compose.yml -f deploy/selfhost/compose.pglite.yml"
 docker compose $COMPOSE stop app
-# The state volume is `<project>_appdata` — `open-migrate-selfhost_appdata`
+# The state volume is `<project>_appdata` — `ownpace-selfhost_appdata`
 # unless you renamed the project (`docker volume ls | grep appdata`).
 # It mounts AT /data/state in the app, so the volume's own root already IS
 # `state`: the directory inside it is `pglite`, not `state/pglite`.
-docker run --rm -v open-migrate-selfhost_appdata:/data -v "$PWD":/backup alpine \
+docker run --rm -v ownpace-selfhost_appdata:/data -v "$PWD":/backup alpine \
   tar czf /backup/openmigrate-pglite-$(date +%F).tar.gz -C /data pglite
 docker compose $COMPOSE start app
 ```
@@ -524,7 +524,7 @@ into the restored one:
 
 ```sh
 docker compose $COMPOSE stop app
-docker run --rm -v open-migrate-selfhost_appdata:/data -v "$PWD":/backup alpine \
+docker run --rm -v ownpace-selfhost_appdata:/data -v "$PWD":/backup alpine \
   sh -c 'rm -rf /data/pglite && tar xzf /backup/openmigrate-pglite-YYYY-MM-DD.tar.gz -C /data'
 docker compose $COMPOSE start app
 ```

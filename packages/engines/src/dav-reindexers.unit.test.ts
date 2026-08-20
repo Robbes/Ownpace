@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 //
 // `listEntries` for the three DAV target writers — what makes calendar,
 // contacts and files verifiable at all.

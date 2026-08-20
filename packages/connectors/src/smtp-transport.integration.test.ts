@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
  * The one test that proves this product can send an email (workplan 0043 T1).
@@ -114,7 +114,7 @@ describe('smtpTransport against a real mail server', () => {
       to: [USER],
       subject: SUBJECT,
       body: [
-        'Open Migrate summary',
+        'Ownpace summary',
         '',
         'Migration: inbox',
         `  - 3 ${MARKER}`,

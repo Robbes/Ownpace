@@ -30,7 +30,7 @@ openapi: 3.1.0
 # ADRs and the workplans. This file is the contract, not the manual.
 
 info:
-  title: Open Migration Stack — managed API
+  title: Ownpace — managed API
   version: 0.1.0-rc.1
   summary: Migrate mail, calendar, contacts and files off US cloud, on your own schedule.
   description: |
@@ -56,8 +56,8 @@ info:
     name: Apache-2.0
     url: https://www.apache.org/licenses/LICENSE-2.0
   contact:
-    name: Open Migration Stack
-    url: https://github.com/Robbes/open-migrate
+    name: Ownpace
+    url: https://github.com/Robbes/Ownpace
 
 servers:
   - url: https://{host}

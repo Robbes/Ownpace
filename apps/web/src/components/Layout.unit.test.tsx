@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * The sidebar stops impersonating a login, and the header says where you are
  * (0034 T2 + T3).

@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * The Graph domain factory (workplan 0054) — the seam that turned three
  * orphaned connectors into reachable sources. What these pin:

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * Worker CLI - runs shadow migration for a single mapping with multi-domain support.
  *

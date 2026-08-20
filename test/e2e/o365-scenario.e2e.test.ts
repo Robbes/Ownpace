@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 
 // O365 real-tenant e2e suite (workplan 0008 T7). Collected by the `e2e` vitest
 // project (`*.e2e.test.ts`). Secret-gated: the whole suite skips unless

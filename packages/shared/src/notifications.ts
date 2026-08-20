@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
  * What the appliance tells an absent owner (SAD §11.2 #4, workplan 0030 T1).
@@ -265,12 +265,12 @@ export function wantsAttention(m: MappingAttention): boolean {
 
 const DIGEST_SUBJECT: Record<NotificationLocale, Record<DigestCadence, string>> = {
   en: {
-    daily: 'Open Migrate — what needs your attention today',
-    weekly: 'Open Migrate — what needs your attention this week',
+    daily: 'Ownpace — what needs your attention today',
+    weekly: 'Ownpace — what needs your attention this week',
   },
   nl: {
-    daily: 'Open Migrate — wat vandaag uw aandacht vraagt',
-    weekly: 'Open Migrate — wat deze week uw aandacht vraagt',
+    daily: 'Ownpace — wat vandaag uw aandacht vraagt',
+    weekly: 'Ownpace — wat deze week uw aandacht vraagt',
   },
 };
 
@@ -324,7 +324,7 @@ const LINE: Record<NotificationLocale, DigestLines> = {
     sharingOpen: 'rows open on the sharing checklist',
     couldNotRead: 'COULD NOT BE READ — this summary is incomplete:',
     footer:
-      'You are receiving this because Open Migrate is configured to send you a summary. ' +
+      'You are receiving this because Ownpace is configured to send you a summary. ' +
       'Open the app to act on any of the above.',
   },
   nl: {
@@ -340,7 +340,7 @@ const LINE: Record<NotificationLocale, DigestLines> = {
     sharingOpen: 'regels open op de deel-checklist',
     couldNotRead: 'KON NIET GELEZEN WORDEN — deze samenvatting is onvolledig:',
     footer:
-      'U ontvangt dit omdat Open Migrate is ingesteld om u een samenvatting te sturen. ' +
+      'U ontvangt dit omdat Ownpace is ingesteld om u een samenvatting te sturen. ' +
       'Open de app om actie te ondernemen.',
   },
 };
@@ -753,18 +753,18 @@ export function createFailureStreakGate(threshold = 3): FailureStreakGate {
 
 const EVENT: Record<NotificationLocale, Record<NotificationEvent['kind'], string>> = {
   en: {
-    decision_raised: 'Open Migrate — a change needs your decision',
-    runs_failing: 'Open Migrate — a migration keeps failing',
-    verification_finished: 'Open Migrate — the check has finished',
-    migration_finished: 'Open Migrate — the migration is finished',
-    rollback_finished: 'Open Migrate — the migration was rolled back',
+    decision_raised: 'Ownpace — a change needs your decision',
+    runs_failing: 'Ownpace — a migration keeps failing',
+    verification_finished: 'Ownpace — the check has finished',
+    migration_finished: 'Ownpace — the migration is finished',
+    rollback_finished: 'Ownpace — the migration was rolled back',
   },
   nl: {
-    decision_raised: 'Open Migrate — een wijziging vraagt uw beslissing',
-    runs_failing: 'Open Migrate — een migratie blijft mislukken',
-    verification_finished: 'Open Migrate — de controle is afgerond',
-    migration_finished: 'Open Migrate — de migratie is afgerond',
-    rollback_finished: 'Open Migrate — de migratie is teruggedraaid',
+    decision_raised: 'Ownpace — een wijziging vraagt uw beslissing',
+    runs_failing: 'Ownpace — een migratie blijft mislukken',
+    verification_finished: 'Ownpace — de controle is afgerond',
+    migration_finished: 'Ownpace — de migratie is afgerond',
+    rollback_finished: 'Ownpace — de migratie is teruggedraaid',
   },
 };
 

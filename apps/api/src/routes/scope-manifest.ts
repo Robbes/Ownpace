@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
  * GET /api/scope-manifest — the static §11.2 "what migrates / partial / does NOT migrate" manifest

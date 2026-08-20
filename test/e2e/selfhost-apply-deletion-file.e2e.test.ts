@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 //
 // `apply` (ADR-0024) against a REAL Nextcloud — the file domain's third, since
 // the mail and calendar domains each have their own sibling file

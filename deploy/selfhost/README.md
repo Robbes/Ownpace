@@ -60,13 +60,13 @@ workflow identity, keyless, in the public Sigstore log:
 
 ```sh
 cosign verify \
-  --certificate-identity-regexp 'https://github.com/Robbes/open-migrate' \
+  --certificate-identity-regexp 'https://github.com/Robbes/(ownpace|Ownpace)' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  ghcr.io/robbes/open-migrate-selfhost:edge
+  ghcr.io/robbes/ownpace-selfhost:edge
 # The digest is in the verify output (and in
-# `docker buildx imagetools inspect ghcr.io/robbes/open-migrate-selfhost:edge`).
+# `docker buildx imagetools inspect ghcr.io/robbes/ownpace-selfhost:edge`).
 # Then, in .env:
-SELFHOST_IMAGE=ghcr.io/robbes/open-migrate-selfhost@sha256:<digest>
+SELFHOST_IMAGE=ghcr.io/robbes/ownpace-selfhost@sha256:<digest>
 ```
 
 Always **back up the `/data` Postgres volume before upgrading**, and never run

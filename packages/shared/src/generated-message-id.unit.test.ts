@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 //
 // Generating a Message-ID touches the idempotency anchor (hard rule 1), so the
 // properties below are not stylistic — each one, broken, produces duplicates or

@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 //
 // Does the MANAGED UI work in a browser? (the 2026-08-11 lesson)
 //
@@ -291,7 +291,7 @@ describe('the managed UI boots and is styled', () => {
   it('renders the sign-in screen instead of a blank page', async () => {
     const l = await open('/login', { signedIn: false });
     expect(await l.page.locator('#root > *').count(), 'the bundle served but never mounted').toBeGreaterThan(0);
-    expect(await l.text()).toContain('Sign in to Open Migrate'); // i18n key login.title
+    expect(await l.text()).toContain('Sign in to Ownpace'); // i18n key login.title
     expectClean(l, '/login');
     await l.page.close();
   });
@@ -409,7 +409,7 @@ describe('bilingual rendering', () => {
     expectClean(nl, '/login (nl)');
     await nl.page.close();
 
-    expect(nlText).toContain('Aanmelden bij Open Migrate'); // login.title, nl
+    expect(nlText).toContain('Aanmelden bij Ownpace'); // login.title, nl
     expect(nlText).not.toBe(enText);
   });
 });

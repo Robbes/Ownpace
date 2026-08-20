@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 //
 // Integration tests for the 0013 discovery/confirm API routes: GET /api/scope-manifest,
 // GET/POST /api/migrations/:id/discovery|discover|start, and the paused-sync guard. Runs against

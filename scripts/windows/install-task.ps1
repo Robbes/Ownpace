@@ -1,4 +1,4 @@
-# Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+# Copyright 2026 The Ownpace authors (Apache-2.0)
 #
 # Register the appliance to start on boot, via Windows Task Scheduler
 # (workplan 0015 T3 Phase 3; owner decision 2026-08-07, ADR-0027 update).
@@ -222,7 +222,7 @@ $settings = New-ScheduledTaskSettingsSet `
 
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
     -Principal $principal -Settings $settings `
-    -Description "Open Migration Stack appliance. Serves the operating UI on http://${BindHost}:${Port}/ui and runs scheduled syncs. Starts on boot." | Out-Null
+    -Description "Ownpace appliance. Serves the operating UI on http://${BindHost}:${Port}/ui and runs scheduled syncs. Starts on boot." | Out-Null
 
 # A Start Menu entry for the operating UI (workplan 0015 T3 -- the last piece
 # of the install story that still required typing a URL). A .url file, not a
@@ -232,7 +232,18 @@ Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
 # real installer would create. All-users Start Menu, because the task runs as
 # a service account and the person operating it is whoever logs in.
 $startMenuDir = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs'
-$shortcut = Join-Path $startMenuDir 'Open Migration Stack.url'
+$shortcut = Join-Path $startMenuDir 'Ownpace.url'
+
+# The product was renamed (ADR-0040). An install over a pre-rename machine must
+# REMOVE the old entry, not leave it: both .url files point at the same UI, so
+# keeping both means two identical Start Menu items and a stale brand. Removing
+# it here -- not only in the uninstaller -- is what makes an in-place upgrade
+# clean, since most machines upgrade and never uninstall.
+$legacyShortcut = Join-Path $startMenuDir 'Open Migration Stack.url'
+if (Test-Path $legacyShortcut) {
+    Remove-Item $legacyShortcut
+    Write-Host "removed pre-rename Start Menu shortcut '$legacyShortcut'"
+}
 @"
 [InternetShortcut]
 URL=http://${BindHost}:${Port}/ui

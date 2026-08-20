@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 // Integration tests proving the calendar/contact/file (CalDAV/CardDAV/WebDAV) domain-sync
 // paths actually write to a real target and are idempotent — closes the coverage gap in
 // issue #114: no test previously exercised *TargetWriter.upsert* against a live server for

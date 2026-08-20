@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 //
 // Delete ONE already-migrated message in the SOURCE mailbox, the way a mail client
 // does it: move it into the bin. Lets the self-host e2e prove the mail deletion

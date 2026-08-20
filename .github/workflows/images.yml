@@ -2,7 +2,7 @@ name: Images
 
 # ==============================================================================
 # Builds and publishes the three application images (0025 T1) — the workflow
-# that makes `ghcr.io/robbes/open-migrate-selfhost:edge` (the compose default)
+# that makes `ghcr.io/robbes/ownpace-selfhost:edge` (the compose default)
 # an image something actually produces, instead of a name that resolves to
 # nothing.
 #
@@ -81,13 +81,13 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           # metadata-action lowercases the name, which ghcr requires.
-          images: ghcr.io/${{ github.repository_owner }}/open-migrate-${{ matrix.image }}
+          images: ghcr.io/${{ github.repository_owner }}/ownpace-${{ matrix.image }}
           tags: |
             type=edge,branch=main
             type=semver,pattern={{version}}
             type=sha,prefix=sha-
           labels: |
-            org.opencontainers.image.title=open-migrate-${{ matrix.image }}
+            org.opencontainers.image.title=ownpace-${{ matrix.image }}
             org.opencontainers.image.licenses=Apache-2.0
 
       # ---------------------------------------------------------------------
@@ -135,8 +135,8 @@ jobs:
           # Lowercase literal (ghcr requires it): metadata-action lowercases
           # the image name above, but these raw refs would keep "Robbes" —
           # the same reason compose.yml hardcodes ghcr.io/robbes/….
-          cache-from: type=registry,ref=ghcr.io/robbes/open-migrate-${{ matrix.image }}:buildcache
-          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref=ghcr.io/robbes/open-migrate-{0}:buildcache,mode=max', matrix.image) || '' }}
+          cache-from: type=registry,ref=ghcr.io/robbes/ownpace-${{ matrix.image }}:buildcache
+          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref=ghcr.io/robbes/ownpace-{0}:buildcache,mode=max', matrix.image) || '' }}
 
       # Only on the publish path. A pull request builds without pushing, so it
       # cannot hit a registry rate limit — retrying a genuinely broken
@@ -169,8 +169,8 @@ jobs:
           # Lowercase literal (ghcr requires it): metadata-action lowercases
           # the image name above, but these raw refs would keep "Robbes" —
           # the same reason compose.yml hardcodes ghcr.io/robbes/….
-          cache-from: type=registry,ref=ghcr.io/robbes/open-migrate-${{ matrix.image }}:buildcache
-          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref=ghcr.io/robbes/open-migrate-{0}:buildcache,mode=max', matrix.image) || '' }}
+          cache-from: type=registry,ref=ghcr.io/robbes/ownpace-${{ matrix.image }}:buildcache
+          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref=ghcr.io/robbes/ownpace-{0}:buildcache,mode=max', matrix.image) || '' }}
 
       # Neither attempt is allowed to fail silently. `continue-on-error` above
       # makes the FIRST step green whatever happens, so without this the job
@@ -182,7 +182,7 @@ jobs:
       - name: Fail if the build did not succeed
         if: steps.build_attempt.outcome == 'failure' && steps.build_retry.outcome != 'success'
         run: |
-          echo "::error::open-migrate-${{ matrix.image }} did not build/publish."
+          echo "::error::ownpace-${{ matrix.image }} did not build/publish."
           echo "If the reason was a ghcr secondary rate limit, re-run this job in a few minutes."
           echo "If it was anything else, the reason is in the build step's log above."
           exit 1
@@ -225,7 +225,7 @@ jobs:
             echo "::error::No image digest from either build attempt — nothing was published, so there is nothing to sign."
             exit 1
           fi
-          ref="ghcr.io/robbes/open-migrate-${{ matrix.image }}@${digest}"
+          ref="ghcr.io/robbes/ownpace-${{ matrix.image }}@${digest}"
           for attempt in 1 2 3; do
             if cosign sign --yes "$ref"; then
               echo "signed on attempt ${attempt}"
