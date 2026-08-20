@@ -107,21 +107,40 @@ The owner registered a client on 2026-08-20. What goes in the console, and why:
 browser is redirected and the token exchange happens on the server with the client secret. A JS
 origin is only required for browser-side OAuth. Leave this empty.
 
-**Authorized redirect URIs** — three environments, exactly as registered. Google matches
-byte-for-byte, before any redirect of ours runs, so a trailing slash or a missing port is a
-failure and not a near-miss:
-
-**One subdomain per environment** — the owner's own suggestion, and better than the loopback
-workaround it replaces:
+**Authorized redirect URIs.** Confirmed by the owner 2026-08-20, with `*.ownpace.eu` now
+resolving to the spark box. Google matches byte-for-byte, before any redirect of ours runs, so a
+trailing slash or a missing port is a failure and not a near-miss:
 
 ```
 https://app.ownpace.eu/oauth/google/callback      production
-https://ota.ownpace.eu/oauth/google/callback      the test box, reached over netbird
-http://localhost:3123/oauth/google/callback       a developer's own machine, optional
+https://ota.ownpace.eu/oauth/google/callback      test / dev
 ```
 
-If the internet-facing test environment and the netbird box are the same machine, that is two
-URIs and not three.
+**One subdomain per environment** — the owner's own suggestion, and better than the loopback
+workaround it replaced. Loopback is no longer needed at all; if a developer wants it,
+`http://localhost:3123/oauth/google/callback` is a third entry and nothing depends on it.
+
+> ### ⚠️ The wildcard means `app.` currently points at the test box
+>
+> `*.ownpace.eu` → spark resolves **every** name, including `app.` — so the URI registered as
+> *production* today lands an authorization code on the **development** machine. Harmless while
+> nothing is live, and a real hazard the moment anything is.
+>
+> Two ways out, and the second is the one ADR-0041 already asks for:
+>
+> 1. **Point `app.` explicitly** at production hosting, ahead of the wildcard, before the client
+>    is used for anything real. A specific `A`/`CNAME` beats the wildcard.
+> 2. **Register `app.` on a different client from `ota.`** — the split this file already
+>    recommends. Then the development client physically cannot mint a token against the
+>    production hostname, and a leaked dev secret is not a production incident. The trigger for
+>    doing it is now concrete: **split when `app.` stops meaning spark.**
+>
+> Until one of those is done, treat `app.ownpace.eu` as registered-but-not-live and do the
+> testing on `ota.`.
+
+**A wildcard certificate suits the wildcard DNS.** Both hosts need TLS, and one DNS-01 wildcard
+certificate for `*.ownpace.eu` covers every environment on that box without a per-host dance —
+which is the same mechanism recommended below, just requested once.
 
 **Why a subdomain and not the box's address.** Google refuses a **raw IP** as a redirect URI,
 and refuses **`http://`** for anything but loopback — and the box currently serves plain HTTP on
