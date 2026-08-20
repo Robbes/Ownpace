@@ -51,5 +51,38 @@ trigger_cli_logged_in() { # trigger_cli_logged_in <cli_version> <profile>
   [ -n "${TRIGGER_ACCESS_TOKEN:-}" ] && return 0
 
   local cmd="${TRIGGER_CLI_WHOAMI_CMD:-npx -y trigger.dev@${cli_version} whoami --profile ${profile}}"
-  eval "$cmd" 2>&1 | grep -q "^User ID:"
+
+  # WHY THIS IS NOT `grep -q "^User ID:"`, which is what it used to be.
+  #
+  # The CLI draws its account details inside a box, so the line it actually
+  # prints is:
+  #
+  #     |  User ID: cmt0uv3zg0005r05dwkrmhgfy  |
+  #
+  # (with U+2502 boxes, not ASCII pipes). An anchored match can never see that,
+  # so a correctly logged-in operator was told "Not logged in" immediately after
+  # a successful `login` — and the advice was to run `login` again, which
+  # short-circuits on "already logged in". A loop with no exit.
+  #
+  # Presentation is the CLI's business and changes under version bumps, so the
+  # matcher tolerates decoration instead of assuming a layout: strip any leading
+  # non-letter bytes (box characters, pipes, whitespace) and THEN anchor. That
+  # keeps the property the anchor was there for — an error dump saying "no User
+  # ID: field was present" begins with a letter, so nothing is stripped and it
+  # still does not match — while accepting both the bare and boxed forms.
+  #
+  # Requiring an alphanumeric AFTER the colon is the other half: it asserts a
+  # lookup returned a value, rather than that the words appeared.
+  local out
+  out="$(eval "$cmd" 2>&1)"
+  if printf '%s\n' "$out" | sed 's/^[^A-Za-z]*//' | grep -q "^User ID:[[:space:]]*[A-Za-z0-9]"; then
+    return 0
+  fi
+  # Say what the CLI actually answered. The previous silence is what made this
+  # take a human several rounds: "Not logged in" with no evidence is
+  # indistinguishable from a detector that cannot read a valid answer.
+  if [ "${TRIGGER_CLI_EXPLAIN:-1}" != "0" ]; then
+    printf '%s\n' "$out" | sed 's/^/    [whoami] /' >&2
+  fi
+  return 1
 }

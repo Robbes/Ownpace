@@ -394,6 +394,35 @@ describe('trigger_cli_logged_in (trigger-cli-lib.sh)', () => {
     expect(loggedIn(stub('echo "no User ID: field was present in the response"'))).toBe(false);
   });
 
+  it('reads the BOXED account details the CLI actually prints', () => {
+    // The bug this pins, found on a live bring-up 2026-08-20. The CLI draws
+    // account details inside a box, so the line is `\u2502  User ID: …  \u2502`
+    // and never starts with "User ID:". The old `grep -q "^User ID:"` therefore
+    // told a correctly authenticated operator "Not logged in" — and the advice
+    // it printed was to run `login`, which short-circuits on "already logged
+    // in". A loop with no exit, on a stack where nothing executes until the
+    // tasks deploy.
+    // One `echo` per line — a single printf with embedded \n would be escaped
+    // back into one literal line by the shell quoting, which is not what the
+    // CLI produces and would test nothing.
+    const boxed = [
+      '\u250c  Displaying your account details [openmig]',
+      '\u2502',
+      '\u25c7  Account details [openmig] \u2500\u2500\u2500\u256e',
+      '\u2502                                      \u2502',
+      '\u2502  User ID: cmt0uv3zg0005r05dwkrmhgfy  \u2502',
+      '\u2502  Email:   owner@example.test         \u2502',
+    ];
+    expect(loggedIn(stub(boxed.map((l) => `echo ${JSON.stringify(l)}`).join('; ')))).toBe(true);
+  });
+
+  it('still refuses a boxed line with no ID after the colon', () => {
+    // Decoration tolerance must not become "the words appeared somewhere".
+    // The matcher requires an alphanumeric value, which is what proves a
+    // lookup actually returned something.
+    expect(loggedIn(stub('echo "\u2502  User ID:                          \u2502"'))).toBe(false);
+  });
+
   // ---------------------------------------------------------------------
   /**
    * TRIGGER_ACCESS_TOKEN (found 2026-08-18, following run #5). `whoami`
