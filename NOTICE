@@ -42,7 +42,40 @@ appliance rather than merely building it:
   - @trigger.dev/sdk (Apache-2.0) — the task runtime used by the managed
     edition only. It is not part of the self-host appliance.
 
-Trademarks: Microsoft, Microsoft 365, Office 365, Outlook, SharePoint and
+--------------------------------------------------------------------------------
+TRADEMARKS
+
+"Ownpace" is a trademark of the Ownpace project maintainers.
+
+The Apache License, Version 2.0 deliberately grants no trade-mark rights
+(section 6). That split is the point, and it is worth stating plainly rather
+than leaving to inference: the licence covers the code, and it lets you run,
+modify, redistribute and even host it commercially in competition with us. It
+does not let you call the result Ownpace.
+
+No permission is needed to:
+
+  - say accurately that your product is built on, derived from, compatible with,
+    or a fork of Ownpace — describing what something is, is not trade-mark use;
+  - keep this NOTICE intact when you redistribute, which the licence requires
+    of you anyway;
+  - run a private or internal instance under any name you like.
+
+Written permission is needed to:
+
+  - name a product, service, company or domain in a way likely to be confused
+    with Ownpace;
+  - use the name as the brand of a distribution or of a hosted service offered
+    to others.
+
+This is the only restriction the project places on an otherwise permissive
+licence, and it exists so that people migrating their data can tell who they
+are trusting. It is not a restriction on the code.
+
+--------------------------------------------------------------------------------
+THIRD-PARTY TRADEMARKS
+
+Microsoft, Microsoft 365, Office 365, Outlook, SharePoint and
 OneDrive are trademarks of Microsoft Corporation. Other product and company
 names mentioned in this software or its documentation may be the trademarks of
 their respective owners. Use of these names is descriptive — it identifies the

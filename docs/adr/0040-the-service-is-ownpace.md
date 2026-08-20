@@ -27,6 +27,10 @@
 > still the live customer-facing brand** in the web UI and in every notification e-mail
 > subject, EN and NL — missed by the first pass, which grepped only for "Open Migration Stack".
 
+> **Update 2026-08-20 (third)** — `ownpace.eu` is registered, the TMView check ran, and the
+> owner asked for the mark to be asserted. The held item below is therefore **decided**;
+> the evidence is in "The trade-mark check" at the end of this file.
+
 ## Operative rules
 
 <!-- What holds NOW. Amend these bullets in place when a later decision changes them;
@@ -61,9 +65,15 @@
   `scripts/upgrade-drill.sh` derives its registry from the tag for exactly this reason — a
   hardcoded path makes the drill pull a tag that does not exist, silently, from the script whose
   job is proving upgrades work. The cosign identity regexp matches **both** repo paths.
-- **Still OPEN, the owner's, not to be inferred:** whether to assert the mark in `NOTICE`
-  (still held, pending TMview); and whether the post-cutover backup gets its own brand or is a
-  plan name under Ownpace.
+- **The mark is asserted in `NOTICE`** — the one restriction on an otherwise permissive
+  licence, guarded by `scripts/notice-and-trademark.unit.test.ts`. It is an **unregistered**
+  claim: no `®`, no "registered trade mark of". The assertion states what needs **no**
+  permission (nominative use, forking, private instances) as explicitly as what does, so it
+  cannot be misread as a restriction on the code.
+- **Still OPEN, the owner's, not to be inferred:** whether to file an EUTM (a separate step
+  from asserting — see the two extra searches named below); the legal proprietor named in
+  `NOTICE`, currently "the Ownpace project maintainers" rather than a company; and whether the
+  post-cutover backup gets its own brand or is a plan name under Ownpace.
 
 ## Context
 
@@ -159,3 +169,28 @@ The project keeps a separate name. Which one, and whether the repository, the np
   and "solv-" reads as *insolvent* for a company that sends invoices. Coined was declined
   overall for a simpler reason — `ownpace` states the differentiator with no explanation,
   and `lentara` needs a sentence.
+
+## The trade-mark check (2026-08-20)
+
+TMView, search *Merknaam (bevat): Ownpace*. **Two hits, both dead, neither in the EU, and
+neither ever in our classes:**
+
+| mark | filed | office | classes | proprietor | status |
+|---|---|---|---|---|---|
+| OWNPACE (86572163) | 2015-03-21 | US | 16, 41 | Gorodnitskiy, Oleg | **Ended** |
+| AMERIDREAM.TRAVEL EXPERIENCE AMERICA AT YOUR OWNPACE (77296704) | 2007-10-04 | US | 39 | Canadream Corporation | **Ended** |
+
+Classes 16 (printed matter), 41 (education/entertainment) and 39 (travel) are nowhere near 9,
+38 or 42. So: no live mark anywhere, nothing in the EU at all, and no history in the classes a
+software service files in. That is ample grounds for the unregistered assertion made in
+`NOTICE`.
+
+**What this search does NOT establish, stated so nobody treats it as clearance.** It matched
+names *containing* "Ownpace", which is the right first search and not a sufficient one — an
+EUIPO opposition can be founded on **similarity**, not identity alone. Two searches should run
+before any filing: **"Own Pace"** as two words, and a phonetic/visual neighbourhood sweep
+(`ONPACE`, `OWNSPACE`, `OWNPAY`), none of which a `contains` search returns. TMView also says
+nothing about unregistered rights, company-name registers, or common-law use.
+
+Asserting in `NOTICE` needs none of that — an unregistered mark is asserted by using it and
+saying so. **Filing does.**
