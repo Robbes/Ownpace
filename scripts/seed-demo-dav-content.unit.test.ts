@@ -331,6 +331,35 @@ describe('--fresh seeds keys no tombstone can already own', () => {
     expect(r.status).not.toBe(0);
   });
 
+  it('the "watch it land" hint is paste-safe — credentials resolve INSIDE the container', () => {
+    // Found by an operator pasting it: the hint used to read
+    //   docker exec ownpace-db psql -U "$POSTGRES_USER" ...
+    // and the surrounding heredoc is quoted (deliberately — unquoting it would
+    // expand POSTGRES_USER/POSTGRES_DB to nothing and RUN the backticked
+    // words), so those names print literally and then get expanded by the
+    // OPERATOR'S shell, where they are not set. psql fell back to the host
+    // username: `FATAL: role "root" does not exist`.
+    //
+    // A command a script prints for a human to paste is part of its interface.
+    // This pins that the expansion happens in the container, which HAS the
+    // variables, by asserting the `sh -c` wrapper rather than the bare form.
+    const script = readFileSync(SEEDER, 'utf8');
+    expect(script).toContain(`docker exec -i ownpace-db sh -c 'psql -U "$POSTGRES_USER"`);
+    expect(script).not.toMatch(/docker exec ownpace-db psql -U "\$POSTGRES_USER"/);
+  });
+
+  it('the hint groups by `domain`, never the legacy `item_type`', () => {
+    // `item` carries both columns. `domain` ('email','calendar','contact',
+    // 'file') is what ledger.ts writes; `item_type` is legacy, unmodelled by
+    // the ORM, NOT NULL with DEFAULT 'mail' and written by nothing. Grouping a
+    // DAV mapping by item_type returns `mail` for every row — a confident
+    // WRONG answer, which cost a live debugging session chasing a cross-domain
+    // leak that did not exist. An error would have been kinder.
+    const script = readFileSync(SEEDER, 'utf8');
+    expect(script).toMatch(/SELECT domain, status, count\(\*\) FROM item/);
+    expect(script).not.toMatch(/SELECT item_type, status/);
+  });
+
   it('counts resources, not matching lines — Nextcloud answers on one', () => {
     // `grep -c` counts LINES and the multistatus is a single line, so it
     // answered 1 however many resources were there. Run #20's evidence reads
