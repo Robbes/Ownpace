@@ -65,10 +65,28 @@ docker rm -f open-migrate-db open-migrate-pgbouncer open-migrate-api \
              open-migrate-web open-migrate-nextcloud \
              open-migrate-selfhost-db open-migrate-selfhost-app 2>/dev/null || true
 
-# 3. Confirm nothing is left holding the old name before you bring the new one up.
+# 3. The demo Stalwart is created by `docker run` (setup-stalwart.sh — it cannot
+#    be a compose service, see that script's header), so it is NOT in the compose
+#    project and `down -v` structurally cannot see it. It is also what keeps the
+#    old network alive: step 1 reports "Resource is still in use" because this
+#    container is still attached to it.
+docker ps -a --filter network=open-migrate-managed_open-migrate-network --format '{{.Names}}'
+docker rm -f open-migrate-stalwart 2>/dev/null || true
+docker network rm open-migrate-managed_open-migrate-network 2>/dev/null || true
+
+# 4. Its volumes are outside compose for the same reason. Three naming generations
+#    exist on a long-lived box, as those defaults drifted:
+docker volume rm $(docker volume ls -q --filter name=open-migrate-stalwart) 2>/dev/null || true
+
+# 5. Confirm nothing is left holding the old name before you bring the new one up.
+docker ps -a      --filter name=open-migrate --format '{{.Names}}'
 docker volume ls  --filter name=open-migrate
 docker network ls --filter name=open-migrate
 ```
+
+**Do not delete `openmig-dev-stalwart*`.** That is the dev/e2e Stalwart instance,
+named after the package scope rather than the product, so it is deliberately
+untouched by the rename and is still in use.
 
 **Do NOT delete `~/.persistent/open-migrate-managed`.** It holds the stack's `.env`
 — including `SECRET_ENCRYPTION_KEY`, the key that decrypts every stored credential
