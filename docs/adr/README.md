@@ -65,6 +65,7 @@ first.
 | [0037](./0037-keys-credentials-and-transport-floors.md) | One credential store, two key providers, and TLS floors | Accepted 2026-08-19 |
 | [0038](./0038-operative-rules-and-the-growing-record.md) | Operative rules — keeping a growing decision record loadable | Accepted 2026-08-19 (this convention) |
 | [0039](./0039-no-open-core-and-what-ops-privacy-means.md) | No open-core — closed with a trigger; and what "private ops" means | Accepted 2026-08-19 (resolves the 0009 vs 0036 conflict) |
+| [0040](./0040-the-service-is-ownpace.md) | The service is Ownpace; the project keeps its own name | Accepted 2026-08-20 — three open follow-ups (repo rename, NOTICE assertion, backup naming) |
 
 ## Reading the statuses
 
