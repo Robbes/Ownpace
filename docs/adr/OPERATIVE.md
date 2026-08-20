@@ -80,8 +80,29 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0014: Cost-recovery billing (no profit) for the managed edition](./0014-cost-recovery-billing.md)
 
-- Managed edition is priced at **cost recovery, no profit**; the self-host edition is free.
-- Metering derives from the ledger; EU PSP (Mollie). The machinery lives in `@openmig/managed` (ADR-0036).
+- **Four tiers on ACTIVE PATHS, not metered bytes.** Small ≤2 · Medium ≤8 · Large ≤25 ·
+  Extra large ≤100, each with a data ceiling that exists as fair use. **No per-GB line and no
+  compute line appears on any invoice.** Self-host stays free.
+- **A path bills from the moment its mapping is `active`** — never from configured-or-paused.
+  Tier = the high-water mark of simultaneously active paths in the period, and the preflight
+  shows the count against the ceiling ("4 of 8") so nobody crosses a boundary blind.
+- **The tier boundary is a SERVICE boundary.** Small/Medium are self-service — a manual and a
+  ticket queue, no phone. Large/XL include real engagement. The price gap follows support, not
+  size; that is what makes it explicable.
+- **Prices are published in full on the public page.** No "contact sales", no quote-gating.
+  Deliberate contrast with the incumbents, and part of the same honesty claim as `SKIPPED`.
+- **Fair use states numbers and a named remedy**: pass the ceiling and we talk to you and move
+  you a tier — never a silent throttle, never a surprise invoice — with a warning at 80%, which
+  the ledger can see coming.
+- **Metering stays INTERNAL.** Bytes and compute are still measured, to check the tiers against
+  reality; they simply never reach an invoice. Tiers do not self-correct the way metering does,
+  so this is what keeps them honest.
+- **"No profit" is retired as a description.** Large/XL carry a margin that funds Small/Medium
+  and the operator's hours. Still not profit-seeking — cross-subsidy in service of the mission
+  (ADR-0039: the mission outranks the subgoal).
+- EU PSP (Mollie); the machinery lives in `@openmig/managed` (ADR-0036). Public page follows
+  [ADR-0029](./0029-public-site-is-server-rendered-and-legible.md) and leads with the free
+  preflight.
 
 ## [ADR-0015: Backup scope — stack DR vs end-user data vs optional extra backup](./0015-backup-scope.md)
 

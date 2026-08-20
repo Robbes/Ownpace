@@ -4,7 +4,7 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T1 Decide the pricing shape this quotes (owner) | ⛔ **Blocking, not started** — nothing below is built until it lands | Two findings put to the owner in this plan: the egress line already carries a ~200× markup, and the model prices bytes while the cost is hours. Output is an ADR-0014 amendment or a reaffirmation with the findings recorded. |
+| T1 Decide the pricing shape this quotes (owner) | ✅ **Done 2026-08-20** — T2–T5 unblocked | [ADR-0014 amended](../adr/0014-cost-recovery-billing.md): four tiers on ACTIVE paths (Small ≤2 / Medium ≤8 / Large ≤25 / XL ≤100), no per-GB or compute line on any invoice, fair-use ceilings, metering kept internal. Both findings recorded — the ~200× egress markup and bytes-priced-where-cost-is-hours. Two schema consequences named there and not solved: `mailbox_mapping.status` defaults to `'active'` when billing needs `'paused'`, and there is no `activated_at`. |
 | T2 `INDICATIVE_PROFILES` — the assumptions, versioned | 📋 Planned | Customer type × object type → item counts and GB, every number carrying a provenance comment; covered by a unit test that refuses a silent gap. |
 | T3 The static page | 📋 Planned (needs T1, T2) | One self-contained file under `site/pricing/`, no workspace imports, no account, no server state, five inputs. |
 | T4 The drift guard, on the managed side | 📋 Planned (needs T3) | The page's numbers vs `packages/managed/src/pricing.ts`, plus an assertion that the appliance graph never reaches the calculator. |
@@ -171,4 +171,6 @@ sovereignty product this is a property to state publicly, not a cleanup job.
   first byte). This plan stops at the page and the ladder's documentation.
 - The retention machinery in T6 — the rule is stated, the expiry job is not built.
 - Any change to `calculateCost` or to the invoice path.
-- The service name. `site/pricing/` carries no brand until that is decided.
+- ~~The service name~~ — decided: **Ownpace** (ADR-0040).
+- The public page's copy and layout: sketched in ADR-0014's amendment (order, tone, what the
+  page must not claim), built here only as far as `site/pricing/` goes.

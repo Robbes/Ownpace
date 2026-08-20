@@ -39,7 +39,7 @@ first.
 | [0011](./0011-targets-managed-eu-no-selfhosted-mail.md) | Targets default to managed EU/CH; self-hosted targets are user-operated | Accepted |
 | [0012](./0012-graph-over-ews-davmail.md) | Prefer Microsoft Graph; avoid EWS/DavMail | Accepted |
 | [0013](./0013-i18n-english-dev-bilingual-ui.md) | English for development; bilingual (EN+NL) end-user UI | Accepted — bilingual UI built 2026-08-02 |
-| [0014](./0014-cost-recovery-billing.md) | Cost-recovery billing (no profit) for the managed edition | Accepted |
+| [0014](./0014-cost-recovery-billing.md) | Managed billing | **Amended 2026-08-20** — four tiers on active paths, no per-GB/compute line; "no profit" retired (cross-subsidy) |
 | [0015](./0015-backup-scope.md) | Backup scope — stack DR vs end-user data vs optional extra backup | Accepted — extra-backup bullet retracted 2026-08-02 |
 | [0016](./0016-ledger-schema-v1.md) | Ledger schema v1 | Accepted — access-layer clause superseded by 0023; managed tables moved by 0036 |
 | [0017](./0017-migration-tooling.md) | Migration tooling — Drizzle Kit (+ Atlas lint), not Liquibase | Accepted — Atlas lint built 2026-08-02; two chains since 0036 |
