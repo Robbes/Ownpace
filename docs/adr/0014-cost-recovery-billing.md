@@ -1,8 +1,8 @@
 # ADR-0014: Cost-recovery billing (no profit) for the managed edition
 
 - **Status:** Accepted 2026-06-20; **amended 2026-08-20** — the model changed from metered
-  resources to four tiers on active paths, and "no profit" no longer describes it. Owner
-  decision in conversation; workplan 0088's blocking T1.
+  resources to five tiers on paths running at the same time, and "no profit" no longer
+  describes it. Owner decision in conversation; workplan 0088's blocking T1.
 - **Date:** 2026-06-20
 - **Amends:** the operative rules below, in place (ADR-0038). The 2026-06-20 narrative is kept
   verbatim underneath; everything from "The 2026-08-20 amendment" onward is the new record.
@@ -14,9 +14,18 @@
      the narrative below stays append-only. Assembled into OPERATIVE.md by
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
-- **Four tiers on PATHS RUNNING AT THE SAME TIME, not metered bytes.** Small ≤2 · Medium ≤8 ·
-  Large ≤25 · Extra large ≤100, each with a data ceiling that exists as fair use. **No per-GB line and no
-  compute line appears on any invoice.** Self-host stays free.
+- **A PATH is one kind of thing, from one account, to one account.** Mail, contacts, calendar
+  and files are **separate paths** — that is the customer-facing unit and it must be said
+  plainly wherever a price appears, because it is the number every tier is counted in. In the
+  schema it is one **`scope_selection` row**: `(mapping_id, domain)`, one per domain, created
+  with the mapping (`apps/api/src/routes/migrations/index.ts:1122`).
+- **Five tiers on PATHS RUNNING AT THE SAME TIME, not metered bytes.** Tiny 1 · Small ≤4 ·
+  Medium ≤20 · Large ≤50 · Extra large ≤200, each with a data ceiling that exists as fair use.
+  **No per-GB line and no compute line appears on any invoice.** Self-host stays free.
+- **Flat within a band; no per-path price inside a tier.** Labour per path is **sublinear** —
+  one household is one relationship, one set of credentials, one cutover conversation — so a
+  per-path monthly would contradict the reason paths were chosen as the unit at all. The
+  linear component is the setup fee, and it is already handled by the step-up rule below.
 - **A tier is a CAPACITY — how many paths may run at the same time — not a tally of everything
   ever touched.** A path takes a slot when it is first activated and gives it back when it ends.
   Four states: **`ready`** (configured, connection-tested, proven working, never run — **free,
@@ -40,8 +49,8 @@
   applied retroactively, and never taken as a reason to stop, pause or block a path. If the
   arithmetic is ever wrong it must **under-bill, never halt a migration**.
 - **The setup fee is on the HIGHEST tier ever reached, and it is paid in steps.** Each tier
-  splits into a one-off setup plus a monthly — Small €8 + €4 · Medium €11 + €8 · Large €60 + €39
-  · XL €150 + €99. Stepping up later costs the **difference** in setup, once; stepping down
+  splits into a one-off setup plus a monthly — Tiny €5 + €2 · Small €8 + €4 · Medium €11 + €8 ·
+  Large €60 + €39 · XL €150 + €99. Stepping up later costs the **difference** in setup, once; stepping down
   refunds nothing, because the onboarding was consumed. This makes the total independent of
   whether a customer ramped up or started at full size, so understating gains nothing and
   guessing wrong costs nothing.
@@ -49,8 +58,8 @@
   ones carrying the date they ended; the count summarises that list rather than replacing it.
   The words are *"running at the same time"* — **never "used"**, which is what one says about
   something spent and is exactly the cumulative misreading to avoid.
-- **The tier boundary is a SERVICE boundary.** Small/Medium are self-service — a manual and a
-  ticket queue, no phone. Large/XL include real engagement. The price gap follows support, not
+- **The tier boundary is a SERVICE boundary.** Tiny/Small/Medium are self-service — a manual
+  and a ticket queue, no phone. Large/XL include real engagement. The price gap follows support, not
   size; that is what makes it explicable.
 - **Prices are published in full on the public page.** No "contact sales", no quote-gating.
   Deliberate contrast with the incumbents, and part of the same honesty claim as `SKIPPED`.
@@ -62,6 +71,10 @@
   finishes eight paths and keeps one running falls to Small the following month, by the
   capacity rule and the automatic downgrade above rather than by a special case. A special case
   would only have hidden the front-loaded cost.
+- **Start everything; it falls by itself.** The published advice is to activate all the paths
+  at once and let automatic downgrade do the rest as each one cuts over — **not** to ration
+  paths to stay inside a band. Tiny exists for people who would rather go one at a time, and it
+  is cheaper for them; nobody should be nudged into it by fear of the next tier up.
 - **We do not take money from inattention.** A path billing with nothing to show gets a
   periodic, one-click *"keep it or finish it"* through the existing summary mail — and billing
   never runs past **12 months without an explicit re-confirmation**. A product promising "it
@@ -163,8 +176,8 @@ someone with a browser should confirm: the exact bundle name, whether "unlimited
 the terms, and whether the 10-pass limit applies to it too.
 
 **And the price comparison lands well.** At ~$17.50/user, eight users cost about €128 at
-BitTitan for a one-shot copy. Medium here is €67 for six months, up to eight paths, with
-continuous sync throughout. We are cheaper at every tier while selling more, which is a
+BitTitan for a one-shot copy. Medium here is €59 for six months, up to twenty paths — eight
+users with mail, contacts and calendar, plus headroom — with continuous sync throughout. We are cheaper at every tier while selling more, which is a
 comfortable place to be — with one caveat recorded in the last section.
 
 ## The model, and why it is shaped this way
@@ -191,24 +204,43 @@ means everything, and the preflight already measures it.
 
 | tier | who | paths at the same time | ceiling | setup | monthly | first month | typical total |
 |---|---|---|---|---|---|---|---|
-| **Small** | one person | 2 | 500 GB | €8 | €4 | €12 | €24 over 3 months |
-| **Medium** | a household | 8 | 1.5 TB | €11 | €8 | €19 | €43 (3 mo) · €67 (6 mo) |
-| **Large** | a small business | 25 | 4 TB | €60 | €39 | €99 | €294 over 6 months |
-| **Extra large** | an organisation, or an MSP's first customers | 100 | 15 TB | €150 | €99 | €249 | €744 over 6 months |
+| **Tiny** | one person, one thing at a time | 1 | 250 GB | €5 | €2 | €7 | €13 for all four, over four months |
+| **Small** | one person, everything at once | 4 | 500 GB | €8 | €4 | €12 | €20 over 3 months |
+| **Medium** | a household | 20 | 1.5 TB | €11 | €8 | €19 | €35 (3 mo) · €59 (6 mo) |
+| **Large** | a small business | 50 | 4 TB | €60 | €39 | €99 | €294 over 6 months |
+| **Extra large** | an organisation, or an MSP's first customers | 200 | 15 TB | €150 | €99 | €249 | €744 over 6 months |
 
 The setup column is not a new charge — it is the first-month price named, so that stepping up a
 tier later can cost the *difference* rather than the whole thing again. See *"Nobody picks a
-tier, so nobody can pick wrong"* below.
+tier, so nobody can pick wrong"* below. **Every "typical total" is `setup + monthly × months`,
+counting the first month as month one**; that is now checkable against the two columns beside
+it, which the earlier draft's totals were not.
 
-Small at two paths because one person is typically two source accounts — a mail account and a
-file account. Medium at eight because that is four people with two each.
+**The counts doubled without the prices moving, because the unit got smaller.** The earlier
+draft counted an *account pair* and read "one person is typically two source accounts — a mail
+account and a file account". Counting the way customers actually think — and the way
+`scope_selection` already stores it — that same person is **four** paths: mail, contacts,
+calendar, files. So every ceiling is the old one doubled, describing exactly the same customer
+at exactly the same price. Small is still one person; Medium is still a household.
+
+Medium is 20 rather than the arithmetic 16, and that is the one deliberate deviation. Four
+people with everything is 16, which leaves a household of four with *no* headroom for a fifth
+person or a second provider — and Medium → Large is the expensive step, the only steep one on
+the page. That step should be crossed by businesses, not by families who added a Dropbox.
+
+**Tiny is one path, and it is the patient offer.** One person moving mail, then contacts, then
+calendar, then files, one at a time, pays €5 once and €2 a month: **€13 for the whole
+migration** against €20 for the same person doing all four at once on Small. Patience is
+cheaper, impatience costs seven euro, and neither is punished. Its 250 GB ceiling is the one
+real constraint — a single 400 GB photo library does not fit, and fair use then says what it
+always says: we talk to you and move you to Small.
 
 **Why Medium is €8 and not €12.** Google One 2 TB is €9.99/month, and the customer is *leaving*
 it while also paying their new European provider. Our fee stacks on top of both. Anything at or
 above €10/month makes us more expensive than the thing we are replacing, for a service that is
 supposed to end. €8 sits clearly below that line, and it is the binding constraint on this tier.
 
-**Advertise the total, not the monthly.** *"€43 to move your household, over three months"* is a
+**Advertise the total, not the monthly.** *"€35 to move your household, over three months"* is a
 decision someone makes in a minute. *"€8/month"* is a subscription decision, which is a
 different and slower question. Same money. The preflight knows the size, so it can show the
 total.
@@ -266,6 +298,51 @@ whole brand: **billing does not continue past twelve months without an explicit
 re-confirmation.**
 
 This costs some revenue on purpose. ADR-0039 already settled which way that trade goes.
+
+### What one path is, and why saying so is a marketing requirement
+
+The owner's instruction: *"in the marketing we need to be clear that contact, email, calendar
+all are separate migration paths."* That is right, and it turned out to also be a **correction
+to this ADR**, which until now counted an account pair.
+
+**The machinery already agrees with the owner, at one grain and not the other.** Creating a
+migration writes "one `scope_selection` row per domain"
+(`apps/api/src/routes/migrations/index.ts:1122`), and `migration_status` is keyed
+`(mapping_id, domain)` with its own `completed_at`. Discovery reports per domain. So *progress*
+is already per path in the owner's sense. What is **not** per domain is the billing lifecycle:
+`mailbox_mapping.status` and `cutover_state` are per **mapping**, and
+`uk_mapping_source_target_prefix` (migration 0022) forbids a second mapping between the same two
+accounts, so "one path per object type" cannot be faked with extra mappings either. That gap is
+recorded as a schema consequence below, and it is the largest one in this ADR.
+
+Counting this way is also simply how a customer describes their own situation. Nobody says "two
+source accounts". They say *"my mail, my contacts, my calendar and my photos"* — four things,
+which is four paths, which is what the price should be counted in.
+
+### Should a tier be a band with a per-path price inside it?
+
+Asked by the owner, on the reasonable observation that the step-up rule already prices movement
+*between* tiers continuously, so why not price movement *within* one the same way. **No, and the
+reason is in this ADR two sections up.**
+
+Labour per path is **sublinear**. That is the argument that chose paths over bytes and over
+seats in the first place: one household is one relationship, one set of credentials, one cutover
+conversation, whether it is six paths or sixteen. A per-path monthly asserts the opposite — that
+the sixteenth path costs what the first did — which is the same false claim per-GB was making,
+just wearing a better unit. And a *decreasing* per-path price, the honest version of a staffel,
+produces inversions where adding a path lowers the bill.
+
+The linear cost is real, though, and it is the **setup**: each path is its own initial copy, its
+own verify, its own cutover. That is exactly what the step-up fee already charges, and it is why
+setup is the component that moves and the monthly is the component that is flat.
+
+**What the question does expose is a genuine defect: the cliffs.** Under flat bands, crossing a
+ceiling multiplies the bill. Tiny → Small doubles €2 to €4, Small → Medium doubles €4 to €8 —
+both gentle. **Medium → Large is €8 to €39, five times**, and that one is only defensible because
+it is the *service* boundary this ADR already names: Large buys engagement, not just capacity.
+The fix is therefore not a staffel but a ceiling in the right place — hence Medium at 20 rather
+than 16, so that a household growing a little does not fall off a service cliff it did not ask
+to cross.
 
 ### A tier is a capacity, not a tally
 
@@ -394,7 +471,7 @@ first — `apps/api/src/routes/migrations/index.ts:1329`) *and* would mean "was 
 Those two must be told apart, because one is free and one is not. **A billing key cannot be
 built on a status that conflates the free case with the charged one.**
 
-**Three schema consequences follow. None is solved here.**
+**Four schema consequences follow. None is solved here.**
 
 **1. The column default is the wrong way round for a billing key.** The definition is
 
@@ -428,6 +505,22 @@ this project stands behind has to be reconstructible in one read. That is one sm
 it is the same data the automatic downgrade compares against and the honesty surface wants to
 display.
 
+**4. The billing unit and the lifecycle are at different grains — and this one blocks the
+pricing model, not just the invoice.** A path is `(mapping_id, domain)`; `scope_selection` and
+`migration_status` are already keyed that way. But `mailbox_mapping.status` — the column
+carrying `active`/`paused`/`cutover`/`done` — is per **mapping**, and so is `cutover_state` with
+its `PREPARING → … → COMPLETED` machine. **So a customer cannot today cut over mail while
+calendar keeps running**, which is precisely the behaviour the tier model is built on: paths end
+one at a time, slots free one at a time, the tier falls by itself. Nor can it be worked around
+with one mapping per domain, because `uk_mapping_source_target_prefix` (migration 0022) refuses a
+second mapping between the same two accounts.
+
+Making the lifecycle per-path is therefore a **prerequisite for the pricing model**, not a
+refinement of it: `active`/`paused`/`cutover`/`done` (plus `ready`, and `first_activated_at` /
+`ended_at`) belong on the `scope_selection` row or on a sibling table at that grain, with
+`cutover_state` following. Until it exists, the honest position is that the tiers describe what
+the service will do, and Tiny — one path at a time — is the tier that depends on it most.
+
 ### Fair use, written the way this project writes things
 
 The ceiling replaces the per-GB pass-through, so it has to exist. What it must not be is the
@@ -455,15 +548,22 @@ page should *say*.
 3. **"At your own pace" explained in three lines**, because it is the product and it is unusual:
    it runs alongside your old provider for as long as you want; you decide when to switch; then
    it stops — or keeps one copy in sync if you'd rather.
-4. **The prices, in full, on the page.** All four tiers, with the setup and the monthly shown
+4. **What a path is, before any price is shown.** *"Your mail, your contacts, your calendar and
+   your files are four separate paths."* The tiers are counted in paths, so a visitor who has
+   not understood this has not understood any number underneath it. Show it as the four things,
+   named, with the count adding up in front of them — not as a definition in prose.
+5. **The prices, in full, on the page.** All five tiers, with the setup and the monthly shown
    separately and the step-up rule stated, plus the sentence that finishing paths lowers the
-   bill by itself. CloudFuze
+   bill by itself. And the advice stated outright, because the natural fear is of the tier
+   above: **start everything at once — as each thing finishes, the bill falls on its own.**
+   Tiny is offered as the patient alternative for someone who would rather go one at a time,
+   never as the way to avoid a tier. CloudFuze
    quote-gates its business plan; publishing is both a real contrast and the same honesty claim
    the product makes about its own reports.
-5. **What we do not do** — the honest limits, on the page rather than discovered later:
+6. **What we do not do** — the honest limits, on the page rather than discovered later:
    `SKIPPED` means nobody checked; adopted files are not ours to delete; some things cannot be
    moved and we will name them before you pay.
-6. **Self-host**, prominent, not hidden: Apache-2.0, run it yourself, we would rather you moved
+7. **Self-host**, prominent, not hidden: Apache-2.0, run it yourself, we would rather you moved
    than that you paid us (ADR-0039's mission test, stated where customers can see it).
 
 **Tone: numbers, not adjectives.** No "seamless", no "effortless", no "enterprise-grade". The
@@ -489,6 +589,11 @@ refinement.
 makes the cutover month bill *higher* than the months of actual migrating (eight finished plus
 one sync path = nine), it contradicts the backup-row deletion, and the only thing it buys is
 protection against slot churn — which fair use already provides, better and more honestly.
+
+**A per-path price inside each tier — a band plus a rate.** Rejected in its own section above:
+labour per path is sublinear, so a flat per-path monthly asserts something false, and a
+decreasing one inverts. The cliff it was meant to solve is real and is solved by putting the
+ceiling in the right place instead.
 
 **A single flat setup fee across all tiers.** Rejected: an XL onboarding is roughly twenty times
 a Small one, so a flat fee has Small subsidising XL, which is backwards from the cross-subsidy

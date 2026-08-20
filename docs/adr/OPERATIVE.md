@@ -80,9 +80,18 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0014: Cost-recovery billing (no profit) for the managed edition](./0014-cost-recovery-billing.md)
 
-- **Four tiers on PATHS RUNNING AT THE SAME TIME, not metered bytes.** Small ≤2 · Medium ≤8 ·
-  Large ≤25 · Extra large ≤100, each with a data ceiling that exists as fair use. **No per-GB line and no
-  compute line appears on any invoice.** Self-host stays free.
+- **A PATH is one kind of thing, from one account, to one account.** Mail, contacts, calendar
+  and files are **separate paths** — that is the customer-facing unit and it must be said
+  plainly wherever a price appears, because it is the number every tier is counted in. In the
+  schema it is one **`scope_selection` row**: `(mapping_id, domain)`, one per domain, created
+  with the mapping (`apps/api/src/routes/migrations/index.ts:1122`).
+- **Five tiers on PATHS RUNNING AT THE SAME TIME, not metered bytes.** Tiny 1 · Small ≤4 ·
+  Medium ≤20 · Large ≤50 · Extra large ≤200, each with a data ceiling that exists as fair use.
+  **No per-GB line and no compute line appears on any invoice.** Self-host stays free.
+- **Flat within a band; no per-path price inside a tier.** Labour per path is **sublinear** —
+  one household is one relationship, one set of credentials, one cutover conversation — so a
+  per-path monthly would contradict the reason paths were chosen as the unit at all. The
+  linear component is the setup fee, and it is already handled by the step-up rule below.
 - **A tier is a CAPACITY — how many paths may run at the same time — not a tally of everything
   ever touched.** A path takes a slot when it is first activated and gives it back when it ends.
   Four states: **`ready`** (configured, connection-tested, proven working, never run — **free,
@@ -106,8 +115,8 @@ live in [README.md](./README.md), the register.
   applied retroactively, and never taken as a reason to stop, pause or block a path. If the
   arithmetic is ever wrong it must **under-bill, never halt a migration**.
 - **The setup fee is on the HIGHEST tier ever reached, and it is paid in steps.** Each tier
-  splits into a one-off setup plus a monthly — Small €8 + €4 · Medium €11 + €8 · Large €60 + €39
-  · XL €150 + €99. Stepping up later costs the **difference** in setup, once; stepping down
+  splits into a one-off setup plus a monthly — Tiny €5 + €2 · Small €8 + €4 · Medium €11 + €8 ·
+  Large €60 + €39 · XL €150 + €99. Stepping up later costs the **difference** in setup, once; stepping down
   refunds nothing, because the onboarding was consumed. This makes the total independent of
   whether a customer ramped up or started at full size, so understating gains nothing and
   guessing wrong costs nothing.
@@ -115,8 +124,8 @@ live in [README.md](./README.md), the register.
   ones carrying the date they ended; the count summarises that list rather than replacing it.
   The words are *"running at the same time"* — **never "used"**, which is what one says about
   something spent and is exactly the cumulative misreading to avoid.
-- **The tier boundary is a SERVICE boundary.** Small/Medium are self-service — a manual and a
-  ticket queue, no phone. Large/XL include real engagement. The price gap follows support, not
+- **The tier boundary is a SERVICE boundary.** Tiny/Small/Medium are self-service — a manual
+  and a ticket queue, no phone. Large/XL include real engagement. The price gap follows support, not
   size; that is what makes it explicable.
 - **Prices are published in full on the public page.** No "contact sales", no quote-gating.
   Deliberate contrast with the incumbents, and part of the same honesty claim as `SKIPPED`.
@@ -128,6 +137,10 @@ live in [README.md](./README.md), the register.
   finishes eight paths and keeps one running falls to Small the following month, by the
   capacity rule and the automatic downgrade above rather than by a special case. A special case
   would only have hidden the front-loaded cost.
+- **Start everything; it falls by itself.** The published advice is to activate all the paths
+  at once and let automatic downgrade do the rest as each one cuts over — **not** to ration
+  paths to stay inside a band. Tiny exists for people who would rather go one at a time, and it
+  is cheaper for them; nobody should be nudged into it by fear of the next tier up.
 - **We do not take money from inattention.** A path billing with nothing to show gets a
   periodic, one-click *"keep it or finish it"* through the existing summary mail — and billing
   never runs past **12 months without an explicit re-confirmation**. A product promising "it
