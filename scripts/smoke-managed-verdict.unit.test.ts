@@ -26,7 +26,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, chmodSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -518,6 +518,48 @@ describe('the prepare phase (SMOKE_PREPARE_APPLY)', () => {
 
   it('the workflow turns it on, and nothing else does', () => {
     expect(workflow).toContain('SMOKE_PREPARE_APPLY: 1');
+  });
+});
+
+describe('the persist dir cannot be an unexpanded variable', () => {
+  // e2e-managed #26. The repository variable MANAGED_ENV_PERSIST_DIR was set to
+  // "$HOME/.persistent/ownpace-managed". GitHub passes a variable's value
+  // VERBATIM, and `${VAR:-default}` substitutes that value without re-expanding
+  // it — so PERSIST_DIR became a literal path beginning with a dollar sign,
+  // nothing was ever restored, and the next step reported "this runner has
+  // never had the managed stack set up": a symptom three steps from the cause,
+  // on the one job nobody can reproduce locally.
+  //
+  // Extracted and RUN rather than grepped, because what matters is which values
+  // it refuses, not how the case statement is spelled.
+  const block = workflow.match(
+    /^ {10}case "\$\{MANAGED_ENV_PERSIST_DIR:-\}" in[\s\S]*?\n {10}esac\n/m,
+  )?.[0];
+
+  function refuses(value: string | undefined): boolean {
+    const frag = block!
+      .split('\n')
+      .map((l) => l.slice(10))
+      .join('\n');
+    const env = { PATH: process.env.PATH ?? '/usr/bin:/bin' } as NodeJS.ProcessEnv;
+    if (value !== undefined) env.MANAGED_ENV_PERSIST_DIR = value;
+    const r = spawnSync('bash', ['-c', `set -euo pipefail\n${frag}`], { env, encoding: 'utf8' });
+    return r.status !== 0;
+  }
+
+  it('is extractable — the guard still exists to test', () => {
+    expect(block, 'the MANAGED_ENV_PERSIST_DIR guard is gone from e2e-managed.yml').toBeDefined();
+  });
+
+  it('refuses a value carrying an unexpanded $HOME', () => {
+    expect(refuses('$HOME/.persistent/ownpace-managed')).toBe(true);
+  });
+
+  it('accepts an absolute path, and accepts being unset', () => {
+    // Unset is the ordinary case: the workflow default expands $HOME properly,
+    // because there it is a literal in the script rather than a value.
+    expect(refuses('/home/runner/.persistent/ownpace-managed')).toBe(false);
+    expect(refuses(undefined)).toBe(false);
   });
 });
 
