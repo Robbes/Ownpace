@@ -4,7 +4,7 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T1 Decide the pricing shape this quotes (owner) | ✅ **Done 2026-08-20** — T2–T5 unblocked | [ADR-0014 amended](../adr/0014-cost-recovery-billing.md): four tiers on ACTIVE paths (Small ≤2 / Medium ≤8 / Large ≤25 / XL ≤100), no per-GB or compute line on any invoice, fair-use ceilings, metering kept internal. Both findings recorded — the ~200× egress markup and bytes-priced-where-cost-is-hours. Two schema consequences named there and not solved: `mailbox_mapping.status` defaults to `'active'` when billing needs `'paused'`, and there is no `activated_at`. |
+| T1 Decide the pricing shape this quotes (owner) | ✅ **Done 2026-08-20** — T2–T5 unblocked | [ADR-0014 amended](../adr/0014-cost-recovery-billing.md): four tiers on **paths running at the same time** (Small ≤2 / Medium ≤8 / Large ≤25 / XL ≤100), billed on the **month's peak**; no per-GB or compute line on any invoice; fair-use ceilings; metering kept internal. The tier is **derived, never picked** — downgrade automatic, upgrade consented — and each tier's price splits into a one-off setup and a monthly, with step-ups charging only the difference. Both findings recorded — the ~200× egress markup and bytes-priced-where-cost-is-hours. **Three** schema consequences named there and not solved: `mailbox_mapping.status` defaults to `'active'` when billing needs `'ready'`; there is no `activated_at`; and peak occupancy needs `ended_at` plus a per-tenant per-month high-water record. |
 | T2 `INDICATIVE_PROFILES` — the assumptions, versioned | 📋 Planned | Customer type × object type → item counts and GB, every number carrying a provenance comment; covered by a unit test that refuses a silent gap. |
 | T3 The static page | 📋 Planned (needs T1, T2) | One self-contained file under `site/pricing/`, no workspace imports, no account, no server state, five inputs. |
 | T4 The drift guard, on the managed side | 📋 Planned (needs T3) | The page's numbers vs `packages/managed/src/pricing.ts`, plus an assertion that the appliance graph never reaches the calculator. |
@@ -123,6 +123,13 @@ Constraints, all load-bearing:
   Microsoft, Dropbox, Apple, other); what (object types); how much ("your provider already
   shows this number" + a link per provider, plus an honest *I don't know* → the T2 median);
   **until when** (1 / 3 / 6 months / *when I'm ready*).
+- **A calculator, not a plan selector.** The visitor never chooses a tier — the page derives it
+  from the inputs and says so. Nothing on the page may read as "pick your plan"; ADR-0014's
+  whole guess-proofness argument rests on the tier being a consequence rather than a choice.
+- **Setup and monthly shown separately**, with the step-up rule in one sentence, because a
+  single "first month" number is what made the earlier draft look like a mis-pick penalty.
+- **The word is "at the same time", never "concurrent" and never "used"** — an ADR-0014
+  operative rule, and worth a grep guard alongside T5's.
 - Duration is a **choice, not a prediction**. That is the product's promise stated in the
   pricing UI, and it makes the recurring line visibly the customer's to control — which is
   the fear a monthly price provokes.
@@ -151,6 +158,9 @@ later edit cannot quietly drop them:
 - **The line about what it cannot know:** *"this assumes your target accepts your data. We
   verify that in the preflight, which is free."* Same discipline as ADR-0029's `SKIPPED`:
   the absence of a check is stated, never implied away.
+- **The bill-goes-down sentence, stated up front rather than discovered:** finishing paths
+  lowers the tier by itself, automatically and without asking — the counterpart to the
+  pausing-does-not sentence, and the reason the page does not need a "cancel" story.
 
 ## T6 — name the three rungs, and what a free preflight may keep
 

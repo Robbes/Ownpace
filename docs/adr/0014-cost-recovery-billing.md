@@ -14,18 +14,41 @@
      the narrative below stays append-only. Assembled into OPERATIVE.md by
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
-- **Four tiers on ACTIVE PATHS, not metered bytes.** Small ≤2 · Medium ≤8 · Large ≤25 ·
-  Extra large ≤100, each with a data ceiling that exists as fair use. **No per-GB line and no
+- **Four tiers on PATHS RUNNING AT THE SAME TIME, not metered bytes.** Small ≤2 · Medium ≤8 ·
+  Large ≤25 · Extra large ≤100, each with a data ceiling that exists as fair use. **No per-GB line and no
   compute line appears on any invoice.** Self-host stays free.
-- **A path bills once it has RUN, and keeps counting until it ends.** Four states, and the
-  distinction between the first two is the whole billing rule: **`ready`** (configured,
-  connection-tested, proven working, never run — **free, and the column default**) → **`active`**
-  (running) → **`paused`** (ran, stopped by the owner — **still counts**; it is reserved
-  capacity) → **`cutover`/`done`** (counts in the period it ended, then stops). The preflight
-  shows the count against the ceiling ("4 of 8") so nobody crosses a boundary blind.
+- **A tier is a CAPACITY — how many paths may run at the same time — not a tally of everything
+  ever touched.** A path takes a slot when it is first activated and gives it back when it ends.
+  Four states: **`ready`** (configured, connection-tested, proven working, never run — **free,
+  and the column default**) → **`active`** (running, holds a slot) → **`paused`** (ran, stopped
+  by the owner — **still holds a slot**; it is reserved capacity) → **`cutover`/`done`** (ended;
+  the slot is free from that instant). **Never write *concurrent* on a customer surface** —
+  write **"at the same time"**.
 - **Therefore pausing does not reduce a bill; finishing does.** That is deliberate — a paused
   path holds state and can resume in a second — and it must be said on the pricing page, not
   discovered on an invoice.
+- **The month's bill is set by the PEAK: the most paths running at the same time in that
+  calendar month.** Simultaneous, not cumulative — eight paths that finish and one that starts
+  afterwards is a peak of eight, not nine. Peak rather than a reading taken on the invoice date,
+  because a single sample makes the bill turn on an arbitrary instant. The invoice names the
+  peak with its date: *"Medium — 6 paths at the same time on 12 August."*
+- **The tier is DERIVED from measurement, never picked.** Nobody selects a plan; activating a
+  path that crosses a boundary states the new price at that moment and asks. The tier chooser on
+  the public page is therefore a **calculator, not a plan selector**, and must read as one.
+- **Downgrade is automatic; upgrade is consented.** A calendar month whose peak fits inside a
+  lower tier bills at that lower tier — announced in advance through the summary mail, never
+  applied retroactively, and never taken as a reason to stop, pause or block a path. If the
+  arithmetic is ever wrong it must **under-bill, never halt a migration**.
+- **The setup fee is on the HIGHEST tier ever reached, and it is paid in steps.** Each tier
+  splits into a one-off setup plus a monthly — Small €8 + €4 · Medium €11 + €8 · Large €60 + €39
+  · XL €150 + €99. Stepping up later costs the **difference** in setup, once; stepping down
+  refunds nothing, because the onboarding was consumed. This makes the total independent of
+  whether a customer ramped up or started at full size, so understating gains nothing and
+  guessing wrong costs nothing.
+- **The fill gauge shows PATHS, not a number.** Each path named, with its state, and finished
+  ones carrying the date they ended; the count summarises that list rather than replacing it.
+  The words are *"running at the same time"* — **never "used"**, which is what one says about
+  something spent and is exactly the cumulative misreading to avoid.
 - **The tier boundary is a SERVICE boundary.** Small/Medium are self-service — a manual and a
   ticket queue, no phone. Large/XL include real engagement. The price gap follows support, not
   size; that is what makes it explicable.
@@ -36,8 +59,9 @@
   the ledger can see coming.
 - **There is no separate "backup" product or price.** Cutover is terminal, so keeping a copy in
   sync is a NEW path with its own initial copy — and it is billed as one. A household that
-  finishes eight paths and keeps one running simply falls to Small. The tier rule already
-  produces the right answer; a special case would only have hidden the front-loaded cost.
+  finishes eight paths and keeps one running falls to Small the following month, by the
+  capacity rule and the automatic downgrade above rather than by a special case. A special case
+  would only have hidden the front-loaded cost.
 - **We do not take money from inattention.** A path billing with nothing to show gets a
   periodic, one-click *"keep it or finish it"* through the existing summary mail — and billing
   never runs past **12 months without an explicit re-confirmation**. A product promising "it
@@ -165,12 +189,16 @@ means everything, and the preflight already measures it.
 
 ### The tiers
 
-| tier | who | active paths | ceiling | first month | then | typical total |
-|---|---|---|---|---|---|---|
-| **Small** | one person | 2 | 500 GB | €12 | €4/mo | €24 over 3 months |
-| **Medium** | a household | 8 | 1.5 TB | €19 | €8/mo | €43 (3 mo) · €67 (6 mo) |
-| **Large** | a small business | 25 | 4 TB | €99 | €39/mo | €294 over 6 months |
-| **Extra large** | an organisation, or an MSP's first customers | 100 | 15 TB | €249 | €99/mo | €744 over 6 months |
+| tier | who | paths at the same time | ceiling | setup | monthly | first month | typical total |
+|---|---|---|---|---|---|---|---|
+| **Small** | one person | 2 | 500 GB | €8 | €4 | €12 | €24 over 3 months |
+| **Medium** | a household | 8 | 1.5 TB | €11 | €8 | €19 | €43 (3 mo) · €67 (6 mo) |
+| **Large** | a small business | 25 | 4 TB | €60 | €39 | €99 | €294 over 6 months |
+| **Extra large** | an organisation, or an MSP's first customers | 100 | 15 TB | €150 | €99 | €249 | €744 over 6 months |
+
+The setup column is not a new charge — it is the first-month price named, so that stepping up a
+tier later can cost the *difference* rather than the whole thing again. See *"Nobody picks a
+tier, so nobody can pick wrong"* below.
 
 Small at two paths because one person is typically two source accounts — a mail account and a
 file account. Medium at eight because that is four people with two each.
@@ -187,12 +215,13 @@ total.
 
 **Small is deliberately near-cost** — €24 barely clears infrastructure. That is correct rather
 than regrettable: individuals are the mission's core and its volume, and ADR-0039 already ruled
-that the mission outranks the subgoal. Small is funded by Large/XL and by the keep-in-sync line,
-not by itself.
+that the mission outranks the subgoal. Small is funded by Large and XL, not by itself.
 
-**The margin is the keep-in-sync tier.** Near-zero marginal cost, indefinite duration, almost
-pure contribution. ADR-0039 named the number that decides whether this business works: **what
-fraction of customers keep a mapping running after cutover.** Measure it early.
+**The long tail is Small, and it is thin on purpose.** ADR-0039 named the number that decides
+whether this business works: **what fraction of customers keep a path running after cutover.**
+That is still the number to measure early — it just lands as a Small subscription at €4 rather
+than as a special rate, since the backup row was deleted. Near-zero marginal cost, indefinite
+duration; but at €4 it is a contribution to Small's own floor, not the thing that funds it.
 
 ### After cutover there is no "continuing" path — so there is no backup price
 
@@ -238,16 +267,123 @@ re-confirmation.**
 
 This costs some revenue on purpose. ADR-0039 already settled which way that trade goes.
 
+### A tier is a capacity, not a tally
+
+The first draft of this amendment carried a contradiction the owner caught. Deleting the backup
+row rests on *"finish eight, keep one, fall to Small"* — which only works if a finished path
+gives its slot back. But the lifecycle rule as first written said a path *"counts in the period
+it ended, then stops"*, and the preflight gauge said *"4 of 8 used"*. Those describe a tally of
+everything ever touched. **A tally and a capacity produce different bills, and only one of them
+can be the rule.**
+
+**It is a capacity**, and not merely because the backup argument needs it. It is what the tier is
+*for*. Path count is not a cost proxy — bytes and compute are, and the fair-use ceiling already
+bounds those. Path count is a proxy for how much of the system is occupied at once and how much
+support surface that implies, which is inherently a simultaneity quantity. Under capacity,
+*"pausing does not reduce a bill"* stops being an assertion and acquires a reason: **a paused
+path is reserved capacity; a finished path is released capacity.**
+
+Capacity also disposes of a worry a tally would have forced us to defend against, and disposes of
+it better than a tally would. Somebody running two paths at a time, forty over a month, stays on
+Small — and hits the 500 GB ceiling long before that becomes interesting. **Fair use is the
+anti-abuse mechanism. The path count does not need to be one, and should not try**, because the
+moment it does the cutover month goes absurd: eight finished paths plus one new sync path bills
+Large in the month the customer *stopped migrating*.
+
+**Peak, not a sample.** Within a calendar month the billed number is the most paths running at
+the same time — simultaneous, so eight-then-one is a peak of eight. The alternative, reading the
+count on the invoice date, makes the bill turn on an arbitrary instant: two identical households,
+one finishes on the 30th and pays Small, the other finishes on the 2nd and pays Medium. That
+reads as a lottery, and it reads as unfair in both directions. Peak costs one extra sentence of
+explanation and removes the arbitrariness entirely.
+
+**Will anyone understand it?** The concept, yes — the vocabulary, no, so the vocabulary is
+forbidden. Never *"concurrent"*; always *"at the same time"*, which needs no definition. Three
+things carry the understanding, and the gauge as first imagined carried none of them:
+
+- **Show paths, not a number.** *"2 of 8 used"* is precisely the phrasing that creates the
+  misreading, because *used* is what one says about something spent. A list — each path named,
+  with its state, finished ones dated — makes the model self-evident with no explanation at all.
+  The number summarises the list; it does not replace it.
+- **Say what frees a slot at the moment it frees.** When a path reaches `done`, the row says so
+  and the count visibly drops. If the drop happens silently at some later reconciliation, people
+  build the tally model in their heads and the explanation has already lost.
+- **Put the peak on the invoice with its date.** *"Medium — 6 paths at the same time on
+  12 August"* answers the only question the peak rule provokes, before it is asked.
+
+One case stays genuinely awkward whatever the copy says: finish everything on the 3rd and the
+invoice for that month is still Medium. That is unavoidable under any period-based scheme. The
+honest handling is the invoice line above, plus the fact that next month is €4.
+
+### Automatic downgrade, because the alternative contradicts a rule we already wrote
+
+Downgrade is automatic. It is barely a decision, because *"we do not take money from
+inattention"* is already an operative rule one section up — and a customer sitting on Medium
+while running one path **is** inattention. Charging for it would make that rule decorative. The
+supporting reasons are shorter: under "no profit" there is no revenue interest in the higher
+tier; the backup-price deletion is unsound without it; and it is the cheapest thing here to
+build, since occupancy is already computed for the gauge and the comparison is one line.
+
+Three guardrails, each load-bearing:
+
+- **Announced before it happens, never after.** The summary mail already carries the *"keep it
+  or finish it"* prompt; *"next month you are on Small, €4"* belongs in the same mail. A bill
+  going down is never a complaint, but capacity quietly shrinking can be — somebody planning to
+  start three paths next week deserves the warning.
+- **A downgrade never stops, pauses or blocks a path.** Downgrade only when the peak fits
+  strictly inside the lower tier, and if the arithmetic is ever wrong the failure mode must be
+  *"we billed too little"*, never *"we halted a migration"*.
+- **Upgrade is the opposite: immediate, on the customer's own action, with the price stated at
+  the moment they activate the path that crosses the line.** Downgrade automatic, upgrade
+  consented. That asymmetry is the same one as *"no billing past twelve months without explicit
+  re-confirmation"*, and it is the whole ethic of this section.
+
+### Nobody picks a tier, so nobody can pick wrong
+
+The owner asked the sharp question about the first-month fee: if a customer does not yet know how
+many paths they need, one who guesses high pays a bigger head fee and is then downgraded, while
+another with identical usage who guesses precisely pays less. Should the head fee be flat across
+tiers instead?
+
+**The premise dissolves under the capacity model: there is no guess, because there is no pick.**
+The tier is derived from what was measured. Set up eight paths, run two at a time, and the peak
+is two — month one bills Small. The tier chooser on the public page is a **calculator, not a plan
+selector**, and that must be obvious from how it reads, because every other SaaS trains people to
+expect the opposite.
+
+That kills the mis-pick penalty. It does not kill the **ramp** penalty, which is the same
+unfairness in different clothes: activate two in month one (Small's €12 head), six in month two
+(Medium's €8 monthly, no head) — €12 of head fee, against €19 for somebody who honestly started
+all eight at once. Identical work, different price, and the difference **rewards staggering your
+activations for billing reasons**. This project should not ship that.
+
+**So the head fee becomes a setup fee on the highest tier ever reached, paid in steps.** Each
+tier splits into its two real components — Small €8 + €4/mo, Medium €11 + €8, Large €60 + €39, XL
+€150 + €99 — and stepping up costs the *difference* in setup, once. Small → Medium later is €3.
+
+Check it against the ramp: staggered pays €8 then €3 = **€11**. Direct-to-Medium pays **€11**.
+Identical. The setup total depends only on the highest tier ever reached and not at all on when
+it was reached, so understating gains nothing, and the downgrade-then-upgrade trap cannot exist
+because the high-water is already paid. Stepping down refunds nothing, which is correct rather
+than mean: eight initial copies happened, and the onboarding was consumed.
+
+**Not a flat fee across tiers**, the owner's other option: an XL onboarding is genuinely around
+twenty times a Small one, so a flat fee would have Small subsidising XL — backwards from the
+cross-subsidy ruling. **Not a per-path activation fee** either, though it is the most precise: it
+reintroduces the per-unit meter this amendment exists to remove, and makes the price
+unpredictable before you connect, which is the one thing workplan 0088 is named after.
+
 ### The path lifecycle, and why the schema cannot express it yet
 
-A path is only ever billed for having **run**. Four states, decided by the owner 2026-08-20:
+A path is only ever billed for having **run**, and it occupies a slot only while it is unfinished.
+Four states, decided by the owner 2026-08-20:
 
-| state | meaning | billed |
+| state | meaning | holds a slot |
 |---|---|---|
 | **`ready`** | configured, connection-tested, proven working — **never run** | **no** — and this is the column default |
 | **`active`** | running | yes |
 | **`paused`** | ran, then stopped by the owner | **yes** — it holds state and resumes in a second; it is reserved capacity |
-| **`cutover` / `done`** | ended, having run | yes for the period it ended in; nothing after |
+| **`cutover` / `done`** | ended, having run | **no** — released from that instant; it still contributes to the month's peak if it was running during it |
 
 So **pausing does not reduce a bill; finishing does.** Deliberate, and it belongs on the
 pricing page rather than on an invoice.
@@ -258,7 +394,7 @@ first — `apps/api/src/routes/migrations/index.ts:1329`) *and* would mean "was 
 Those two must be told apart, because one is free and one is not. **A billing key cannot be
 built on a status that conflates the free case with the charged one.**
 
-**Two schema consequences follow. Neither is solved here.**
+**Three schema consequences follow. None is solved here.**
 
 **1. The column default is the wrong way round for a billing key.** The definition is
 
@@ -281,6 +417,16 @@ active" is unanswerable from a row that currently says `paused` — and an invoi
 reconstructed or defended afterwards. The minimal fix is one column, **`first_activated_at
 timestamptz`, set on the first `ready → active` transition and never cleared**: it answers "did
 this ever run" permanently, survives any number of pause/resume cycles, and is auditable.
+
+**3. Peak occupancy cannot be reconstructed from current state.** `first_activated_at` answers
+*"did this ever run"*; the peak rule additionally needs *"when did it stop"* — an `ended_at`
+set on the transition into `cutover`/`done` — and, because a peak is a property of an interval
+rather than of a row, **a per-tenant per-month high-water record**: the month, the peak count,
+the timestamp at which it occurred, and the tier it implied. Recomputing a past month by
+replaying history is fragile and gets less reliable the longer the account lives; an invoice
+this project stands behind has to be reconstructible in one read. That is one small table, and
+it is the same data the automatic downgrade compares against and the honesty surface wants to
+display.
 
 ### Fair use, written the way this project writes things
 
@@ -309,7 +455,9 @@ page should *say*.
 3. **"At your own pace" explained in three lines**, because it is the product and it is unusual:
    it runs alongside your old provider for as long as you want; you decide when to switch; then
    it stops — or keeps one copy in sync if you'd rather.
-4. **The prices, in full, on the page.** All four tiers and the keep-in-sync rates. CloudFuze
+4. **The prices, in full, on the page.** All four tiers, with the setup and the monthly shown
+   separately and the step-up rule stated, plus the sentence that finishing paths lowers the
+   bill by itself. CloudFuze
    quote-gates its business plan; publishing is both a real contrast and the same honesty claim
    the product makes about its own reports.
 5. **What we do not do** — the honest limits, on the page rather than discovered later:
@@ -336,6 +484,21 @@ There is also a plainer objection. **A path is countable by the person paying** 
 mailboxes and a Dropbox" — and an object count is not. The tier ceilings already carry the size
 dimension, so the model has both axes; a third meter would be a step backwards, not a
 refinement.
+
+**Counting paths cumulatively over the billing period, so a slot never returns.** Rejected: it
+makes the cutover month bill *higher* than the months of actual migrating (eight finished plus
+one sync path = nine), it contradicts the backup-row deletion, and the only thing it buys is
+protection against slot churn — which fair use already provides, better and more honestly.
+
+**A single flat setup fee across all tiers.** Rejected: an XL onboarding is roughly twenty times
+a Small one, so a flat fee has Small subsidising XL, which is backwards from the cross-subsidy
+this ADR rests on. The high-water step fee gets the same
+guess-proofness without inverting who funds whom.
+
+**Automatic cancellation of an idle path, instead of automatic downgrade.** Rejected in the
+section above and repeated here because it is the tempting one: **idle is not useless.** A backup
+path that copies nothing because nothing changed is working correctly, and the ledger cannot tell
+"dormant because finished" from "dormant because nothing happened".
 
 ## What this amendment does NOT decide
 

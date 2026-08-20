@@ -80,18 +80,41 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0014: Cost-recovery billing (no profit) for the managed edition](./0014-cost-recovery-billing.md)
 
-- **Four tiers on ACTIVE PATHS, not metered bytes.** Small ≤2 · Medium ≤8 · Large ≤25 ·
-  Extra large ≤100, each with a data ceiling that exists as fair use. **No per-GB line and no
+- **Four tiers on PATHS RUNNING AT THE SAME TIME, not metered bytes.** Small ≤2 · Medium ≤8 ·
+  Large ≤25 · Extra large ≤100, each with a data ceiling that exists as fair use. **No per-GB line and no
   compute line appears on any invoice.** Self-host stays free.
-- **A path bills once it has RUN, and keeps counting until it ends.** Four states, and the
-  distinction between the first two is the whole billing rule: **`ready`** (configured,
-  connection-tested, proven working, never run — **free, and the column default**) → **`active`**
-  (running) → **`paused`** (ran, stopped by the owner — **still counts**; it is reserved
-  capacity) → **`cutover`/`done`** (counts in the period it ended, then stops). The preflight
-  shows the count against the ceiling ("4 of 8") so nobody crosses a boundary blind.
+- **A tier is a CAPACITY — how many paths may run at the same time — not a tally of everything
+  ever touched.** A path takes a slot when it is first activated and gives it back when it ends.
+  Four states: **`ready`** (configured, connection-tested, proven working, never run — **free,
+  and the column default**) → **`active`** (running, holds a slot) → **`paused`** (ran, stopped
+  by the owner — **still holds a slot**; it is reserved capacity) → **`cutover`/`done`** (ended;
+  the slot is free from that instant). **Never write *concurrent* on a customer surface** —
+  write **"at the same time"**.
 - **Therefore pausing does not reduce a bill; finishing does.** That is deliberate — a paused
   path holds state and can resume in a second — and it must be said on the pricing page, not
   discovered on an invoice.
+- **The month's bill is set by the PEAK: the most paths running at the same time in that
+  calendar month.** Simultaneous, not cumulative — eight paths that finish and one that starts
+  afterwards is a peak of eight, not nine. Peak rather than a reading taken on the invoice date,
+  because a single sample makes the bill turn on an arbitrary instant. The invoice names the
+  peak with its date: *"Medium — 6 paths at the same time on 12 August."*
+- **The tier is DERIVED from measurement, never picked.** Nobody selects a plan; activating a
+  path that crosses a boundary states the new price at that moment and asks. The tier chooser on
+  the public page is therefore a **calculator, not a plan selector**, and must read as one.
+- **Downgrade is automatic; upgrade is consented.** A calendar month whose peak fits inside a
+  lower tier bills at that lower tier — announced in advance through the summary mail, never
+  applied retroactively, and never taken as a reason to stop, pause or block a path. If the
+  arithmetic is ever wrong it must **under-bill, never halt a migration**.
+- **The setup fee is on the HIGHEST tier ever reached, and it is paid in steps.** Each tier
+  splits into a one-off setup plus a monthly — Small €8 + €4 · Medium €11 + €8 · Large €60 + €39
+  · XL €150 + €99. Stepping up later costs the **difference** in setup, once; stepping down
+  refunds nothing, because the onboarding was consumed. This makes the total independent of
+  whether a customer ramped up or started at full size, so understating gains nothing and
+  guessing wrong costs nothing.
+- **The fill gauge shows PATHS, not a number.** Each path named, with its state, and finished
+  ones carrying the date they ended; the count summarises that list rather than replacing it.
+  The words are *"running at the same time"* — **never "used"**, which is what one says about
+  something spent and is exactly the cumulative misreading to avoid.
 - **The tier boundary is a SERVICE boundary.** Small/Medium are self-service — a manual and a
   ticket queue, no phone. Large/XL include real engagement. The price gap follows support, not
   size; that is what makes it explicable.
@@ -102,8 +125,9 @@ live in [README.md](./README.md), the register.
   the ledger can see coming.
 - **There is no separate "backup" product or price.** Cutover is terminal, so keeping a copy in
   sync is a NEW path with its own initial copy — and it is billed as one. A household that
-  finishes eight paths and keeps one running simply falls to Small. The tier rule already
-  produces the right answer; a special case would only have hidden the front-loaded cost.
+  finishes eight paths and keeps one running falls to Small the following month, by the
+  capacity rule and the automatic downgrade above rather than by a special case. A special case
+  would only have hidden the front-loaded cost.
 - **We do not take money from inattention.** A path billing with nothing to show gets a
   periodic, one-click *"keep it or finish it"* through the existing summary mail — and billing
   never runs past **12 months without an explicit re-confirmation**. A product promising "it
