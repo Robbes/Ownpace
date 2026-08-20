@@ -425,3 +425,28 @@ live in [README.md](./README.md), the register.
   from asserting — see the two extra searches named below); the legal proprietor named in
   `NOTICE`, currently "the Ownpace project maintainers" rather than a company; and whether the
   post-cutover backup gets its own brand or is a plan name under Ownpace.
+
+## [ADR-0041: Who owns the OAuth client — the managed edition brings its own, the appliance never does](./0041-who-owns-the-oauth-client.md)
+
+- **The appliance never carries an Ownpace OAuth client secret.** Shipping one publishes it,
+  which breaks Google's terms and makes one leak everybody's problem. Bring-your-own client
+  stays the appliance's only mode, and `no-managed-leakage` (ADR-0036) is what keeps it true.
+- **The managed edition brings its own verified client, and it is a managed-only secret** —
+  `@openmig/managed`, same store and key provider as every other credential (ADR-0037). A
+  managed customer clicks **Allow**; nobody opens a Google Cloud console.
+- **Verification is bought per scope class, cheapest first.** Contacts and calendar are
+  *sensitive* — brand review only. Gmail and Drive are *restricted* — brand review **plus** an
+  annual third-party security assessment. So contacts and calendar ship on the managed client
+  first, and mail and files stay bring-your-own until the assessment is actually paid for.
+  Whatever is not yet covered says so on the page rather than failing at the consent screen.
+- **Owning a client never widens a grant.** Same scopes, same per-user consent, same read-only
+  posture, same revocation by the account holder in their own Google settings. What changes is
+  who registered the client, not what the token can read — and the consent screen must show the
+  scopes rather than a friendly summary of them.
+- **Never "External + Testing" for a real migration.** Google expires refresh tokens after
+  **seven days** in that publishing status, which reads as a random `invalid_grant` weeks in.
+  Both editions' setup paths must steer to Internal (Workspace) or Production (personal), and
+  the refusal for an expired token must name this cause first.
+- **The assessment is a cost-recovery line, never a gate.** If it is paid, it is funded the way
+  every other cost is (ADR-0014, cross-subsidy inside one envelope); it never becomes a reason
+  to charge for mail, to hold a scope back from self-host, or to quote-gate a tier.
