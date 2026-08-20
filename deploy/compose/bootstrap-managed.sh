@@ -418,8 +418,46 @@ phase_trigger() {
     exit 1
   fi
   note "Trigger.dev images and SDK agree at ${sdk_version}"
+  # THE SUPERVISOR COMES UP LAST, AND NOT ONLY FOR ORDERING.
+  #
+  # trigger-api bootstraps a worker group and writes its token into the SHARED
+  # volume (TRIGGER_BOOTSTRAP_WORKER_TOKEN_PATH). It writes it as **root, mode
+  # 0600**. trigger-supervisor reads that same file as **node**, so on a FRESH
+  # trigger_shared volume the supervisor cannot open its own credential:
+  #
+  #   Unable to read worker token from file: EACCES: permission denied,
+  #   open '/home/node/shared/worker_token'
+  #
+  # and it crash-loops. That is not cosmetic — a stack without a supervisor
+  # dequeues nothing, so every run sits EXECUTING forever while the rest of the
+  # stack reports healthy. It only shows up on a fresh volume, which is exactly
+  # when nobody is looking for it: first install, or after a `down -v`.
+  #
+  # Fixed by OWNERSHIP, not mode: the token is a credential, and root bypasses
+  # permissions anyway, so chown lets the supervisor read it without making it
+  # world-readable. Same failure shape as pgbouncer's userlist.txt — 0600 by one
+  # uid, read by another — which is the second time this stack has been bitten
+  # by a secret file whose writer and reader are different users.
   up_wait trigger-db trigger-redis clickhouse minio trigger-registry \
-    trigger-docker-proxy trigger-api trigger-tls trigger-supervisor
+    trigger-docker-proxy trigger-api trigger-tls
+
+  local waited=0
+  until "${COMPOSE[@]}" exec -T -u 0 trigger-api \
+          test -f /home/node/shared/worker_token >/dev/null 2>&1; do
+    if [ "$waited" -ge 60 ]; then
+      echo "!!! trigger-api has not written /home/node/shared/worker_token after ${waited}s." >&2
+      echo "!!! The supervisor cannot start without it. Check that bootstrap is on:" >&2
+      echo "!!!   docker logs trigger-api 2>&1 | grep -i bootstrap" >&2
+      exit 1
+    fi
+    sleep 3
+    waited=$((waited + 3))
+  done
+  "${COMPOSE[@]}" exec -T -u 0 trigger-api \
+    chown node:node /home/node/shared/worker_token >/dev/null 2>&1 || true
+  note "worker token present and readable by the supervisor"
+
+  up_wait trigger-supervisor
   note "all Trigger.dev services healthy"
   note "dashboard: ${TRIGGER_APP_ORIGIN:-https://localhost:3443}  (api: ${TRIGGER_API_ORIGIN:-http://localhost:3090})"
 }
