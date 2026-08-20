@@ -29,7 +29,7 @@
 - Managed DDL is its **own chain** (own bookkeeping table, own advisory lock) that **adopts** pre-split databases (`IF NOT EXISTS` + carrying `tenant.pricing`/closure data into `tenant_pricing`/`tenant_closure`).
 - Managed state on a core table is a **ROW, not a column**; `tenant` stays core (RLS anchor); `tenant.status` keeps `closed`/`deleting`; `forget-me` stays on the appliance.
 - The 27-file shared chain is **not compressed** until a guard compares RLS policy definitions and per-role grants and provably fails on a dropped `USING` clause.
-- Two-repo options are **parked, not rejected**. ⚠ **CONFLICT:** ADR-0009 (Accepted) says "No open-core". Owner reconciliation pending — see 0009's operative note.
+- The two parked options (open-core split; private monorepo with a filtered mirror) are **now closed** by [ADR-0039](./0039-no-open-core-and-what-ops-privacy-means.md), which also declined a third this ADR never named — two *public* Apache-2.0 repos — because the boundary's guards each need one repo. This ADR's real claim is untouched: the extraction boundary exists and is enforced.
 
 ## Context
 

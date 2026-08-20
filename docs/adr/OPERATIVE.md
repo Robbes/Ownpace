@@ -54,8 +54,9 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0009: Public Apache-2.0 monorepo; ops/secrets private](./0009-repo-strategy-public-monorepo.md)
 
-- One **public Apache-2.0 monorepo** with the whole product; private only: secrets, our ops/IaC, tenant data, billing keys, NDA integrations.
-- This ADR says **"No open-core."** ⚠ **CONFLICT:** ADR-0036 (also Accepted) parks an open-core split as an option that "remains open". Which statement governs is an **owner decision still pending** — do not act on either reading without it.
+- One **public Apache-2.0 monorepo** with the whole product.
+- **"No open-core"** stands and the question is **CLOSED** — [ADR-0039](./0039-no-open-core-and-what-ops-privacy-means.md) resolved this against ADR-0036's "remains open" and named the three-part revisit trigger. The prior conflict flag is retired.
+- Private is **secrets, instance facts, tenant data, billing keys and NDA integrations — NOT the deployment recipe.** ADR-0039 corrected this rule: `deploy/` is public by design (it is how an MSP runs their own managed instance); instance facts ride env vars and repository variables; secrets are gitignored.
 
 ## [ADR-0010: Persistence — Postgres+RLS (managed) / SQLite or small Postgres (self-host)](./0010-persistence-postgres-sqlite.md)
 
@@ -217,7 +218,7 @@ live in [README.md](./README.md), the register.
 - Managed DDL is its **own chain** (own bookkeeping table, own advisory lock) that **adopts** pre-split databases (`IF NOT EXISTS` + carrying `tenant.pricing`/closure data into `tenant_pricing`/`tenant_closure`).
 - Managed state on a core table is a **ROW, not a column**; `tenant` stays core (RLS anchor); `tenant.status` keeps `closed`/`deleting`; `forget-me` stays on the appliance.
 - The 27-file shared chain is **not compressed** until a guard compares RLS policy definitions and per-role grants and provably fails on a dropped `USING` clause.
-- Two-repo options are **parked, not rejected**. ⚠ **CONFLICT:** ADR-0009 (Accepted) says "No open-core". Owner reconciliation pending — see 0009's operative note.
+- The two parked options (open-core split; private monorepo with a filtered mirror) are **now closed** by [ADR-0039](./0039-no-open-core-and-what-ops-privacy-means.md), which also declined a third this ADR never named — two *public* Apache-2.0 repos — because the boundary's guards each need one repo. This ADR's real claim is untouched: the extraction boundary exists and is enforced.
 
 ## [ADR-0037: One credential store, two key providers, and TLS floors](./0037-keys-credentials-and-transport-floors.md)
 
@@ -251,3 +252,22 @@ live in [README.md](./README.md), the register.
   (current instance: ADR-0009 vs ADR-0036 on open-core).
 - Workplans follow the same interface rule going forward: the **Status block is the
   workplan's interface**; nobody should need the narrative to learn what was proved.
+
+## [ADR-0039: No open-core — closed, with a trigger; and what "private ops" actually means](./0039-no-open-core-and-what-ops-privacy-means.md)
+
+- **No open-core, no private monorepo, no filtered mirror.** ADR-0009's answer stands and the
+  question is **closed**, not open — superseding ADR-0036's "remains open" on this point only.
+- **Revisit needs all three, not any:** the managed service has become the primary funding for
+  sustained work; a resourced competitor has actually forked and is outcompeting us; and cost
+  recovery has demonstrably failed. Absent all three, this stays closed.
+- **Two public Apache-2.0 repos** (the variant neither prior ADR named) is **declined**: the
+  boundary's three guards each need one repo — the leakage walk's single import graph, the
+  both-bundles build, and `two-chains` applying both chains to one database. Reconsider only
+  on a *social* trigger (a separate contributor community around the core), never a technical one.
+- **"Private ops" means instance facts and secrets, never the recipe.** `deploy/` is public by
+  design — it is how an MSP runs their own managed instance. Instance facts (hostnames, IPs,
+  runner paths, project refs) ride env vars and repository variables; secrets are gitignored
+  and never in git. A private ops repo is warranted only if instance facts outgrow env vars,
+  and it holds *only* those, pointing at the public recipe.
+- The trademark is the **mission-compatible moat** — Apache-2.0 §6 grants no trade-mark
+  rights — but asserting it in `NOTICE` is **recommended, not yet decided**.
