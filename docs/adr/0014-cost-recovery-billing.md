@@ -17,9 +17,15 @@
 - **Four tiers on ACTIVE PATHS, not metered bytes.** Small ≤2 · Medium ≤8 · Large ≤25 ·
   Extra large ≤100, each with a data ceiling that exists as fair use. **No per-GB line and no
   compute line appears on any invoice.** Self-host stays free.
-- **A path bills from the moment its mapping is `active`** — never from configured-or-paused.
-  Tier = the high-water mark of simultaneously active paths in the period, and the preflight
+- **A path bills once it has RUN, and keeps counting until it ends.** Four states, and the
+  distinction between the first two is the whole billing rule: **`ready`** (configured,
+  connection-tested, proven working, never run — **free, and the column default**) → **`active`**
+  (running) → **`paused`** (ran, stopped by the owner — **still counts**; it is reserved
+  capacity) → **`cutover`/`done`** (counts in the period it ended, then stops). The preflight
   shows the count against the ceiling ("4 of 8") so nobody crosses a boundary blind.
+- **Therefore pausing does not reduce a bill; finishing does.** That is deliberate — a paused
+  path holds state and can resume in a second — and it must be said on the pricing page, not
+  discovered on an invoice.
 - **The tier boundary is a SERVICE boundary.** Small/Medium are self-service — a manual and a
   ticket queue, no phone. Large/XL include real engagement. The price gap follows support, not
   size; that is what makes it explicable.
@@ -31,9 +37,9 @@
 - **Metering stays INTERNAL.** Bytes and compute are still measured, to check the tiers against
   reality; they simply never reach an invoice. Tiers do not self-correct the way metering does,
   so this is what keeps them honest.
-- **"No profit" is retired as a description.** Large/XL carry a margin that funds Small/Medium
-  and the operator's hours. Still not profit-seeking — cross-subsidy in service of the mission
-  (ADR-0039: the mission outranks the subgoal).
+- **"No profit" STANDS.** Large/XL are priced above their own cost precisely to fund
+  Small/Medium — that is cross-subsidy inside one cost-recovery envelope, not margin. Owner's
+  ruling, 2026-08-20; the title is unchanged.
 - EU PSP (Mollie); the machinery lives in `@openmig/managed` (ADR-0036). Public page follows
   [ADR-0029](./0029-public-site-is-server-rendered-and-legible.md) and leads with the free
   preflight.
@@ -88,6 +94,40 @@ reason the managed edition can exist at all.
 Two smaller ones worth keeping: **licences that expire in 12 months** are a real irritant we
 simply do not have, and **CloudFuze's 50 GB/month cap on its published plan** is below what a
 single person's photo library needs — our Small ceiling is 500 GB.
+
+### The limit that decides it: they meter PASSES
+
+Found in BitTitan's own Help Center while trying to answer "how many paths does a licence run
+concurrently", and it turns out to be the wrong question — concurrency is a performance setting
+(default 100, adjustable down to 1), not a licence limit. The licence limits something else
+entirely:
+
+> *"Mailbox migration licenses allow up to **10 successful passes** per mailbox."*
+> *"each license will migrate up to **50GB**"*
+> *"one license per user being migrated and cannot be applied to multiple users"*
+
+**Ten passes is the finding.** Shadow sync running for three months at a fifteen-minute delta is
+thousands of passes. **MigrationWiz is structurally incapable of the thing this product exists
+to do** — not because it is badly built, but because it is a different product with a licence
+metered on the assumption that a migration is an event. Ours is a period.
+
+That reframes the competitive claim entirely, and it is worth stating in exactly these terms
+rather than as a feature list:
+
+- **They sell a copy, metered in passes and capped in gigabytes per user.**
+- **We sell a period, metered in paths and bounded only by fair use.**
+
+It also settles the owner's suspicion that "all other offers seem to have a form of data
+limits" — **they do**, and the plain mailbox licence names it at 50 GB. Any "unlimited data"
+claim on a regional bundle page therefore needs checking against *which* licence it covers
+before it is quoted in a comparison.
+
+**Still unverified, and flagged rather than guessed:** the EU regional pricing at
+`get.bittitan.de` (reported by the owner as ~€38/user for 12 months, mail + documents +
+archives, "unlimited data"). That domain is blocked by this environment's egress proxy at the
+policy level, so it could not be read here. Before any of it appears on our public page,
+someone with a browser should confirm: the exact bundle name, whether "unlimited" survives into
+the terms, and whether the 10-pass limit applies to it too.
 
 **And the price comparison lands well.** At ~$17.50/user, eight users cost about €128 at
 BitTitan for a one-shot copy. Medium here is €67 for six months, up to eight paths, with
@@ -146,25 +186,49 @@ not by itself.
 pure contribution. ADR-0039 named the number that decides whether this business works: **what
 fraction of customers keep a mapping running after cutover.** Measure it early.
 
-### Counting on activation
+### The path lifecycle, and why the schema cannot express it yet
 
-A path bills from the moment its mapping goes `active`. Configured-and-paused is free, which
-matters because new mappings land PAUSED by design so the owner can review discovery counts
-first (`apps/api/src/routes/migrations/index.ts:1329`) — the product's own caution should not
-start a meter.
+A path is only ever billed for having **run**. Four states, decided by the owner 2026-08-20:
 
-Tier is the **high-water mark of simultaneously active paths** during the period. That is the
-honest measure — you had them running — and it must be *stated*, not discovered on an invoice.
+| state | meaning | billed |
+|---|---|---|
+| **`ready`** | configured, connection-tested, proven working — **never run** | **no** — and this is the column default |
+| **`active`** | running | yes |
+| **`paused`** | ran, then stopped by the owner | **yes** — it holds state and resumes in a second; it is reserved capacity |
+| **`cutover` / `done`** | ended, having run | yes for the period it ended in; nothing after |
 
-**Two implementation consequences, both found in the schema and neither solved here:**
+So **pausing does not reduce a bill; finishing does.** Deliberate, and it belongs on the
+pricing page rather than on an invoice.
 
-1. ⚠️ **`mailbox_mapping.status` has `DEFAULT 'active'`.** The API creates mappings paused, but
-   the *column* defaults the other way, so any insert that omits the status would begin billing
-   immediately. Billing-on-activation needs that default flipped to `'paused'`, or the billing
-   query keyed on something that cannot default wrong.
-2. **There is no `activated_at`, and no status-change history on the mapping.** `audit_log`
-   exists; whether it records mapping status transitions is **unverified**. Billing needs *when*
-   it went active, not merely that it is.
+The reason `ready` has to exist as its own state is exactly the billing rule: today `paused`
+means *both* "never started" (new mappings land paused so the owner can review discovery counts
+first — `apps/api/src/routes/migrations/index.ts:1329`) *and* would mean "was running, stopped".
+Those two must be told apart, because one is free and one is not. **A billing key cannot be
+built on a status that conflates the free case with the charged one.**
+
+**Two schema consequences follow. Neither is solved here.**
+
+**1. The column default is the wrong way round for a billing key.** The definition is
+
+```sql
+status text DEFAULT 'active'::text NOT NULL
+```
+
+The API is careful and sets `paused` explicitly, so nothing is wrong today. But the *column*
+defaults to the charged state, which means any insert that omits it — a future code path, a
+data import, a test fixture, a backfill in a migration — starts billing that customer
+immediately, silently, and correctly as far as the database is concerned. **A billing key's
+default must be the free state, so that forgetting it costs nothing.** Default becomes `ready`,
+which also requires adding `ready` to `item_status`-style CHECK on `mailbox_mapping.status`
+(today: `active`, `paused`, `cutover`, `done`).
+
+**2. Nothing records that a path ever ran.** There is no `activated_at` on the mapping, and no
+status-change history for it; `audit_log` exists but whether it captures mapping transitions is
+**unverified**. Without it the rule above cannot be evaluated at all — "has this ever been
+active" is unanswerable from a row that currently says `paused` — and an invoice cannot be
+reconstructed or defended afterwards. The minimal fix is one column, **`first_activated_at
+timestamptz`, set on the first `ready → active` transition and never cleared**: it answers "did
+this ever run" permanently, survives any number of pause/resume cycles, and is auditable.
 
 ### Fair use, written the way this project writes things
 

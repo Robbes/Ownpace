@@ -83,9 +83,15 @@ live in [README.md](./README.md), the register.
 - **Four tiers on ACTIVE PATHS, not metered bytes.** Small ≤2 · Medium ≤8 · Large ≤25 ·
   Extra large ≤100, each with a data ceiling that exists as fair use. **No per-GB line and no
   compute line appears on any invoice.** Self-host stays free.
-- **A path bills from the moment its mapping is `active`** — never from configured-or-paused.
-  Tier = the high-water mark of simultaneously active paths in the period, and the preflight
+- **A path bills once it has RUN, and keeps counting until it ends.** Four states, and the
+  distinction between the first two is the whole billing rule: **`ready`** (configured,
+  connection-tested, proven working, never run — **free, and the column default**) → **`active`**
+  (running) → **`paused`** (ran, stopped by the owner — **still counts**; it is reserved
+  capacity) → **`cutover`/`done`** (counts in the period it ended, then stops). The preflight
   shows the count against the ceiling ("4 of 8") so nobody crosses a boundary blind.
+- **Therefore pausing does not reduce a bill; finishing does.** That is deliberate — a paused
+  path holds state and can resume in a second — and it must be said on the pricing page, not
+  discovered on an invoice.
 - **The tier boundary is a SERVICE boundary.** Small/Medium are self-service — a manual and a
   ticket queue, no phone. Large/XL include real engagement. The price gap follows support, not
   size; that is what makes it explicable.
@@ -97,9 +103,9 @@ live in [README.md](./README.md), the register.
 - **Metering stays INTERNAL.** Bytes and compute are still measured, to check the tiers against
   reality; they simply never reach an invoice. Tiers do not self-correct the way metering does,
   so this is what keeps them honest.
-- **"No profit" is retired as a description.** Large/XL carry a margin that funds Small/Medium
-  and the operator's hours. Still not profit-seeking — cross-subsidy in service of the mission
-  (ADR-0039: the mission outranks the subgoal).
+- **"No profit" STANDS.** Large/XL are priced above their own cost precisely to fund
+  Small/Medium — that is cross-subsidy inside one cost-recovery envelope, not margin. Owner's
+  ruling, 2026-08-20; the title is unchanged.
 - EU PSP (Mollie); the machinery lives in `@openmig/managed` (ADR-0036). Public page follows
   [ADR-0029](./0029-public-site-is-server-rendered-and-legible.md) and leads with the free
   preflight.
