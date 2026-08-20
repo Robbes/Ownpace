@@ -12,5 +12,5 @@
   // package DOM's fetch/Blob overloads instead of Node's.
   "extends": "./tsconfig.base.json",
   "include": ["packages/*/src/**/*.ts", "apps/*/src/**/*.ts", "*.config.ts", "*.ts", "test/**/*.ts", "scripts/**/*.ts"],
-  "exclude": ["**/node_modules/**", "**/dist/**", "**/build/**", "**/coverage/**", "test/ui/**"]
+  "exclude": ["**/node_modules/**", "**/dist/**", "**/build/**", "**/coverage/**", "test/ui/**", "site/**"]
 }

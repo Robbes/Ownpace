@@ -155,10 +155,51 @@ if [ "${SKIP_PLATFORM_CHECK:-0}" != "1" ]; then
   fi
 fi
 
-echo "[deploy-tasks] deploying apps/worker tasks (project ${TRIGGER_PROJECT_REF})..."
+# WHICH ENVIRONMENT THE TASKS LAND IN, and the mismatch that hides.
+#
+# `trigger.dev deploy` targets ONE environment and defaults to prod, which is
+# why this script deployed to prod for its whole life without ever saying so.
+# A Trigger project has several (the dashboard shows staging and production),
+# and one instance can serve a test stack and a production stack side by side —
+# separate keys, separate deployed versions, separate runs.
+#
+# The failure that makes this worth a guard rather than a flag: the API
+# enqueues with TRIGGER_SECRET_KEY, whose environment is baked into the key,
+# while the deploy targets whatever --env says. Point them at DIFFERENT
+# environments and nothing errors — the deploy succeeds, the enqueue succeeds,
+# and the runs simply never meet a deployed task. You get a queue that grows
+# and a dashboard that looks idle, in two places neither of which is wrong.
+#
+# So: refuse the two combinations that are unambiguously that mistake. The
+# prod key prefix (tr_prod_) is the one this repository has actually seen, so
+# it is the only one asserted; a non-prod environment whose key prefix we do
+# not recognise is left alone rather than guessed at.
+TRIGGER_ENV="${TRIGGER_ENV:-prod}"
+
+case "${TRIGGER_ENV}:${TRIGGER_SECRET_KEY}" in
+  prod:tr_prod_*) ;;
+  prod:*)
+    echo "[deploy-tasks] ERROR: TRIGGER_ENV=prod but TRIGGER_SECRET_KEY is not a tr_prod_… key." >&2
+    echo "               The deploy would land in prod while the API enqueues elsewhere, and" >&2
+    echo "               nothing would error — the runs would just never meet a task." >&2
+    echo "               Set TRIGGER_ENV to the environment that key belongs to, or set the" >&2
+    echo "               key to that environment's own (dashboard → API keys)." >&2
+    exit 1
+    ;;
+  *:tr_prod_*)
+    echo "[deploy-tasks] ERROR: TRIGGER_ENV=${TRIGGER_ENV} but TRIGGER_SECRET_KEY is a PROD key." >&2
+    echo "               The tasks would deploy to ${TRIGGER_ENV} while the API enqueues into" >&2
+    echo "               prod. Nothing errors; the runs never meet a deployed task." >&2
+    echo "               Put the ${TRIGGER_ENV} environment's key in deploy/compose/.env and" >&2
+    echo "               restart the api:  docker compose -f managed.yml up -d api" >&2
+    exit 1
+    ;;
+esac
+
+echo "[deploy-tasks] deploying apps/worker tasks (project ${TRIGGER_PROJECT_REF}, env ${TRIGGER_ENV})..."
 cd "${REPO_ROOT}/apps/worker"
 TRIGGER_PROJECT_REF="${TRIGGER_PROJECT_REF}" \
-  npx -y "trigger.dev@${CLI_VERSION}" deploy --profile "${PROFILE}"
+  npx -y "trigger.dev@${CLI_VERSION}" deploy --profile "${PROFILE}" --env "${TRIGGER_ENV}"
 
 # THE DEPLOY EDITS apps/worker/package.json AND DOES NOT SAY SO.
 #

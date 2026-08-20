@@ -1,0 +1,22 @@
+{
+  // The public site is JavaScript with one TypeScript test beside it.
+  //
+  // A separate project rather than widening the root `include`, for the same
+  // reason `test/ui` is separate: the setting it needs — `allowJs`, so the
+  // test can import `build.mjs`, `copy.mjs` and `prices.mjs` — is PROGRAM-wide,
+  // and turning it on at the root would pull every stray `.js` in the
+  // workspace into the typecheck.
+  //
+  // `checkJs` stays OFF. These modules are deliberately dependency-free plain
+  // JavaScript so the site can be lifted into its own deploy without a
+  // toolchain (workplan 0086 T7); type-checking them would be the first step
+  // back towards needing one.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true
+  },
+  "include": ["**/*.ts", "**/*.mjs"],
+  "exclude": ["dist/**"]
+}

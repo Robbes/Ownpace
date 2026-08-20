@@ -414,6 +414,31 @@ curl -fsS http://localhost:3001/health && curl -fsS http://localhost:3001/versio
 ./deploy/compose/deploy-tasks.sh
 ```
 
+**Deploying to a non-production environment.** One Trigger instance can serve a test stack and a
+production stack side by side — a project has several environments, and each has its own secret
+key, its own deployed task version and its own runs. To move a stack onto one of them:
+
+1. **Take that environment's key** from the dashboard (project → API keys) and put it in
+   `deploy/compose/.env` as `TRIGGER_SECRET_KEY`. This is the key the **api** enqueues with.
+2. **Set `TRIGGER_ENV`** in the same file to that environment's name (`prod` is the default).
+   This is what the **deploy** targets.
+3. **Restart the api** so it picks up the new key:
+   `docker compose -f deploy/compose/managed.yml up -d api`
+4. **Re-upload the task environment variables**, which are stored per environment and do not
+   follow the key: `./deploy/compose/set-task-env.sh`
+5. **Re-deploy the tasks**: `./deploy/compose/deploy-tasks.sh`
+
+Steps 1 and 2 must name the **same** environment. If they disagree, nothing errors — the deploy
+succeeds, the enqueue succeeds, and the runs simply never meet a deployed task, leaving a queue
+that grows beside a dashboard that looks idle. `deploy-tasks.sh` refuses the two combinations
+that are unambiguously that mistake; it cannot catch every one, because only the `tr_prod_` key
+prefix is known here.
+
+Step 4 is the one most easily forgotten, and its failure is the one the script's own header
+already warns about: *"a task that lands before its environment exists runs once against no
+database and fails in a way that reads like a broken task."*
+
+
 **Environment before deploy, deliberately.** Task containers inherit
 **nothing** from compose: a run gets only what the Trigger.dev platform stores
 for the project's environment. `set-task-env.sh` uploads `DATABASE_URL`,
