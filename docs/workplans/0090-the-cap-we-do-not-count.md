@@ -1,0 +1,138 @@
+# Workplan 0090 — the cap we do not count
+
+## Status — 2026-08-20 (update this block at the end of every session)
+
+| Task | Status | Evidence |
+|---|---|---|
+| T1 Verify the limit before building against it | 📋 Planned (blocking) | Three numbers and one behaviour, none of them read from Google here — `support.google.com` is blocked by this sandbox's egress proxy. **Nothing below should be built to a guessed threshold.** |
+| T2 A byte-aware budget beside the request-aware one | 📋 Planned (needs T1) | `RateBudgetConfig` is `requestsPerSecond` only. A byte ceiling is invisible to it, by construction. |
+| T3 Wire the IMAP sources to it | 📋 Planned (needs T2) | No IMAP source consumes a budget at all today. Graph and DAV do; IMAP does not. |
+| T4 Refuse before the lockout, not after | 📋 Planned (needs T2) | Approaching a cap whose penalty is losing access to your own live mail is a stop, not something to push through. |
+| T5 Say it in the price | 📋 Planned | A 2.5 GB/day ceiling and ADR-0014's 750 GB Small band describe very different calendars. The pre-preflight should say so. |
+
+## Why this exists
+
+The owner, while checking whether an app password could carry a personal Gmail migration
+([ADR-0041](../adr/0041-who-owns-the-oauth-client.md), [workplan
+0089](./0089-a-consent-you-can-click.md) T7), read that Gmail IMAP downloads are capped around
+**2,500 MB per day**, and that exceeding it can throttle or **temporarily lock the account**.
+
+Checking that against this repository found something worse than a caveat on a proposed feature.
+
+**1. The rate budget counts requests, not bytes.** `packages/shared/src/rate-budget.ts:39`
+defines the entire configuration surface as `readonly requestsPerSecond: number`, and the token
+bucket at `:78` refills in whole request-tokens. A limit expressed in bytes per day is not
+merely unenforced — it is **inexpressible** in the current interface.
+
+**2. No IMAP source consumes a budget at all.** Every consumer of `RateBudget` /
+`ThrottleLimiter` is a Graph or DAV source: `graph-mail-source.ts`, `graph-calendar-source.ts`,
+`graph-drive-source.ts`, `graph-contacts-source.ts`, `caldav-source.types.ts`,
+`carddav-source.types.ts`, `webdav-source.types.ts`. Neither `imapflow-source.ts` nor
+`imap-source.ts` nor `gmail-source-factory.ts` references one, and a search for any local pacing
+— concurrency limit, batch size, inter-fetch delay — finds none either.
+
+**So the Gmail path pulls as fast as the connection allows, with nothing counting and nothing
+slowing it down.**
+
+**3. And this is not about app passwords.** The cap belongs to Gmail's IMAP endpoint, so on the
+face of it it governs **the OAuth path that ships today** exactly as much as the app-password
+path 0089 T7 proposes. That is what turns this from a caveat on an unbuilt feature into a
+defect in a shipped one. Whether Google in fact applies a *different* ceiling by credential type
+is T1's job to establish, and it matters in both directions: if the cap is credential-specific,
+T7's value changes; if it is not, every Gmail migration already runs at this risk.
+
+**Why the penalty is the part that matters.** Most rate limits answer with a 429 and cost time.
+This one is reported to lock the account. For a migration tool that is close to the worst
+available failure: **the customer loses access to their own live mail, during their migration,
+because of us** — while the product's whole claim is that nothing breaks until they say so. A
+migration that finishes slowly is working as designed (ADR-0014 sells a period, at your own
+pace). A migration that locks a mailbox is not a slow success; it is an outage we caused.
+
+## T1 — verify the limit before building against it (blocking)
+
+Four things, none of them established here, and a threshold built to a guessed number is worse
+than none because it reads as protection:
+
+1. The **download** ceiling per account per day (reported ~2,500 MB — the figure this plan is
+   named after, and the one most often quoted for Workspace).
+2. The **upload** ceiling (reported ~500 MB/day). Gmail is never a target here, so this should
+   be irrelevant — worth confirming rather than assuming, since a source pass still writes
+   flags in some configurations.
+3. Whether the ceiling differs by **credential type** (app password vs XOAUTH2) or by **account
+   type** (personal vs Workspace). The owner's source attributed it to app passwords; this plan
+   assumes the endpoint, and the assumption is exactly what needs testing.
+4. The **penalty**, precisely: throttling, temporary lockout, duration, and what the client
+   actually observes when it happens. A refusal cannot name a cause it has never seen.
+
+`support.google.com` is blocked by this sandbox's egress proxy, so this is a task for someone
+with a browser, and the answers belong in this file with their source and date.
+
+## T2 — a byte-aware budget beside the request-aware one
+
+`RateBudgetConfig` gains a byte dimension; `InProcessRateBudget` and `pg-rate-budget.ts` gain
+the matching accounting. Three properties, all load-bearing:
+
+- **The window is a day, not a second.** Every existing budget is a per-second token bucket. A
+  daily ceiling has to survive process restarts and be shared across runners, which is exactly
+  what the `(tenant, provider)` row in migration 0024 already exists to do — *"the resource
+  being protected is shared and singular"* applies here word for word.
+- **Bytes are counted where they are already known.** `domain-sync.ts:956` destructures
+  `{ raw, sizeBytes }` from `fetchRaw`, and `item.size_bytes` is written from it. The number is
+  already flowing; nothing new has to be measured.
+- **Counted on fetch, not on write.** The cap is on what Google sends. A retry that re-fetches
+  spends the budget again even though the ledger records the item once — which is the opposite
+  of ADR-0014's *first-copy-only* billing rule, and the two must not be confused or share a
+  query.
+
+## T3 — wire the IMAP sources to it
+
+`imapflow-source.ts` and `imap-source.ts` take a budget the way the Graph sources do. Gmail gets
+the Google-specific ceiling; a self-hosted Stalwart or Dovecot gets whatever its operator
+configures, defaulting to unlimited — **a cap invented for a server that has none would be this
+plan's own way of making migrations mysteriously slow.**
+
+`mapping_throttle_config` (migration 0017) already exists as the per-mapping override surface.
+
+## T4 — refuse before the lockout, not after
+
+At the ceiling the pass **stops and says so**, in the vocabulary the product already uses for a
+limit it can see coming: what the limit is, how much of it today's pass used, when it resets,
+and that the migration continues by itself tomorrow. Not an error — a scheduled pause, and one
+the summary mail can carry.
+
+There is a direct precedent worth copying rather than reinventing. Workplan 0015 recorded
+Stalwart's 1000-file blob window: *"`itemsSynced` parking on exactly 1000 with items in
+`itemsRetrying` is the target's ceiling, not a stall."* The lesson from that night was that a
+ceiling nobody named looks exactly like a bug. Same shape here, with a worse penalty.
+
+**And never retry into it.** The same session taught this too, on JMAP: obeying `Retry-After`
+literally versus probing early is a judgement about *magnitude*, and a quota that counts down
+accurately to a window rollover must be waited out rather than probed. A byte ceiling whose
+penalty is a lockout is the clearest case of that kind there is.
+
+## T5 — say it in the price
+
+ADR-0014 sells Small at 750 GB of cumulative data and Tiny at 250 GB. At 2.5 GB/day, **mail
+alone** would take 100 days to reach Tiny's ceiling and 300 to reach Small's. Most personal
+mailboxes are nowhere near that — a 15 GB mailbox is about six days — but the pre-preflight
+(workplan 0088) quotes a duration, and a quote that ignores the source's own ceiling is the kind
+of number that gets screenshotted and then disbelieved.
+
+So the calculator should derive mail duration from the ceiling rather than from bandwidth, and
+say which it did. This is the same honesty rule 0088 already applies to everything else: *each
+rung replaces a guess with a measurement, and says which it is.*
+
+It also cuts the other way, in the product's favour: **a cap that forces a migration to take
+weeks is an argument for a tool that syncs continuously and cuts over when you are ready**, and
+against one that sells a single copy pass. Worth saying on the public page, once T1 has a number
+worth saying it with.
+
+## Not in this plan
+
+- Any change to how bytes are billed. ADR-0014 counts each item's **first** copy; this counts
+  what Google **sends**, including re-fetches. Two meters, deliberately, and they must never
+  share a query.
+- Microsoft, Dropbox and Box ceilings. The same question exists for each and none is answered
+  here.
+- Making Gmail faster. This plan is about not being locked out; throughput is a separate
+  argument with a separate ceiling.

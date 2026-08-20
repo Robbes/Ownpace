@@ -634,4 +634,4 @@ const result = await runUnifiedSync({
 
 ---
 
-*This document is part of OpenMigrate sovereign migration stack. For complete documentation, see `docs/` directory.*
+*This document is part of the Ownpace sovereign migration stack. For complete documentation, see `docs/` directory.*

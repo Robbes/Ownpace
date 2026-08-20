@@ -2,7 +2,7 @@
 
 ## Objective
 
-Complete the open-migrate cutover system implementation by documenting the 12 completed steps and resolving linting errors.
+Complete the Ownpace cutover system implementation by documenting the 12 completed steps and resolving linting errors.
 
 ## Status: COMPLETED
 

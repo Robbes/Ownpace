@@ -15,7 +15,7 @@
 > **Retraction note (2026-08-02).** The opt-in extra-backup feature was never
 > built — `backup_target` sat in the schema with nothing reading or writing
 > it. The owner's rationale for retracting rather than parking: **a second
-> open-migrate instance (or a second mapping) pointed at a destination of
+> Ownpace instance (or a second mapping) pointed at a destination of
 > your choice achieves exactly the same result** through the existing,
 > tested, idempotent machinery — a dedicated backup feature would be a
 > second UI over the same engine, not a new capability. The `backup_target`

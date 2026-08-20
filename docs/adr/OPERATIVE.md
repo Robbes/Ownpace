@@ -300,7 +300,7 @@ live in [README.md](./README.md), the register.
 
 - Grants are **rows** (`share_grant`) with verbatim source evidence; applying a share is a **per-grant owner decision** (apply/skip/edit) — never a pass side-effect; bulk is a loop over the same gated per-row apply.
 - **Nextcloud OCS is the only apply-capable target**; every other row stays manual with the protocol gap named. Link shares are **never auto-recreated**.
-- The **target's own messaging notifies the grantee** — open-migrate never emails third parties, ever. Apply is refused until the mapping's lifecycle says done/cutover.
+- The **target's own messaging notifies the grantee** — Ownpace never emails third parties, ever. Apply is refused until the mapping's lifecycle says done/cutover.
 - Grantee addresses are proposed by the machine and **confirmed by a person**; attribution names the decider.
 
 ## [ADR-0033: Whole-tenant Google migration — domain-wide delegation, opt-in and stated](./0033-domain-wide-delegation.md)
@@ -425,3 +425,82 @@ live in [README.md](./README.md), the register.
   from asserting — see the two extra searches named below); the legal proprietor named in
   `NOTICE`, currently "the Ownpace project maintainers" rather than a company; and whether the
   post-cutover backup gets its own brand or is a plan name under Ownpace.
+
+## [ADR-0041: Who owns the OAuth client — the managed edition brings its own, the appliance never does](./0041-who-owns-the-oauth-client.md)
+
+- **Verification has a published surface, and it is the same surface the GDPR needs.** A
+  privacy policy and terms on `ownpace.eu`, a support address that a person answers
+  (**support@ownpace.eu**), an app logo of at least 120×120, and an in-product disclosure before
+  the consent screen. Drafted in [`site/legal/`](../../site/legal/) and
+  [`site/brand/`](../../site/brand/); the checklist and every unverified Google claim are in
+  [`docs/google-oauth-verification.md`](../google-oauth-verification.md).
+- **The Limited Use commitments are made in the privacy policy and are true of the code**: the
+  data serves only the migration the user configured, goes only to the target they chose, is
+  never used for advertising or model training, and is never read by a person outside the
+  narrow cases the policy names. Two structural facts carry more weight than any promise —
+  **Google is never a migration target**, and **nothing is ever deleted at the source**.
+- **The redirect endpoint is `/oauth/google/callback`, never `/webhooks/…`.** An OAuth redirect
+  is a **browser GET carrying the user's authorization code**; a webhook is an unauthenticated
+  server-to-server POST. Filing the callback under a webhook path is how it ends up mounted in a
+  router that skips CSRF and accepts POST, which is precisely the mapping-hijack that 0089 T1's
+  signed `state` exists to prevent. Different trust model, different route tree, different name.
+- **No authorized JavaScript origin is registered.** The flow is server-side
+  authorization-code: the browser is redirected, and the token exchange happens on the server
+  with the client secret. A JS origin is only needed for browser-side OAuth, which this is not,
+  and registering one that nothing uses widens the client for no benefit.
+- **Environments get separate CLIENTS, not separate paths on one host.** Test and production
+  sharing an origin share a cookie jar and a `state`-signing context, so a bug in test reaches
+  production sessions. One client per environment also means a leaked test secret is not a
+  production incident. Where one client must serve both, they get separate **hosts** at
+  minimum — never `/x/` and `/_ota_/x/` on the same origin.
+- **The canonical host is decided once and registered exactly.** Google matches the redirect URI
+  byte-for-byte before any redirect of ours runs, so `www` vs apex is a real choice and not a
+  formatting detail: an apex-canonical site with a `www` URI registered fails before it starts.
+  Register the host the service actually serves on, and the same host the privacy policy and
+  home page are verified on.
+- **The appliance never carries an Ownpace OAuth client secret.** Shipping one publishes it,
+  which breaks Google's terms and makes one leak everybody's problem. Bring-your-own client
+  stays the appliance's only mode, and `no-managed-leakage` (ADR-0036) is what keeps it true.
+- **The managed edition brings its own verified client, and it is a managed-only secret** —
+  `@openmig/managed`, same store and key provider as every other credential (ADR-0037). A
+  managed customer clicks **Allow**; nobody opens a Google Cloud console.
+- **Verification is bought per scope class, cheapest first.** Contacts and calendar are
+  *sensitive* — brand review only. Gmail and Drive are *restricted* — brand review **plus** an
+  annual third-party security assessment. So contacts and calendar ship on the managed client
+  first, and mail and files stay bring-your-own until the assessment is actually paid for.
+  Whatever is not yet covered says so on the page rather than failing at the consent screen.
+- **Owning a client never widens a grant.** Same scopes, same per-user consent, same read-only
+  posture, same revocation by the account holder in their own Google settings. What changes is
+  who registered the client, not what the token can read — and the consent screen must show the
+  scopes rather than a friendly summary of them.
+- **Never "External + Testing" for a real migration.** Google expires refresh tokens after
+  **seven days** in that publishing status, which reads as a random `invalid_grant` weeks in.
+  Both editions' setup paths must steer to Internal (Workspace) or Production (personal), and
+  the refusal for an expired token must name this cause first.
+- **The assessment buys CONVENIENCE, never CAPABILITY, so it is always deferrable.** Every
+  source is migratable today at zero cost through the customer's own client — Workspace via
+  Internal consent, personal Google via External+Production. What an assessment buys is a popup
+  instead of a console, for consumers, in the managed edition. Nothing is ever gated behind it,
+  and if it is paid it is funded like every other cost (ADR-0014), never as a line named after
+  a Google audit.
+- **An ACCOUNT password is closed; an APP password is not. Do not conflate them** — this ADR did,
+  in both directions, in one sitting. Google withdrew account-password sign-in for third-party
+  clients ([answer/6010255](https://support.google.com/mail/answer/6010255)) **and separately
+  keeps app passwords as the documented fallback** *"als Inloggen met Google niet beschikbaar is
+  voor de app"* ([answer/185833](https://support.google.com/accounts/answer/185833)), 2SV
+  required, and labelled *afgeraden*.
+- **Personal Gmail may therefore be connected with an app password, as an opt-in fallback that is
+  never the default.** Gmail is already an IMAP source (`gmail-source-factory.ts:218`) and
+  `imapflow-source.ts:129–132` already carries the plain-password branch, so this is a credential
+  choice rather than a connector — same folder view, same Message-ID natural key, no fidelity
+  loss. It must be offered with Google's own discouragement quoted, not laundered.
+- **It narrows the restricted-scope exposure to Drive alone**, which is the practical point:
+  contacts and calendar are *sensitive* (cheap verification), personal mail can avoid OAuth
+  entirely, and Drive is then the only product for which an assessment could ever be worth
+  buying. Workspace cannot use this (app passwords are withdrawn or admin-disabled there) and
+  does not need to — Internal consent is already free.
+- **Drive has no password path at all and we do not invent one.** No such protocol exists, and
+  Takeout is a snapshot rather than a sync — this product sells a period, not a copy.
+- **Gmail IMAP is always on since March 2025** (*"Vanaf maart 2025 is de optie om IMAP aan of uit
+  te zetten niet meer beschikbaar. IMAP-toegang staat altijd aan in Gmail"*), so no setup path
+  should ask a personal-account user to enable it, and no refusal should suggest it as a cause.

@@ -45,16 +45,16 @@ product does not write to the source in any case (hard rule 2).
 
 *(The guide-from-zero section promised by the 2026-08-09 per-customer model
 decision — 0026 T3 row 14. Skip to §1 if your tenant already has an
-Open-Migrate registration. The owner validates this section against their own
+Ownpace registration. The owner validates this section against their own
 tenant; until that validation is recorded here, treat it as written-but-unproven.)*
 
 Under the per-customer model **you register the app in your own tenant** —
-there is no Open-Migrate-published app to consent to, no publisher
+there is no Ownpace-published app to consent to, no publisher
 verification wall, and the credential never leaves your custody. Deleting the
 registration is your kill switch.
 
 **Create it:** Azure portal → **Microsoft Entra ID** → **App registrations**
-→ **New registration**. Name it (e.g. `Open-Migrate`), choose **Accounts in
+→ **New registration**. Name it (e.g. `Ownpace`), choose **Accounts in
 this organizational directory only (single tenant)**, leave the redirect URI
 empty, and register. From the Overview page note the **Application (client)
 ID** and **Directory (tenant) ID**.
@@ -161,7 +161,7 @@ Connect-ExchangeOnline -UserPrincipalName you@yourtenant.nl
 
 # 4a. A mail-enabled security group naming the mailboxes the app may read.
 #     Membership of THIS group is the app's entire reach.
-New-DistributionGroup -Name "OpenMigrate Scope" `
+New-DistributionGroup -Name "Ownpace Scope" `
   -Alias openmigrate-scope `
   -Type Security `
   -Members "gedeeld@yourtenant.nl","info@yourtenant.nl"
@@ -171,7 +171,7 @@ New-ApplicationAccessPolicy `
   -AppId "00000000-0000-0000-0000-000000000000" `
   -PolicyScopeGroupId openmigrate-scope@yourtenant.nl `
   -AccessRight RestrictAccess `
-  -Description "Ownpace: read only the mailboxes in OpenMigrate Scope"
+  -Description "Ownpace: read only the mailboxes in Ownpace Scope"
 ```
 
 **Give it up to an hour.** The policy is evaluated by Exchange Online and does

@@ -2,13 +2,48 @@
 
 The Microsoft equivalent of this guide is [`o365-setup.md`](./o365-setup.md).
 
-This is what an operator does once, in the customer's own Google Cloud project, to let
-Open-Migrate read a Google Drive. It ends with three values that go in `.env` (appliance) or
-the connection's stored credentials (managed), and one command that proves they work.
+This is what you do once, in **your own** Google Cloud project, to let Ownpace read a Google
+account. It ends with three values — client id, client secret, refresh token — and one command
+that proves they work.
 
-**The same model as O365, for the same reasons.** The app registration lives in the
-**customer's** project, registered by them; the credential never leaves their custody; and
-revoking it is theirs — delete the OAuth client and every token dies.
+## Start here: whose Google account is it?
+
+This one answer decides whether you see security warnings at all, and it is the question the
+rest of this guide assumes you have already answered. **Get it wrong and everything still
+works, but with banners, a test-user list, and a token that quietly dies every seven days.**
+
+> **A Workspace account, and you are migrating it inside its own organisation.**
+> Choose **Internal** at the consent screen step below. Google skips verification entirely: no
+> "Google hasn't verified this app" warning, no test-user list, no token expiry. This is most
+> readers, and it costs nothing.
+>
+> **A personal Google account** (`@gmail.com`), or a Workspace account being read from a
+> different organisation.
+> Choose **External** — you have no other option — and then **set the publishing status to
+> Production**. You will see an unverified-app warning once, and click through it. Do **not**
+> leave the app in *Testing*: Google expires refresh tokens after **seven days** in that state,
+> and a migration that runs for months will fail every week with `invalid_grant`, long after
+> anyone remembers setting it up.
+
+Migrating a whole Workspace with many accounts? Read
+[domain-wide delegation](#domain-wide-delegation--one-admin-action-instead-of-n-consents)
+first — it replaces one consent ceremony per person per product with a single admin action.
+
+## Why you register the client and not us
+
+**The same model as O365, for the same reasons.** The app registration lives in **your**
+project, registered by you; the credential never leaves your custody; and revoking it is yours
+— delete the OAuth client and every token dies.
+
+That is a deliberate trade, and it is the reason this guide exists at all rather than a single
+**Connect with Google** button. Ownpace is software you can run yourself, so a button backed by
+*our* Google credentials would mean shipping those credentials to everyone who downloads it —
+which is exactly the thing nobody should do with a secret.
+
+What we can do, and have not built yet, is run the consent step for you against **your own**
+client. That would remove the redirect URI in step 3 and the whole of step 4 — the two most
+awkward parts of this guide — while changing nothing about who holds the credential. It is
+planned.
 
 ---
 
@@ -20,47 +55,9 @@ is a stronger guarantee than a promise in a document — it is enforced by Googl
 
 It is a **delegated** credential: it reads the Drive of the person who consents, including the
 shared drives that person can see. For a whole Workspace there is a second, opt-in path —
-**domain-wide delegation** — described in its own section below.
-Per-user tokens stay the default: smallest access, revocable per person, no admin needed.
-
-## Domain-wide delegation — one admin action instead of N consents
-
-A Workspace admin can authorise a **service account** to impersonate users, once, for an
-enumerated list of scopes. Use it when per-user consent ceremonies do not scale; skip it
-for a handful of accounts. **Read the width before choosing it: the key can read every
-user in the domain for the authorised scopes.** Each mapping still names exactly one
-account (the subject); what widens is the credential, not any mapping.
-
-1. **Create a dedicated service account** (IAM → service accounts) in any Google Cloud
-   project — no roles, nothing else on it. Its only job is this migration.
-2. **Generate a JSON key** (keys → add key → JSON). This file is now the most sensitive
-   secret in the migration; treat it like one.
-3. **Authorise it in the Admin console**: Admin → Security → Access and data control →
-   API controls → **Domain-wide delegation** → add the service account's *client id* with
-   ONLY the scopes the chosen products need — never a superset "to be safe":
-
-   | product | scope |
-   |---|---|
-   | Drive | `https://www.googleapis.com/auth/drive.readonly` |
-   | Gmail | `https://mail.google.com/` |
-   | Calendar | `https://www.googleapis.com/auth/calendar` |
-   | Contacts | `https://www.googleapis.com/auth/carddav` |
-
-4. **Configure it**: paste the whole key file into the wizard's "Service account key"
-   field and state each migration's account. (If you run Ownpace yourself from
-   configuration files, the same key goes in `GOOGLE_SERVICE_ACCOUNT_KEY`, with each
-   mapping's account as `user` — for Drive too.) The
-   refresh-token fields stop being required; the refusals will say so if something is
-   missing.
-5. **Revoke at cutover.** Delete the Admin-console delegation entry (and the key) when the
-   migration finishes — the credential's lifetime is the migration's, and this step is as
-   much part of the runbook as step 3.
-
-A mint-time `unauthorized_client` means step 3 is missing or lists the wrong scope — the
-error names the client id and scope to add. An `invalid_grant` usually means the subject
-is not a user in the domain.
-
----
+**[domain-wide delegation](#domain-wide-delegation--one-admin-action-instead-of-n-consents)**,
+at the end of this guide. Per-user tokens stay the default: smallest access, revocable per
+person, no admin needed.
 
 ## 1. The project and the API
 
@@ -72,10 +69,14 @@ is not a user in the domain.
 
 **APIs & Services → OAuth consent screen.**
 
+You made this choice at the top of this guide. To restate it in the console's own words:
+
 - **Internal** if the account is in the same Workspace organisation — the right answer for a
   migration, and it skips Google's verification review entirely.
-- **External** only if the source is a personal Google account. Add that account as a **test
-  user**, or consent fails.
+- **External** only if the source is a personal Google account. Then **set the publishing
+  status to Production** and accept the unverified-app warning. Leaving it in *Testing* caps
+  you at 100 test users, requires adding the account as a test user, and — the one that
+  actually hurts — **expires every refresh token after seven days**.
 - Add the scope `https://www.googleapis.com/auth/drive.readonly`. Add nothing else: an
   unnecessary scope is a permission somebody has to justify later.
 
@@ -104,9 +105,17 @@ The one value that cannot be read out of a console. Using Google's own
 > Google returns an access token only, which expires in an hour and cannot be renewed.
 
 **Treat the refresh token as a password.** It grants read access to that Drive until it is
-revoked, and it does not expire on its own. It does die if: the account's password changes,
-an admin revokes the app, the OAuth client is deleted, or it goes six months unused. All four
-produce the same `invalid_grant` from Google, and the error message names them.
+revoked, and it does not expire on its own. It does die if:
+
+1. **the app is External and still in *Testing*** — Google expires the token after **seven
+   days**, no matter how healthy everything else looks. Check this first: it is the only cause
+   on this list that recurs, and the fix is one dropdown (publishing status → Production);
+2. the account's password changes;
+3. an admin revokes the app;
+4. the OAuth client is deleted;
+5. it goes six months unused.
+
+All five produce the same `invalid_grant` from Google, and the error message names them.
 
 ## 5. Configure it
 
@@ -207,7 +216,7 @@ The same project, the same consent screen, the same OAuth client — steps 1–3
 once and serve both. What differs is the **consent** the refresh token carries and the name
 it is stored under.
 
-**The scope is `https://mail.google.com/`, and there is no narrower choice.** Open-Migrate
+**The scope is `https://mail.google.com/`, and there is no narrower choice.** Ownpace
 reads Gmail over IMAP (XOAUTH2 at `imap.gmail.com:993`), and that is the only scope Google's
 IMAP endpoint accepts — the granular `gmail.readonly` scopes belong to the REST API and are
 refused at the IMAP door. The scope *reads as* full mail access; this product never writes
@@ -243,7 +252,7 @@ The mapping needs only the address, because everything else is fixed by Google:
 **What happens to labels.** Gmail's IMAP surface presents each label as a folder, and those
 migrate as folders. It also presents three *views* that contain other folders' messages
 again — All Mail, Starred and Important. Copying those would duplicate every message once
-per view it appears in, so Open-Migrate drops the three views (recognised by Google's own
+per view it appears in, so Ownpace drops the three views (recognised by Google's own
 `\All`/`\Flagged`/`\Important` attributes, which survive localisation) and migrates
 everything real: INBOX, your labels, Sent, Drafts. Trash and Spam are excluded from the copy
 by default like every other IMAP source, while the bin is still read for deletion evidence.
@@ -313,3 +322,42 @@ Stated here rather than discovered:
   making the target follow it is an action you approve per file, from the Moves queue.
 - **Two files with the same name in the same folder cannot both be migrated.** The natural key
   is the path, and the ledger's unique index on it makes that a hard stop, not a setting.
+
+---
+
+## Domain-wide delegation — one admin action instead of N consents
+
+A Workspace admin can authorise a **service account** to impersonate users, once, for an
+enumerated list of scopes. Use it when per-user consent ceremonies do not scale; skip it
+for a handful of accounts. **Read the width before choosing it: the key can read every
+user in the domain for the authorised scopes.** Each mapping still names exactly one
+account (the subject); what widens is the credential, not any mapping.
+
+1. **Create a dedicated service account** (IAM → service accounts) in any Google Cloud
+   project — no roles, nothing else on it. Its only job is this migration.
+2. **Generate a JSON key** (keys → add key → JSON). This file is now the most sensitive
+   secret in the migration; treat it like one.
+3. **Authorise it in the Admin console**: Admin → Security → Access and data control →
+   API controls → **Domain-wide delegation** → add the service account's *client id* with
+   ONLY the scopes the chosen products need — never a superset "to be safe":
+
+   | product | scope |
+   |---|---|
+   | Drive | `https://www.googleapis.com/auth/drive.readonly` |
+   | Gmail | `https://mail.google.com/` |
+   | Calendar | `https://www.googleapis.com/auth/calendar` |
+   | Contacts | `https://www.googleapis.com/auth/carddav` |
+
+4. **Configure it**: paste the whole key file into the wizard's "Service account key"
+   field and state each migration's account. (If you run Ownpace yourself from
+   configuration files, the same key goes in `GOOGLE_SERVICE_ACCOUNT_KEY`, with each
+   mapping's account as `user` — for Drive too.) The
+   refresh-token fields stop being required; the refusals will say so if something is
+   missing.
+5. **Revoke at cutover.** Delete the Admin-console delegation entry (and the key) when the
+   migration finishes — the credential's lifetime is the migration's, and this step is as
+   much part of the runbook as step 3.
+
+A mint-time `unauthorized_client` means step 3 is missing or lists the wrong scope — the
+error names the client id and scope to add. An `invalid_grant` usually means the subject
+is not a user in the domain.
