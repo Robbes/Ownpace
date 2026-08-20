@@ -87,7 +87,7 @@ live in [README.md](./README.md), the register.
   with the mapping (`apps/api/src/routes/migrations/index.ts:1122`).
 - **A tier has TWO axes, and you are on the higher of them.** How many paths run at the same
   time — Tiny 1 · Small 4 · Medium 20 · Large 50 · XL 200 — and how much data you have moved:
-  Tiny 250 GB · Small 750 GB · Medium 1.5 TB · Large 4 TB · XL 15 TB. One path and 400 GB is
+  Tiny 250 GB · Small 750 GB · Medium 2 TB · Large 7.5 TB · XL 15 TB. One path and 400 GB is
   **Small**, because size says so. Past XL on either axis, **talk to us** — that is the one
   place a number is not published, because past the end of the scale we have to actually look.
 - **The data axis is CUMULATIVE and it counts each item's FIRST successful copy.** Not a monthly
@@ -106,10 +106,11 @@ live in [README.md](./README.md), the register.
   *"another 750 GB"* — but the counter must stay monotonic or a past invoice stops being
   reconstructible (schema consequence 5). Allowance goes up; the meter is never rewound.
 - **At 80%, offer BOTH and show the break-even.** *"You are at 80% of 750 GB. Another 750 GB is
-  €8 once and you stay at €4 a month; Medium is €3 now and €8 a month, and gives you 20 paths
-  instead of 4."* Topping up costs €5 more up front and saves €4 a month, so it pays back in
-  about six weeks — **say that**, and say plainly when the tier is the better buy. Taking no
-  profit means having no reason to steer, so we do not.
+  €8 once and you stay at €4 a month; Medium is €7 now and €8 a month, and gives you 20 paths
+  instead of 4."* Topping up costs €1 more up front and saves €4 a month, so it pays back in
+  **about a week** — **say that**, and say plainly when the tier is the better buy, which on
+  data alone it now almost never is. Taking no profit means having no reason to steer, so we
+  do not.
 - **Paths fall; data does not — but room is purchasable.** The path axis is elastic and
   downgrades automatically as paths end. The data axis only ever rises, so it sets a **floor**
   under the tier unless the customer buys room instead. Say it on the page in those words:
@@ -151,8 +152,8 @@ live in [README.md](./README.md), the register.
   applied retroactively, and never taken as a reason to stop, pause or block a path. If the
   arithmetic is ever wrong it must **under-bill, never halt a migration**.
 - **The setup fee is on the HIGHEST tier ever reached, and it is paid in steps.** Each tier
-  splits into a one-off setup plus a monthly — Tiny €5 + €2 · Small €8 + €4 · Medium €11 + €8 ·
-  Large €60 + €39 · XL €150 + €99. A tier reached on the **data** axis charges its step the same
+  splits into a one-off setup plus a monthly — Tiny €4 + €2 · Small €8 + €4 · Medium €15 + €8 ·
+  Large €50 + €39 · XL €150 + €99. A tier reached on the **data** axis charges its step the same
   way a tier reached on the path axis does. Stepping up later costs the **difference** in setup, once; stepping down
   refunds nothing, because the onboarding was consumed. This makes the total independent of
   whether a customer ramped up or started at full size, so understating gains nothing and

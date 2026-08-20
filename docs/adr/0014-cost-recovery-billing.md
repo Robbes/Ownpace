@@ -21,7 +21,7 @@
   with the mapping (`apps/api/src/routes/migrations/index.ts:1122`).
 - **A tier has TWO axes, and you are on the higher of them.** How many paths run at the same
   time — Tiny 1 · Small 4 · Medium 20 · Large 50 · XL 200 — and how much data you have moved:
-  Tiny 250 GB · Small 750 GB · Medium 1.5 TB · Large 4 TB · XL 15 TB. One path and 400 GB is
+  Tiny 250 GB · Small 750 GB · Medium 2 TB · Large 7.5 TB · XL 15 TB. One path and 400 GB is
   **Small**, because size says so. Past XL on either axis, **talk to us** — that is the one
   place a number is not published, because past the end of the scale we have to actually look.
 - **The data axis is CUMULATIVE and it counts each item's FIRST successful copy.** Not a monthly
@@ -40,10 +40,11 @@
   *"another 750 GB"* — but the counter must stay monotonic or a past invoice stops being
   reconstructible (schema consequence 5). Allowance goes up; the meter is never rewound.
 - **At 80%, offer BOTH and show the break-even.** *"You are at 80% of 750 GB. Another 750 GB is
-  €8 once and you stay at €4 a month; Medium is €3 now and €8 a month, and gives you 20 paths
-  instead of 4."* Topping up costs €5 more up front and saves €4 a month, so it pays back in
-  about six weeks — **say that**, and say plainly when the tier is the better buy. Taking no
-  profit means having no reason to steer, so we do not.
+  €8 once and you stay at €4 a month; Medium is €7 now and €8 a month, and gives you 20 paths
+  instead of 4."* Topping up costs €1 more up front and saves €4 a month, so it pays back in
+  **about a week** — **say that**, and say plainly when the tier is the better buy, which on
+  data alone it now almost never is. Taking no profit means having no reason to steer, so we
+  do not.
 - **Paths fall; data does not — but room is purchasable.** The path axis is elastic and
   downgrades automatically as paths end. The data axis only ever rises, so it sets a **floor**
   under the tier unless the customer buys room instead. Say it on the page in those words:
@@ -85,8 +86,8 @@
   applied retroactively, and never taken as a reason to stop, pause or block a path. If the
   arithmetic is ever wrong it must **under-bill, never halt a migration**.
 - **The setup fee is on the HIGHEST tier ever reached, and it is paid in steps.** Each tier
-  splits into a one-off setup plus a monthly — Tiny €5 + €2 · Small €8 + €4 · Medium €11 + €8 ·
-  Large €60 + €39 · XL €150 + €99. A tier reached on the **data** axis charges its step the same
+  splits into a one-off setup plus a monthly — Tiny €4 + €2 · Small €8 + €4 · Medium €15 + €8 ·
+  Large €50 + €39 · XL €150 + €99. A tier reached on the **data** axis charges its step the same
   way a tier reached on the path axis does. Stepping up later costs the **difference** in setup, once; stepping down
   refunds nothing, because the onboarding was consumed. This makes the total independent of
   whether a customer ramped up or started at full size, so understating gains nothing and
@@ -218,7 +219,7 @@ someone with a browser should confirm: the exact bundle name, whether "unlimited
 the terms, and whether the 10-pass limit applies to it too.
 
 **And the price comparison lands well.** At ~$17.50/user, eight users cost about €128 at
-BitTitan for a one-shot copy. Medium here is €59 for six months, up to twenty paths — eight
+BitTitan for a one-shot copy. Medium here is €63 for six months, up to twenty paths — eight
 users with mail, contacts and calendar, plus headroom — with continuous sync throughout. We are cheaper at every tier while selling more, which is a
 comfortable place to be — with one caveat recorded in the last section.
 
@@ -246,18 +247,18 @@ means everything, and the preflight already measures it.
 
 | tier | who | paths at the same time | data moved | setup | monthly | first month | typical total |
 |---|---|---|---|---|---|---|---|
-| **Tiny** | one person, one thing at a time | 1 | 250 GB | €5 | €2 | €7 | €13 for all four, over four months |
+| **Tiny** | one person, one thing at a time | 1 | 250 GB | €4 | €2 | €6 | €12 for all four, over four months |
 | **Small** | one person, everything at once | 4 | 750 GB | €8 | €4 | €12 | €20 over 3 months |
-| **Medium** | a household | 20 | 1.5 TB | €11 | €8 | €19 | €35 (3 mo) · €59 (6 mo) |
-| **Large** | a small business | 50 | 4 TB | €60 | €39 | €99 | €294 over 6 months |
+| **Medium** | a household, a team, or a small business | 20 | 2 TB | €15 | €8 | €23 | €39 (3 mo) · €63 (6 mo) |
+| **Large** | an SME | 50 | 7.5 TB | €50 | €39 | €89 | €284 over 6 months |
 | **Extra large** | an organisation, or an MSP's first customers | 200 | 15 TB | €150 | €99 | €249 | €744 over 6 months |
 | *beyond* | — | >200 | >15 TB | — | — | — | **talk to us** |
 
 **You are on the higher of the two middle columns.** Not the sum, not the average — the higher.
 
 **And the data column is the one you can buy more of.** Paying a tier's setup fee again adds
-another whole band of allowance without moving the tier: €8 buys another 750 GB on Small, €11
-another 1.5 TB on Medium. Repeatable, never expiring. *Tiers buy lanes; top-ups buy room.*
+another whole band of allowance without moving the tier: €8 buys another 750 GB on Small, €15
+another 2 TB on Medium. Repeatable, never expiring. *Tiers buy lanes; top-ups buy room.*
 
 The setup column is not a new charge — it is the first-month price named, so that stepping up a
 tier later can cost the *difference* rather than the whole thing again. See *"Nobody picks a
@@ -270,17 +271,21 @@ draft counted an *account pair* and read "one person is typically two source acc
 account and a file account". Counting the way customers actually think — and the way
 `scope_selection` already stores it — that same person is **four** paths: mail, contacts,
 calendar, files. So every ceiling is the old one doubled, describing exactly the same customer
-at exactly the same price. Small is still one person; Medium is still a household.
+at exactly the same price. Small is still one person; Medium is still a household — and now
+also a team or a small business, because at twenty paths and 2 TB it fits one as well as the
+other, and self-service is what both actually want. **Large is where an SME starts**, which is
+the honest reading of a €39 monthly that buys engagement rather than capacity.
 
 Medium is 20 rather than the arithmetic 16, and that is the one deliberate deviation. Four
 people with everything is 16, which leaves a household of four with *no* headroom for a fifth
 person or a second provider — and Medium → Large is the expensive step, the only steep one on
-the page. That step should be crossed by businesses, not by families who added a Dropbox.
+the page. That step should be crossed by an SME taking on real support, not by a family who
+added a Dropbox or a five-person team that outgrew a spreadsheet.
 
 **Tiny is one path, and it is the patient offer.** One person moving mail, then contacts, then
-calendar, then files, one at a time, pays €5 once and €2 a month: **€13 for the whole
+calendar, then files, one at a time, pays €4 once and €2 a month: **€12 for the whole
 migration** against €20 for the same person doing all four at once on Small. Patience is
-cheaper, impatience costs seven euro, and neither is punished. Its 250 GB ceiling is the one
+cheaper, impatience costs eight euro, and neither is punished. Its 250 GB ceiling is the one
 real constraint — a single 400 GB photo library does not fit, and the data axis then does what
 it always does: Small, one step of setup, carry on.
 
@@ -289,7 +294,7 @@ it while also paying their new European provider. Our fee stacks on top of both.
 above €10/month makes us more expensive than the thing we are replacing, for a service that is
 supposed to end. €8 sits clearly below that line, and it is the binding constraint on this tier.
 
-**Advertise the total, not the monthly.** *"€35 to move your household, over three months"* is a
+**Advertise the total, not the monthly.** *"€39 to move your household, over three months"* is a
 decision someone makes in a minute. *"€8/month"* is a subscription decision, which is a
 different and slower question. Same money. The preflight knows the size, so it can show the
 total.
@@ -404,7 +409,7 @@ trade in both directions.
 
 So: **a tier has two axes and you are on the higher of them.** Paths running at the same time,
 and data moved. The owner's own example is the clean case — one path, 400 GB: the path axis says
-Tiny, the data axis says Small, and Small wins. They pay the €3 step-up in setup once and carry
+Tiny, the data axis says Small, and Small wins. They pay the €4 step-up in setup once and carry
 on with their one large files path.
 
 **A residual fair-use clause still earns its place**, but a much smaller one: reselling,
@@ -471,12 +476,17 @@ now wants to move another 400 GB would cross to Medium and pay double the monthl
 for work that is one-off. The top-up is the honest answer to that, and it is honest precisely
 because bytes are a one-off cost: **a one-off cost should be buyable with a one-off payment.**
 
-**The choice it creates is a real one, not a trick.** Crossing to Medium costs €3 now and €8 a
+**The choice it creates is a real one, not a trick.** Crossing to Medium costs €7 now and €8 a
 month, and gives 20 paths. Topping up Small costs €8 now, keeps €4 a month, and gives no extra
-paths. So: €5 more up front, €4 a month less — **break-even at about six weeks.** Still running
-in six weeks, and four paths is enough? Top up. Need more lanes, or nearly done? Cross. Both
-sentences belong on the page, because taking no profit means having no reason to steer and the
-absence of a reason should be visible.
+paths. So: €1 more up front, €4 a month less — **break-even at about a week.**
+
+Which has a consequence worth stating rather than discovering: **at these prices the top-up
+almost always wins on data alone.** The same holds one rung up — topping up Medium is both
+cheaper on the day and €31 a month cheaper than crossing to Large. So in practice the data axis
+stops moving anyone's tier and becomes a prompt to buy room, while **the tier moves for lanes.**
+That is a simplification rather than a defect: work is priced as work, capacity as capacity, and
+the two stop interfering. But it means the published guidance is *"cross when you need more
+paths"*, not *"cross when you run out of room"*, and the page should say so in those words.
 
 **Raise the ceiling; never reset the meter.** To the customer these are the same sentence —
 *"another 750 GB"* — but schema consequence 5 requires the byte counter to be append-only, and a
@@ -484,14 +494,19 @@ counter that gets rewound on payment cannot reconstruct a past invoice. So the a
 of granted bands and the meter is monotonic. Identical experience, one of them auditable.
 
 **A sanity check on the price, since a top-up is the closest thing left to a byte price.** Per
-gigabyte the bands come to €0.020 (Tiny) · €0.0107 (Small) · €0.0073 (Medium) · €0.015 (Large) ·
-€0.010 (XL). Against a Hetzner-class transit price of about €0.001/GB that is **7× to 20×** — the
-right order for cost recovery that also has to carry compute and a share of support, and **about
-nineteen times cheaper** than the €0.20/GB egress line this ADR replaced, whose ~200× markup was
-finding 1 of the amendment. The spread across the ladder is a factor of 2.7 and is a wobble
-rather than a policy: setup fees were designed to carry onboarding labour, not bytes, so Large's
-block is the poorest value per gigabyte because Large's setup is mostly a human. Small enough to
-accept; large enough to re-check when there is real usage to check it against.
+gigabyte the bands come to €0.0160 (Tiny) · €0.0107 (Small) · €0.0075 (Medium) · €0.0067 (Large)
+· €0.0100 (XL). Against a Hetzner-class transit price of about €0.001/GB that is **6.7× to 16×**
+— the right order for cost recovery that also has to carry compute and a share of support, and
+**twelve to thirty times cheaper** than the €0.20/GB egress line this ADR replaced, whose ~200×
+markup was finding 1 of the amendment.
+
+The shape is now the right one: **the block gets cheaper per gigabyte the bigger it is**, from
+€0.0160 down to €0.0067, which is what a volume ladder should do. **XL is the exception**,
+stepping back up to €0.0100, and the reason is the same one that makes any of this wobble at all
+— setup fees carry onboarding labour, not only bytes, and XL doubles Large's data for three times
+Large's setup because an organisation costs more to onboard than a business does. The whole
+spread is a factor of 2.4. Small enough to accept; recorded to re-check when there is real usage
+to check it against.
 
 **This does not reintroduce metered pricing.** The banned thing was a per-GB line item appearing
 on every invoice, recovering labour under a bandwidth name, making bills unpredictable. A top-up
@@ -505,7 +520,7 @@ at roughly 100 GB. 500 GB was already five times that. The reason to go to 750 i
 the ladder rather than the typical case: 250 → 500 → 1500 steps ×2 then ×3, and the ×3 lands
 exactly where consumer storage plans cluster. Somebody on a 2 TB Google One that is a third full
 is a **single person doing a single-person migration**, and pushing them to Medium at twice the
-monthly for that is the wrong answer. At 750 the ladder reads 250 → 750 → 1.5 TB → 4 TB → 15 TB,
+monthly for that is the wrong answer. At 750 the ladder reads 250 → 750 → 2 TB → 7.5 TB → 15 TB,
 and the marginal cost of the extra 250 GB is around €0.25 of transit — cheap enough that
 generosity here is not a subsidy worth defending.
 
@@ -601,15 +616,16 @@ expect the opposite.
 
 That kills the mis-pick penalty. It does not kill the **ramp** penalty, which is the same
 unfairness in different clothes: activate two in month one (Small's €12 head), six in month two
-(Medium's €8 monthly, no head) — €12 of head fee, against €19 for somebody who honestly started
+(Medium's €8 monthly, no head) — €12 of head fee, against €23 for somebody who honestly started
 all eight at once. Identical work, different price, and the difference **rewards staggering your
 activations for billing reasons**. This project should not ship that.
 
 **So the head fee becomes a setup fee on the highest tier ever reached, paid in steps.** Each
-tier splits into its two real components — Small €8 + €4/mo, Medium €11 + €8, Large €60 + €39, XL
-€150 + €99 — and stepping up costs the *difference* in setup, once. Small → Medium later is €3.
+tier splits into its two real components — Tiny €4 + €2/mo, Small €8 + €4, Medium €15 + €8,
+Large €50 + €39, XL €150 + €99 — and stepping up costs the *difference* in setup, once. Small →
+Medium later is €7.
 
-Check it against the ramp: staggered pays €8 then €3 = **€11**. Direct-to-Medium pays **€11**.
+Check it against the ramp: staggered pays €8 then €7 = **€15**. Direct-to-Medium pays **€15**.
 Identical. The setup total depends only on the highest tier ever reached and not at all on when
 it was reached, so understating gains nothing, and the downgrade-then-upgrade trap cannot exist
 because the high-water is already paid. Stepping down refunds nothing, which is correct rather
