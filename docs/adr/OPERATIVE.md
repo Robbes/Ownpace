@@ -100,6 +100,15 @@ live in [README.md](./README.md), the register.
 - **Fair use states numbers and a named remedy**: pass the ceiling and we talk to you and move
   you a tier — never a silent throttle, never a surprise invoice — with a warning at 80%, which
   the ledger can see coming.
+- **There is no separate "backup" product or price.** Cutover is terminal, so keeping a copy in
+  sync is a NEW path with its own initial copy — and it is billed as one. A household that
+  finishes eight paths and keeps one running simply falls to Small. The tier rule already
+  produces the right answer; a special case would only have hidden the front-loaded cost.
+- **We do not take money from inattention.** A path billing with nothing to show gets a
+  periodic, one-click *"keep it or finish it"* through the existing summary mail — and billing
+  never runs past **12 months without an explicit re-confirmation**. A product promising "it
+  ends when you say" cannot fund itself on people forgetting, which is the pattern its
+  customers are leaving.
 - **Metering stays INTERNAL.** Bytes and compute are still measured, to check the tiers against
   reality; they simply never reach an invoice. Tiers do not self-correct the way metering does,
   so this is what keeps them honest.

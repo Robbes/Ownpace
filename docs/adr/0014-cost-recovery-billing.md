@@ -34,6 +34,15 @@
 - **Fair use states numbers and a named remedy**: pass the ceiling and we talk to you and move
   you a tier — never a silent throttle, never a surprise invoice — with a warning at 80%, which
   the ledger can see coming.
+- **There is no separate "backup" product or price.** Cutover is terminal, so keeping a copy in
+  sync is a NEW path with its own initial copy — and it is billed as one. A household that
+  finishes eight paths and keeps one running simply falls to Small. The tier rule already
+  produces the right answer; a special case would only have hidden the front-loaded cost.
+- **We do not take money from inattention.** A path billing with nothing to show gets a
+  periodic, one-click *"keep it or finish it"* through the existing summary mail — and billing
+  never runs past **12 months without an explicit re-confirmation**. A product promising "it
+  ends when you say" cannot fund itself on people forgetting, which is the pattern its
+  customers are leaving.
 - **Metering stays INTERNAL.** Bytes and compute are still measured, to check the tiers against
   reality; they simply never reach an invoice. Tiers do not self-correct the way metering does,
   so this is what keeps them honest.
@@ -162,7 +171,6 @@ means everything, and the preflight already measures it.
 | **Medium** | a household | 8 | 1.5 TB | €19 | €8/mo | €43 (3 mo) · €67 (6 mo) |
 | **Large** | a small business | 25 | 4 TB | €99 | €39/mo | €294 over 6 months |
 | **Extra large** | an organisation, or an MSP's first customers | 100 | 15 TB | €249 | €99/mo | €744 over 6 months |
-| **Keep in sync** *(after cutover)* | a second target, indefinitely | — | as above | — | €2 / €3 / €15 / €40 | ongoing |
 
 Small at two paths because one person is typically two source accounts — a mail account and a
 file account. Medium at eight because that is four people with two each.
@@ -185,6 +193,50 @@ not by itself.
 **The margin is the keep-in-sync tier.** Near-zero marginal cost, indefinite duration, almost
 pure contribution. ADR-0039 named the number that decides whether this business works: **what
 fraction of customers keep a mapping running after cutover.** Measure it early.
+
+### After cutover there is no "continuing" path — so there is no backup price
+
+A first draft of this amendment carried a fifth row, *"keep in sync after cutover"*, priced low
+on the reasoning that its marginal cost is near zero. The owner caught the contradiction, and
+the code agrees with the owner.
+
+**Cutover is terminal.** `cutover_event` runs its own machine — `PREPARING → READY_FOR_CUTOVER
+→ APPROVED → CUTOVER_IN_PROGRESS → GRACE_PERIOD → COMPLETED` — and operations are refused once
+a mapping reaches `cutover` or `done` (`apps/api/src/routes/migrations/index.ts:2009`). Once MX
+moves, the old provider stops receiving and the old→new path has nothing left to carry. It is
+finished, not quiet.
+
+So a backup is **not a continuation**. It is a *new* path — the new provider as source, a third
+destination as target — with **its own initial copy**. The bulk is at the front again, exactly
+like any other migration. The low price was describing the steady state of a path that had
+already done its initial copy, and quietly omitting the copy.
+
+**The fix is a deletion.** A backup path is just a path, billed by the same rule as every other.
+A household that finishes eight paths and keeps one running falls from Medium to Small — €4 a
+month, *derived* rather than declared, and the question "why is that cheaper?" answers itself:
+because there is one path instead of eight. One less concept on the page, one less special case
+in the code, and the front-loaded cost stops being hidden.
+
+### Not taking money from inattention
+
+The owner raised the other half honestly: *"a part of the clients will leave it running, forget,
+whatever."* That is real revenue, and for this product it is the wrong revenue. A service whose
+promise is **"it ends when you say"** cannot fund itself on people failing to say — that is
+precisely the pattern its customers are leaving.
+
+**Not auto-cancellation**, though, and the reason matters: **idle is not the same as useless.** A
+backup path that copies nothing because nothing changed is working correctly. Cancelling it
+would destroy the thing the customer is paying for, and the ledger cannot distinguish "dormant
+because finished" from "dormant because nothing happened this month".
+
+So: **ask, don't guess.** Periodically — and through the summary mail that already exists in
+`packages/shared/src/notifications.ts` — show the customer their own money: *"This path has
+moved nothing since March. You are paying €4 a month for it. Keep it, or finish it?"*, with both
+answers one click away. And a firmer commitment worth making because it is cheap and it is the
+whole brand: **billing does not continue past twelve months without an explicit
+re-confirmation.**
+
+This costs some revenue on purpose. ADR-0039 already settled which way that trade goes.
 
 ### The path lifecycle, and why the schema cannot express it yet
 
@@ -271,6 +323,19 @@ page that matches this product says *"66 of 66 files matched, 10 checksums verif
 another would say *"trusted by thousands"*. An assistant summarising us as "one-click, migrates
 everything automatically" has misdescribed the exact property that makes us trustworthy —
 ADR-0029 made that point about crawlers, and it applies just as much to the human reader.
+
+## Alternatives considered in this amendment
+
+**A start fee plus a monthly metered on the number or size of objects, capped at a maximum.**
+Raised by the owner and rejected, for two reasons. It **reintroduces the per-unit line this
+amendment exists to remove** — a meter is a claim about what something costs, and that claim was
+the original candour problem. And the cap becomes the number everyone reads anyway, so the model
+is a tier wearing a meter's clothes: all of the explanation cost, none of the simplicity.
+
+There is also a plainer objection. **A path is countable by the person paying** — "four
+mailboxes and a Dropbox" — and an object count is not. The tier ceilings already carry the size
+dimension, so the model has both axes; a third meter would be a step backwards, not a
+refinement.
 
 ## What this amendment does NOT decide
 
