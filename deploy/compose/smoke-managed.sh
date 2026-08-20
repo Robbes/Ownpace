@@ -453,7 +453,41 @@ APPLY_RESULT="skipped-no-item"
 #
 # `smoke-managed-verdict.unit.test.ts` reads that function and fails if these
 # two lists ever stop agreeing, in either direction.
-HASH="$(q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND status IN ('copied','updated') AND coalesce(target_ref->>'id','') <> '' ORDER BY natural_key_hash LIMIT 1")"
+# WHICH item, and why it must be a DISPOSABLE one.
+#
+# The apply half really deletes what it selects, and deliberately does NOT undo
+# it: the cleanup below retracts the fabricated evidence only when the deletion
+# was NOT applied, because retracting an applied one would leave a receipt
+# pointing at an item claiming no deletion was ever reported -- a falsified
+# record. The deleted key is then TOMBSTONED, and classifyKnownItem refuses
+# forever to re-create a tombstoned natural key (it cannot tell a change of mind
+# from an erasure request).
+#
+# So every run permanently consumed one item, and `ORDER BY natural_key_hash`
+# meant that item was whichever FIXED demo fixture sorted first. Observed live
+# 2026-08-20 across three runs of one stack: four tombstones, and the DAV verify
+# degrading 66/66 -> 65/66 files and 3/3 -> 1/3 calendar until it FAILED. The
+# gate was poisoning the fixtures its own other half measures, and no re-seed
+# could repair it, because the keys were tombstoned.
+#
+# This is fixture exhaustion, the same class of failure as E2E (managed) #20 --
+# and `seed-demo-dav-content.sh --fresh` was built by that fix precisely to mint
+# keys NO TOMBSTONE CAN ALREADY OWN. So: prefer an item that came from a
+# `--fresh` seed. Fixed fixtures are `openmig-demo-<type>-<n>.<ext>`; fresh ones
+# carry a tag between the type and the index, so "digits immediately followed by
+# the extension" identifies exactly the fixtures and nothing else.
+ELIGIBLE="status IN ('copied','updated') AND coalesce(target_ref->>'id','') <> ''"
+FIXTURE_RE="openmig-demo-(event|contact|file)-[0-9]+[.][a-z]+$"
+HREF_EXPR="coalesce(source_ref_href, source_ref->>'href', '')"
+
+pick_disposable() {
+  q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND $ELIGIBLE AND $HREF_EXPR !~ '$FIXTURE_RE' ORDER BY first_seen_at DESC, natural_key_hash LIMIT 1"
+}
+pick_fixture() {
+  q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND $ELIGIBLE ORDER BY natural_key_hash LIMIT 1"
+}
+
+HASH="$(pick_disposable)"
 # ---------- optional: make the precondition exist, rather than wait for it ----------
 # OFF by default. Run by hand, this script is an ACCEPTANCE test: it reports what
 # the stack is, and manufacturing its own fixture would be the same class of lie
@@ -514,7 +548,7 @@ if [ -z "$HASH" ] && [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
   while [ $i -lt "$PREP_POLLS" ]; do
     sleep "$POLL_SLEEP"
     i=$((i + 1))
-    HASH="$(q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND status IN ('copied','updated') AND coalesce(target_ref->>'id','') <> '' ORDER BY natural_key_hash LIMIT 1")"
+    HASH="$(pick_disposable)"
     if [ -n "$HASH" ]; then
       echo "prepare: an eligible item appeared after $((i * POLL_SLEEP))s"
       break
@@ -555,7 +589,24 @@ if [ -z "$HASH" ]; then
   SPENT="$(q "SELECT count(*) FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND status='tombstoned'")"
   echo ""
 
-  if [ "${TOTAL:-0}" = "0" ]; then
+  # THE FIXTURES ARE STILL THERE, and we refused them on purpose. Checked FIRST
+  # because it is the only branch where eligible items exist and the gate
+  # declined them: every branch below explains an ABSENCE, and reading this
+  # state as one of those sends the reader hunting a sync bug again — which is
+  # precisely how run #20 was misread.
+  FIXTURE_HASH="$(pick_fixture)"
+  if [ -n "$FIXTURE_HASH" ]; then
+    echo "DIAGNOSIS: eligible items exist, but only the FIXED demo fixtures — and this"
+    echo "gate now REFUSES to spend one. Applying a deletion tombstones its natural key,"
+    echo "classifyKnownItem never re-creates it, and the verify half measures those same"
+    echo "fixtures. Spending one to make this run green degrades every later run: three"
+    echo "runs of one stack on 2026-08-20 took files 66/66 -> 65/66 and calendar 3/3 ->"
+    echo "1/3 doing exactly that, until verify FAILED. Passing here at that price is the"
+    echo "same trade this script exists to refuse."
+    echo "  ./deploy/compose/seed-demo-dav-content.sh --fresh   # keys no tombstone owns"
+    echo "  # then let a sync tick copy them, and re-run this smoke"
+    echo "(CI needs no hand-holding: SMOKE_PREPARE_APPLY=1 seeds --fresh in prepare.)"
+  elif [ "${TOTAL:-0}" = "0" ]; then
     echo "DIAGNOSIS: the mapping has no items at all — nothing has ever synced here."
     echo "The demo seed creates tenants, connections and mappings but NO items, and"
     echo "setup-nextcloud-users.sh provisions ACCOUNTS with no calendar, contact or"
