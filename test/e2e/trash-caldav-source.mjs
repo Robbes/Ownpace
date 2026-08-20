@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 //
 // Delete ONE already-migrated calendar event on the SOURCE Nextcloud, so the
 // self-host e2e can prove the calendar deletion signal — `evidence: "reported"`

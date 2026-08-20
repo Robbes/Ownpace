@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 import type { SpecialUse } from './mail.ts';
 
 /** IMAP SPECIAL-USE attributes (RFC 6154 + common \\Inbox) -> our SpecialUse. */

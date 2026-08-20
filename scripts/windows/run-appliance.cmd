@@ -1,5 +1,5 @@
 @echo off
-REM Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+REM Copyright 2026 The Ownpace authors (Apache-2.0)
 REM
 REM Run run-appliance.ps1 without fighting the execution policy.
 REM See collect-evidence.cmd for why this wrapper exists at all: stock Windows

@@ -1,6 +1,6 @@
 # Open Migration API
 
-REST API for the Open Migration Stack **managed edition** (Express 5,
+REST API for the Ownpace **managed edition** (Express 5,
 TypeScript). The self-host appliance does not run this app — it serves the
 same operating contract in-process (`apps/selfhost`, ADR-0026).
 

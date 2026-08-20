@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 //
 // Seed the SOURCE Nextcloud account's default calendar + address book + file root
 // for the multi-domain self-host restart-resume e2e (workplan issue #114 follow-up:

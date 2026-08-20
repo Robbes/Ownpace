@@ -188,7 +188,7 @@ rather than as one row:
 - ✅ **Re-creating a share on the target is now an owner decision, per grant** (ADR-0032,
   accepted; workplan 0052): every inventoried grant is a row on the **Sharing checklist**
   — apply it through the target's own share API (Nextcloud OCS first; the target then
-  sends its own invitation, so the invite IS the notification and open-migrate never
+  sends its own invitation, so the invite IS the notification and Ownpace never
   mails third parties), tick it off as done by hand, or skip it deliberately. Applies are
   gated behind cutover, link shares are never auto-recreated, the grantee address is
   confirmed by a person, and every settled row keeps who decided and when. Targets

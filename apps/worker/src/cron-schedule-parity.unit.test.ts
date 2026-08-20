@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * Containment: everything the shared cron validator ACCEPTS, this croner —
  * the exact version the managed tick evaluates schedules with — must parse

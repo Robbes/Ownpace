@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * The runtime IMAP→Graph mail fallback (workplan 0023 T3 — the "runtime
  * detection" half of ADR-0006's promise).

@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 // Database connection utilities for the ledger.
 // PostgreSQL only (see ADR-0010, ADR-0016, ADR-0023).
 // Uses the `pg` driver (node-postgres) with drizzle-orm/node-postgres.

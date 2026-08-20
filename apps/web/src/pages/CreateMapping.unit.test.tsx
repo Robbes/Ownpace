@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * The CreateMapping wizard: completability, failure honesty, and the
  * field-level honesty pass (0033 T3, 0037 T1/T3/T4/T5/T6).

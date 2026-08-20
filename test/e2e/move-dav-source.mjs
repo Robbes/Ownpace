@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 //
 // Move ONE already-migrated calendar event into a second calendar on the SOURCE
 // Nextcloud, so the self-host e2e can prove the move queue against the real stack.

@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * Production URL config guards (release-readiness pass, 2026-08-10) — the
  * same fail-closed posture as assertProductionAuthConfig (0020 T2), applied

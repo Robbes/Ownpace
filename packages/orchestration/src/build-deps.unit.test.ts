@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 
 // Regression guard for the IMAP source auth-wiring bug found via a live e2e.yml run
 // (workplan 0010 T5): buildImapSource() hardcoded authType: 'XOAUTH2' regardless of the

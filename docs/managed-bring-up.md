@@ -100,7 +100,7 @@ the way — when it did, deploys died with a bare `Connection error`.
 ## The short version
 
 ```bash
-git clone … && cd open-migrate
+git clone … && cd Ownpace
 pnpm install --frozen-lockfile
 
 ./deploy/compose/bootstrap-managed.sh          # creates .env, then stops
@@ -498,7 +498,7 @@ The whole configuration is `deploy/compose/.env` plus the two human steps.
 On a new machine:
 
 ```bash
-git clone … && cd open-migrate && pnpm install --frozen-lockfile
+git clone … && cd Ownpace && pnpm install --frozen-lockfile
 ./deploy/compose/bootstrap-managed.sh
 ```
 

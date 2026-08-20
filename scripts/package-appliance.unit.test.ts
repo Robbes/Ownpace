@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
  * The staged appliance payload actually runs (workplan 0015 T3).
@@ -302,10 +302,17 @@ describe('the staged payload', () => {
     // that one literal appears in both, not that each looks right alone.
     const install = readFileSync(join(payload, 'scripts/install-task.ps1'), 'utf-8');
     const uninstall = readFileSync(join(payload, 'scripts/uninstall-task.ps1'), 'utf-8');
-    const name = 'Open Migration Stack.url';
+    const name = 'Ownpace.url';
+    // The PRE-RENAME literal (ADR-0040) must survive in both scripts: install
+    // deletes it so an upgrade-in-place does not leave two identical Start Menu
+    // entries, and uninstall deletes it so a machine installed before the rename
+    // is actually cleaned. A tidy-up that drops it would silently bring back the
+    // leftover, on exactly the machines nobody is watching.
+    const legacy = 'Open Migration Stack.url';
     const menu = 'Microsoft\\Windows\\Start Menu\\Programs';
     for (const [label, text] of [['install', install], ['uninstall', uninstall]] as const) {
       expect(text, `${label}-task.ps1 lost the shortcut name`).toContain(name);
+      expect(text, `${label}-task.ps1 lost the pre-rename shortcut name`).toContain(legacy);
       expect(text, `${label}-task.ps1 lost the Start Menu path`).toContain(menu);
     }
   });

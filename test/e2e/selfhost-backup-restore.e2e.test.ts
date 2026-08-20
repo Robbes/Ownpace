@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 //
 // The backup/restore drill — §22.1's last unbuilt CI gate (workplan 0025 T5).
 //

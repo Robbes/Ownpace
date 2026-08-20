@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 //
 // THIS DIRECTORY IS FIXTURES, NOT TESTS. Tests in this repository colocate with
 // their subject -- `billing-service.unit.test.ts` sits next to `billing-service.ts`

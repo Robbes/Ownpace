@@ -1,6 +1,6 @@
 # Open Migration Web Application
 
-React-based web UI for the Open Migration Stack — **one app, both editions**
+React-based web UI for Ownpace — **one app, both editions**
 (ADR-0026): the managed edition serves it as its portal; the self-host
 appliance serves the same app under `/ui` via the `build:selfhost` bundle.
 
@@ -261,4 +261,4 @@ Apache-2.0
 
 ---
 
-*This web application is part of the Open Migration Stack, an open-source project for sovereign email/data migration.*
+*This web application is part of Ownpace, an open-source project for sovereign email/data migration.*

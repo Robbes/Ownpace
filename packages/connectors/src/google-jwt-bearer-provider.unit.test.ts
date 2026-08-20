@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * The DWD token provider (ADR-0033, workplan 0053 T1). What these hold, in
  * order of what it would cost an operator if wrong:

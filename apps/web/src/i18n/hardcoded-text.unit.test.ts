@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * The guard that ends the class (0035 T2): no new hardcoded English
  * sentences in pages/ or components/.

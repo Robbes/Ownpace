@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * Which data types each wizard target protocol can actually receive
  * (workplan 0037 T4, ADR-0026's one-contract rule).

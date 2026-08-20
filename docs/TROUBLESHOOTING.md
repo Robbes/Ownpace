@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-This guide helps you diagnose and resolve common issues with Open Migration Stack.
+This guide helps you diagnose and resolve common issues with Ownpace.
 
 ## Table of Contents
 
@@ -516,7 +516,7 @@ If you can't resolve your issue using this guide:
    ```
 
 2. **Search GitHub Issues:**
-   https://github.com/Robbes/open-migrate/issues
+   https://github.com/Robbes/Ownpace/issues
 
 3. **Open a new issue:**
    - Include error messages

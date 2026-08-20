@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * "As of when" — the label that ends the Windows weekend's most expensive
  * species of confusion: a number on screen with no statement of when it was

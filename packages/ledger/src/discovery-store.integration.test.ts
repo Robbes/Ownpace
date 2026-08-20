@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 //
 // Integration tests for PgDiscoveryStore (workplan 0013 T2). Requires Postgres with the ledger
 // schema + RLS (migration 0014) — run via `pnpm test:integration` (Testcontainers provides

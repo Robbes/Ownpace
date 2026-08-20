@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * Production URL guards: the localhost fallbacks that used to fail silently
  * at runtime (unreachable Mollie webhook, stranded redirect) now refuse to

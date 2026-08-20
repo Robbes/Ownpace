@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * The billing schemas against the ROUTES' literal responses (0039 T3) —
  * the same fixture discipline as mapping-service.unit.test.ts. The invoice

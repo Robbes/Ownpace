@@ -47,7 +47,7 @@ account (the subject); what widens is the credential, not any mapping.
    | Contacts | `https://www.googleapis.com/auth/carddav` |
 
 4. **Configure it**: paste the whole key file into the wizard's "Service account key"
-   field and state each migration's account. (If you run open-migrate yourself from
+   field and state each migration's account. (If you run Ownpace yourself from
    configuration files, the same key goes in `GOOGLE_SERVICE_ACCOUNT_KEY`, with each
    mapping's account as `user` — for Drive too.) The
    refresh-token fields stop being required; the refusals will say so if something is
@@ -84,7 +84,7 @@ is not a user in the domain.
 **APIs & Services → Credentials → Create credentials → OAuth client ID.**
 
 Pick **Web application** and add `https://developers.google.com/oauthplayground` as an
-authorised redirect URI. That is only to obtain the refresh token in step 4; open-migrate
+authorised redirect URI. That is only to obtain the refresh token in step 4; Ownpace
 never redirects anywhere, because it uses the refresh token directly from then on.
 
 Copy the **client ID** and **client secret**.
@@ -222,7 +222,7 @@ Mint the refresh token exactly as in step 4, with two changes:
 
 **A Drive-consented token will not work.** A refresh token carries the scopes it was
 consented with, and one minted for `drive.readonly` answers `invalid_scope` the first time a
-mail token is requested. That is why open-migrate stores the mail token under its own name:
+mail token is requested. That is why Ownpace stores the mail token under its own name:
 
 ```sh
 GOOGLE_CLIENT_ID=…apps.googleusercontent.com   # the same client as Drive

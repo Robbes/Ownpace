@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
  * WHOSE WORDS a probe result carries (workplan 0080; 0068 T10d asked for it).

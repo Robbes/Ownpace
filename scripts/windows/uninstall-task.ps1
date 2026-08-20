@@ -1,4 +1,4 @@
-# Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+# Copyright 2026 The Ownpace authors (Apache-2.0)
 #
 # Remove the scheduled task, and DELIBERATELY NOT the data
 # (workplan 0015 T3 Phase 3).
@@ -58,10 +58,16 @@ if ($PayloadPath) {
 # The Start Menu shortcut install-task.ps1 wrote. Removed unconditionally --
 # it points at a UI that is no longer served, and a shortcut to nothing is the
 # classic uninstall leftover.
-$shortcut = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs\Open Migration Stack.url'
-if (Test-Path $shortcut) {
-    Remove-Item $shortcut
-    Write-Host "removed Start Menu shortcut '$shortcut'"
+# BOTH names, because the product was renamed (ADR-0040) and a machine installed
+# before the rename carries the old one. Uninstalling with only the new literal
+# would leave exactly the leftover this block exists to prevent.
+$startMenuDir = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs'
+foreach ($name in @('Ownpace.url', 'Open Migration Stack.url')) {
+    $shortcut = Join-Path $startMenuDir $name
+    if (Test-Path $shortcut) {
+        Remove-Item $shortcut
+        Write-Host "removed Start Menu shortcut '$shortcut'"
+    }
 }
 
 if ($IncludeData) {

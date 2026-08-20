@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * The Box factory (workplan 0056): the refusal is the behaviour worth
  * pinning — every missing value at once, in the vocabulary the operator can

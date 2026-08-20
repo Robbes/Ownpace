@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * What build is this? (release-readiness pass, 2026-08-10.) Every support
  * conversation starts with that question, and until the /version endpoints

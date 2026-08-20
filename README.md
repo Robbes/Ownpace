@@ -1,4 +1,4 @@
-# Open Migration Stack
+# Ownpace
 
 Low-maintenance, open-source stack to migrate families and small/medium businesses off US cloud (Microsoft 365, Google, Dropbox) to EU sovereign platforms — starting with **O365 → Soverin / Nextcloud** (Proton later).
 
@@ -17,7 +17,7 @@ Published builds — no toolchain needed:
   build). Install guide: [`docs/selfhost-quickstart.md`](./docs/selfhost-quickstart.md);
   channels + signature verification: [`deploy/selfhost/README.md`](./deploy/selfhost/README.md).
 - **Windows, no Docker:** the appliance payload zip on the
-  [releases page](https://github.com/Robbes/open-migrate/releases) (from
+  [releases page](https://github.com/Robbes/Ownpace/releases) (from
   `v0.1.0` on; unsigned for now, so SmartScreen prompts once). Runbook:
   [`docs/windows-appliance-runbook.md`](./docs/windows-appliance-runbook.md).
 - Every release carries a CycloneDX SBOM; images are cosign-signed by digest.
@@ -33,8 +33,8 @@ Published builds — no toolchain needed:
 ### Installation
 ```bash
 # Clone the repository
-git clone https://github.com/Robbes/open-migrate.git
-cd open-migrate
+git clone https://github.com/Robbes/Ownpace.git
+cd Ownpace
 
 # Install dependencies
 corepack enable pnpm

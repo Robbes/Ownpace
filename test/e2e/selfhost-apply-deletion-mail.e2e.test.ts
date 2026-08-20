@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 //
 // `apply` (ADR-0024) against a REAL Stalwart (JMAP + IMAP) — the mail domain's
 // third, alongside its file and calendar siblings

@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * The Box source, against a fake transport (workplan 0056). What these hold,
  * in order of what it would cost a customer if wrong:

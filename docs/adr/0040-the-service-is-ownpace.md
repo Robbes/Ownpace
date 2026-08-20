@@ -12,15 +12,23 @@
   [workplan 0088](../workplans/0088-a-price-you-can-see-before-you-connect.md) (whose
   "the service name" hold this releases).
 
+> **Update 2026-08-20** — the owner extended this decision the same day: *"i want the repo
+> rename to Ownpace, and i want all copyright headers updated to the new name."* Open question
+> (a) below is therefore **partly answered** — project and service share one name — and the
+> operative bullets are amended in place accordingly (ADR-0038). What that instruction did
+> **not** reach, and what is deliberately untouched, is the third rename surface found while
+> executing it: the operational identifiers. See the amended bullet and the Consequences.
+
 ## Operative rules
 
 <!-- What holds NOW. Amend these bullets in place when a later decision changes them;
      the narrative below stays append-only. Assembled into OPERATIVE.md by
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
-- The **managed service** is named **Ownpace** (`ownpace.eu`). The **project** keeps a separate,
-  descriptive name — the split is deliberate: descriptiveness helps an OSS tool be found and
-  hurts a mark, so each half gets the property it needs.
+- **One name: Ownpace** (`ownpace.eu`) — service *and* project. The repository, every
+  copyright header, `NOTICE`, the README title, the API title and the root package all say
+  Ownpace. The project/service split this ADR first recorded lasted one day and is superseded
+  by the owner's 2026-08-20 instruction; the reasoning that produced it is kept above.
 - **Never draw a name from the category's own vocabulary.** Three rounds found a prior user
   each time: *migrate* → TSG's OpenMigrate (2006); *safe* → SETsafe; *keep* → Keepit A/S.
   A candidate gets a prior-user check **before** a domain is bought, not after.
@@ -30,10 +38,17 @@
 - The **GDPR Article 20 framing belongs in the copy, never in the name** — "transmitted
   directly from one controller to another, where technically feasible" is a claim no competitor
   can take and no registry has to grant.
-- **Three questions stay OPEN and are the owner's, not to be inferred from this one:**
-  (a) whether repo / npm scope / `NOTICE` rename to match; (b) whether to assert the mark in
-  `NOTICE`; (c) whether the post-cutover backup gets its own brand or is a plan name under
-  Ownpace. Recommendations are recorded below; none is decided here.
+- **Operational identifiers keep the old string and are NOT renamed with the brand:** GHCR
+  image names (`ghcr.io/robbes/open-migrate-{api,web,selfhost}`), the compose project, container,
+  network and volume names, the persist directory, and the `openmigrate` DB role. Renaming a
+  compose project **detaches its live volumes** — the running stack would come up empty with the
+  real data dangling — and the published images are cosign-signed against
+  `--certificate-identity-regexp '^https://github.com/Robbes/open-migrate/'`, so a rename breaks
+  signature verification for everything already released. Any change here is a migration, not a
+  rename, and needs its own plan.
+- **Still OPEN, the owner's, not to be inferred:** the npm scope `@openmig/*` (13 packages, all
+  `private: true`, so no external consumer); whether to assert the mark in `NOTICE` (still held);
+  and whether the post-cutover backup gets its own brand or is a plan name under Ownpace.
 
 ## Context
 

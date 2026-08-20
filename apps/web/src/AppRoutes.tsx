@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * The route table, extracted from App.tsx so tests can mount it in a
  * MemoryRouter (0034 T5) — App.tsx keeps the providers and BrowserRouter.

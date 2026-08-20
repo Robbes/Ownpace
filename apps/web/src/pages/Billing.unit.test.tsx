@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * Billing against workplan 0039: failed reads say so (T2 of 0033), the
  * arithmetic is the served arithmetic (T2), the invoice contract is the

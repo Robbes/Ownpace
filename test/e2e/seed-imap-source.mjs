@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 //
 // Seed the SOURCE mailbox for the self-host restart-resume e2e (workplan 0010 T5).
 // The restart-resume gate is only meaningful against a non-zero source, so this

@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 //
 // Workplan 0009 T2 — the `--yes` approval gate on state-changing cutover
 // subcommands (arch doc §11.2 control actions, AGENTS.md hard rule 2:

@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * The Dropbox factory (workplan 0055): the refusal is the behaviour worth
  * pinning — every missing value at once, in the vocabulary the operator can

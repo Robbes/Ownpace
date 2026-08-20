@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 //
 // Shared harness for the three `apply` (ADR-0024) real-server e2e files —
 // selfhost-apply-deletion-{file,mail,calendar}.e2e.test.ts. Split into three

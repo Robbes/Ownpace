@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
  * `JmapContactTarget` against a REAL Stalwart (workplan 0031 T2.2).
@@ -62,7 +62,7 @@ function fixtureVcard(uid: string): string {
     `UID:${uid}`,
     'FN:Integration Fixture',
     'N:Fixture;Integration;;;',
-    'ORG:Open Migration Stack;Engineering',
+    'ORG:Ownpace;Engineering',
     'ROLE:Probe',
     'EMAIL;TYPE=work:fixture@dev.local',
     'TEL;TYPE=cell:+31600000001',

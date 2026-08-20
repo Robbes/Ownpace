@@ -1,4 +1,4 @@
-// Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+// Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * The sharing queue (ADR-0032, workplan 0052) — what these hold, in order of
  * what it would cost an owner if wrong:

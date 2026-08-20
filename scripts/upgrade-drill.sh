@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2026 The Open Migration Stack authors (Apache-2.0)
+# Copyright 2026 The Ownpace authors (Apache-2.0)
 #
 # The CONTAINER-level N-1 -> N upgrade drill (workplan 0025 T5, SAD §22.1).
 #

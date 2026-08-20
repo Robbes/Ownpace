@@ -40,8 +40,8 @@ Clone the repo (or copy the `deploy/selfhost/` directory and the source it
 builds from) onto the host:
 
 ```sh
-git clone https://github.com/robbes/open-migrate.git
-cd open-migrate
+git clone https://github.com/robbes/Ownpace.git
+cd Ownpace
 ```
 
 ## 2. Configure secrets
