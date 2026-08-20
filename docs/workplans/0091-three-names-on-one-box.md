@@ -94,10 +94,39 @@ authorization code for a real customer lands on a test machine.
 **Recommendation: do not serve `app.` yet.** A name that does not answer cannot be relied on by
 accident, and `ota.` is a complete environment, so nothing is lost by testing there.
 
-Serving it anyway means a **second complete managed stack** — its own Postgres, its own
-Trigger.dev (ClickHouse, Redis, MinIO, registry, supervisor), its own volumes, under a separate
-compose project name. That is a lot of machine for an environment whose only present purpose is
-to prove a route works, which `ota.` proves already.
+Serving it anyway is **cheaper than an earlier draft of this plan claimed**, and the correction
+matters because it removes the lazy argument and leaves only the real one.
+
+**Trigger.dev does not have to be duplicated.** A Trigger project has environments natively —
+the repository already uses one (`TRIGGER_SECRET_KEY=tr_prod_…`, "the PROD environment's secret
+key"), and the owner has seen `staging` and `production` in their own project. One instance can
+serve both: separate secret keys, separate deployed task versions, separate runs, separate task
+env vars. So the heavy half — ClickHouse, Redis, MinIO, the registry, the supervisor — is shared,
+and only the light half is duplicated: `api`, `web`, and the app's own Postgres.
+
+**And the mechanism is already there.** `set-task-env.sh:80` reads
+`ENV_FILE="${SET_TASK_ENV_FILE:-${SCRIPT_DIR}/.env}"`, so a second environment's task variables
+upload today by pointing that variable at a second env file. The secret key in that file *is*
+the environment selector.
+
+So the argument for keeping `app.` dark is **not** cost. It is the one in the paragraph above:
+the name currently resolves to the development box, so a URI registered as production points at
+development. That is the whole reason, and it is sufficient.
+
+**Three things do stay shared, and each is a real consequence rather than a caveat:**
+
+1. **The task `DATABASE_URL` is the actual isolation boundary, not Trigger.** Trigger's
+   environments separate *runs*; they do not separate *your data*. Two environments whose
+   uploaded `DATABASE_URL` is the same are one database behind two façades. Isolation lives in
+   what `set-task-env.sh` uploads, which is why the second env file is the load-bearing part.
+2. **Compute is shared.** One supervisor, one runner pool. A runaway test job competes with
+   production for capacity; per-environment concurrency limits shape that but the machine
+   underneath is one machine. Acceptable on the spark, not acceptable once `app.` is real.
+3. **The version pin is instance-wide.** `TRIGGER_IMAGE_TAG=v4.5.9` carries a scar — 4.5.11
+   broke the reference deployment within an hour, against ~27,500 successful runs on 4.5.9 — so
+   the pin is deliberate. One instance means **you cannot canary a Trigger upgrade in staging
+   while production stays put**: both move together, or neither does. That is the sharpest
+   argument for separate instances *later*, and it costs nothing now.
 
 The trigger for changing this is written down rather than left to judgement: **`app.` gets
 served when `app.` stops meaning spark** — pointed explicitly at production hosting ahead of the
