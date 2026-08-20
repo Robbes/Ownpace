@@ -4,7 +4,7 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T1 Decide the pricing shape this quotes (owner) | ⛔ **Blocking, not started** — nothing below is built until it lands | Two findings put to the owner in this plan: the egress line already carries a ~200× markup, and the model prices bytes while the cost is hours. Output is an ADR-0014 amendment or a reaffirmation with the findings recorded. |
+| T1 Decide the pricing shape this quotes (owner) | ✅ **Done 2026-08-20** — T2–T5 unblocked | [ADR-0014 amended](../adr/0014-cost-recovery-billing.md): five tiers on **two axes, higher wins** — paths running at the same time (Tiny 1 / Small 4 / Medium 20 / Large 50 / XL 200), billed on the **month's peak**, and **cumulative data moved** (250 GB / 750 GB / 2 TB / 7.5 TB / 15 TB), counting each item's first copy only and never falling — though a **top-up** buys another band of room for that tier's setup fee, without moving the tier. A **path is one object type from one account to one account**; no per-GB or compute line on any invoice; fair-use ceilings; metering kept internal. The tier is **derived, never picked** — downgrade automatic, upgrade consented — and each tier's price splits into a one-off setup and a monthly, with step-ups charging only the difference. Both findings recorded — the ~200× egress markup and bytes-priced-where-cost-is-hours. **Five** schema consequences named there and not solved: `mailbox_mapping.status` defaults to `'active'` when billing needs `'ready'`; there is no `activated_at`; peak occupancy needs `ended_at` plus a per-tenant per-month high-water record; — the blocking one — **the lifecycle is per-mapping while the billing unit is per-`(mapping, domain)`**, so a path cannot be cut over on its own today; and the byte meter needs an append-only counter, since `migration-status-store.ts:182` sums live rows and counts `'skipped'`. |
 | T2 `INDICATIVE_PROFILES` — the assumptions, versioned | 📋 Planned | Customer type × object type → item counts and GB, every number carrying a provenance comment; covered by a unit test that refuses a silent gap. |
 | T3 The static page | 📋 Planned (needs T1, T2) | One self-contained file under `site/pricing/`, no workspace imports, no account, no server state, five inputs. |
 | T4 The drift guard, on the managed side | 📋 Planned (needs T3) | The page's numbers vs `packages/managed/src/pricing.ts`, plus an assertion that the appliance graph never reaches the calculator. |
@@ -97,7 +97,13 @@ counts and GB. Starting assumptions, to be argued with rather than trusted:
 | Calendar | 2k / 0.2 GB | 8k / 0.5 GB | 40k / 2 GB |
 | Files | 10k / 30 GB | 40k / 120 GB | 250k / 600 GB |
 | Photos | 15k / 60 GB | 60k / 250 GB | rare |
-| paths | 1 | 4–6 | 10–14 |
+| paths | 4–5 | 16–20 | 40–56 |
+
+The `paths` row counts the ADR-0014 unit — **one object type, one account to one account** — so
+an individual with mail, contacts, calendar and files is four, not one. It is derived from the
+rows above it rather than declared, and the unit test should assert that: a paths count that
+does not follow from the object types ticked is the single easiest way for this table to start
+lying.
 
 Every cell carries a provenance comment saying where the number came from, and the table
 carries a version and a date. The unit test refuses a silent gap: every customer type
@@ -123,6 +129,19 @@ Constraints, all load-bearing:
   Microsoft, Dropbox, Apple, other); what (object types); how much ("your provider already
   shows this number" + a link per provider, plus an honest *I don't know* → the T2 median);
   **until when** (1 / 3 / 6 months / *when I'm ready*).
+- **Both axes shown, with the higher one highlighted as it changes.** The tier is
+  `max(paths, data)`, so a page that shows only the path count will quote the wrong tier for
+  every photo-heavy visitor — the single most likely way this calculator lies.
+- **The path count, visible and adding up as they tick object types.** *"Mail, contacts,
+  calendar, files — that is four paths."* Nothing else on the page means anything until this
+  has landed, and it is the one place the page can teach the unit without a paragraph.
+- **A calculator, not a plan selector.** The visitor never chooses a tier — the page derives it
+  from the inputs and says so. Nothing on the page may read as "pick your plan"; ADR-0014's
+  whole guess-proofness argument rests on the tier being a consequence rather than a choice.
+- **Setup and monthly shown separately**, with the step-up rule in one sentence, because a
+  single "first month" number is what made the earlier draft look like a mis-pick penalty.
+- **The word is "at the same time", never "concurrent" and never "used"** — an ADR-0014
+  operative rule, and worth a grep guard alongside T5's.
 - Duration is a **choice, not a prediction**. That is the product's promise stated in the
   pricing UI, and it makes the recurring line visibly the customer's to control — which is
   the fear a monthly price provokes.
@@ -151,6 +170,16 @@ later edit cannot quietly drop them:
 - **The line about what it cannot know:** *"this assumes your target accepts your data. We
   verify that in the preflight, which is free."* Same discipline as ADR-0029's `SKIPPED`:
   the absence of a check is stated, never implied away.
+- **The bill-goes-down sentence, stated up front rather than discovered:** finishing paths
+  lowers the tier by itself, automatically and without asking — the counterpart to the
+  pausing-does-not sentence, and the reason the page does not need a "cancel" story.
+- **And its limit, in the same breath:** the data axis never falls, so the size of what was
+  moved sets a floor — or a top-up keeps them where they are. A page that promises the fall
+  without naming the floor is the version of this that generates the complaint.
+- **The top-up choice, with its break-even shown**, since it is the one decision on the page a
+  visitor can get wrong and the one place a no-profit service could quietly profit from steering.
+  T4's drift guard covers the top-up prices too: they are the setup fees, so a page that lets
+  the two drift apart is offering a block at a price the invoice will not honour.
 
 ## T6 — name the three rungs, and what a free preflight may keep
 
@@ -171,4 +200,6 @@ sovereignty product this is a property to state publicly, not a cleanup job.
   first byte). This plan stops at the page and the ladder's documentation.
 - The retention machinery in T6 — the rule is stated, the expiry job is not built.
 - Any change to `calculateCost` or to the invoice path.
-- The service name. `site/pricing/` carries no brand until that is decided.
+- ~~The service name~~ — decided: **Ownpace** (ADR-0040).
+- The public page's copy and layout: sketched in ADR-0014's amendment (order, tone, what the
+  page must not claim), built here only as far as `site/pricing/` goes.
