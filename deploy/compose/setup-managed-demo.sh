@@ -143,6 +143,34 @@ NEXTCLOUD_CONTAINER="${NEXTCLOUD_CONTAINER}" \
 DAV_USER=tenant-b-source DAV_PASSWORD=tenant_b_source_pw \
   "${REPO_ROOT}/deploy/compose/seed-demo-dav-content.sh"
 
+# And the MAIL source, for the same reason the DAV content above exists.
+#
+# The comment above already contrasts this seeder's "only if empty" guard with
+# the DAV one's overwrite-in-place — but nothing ever CALLED it, so a freshly
+# bootstrapped managed stack got DAV content and an empty mailbox. Every
+# smoke-managed.sh run then failed its mail half with `verify (mail) reached
+# 'done' but compared NOTHING: totalItemsSource=0`, correctly refusing to read
+# an empty source as a clean verification (found on a live bring-up
+# 2026-08-20). A demo backend half-seeded is the condition that cost run #7;
+# the fix is the same one the DAV lane already had.
+#
+# SEED_ONLY_IF_EMPTY is the load-bearing flag here and is exactly why that
+# option exists: this seeder APPENDS, so an unguarded re-run on a long-lived
+# stack (this script runs at every bring-up, and the nightly e2e re-runs it)
+# would grow the mailbox by SEED_COUNT every single time.
+#
+# Host ports, not service names: this script runs on the HOST, so it reaches
+# Stalwart through the published IMAPS port rather than over $MANAGED_NETWORK.
+echo "[setup-managed-demo] Seeding messages into the demo mail source..."
+SEED_IMAP_HOST=127.0.0.1 \
+SEED_IMAP_PORT="${STALWART_IMAPS_PORT:-1994}" \
+SEED_IMAP_TLS=true \
+SEED_IMAP_USER=source@dev.local \
+SEED_IMAP_PASSWORD=source_password \
+SEED_COUNT="${SEED_MAIL_COUNT:-5}" \
+SEED_ONLY_IF_EMPTY=true \
+  node "${REPO_ROOT}/test/e2e/seed-imap-source.mjs"
+
 echo "[setup-managed-demo] Done. Demo backend ready for seed-managed.ts:"
 echo "[setup-managed-demo]   Mail:  stalwart:993 (IMAPS) / stalwart:8080 (JMAP) on ${MANAGED_NETWORK}"
 echo "[setup-managed-demo]   DAV:   http://nextcloud/ on ${MANAGED_NETWORK}"

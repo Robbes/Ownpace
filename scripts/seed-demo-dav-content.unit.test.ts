@@ -170,6 +170,19 @@ describe('it runs at bring-up, not only when something is already missing (0084)
     expect(demo).toContain('NEXTCLOUD_SOURCE_USER=tenant-b-source');
   });
 
+  it('bring-up seeds BOTH demo sources — mail as well as DAV', () => {
+    // The asymmetry this pins cost a live bring-up. setup-managed-demo.sh ran
+    // the DAV seeder and never the mail one, so a freshly bootstrapped stack
+    // had calendar/contact/file content and an EMPTY mailbox — and every
+    // smoke-managed.sh failed its mail half with "reached 'done' but compared
+    // NOTHING: totalItemsSource=0", correctly refusing to read an empty source
+    // as a clean verification. The script's own comment already contrasted the
+    // two seeders' idempotency strategies, so the gap was not for want of
+    // knowing the mail seeder existed; nothing simply called it.
+    expect(demo).toContain('seed-demo-dav-content.sh');
+    expect(demo).toContain('seed-imap-source.mjs');
+  });
+
   it('needs no only-if-empty guard, because it overwrites rather than appends', () => {
     // The MAIL seeder appends, so an unguarded re-run on this long-lived stack
     // grows the mailbox every night — hence SEED_ONLY_IF_EMPTY there. This one
@@ -188,7 +201,21 @@ describe('it runs at bring-up, not only when something is already missing (0084)
     // Every name written exactly twice — overwritten, not added to.
     expect(new Set(paths).size).toBe(paths.length / 2);
     expect(readFileSync(SEEDER, 'utf8')).toContain('201|204');
-    expect(demo).not.toContain('ONLY_IF_EMPTY');
+    // Scoped to the DAV INVOCATION, not the whole file. This used to assert the
+    // string was absent from setup-managed-demo.sh entirely, which was true only
+    // while that script had one seeder in it; wiring the mail seeder (which
+    // needs the guard, as this test's own comment says) tripped it. The
+    // property being guarded was always "the DAV call has no guard", so that is
+    // what it now checks.
+    const davSection = demo
+      .split(/echo "\[setup-managed-demo\]/)
+      .find((section) => section.includes('seed-demo-dav-content.sh'));
+    expect(davSection, 'DAV seeder call not found in setup-managed-demo.sh').toBeDefined();
+    // Cut AT the invocation: the section runs on to the next `echo`, which now
+    // carries the mail seeder's own comment — and that comment names the flag.
+    // Prose about the guard is not the guard.
+    const davCall = davSection!.slice(0, davSection!.indexOf('seed-demo-dav-content.sh'));
+    expect(davCall).not.toContain('ONLY_IF_EMPTY');
   });
 
   it('bring-up seeds the FIXED fixture — it is the demo, not a smoke fixture', () => {
@@ -302,6 +329,35 @@ describe('--fresh seeds keys no tombstone can already own', () => {
     );
     expect(r.stdout).toContain('events:0 contacts:0 files:0');
     expect(r.status).not.toBe(0);
+  });
+
+  it('the "watch it land" hint is paste-safe — credentials resolve INSIDE the container', () => {
+    // Found by an operator pasting it: the hint used to read
+    //   docker exec ownpace-db psql -U "$POSTGRES_USER" ...
+    // and the surrounding heredoc is quoted (deliberately — unquoting it would
+    // expand POSTGRES_USER/POSTGRES_DB to nothing and RUN the backticked
+    // words), so those names print literally and then get expanded by the
+    // OPERATOR'S shell, where they are not set. psql fell back to the host
+    // username: `FATAL: role "root" does not exist`.
+    //
+    // A command a script prints for a human to paste is part of its interface.
+    // This pins that the expansion happens in the container, which HAS the
+    // variables, by asserting the `sh -c` wrapper rather than the bare form.
+    const script = readFileSync(SEEDER, 'utf8');
+    expect(script).toContain(`docker exec -i ownpace-db sh -c 'psql -U "$POSTGRES_USER"`);
+    expect(script).not.toMatch(/docker exec ownpace-db psql -U "\$POSTGRES_USER"/);
+  });
+
+  it('the hint groups by `domain`, never the legacy `item_type`', () => {
+    // `item` carries both columns. `domain` ('email','calendar','contact',
+    // 'file') is what ledger.ts writes; `item_type` is legacy, unmodelled by
+    // the ORM, NOT NULL with DEFAULT 'mail' and written by nothing. Grouping a
+    // DAV mapping by item_type returns `mail` for every row — a confident
+    // WRONG answer, which cost a live debugging session chasing a cross-domain
+    // leak that did not exist. An error would have been kinder.
+    const script = readFileSync(SEEDER, 'utf8');
+    expect(script).toMatch(/SELECT domain, status, count\(\*\) FROM item/);
+    expect(script).not.toMatch(/SELECT item_type, status/);
   });
 
   it('counts resources, not matching lines — Nextcloud answers on one', () => {
