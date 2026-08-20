@@ -112,9 +112,21 @@ resolving to the spark box. Google matches byte-for-byte, before any redirect of
 trailing slash or a missing port is a failure and not a near-miss:
 
 ```
-https://app.ownpace.eu/oauth/google/callback      production
-https://ota.ownpace.eu/oauth/google/callback      test / dev
+https://app.ownpace.eu/oauth/google/callback          production
+https://app.ota.ownpace.eu/oauth/google/callback      test / dev
 ```
+
+⚠️ **The second one changed on 2026-08-20 and the console must follow.** It was registered as
+`https://ota.ownpace.eu/oauth/google/callback` when the test app lived at `ota.ownpace.eu`; the
+owner has since moved to the environment as a **domain level** (`www.ota.…` / `app.ota.…`
+alongside `www.…` / `app.…`), so the test app is now `app.ota.ownpace.eu`. Google matches
+byte-for-byte, so the old entry does not "also work" — it never matches. Replace it before the
+consent flow is first exercised.
+
+⚠️ **A wildcard covers exactly one label.** `*.ownpace.eu` does **not** match
+`app.ota.ownpace.eu` — for DNS or for TLS. That needs `*.ota.ownpace.eu` as well, and neither
+failure names itself: the DNS one reads as propagation, the TLS one is a handshake that dies
+before any HTTP error appears.
 
 **One subdomain per environment** — the owner's own suggestion, and better than the loopback
 workaround it replaced. Loopback is no longer needed at all; if a developer wants it,
@@ -135,8 +147,10 @@ become a liability at the exact moment the service became real.
 >
 > Two ways out, and the second is the one ADR-0041 already asks for:
 >
-> 1. **Point `app.` explicitly** at production hosting, ahead of the wildcard, before the client
->    is used for anything real. A specific `A`/`CNAME` beats the wildcard.
+> 1. **Scope the wildcard down to the test environment.** The owner's move to `*.ota.ownpace.eu`
+>    does exactly this: the test names live under `ota.` and a wildcard there cannot answer for a
+>    production name. `www.ownpace.eu` and `app.ownpace.eu` then get explicit records — pointed
+>    at production hosting when it exists, and at nothing until then.
 > 2. **Register `app.` on a different client from `ota.`** — the split this file already
 >    recommends. Then the development client physically cannot mint a token against the
 >    production hostname, and a leaked dev secret is not a production incident. The trigger for

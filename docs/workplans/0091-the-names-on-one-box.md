@@ -1,4 +1,4 @@
-# Workplan 0091 — three names on one box
+# Workplan 0091 — the names on one box
 
 ## Status — 2026-08-20 (update this block at the end of every session)
 
@@ -12,7 +12,19 @@
 
 ## Why this exists
 
-The owner is standing up `www`, `ota` and `app` on the spark box.
+The owner is standing up the managed service's public names, with the environment as a **domain
+level** rather than a prefix (owner decision, 2026-08-20):
+
+| | production | test / dev |
+|---|---|---|
+| site | `www.ownpace.eu` | `www.ota.ownpace.eu` |
+| app | `app.ownpace.eu` | `app.ota.ownpace.eu` |
+
+This is a better scheme than the flat one it replaces. The environment is visible in every name,
+it extends without further decisions (`api.ota.…` if that is ever wanted), and — see T4 — it is
+what makes the production/test boundary *real* rather than merely conventional.
+
+**Three consequences follow, and one of them invalidates something already registered.**
 
 **Routing and TLS are netbird's, not this repository's.** Netbird maps a subdomain to a local
 target and port, and the owner has that in hand — so there is no reverse proxy to add here, no
@@ -25,6 +37,51 @@ Google correct as they stand — `https://ota.ownpace.eu/oauth/google/callback` 
 because externally there is none to carry, while netbird delivers it to whichever port the
 service actually listens on. Nothing needs re-registering, and nothing has to change when a
 service later moves to a different host: **the port never appears in anything Google stores.**
+
+### 1. A registered redirect URI is now wrong
+
+`https://ota.ownpace.eu/oauth/google/callback` was registered with Google when the test app
+lived at `ota.ownpace.eu`. Under the new scheme the test app is at `app.ota.ownpace.eu`, so the
+URI must become:
+
+```
+https://app.ownpace.eu/oauth/google/callback          production   (unchanged)
+https://app.ota.ownpace.eu/oauth/google/callback      test / dev   (replaces ota.ownpace.eu)
+```
+
+Google matches byte-for-byte, so the old entry does not "also work" — it simply never matches.
+Change it in the console before the consent flow is first exercised.
+
+### 2. A wildcard matches exactly ONE label
+
+`*.ownpace.eu` covers `www.ownpace.eu` and `app.ownpace.eu`. It does **not** cover
+`app.ota.ownpace.eu` — that needs `*.ota.ownpace.eu`. This is true for **DNS and for TLS
+certificates alike**, and it is worth knowing in advance because neither failure names itself:
+the DNS one looks like a propagation problem, and the TLS one is a handshake that dies before
+any HTTP error can be seen — the same silent death `trigger-tls.Caddyfile` already warns about
+for a different cause.
+
+So: two wildcards (`*.ownpace.eu` and `*.ota.ownpace.eu`), or a certificate whose SAN list names
+both.
+
+### 3. No cookies, so no cross-environment bleed
+
+Worth stating because the nesting *looks* like it should be a problem: `app.ota.ownpace.eu` and
+`app.ownpace.eu` share the registrable domain `ownpace.eu`, so a cookie set with
+`Domain=.ownpace.eu` from either would be sent to the other — a test session reaching production.
+
+**It is not a problem here, because the application uses no cookies.** Authentication is a
+bearer token in `localStorage` (`apps/web/src/services/api.ts:31`,
+`operating-service.ts:46`), and `localStorage` is scoped **per origin** — two different hosts are
+two different stores, with no attribute that can bridge them.
+
+That is a property to keep rather than a fact to note. **If a session cookie is ever
+introduced, it must stay host-only** — no `Domain=` attribute, and ideally a `__Host-` prefix,
+which makes host-only enforceable by the browser rather than by remembering. The Trigger
+dashboard *does* use cookies (which is why `trigger-tls` exists at all), but it is a separate
+operator-only host and not part of this scheme.
+
+---
 
 What *is* ours is smaller and easier to get wrong: the application does not discover its own
 public address. It is told, in four places, and one of them cannot be corrected by restarting.
@@ -86,13 +143,22 @@ against the real machinery — which is what makes T4's recommendation cheap to 
 
 ## T4 — `app` stays dark until it means production
 
-`*.ownpace.eu` resolves **every** name to the spark, `app.` included. So
-`https://app.ownpace.eu/oauth/google/callback` — registered with Google as *production* — points
-at the development box today. Nothing is live, so nothing is harmed; the moment something is, an
-authorization code for a real customer lands on a test machine.
+**The nesting largely solves this, and that is the strongest argument for it.** Under the flat
+scheme `*.ownpace.eu` resolved **every** name to the spark, `app.` included — so the URI
+registered as production pointed at the development box. With the environment as a domain level,
+the test names live under `ota.` and production names do not.
 
-**Recommendation: do not serve `app.` yet.** A name that does not answer cannot be relied on by
-accident, and `ota.` is a complete environment, so nothing is lost by testing there.
+**But only if the wildcard is scoped down with them.** A `*.ownpace.eu` record still pointing at
+the spark keeps `app.ownpace.eu` resolving there, and the hazard survives the rename untouched.
+The recommendation is therefore concrete:
+
+- **`*.ota.ownpace.eu` → the spark.** One wildcard, the whole test environment, and it cannot
+  accidentally answer for a production name.
+- **`www.ownpace.eu` and `app.ownpace.eu` get explicit records**, pointed at production hosting
+  when it exists — and until then, pointed at nothing.
+
+A name that does not resolve cannot be relied on by accident, and `app.ota.ownpace.eu` is a
+complete environment, so nothing is lost by testing there.
 
 Serving it anyway is **cheaper than an earlier draft of this plan claimed**, and the correction
 matters because it removes the lazy argument and leaves only the real one.
