@@ -36,6 +36,23 @@ import { LOCALES, DEFAULT_LOCALE, localeRoot, COPY } from './copy.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, 'dist');
 
+/**
+ * Whether this build is for the PUBLIC site.
+ *
+ * Defaults to false, and the default is the whole point: a test host carries
+ * the legal documents with their placeholders unfilled, and a draft reading
+ * «LEGAL_ENTITY» must never be indexable. Fail-safe means the build that
+ * forgets to say which it is produces the harmless one.
+ *
+ *   node site/build.mjs             -> noindex (test hosts)
+ *   node site/build.mjs --public    -> indexable (www.ownpace.eu only)
+ *
+ * `robots.txt` alone is not enough — it asks a crawler not to *fetch*, which
+ * does not stop a URL discovered elsewhere from being listed. The meta tag is
+ * what actually says "do not index", so both are emitted.
+ */
+const PUBLIC = process.argv.includes('--public');
+
 // ---------------------------------------------------------------- markdown --
 
 const esc = (s) =>
@@ -362,6 +379,7 @@ function layout({ title, description, body, locale, key, draft }) {
 <meta property="og:description" content="${esc(description)}" />
 <meta property="og:type" content="website" />
 <meta property="og:locale" content="${locale === 'nl' ? 'nl_NL' : 'en_GB'}" />
+${PUBLIC ? '' : '<meta name="robots" content="noindex, nofollow" />'}
 ${alternates}
 <link rel="alternate" hreflang="x-default" href="${urlFor(DEFAULT_LOCALE, key)}" />
 <link rel="icon" href="/brand/logo-120.png" />
@@ -543,8 +561,16 @@ if (runDirectly && process.argv.includes('--check')) {
     writeFileSync(dest, p.html);
   }
   if (existsSync(join(HERE, 'brand'))) cpSync(join(HERE, 'brand'), join(DIST, 'brand'), { recursive: true });
-  writeFileSync(join(DIST, 'robots.txt'), 'User-agent: *\nAllow: /\n');
+  writeFileSync(
+    join(DIST, 'robots.txt'),
+    PUBLIC ? 'User-agent: *\nAllow: /\n' : 'User-agent: *\nDisallow: /\n',
+  );
   for (const p of rendered) console.log(`[site] wrote dist/${p.file}`);
+  console.log(
+    PUBLIC
+      ? '[site] PUBLIC build — indexable. Every placeholder must be filled.'
+      : '[site] test build — noindex, and robots.txt disallows everything. Pass --public for www.ownpace.eu.',
+  );
   if (drafts > 0) {
     console.log(
       `[site] ${drafts} unfilled placeholder token(s) rendered visibly — see site/legal/README.md.\n` +
