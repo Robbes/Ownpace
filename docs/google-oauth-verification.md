@@ -120,6 +120,13 @@ https://ota.ownpace.eu/oauth/google/callback      test / dev
 workaround it replaced. Loopback is no longer needed at all; if a developer wants it,
 `http://localhost:3123/oauth/google/callback` is a third entry and nothing depends on it.
 
+**Why these carry no port, confirmed by the owner 2026-08-20:** netbird maps each external name
+on the **default port (443/https)** to a specific internal port on the box. So the port is an
+internal detail that never reaches a URL, a browser, or anything Google stores — which is the
+property worth protecting, because it means a service moving to different hosting later does not
+force a redirect URI to be re-registered. A port in the URI would be legal; it would simply
+become a liability at the exact moment the service became real.
+
 > ### ⚠️ The wildcard means `app.` currently points at the test box
 >
 > `*.ownpace.eu` → spark resolves **every** name, including `app.` — so the URI registered as
