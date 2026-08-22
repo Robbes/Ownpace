@@ -285,13 +285,20 @@ if (!BASE || !PASSWORD || !IMAP_HOST) {
       // is left is the one that was there before — adopted, not replaced.
       const sentAfter = await withImapTestClient(imap, sentMailboxes);
       expect(sentAfter).toEqual(sentBefore);
-      // And NOTHING new appeared at all, beyond the folder this file created
-      // on purpose. A roleless "Sent" sitting beside "Sent Items" would be the
-      // same duplication in a shape the role check above cannot see.
+      // And NOTHING new appeared that this file did not create ON PURPOSE. A
+      // roleless "Sent" sitting beside "Sent Items" would be the same
+      // duplication in a shape the role check above cannot see.
+      //
+      // Matched on the `Ownpace-IT-` stamp rather than against `NEW_FOLDER`
+      // alone. Written the narrow way first, this failed on CI once the prefix
+      // cases above were added — they legitimately create three more mailboxes
+      // (the prefix and two children), and the assertion called them
+      // unexpected. The stamp is what "ours" means in this file; it is also
+      // what `afterAll` sweeps.
       const paths = await withImapTestClient(imap, listMailboxPaths);
-      expect(paths.filter((p: string) => !mailboxesBefore.includes(p) && p !== NEW_FOLDER)).toEqual(
-        [],
-      );
+      expect(
+        paths.filter((p: string) => !mailboxesBefore.includes(p) && !p.startsWith('Ownpace-IT-')),
+      ).toEqual([]);
     }, 120_000);
   });
 }

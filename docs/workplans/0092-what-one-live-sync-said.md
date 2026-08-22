@@ -9,7 +9,7 @@
 | T2b The id guessed out of a sentence | ✅ **Done 2026-08-22** | Same function again: an `alreadyExists` with no explicit `existingId` fell to `/'([a-z0-9]+)'/i`, "try to find the ID in the description" — which in `Mailbox 'Sent' already exists` finds the NAME. Removed; that case now takes T1's re-read-and-adopt, which answers with an id the server actually gave us. |
 | T3 A cadence is not a delay | ✅ **Done 2026-08-22** | Activation now runs the first pass in **both** editions. Appliance: `apps/selfhost/src/first-pass-on-activation.unit.test.ts` proves it on a schedule (`0 5 31 2 *`, the 31st of February) that can never fire, so the run row it asserts could only have come from the activation. Managed: `POST /:mappingId/start` enqueues `run-delta-sync` on the transition into `active`, `concurrencyKey: mappingId` (the tick's own key), reported as `firstRun` on the response. Wizard copy says so, EN and NL. |
 | T5 The create path nothing had ever run | ✅ **Written 2026-08-22, not yet run** | `packages/connectors/src/jmap-mailbox-creation.integration.test.ts` — 4 cases against a real Stalwart. Every existing integration test that touched `ensureMailbox` passed it `INBOX`, so all of them exercised ADOPTION and none exercised CREATION; that is the gap T2 lived in. Mailbox assertions go over **IMAP**, deliberately — asking JMAP whether JMAP did the right thing lets one wrong id agree with itself. Needs docker: not run in this sandbox. |
-| T6 The choice the JMAP target ignored | ✅ **Done 2026-08-22** | `targetFolderPrefix` (owner decision 2026-08-16) is offered by the wizard, validated, stored and honoured by the IMAP and WebDAV targets — and silently dropped by JMAP, which read `folder.name` before `folder.path` where they read `path` first, and never sent a `parentId`. Probed against the real code path before touching it: prefixed `Sent` returned the account's ROOT Sent with no `Mailbox/set` at all; prefixed `Projects` was created at the root with no `Gmail` above it. JMAP now walks the tree, and a source hierarchy nests instead of flattening (`Archive/2024` was becoming a root mailbox called `2024`). 6 more unit cases, 2 more integration cases. |
+| T6 The choice the JMAP target ignored | ✅ **Done 2026-08-22, proven on a real Stalwart** | `targetFolderPrefix` (owner decision 2026-08-16) is offered by the wizard, validated, stored and honoured by the IMAP and WebDAV targets — and silently dropped by JMAP, which read `folder.name` before `folder.path` where they read `path` first, and never sent a `parentId`. Probed against the real code path before touching it: prefixed `Sent` returned the account's ROOT Sent with no `Mailbox/set` at all; prefixed `Projects` was created at the root with no `Gmail` above it. JMAP now walks the tree, and a source hierarchy nests instead of flattening (`Archive/2024` was becoming a root mailbox called `2024`). 6 more unit cases, 2 more integration cases. |
 | T4 A front door with nothing behind it | 📋 Planned (**owner decision**, see below) | `site/build.mjs:412` — the site's only CTA is `mailto:`. `apps/web/src/pages/Login.tsx:44` — the app's sign-in is a textarea you paste a JWT into. `apps/api/src/routes/tenants/index.ts:110` — `POST /api/tenants` answers **501** by design. The only path from visitor to account is the owner running `deploy/compose/seed-managed.sh` and emailing a token that expires in 7 days. |
 
 ## Why this exists
@@ -219,6 +219,24 @@ this safe to change at all (hard rule 1). `upsertEmail` checks an ACCOUNT-WIDE
 snapshot keyed by Message-ID and adopts on a hit regardless of which mailbox the
 message is in, so a message already sitting in a flat mailbox is adopted rather
 than copied again. Checked before writing a line of it.
+
+### And CI printed the tree
+
+The integration run on PR #494 failed the first time, identically on amd64 and
+arm64 — on an over-broad assertion in the new test, not on the code. What it
+printed while failing is the evidence this task wanted:
+
+```
++   "Ownpace-IT-p9054-385519",
++   "Ownpace-IT-p9054-385519/Projects",
++   "Ownpace-IT-p9054-385519/Sent",
+```
+
+Read over IMAP, from a Stalwart that had just been sent a `parentId` — which
+nothing in this codebase had ever done. The prefix is a real parent and the two
+folders are real children of it. Every other assertion in that case passed on
+the same run: exactly one `\Sent` mailbox on the account, and it is the one that
+was there before.
 
 ## Gates
 
