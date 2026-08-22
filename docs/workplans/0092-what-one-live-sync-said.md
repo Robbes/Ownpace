@@ -1,0 +1,172 @@
+# Workplan 0092 — what one live sync said
+
+## Status — 2026-08-22 (update this block at the end of every session)
+
+| Task | Status | Evidence |
+|---|---|---|
+| T1 The mailbox whose role we never looked at | ✅ **Done 2026-08-22** | `JmapTargetWriter.ensureMailbox` matched by NAME and then created with a ROLE, so a source "Sent" against an account already holding "Sent Items" earned Stalwart's `invalidProperties … "A mailbox with role 'sent' already exists."` and took the whole email domain with it. Roles are matched first now (RFC 8621 §2: one per account), with a re-read-and-adopt recovery if the collision only appears at create time. 10 tests in `packages/connectors/src/jmap-ensure-mailbox.unit.test.ts`, one of them the owner's error verbatim. |
+| T2 The mailbox id that was never a mailbox id | ✅ **Done 2026-08-22** | Found while fixing T1, one line below it. `Object.keys(created)[0]` is the CREATION id — every mailbox this writer created came back as the literal string `"0"`, which `upsertEmail` then puts in `mailboxIds`. Now `created["0"].id`, the same read `Email/import` already does 400 lines down. Covered by "returns the SERVER's id for a mailbox it created". |
+| T2b The id guessed out of a sentence | ✅ **Done 2026-08-22** | Same function again: an `alreadyExists` with no explicit `existingId` fell to `/'([a-z0-9]+)'/i`, "try to find the ID in the description" — which in `Mailbox 'Sent' already exists` finds the NAME. Removed; that case now takes T1's re-read-and-adopt, which answers with an id the server actually gave us. |
+| T3 A cadence is not a delay | ✅ **Done 2026-08-22** | Activation now runs the first pass in **both** editions. Appliance: `apps/selfhost/src/first-pass-on-activation.unit.test.ts` proves it on a schedule (`0 5 31 2 *`, the 31st of February) that can never fire, so the run row it asserts could only have come from the activation. Managed: `POST /:mappingId/start` enqueues `run-delta-sync` on the transition into `active`, `concurrencyKey: mappingId` (the tick's own key), reported as `firstRun` on the response. Wizard copy says so, EN and NL. |
+| T4 A front door with nothing behind it | 📋 Planned (**owner decision**, see below) | `site/build.mjs:412` — the site's only CTA is `mailto:`. `apps/web/src/pages/Login.tsx:44` — the app's sign-in is a textarea you paste a JWT into. `apps/api/src/routes/tenants/index.ts:110` — `POST /api/tenants` answers **501** by design. The only path from visitor to account is the owner running `deploy/compose/seed-managed.sh` and emailing a token that expires in 7 days. |
+
+## Why this exists
+
+The owner ran a real Soverin → Stalwart sync on 2026-08-22, with more than mail selected,
+and reported what the screen said. Two of the three things it said were bugs; the third
+was the product working exactly as designed and the design being wrong.
+
+### 1. `A mailbox with role 'sent' already exists.`
+
+Verbatim, from the Live progress panel:
+
+```
+E-mail  Mislukt  2 gesynchroniseerd
+Failed to create mailbox: {"0":{"type":"invalidProperties",
+"description":"A mailbox with role 'sent' already exists.","properties":["role"]}}
+```
+
+Two messages had copied. Then `ensureMailbox` asked `Mailbox/query` for a mailbox
+**named** "Sent", compared the answers by name, found none that matched exactly, and
+created one carrying `role: "sent"`. Stalwart refused, correctly: RFC 8621 §2 allows one
+mailbox per role per account and that account already had one — under a different name.
+
+The name lookup could not have found it, and would not have found it in any account
+whose server localises ("Verzonden items") or spells it differently ("Sent Items").
+`trashMailboxId`, forty lines further down the same file, had already written the reason
+in a comment — *"filtering by name would depend on the server's language"* — and matched
+by role. `ensureMailbox` never got the same treatment.
+
+A role is now matched before a name. A name still matches for the ordinary folders that
+carry no role, and still matches **exactly** rather than through JMAP's contains-filter,
+which answers "Sent Items" for a query of "Sent" and is how this hid for so long.
+
+Two consequences worth stating because they are not obvious:
+
+**A roleless source folder still adopts a role mailbox by name.** `ImapFlowSource` reads
+`specialUse` from the server's LIST attributes ONLY (deliberately —
+`imapflow-source.ts:41`), so a source that advertises no SPECIAL-USE gives us `'normal'`
+for its own "Sent". Refusing to adopt in that case would create a second "Sent" beside
+the first one.
+
+**A name match on a mailbox holding a DIFFERENT role is refused.** A source "Archive"
+must not land in the account's Sent because somebody renamed it.
+
+### 2. And the id it would have returned was `"0"`
+
+`createMailbox`'s success path read `Object.keys(created)[0]`. RFC 8620 §5.3 keys
+`created` **by the creation id the client sent** — `"0"` — with the server's id inside.
+So every mailbox this writer successfully created returned the string `"0"`, and the very
+next thing `upsertEmail` does with that value is `mailboxIds: { "0": true }` on an
+`Email/import`.
+
+Adopted mailboxes were fine, which is why it survived: the INBOX path returns a real id,
+and nothing had ever successfully *created* one against a live server — T1's bug threw
+first. `Email/import` in the same file already read its own `created["0"]?.id` correctly.
+
+### 3. `why not set the frequency, and do a first run after the activation`
+
+The owner's question, and the answer is that there was never a reason.
+
+The appliance's `/mappings/{id}/start` called `scheduleMapping`, which hands the cron to
+croner, whose first firing is the next one the expression names — then answered *"The
+migration is running."* On a quarter-hourly cadence that sentence was true up to fifteen
+minutes later. The managed edition was better but not right: `isSyncDue` calls a mapping
+that has **never** run due immediately, so a brand-new mapping starts within a tick — but
+a mapping that had already run once (which this one had) waits out its full cadence from
+the last run's start.
+
+The cadence is how often a sync **repeats**. It was never meant to be how long the first
+one is postponed. Both editions now run the first pass at the moment of activation, and
+only on the transition into `active` — a second click on an idempotent route is not a
+second migration.
+
+The appliance's kick goes through `scheduler.runOnce`, sharing `InProcessScheduler`'s
+single-flight key with the schedule armed one line above, so a cron firing landing in the
+same moment coalesces instead of running a second pass beside it. The managed enqueue
+carries the tick's own `concurrencyKey: mappingId` for the same reason, and carries **no**
+`domains` — `run-delta-sync` resolves the mapping's live `scope_selection` itself, and a
+copy of the scope taken at activation could name a domain the owner had since switched off.
+
+### 4. The other thing the owner asked, which is not a bug
+
+> `calendar: not selected for this migration — not synced, not checked`
+
+That line is `describeAbsentDomains` (`run-delta-sync.ts:238`) doing its job. It is
+accounting for a domain that did not run, so that a pass covering one domain out of four
+cannot read as a pass covering everything. It sat next to a real failure in the same
+panel, which is what made it look like one.
+
+## T4 — a front door with nothing behind it
+
+The owner asked whether the webpage needs wiring up "to actually registering a client
+with its credentials for the App". It does. Here is the whole of the current path from
+stranger to signed-in customer:
+
+| Step | Where | What actually happens |
+|---|---|---|
+| 1 | `www.ownpace.eu` | The only call to action on the site is `mailto:` — `orderHref()`, `site/build.mjs:412`. "Request access" opens an email client. |
+| 2 | the owner's inbox | A human reads it. |
+| 3 | the reference box | The owner runs `deploy/compose/seed-managed.sh`, which seeds a tenant and **prints a JWT signed with `JWT_SECRET`**. Its own closing line: *"The tokens above expire in 7 days — re-run this to mint fresh ones."* |
+| 4 | email, again | The owner sends the customer a JWT. |
+| 5 | `app.ownpace.eu` | `Login.tsx` is a **textarea**. The customer pastes the token. It is decoded client-side for its claims and kept in `localStorage`. |
+| 6 | seven days later | It expires. Return to step 3. |
+
+**One reading of the question is already built, and it is worth separating.** "Registering
+a client with its credentials" could mean the customer's own **OAuth client** — and that
+part works: `credential-fields.ts:141` asks an O365 connection for `tenantId`, `clientId`
+and a secret, which is ADR-0006's per-customer single-tenant registration exactly, and
+Google, Box and Dropbox have their equivalents. A customer can already hand us their app
+registration through the wizard. What has no path is one level up: the customer **account**
+that the wizard belongs to.
+
+**What already exists, and is more than it looks.** The API's managed auth path is real:
+`apps/api/src/middleware/auth.ts` verifies against a remote JWKS with `jose`, honours
+`iss`/`aud`/`exp`, and takes precedence over the symmetric `JWT_SECRET` when `JWT_ISSUER`
+is set (`:215`). `tenant_member` (`packages/managed/src/schema-managed.ts:138`) keys on a
+**`text` `user_id`** — an external subject — with roles, invite status and `invited_at`
+already modelled. There is **no password column anywhere in the schema, and that is the
+design**: the arch doc puts identity in Zitadel (§7.3, §18), ADR-0035 makes authentication
+the prerequisite for Organisation, and the 2026-08-19 restatement is *"owners sign in;
+migrated people get links, not accounts"*.
+
+So the server half is built to receive an IdP and no IdP has been stood up. What is
+missing is four things, and only the last one is a decision:
+
+1. **An issuer.** Zitadel in `deploy/compose/managed.yml` (nothing in `deploy/` mentions
+   it today), with `JWT_ISSUER` / `JWT_AUDIENCE` set on the API — which is all the API
+   needs to switch paths.
+2. **A sign-in screen** in `apps/web` — authorization-code + PKCE against that issuer,
+   replacing the paste box. The token handling downstream (`services/api.ts:31`) does not
+   change; only where the token comes from does.
+3. **A provisioning path.** `POST /api/tenants` answers 501 *on purpose* — RLS
+   (`tenant_isolation_insert`) requires the new row's id to equal `app.current_tenant`,
+   which a tenant being created never satisfies. So creating a `tenant` + an owner
+   `tenant_member` needs a privileged, non-tenant-scoped route. That route exists as a
+   seed script and has never existed as a product surface.
+4. **What step 1 on the website leads to** — and this is the owner's call:
+
+> **Decision needed.** Does a visitor **sign themselves up** (site CTA → `/signup` →
+> pick a tier → pay → tenant provisioned → signed in), or do they **request access** and
+> the owner provisions them (site CTA → a real form → an invite email → the customer sets
+> up their own sign-in against the IdP)?
+
+They share items 1–3 and differ in everything after. Self-service is the arch doc's
+"self-service onboarding" (§4) and needs ADR-0014's five tiers wired to a Mollie checkout
+before an account can exist. Invite-only keeps `mailto:`'s current shape but makes it
+honest: a form, a `tenant_member` row with `status: 'invited'`, and an invite link — which
+is also the shape `members.ts` already implements for the second and third person in a
+tenant. **Invite-only is the smaller step and it is not a detour**: the self-service flow
+needs the same issuer, the same login screen and the same provisioning route, and gains
+only a checkout in front of them.
+
+Not in scope either way: the appliance. It has no accounts, by design.
+
+## Gates
+
+`pnpm lint` · `pnpm typecheck` · `pnpm test` — green (2026-08-22).
+`pnpm test:integration` NOT run this session: no docker daemon in the sandbox
+(`dial unix /var/run/docker.sock: connect: no such file or directory`). The one
+integration test touched is `discovery-routes.integration.test.ts`'s start-route case,
+extended to assert `activated` and the `firstRun` outcome; it needs a Testcontainers run
+before T3 is called proven end to end.
