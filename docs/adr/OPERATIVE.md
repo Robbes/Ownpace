@@ -516,7 +516,15 @@ live in [README.md](./README.md), the register.
 - **Because of that rule, the issuer is REPLACEABLE**, and the integration must stay
   inside plain OIDC discovery + authorization-code + PKCE + JWKS. No issuer-specific
   API, no issuer-side tenancy model, no issuer-side roles. This is what makes the
-  choice below reversible, and it is the point of the ADR.
+  choice below reversible, and it is the point of the ADR. **Enforced**, not
+  remembered: `apps/api/src/middleware/no-issuer-lock-in.unit.test.ts` scans the
+  shipped source of `apps/` and `packages/` and fails on a provider name or endpoint
+  path; `issuer-is-replaceable.unit.test.ts` drives the real verification path with
+  both providers' discovery documents.
+- **The key-set URL is DISCOVERED, never composed.** `getJWKS` reads `jwks_uri` from
+  the issuer's `/.well-known/openid-configuration`, and refuses a document whose
+  `issuer` does not match the configured one (OIDC Discovery §4.3). `JWT_JWKS_URI`
+  exists as an escape hatch and is not the normal path.
 - **Zitadel is the proposed issuer**, self-hosted beside the managed stack against the
   Postgres it already runs. Pinned by version; upgrades are deliberate, never automatic.
 - **The appliance never gains an issuer dependency**, enforced by

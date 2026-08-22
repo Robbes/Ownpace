@@ -25,10 +25,18 @@
  * the genuine jose implementation, checking a genuine RS256 signature, issuer,
  * audience and claims.
  *
- * The stub also sidesteps a trap. `jwksCache` (auth.ts:68) is a module-level
- * singleton that is never reset, so a per-test stub swapped by re-mocking would
- * bleed between cases. Here the cached value is a stable wrapper that delegates
- * to whichever resolver the current test installed, so the cache is harmless.
+ * The stub also sidesteps a trap. The key-set cache is module-level, so a
+ * per-test stub swapped by re-mocking would bleed between cases. Here the cached
+ * value is a stable wrapper that delegates to whichever resolver the current
+ * test installed, so the cache is harmless — and `__resetJwksCacheForTests`
+ * clears it between cases besides.
+ *
+ * UPDATED 2026-08-22 (ADR-0042): the middleware no longer GUESSES the key-set
+ * URL as `${issuer}/.well-known/jwks.json` — an Auth0/Clerk convention that
+ * matched neither provider this project considered. It reads `jwks_uri` out of
+ * the issuer's discovery document, so `beforeEach` now serves one. That the
+ * cases below went red when it changed is the point of them: they drive the
+ * real path.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -54,7 +62,8 @@ vi.mock('jose', async (importOriginal) => {
 });
 
 const { SignJWT, exportJWK, generateKeyPair, importJWK } = await import('jose');
-const { authenticate, __setMembershipLookupForTests } = await import('./auth.ts');
+const { authenticate, __setMembershipLookupForTests, __resetJwksCacheForTests } =
+  await import('./auth.ts');
 
 const ISSUER = 'https://issuer.example';
 const AUDIENCE = 'openmig-api';
@@ -130,6 +139,22 @@ beforeEach(async () => {
   process.env.JWT_ISSUER = ISSUER;
   process.env.JWT_AUDIENCE = AUDIENCE;
   delete process.env.JWT_SECRET;
+  delete process.env.JWT_JWKS_URI;
+
+  // The issuer's discovery document. `getJWKS` asks for this before it can look
+  // up any key — it no longer guesses a URL (ADR-0042 / `issuer-is-replaceable`),
+  // so without it every case here fails on configuration rather than on the
+  // thing it is testing. `jwks_uri` is only carried to `createRemoteJWKSet`,
+  // which is stubbed above, so its value is never fetched.
+  __resetJwksCacheForTests();
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ issuer: ISSUER, jwks_uri: `${ISSUER}/oauth/v2/keys` }),
+    })),
+  );
 
   // These cases exercise VERIFICATION; the membership gate gets a fake that
   // admits the subject. The gate has its own cases at the bottom.
@@ -141,6 +166,8 @@ afterEach(() => {
   delete process.env.JWT_AUDIENCE;
   __setMembershipLookupForTests(null);
   stub.resolveKey = null;
+  __resetJwksCacheForTests();
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 

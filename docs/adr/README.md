@@ -67,7 +67,7 @@ first.
 | [0039](./0039-no-open-core-and-what-ops-privacy-means.md) | No open-core — closed with a trigger; and what "private ops" means | Accepted 2026-08-19 (resolves the 0009 vs 0036 conflict) |
 | [0040](./0040-the-service-is-ownpace.md) | The service is Ownpace; the project keeps its own name | Accepted 2026-08-20 — three open follow-ups (repo rename, NOTICE assertion, backup naming) |
 | [0041](./0041-who-owns-the-oauth-client.md) | Who owns the OAuth client — managed brings its own, the appliance never does | Accepted 2026-08-21 |
-| [0042](./0042-who-holds-the-passwords.md) | Who holds the passwords — an issuer we can replace | **Proposed** 2026-08-22 — awaiting the owner; the first identity decision in the register |
+| [0042](./0042-who-holds-the-passwords.md) | Who holds the passwords — an issuer we can replace | Accepted 2026-08-22 — the first identity decision in the register. Accepted on condition the replaceability be confirmed; confirming it found the key-set URL was guessed and worked with neither candidate |
 
 ## Reading the statuses
 

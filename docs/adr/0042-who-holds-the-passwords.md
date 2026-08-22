@@ -1,8 +1,9 @@
 # ADR-0042: Who holds the passwords — an issuer we can replace
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-22
-- **Deciders:** Owner (decision pending); researched at the owner's request, 2026-08-22
+- **Deciders:** Owner, 2026-08-22 — accepted with a condition: *confirm* the issuer is
+  replaceable rather than assert it. See "The condition, and what it found".
 
 ## Operative rules
 
@@ -15,7 +16,15 @@
 - **Because of that rule, the issuer is REPLACEABLE**, and the integration must stay
   inside plain OIDC discovery + authorization-code + PKCE + JWKS. No issuer-specific
   API, no issuer-side tenancy model, no issuer-side roles. This is what makes the
-  choice below reversible, and it is the point of the ADR.
+  choice below reversible, and it is the point of the ADR. **Enforced**, not
+  remembered: `apps/api/src/middleware/no-issuer-lock-in.unit.test.ts` scans the
+  shipped source of `apps/` and `packages/` and fails on a provider name or endpoint
+  path; `issuer-is-replaceable.unit.test.ts` drives the real verification path with
+  both providers' discovery documents.
+- **The key-set URL is DISCOVERED, never composed.** `getJWKS` reads `jwks_uri` from
+  the issuer's `/.well-known/openid-configuration`, and refuses a document whose
+  `issuer` does not match the configured one (OIDC Discovery §4.3). `JWT_JWKS_URI`
+  exists as an escape hatch and is not the normal path.
 - **Zitadel is the proposed issuer**, self-hosted beside the managed stack against the
   Postgres it already runs. Pinned by version; upgrades are deliberate, never automatic.
 - **The appliance never gains an issuer dependency**, enforced by
@@ -99,6 +108,44 @@ Zitadel projects, no Zitadel roles, no Zitadel management API in our code.
 `assertRequiredClaims` should require `sub` and `email` only; `tenantId` resolves from
 `tenant_member`, and `role` already does. That is a change worth making regardless of
 issuer — it removes a claim the code ignores and a claim the code duplicates.
+
+## The condition, and what it found
+
+The owner accepted this ADR on the condition that the replaceability claim be
+**confirmed rather than asserted**. Confirming it found that, as written, it was
+false — and that the chosen provider would not have worked either.
+
+`getJWKS` composed the key-set URL by string concatenation:
+
+```ts
+`${jwtIssuer}/.well-known/jwks.json`
+```
+
+with a comment naming Auth0 and Clerk and adding "for other issuers, they should
+provide the JWKS endpoint". That path is those two providers' convention. It is not
+a standard, and it matches **neither** provider this ADR considered:
+
+| | `jwks_uri` |
+|---|---|
+| Zitadel | `{domain}/oauth/v2/keys` |
+| Keycloak | `{host}/realms/{realm}/protocol/openid-connect/certs` |
+
+So the managed authentication path worked with two providers nobody had chosen, and
+would have failed on first contact with the one that was — with a message about
+fetching keys, at the end of a deployment, which is the worst place to learn it.
+
+**The fix is the standard the guess was standing in for.** Every compliant provider
+publishes `/.well-known/openid-configuration` with `jwks_uri` in it. Asking removes
+the last piece of provider knowledge from the codebase, which is what turns "the
+issuer is replaceable" from an intention into a property. Switching provider is now
+`JWT_ISSUER` and `JWT_AUDIENCE`, and two tests fail if that stops being true.
+
+One protection came with it: the discovery document's `issuer` must equal the
+configured one. Without that check, anything able to answer at the discovery URL — a
+hijacked DNS record, a misconfigured proxy — points verification at a key set it
+controls, and every token it mints then verifies. That is a 500 rather than a 401,
+deliberately: it is our configuration being wrong or attacked, and no caller's token
+can fix it.
 
 ## Consequences
 

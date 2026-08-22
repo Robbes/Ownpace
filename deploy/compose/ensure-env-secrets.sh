@@ -59,8 +59,16 @@ is_placeholder() { # is_placeholder <value>
 # So: this script fills in a MISSING key, which is safe, and refuses to replace
 # an existing one, which is not. Rotating deliberately is a procedure, not a
 # side effect — see docs/managed-bring-up.md.
+#
+# ZITADEL_MASTERKEY is the same shape of hazard for the same reason: it is the
+# key the identity provider encrypts its own data with, so replacing it on an
+# instance that already holds users strands them. Added to the refusal list
+# rather than trusted to be remembered (ADR-0042).
 needs_rotation_procedure() { # needs_rotation_procedure <name>
-  [ "$1" = "TRIGGER_ENCRYPTION_KEY" ]
+  case "$1" in
+    TRIGGER_ENCRYPTION_KEY | ZITADEL_MASTERKEY) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 ensure() { # ensure <name> <bytes>
@@ -115,6 +123,23 @@ ensure TRIGGER_ENCRYPTION_KEY 16
 ensure TRIGGER_LOGIN_SECRET 16
 ensure TRIGGER_MANAGED_WORKER_SECRET 16
 ensure PGBOUNCER_AUTH_PASSWORD 24
+
+# The identity provider's own encryption key (ADR-0042).
+#
+# SIXTEEN, not 32, and that is not a weaker key — it is the same 128 bits of
+# entropy in the form the provider demands. It requires a masterkey of exactly
+# 32 CHARACTERS, and `openssl rand -hex 16` produces exactly 32 hex characters.
+# Passing 32 here would produce 64 and the container would refuse to start,
+# which is a confusing first bring-up for an obvious reason nobody sees.
+# `zitadel-masterkey-is-32-chars.unit.test.ts` pins the arithmetic.
+ensure ZITADEL_MASTERKEY 16
+# The database user the identity provider creates for itself. It does NOT share
+# app_user: that role exists so the API's request path is bound by RLS, and an
+# unrelated application borrowing it would be a second reason for its grants to
+# change.
+ensure ZITADEL_DB_PASSWORD 24
+# The first human account, so a fresh stack has somebody who can sign in at all.
+ensure ZITADEL_ADMIN_PASSWORD 16
 
 # PgBouncer's own credential file (workplan 0082 T4).
 #
