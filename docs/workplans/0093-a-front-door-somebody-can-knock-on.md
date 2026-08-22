@@ -329,6 +329,46 @@ scope. It is guarded because provisioning only ever happens inside deciding,
 which is guarded. A caller that got past that would mint an EMPTY organisation
 owning nothing that was anybody else's.
 
+### What CI found, twice
+
+The integration suite is the only place these run — no Docker in the sandbox —
+and its first two runs each produced something real.
+
+**One: an assertion that counted the wrong thing.** `expected 8 to be 1`, from
+`SELECT count(*) FROM tenant` after granting. That counts every tenant every
+other integration file created, not the one this grant made. The 409 assertion
+above it passed, so the route was right throughout. It now asks the property
+that was meant — the request still points at the organisation the first grant
+provisioned.
+
+That failure also exposed something that had not fired yet: this file's
+`beforeEach` ran a blanket `DELETE FROM access_request`, and integration files
+run in PARALLEL (only the `ui` project sets `fileParallelism: false`). It was
+deleting rows out from under two sibling files mid-assertion, and they were
+doing the same back. It passed by luck. The rate-limit file had already set the
+convention — `WHERE email LIKE 'flood-%'` — so every row this file writes now
+carries a `t6-` marker and every cleanup is scoped to it.
+
+**Two: the foreign key and the check constraint were saying different things.**
+`access_request.tenant_id` was `ON DELETE SET NULL`, and the row also has
+`CHECK ((state = 'granted') = (tenant_id IS NOT NULL))`. Deleting a tenant a
+granted request points at tries to null the column and lands on exactly the
+state the CHECK forbids — so it fails, with a message naming a constraint on a
+column nobody touched in a table nobody mentioned.
+
+The database was right to refuse; the schema was wrong about why. Migration 0007
+makes it `ON DELETE RESTRICT`, which is the actual intent: the queue is a
+RECORD, and a request that was granted was granted — deleting the organisation
+later does not unmake that. Relaxing the CHECK instead would allow a row reading
+`granted` while naming nothing, which is the one thing migration 0002 went out
+of its way to forbid.
+
+The rule that falls out, worth stating because nothing in the product does this:
+**decide what to do with the requests before deleting a tenant.** Non-destructive
+by default (ADR-0024) means the product never deletes one; this is for an
+operator clearing up by hand, and for tests, where the fix is to delete the
+requests first.
+
 ## T6b — the invitation nobody could accept
 
 Granting writes an owner row for a person who has never signed in. They have no

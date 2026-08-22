@@ -69,12 +69,26 @@ describe('the operator half of /api/access-requests', () => {
   /** Tenants this file provisioned, so they can be cleaned up by identity. */
   const provisioned: string[] = [];
 
+  /**
+   * ORDER MATTERS, and the reason is a real contradiction in the schema.
+   *
+   * `access_request.tenant_id` is `ON DELETE SET NULL`, and the row also has
+   * `CHECK ((state = 'granted') = (tenant_id IS NOT NULL))`. Deleting a tenant a
+   * granted request points at therefore tries to null the column and violates
+   * the check — the delete fails with
+   * `access_request_granted_tenant_check`, which is what this file hit in CI.
+   *
+   * Requests first, then the tenants they named. Migration 0007 makes the
+   * schema say what is actually true (`ON DELETE RESTRICT`), so from now on the
+   * refusal names the tenant rather than a constraint on another table — but
+   * this order is what a caller has to do either way.
+   */
   const cleanUp = async () => {
+    await pool.query(`DELETE FROM access_request WHERE email LIKE $1`, [`${MARK}-%`]);
     if (provisioned.length > 0) {
       await pool.query(`DELETE FROM tenant WHERE id = ANY($1::uuid[])`, [provisioned]);
       provisioned.length = 0;
     }
-    await pool.query(`DELETE FROM access_request WHERE email LIKE $1`, [`${MARK}-%`]);
     await pool.query(`DELETE FROM platform_operator WHERE user_id = ANY($1::text[])`, [
       [OPERATOR, OUTSIDER],
     ]);

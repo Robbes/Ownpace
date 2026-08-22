@@ -152,6 +152,31 @@ describe('access_request under the role the API really uses', () => {
     }
   }, 30_000);
 
+  it('will not let a granted request lose the tenant it names', async () => {
+    // The foreign key and the check constraint used to say different things:
+    // `ON DELETE SET NULL` promised to forget the link, and the CHECK forbids a
+    // granted row that names nothing. Deleting the tenant therefore failed with
+    // `access_request_granted_tenant_check` — the right refusal wearing the
+    // wrong message, which cost a CI run to read (migration 0007).
+    //
+    // Now the refusal names the actual reason. The queue is a record: a request
+    // that was granted WAS granted, and deleting the organisation later does
+    // not unmake that.
+    const conn = await driver.acquire();
+    try {
+      await conn.query(
+        `INSERT INTO access_request (email, state, tenant_id, decided_by, decided_at)
+         VALUES ($1,'granted',$2,'owner@ownpace.eu', now())`,
+        ['keeps-its-tenant@example.test', TENANT],
+      );
+      await expect(conn.query(`DELETE FROM tenant WHERE id = $1`, [TENANT])).rejects.toThrow(
+        /access_request_tenant_fkey|violates foreign key/i,
+      );
+    } finally {
+      conn.release();
+    }
+  });
+
   it('refuses to call a request granted without naming the tenant it granted', async () => {
     // `granted` means a tenant was provisioned. A row claiming it without one
     // would make the owner's queue lie about what has been done.

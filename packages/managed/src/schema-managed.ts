@@ -214,8 +214,17 @@ export const accessRequest = pgTable(
     /** The language they asked in, so the reply comes back in it (ADR-0013). */
     locale: text('locale', { enum: ['en', 'nl'] }).notNull().default('en'),
     state: text('state', { enum: ['open', 'granted', 'declined'] }).notNull().default('open'),
-    /** The tenant provisioned for this request; null unless granted. */
-    tenantId: uuid('tenant_id').references(() => tenant.id, { onDelete: 'set null' }),
+    /**
+     * The tenant provisioned for this request; null unless granted.
+     *
+     * RESTRICT, not SET NULL (migration 0007). Nulling this on a granted row is
+     * exactly what `access_request_granted_tenant_check` forbids, so the two
+     * were contradicting each other — deleting such a tenant failed with a
+     * confusing message about a constraint on another table. The queue is a
+     * record: a request that was granted was granted, and deleting the
+     * organisation later does not unmake that.
+     */
+    tenantId: uuid('tenant_id').references(() => tenant.id, { onDelete: 'restrict' }),
     decidedBy: text('decided_by'),
     decidedAt: timestamp('decided_at', { withTimezone: true }),
     decisionNote: text('decision_note'),
