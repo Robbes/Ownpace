@@ -154,6 +154,83 @@ export async function withTenant<T>(
 }
 
 /**
+ * Run `fn` as a SUBJECT **and** scoped to a tenant, in ONE transaction
+ * (workplan 0093 T6).
+ *
+ * **There is exactly one thing this is for: provisioning.** Granting an access
+ * request has to do three things that must stand or fall together — read the
+ * request (which only an operator may do, `app.current_user`), create the tenant
+ * and its first owner (which the tenant policies key on `app.current_tenant`),
+ * and mark the request granted against that tenant id. Split across two
+ * transactions, a failure between them leaves either an organisation nobody
+ * asked for or a request pointing at one that does not exist.
+ *
+ * **The tenant it is scoped to is the one being CREATED.** That is what makes
+ * holding both scopes at once unremarkable here: the tenant is empty, so the
+ * tenant half of the scope grants sight of nothing. Do not reach for this to
+ * read an existing tenant as an operator — that is a different question, and it
+ * should get a policy that says so rather than a caller that sets a GUC.
+ *
+ * WHAT IS AND IS NOT ENFORCED BY THE DATABASE HERE. That only an operator may
+ * read or decide an access request IS: migration 0005's policies, asserted in
+ * `operator-under-rls.unit.test.ts` against the real `app_user`. That only an
+ * operator may create a tenant is NOT — `tenant_isolation_insert` asks only
+ * that the row's id match the scope, so any caller that reaches this function
+ * could mint one. It is guarded because provisioning only ever happens inside
+ * deciding a request, which is guarded. A rogue caller would get an EMPTY
+ * organisation with itself as owner: no data, no billing, nothing that was
+ * anybody else's. Said plainly rather than left for a reader to work out.
+ */
+export async function withSubjectAndTenant<T>(
+  source: LedgerDriver | Pool,
+  userId: string,
+  tenantId: string,
+  fn: (db: PgDatabase) => Promise<T>
+): Promise<T> {
+  const driver = isLedgerDriver(source) ? source : pgDriver(source);
+  const conn = await driver.acquire();
+  let releaseError: Error | undefined;
+
+  try {
+    await conn.query('BEGIN');
+    if (driver.role) {
+      await conn.query(`SET LOCAL ROLE "${assertRoleName(driver.role)}"`);
+    }
+    await conn.query("SELECT set_config('app.current_user', $1, true)", [userId]);
+    await conn.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
+    const result = await fn(conn.db);
+    await conn.query('COMMIT');
+    return result;
+  } catch (error) {
+    try {
+      await conn.query('ROLLBACK');
+    } catch (rollbackError) {
+      log.error('Rollback failed after error:', rollbackError);
+      releaseError = rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError));
+    }
+    throw error;
+  } finally {
+    conn.release(releaseError);
+  }
+}
+
+/** Extra context `withSubject` may carry. */
+export interface WithSubjectOptions {
+  /**
+   * An email address the ISSUER SAID IT VERIFIED, exposed to policies as
+   * `app.current_email` (migration 0006).
+   *
+   * The only thing it unlocks is claiming an invitation addressed to that
+   * address, and it is the reason the word "verified" is in the name rather
+   * than in a comment: passing an unverified address here would let whoever can
+   * create an account bearing it inherit whatever was invited to it. Callers
+   * must read `email_verified` and pass nothing when it is not true — omitted
+   * means no claim, which is the safe direction.
+   */
+  readonly verifiedEmail?: string;
+}
+
+/**
  * Run `fn` scoped to a SUBJECT rather than to a tenant (ADR-0042).
  *
  * The one question that cannot be asked inside `withTenant`: *which tenants do I
@@ -190,7 +267,8 @@ export async function withTenant<T>(
 export async function withSubject<T>(
   source: LedgerDriver | Pool,
   userId: string,
-  fn: (db: PgDatabase) => Promise<T>
+  fn: (db: PgDatabase) => Promise<T>,
+  options: WithSubjectOptions = {}
 ): Promise<T> {
   const driver = isLedgerDriver(source) ? source : pgDriver(source);
   const conn = await driver.acquire();
@@ -202,6 +280,9 @@ export async function withSubject<T>(
       await conn.query(`SET LOCAL ROLE "${assertRoleName(driver.role)}"`);
     }
     await conn.query("SELECT set_config('app.current_user', $1, true)", [userId]);
+    if (options.verifiedEmail !== undefined) {
+      await conn.query("SELECT set_config('app.current_email', $1, true)", [options.verifiedEmail]);
+    }
     const result = await fn(conn.db);
     await conn.query('COMMIT');
     return result;

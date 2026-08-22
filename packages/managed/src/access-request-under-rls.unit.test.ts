@@ -58,20 +58,6 @@ beforeEach(async () => {
   }
 });
 
-/** Every message in an error's `cause` chain, joined — see the SELECT case. */
-function reasons(err: unknown): string {
-  const out: string[] = [];
-  let current: unknown = err;
-  while (current instanceof Error) {
-    out.push(current.message);
-    current = current.cause;
-  }
-  if (typeof current === 'object' && current !== null && 'message' in current) {
-    out.push(String((current as { message: unknown }).message));
-  }
-  return out.join(' | ');
-}
-
 describe('access_request under the role the API really uses', () => {
   it('exists, so every absence below is about policy and not a missing table', async () => {
     const conn = await driver.acquire();
@@ -115,7 +101,7 @@ describe('access_request under the role the API really uses', () => {
     }
   }, 30_000);
 
-  it('REFUSES a signed-in tenant the read outright — not an empty result', async () => {
+  it('shows a signed-in tenant NOTHING, with requests sitting right there', async () => {
     const conn = await driver.acquire();
     try {
       await conn.query(
@@ -128,34 +114,41 @@ describe('access_request under the role the API really uses', () => {
       conn.release();
     }
 
-    // The two protections are not redundant, and this is where the difference
-    // shows: the REVOKE fires BEFORE the policy is ever consulted, so a
-    // tenant-scoped request thread — the only kind the API serves — gets
-    // `permission denied for table access_request` rather than a filtered view.
+    // THIS USED TO BE A REFUSAL, and the change is worth explaining rather than
+    // discovering.
     //
-    // Asserted as a refusal rather than as `[]` deliberately. An empty result
-    // is indistinguishable from "there are no requests", so a day when the
-    // REVOKE and the policy were both quietly dropped would look exactly like a
-    // quiet day. A permission error cannot be mistaken for anything.
+    // Until migration 0005 `app_user` had no SELECT on this table at all, so a
+    // tenant-scoped read raised `permission denied` before any policy was
+    // consulted — belt and braces on top of the INSERT-only policy. That could
+    // not survive an operator who reads the queue THROUGH the API, because a
+    // GRANT is per-role and the operator and the tenant use the same
+    // `app_user`. So the blanket REVOKE is gone and the policy is now the whole
+    // of the defence (`operator_may_read`, keyed on `app.current_user`).
+    //
+    // The original assertion had a real argument behind it: `[]` is
+    // indistinguishable from "there are no requests", so a day when the
+    // protection had been quietly dropped would look exactly like a quiet day.
+    // That argument is answered rather than abandoned — the rows are inserted
+    // above and read back as the owner below, so an empty result here can ONLY
+    // mean the policy filtered them. A dropped or widened policy fails this.
+    // The other direction, that an operator DOES see them, is asserted in
+    // `operator-under-rls.unit.test.ts`; between the two files there is no
+    // state of the policies that passes both while doing nothing.
     for (const tenant of [TENANT, OTHER]) {
-      const failure = await withTenant(driver, tenant, (db) =>
+      const rows = await withTenant(driver, tenant, (db) =>
         db.execute('SELECT email FROM access_request'),
-      ).then(
-        (rows) => ({ read: rows }),
-        (err: unknown) => ({ err }),
       );
+      expect(rows.rows, `tenant ${tenant} could read access requests`).toHaveLength(0);
+    }
 
-      expect(
-        failure,
-        `tenant ${tenant} could read access requests — the REVOKE and the INSERT-only policy are gone`,
-      ).not.toHaveProperty('read');
-
-      // Drizzle wraps the driver's error ("Failed query: …") and hangs the real
-      // one off `cause`, so the reason has to be read from the chain — matching
-      // the wrapper alone would pass for a syntax error just as happily.
-      expect(reasons(('err' in failure ? failure.err : undefined))).toContain(
-        'permission denied for table access_request',
-      );
+    // The rows are really there. Without this the case above would pass on an
+    // empty table, which is the failure mode the original refusal ruled out.
+    const owner = await driver.acquire();
+    try {
+      const { rows } = await owner.query(`SELECT email FROM access_request`);
+      expect(rows).toHaveLength(2);
+    } finally {
+      owner.release();
     }
   }, 30_000);
 

@@ -175,6 +175,30 @@ export const tenantMember = pgTable(
  * Managed-only for the obvious reason (ADR-0036, hard rule 5): an appliance has
  * an owner who already has it, not applicants.
  */
+/**
+ * Who may answer the door (workplan 0093 T6, migration 0005).
+ *
+ * NOT a tenant role. `tenant_member.role` says what somebody may do INSIDE an
+ * organisation; an operator acts BEFORE any organisation exists, which is a
+ * different question and gets a different table rather than a magic value in an
+ * existing column.
+ *
+ * `app_user` holds SELECT and nothing else, and the row-level policy narrows
+ * even that to YOUR OWN row — so the check can answer "am I an operator" and
+ * never "who else is". Rows are written by the owner connection only
+ * (`pnpm --filter @openmig/api operator:add`): an operator who could appoint
+ * another one would mean the owner is no longer the one deciding who decides.
+ */
+export const platformOperator = pgTable('platform_operator', {
+  /** The OIDC subject, the same identifier `tenant_member.user_id` holds. */
+  userId: text('user_id').primaryKey(),
+  /** For the human reading `operator:list`. Not an identity — the subject is. */
+  email: text('email').notNull(),
+  /** Why this person. Read by whoever inherits the deployment. */
+  note: text('note'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const accessRequest = pgTable(
   'access_request',
   {

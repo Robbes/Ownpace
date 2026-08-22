@@ -43,6 +43,16 @@ export interface JwtPayload {
    */
   tenantId?: string;
   role?: string;
+  /**
+   * Whether the ISSUER says it verified `email` (OIDC Core §5.1).
+   *
+   * Read for exactly one purpose: binding an invitation addressed to that
+   * address (migration 0006). Absent or false means no binding — an issuer that
+   * does not assert this is not one whose email claim can carry an
+   * authorisation, and guessing in the other direction would mean whoever can
+   * create an account bearing an address inherits what was invited to it.
+   */
+  email_verified?: boolean;
   iat?: number;
   exp?: number;
   iss?: string;
@@ -329,6 +339,47 @@ export function __setMembershipsLookupForTests(fn: MembershipsLookup | null): vo
   membershipsLookup = fn ?? lookupMemberships;
 }
 
+/**
+ * Bind any invitation addressed to this subject's VERIFIED email (0093 T6).
+ *
+ * Called at one moment only: when tenant resolution is about to refuse somebody
+ * for having no membership anywhere. That is precisely the state a person is in
+ * the first time they sign in after their access request was granted — the
+ * organisation exists, the owner row exists, and it is addressed to their email
+ * with a `pending:` placeholder where their subject will go.
+ *
+ * **The database decides what may be claimed**, not this function: migration
+ * 0006's policy requires the row to be an open invitation to `app.current_email`
+ * and requires the result to name this subject and be active. All this does is
+ * refuse to set that setting at all unless the issuer asserted the address, and
+ * run the statement.
+ *
+ * Returns how many invitations were bound, which the caller uses to decide
+ * whether re-resolving is worth a second round trip.
+ */
+async function claimInvitations(payload: JwtPayload): Promise<number> {
+  // Not "trust it if it looks fine": absent is not verified, and `true` is the
+  // only value that means verified.
+  if (payload.email_verified !== true || !payload.email) return 0;
+
+  const bound = await ledgerWithSubject(
+    getAuthPool(),
+    payload.sub,
+    async (db) =>
+      await db
+        .update(tenantMember)
+        .set({ userId: payload.sub, status: 'active', joinedAt: new Date() })
+        .where(and(eq(tenantMember.email, payload.email), eq(tenantMember.status, 'invited')))
+        .returning({ tenantId: tenantMember.tenantId }),
+    { verifiedEmail: payload.email },
+  );
+
+  if (bound.length > 0) {
+    log.info(`[auth] ${payload.sub} accepted ${bound.length} invitation(s) on first sign-in`);
+  }
+  return bound.length;
+}
+
 /** What a request may say when its subject belongs to more than one tenant. */
 export const TENANT_HEADER = 'x-ownpace-tenant';
 
@@ -535,7 +586,26 @@ export async function authenticate(
     // longer say (ADR-0042), so it can come from the header, the claim where
     // one exists, or the subject's single membership — and none of those is
     // trusted, because the gate below still has to find an active row.
-    const resolved = await resolveTenant(payload, req.headers[TENANT_HEADER] as string | undefined);
+    const requested = req.headers[TENANT_HEADER] as string | undefined;
+    let resolved = await resolveTenant(payload, requested);
+
+    // The first sign-in after an access request was granted looks exactly like
+    // somebody with no business here: the organisation exists, but the owner row
+    // still carries a `pending:` placeholder instead of this subject. So before
+    // refusing for having no membership, see whether there is an invitation
+    // addressed to a VERIFIED email — and only then, because binding on an
+    // unverified one would hand the organisation to whoever registered the
+    // address (workplan 0093 T6).
+    //
+    // Narrow on purpose. Only the 403 triggers it: a 400 means the subject has
+    // several memberships and simply has not said which, and claiming there
+    // would be a write on a request that is already answerable.
+    if ('refusal' in resolved && resolved.refusal.status === 403) {
+      if ((await claimInvitations(payload)) > 0) {
+        resolved = await resolveTenant(payload, requested);
+      }
+    }
+
     if ('refusal' in resolved) {
       res.status(resolved.refusal.status).json(resolved.refusal.body);
       return;
@@ -567,37 +637,102 @@ export async function authenticate(
 
     next();
   } catch (error) {
-    if (error instanceof AuthNotConfiguredError) {
-      res.status(500).json({
-        error: 'Server Configuration Error',
+    respondToAuthError(res, error);
+  }
+}
+
+/**
+ * Turn a verification failure into the right refusal.
+ *
+ * Extracted so `authenticate` and `authenticateSubject` cannot drift: two
+ * copies of this ladder is two chances for one of them to answer 500 where the
+ * other answers 401, and the difference between "your token is bad" and "our
+ * server is bad" is the whole of what a caller can act on.
+ */
+function respondToAuthError(res: Response, error: unknown): void {
+  if (error instanceof AuthNotConfiguredError) {
+    res.status(500).json({
+      error: 'Server Configuration Error',
+      message: error.message,
+    });
+  } else if (error instanceof jwt.TokenExpiredError) {
+    // Must be checked BEFORE JsonWebTokenError — TokenExpiredError extends it.
+    res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Token expired',
+    });
+  } else if (error instanceof jwt.JsonWebTokenError) {
+    res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Invalid token',
+    });
+  } else if (error instanceof Error) {
+    // Handle jose errors and other verification failures
+    if (error.message.includes('Token verification failed') || 
+        error.message.includes('Invalid token') ||
+        error.message.includes('Missing required claims')) {
+      res.status(401).json({
+        error: 'Unauthorized',
         message: error.message,
       });
-    } else if (error instanceof jwt.TokenExpiredError) {
-      // Must be checked BEFORE JsonWebTokenError — TokenExpiredError extends it.
-      res.status(401).json({
-        error: 'Unauthorized',
-        message: 'Token expired',
-      });
-    } else if (error instanceof jwt.JsonWebTokenError) {
-      res.status(401).json({
-        error: 'Unauthorized',
-        message: 'Invalid token',
-      });
-    } else if (error instanceof Error) {
-      // Handle jose errors and other verification failures
-      if (error.message.includes('Token verification failed') || 
-          error.message.includes('Invalid token') ||
-          error.message.includes('Missing required claims')) {
-        res.status(401).json({
-          error: 'Unauthorized',
-          message: error.message,
-        });
-      } else {
-        serverFault(res, 'auth_failed', 'verifying your session', error);
-      }
     } else {
       serverFault(res, 'auth_failed', 'verifying your session', error);
     }
+  } else {
+    serverFault(res, 'auth_failed', 'verifying your session', error);
+  }
+}
+
+/**
+ * Authenticate a SUBJECT, and stop there (workplan 0093 T6).
+ *
+ * `authenticate` answers "who are you, and which organisation are you acting
+ * on" — and refuses when the second half has no answer. That refusal is right
+ * for every tenant-scoped route and wrong for the two kinds of caller that
+ * legitimately have no tenant yet:
+ *
+ *  - a **platform operator**, whose whole job happens before any tenant exists;
+ *  - somebody who has just **signed in and belongs to nothing yet**, for whom
+ *    "where may I go" has the valid answer "nowhere", and for whom a 403 is
+ *    indistinguishable from "your token is bad".
+ *
+ * So this verifies the token exactly as `authenticate` does — same
+ * `verifyToken`, same JWKS path, same refusals — and attaches the subject
+ * without resolving or requiring a tenant. It grants NOTHING: every policy in
+ * the database keys on `app.current_tenant` or `app.current_user`, and a route
+ * behind this middleware still has to set one to see a row.
+ *
+ * It is not a lighter `authenticate`. A tenant-scoped route behind this would
+ * run with no tenant at all — which is a refusal from the database rather than
+ * a leak, but a confusing one. Use it only where having no tenant is the
+ * expected case.
+ */
+export async function authenticateSubject(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Missing or invalid Authorization header',
+      });
+      return;
+    }
+
+    const payload = await verifyToken(authHeader.substring(7));
+
+    const authenticatedReq = req as AuthenticatedRequest;
+    authenticatedReq.userId = payload.sub;
+    authenticatedReq.userEmail = payload.email;
+    // Deliberately no tenantId and no userRole: there is no tenant here, and a
+    // role read off the token has never been trusted anywhere in this file.
+
+    next();
+  } catch (error) {
+    respondToAuthError(res, error);
   }
 }
 
