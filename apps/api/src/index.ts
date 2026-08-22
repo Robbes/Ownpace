@@ -31,6 +31,7 @@ import billingWebhookRoutes from './routes/billing/webhooks.ts';
 import scopeManifestRoutes from './routes/scope-manifest.ts';
 import setupRoutes from './routes/setup.ts';
 import connectionRoutes from './routes/connections.ts';
+import accessRequestRoutes from './routes/access-requests.ts';
 import { assertProductionAuthConfig } from './middleware/auth.ts';
 import { assertProductionUrlConfig } from './config-guards.ts';
 import { serverFault } from './server-fault.ts';
@@ -101,6 +102,15 @@ app.get('/api/version', version);
 app.get('/metrics', (req: Request, res: Response) => {
   res.set('content-type', METRICS_CONTENT_TYPE).send(renderMetrics());
 });
+
+/**
+ * Asking for an account (workplan 0093 T2).
+ *
+ * Mounted here among the unauthenticated routes rather than under
+ * `/api/tenants`, because the whole point is that the asker has no tenant yet
+ * — and its own file carries the four things that make a public WRITE safe.
+ */
+app.use('/api/access-requests', accessRequestRoutes);
 
 // API Routes
 app.use('/api/tenants', tenantRoutes);

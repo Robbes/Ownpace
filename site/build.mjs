@@ -30,7 +30,16 @@
 import { readFileSync, writeFileSync, mkdirSync, rmSync, cpSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { TIERS, BEYOND, SUPPORT_EMAIL, money, size, total, firstMonth } from './prices.mjs';
+import {
+  TIERS,
+  BEYOND,
+  SUPPORT_EMAIL,
+  REQUEST_ACCESS_URL,
+  money,
+  size,
+  total,
+  firstMonth,
+} from './prices.mjs';
 import { LOCALES, DEFAULT_LOCALE, localeRoot, COPY } from './copy.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -408,8 +417,33 @@ ${body}
 `;
 }
 
-const orderHref = (locale, tier) =>
-  `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`Ownpace — ${tier ? tier.name : COPY[locale].ctaOrder}`)}`;
+/**
+ * Where "Request access" goes (workplan 0093 T4).
+ *
+ * It was `mailto:` — so the first step of becoming a customer was composing an
+ * email in whatever client the visitor's browser happened to open, and the
+ * first record of them was somebody's inbox. It now points at the app's
+ * request-access page.
+ *
+ * **The form is on the APP, not here, and that is a CSP decision.** This site
+ * is served with `default-src 'none'; … form-action 'none'`
+ * (`deploy/compose/www-nginx.conf`): no scripts, no submissions, deliberately.
+ * A form on these pages would mean relaxing that for every one of them. A link
+ * costs nothing and the app already has the plumbing.
+ *
+ * The tier rides along as a query parameter so a visitor who clicked "Start
+ * with Medium" does not have to answer that question again. Indicative only —
+ * the tier is DERIVED from what actually runs (ADR-0014), never picked.
+ */
+const orderHref = (locale, tier) => {
+  // Hand-built with `encodeURIComponent`, which this file already uses
+  // everywhere, rather than `URLSearchParams`: the lint config's globals for
+  // `.mjs` are a curated allowlist and do not include it. Two parameters do not
+  // justify widening that list.
+  const params = [`locale=${encodeURIComponent(locale)}`];
+  if (tier) params.push(`tier=${encodeURIComponent(tier.name)}`);
+  return `${REQUEST_ACCESS_URL}?${params.join('&')}`;
+};
 
 // ------------------------------------------------------------------- pages --
 
@@ -440,7 +474,7 @@ function tierCards(locale) {
     <li>${c.tierThree(money(total(t, 3)))}</li>
   </ul>
   <p class="note">${esc(t.note)}</p>
-  <p><a class="btn ${featured ? 'btn-primary' : 'btn-ghost'}" href="${orderHref(locale, t)}">${c.tierStart(t.name)}</a></p>
+  <p><a class="btn ${featured ? 'btn-primary' : 'btn-ghost'}" href="${esc(orderHref(locale, t))}">${c.tierStart(t.name)}</a></p>
 </div>`;
     }).join('') +
     '</div>'
@@ -455,7 +489,7 @@ function landing(locale) {
   <h1>${c.heroTitle}</h1>
   <p class="lede">${c.heroLede}</p>
   <div class="cta">
-    <a class="btn btn-primary" href="${orderHref(locale, null)}">${c.ctaOrder}</a>
+    <a class="btn btn-primary" href="${esc(orderHref(locale, null))}">${c.ctaOrder}</a>
     <a class="btn btn-ghost" href="${urlFor(locale, 'pricing')}">${c.ctaPricing}</a>
   </div>
   <p class="fineprint">${c.heroFine(money(firstMonth(TIERS[0])))}</p>

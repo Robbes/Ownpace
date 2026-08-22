@@ -137,6 +137,7 @@ const MANAGED_TABLES = [
   'erasure_record',
   'tenant_pricing',
   'tenant_closure',
+  'access_request',
 ];
 
 async function tablesIn(conn: LedgerConnection): Promise<Set<string>> {

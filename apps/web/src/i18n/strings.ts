@@ -949,6 +949,33 @@ const en = {
   'setup.davbasic.app_password.detail':
     'Use an app-specific password rather than the account\u2019s own login where the server offers one — it can be revoked without changing the person\u2019s password.',
   'setup.davbasic.app_password.yields': 'a username and an app password.',
+  // ---- Asking for access (workplan 0093) ----
+  'access.title': 'Request access',
+  'access.intro':
+    'Ownpace is invite-only while we are getting started. Tell us what you want to move and ' +
+    'we will come back to you by email — a person reads these.',
+  'access.email': 'Email address',
+  'access.emailHint': 'Where we reply. Nothing else is sent here.',
+  'access.name': 'Your name',
+  'access.organisation': 'Organisation',
+  'access.optional': 'optional',
+  'access.note': 'What are you moving?',
+  'access.noteHint':
+    'Roughly how many mailboxes, and from where — Microsoft 365, Google, somewhere else. A ' +
+    'sentence is plenty.',
+  'access.tier': 'Which package looks right?',
+  'access.tierHint':
+    'A guess is fine. The package follows what actually runs, so this is not binding.',
+  'access.tierUnsure': 'Not sure yet',
+  'access.submit': 'Send request',
+  'access.sending': 'Sending…',
+  'access.sent': 'Thank you — we have your request.',
+  'access.sentDetail': 'A person reads these, and you will hear back by email.',
+  'access.failed': 'We could not send that:',
+  'access.failedFallback': 'the request did not complete.',
+  'access.privacy':
+    'We keep what you type here to answer you, and nothing else. No account is created by asking.',
+  'access.backToSignIn': 'Already have an account? Sign in',
 } as const;
 
 const nl: Record<keyof typeof en, string> = {
@@ -1850,6 +1877,35 @@ const nl: Record<keyof typeof en, string> = {
   'setup.davbasic.app_password.detail':
     'Gebruik waar de server dat aanbiedt een app-specifiek wachtwoord in plaats van de gewone login — dat kan ingetrokken worden zonder het wachtwoord van de persoon te wijzigen.',
   'setup.davbasic.app_password.yields': 'een gebruikersnaam en een app-wachtwoord.',
+  // ---- Asking for access (workplan 0093) ----
+  'access.title': 'Toegang aanvragen',
+  'access.intro':
+    'Ownpace werkt voorlopig op uitnodiging. Vertel ons wat u wilt verhuizen, dan komen we per ' +
+    'e-mail bij u terug — een mens leest dit.',
+  'access.email': 'E-mailadres',
+  'access.emailHint': 'Hier antwoorden wij. Er gaat verder niets naartoe.',
+  'access.name': 'Uw naam',
+  'access.organisation': 'Organisatie',
+  'access.optional': 'optioneel',
+  'access.note': 'Wat gaat u verhuizen?',
+  'access.noteHint':
+    'Ongeveer hoeveel postbussen, en waarvandaan — Microsoft 365, Google, iets anders. Eén zin ' +
+    'is genoeg.',
+  'access.tier': 'Welk pakket lijkt te passen?',
+  'access.tierHint':
+    'Een inschatting volstaat. Het pakket volgt wat er werkelijk draait, dus dit legt u nergens ' +
+    'op vast.',
+  'access.tierUnsure': 'Nog niet zeker',
+  'access.submit': 'Aanvraag versturen',
+  'access.sending': 'Versturen…',
+  'access.sent': 'Dank u — wij hebben uw aanvraag.',
+  'access.sentDetail': 'Een mens leest dit, en u hoort per e-mail van ons.',
+  'access.failed': 'Wij konden dat niet versturen:',
+  'access.failedFallback': 'de aanvraag is niet voltooid.',
+  'access.privacy':
+    'Wij bewaren wat u hier invult om u te antwoorden, en verder niets. Met een aanvraag wordt ' +
+    'geen account aangemaakt.',
+  'access.backToSignIn': 'Heeft u al een account? Aanmelden',
 };
 
 export type Locale = 'en' | 'nl';

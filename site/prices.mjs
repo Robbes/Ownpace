@@ -88,6 +88,25 @@ export const BEYOND = {
 
 export const SUPPORT_EMAIL = 'support@ownpace.eu';
 
+/**
+ * Where the site's call to action sends somebody (workplan 0093 T4).
+ *
+ * The FIRST environment-dependent value in the site build, which until now
+ * needed none: every page is a self-contained document and every link is
+ * relative. The environment is a domain LEVEL (workplan 0091), so the test
+ * site must point at the test app or a visitor to `www.ota.ownpace.eu` is
+ * handed production — which is precisely the boundary 0091 T4 exists to make
+ * real. Set `OWNPACE_APP_URL=https://app.ota.ownpace.eu` when building that
+ * site; production is the default because a forgotten variable should land on
+ * the safe side of that boundary rather than the surprising one.
+ *
+ * Trailing slashes are stripped so the joined path cannot come out doubled.
+ */
+export const APP_URL = (process.env.OWNPACE_APP_URL || 'https://app.ownpace.eu').replace(/\/+$/, '');
+
+/** The page a visitor asks for an account on. Invite-only: asking is not signing up. */
+export const REQUEST_ACCESS_URL = `${APP_URL}/request-access`;
+
 /** @param {number} euro */
 export const money = (euro) => `€${euro}`;
 
