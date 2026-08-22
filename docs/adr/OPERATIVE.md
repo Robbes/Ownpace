@@ -504,3 +504,20 @@ live in [README.md](./README.md), the register.
 - **Gmail IMAP is always on since March 2025** (*"Vanaf maart 2025 is de optie om IMAP aan of uit
   te zetten niet meer beschikbaar. IMAP-toegang staat altijd aan in Gmail"*), so no setup path
   should ask a personal-account user to enable it, and no refusal should suggest it as a cause.
+
+## [ADR-0042: Who holds the passwords — an issuer we can replace](./0042-who-holds-the-passwords.md)
+
+- **The managed edition authenticates against an external OIDC issuer.** Ownpace stores
+  no passwords, and there is no password column in either migration chain. The
+  appliance is unaffected: it has one owner and no accounts (hard rule 5).
+- **The issuer owns identity; `tenant_member` owns tenancy.** A token carries `sub`
+  and `email` and nothing Ownpace-specific. Which tenant a session acts on, and with
+  what role, is read from `tenant_member` at request time — never trusted from a claim.
+- **Because of that rule, the issuer is REPLACEABLE**, and the integration must stay
+  inside plain OIDC discovery + authorization-code + PKCE + JWKS. No issuer-specific
+  API, no issuer-side tenancy model, no issuer-side roles. This is what makes the
+  choice below reversible, and it is the point of the ADR.
+- **Zitadel is the proposed issuer**, self-hosted beside the managed stack against the
+  Postgres it already runs. Pinned by version; upgrades are deliberate, never automatic.
+- **The appliance never gains an issuer dependency**, enforced by
+  `apps/selfhost/src/no-managed-leakage.unit.test.ts`.

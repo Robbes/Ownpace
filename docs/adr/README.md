@@ -66,6 +66,8 @@ first.
 | [0038](./0038-operative-rules-and-the-growing-record.md) | Operative rules — keeping a growing decision record loadable | Accepted 2026-08-19 (this convention) |
 | [0039](./0039-no-open-core-and-what-ops-privacy-means.md) | No open-core — closed with a trigger; and what "private ops" means | Accepted 2026-08-19 (resolves the 0009 vs 0036 conflict) |
 | [0040](./0040-the-service-is-ownpace.md) | The service is Ownpace; the project keeps its own name | Accepted 2026-08-20 — three open follow-ups (repo rename, NOTICE assertion, backup naming) |
+| [0041](./0041-who-owns-the-oauth-client.md) | Who owns the OAuth client — managed brings its own, the appliance never does | Accepted 2026-08-21 |
+| [0042](./0042-who-holds-the-passwords.md) | Who holds the passwords — an issuer we can replace | **Proposed** 2026-08-22 — awaiting the owner; the first identity decision in the register |
 
 ## Reading the statuses
 

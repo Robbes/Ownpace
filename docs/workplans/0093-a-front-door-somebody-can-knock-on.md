@@ -10,7 +10,7 @@
 | T3 A page to ask on | ✅ **Done 2026-08-22** | `apps/web/src/pages/RequestAccess.tsx` at `/request-access`, public and managed-only, EN + NL. 8 tests, including that a blank optional field travels as ABSENT rather than `''`, and that a `?tier=` nobody offers is ignored. |
 | T4 The site's button leads there | ✅ **Done 2026-08-22** | `site/build.mjs` — every call-to-action button now links to the app; the footer's support address stays a support address. 2 guards in `site/site.unit.test.ts`, both shown to fail on revert. |
 | T2b The limit that would have refused the sixth customer | ✅ **Done 2026-08-22** | CI's first run of `access-requests.integration.test.ts` failed with `expected 429 to be 400` — the suite's own sixth request. The cause was not the test: `DEFAULT_KNOCK_LIMIT.max` was 5/hour keyed on `req.ip`, which behind an ingress is the ingress, so it was **five access requests per hour for the entire service**. Raised to 60 and sized as a service-wide cap, made configurable (`ACCESS_REQUEST_MAX_PER_HOUR`, refusing a bad value rather than falling back), and `TRUST_PROXY` added so the limiter *can* be per-caller. The 429 now has its own integration file — nothing had tested it, which is why this surfaced as two confusing failures instead of one clear one. |
-| T5 An issuer, and a sign-in that is not a paste box | 📋 Planned (**owner decision**) | The arch doc names **Zitadel** (§7.3, §18) and no ADR has ever decided it. Nothing in `deploy/` mentions it. This is where the next session starts. |
+| T5 An issuer, and a sign-in that is not a paste box | 🔬 **Researched 2026-08-22 — [ADR-0042](../adr/0042-who-holds-the-passwords.md) proposed, awaiting the owner** | The owner asked for research rather than defaulting to the arch doc's Zitadel mention. Six candidates weighed on the stated criteria; the finding that reframed it is that `auth.ts:339` already overwrites the token's `role` from `tenant_member`, so the issuer needs `sub` and `email` and nothing else — which means we are not shopping for a multi-tenant IdP at all. Proposal: Zitadel, pinned, integrated through standard OIDC ONLY so the choice is reversible; Keycloak named as the fallback that move lands on. |
 | T6 A privileged provisioning path | 📋 Planned (needs T5) | Granting a request means creating a `tenant` + an owner `tenant_member`, which cannot happen on a tenant-scoped connection — `POST /api/tenants` answers **501** saying exactly that. |
 | T7 The owner's queue | 📋 Planned (needs T6) | Reading `access_request` and deciding on it. Deliberately last: a queue you cannot act on is a list. |
 
@@ -105,35 +105,64 @@ WRITES, which is the whole of the difference:
    the honest answer: from the asker's side all three genuinely are "we have it,
    a human will read it".
 
-## T5 — the decision the next session needs
+## T5 — researched, and the question turned out to be a different one
 
-**The server half of real sign-in already exists.** `apps/api/src/middleware/auth.ts`
-verifies against a remote JWKS with `jose`, honours `iss`/`aud`/`exp`, and takes
-precedence over the symmetric `JWT_SECRET` when `JWT_ISSUER` is set.
-`tenant_member` keys on a **`text` `user_id`** — an external subject — with roles,
-invite status and `invited_at` already modelled. There is no password column
-anywhere in the schema, and that is the design, not a gap: identity belongs to an
-IdP.
+The owner asked (2026-08-22) for research rather than taking the arch doc's Zitadel
+mention as decided: open source, low management effort, stable, scales far enough, fits
+the product. [ADR-0042](../adr/0042-who-holds-the-passwords.md) is the result and is
+**Proposed**, not Accepted — the decision is the owner's.
 
-**What has never been decided is which one.** The arch doc names Zitadel in §7.3's
-edition table ("IdP/SSO (Zitadel)") and again in §18, but there is no ADR — and
-`docs/adr/README.md` has no identity row at all. Nothing in `deploy/` mentions
-Zitadel or Keycloak. So T5 is not "install the decided thing", it is a decision
-plus an installation, and per hard rule 7 the decision needs an ADR.
+**The server half already exists.** `apps/api/src/middleware/auth.ts` verifies against a
+remote JWKS with `jose`, honours `iss`/`aud`/`exp`, and prefers that over the symmetric
+`JWT_SECRET` when `JWT_ISSUER` is set. `tenant_member` keys on a `text` `user_id` — an
+external subject — with roles and invite status modelled. No password column anywhere,
+which is the design.
 
-Three things it has to answer, and only the first is about the product:
+**What has never been decided is which issuer.** The arch doc names Zitadel in §7.3 and
+§18; there is no ADR, no row in the register, and nothing in `deploy/` mentions it.
 
-- **Which issuer**, and self-hosted beside the stack or managed. Both named
-  options are EU and Apache/AGPL; the cost is operational, not licensing.
-- **What happens on first sign-in of a granted request.** `tenant_member` already
-  carries the shape: a row with `status: 'invited'` and
-  `userId: 'pending:<uuid>'`, waiting for a real subject. Nothing today converts
-  it — `members.ts` creates such rows and no code path ever accepts one. That
-  acceptance is T6's real content, and it is missing for the second person in a
-  tenant too, not just the first.
-- **Whether the appliance is touched at all.** It should not be. It has one owner
-  and no accounts, by design (hard rule 5), and `/request-access` is already
-  `ManagedOnly`.
+### The finding that changed the answer
+
+Every comparison article concludes "multi-tenant product, therefore multi-tenant IdP".
+That is wrong here, and the code says so. `assertRequiredClaims` demands `sub`, `email`,
+`tenantId` and `role` — and eleven lines later:
+
+```ts
+role = membership.role;                       // auth.ts:339
+```
+
+**The token's `role` is overwritten from `tenant_member` on every request.** It is
+already dead weight. `tenantId` is not a fact about the user either — it is which tenant
+the session is acting on, which `tenant_member` can answer from `sub`.
+
+So the issuer must mint `sub` and `email`, both standard OIDC, and nothing else. We are
+not shopping for organisations, projects or role mappings — we have those, in tables,
+under RLS. We are shopping for the least trouble that is a real OIDC issuer with a login
+page, which is exactly what the owner asked for.
+
+It also means **the issuer is replaceable**, and ADR-0042 makes keeping it that way an
+operative rule rather than a hope: standard OIDC only, no issuer-side tenancy, no
+issuer-specific API in our code.
+
+### What was weighed
+
+| | License | Origin | Shape | Why it did or did not win |
+|---|---|---|---|---|
+| **Zitadel** | AGPL-3.0 core since v3; APIs/SDKs Apache-2.0 | 🇨🇭 | One Go binary + Postgres, ~256 MB idle | **Proposed.** Reuses the Postgres we run; Swiss jurisdiction is on-message. Against it: documented self-hosting churn — Login UI split into its own service, v1 API deprecations, config "easy to get wrong and hard to diagnose", projection replay on upgrade. Bought down by using none of the surface that churned, pinning, and a cheap exit. |
+| **Keycloak** | Apache-2.0 | 🇺🇸 IBM | Java/Quarkus | **The named fallback.** Most mature, genuinely Apache — but a documented 1250 MB base plus ~300 MB non-heap is more than the rest of the managed stack together, and US governance sits badly in a product about leaving US cloud. |
+| **Authentik** | MIT | 🇺🇸 | Python: server + worker + Redis + DB | Four moving parts to Zitadel's one; majors carry breaking changes with a mandatory backup and no supported downgrade. |
+| **Ory** (Hydra+Kratos) | Apache-2.0 | 🇩🇪 | Two Go services | Best jurisdiction fit, and **neither ships a login UI** — you build the screens, which is the work this exists to avoid. |
+| **Logto** | MPL-2.0 | — | Node + Postgres | Reasonable second; lost on jurisdiction with no operational advantage to offset it. |
+| **Authelia** | Apache-2.0 | — | Go, YAML | **Disqualified on capability**: a forward-auth product whose OIDC provider is a bolt-on. |
+| *Roll our own* | — | — | none | Fewest services, and refused on principle rather than effort: hashing, resets, enumeration, MFA, lockout, revocation and breach response, permanently, for a product sold as a safer place for someone's mail. |
+
+### What T5 becomes once the owner decides
+
+Zitadel in `deploy/compose/managed.yml` against the existing Postgres; `JWT_ISSUER` and
+`JWT_AUDIENCE` on the API; authorization-code + PKCE in `apps/web` replacing the paste
+box; and `assertRequiredClaims` narrowed to `sub` + `email`, which is worth doing
+whichever issuer wins — it drops a claim the code ignores and a claim the code already
+duplicates.
 
 ## Gates
 
