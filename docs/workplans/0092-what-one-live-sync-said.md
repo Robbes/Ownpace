@@ -8,6 +8,7 @@
 | T2 The mailbox id that was never a mailbox id | ✅ **Done 2026-08-22** | Found while fixing T1, one line below it. `Object.keys(created)[0]` is the CREATION id — every mailbox this writer created came back as the literal string `"0"`, which `upsertEmail` then puts in `mailboxIds`. Now `created["0"].id`, the same read `Email/import` already does 400 lines down. Covered by "returns the SERVER's id for a mailbox it created". |
 | T2b The id guessed out of a sentence | ✅ **Done 2026-08-22** | Same function again: an `alreadyExists` with no explicit `existingId` fell to `/'([a-z0-9]+)'/i`, "try to find the ID in the description" — which in `Mailbox 'Sent' already exists` finds the NAME. Removed; that case now takes T1's re-read-and-adopt, which answers with an id the server actually gave us. |
 | T3 A cadence is not a delay | ✅ **Done 2026-08-22** | Activation now runs the first pass in **both** editions. Appliance: `apps/selfhost/src/first-pass-on-activation.unit.test.ts` proves it on a schedule (`0 5 31 2 *`, the 31st of February) that can never fire, so the run row it asserts could only have come from the activation. Managed: `POST /:mappingId/start` enqueues `run-delta-sync` on the transition into `active`, `concurrencyKey: mappingId` (the tick's own key), reported as `firstRun` on the response. Wizard copy says so, EN and NL. |
+| T5 The create path nothing had ever run | ✅ **Written 2026-08-22, not yet run** | `packages/connectors/src/jmap-mailbox-creation.integration.test.ts` — 4 cases against a real Stalwart. Every existing integration test that touched `ensureMailbox` passed it `INBOX`, so all of them exercised ADOPTION and none exercised CREATION; that is the gap T2 lived in. Mailbox assertions go over **IMAP**, deliberately — asking JMAP whether JMAP did the right thing lets one wrong id agree with itself. Needs docker: not run in this sandbox. |
 | T4 A front door with nothing behind it | 📋 Planned (**owner decision**, see below) | `site/build.mjs:412` — the site's only CTA is `mailto:`. `apps/web/src/pages/Login.tsx:44` — the app's sign-in is a textarea you paste a JWT into. `apps/api/src/routes/tenants/index.ts:110` — `POST /api/tenants` answers **501** by design. The only path from visitor to account is the owner running `deploy/compose/seed-managed.sh` and emailing a token that expires in 7 days. |
 
 ## Why this exists
@@ -166,7 +167,13 @@ Not in scope either way: the appliance. It has no accounts, by design.
 
 `pnpm lint` · `pnpm typecheck` · `pnpm test` — green (2026-08-22).
 `pnpm test:integration` NOT run this session: no docker daemon in the sandbox
-(`dial unix /var/run/docker.sock: connect: no such file or directory`). The one
-integration test touched is `discovery-routes.integration.test.ts`'s start-route case,
-extended to assert `activated` and the `firstRun` outcome; it needs a Testcontainers run
-before T3 is called proven end to end.
+(`dial unix /var/run/docker.sock: connect: no such file or directory`). Two integration
+files wait on it, and until they run neither T3 nor T5 is proven end to end:
+
+- `discovery-routes.integration.test.ts`'s start-route case, extended to assert
+  `activated` and the `firstRun` outcome (T3).
+- `jmap-mailbox-creation.integration.test.ts`, new and entirely unrun (T5). Its
+  fourth case asserts a precondition — that the fixture account already HAS a
+  `\Sent` mailbox — because without one the collision it exists for cannot occur.
+  `shared-mailbox.integration.test.ts` says Stalwart provisions it as "Sent Items";
+  if that assertion fails, the fixture changed, and the fix is the fixture.
