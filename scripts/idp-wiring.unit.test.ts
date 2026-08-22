@@ -8,6 +8,18 @@
  * elsewhere in this repository: a key generated at the wrong length, a script
  * that writes one variable name while the code reads another, and a service
  * pointed at the pooler when it runs its own migrations.
+ *
+ * IN `scripts/`, NOT beside the compose file it reads, and that is not taste.
+ * `deploy/` is in no tsconfig, and every `.ts` in this repository must be in one
+ * or lint cannot parse it — the mistake this file made first, caught by CI with
+ * `was not found by the project service`. `bootstrap-managed.unit.test.ts` is
+ * the precedent: it lives here and tests what ends up in
+ * `deploy/compose/.env` for the same reason.
+ *
+ * A LOCAL `pnpm lint` DID NOT CATCH IT. The script runs with `--cache`, and the
+ * cached run stayed green on a file it had never parsed; `rm -f .eslintcache`
+ * reproduced the CI failure immediately. Worth doing before trusting a green
+ * lint on a file that has just been added.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -16,7 +28,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO = join(HERE, '..', '..');
+const REPO = join(HERE, '..');
 const read = (p: string) => readFileSync(join(REPO, p), 'utf8');
 
 const COMPOSE = read('deploy/compose/managed.yml');
