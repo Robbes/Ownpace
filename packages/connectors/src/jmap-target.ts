@@ -38,10 +38,20 @@ const SNAPSHOT_MAX_ENTRIES = 50_000;
 
 /**
  * JMAP Mailbox object.
+ *
+ * `parentId` is RFC 8621's ONLY expression of hierarchy — there is no path
+ * property in JMAP at all, which is why `targetSegments` below has to define
+ * the mapping from our path strings to a tree. `null` means the mailbox sits at
+ * the account root; servers vary between `null` and omitting it, so read both.
+ *
+ * `path` is ours, not the server's, and is left here only because
+ * `MailboxGetResponse` has carried it since this file was written; nothing
+ * populates it. Matching is by name-within-parent (see `matchChild`).
  */
 interface Mailbox {
   id: string;
   name: string;
+  parentId?: string | null;
   path?: string;
   role?: string;
   type?: string;
@@ -419,7 +429,7 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
   }
 
   /**
-   * Ensure a mailbox exists, creating it if necessary.
+   * Ensure a mailbox exists, creating it and any missing ancestors.
    * Returns the mailbox ID.
    *
    * **A ROLE is matched before a NAME, because a role is unique per account and
@@ -431,20 +441,52 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
    * (observed live, Soverin → Stalwart, after 2 messages). The name lookup
    * could never have found it — the roles carry the SAME meaning under
    * different words, and the words are the server's, sometimes localised.
-   * Adopting the role mailbox is also what `collection_mapping` already
-   * records ("Sent Items" -> "Sent"), so this makes the writer agree with the
-   * ledger rather than fight the server.
+   *
+   * **But only for a folder that lands at the account ROOT.** A role is the
+   * account's one Sent; a folder nested under a prefix is a folder that happens
+   * to be called Sent, and asking for the role there is asking for the
+   * collision above. See `targetSegments`.
    */
   async ensureMailbox(folder: MailFolder): Promise<string> {
     await this.ensureConnected();
 
+    const segments = targetSegments(folder);
     const role = SPECIAL_USE_ROLE_MAP[folder.specialUse];
+
+    // Walk the tree top-down, adopting what is there and creating what is not.
+    // `parentId` stays null until the first level is settled, which is how a
+    // root mailbox is expressed in JMAP.
+    let parentId: string | null = null;
+    let id = '';
+    for (const [index, name] of segments.entries()) {
+      const isLeaf = index === segments.length - 1;
+      // The role belongs to a leaf sitting at the root, and to nothing else.
+      const wanted = isLeaf && index === 0 ? role : undefined;
+      id = await this.ensureOneLevel(name, parentId, wanted);
+      parentId = id;
+    }
+    return id;
+  }
+
+  /**
+   * One level of the tree: the mailbox called `name` under `parentId`, created
+   * if it is not there.
+   */
+  private async ensureOneLevel(
+    name: string,
+    parentId: string | null,
+    role: string | undefined,
+  ): Promise<string> {
     const mailboxes = await this.allMailboxes();
 
-    const adopted = matchMailbox(mailboxes, folder, role);
-    if (adopted) return adopted.id;
+    if (role) {
+      const byRole = mailboxes.find((m) => m.role?.toLowerCase() === role.toLowerCase());
+      if (byRole) return byRole.id;
+    }
+    const existing = matchChild(mailboxes, name, parentId, role);
+    if (existing) return existing.id;
 
-    return await this.createMailbox(folder, role);
+    return await this.createMailbox(name, parentId, role);
   }
 
   /**
@@ -455,12 +497,13 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
    * `trashMailboxId` already gives: the filter is a CONTAINS match over a name
    * the server chooses and may localise, so it answers "Sent Items" for "Sent"
    * and nothing for "Verzonden". Reading them all is one round trip and the
-   * only way to see `role` at all.
+   * only way to see `role` and `parentId` at all.
    *
-   * Cached because `ensureMailbox` runs per folder, and the previous shape paid
-   * a query AND a get for each. A cache can go stale against another client
-   * creating a mailbox underneath us; that costs nothing, because
-   * `createMailbox` re-reads on either collision the server can report.
+   * Cached because `ensureMailbox` runs per folder and now walks a level at a
+   * time, and the previous shape paid a query AND a get for each. A cache can
+   * go stale against another client creating a mailbox underneath us; that
+   * costs nothing, because `createMailbox` re-reads on either collision the
+   * server can report.
    */
   private async allMailboxes(refresh = false): Promise<Mailbox[]> {
     if (!refresh && this.mailboxes) return this.mailboxes;
@@ -474,17 +517,23 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
   }
 
   /**
-   * Create a new mailbox.
+   * Create one mailbox under `parentId`.
    *
-   * `role` is passed in rather than re-derived so the collision recovery below
-   * asks about the SAME role the request carried.
+   * `parentId` is sent explicitly, `null` included: omitting it entirely is not
+   * the same request, and a server is entitled to read the absence as "no
+   * opinion" rather than "at the root".
    */
-  private async createMailbox(folder: MailFolder, role?: string): Promise<string> {
+  private async createMailbox(
+    name: string,
+    parentId: string | null,
+    role?: string,
+  ): Promise<string> {
     const mailboxSetResponse = await this.apiRequest<MailboxSetResponse>('Mailbox/set', {
       accountId: this.accountId!,
       create: {
         "0": {
-          name: folder.name || folder.path,
+          name,
+          parentId,
           role,
           sortOrder: 0,
         },
@@ -526,22 +575,25 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
           // re-read below asks the server instead, and answers with an id it
           // actually gave us.
         }
-        // The mailbox we asked for exists under another NAME, holding the role
-        // we asked for. The cache we decided from is a pass old — or another
-        // client created it — so re-read and adopt. Two servers word this
-        // differently and neither names an id, so the recovery is a fresh read
-        // rather than a parse of the sentence.
+        // The mailbox we asked for exists under another NAME holding the role
+        // we asked for, or under this same parent already. The cache we decided
+        // from is a pass old — or another client created it — so re-read and
+        // adopt. Two servers word this differently and neither names an id, so
+        // the recovery is a fresh read rather than a parse of the sentence.
         const conflict = errors.find(
           (e) => e?.type === 'invalidProperties' || e?.type === 'alreadyExists',
         );
         if (conflict) {
           const fresh = await this.allMailboxes(true);
-          const adopted = matchMailbox(fresh, folder, role);
+          const adopted =
+            (role
+              ? fresh.find((m) => m.role?.toLowerCase() === role.toLowerCase())
+              : undefined) ?? matchChild(fresh, name, parentId, role);
           if (adopted) {
             log.info(
               `[jmap-target] adopting existing mailbox ${JSON.stringify(adopted.name)}` +
                 (adopted.role ? ` (role ${adopted.role})` : '') +
-                ` for source folder ${JSON.stringify(folder.path)}: ${conflict.description}`,
+                ` rather than creating ${JSON.stringify(name)}: ${conflict.description}`,
             );
             return adopted.id;
           }
@@ -551,13 +603,14 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
       throw new Error("Failed to create mailbox: " + JSON.stringify(mailboxResponse.notCreated));
     }
 
-    // Keep the cache current so the next folder in this pass does not re-read.
-    // `name` is what we asked for; `role` is what we asked for. A server that
-    // assigned something else is corrected by the refresh a collision forces.
+    // Keep the cache current so the next folder in this pass does not re-read,
+    // and so the next LEVEL of this same path can find the parent we just made.
+    // A server that assigned something other than what we asked for is
+    // corrected by the refresh a collision forces.
     if (this.mailboxes) {
       this.mailboxes = [
         ...this.mailboxes,
-        { id: createdId, name: folder.name || folder.path, ...(role ? { role } : {}) },
+        { id: createdId, name, parentId, ...(role ? { role } : {}) },
       ];
     }
 
@@ -1230,41 +1283,83 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
 }
 
 /**
- * The mailbox on the target that already IS this source folder, or undefined.
+ * The target tree position a source folder maps to, top level first.
  *
- * Role first: it is unique per account (RFC 8621 §2) and is the same fact on
- * both sides whatever each server calls it — "Sent" and "Sent Items" and
- * "Verzonden items" are one mailbox, and only the role says so. Name second,
- * for the ordinary folders that carry no role, matched EXACTLY rather than by
- * the server's `Mailbox/query` contains-filter, which answers "Sent Items" for
- * a folder named "Sent" and would have adopted the wrong one.
+ * **`path` before `name`, which is the whole of the merge-or-subfolder fix.**
+ * `reconcile.ts` composes the mapping's `targetFolderPrefix` into `path` only
+ * (`applyTargetFolderPrefix`), leaving `name` as the source's own leaf. This
+ * function read `name || path`, so the prefix was dropped on the floor: with
+ * `targetFolderPrefix: "Gmail"`, a source "Sent" arrived as
+ * `{path: "Gmail/Sent", name: "Sent"}` and landed in the account's ROOT Sent,
+ * while "Projects" was created at the root with no `Gmail` above it. The wizard
+ * offered a choice (owner decision 2026-08-16) that this connector silently
+ * ignored, while the IMAP and WebDAV targets — which read `path` first —
+ * honoured it. That asymmetry is the bug; the order is the fix.
  *
- * A role never matches a mailbox holding a DIFFERENT role: a source "Archive"
- * must not land in the target's "Sent" merely because both are special.
+ * **Split on `/`, and only on `/`.** JMAP has no path property at all (RFC 8621
+ * expresses hierarchy as `parentId`), so the mapping from our path strings to a
+ * tree is ours to define, and `/` is the only separator we actually control:
+ * `parseTargetFolderPrefix` enforces it for the prefix and rejects a backslash.
+ * A SOURCE path uses the source server's own delimiter, which no part of this
+ * codebase records — `MailFolder` has no delimiter field and `ImapFlowSource`
+ * passes `box.path` through verbatim. So a Gmail or Dovecot-with-`/` source
+ * nests properly, and a Dovecot-with-`.` source yields one level whose name
+ * contains dots: what the source called it, which is truthful and no worse than
+ * the flattening this replaces.
+ *
+ * That flattening was its own bug, incidentally: `name || path` made a source
+ * `Archive/2024` into a ROOT mailbox called `2024`, so two folders of the same
+ * leaf name under different parents collided into one.
  */
-function matchMailbox(
-  mailboxes: readonly Mailbox[],
-  folder: MailFolder,
-  role: string | undefined,
-): Mailbox | undefined {
-  if (role) {
-    const byRole = mailboxes.find((m) => m.role?.toLowerCase() === role.toLowerCase());
-    if (byRole) return byRole;
+function targetSegments(folder: MailFolder): ReadonlyArray<string> {
+  const raw = folder.path || folder.name || '';
+  const segments = raw
+    .split('/')
+    .map((s) => s.trim())
+    .filter((s) => s !== '');
+  if (segments.length === 0) {
+    // Never silently invent one (hard rule 9): a folder with no name is a
+    // source bug, and guessing here would write mail somewhere arbitrary.
+    throw new Error(
+      `Cannot place a mailbox for a folder with no path or name: ${JSON.stringify(folder)}`,
+    );
   }
-  const wantedName = (folder.name ?? folder.path)?.toLowerCase();
-  const wantedPath = folder.path?.toLowerCase();
+  return segments;
+}
+
+/**
+ * The mailbox called `name` directly under `parentId`, or undefined.
+ *
+ * Name matching is EXACT (case-insensitively) and scoped to one parent, rather
+ * than the account-wide search this replaced. Both halves matter: JMAP's own
+ * `Mailbox/query` name filter is a CONTAINS match, which answers "Sent Items"
+ * for a query of "Sent"; and an account-wide match would adopt the root "Sent"
+ * for a `Gmail/Sent` that is supposed to be a different mailbox.
+ *
+ * `parentId` is compared with `?? null` on both sides because servers differ on
+ * whether a root mailbox reports `parentId: null` or omits the property, and
+ * those are the same fact.
+ *
+ * A name match on a mailbox holding a DIFFERENT role is refused: a source
+ * "Archive" must not land in a mailbox that is the account's Sent and merely
+ * happens to be called Archive. A ROLELESS source folder named like a role
+ * mailbox is a different case and IS adopted — `ImapFlowSource` reports
+ * `specialUse` from the server's LIST attributes only, so a server advertising
+ * no SPECIAL-USE gives us 'normal' for its own "Sent", and refusing that would
+ * create a second one beside it.
+ */
+function matchChild(
+  mailboxes: readonly Mailbox[],
+  name: string,
+  parentId: string | null,
+  role?: string,
+): Mailbox | undefined {
+  const wanted = name.toLowerCase();
   return mailboxes.find(
     (m) =>
-      // A name match on a mailbox holding a DIFFERENT role is refused: a source
-      // "Archive" must not land in a target mailbox that is the account's Sent
-      // and merely happens to be called Archive. A ROLELESS source folder named
-      // like a role mailbox is a different case and is adopted — `ImapFlowSource`
-      // reports `specialUse` from the server's LIST attributes ONLY, so a
-      // server that advertises no SPECIAL-USE gives us 'normal' for its own
-      // "Sent", and refusing that would create a second one beside it.
-      !(m.role && role && m.role.toLowerCase() !== role.toLowerCase()) &&
-      (m.name?.toLowerCase() === wantedName ||
-        (m.path !== undefined && m.path.toLowerCase() === wantedPath)),
+      (m.parentId ?? null) === parentId &&
+      m.name?.toLowerCase() === wanted &&
+      !(m.role && role && m.role.toLowerCase() !== role.toLowerCase()),
   );
 }
 

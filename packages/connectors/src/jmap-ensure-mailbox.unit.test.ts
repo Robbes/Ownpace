@@ -283,3 +283,150 @@ describe('JmapTargetWriter.ensureMailbox', () => {
     );
   });
 });
+
+describe('JmapTargetWriter.ensureMailbox — the merge-or-subfolder choice', () => {
+  /**
+   * `targetFolderPrefix` (owner decision 2026-08-16) is how an owner says
+   * "keep each source in its own subfolder" instead of merging into the new
+   * account. `reconcile.ts` composes it into `path` and leaves `name` as the
+   * source's own leaf — and this connector read `name || path`, so the prefix
+   * was dropped on the floor while the IMAP and WebDAV targets honoured it.
+   *
+   * The composition below is exactly what `reconcile.ts` does, spelled out
+   * rather than imported, so these tests keep meaning what they say if that
+   * call site changes shape.
+   */
+  const prefixed = (f: MailFolder, prefix: string): MailFolder => ({
+    ...f,
+    path: `${prefix}/${f.path}`,
+  });
+
+  it('puts a prefixed Sent UNDER the prefix, not in the account\'s own Sent', async () => {
+    // The bug in one case: this returned `mb-sent` — the root Sent Items —
+    // and never called Mailbox/set at all.
+    const created: Array<Record<string, unknown>> = [];
+    const calls = mockJmap({
+      'Mailbox/get': () => ({ accountId: 'a1', list: STALWART_DEFAULTS }),
+      'Mailbox/set': (args) => {
+        const spec = (args.create as Record<string, Record<string, unknown>>)['0']!;
+        created.push(spec);
+        return { accountId: 'a1', created: { '0': { id: `mb-${created.length}` } } };
+      },
+    });
+
+    const writer = new JmapTargetWriter(CONFIG);
+    const id = await writer.ensureMailbox(
+      prefixed(folder({ path: 'Sent', specialUse: 'sent' }), 'Gmail'),
+    );
+
+    expect(id).toBe('mb-2');
+    expect(calls.filter((c) => c.method === 'Mailbox/set')).toHaveLength(2);
+    // The prefix itself, at the root.
+    expect(created[0]).toMatchObject({ name: 'Gmail', parentId: null });
+    expect(created[0]!.role).toBeUndefined();
+    // And Sent UNDER it, carrying NO role: RFC 8621 allows one sent per
+    // account and the account already has one. A folder that happens to be
+    // called Sent is not the account's Sent.
+    expect(created[1]).toMatchObject({ name: 'Sent', parentId: 'mb-1' });
+    expect(created[1]!.role).toBeUndefined();
+  });
+
+  it('reuses the prefix mailbox for the next folder instead of making a second one', async () => {
+    const created: Array<Record<string, unknown>> = [];
+    mockJmap({
+      'Mailbox/get': () => ({ accountId: 'a1', list: STALWART_DEFAULTS }),
+      'Mailbox/set': (args) => {
+        const spec = (args.create as Record<string, Record<string, unknown>>)['0']!;
+        created.push(spec);
+        return { accountId: 'a1', created: { '0': { id: `mb-${created.length}` } } };
+      },
+    });
+
+    const writer = new JmapTargetWriter(CONFIG);
+    await writer.ensureMailbox(prefixed(folder({ path: 'Sent', specialUse: 'sent' }), 'Gmail'));
+    await writer.ensureMailbox(prefixed(folder({ path: 'Projects' }), 'Gmail'));
+
+    // Three creates, not four: Gmail, Gmail/Sent, Gmail/Projects.
+    expect(created.map((c) => c.name)).toEqual(['Gmail', 'Sent', 'Projects']);
+    expect(created[2]).toMatchObject({ parentId: 'mb-1' });
+  });
+
+  it('adopts a prefix mailbox the account already had', async () => {
+    const created: Array<Record<string, unknown>> = [];
+    mockJmap({
+      'Mailbox/get': () => ({
+        accountId: 'a1',
+        list: [...STALWART_DEFAULTS, { id: 'mb-gmail', name: 'Gmail', parentId: null }],
+      }),
+      'Mailbox/set': (args) => {
+        const spec = (args.create as Record<string, Record<string, unknown>>)['0']!;
+        created.push(spec);
+        return { accountId: 'a1', created: { '0': { id: 'mb-child' } } };
+      },
+    });
+
+    const writer = new JmapTargetWriter(CONFIG);
+    expect(await writer.ensureMailbox(prefixed(folder({ path: 'Projects' }), 'Gmail'))).toBe(
+      'mb-child',
+    );
+    expect(created).toHaveLength(1);
+    expect(created[0]).toMatchObject({ name: 'Projects', parentId: 'mb-gmail' });
+  });
+
+  it('nests a source folder that was already a tree, instead of flattening it', async () => {
+    // `name || path` made a source `Archive/2024` into a ROOT mailbox called
+    // `2024`, so two folders with the same leaf name under different parents
+    // collided into one. Nothing to do with the prefix — its own bug.
+    const created: Array<Record<string, unknown>> = [];
+    mockJmap({
+      'Mailbox/get': () => ({ accountId: 'a1', list: [] }),
+      'Mailbox/set': (args) => {
+        const spec = (args.create as Record<string, Record<string, unknown>>)['0']!;
+        created.push(spec);
+        return { accountId: 'a1', created: { '0': { id: `mb-${created.length}` } } };
+      },
+    });
+
+    const writer = new JmapTargetWriter(CONFIG);
+    await writer.ensureMailbox(folder({ path: 'Archive/2024', name: '2024' }));
+    await writer.ensureMailbox(folder({ path: 'Projects/2024', name: '2024' }));
+
+    expect(created.map((c) => [c.name, c.parentId])).toEqual([
+      ['Archive', null],
+      ['2024', 'mb-1'],
+      ['Projects', null],
+      ['2024', 'mb-3'],
+    ]);
+  });
+
+  it('leaves the merge default exactly as it was — no prefix, no tree', async () => {
+    // The regression that would matter most: this is what every mapping does
+    // today, and it must still be one flat mailbox at the root.
+    const created: Array<Record<string, unknown>> = [];
+    const calls = mockJmap({
+      'Mailbox/get': () => ({ accountId: 'a1', list: STALWART_DEFAULTS }),
+      'Mailbox/set': (args) => {
+        created.push((args.create as Record<string, Record<string, unknown>>)['0']!);
+        return { accountId: 'a1', created: { '0': { id: 'mb-projects' } } };
+      },
+    });
+
+    const writer = new JmapTargetWriter(CONFIG);
+    // A role folder still adopts the account's own.
+    expect(await writer.ensureMailbox(folder({ path: 'Sent', specialUse: 'sent' }))).toBe('mb-sent');
+    // An ordinary one is created at the root, WITH its role where it has one.
+    expect(await writer.ensureMailbox(folder({ path: 'Projects' }))).toBe('mb-projects');
+
+    expect(calls.filter((c) => c.method === 'Mailbox/set')).toHaveLength(1);
+    expect(created[0]).toMatchObject({ name: 'Projects', parentId: null });
+  });
+
+  it('refuses a folder with neither a path nor a name rather than inventing one', async () => {
+    // Hard rule 9: guessing here writes mail somewhere arbitrary.
+    mockJmap({ 'Mailbox/get': () => ({ accountId: 'a1', list: [] }) });
+    const writer = new JmapTargetWriter(CONFIG);
+    await expect(
+      writer.ensureMailbox({ path: '', name: '', specialUse: 'normal' }),
+    ).rejects.toThrow(/no path or name/);
+  });
+});

@@ -14,6 +14,13 @@
 process.env.JWT_SECRET = 'test-secret-for-integration-tests';
 process.env.SECRET_ENCRYPTION_KEY =
   '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+// This file makes a dozen requests from one address, and the limiter's key is
+// `req.ip` — one bucket for the whole suite. Raised here rather than worked
+// around, because the DEFAULT is the thing the other cases are about and a test
+// that quietly shared a production-sized bucket is what found the real bug: at
+// the original 5/hour, the suite's sixth request 429'd and two cases failed on
+// a limit that would have refused the sixth real customer of the hour too.
+process.env.ACCESS_REQUEST_MAX_PER_HOUR = '1000';
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { Pool } from 'pg';

@@ -122,7 +122,9 @@ const en = {
   'wizard.targetPrefix.hint':
     'Everything this migration writes lands under this folder — useful when several sources ' +
     'share one target and you want a subfolder per source (e.g. "Gmail"). Leave it empty to ' +
-    'merge, which is the default: one account, one place to work.',
+    'merge, which is the default: one account, one place to work. Under a folder, Sent and ' +
+    'Drafts arrive as ordinary folders inside it rather than becoming the account\'s own Sent ' +
+    'and Drafts — a mail app can only have one of each.',
   'wizard.source.driveSetup':
     'A Google Drive source uses your own Google Cloud OAuth client and a delegated, read-only ' +
     'refresh token — docs/google-workspace-setup.md walks through all three values and ends ' +
@@ -1088,7 +1090,9 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.targetPrefix.hint':
     'Alles wat deze migratie schrijft komt onder deze map terecht — handig wanneer meerdere ' +
     'bronnen één doel delen en u per bron een submap wilt (bijv. "Gmail"). Laat leeg om samen ' +
-    'te voegen; dat is de standaard: één account, één plek om te werken.',
+    'te voegen; dat is de standaard: één account, één plek om te werken. Onder een map komen ' +
+    'Verzonden en Concepten als gewone mappen daarbinnen terecht, in plaats van de Verzonden ' +
+    'en Concepten van het account zelf te worden — een mailprogramma kan er maar één van elk hebben.',
   'wizard.source.driveSetup':
     'Een Google Drive-bron gebruikt uw eigen Google Cloud OAuth-client en een gedelegeerd, ' +
     'alleen-lezen refresh-token — docs/google-workspace-setup.md behandelt alle drie de waarden ' +

@@ -9,6 +9,7 @@
 | T2 The route anybody can reach | ✅ **Done 2026-08-22** | `POST /api/access-requests`, unauthenticated like `/health` and `/metrics` and unlike them a WRITE. `apps/api/src/knock-limit.ts` (6 unit tests) + `access-requests.integration.test.ts` (5 cases, **not run** — no docker here). |
 | T3 A page to ask on | ✅ **Done 2026-08-22** | `apps/web/src/pages/RequestAccess.tsx` at `/request-access`, public and managed-only, EN + NL. 8 tests, including that a blank optional field travels as ABSENT rather than `''`, and that a `?tier=` nobody offers is ignored. |
 | T4 The site's button leads there | ✅ **Done 2026-08-22** | `site/build.mjs` — every call-to-action button now links to the app; the footer's support address stays a support address. 2 guards in `site/site.unit.test.ts`, both shown to fail on revert. |
+| T2b The limit that would have refused the sixth customer | ✅ **Done 2026-08-22** | CI's first run of `access-requests.integration.test.ts` failed with `expected 429 to be 400` — the suite's own sixth request. The cause was not the test: `DEFAULT_KNOCK_LIMIT.max` was 5/hour keyed on `req.ip`, which behind an ingress is the ingress, so it was **five access requests per hour for the entire service**. Raised to 60 and sized as a service-wide cap, made configurable (`ACCESS_REQUEST_MAX_PER_HOUR`, refusing a bad value rather than falling back), and `TRUST_PROXY` added so the limiter *can* be per-caller. The 429 now has its own integration file — nothing had tested it, which is why this surfaced as two confusing failures instead of one clear one. |
 | T5 An issuer, and a sign-in that is not a paste box | 📋 Planned (**owner decision**) | The arch doc names **Zitadel** (§7.3, §18) and no ADR has ever decided it. Nothing in `deploy/` mentions it. This is where the next session starts. |
 | T6 A privileged provisioning path | 📋 Planned (needs T5) | Granting a request means creating a `tenant` + an owner `tenant_member`, which cannot happen on a tenant-scoped connection — `POST /api/tenants` answers **501** saying exactly that. |
 | T7 The owner's queue | 📋 Planned (needs T6) | Reading `access_request` and deciding on it. Deliberately last: a queue you cannot act on is a list. |
@@ -84,13 +85,21 @@ WRITES, which is the whole of the difference:
 2. Every field is length-capped in the route, before the insert. Otherwise a
    public form is a free 100kb-per-request writeable store — `express.json()`'s
    default limit being the only other ceiling.
-3. A refusing per-IP rate limit. **Not** `RateBudget`, whose `acquire` waits
-   rather than refuses — right for a provider quota, exactly wrong for an abuse
-   gate, where waiting is a queue of attackers holding request threads open. Not
+3. A refusing rate limit. **Not** `RateBudget`, whose `acquire` waits rather
+   than refuses — right for a provider quota, exactly wrong for an abuse gate,
+   where waiting is a queue of attackers holding request threads open. Not
    `express-rate-limit` either: a new runtime dependency for twenty lines on a
-   service whose real protection is the ingress. `knock-limit.ts` says all of
-   this, including that it is per-process and therefore N times looser with N
-   replicas.
+   service whose real protection is the ingress.
+
+   **Sized as a service-wide cap, and that took a CI failure to get right.** The
+   key is `req.ip`, which without `trust proxy` is the INGRESS's address — so
+   one bucket serves everybody. The first version said five an hour, reasoning
+   that "too strict is the safe direction to be wrong in". It is not: five an
+   hour across the whole service refuses the sixth real person that hour, and
+   no log line would say so. Sixty still bounds a runaway to ~1,400 rows a day,
+   which is the actual job. `TRUST_PROXY` now exists so a deployment that knows
+   its ingress gets true per-caller limiting, because the old comment promised
+   that and gave no way to do it.
 4. **The response is identical whatever happens** — new address, known address,
    already granted. Anything else is an account-enumeration oracle. It is also
    the honest answer: from the asker's side all three genuinely are "we have it,
@@ -130,8 +139,8 @@ Three things it has to answer, and only the first is about the product:
 
 `pnpm lint` · `pnpm typecheck` · `pnpm test` — green (2026-08-22).
 
-`pnpm test:integration` NOT run: no docker daemon in this sandbox
-(`dial unix /var/run/docker.sock`). `access-requests.integration.test.ts` is new
-and entirely unrun; it needs a Testcontainers run before T2 is called proven end
-to end. The database half of T1 IS proven — `access-request-under-rls.unit.test.ts`
-applies both migration chains under PGlite and serves as `app_user`.
+`pnpm test:integration` ran for the first time on **PR #494**, and found T2b —
+a real bug in the shipped limit, not a broken test. That is what the PR was for.
+The database half of T1 was already proven locally: `access-request-under-rls.unit.test.ts`
+applies both migration chains under PGlite and serves as `app_user`, which is
+the role that matters.

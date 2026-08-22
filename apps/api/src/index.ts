@@ -47,6 +47,24 @@ export type { AuthenticatedRequest, JwtPayload };
 const app: Application = express();
 const PORT = process.env.API_PORT || 3001;
 
+/**
+ * Whether to believe `X-Forwarded-For` (workplan 0093).
+ *
+ * Off unless set, deliberately: trusting that header when nothing strips it
+ * lets any caller claim any address, which would turn the access-request rate
+ * limit into a header somebody chooses. Set it ONLY where an ingress is known
+ * to overwrite the header — then `req.ip` is the real client and the limit
+ * becomes per-caller instead of service-wide.
+ *
+ * Express's own values: a number of hops ("1"), a comma-separated list of
+ * trusted addresses/subnets, or "true" for all (which is the unsafe one, and is
+ * why it has to be typed out rather than being the default).
+ */
+const trustProxy = process.env.TRUST_PROXY;
+if (trustProxy) {
+  app.set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy);
+}
+
 // Middleware
 app.use(helmet());
 app.use(cors({

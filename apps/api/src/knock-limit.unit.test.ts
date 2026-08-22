@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { createKnockLimiter, DEFAULT_KNOCK_LIMIT } from './knock-limit.ts';
+import { createKnockLimiter, knockLimitFromEnv, DEFAULT_KNOCK_LIMIT } from './knock-limit.ts';
 
 describe('createKnockLimiter', () => {
   it('allows up to max in a window, then refuses', () => {
@@ -55,10 +55,49 @@ describe('createKnockLimiter', () => {
     expect(limiter.take('caller-0', 100_000)).toBe(true);
   });
 
-  it('defaults to something a mistyped email survives', () => {
-    // A person who gets their address wrong and submits again must not be told
-    // to come back in an hour.
-    expect(DEFAULT_KNOCK_LIMIT.max).toBeGreaterThanOrEqual(3);
+  it('defaults to a number that can survive being a SERVICE-WIDE cap', () => {
+    // The key is `req.ip`, which is the ingress's address unless TRUST_PROXY is
+    // set — so on a normal deployment this one bucket is the whole service. At
+    // the original 5, the sixth person to ask for an account in an hour was
+    // refused, and nothing would have said so. Its own integration test found
+    // it: the suite's sixth request 429'd.
+    //
+    // The floor here is not a style preference. Anything under a couple of
+    // dozen an hour cannot serve a launch day through one bucket.
+    expect(DEFAULT_KNOCK_LIMIT.max).toBeGreaterThanOrEqual(30);
     expect(DEFAULT_KNOCK_LIMIT.windowMs).toBe(60 * 60 * 1000);
+  });
+});
+
+describe('knockLimitFromEnv', () => {
+  it('uses the default when nothing is configured', () => {
+    expect(knockLimitFromEnv({})).toEqual(DEFAULT_KNOCK_LIMIT);
+    expect(knockLimitFromEnv({ ACCESS_REQUEST_MAX_PER_HOUR: '' })).toEqual(DEFAULT_KNOCK_LIMIT);
+    expect(knockLimitFromEnv({ ACCESS_REQUEST_MAX_PER_HOUR: '   ' })).toEqual(DEFAULT_KNOCK_LIMIT);
+  });
+
+  it('takes a configured number', () => {
+    expect(knockLimitFromEnv({ ACCESS_REQUEST_MAX_PER_HOUR: '250' })).toEqual({
+      windowMs: 60 * 60 * 1000,
+      max: 250,
+    });
+  });
+
+  it('refuses a value somebody clearly meant to set, rather than falling back', () => {
+    // Hard rule 9. A typo'd limit that silently becomes the default is a
+    // configuration that lies — the operator reads their own value in .env and
+    // the service is running on another one.
+    for (const bad of ['0', '-1', 'lots', '1.5', 'NaN']) {
+      expect(
+        () => knockLimitFromEnv({ ACCESS_REQUEST_MAX_PER_HOUR: bad }),
+        `${bad} should have been refused`,
+      ).toThrow(/positive integer/);
+    }
+  });
+
+  it('says in its refusal that the cap is usually service-wide', () => {
+    // The sentence an operator reads while choosing a number is the only place
+    // that fact reaches them at the moment it matters.
+    expect(() => knockLimitFromEnv({ ACCESS_REQUEST_MAX_PER_HOUR: 'x' })).toThrow(/TRUST_PROXY/);
   });
 });

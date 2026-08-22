@@ -21,8 +21,9 @@
  *  2. Every field is length-capped here, before the insert. A public form is
  *     otherwise a free 100kb-per-request writeable store (express.json's
  *     default limit is the only other ceiling).
- *  3. A refusing per-IP rate limit (`knock-limit.ts`), which is a nuisance gate
- *     and says so — the real protection is the ingress.
+ *  3. A refusing rate limit (`knock-limit.ts`), which is a nuisance gate and
+ *     says so — the real protection is the ingress. Sized as a SERVICE-WIDE cap,
+ *     because without `TRUST_PROXY` every caller shares the ingress's address.
  *  4. **The response is the same whatever happens.** It never says whether an
  *     address is already known, already granted, or new: a public endpoint that
  *     distinguishes those is an account-enumeration oracle. It is also honest —
@@ -44,7 +45,7 @@ import { managedSchema } from '@openmig/managed';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { log } from '@openmig/shared';
 import { serverFault } from '../server-fault.ts';
-import { createKnockLimiter } from '../knock-limit.ts';
+import { createKnockLimiter, knockLimitFromEnv, type KnockLimiter } from '../knock-limit.ts';
 
 const router = Router();
 
@@ -54,7 +55,19 @@ function getSharedPool(): Pool {
   return _dbPool;
 }
 
-const limiter = createKnockLimiter();
+/**
+ * Built on the first request rather than at import, matching `getSharedPool`
+ * above — and for a reason beyond symmetry: the limit is read from the
+ * environment, and a module-scope read happens at import time, which in a test
+ * run is before the file that configures it has done anything. Reading it here
+ * makes the configured value the one that is actually used, whoever imports
+ * whom in what order.
+ */
+let _limiter: KnockLimiter | null = null;
+function limiter(): KnockLimiter {
+  if (!_limiter) _limiter = createKnockLimiter(knockLimitFromEnv());
+  return _limiter;
+}
 
 /**
  * Caps chosen so a person is never truncated and a script gets nowhere. `note`
@@ -76,18 +89,18 @@ const AccessRequestSchema = z.object({
 /**
  * Who is knocking, for the rate limit only.
  *
- * `req.ip` is Express's, which honours `trust proxy` — unset here, so behind
- * the ingress this is the proxy's address and the limit is effectively global.
- * That is the safe direction to be wrong in (too strict, never too permissive),
- * and it is why the limit is generous. Set `trust proxy` when the ingress is
- * known and this becomes per-caller.
+ * `req.ip` is Express's, which honours `trust proxy` — see `TRUST_PROXY` in
+ * `index.ts`. Unset, this is the INGRESS's address and the limit is
+ * service-wide, which is what `DEFAULT_KNOCK_LIMIT` is sized for. Set, it
+ * becomes per-caller and the limit can be tightened with
+ * `ACCESS_REQUEST_MAX_PER_HOUR`.
  */
 const callerKey = (req: Request): string => req.ip ?? 'unknown';
 
 router.post('/', async (req: Request, res: Response) => {
   try {
-    if (!limiter.take(callerKey(req))) {
-      const retryAfter = limiter.retryAfterSeconds(callerKey(req));
+    if (!limiter().take(callerKey(req))) {
+      const retryAfter = limiter().retryAfterSeconds(callerKey(req));
       res.set('Retry-After', String(retryAfter));
       res.status(429).json({
         error: 'Too many requests',

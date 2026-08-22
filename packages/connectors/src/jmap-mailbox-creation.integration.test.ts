@@ -100,6 +100,8 @@ if (!BASE || !PASSWORD || !IMAP_HOST) {
     const NEW_FOLDER = `Ownpace-IT-${stamp}`;
     /** One literal, so the cases cannot ask for subtly different folders. */
     const folder: MailFolder = { path: NEW_FOLDER, name: NEW_FOLDER, specialUse: 'normal' };
+    /** The prefix case's own tree, cleaned up by the same `Ownpace-IT-` sweep. */
+    const PREFIX = `Ownpace-IT-p${stamp}`;
     const writer = new JmapTargetWriter({ baseUrl: BASE, username: USER, password: PASSWORD });
 
     /** Whatever the account looked like before we touched it. */
@@ -111,11 +113,16 @@ if (!BASE || !PASSWORD || !IMAP_HOST) {
     }, 60_000);
 
     afterAll(async () => {
-      // Leave the fixture account as we found it.
+      // Leave the fixture account as we found it. DEEPEST FIRST — a server is
+      // entitled to refuse deleting a mailbox that still has children, and the
+      // prefix cases below create exactly that shape. Sorted by length rather
+      // than by depth because the delimiter is the server's choice, and a
+      // longer path is a deeper one under any delimiter.
       await withImapTestClient(imap, async (client: ImapFlow) => {
-        for (const path of await listMailboxPaths(client)) {
-          if (path.startsWith('Ownpace-IT-')) await client.mailboxDelete(path).catch(() => undefined);
-        }
+        const ours = (await listMailboxPaths(client))
+          .filter((p) => p.startsWith('Ownpace-IT-'))
+          .sort((a, b) => b.length - a.length);
+        for (const path of ours) await client.mailboxDelete(path).catch(() => undefined);
       }).catch(() => undefined);
     }, 60_000);
 
@@ -190,6 +197,60 @@ if (!BASE || !PASSWORD || !IMAP_HOST) {
       expect(second).toBe(first);
       const paths = await withImapTestClient(imap, listMailboxPaths);
       expect(paths.filter((p: string) => p === NEW_FOLDER)).toHaveLength(1);
+    }, 120_000);
+
+    it('creates a real TREE under a target folder prefix, on a server that has its own Sent', async () => {
+      // The merge-or-subfolder choice (owner decision 2026-08-16). reconcile.ts
+      // composes the prefix into `path` and leaves `name` as the source leaf;
+      // this connector read `name || path` and dropped the prefix entirely, so
+      // a prefixed "Sent" landed in the account's OWN Sent and a prefixed
+      // "Projects" was created at the root. Both silently.
+      //
+      // Against a real server this is also the only proof that `parentId`
+      // works at all — nothing in this codebase had ever sent one.
+      const sentUnderPrefix: MailFolder = {
+        path: `${PREFIX}/Sent`,
+        name: 'Sent',
+        specialUse: 'sent',
+      };
+      const id = await writer.ensureMailbox(sentUnderPrefix);
+      expect(id).toBeTruthy();
+
+      const boxes = await withImapTestClient(imap, (client: ImapFlow) => client.list());
+      const paths = boxes.map((b) => b.path);
+
+      // The prefix exists at the root, and Sent exists INSIDE it. Read over
+      // IMAP, whose delimiter the server chose — so the assertion is "a child
+      // of the prefix" rather than a guess at the separator.
+      expect(paths, `no ${PREFIX} was created`).toContain(PREFIX);
+      const child = boxes.find(
+        (b) => b.path !== PREFIX && b.path.startsWith(PREFIX) && b.name === 'Sent',
+      );
+      expect(child, `nothing named Sent under ${PREFIX}: ${paths.join(', ')}`).toBeDefined();
+
+      // And it is NOT the account's sent mailbox: exactly one of those still
+      // exists, and it is the one that was there before we started.
+      const sent = await withImapTestClient(imap, sentMailboxes);
+      expect(sent).toHaveLength(1);
+      expect(mailboxesBefore).toContain(sent[0]);
+      expect(child!.path).not.toBe(sent[0]);
+      // The child carries no special-use flag of its own — a folder that
+      // happens to be called Sent is not the account's Sent.
+      expect(mapImapSpecialUse([...(child!.flags ?? [])])).toBe('normal');
+    }, 120_000);
+
+    it('reuses the prefix for the next folder rather than making a second one', async () => {
+      await writer.ensureMailbox({
+        path: `${PREFIX}/Projects`,
+        name: 'Projects',
+        specialUse: 'normal',
+      });
+
+      const paths = await withImapTestClient(imap, listMailboxPaths);
+      expect(paths.filter((p: string) => p === PREFIX)).toHaveLength(1);
+      expect(
+        paths.filter((p: string) => p.startsWith(PREFIX) && p.endsWith('Projects')),
+      ).toHaveLength(1);
     }, 120_000);
 
     it("adopts the account's OWN sent mailbox for a source 'Sent' — the owner's failure", async () => {

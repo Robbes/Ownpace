@@ -9,6 +9,7 @@
 | T2b The id guessed out of a sentence | ✅ **Done 2026-08-22** | Same function again: an `alreadyExists` with no explicit `existingId` fell to `/'([a-z0-9]+)'/i`, "try to find the ID in the description" — which in `Mailbox 'Sent' already exists` finds the NAME. Removed; that case now takes T1's re-read-and-adopt, which answers with an id the server actually gave us. |
 | T3 A cadence is not a delay | ✅ **Done 2026-08-22** | Activation now runs the first pass in **both** editions. Appliance: `apps/selfhost/src/first-pass-on-activation.unit.test.ts` proves it on a schedule (`0 5 31 2 *`, the 31st of February) that can never fire, so the run row it asserts could only have come from the activation. Managed: `POST /:mappingId/start` enqueues `run-delta-sync` on the transition into `active`, `concurrencyKey: mappingId` (the tick's own key), reported as `firstRun` on the response. Wizard copy says so, EN and NL. |
 | T5 The create path nothing had ever run | ✅ **Written 2026-08-22, not yet run** | `packages/connectors/src/jmap-mailbox-creation.integration.test.ts` — 4 cases against a real Stalwart. Every existing integration test that touched `ensureMailbox` passed it `INBOX`, so all of them exercised ADOPTION and none exercised CREATION; that is the gap T2 lived in. Mailbox assertions go over **IMAP**, deliberately — asking JMAP whether JMAP did the right thing lets one wrong id agree with itself. Needs docker: not run in this sandbox. |
+| T6 The choice the JMAP target ignored | ✅ **Done 2026-08-22** | `targetFolderPrefix` (owner decision 2026-08-16) is offered by the wizard, validated, stored and honoured by the IMAP and WebDAV targets — and silently dropped by JMAP, which read `folder.name` before `folder.path` where they read `path` first, and never sent a `parentId`. Probed against the real code path before touching it: prefixed `Sent` returned the account's ROOT Sent with no `Mailbox/set` at all; prefixed `Projects` was created at the root with no `Gmail` above it. JMAP now walks the tree, and a source hierarchy nests instead of flattening (`Archive/2024` was becoming a root mailbox called `2024`). 6 more unit cases, 2 more integration cases. |
 | T4 A front door with nothing behind it | 📋 Planned (**owner decision**, see below) | `site/build.mjs:412` — the site's only CTA is `mailto:`. `apps/web/src/pages/Login.tsx:44` — the app's sign-in is a textarea you paste a JWT into. `apps/api/src/routes/tenants/index.ts:110` — `POST /api/tenants` answers **501** by design. The only path from visitor to account is the owner running `deploy/compose/seed-managed.sh` and emailing a token that expires in 7 days. |
 
 ## Why this exists
@@ -162,6 +163,62 @@ needs the same issuer, the same login screen and the same provisioning route, an
 only a checkout in front of them.
 
 Not in scope either way: the appliance. It has no accounts, by design.
+
+## T6 — the choice the JMAP target ignored
+
+The owner asked, on 2026-08-22, that this be a decision rather than a default:
+match the source's folder to the target's by role (a source "Sent Mail" lands in
+the target's "Sent"), or nest everything under one root folder named for the
+source ("Gmail", and the source's own folder names inside it).
+
+**That choice already existed** — `targetFolderPrefix`, decided 2026-08-16, with
+a wizard field, a validator, a database column, and the destructive path taught
+it separately so an IMAP removal opens the mailbox the copy actually lives in.
+Empty means merge; `Gmail` means nest.
+
+**It did nothing on a JMAP target**, which is the primary target protocol
+(AGENTS.md) and the one the owner had just synced into. Probed against the real
+code path, with `reconcile.ts`'s own composition:
+
+| Source folder, prefix `Gmail` | What `ensureMailbox` received | What happened |
+|---|---|---|
+| `Sent` (role sent) | `{path: "Gmail/Sent", name: "Sent", specialUse: "sent"}` | Returned the account's **root** Sent Items. **No `Mailbox/set` at all.** |
+| `Projects` (ordinary) | `{path: "Gmail/Projects", name: "Projects"}` | Created `{name: "Projects"}` at the **root**. No `Gmail`, no `parentId`. |
+
+One word caused it. JMAP read `folder.name || folder.path` — **name first** —
+where `imapflow-dav-target.ts` reads `folder.path || folder.name` and the WebDAV
+writer uses `folder.path`. The prefix is only ever composed into `path`, so JMAP
+dropped it. And `createMailbox` never sent a `parentId`, so it could not have
+built a tree even had it tried.
+
+**A second bug fell out of the same word.** Without any prefix, a source folder
+`Archive/2024` became a ROOT mailbox called `2024` — so two folders with the
+same leaf name under different parents collided into one.
+
+### Three decisions inside the fix
+
+**A role belongs to a leaf at the ROOT, and to nothing else.** RFC 8621 allows
+one mailbox per role per account, so `Gmail/Sent` cannot be the account's Sent —
+asking for the role there is asking for exactly the collision T1 was about. A
+prefixed special folder is created roleless: a folder that happens to be called
+Sent. The wizard hint says so now, in both languages, because it changes what a
+mail app does — an app can only have one Sent.
+
+**Split on `/`, and only on `/`.** JMAP has no path property at all; hierarchy is
+`parentId`, so the mapping from our path strings to a tree is ours to define. `/`
+is the only separator we control — `parseTargetFolderPrefix` enforces it and
+rejects a backslash — while a SOURCE path carries the source server's delimiter,
+which nothing in this codebase records (`MailFolder` has no delimiter field;
+`ImapFlowSource` passes `box.path` through verbatim). So a Gmail or
+Dovecot-with-`/` source nests properly, and a Dovecot-with-`.` source yields one
+level whose name contains dots — what the source called it, and no worse than
+the flattening it replaces.
+
+**Changing the layout cannot duplicate mail**, which is the property that made
+this safe to change at all (hard rule 1). `upsertEmail` checks an ACCOUNT-WIDE
+snapshot keyed by Message-ID and adopts on a hit regardless of which mailbox the
+message is in, so a message already sitting in a flat mailbox is adopted rather
+than copied again. Checked before writing a line of it.
 
 ## Gates
 
