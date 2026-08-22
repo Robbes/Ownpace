@@ -154,6 +154,60 @@ export async function withTenant<T>(
 }
 
 /**
+ * Run `fn` scoped to a SUBJECT rather than to a tenant (ADR-0042).
+ *
+ * The one question that cannot be asked inside `withTenant`: *which tenants do I
+ * belong to?* Every policy on `tenant_member` keys on `app.current_tenant`, so
+ * answering it requires already knowing the answer. This sets `app.current_user`
+ * instead, which migration `0003_a_person_can_see_their_own_memberships`
+ * matches with a SELECT policy for your own rows.
+ *
+ * **Deliberately narrow.** It sets no tenant, so nothing tenant-scoped is
+ * readable through it — every other table's policies still require
+ * `app.current_tenant`, which is unset here, and `current_setting(…, true)`
+ * answers NULL rather than raising. So this is not a back door into the ledger:
+ * it opens exactly one table, for exactly the rows naming this subject. Keep it
+ * that way — if a second question ever needs subject scope, add a policy for it
+ * rather than widening what this sets.
+ *
+ * Same shape as `withTenant` otherwise, and for the same reasons: it drops to
+ * the unprivileged role FIRST (policies are decoration to an owner or a
+ * superuser), uses `SET LOCAL`/`set_config(…, true)` so the context cannot
+ * outlive the transaction, and destroys the connection when a rollback fails
+ * rather than handing a poisoned one back.
+ */
+export async function withSubject<T>(
+  source: LedgerDriver | Pool,
+  userId: string,
+  fn: (db: PgDatabase) => Promise<T>
+): Promise<T> {
+  const driver = isLedgerDriver(source) ? source : pgDriver(source);
+  const conn = await driver.acquire();
+  let releaseError: Error | undefined;
+
+  try {
+    await conn.query('BEGIN');
+    if (driver.role) {
+      await conn.query(`SET LOCAL ROLE "${assertRoleName(driver.role)}"`);
+    }
+    await conn.query("SELECT set_config('app.current_user', $1, true)", [userId]);
+    const result = await fn(conn.db);
+    await conn.query('COMMIT');
+    return result;
+  } catch (error) {
+    try {
+      await conn.query('ROLLBACK');
+    } catch (rollbackError) {
+      log.error('Rollback failed after error:', rollbackError);
+      releaseError = rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError));
+    }
+    throw error;
+  } finally {
+    conn.release(releaseError);
+  }
+}
+
+/**
  * Create a Postgres database handle for the ledger.
  * Returns an object with the db and a close method.
  *
