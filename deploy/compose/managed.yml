@@ -395,6 +395,93 @@ services:
       - ownpace-network
 
   # Open Migration API
+  # The identity provider (ADR-0042).
+  #
+  # WHAT THIS IS FOR. Until it existed, the path from stranger to signed-in
+  # customer ended with the owner running seed-managed.sh and emailing a JWT
+  # that expired in seven days, to be pasted into a textarea. This is the thing
+  # that mints tokens instead.
+  #
+  # WHY IT IS NOT LOAD-BEARING. ADR-0042 chose this provider and named Keycloak
+  # as the fallback, and the decision rests on being able to move with
+  # configuration rather than a project. Nothing in `apps/` or `packages/` knows
+  # this service exists — the API reads JWT_ISSUER, discovers `jwks_uri` from
+  # the standard discovery document, and knows no provider's URL shape.
+  # `no-issuer-lock-in.unit.test.ts` enforces that by scanning the source, and
+  # `issuer-is-replaceable.unit.test.ts` drives the real verification path with
+  # both providers' documents. This block, the setup script and the docs are the
+  # only places the name appears, which is exactly where a deployment must name
+  # what it deploys.
+  #
+  # SHARES THE STACK'S POSTGRES, on its own database and its own role. It
+  # connects DIRECT rather than through pgbouncer for the reason the api
+  # service's DIRECT_DATABASE_URL comment gives: it runs its own migrations, and
+  # a transaction-mode pooler is the wrong place to hold a migration lock.
+  # ADMIN credentials are how it creates that database and role on first boot;
+  # after that it uses its own.
+  zitadel:
+    image: ghcr.io/zitadel/zitadel:v4.6.2
+    container_name: ownpace-idp
+    restart: unless-stopped
+    # `start-from-init` is init-then-start in one command and is idempotent: on
+    # a database it has already initialised it skips straight to serving. Two
+    # commands would mean a first bring-up that differs from every later one,
+    # which is the kind of asymmetry an operator only discovers on a restart.
+    command: >
+      start-from-init
+      --masterkey "${ZITADEL_MASTERKEY:?run ./deploy/compose/ensure-env-secrets.sh first}"
+      --tlsMode ${ZITADEL_TLS_MODE:-disabled}
+    environment:
+      ZITADEL_DATABASE_POSTGRES_HOST: postgres
+      ZITADEL_DATABASE_POSTGRES_PORT: 5432
+      ZITADEL_DATABASE_POSTGRES_DATABASE: ${ZITADEL_DB_NAME:-zitadel}
+      ZITADEL_DATABASE_POSTGRES_USER_USERNAME: ${ZITADEL_DB_USER:-zitadel}
+      ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: ${ZITADEL_DB_PASSWORD:?run ./deploy/compose/ensure-env-secrets.sh first}
+      ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
+      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: ${POSTGRES_USER:-openmigrate}
+      ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: ${POSTGRES_PASSWORD:-openmigrate_password}
+      ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE: disable
+      # The browser-visible address. It is baked into every token's `iss`, so
+      # changing it later invalidates tokens and breaks the API's issuer check —
+      # which is the fourth variable carrying a browser-visible address, and
+      # belongs with the three workplan 0091 T1 is about.
+      ZITADEL_EXTERNALDOMAIN: ${ZITADEL_EXTERNALDOMAIN:-localhost}
+      ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNALPORT:-8080}
+      ZITADEL_EXTERNALSECURE: ${ZITADEL_EXTERNALSECURE:-false}
+      # The first human, so a fresh stack has somebody who can sign in.
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: ${ZITADEL_ADMIN_USERNAME:-owner}
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_ADMIN_PASSWORD:?run ./deploy/compose/ensure-env-secrets.sh first}
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: "true"
+      # And a machine account whose token is written to a file on first init.
+      # This is what lets setup-zitadel.sh provision the project and the client
+      # without anybody clicking through a console — see that script's header
+      # for why the token is deliberately short-lived.
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_USERNAME: ownpace-setup
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_NAME: Ownpace setup
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE: ${ZITADEL_PAT_EXPIRY:-2026-12-31T23:59:59Z}
+      ZITADEL_FIRSTINSTANCE_PATPATH: /machinekey/pat.txt
+    volumes:
+      # The provisioning token lands here for setup-zitadel.sh to read. A named
+      # volume rather than a bind mount so the token never sits in the working
+      # tree, where a `git add -A` could find it (hard rule 3).
+      - zitadel_machinekey:/machinekey
+    ports:
+      - "${ZITADEL_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # Its own readiness endpoint, not a port check: the container listens well
+      # before it has finished applying its migrations, and a script that starts
+      # provisioning in that window gets errors that read like bugs.
+      test: ["CMD", "/app/zitadel", "ready", "--config", "/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    networks:
+      - ownpace-network
+
   api:
     build:
       context: ../..
@@ -431,6 +518,19 @@ services:
       # Required to encrypt/decrypt connection credentials (create-mapping, worker deps).
       SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY:?set a 32-byte key in .env}
       JWT_EXPIRY: ${JWT_EXPIRY:-24h}
+      # The OIDC issuer (ADR-0042). SET IT AND THE SYMMETRIC JWT_SECRET STOPS
+      # BEING USED — `selectAuthMode` prefers JWKS precisely so a lingering
+      # secret cannot silently downgrade verification. Empty until
+      # setup-zitadel.sh has run, because the issuer URL is not knowable before
+      # the provider exists.
+      #
+      # Changing provider is changing these two values. Nothing else.
+      JWT_ISSUER: ${JWT_ISSUER:-}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-}
+      # Only for a provider that publishes no discovery document. Setting it
+      # pins a URL that key rotation can move underneath you — see
+      # `getJWKS` in apps/api/src/middleware/auth.ts.
+      JWT_JWKS_URI: ${JWT_JWKS_URI:-}
       TRIGGER_API_URL: http://trigger-api:3000
       # The project environment's secret key (tr_prod_...), minted by the
       # instance's OWN dashboard — which is why it cannot be `:?`-required:
@@ -517,6 +617,8 @@ networks:
     driver: bridge
 
 volumes:
+  # The identity provider's first-init provisioning token (ADR-0042).
+  zitadel_machinekey:
   postgres_data:
   trigger_db_data:
   redis_data:

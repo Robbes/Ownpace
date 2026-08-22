@@ -65,39 +65,108 @@ export function withTenantDb<T>(
 }
 
 /**
- * JWKS cache for managed mode - initialized once and reused
+ * The discovered JWKS, keyed by issuer.
+ *
+ * Keyed rather than a bare singleton so that reconfiguring the issuer — which
+ * tests do, and a deployment does when it switches provider — cannot be served
+ * a previous issuer's keys out of a stale cache.
  */
-let jwksCache: ReturnType<typeof createRemoteJWKSet> | null = null;
+const jwksByIssuer = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
+
+/** Drop the cache. Exported for tests; nothing in the request path calls it. */
+export function __resetJwksCacheForTests(): void {
+  jwksByIssuer.clear();
+}
 
 /**
- * Get or create the JWKS cache for the configured issuer
+ * Where an issuer actually publishes its keys — asked, never guessed.
+ *
+ * **This was `${issuer}/.well-known/jwks.json`**, with a comment naming Auth0
+ * and Clerk and adding "for other issuers, they should provide the JWKS
+ * endpoint". That path is an Auth0/Clerk convention and not a standard, and the
+ * consequence was concrete: it works with neither issuer this project actually
+ * considered (ADR-0042).
+ *
+ *   Zitadel   `{domain}/oauth/v2/keys`
+ *   Keycloak  `{host}/realms/{realm}/protocol/openid-connect/certs`
+ *
+ * OIDC Discovery is the standard every compliant provider implements: fetch
+ * `/.well-known/openid-configuration` and read `jwks_uri` out of it. Doing that
+ * is what makes ADR-0042's "the issuer is REPLACEABLE" true rather than
+ * aspirational — swapping provider becomes two environment variables, because
+ * nothing here knows any provider's URL shape.
+ *
+ * **The document's `issuer` must equal the one we configured.** OIDC Discovery
+ * §4.3 requires it, and the reason is not pedantry: without the check, anything
+ * that can answer at the discovery URL — a hijacked DNS record, a
+ * misconfigured proxy — can point verification at a key set it controls, and
+ * every token it mints then verifies.
  */
-async function getJWKS(): Promise<ReturnType<typeof createRemoteJWKSet>> {
-  if (jwksCache) {
-    return jwksCache;
+async function discoverJwksUri(issuer: string): Promise<string> {
+  const base = issuer.replace(/\/+$/, '');
+  const discoveryUrl = `${base}/.well-known/openid-configuration`;
+
+  // `Awaited<ReturnType<typeof fetch>>`, not `Response`: this file imports
+  // Express's `Response` type, which shadows the fetch one.
+  let response: Awaited<ReturnType<typeof fetch>>;
+  try {
+    response = await fetch(discoveryUrl);
+  } catch (error) {
+    throw new Error(
+      `Could not reach the issuer's discovery document at ${discoveryUrl}. ` +
+        'JWT_ISSUER must be the issuer URL, not the JWKS URL or the login page.',
+      { cause: error },
+    );
+  }
+  if (!response.ok) {
+    throw new Error(
+      `The issuer's discovery document at ${discoveryUrl} answered ${response.status}. ` +
+        'JWT_ISSUER must be the issuer URL exactly as the provider publishes it.',
+    );
   }
 
+  const document = (await response.json()) as { issuer?: unknown; jwks_uri?: unknown };
+
+  if (document.issuer !== issuer) {
+    throw new Error(
+      `The discovery document at ${discoveryUrl} declares issuer ` +
+        `${JSON.stringify(document.issuer)}, but JWT_ISSUER is ${JSON.stringify(issuer)}. ` +
+        'These must match exactly (OIDC Discovery §4.3) — a mismatch means the URL is ' +
+        'not this issuer, and trusting its keys would verify tokens it did not mint.',
+    );
+  }
+  if (typeof document.jwks_uri !== 'string' || document.jwks_uri === '') {
+    throw new Error(
+      `The discovery document at ${discoveryUrl} carries no jwks_uri. Set JWT_JWKS_URI ` +
+        'explicitly if this provider genuinely does not publish one.',
+    );
+  }
+  return document.jwks_uri;
+}
+
+/**
+ * Get or create the key set for the configured issuer.
+ *
+ * `JWT_JWKS_URI` short-circuits discovery, as the escape hatch for a provider
+ * that does not publish a discovery document or publishes a wrong one. It is
+ * NOT the normal path: set it and you have pinned a URL that key rotation or a
+ * provider upgrade can move underneath you.
+ */
+async function getJWKS(): Promise<ReturnType<typeof createRemoteJWKSet>> {
   const jwtIssuer = process.env.JWT_ISSUER;
   if (!jwtIssuer) {
     throw new Error('JWT_ISSUER not configured');
   }
 
-  // Construct JWKS URL from issuer
-  // For Auth0: https://<domain>/.well-known/jwks.json
-  // For Clerk: https://<domain>/.well-known/jwks.json
-  // For other issuers, they should provide the JWKS endpoint
-  let jwksUrl: string;
-  if (jwtIssuer.endsWith('/.well-known/jwks.json')) {
-    jwksUrl = jwtIssuer;
-  } else if (jwtIssuer.endsWith('/')) {
-    jwksUrl = `${jwtIssuer}.well-known/jwks.json`;
-  } else {
-    jwksUrl = `${jwtIssuer}/.well-known/jwks.json`;
-  }
+  const cached = jwksByIssuer.get(jwtIssuer);
+  if (cached) return cached;
+
+  const jwksUrl = process.env.JWT_JWKS_URI || (await discoverJwksUri(jwtIssuer));
 
   try {
-    jwksCache = createRemoteJWKSet(new URL(jwksUrl));
-    return jwksCache;
+    const created = createRemoteJWKSet(new URL(jwksUrl));
+    jwksByIssuer.set(jwtIssuer, created);
+    return created;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     throw new Error(`Failed to fetch JWKS from ${jwksUrl}: ${errorMessage}`, { cause: error });
