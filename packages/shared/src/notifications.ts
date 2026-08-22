@@ -726,6 +726,23 @@ export type NotificationEvent =
        * signs in successfully and belongs to nothing.
        */
       readonly email: string;
+    }
+  | {
+      /**
+       * Somebody's access request was declined (workplan 0095 T5).
+       *
+       * CARRIES NOTHING. Not the organisation they named, not what they asked
+       * for, and above all not the operator's note — the queue labels that
+       * field "Note (for you, not for them)" in both languages, and a promise
+       * made on a screen is a promise. There is also frequently no reason that
+       * would help: "not right now" is the honest one, and inventing a better
+       * one is worse than saying little.
+       *
+       * What it does carry is that a person read it and that they can reply,
+       * because a refusal nobody can answer is the kind that gets forwarded to
+       * a regulator rather than to us.
+       */
+      readonly kind: 'access_declined';
     };
 
 /**
@@ -788,6 +805,7 @@ const EVENT: Record<NotificationLocale, Record<NotificationEvent['kind'], string
     migration_finished: 'Ownpace — the migration is finished',
     rollback_finished: 'Ownpace — the migration was rolled back',
     access_granted: 'Ownpace — your access is ready',
+    access_declined: 'Ownpace — about your request',
   },
   nl: {
     decision_raised: 'Ownpace — een wijziging vraagt uw beslissing',
@@ -796,6 +814,7 @@ const EVENT: Record<NotificationLocale, Record<NotificationEvent['kind'], string
     migration_finished: 'Ownpace — de migratie is afgerond',
     rollback_finished: 'Ownpace — de migratie is teruggedraaid',
     access_granted: 'Ownpace — uw toegang staat klaar',
+    access_declined: 'Ownpace — over uw aanvraag',
   },
 };
 
@@ -817,6 +836,8 @@ interface EventLines {
   readonly grantedUseThisAddress: string;
   readonly grantedVerify: string;
   readonly grantedNoLink: string;
+  readonly declinedIntro: string;
+  readonly declinedReply: string;
 }
 
 const EVENT_BODY: Record<NotificationLocale, EventLines> = {
@@ -851,6 +872,15 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     grantedNoLink:
       'There is no link or code in this email to keep: it is safe to forward and it grants ' +
       'nobody anything. Your password lives with the sign-in service, never with us.',
+    // No reason, and no false hope. "We are not able to offer you a place right
+    // now" is what is true; dressing it as "not yet" would be a promise nobody
+    // made, and listing criteria would invite an argument about them.
+    declinedIntro:
+      'Thank you for asking about Ownpace. A person read your request, and we are not able to ' +
+      'offer you a place at the moment.',
+    declinedReply:
+      'If you think we have misunderstood what you need, reply to this email and it will reach ' +
+      'a person.',
     act: 'Open the app to act on this.',
   },
   nl: {
@@ -877,6 +907,12 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     grantedNoLink:
       'Deze e-mail bevat geen link of code om te bewaren: u kunt hem gerust doorsturen en hij ' +
       'geeft niemand toegang. Uw wachtwoord staat bij de aanmeldservice, nooit bij ons.',
+    declinedIntro:
+      'Bedankt voor uw interesse in Ownpace. Een mens heeft uw aanvraag gelezen en wij kunnen u ' +
+      'op dit moment geen plek aanbieden.',
+    declinedReply:
+      'Denkt u dat wij verkeerd hebben begrepen wat u nodig heeft, beantwoord deze e-mail dan; ' +
+      'hij komt bij een mens terecht.',
     act: 'Open de app om actie te ondernemen.',
   },
 };
@@ -917,6 +953,9 @@ export function renderEvent(
       lines.push(b.grantedVerify, '');
       lines.push(b.grantedNoLink);
       break;
+    case 'access_declined':
+      lines.push(b.declinedIntro, '', b.declinedReply);
+      break;
     case 'rollback_finished':
       lines.push(`${b.migration}: ${event.mappingId}`, '');
       lines.push(b.rolledBack, '');
@@ -927,10 +966,11 @@ export function renderEvent(
       break;
   }
 
-  // Every event closes with "open the app to take action" — except the one read
-  // by somebody who has no account yet. Telling them to open an app they cannot
-  // open is the sentence that makes an otherwise clear email confusing, and the
-  // instruction they DO need is already three lines above.
-  if (event.kind !== 'access_granted') lines.push('', b.act);
+  // Every event closes with "open the app to take action" — except the two read
+  // by somebody who has no account. Telling them to open an app they cannot open
+  // is the sentence that makes an otherwise clear email confusing, and it is
+  // worse than confusing on a refusal.
+  const readerHasAnApp = event.kind !== 'access_granted' && event.kind !== 'access_declined';
+  if (readerHasAnApp) lines.push('', b.act);
   return { subject, body: lines.join('\n') };
 }

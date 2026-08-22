@@ -9,7 +9,7 @@
 | T2 A recipient who is not a member yet | ✅ **Done 2026-08-22** | `apps/api/src/access-notify.ts` — the digest's shape (one transport, many envelopes) for a recipient who is deliberately not a member. Returns one of three outcomes rather than deciding what they mean: `sent`, `off` (no SMTP — nobody will ever be told) and `failed` (we tried, something is broken). Those imply different next actions for the operator, so they stay three. 3 cases, including that it never rejects. |
 | T3 The caller, outside the transaction | ✅ **Done 2026-08-22** | After the commit and outside it. The outcome is returned to the operator in the response, because "nobody was told" means the manual step is back and they are the only one who can take it. `WEB_URL` is **refused** rather than defaulted: a grant email carrying `http://localhost:3123` has told somebody to go nowhere, and would go out looking exactly like a successful one. |
 | T4 Deliverability | 📋 Planned — **needs DNS, so it is the owner's** | SPF, DKIM and DMARC for the sending domain. Without them this lands in spam, and "we emailed you" becomes "we did nothing" from the customer's side. |
-| T5 The decline email | 📋 Planned, and deliberately after T1–T4 | Saying no is a courtesy too, and a harder one to word. Not blocking the first customer. |
+| T5 The decline email | ✅ **Done 2026-08-22** | Saying no is a courtesy too. `access_declined` carries **no fields at all** — no reason, no organisation, and above all not the operator's note, which the queue labels "not for them". An **"email them if you decline" toggle, defaulted ON**, lets an operator clear junk without mailing a stranger, and the four outcomes (`sent` / `off` / `failed` / `skipped`) now reach the screen instead of stopping at the API. |
 
 ## The gap that is not about email at all
 
@@ -113,9 +113,55 @@ fails there first.
 This one is read by somebody who has no account yet, so that line is an
 instruction they cannot follow — and the one they DO need is three lines above.
 
+## T5 — saying no
+
+### The note is not the reason, and the type is what keeps it that way
+
+The queue's decision field is labelled **"Note (for you, not for them)"** in both
+languages. That is a promise made on a screen, and the place to keep it is not a
+careful `renderEvent`: it is a type with **no fields**. `access_declined` carries
+nothing, so there is nothing to pass in and nothing to leak — a later "just
+include the reason, it is friendlier" has to change the shape first, and fails at
+the test that asserts the event is only its kind.
+
+There is also frequently no reason that would help. *"Not right now"* is the
+honest one; *"not yet"* is a promise nobody made, and naming criteria invites an
+argument about them with somebody who is already disappointed. The body says a
+person read it and that a reply reaches a person, and stops.
+
+### Declining can be quiet. Granting cannot.
+
+The access form is public and rate-limited, so junk reaches the queue —
+and mailing a refusal to a forged address means mailing a stranger who never
+wrote to us. So a decline carries a **`notify` flag, defaulted to `true`**:
+silence is something an operator chooses, never something they fall into by
+forgetting to tick a box, and the confirmation dialog asks the matching question
+rather than one wording for both.
+
+A grant has nothing to opt out of. An unannounced grant is one the person can
+never use, because the email is the only thing that tells them the door exists.
+The asymmetry is the point, and it is why `notify` lives on `DeclineSchema`
+rather than on the shared `DecisionSchema`.
+
+### `skipped` is a fourth outcome, not a fourth kind of failure
+
+`tell` still returns three: `sent`, `off`, `failed`. `skipped` is a decision a
+human made, so it is added by the **route**, not by the module that reports on
+attempts — this was not one. They are four rather than a boolean because each
+asks something different of the operator, and collapsing `off` into `skipped`
+would tell somebody to go and email a person they had deliberately ignored.
+
+### The answer reached nobody until now
+
+T3 returned `notified` to the operator, and the screen threw it away: the card
+that knew the outcome unmounts the moment the row leaves the tab it was in. So a
+grant that emailed nobody looked exactly like one that did. The outcome is now
+lifted to the page and reported on both decisions, which is the half of T3 that
+was only true down to the API boundary.
+
 ## Gates
 
 `pnpm lint` · `pnpm typecheck` · `pnpm test` — green (2026-08-22).
 
-T4 (SPF/DKIM/DMARC) and T5 (the decline email) remain. T4 needs DNS and is the
-owner's; see [`first-live-run.md`](../first-live-run.md).
+T4 (SPF/DKIM/DMARC) remains. It needs DNS and is the owner's; see
+[`first-live-run.md`](../first-live-run.md).

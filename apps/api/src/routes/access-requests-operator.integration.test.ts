@@ -322,6 +322,53 @@ describe('the operator half of /api/access-requests', () => {
       tenant_id: null,
       decision_note: 'out of scope for now',
     });
+    // No SMTP is configured for integration, so the courtesy email cannot go —
+    // and that is REPORTED rather than swallowed (workplan 0095 T5). The
+    // decline still succeeded, which is the ordering this whole shape exists
+    // for: the record is not hostage to a mail server.
+    expect(res.body.notified).toBe('off');
+  });
+
+  it('does not email a request the operator declined QUIETLY', async () => {
+    // The public form is rate-limited but still public, so junk reaches this
+    // queue; mailing a refusal to a forged address means mailing a stranger.
+    const asked = await knock(`${MARK}-quiet@example.test`);
+    const res = await request
+      .post(`/api/access-requests/${asked.id}/decline`)
+      .set('Authorization', `Bearer ${token(OPERATOR)}`)
+      .send({ notify: false });
+
+    expect(res.status).toBe(200);
+    // `skipped`, NOT `off`. They mean opposite things to the person reading the
+    // screen: one is a choice they made, the other is a deployment that cannot
+    // send and hands them a manual step. Collapsing them into a boolean would
+    // tell an operator to go and email somebody they deliberately ignored.
+    expect(res.body.notified).toBe('skipped');
+
+    const { rows } = await pool.query<{ state: string }>(
+      `SELECT state FROM access_request WHERE id = $1`,
+      [asked.id],
+    );
+    // Quiet is about the email and nothing else — the record is identical.
+    expect(rows[0]?.state).toBe('declined');
+  });
+
+  it('refuses a `notify` that is not a yes or a no', async () => {
+    // Anything other than a boolean is a caller that thinks it is asking for
+    // something; guessing which way it meant is how somebody gets mailed by
+    // accident. zod refuses and the request is not decided at all.
+    const asked = await knock(`${MARK}-badnotify@example.test`);
+    const res = await request
+      .post(`/api/access-requests/${asked.id}/decline`)
+      .set('Authorization', `Bearer ${token(OPERATOR)}`)
+      .send({ notify: 'no' });
+
+    expect(res.status).toBe(400);
+    const { rows } = await pool.query<{ state: string }>(
+      `SELECT state FROM access_request WHERE id = $1`,
+      [asked.id],
+    );
+    expect(rows[0]?.state).toBe('open');
   });
 
   it('lets the granted person IN on their first sign-in, and only with a verified email', async () => {

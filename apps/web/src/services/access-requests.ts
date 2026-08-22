@@ -38,10 +38,34 @@ export async function listAccessRequests(state?: RequestState): Promise<AccessRe
   return response.data.requests;
 }
 
+/**
+ * What became of the courtesy email, as the API reports it.
+ *
+ * Four states rather than a boolean because they need different things from the
+ * operator: `sent` needs nothing, `off` and `failed` both put the manual step
+ * back (for different reasons, and the fix is different), and `skipped` is what
+ * they themselves asked for. A boolean would collapse "we could not" into "we
+ * did not", which is the distinction the screen exists to show.
+ */
+export type NotifiedOutcome = 'sent' | 'off' | 'failed' | 'skipped';
+
 export interface GrantResult {
   readonly tenantId: string;
   readonly name: string;
   readonly email: string;
+  /**
+   * Never `skipped` — a grant has no "do not tell them" to choose. An
+   * unannounced grant is one the person can never use, because that email is
+   * the only thing that tells them the door exists. The type says so rather
+   * than leaving it to a comment somewhere else.
+   */
+  readonly notified: Exclude<NotifiedOutcome, 'skipped'>;
+}
+
+export interface DeclineResult {
+  readonly declined: true;
+  readonly id: string;
+  readonly notified: NotifiedOutcome;
 }
 
 /**
@@ -59,7 +83,21 @@ export async function grantAccessRequest(
   return response.data;
 }
 
-/** Say no. Provisions nothing, and the row stays as a record either way. */
-export async function declineAccessRequest(id: string, note?: string): Promise<void> {
-  await apiClient.post(`/access-requests/${id}/decline`, note ? { note } : {});
+/**
+ * Say no. Provisions nothing, and the row stays as a record either way.
+ *
+ * `notify` is sent EXPLICITLY rather than left to the server's default, so the
+ * unticked box travels as `false` instead of as an absent field — the two are
+ * the same to zod's `.default(true)` only by accident, and this way the request
+ * says what the operator actually chose.
+ */
+export async function declineAccessRequest(
+  id: string,
+  options: { note?: string; notify?: boolean } = {},
+): Promise<DeclineResult> {
+  const response = await apiClient.post<DeclineResult>(`/access-requests/${id}/decline`, {
+    ...(options.note ? { note: options.note } : {}),
+    notify: options.notify ?? true,
+  });
+  return response.data;
 }

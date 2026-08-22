@@ -284,6 +284,35 @@ const DecisionSchema = z.object({
 });
 
 /**
+ * A decline, which can be a quiet one.
+ *
+ * **`notify` exists on this decision and not on the other**, and that asymmetry
+ * is the point rather than an oversight. A grant that is not announced is a
+ * grant nobody can use — the person has no way to learn they may sign in — so
+ * there is nothing to opt out of. A decline is a courtesy, and the form it
+ * answers is PUBLIC and rate-limited: `test@test.test` and a line of casino
+ * spam both reach this queue, and mailing a refusal to a forged address means
+ * mailing a stranger who never wrote to us. The operator can see which is which;
+ * the server cannot.
+ *
+ * Defaulted to true so the quiet path is always deliberate — an operator who
+ * sends nothing has unticked a box, not forgotten to tick one.
+ */
+const DeclineSchema = DecisionSchema.extend({
+  notify: z.boolean().default(true),
+});
+
+/**
+ * What became of the courtesy email, as the operator's screen says it.
+ *
+ * `tell`'s three, plus the one it never gets an opinion about: `skipped` is a
+ * decision a human made here, not something that happened to a send. Keeping it
+ * out of `TellOutcome` keeps that module honest — it reports on attempts, and
+ * this was not one.
+ */
+type NotifiedOutcome = TellOutcome | 'skipped';
+
+/**
  * POST /api/access-requests/:id/grant — say yes, and mean it.
  *
  * Granting is not a flag. It creates the organisation and its first owner, in
@@ -424,6 +453,15 @@ router.post('/:id/grant', authenticateSubject, async (req: AuthenticatedRequest,
  * No tenant, and the row is not deleted: `access_request` has no DELETE grant
  * for anybody, so a refusal cannot be made to disappear afterwards. That is the
  * queue's whole value as a record.
+ *
+ * **The person is told, unless the operator says not to** (workplan 0095 T5).
+ * Somebody who wrote to a business and heard nothing back does not conclude
+ * "declined"; they conclude the form is broken, and write again — which is why
+ * a silent refusal costs more support than a spoken one. The mail carries no
+ * reason and, in particular, NOT the decision note: the queue labels that field
+ * "Note (for you, not for them)", and that promise is kept in the type — the
+ * `access_declined` event has no fields at all, so there is nothing to leak
+ * through and no later edit here can add one.
  */
 router.post('/:id/decline', authenticateSubject, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -437,7 +475,7 @@ router.post('/:id/decline', authenticateSubject, async (req: AuthenticatedReques
       res.status(400).json({ error: 'Bad request', message: 'Name exactly one request id.' });
       return;
     }
-    const parsed = DecisionSchema.safeParse(req.body ?? {});
+    const parsed = DeclineSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       res.status(400).json({ error: 'Validation error', details: parsed.error.issues });
       return;
@@ -462,7 +500,15 @@ router.post('/:id/decline', authenticateSubject, async (req: AuthenticatedReques
         })
         .where(eq(accessRequest.id, id));
 
-      return { kind: 'declined', id: request.id, email: request.email } as const;
+      // `locale` for the same reason the grant carries it: the refusal is
+      // written in the language they asked in (ADR-0013), and this transaction
+      // is the only place the row is read.
+      return {
+        kind: 'declined',
+        id: request.id,
+        email: request.email,
+        locale: request.locale,
+      } as const;
     });
 
     if (outcome.kind === 'notFound') {
@@ -478,7 +524,25 @@ router.post('/:id/decline', authenticateSubject, async (req: AuthenticatedReques
     }
 
     log.info(`[access-request] declined ${outcome.email}`);
-    res.json({ declined: true, id: outcome.id });
+
+    // AFTER the commit and outside it, exactly like the grant: the refusal is
+    // recorded whether or not the mail server is reachable, and the mail only
+    // ever describes something that already happened.
+    //
+    // No `appUrl()` here — there is nowhere to send them, which is the whole
+    // difference between this email and the other one. So a deployment with no
+    // `WEB_URL` can still be polite.
+    let notified: NotifiedOutcome;
+    if (parsed.data.notify) {
+      notified = await tell(outcome.email, outcome.locale, { kind: 'access_declined' });
+    } else {
+      // Logged because it is a decision a person made about another person, and
+      // the queue row records the decision but not that it was kept quiet.
+      log.info(`[access-request] declined ${outcome.email} without telling them (operator's choice)`);
+      notified = 'skipped';
+    }
+
+    res.json({ declined: true, id: outcome.id, notified });
   } catch (error) {
     serverFault(res, 'access_request_decline_failed', 'declining this request', error);
   }

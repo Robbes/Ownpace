@@ -14,6 +14,13 @@
  *  2. **That a refusal is shown verbatim.** A 409 says the request was already
  *     decided — a sentence somebody can act on. "Something went wrong" is not.
  *  3. **That declining asks first.** It cannot be undone from this screen.
+ *  4. **That what became of the email reaches them** (workplan 0095 T5). The
+ *     card that knows the outcome unmounts the moment the row leaves the tab,
+ *     so `notified` has to be lifted out or it is answered to nobody — and
+ *     `off` means the operator is now the only person who can tell the asker.
+ *  5. **That "do not email them" is obeyed and asked about.** A public form
+ *     means junk in the queue, and a refusal mailed to a forged address is a
+ *     mail to a stranger.
  */
 
 import { render, screen, waitFor } from '@testing-library/react';
@@ -68,8 +75,13 @@ beforeEach(() => {
   grantMock.mockReset();
   declineMock.mockReset();
   listMock.mockResolvedValue([REQUEST]);
-  grantMock.mockResolvedValue({ tenantId: 't-1', name: 'De Vries', email: REQUEST.email });
-  declineMock.mockResolvedValue(undefined);
+  grantMock.mockResolvedValue({
+    tenantId: 't-1',
+    name: 'De Vries',
+    email: REQUEST.email,
+    notified: 'sent',
+  });
+  declineMock.mockResolvedValue({ declined: true, id: REQUEST.id, notified: 'sent' });
 });
 
 afterEach(() => {
@@ -136,7 +148,7 @@ describe('declining', () => {
     expect(declineMock).not.toHaveBeenCalled();
   });
 
-  it('declines when confirmed, carrying the note', async () => {
+  it('declines when confirmed, carrying the note and telling them by default', async () => {
     const user = userEvent.setup();
     vi.spyOn(globalThis, 'confirm').mockReturnValue(true);
     renderQueue();
@@ -144,6 +156,77 @@ describe('declining', () => {
     await user.type(await screen.findByLabelText(/note/i), 'out of scope for now');
     await user.click(screen.getByRole('button', { name: /^decline$/i }));
 
-    await waitFor(() => expect(declineMock).toHaveBeenCalledWith('req-1', 'out of scope for now'));
+    // `notify: true` WITHOUT anybody ticking anything: silence is the choice
+    // that has to be made, never the one that happens by not making one.
+    await waitFor(() =>
+      expect(declineMock).toHaveBeenCalledWith('req-1', {
+        note: 'out of scope for now',
+        notify: true,
+      }),
+    );
+  });
+
+  it('sends nothing when the operator unticks, and asks the matching question', async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(globalThis, 'confirm').mockReturnValue(true);
+    renderQueue();
+
+    await user.click(await screen.findByLabelText(/email them if you decline/i));
+    await user.click(screen.getByRole('button', { name: /^decline$/i }));
+
+    // The confirmation is the last chance to notice, so it says which of the
+    // two things is about to happen rather than one wording for both.
+    expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/without emailing them/i));
+    await waitFor(() => expect(declineMock).toHaveBeenCalledWith('req-1', { notify: false }));
+  });
+
+  it('says so when it could not email them, without hiding that it was declined', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(globalThis, 'confirm').mockReturnValue(true);
+    declineMock.mockResolvedValue({ declined: true, id: REQUEST.id, notified: 'failed' });
+    renderQueue();
+
+    await user.click(await screen.findByRole('button', { name: /^decline$/i }));
+
+    // BOTH halves. The decision stuck — hiding that behind a mail failure would
+    // invite somebody to decline the same request twice — and the mail did not,
+    // which hands the manual step to the only person who can take it.
+    const said = await screen.findByRole('status');
+    expect(said).toHaveTextContent(/stays on the record/i);
+    expect(said).toHaveTextContent(/could not be sent/i);
+    expect(said).toHaveTextContent(REQUEST.email);
+  });
+
+  it('reports a quiet decline as a choice, not as a failure', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(globalThis, 'confirm').mockReturnValue(true);
+    declineMock.mockResolvedValue({ declined: true, id: REQUEST.id, notified: 'skipped' });
+    renderQueue();
+
+    await user.click(await screen.findByLabelText(/email them if you decline/i));
+    await user.click(screen.getByRole('button', { name: /^decline$/i }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/as you asked/i);
+  });
+});
+
+describe('what became of the email', () => {
+  it('tells the operator when a GRANT emailed nobody', async () => {
+    const user = userEvent.setup();
+    grantMock.mockResolvedValue({
+      tenantId: 't-1',
+      name: 'De Vries',
+      email: REQUEST.email,
+      notified: 'off',
+    });
+    renderQueue();
+
+    await user.click(await screen.findByRole('button', { name: /grant access/i }));
+
+    // The organisation exists and the person does not know. This is the one
+    // outcome where doing nothing next is actively wrong, so it names them.
+    const said = await screen.findByRole('status');
+    expect(said).toHaveTextContent(/nobody was emailed/i);
+    expect(said).toHaveTextContent(REQUEST.email);
   });
 });
