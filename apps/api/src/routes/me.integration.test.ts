@@ -12,10 +12,21 @@
 // tenant at all is enough to get an answer, which is the whole premise of
 // narrowing the claims.
 //
-// The multi-organisation case is the one worth reading twice. `authenticate`
-// refuses it with 400 before this route runs, so `/api/me` cannot be what tells
-// a client its options — the REFUSAL has to, and it does. A 400 that just said
-// "name a tenant" would leave a client no way to find out which.
+// The multi-organisation case is the one worth reading twice, and it CHANGED at
+// workplan 0093 T7. It used to be a 400 from `authenticate`, raised before this
+// route ran; the refusal carried the list, because otherwise a client had no way
+// to learn its options. That was a refusal doing a report's job.
+//
+// This route now runs on `authenticateSubject` and answers instead: here are
+// your organisations, here is the one you are currently acting as, or none if
+// that cannot be decided. Every other route keeps `authenticate` and keeps
+// refusing — the 400 and its list still exist where a tenant is genuinely
+// required. What changed is that the one question asked from OUTSIDE the
+// boundary is no longer answered with a refusal.
+//
+// The reason it had to change: a platform operator belongs to no organisation
+// at all, by design (T6). Under the old behaviour the web app could not hold a
+// session for the one person who is supposed to grant everybody else's.
 //
 // UUID Family: 5e5e0000-e29b-41d4-a716-44665544xxxx
 
@@ -105,19 +116,22 @@ describe('GET /api/me', () => {
     expect(res.body.role).toBe('member');
   });
 
-  it('REFUSES to guess between two organisations — and names them both', async () => {
+  it('does not GUESS between two organisations, and does not refuse either', async () => {
     const res = await request.get('/api/me').set('Authorization', `Bearer ${token(BOTH)}`);
 
-    expect(res.status).toBe(400);
-    // The list is on the refusal because the refusal is all the client gets:
-    // without it there is no way to learn what to put in the header.
+    expect(res.status).toBe(200);
+    // Both listed, and no current one — "these two, currently neither" is an
+    // answer. Guessing would silently serve somebody the wrong organisation's
+    // mail, which is the failure this has always been about; refusing merely
+    // moved that decision somewhere a client could not act on it.
     expect(res.body.tenants).toEqual(
       expect.arrayContaining([
         { tenantId: TENANT_ONE, role: 'owner' },
         { tenantId: TENANT_TWO, role: 'viewer' },
       ]),
     );
-    expect(res.body.message).toContain('x-ownpace-tenant');
+    expect(res.body.tenantId).toBeUndefined();
+    expect(res.body.role).toBeUndefined();
   });
 
   it('serves the one the caller named, and still lists the rest', async () => {
@@ -133,20 +147,44 @@ describe('GET /api/me', () => {
   });
 
   it('treats the header as a REQUEST for a tenant, not a grant of one', async () => {
-    // Naming a tenant you are not in gets you nothing. The membership gate runs
-    // on the named tenant exactly as it does on a claimed one.
+    // Naming a tenant you are not in gets you nothing. This route reports
+    // rather than refuses, so "nothing" is an empty list and no current
+    // tenant — never the named one echoed back.
     const res = await request
       .get('/api/me')
       .set('Authorization', `Bearer ${token(STRANGER)}`)
       .set('x-ownpace-tenant', TENANT_ONE);
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect(res.body.tenantId).toBeUndefined();
+    expect(res.body.tenants).toEqual([]);
+  });
+
+  it('answers a subject with no membership anywhere, rather than refusing', async () => {
+    // This is a platform operator's normal state, and it used to be a 403 —
+    // which meant the web app could not hold a session for the one person who
+    // grants everybody else's (workplan 0093 T7).
+    const res = await request.get('/api/me').set('Authorization', `Bearer ${token(STRANGER)}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ userId: STRANGER, tenants: [], operator: false });
     expect(res.body.tenantId).toBeUndefined();
   });
 
-  it('refuses a subject with no membership anywhere', async () => {
-    const res = await request.get('/api/me').set('Authorization', `Bearer ${token(STRANGER)}`);
-    expect(res.status).toBe(403);
+  it('says whether this subject may answer the door', async () => {
+    await pool.query(
+      `INSERT INTO platform_operator (user_id, email) VALUES ($1, 'op@integration.test')
+       ON CONFLICT (user_id) DO NOTHING`,
+      [SOLO],
+    );
+    try {
+      const res = await request.get('/api/me').set('Authorization', `Bearer ${token(SOLO)}`);
+      expect(res.body.operator).toBe(true);
+      // And the ordinary member is not one, so the flag is not simply always on.
+      const other = await request.get('/api/me').set('Authorization', `Bearer ${token(BOTH)}`);
+      expect(other.body.operator).toBe(false);
+    } finally {
+      await pool.query(`DELETE FROM platform_operator WHERE user_id = $1`, [SOLO]);
+    }
   });
 
   it('is authenticated like everything else', async () => {

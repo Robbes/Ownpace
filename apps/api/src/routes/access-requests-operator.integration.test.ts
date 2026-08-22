@@ -226,7 +226,10 @@ describe('the operator half of /api/access-requests', () => {
         'Authorization',
         `Bearer ${jwt.sign({ sub: 'newcomer-sub', email: 'newcomer@example.test' }, process.env.JWT_SECRET!)}`,
       );
-    expect(unverified.status).toBe(403);
+    // 200 with nothing, not a refusal: `/api/me` reports (T7). What matters is
+    // that the invitation did NOT bind — the organisation is still nobody's.
+    expect(unverified.status).toBe(200);
+    expect(unverified.body.tenants).toEqual([]);
 
     // Then: the same person, with the claim the issuer is supposed to make.
     const verified = await request.get('/api/me').set(

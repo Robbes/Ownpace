@@ -19,7 +19,7 @@ import {
   withSubject as ledgerWithSubject,
   type PgDatabase,
 } from '@openmig/ledger';
-import { tenantMember } from '@openmig/managed/schema-managed';
+import { platformOperator, tenantMember } from '@openmig/managed/schema-managed';
 import { log } from '@openmig/shared';
 import { serverFault } from '../server-fault.ts';
 
@@ -380,6 +380,44 @@ async function claimInvitations(payload: JwtPayload): Promise<number> {
   return bound.length;
 }
 
+/**
+ * The route surface of `claimInvitations`, for the one route that runs before a
+ * tenant is known. Same rule, same refusal: no verified address, no claim.
+ */
+export async function claimInvitationsForSubject(
+  userId: string,
+  email: string | undefined,
+  emailVerified: boolean | undefined,
+): Promise<number> {
+  return await claimInvitations({
+    sub: userId,
+    email: email ?? '',
+    email_verified: emailVerified === true,
+  });
+}
+
+/**
+ * Is this subject a platform operator (workplan 0093 T6)?
+ *
+ * Asks the database under the subject's own scope, where migration 0005's
+ * policy narrows `platform_operator` to YOUR OWN row — so this can answer "am
+ * I one" and could not answer "who else is" even if a caller wanted it to.
+ *
+ * It is NOT what authorises the operator routes; those are authorised by the
+ * policies on `access_request` itself. This exists so a client can know whether
+ * to show the queue at all, and a client being wrong about that shows or hides
+ * a link, nothing more.
+ */
+export async function isPlatformOperator(userId: string): Promise<boolean> {
+  const rows = await ledgerWithSubject(getAuthPool(), userId, async (db) =>
+    db
+      .select({ userId: platformOperator.userId })
+      .from(platformOperator)
+      .where(eq(platformOperator.userId, userId)),
+  );
+  return rows.length > 0;
+}
+
 /** What a request may say when its subject belongs to more than one tenant. */
 export const TENANT_HEADER = 'x-ownpace-tenant';
 
@@ -630,6 +668,7 @@ export async function authenticate(
     authenticatedReq.tenantId = tenantId;
     authenticatedReq.userRole = role;
     authenticatedReq.userEmail = payload.email;
+    authenticatedReq.emailVerified = payload.email_verified === true;
 
     // Set tenant context for RLS
     // This will be used by the database client to set app.current_tenant
@@ -727,6 +766,8 @@ export async function authenticateSubject(
     const authenticatedReq = req as AuthenticatedRequest;
     authenticatedReq.userId = payload.sub;
     authenticatedReq.userEmail = payload.email;
+    authenticatedReq.emailVerified = payload.email_verified === true;
+    authenticatedReq.requestedTenantId = req.headers[TENANT_HEADER] as string | undefined;
     // Deliberately no tenantId and no userRole: there is no tenant here, and a
     // role read off the token has never been trusted anywhere in this file.
 

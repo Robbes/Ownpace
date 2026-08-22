@@ -12,7 +12,15 @@ interface AuthState {
   } | null;
   tenantId: string | null;
   token: string | null;
-  login: (token: string, user: AuthState['user'], tenantId: string) => void;
+  /**
+   * Whether to offer the access queue (workplan 0093 T7).
+   *
+   * A hint from `GET /api/me`, never a permission: the queue is guarded by
+   * policies on `access_request`, so a stale or tampered value here shows or
+   * hides a link and is told nothing either way.
+   */
+  operator: boolean;
+  login: (token: string, user: AuthState['user'], tenantId: string, operator?: boolean) => void;
   logout: () => void;
 }
 
@@ -23,13 +31,14 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       tenantId: null,
       token: null,
-      login: (token, user, tenantId) => {
+      operator: false,
+      login: (token, user, tenantId, operator = false) => {
         localStorage.setItem('auth_token', token);
-        set({ isAuthenticated: true, user, tenantId, token });
+        set({ isAuthenticated: true, user, tenantId, token, operator });
       },
       logout: () => {
         localStorage.removeItem('auth_token');
-        set({ isAuthenticated: false, user: null, tenantId: null, token: null });
+        set({ isAuthenticated: false, user: null, tenantId: null, token: null, operator: false });
       },
     }),
     {

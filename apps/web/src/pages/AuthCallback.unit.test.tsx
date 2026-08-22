@@ -87,7 +87,12 @@ describe('AuthCallback', () => {
 
   it('exchanges the code ONCE under StrictMode — a code is single-use', async () => {
     completeSignInMock.mockResolvedValue('the-token');
-    fetchMeMock.mockResolvedValue({ userId: 'sub-1', tenants: [] });
+    fetchMeMock.mockResolvedValue({
+      userId: 'sub-1',
+      tenantId: 'tenant-a',
+      role: 'owner',
+      tenants: [{ tenantId: 'tenant-a', role: 'owner' }],
+    });
 
     renderCallback(StrictMode);
 
@@ -97,12 +102,45 @@ describe('AuthCallback', () => {
 
   it('falls back to the subject when the issuer asserts no email', async () => {
     completeSignInMock.mockResolvedValue('the-token');
-    fetchMeMock.mockResolvedValue({ userId: 'sub-1', tenants: [] });
+    fetchMeMock.mockResolvedValue({
+      userId: 'sub-1',
+      tenantId: 'tenant-a',
+      role: 'owner',
+      tenants: [{ tenantId: 'tenant-a', role: 'owner' }],
+    });
 
     renderCallback();
 
     await waitFor(() => expect(navigateMock).toHaveBeenCalled());
     expect(useAuthStore.getState().user?.email).toBe('sub-1');
+  });
+
+  it('takes a platform operator to the queue, not to a dashboard that would 403', async () => {
+    // An operator belongs to no organisation by design (workplan 0093 T6), so
+    // the dashboard's first request would be refused. The queue is what they
+    // signed in for.
+    completeSignInMock.mockResolvedValue('the-token');
+    fetchMeMock.mockResolvedValue({ userId: 'op-1', tenants: [], operator: true });
+
+    renderCallback();
+
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenCalledWith('/access-requests', { replace: true }),
+    );
+    expect(useAuthStore.getState().operator).toBe(true);
+  });
+
+  it('SAYS SO when somebody belongs to nothing, rather than dashboarding them', async () => {
+    // Waiting on a grant, or holding an invitation that did not bind because
+    // the issuer never verified their address. Either way a dashboard that
+    // cannot load is the version of this that becomes a support ticket.
+    completeSignInMock.mockResolvedValue('the-token');
+    fetchMeMock.mockResolvedValue({ userId: 'nobody-1', tenants: [], operator: false });
+
+    renderCallback();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/not part of an organisation yet/i);
+    expect(navigateMock).not.toHaveBeenCalled();
   });
 
   it("shows the service's own sentence, and creates no session", async () => {

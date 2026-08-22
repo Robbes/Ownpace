@@ -495,6 +495,9 @@ shorter versions gives something away.
 curl -fsS -H "Authorization: Bearer <token>" http://localhost:3001/api/access-requests
 ```
 
+Once appointed, signing in again lands the operator on **Access requests** in
+the web app (workplan 0093 T7), which is the same queue with buttons on it.
+
 Granting is `POST /api/access-requests/<id>/grant`, which creates the
 organisation and invites the asker as its owner; they become a real member the
 first time they sign in, provided the identity provider asserts

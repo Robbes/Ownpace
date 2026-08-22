@@ -16,7 +16,7 @@
 | T5d The 500 that only a served request could find | ✅ **Done 2026-08-22** | CI's first real `GET /api/me` returned **500** five times out of seven: `invalid input syntax for type uuid: ""`. Not a broken test — a broken policy. `SET LOCAL` reverts to the SESSION value, which for a setting never assigned at session level is the EMPTY STRING, so from the second transaction on a pooled connection `current_setting('app.current_tenant', true)` is `''` and `''::uuid` RAISES. Permissive policies are OR'd and all are evaluated, so a subject-scoped read of `tenant_member` ran the tenant policies too and the query failed. Migration `0004` makes those four policies `NULLIF(…, '')`-safe; `guc-decay-under-rls.unit.test.ts` reproduces the decay and fails four ways without it. |
 | T6 A privileged provisioning path | ✅ **Done 2026-08-22** | And the 501's stated reason turned out to be **wrong**: scoping to the id you are about to mint satisfies `tenant_isolation_insert` exactly, so `app_user` can create a tenant with no privileged connection at all (probed, not assumed). What genuinely is privileged is READING the queue — `access_request` refuses `app_user` at the GRANT level. So the privilege went into the database as `platform_operator` + policies (migration 0005), not into the API as an owner-credentialed pool. `GET /api/access-requests`, `POST /:id/grant`, `POST /:id/decline`, behind `authenticateSubject` because an operator has no tenant. Granting writes a tenant, an owner **invitation**, and the settled request in one transaction. 12 + 8 RLS cases, 9 integration. |
 | T6b An invitation you can actually accept | ✅ **Done 2026-08-22** | A gap that predates T6: `members.ts` has written `status='invited'` rows with a `pending:` placeholder since workplan 0039, its comment promising the id "is replaced with the real user id on acceptance" — and **nothing ever replaced it**. `authenticate` matches `status='active'` only, so every invitation ever written was unusable. Migration 0006 adds the two policies that let a person claim one, bounded by `app.current_email` (set only when the issuer asserted `email_verified`) on the way in and by "must become active and name this subject" on the way out. |
-| T7 The owner's queue, on a screen | 📋 Planned — **unblocked**; the server half is T6 | The routes exist and are usable with a token today. What is left is `apps/web`, and one thing it needs first: `/api/me` still answers **403** for a subject with no membership, which is exactly what a pure operator is — so the web app cannot hold a session for one. See "What T7 has to fix first" below. |
+| T7 The owner's queue, on a screen | ✅ **Done 2026-08-22** | `apps/web/src/pages/AccessRequests.tsx` at `/access-requests`, managed-only, EN + NL. Waiting / granted / declined, each request in the asker's own words, grant with an editable organisation name, decline behind a confirm. The prerequisite is fixed: `/api/me` moved to `authenticateSubject` and now REPORTS resolution instead of refusing — 403-for-no-membership was making the product unusable for the one person meant to grant everybody else's access. 6 screen cases + 7 callback cases; 2 `/api/me` integration cases rewritten. |
 
 ## Why this exists
 
@@ -365,22 +365,40 @@ about to refuse with 403. That is the state a person is in on their first sign-i
 after being granted, and nowhere else. A 400 (several memberships, none chosen)
 does not trigger it — that request is already answerable.
 
-## What T7 has to fix first
+## T7 — the screen, and the refusal that had to become an answer
 
-`/api/me` uses `authenticate`, which resolves a tenant and refuses 403 when there
-is none. A **pure operator has no membership anywhere** — that is the normal case
-— so the web app cannot currently hold a session for one, and the queue screen
-has nothing to render against.
+`/api/me` used `authenticate`, and inherited its refusals: no membership → 403,
+several → 400. Both are right for a tenant-scoped route and wrong for the one
+route asked from OUTSIDE the boundary, because "nowhere yet" and "two, and you
+have not said which" are ANSWERS to the question it exists to ask.
 
-The fix is not to weaken `authenticate`: every tenant-scoped route should keep
-refusing. It is for `/api/me` to move to `authenticateSubject` and report the
-resolution as DATA — "these are your organisations, you are currently acting as
-none" — which is a better answer than a 400 carrying a list anyway. Left out of
-T6 deliberately: it changes behaviour shipped hours earlier and belongs with the
-screen that needs it, not bundled into the server half.
+It also made the product unusable for a **platform operator**, who belongs to no
+organisation by design — the web app could not hold a session for the one person
+meant to grant everybody else's access. So the route moved to
+`authenticateSubject`: same verification, same JWKS path, same 401s, no tenant
+required. **Every other route keeps `authenticate` and keeps refusing** — the
+400 and its list still exist wherever a tenant is genuinely required.
 
-Until then the routes are driveable with a token, which is how the RLS and
-integration suites exercise them.
+The response gained `operator`, which decides whether the nav offers the queue.
+It is a hint and never a permission: the queue is guarded by policies on
+`access_request`, so a client that got it wrong shows or hides a link and is
+told nothing either way. The route is deliberately NOT gated in the router for
+the same reason — a second, weaker copy of a rule the database already enforces
+is the copy that rots.
+
+Sign-in now lands somebody in one of three places, and the two that are not the
+dashboard are the point: an operator goes to the queue; somebody in no
+organisation and not an operator is TOLD SO, rather than being sent to a
+dashboard whose first request 403s. That second case is a real state — waiting
+on a grant, or holding an invitation that did not bind because the issuer never
+verified their address — and the version of it that says nothing is the version
+that becomes a support ticket.
+
+The screen says two things out loud rather than implying them: granting creates
+the organisation but the person becomes its owner **on first sign-in**, not on
+click; and **no email goes out**, because the product does not send invitations
+(the same sentence `Tenants.tsx` already has to say about inviting a member).
+Somebody still has to tell them.
 
 ## Gates
 
