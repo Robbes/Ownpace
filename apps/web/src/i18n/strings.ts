@@ -197,7 +197,9 @@ const en = {
   'wizard.domain.contact.hint': 'Address book entries',
   'wizard.domain.file.hint': 'Attachments and documents',
   'wizard.schedule': 'Sync Schedule',
-  'wizard.scheduleHint': 'Choose how often to sync data between source and target',
+  'wizard.scheduleHint':
+    'Choose how often to sync data between source and target. The first sync starts as ' +
+    'soon as you press start — this is how often it repeats after that.',
   'wizard.schedule.hourly': 'Hourly',
   'wizard.schedule.hourly.hint': 'Every hour',
   'wizard.schedule.daily': 'Daily',
@@ -1133,7 +1135,9 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.domain.contact.hint': 'Adresboekvermeldingen',
   'wizard.domain.file.hint': 'Bijlagen en documenten',
   'wizard.schedule': 'Synchronisatieschema',
-  'wizard.scheduleHint': 'Kies hoe vaak gegevens tussen bron en doel synchroniseren',
+  'wizard.scheduleHint':
+    'Kies hoe vaak gegevens tussen bron en doel synchroniseren. De eerste synchronisatie ' +
+    'begint zodra u op starten drukt — dit is hoe vaak die daarna wordt herhaald.',
   'wizard.schedule.hourly': 'Elk uur',
   'wizard.schedule.hourly.hint': 'Ieder uur',
   'wizard.schedule.daily': 'Dagelijks',

@@ -14,7 +14,7 @@ import type { AuthenticatedRequest } from '../../types/api.ts';
 import { eq, and, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { PgMigrationStatusStore, PgLedger, RunStore } from '@openmig/ledger';
-import { buildDomainStatusReports } from '@openmig/shared';
+import { buildDomainStatusReports, log } from '@openmig/shared';
 import { SecretStore } from '@openmig/core/secret-store';
 import { getTriggerClient } from '@openmig/scheduler';
 import type { DiscoveryDomain, TenantId, MappingId } from '@openmig/shared';
@@ -1995,6 +1995,19 @@ router.get('/:mappingId/discovery', authenticate, async (req: AuthenticatedReque
  * POST /api/migrations/:mappingId/start (0013 T5)
  * The green light: flip a paused (draft) mapping to active so the scheduler picks it up.
  * Idempotent for an already-active mapping; 409 once it has moved on to cutover/done.
+ *
+ * **Activating also runs the first pass**, rather than leaving it to the tick.
+ * The mapping's cron is how often the sync REPEATS; it was never meant to be
+ * how long the first one is postponed, and an owner who chose a quarter-hourly
+ * cadence on a mapping that had already run once got exactly that — a button
+ * that reported success followed by fifteen quiet minutes. `isSyncDue` already
+ * calls a never-run mapping due immediately; this extends the same intent to
+ * the moment somebody presses start.
+ *
+ * Only on the TRANSITION into 'active'. A second click is idempotent (that is
+ * this route's contract) and must not queue a second pass; and the enqueue is
+ * safe against the tick either way, because both go through the same
+ * `concurrencyKey: mappingId`.
  */
 router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -2009,7 +2022,8 @@ router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest,
     if (mapping.status === 'cutover' || mapping.status === 'done') {
       return void res.status(409).json({ error: 'Conflict', message: `Cannot start a mapping in '${mapping.status}' state` });
     }
-    if (mapping.status !== 'active') {
+    const activated = mapping.status !== 'active';
+    if (activated) {
       await withTenantDb(tenantId, getSharedPool(), (db) =>
         db
           .update(schema.mailboxMapping)
@@ -2017,7 +2031,33 @@ router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest,
           .where(and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId))),
       );
     }
-    res.json({ id: mappingId, status: 'active' });
+
+    // The mapping IS active whatever happens next, so a failure to enqueue
+    // must not fail this request — the tick still picks it up on its own
+    // cadence. It is NOT swallowed either (hard rule 9): it is logged and it
+    // rides back on the answer to the request that caused it, which is the
+    // same shape every other enqueue call site here uses.
+    let firstRun: { queued: true; runId: string } | { queued: false; reason: string } | undefined;
+    if (activated) {
+      // No `domains`: `run-delta-sync` resolves the mapping's own
+      // scope_selection when the payload omits them, which is the one place
+      // that decision belongs. Naming them here would let a stale copy of the
+      // scope sync a domain the owner had switched off.
+      const { taskId, payload } = resolveSyncJob(tenantId, mappingId, {});
+      try {
+        const run = await getTriggerClient().tasks.trigger(taskId, payload, {
+          tags: [`tenant:${tenantId}`, `mapping:${mappingId}`],
+          concurrencyKey: mappingId,
+        });
+        firstRun = { queued: true, runId: run.id };
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        log.error(`[start] mapping ${mappingId}: could not enqueue the first pass:`, reason);
+        firstRun = { queued: false, reason };
+      }
+    }
+
+    res.json({ id: mappingId, status: 'active', activated, ...(firstRun ? { firstRun } : {}) });
   } catch (error) {
     serverFault(res, 'start_failed', 'starting this migration', error);
   }

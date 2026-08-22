@@ -2304,6 +2304,28 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           log.info(`[selfhost] ${m.config.mappingId}: activated by operator`);
         }
         scheduleMapping(m);
+        if (transition.activate) {
+          // The first pass runs NOW, not at the next cron firing.
+          //
+          // `scheduleMapping` arms croner, and croner's first firing is the
+          // next one the expression names — so an operator who chose a
+          // quarter-hourly cadence pressed a button that said "The migration
+          // is running" and then watched nothing happen for up to fifteen
+          // minutes. The cadence is how often it REPEATS; it was never meant
+          // to be how long the first one is postponed. (The managed edition
+          // already behaves this way: its tick treats a mapping that has
+          // never run as due immediately.)
+          //
+          // Through `runOnce`, which shares `InProcessScheduler`'s
+          // single-flight per jobId with the schedule armed one line above —
+          // so a cron firing landing in the same moment COALESCES with this
+          // pass rather than running a second one beside it. Not awaited: a
+          // full pass is minutes long and this is an HTTP request. `runMapping`
+          // catches and reports its own failures (notification + run row), so
+          // there is no error here to lose.
+          void scheduler.runOnce(m.config.mappingId, runMapping(m));
+          log.info(`[selfhost] ${m.config.mappingId}: first pass started on activation`);
+        }
         // JSON, not the Post/Redirect/Get it used to answer with. That 303 was
         // for the hand-rolled HTML form on the old confirm page; the React
         // screen that replaced it (ADR-0026) calls this with fetch, and a
@@ -2315,8 +2337,8 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           mappingId: m.config.mappingId,
           activated: transition.activate,
           effect: transition.activate
-            ? 'The migration is running. It syncs on its schedule from now on, and will report ' +
-              'anything that needs a decision.'
+            ? 'The migration is running: the first pass has started. It syncs on its schedule ' +
+              'from then on, and will report anything that needs a decision.'
             : 'This migration was already running; nothing changed.',
         });
       }
