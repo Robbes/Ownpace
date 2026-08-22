@@ -37,21 +37,6 @@ import { log } from '@openmig/shared';
 const SNAPSHOT_MAX_ENTRIES = 50_000;
 
 /**
- * JMAP Mailbox query response type.
- */
-interface MailboxQueryResponse {
-  type: string;
-  accountId: string;
-  list: Array<{
-    id: string;
-    name: string;
-    path?: string;
-    role?: string;
-  }>;
-  notFound?: string[];
-}
-
-/**
  * JMAP Mailbox object.
  */
 interface Mailbox {
@@ -200,6 +185,11 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
    * not be built" — never "the account is empty".
    */
   private keySnapshot: Promise<Map<string, string> | undefined> | null = null;
+  /**
+   * The account's mailboxes, read once and kept current as we create. See
+   * `allMailboxes()`; `null` means "not read yet", never "the account has none".
+   */
+  private mailboxes: Mailbox[] | null = null;
 
   constructor(config: JmapTargetConfig) {
     this.config = config;
@@ -431,60 +421,65 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
   /**
    * Ensure a mailbox exists, creating it if necessary.
    * Returns the mailbox ID.
+   *
+   * **A ROLE is matched before a NAME, because a role is unique per account and
+   * a name is not.** RFC 8621 §2 allows at most one mailbox per role, and
+   * Stalwart enforces it: a source "Sent" written into an account that already
+   * holds "Sent Items" with `role: "sent"` earned
+   * `invalidProperties … "A mailbox with role 'sent' already exists."`, which
+   * threw out of `ensureMailbox` and took the whole email domain down with it
+   * (observed live, Soverin → Stalwart, after 2 messages). The name lookup
+   * could never have found it — the roles carry the SAME meaning under
+   * different words, and the words are the server's, sometimes localised.
+   * Adopting the role mailbox is also what `collection_mapping` already
+   * records ("Sent Items" -> "Sent"), so this makes the writer agree with the
+   * ledger rather than fight the server.
    */
   async ensureMailbox(folder: MailFolder): Promise<string> {
     await this.ensureConnected();
 
-    
-    // Query for existing mailboxes
-    const queryResponse = await this.apiRequest<MailboxQueryResponse>('Mailbox/query', {
+    const role = SPECIAL_USE_ROLE_MAP[folder.specialUse];
+    const mailboxes = await this.allMailboxes();
+
+    const adopted = matchMailbox(mailboxes, folder, role);
+    if (adopted) return adopted.id;
+
+    return await this.createMailbox(folder, role);
+  }
+
+  /**
+   * Every mailbox in the account, read once per writer and kept current as we
+   * create.
+   *
+   * `ids: null` rather than a `Mailbox/query` name filter, for the reason
+   * `trashMailboxId` already gives: the filter is a CONTAINS match over a name
+   * the server chooses and may localise, so it answers "Sent Items" for "Sent"
+   * and nothing for "Verzonden". Reading them all is one round trip and the
+   * only way to see `role` at all.
+   *
+   * Cached because `ensureMailbox` runs per folder, and the previous shape paid
+   * a query AND a get for each. A cache can go stale against another client
+   * creating a mailbox underneath us; that costs nothing, because
+   * `createMailbox` re-reads on either collision the server can report.
+   */
+  private async allMailboxes(refresh = false): Promise<Mailbox[]> {
+    if (!refresh && this.mailboxes) return this.mailboxes;
+    const response = await this.apiRequest<MailboxGetResponse>('Mailbox/get', {
       accountId: this.accountId,
-      filter: { name: folder.name || folder.path },
+      ids: null,
     });
-
-
-    // JMAP Mailbox/query returns IDs, we need to get the actual objects
-    const ids: string[] = (queryResponse as { ids?: string[] }).ids || [];
-    
-    if (ids.length === 0) {
-      // No mailboxes found, create one
-      return await this.createMailbox(folder);
-    }
-
-    // Get the mailbox details for the found IDs
-    const getResponse = await this.apiRequest<MailboxGetResponse>('Mailbox/get', {
-      accountId: this.accountId,
-      ids: ids,
-    });
-
-
-    // JMAP Mailbox/get returns a 'list' property containing the mailbox objects
-    const mailboxes = (getResponse as { list?: Mailbox[] }).list || [];
-
-    // Look for existing mailbox with matching path or role (case-insensitive for name)
-    const folderName = folder.name?.toLowerCase() || folder.path?.toLowerCase();
-    const folderPath = folder.path?.toLowerCase();
-    
-    const existing = mailboxes.find(
-      (m: { name: string; path?: string }) => 
-        m.name.toLowerCase() === folderName || 
-        (m.path && m.path.toLowerCase() === folderPath),
-    );
-
-    if (existing) {
-      return existing.id;
-    }
-
-    // No matching mailbox found, create one
-    return await this.createMailbox(folder);
+    const list = (response as { list?: Mailbox[] }).list ?? [];
+    this.mailboxes = list;
+    return list;
   }
 
   /**
    * Create a new mailbox.
+   *
+   * `role` is passed in rather than re-derived so the collision recovery below
+   * asks about the SAME role the request carried.
    */
-  private async createMailbox(folder: MailFolder): Promise<string> {
-    const role = SPECIAL_USE_ROLE_MAP[folder.specialUse];
-
+  private async createMailbox(folder: MailFolder, role?: string): Promise<string> {
     const mailboxSetResponse = await this.apiRequest<MailboxSetResponse>('Mailbox/set', {
       accountId: this.accountId!,
       create: {
@@ -501,8 +496,15 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
       created?: Record<string, { id: string }>;
       notCreated?: Record<string, { type: string; description: string }>;
     };
-    const created = mailboxResponse.created || {};
-    const createdId = Object.keys(created)[0];
+    // `created["0"].id` — the SERVER's id, keyed by the creation id we sent.
+    // This read was `Object.keys(created)[0]`, which is the creation id: every
+    // mailbox this function made came back as the literal string "0", and the
+    // very next thing the caller does with it is `mailboxIds: { [id]: true }`
+    // on an Email/import. Adopted mailboxes were fine (they return a real id),
+    // which is why it survived: nothing had successfully CREATED one on a live
+    // server. `Email/import` four hundred lines below already reads its own
+    // `created["0"]?.id` correctly (RFC 8620 §5.3).
+    const createdId = (mailboxResponse.created ?? {})["0"]?.id;
     
     if (!createdId) {
       // Check if it already exists
@@ -515,15 +517,48 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
           if (match && match[1]) {
             return match[1];
           }
-          // Fallback: try to find the ID in the description
-          const altMatch = errors[0].description.match(/'([a-z0-9]+)'/i);
-          if (altMatch && altMatch[1]) {
-            return altMatch[1];
+          // What used to stand here was a second regex, `/'([a-z0-9]+)'/i`,
+          // described as "try to find the ID in the description". It finds the
+          // first quoted word, which in `Mailbox 'Sent' already exists` is the
+          // NAME — returned as a mailbox id, and then written into
+          // `mailboxIds` by the caller. Guessing an identifier out of a
+          // sentence a server is free to reword is not a fallback; the
+          // re-read below asks the server instead, and answers with an id it
+          // actually gave us.
+        }
+        // The mailbox we asked for exists under another NAME, holding the role
+        // we asked for. The cache we decided from is a pass old — or another
+        // client created it — so re-read and adopt. Two servers word this
+        // differently and neither names an id, so the recovery is a fresh read
+        // rather than a parse of the sentence.
+        const conflict = errors.find(
+          (e) => e?.type === 'invalidProperties' || e?.type === 'alreadyExists',
+        );
+        if (conflict) {
+          const fresh = await this.allMailboxes(true);
+          const adopted = matchMailbox(fresh, folder, role);
+          if (adopted) {
+            log.info(
+              `[jmap-target] adopting existing mailbox ${JSON.stringify(adopted.name)}` +
+                (adopted.role ? ` (role ${adopted.role})` : '') +
+                ` for source folder ${JSON.stringify(folder.path)}: ${conflict.description}`,
+            );
+            return adopted.id;
           }
         }
       }
       log.error('[jmap-target] Mailbox not created, notCreated:', JSON.stringify(mailboxResponse.notCreated));
       throw new Error("Failed to create mailbox: " + JSON.stringify(mailboxResponse.notCreated));
+    }
+
+    // Keep the cache current so the next folder in this pass does not re-read.
+    // `name` is what we asked for; `role` is what we asked for. A server that
+    // assigned something else is corrected by the refresh a collision forces.
+    if (this.mailboxes) {
+      this.mailboxes = [
+        ...this.mailboxes,
+        { id: createdId, name: folder.name || folder.path, ...(role ? { role } : {}) },
+      ];
     }
 
     return createdId;
@@ -1171,16 +1206,17 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     return { kind: 'deleted' };
   }
 
-  /** The account's trash mailbox, by RFC 8621 role rather than by name. */
+  /**
+   * The account's trash mailbox, by RFC 8621 role rather than by name.
+   *
+   * Read FRESH every time (`refresh`), unlike `ensureMailbox`'s use of the same
+   * helper. This is the destructive path: a cached list naming a trash mailbox
+   * the owner has since deleted would send a removal somewhere that no longer
+   * exists, and a cached list MISSING one the owner has since created would
+   * destroy a message outright that should only have been binned.
+   */
   private async trashMailboxId(): Promise<string | undefined> {
-    // `ids: null` asks for every mailbox, which is the reliable way to read roles:
-    // filtering by name would depend on the server's language, and a `Mailbox/query`
-    // filter on `role` is not universally supported.
-    const response = await this.apiRequest<{ list?: Array<{ id: string; role?: string }> }>(
-      'Mailbox/get',
-      { accountId: this.accountId, ids: null },
-    );
-    const mailboxes = (response as { list?: Array<{ id: string; role?: string }> }).list ?? [];
+    const mailboxes = await this.allMailboxes(true);
     return mailboxes.find((m) => m.role?.toLowerCase() === 'trash')?.id;
   }
 
@@ -1191,6 +1227,45 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     this.client = null;
     this.accountId = null;
   }
+}
+
+/**
+ * The mailbox on the target that already IS this source folder, or undefined.
+ *
+ * Role first: it is unique per account (RFC 8621 §2) and is the same fact on
+ * both sides whatever each server calls it — "Sent" and "Sent Items" and
+ * "Verzonden items" are one mailbox, and only the role says so. Name second,
+ * for the ordinary folders that carry no role, matched EXACTLY rather than by
+ * the server's `Mailbox/query` contains-filter, which answers "Sent Items" for
+ * a folder named "Sent" and would have adopted the wrong one.
+ *
+ * A role never matches a mailbox holding a DIFFERENT role: a source "Archive"
+ * must not land in the target's "Sent" merely because both are special.
+ */
+function matchMailbox(
+  mailboxes: readonly Mailbox[],
+  folder: MailFolder,
+  role: string | undefined,
+): Mailbox | undefined {
+  if (role) {
+    const byRole = mailboxes.find((m) => m.role?.toLowerCase() === role.toLowerCase());
+    if (byRole) return byRole;
+  }
+  const wantedName = (folder.name ?? folder.path)?.toLowerCase();
+  const wantedPath = folder.path?.toLowerCase();
+  return mailboxes.find(
+    (m) =>
+      // A name match on a mailbox holding a DIFFERENT role is refused: a source
+      // "Archive" must not land in a target mailbox that is the account's Sent
+      // and merely happens to be called Archive. A ROLELESS source folder named
+      // like a role mailbox is a different case and is adopted — `ImapFlowSource`
+      // reports `specialUse` from the server's LIST attributes ONLY, so a
+      // server that advertises no SPECIAL-USE gives us 'normal' for its own
+      // "Sent", and refusing that would create a second one beside it.
+      !(m.role && role && m.role.toLowerCase() !== role.toLowerCase()) &&
+      (m.name?.toLowerCase() === wantedName ||
+        (m.path !== undefined && m.path.toLowerCase() === wantedPath)),
+  );
 }
 
 /**
