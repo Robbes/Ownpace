@@ -42,7 +42,20 @@ import app from '../index.ts';
 
 const OPERATOR = 'op-subject-t6';
 const OUTSIDER = 'outsider-subject-t6';
-const ASKER_EMAIL = 'asked@example.test';
+
+/**
+ * Every row this file creates carries this prefix, and every cleanup is scoped
+ * to it.
+ *
+ * `access_request` is shared with `access-requests.integration.test.ts` and
+ * `access-requests-rate-limit.integration.test.ts`, and integration files run
+ * in PARALLEL — only the `ui` project sets `fileParallelism: false`. A blanket
+ * `DELETE FROM access_request` in a `beforeEach` therefore deletes whatever a
+ * sibling is midway through asserting on. The rate-limit file established the
+ * convention (`WHERE email LIKE 'flood-%'`); this follows it.
+ */
+const MARK = 't6';
+const ASKER_EMAIL = `${MARK}-asked@example.test`;
 
 /** A token shaped the way ADR-0042 says an issuer's is. */
 function token(sub: string, extra: Record<string, unknown> = {}): string {
@@ -53,34 +66,57 @@ describe('the operator half of /api/access-requests', () => {
   let pool: Pool;
   const request = supertest(app);
 
+  /** Tenants this file provisioned, so they can be cleaned up by identity. */
+  const provisioned: string[] = [];
+
+  const cleanUp = async () => {
+    if (provisioned.length > 0) {
+      await pool.query(`DELETE FROM tenant WHERE id = ANY($1::uuid[])`, [provisioned]);
+      provisioned.length = 0;
+    }
+    await pool.query(`DELETE FROM access_request WHERE email LIKE $1`, [`${MARK}-%`]);
+    await pool.query(`DELETE FROM platform_operator WHERE user_id = ANY($1::text[])`, [
+      [OPERATOR, OUTSIDER],
+    ]);
+  };
+
   beforeAll(() => {
     pool = new Pool({ connectionString: PG });
   });
 
   afterAll(async () => {
-    await pool.query(`DELETE FROM platform_operator WHERE user_id = ANY($1::text[])`, [[OPERATOR]]);
-    await pool.query(`DELETE FROM access_request`);
+    await cleanUp();
     await pool.end();
   });
 
   beforeEach(async () => {
-    await pool.query(`DELETE FROM access_request`);
-    await pool.query(`DELETE FROM platform_operator`);
+    await cleanUp();
     await pool.query(
       `INSERT INTO platform_operator (user_id, email) VALUES ($1, 'op@integration.test')`,
       [OPERATOR],
     );
   });
 
-  /** Knock, the way the public form does — unauthenticated. */
+  /**
+   * Knock, the way the public form does — unauthenticated.
+   *
+   * The id comes back from the OWNER connection rather than from the operator
+   * list: a fixture that reads through the route under test cannot tell a
+   * broken fixture from a broken route.
+   */
   const knock = async (email = ASKER_EMAIL, note = 'two mailboxes off Google') => {
     const res = await request.post('/api/access-requests').send({ email, note, locale: 'nl' });
     expect(res.status).toBe(201);
-    const listed = await request
-      .get('/api/access-requests')
-      .set('Authorization', `Bearer ${token(OPERATOR)}`);
-    return listed.body.requests.find((r: { email: string }) => r.email === email) as { id: string };
+    const { rows } = await pool.query<{ id: string }>(
+      `SELECT id FROM access_request WHERE email = $1`,
+      [email],
+    );
+    return rows[0]!;
   };
+
+  /** Only the rows this file wrote — siblings are writing to the same table. */
+  const mine = (requests: Array<{ email: string }>) =>
+    requests.filter((r) => r.email.startsWith(`${MARK}-`));
 
   it('shows an operator the queue', async () => {
     await knock();
@@ -89,8 +125,12 @@ describe('the operator half of /api/access-requests', () => {
       .set('Authorization', `Bearer ${token(OPERATOR)}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.requests).toHaveLength(1);
-    expect(res.body.requests[0]).toMatchObject({ email: ASKER_EMAIL, state: 'open', locale: 'nl' });
+    expect(mine(res.body.requests)).toHaveLength(1);
+    expect(mine(res.body.requests)[0]).toMatchObject({
+      email: ASKER_EMAIL,
+      state: 'open',
+      locale: 'nl',
+    });
   });
 
   it('shows a NON-operator an empty queue, not an error', async () => {
@@ -102,6 +142,10 @@ describe('the operator half of /api/access-requests', () => {
     // 200 with nothing, because to the database there is nothing: the row is
     // invisible rather than forbidden, and saying "forbidden" would confirm
     // that a queue exists to somebody who may not know.
+    //
+    // The one assertion here that is deliberately ABSOLUTE rather than scoped
+    // to this file: a non-operator sees no request at all, including every row
+    // a sibling test file wrote.
     expect(res.status).toBe(200);
     expect(res.body.requests).toEqual([]);
   });
@@ -125,6 +169,7 @@ describe('the operator half of /api/access-requests', () => {
       .send({ organisationName: 'De Vries' });
 
     expect(res.status).toBe(201);
+    provisioned.push(res.body.tenantId);
     expect(res.body).toMatchObject({ name: 'De Vries', email: ASKER_EMAIL });
 
     const { rows: tenants } = await pool.query<{ name: string }>(
@@ -155,7 +200,6 @@ describe('the operator half of /api/access-requests', () => {
 
   it('REFUSES a non-operator the grant, and provisions nothing', async () => {
     const asked = await knock();
-    const before = await pool.query(`SELECT count(*)::int AS n FROM tenant`);
 
     const res = await request
       .post(`/api/access-requests/${asked.id}/grant`)
@@ -165,16 +209,26 @@ describe('the operator half of /api/access-requests', () => {
     // 404, not 403: invisible and absent are the same answer, so an outsider
     // cannot use this route to discover that an id exists.
     expect(res.status).toBe(404);
-    const after = await pool.query(`SELECT count(*)::int AS n FROM tenant`);
-    expect(after.rows[0].n).toBe(before.rows[0].n);
+
+    // "Provisions nothing" asked of THIS request rather than of the tenant
+    // table's size — a count either side of the call is only a delta if no
+    // sibling file created a tenant in between, and integration files run in
+    // parallel. Still open and pointing at nothing is the property.
+    const { rows } = await pool.query<{ state: string; tenant_id: string | null }>(
+      `SELECT state, tenant_id FROM access_request WHERE id = $1`,
+      [asked.id],
+    );
+    expect(rows[0]).toMatchObject({ state: 'open', tenant_id: null });
   });
 
   it('refuses to decide the same request twice', async () => {
     const asked = await knock();
-    await request
+    const first = await request
       .post(`/api/access-requests/${asked.id}/grant`)
       .set('Authorization', `Bearer ${token(OPERATOR)}`)
       .send({});
+    expect(first.status).toBe(201);
+    provisioned.push(first.body.tenantId);
 
     const again = await request
       .post(`/api/access-requests/${asked.id}/grant`)
@@ -184,12 +238,20 @@ describe('the operator half of /api/access-requests', () => {
     // Deciding twice would either create a second organisation or lose the
     // first — the CHECK constraint would allow it, so the route must not.
     expect(again.status).toBe(409);
-    const { rows } = await pool.query(`SELECT count(*)::int AS n FROM tenant`);
-    expect(rows[0].n).toBe(1);
+
+    // Asked of THIS request, not of the tenant table: `SELECT count(*) FROM
+    // tenant` counts every tenant every other integration file created, which
+    // is how this first read `expected 8 to be 1` in CI. What matters is that
+    // the request still points at the organisation the first grant made.
+    const { rows } = await pool.query<{ tenant_id: string }>(
+      `SELECT tenant_id FROM access_request WHERE id = $1`,
+      [asked.id],
+    );
+    expect(rows[0]?.tenant_id).toBe(first.body.tenantId);
   });
 
   it('declines without provisioning, and keeps the record', async () => {
-    const asked = await knock('declined@example.test');
+    const asked = await knock(`${MARK}-declined@example.test`);
     const res = await request
       .post(`/api/access-requests/${asked.id}/decline`)
       .set('Authorization', `Bearer ${token(OPERATOR)}`)
@@ -211,12 +273,13 @@ describe('the operator half of /api/access-requests', () => {
 
   it('lets the granted person IN on their first sign-in, and only with a verified email', async () => {
     // The case the whole feature exists for, end to end.
-    const asked = await knock('newcomer@example.test');
+    const asked = await knock(`${MARK}-newcomer@example.test`);
     const granted = await request
       .post(`/api/access-requests/${asked.id}/grant`)
       .set('Authorization', `Bearer ${token(OPERATOR)}`)
       .send({});
     expect(granted.status).toBe(201);
+    provisioned.push(granted.body.tenantId);
 
     // First: the issuer does NOT say the address is verified. Nothing binds —
     // otherwise whoever registers an address inherits what was sent to it.
@@ -224,7 +287,7 @@ describe('the operator half of /api/access-requests', () => {
       .get('/api/me')
       .set(
         'Authorization',
-        `Bearer ${jwt.sign({ sub: 'newcomer-sub', email: 'newcomer@example.test' }, process.env.JWT_SECRET!)}`,
+        `Bearer ${jwt.sign({ sub: 'newcomer-sub', email: `${MARK}-newcomer@example.test` }, process.env.JWT_SECRET!)}`,
       );
     // 200 with nothing, not a refusal: `/api/me` reports (T7). What matters is
     // that the invitation did NOT bind — the organisation is still nobody's.
@@ -235,7 +298,7 @@ describe('the operator half of /api/access-requests', () => {
     const verified = await request.get('/api/me').set(
       'Authorization',
       `Bearer ${jwt.sign(
-        { sub: 'newcomer-sub', email: 'newcomer@example.test', email_verified: true },
+        { sub: 'newcomer-sub', email: `${MARK}-newcomer@example.test`, email_verified: true },
         process.env.JWT_SECRET!,
       )}`,
     );
