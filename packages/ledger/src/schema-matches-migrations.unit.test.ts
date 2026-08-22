@@ -105,6 +105,32 @@ afterAll(async () => {
   await driver?.end();
 });
 
+/**
+ * Tables the request path is deliberately NOT given the usual four on.
+ *
+ * The rule above — every table `app_user` can reach has SELECT, INSERT and
+ * UPDATE — is right for a tenant table, which is what every other table is. A
+ * table whose whole design is that the request path may write it and never read
+ * it needs an exception, and an exception has to say why or it reads as an
+ * oversight the next person tidies away.
+ *
+ * `erasure_record`'s narrowing (no DELETE) has its own case further down and
+ * predates this list; it is left there rather than moved, because that test
+ * says something this one cannot — that the narrowing is a REVOKE, since the
+ * baseline's `ALTER DEFAULT PRIVILEGES` grants all four on every new table and
+ * a narrower GRANT would change nothing.
+ */
+const NARROWER_ON_PURPOSE: Record<string, { privileges: string[]; why: string }> = {
+  access_request: {
+    privileges: ['INSERT'],
+    why:
+      'A public, unauthenticated route writes it (workplan 0093) and nothing tenant-scoped may ' +
+      'read it — a request PRECEDES a tenant, so there is no tenant_isolation policy to write. ' +
+      'INSERT only, plus a single INSERT policy; the owner connection does the reading. See ' +
+      'packages/managed/migrations/0002 and access-request-under-rls.unit.test.ts.',
+  },
+};
+
 describe('the Drizzle schema and the migrations describe the same database', () => {
   it('finds tables to compare, so the checks below are not vacuous', () => {
     // A introspection helper that returns nothing would make every assertion
@@ -228,6 +254,7 @@ describe('the Drizzle schema and the migrations describe the same database', () 
 
     const missing: string[] = [];
     for (const table of declaredTables()) {
+      if (table.name in NARROWER_ON_PURPOSE) continue;
       const privileges = granted.get(table.name);
       if (!privileges) {
         missing.push(`${table.name}: app_user has no grant at all`);
@@ -238,6 +265,23 @@ describe('the Drizzle schema and the migrations describe the same database', () 
       }
     }
     expect(missing).toEqual([]);
+  });
+
+  it('has an exception for every table it skips, and pins what that table really has', async () => {
+    // An allow-list that nothing checks becomes a list of things nobody looks
+    // at. Every entry above is asserted EXACTLY here, so narrowing a grant
+    // further — or widening one back — fails with the sentence that explains
+    // why it was narrow.
+    for (const [table, expected] of Object.entries(NARROWER_ON_PURPOSE)) {
+      const { rows } = await conn.query<{ privilege_type: string }>(
+        `SELECT privilege_type FROM information_schema.role_table_grants
+          WHERE grantee = 'app_user' AND table_schema = 'public' AND table_name = $1`,
+        [table],
+      );
+      expect([...new Set(rows.map((r) => r.privilege_type))].sort(), `${table}'s grants`).toEqual(
+        [...expected.privileges].sort(),
+      );
+    }
   });
 
   it('does not let the request path delete an erasure record', async () => {

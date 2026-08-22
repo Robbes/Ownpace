@@ -31,6 +31,7 @@ import billingWebhookRoutes from './routes/billing/webhooks.ts';
 import scopeManifestRoutes from './routes/scope-manifest.ts';
 import setupRoutes from './routes/setup.ts';
 import connectionRoutes from './routes/connections.ts';
+import accessRequestRoutes from './routes/access-requests.ts';
 import { assertProductionAuthConfig } from './middleware/auth.ts';
 import { assertProductionUrlConfig } from './config-guards.ts';
 import { serverFault } from './server-fault.ts';
@@ -45,6 +46,24 @@ export type { AuthenticatedRequest, JwtPayload };
 // Configuration
 const app: Application = express();
 const PORT = process.env.API_PORT || 3001;
+
+/**
+ * Whether to believe `X-Forwarded-For` (workplan 0093).
+ *
+ * Off unless set, deliberately: trusting that header when nothing strips it
+ * lets any caller claim any address, which would turn the access-request rate
+ * limit into a header somebody chooses. Set it ONLY where an ingress is known
+ * to overwrite the header — then `req.ip` is the real client and the limit
+ * becomes per-caller instead of service-wide.
+ *
+ * Express's own values: a number of hops ("1"), a comma-separated list of
+ * trusted addresses/subnets, or "true" for all (which is the unsafe one, and is
+ * why it has to be typed out rather than being the default).
+ */
+const trustProxy = process.env.TRUST_PROXY;
+if (trustProxy) {
+  app.set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy);
+}
 
 // Middleware
 app.use(helmet());
@@ -101,6 +120,15 @@ app.get('/api/version', version);
 app.get('/metrics', (req: Request, res: Response) => {
   res.set('content-type', METRICS_CONTENT_TYPE).send(renderMetrics());
 });
+
+/**
+ * Asking for an account (workplan 0093 T2).
+ *
+ * Mounted here among the unauthenticated routes rather than under
+ * `/api/tenants`, because the whole point is that the asker has no tenant yet
+ * — and its own file carries the four things that make a public WRITE safe.
+ */
+app.use('/api/access-requests', accessRequestRoutes);
 
 // API Routes
 app.use('/api/tenants', tenantRoutes);

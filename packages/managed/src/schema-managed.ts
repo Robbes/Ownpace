@@ -158,6 +158,48 @@ export const tenantMember = pgTable(
   ],
 );
 
+// ========================= Asking to be let in =========================
+
+/**
+ * Somebody who asked for an account, before there is a tenant to hold them
+ * (workplan 0093 T1, migration 0002).
+ *
+ * **The one table in either chain with no `tenant_id` on the way in**, because
+ * a request precedes a tenant by definition. That is not an oversight in the
+ * isolation model, it is what the row IS — and `0002`'s comment carries the
+ * access rule that stands in for `tenant_isolation_*`: RLS on, exactly one
+ * policy (INSERT), so anyone may knock and nobody holding a tenant token can
+ * read what anyone else wrote. `tenant_id` here is the RESULT of granting one,
+ * filled in when the owner provisions.
+ *
+ * Managed-only for the obvious reason (ADR-0036, hard rule 5): an appliance has
+ * an owner who already has it, not applicants.
+ */
+export const accessRequest = pgTable(
+  'access_request',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: text('email').notNull(),
+    /** Optional, all of it: a family moving one mailbox has no organisation. */
+    name: text('name'),
+    organisation: text('organisation'),
+    /** What they said they are moving, in their own words. Read by a human. */
+    note: text('note'),
+    /** Indicative only — the tier is DERIVED from what runs, never picked (ADR-0014). */
+    tier: text('tier'),
+    /** The language they asked in, so the reply comes back in it (ADR-0013). */
+    locale: text('locale', { enum: ['en', 'nl'] }).notNull().default('en'),
+    state: text('state', { enum: ['open', 'granted', 'declined'] }).notNull().default('open'),
+    /** The tenant provisioned for this request; null unless granted. */
+    tenantId: uuid('tenant_id').references(() => tenant.id, { onDelete: 'set null' }),
+    decidedBy: text('decided_by'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    decisionNote: text('decision_note'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('ix_access_request_email').on(t.email)],
+);
+
 // ========================= Erasure receipts =========================
 
 /**

@@ -122,7 +122,9 @@ const en = {
   'wizard.targetPrefix.hint':
     'Everything this migration writes lands under this folder — useful when several sources ' +
     'share one target and you want a subfolder per source (e.g. "Gmail"). Leave it empty to ' +
-    'merge, which is the default: one account, one place to work.',
+    'merge, which is the default: one account, one place to work. Under a folder, Sent and ' +
+    'Drafts arrive as ordinary folders inside it rather than becoming the account\'s own Sent ' +
+    'and Drafts — a mail app can only have one of each.',
   'wizard.source.driveSetup':
     'A Google Drive source uses your own Google Cloud OAuth client and a delegated, read-only ' +
     'refresh token — docs/google-workspace-setup.md walks through all three values and ends ' +
@@ -197,7 +199,9 @@ const en = {
   'wizard.domain.contact.hint': 'Address book entries',
   'wizard.domain.file.hint': 'Attachments and documents',
   'wizard.schedule': 'Sync Schedule',
-  'wizard.scheduleHint': 'Choose how often to sync data between source and target',
+  'wizard.scheduleHint':
+    'Choose how often to sync data between source and target. The first sync starts as ' +
+    'soon as you press start — this is how often it repeats after that.',
   'wizard.schedule.hourly': 'Hourly',
   'wizard.schedule.hourly.hint': 'Every hour',
   'wizard.schedule.daily': 'Daily',
@@ -947,6 +951,33 @@ const en = {
   'setup.davbasic.app_password.detail':
     'Use an app-specific password rather than the account\u2019s own login where the server offers one — it can be revoked without changing the person\u2019s password.',
   'setup.davbasic.app_password.yields': 'a username and an app password.',
+  // ---- Asking for access (workplan 0093) ----
+  'access.title': 'Request access',
+  'access.intro':
+    'Ownpace is invite-only while we are getting started. Tell us what you want to move and ' +
+    'we will come back to you by email — a person reads these.',
+  'access.email': 'Email address',
+  'access.emailHint': 'Where we reply. Nothing else is sent here.',
+  'access.name': 'Your name',
+  'access.organisation': 'Organisation',
+  'access.optional': 'optional',
+  'access.note': 'What are you moving?',
+  'access.noteHint':
+    'Roughly how many mailboxes, and from where — Microsoft 365, Google, somewhere else. A ' +
+    'sentence is plenty.',
+  'access.tier': 'Which package looks right?',
+  'access.tierHint':
+    'A guess is fine. The package follows what actually runs, so this is not binding.',
+  'access.tierUnsure': 'Not sure yet',
+  'access.submit': 'Send request',
+  'access.sending': 'Sending…',
+  'access.sent': 'Thank you — we have your request.',
+  'access.sentDetail': 'A person reads these, and you will hear back by email.',
+  'access.failed': 'We could not send that:',
+  'access.failedFallback': 'the request did not complete.',
+  'access.privacy':
+    'We keep what you type here to answer you, and nothing else. No account is created by asking.',
+  'access.backToSignIn': 'Already have an account? Sign in',
 } as const;
 
 const nl: Record<keyof typeof en, string> = {
@@ -1059,7 +1090,9 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.targetPrefix.hint':
     'Alles wat deze migratie schrijft komt onder deze map terecht — handig wanneer meerdere ' +
     'bronnen één doel delen en u per bron een submap wilt (bijv. "Gmail"). Laat leeg om samen ' +
-    'te voegen; dat is de standaard: één account, één plek om te werken.',
+    'te voegen; dat is de standaard: één account, één plek om te werken. Onder een map komen ' +
+    'Verzonden en Concepten als gewone mappen daarbinnen terecht, in plaats van de Verzonden ' +
+    'en Concepten van het account zelf te worden — een mailprogramma kan er maar één van elk hebben.',
   'wizard.source.driveSetup':
     'Een Google Drive-bron gebruikt uw eigen Google Cloud OAuth-client en een gedelegeerd, ' +
     'alleen-lezen refresh-token — docs/google-workspace-setup.md behandelt alle drie de waarden ' +
@@ -1133,7 +1166,9 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.domain.contact.hint': 'Adresboekvermeldingen',
   'wizard.domain.file.hint': 'Bijlagen en documenten',
   'wizard.schedule': 'Synchronisatieschema',
-  'wizard.scheduleHint': 'Kies hoe vaak gegevens tussen bron en doel synchroniseren',
+  'wizard.scheduleHint':
+    'Kies hoe vaak gegevens tussen bron en doel synchroniseren. De eerste synchronisatie ' +
+    'begint zodra u op starten drukt — dit is hoe vaak die daarna wordt herhaald.',
   'wizard.schedule.hourly': 'Elk uur',
   'wizard.schedule.hourly.hint': 'Ieder uur',
   'wizard.schedule.daily': 'Dagelijks',
@@ -1846,6 +1881,35 @@ const nl: Record<keyof typeof en, string> = {
   'setup.davbasic.app_password.detail':
     'Gebruik waar de server dat aanbiedt een app-specifiek wachtwoord in plaats van de gewone login — dat kan ingetrokken worden zonder het wachtwoord van de persoon te wijzigen.',
   'setup.davbasic.app_password.yields': 'een gebruikersnaam en een app-wachtwoord.',
+  // ---- Asking for access (workplan 0093) ----
+  'access.title': 'Toegang aanvragen',
+  'access.intro':
+    'Ownpace werkt voorlopig op uitnodiging. Vertel ons wat u wilt verhuizen, dan komen we per ' +
+    'e-mail bij u terug — een mens leest dit.',
+  'access.email': 'E-mailadres',
+  'access.emailHint': 'Hier antwoorden wij. Er gaat verder niets naartoe.',
+  'access.name': 'Uw naam',
+  'access.organisation': 'Organisatie',
+  'access.optional': 'optioneel',
+  'access.note': 'Wat gaat u verhuizen?',
+  'access.noteHint':
+    'Ongeveer hoeveel postbussen, en waarvandaan — Microsoft 365, Google, iets anders. Eén zin ' +
+    'is genoeg.',
+  'access.tier': 'Welk pakket lijkt te passen?',
+  'access.tierHint':
+    'Een inschatting volstaat. Het pakket volgt wat er werkelijk draait, dus dit legt u nergens ' +
+    'op vast.',
+  'access.tierUnsure': 'Nog niet zeker',
+  'access.submit': 'Aanvraag versturen',
+  'access.sending': 'Versturen…',
+  'access.sent': 'Dank u — wij hebben uw aanvraag.',
+  'access.sentDetail': 'Een mens leest dit, en u hoort per e-mail van ons.',
+  'access.failed': 'Wij konden dat niet versturen:',
+  'access.failedFallback': 'de aanvraag is niet voltooid.',
+  'access.privacy':
+    'Wij bewaren wat u hier invult om u te antwoorden, en verder niets. Met een aanvraag wordt ' +
+    'geen account aangemaakt.',
+  'access.backToSignIn': 'Heeft u al een account? Aanmelden',
 };
 
 export type Locale = 'en' | 'nl';

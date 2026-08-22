@@ -148,6 +148,67 @@ describe('the renderer covers what the documents actually use', () => {
   });
 });
 
+describe('the call to action leads somewhere the service can answer', () => {
+  /**
+   * Until 2026-08-22 every "Request access" button on this site was a
+   * `mailto:`, so the first step of becoming a customer was composing an email
+   * in whatever client the visitor's browser opened, and the first record of
+   * them was somebody's inbox. It now points at the app's request-access page
+   * (workplan 0093).
+   *
+   * The form is on the APP and must stay there: this site is served with
+   * `default-src 'none'; … form-action 'none'`, which is what makes it a
+   * document rather than an application. A `<form>` appearing in these pages
+   * would be broken by that CSP, silently — the browser refuses the submission
+   * and nothing is logged anywhere the owner reads.
+   */
+  it('sends "request access" to the app, not to an inbox', async () => {
+    const { rendered } = (await import('./build.mjs')) as unknown as {
+      rendered: Array<{ file: string; html: string }>;
+    };
+    const { REQUEST_ACCESS_URL, SUPPORT_EMAIL } = (await import('./prices.mjs')) as unknown as {
+      REQUEST_ACCESS_URL: string;
+      SUPPORT_EMAIL: string;
+    };
+
+    const landings = rendered.filter((p) => /(^|\/)index\.html$/.test(p.file));
+    expect(landings.length, 'no landing page was rendered').toBeGreaterThan(0);
+
+    for (const page of landings) {
+      expect(page.html, `${page.file}: the call to action no longer reaches the app`).toContain(
+        REQUEST_ACCESS_URL,
+      );
+      // The footer's support address is a support address and stays. What must
+      // not come back is a `mailto:` wearing a button.
+      const buttons = [...page.html.matchAll(/<a class="btn[^"]*" href="([^"]+)"/g)].map(
+        (m) => m[1]!,
+      );
+      expect(
+        buttons.filter((href) => href.startsWith('mailto:')),
+        `${page.file}: a call-to-action button is a mailto: again`,
+      ).toEqual([]);
+      expect(page.html, `${page.file}: the support address should still be in the footer`).toContain(
+        SUPPORT_EMAIL,
+      );
+    }
+  });
+
+  it('has no form of its own, which its CSP would silently refuse to submit', async () => {
+    const { rendered } = (await import('./build.mjs')) as unknown as {
+      rendered: Array<{ file: string; html: string }>;
+    };
+    const nginx = read('deploy/compose/www-nginx.conf');
+    expect(nginx, 'the site CSP no longer forbids form submission — check why').toContain(
+      "form-action 'none'",
+    );
+    for (const page of rendered) {
+      expect(page.html, `${page.file}: a <form> under form-action 'none' cannot submit`).not.toMatch(
+        /<form[\s>]/,
+      );
+    }
+  });
+});
+
 describe('the site is drawn in the logo’s colours', () => {
   it('uses the palette scripts/make-logo.py draws the mark in', () => {
     const build = read('site/build.mjs');

@@ -23,6 +23,7 @@ import CreateMapping from './pages/CreateMapping.tsx';
 import ConfirmMapping from './pages/ConfirmMapping.tsx';
 import Tenants from './pages/Tenants.tsx';
 import Login from './pages/Login.tsx';
+import RequestAccess from './pages/RequestAccess.tsx';
 import Decisions from './pages/Decisions.tsx';
 import Deletions from './pages/Deletions.tsx';
 import Moves from './pages/Moves.tsx';
@@ -92,6 +93,17 @@ const AppRoutes: React.FC = () => {
         element={
           <ManagedOnly>
             <Login />
+          </ManagedOnly>
+        }
+      />
+      {/* Public, and the only other route outside ProtectedRoute: somebody
+          asking for an account has no account to authenticate with. The
+          website's call to action links here (workplan 0093 T3). */}
+      <Route
+        path="/request-access"
+        element={
+          <ManagedOnly>
+            <RequestAccess />
           </ManagedOnly>
         }
       />

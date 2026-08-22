@@ -105,14 +105,30 @@ describe('discovery/confirm routes (0013 T4/T5)', () => {
   it('POST /:id/start activates the mapping (idempotent)', async () => {
     const res = await request.post(`/api/migrations/${MAPPING}/start`).set('Authorization', `Bearer ${token(TENANT)}`).send({});
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ id: MAPPING, status: 'active' });
+    expect(res.body).toMatchObject({ id: MAPPING, status: 'active', activated: true });
 
     const row = await pool.query(`SELECT status FROM mailbox_mapping WHERE id = $1`, [MAPPING]);
     expect(row.rows[0].status).toBe('active');
 
-    // Idempotent second call.
+    // Activation also enqueues the FIRST pass, so a quarter-hourly cadence is
+    // how often the sync repeats rather than how long the first one waits.
+    // There is no live Trigger.dev here (see the file header), so what this
+    // proves is the shape that matters either way: the attempt is made, its
+    // outcome rides back on the answer, and it does NOT cost the activation —
+    // the mapping is active above, and the tick still picks it up.
+    expect(res.body.firstRun).toBeDefined();
+    if (res.body.firstRun.queued === false) {
+      expect(res.body.firstRun.reason).toContain('TRIGGER_API_URL');
+    } else {
+      expect(typeof res.body.firstRun.runId).toBe('string');
+    }
+
+    // Idempotent second call — and NOT a second pass: `activated: false` says
+    // nothing changed, so nothing is enqueued.
     const again = await request.post(`/api/migrations/${MAPPING}/start`).set('Authorization', `Bearer ${token(TENANT)}`).send({});
     expect(again.status).toBe(200);
+    expect(again.body.activated).toBe(false);
+    expect(again.body.firstRun).toBeUndefined();
   });
 
   it('404s for a mapping that does not exist', async () => {
