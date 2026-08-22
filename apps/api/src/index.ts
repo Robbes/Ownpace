@@ -32,6 +32,7 @@ import scopeManifestRoutes from './routes/scope-manifest.ts';
 import setupRoutes from './routes/setup.ts';
 import connectionRoutes from './routes/connections.ts';
 import accessRequestRoutes from './routes/access-requests.ts';
+import meRoutes from './routes/me.ts';
 import { assertProductionAuthConfig } from './middleware/auth.ts';
 import { assertProductionUrlConfig } from './config-guards.ts';
 import { serverFault } from './server-fault.ts';
@@ -129,6 +130,15 @@ app.get('/metrics', (req: Request, res: Response) => {
  * — and its own file carries the four things that make a public WRITE safe.
  */
 app.use('/api/access-requests', accessRequestRoutes);
+
+/**
+ * Who am I, and where may I go (ADR-0042).
+ *
+ * Mounted before the tenant-scoped routes because it is the one that answers
+ * the question they all presuppose: after ADR-0042 a token need not name a
+ * tenant, so a freshly signed-in client has a subject and nothing else.
+ */
+app.use('/api/me', meRoutes);
 
 // API Routes
 app.use('/api/tenants', tenantRoutes);

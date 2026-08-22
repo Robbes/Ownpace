@@ -1,0 +1,47 @@
+-- Which tenants am I in? (ADR-0042, workplan 0093 T5)
+--
+-- ## The problem this exists for
+--
+-- ADR-0042's second operative rule: a token carries `sub` and `email` and
+-- nothing Ownpace-specific, and which tenant a session acts on is read from
+-- `tenant_member` rather than trusted from a claim. That rule is what lets ANY
+-- plain OIDC issuer be enough, which is what makes the issuer replaceable.
+--
+-- It runs straight into the isolation model. Every policy on `tenant_member` is
+-- `tenant_id = current_setting('app.current_tenant')` — so reading it requires
+-- already knowing the tenant, and the question here is precisely "which tenant".
+-- A request arriving with only a subject has no tenant to set, sees no rows, and
+-- cannot find out.
+--
+-- ## Why not the obvious answers
+--
+-- CONNECT AS THE OWNER for this one lookup. The owner bypasses RLS entirely, so
+-- a bug in one query would read every membership of every customer — and the API
+-- may not even have owner credentials: `getDbPool` prefers APP_DATABASE_URL, and
+-- workplan 0011 T1 put the request path on `app_user` precisely so RLS is always
+-- in force.
+--
+-- PUT THE TENANT BACK IN THE TOKEN. That is the thing ADR-0042 decided against,
+-- and `auth.ts` already demonstrates why it would be theatre: the membership
+-- gate re-checks the claim against this table on every request and overwrites
+-- the role from the row, because a signature proves who signed a token and not
+-- what its subject may do.
+--
+-- ## What this does instead
+--
+-- One more SELECT policy: a row is visible when it is YOUR OWN. Policies are
+-- permissive and OR'd, so this ADDS "my own memberships, in any tenant" beside
+-- "everything in the tenant I am scoped to" and takes nothing away.
+--
+-- **It cannot widen an ordinary request.** `app.current_user` is set only by
+-- `withSubject`, and `current_setting(…, true)` returns NULL when it is unset —
+-- `user_id = NULL` is NULL, never true, so a tenant-scoped request sees exactly
+-- what it saw before. `own-membership-under-rls.unit.test.ts` asserts that
+-- against the real `app_user` role rather than leaving it as reasoning.
+--
+-- SELECT ONLY. Reading which tenants you belong to is answering a question about
+-- yourself; changing your own role or admitting yourself to a tenant is not, and
+-- stays behind the tenant-scoped policies where an owner or admin does it.
+
+CREATE POLICY own_membership_select ON public.tenant_member
+  FOR SELECT USING (user_id = current_setting('app.current_user'::text, true));

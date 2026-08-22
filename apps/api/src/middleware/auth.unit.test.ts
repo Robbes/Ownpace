@@ -62,8 +62,12 @@ vi.mock('jose', async (importOriginal) => {
 });
 
 const { SignJWT, exportJWK, generateKeyPair, importJWK } = await import('jose');
-const { authenticate, __setMembershipLookupForTests, __resetJwksCacheForTests } =
-  await import('./auth.ts');
+const {
+  authenticate,
+  __setMembershipLookupForTests,
+  __setMembershipsLookupForTests,
+  __resetJwksCacheForTests,
+} = await import('./auth.ts');
 
 const ISSUER = 'https://issuer.example';
 const AUDIENCE = 'openmig-api';
@@ -261,15 +265,42 @@ describe('authenticate — managed JWKS path, refusing a bad token', () => {
   });
 
   it('REJECTS a token missing a required claim', async () => {
-    // NOT "accepts it and notes the claim is absent", which is what the previous
-    // version of this test asserted — it awaited a SUCCESSFUL verification and
-    // then checked `payload.tenantId` was undefined.
-    const { tenantId: _dropped, ...withoutTenant } = claims();
-    const incomplete = await sign(issuerKeys.privateKey, withoutTenant);
+    // NOT "accepts it and notes the claim is absent", which is what the version
+    // before 2026-08-15 asserted — it awaited a SUCCESSFUL verification and then
+    // checked the claim was undefined.
+    //
+    // The claim dropped here used to be `tenantId`. ADR-0042 removed it from the
+    // required set on purpose — a token carries `sub` and `email` and nothing
+    // Ownpace-specific, which is what lets any plain OIDC issuer be enough — so
+    // this now drops one that IS still required. The case below covers the other
+    // half: a token without a tenant is accepted, and gets one from the
+    // database.
+    const { email: _dropped, ...withoutEmail } = claims();
+    const incomplete = await sign(issuerKeys.privateKey, withoutEmail);
 
     const { status, passed } = await run(incomplete);
     expect(status).toBe(401);
     expect(passed).toBe(false);
+  });
+
+  it('ACCEPTS a token with no tenantId, and resolves the tenant from membership', async () => {
+    // The shape ADR-0042 is for: a standard OIDC token, carrying nothing this
+    // product invented. The subject belongs to exactly one tenant, so there is
+    // nothing to ask them.
+    __setMembershipsLookupForTests(async () => [{ tenantId: 'tenant-from-db', role: 'viewer' }]);
+    try {
+      const { tenantId: _dropped, role: _alsoDropped, ...standard } = claims();
+      const token = await sign(issuerKeys.privateKey, standard);
+
+      const { status, passed, req } = await run(token);
+      expect(status).toBeUndefined();
+      expect(passed).toBe(true);
+      expect(req.tenantId).toBe('tenant-from-db');
+      // And the role still comes from the membership row, as it always has.
+      expect(req.userRole).toBe('admin');
+    } finally {
+      __setMembershipsLookupForTests(null);
+    }
   });
 
   it('REJECTS a request with no Authorization header at all', async () => {
