@@ -40,6 +40,10 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
     const tenants = await membershipsForSubject(userId);
     res.json({
       userId,
+      // From the verified `email` claim, not the database: it is what the
+      // issuer asserts about the person who just signed in, and it is the only
+      // human-readable thing on this response.
+      email: req.userEmail,
       // The tenant this particular request was resolved to — so a client can
       // tell which one it is currently acting as without guessing from the list.
       tenantId: req.tenantId,

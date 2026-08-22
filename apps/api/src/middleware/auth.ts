@@ -559,6 +559,7 @@ export async function authenticate(
     authenticatedReq.userId = payload.sub;
     authenticatedReq.tenantId = tenantId;
     authenticatedReq.userRole = role;
+    authenticatedReq.userEmail = payload.email;
 
     // Set tenant context for RLS
     // This will be used by the database client to set app.current_tenant
@@ -655,6 +656,7 @@ export async function optionalAuth(
     authenticatedReq.userId = payload.sub;
     authenticatedReq.tenantId = tenantId;
     authenticatedReq.userRole = role;
+    authenticatedReq.userEmail = payload.email;
 
     next();
   } catch (_error) {

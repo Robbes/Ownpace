@@ -407,6 +407,54 @@ up, so a bare `up` does not start Nextcloud — whose admin password is
 curl -fsS http://localhost:3001/health && curl -fsS http://localhost:3001/version
 ```
 
+### 8b. Sign-in — the identity provider *(optional, but the paste box is the alternative)*
+
+Not a `bootstrap-managed.sh` phase, and deliberately separate: a stack is
+usable without it, and skipping it leaves exactly the sign-in that existed
+before ([ADR-0042](./adr/0042-who-holds-the-passwords.md)) — the owner mints a
+token with the seed script and whoever needs one pastes it into `/login`.
+
+To have real accounts instead:
+
+```bash
+./deploy/compose/setup-zitadel.sh
+```
+
+It generates the provider's own secrets, starts it against the existing
+Postgres, waits for it to be healthy, creates the project and a **public**
+client (authorization-code + PKCE, no client secret — this is a browser app,
+and a secret shipped to every visitor is not a secret), and writes
+`JWT_ISSUER`, `JWT_AUDIENCE` and the two `VITE_OIDC_*` values back into
+`deploy/compose/.env`. Re-running it is safe; it adopts what already exists.
+
+**Then restart the API and REBUILD the web app, or nothing changes.** The API
+only needs the new environment; the web app bakes `VITE_*` in at build time, so
+a container built before the script ran has no issuer in its bundle and still
+renders the paste box. The script prints these two lines when it finishes:
+
+```bash
+docker compose -f deploy/compose/managed.yml up -d --force-recreate api
+docker compose -f deploy/compose/managed.yml up -d --build web
+```
+
+**Verify** — `/login` shows a *Sign in* button rather than only a token box,
+and the round trip ends on the dashboard:
+
+```bash
+curl -fsS "$(grep '^JWT_ISSUER=' deploy/compose/.env | cut -d= -f2-)/.well-known/openid-configuration" | head -c 200
+```
+
+The API reads the key-set URL from that document rather than composing one, and
+the browser reads its endpoints from the same place — which is what makes the
+provider a component rather than a foundation. Replacing it is `JWT_ISSUER` +
+`JWT_AUDIENCE` + `VITE_OIDC_*` pointed somewhere else and a rebuild; two tests
+fail if that stops being true.
+
+> **The issuer's address ends up inside every token.** `ZITADEL_EXTERNALDOMAIN`
+> is what the provider stamps as `iss`, and the API compares it byte for byte.
+> Changing the address later invalidates every live session — it belongs with
+> the other browser-visible addresses in `.env`, decided once.
+
 ### 9. `tasks` — the task environment, then the deploy
 
 ```bash
@@ -768,7 +816,12 @@ then `up -d`. Every service reads them, so nothing in `managed.yml` is edited.
   addressed by IP or `localhost`. A real deployment needs a reverse proxy with
   real certificates in front of ports 3001 and 3123, and `CORS_ORIGIN` /
   `WEB_URL` / `API_URL` set to those addresses.
-- **Backups.** Nothing here backs up the Postgres volume.
+- **Backups.** Nothing here backs up the Postgres volume — including the
+  identity provider's tables, which after 8b hold the only copy of who can sign
+  in.
+- **Anybody's first account.** `setup-zitadel.sh` stands the provider up; it
+  does not create people. Invite-only means the owner does that, and the
+  provisioning path for it is workplan 0093 T6, not yet built.
 - **The Trigger.dev instance's own upgrade path** between major versions.
 - **Bring-up from scratch, tested.** The nightly
   [`e2e-managed.yml`](../.github/workflows/e2e-managed.yml) runs this script

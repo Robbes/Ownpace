@@ -10,9 +10,10 @@
 | T3 A page to ask on | ✅ **Done 2026-08-22** | `apps/web/src/pages/RequestAccess.tsx` at `/request-access`, public and managed-only, EN + NL. 8 tests, including that a blank optional field travels as ABSENT rather than `''`, and that a `?tier=` nobody offers is ignored. |
 | T4 The site's button leads there | ✅ **Done 2026-08-22** | `site/build.mjs` — every call-to-action button now links to the app; the footer's support address stays a support address. 2 guards in `site/site.unit.test.ts`, both shown to fail on revert. |
 | T2b The limit that would have refused the sixth customer | ✅ **Done 2026-08-22** | CI's first run of `access-requests.integration.test.ts` failed with `expected 429 to be 400` — the suite's own sixth request. The cause was not the test: `DEFAULT_KNOCK_LIMIT.max` was 5/hour keyed on `req.ip`, which behind an ingress is the ingress, so it was **five access requests per hour for the entire service**. Raised to 60 and sized as a service-wide cap, made configurable (`ACCESS_REQUEST_MAX_PER_HOUR`, refusing a bad value rather than falling back), and `TRUST_PROXY` added so the limiter *can* be per-caller. The 429 now has its own integration file — nothing had tested it, which is why this surfaced as two confusing failures instead of one clear one. |
-| T5 An issuer, and a sign-in that is not a paste box | 🔬 **Researched 2026-08-22 — [ADR-0042](../adr/0042-who-holds-the-passwords.md) proposed, awaiting the owner** | The owner asked for research rather than defaulting to the arch doc's Zitadel mention. Six candidates weighed on the stated criteria; the finding that reframed it is that `auth.ts:339` already overwrites the token's `role` from `tenant_member`, so the issuer needs `sub` and `email` and nothing else — which means we are not shopping for a multi-tenant IdP at all. Proposal: Zitadel, pinned, integrated through standard OIDC ONLY so the choice is reversible; Keycloak named as the fallback that move lands on. |
+| T5 An issuer, and a sign-in that is not a paste box | ✅ **Done 2026-08-22 — [ADR-0042](../adr/0042-who-holds-the-passwords.md) accepted by the owner**, on the condition that switching stays cheap; T5b and T5c below are the two halves | The owner asked for research rather than defaulting to the arch doc's Zitadel mention. Six candidates weighed on the stated criteria; the finding that reframed it is that `auth.ts:339` already overwrites the token's `role` from `tenant_member`, so the issuer needs `sub` and `email` and nothing else — which means we are not shopping for a multi-tenant IdP at all. Proposal: Zitadel, pinned, integrated through standard OIDC ONLY so the choice is reversible; Keycloak named as the fallback that move lands on. |
 | T5b The claim surface, narrowed | ✅ **Done 2026-08-22** | ADR-0042's second operative rule, implemented. `assertRequiredClaims` is `sub` + `email`; `tenantId` and `role` are optional and read only where an issuer still mints them. Tenant resolution: an explicit `X-Ownpace-Tenant` header, else the claim, else the subject's single membership — and a **refusal** when several are possible, naming the choices. Migration 0003 adds the one SELECT policy that lets a subject read their own memberships; `withSubject` sets `app.current_user` for it. `GET /api/me` answers "where may I go". 6 + 9 + 2 cases; the policy test fails four ways on an over-broad policy. |
-| T6 A privileged provisioning path | 📋 Planned (needs T5) | Granting a request means creating a `tenant` + an owner `tenant_member`, which cannot happen on a tenant-scoped connection — `POST /api/tenants` answers **501** saying exactly that. |
+| T5c The browser half — a button, not a paste box | ✅ **Done 2026-08-22** | `apps/web/src/services/oidc.ts` — authorization-code + PKCE (S256), **no library and no provider's URL shapes**: every endpoint read from the issuer's discovery document, which is what keeps ADR-0042's replaceability true on this side of the wire too. `/auth/callback` exchanges the code, then `GET /api/me` says which organisation — a token is not a session. The paste box stays for deployments with no issuer yet, but folds behind a disclosure and under its own label once there is one. 19 + 5 + 7 cases; `GET /api/me` gains the 7-case integration file it was missing. |
+| T6 A privileged provisioning path | 📋 Planned — **unblocked**, T5 is done | Granting a request means creating a `tenant` + an owner `tenant_member`, which cannot happen on a tenant-scoped connection — `POST /api/tenants` answers **501** saying exactly that. |
 | T7 The owner's queue | 📋 Planned (needs T6) | Reading `access_request` and deciding on it. Deliberately last: a queue you cannot act on is a list. |
 
 ## Why this exists
@@ -160,9 +161,35 @@ issuer-specific API in our code.
 ### What was built
 
 Zitadel in `deploy/compose/managed.yml` against the existing Postgres, provisioned by
-`setup-zitadel.sh`; `JWT_ISSUER` / `JWT_AUDIENCE` on the API; and the claim surface
-narrowed. What remains of T5 is the browser half — `apps/web`'s paste box is still a
-paste box.
+`setup-zitadel.sh`; `JWT_ISSUER` / `JWT_AUDIENCE` on the API; the claim surface
+narrowed; and — T5c — the browser half, so the paste box is no longer the way in.
+
+### The browser half, and the two things it does not do
+
+It uses **no OIDC library**. The flow is ~120 lines of `crypto.subtle` and `fetch`,
+and the alternative is a package in the bundle on the path that authenticates people.
+It also hard-codes **no endpoint**: `authorization_endpoint` and `token_endpoint` come
+from the issuer's own discovery document, exactly as the API reads `jwks_uri` from it.
+`no-issuer-lock-in.unit.test.ts` already scans `apps/web/src`, so a convenient
+`/oauth/v2/authorize` fails the build rather than quietly pinning the product.
+
+The client is **public** — no secret. This is a single-page app; a confidential client
+would mean shipping a secret to every visitor, which is not a secret. What proves the
+exchange instead is a verifier only that tab ever held, kept in `sessionStorage` rather
+than `localStorage` because it is good for one exchange and a value that outlives the
+flow can be replayed against a later one.
+
+Three things are refusals rather than retries, and each has a test that fails on
+removal: a **state mismatch** (without it somebody can hand a victim a callback URL
+carrying the attacker's code, and the victim ends up signed in as them), a discovery
+document **declaring a different issuer**, and a **second exchange of the same code** —
+StrictMode double-mounts every effect, an authorization code is single-use, and the
+second attempt would draw a failure over a sign-in that actually worked.
+
+**`import.meta.env` is not shared between modules.** Vitest gives each file its own,
+so a test cannot set what another module reads — which is why the config is an argument
+with the build's value as its default, and the environment read is one pure function.
+That is the same conclusion `edition.ts` reached from the other direction.
 
 ### Narrowing the claims turned out to need a policy
 
@@ -204,9 +231,14 @@ because a client that must ask a person which organisation needs the list.
 
 `GET /api/me` is the other half: the one route that works before a tenant is known.
 
+It is also the one the refusal has to carry, because `authenticate` refuses *before*
+the route runs — so `/api/me` cannot be what tells a client its options, and the 400
+body has to. `me.integration.test.ts` pins exactly that, along with the role coming
+from the database on a token that claims a different one.
+
 ## Gates
 
-`pnpm lint` · `pnpm typecheck` · `pnpm test` — green (2026-08-22).
+`pnpm lint` · `pnpm typecheck` · `pnpm test` — green (2026-08-22): 307 files, 3452 tests.
 
 `pnpm test:integration` ran for the first time on **PR #494**, and found T2b —
 a real bug in the shipped limit, not a broken test. That is what the PR was for.

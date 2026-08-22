@@ -24,6 +24,7 @@ import ConfirmMapping from './pages/ConfirmMapping.tsx';
 import Tenants from './pages/Tenants.tsx';
 import Login from './pages/Login.tsx';
 import RequestAccess from './pages/RequestAccess.tsx';
+import AuthCallback from './pages/AuthCallback.tsx';
 import Decisions from './pages/Decisions.tsx';
 import Deletions from './pages/Deletions.tsx';
 import Moves from './pages/Moves.tsx';
@@ -93,6 +94,17 @@ const AppRoutes: React.FC = () => {
         element={
           <ManagedOnly>
             <Login />
+          </ManagedOnly>
+        }
+      />
+      {/* Where the identity provider sends the browser back (ADR-0042). Public
+          by necessity: the whole point is that the session does not exist yet.
+          The path must match the redirect URI `setup-zitadel.sh` registers. */}
+      <Route
+        path="/auth/callback"
+        element={
+          <ManagedOnly>
+            <AuthCallback />
           </ManagedOnly>
         }
       />

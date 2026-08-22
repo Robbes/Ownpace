@@ -21,12 +21,20 @@
   shipped source of `apps/` and `packages/` and fails on a provider name or endpoint
   path; `issuer-is-replaceable.unit.test.ts` drives the real verification path with
   both providers' discovery documents.
-- **The key-set URL is DISCOVERED, never composed.** `getJWKS` reads `jwks_uri` from
-  the issuer's `/.well-known/openid-configuration`, and refuses a document whose
-  `issuer` does not match the configured one (OIDC Discovery §4.3). `JWT_JWKS_URI`
-  exists as an escape hatch and is not the normal path.
-- **Zitadel is the proposed issuer**, self-hosted beside the managed stack against the
+- **Every endpoint is DISCOVERED, never composed** — on both sides of the wire.
+  `getJWKS` reads `jwks_uri` from the issuer's `/.well-known/openid-configuration`,
+  and the browser reads `authorization_endpoint` and `token_endpoint` from the same
+  document (`apps/web/src/services/oidc.ts`). Both refuse a document whose `issuer`
+  does not match the configured one (OIDC Discovery §4.3). `JWT_JWKS_URI` exists as an
+  escape hatch and is not the normal path.
+- **The browser client is PUBLIC and holds no secret.** The web app is a single-page
+  app, so a confidential client would mean shipping a secret to every visitor. The code
+  exchange is proven by a PKCE verifier (S256) that never leaves the tab that minted it.
+- **Zitadel is the accepted issuer**, self-hosted beside the managed stack against the
   Postgres it already runs. Pinned by version; upgrades are deliberate, never automatic.
+  Switching is four environment variables and a rebuild — `JWT_ISSUER`, `JWT_AUDIENCE`,
+  `VITE_OIDC_ISSUER`, `VITE_OIDC_CLIENT_ID` — which was the owner's condition for
+  accepting it.
 - **The appliance never gains an issuer dependency**, enforced by
   `apps/selfhost/src/no-managed-leakage.unit.test.ts`.
 
