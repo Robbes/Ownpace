@@ -163,12 +163,23 @@ export async function withTenant<T>(
  * matches with a SELECT policy for your own rows.
  *
  * **Deliberately narrow.** It sets no tenant, so nothing tenant-scoped is
- * readable through it — every other table's policies still require
- * `app.current_tenant`, which is unset here, and `current_setting(…, true)`
- * answers NULL rather than raising. So this is not a back door into the ledger:
- * it opens exactly one table, for exactly the rows naming this subject. Keep it
- * that way — if a second question ever needs subject scope, add a policy for it
- * rather than widening what this sets.
+ * readable through it: every other table's policies require
+ * `app.current_tenant`, which is not set here. So this is not a back door into
+ * the ledger — it opens exactly one table, for exactly the rows naming this
+ * subject. Keep it that way: if a second question ever needs subject scope, add
+ * a policy for it rather than widening what this sets.
+ *
+ * **AND THE TABLE IT OPENS NEEDS NULL-SAFE TENANT POLICIES.** This comment used
+ * to say the tenant policies "answer NULL rather than raising", and that is only
+ * true on a connection that has never held a tenant. `SET LOCAL` reverts to the
+ * SESSION value, which for a setting never assigned at session level is the
+ * EMPTY STRING — so from the second transaction on a pooled connection,
+ * `current_setting('app.current_tenant', true)` is `''`, and `''::uuid` RAISES.
+ * Permissive policies are OR'd and all of them are evaluated, so a subject-scoped
+ * read runs the tenant policies too and the whole query fails with a 500.
+ * `tenant_member`'s policies were made NULL-safe in migration `0004`;
+ * `guc-decay-under-rls.unit.test.ts` reproduces the decay and fails without it.
+ * Any table brought into subject scope later needs the same treatment.
  *
  * Same shape as `withTenant` otherwise, and for the same reasons: it drops to
  * the unprivileged role FIRST (policies are decoration to an owner or a
