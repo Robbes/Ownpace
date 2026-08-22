@@ -33,7 +33,7 @@ describe('describeUrlConfigProblems', () => {
     expect(fatal[1]!.message).toContain('redirect paying customers');
   });
 
-  it('accepts public URLs, and does not gate API_URL/WEB_URL while billing is off', () => {
+  it('accepts public URLs, and never makes URL problems FATAL while billing is off', () => {
     expect(
       describeUrlConfigProblems({
         ...prodBilling,
@@ -42,19 +42,37 @@ describe('describeUrlConfigProblems', () => {
         CORS_ORIGIN: 'https://app.example.com',
       }),
     ).toEqual([]);
-    // No MOLLIE_API_KEY: localhost URLs are harmless — nothing external calls them.
-    expect(
-      describeUrlConfigProblems({
-        NODE_ENV: 'production',
-        API_URL: 'http://localhost:3001',
-        CORS_ORIGIN: 'https://app.example.com',
-      }),
-    ).toEqual([]);
+
+    // THIS EXPECTED `[]` UNTIL WORKPLAN 0095, on the reasoning that with no
+    // MOLLIE_API_KEY "localhost URLs are harmless — nothing external calls
+    // them". That was true when it was written and stopped being true when a
+    // granted person's email started naming WEB_URL as the place to sign in:
+    // it is now read by somebody OUTSIDE the system, which is exactly what
+    // "nothing external calls them" ruled out.
+    //
+    // What the case is actually about survives, and is asserted more precisely
+    // than before: with billing off, a URL problem is a WARNING and never
+    // fatal. A missing WEB_URL must not refuse to boot a deployment that was
+    // serving yesterday — the operator learns per grant, in the response.
+    const withoutBilling = describeUrlConfigProblems({
+      NODE_ENV: 'production',
+      API_URL: 'http://localhost:3001',
+      CORS_ORIGIN: 'https://app.example.com',
+    });
+    expect(withoutBilling.filter((p) => p.fatal)).toEqual([]);
+    // API_URL is still ungated without billing; only WEB_URL now speaks up.
+    expect(withoutBilling).toHaveLength(1);
+    expect(withoutBilling[0]!.message).toContain('WEB_URL');
+    expect(withoutBilling[0]!.message).toContain('send no email');
   });
 
   it('localhost CORS_ORIGIN in production is a warning (same-origin proxy makes it moot), never fatal', () => {
+    // WEB_URL is set so this case stays about CORS. Before workplan 0095 an
+    // unset WEB_URL contributed nothing here; now it warns, and a test that
+    // silently absorbed both would stop being about either.
     const problems = describeUrlConfigProblems({
       NODE_ENV: 'production',
+      WEB_URL: 'https://app.example.com',
       CORS_ORIGIN: 'http://localhost:3123',
     });
     expect(problems).toHaveLength(1);

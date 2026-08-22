@@ -21,6 +21,11 @@
 
 process.env.JWT_SECRET = 'test-secret-for-integration-tests';
 process.env.ACCESS_REQUEST_MAX_PER_HOUR = '1000';
+// The address a grant email names as the place to sign in (workplan 0095). Set
+// here because a real deployment always has one — `managed.yml` requires it —
+// and the case where it is MISSING has its own test below rather than being the
+// silent default every other case runs under.
+process.env.WEB_URL = 'https://app.integration.test';
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { Pool } from 'pg';
@@ -185,6 +190,9 @@ describe('the operator half of /api/access-requests', () => {
     expect(res.status).toBe(201);
     provisioned.push(res.body.tenantId);
     expect(res.body).toMatchObject({ name: 'De Vries', email: ASKER_EMAIL });
+    // No SMTP is configured in this suite, so nobody was told — and the
+    // operator is told THAT, because it means the manual step is theirs.
+    expect(res.body.notified).toBe('off');
 
     const { rows: tenants } = await pool.query<{ name: string }>(
       `SELECT name FROM tenant WHERE id = $1`,
@@ -210,6 +218,37 @@ describe('the operator half of /api/access-requests', () => {
       tenant_id: res.body.tenantId,
       decided_by: OPERATOR,
     });
+  });
+
+  it('still grants when WEB_URL is missing, and says nobody was told', async () => {
+    // The first version of this threw, which turned a missing variable into a
+    // 500 on a grant whose transaction had ALREADY COMMITTED: the organisation
+    // existed and the operator was told it had failed. Granting is the thing
+    // that matters; the email is the courtesy, and a courtesy must not be able
+    // to fail the thing.
+    const asked = await knock(`${MARK}-nowhere@example.test`);
+    const saved = process.env.WEB_URL;
+    delete process.env.WEB_URL;
+    try {
+      const res = await request
+        .post(`/api/access-requests/${asked.id}/grant`)
+        .set('Authorization', `Bearer ${token(OPERATOR)}`)
+        .send({});
+
+      expect(res.status).toBe(201);
+      provisioned.push(res.body.tenantId);
+      expect(res.body.notified).toBe('off');
+
+      // And the organisation is real, not half-made.
+      const { rows } = await pool.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM tenant_member WHERE tenant_id = $1`,
+        [res.body.tenantId],
+      );
+      expect(rows[0]?.n).toBe(1);
+    } finally {
+      if (saved === undefined) delete process.env.WEB_URL;
+      else process.env.WEB_URL = saved;
+    }
   });
 
   it('REFUSES a non-operator the grant, and provisions nothing', async () => {

@@ -48,7 +48,7 @@ import { authenticateSubject, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { log } from '@openmig/shared';
-import { tell } from '../access-notify.ts';
+import { tell, type TellOutcome } from '../access-notify.ts';
 import { serverFault } from '../server-fault.ts';
 import { createKnockLimiter, knockLimitFromEnv, type KnockLimiter } from '../knock-limit.ts';
 
@@ -201,18 +201,25 @@ const QUEUE_COLUMNS = {
 };
 
 /**
- * Where to send somebody to sign in.
+ * Where to send somebody to sign in, or null if this deployment cannot say.
  *
  * `WEB_URL` is the address a BROWSER uses — the same value the status page
- * probes and the identity provider registers its redirect against. Refused
- * rather than defaulted: a grant email carrying `http://localhost:3123` has
- * told somebody to go nowhere, and it would go out looking exactly like a
- * successful one.
+ * probes and the identity provider registers its redirect against. Never
+ * defaulted: a grant email carrying `http://localhost:3123` has told somebody
+ * to go nowhere, and would go out looking exactly like a successful one.
+ *
+ * **And never thrown, either.** The first version of this threw, which turned a
+ * missing variable into a 500 on a grant whose transaction had ALREADY
+ * COMMITTED — the organisation existed and the operator was told it had failed.
+ * That is precisely the inversion the send is placed after the commit to avoid,
+ * reintroduced two lines away from the comment saying so. CI caught it.
+ *
+ * A deployment with no `WEB_URL` gets a warning at boot (`config-guards.ts`)
+ * and, per grant, an operator who is told nobody was emailed.
  */
-function appUrl(): string {
+function appUrl(): string | null {
   const url = process.env.WEB_URL;
-  if (!url) throw new Error('WEB_URL is not set — a grant email would name no address to sign in at.');
-  return url.replace(/\/+$/, '');
+  return url ? url.replace(/\/+$/, '') : null;
 }
 
 /**
@@ -385,12 +392,25 @@ router.post('/:id/grant', authenticateSubject, async (req: AuthenticatedRequest,
     // `tell` never throws. What it returns goes back to the operator, because
     // "nobody was told" means the manual step is back and they are the only
     // one who can take it.
-    const notified = await tell(outcome.email, outcome.locale, {
-      kind: 'access_granted',
-      organisation: outcome.name,
-      appUrl: appUrl(),
-      email: outcome.email,
-    });
+    const where = appUrl();
+    let notified: TellOutcome;
+    if (where) {
+      notified = await tell(outcome.email, outcome.locale, {
+        kind: 'access_granted',
+        organisation: outcome.name,
+        appUrl: where,
+        email: outcome.email,
+      });
+    } else {
+      // `off` to the operator, because what they need to know is the same in
+      // both cases: nobody was told, and the manual step is theirs. WHY goes to
+      // the log, where it names the variable to set.
+      log.error(
+        `[access-request] WEB_URL is not set — granted ${outcome.email} but sent no email, ` +
+          'because it would have named no address to sign in at',
+      );
+      notified = 'off';
+    }
 
     res.status(201).json({ tenantId, name: outcome.name, email: outcome.email, notified });
   } catch (error) {
