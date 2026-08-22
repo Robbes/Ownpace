@@ -48,6 +48,7 @@ import { authenticateSubject, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { log } from '@openmig/shared';
+import { tell } from '../access-notify.ts';
 import { serverFault } from '../server-fault.ts';
 import { createKnockLimiter, knockLimitFromEnv, type KnockLimiter } from '../knock-limit.ts';
 
@@ -200,6 +201,21 @@ const QUEUE_COLUMNS = {
 };
 
 /**
+ * Where to send somebody to sign in.
+ *
+ * `WEB_URL` is the address a BROWSER uses — the same value the status page
+ * probes and the identity provider registers its redirect against. Refused
+ * rather than defaulted: a grant email carrying `http://localhost:3123` has
+ * told somebody to go nowhere, and it would go out looking exactly like a
+ * successful one.
+ */
+function appUrl(): string {
+  const url = process.env.WEB_URL;
+  if (!url) throw new Error('WEB_URL is not set — a grant email would name no address to sign in at.');
+  return url.replace(/\/+$/, '');
+}
+
+/**
  * GET /api/access-requests — the queue.
  *
  * Open ones first and oldest first within that, because the queue is worked
@@ -337,7 +353,9 @@ router.post('/:id/grant', authenticateSubject, async (req: AuthenticatedRequest,
         })
         .where(eq(accessRequest.id, id));
 
-      return { kind: 'granted', tenantId, name, email: request.email } as const;
+      // `locale` travels out because the mail is written in the language they
+      // asked in (ADR-0013), and the transaction is the only place the row is read.
+      return { kind: 'granted', tenantId, name, email: request.email, locale: request.locale } as const;
     });
 
     if (outcome.kind === 'notFound') {
@@ -357,7 +375,24 @@ router.post('/:id/grant', authenticateSubject, async (req: AuthenticatedRequest,
     // The address, because it is what makes the line useful for support; not
     // the note or the name (§17, same rule the knock above follows).
     log.info(`[access-request] granted ${outcome.email} tenant ${tenantId}`);
-    res.status(201).json({ tenantId, name: outcome.name, email: outcome.email });
+
+    // AFTER the commit, and outside it (workplan 0095 T3). Granting is three
+    // writes or none; the email is not a fourth. A mail server that is down
+    // must not roll back an organisation that was correctly created — and
+    // equally the mail must only ever describe something that actually
+    // happened, which is why it is here rather than inside the transaction.
+    //
+    // `tell` never throws. What it returns goes back to the operator, because
+    // "nobody was told" means the manual step is back and they are the only
+    // one who can take it.
+    const notified = await tell(outcome.email, outcome.locale, {
+      kind: 'access_granted',
+      organisation: outcome.name,
+      appUrl: appUrl(),
+      email: outcome.email,
+    });
+
+    res.status(201).json({ tenantId, name: outcome.name, email: outcome.email, notified });
   } catch (error) {
     serverFault(res, 'access_request_grant_failed', 'granting this request', error);
   }

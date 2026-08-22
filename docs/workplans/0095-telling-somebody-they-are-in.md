@@ -4,10 +4,10 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T0 **The account that does not exist** (owner) | ⛔ **Blocking, needs a decision** | Granting creates the organisation and an invitation. It does **not** create an account at the identity provider, and [ADR-0042](../adr/0042-who-holds-the-passwords.md) forbids us from doing so — "no issuer-specific API" is the rule that makes the issuer replaceable. So a granted person has nowhere to sign in *from*. See below; this decides T3's wording and `setup-zitadel.sh`. |
-| T1 The event and its two languages | 📋 Planned | A new `access_granted` kind on the existing `NotificationEvent` union (`packages/shared/src/notifications.ts`), EN + NL, with the compile-time key parity 0030 T1 already enforces — a line missing from one language is a type error. |
-| T2 A recipient who is not a member yet | 📋 Planned | Every managed notification today goes to "the tenant's active owners and admins". This one goes to an address on an `access_request` row, for somebody who is deliberately not a member until they first sign in (0093 T6b). New recipient path, small but genuinely different. |
-| T3 The caller, outside the transaction | 📋 Planned | `POST /api/access-requests/:id/grant`. Granting is three writes or none; the email is **not** a fourth. A mail server being down must not fail a grant that already happened — 0030 T4's rollback rule, in the same shape. |
+| T0 **The account that does not exist** (owner) | ✅ **Decided 2026-08-22: A, self-registration — and built** | Granting creates the organisation and an invitation. It does **not** create an account at the identity provider, and [ADR-0042](../adr/0042-who-holds-the-passwords.md) forbids us from doing so. `setup-zitadel.sh` now turns self-registration on and **reads the setting back** rather than trusting the call — `api` runs `curl -sS` without `-f`, so an HTTP error exits 0, and this particular silent no-op surfaces days later in front of a customer who cannot sign in. Its refusal names the console path to set it by hand. 3 guard cases. |
+| T1 The event and its two languages | ✅ **Done 2026-08-22** | A new `access_granted` kind on the existing union, EN + NL, with 0030 T1's compile-time key parity. Four cases, and the one that matters asserts the body carries **no link, code or token**: the only URL is the app address, and it has no query or fragment that could smuggle one in. |
+| T2 A recipient who is not a member yet | ✅ **Done 2026-08-22** | `apps/api/src/access-notify.ts` — the digest's shape (one transport, many envelopes) for a recipient who is deliberately not a member. Returns one of three outcomes rather than deciding what they mean: `sent`, `off` (no SMTP — nobody will ever be told) and `failed` (we tried, something is broken). Those imply different next actions for the operator, so they stay three. 3 cases, including that it never rejects. |
+| T3 The caller, outside the transaction | ✅ **Done 2026-08-22** | After the commit and outside it. The outcome is returned to the operator in the response, because "nobody was told" means the manual step is back and they are the only one who can take it. `WEB_URL` is **refused** rather than defaulted: a grant email carrying `http://localhost:3123` has told somebody to go nowhere, and would go out looking exactly like a successful one. |
 | T4 Deliverability | 📋 Planned — **needs DNS, so it is the owner's** | SPF, DKIM and DMARC for the sending domain. Without them this lands in spam, and "we emailed you" becomes "we did nothing" from the customer's side. |
 | T5 The decline email | 📋 Planned, and deliberately after T1–T4 | Saying no is a courtesy too, and a harder one to word. Not blocking the first customer. |
 
@@ -101,6 +101,21 @@ step is back and they need to know to take it.
 This workplan adds one event kind, one recipient path and one caller. If it
 starts to look like more than that, something has gone wrong.
 
+## What the email deliberately does not do
+
+**No link, no code, no token.** The issuer owns identity, so the mail authorises
+nothing — which is what makes forwarding or intercepting it harmless. A test
+asserts the only URL in the body is the app address and that it carries no query
+or fragment, so the next person tempted to "improve" this into a one-click link
+fails there first.
+
+**It does not close with "open the app to take action."** Every other event does.
+This one is read by somebody who has no account yet, so that line is an
+instruction they cannot follow — and the one they DO need is three lines above.
+
 ## Gates
 
-Not started.
+`pnpm lint` · `pnpm typecheck` · `pnpm test` — green (2026-08-22).
+
+T4 (SPF/DKIM/DMARC) and T5 (the decline email) remain. T4 needs DNS and is the
+owner's; see [`first-live-run.md`](../first-live-run.md).

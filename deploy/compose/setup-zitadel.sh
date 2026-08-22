@@ -201,6 +201,59 @@ else
 fi
 say "client ${CLIENT_ID}"
 
+# ------------------------------------------------------- letting people in --
+#
+# SELF-REGISTRATION, ON (owner decision 2026-08-22, workplan 0095 T0).
+#
+# Granting an access request creates the organisation and an INVITATION — a
+# `tenant_member` row addressed to an email with no subject on it yet. Nothing
+# creates the person's account here, and nothing may: ADR-0042's third operative
+# rule keeps the integration inside plain OIDC, and calling this provider's
+# user-management API is exactly the coupling that would make switching provider
+# a project again. So the invited person has to be able to make their own
+# account, or a granted request dead-ends at a sign-in page they cannot pass.
+#
+# THIS IS NOT AN OPEN DOOR. An account here grants nothing on its own: every
+# policy in Ownpace keys on `app.current_tenant` or `app.current_user`, and a
+# subject with no `tenant_member` row sees no organisation, no migration and no
+# queue — `GET /api/me` answers "none" without refusing, and the web app says so
+# in a sentence. Registering gets somebody a password and an explanation.
+#
+# What binds them to the organisation is the email address, and ONLY when this
+# provider says it verified it (`email_verified`, migration 0006). Which is why
+# the two settings below travel together: self-registration without verified
+# email would mean whoever types an address inherits what was granted to it.
+say "allowing people to register, with a verified email"
+read_allow_register() { api GET /management/v1/policies/login | jq -r '.policy.allowRegister // empty'; }
+
+if [ "$(read_allow_register)" = "true" ]; then
+  say "already allowed"
+else
+  POLICY="$(jq -nc '{allowRegister:true, allowUsernamePassword:true, allowExternalIdp:false}')"
+  # An organisation may not have a login policy of its own yet, in which case it
+  # inherits the instance default and the PUT has nothing to update — so both
+  # verbs are attempted and NEITHER is trusted.
+  #
+  # `api` runs `curl -sS` without `-f`, so an HTTP 404 or 400 still exits 0.
+  # Chaining on the exit code would report success for a call that changed
+  # nothing, which for this setting means a granted person reaches a sign-in
+  # page they cannot pass — a failure that surfaces days later, in front of a
+  # customer. So the setting is READ BACK, and that is what decides.
+  api PUT /management/v1/policies/login "$POLICY" >/dev/null 2>&1 || true
+  api POST /management/v1/policies/login "$POLICY" >/dev/null 2>&1 || true
+
+  [ "$(read_allow_register)" = "true" ] \
+    || die "could not allow people to register.
+
+Granting an access request creates an invitation, not an account — ADR-0042
+forbids us from creating one at the provider — so without this a granted person
+reaches a sign-in page they cannot get past.
+
+Set it by hand: the console at ${ISSUER}/ui/console, under
+Organisation -> Login Behaviour, tick 'Register allowed'."
+  say "allowed"
+fi
+
 # ACCESS TOKENS AS JWT, above, is what makes the API's JWKS path work at all.
 # The default is an opaque token, which the API cannot verify locally — it would
 # have to call the provider's introspection endpoint on every request, which is

@@ -123,3 +123,40 @@ describe('the browser client is public, which is what PKCE is for', () => {
     expect(SETUP).toContain('OIDC_TOKEN_TYPE_JWT');
   });
 });
+
+describe('letting a granted person in (workplan 0095 T0)', () => {
+  const script = readFileSync(join(REPO, 'deploy/compose/setup-zitadel.sh'), 'utf8');
+
+  it('turns self-registration ON, because nothing else can create the account', () => {
+    // ADR-0042 forbids creating users through the provider's API — that is the
+    // rule that keeps the issuer replaceable. So a granted person makes their
+    // own account, or the grant email sends them to a door they cannot open.
+    expect(script).toContain('allowRegister:true');
+  });
+
+  it('VERIFIES the setting rather than trusting the call', () => {
+    // `api` runs `curl -sS` without `-f`, so an HTTP 404 or 400 still exits 0.
+    // Chaining on the exit code would report success for a call that changed
+    // nothing — and this particular nothing surfaces days later, in front of a
+    // customer who cannot sign in. So it is read back.
+    const block = script.slice(script.indexOf('allowing people to register'));
+    expect(block).toContain('read_allow_register');
+    // The LAST read-back, not the first: the first is the "already allowed"
+    // guard that skips the writes entirely. What this pins is that the one
+    // deciding whether to `die` runs AFTER them.
+    const write = block.indexOf('api PUT /management/v1/policies/login');
+    const decides = block.lastIndexOf('read_allow_register)');
+    expect(write).toBeGreaterThan(-1);
+    expect(decides).toBeGreaterThan(write);
+    // …and that failing it is fatal rather than a warning nobody reads.
+    expect(block.slice(decides, decides + 200)).toContain('|| die');
+  });
+
+  it('says what to do by hand when it cannot, rather than only failing', () => {
+    // A refusal that names the console path is one somebody can act on at
+    // 23:00; "could not set policy" is not.
+    const block = script.slice(script.indexOf('allowing people to register'));
+    expect(block).toMatch(/ui\/console/);
+    expect(block).toMatch(/Register allowed/i);
+  });
+});
