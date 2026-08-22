@@ -6,12 +6,21 @@ import { MemoryRouter } from 'react-router';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Login, { decodeTokenClaims } from './Login.tsx';
 import { useAuthStore } from '../stores/auth-store.ts';
+import { beginSignIn, oidcConfig } from '../services/oidc.ts';
 
 const navigateMock = vi.fn();
 vi.mock('react-router', async () => {
   const actual = await vi.importActual<typeof import('react-router')>('react-router');
   return { ...actual, useNavigate: () => navigateMock };
 });
+
+// `oidcConfig()` reads `import.meta.env`, which vitest gives each module its
+// OWN copy of — a test cannot set the one `oidc.ts` sees. So the module is
+// mocked here, which is also what decides which of the two sign-in paths this
+// page renders.
+vi.mock('../services/oidc.ts', () => ({ oidcConfig: vi.fn(), beginSignIn: vi.fn() }));
+const oidcConfigMock = vi.mocked(oidcConfig);
+const beginSignInMock = vi.mocked(beginSignIn);
 
 // Build a JWT with the given payload (header/signature are cosmetic — the app
 // only decodes the payload; the API verifies the real signature).
@@ -48,6 +57,10 @@ describe('decodeTokenClaims', () => {
 describe('Login', () => {
   beforeEach(() => {
     navigateMock.mockReset();
+    beginSignInMock.mockReset();
+    // No issuer by default: that is the deployment that has not run the
+    // identity setup script yet, and the reason the paste box still exists.
+    oidcConfigMock.mockReturnValue(null);
     useAuthStore.getState().logout();
     localStorage.clear();
   });
@@ -58,7 +71,7 @@ describe('Login', () => {
 
     renderLogin();
     await user.type(screen.getByLabelText(/access token/i), token);
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
+    await user.click(screen.getByRole('button', { name: /use this token/i }));
 
     const state = useAuthStore.getState();
     expect(state.isAuthenticated).toBe(true);
@@ -74,10 +87,55 @@ describe('Login', () => {
 
     renderLogin();
     await user.type(screen.getByLabelText(/access token/i), 'garbage');
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
+    await user.click(screen.getByRole('button', { name: /use this token/i }));
 
     expect(screen.getByRole('alert')).toBeInTheDocument();
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
     expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it('offers the paste box plainly when there is no provider to offer instead', () => {
+    renderLogin();
+    // Not folded away: it is the only way in, and hiding it behind a disclosure
+    // would strand a deployment mid-rollout.
+    expect(screen.getByLabelText(/access token/i)).toBeVisible();
+    expect(screen.queryByText(/sign in with a token instead/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('Login with an issuer configured (ADR-0042)', () => {
+  beforeEach(() => {
+    navigateMock.mockReset();
+    beginSignInMock.mockReset();
+    oidcConfigMock.mockReturnValue({ issuer: 'https://id.example.test', clientId: 'c1' });
+    useAuthStore.getState().logout();
+    localStorage.clear();
+  });
+
+  it('starts the real flow, and folds the token box away behind its own label', async () => {
+    const user = userEvent.setup();
+    beginSignInMock.mockResolvedValue(undefined);
+
+    renderLogin();
+    // Exactly one button reads "Sign in". The paste box's own button says
+    // something else, or the two are a coin toss rather than a choice.
+    await user.click(screen.getByRole('button', { name: /^sign in$/i }));
+
+    expect(beginSignInMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/sign in with a token instead/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /use this token/i })).toBeInTheDocument();
+  });
+
+  it("shows the service's own sentence when the provider cannot be reached", async () => {
+    const user = userEvent.setup();
+    beginSignInMock.mockRejectedValue(new Error('The sign-in service did not answer at ... (503).'));
+
+    renderLogin();
+    await user.click(screen.getByRole('button', { name: /^sign in$/i }));
+
+    // One alert, not two: the token form has its own error and must stay quiet.
+    expect(await screen.findByRole('alert')).toHaveTextContent(/did not answer/);
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
   });
 });

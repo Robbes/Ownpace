@@ -10,8 +10,11 @@
 | T3 A page to ask on | ✅ **Done 2026-08-22** | `apps/web/src/pages/RequestAccess.tsx` at `/request-access`, public and managed-only, EN + NL. 8 tests, including that a blank optional field travels as ABSENT rather than `''`, and that a `?tier=` nobody offers is ignored. |
 | T4 The site's button leads there | ✅ **Done 2026-08-22** | `site/build.mjs` — every call-to-action button now links to the app; the footer's support address stays a support address. 2 guards in `site/site.unit.test.ts`, both shown to fail on revert. |
 | T2b The limit that would have refused the sixth customer | ✅ **Done 2026-08-22** | CI's first run of `access-requests.integration.test.ts` failed with `expected 429 to be 400` — the suite's own sixth request. The cause was not the test: `DEFAULT_KNOCK_LIMIT.max` was 5/hour keyed on `req.ip`, which behind an ingress is the ingress, so it was **five access requests per hour for the entire service**. Raised to 60 and sized as a service-wide cap, made configurable (`ACCESS_REQUEST_MAX_PER_HOUR`, refusing a bad value rather than falling back), and `TRUST_PROXY` added so the limiter *can* be per-caller. The 429 now has its own integration file — nothing had tested it, which is why this surfaced as two confusing failures instead of one clear one. |
-| T5 An issuer, and a sign-in that is not a paste box | 🔬 **Researched 2026-08-22 — [ADR-0042](../adr/0042-who-holds-the-passwords.md) proposed, awaiting the owner** | The owner asked for research rather than defaulting to the arch doc's Zitadel mention. Six candidates weighed on the stated criteria; the finding that reframed it is that `auth.ts:339` already overwrites the token's `role` from `tenant_member`, so the issuer needs `sub` and `email` and nothing else — which means we are not shopping for a multi-tenant IdP at all. Proposal: Zitadel, pinned, integrated through standard OIDC ONLY so the choice is reversible; Keycloak named as the fallback that move lands on. |
-| T6 A privileged provisioning path | 📋 Planned (needs T5) | Granting a request means creating a `tenant` + an owner `tenant_member`, which cannot happen on a tenant-scoped connection — `POST /api/tenants` answers **501** saying exactly that. |
+| T5 An issuer, and a sign-in that is not a paste box | ✅ **Done 2026-08-22 — [ADR-0042](../adr/0042-who-holds-the-passwords.md) accepted by the owner**, on the condition that switching stays cheap; T5b and T5c below are the two halves | The owner asked for research rather than defaulting to the arch doc's Zitadel mention. Six candidates weighed on the stated criteria; the finding that reframed it is that `auth.ts:339` already overwrites the token's `role` from `tenant_member`, so the issuer needs `sub` and `email` and nothing else — which means we are not shopping for a multi-tenant IdP at all. Proposal: Zitadel, pinned, integrated through standard OIDC ONLY so the choice is reversible; Keycloak named as the fallback that move lands on. |
+| T5b The claim surface, narrowed | ✅ **Done 2026-08-22** | ADR-0042's second operative rule, implemented. `assertRequiredClaims` is `sub` + `email`; `tenantId` and `role` are optional and read only where an issuer still mints them. Tenant resolution: an explicit `X-Ownpace-Tenant` header, else the claim, else the subject's single membership — and a **refusal** when several are possible, naming the choices. Migration 0003 adds the one SELECT policy that lets a subject read their own memberships; `withSubject` sets `app.current_user` for it. `GET /api/me` answers "where may I go". 6 + 9 + 2 cases; the policy test fails four ways on an over-broad policy. |
+| T5c The browser half — a button, not a paste box | ✅ **Done 2026-08-22** | `apps/web/src/services/oidc.ts` — authorization-code + PKCE (S256), **no library and no provider's URL shapes**: every endpoint read from the issuer's discovery document, which is what keeps ADR-0042's replaceability true on this side of the wire too. `/auth/callback` exchanges the code, then `GET /api/me` says which organisation — a token is not a session. The paste box stays for deployments with no issuer yet, but folds behind a disclosure and under its own label once there is one. 19 + 5 + 7 cases; `GET /api/me` gains the 7-case integration file it was missing. |
+| T5d The 500 that only a served request could find | ✅ **Done 2026-08-22** | CI's first real `GET /api/me` returned **500** five times out of seven: `invalid input syntax for type uuid: ""`. Not a broken test — a broken policy. `SET LOCAL` reverts to the SESSION value, which for a setting never assigned at session level is the EMPTY STRING, so from the second transaction on a pooled connection `current_setting('app.current_tenant', true)` is `''` and `''::uuid` RAISES. Permissive policies are OR'd and all are evaluated, so a subject-scoped read of `tenant_member` ran the tenant policies too and the query failed. Migration `0004` makes those four policies `NULLIF(…, '')`-safe; `guc-decay-under-rls.unit.test.ts` reproduces the decay and fails four ways without it. |
+| T6 A privileged provisioning path | 📋 Planned — **unblocked**, T5 is done | Granting a request means creating a `tenant` + an owner `tenant_member`, which cannot happen on a tenant-scoped connection — `POST /api/tenants` answers **501** saying exactly that. |
 | T7 The owner's queue | 📋 Planned (needs T6) | Reading `access_request` and deciding on it. Deliberately last: a queue you cannot act on is a list. |
 
 ## Why this exists
@@ -156,17 +159,122 @@ issuer-specific API in our code.
 | **Authelia** | Apache-2.0 | — | Go, YAML | **Disqualified on capability**: a forward-auth product whose OIDC provider is a bolt-on. |
 | *Roll our own* | — | — | none | Fewest services, and refused on principle rather than effort: hashing, resets, enumeration, MFA, lockout, revocation and breach response, permanently, for a product sold as a safer place for someone's mail. |
 
-### What T5 becomes once the owner decides
+### What was built
 
-Zitadel in `deploy/compose/managed.yml` against the existing Postgres; `JWT_ISSUER` and
-`JWT_AUDIENCE` on the API; authorization-code + PKCE in `apps/web` replacing the paste
-box; and `assertRequiredClaims` narrowed to `sub` + `email`, which is worth doing
-whichever issuer wins — it drops a claim the code ignores and a claim the code already
-duplicates.
+Zitadel in `deploy/compose/managed.yml` against the existing Postgres, provisioned by
+`setup-zitadel.sh`; `JWT_ISSUER` / `JWT_AUDIENCE` on the API; the claim surface
+narrowed; and — T5c — the browser half, so the paste box is no longer the way in.
+
+### The browser half, and the two things it does not do
+
+It uses **no OIDC library**. The flow is ~120 lines of `crypto.subtle` and `fetch`,
+and the alternative is a package in the bundle on the path that authenticates people.
+It also hard-codes **no endpoint**: `authorization_endpoint` and `token_endpoint` come
+from the issuer's own discovery document, exactly as the API reads `jwks_uri` from it.
+`no-issuer-lock-in.unit.test.ts` already scans `apps/web/src`, so a convenient
+`/oauth/v2/authorize` fails the build rather than quietly pinning the product.
+
+The client is **public** — no secret. This is a single-page app; a confidential client
+would mean shipping a secret to every visitor, which is not a secret. What proves the
+exchange instead is a verifier only that tab ever held, kept in `sessionStorage` rather
+than `localStorage` because it is good for one exchange and a value that outlives the
+flow can be replayed against a later one.
+
+Three things are refusals rather than retries, and each has a test that fails on
+removal: a **state mismatch** (without it somebody can hand a victim a callback URL
+carrying the attacker's code, and the victim ends up signed in as them), a discovery
+document **declaring a different issuer**, and a **second exchange of the same code** —
+StrictMode double-mounts every effect, an authorization code is single-use, and the
+second attempt would draw a failure over a sign-in that actually worked.
+
+**`import.meta.env` is not shared between modules.** Vitest gives each file its own,
+so a test cannot set what another module reads — which is why the config is an argument
+with the build's value as its default, and the environment read is one pure function.
+That is the same conclusion `edition.ts` reached from the other direction.
+
+### Narrowing the claims turned out to need a policy
+
+`assertRequiredClaims` is `sub` + `email` now. `role` was pure ceremony — `auth.ts`
+overwrites it from `tenant_member` eleven lines after reading it. `tenantId` was the
+real work, because it is not a fact about the user at all: it is which tenant the
+session acts on.
+
+Resolving it from the database ran straight into the isolation model. Every policy on
+`tenant_member` is `tenant_id = current_setting('app.current_tenant')`, so reading the
+table requires already knowing the tenant — and the question is precisely which tenant.
+A request carrying only a subject sees no rows and cannot find out.
+
+Two obvious answers were both wrong. **Connecting as the owner** for that one lookup
+bypasses RLS entirely, and the API may not even have owner credentials — `getDbPool`
+prefers `APP_DATABASE_URL`, because workplan 0011 T1 put the request path on `app_user`
+so RLS is always in force. **Putting the tenant back in the token** is the thing
+ADR-0042 decided against, and `auth.ts` already shows why it would be theatre.
+
+So: one more SELECT policy (migration 0003), matching `user_id` against a new
+`app.current_user` that `withSubject` sets. Policies are permissive and OR'd, so it
+ADDS "my own memberships, in any tenant" and takes nothing away — and because
+`current_setting(…, true)` answers NULL when unset, `user_id = NULL` is never true and
+an ordinary tenant-scoped request sees exactly what it saw before. That last property
+is the one worth a test rather than an argument, and it has one.
+
+**`withSubject` is not a lighter `withTenant`.** It sets no tenant, so every other
+table's policies still refuse it — and they refuse rather than return empty, because
+they cast the setting to `uuid` and a GUC that has been `SET LOCAL` earlier in the
+session lingers as an empty string. That is written down where a reader will hit it.
+
+### The refusal is the interesting rule
+
+A subject in two organisations, with no explicit choice, is the one case that cannot
+be guessed. Taking the first would silently serve somebody the wrong organisation's
+mail, and there is no error afterwards — it just looks like their data. So it refuses
+with 400 (they are allowed in; they have not said where) and **names the choices**,
+because a client that must ask a person which organisation needs the list.
+
+`GET /api/me` is the other half: the one route that works before a tenant is known.
+
+It is also the one the refusal has to carry, because `authenticate` refuses *before*
+the route runs — so `/api/me` cannot be what tells a client its options, and the 400
+body has to. `me.integration.test.ts` pins exactly that, along with the role coming
+from the database on a token that claims a different one.
+
+### What the integration test found on its first run — T5d
+
+Five of its seven cases returned **500**. The route was right; the policy was wrong,
+and the reason is worth keeping because the intuition that hides it is so natural.
+
+`SET LOCAL` "reverts at COMMIT" — to the SESSION value. For a custom setting never
+assigned at session level, that value is the **empty string**, not unset. So
+`current_setting('app.current_tenant', true)` answers `''` from the second
+transaction on a pooled connection onwards, and `''::uuid` is not a mismatch, it is
+an **error**. Raised inside a policy, it fails the query, which is a 500.
+
+That only bites where a table is read with no tenant set — and migration 0003 had
+just created the first such table. Permissive policies are OR'd and Postgres
+evaluates all of them, so the subject-scoped read ran the four tenant policies too.
+
+**The sibling unit test could not have caught it.** `own-membership-under-rls.unit.test.ts`
+runs on a PGlite connection that has never held a tenant, where the setting really is
+NULL and `NULL::uuid` is fine. The decay needs one earlier tenant-scoped transaction
+on the same connection — which every served request does and no unit test did. That
+gap is now closed by `guc-decay-under-rls.unit.test.ts`, whose every case begins by
+serving one tenant-scoped request; without that line they all pass against the broken
+policies, which is exactly how this reached CI.
+
+Migration `0004` wraps the cast in `NULLIF(…, '')` **on `tenant_member` only**. The
+other 116 tenant policies guard tables reached only through `withTenant`, which always
+sets a real uuid, so the empty string cannot reach their cast — and rewriting 116
+security predicates to fix a condition that cannot arise is the kind of churn where
+one typo silently opens a table. The rule that replaces the churn: *a table reachable
+under `withSubject` must have NULL-safe tenant policies*, written down in `withSubject`
+itself, where the next person will be standing when it matters.
+
+`set_config('app.current_tenant', NULL, true)` was the other candidate fix and does
+not work — it leaves the setting as `''` as well. That is asserted, so nobody has to
+re-derive it.
 
 ## Gates
 
-`pnpm lint` · `pnpm typecheck` · `pnpm test` — green (2026-08-22).
+`pnpm lint` · `pnpm typecheck` · `pnpm test` — green (2026-08-22): 307 files, 3452 tests.
 
 `pnpm test:integration` ran for the first time on **PR #494**, and found T2b —
 a real bug in the shipped limit, not a broken test. That is what the PR was for.

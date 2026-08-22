@@ -14,7 +14,11 @@ import { jwtVerify, createRemoteJWKSet, decodeJwt } from 'jose';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { Pool } from 'pg';
 import { eq, and } from 'drizzle-orm';
-import { withTenant as ledgerWithTenant, type PgDatabase } from '@openmig/ledger';
+import {
+  withTenant as ledgerWithTenant,
+  withSubject as ledgerWithSubject,
+  type PgDatabase,
+} from '@openmig/ledger';
 import { tenantMember } from '@openmig/managed/schema-managed';
 import { log } from '@openmig/shared';
 import { serverFault } from '../server-fault.ts';
@@ -22,8 +26,23 @@ import { serverFault } from '../server-fault.ts';
 export interface JwtPayload {
   sub: string;
   email: string;
-  tenantId: string;
-  role: string;
+  /**
+   * OPTIONAL, and deliberately so (ADR-0042).
+   *
+   * A token carries `sub` and `email` and nothing Ownpace-specific, because
+   * that is what lets any plain OIDC issuer be enough — and being enough is
+   * what makes the issuer replaceable. Which tenant a session acts on is
+   * resolved from `tenant_member` (`resolveTenant`), and the ROLE has never
+   * been taken from the token at all: `authenticate` overwrites it from the
+   * membership row on every request, which it must, because a signature proves
+   * who signed a token and not what its subject may do.
+   *
+   * Still READ where present, for the self-host edition's own HS256 tokens and
+   * for any issuer already minting it — a claim that agrees with the database
+   * costs nothing, and one that disagrees loses to the database.
+   */
+  tenantId?: string;
+  role?: string;
   iat?: number;
   exp?: number;
   iss?: string;
@@ -190,11 +209,11 @@ async function verifyManagedToken(token: string): Promise<JwtPayload> {
     const { payload } = await jwtVerify(token, jwks, {
       issuer: jwtIssuer,
       audience: jwtAudience,
-      requiredClaims: ['sub', 'tenantId', 'role', 'email'],
+      requiredClaims: ['sub', 'email'],
     });
 
     // Validate required claims exist
-    if (!payload.sub || !payload.tenantId || !payload.role || !payload.email) {
+    if (!payload.sub || !payload.email) {
       throw new Error('Missing required claims in token payload');
     }
 
@@ -271,6 +290,111 @@ async function lookupMembership(
 
 let membershipLookup: MembershipLookup = lookupMembership;
 
+/** Every tenant a subject is an active member of, with the role each gave them. */
+export type MembershipsLookup = (userId: string) => Promise<Array<{ tenantId: string; role: string }>>;
+
+/**
+ * Which tenants is this subject in?
+ *
+ * Runs inside `withSubject`, not `withTenant`, because the whole question is
+ * which tenant — and every other policy on this table keys on a tenant we do
+ * not yet have. Migration 0003 adds the one SELECT policy that answers it, for
+ * your own rows only; `own-membership-under-rls.unit.test.ts` proves it opens
+ * nothing else.
+ */
+async function lookupMemberships(userId: string): Promise<Array<{ tenantId: string; role: string }>> {
+  return await ledgerWithSubject(getAuthPool(), userId, async (db) =>
+    db
+      .select({ tenantId: tenantMember.tenantId, role: tenantMember.role })
+      .from(tenantMember)
+      .where(and(eq(tenantMember.userId, userId), eq(tenantMember.status, 'active'))),
+  );
+}
+
+let membershipsLookup: MembershipsLookup = lookupMemberships;
+
+/**
+ * Every tenant this subject may act on. The route surface of the lookup above,
+ * so `GET /api/me` does not reach past the middleware into a private binding —
+ * and so the test seam swaps for it too.
+ */
+export function membershipsForSubject(
+  userId: string,
+): Promise<Array<{ tenantId: string; role: string }>> {
+  return membershipsLookup(userId);
+}
+
+/** TEST SEAM ONLY, as `__setMembershipLookupForTests`. */
+export function __setMembershipsLookupForTests(fn: MembershipsLookup | null): void {
+  membershipsLookup = fn ?? lookupMemberships;
+}
+
+/** What a request may say when its subject belongs to more than one tenant. */
+export const TENANT_HEADER = 'x-ownpace-tenant';
+
+/**
+ * Which tenant this request acts on.
+ *
+ * In order, and the order is the point:
+ *
+ *  1. **The `X-Ownpace-Tenant` header**, when the caller named one. It is a
+ *     REQUEST for a tenant and not a grant of one — the membership gate still
+ *     has to find an active row before anything is served, exactly as it does
+ *     for a claim. Nothing here is trusted; this only decides which tenant gets
+ *     checked.
+ *  2. **The token's `tenantId`**, where an issuer still mints one. The
+ *     self-host edition's own HS256 tokens carry it, and so will any managed
+ *     deployment that has not yet moved — so this keeps working rather than
+ *     breaking every existing session on the day the claim stops being required.
+ *  3. **The subject's ONE membership**, which is the ordinary case: invite-only
+ *     means almost everybody belongs to exactly one tenant, and asking them to
+ *     say so would be asking a question with one possible answer.
+ *
+ * Several memberships and no explicit choice is the one case that cannot be
+ * guessed. Picking the first would silently serve somebody the wrong
+ * organisation's mail; so it refuses, and the refusal NAMES the choices, because
+ * a client that has to ask which tenant needs to know what the options are.
+ */
+export async function resolveTenant(
+  payload: JwtPayload,
+  requested: string | undefined,
+): Promise<
+  | { tenantId: string }
+  | { refusal: { status: number; body: Record<string, unknown> } }
+> {
+  const asked = requested?.trim();
+  if (asked) return { tenantId: asked };
+  if (payload.tenantId) return { tenantId: payload.tenantId };
+
+  const memberships = await membershipsLookup(payload.sub);
+  if (memberships.length === 1) return { tenantId: memberships[0]!.tenantId };
+
+  if (memberships.length === 0) {
+    return {
+      refusal: {
+        status: 403,
+        body: {
+          error: 'Forbidden',
+          message: 'No active membership for this tenant',
+        },
+      },
+    };
+  }
+
+  return {
+    refusal: {
+      status: 400,
+      body: {
+        error: 'Tenant required',
+        message:
+          `This account belongs to ${memberships.length} organisations. Name one in the ` +
+          `${TENANT_HEADER} header.`,
+        tenants: memberships.map((m) => ({ tenantId: m.tenantId, role: m.role })),
+      },
+    },
+  };
+}
+
 /**
  * TEST SEAM ONLY. Unit tests exercise `authenticate` without a database; this
  * swaps the tenant_member lookup for a fake (pass null to restore the real one).
@@ -293,8 +417,18 @@ export function selectAuthMode(jwtIssuer?: string, jwtSecret?: string): 'managed
   return 'dev';
 }
 
+/**
+ * `sub` and `email`, and nothing else (ADR-0042).
+ *
+ * It used to demand `tenantId` and `role` too. `role` was already dead weight —
+ * `authenticate` overwrites it from `tenant_member` eleven lines after reading
+ * it — and `tenantId` is not a fact about the user at all: it is which tenant
+ * the session is acting on, which the database can answer from the subject.
+ * Requiring either meant every issuer had to be taught Ownpace's tenancy model,
+ * which is exactly the coupling that would have made the provider unswappable.
+ */
 function assertRequiredClaims(payload: JwtPayload): void {
-  if (!payload.sub || !payload.tenantId || !payload.role || !payload.email) {
+  if (!payload.sub || !payload.email) {
     throw new Error('Missing required claims in token payload');
   }
 }
@@ -396,8 +530,20 @@ export async function authenticate(
     // skips it — it already runs on unverified decode with no database wired.
     let role = payload.role;
     const mode = selectAuthMode(process.env.JWT_ISSUER, process.env.JWT_SECRET);
+
+    // Which tenant, before whether. See `resolveTenant`: the token may no
+    // longer say (ADR-0042), so it can come from the header, the claim where
+    // one exists, or the subject's single membership — and none of those is
+    // trusted, because the gate below still has to find an active row.
+    const resolved = await resolveTenant(payload, req.headers[TENANT_HEADER] as string | undefined);
+    if ('refusal' in resolved) {
+      res.status(resolved.refusal.status).json(resolved.refusal.body);
+      return;
+    }
+    const tenantId = resolved.tenantId;
+
     if (mode !== 'dev') {
-      const membership = await membershipLookup(payload.tenantId, payload.sub);
+      const membership = await membershipLookup(tenantId, payload.sub);
       if (!membership) {
         res.status(403).json({
           error: 'Forbidden',
@@ -411,12 +557,13 @@ export async function authenticate(
     // Attach user context to request
     const authenticatedReq = req as AuthenticatedRequest;
     authenticatedReq.userId = payload.sub;
-    authenticatedReq.tenantId = payload.tenantId;
+    authenticatedReq.tenantId = tenantId;
     authenticatedReq.userRole = role;
+    authenticatedReq.userEmail = payload.email;
 
     // Set tenant context for RLS
     // This will be used by the database client to set app.current_tenant
-    res.locals.tenantId = payload.tenantId;
+    res.locals.tenantId = tenantId;
 
     next();
   } catch (error) {
@@ -484,8 +631,20 @@ export async function optionalAuth(
     // "optional" means the auth may be absent, not that it may be weaker.
     let role = payload.role;
     const mode = selectAuthMode(process.env.JWT_ISSUER, process.env.JWT_SECRET);
+
+    // Resolved the same way as in `authenticate`, and a refusal here is simply
+    // NO CONTEXT rather than an error body: optional means the authentication
+    // may be absent. An ambiguous tenant is one it cannot resolve, so it does
+    // not — it must not pick one, for the same reason `authenticate` refuses to.
+    const resolved = await resolveTenant(payload, req.headers[TENANT_HEADER] as string | undefined);
+    if ('refusal' in resolved) {
+      next();
+      return;
+    }
+    const tenantId = resolved.tenantId;
+
     if (mode !== 'dev') {
-      const membership = await membershipLookup(payload.tenantId, payload.sub);
+      const membership = await membershipLookup(tenantId, payload.sub);
       if (!membership) {
         next();
         return;
@@ -495,8 +654,9 @@ export async function optionalAuth(
 
     const authenticatedReq = req as AuthenticatedRequest;
     authenticatedReq.userId = payload.sub;
-    authenticatedReq.tenantId = payload.tenantId;
+    authenticatedReq.tenantId = tenantId;
     authenticatedReq.userRole = role;
+    authenticatedReq.userEmail = payload.email;
 
     next();
   } catch (_error) {

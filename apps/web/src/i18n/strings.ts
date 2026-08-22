@@ -83,9 +83,22 @@ const en = {
     'That does not look like a valid access token (need sub, email, tenantId, role).',
   'login.expiredToken':
     'This token has expired. Mint a fresh one (seed script or your identity provider) and paste that instead.',
-  'login.submit': 'Sign in',
+  // Not 'Sign in': when an issuer is configured this button sits on the same
+  // screen as the one that starts the real flow, and two buttons reading
+  // "Sign in" that do different things is a coin toss, not a choice.
+  'login.submit': 'Use this token',
   'login.help.pre': 'Paste the access token from the seed script',
   'login.help.post': 'or your identity provider.',
+  // ---- Signing in with the configured issuer (ADR-0042) ----
+  'login.withProvider': 'Sign in',
+  'login.redirecting': 'Taking you to sign in…',
+  'login.pasteToggle': 'Sign in with a token instead',
+  'login.pasteFallback':
+    'The way in before an identity provider was configured. You should not need this.',
+  'login.oidcFailed': 'We could not reach the sign-in service.',
+  'login.callback.working': 'Signing you in…',
+  'login.callback.failed': 'That sign-in did not complete.',
+  'login.callback.again': 'Try again',
   'wizard.proto.imap.hint': 'Standard email protocol',
   'wizard.proto.oauth2.hint': 'Office 365 over IMAP (app registration)',
   'wizard.proto.graph.hint': 'Office 365 over the Graph API (app registration)',
@@ -1051,9 +1064,19 @@ const nl: Record<keyof typeof en, string> = {
     'Dit lijkt geen geldig toegangstoken (sub, e-mail, tenantId en rol zijn vereist).',
   'login.expiredToken':
     'Dit token is verlopen. Maak een nieuw token aan (seedscript of uw identityprovider) en plak dat in plaats hiervan.',
-  'login.submit': 'Aanmelden',
+  'login.submit': 'Dit token gebruiken',
   'login.help.pre': 'Plak het toegangstoken uit het seedscript',
   'login.help.post': 'of van uw identiteitsprovider.',
+  // ---- Signing in with the configured issuer (ADR-0042) ----
+  'login.withProvider': 'Aanmelden',
+  'login.redirecting': 'U wordt doorgestuurd om aan te melden…',
+  'login.pasteToggle': 'Aanmelden met een token',
+  'login.pasteFallback':
+    'De manier van vóór er een identiteitsprovider was. U zou dit niet nodig moeten hebben.',
+  'login.oidcFailed': 'Wij konden de aanmeldservice niet bereiken.',
+  'login.callback.working': 'U wordt aangemeld…',
+  'login.callback.failed': 'Die aanmelding is niet voltooid.',
+  'login.callback.again': 'Opnieuw proberen',
   'wizard.proto.imap.hint': 'Standaard e-mailprotocol',
   'wizard.proto.oauth2.hint': 'Office 365 via IMAP (appregistratie)',
   'wizard.proto.graph.hint': 'Office 365 via de Graph-API (appregistratie)',
