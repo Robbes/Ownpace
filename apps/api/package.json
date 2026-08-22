@@ -6,6 +6,9 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "node --watch src/index.ts",
+    "operator:add": "node src/scripts/operator.ts add",
+    "operator:list": "node src/scripts/operator.ts list",
+    "operator:remove": "node src/scripts/operator.ts remove",
     "seed:managed": "node src/scripts/seed-managed.ts",
     "start": "node src/index.ts",
     "test": "vitest run",

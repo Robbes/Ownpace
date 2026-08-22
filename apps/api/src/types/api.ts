@@ -19,6 +19,17 @@ export interface AuthenticatedRequest extends Request {
    * is not an identity, it is a serial number.
    */
   userEmail?: string;
+  /**
+   * Whether the issuer said it VERIFIED `userEmail` (OIDC Core §5.1).
+   *
+   * Carried because one thing depends on it — binding an invitation addressed
+   * to that address (migration 0006) — and a route that wanted to check it
+   * would otherwise have to re-decode the token the middleware already
+   * verified.
+   */
+  emailVerified?: boolean;
+  /** The tenant named in `X-Ownpace-Tenant`, if the caller named one. */
+  requestedTenantId?: string;
 }
 
 // JwtPayload lives in ../middleware/auth.ts, next to the code that verifies it.

@@ -122,12 +122,27 @@ afterAll(async () => {
  */
 const NARROWER_ON_PURPOSE: Record<string, { privileges: string[]; why: string }> = {
   access_request: {
-    privileges: ['INSERT'],
+    privileges: ['INSERT', 'SELECT', 'UPDATE'],
     why:
       'A public, unauthenticated route writes it (workplan 0093) and nothing tenant-scoped may ' +
       'read it — a request PRECEDES a tenant, so there is no tenant_isolation policy to write. ' +
-      'INSERT only, plus a single INSERT policy; the owner connection does the reading. See ' +
-      'packages/managed/migrations/0002 and access-request-under-rls.unit.test.ts.',
+      'It was INSERT only until migration 0005 gave OPERATORS a way to answer the door: a GRANT ' +
+      'is per-role, and the operator reads through the same app_user as everybody else, so the ' +
+      'blanket REVOKE could not survive. What replaced it is a policy keyed on app.current_user ' +
+      '(operator_may_read / operator_may_decide) — which is why the exception is still narrow: ' +
+      'NO DELETE, for anybody. A request is decided, never erased, so a refusal cannot be made ' +
+      'to disappear afterwards. See packages/managed/migrations/0002 and 0005, ' +
+      'access-request-under-rls.unit.test.ts and operator-under-rls.unit.test.ts.',
+  },
+  platform_operator: {
+    privileges: ['SELECT'],
+    why:
+      'The list of people who may grant access (workplan 0093 T6, migration 0005). SELECT only, ' +
+      'and the policy narrows even that to your own row: the check answers "am I an operator", ' +
+      'never "who is" — a list of who can provision accounts is a list of who to phish. Rows ' +
+      'are written by the OWNER connection alone (pnpm --filter @openmig/api operator:add), ' +
+      'because an operator who could appoint another one would take the decision away from the ' +
+      'person whose deployment it is. See operator-under-rls.unit.test.ts.',
   },
 };
 

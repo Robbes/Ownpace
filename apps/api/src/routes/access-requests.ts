@@ -40,8 +40,12 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { Pool } from 'pg';
 import { z } from 'zod';
-import { getDbPool } from '../middleware/auth.ts';
-import { managedSchema } from '@openmig/managed';
+import { randomUUID } from 'node:crypto';
+import { eq } from 'drizzle-orm';
+import { withSubject, withSubjectAndTenant, tenant as tenantTable } from '@openmig/ledger';
+import { accessRequest, tenantMember } from '@openmig/managed/schema-managed';
+import { authenticateSubject, getDbPool } from '../middleware/auth.ts';
+import type { AuthenticatedRequest } from '../types/api.ts';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { log } from '@openmig/shared';
 import { serverFault } from '../server-fault.ts';
@@ -123,7 +127,7 @@ router.post('/', async (req: Request, res: Response) => {
     // NOT `withTenantDb`: there is no tenant. That is the point of this row,
     // and the reason `access_request` has no `tenant_id` on the way in.
     const db = drizzle(getSharedPool());
-    await db.insert(managedSchema.accessRequest).values({
+    await db.insert(accessRequest).values({
       email: body.email,
       ...(body.name ? { name: body.name } : {}),
       ...(body.organisation ? { organisation: body.organisation } : {}),
@@ -146,6 +150,282 @@ router.post('/', async (req: Request, res: Response) => {
     });
   } catch (error) {
     serverFault(res, 'access_request_failed', 'recording this request', error);
+  }
+});
+
+// ============================ Answering the door ============================
+//
+// Everything below is an OPERATOR's half of the conversation, and every one of
+// these handlers is behind `authenticateSubject` rather than `authenticate`:
+// an operator acts before any tenant exists, so resolving one would refuse them
+// at the door (workplan 0093 T6).
+//
+// **The middleware is not what authorises them.** Migration 0005's policies
+// are: `access_request` is invisible and unwritable unless
+// `app.current_user` names a row in `platform_operator`, enforced against the
+// `app_user` role the API really connects as. So a non-operator reaching these
+// routes gets an empty list and a "not found", because to the database that is
+// exactly what the row is. That is why nothing here re-checks "are you an
+// operator" in application code and then trusts the answer — the check that
+// matters already ran, one layer down, and a route that duplicated it would
+// invite somebody to later "simplify" the real one away.
+
+/**
+ * The three states a request can be in, as a value rather than a comment.
+ *
+ * The column is an enum, so a plain `string` from the query string does not
+ * type-check against it — which is the compiler asking the question the route
+ * has to answer anyway: is what somebody typed in `?state=` one of these.
+ */
+const REQUEST_STATES = ['open', 'granted', 'declined'] as const;
+type RequestState = (typeof REQUEST_STATES)[number];
+const isRequestState = (value: unknown): value is RequestState =>
+  typeof value === 'string' && (REQUEST_STATES as readonly string[]).includes(value);
+
+/** The columns an operator is shown. `id` is what the decide routes take. */
+const QUEUE_COLUMNS = {
+  id: accessRequest.id,
+  email: accessRequest.email,
+  name: accessRequest.name,
+  organisation: accessRequest.organisation,
+  note: accessRequest.note,
+  tier: accessRequest.tier,
+  locale: accessRequest.locale,
+  state: accessRequest.state,
+  tenantId: accessRequest.tenantId,
+  decidedBy: accessRequest.decidedBy,
+  decidedAt: accessRequest.decidedAt,
+  decisionNote: accessRequest.decisionNote,
+  createdAt: accessRequest.createdAt,
+};
+
+/**
+ * GET /api/access-requests — the queue.
+ *
+ * Open ones first and oldest first within that, because the queue is worked
+ * from the top and somebody who asked on Monday should not be behind somebody
+ * who asked on Friday. `?state=` narrows it; no filter shows everything, which
+ * is what makes a decision reviewable afterwards.
+ */
+router.get('/', authenticateSubject, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.userId;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized', message: 'No subject on this request' });
+      return;
+    }
+
+    const asked = req.query.state;
+    if (asked !== undefined && !isRequestState(asked)) {
+      res.status(400).json({
+        error: 'Bad request',
+        message: `state must be one of ${REQUEST_STATES.join(', ')} — not ${JSON.stringify(asked)}.`,
+      });
+      return;
+    }
+    const state = isRequestState(asked) ? asked : undefined;
+
+    const requests = await withSubject(getSharedPool(), userId, async (db) => {
+      // `$dynamic()` because the filter is conditional: without it drizzle
+      // types a stored builder as already finished and `.where` becomes
+      // uncallable.
+      const query = db.select(QUEUE_COLUMNS).from(accessRequest).$dynamic();
+      return await (state ? query.where(eq(accessRequest.state, state)) : query).orderBy(
+        accessRequest.createdAt,
+      );
+    });
+
+    res.json({ requests });
+  } catch (error) {
+    serverFault(res, 'access_request_list_failed', 'reading the access queue', error);
+  }
+});
+
+/**
+ * The `:id` from the path, or null if it is not one id.
+ *
+ * Express types a path parameter as `string | string[]` — a repeated one
+ * arrives as an array — so `req.params.id!` is a lie that only shows up as a
+ * type error at the query. `tenants/index.ts` guards the same way.
+ */
+function pathId(req: AuthenticatedRequest): string | null {
+  const raw = req.params.id;
+  return typeof raw === 'string' && raw.length > 0 ? raw : null;
+}
+
+const DecisionSchema = z.object({
+  /** Free text a human wrote about the decision. Not shown to the asker. */
+  note: z.string().trim().max(2000).optional(),
+  /** What to call the organisation. Defaults to what they told us. */
+  organisationName: z.string().trim().min(1).max(200).optional(),
+});
+
+/**
+ * POST /api/access-requests/:id/grant — say yes, and mean it.
+ *
+ * Granting is not a flag. It creates the organisation and its first owner, in
+ * the SAME transaction that marks the request granted, because the three facts
+ * are one fact: a tenant nobody asked for, or a request pointing at an
+ * organisation that does not exist, are both worse than a failure.
+ *
+ * **The owner row is an INVITATION, not a member.** The person has not signed
+ * in yet — they have no subject, and there is no way to know one before they
+ * do. Inventing one keyed on their email would mean anybody who can create an
+ * account with that address gets the organisation. So the row is written the
+ * way `members.ts` already writes one (`status: 'invited'`, a `pending:` user
+ * id), and `claimInvitations` binds it to a real subject on first sign-in —
+ * only against an email the issuer says it VERIFIED.
+ */
+router.post('/:id/grant', authenticateSubject, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.userId;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized', message: 'No subject on this request' });
+      return;
+    }
+    const id = pathId(req);
+    if (!id) {
+      res.status(400).json({ error: 'Bad request', message: 'Name exactly one request id.' });
+      return;
+    }
+    const parsed = DecisionSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Validation error', details: parsed.error.issues });
+      return;
+    }
+
+    // Minted here, not by the database: the tenant policies key on
+    // `app.current_tenant`, so the scope has to be known BEFORE the insert.
+    const tenantId = randomUUID();
+
+    const outcome = await withSubjectAndTenant(getSharedPool(), userId, tenantId, async (db) => {
+      const [request] = await db
+        .select(QUEUE_COLUMNS)
+        .from(accessRequest)
+        .where(eq(accessRequest.id, id));
+
+      // Invisible and absent are the same answer here, deliberately: a
+      // non-operator must not be able to tell whether an id exists.
+      if (!request) return { kind: 'notFound' } as const;
+      if (request.state !== 'open') return { kind: 'decided', state: request.state } as const;
+
+      const name =
+        parsed.data.organisationName ?? request.organisation ?? request.name ?? request.email;
+
+      await db.insert(tenantTable).values({ id: tenantId, name, status: 'active', settings: {} });
+
+      await db.insert(tenantMember).values({
+        tenantId,
+        // Same placeholder shape `members.ts` uses, and for the same reason:
+        // `user_id` is NOT NULL and unique per tenant, and the real subject
+        // does not exist yet.
+        userId: `pending:${randomUUID()}`,
+        email: request.email,
+        role: 'owner',
+        status: 'invited',
+        invitedAt: new Date(),
+      });
+
+      await db
+        .update(accessRequest)
+        .set({
+          state: 'granted',
+          tenantId,
+          decidedBy: userId,
+          decidedAt: new Date(),
+          ...(parsed.data.note ? { decisionNote: parsed.data.note } : {}),
+        })
+        .where(eq(accessRequest.id, id));
+
+      return { kind: 'granted', tenantId, name, email: request.email } as const;
+    });
+
+    if (outcome.kind === 'notFound') {
+      res.status(404).json({ error: 'Not Found', message: 'No such access request.' });
+      return;
+    }
+    if (outcome.kind === 'decided') {
+      res.status(409).json({
+        error: 'Conflict',
+        message:
+          `That request was already ${outcome.state}. Deciding it twice would ` +
+          'either create a second organisation or lose the first.',
+      });
+      return;
+    }
+
+    // The address, because it is what makes the line useful for support; not
+    // the note or the name (§17, same rule the knock above follows).
+    log.info(`[access-request] granted ${outcome.email} tenant ${tenantId}`);
+    res.status(201).json({ tenantId, name: outcome.name, email: outcome.email });
+  } catch (error) {
+    serverFault(res, 'access_request_grant_failed', 'granting this request', error);
+  }
+});
+
+/**
+ * POST /api/access-requests/:id/decline — say no, and keep the record.
+ *
+ * No tenant, and the row is not deleted: `access_request` has no DELETE grant
+ * for anybody, so a refusal cannot be made to disappear afterwards. That is the
+ * queue's whole value as a record.
+ */
+router.post('/:id/decline', authenticateSubject, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.userId;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized', message: 'No subject on this request' });
+      return;
+    }
+    const id = pathId(req);
+    if (!id) {
+      res.status(400).json({ error: 'Bad request', message: 'Name exactly one request id.' });
+      return;
+    }
+    const parsed = DecisionSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Validation error', details: parsed.error.issues });
+      return;
+    }
+
+    const outcome = await withSubject(getSharedPool(), userId, async (db) => {
+      const [request] = await db
+        .select(QUEUE_COLUMNS)
+        .from(accessRequest)
+        .where(eq(accessRequest.id, id));
+
+      if (!request) return { kind: 'notFound' } as const;
+      if (request.state !== 'open') return { kind: 'decided', state: request.state } as const;
+
+      await db
+        .update(accessRequest)
+        .set({
+          state: 'declined',
+          decidedBy: userId,
+          decidedAt: new Date(),
+          ...(parsed.data.note ? { decisionNote: parsed.data.note } : {}),
+        })
+        .where(eq(accessRequest.id, id));
+
+      return { kind: 'declined', id: request.id, email: request.email } as const;
+    });
+
+    if (outcome.kind === 'notFound') {
+      res.status(404).json({ error: 'Not Found', message: 'No such access request.' });
+      return;
+    }
+    if (outcome.kind === 'decided') {
+      res.status(409).json({
+        error: 'Conflict',
+        message: `That request was already ${outcome.state}.`,
+      });
+      return;
+    }
+
+    log.info(`[access-request] declined ${outcome.email}`);
+    res.json({ declined: true, id: outcome.id });
+  } catch (error) {
+    serverFault(res, 'access_request_decline_failed', 'declining this request', error);
   }
 });
 

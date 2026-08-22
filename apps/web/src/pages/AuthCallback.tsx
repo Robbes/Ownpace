@@ -53,7 +53,27 @@ const AuthCallback: React.FC = () => {
             role: me.role ?? 'member',
           },
           me.tenantId ?? '',
+          me.operator === true,
         );
+
+        // Where to land, and the two cases that are not the dashboard.
+        //
+        // A PLATFORM OPERATOR belongs to no organisation by design (workplan
+        // 0093 T6), so the dashboard would 403 on its first request. The queue
+        // is the screen they came for.
+        //
+        // Somebody in NO organisation and not an operator is either waiting on
+        // a grant or holding an invitation that has not bound — an unverified
+        // email, most likely. Sending them to a dashboard that cannot load is
+        // the version of this that generates a support ticket; saying so is not.
+        if (me.tenants.length === 0) {
+          if (me.operator === true) {
+            void navigate('/access-requests', { replace: true });
+            return;
+          }
+          setError(t('login.noOrganisation'));
+          return;
+        }
         void navigate('/dashboard', { replace: true });
       } catch (err) {
         // The service's own sentence, verbatim where there is one. "Sign-in

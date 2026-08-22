@@ -25,6 +25,7 @@ import Tenants from './pages/Tenants.tsx';
 import Login from './pages/Login.tsx';
 import RequestAccess from './pages/RequestAccess.tsx';
 import AuthCallback from './pages/AuthCallback.tsx';
+import AccessRequests from './pages/AccessRequests.tsx';
 import Decisions from './pages/Decisions.tsx';
 import Deletions from './pages/Deletions.tsx';
 import Moves from './pages/Moves.tsx';
@@ -270,6 +271,21 @@ const AppRoutes: React.FC = () => {
           element={
             <ManagedOnly>
               <Tenants />
+            </ManagedOnly>
+          }
+        />
+        {/* The access queue (workplan 0093 T7). Managed only — the appliance
+            has one owner and nobody to let in — and deliberately NOT gated on
+            being an operator: the nav hides it from everybody else, and a typed
+            URL reaches it and shows an empty queue, because the rows are
+            invisible to anybody migration 0005's policies do not name. Gating
+            it here would be a second, weaker copy of a rule the database
+            already enforces, and the weaker copy is the one that rots. */}
+        <Route
+          path="access-requests"
+          element={
+            <ManagedOnly>
+              <AccessRequests />
             </ManagedOnly>
           }
         />

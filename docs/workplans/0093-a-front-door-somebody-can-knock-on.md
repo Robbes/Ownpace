@@ -14,8 +14,9 @@
 | T5b The claim surface, narrowed | ✅ **Done 2026-08-22** | ADR-0042's second operative rule, implemented. `assertRequiredClaims` is `sub` + `email`; `tenantId` and `role` are optional and read only where an issuer still mints them. Tenant resolution: an explicit `X-Ownpace-Tenant` header, else the claim, else the subject's single membership — and a **refusal** when several are possible, naming the choices. Migration 0003 adds the one SELECT policy that lets a subject read their own memberships; `withSubject` sets `app.current_user` for it. `GET /api/me` answers "where may I go". 6 + 9 + 2 cases; the policy test fails four ways on an over-broad policy. |
 | T5c The browser half — a button, not a paste box | ✅ **Done 2026-08-22** | `apps/web/src/services/oidc.ts` — authorization-code + PKCE (S256), **no library and no provider's URL shapes**: every endpoint read from the issuer's discovery document, which is what keeps ADR-0042's replaceability true on this side of the wire too. `/auth/callback` exchanges the code, then `GET /api/me` says which organisation — a token is not a session. The paste box stays for deployments with no issuer yet, but folds behind a disclosure and under its own label once there is one. 19 + 5 + 7 cases; `GET /api/me` gains the 7-case integration file it was missing. |
 | T5d The 500 that only a served request could find | ✅ **Done 2026-08-22** | CI's first real `GET /api/me` returned **500** five times out of seven: `invalid input syntax for type uuid: ""`. Not a broken test — a broken policy. `SET LOCAL` reverts to the SESSION value, which for a setting never assigned at session level is the EMPTY STRING, so from the second transaction on a pooled connection `current_setting('app.current_tenant', true)` is `''` and `''::uuid` RAISES. Permissive policies are OR'd and all are evaluated, so a subject-scoped read of `tenant_member` ran the tenant policies too and the query failed. Migration `0004` makes those four policies `NULLIF(…, '')`-safe; `guc-decay-under-rls.unit.test.ts` reproduces the decay and fails four ways without it. |
-| T6 A privileged provisioning path | 📋 Planned — **unblocked**, T5 is done | Granting a request means creating a `tenant` + an owner `tenant_member`, which cannot happen on a tenant-scoped connection — `POST /api/tenants` answers **501** saying exactly that. |
-| T7 The owner's queue | 📋 Planned (needs T6) | Reading `access_request` and deciding on it. Deliberately last: a queue you cannot act on is a list. |
+| T6 A privileged provisioning path | ✅ **Done 2026-08-22** | And the 501's stated reason turned out to be **wrong**: scoping to the id you are about to mint satisfies `tenant_isolation_insert` exactly, so `app_user` can create a tenant with no privileged connection at all (probed, not assumed). What genuinely is privileged is READING the queue — `access_request` refuses `app_user` at the GRANT level. So the privilege went into the database as `platform_operator` + policies (migration 0005), not into the API as an owner-credentialed pool. `GET /api/access-requests`, `POST /:id/grant`, `POST /:id/decline`, behind `authenticateSubject` because an operator has no tenant. Granting writes a tenant, an owner **invitation**, and the settled request in one transaction. 12 + 8 RLS cases, 9 integration. |
+| T6b An invitation you can actually accept | ✅ **Done 2026-08-22** | A gap that predates T6: `members.ts` has written `status='invited'` rows with a `pending:` placeholder since workplan 0039, its comment promising the id "is replaced with the real user id on acceptance" — and **nothing ever replaced it**. `authenticate` matches `status='active'` only, so every invitation ever written was unusable. Migration 0006 adds the two policies that let a person claim one, bounded by `app.current_email` (set only when the issuer asserted `email_verified`) on the way in and by "must become active and name this subject" on the way out. |
+| T7 The owner's queue, on a screen | ✅ **Done 2026-08-22** | `apps/web/src/pages/AccessRequests.tsx` at `/access-requests`, managed-only, EN + NL. Waiting / granted / declined, each request in the asker's own words, grant with an editable organisation name, decline behind a confirm. The prerequisite is fixed: `/api/me` moved to `authenticateSubject` and now REPORTS resolution instead of refusing — 403-for-no-membership was making the product unusable for the one person meant to grant everybody else's access. 6 screen cases + 7 callback cases; 2 `/api/me` integration cases rewritten. |
 
 ## Why this exists
 
@@ -271,6 +272,173 @@ itself, where the next person will be standing when it matters.
 `set_config('app.current_tenant', NULL, true)` was the other candidate fix and does
 not work — it leaves the setting as `''` as well. That is asserted, so nobody has to
 re-derive it.
+
+## T6 — the privilege was not where the comments said it was
+
+`POST /api/tenants` has answered 501 with a confident explanation: RLS "requires
+the new row's id to equal `app.current_tenant`, which a freshly-created tenant
+never satisfies". Migration 0002 repeats it, and concludes that provisioning must
+therefore run as the DB owner.
+
+**It is not true.** `tenant_isolation_insert` is `WITH CHECK (id =
+current_setting('app.current_tenant')::uuid)` — so scoping to the id you are
+*about to mint* satisfies it exactly. Probed under PGlite as `app_user` before
+any of this was designed: the tenant and its first member both inserted, no
+privileged connection anywhere.
+
+What genuinely is privileged is the other half. `access_request` refuses
+`app_user` at the GRANT level — `permission denied for table`, before RLS is even
+consulted — because 0002 revoked SELECT deliberately. So the privileged thing was
+never provisioning; it was **reading the queue and deciding**.
+
+That inverted the design. The obvious build — an owner-credentialed pool inside
+the API — would have put back exactly what workplan 0011 T1 removed, and for a
+product whose pitch is custody, "one bug in one route bypasses every policy" is
+the wrong trade. Instead the privilege is a row and four policies:
+
+| | |
+|---|---|
+| `platform_operator` | who may answer the door. No tenant, no role levels, no self-service |
+| `own_operator_row` | you can see YOUR row and no other — the check answers "am I one", never "who is" |
+| `operator_may_read` / `operator_may_decide` | `access_request` becomes visible and decidable to a subject named in that table |
+
+`app_user` gets SELECT on `platform_operator` and nothing else, so an operator
+cannot appoint another one — that stays the owner's own act, over the owner
+connection, through `pnpm --filter @openmig/api operator:add`. Asserted, not
+just intended: the RLS suite tries the INSERT and the DELETE and gets
+`permission denied` for both.
+
+**No DELETE on `access_request` for anybody, operator included.** A request is
+decided, never erased. An operator who could delete could make a refusal
+disappear, and the queue's whole value as a record is that it cannot.
+
+### Granting is three writes or none
+
+A tenant, an owner row, and the request marked granted against that tenant id.
+Split across transactions, a failure between them leaves either an organisation
+nobody asked for or a request pointing at one that does not exist — so
+`withSubjectAndTenant` holds both scopes for the one transaction that does all
+three. The tenant it is scoped to is the one being CREATED, which is what makes
+holding both unremarkable: the tenant is empty, so the tenant half of the scope
+grants sight of nothing.
+
+Said plainly rather than left for a reader: that only an operator may *read or
+decide* a request is enforced by the database. That only an operator may *create
+a tenant* is not — `tenant_isolation_insert` asks only that the id match the
+scope. It is guarded because provisioning only ever happens inside deciding,
+which is guarded. A caller that got past that would mint an EMPTY organisation
+owning nothing that was anybody else's.
+
+### What CI found, twice
+
+The integration suite is the only place these run — no Docker in the sandbox —
+and its first two runs each produced something real.
+
+**One: an assertion that counted the wrong thing.** `expected 8 to be 1`, from
+`SELECT count(*) FROM tenant` after granting. That counts every tenant every
+other integration file created, not the one this grant made. The 409 assertion
+above it passed, so the route was right throughout. It now asks the property
+that was meant — the request still points at the organisation the first grant
+provisioned.
+
+That failure also exposed something that had not fired yet: this file's
+`beforeEach` ran a blanket `DELETE FROM access_request`, and integration files
+run in PARALLEL (only the `ui` project sets `fileParallelism: false`). It was
+deleting rows out from under two sibling files mid-assertion, and they were
+doing the same back. It passed by luck. The rate-limit file had already set the
+convention — `WHERE email LIKE 'flood-%'` — so every row this file writes now
+carries a `t6-` marker and every cleanup is scoped to it.
+
+**Two: the foreign key and the check constraint were saying different things.**
+`access_request.tenant_id` was `ON DELETE SET NULL`, and the row also has
+`CHECK ((state = 'granted') = (tenant_id IS NOT NULL))`. Deleting a tenant a
+granted request points at tries to null the column and lands on exactly the
+state the CHECK forbids — so it fails, with a message naming a constraint on a
+column nobody touched in a table nobody mentioned.
+
+The database was right to refuse; the schema was wrong about why. Migration 0007
+makes it `ON DELETE RESTRICT`, which is the actual intent: the queue is a
+RECORD, and a request that was granted was granted — deleting the organisation
+later does not unmake that. Relaxing the CHECK instead would allow a row reading
+`granted` while naming nothing, which is the one thing migration 0002 went out
+of its way to forbid.
+
+The rule that falls out, worth stating because nothing in the product does this:
+**decide what to do with the requests before deleting a tenant.** Non-destructive
+by default (ADR-0024) means the product never deletes one; this is for an
+operator clearing up by hand, and for tests, where the fix is to delete the
+requests first.
+
+## T6b — the invitation nobody could accept
+
+Granting writes an owner row for a person who has never signed in. They have no
+subject, and there is no way to know one before they do; keying the row on their
+email instead would mean whoever registers that address inherits the
+organisation.
+
+`members.ts` has had the answer since workplan 0039 — `status='invited'` with a
+`pending:<uuid>` placeholder, and a comment saying the placeholder "is replaced
+with the real user id on acceptance."
+
+**Nothing ever replaced it.** `authenticate` matches `status='active'` only, so
+every invitation this product has ever written was a row its holder could not
+use. That was invisible because nothing downstream of an invitation was tested.
+
+Migration 0006 closes it with two policies, and NEITHER HALF IS ENOUGH ALONE:
+
+- `see_own_invitation` + the `USING` half — the row must be an open invitation
+  addressed to `app.current_email`, which `withSubject` sets only when the caller
+  passed a verified address, and `auth.ts` passes one only when the issuer
+  asserted `email_verified: true`. An issuer that does not assert it gets no
+  claim rather than a trusting one.
+- The `WITH CHECK` half — what the row becomes must be active and name THIS
+  subject. Without it a claimant could rewrite a row they were allowed to touch
+  into somebody else's membership.
+
+The SELECT policy is not decoration. An `UPDATE` whose `WHERE` reads the row has
+SELECT policies applied too, so without it the claim matched nothing and silently
+no-opped — which is what the test caught, and why the happy path is asserted as
+loudly as the refusals.
+
+`auth.ts` attempts the claim at exactly one moment: when tenant resolution is
+about to refuse with 403. That is the state a person is in on their first sign-in
+after being granted, and nowhere else. A 400 (several memberships, none chosen)
+does not trigger it — that request is already answerable.
+
+## T7 — the screen, and the refusal that had to become an answer
+
+`/api/me` used `authenticate`, and inherited its refusals: no membership → 403,
+several → 400. Both are right for a tenant-scoped route and wrong for the one
+route asked from OUTSIDE the boundary, because "nowhere yet" and "two, and you
+have not said which" are ANSWERS to the question it exists to ask.
+
+It also made the product unusable for a **platform operator**, who belongs to no
+organisation by design — the web app could not hold a session for the one person
+meant to grant everybody else's access. So the route moved to
+`authenticateSubject`: same verification, same JWKS path, same 401s, no tenant
+required. **Every other route keeps `authenticate` and keeps refusing** — the
+400 and its list still exist wherever a tenant is genuinely required.
+
+The response gained `operator`, which decides whether the nav offers the queue.
+It is a hint and never a permission: the queue is guarded by policies on
+`access_request`, so a client that got it wrong shows or hides a link and is
+told nothing either way. The route is deliberately NOT gated in the router for
+the same reason — a second, weaker copy of a rule the database already enforces
+is the copy that rots.
+
+Sign-in now lands somebody in one of three places, and the two that are not the
+dashboard are the point: an operator goes to the queue; somebody in no
+organisation and not an operator is TOLD SO, rather than being sent to a
+dashboard whose first request 403s. That second case is a real state — waiting
+on a grant, or holding an invitation that did not bind because the issuer never
+verified their address — and the version of it that says nothing is the version
+that becomes a support ticket.
+
+The screen says two things out loud rather than implying them: granting creates
+the organisation but the person becomes its owner **on first sign-in**, not on
+click; and **no email goes out**, because the product does not send invitations
+(the same sentence `Tenants.tsx` already has to say about inviting a member).
+Somebody still has to tell them.
 
 ## Gates
 

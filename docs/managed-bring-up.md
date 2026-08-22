@@ -455,6 +455,56 @@ fail if that stops being true.
 > Changing the address later invalidates every live session — it belongs with
 > the other browser-visible addresses in `.env`, decided once.
 
+### 8c. Somebody who can answer the door *(needed before anybody can be let in)*
+
+Also not a `bootstrap-managed.sh` phase. `access_request` is written by
+strangers and readable by nobody until an **operator** exists (workplan 0093
+T6) — so a deployment with no operators has a queue nobody can read and a
+front door that only records knocks.
+
+An operator is identified by their OIDC **subject**, not their email, and there
+is no way to know it before they have signed in once. So:
+
+1. Sign in at `/login` (§8b) — this creates the account in the provider.
+2. Ask the API who you are:
+
+```bash
+curl -fsS -H "Authorization: Bearer <token>" http://localhost:3001/api/me
+```
+
+3. Take the `userId` from that answer and appoint it, over the **owner**
+   connection — `app_user` cannot write this table, which is the point of it:
+
+```bash
+DATABASE_URL="$(grep '^DATABASE_URL=' deploy/compose/.env | cut -d= -f2-)"   pnpm --filter @openmig/api operator:add <userId> you@example.com "first operator"
+```
+
+`operator:list` shows who can currently answer; `operator:remove <userId>` takes
+it away. Adding somebody twice updates their row rather than failing, so a typo
+is fixed by re-running.
+
+**Why not an email address, and why not a screen.** Keying the appointment on an
+email would mean whoever can register that address becomes an operator. Making
+it a route would mean an operator could appoint another one — and then the owner
+is no longer the one deciding who decides. It is three steps because each of the
+shorter versions gives something away.
+
+**Verify** — the queue answers, and answers only for them:
+
+```bash
+curl -fsS -H "Authorization: Bearer <token>" http://localhost:3001/api/access-requests
+```
+
+Once appointed, signing in again lands the operator on **Access requests** in
+the web app (workplan 0093 T7), which is the same queue with buttons on it.
+
+Granting is `POST /api/access-requests/<id>/grant`, which creates the
+organisation and invites the asker as its owner; they become a real member the
+first time they sign in, provided the identity provider asserts
+`email_verified` for their address. Declining is the same shape and provisions
+nothing. Neither can be undone by deleting the row: nobody has DELETE on that
+table, so a decision stays on the record.
+
 ### 9. `tasks` — the task environment, then the deploy
 
 ```bash

@@ -15,7 +15,7 @@ import {
   AlertTriangle,
   ClipboardCheck,
   ListChecks,
-  Flag, Plug, BookOpen } from 'lucide-react';
+  Flag, Plug, BookOpen, DoorOpen } from 'lucide-react';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { isSelfHost } from '../services/edition.ts';
 import { useLocale } from '../i18n/index.tsx';
@@ -40,7 +40,7 @@ const SCREEN_TITLE_KEY: Record<MappingScreen, StringKey> = {
 const Layout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const location = useLocation();
-  const { user, logout } = useAuthStore();
+  const { user, logout, operator } = useAuthStore();
   const { locale, setLocale, t } = useLocale();
 
   // Tenants and Billing are managed-edition concepts: the appliance is
@@ -90,6 +90,14 @@ const Layout: React.FC = () => {
     // — a new mailbox belongs to no mapping, so it cannot live under one.
     { name: t('nav.decisions'), href: '/decisions', icon: ListTodo },
     ...(selfHost ? [] : [{ name: t('nav.tenants'), href: '/tenants', icon: Building2 }]),
+    // The access queue (workplan 0093 T7). Managed only — the appliance has one
+    // owner and nobody to let in — and shown only to a platform operator, who
+    // is usually the single person running the deployment. Hiding it is
+    // cosmetic: the routes behind it answer an empty list and a "not found" to
+    // anybody else, because to the database that is what the rows are.
+    ...(selfHost || !operator
+      ? []
+      : [{ name: t('nav.accessRequests'), href: '/access-requests', icon: DoorOpen }]),
     // Billing reads are owner/admin (owner decision 2026-08-10), so for a
     // lesser role the entry would only lead to a "not for your role"
     // sentence — hidden like the appliance hides what it cannot serve. The
