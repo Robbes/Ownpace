@@ -19,6 +19,13 @@
 #     0018 T5 lesson: silent runner deaths with zero evidence).
 #   Stuck rows — a poll that times out lands the row by hand with an
 #     explanatory error (never left `running`/`queued` pointing at nothing).
+#   Balance — take back what this run added. A prepare that seeds six DAV
+#     resources into the demo source, and a sync that copies them into the demo
+#     target, used to leave both there for good; this gate runs nightly against
+#     a long-lived stack it also measures. Source object, target copy and ledger
+#     row are removed together, because any two of the three without the
+#     third leaves a record that disagrees with reality. The tombstone stays:
+#     net zero minus one erasure per run, by design (ADR-0024).
 #
 # Success = verify `done` AND apply terminal as `applied` or `refused`
 # (`refused` is a legitimate answer — the gates said no and said why) AND at
@@ -47,6 +54,9 @@
 #                            item per pass and a tombstone is never re-copied —
 #                            see the prepare phase for what that cost (run #20).
 #   SMOKE_PREPARE_POLLS (60) how long that preparation may wait, in POLL_SLEEPs.
+#   SMOKE_TARGET_DAV_USER/PASSWORD (tenant-b-target) the other end of the apply
+#                            mapping, so the balance section can take the copies
+#                            back out of it.
 #
 # NOTE: runner debug logs print the full task environment (DATABASE_URL,
 # SECRET_ENCRYPTION_KEY, the tr_prod_ key). The evidence file this script
@@ -73,6 +83,15 @@ VERIFY_MAPPING="${SMOKE_VERIFY_MAPPING:-a0000000-0000-4000-8000-0000000000d1}"
 APPLY_TENANT="${SMOKE_APPLY_TENANT:-b0000000-0000-4000-8000-000000000002}"
 APPLY_SUB="${SMOKE_APPLY_SUB:-demo-owner-b}"
 APPLY_MAPPING="${SMOKE_APPLY_MAPPING:-b0000000-0000-4000-8000-0000000000d1}"
+# Tenant B's TARGET account — the other end of the mapping above, and the half
+# the balance section takes back. Same source: seed-managed.ts.
+TARGET_DAV_USER="${SMOKE_TARGET_DAV_USER:-tenant-b-target}"
+TARGET_DAV_PASSWORD="${SMOKE_TARGET_DAV_PASSWORD:-tenant_b_target_pw}"
+
+# Set by the prepare phase when it seeds, read by the balance section at the
+# end. Empty means prepare did not run, and then there is nothing to take back —
+# which is a state to report, not to paper over.
+BALANCE_TAG=""
 
 exec > >(tee "$OUT") 2>&1
 echo "########## smoke-managed $(date -u +%FT%TZ) — evidence: $OUT ##########"
@@ -527,8 +546,14 @@ HASH="$(pick_disposable)"
 if [ -z "$HASH" ] && [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
   note "prepare (SMOKE_PREPARE_APPLY=1) — give the apply half something real to act on"
 
-  if "$SCRIPT_DIR/seed-demo-dav-content.sh" --fresh; then
-    echo "prepare: DAV source seeded with fresh, never-tombstoned natural keys"
+  # THE TAG IS CHOSEN HERE rather than left to the seeder's default, because
+  # what this run created is what the balance section has to take back, and it
+  # cannot take back a name it never learned. `--fresh` on its own mints a
+  # timestamp+pid inside a subprocess and prints it; parsing that back out of
+  # the log would be a second source of truth for one string.
+  BALANCE_TAG="smoke-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  if "$SCRIPT_DIR/seed-demo-dav-content.sh" --fresh "$BALANCE_TAG"; then
+    echo "prepare: DAV source seeded with fresh, never-tombstoned natural keys (tag ${BALANCE_TAG})"
   else
     echo "prepare: SEEDING FAILED — the diagnosis below will say what the ledger holds."
   fi
@@ -872,6 +897,100 @@ for t in "$T1" "$T2" "$T3"; do
   q "DELETE FROM tenant_member WHERE tenant_id='${t}' AND email='${INV_EMAIL}'" >/dev/null
   q "DELETE FROM tenant WHERE id='${t}'" >/dev/null
 done
+
+# ---------- balance ----------
+#
+# WHY THIS EXISTS. This gate runs nightly against a LONG-LIVED stack, and every
+# green run used to leave more behind than it found: `--fresh` seeds six DAV
+# resources into the demo SOURCE, a real sync copies them into the demo TARGET,
+# and nothing ever took either set away. Six objects a night, in the two accounts
+# this same script measures — a measurement changing the thing it measures, and
+# the same shape as run #20's fixture exhaustion running the other way.
+#
+# So the run takes back what it added, and it does so in the only unit that stays
+# truthful: source object, target copy and ledger row TOGETHER. Removing the
+# ledger row alone would destroy the record of objects that still exist.
+# Removing the objects alone would leave the ledger describing things that are
+# gone — and `pick_disposable` would hand a later run an item whose target
+# vanished, which is a failure with no visible cause.
+#
+# ONE ROW SURVIVES ON PURPOSE. The tombstone the apply half wrote says a natural
+# key was erased and `classifyKnownItem` must never re-create it (ADR-0024, hard
+# rule 2). Deleting it to make a number come out at zero would be exactly the
+# trade this script exists to refuse. So: net zero MINUS one tombstone per run,
+# and the counts below say which is which rather than asserting a round number.
+note "balance — take back what this run added"
+
+if [ -z "$BALANCE_TAG" ]; then
+  # Not a failure and not a silence. Prepare only seeds when nothing eligible
+  # exists, so on a run that found an item already there this is the honest
+  # state — and saying so is what stops "balanced" from meaning "did nothing".
+  echo "prepare did not seed this run, so this run added no DAV resources — nothing to take back."
+else
+  echo "tag: $BALANCE_TAG"
+  TAGGED="$HREF_EXPR LIKE '%${BALANCE_TAG}%'"
+  SCOPE="tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING'"
+  echo "ledger rows carrying this tag before removal:"
+  q "SELECT status, count(*) FROM item WHERE $SCOPE AND $TAGGED GROUP BY 1 ORDER BY 1" | sed 's/^/  /'
+
+  # THE TARGET FIRST, and through the same script that wrote the names into the
+  # source. The natural key IS the name — `openmig-demo-event-<tag>-1` is the
+  # VEVENT UID, and the writers record `targetId: written.path`, an href built
+  # from that UID — so the copies land under the same names in the target's own
+  # collections. `--remove` deletes them and then PROPFINDs to prove nothing
+  # tagged is left, which is the part that makes this an assertion rather than
+  # an assumption: if the copies live somewhere else, this says so and fails.
+  objects_gone=1
+  if DAV_USER="$TARGET_DAV_USER" DAV_PASSWORD="$TARGET_DAV_PASSWORD" \
+     "$SCRIPT_DIR/seed-demo-dav-content.sh" --remove "$BALANCE_TAG"; then
+    echo "target: the copies this run's sync made are gone"
+  else
+    echo "target: REMOVAL FAILED — this run's copies are still in ${TARGET_DAV_USER}."
+    echo "If the message above is about a missing personal calendar or address book,"
+    echo "the target writer re-homed the collection under a different slug"
+    echo "(caldav-target-writer.ts ensureCalendar) and this removal is looking in the"
+    echo "wrong place — not a sync bug."
+    objects_gone=0
+    fail=1
+  fi
+
+  # Then the source, with the script's own defaults (tenant B's source account).
+  # Attempted even when the target removal failed: they are two accounts, and
+  # skipping the second because the first went wrong would leave more behind and
+  # tell us less.
+  if "$SCRIPT_DIR/seed-demo-dav-content.sh" --remove "$BALANCE_TAG"; then
+    echo "source: the set this run seeded is gone"
+  else
+    echo "source: REMOVAL FAILED — this run's seeded set is still in the demo source."
+    objects_gone=0
+    fail=1
+  fi
+
+  # The ledger LAST, AND ONLY IF THE OBJECTS REALLY WENT. A row deleted while
+  # its object is still there is the one move this section must never make: it
+  # destroys the record of something that exists, and the next sync would then
+  # meet the resource as brand new. Ordering alone does not give that — it has
+  # to be a condition, which is what this is.
+  if [ "$objects_gone" = "1" ]; then
+    # Everything except the tombstone, which is the record of an erasure and
+    # outlives its fixture on purpose.
+    echo "ledger: $(q "DELETE FROM item WHERE $SCOPE AND $TAGGED AND status <> 'tombstoned'")"
+    left="$(q "SELECT count(*) FROM item WHERE $SCOPE AND $TAGGED AND status <> 'tombstoned'")"
+    kept="$(q "SELECT count(*) FROM item WHERE $SCOPE AND $TAGGED AND status = 'tombstoned'")"
+    echo "ledger: ${left:-?} row(s) carrying this tag remain, ${kept:-0} tombstone(s) kept deliberately"
+    # Asserted, not trusted. A DELETE that removed nothing prints "DELETE 0" and
+    # reads exactly like one that worked.
+    [ "${left:-1}" = "0" ] || {
+      echo "the ledger still carries ${left} non-tombstone row(s) for this run's tag"
+      fail=1
+    }
+  else
+    echo "ledger: rows LEFT IN PLACE on purpose — the objects they describe are still"
+    echo "there, and this run has no business deleting the record of things that exist."
+    echo "Take them back by hand once the removal above is fixed:"
+    echo "  ./deploy/compose/seed-demo-dav-content.sh --remove ${BALANCE_TAG}"
+  fi
+fi
 
 # ---------- verdict ----------
 note "verdict"
