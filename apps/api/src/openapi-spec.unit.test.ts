@@ -20,6 +20,20 @@
  *
  * It parses the file with a real YAML parser instead of pattern-matching the
  * text, because "a tool can read this" is the property being claimed.
+ *
+ * ## The guard itself drifted, which is the failure it was written to stop
+ *
+ * Both checks below run only over the mounts named in `MOUNTS`, and a router
+ * absent from that table is not "undocumented" — it is INVISIBLE. Three arrived
+ * afterwards and none was added: `/api/me`, `/api/access-requests` and
+ * readiness, seven operations between them, including the only unauthenticated
+ * WRITE in the whole surface. The spec looked complete and the test agreed,
+ * exactly as the markdown-in-a-yaml-suit did.
+ *
+ * So the table is not the source of truth about what exists — `index.ts` is.
+ * `everyRouterMountIsListed` reads the mounts straight out of it and fails when
+ * one is missing here, which turns the next forgotten `app.use` into a red test
+ * rather than a silently narrower guard.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -41,6 +55,13 @@ const MOUNTS: ReadonlyArray<{ prefix: string; files: string[]; mountedIn?: strin
   { prefix: '/api/tenants/{tenantId}/members', files: ['src/routes/tenants/members.ts'], mountedIn: 'src/routes/tenants/index.ts' },
   { prefix: '/api/billing/webhooks', files: ['src/routes/billing/webhooks.ts'] },
   { prefix: '/api/tenants', files: ['src/routes/tenants/index.ts'] },
+  // One router, two prefixes — `/ready` for a probe that speaks to the API
+  // directly and `/api/ready` for a browser going through the web front, the
+  // same pairing `/health` and `/version` have.
+  { prefix: '/ready', files: ['src/routes/ready.ts'] },
+  { prefix: '/api/ready', files: ['src/routes/ready.ts'] },
+  { prefix: '/api/me', files: ['src/routes/me.ts'] },
+  { prefix: '/api/access-requests', files: ['src/routes/access-requests.ts'] },
   { prefix: '/api/scope-manifest', files: ['src/routes/scope-manifest.ts'] },
   { prefix: '/api/setup', files: ['src/routes/setup.ts'] },
   { prefix: '/api/connections', files: ['src/routes/connections.ts'] },
@@ -174,6 +195,28 @@ describe('the spec and the routers agree', () => {
     // Both directions above pass trivially if the extractors return nothing.
     expect(codeRoutes().length).toBeGreaterThan(40);
     expect(specOperations().length).toBe(codeRoutes().length);
+  });
+
+  it('lists EVERY router index.ts mounts, so a new one cannot slip past both checks', () => {
+    // The hole this file itself fell into. Both checks above run only over
+    // MOUNTS, so a router missing from that table is not undocumented — it is
+    // invisible, and the suite stays green while the guard quietly covers less.
+    // Three had arrived that way (`/api/me`, `/api/access-requests`, readiness:
+    // seven operations, including the only unauthenticated WRITE in the API).
+    //
+    // index.ts is the truth about what is served, so it is read directly rather
+    // than compared against a second hand-kept list. `app.use(express.json())`
+    // and friends are excluded by requiring a quoted path.
+    const mounted = [...read('src/index.ts').matchAll(/app\.use\(\s*'([^']+)'/gm)].map((m) =>
+      toSpecPath(m[1]!),
+    );
+    expect(mounted.length, 'index.ts should mount several routers').toBeGreaterThan(5);
+
+    const listed = new Set(MOUNTS.map((m) => m.prefix));
+    const forgotten = mounted.filter((prefix) => !listed.has(prefix));
+    expect(forgotten, 'mounted in index.ts but absent from MOUNTS — its routes are unchecked').toEqual(
+      [],
+    );
   });
 });
 
