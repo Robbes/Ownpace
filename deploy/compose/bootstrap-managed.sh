@@ -592,28 +592,37 @@ phase_app() {
   [ "$WITH_DEMO" -eq 1 ] && services+=(nextcloud)
 
   # GIT_SHA so `GET /version` answers with a commit rather than "unknown".
+  # THE IDENTITY PROVIDER IS PROVISIONED BEFORE `web` IS BUILT, and the order is
+  # the whole point.
+  #
+  # setup-zitadel.sh writes VITE_OIDC_ISSUER and VITE_OIDC_CLIENT_ID into .env,
+  # and `VITE_` values are baked into the web bundle AT BUILD TIME. Provision
+  # after the build and the first bring-up on any box produces a login page that
+  # knows no client id — correct only from the second run onwards, which is the
+  # kind of instruction nobody should have to be given.
+  #
+  # So zitadel comes up on its own first (it already declares
+  # `depends_on: postgres: service_healthy`, and its healthcheck is the
+  # provider's own `ready`, not a port probe — it listens well before its
+  # migrations are done). The second `up` below is idempotent for anything
+  # already running.
+  #
+  # Until workplan 0099 NOTHING invoked this script at all: it was documented as
+  # a step somebody runs by hand, so a bring-up produced a stack whose sign-in
+  # had never been configured, and a nightly that could not have noticed.
+  # Idempotent by construction — it reads its settings back rather than trusting
+  # its writes — so running it every pass is safe.
+  "${COMPOSE[@]}" up -d --wait zitadel
+  "${SCRIPT_DIR}/setup-zitadel.sh"
+  note "identity provider provisioned before the web build (idempotent)"
+
+  # Re-read: the script above just wrote JWT_ISSUER, JWT_AUDIENCE and the two
+  # VITE_ values, and the build below has to see them.
+  load_env
+
   GIT_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)" \
     "${COMPOSE[@]}" up -d --build --wait "${services[@]}"
   note "up and healthy: ${services[*]}"
-
-  # PROVISION the identity provider, now that it is running. Starting the
-  # container is not the same as configuring it: setup-zitadel.sh creates the
-  # project and the public PKCE client and writes VITE_OIDC_ISSUER,
-  # VITE_OIDC_CLIENT_ID, JWT_ISSUER and JWT_AUDIENCE into .env — and until
-  # workplan 0099 NOTHING invoked it. It was documented as a step somebody runs
-  # by hand, which meant a bring-up produced a stack whose sign-in had never
-  # been configured, and a nightly that could not have noticed.
-  #
-  # Idempotent by construction (its own header says so, and it reads settings
-  # back rather than trusting its writes), so running it every pass is safe.
-  #
-  # ONE THING IT CANNOT FIX HERE, stated rather than hidden: `web` was BUILT
-  # above, and VITE_ values are baked in at build time. On a box where this is
-  # the first ever run, the web bundle therefore carries no OIDC client id until
-  # the NEXT bring-up rebuilds it. The API half is unaffected — it reads
-  # JWT_ISSUER at run time — so the smoke's checks are honest either way.
-  "${SCRIPT_DIR}/setup-zitadel.sh"
-  note "identity provider provisioned (idempotent)"
   note "api: ${API_URL:-http://localhost:3001}   web: ${WEB_URL:-http://localhost:3123}"
 }
 
