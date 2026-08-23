@@ -110,22 +110,42 @@ fi
 say "starting the identity provider (issuer will be ${ISSUER})"
 "${COMPOSE[@]}" up -d zitadel
 
-say "waiting for it to report ready — this is its own readiness signal, not a port check"
+# ASKED FROM THE HOST, because the provider has no healthcheck to wait on.
+#
+# This waited for `"Health":"healthy"` until E2E (managed) #48, and that stopped
+# being reachable the moment the healthcheck was removed — `zitadel ready` asks
+# ExternalPort, which is by definition the address the OUTSIDE reaches Zitadel
+# on, and nothing is bound to it inside the container. So this waited the full
+# five minutes for a field that would never be set and died saying so.
+#
+# THE PUBLISHED PORT, not ${IDP_PORT}. That one carries ExternalPort for the
+# ISSUER, and behind a front it is 443 — the address of the front, which may not
+# be up, may not route here, and is not what `compose up` just published. The
+# host can only reliably reach what compose published.
+PUBLISHED_PORT="$(read_env ZITADEL_PORT 3126)"
+READY_URL="http://localhost:${PUBLISHED_PORT}/debug/ready"
+say "waiting for it to report ready at ${READY_URL} — its own readiness signal, not a port check"
 ready=0
 for _ in $(seq 1 60); do
+  # The exited branch stays: a provider that died has its reason in its log, and
+  # that is worth saying immediately rather than after five minutes of polling.
   state="$("${COMPOSE[@]}" ps --format json zitadel 2>/dev/null | tr -d '\n' || true)"
   case "$state" in
-    *'"Health":"healthy"'*) ready=1; break ;;
     *'"State":"exited"'*)
       "${COMPOSE[@]}" logs --tail 40 zitadel >&2
       die "the identity provider exited during start-up — its last 40 log lines are above"
       ;;
   esac
+  if [ "$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$READY_URL" 2>/dev/null || echo 000)" = "200" ]; then
+    ready=1
+    break
+  fi
   sleep 5
 done
 [ "$ready" -eq 1 ] || {
   "${COMPOSE[@]}" logs --tail 40 zitadel >&2
-  die "it did not become healthy within five minutes — last 40 log lines above"
+  die "it never answered 200 at ${READY_URL} within five minutes — last 40 log lines above.
+    000 would mean nothing answered at all; anything else means it answered and said no."
 }
 say "ready"
 

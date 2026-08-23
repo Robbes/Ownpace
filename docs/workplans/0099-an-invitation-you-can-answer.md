@@ -877,6 +877,64 @@ smoke's identity section; what is gone is the continuous signal between them.
 That is the price of a probe that could not be asked from where it ran, and it
 is recorded rather than glossed.
 
+### Run #48 — the other thing that waited on health, and it was mine
+
+The bring-up walked past the identity provider for the first time. `ownpace-idp`
+came up, stayed up, reported no health at all — exactly as intended — and
+nothing was left unhealthy. Then:
+
+```
+[setup-zitadel] FATAL: it did not become healthy within five minutes
+```
+
+`setup-zitadel.sh` had its own five-minute wait, polling
+`"Health":"healthy"` out of `docker compose ps`. Removing the healthcheck made
+that field permanently absent, so the script waited the full five minutes for
+something that could no longer happen.
+
+**This was a miss in the change that removed it.** Before shipping that, the
+check made was `grep depends_on … service_healthy` — nothing found, therefore
+nothing depended on the healthcheck. That grep answered a narrower question than
+the one being asked. `depends_on` is one way to depend on a healthcheck; a
+script polling `ps --format json` is another, and nothing looked for the second.
+
+The fix is the same shape as the first: `setup-zitadel.sh` asks
+`/debug/ready` on the **published** port, the address the bring-up already uses.
+Its `"State":"exited"` branch stays — a provider that died has its reason in its
+log, and saying so immediately beats five minutes of polling.
+
+### The guard, and three passes to make it true
+
+`nothing-waits-on-a-health-that-cannot-arrive.unit.test.ts` derives both sides
+from the files: which services declare a healthcheck, and which services the
+scripts wait on the health of. It took three attempts to be correct, and each
+wrong version passed:
+
+1. **Same-line matching.** It required the health match and the service name on
+   one line. Real code puts them three apart — `state="$(… ps --format json
+   zitadel …)"` above, `case "$state" in *'"Health":"healthy"'*` below. The
+   restored #48 bug passed cleanly.
+2. **An unbounded parse.** It scanned from `services:` to end-of-file and
+   reported `ownpace-network` as a service. Bounded now, and asserted.
+3. **A window that read comments.** `explain_failure` reads health generically
+   through `"$svc"` and its header explains itself by naming zitadel — so the
+   window read the prose and flagged the one function in the file that REPORTS
+   health rather than waiting on it.
+
+All three were found by breaking, and only by breaking: each version was green
+against the real tree. That is now three separate occasions today — #514's
+`config --images`, #516's two bad breaks, and these — where an assertion matched
+something ADJACENT to what it meant to check. It is not a coincidence and it is
+not carelessness in the ordinary sense; it is what happens when a test is
+written by reading code rather than by making it fail.
+
+One limitation is written into the file rather than left implicit: the guard
+reads compose declarations, and a service can inherit a HEALTHCHECK from its
+IMAGE instead. `api` and `web` declare none here and still report `(healthy)`.
+A script polling one of those would be flagged wrongly — a loud failure somebody
+investigates, which is the right way round. Zitadel is empirically clear either
+way: #48's `ps` shows `Up 5 minutes` with no health column at all.
+
 ---
 
 ## A pipeline its own consumer could kill (PR #518's red, and eighteen more)
