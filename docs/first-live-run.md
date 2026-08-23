@@ -20,7 +20,8 @@ what is being tested.
 | | Why it has to be before, not during |
 |---|---|
 | ~~**Self-registration in `setup-zitadel.sh`**~~ | ✅ **Done.** Decision A, 2026-08-22. The script turns it on and reads the setting back, because `api` runs `curl -sS` without `-f` and a silent no-op here surfaces in front of a customer. |
-| ~~**The access-granted email**~~ (0095 T1–T3) | ✅ **Done.** The grant response now says `sent`, `off` or `failed`, so an operator knows whether the manual step is back. |
+| ~~**The access-granted email**~~ (0095 T1–T3) | ✅ **Done.** The grant response now says `sent`, `off` or `failed`, so an operator knows whether the manual step is back — and since 0095 T5 the **screen** says it too, which is where an operator actually reads it. |
+| ~~**The decline email**~~ (0095 T5) | ✅ **Done.** Saying no is a courtesy, and one you can withhold: the queue has an *email them if you decline* toggle, ticked by default, so junk can be cleared without mailing a stranger. The mail carries no reason and never the operator's note. |
 | **A rehearsal script** | One command that knocks, grants, and asserts the invitation bound — against the local stack, with a stub issuer. It cannot prove Zitadel works. It can prove that *everything either side of Zitadel* works, so the live run is testing one thing. |
 | **`/api/ready` reachable through the proxy** | It is mounted at `/ready` and `/api/ready`, but no reverse-proxy config has been exercised. If the status page cannot reach it, its first impression is four red lights that mean nothing. |
 

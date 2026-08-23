@@ -265,6 +265,63 @@ describe('access granted — the one event addressed to a non-member (0095)', ()
   });
 });
 
+describe('access declined — saying no is a courtesy too (0095 T5)', () => {
+  const event = { kind: 'access_declined' } as const;
+
+  it('has NOWHERE to put the operator\'s note, by construction', () => {
+    // The queue labels that field "Note (for you, not for them)" in both
+    // languages, and a promise made on a screen has to hold in the pipe behind
+    // it. The strongest form of that is a TYPE with no fields: there is nothing
+    // to pass in, so no later "just include the reason, it is friendlier" can
+    // reach a reader without first changing the shape and failing here.
+    //
+    // Asserted as a property of the value, not by inspecting the string: the
+    // event object itself is only its kind.
+    expect(Object.keys(event)).toEqual(['kind']);
+
+    // And the render is a pure function of it, so no note, organisation or
+    // tier can appear in a body that was never given one.
+    for (const locale of ['en', 'nl'] as const) {
+      const { body } = renderEvent(event, locale);
+      expect(body).not.toMatch(/note|notitie/i);
+      expect(body).not.toMatch(/https?:\/\//);
+    }
+  });
+
+  it('says a person read it, and that a reply reaches a person', () => {
+    // A refusal nobody can answer is the kind that gets forwarded to a
+    // regulator rather than back to us. There is no address to write to in the
+    // body on purpose — the reply-to of the mail is the channel, and hardcoding
+    // one here would put a second, staler address into circulation.
+    for (const locale of ['en', 'nl'] as const) {
+      const { body } = renderEvent(event, locale);
+      expect(body).toMatch(/person|mens/i);
+      expect(body).toMatch(/reply|beantwoord/i);
+    }
+  });
+
+  it('is written in the language they asked in', () => {
+    expect(renderEvent(event, 'en').subject).toBe('Ownpace — about your request');
+    expect(renderEvent(event, 'nl').subject).toBe('Ownpace — over uw aanvraag');
+    expect(renderEvent(event, 'nl').body).not.toEqual(renderEvent(event, 'en').body);
+  });
+
+  it('does not close by telling them to open the app', () => {
+    // Same reason as the grant, and worse here: the reader has just been told
+    // no, so pointing them at a door that will not open reads as a taunt.
+    expect(renderEvent(event, 'en').body).not.toContain('Open the app');
+    expect(renderEvent(event, 'nl').body).not.toContain('Open de app');
+  });
+
+  it('promises nothing it cannot keep — no "yet", no queue, no criteria', () => {
+    // "Not right now" is what is true. "Not yet" is a promise nobody made, and
+    // naming criteria invites an argument about them with somebody who is
+    // already disappointed.
+    const { body } = renderEvent(event, 'en');
+    expect(body).not.toMatch(/waiting list|wait list|not yet|come back|reapply/i);
+  });
+});
+
 describe('renderDigest — tenant-level attention (0043 T4)', () => {
   it('sends for a tenant-level decision even with NO mappings at all', () => {
     // The hole 0030 T4 recorded: the digest was a list of mappings, so a

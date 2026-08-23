@@ -122,7 +122,23 @@ const en = {
   'queue.granted': 'Granted. They become the owner the first time they sign in.',
   'queue.declined': 'Declined. The request stays on the record.',
   'queue.decidedBy': 'Decided by',
-  'queue.confirmDecline': 'Decline this request? It stays on the record either way.',
+  'queue.confirmDecline': 'Decline this request and email them? It stays on the record either way.',
+  'queue.confirmDeclineQuiet':
+    'Decline this request without emailing them? It stays on the record either way.',
+  // The default is ON: staying silent should be something somebody chose, not
+  // something they forgot. The help text says what the email does NOT contain,
+  // because the field right above it is labelled "not for them" and an operator
+  // deserves to know that promise survives the send.
+  'queue.tellThem': 'Email them if you decline',
+  'queue.tellThemHelp':
+    'A short refusal in their own language, with no reason and never your note. Untick it for ' +
+    'junk: this form is public, so a made-up address belongs to a stranger. Granting always ' +
+    'emails them — that is how they learn they can sign in.',
+  'queue.mailSent': 'We emailed {email}.',
+  'queue.mailOff': 'Nobody was emailed — this deployment sends no mail. Tell {email} yourself.',
+  'queue.mailFailed':
+    'The email to {email} could not be sent. Tell them yourself, and check the mail settings.',
+  'queue.mailSkipped': 'Nobody was emailed, as you asked.',
   'wizard.proto.imap.hint': 'Standard email protocol',
   'wizard.proto.oauth2.hint': 'Office 365 over IMAP (app registration)',
   'wizard.proto.graph.hint': 'Office 365 over the Graph API (app registration)',
@@ -1122,7 +1138,21 @@ const nl: Record<keyof typeof en, string> = {
   'queue.granted': 'Toegekend. Zij worden eigenaar zodra zij zich voor het eerst aanmelden.',
   'queue.declined': 'Afgewezen. Het verzoek blijft vastgelegd.',
   'queue.decidedBy': 'Besloten door',
-  'queue.confirmDecline': 'Dit verzoek afwijzen? Het blijft hoe dan ook vastgelegd.',
+  'queue.confirmDecline': 'Dit verzoek afwijzen en hen mailen? Het blijft hoe dan ook vastgelegd.',
+  'queue.confirmDeclineQuiet':
+    'Dit verzoek afwijzen zonder hen te mailen? Het blijft hoe dan ook vastgelegd.',
+  'queue.tellThem': 'Mail hen als u afwijst',
+  'queue.tellThemHelp':
+    'Een korte afwijzing in hun eigen taal, zonder reden en nooit met uw notitie. Vink het uit ' +
+    'bij rommel: dit formulier is openbaar, dus een verzonnen adres is van een onbekende. Bij ' +
+    'toekennen mailen wij altijd — zo weten zij dat zij zich kunnen aanmelden.',
+  'queue.mailSent': 'Wij hebben {email} gemaild.',
+  'queue.mailOff':
+    'Er is niemand gemaild — deze installatie verstuurt geen e-mail. Laat het {email} zelf weten.',
+  'queue.mailFailed':
+    'De e-mail aan {email} kon niet worden verstuurd. Laat het hen zelf weten en controleer de ' +
+    'e-mailinstellingen.',
+  'queue.mailSkipped': 'Er is niemand gemaild, zoals u vroeg.',
   'wizard.proto.imap.hint': 'Standaard e-mailprotocol',
   'wizard.proto.oauth2.hint': 'Office 365 via IMAP (appregistratie)',
   'wizard.proto.graph.hint': 'Office 365 via de Graph-API (appregistratie)',
