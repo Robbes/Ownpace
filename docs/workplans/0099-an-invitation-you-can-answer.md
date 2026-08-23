@@ -769,17 +769,29 @@ written:
 "Output":"Error: not ready\n"   ExitCode: 1
 ```
 
-**Neither hypothesis was right.** Not `connection refused` from probing a
-host-side port inside the container; not `server gave HTTP response to HTTPS
-client` from a scheme mismatch. `zitadel ready` REACHED the server, got a clean
-answer, and the answer was that Zitadel considers itself not ready — 188
-consecutive attempts over roughly thirty-one minutes, never once ready, while
-serving OIDC routes the whole time.
+This was first read as "the probe reached the server and Zitadel said no",
+because zitadel/zitadel#9495 shows a failed connection surfacing as a raw
+transport error (`Get "https://…": …`) rather than as `not ready`. **That
+reading was wrong**, and the next observation showed it:
 
-Both hypotheses were plausible, one was drawn from an upstream issue matching
-our configuration almost exactly, and both were wrong. Ten seconds of reading
-beat an afternoon of choosing, which is the only lesson this workplan has been
-about since #38.
+```
+curl -o /dev/null -w '%{http_code}'  http://localhost:3126/debug/ready    → 200
+curl -o /dev/null -w '%{http_code}'  http://localhost:3126/debug/healthz  → 200
+```
+
+Zitadel IS ready. The host reaches `/debug/ready` through the published port —
+which lands on container port 8080, the same address and scheme the probe would
+use if it were asking `http://localhost:8080` — and gets 200. So the probe is
+not asking that. It is asking some other address and failing to reach it, and
+v4.17.1 reports an unreachable endpoint as `Error: not ready` rather than as the
+transport error #9495 documents.
+
+Which of the two wrong addresses it uses — `localhost:3126`, the HOST-side port
+present in the container's environment as `ZITADEL_EXTERNALPORT`, or
+`https://localhost:8080` against an http server — is still not established, and
+this workplan is not going to guess a third time. Three readings, three
+corrections: the first hypothesis, then "both hypotheses eliminated", now this.
+Each was stated with more confidence than the evidence carried.
 
 Why Zitadel reports itself not ready is not yet known and this change does not
 claim to fix it. What it does is make that sentence obsolete: the next run
