@@ -537,6 +537,13 @@ export async function rollbackCutover(deps: CutoverCliDeps): Promise<void> {
       !confirmed(deps, 'roll this cutover back', [
         `Mark mapping ${deps.mappingId} ROLLED_BACK in the cutover ledger.`,
         'Leave DNS untouched — reverting the MX record is a MANUAL step (verify-only DNS).',
+        // THE DIFFERENCE BETWEEN THIS COMMAND AND THE JOB, and it is the whole
+        // point of a rollback. A rollback exists to set the migration BACK to
+        // syncing (owner, 2026-08-23). This command does not do that half: it
+        // writes the ledger and never touches `mailbox_mapping`, so the
+        // migration stays stopped. An operator who runs this and walks away
+        // believes their sync is running again when it is not.
+        'Leave the mapping STOPPED — the sync does NOT resume. Run the run-rollback job for that.',
         // The channel exists (0030 T4) — this command does not use it. Said
         // as a property of THIS command, not of the product, so nobody reads
         // it as "notifications do not work" and nobody expects mail from here.
@@ -554,6 +561,19 @@ export async function rollbackCutover(deps: CutoverCliDeps): Promise<void> {
     );
 
     CutoverCliOutput.success('Cutover marked as rolled back');
+    // AFTER THE ACTION, not in the consequence list, and the difference
+    // matters: `confirmed()` returns early on `--yes` and never prints those
+    // bullets, so anything said only there is invisible to every operator who
+    // actually performs a rollback. This prints on the path that runs.
+    //
+    // A rollback exists to set the migration BACK to syncing (owner,
+    // 2026-08-23). This command does not do that half — it writes the ledger
+    // and never touches `mailbox_mapping` — so an operator who runs it and
+    // walks away believes their sync is running again when it is not.
+    CutoverCliOutput.warning(
+      'The mapping is UNCHANGED: the sync does NOT resume from here. ' +
+        'Run the run-rollback job to reactivate it.',
+    );
     // Do not imply DNS was restored — it was not. Verify-only DNS (owner
     // decision 2026-07-16); the operator reverts the MX record by hand.
     CutoverCliOutput.warning(

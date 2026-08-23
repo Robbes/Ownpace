@@ -7,6 +7,23 @@
  * cutover ROLLED_BACK. DNS restore is deferred (verify-only DNS — the
  * operator reverts MX manually).
  *
+ * WHAT A ROLLBACK IS, decided by the owner 2026-08-23 and written here because
+ * this file is where somebody would otherwise build the other thing:
+ *
+ *   A rollback is a SETBACK. It puts the migration back to syncing, with the
+ *   original source live again, and that is all of it.
+ *
+ *   It NEVER swaps source and target. The mapping's direction is untouched —
+ *   after a rollback the sync runs source -> target exactly as before, because
+ *   the source is authoritative again and the target is once more the copy.
+ *
+ *   It NEVER salvages from the target. Anything delivered to the target while
+ *   MX pointed there stays on the target. Pulling it back would mean writing to
+ *   a source this product only ever reads, and a migration tool that writes to
+ *   somebody's live source on an emergency path is not one to trust with the
+ *   emergency. The operator is TOLD about that mail rather than surprised by it
+ *   (see the notice below); recovering it is theirs to decide.
+ *
  * `notifyUsers` is REAL as of workplan 0030 T4: when SMTP is configured, it
  * sends the rollback notice through the same channel every other event uses.
  * When it is NOT configured, `notifyUsers: true` is still refused BEFORE any
@@ -132,6 +149,18 @@ export const runRollback = schemaTask({
         rollbackReason: reason,
       });
       logger.info('Cutover marked as rolled back');
+
+      // THE ONE THING A ROLLBACK CANNOT GIVE BACK, said out loud rather than
+      // left for somebody to discover from a customer. While MX pointed at the
+      // target, mail was delivered THERE. The sync that just resumed runs
+      // source -> target, so it will never carry those messages back, and by
+      // the decision in this file's header it is not going to try. An operator
+      // who is not told this believes a rollback restored a state it did not.
+      logger.warn(
+        'Mail delivered to the TARGET while MX pointed at it stays on the target. ' +
+          'The resumed sync runs source -> target and will not bring it back. ' +
+          'Recover it from the target by hand if you need it.',
+      );
 
       // Tell people, if asked to (workplan 0030 T4). AFTER the rollback, so
       // the mail only ever describes something that actually happened, and
