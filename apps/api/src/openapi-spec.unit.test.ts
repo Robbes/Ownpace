@@ -61,6 +61,7 @@ const MOUNTS: ReadonlyArray<{ prefix: string; files: string[]; mountedIn?: strin
   { prefix: '/ready', files: ['src/routes/ready.ts'] },
   { prefix: '/api/ready', files: ['src/routes/ready.ts'] },
   { prefix: '/api/me', files: ['src/routes/me.ts'] },
+  { prefix: '/api/invitations', files: ['src/routes/invitations.ts'] },
   { prefix: '/api/access-requests', files: ['src/routes/access-requests.ts'] },
   { prefix: '/api/scope-manifest', files: ['src/routes/scope-manifest.ts'] },
   { prefix: '/api/setup', files: ['src/routes/setup.ts'] },

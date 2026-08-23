@@ -722,6 +722,157 @@ if [ "$found_logs" != "1" ]; then
   fail=1
 fi
 
+# ---------- the identity provider, and the three answers to an invitation ----------
+#
+# WHY THIS SECTION EXISTS. Zitadel was added to managed.yml in #496 and was not
+# in the bring-up's service list, so for three weeks it was defined, required in
+# .env, interpolated by every compose command — and never started. Nothing
+# invoked setup-zitadel.sh either. The gate went green the whole time and said
+# precisely nothing about whether anybody could sign in (workplan 0099).
+#
+# WHAT THIS DOES NOT DO, said plainly because a gate that overstates itself is
+# worse than one that is narrow. It does NOT drive a browser sign-in. Getting a
+# real token out of Zitadel means its session API and an OIDC authorization code
+# exchange, and that is worth doing — see 0099's "what is still owed". What is
+# here is the half that can be asserted honestly: the issuer is RUNNING and
+# serving the exact document `oidc.ts` and `auth.ts` both read, and the
+# product's own invitation logic is exercised end to end through real HTTP.
+note "identity provider"
+
+# Read out of the API CONTAINER, the way JWT_SECRET is above — not out of .env.
+# The question is what the running service verifies tokens against, and a file
+# on the host is at best a claim about that.
+ISSUER="$(docker exec "$API_CONTAINER" printenv JWT_ISSUER 2>/dev/null || true)"
+if [ -z "$ISSUER" ]; then
+  # Not a warning. JWT_ISSUER is written by setup-zitadel.sh, which the bring-up
+  # now runs — its absence means that step did not happen, and a stack whose
+  # sign-in was never configured is exactly what this section exists to catch.
+  echo "the API has no JWT_ISSUER — setup-zitadel.sh has not provisioned this stack."
+  fail=1
+else
+  # FROM INSIDE THE API CONTAINER, and this is the whole point of the check.
+  #
+  # Curling from the host would prove the wrong thing. `ZITADEL_EXTERNALDOMAIN`
+  # defaults to `localhost`, so `JWT_ISSUER` becomes http://localhost:8080 —
+  # which the HOST can reach, because the port is published, and which the API
+  # container cannot, because there `localhost` is the API itself. A host-side
+  # check would go green against a stack whose API can verify no token at all.
+  #
+  # The question is only ever "can the thing that verifies tokens reach the keys",
+  # so it is asked from there.
+  DISCOVERY="$(docker exec "$API_CONTAINER" sh -lc "curl -sS --max-time 10 '${ISSUER%/}/.well-known/openid-configuration'" 2>/dev/null || true)"
+  DECLARED="$(printf '%s' "$DISCOVERY" | jq -r '.issuer // empty' 2>/dev/null || true)"
+  JWKS="$(printf '%s' "$DISCOVERY" | jq -r '.jwks_uri // empty' 2>/dev/null || true)"
+
+  # Byte for byte, and that is the point: OIDC Discovery §4.3 says a document
+  # declaring a different issuer is not this issuer, and both `oidc.ts` and
+  # `auth.ts` refuse on a mismatch. A trailing slash is the difference between
+  # a working sign-in and a refusal nobody can explain.
+  if [ "$DECLARED" != "${ISSUER%/}" ] && [ "$DECLARED" != "$ISSUER" ]; then
+    echo "the issuer at $ISSUER declares '$DECLARED' (as seen BY THE API) — sign-in would refuse this."
+    echo "If DECLARED is empty, the API cannot reach the issuer at all. The usual cause is"
+    echo "ZITADEL_EXTERNALDOMAIN=localhost: reachable from the host, and the API container"
+    echo "itself from inside. It has to be an address BOTH a browser and the API resolve."
+    fail=1
+  else
+    echo "issuer: $ISSUER (declares its own name)"
+  fi
+
+  # The keys the API verifies every token against. Discovery naming a jwks_uri
+  # nothing serves is a stack that authenticates nobody, and it looks healthy.
+  if [ -z "$JWKS" ] || ! docker exec "$API_CONTAINER" sh -lc "curl -sf --max-time 10 '$JWKS'" >/dev/null 2>&1; then
+    echo "jwks_uri '$JWKS' is not fetchable — no token could be verified."
+    fail=1
+  else
+    echo "jwks:   $JWKS (fetchable)"
+  fi
+fi
+
+note "an invitation, answered three ways"
+#
+# Accept, decline and SKIP, against the real API over real HTTP. Skip is the one
+# worth stating: it makes NO call at all, so what is asserted is that an
+# unanswered invitation is still there afterwards and still offered. A test that
+# "skipped" by doing something would be testing the wrong thing.
+#
+# The tokens are minted with the API's own JWT_SECRET, like every other check in
+# this script — this section is about the product's invitation logic, not about
+# Zitadel's token endpoint. `email_verified` is asserted because the claim is
+# what the policies key on: without it there is nothing to answer.
+INV_EMAIL="smoke-invitee-$$@smoke.local"
+INV_SUB="smoke-invitee-$$"
+INV_TOKEN="$(
+  cd "$REPO_ROOT/apps/api" &&
+    JWT_SECRET="$JW" SUB="$INV_SUB" EM="$INV_EMAIL" node -e "
+const jwt=require('jsonwebtoken');
+console.log(jwt.sign({sub:process.env.SUB,email:process.env.EM,email_verified:true},process.env.JWT_SECRET,{expiresIn:'1h'}));"
+)"
+
+# Three open invitations, written the way granting an access request writes one:
+# addressed to an email, holding a `pending:` placeholder nobody owns yet.
+for n in 1 2 3; do
+  q "INSERT INTO tenant (id, name, status) VALUES ('$(printf '0099%04d-e29b-41d4-a716-44665544%04d' "$n" "$n")', 'Smoke Org ${n}', 'active') ON CONFLICT (id) DO NOTHING" >/dev/null
+  q "INSERT INTO tenant_member (tenant_id, user_id, email, role, status, invited_at)
+     VALUES ('$(printf '0099%04d-e29b-41d4-a716-44665544%04d' "$n" "$n")', 'pending:smoke-$$-${n}', '${INV_EMAIL}', 'owner', 'invited', now())
+     ON CONFLICT DO NOTHING" >/dev/null
+done
+
+ME="$(http GET "$API/api/me" "$INV_TOKEN")"
+offered="$(printf '%s' "${ME#* }" | grep -o '"tenantId"' | wc -l | tr -d ' ')"
+echo "offered: $offered invitation(s) before answering"
+if [ "${ME%% *}" != "200" ] || [ "$offered" -lt 3 ]; then
+  # Reporting, not claiming: /api/me used to BIND every invitation on sight,
+  # which is the behaviour 0099 removed. Three written, three offered.
+  echo "expected /api/me to OFFER three invitations, got: $ME"
+  fail=1
+fi
+
+T1="$(printf '0099%04d-e29b-41d4-a716-44665544%04d' 1 1)"
+T2="$(printf '0099%04d-e29b-41d4-a716-44665544%04d' 2 2)"
+T3="$(printf '0099%04d-e29b-41d4-a716-44665544%04d' 3 3)"
+
+acc="$(http POST "$API/api/invitations/${T1}/accept" "$INV_TOKEN")"
+dec="$(http POST "$API/api/invitations/${T2}/decline" "$INV_TOKEN")"
+# T3 IS THE SKIP. Deliberately no request.
+
+echo "accept:  $acc"
+echo "decline: $dec"
+[ "${acc%% *}" = "200" ] || { echo "accepting an invitation failed"; fail=1; }
+[ "${dec%% *}" = "200" ] || { echo "declining an invitation failed"; fail=1; }
+
+s1="$(q "SELECT status FROM tenant_member WHERE tenant_id='${T1}' AND email='${INV_EMAIL}'")"
+u1="$(q "SELECT user_id FROM tenant_member WHERE tenant_id='${T1}' AND email='${INV_EMAIL}'")"
+s2="$(q "SELECT status FROM tenant_member WHERE tenant_id='${T2}' AND email='${INV_EMAIL}'")"
+u2="$(q "SELECT user_id FROM tenant_member WHERE tenant_id='${T2}' AND email='${INV_EMAIL}'")"
+s3="$(q "SELECT status FROM tenant_member WHERE tenant_id='${T3}' AND email='${INV_EMAIL}'")"
+echo "accepted -> ${s1} (${u1})   declined -> ${s2} (${u2})   skipped -> ${s3}"
+
+[ "$s1" = "active" ] || { echo "accepting did not make the membership active"; fail=1; }
+[ "$u1" = "$INV_SUB" ] || { echo "accepting did not bind the subject"; fail=1; }
+[ "$s2" = "declined" ] || { echo "declining did not record the refusal"; fail=1; }
+# The property migration 0008's WITH CHECK exists to guarantee: a refusal names
+# nobody. If this ever reads a real subject, the database stopped enforcing it.
+case "$u2" in
+  pending:*) ;;
+  *) echo "declining BOUND the decliner ($u2) — it must leave the pending id"; fail=1 ;;
+esac
+[ "$s3" = "invited" ] || { echo "the skipped invitation did not stay open (got '$s3')"; fail=1; }
+
+# And it is still OFFERED, which is what makes skipping a deferral rather than a
+# quiet loss. One left: the accepted one is a membership now, the declined one
+# is answered.
+ME_AFTER="$(http GET "$API/api/me" "$INV_TOKEN")"
+left="$(printf '%s' "${ME_AFTER#* }" | grep -o '"invitations":\[[^]]*\]' | grep -o '"tenantId"' | wc -l | tr -d ' ')"
+echo "still offered after answering: $left"
+[ "$left" = "1" ] || { echo "expected exactly the skipped invitation to remain, got $left"; fail=1; }
+
+# Clean up after itself. This gate runs nightly against a long-lived stack, and
+# a smoke that leaves rows behind grows the thing it is measuring.
+for t in "$T1" "$T2" "$T3"; do
+  q "DELETE FROM tenant_member WHERE tenant_id='${t}' AND email='${INV_EMAIL}'" >/dev/null
+  q "DELETE FROM tenant WHERE id='${t}'" >/dev/null
+done
+
 # ---------- verdict ----------
 note "verdict"
 echo "verify: $VERIFY_RESULT   apply: $APPLY_RESULT"

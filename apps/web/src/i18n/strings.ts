@@ -105,6 +105,20 @@ const en = {
   // `access.*` keys further down are the PUBLIC page somebody asks on (T3);
   // these are the screen where somebody answers, hence a separate prefix.
   'nav.accessRequests': 'Access requests',
+  // ---- Answering an invitation (workplan 0099). ----
+  'invite.title': 'You have been invited',
+  'invite.subtitle': 'Joining is your choice. Nothing happens until you make it.',
+  'invite.none': 'Nothing is waiting for you.',
+  'invite.asRole': 'as {role}',
+  'invite.accept': 'Join',
+  'invite.joining': 'Joining…',
+  'invite.decline': 'Decline',
+  'invite.skip': 'Not now',
+  'invite.skipHelp':
+    'Not now changes nothing — we will ask again next time you sign in. Declining is ' +
+    'recorded, and only the organisation can invite you again.',
+  'invite.confirmDecline':
+    'Decline the invitation from {name}? Only they can invite you again.',
   'queue.title': 'Access requests',
   'queue.subtitle': 'People who asked to be let in. A person reads these.',
   'queue.empty': 'Nobody is waiting.',
@@ -1121,6 +1135,20 @@ const nl: Record<keyof typeof en, string> = {
     'Uw account hoort nog niet bij een organisatie. Heeft u toegang aangevraagd, dan mailen wij u zodra het klaarstaat.',
   // ---- The access QUEUE (workplan 0093 T7) — see the English block. ----
   'nav.accessRequests': 'Toegangsverzoeken',
+  // ---- Een uitnodiging beantwoorden (workplan 0099) — zie het Engelse blok. ----
+  'invite.title': 'U bent uitgenodigd',
+  'invite.subtitle': 'Meedoen is uw keuze. Er gebeurt niets tot u die maakt.',
+  'invite.none': 'Er wacht niets op u.',
+  'invite.asRole': 'als {role}',
+  'invite.accept': 'Meedoen',
+  'invite.joining': 'Bezig met meedoen…',
+  'invite.decline': 'Afwijzen',
+  'invite.skip': 'Nu niet',
+  'invite.skipHelp':
+    'Nu niet verandert niets — wij vragen het opnieuw zodra u zich weer aanmeldt. Afwijzen ' +
+    'wordt vastgelegd, en alleen de organisatie kan u opnieuw uitnodigen.',
+  'invite.confirmDecline':
+    'De uitnodiging van {name} afwijzen? Alleen zij kunnen u opnieuw uitnodigen.',
   'queue.title': 'Toegangsverzoeken',
   'queue.subtitle': 'Mensen die om toegang hebben gevraagd. Een mens leest deze.',
   'queue.empty': 'Er wacht niemand.',

@@ -579,11 +579,47 @@ phase_app() {
     postgres pgbouncer
     trigger-db trigger-redis clickhouse minio trigger-registry
     trigger-docker-proxy trigger-api trigger-tls trigger-supervisor
+    # The identity provider (ADR-0042). It was in managed.yml from #496 and NOT
+    # in this list, so it was defined, interpolated, required in .env — and
+    # never started. Every compose command had to satisfy ZITADEL_MASTERKEY for
+    # a container that did not exist, which is how E2E (managed) #34-#36 died,
+    # and it meant the nightly said nothing whatsoever about whether anybody
+    # could sign in. A service the product cannot run without is not optional
+    # scenery (workplan 0099).
+    zitadel
     api web
   )
   [ "$WITH_DEMO" -eq 1 ] && services+=(nextcloud)
 
   # GIT_SHA so `GET /version` answers with a commit rather than "unknown".
+  # THE IDENTITY PROVIDER IS PROVISIONED BEFORE `web` IS BUILT, and the order is
+  # the whole point.
+  #
+  # setup-zitadel.sh writes VITE_OIDC_ISSUER and VITE_OIDC_CLIENT_ID into .env,
+  # and `VITE_` values are baked into the web bundle AT BUILD TIME. Provision
+  # after the build and the first bring-up on any box produces a login page that
+  # knows no client id — correct only from the second run onwards, which is the
+  # kind of instruction nobody should have to be given.
+  #
+  # So zitadel comes up on its own first (it already declares
+  # `depends_on: postgres: service_healthy`, and its healthcheck is the
+  # provider's own `ready`, not a port probe — it listens well before its
+  # migrations are done). The second `up` below is idempotent for anything
+  # already running.
+  #
+  # Until workplan 0099 NOTHING invoked this script at all: it was documented as
+  # a step somebody runs by hand, so a bring-up produced a stack whose sign-in
+  # had never been configured, and a nightly that could not have noticed.
+  # Idempotent by construction — it reads its settings back rather than trusting
+  # its writes — so running it every pass is safe.
+  "${COMPOSE[@]}" up -d --wait zitadel
+  "${SCRIPT_DIR}/setup-zitadel.sh"
+  note "identity provider provisioned before the web build (idempotent)"
+
+  # Re-read: the script above just wrote JWT_ISSUER, JWT_AUDIENCE and the two
+  # VITE_ values, and the build below has to see them.
+  load_env
+
   GIT_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)" \
     "${COMPOSE[@]}" up -d --build --wait "${services[@]}"
   note "up and healthy: ${services[*]}"

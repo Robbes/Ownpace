@@ -4,9 +4,9 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T1 The four variables that carry the browser-visible address | 📋 Planned | `WEB_URL`, `CORS_ORIGIN`, `API_URL`, `VITE_API_URL` — and **one of them is baked into the build**, so a wrong value survives every restart. |
+| T1 The four variables that carry the browser-visible address | 📋 Planned — **now five**, see 0099 | `WEB_URL`, `CORS_ORIGIN`, `API_URL`, `VITE_API_URL` — and **one of them is baked into the build**, so a wrong value survives every restart. |
 | T2 `www` — the site | ✅ **Done 2026-08-20** | `site/build.mjs` generates 10 pages — landing, how-it-works, pricing, privacy, terms — in **EN and NL** (ADR-0013), into `site/dist/`, with no workspace import and no npm dependency. Served by `deploy/compose/www.yml`. 6 guards in `site/site.unit.test.ts`, one of which caught a wrong price on its first run. |
-| T3 `ota` — the stack that already exists, under its own name | 📋 Planned (needs T1) | Nothing to build; the stack runs. What changes is the address it believes it has. |
+| T3 `ota` — the stack that already exists, under its own name | 📋 Planned (needs T1) — the identity provider's own name (`id.ota.…`) is worked through in `managed.env.example` since 0099 | Nothing to build; the stack runs. What changes is the address it believes it has. |
 | T4 `app` stays dark until it means production | 📋 Planned (owner decision) | The wildcard already resolves it *to the test box*, so the URI registered as production points at development. |
 | T5 What cannot work on the spark, said rather than discovered | 📋 Planned | Mollie's webhooks and Google's verification fetch both need public reachability; a mesh-only host has none. |
 

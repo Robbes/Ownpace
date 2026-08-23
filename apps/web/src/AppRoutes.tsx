@@ -26,6 +26,7 @@ import Login from './pages/Login.tsx';
 import RequestAccess from './pages/RequestAccess.tsx';
 import AuthCallback from './pages/AuthCallback.tsx';
 import AccessRequests from './pages/AccessRequests.tsx';
+import Invitations from './pages/Invitations.tsx';
 import Decisions from './pages/Decisions.tsx';
 import Deletions from './pages/Deletions.tsx';
 import Moves from './pages/Moves.tsx';
@@ -117,6 +118,21 @@ const AppRoutes: React.FC = () => {
         element={
           <ManagedOnly>
             <RequestAccess />
+          </ManagedOnly>
+        }
+      />
+      {/* Outside Layout on purpose (workplan 0099). Somebody answering an
+          invitation belongs to no organisation yet, so the sidebar's every link
+          would 403 — and the nav would be inviting them into a product they
+          have not agreed to join. It is inside ProtectedRoute because answering
+          needs a subject and a verified email. */}
+      <Route
+        path="/invitations"
+        element={
+          <ManagedOnly>
+            <ProtectedRoute>
+              <Invitations />
+            </ProtectedRoute>
           </ManagedOnly>
         }
       />

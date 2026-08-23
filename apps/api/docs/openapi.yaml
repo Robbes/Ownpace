@@ -75,6 +75,8 @@ tags:
     description: Liveness, readiness, build identity and metrics. No tenant, no token.
   - name: Account
     description: Who the caller is, and which organisations they may act in. The one authenticated surface that answers before any tenant is resolved.
+  - name: Invitations
+    description: Answering an invitation to an organisation — join it, refuse it, or leave it for later.
   - name: Access
     description: Asking to be let in, and an operator's half of answering. Invite-only, so the asking is public and the deciding is not.
   - name: Tenants
@@ -249,6 +251,79 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Me' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/invitations/{tenantId}/accept:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    post:
+      tags: [Invitations]
+      summary: Join the organisation that invited you
+      description: |
+        Binds this subject to the invitation and makes the membership active.
+
+        **Only ever one organisation.** Until workplan 0099 this happened
+        implicitly for ALL of them, on the way through `/api/me` — reading your
+        own account joined you to things, and there was no moment at which
+        anybody could decline. Accepting is now something a person does, once,
+        on purpose.
+
+        Authorised by policy, not by this route (migration 0006). The row must
+        be an open invitation addressed to the address in `app.current_email`,
+        which is set only when the issuer asserted `email_verified: true`, and
+        what the row may BECOME is pinned too — so this cannot be turned into
+        "set somebody else's user id".
+      responses:
+        '200':
+          description: Joined.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvitationAnswer' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: |
+            No open invitation for this caller there — or one they cannot see.
+            The same answer on purpose: distinguishing them would tell anybody
+            who asked whether an address has an invitation at an organisation.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /api/invitations/{tenantId}/decline:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    post:
+      tags: [Invitations]
+      summary: Refuse the invitation, and stay unlinked to it
+      description: |
+        Marks the invitation `declined`. **It does not bind your subject**, and
+        that is enforced by policy rather than by this route: accepting records
+        who joined because that is what joining means, while a refusal must not
+        leave a permanent link between a person and an organisation they said no
+        to, in a table that organisation's operator can read. What the row
+        records afterwards is that the ADDRESS was invited and refused.
+
+        The same check is what stops this statement being used as a weapon:
+        without it, `status='declined', user_id='<somebody else>'` would create a
+        row that permanently blocks a chosen person from ever joining a chosen
+        organisation, since membership is unique per (organisation, subject).
+
+        **There is no "skip" endpoint**, deliberately. Leaving an invitation
+        unanswered is the absence of a decision, not a state — the row stays
+        `invited` and `GET /api/me` offers it again.
+      responses:
+        '200':
+          description: Refused, and the record says so without naming you.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvitationAnswer' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: No open invitation for this caller there — or one they cannot see.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
   /api/access-requests:
     post:
@@ -2410,13 +2485,37 @@ components:
           type: array
           description: Every organisation this subject belongs to. Empty is normal — a new account belongs to nothing.
           items: { $ref: '#/components/schemas/Membership' }
+        invitations:
+          type: array
+          description: |
+            Open invitations addressed to this caller's VERIFIED address. Empty
+            is the ordinary case — and is also what an issuer that will not
+            assert `email_verified` gets, because email is not identity.
+          items: { $ref: '#/components/schemas/Invitation' }
         operator:
           type: boolean
           description: |
             Whether to OFFER the access queue. The queue itself is guarded by
             database policies; being wrong here shows or hides a link and
             grants nothing.
-      required: [userId, tenants, operator]
+      required: [userId, tenants, invitations, operator]
+
+    Invitation:
+      type: object
+      description: An offer of membership, not a membership.
+      properties:
+        tenantId: { type: string, format: uuid }
+        name: { type: string, description: What the organisation is called. }
+        role: { $ref: '#/components/schemas/Role' }
+        invitedAt: { type: string, format: date-time, nullable: true }
+      required: [tenantId, name, role]
+
+    InvitationAnswer:
+      type: object
+      properties:
+        tenantId: { type: string, format: uuid }
+        outcome: { type: string, enum: [accepted, declined] }
+      required: [tenantId, outcome]
 
     AccessRequestCreate:
       type: object

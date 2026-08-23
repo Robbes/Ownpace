@@ -66,6 +66,17 @@ const AuthCallback: React.FC = () => {
         // a grant or holding an invitation that has not bound — an unverified
         // email, most likely. Sending them to a dashboard that cannot load is
         // the version of this that generates a support ticket; saying so is not.
+        // An UNANSWERED INVITATION comes first, ahead of both cases below
+        // (workplan 0099). It used to bind itself silently on this very
+        // request, so there was nothing to route to; now it is a question, and
+        // somebody holding one is neither lost nor stuck — they simply have not
+        // been asked yet. Checked even when they already belong somewhere: an
+        // invitation to a SECOND organisation is exactly the case the old
+        // shortcut could not see.
+        if ((me.invitations ?? []).length > 0) {
+          void navigate('/invitations', { replace: true });
+          return;
+        }
         if (me.tenants.length === 0) {
           if (me.operator === true) {
             void navigate('/access-requests', { replace: true });
