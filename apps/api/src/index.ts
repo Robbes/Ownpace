@@ -33,6 +33,7 @@ import setupRoutes from './routes/setup.ts';
 import connectionRoutes from './routes/connections.ts';
 import accessRequestRoutes from './routes/access-requests.ts';
 import meRoutes from './routes/me.ts';
+import invitationRoutes from './routes/invitations.ts';
 import readyRoutes from './routes/ready.ts';
 import { assertProductionAuthConfig } from './middleware/auth.ts';
 import { assertProductionUrlConfig } from './config-guards.ts';
@@ -146,6 +147,7 @@ app.use('/api/access-requests', accessRequestRoutes);
  * tenant, so a freshly signed-in client has a subject and nothing else.
  */
 app.use('/api/me', meRoutes);
+app.use('/api/invitations', invitationRoutes);
 
 // API Routes
 app.use('/api/tenants', tenantRoutes);

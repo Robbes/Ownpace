@@ -37,7 +37,7 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import {
   authenticateSubject,
-  claimInvitationsForSubject,
+  pendingInvitations,
   isPlatformOperator,
   membershipsForSubject,
 } from '../middleware/auth.ts';
@@ -54,17 +54,17 @@ router.get('/', authenticateSubject, async (req: AuthenticatedRequest, res: Resp
       return;
     }
 
-    let tenants = await membershipsForSubject(userId);
+    const tenants = await membershipsForSubject(userId);
 
-    // First sign-in after an access request was granted, or after somebody was
-    // invited to an existing organisation: the row is addressed to their email
-    // and still carries a `pending:` placeholder. Attempted only when there is
-    // nothing to show, and only against an address the issuer said it verified
-    // (workplan 0093 T6b).
-    if (tenants.length === 0) {
-      const claimed = await claimInvitationsForSubject(userId, req.userEmail, req.emailVerified);
-      if (claimed > 0) tenants = await membershipsForSubject(userId);
-    }
+    // Invitations are REPORTED, never claimed here (workplan 0099). This route
+    // used to bind every one of them addressed to a verified address, which
+    // meant reading your own account joined you to things — and left no moment
+    // at which anybody could say no.
+    //
+    // Always fetched, not only when `tenants` is empty: an invitation to a
+    // SECOND organisation is exactly the case the old shortcut could not see,
+    // and it is the one where being asked matters most.
+    const invitations = await pendingInvitations(userId, req.userEmail, req.emailVerified);
 
     // Which one this caller is acting as, in `resolveTenant`'s order — header
     // first, then a sole membership. It is NOT `resolveTenant`, deliberately:
@@ -87,6 +87,11 @@ router.get('/', authenticateSubject, async (req: AuthenticatedRequest, res: Resp
       // cannot be decided — which a client handles by asking a person.
       ...(current ? { tenantId: current.tenantId, role: current.role } : {}),
       tenants,
+      // Open invitations addressed to this caller's verified address. An empty
+      // list is the ordinary case and says nothing is waiting; it is also what
+      // an issuer that will not assert `email_verified` gets, because email is
+      // not identity.
+      invitations,
       // Whether to offer the access queue at all. The queue itself is guarded
       // by policies on `access_request`; being wrong here shows or hides a
       // link and grants nothing (workplan 0093 T6).

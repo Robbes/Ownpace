@@ -41,6 +41,23 @@ export interface Me {
    * and be told nothing either way.
    */
   readonly operator?: boolean;
+  /**
+   * Open invitations addressed to this caller's verified address (0099).
+   *
+   * Optional so an older API, or one that stops answering with the field, does
+   * not render `undefined.length` — every reader defaults it to empty. Empty is
+   * also the ordinary case, and the case for an issuer that will not assert
+   * `email_verified`.
+   */
+  readonly invitations?: ReadonlyArray<Invitation>;
+}
+
+/** An offer of membership. NOT a membership — that is what answering it makes. */
+export interface Invitation {
+  readonly tenantId: string;
+  readonly name: string;
+  readonly role: string;
+  readonly invitedAt?: string | null;
 }
 
 /**
@@ -57,5 +74,26 @@ export async function fetchMe(token: string): Promise<Me> {
   const response = await apiClient.get<Me>('/me', {
     headers: { Authorization: `Bearer ${token}` },
   });
+  return response.data;
+}
+
+/**
+ * Answer an invitation.
+ *
+ * **There is deliberately no `skip` call.** Leaving one unanswered is the
+ * absence of a decision, so the row stays `invited` and `/api/me` offers it
+ * again next time. A "skip" endpoint would have to answer "for how long", and
+ * the honest answer — until you decide — is what doing nothing already means.
+ */
+export async function answerInvitation(
+  token: string,
+  tenantId: string,
+  answer: 'accept' | 'decline',
+): Promise<{ tenantId: string; outcome: 'accepted' | 'declined' }> {
+  const response = await apiClient.post<{ tenantId: string; outcome: 'accepted' | 'declined' }>(
+    `/invitations/${tenantId}/${answer}`,
+    {},
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
   return response.data;
 }

@@ -17,6 +17,7 @@ import { eq, and } from 'drizzle-orm';
 import {
   withTenant as ledgerWithTenant,
   withSubject as ledgerWithSubject,
+  tenant as tenantTable,
   type PgDatabase,
 } from '@openmig/ledger';
 import { platformOperator, tenantMember } from '@openmig/managed/schema-managed';
@@ -357,43 +358,153 @@ export function __setMembershipsLookupForTests(fn: MembershipsLookup | null): vo
  * Returns how many invitations were bound, which the caller uses to decide
  * whether re-resolving is worth a second round trip.
  */
-async function claimInvitations(payload: JwtPayload): Promise<number> {
-  // Not "trust it if it looks fine": absent is not verified, and `true` is the
-  // only value that means verified.
-  if (payload.email_verified !== true || !payload.email) return 0;
-
-  const bound = await ledgerWithSubject(
-    getAuthPool(),
-    payload.sub,
-    async (db) =>
-      await db
-        .update(tenantMember)
-        .set({ userId: payload.sub, status: 'active', joinedAt: new Date() })
-        .where(and(eq(tenantMember.email, payload.email), eq(tenantMember.status, 'invited')))
-        .returning({ tenantId: tenantMember.tenantId }),
-    { verifiedEmail: payload.email },
-  );
-
-  if (bound.length > 0) {
-    log.info(`[auth] ${payload.sub} accepted ${bound.length} invitation(s) on first sign-in`);
-  }
-  return bound.length;
+/**
+ * The open invitations addressed to a verified address (workplan 0099).
+ *
+ * **This used to be a write.** `claimInvitations` bound EVERY invitation for
+ * your address the first time you signed in, silently — which was right when
+ * the only invitations were ones an operator had just granted and told you
+ * about, and wrong as soon as anybody could be invited to a second
+ * organisation. Nobody was ever asked, and there was no way to say no.
+ *
+ * So it reads now, and the answering is three separate, deliberate acts.
+ *
+ * No verified address means no invitations, not an error: an issuer that will
+ * not assert `email_verified` gets an empty list, exactly as it got no claim
+ * before. Email is not identity, and a verified email is only a claim the
+ * issuer is willing to stand behind.
+ */
+export interface PendingInvitation {
+  readonly tenantId: string;
+  readonly name: string;
+  readonly role: string;
+  readonly invitedAt: string | null;
 }
 
-/**
- * The route surface of `claimInvitations`, for the one route that runs before a
- * tenant is known. Same rule, same refusal: no verified address, no claim.
- */
-export async function claimInvitationsForSubject(
+export async function pendingInvitations(
   userId: string,
   email: string | undefined,
   emailVerified: boolean | undefined,
-): Promise<number> {
-  return await claimInvitations({
-    sub: userId,
-    email: email ?? '',
-    email_verified: emailVerified === true,
-  });
+): Promise<PendingInvitation[]> {
+  if (emailVerified !== true || !email) return [];
+
+  return await ledgerWithSubject(
+    getAuthPool(),
+    userId,
+    async (db) => {
+      // The join reads `tenant` with NO tenant scope, which is only possible
+      // because migration 0008 gives an invitee a policy of their own — and
+      // only survives because ledger 0028 stopped `tenant_isolation_select`
+      // RAISING on the empty string. Both halves are load-bearing.
+      const rows = await db
+        .select({
+          tenantId: tenantMember.tenantId,
+          name: tenantTable.name,
+          role: tenantMember.role,
+          invitedAt: tenantMember.invitedAt,
+        })
+        .from(tenantMember)
+        .innerJoin(tenantTable, eq(tenantTable.id, tenantMember.tenantId))
+        .where(and(eq(tenantMember.email, email), eq(tenantMember.status, 'invited')));
+      return rows.map((r) => ({
+        tenantId: r.tenantId,
+        name: r.name,
+        role: r.role,
+        invitedAt: r.invitedAt ? new Date(r.invitedAt).toISOString() : null,
+      }));
+    },
+    { verifiedEmail: email },
+  );
+}
+
+/** What became of an answer. `notFound` covers invisible and absent alike. */
+export type InvitationAnswer = 'accepted' | 'declined' | 'notFound';
+
+/**
+ * Say yes to ONE named organisation.
+ *
+ * Named, never "all of them": accepting is joining, and joining three things
+ * because you meant to join one is the bug the old blanket claim actually was.
+ *
+ * The policy does the authorising (migration 0006). This narrows the statement
+ * to one tenant; it does not decide who may run it.
+ */
+export async function acceptInvitation(
+  userId: string,
+  email: string | undefined,
+  emailVerified: boolean | undefined,
+  tenantId: string,
+): Promise<InvitationAnswer> {
+  if (emailVerified !== true || !email) return 'notFound';
+
+  const bound = await ledgerWithSubject(
+    getAuthPool(),
+    userId,
+    async (db) =>
+      await db
+        .update(tenantMember)
+        .set({ userId, status: 'active', joinedAt: new Date() })
+        .where(
+          and(
+            eq(tenantMember.tenantId, tenantId),
+            eq(tenantMember.email, email),
+            eq(tenantMember.status, 'invited'),
+          ),
+        )
+        .returning({ tenantId: tenantMember.tenantId }),
+    { verifiedEmail: email },
+  );
+
+  if (bound.length === 0) return 'notFound';
+  log.info(`[auth] ${userId} accepted an invitation to ${tenantId}`);
+  return 'accepted';
+}
+
+/**
+ * Say no, and stay unlinked to the thing you refused.
+ *
+ * **`user_id` is deliberately not set.** Accepting binds your subject because
+ * that is what joining means; declining must not, or the table would hold a
+ * permanent link between a person and an organisation they refused — readable
+ * by that organisation's operator. Migration 0008's WITH CHECK enforces it
+ * (`user_id LIKE 'pending:%'`) rather than trusting this function, and that
+ * check is also what stops the same statement being used to write somebody
+ * else's subject into a declined row and block them from ever joining.
+ *
+ * What the row records afterwards is that THE ADDRESS was invited and said no.
+ */
+export async function declineInvitation(
+  userId: string,
+  email: string | undefined,
+  emailVerified: boolean | undefined,
+  tenantId: string,
+): Promise<InvitationAnswer> {
+  if (emailVerified !== true || !email) return 'notFound';
+
+  const refused = await ledgerWithSubject(
+    getAuthPool(),
+    userId,
+    async (db) =>
+      await db
+        .update(tenantMember)
+        .set({ status: 'declined' })
+        .where(
+          and(
+            eq(tenantMember.tenantId, tenantId),
+            eq(tenantMember.email, email),
+            eq(tenantMember.status, 'invited'),
+          ),
+        )
+        .returning({ tenantId: tenantMember.tenantId }),
+    { verifiedEmail: email },
+  );
+
+  if (refused.length === 0) return 'notFound';
+  // Logged WITHOUT the address: a refusal is the one outcome where the person
+  // has actively asked not to be associated with this organisation, and logs
+  // travel further than the database does (§17).
+  log.info(`[auth] an invitation to ${tenantId} was declined`);
+  return 'declined';
 }
 
 /**
@@ -625,22 +736,30 @@ export async function authenticate(
     // one exists, or the subject's single membership — and none of those is
     // trusted, because the gate below still has to find an active row.
     const requested = req.headers[TENANT_HEADER] as string | undefined;
-    let resolved = await resolveTenant(payload, requested);
+    const resolved = await resolveTenant(payload, requested);
 
-    // The first sign-in after an access request was granted looks exactly like
-    // somebody with no business here: the organisation exists, but the owner row
-    // still carries a `pending:` placeholder instead of this subject. So before
-    // refusing for having no membership, see whether there is an invitation
-    // addressed to a VERIFIED email — and only then, because binding on an
-    // unverified one would hand the organisation to whoever registered the
-    // address (workplan 0093 T6).
+    // This used to CLAIM here — silently binding every invitation addressed to a
+    // verified address, so that the first sign-in after a grant resolved to the
+    // new organisation. It no longer does, because accepting is now something a
+    // person does on purpose (workplan 0099), and a middleware that joins you to
+    // things on the way past is the shape that made "decline" impossible.
     //
-    // Narrow on purpose. Only the 403 triggers it: a 400 means the subject has
-    // several memberships and simply has not said which, and claiming there
-    // would be a write on a request that is already answerable.
+    // What is left is a better refusal. Somebody with an unanswered invitation
+    // is not somebody with no business here, and telling them "no membership"
+    // sends them to support over a button they have not been shown yet.
     if ('refusal' in resolved && resolved.refusal.status === 403) {
-      if ((await claimInvitations(payload)) > 0) {
-        resolved = await resolveTenant(payload, requested);
+      const waiting = await pendingInvitations(payload.sub, payload.email, payload.email_verified);
+      if (waiting.length > 0) {
+        res.status(403).json({
+          error: 'Forbidden',
+          message:
+            waiting.length === 1
+              ? `You have an invitation to ${waiting[0]!.name} that has not been answered yet. ` +
+                'Accept it and this will work.'
+              : `You have ${waiting.length} unanswered invitations. ` +
+                'Accept one and this will work.',
+        });
+        return;
       }
     }
 

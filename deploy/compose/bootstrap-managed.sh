@@ -579,6 +579,14 @@ phase_app() {
     postgres pgbouncer
     trigger-db trigger-redis clickhouse minio trigger-registry
     trigger-docker-proxy trigger-api trigger-tls trigger-supervisor
+    # The identity provider (ADR-0042). It was in managed.yml from #496 and NOT
+    # in this list, so it was defined, interpolated, required in .env — and
+    # never started. Every compose command had to satisfy ZITADEL_MASTERKEY for
+    # a container that did not exist, which is how E2E (managed) #34-#36 died,
+    # and it meant the nightly said nothing whatsoever about whether anybody
+    # could sign in. A service the product cannot run without is not optional
+    # scenery (workplan 0099).
+    zitadel
     api web
   )
   [ "$WITH_DEMO" -eq 1 ] && services+=(nextcloud)
@@ -587,6 +595,25 @@ phase_app() {
   GIT_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)" \
     "${COMPOSE[@]}" up -d --build --wait "${services[@]}"
   note "up and healthy: ${services[*]}"
+
+  # PROVISION the identity provider, now that it is running. Starting the
+  # container is not the same as configuring it: setup-zitadel.sh creates the
+  # project and the public PKCE client and writes VITE_OIDC_ISSUER,
+  # VITE_OIDC_CLIENT_ID, JWT_ISSUER and JWT_AUDIENCE into .env — and until
+  # workplan 0099 NOTHING invoked it. It was documented as a step somebody runs
+  # by hand, which meant a bring-up produced a stack whose sign-in had never
+  # been configured, and a nightly that could not have noticed.
+  #
+  # Idempotent by construction (its own header says so, and it reads settings
+  # back rather than trusting its writes), so running it every pass is safe.
+  #
+  # ONE THING IT CANNOT FIX HERE, stated rather than hidden: `web` was BUILT
+  # above, and VITE_ values are baked in at build time. On a box where this is
+  # the first ever run, the web bundle therefore carries no OIDC client id until
+  # the NEXT bring-up rebuilds it. The API half is unaffected — it reads
+  # JWT_ISSUER at run time — so the smoke's checks are honest either way.
+  "${SCRIPT_DIR}/setup-zitadel.sh"
+  note "identity provider provisioned (idempotent)"
   note "api: ${API_URL:-http://localhost:3001}   web: ${WEB_URL:-http://localhost:3123}"
 }
 

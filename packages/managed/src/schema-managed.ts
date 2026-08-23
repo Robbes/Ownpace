@@ -143,7 +143,7 @@ export const tenantMember = pgTable(
     userId: text('user_id').notNull(),
     email: text('email').notNull(),
     role: text('role', { enum: ['owner', 'admin', 'member', 'viewer'] }).notNull().default('member'),
-    status: text('status', { enum: ['active', 'invited', 'suspended', 'removed'] })
+    status: text('status', { enum: ['active', 'invited', 'declined', 'suspended', 'removed'] })
       .notNull()
       .default('active'),
     invitedAt: timestamp('invited_at', { withTimezone: true }),
