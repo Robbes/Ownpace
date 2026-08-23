@@ -684,3 +684,106 @@ check.
 The interesting column is the gap between the last two. It closes at #44 — the
 run after the failure window shipped — and has stayed closed since. Every run
 from there on says what is wrong on the first read.
+
+### Run #47 — the identity provider works, and the probe asks the wrong address
+
+```
+Management Console URL : http://localhost:3126/ui/console
+registered route  endpoint=/oauth/v2/authorize
+registered route  endpoint=/oauth/v2/token
+server is listening  version=v4.17.1  address=[::]:8080
+```
+
+Zitadel v4.17.1 completed its init, applied every migration, registered its OIDC
+routes and served. **The failure window printed nothing at all** — zero
+error-or-fatal lines in 168. Eleven minors of config drift, the acknowledged
+unverified risk in #515, changed nothing this stack depends on.
+
+`ownpace-idp` then sat at `Up 5 minutes (unhealthy)`, `--wait` gave up, and the
+bring-up died with three windows that between them said: the log is clean.
+
+It was clean. **The answer was never in the log.**
+
+### The shape none of the three windows can describe
+
+`docker compose logs` shows what the CONTAINER wrote. A healthcheck runs beside
+it and its output goes somewhere else entirely: Docker keeps the last few probe
+attempts in `.State.Health.Log`, reachable only through `docker inspect`.
+Nothing in the bring-up had ever looked there.
+
+Every failure before this one was a container that DIED, and a dead container's
+reason is in its log. A container that is running and unhealthy is the exact
+complement of that, and the diagnosis built across #507, #510 and #511 is blind
+to it by construction — three windows onto the wrong file.
+
+So there is a fourth window: `what the HEALTHCHECK said (not in the log above)`,
+straight from `docker inspect`, with the exit code beside each attempt. It says
+"not in the log above" in as many words, because somebody reading three clean
+windows and one failing container needs telling why a fourth exists.
+
+Guarded three ways, each proved by breaking it: `{{if .State.Health}}` because
+four services in this stack have no healthcheck and a template that dereferences
+a missing field errors instead of saying nothing; `|| true` on the inspect
+because this sits between the failure window and the pointer to the failure
+table and must not take either with it; and a `[ -n "$cname" ]` guard because a
+container compose cannot name is not a crash.
+
+### Two of the five breaks were bad, and that is the finding
+
+The first pass reported five breaks failing five cases. Two of them passed:
+
+- **the `{{if .State.Health}}` guard deleted** — the assertion matched the
+  COMMENT one line above the template, which quotes the guard in order to
+  explain it. Prose read as code.
+- **the inspect's `|| true` deleted** — the assertion sliced from `docker
+  inspect` to the next `fi` at four spaces, but the inner block closes at six,
+  so the slice swept in the `printf … || true` below and found what it wanted
+  there.
+
+Both are the same mistake in two costumes: an assertion that matched something
+adjacent to the thing it meant to check. Neither would ever have failed, and
+both would have been reported as coverage.
+
+This is the second time today prose has been mistaken for code — the same
+correction was made to the `config --images` case in #514 — which is enough to
+call it a pattern rather than a slip: **when a comment explains a construct by
+quoting it, any test asserting that construct must strip comments first.**
+
+Mutation-verified, after fixing the two bad breaks:
+
+| Break | Result |
+|---|---|
+| the probe window removed entirely (back to #47) | 4 failed \| 44 passed |
+| the template stops guarding a missing `.State.Health` | 1 failed \| 47 passed |
+| the exit code dropped, leaving output with no verdict | 1 failed \| 47 passed |
+| the inspect can abort the diagnosis it sits inside | 1 failed \| 47 passed |
+| the header stops explaining why this window exists | 1 failed \| 47 passed |
+
+### What is still open — and the answer the fourth window would have given
+
+The probe's own words, read by hand from the Spark while this was being
+written:
+
+```
+"Status":"unhealthy", "FailingStreak":188,
+"Output":"Error: not ready\n"   ExitCode: 1
+```
+
+**Neither hypothesis was right.** Not `connection refused` from probing a
+host-side port inside the container; not `server gave HTTP response to HTTPS
+client` from a scheme mismatch. `zitadel ready` REACHED the server, got a clean
+answer, and the answer was that Zitadel considers itself not ready — 188
+consecutive attempts over roughly thirty-one minutes, never once ready, while
+serving OIDC routes the whole time.
+
+Both hypotheses were plausible, one was drawn from an upstream issue matching
+our configuration almost exactly, and both were wrong. Ten seconds of reading
+beat an afternoon of choosing, which is the only lesson this workplan has been
+about since #38.
+
+Why Zitadel reports itself not ready is not yet known and this change does not
+claim to fix it. What it does is make that sentence obsolete: the next run
+prints `Error: not ready` in its own output, beside the exit code, without
+anybody at a terminal.
+
+**The database is fully initialised and must not be dropped.**

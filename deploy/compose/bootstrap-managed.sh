@@ -261,6 +261,39 @@ explain_failure() { # explain_failure <service> [service...]
       echo "!!!   is what the first failure left behind, not what went wrong." >&2
     fi
 
+    # THE HEALTHCHECK'S OWN OUTPUT, WHICH IS IN NEITHER WINDOW ABOVE BECAUSE IT
+    # IS NOT IN THE LOG AT ALL.
+    #
+    # `docker compose logs` shows what the CONTAINER wrote. A healthcheck runs
+    # beside it and its stdout goes somewhere else entirely: Docker keeps the
+    # last few probe attempts in `.State.Health.Log`, reachable only through
+    # `docker inspect`. Nothing in this file had ever looked there.
+    #
+    # E2E (managed) #47 is what that costs, and it is a failure shape none of
+    # the three windows above can describe. Zitadel v4.17.1 came up perfectly:
+    # every migration applied, OIDC routes registered, `server is listening
+    # address=[::]:8080`, and ZERO lines in the failure window. The container
+    # sat at `Up 5 minutes (unhealthy)` and the run died at `--wait` — with a
+    # diagnosis that could only say the log was clean, which it was.
+    #
+    # A container that is RUNNING and unhealthy is the one case where the log
+    # is not the answer. The probe is the answer, and it was one `docker
+    # inspect` away the whole time.
+    local cname
+    cname="$("${COMPOSE[@]}" ps --format '{{.Name}}' "$svc" 2>/dev/null | tail -1)"
+    if [ -n "$cname" ]; then
+      # `{{if .State.Health}}` because a service with no healthcheck has none,
+      # and a template that assumes otherwise fails rather than saying so.
+      local probe
+      probe="$(docker inspect "$cname" \
+        --format '{{if .State.Health}}{{range .State.Health.Log}}--- exit={{.ExitCode}}: {{.Output}}{{end}}{{end}}' \
+        2>/dev/null || true)"
+      if [ -n "$probe" ]; then
+        echo "!!! --- ${svc} — what the HEALTHCHECK said (not in the log above):" >&2
+        printf '%s\n' "$probe" | sed 's/^/    /' >&2 || true
+      fi
+    fi
+
     # A HALF-INITIALISED ZITADEL CANNOT RECOVER, AND LIES ABOUT WHY.
     #
     # `setup failed, skipping cleanup` is Zitadel saying it aborted a migration
