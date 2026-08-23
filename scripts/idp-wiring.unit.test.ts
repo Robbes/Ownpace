@@ -551,6 +551,35 @@ describe('one origin, and every side of the stack can present it', () => {
     );
   });
 
+  it('REFUSES a loopback issuer up front, where the remedy is two lines', () => {
+    // The failure this prevents is silent and four steps away: the bring-up
+    // goes green in under four minutes, every service is healthy, and every
+    // authenticated request answers HTTP 500 with a reference id that mentions
+    // no issuer, no token and no URL. Two whole runs went that way.
+    const block = /case "\$IDP_DOMAIN" in[\s\S]*?\nesac/.exec(SETUP)?.[0] ?? '';
+    expect(block, 'there must be a loopback guard at all').toContain('die');
+    for (const loopback of ['localhost', '127.', '::1']) {
+      expect(block, `${loopback} names the API to the API`).toContain(loopback);
+    }
+    // Both remedies, because changing the variable alone is not enough on a
+    // provider that has already been initialised under the old name.
+    expect(block).toContain('ZITADEL_EXTERNALDOMAIN=ownpace-idp');
+    expect(block, 'and the re-init, which the variable alone does not do').toContain(
+      'DROP DATABASE IF EXISTS zitadel',
+    );
+  });
+
+  it('says what is configured without touching anything', () => {
+    // `--print` exists to answer a question instantly. The origin probe added
+    // for `curl --resolve` sat above it at first, so the flag did a network
+    // round trip before printing four lines it already knew.
+    const printBlock = /if \[ "\$\{1:-\}" = "--print" \]; then[\s\S]*?\nfi\n/.exec(SETUP)?.[0] ?? '';
+    expect(printBlock, 'the --print block must be readable').toContain('issuer:');
+    expect(SETUP.indexOf('CURL_ORIGIN=('), 'the probe must come AFTER --print exits').toBeGreaterThan(
+      SETUP.indexOf('if [ "${1:-}" = "--print" ]; then'),
+    );
+  });
+
   it('names the instance-not-found refusal instead of printing a bare status', () => {
     // A 404 from this provider has two completely different meanings — "no such
     // object" and "I do not serve this origin" — and only one of them is fixed

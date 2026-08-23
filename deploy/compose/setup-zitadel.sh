@@ -85,6 +85,61 @@ fi
 
 WEB_URL="$(read_env WEB_URL http://localhost:3123)"
 
+
+if [ "${1:-}" = "--print" ]; then
+  echo "issuer:      $ISSUER"
+  echo "web:         $WEB_URL"
+  echo "JWT_ISSUER:  $(read_env JWT_ISSUER '(unset)')"
+  echo "client id:   $(read_env VITE_OIDC_CLIENT_ID '(unset)')"
+  exit 0
+fi
+
+# AN ISSUER ON LOOPBACK CANNOT WORK HERE, AND SAYING SO NOW SAVES A NIGHT.
+#
+# `localhost` names the API to the API. Every service in managed.yml runs in a
+# container, so an issuer on loopback is one the thing that verifies tokens can
+# never reach — and the failure is silent and four steps away. E2E (managed) #52
+# and #59 are both exactly that: bring-up green in under four minutes, every
+# service healthy, and then every authenticated request answering
+#
+#   HTTP 500 {"error":"auth_failed","reason":"... Reference a101bd7c ..."}
+#
+# because discovery threw ECONNREFUSED before a token was ever looked at. Not one
+# of those refusals mentions an issuer, a token or a URL.
+#
+# Refused HERE, where the remedy is two lines, rather than found in a server log.
+case "$IDP_DOMAIN" in
+  localhost|localhost.localdomain|127.*|::1|'[::1]')
+    die "ZITADEL_EXTERNALDOMAIN is '${IDP_DOMAIN}', and this stack cannot work with it.
+
+Everything in managed.yml runs in a container, and inside the API's container
+'localhost' is the API. So JWT_ISSUER would be ${ISSUER} — an address the host
+can reach through the published port and the API can never reach at all. The
+stack comes up healthy and every authenticated request answers HTTP 500.
+
+It has to be a name that resolves to the provider from INSIDE the compose
+network as well as from a browser. The default is 'ownpace-idp', which is this
+provider's container name and a network alias:
+
+    ./deploy/compose/env-upsert.sh ZITADEL_EXTERNALDOMAIN=ownpace-idp
+    echo '127.0.0.1  ownpace-idp' | sudo tee -a /etc/hosts   # only for a browser
+
+A deployment with real DNS sets its real hostname instead and needs no hosts
+entry, because DNS answers for both sides.
+
+AND IF THIS PROVIDER HAS ALREADY BEEN INITIALISED under the old name, changing
+the variable is not enough: the origin is fixed at first init and no API adds
+one afterwards. The provider's own database has to go — that destroys the
+provider's accounts and NOTHING else, and this script rebuilds the project, the
+application and the client id on the next run:
+
+    docker compose -f ${SCRIPT_DIR}/managed.yml rm -sf zitadel
+    docker exec -i ownpace-db sh -c 'psql -U \"\$POSTGRES_USER\" -d postgres -c \"DROP DATABASE IF EXISTS zitadel WITH (FORCE)\"'
+    docker volume rm -f ownpace-managed_zitadel_machinekey
+    docker compose -f ${SCRIPT_DIR}/managed.yml up -d zitadel
+    ${SCRIPT_DIR}/setup-zitadel.sh" ;;
+esac
+
 # THIS SCRIPT RUNS ON THE HOST, AND THE ORIGIN IS NOT THE HOST'S TO RESOLVE.
 #
 # The provider answers only for the origin it was initialised with, and refuses
@@ -101,14 +156,6 @@ WEB_URL="$(read_env WEB_URL http://localhost:3123)"
 CURL_ORIGIN=()
 if ! curl -sS --max-time 3 -o /dev/null "${ISSUER}/debug/healthz" 2>/dev/null; then
   CURL_ORIGIN=(--resolve "${IDP_DOMAIN}:${IDP_PORT}:127.0.0.1")
-fi
-
-if [ "${1:-}" = "--print" ]; then
-  echo "issuer:      $ISSUER"
-  echo "web:         $WEB_URL"
-  echo "JWT_ISSUER:  $(read_env JWT_ISSUER '(unset)')"
-  echo "client id:   $(read_env VITE_OIDC_CLIENT_ID '(unset)')"
-  exit 0
 fi
 
 # The provisioning token's expiry, computed now so it is short-lived rather
