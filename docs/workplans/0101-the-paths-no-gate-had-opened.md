@@ -8,7 +8,7 @@
 | T2 Ask for the reports | ✅ **Done 2026-08-23** | New `reports` phase in `smoke-managed.sh`: readiness (`.database` pinned to `up`), shared addresses, the group runbook, the permission report, billing usage, invoices. Asserted on SHAPE — a 200 that dropped a key fails, and markdown is checked for its heading rather than its length. |
 | T3 Exercise offboarding where it can be undone | ✅ **Done 2026-08-23** | `close` then `reopen` on T1, the throwaway tenant the invitation phase creates and deletes. The closure ROW is asserted, not the response; the window is checked to be a window (`purge_after > closed_at`); reopen must clear the row. |
 | T4 Stop the coverage list from going stale | ✅ **Done 2026-08-23** | `scripts/gate-coverage.unit.test.ts` — 12 cases. The route families are DERIVED from `index.ts`; each must be requested by the smoke or carry a written reason. Both directions checked: an undecided family fails, and a reason that outlived its route fails. |
-| T5 Rollback | ⛔ **Cannot be gated — it exists twice, and the two do different things** | An operator CLI (`apps/worker/src/cli/cutover-commands.ts`) drives the whole state machine including `rollback`, and a Trigger.dev job (`apps/worker/src/jobs/run-rollback.ts`) does a *different* rollback that nothing calls. Neither is reachable from the API or the UI, which is why no gate can drive one. See below. |
+| T5 Rollback | ⛔ **Cannot be gated — it exists twice, and the two do different things** | **What a rollback IS was decided 2026-08-23: a setback, never a reversal, never a salvage.** An operator CLI (`apps/worker/src/cli/cutover-commands.ts`) drives the whole state machine including `rollback`, and a Trigger.dev job (`apps/worker/src/jobs/run-rollback.ts`) does a *different* rollback that nothing calls. Neither is reachable from the API or the UI, which is why no gate can drive one. See below. |
 
 ## What the grep found
 
@@ -94,6 +94,40 @@ being invited to consider.
 
 None of this is a test's decision to make, so it is recorded rather than worked
 around.
+
+### What a rollback IS — decided 2026-08-23
+
+The open question above was what rollback should mean. The owner settled it:
+
+> A rollback is a **setback**. It puts the migration back to syncing, with the
+> original source live again, and that is all of it.
+
+Two things it explicitly never does:
+
+- **It never swaps source and target.** The mapping's direction is untouched;
+  after a rollback the sync runs source → target exactly as before, because the
+  source is authoritative again and the target is once more the copy.
+- **It never salvages from the target.** Mail delivered to the target while MX
+  pointed there stays on the target. Pulling it back would mean writing to a
+  source this product only ever reads, and a migration tool that writes to
+  somebody's live source on an emergency path is not one to trust with the
+  emergency.
+
+That closes the design question and opens a smaller, sharper one, because the
+decision makes the divergence above a defect rather than a curiosity:
+
+**By this definition the reachable rollback does not perform one.** The CLI
+writes the ledger and never touches `mailbox_mapping`, so the migration stays
+stopped — the label without the thing. The job that would resume it is the one
+nothing can call.
+
+Pending a decision on how to reconcile the two, both now SAY what they do. The
+job warns that mail on the target stays there. The CLI warns that the sync does
+not resume and names the job that would resume it — printed **after** the
+transition rather than in the consequence list, because `confirmed()` returns
+early on `--yes` and never prints those bullets, so a warning living only there
+is invisible to every operator who actually performs a rollback rather than
+being refused one. Both pinned by tests proved by breaking them.
 
 ## What is still not covered, and why
 

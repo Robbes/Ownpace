@@ -10,6 +10,7 @@
 // rather than re-documented.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { asTenantId, asMappingId } from '@openmig/shared';
 import type { VerificationResult } from '@openmig/core';
 import * as core from '@openmig/core';
@@ -117,6 +118,39 @@ describe('rollbackCutover() approval gate', () => {
       'ROLLED_BACK',
       expect.objectContaining({ rolledBackBy: 'cli' }),
     );
+  });
+
+  it('says it leaves the sync STOPPED, which is the half it does not do', async () => {
+    // A rollback exists to set the migration BACK to syncing (owner,
+    // 2026-08-23). This command writes the ledger and never touches
+    // `mailbox_mapping`, so it delivers the label and not the thing. An
+    // operator who runs it and walks away believes their sync is running.
+    // Until the two are reconciled, saying so is the minimum.
+    const logged: string[] = [];
+    vi.mocked(console.log).mockImplementation((...args: unknown[]) => {
+      logged.push(args.join(' '));
+    });
+
+    await rollbackCutover(makeDeps(makeStore(), true));
+
+    const output = logged.join('\n');
+    expect(output).toContain('sync does NOT resume');
+    expect(output, 'and it must name what does').toContain('run-rollback');
+  });
+
+  it('prints that warning on the --yes path, where an operator will actually be', () => {
+    // `confirmed()` returns early on --yes and never prints its consequence
+    // bullets. A warning that lives only there is invisible to everybody who
+    // performs a rollback rather than being refused one.
+    const source = readFileSync(
+      new URL('./cutover-commands.ts', import.meta.url),
+      'utf8',
+    );
+    const after = source.slice(source.indexOf("CutoverCliOutput.success('Cutover marked as rolled back')"));
+    expect(
+      after.slice(0, after.indexOf('} catch')),
+      'the sync warning must sit after the transition, not in the consequence list',
+    ).toContain('sync does NOT resume');
   });
 
   it('does not claim DNS was restored — it names the manual step instead', async () => {
