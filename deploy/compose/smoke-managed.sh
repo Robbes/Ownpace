@@ -801,31 +801,88 @@ else
   #
   # The question is only ever "can the thing that verifies tokens reach the keys",
   # so it is asked from there.
-  DISCOVERY="$(docker exec "$API_CONTAINER" sh -lc "curl -sS --max-time 10 '${ISSUER%/}/.well-known/openid-configuration'" 2>/dev/null || true)"
-  DECLARED="$(printf '%s' "$DISCOVERY" | jq -r '.issuer // empty' 2>/dev/null || true)"
-  JWKS="$(printf '%s' "$DISCOVERY" | jq -r '.jwks_uri // empty' 2>/dev/null || true)"
+  # ASKED WITH THE CLIENT THE API ITSELF USES, because the API image has neither
+  # curl nor wget. It is `node:24-slim`: node and little else, which is why the
+  # image's own HEALTHCHECK is `node -e "fetch(...)"` (apps/api/Dockerfile).
+  #
+  # This check used `curl`, with `2>/dev/null || true` around it. So on every run
+  # ever made, `sh: 1: curl: not found` became the empty string, the empty string
+  # became an empty `.issuer`, and the empty `.issuer` was reported as "the API
+  # cannot reach the issuer at all" — a conclusion this check had not measured
+  # and, with no curl in the image, could never have measured. It was right by
+  # accident in run #52 and would have said the same thing had the issuer been
+  # perfectly reachable.
+  #
+  # THREE OUTCOMES, KEPT APART. "The probe could not run", "the issuer could not
+  # be reached" and "the issuer answered X" are three different facts about three
+  # different things, and only the last one is about the issuer (hard rule 10).
+  idp_get() { # idp_get <url> — body on stdout; 0 ok, 22 non-2xx, 7 unreachable, else the exec failed
+    docker exec "$API_CONTAINER" node -e '
+      fetch(process.argv[1], { signal: AbortSignal.timeout(10000) })
+        .then(async (r) => {
+          process.stdout.write(await r.text());
+          process.exit(r.ok ? 0 : 22);
+        })
+        .catch((e) => {
+          process.stderr.write(`${e.name}: ${e.message}` + (e.cause ? ` / ${e.cause}` : ""));
+          process.exit(7);
+        });
+    ' "$1" 2>&1
+  }
+
+  DISCOVERY="$(idp_get "${ISSUER%/}/.well-known/openid-configuration")"
+  DISC_RC=$?
+  case "$DISC_RC" in
+    0) ;;
+    7)  echo "the API cannot reach the issuer at $ISSUER — the fetch never got an answer:"
+        echo "  $DISCOVERY"
+        echo "The usual cause is an issuer whose ORIGIN the API can never present."
+        echo "ZITADEL_EXTERNALDOMAIN=localhost makes it http://localhost:3126, which the"
+        echo "host reaches through the published port and the API container cannot: there,"
+        echo "localhost is the API. It has to be an address BOTH a browser and the API"
+        echo "resolve, AND the one the provider was initialised with — Zitadel answers 404"
+        echo "'Instance not found' to any other origin, so an internal shortcut is not one."
+        fail=1 ;;
+    22) echo "the issuer at $ISSUER answered, but not with a discovery document:"
+        echo "  ${DISCOVERY:0:300}"
+        fail=1 ;;
+    *)  echo "this check could not run: asking the API container failed (exit ${DISC_RC})."
+        echo "  ${DISCOVERY:0:300}"
+        echo "That is a fact about the probe, not about the issuer — nothing here has been"
+        echo "measured either way."
+        fail=1 ;;
+  esac
+
+  DECLARED="$(jq -r '.issuer // empty' <<<"$DISCOVERY" 2>/dev/null || true)"
+  JWKS="$(jq -r '.jwks_uri // empty' <<<"$DISCOVERY" 2>/dev/null || true)"
 
   # Byte for byte, and that is the point: OIDC Discovery §4.3 says a document
   # declaring a different issuer is not this issuer, and both `oidc.ts` and
   # `auth.ts` refuse on a mismatch. A trailing slash is the difference between
   # a working sign-in and a refusal nobody can explain.
-  if [ "$DECLARED" != "${ISSUER%/}" ] && [ "$DECLARED" != "$ISSUER" ]; then
+  if [ "$DISC_RC" -eq 0 ] && [ "$DECLARED" != "${ISSUER%/}" ] && [ "$DECLARED" != "$ISSUER" ]; then
     echo "the issuer at $ISSUER declares '$DECLARED' (as seen BY THE API) — sign-in would refuse this."
-    echo "If DECLARED is empty, the API cannot reach the issuer at all. The usual cause is"
-    echo "ZITADEL_EXTERNALDOMAIN=localhost: reachable from the host, and the API container"
-    echo "itself from inside. It has to be an address BOTH a browser and the API resolve."
     fail=1
-  else
+  elif [ "$DISC_RC" -eq 0 ]; then
     echo "issuer: $ISSUER (declares its own name)"
   fi
 
   # The keys the API verifies every token against. Discovery naming a jwks_uri
   # nothing serves is a stack that authenticates nobody, and it looks healthy.
-  if [ -z "$JWKS" ] || ! docker exec "$API_CONTAINER" sh -lc "curl -sf --max-time 10 '$JWKS'" >/dev/null 2>&1; then
-    echo "jwks_uri '$JWKS' is not fetchable — no token could be verified."
-    fail=1
-  else
-    echo "jwks:   $JWKS (fetchable)"
+  if [ "$DISC_RC" -eq 0 ]; then
+    if [ -z "$JWKS" ]; then
+      echo "the discovery document names no jwks_uri — no token could be verified."
+      fail=1
+    else
+      idp_get "$JWKS" >/dev/null
+      JWKS_RC=$?
+      if [ "$JWKS_RC" -ne 0 ]; then
+        echo "jwks_uri '$JWKS' is not fetchable from the API (exit ${JWKS_RC}) — no token could be verified."
+        fail=1
+      else
+        echo "jwks:   $JWKS (fetchable)"
+      fi
+    fi
   fi
 fi
 

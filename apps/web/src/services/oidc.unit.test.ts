@@ -200,18 +200,22 @@ describe('completeSignIn', () => {
     return sessionStorage.getItem('oidc_state')!;
   };
 
-  it('exchanges the code with the verifier and returns the access token', async () => {
+  it('exchanges the code with the verifier and returns the ID token', async () => {
     const state = await startFlow();
     const calls: Array<[string, RequestInit | undefined]> = [];
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string, init?: RequestInit) => {
         calls.push([url, init]);
-        return { ok: true, status: 200, json: async () => ({ access_token: 'the-token' }) };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ access_token: 'the-access-token', id_token: 'the-id-token' }),
+        };
       }),
     );
 
-    expect(await completeSignIn(`?code=abc&state=${state}`, CONFIG)).toBe('the-token');
+    expect(await completeSignIn(`?code=abc&state=${state}`, CONFIG)).toBe('the-id-token');
 
     const [url, init] = calls[0]!;
     expect(url).toBe(DOCUMENT.token_endpoint);
@@ -219,6 +223,33 @@ describe('completeSignIn', () => {
     expect(body.get('grant_type')).toBe('authorization_code');
     expect(body.get('code_verifier')).toBeTruthy();
     expect(body.get('client_secret')).toBeNull();
+  });
+
+  it('does NOT return the access token, which carries no email address', async () => {
+    // The API requires `sub` and `email` (ADR-0042): invitations are addressed
+    // to an email address, and somebody signing in for the first time has no
+    // row anywhere to look one up in. Zitadel puts user info claims in the ID
+    // token and NOT in the access token — measured against a live instance with
+    // `idTokenUserinfoAssertion` both off and on:
+    //
+    //   access token  iss sub aud exp iat nbf client_id jti      (both ways)
+    //   ID token      ... + email email_verified name ...        (flag ON)
+    //
+    // Returning the access token is a sign-in that completes and then has every
+    // single request refused for "Missing required claims in token payload".
+    const state = await startFlow();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ access_token: 'the-access-token' }),
+      })),
+    );
+
+    await expect(completeSignIn(`?code=abc&state=${state}`, CONFIG)).rejects.toThrow(
+      /refused the exchange/,
+    );
   });
 
   it('REFUSES a state that does not match — this is the CSRF defence', async () => {

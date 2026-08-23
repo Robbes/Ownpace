@@ -100,15 +100,58 @@ describe('the smoke can tell a configured issuer from a running container', () =
 
   it('asks from INSIDE the API container, not from the host', () => {
     // The difference between a real check and a green that lies.
-    // ZITADEL_EXTERNALDOMAIN defaults to `localhost`, which the host can reach
+    // ZITADEL_EXTERNALDOMAIN defaulted to `localhost`, which the host can reach
     // (the port is published) and the API container cannot (there `localhost`
     // is the API). Checked from the host, a stack whose API can verify no token
     // at all passes. The only question worth asking is whether the thing that
     // verifies tokens can reach the keys.
     expect(smoke).toMatch(/docker exec "\$API_CONTAINER".*openid-configuration/s);
     expect(smoke, 'the JWKS fetch must come from there too').toMatch(
-      /docker exec "\$API_CONTAINER".*\$JWKS/s,
+      /idp_get "\$JWKS"/,
     );
+  });
+
+  it('asks with a client the API image actually HAS', () => {
+    // THE IMAGE HAS NO CURL. `apps/api/Dockerfile` builds on `node:24-slim`,
+    // and its own HEALTHCHECK is `node -e "fetch(...)"` for exactly this
+    // reason. Asked on the running stack:
+    //
+    //   docker exec ownpace-api sh -lc 'command -v curl'  ->  no curl
+    //   docker exec ownpace-api sh -lc 'command -v wget'  ->  no wget
+    //   docker exec ownpace-api sh -lc 'command -v node'  ->  /usr/local/bin/node
+    //
+    // This section used `curl`, so on every run ever made `sh: 1: curl: not
+    // found` became the empty string — and the empty string was then REPORTED
+    // as "the API cannot reach the issuer at all". A verdict the check had not
+    // measured and, with no curl in the image, could never have measured. It
+    // happened to be right in E2E (managed) #52 and would have said exactly the
+    // same thing about a perfectly reachable issuer.
+    const section = smoke.slice(
+      smoke.indexOf('note "identity provider"'),
+      smoke.indexOf('note "an invitation'),
+    );
+    expect(section, 'nothing in this section may reach for curl or wget in the API container')
+      .not.toMatch(/docker exec "?\$API_CONTAINER"?[^\n]*\b(curl|wget)\b/);
+    expect(section).toMatch(/docker exec "\$API_CONTAINER" node -e/);
+    expect(section, 'the same client the API verifies tokens with').toContain('fetch(');
+  });
+
+  it('keeps "could not ask" apart from "could not reach" apart from "answered"', () => {
+    // Hard rule 10: a status must belong to the thing that happened. The probe
+    // failing to RUN, the issuer being unreachable, and the issuer answering
+    // something unexpected are three facts about three different things, and
+    // collapsing them into one empty string is what manufactured #52's
+    // diagnosis. The exit codes are curl's own, so they read the same way.
+    const section = smoke.slice(
+      smoke.indexOf('note "identity provider"'),
+      smoke.indexOf('note "an invitation'),
+    );
+    expect(section, 'the exit status must be kept').toMatch(/DISC_RC=\$\?/);
+    expect(section, 'unreachable is its own case').toMatch(/\n\s*7\)/);
+    expect(section, 'a non-2xx answer is its own case').toMatch(/\n\s*22\)/);
+    expect(section, 'and so is the probe itself failing').toContain('this check could not run');
+    // The masking that made the whole thing possible.
+    expect(section).not.toMatch(/openid-configuration[^\n]*\|\| true/);
   });
 
   it('fetches the discovery document and the keys, and FAILS on either', () => {
@@ -188,16 +231,27 @@ describe('the smoke answers an invitation three ways', () => {
  */
 describe('the identity provider is published somewhere it can actually bind', () => {
   // `- "${SOME_PORT:-1234}:5678"` → [SOME_PORT, 1234, 5678], per compose file.
+  //
+  // The container side may itself be `${VAR:-N}` — zitadel listens on the same
+  // number it publishes, deliberately, because the provider resolves its
+  // instance by an origin that includes the PORT. Reading only the literal form
+  // made this parser return nothing for that service, and a parser that returns
+  // nothing turns every case below green, which is why `read the real compose
+  // files` exists.
   const publishes = (yaml: string): { variable: string; host: string; container: string }[] => {
     const found: { variable: string; host: string; container: string }[] = [];
-    for (const [line, variable, host, container] of yaml.matchAll(
-      /^\s*-\s*"\$\{([A-Z_]+):-(\d+)\}:(\d+)"/gm,
+    for (const [line, variable, host, containerRaw] of yaml.matchAll(
+      /^\s*-\s*"\$\{([A-Z_]+):-(\d+)\}:(\d+|\$\{[A-Z_]+:-\d+\})"/gm,
     )) {
       // None of the three groups is optional in that pattern, which the
       // compiler cannot see. Defaulting them would invent a port number and
       // every case below would then agree with itself about nothing.
-      if (variable === undefined || host === undefined || container === undefined) {
+      if (variable === undefined || host === undefined || containerRaw === undefined) {
         throw new Error(`matched a port mapping and could not read it back: ${line}`);
+      }
+      const container = /(\d+)\}?$/.exec(containerRaw)?.[1];
+      if (container === undefined) {
+        throw new Error(`matched a container port and could not read it back: ${line}`);
       }
       found.push({ variable, host, container });
     }
@@ -237,6 +291,27 @@ describe('the identity provider is published somewhere it can actually bind', ()
     expect(clashes, 'two services default to the same host port — one of them cannot start').toEqual(
       [],
     );
+  });
+
+  it('listens on the very port it publishes, because the origin check includes it', () => {
+    // The provider resolves which instance a request is for from the request's
+    // ORIGIN — host AND port — and refuses every other one. Measured:
+    //
+    //   GET http://zitadel:8080/.well-known/openid-configuration
+    //     404  unable to set instance using origin &{zitadel:8080 http}
+    //          (ExternalDomain is localhost): Instance not found.
+    //
+    // With a `3126:8080` mapping, `ownpace-idp:3126` reaches nothing from
+    // inside the network and `ownpace-idp:8080` is not the origin the instance
+    // knows — one address with two meanings, which is the whole bug. So the
+    // number is the same on both sides and there is no second place to get it
+    // wrong.
+    const idp = managedPorts.find((p) => p.variable === 'ZITADEL_PORT');
+    expect(idp?.container, 'zitadel must listen on the port it publishes').toBe(idp?.host);
+    expect(
+      managed,
+      "the container's own listen port must come from the same variable",
+    ).toContain('ZITADEL_PORT: ${ZITADEL_PORT:-');
   });
 
   it('derives the issuer port from the published one instead of repeating it', () => {

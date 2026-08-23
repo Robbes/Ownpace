@@ -486,3 +486,158 @@ describe('the provisioning token can actually be written (E2E managed #44)', () 
     expect(prepare).not.toMatch(/\/machinekey.*\$\{?(REPO_ROOT|SCRIPT_DIR|PWD)/);
   });
 });
+
+/**
+ * ONE ORIGIN, AND THE API HAS TO BE ABLE TO PRESENT IT.
+ *
+ * E2E (managed) #52 was the first run whose stack got all the way through
+ * `setup-zitadel.sh`, and every authenticated request in it answered HTTP 500
+ * `auth_failed`. Not one token was rejected: verification never got as far as a
+ * token. `JWT_ISSUER` was `http://localhost:3126`, and inside the API container
+ * `localhost` is the API.
+ *
+ *   fetch("http://localhost:3126/.well-known/openid-configuration")
+ *     TypeError: fetch failed / Error: connect ECONNREFUSED 127.0.0.1:3126
+ *
+ * There is no internal shortcut, and this was measured rather than assumed:
+ *
+ *   http://zitadel:8080/...       404  unable to set instance using origin
+ *   http://ownpace-idp:8080/...   404  &{...  http} (ExternalDomain is localhost)
+ *
+ * The provider resolves the instance from the request's ORIGIN — host and port
+ * — and refuses any other. Adding an instance TRUSTED domain does not change it
+ * (one was added; still 404), and `AddInstanceDomain` is on the System API,
+ * which a provisioning token cannot reach: `POST /admin/v1/domains` answers 404
+ * `Not Found`. So the origin is fixed at FIRST INIT and everything else has to
+ * agree with it.
+ */
+describe('one origin, and every side of the stack can present it', () => {
+  it('does not make the issuer `localhost`, which the API can never mean', () => {
+    const value = /ZITADEL_EXTERNALDOMAIN: \$\{ZITADEL_EXTERNALDOMAIN:-([^}]+)\}/.exec(COMPOSE)?.[1];
+    expect(value, 'managed.yml must default ZITADEL_EXTERNALDOMAIN').toBeDefined();
+    expect(
+      value,
+      'inside the API container `localhost` is the API — an issuer there can never be reached',
+    ).not.toBe('localhost');
+    expect(value, 'nor any other loopback spelling').not.toMatch(/^(127\.|::1|localhost)/);
+  });
+
+  it('registers that very domain as a network alias, as the same expression', () => {
+    // Written as the same `${VAR:-default}` string in both places so the name
+    // the provider answers for and the name that resolves to it cannot drift.
+    // Whatever origin an operator configures, that is the name the API reaches
+    // it by — including a real hostname on a real deployment.
+    const domain = /ZITADEL_EXTERNALDOMAIN: (\$\{ZITADEL_EXTERNALDOMAIN:-[^}]+\})/.exec(
+      COMPOSE,
+    )?.[1];
+    expect(domain).toBeDefined();
+    const zitadel = /\n {2}zitadel:\n([\s\S]*?)\n {2}[a-z][a-z-]*:\n/.exec(COMPOSE)?.[1] ?? '';
+    expect(zitadel, 'the zitadel service block must be readable').toContain('ZITADEL_EXTERNALDOMAIN');
+    expect(zitadel, 'the alias must be the external domain itself').toMatch(
+      new RegExp(`aliases:\\s*\\n\\s*- ${domain!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`),
+    );
+  });
+
+  it('presents the origin from the HOST, which cannot resolve a compose alias', () => {
+    // setup-zitadel.sh runs on the host. The host has the published port and
+    // not the name; the API container has the name and not the port. `curl
+    // --resolve` connects here while presenting the origin the instance was
+    // initialised with — and only when this machine cannot reach it unaided, so
+    // a deployment with real DNS is left alone.
+    expect(SETUP).toContain('CURL_ORIGIN=(');
+    expect(SETUP).toMatch(/--resolve "\$\{IDP_DOMAIN\}:\$\{IDP_PORT\}:127\.0\.0\.1"/);
+    expect(SETUP, 'every API call must go out with it').toMatch(
+      /local args=\(-sS "\$\{CURL_ORIGIN\[@\]\}"/,
+    );
+  });
+
+  it('names the instance-not-found refusal instead of printing a bare status', () => {
+    // A 404 from this provider has two completely different meanings — "no such
+    // object" and "I do not serve this origin" — and only one of them is fixed
+    // by re-initialising. Hard rule 10: the message must belong to what
+    // happened.
+    expect(SETUP).toContain('unable to set instance using origin');
+    expect(SETUP).toContain('Instance not found');
+    expect(SETUP, 'and it must say what to do about it').toMatch(
+      /DROP DATABASE IF EXISTS zitadel/,
+    );
+  });
+});
+
+/**
+ * A SIGN-IN THAT CAN ACTUALLY COMPLETE.
+ *
+ * Two more things in the same path, both provisioned in a way that could not
+ * work and both reporting success:
+ *
+ *   GET /oauth/v2/authorize?...&redirect_uri=http://localhost:3123/auth/callback
+ *     400  {"error":"invalid_request","error_description":"This client's
+ *           redirect_uri is http and is not allowed."}
+ *
+ * — before any login screen, because the application was created with
+ * `devMode:false`. And with that turned on, the sign-in completes and the token
+ * it returns carries no email address, which the API requires:
+ *
+ *   access token  iss sub aud exp iat nbf client_id jti     (userinfo flag on OR off)
+ *   ID token      ... + email email_verified name ...       (flag ON only)
+ */
+describe('a sign-in that can actually complete', () => {
+  it('derives devMode from the scheme of WEB_URL rather than writing it down', () => {
+    expect(SETUP).toMatch(/case "\$WEB_URL" in[\s\S]*?https:\/\/\*\)\s*DEV_MODE=false/);
+    expect(SETUP).toMatch(/http:\/\/\*\)\s*DEV_MODE=true/);
+    expect(SETUP, 'the application must be created with the derived value').toMatch(
+      /devMode:\$dm/,
+    );
+    // Comments in this file quote `devMode:false` while explaining the bug, so
+    // the check is against the CODE, not against every occurrence of the word.
+    const code = SETUP.split('\n')
+      .filter((l) => !/^\s*#/.test(l))
+      .join('\n');
+    expect(code, 'and never with a hardcoded one').not.toMatch(/devMode:(true|false)/);
+  });
+
+  it('refuses a WEB_URL whose scheme it cannot read, instead of guessing', () => {
+    const block = /case "\$WEB_URL" in[\s\S]*?\nesac/.exec(SETUP)?.[0] ?? '';
+    expect(block).toContain('*)');
+    expect(block).toContain('die');
+  });
+
+  it('asks for user info in the ID token, the only place the provider puts email', () => {
+    expect(SETUP).toContain('idTokenUserinfoAssertion:true');
+    // Both the create and the reconcile, or a stack converges on one of two
+    // different applications depending on which path it took.
+    expect(SETUP.match(/idTokenUserinfoAssertion:true/g)?.length).toBe(2);
+  });
+
+  it('RECONCILES an application it finds, rather than reading one field off it', () => {
+    // The stack that already exists is the broken one: it has devMode:false and
+    // no userinfo assertion, and a script that finds an application and stops
+    // leaves it that way for ever. Idempotent means converges (hard rule 1).
+    // Anchored on the APPLICATION branch: the project lookup above it has an
+    // `else say "found it"` of its own, and matching that one made this case
+    // assert about the wrong block entirely.
+    const found = /else\n\s*say "found it — reading its configuration"[\s\S]*?\nfi\n/.exec(
+      SETUP,
+    )?.[0] ?? '';
+    expect(found, 'the found-branch must be readable').toContain('CLIENT_ID');
+    expect(found).toContain('CURRENT_DEV');
+    expect(found).toContain('CURRENT_USERINFO');
+    expect(found).toMatch(/api PUT .*oidc_config/);
+    expect(found, 'and must not write when nothing differs').toMatch(/if \[ "\$CURRENT_DEV" != /);
+  });
+
+  it('the web app sends the token that carries the email claim', () => {
+    // `verifyManagedToken` requires ['sub','email'] (ADR-0042 — invitations are
+    // addressed to an email address, and a first-time signer-in has no row to
+    // look one up in). The access token has never carried one. Sending it is a
+    // sign-in that completes and then cannot be used.
+    const OIDC = read('apps/web/src/services/oidc.ts');
+    expect(OIDC).toMatch(/return body\.id_token;/);
+    expect(OIDC, 'the refusal must be about the token it actually needs').toMatch(
+      /!body\.id_token/,
+    );
+    expect(OIDC, 'and it must say why, because this reads like a mistake').toContain(
+      'NOT THE ACCESS TOKEN',
+    );
+  });
+});

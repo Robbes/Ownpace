@@ -466,11 +466,43 @@ services:
       ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: ${POSTGRES_USER:-openmigrate}
       ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: ${POSTGRES_PASSWORD:-openmigrate_password}
       ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE: disable
-      # The browser-visible address. It is baked into every token's `iss`, so
-      # changing it later invalidates tokens and breaks the API's issuer check —
-      # which is the fourth variable carrying a browser-visible address, and
-      # belongs with the three workplan 0091 T1 is about.
-      ZITADEL_EXTERNALDOMAIN: ${ZITADEL_EXTERNALDOMAIN:-localhost}
+      # THE ONE ORIGIN, AND IT MUST BE ONE THE API CAN PRESENT TOO.
+      #
+      # THIS WAS `localhost`, AND THAT COULD NEVER WORK. It made JWT_ISSUER
+      # http://localhost:3126 — an address the HOST reaches through the published
+      # port and the API container cannot, because inside that container
+      # `localhost` is the API. Every authenticated request answered HTTP 500
+      # `auth_failed`, because discovery threw ECONNREFUSED before any token was
+      # even looked at, and the stack reported itself healthy throughout.
+      #
+      # There is no internal shortcut. Zitadel resolves the instance by the
+      # ORIGIN of the request and refuses every other one:
+      #
+      #   GET http://zitadel:8080/.well-known/openid-configuration
+      #     404  unable to set instance using origin &{zitadel:8080 http}
+      #          (ExternalDomain is localhost): Instance not found.
+      #
+      # Measured on the running stack, by service name and by container name. An
+      # instance TRUSTED domain does not change it (added one, still 404), and
+      # AddInstanceDomain is on the System API, which a provisioning token cannot
+      # reach — so this is a value that has to be RIGHT AT FIRST INIT, not
+      # corrected afterwards.
+      #
+      # `ownpace-idp` is the container's own name and is registered as a network
+      # alias below, so it resolves to this container from anywhere on the
+      # network. A BROWSER on the host needs one line in /etc/hosts:
+      #
+      #   127.0.0.1  ownpace-idp
+      #
+      # — see docs/managed-bring-up.md. A real deployment sets this to the real
+      # hostname and DNS answers for both sides, which is the case this shape is
+      # actually built for; `localhost` was only ever the convenient-looking one.
+      #
+      # It is baked into every token's `iss`, so changing it later invalidates
+      # tokens and breaks the API's issuer check — which is the fourth variable
+      # carrying a browser-visible address, and belongs with the three workplan
+      # 0091 T1 is about.
+      ZITADEL_EXTERNALDOMAIN: ${ZITADEL_EXTERNALDOMAIN:-ownpace-idp}
       # Defaults to the published port rather than repeating its number, because
       # on a plain bring-up the browser reaches the provider AT the published
       # port — the two are the same address seen from two sides. They separate
@@ -480,6 +512,13 @@ services:
       # is how a stack ends up serving one port and stamping another into `iss`.
       ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNALPORT:-${ZITADEL_PORT:-3126}}
       ZITADEL_EXTERNALSECURE: ${ZITADEL_EXTERNALSECURE:-false}
+      # ZITADEL'S OWN LISTEN PORT, DELIBERATELY THE SAME NUMBER IT IS PUBLISHED
+      # ON. The origin check above is host AND port, so `ownpace-idp:3126` has to
+      # reach Zitadel from inside the network as well as from the host. With the
+      # image's default listen port of 8080 and a 3126:8080 mapping, it reaches
+      # nothing inside — one address, two meanings, which is the whole bug this
+      # is fixing. One number, both sides, no second place to get it wrong.
+      ZITADEL_PORT: ${ZITADEL_PORT:-3126}
       # The first human, so a fresh stack has somebody who can sign in.
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: ${ZITADEL_ADMIN_USERNAME:-owner}
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_ADMIN_PASSWORD:?run ./deploy/compose/ensure-env-secrets.sh first}
@@ -504,7 +543,8 @@ services:
       # already allocated" before it ever started. 3126 continues this stack's
       # own block — web 3123, status 3124, www 3125 — which is unclaimed by
       # convention and by anything else in this repo.
-      - "${ZITADEL_PORT:-3126}:8080"
+      # Same number both sides — see ZITADEL_PORT above.
+      - "${ZITADEL_PORT:-3126}:${ZITADEL_PORT:-3126}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -537,7 +577,14 @@ services:
     # and said no" happened. The check did not get weaker; it got asked by
     # somebody in a position to hear the answer.
     networks:
-      - ownpace-network
+      ownpace-network:
+        # THE ALIAS IS THE EXTERNAL DOMAIN, and it is written as the same
+        # expression so the two cannot drift. Whatever origin Zitadel is told to
+        # answer for, that name resolves to this container from everywhere on
+        # this network — which is what lets the API present the very origin the
+        # instance was initialised with.
+        aliases:
+          - ${ZITADEL_EXTERNALDOMAIN:-ownpace-idp}
 
   # MAKES THE PROVISIONING TOKEN'S DIRECTORY WRITABLE BY THE IDENTITY PROVIDER.
   #

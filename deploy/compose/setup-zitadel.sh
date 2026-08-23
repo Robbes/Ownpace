@@ -85,6 +85,24 @@ fi
 
 WEB_URL="$(read_env WEB_URL http://localhost:3123)"
 
+# THIS SCRIPT RUNS ON THE HOST, AND THE ORIGIN IS NOT THE HOST'S TO RESOLVE.
+#
+# The provider answers only for the origin it was initialised with, and refuses
+# every other one with 404 "Instance not found" — so every call below has to
+# present ${IDP_DOMAIN}:${IDP_PORT}. But that name is a COMPOSE NETWORK ALIAS:
+# it resolves inside the stack's network and, on a plain bring-up, nowhere else.
+# The host has the published port and not the name; the API container has the
+# name and not the port.
+#
+# `curl --resolve` is exactly this: connect to an address of our choosing while
+# presenting the Host we were asked to. Only used when this machine genuinely
+# cannot reach the origin on its own, so a deployment with real DNS — where the
+# provider may not even be on this machine — is left alone.
+CURL_ORIGIN=()
+if ! curl -sS --max-time 3 -o /dev/null "${ISSUER}/debug/healthz" 2>/dev/null; then
+  CURL_ORIGIN=(--resolve "${IDP_DOMAIN}:${IDP_PORT}:127.0.0.1")
+fi
+
 if [ "${1:-}" = "--print" ]; then
   echo "issuer:      $ISSUER"
   echo "web:         $WEB_URL"
@@ -244,7 +262,7 @@ api() { # api <method> <path> [json-body] — dies on any non-2xx, prints the bo
   # DECLARED, THEN ASSIGNED. `local out="$(curl …)"` makes the exit status
   # `local`'s, which is always 0, and the failure disappears.
   local out status rc
-  local args=(-sS -X "$method" "${ISSUER}${path}"
+  local args=(-sS "${CURL_ORIGIN[@]}" -X "$method" "${ISSUER}${path}"
     -H "Authorization: Bearer ${PAT}"
     -H "Content-Type: application/json"
     -w '\n%{http_code}')
@@ -286,6 +304,34 @@ permission this call needs. Sign in at ${ISSUER}/ui/console as the first user
 and give it the org role it is missing, or see REPROVISIONING at the bottom of
 this script." ;;
     2*) : ;;
+    404)
+      case "$out" in
+        *"Instance not found"*|*"unable to set instance using origin"*)
+          die "${method} ${path} answered HTTP 404 — the provider does not recognise
+the origin this script is presenting.
+    ${out}
+
+    presenting:  ${IDP_DOMAIN}:${IDP_PORT}
+
+Zitadel resolves the instance by the ORIGIN of the request and refuses any other,
+and the origin is fixed AT FIRST INIT from ZITADEL_EXTERNALDOMAIN. There is no
+API that adds one afterwards with this token: AddInstanceDomain lives on the
+System API, which a provisioning token cannot reach, and an instance TRUSTED
+domain does not change origin resolution.
+
+So an instance initialised under a DIFFERENT domain has to be initialised again.
+That destroys the provider's own database and nothing else — no Ownpace data, no
+Trigger.dev account — and this script rebuilds the project, the application and
+the client id from scratch afterwards:
+
+    docker compose -f ${SCRIPT_DIR}/managed.yml rm -sf zitadel
+    docker exec -i ownpace-db sh -c 'psql -U \"\$POSTGRES_USER\" -d postgres -c \"DROP DATABASE IF EXISTS zitadel WITH (FORCE)\"'
+    docker volume rm -f ownpace-managed_zitadel_machinekey
+    docker compose -f ${SCRIPT_DIR}/managed.yml up -d zitadel
+    ${SCRIPT_DIR}/setup-zitadel.sh" ;;
+        *) die "${method} ${path} answered HTTP 404:
+    ${out}" ;;
+      esac ;;
     *)  die "${method} ${path} answered HTTP ${status}:
     ${out}" ;;
   esac
@@ -348,6 +394,49 @@ say "project ${PROJECT_ID}"
 REDIRECT_URIS="$(jq -nc --arg w "$WEB_URL" '[$w + "/auth/callback"]')"
 LOGOUT_URIS="$(jq -nc --arg w "$WEB_URL" '[$w + "/login"]')"
 
+# AND `idTokenUserinfoAssertion` IS WHAT PUTS AN EMAIL ADDRESS IN THE TOKEN.
+#
+# The API requires `sub` AND `email` and nothing else (ADR-0042): invitations are
+# addressed to an email address, and somebody signing in for the first time has
+# no row anywhere to look one up in. Zitadel puts user info claims in the ID
+# token and NOT in the access token — measured on a live instance with the flag
+# both off and on:
+#
+#   access token  iss sub aud exp iat nbf client_id jti          (both ways)
+#   ID token      ... + email email_verified name given_name ...  (flag ON)
+#
+# Without it the sign-in completes and every subsequent request is refused for
+# "Missing required claims in token payload". `apps/web/src/services/oidc.ts`
+# sends the ID token for the same reason, and says so.
+
+# DEV MODE IS NOT A PREFERENCE. IT IS WHAT AN http REDIRECT URI REQUIRES.
+#
+# Zitadel refuses a plaintext redirect_uri outright unless the application is in
+# dev mode, and it refuses it at /oauth/v2/authorize — before any login screen,
+# before the user has typed anything:
+#
+#   {"error":"invalid_request","error_description":"This client's redirect_uri
+#    is http and is not allowed. If you have any questions, you may contact the
+#    administrator of the application."}
+#
+# Provisioned with devMode:false against the default WEB_URL of
+# http://localhost:3123, the sign-in button on the web app could not work, and
+# NOTHING SAID SO: the project was created, the application was created, the
+# client id was written to .env, and this script said "done". The whole of
+# workplan 0099's sign-in was dead on arrival and every check passed.
+#
+# So it is DERIVED from the scheme of WEB_URL, for the same reason
+# ZITADEL_EXTERNALPORT is derived from ZITADEL_PORT: two values that have to
+# agree, written in two places, are two values that will one day disagree.
+case "$WEB_URL" in
+  https://*) DEV_MODE=false ;;
+  http://*)  DEV_MODE=true  ;;
+  *) die "WEB_URL must be an http:// or https:// URL — it is '${WEB_URL}'.
+It is the address a browser comes back to after signing in, so the provider has
+to be told the scheme; it refuses a plaintext one unless the application is in
+dev mode, and this script cannot decide that without knowing which it is." ;;
+esac
+
 say "looking for an existing '${APP_NAME}' application"
 apps="$(api POST "/management/v1/projects/${PROJECT_ID}/apps/_search" '{"queries":[]}')"
 APP_ID="$(jq -r --arg n "$APP_NAME" '.result[]? | select(.name == $n) | .id' <<<"$apps" | awk 'NR==1')"
@@ -358,6 +447,7 @@ if [ -z "$APP_ID" ] || [ "$APP_ID" = "null" ]; then
     --arg n "$APP_NAME" \
     --argjson r "$REDIRECT_URIS" \
     --argjson l "$LOGOUT_URIS" \
+    --argjson dm "$DEV_MODE" \
     '{name:$n,
       redirectUris:$r,
       postLogoutRedirectUris:$l,
@@ -366,15 +456,48 @@ if [ -z "$APP_ID" ] || [ "$APP_ID" = "null" ]; then
       appType:"OIDC_APP_TYPE_USER_AGENT",
       authMethodType:"OIDC_AUTH_METHOD_TYPE_NONE",
       accessTokenType:"OIDC_TOKEN_TYPE_JWT",
-      devMode:false}')")"
+      idTokenUserinfoAssertion:true,
+      devMode:$dm}')")"
   CLIENT_ID="$(echo "$CREATED" | jq -r '.clientId')"
   APP_ID="$(echo "$CREATED" | jq -r '.appId')"
   [ -n "$CLIENT_ID" ] && [ "$CLIENT_ID" != "null" ] || die "could not create the application: $CREATED"
 else
-  say "found it — reading its client id"
+  say "found it — reading its configuration"
   app="$(api GET "/management/v1/projects/${PROJECT_ID}/apps/${APP_ID}")"
   CLIENT_ID="$(jq -r '.app.oidcConfig.clientId // empty' <<<"$app")"
   [ -n "$CLIENT_ID" ] && [ "$CLIENT_ID" != "null" ] || die "the application exists but has no client id"
+
+  # RECONCILED, NOT MERELY READ — and this is the half that matters, because the
+  # stack that already exists is the broken one. An application provisioned by
+  # an earlier version of this script has devMode:false and cannot complete a
+  # sign-in; a stack whose WEB_URL has since moved has redirect URIs pointing
+  # somewhere else. Neither is fixed by a script that, finding an application,
+  # reads one field off it and stops.
+  #
+  # Idempotent means "converges on the described state" (hard rule 1), not
+  # "does nothing the second time". Only writes when something actually
+  # differs, so a correct stack is untouched and the log stays quiet.
+  CURRENT_DEV="$(jq -r '.app.oidcConfig.devMode // false' <<<"$app")"
+  CURRENT_URIS="$(jq -c '.app.oidcConfig.redirectUris // []' <<<"$app")"
+  CURRENT_USERINFO="$(jq -r '.app.oidcConfig.idTokenUserinfoAssertion // false' <<<"$app")"
+  if [ "$CURRENT_DEV" != "$DEV_MODE" ] ||
+     [ "$CURRENT_URIS" != "$REDIRECT_URIS" ] ||
+     [ "$CURRENT_USERINFO" != "true" ]; then
+    say "its dev mode, redirect URIs or claims do not match this stack — putting that right"
+    api PUT "/management/v1/projects/${PROJECT_ID}/apps/${APP_ID}/oidc_config" "$(jq -nc \
+      --argjson r "$REDIRECT_URIS" \
+      --argjson l "$LOGOUT_URIS" \
+      --argjson dm "$DEV_MODE" \
+      '{redirectUris:$r,
+        postLogoutRedirectUris:$l,
+        responseTypes:["OIDC_RESPONSE_TYPE_CODE"],
+        grantTypes:["OIDC_GRANT_TYPE_AUTHORIZATION_CODE","OIDC_GRANT_TYPE_REFRESH_TOKEN"],
+        appType:"OIDC_APP_TYPE_USER_AGENT",
+        authMethodType:"OIDC_AUTH_METHOD_TYPE_NONE",
+        accessTokenType:"OIDC_TOKEN_TYPE_JWT",
+        idTokenUserinfoAssertion:true,
+        devMode:$dm}')" >/dev/null
+  fi
 fi
 say "client ${CLIENT_ID}"
 
