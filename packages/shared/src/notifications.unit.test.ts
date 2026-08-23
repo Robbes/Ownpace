@@ -212,6 +212,59 @@ describe('immediate events', () => {
   });
 });
 
+describe('access granted — the one event addressed to a non-member (0095)', () => {
+  const event = {
+    kind: 'access_granted',
+    organisation: 'Familie de Vries',
+    appUrl: 'https://app.ownpace.eu',
+    email: 'stranger@example.test',
+  } as const;
+
+  it('carries NO link, code or token — nothing to keep, nothing to leak', () => {
+    // The property, not a preference. The issuer owns identity (ADR-0042), so
+    // this mail authorises nothing, which is what makes forwarding or
+    // intercepting it harmless. The next person to "improve" this into a
+    // one-click link should fail here first.
+    for (const locale of ['en', 'nl'] as const) {
+      const { body } = renderEvent(event, locale);
+      // The app address is the only URL, and it carries no query or fragment
+      // that could smuggle one in.
+      const urls = body.match(/https?:\/\/\S+/g) ?? [];
+      expect(urls).toEqual(['https://app.ownpace.eu']);
+      expect(body).not.toMatch(/token|code=|invite=|\?t=|#/i);
+    }
+  });
+
+  it('says which address to use, because the binding is on that address', () => {
+    // Registering with a different address succeeds and lands somebody in an
+    // account belonging to nothing (migration 0006 matches on the verified
+    // address). So the email has to be explicit, in both languages.
+    for (const locale of ['en', 'nl'] as const) {
+      const { body } = renderEvent(event, locale);
+      expect(body).toContain('stranger@example.test');
+      expect(body).toContain('Familie de Vries');
+      expect(body).toContain('https://app.ownpace.eu');
+    }
+  });
+
+  it('is written in the language they asked in', () => {
+    // ADR-0013: the reply comes back in the language of the request. The
+    // access form records the locale precisely so this can.
+    expect(renderEvent(event, 'en').subject).toBe('Ownpace — your access is ready');
+    expect(renderEvent(event, 'nl').subject).toBe('Ownpace — uw toegang staat klaar');
+    expect(renderEvent(event, 'nl').body).not.toEqual(renderEvent(event, 'en').body);
+  });
+
+  it('does not tell somebody to open an app they cannot open yet', () => {
+    // Every other event closes with "open the app to take action". This one is
+    // read by somebody who has no account, so that line would be an instruction
+    // they cannot follow.
+    const other = renderEvent({ kind: 'migration_finished', mappingId: 'm-1' }, 'en');
+    expect(other.body).toContain('Open the app');
+    expect(renderEvent(event, 'en').body).not.toContain('Open the app');
+  });
+});
+
 describe('renderDigest — tenant-level attention (0043 T4)', () => {
   it('sends for a tenant-level decision even with NO mappings at all', () => {
     // The hole 0030 T4 recorded: the digest was a list of mappings, so a

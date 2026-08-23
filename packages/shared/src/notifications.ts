@@ -697,6 +697,35 @@ export type NotificationEvent =
       readonly mappingId: string;
       /** Why the operator rolled back, in their own words — never reworded. */
       readonly reason: string;
+    }
+  | {
+      /**
+       * Somebody's access request was granted (workplan 0095).
+       *
+       * The only event addressed to a person who is NOT a member yet — the
+       * organisation exists and their `tenant_member` row is an invitation
+       * waiting for a subject (0093 T6b). So it is also the only one that has
+       * to tell somebody what to DO, rather than what happened.
+       */
+      readonly kind: 'access_granted';
+      /** What the organisation is called, so they recognise it as theirs. */
+      readonly organisation: string;
+      /**
+       * Where to sign in. AN ADDRESS, NEVER A TOKEN.
+       *
+       * The issuer owns identity (ADR-0042), so this mail authorises nothing —
+       * which is the property that makes forwarding or intercepting it
+       * harmless, and the reason not to "improve" this into a one-click link.
+       */
+      readonly appUrl: string;
+      /**
+       * The address the invitation is bound to.
+       *
+       * They must register with THIS one: the binding matches on an address
+       * the issuer says it verified (migration 0006), so a different address
+       * signs in successfully and belongs to nothing.
+       */
+      readonly email: string;
     };
 
 /**
@@ -758,6 +787,7 @@ const EVENT: Record<NotificationLocale, Record<NotificationEvent['kind'], string
     verification_finished: 'Ownpace — the check has finished',
     migration_finished: 'Ownpace — the migration is finished',
     rollback_finished: 'Ownpace — the migration was rolled back',
+    access_granted: 'Ownpace — your access is ready',
   },
   nl: {
     decision_raised: 'Ownpace — een wijziging vraagt uw beslissing',
@@ -765,6 +795,7 @@ const EVENT: Record<NotificationLocale, Record<NotificationEvent['kind'], string
     verification_finished: 'Ownpace — de controle is afgerond',
     migration_finished: 'Ownpace — de migratie is afgerond',
     rollback_finished: 'Ownpace — de migratie is teruggedraaid',
+    access_granted: 'Ownpace — uw toegang staat klaar',
   },
 };
 
@@ -780,6 +811,12 @@ interface EventLines {
   readonly rolledBack: string;
   readonly rollbackReason: string;
   readonly act: string;
+  readonly grantedOrganisation: string;
+  readonly grantedIntro: string;
+  readonly grantedSignIn: string;
+  readonly grantedUseThisAddress: string;
+  readonly grantedVerify: string;
+  readonly grantedNoLink: string;
 }
 
 const EVENT_BODY: Record<NotificationLocale, EventLines> = {
@@ -798,6 +835,22 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'and syncing has resumed. If the MX record was changed, revert it by hand — ' +
       'this system does not change DNS.',
     rollbackReason: 'The reason given was:',
+    grantedOrganisation: 'Organisation',
+    grantedIntro:
+      'Your request has been granted and your organisation is ready. One thing left to do:',
+    grantedSignIn: 'Sign in here:',
+    // The instruction that actually matters. The invitation is bound to an
+    // ADDRESS, so registering with a different one succeeds and lands the
+    // person in an organisation-less account wondering what went wrong.
+    grantedUseThisAddress: 'Use this email address — it is the one your access is tied to:',
+    grantedVerify:
+      'If you do not have an account yet, create one there with that address and confirm the ' +
+      'confirmation email. Your organisation appears the first time you sign in.',
+    // Said out loud so nobody waits for a link that is never coming, and so the
+    // next person to touch this knows the absence is deliberate.
+    grantedNoLink:
+      'There is no link or code in this email to keep: it is safe to forward and it grants ' +
+      'nobody anything. Your password lives with the sign-in service, never with us.',
     act: 'Open the app to act on this.',
   },
   nl: {
@@ -813,6 +866,17 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'synchronisatie loopt weer. Is het MX-record gewijzigd, zet het dan handmatig ' +
       'terug — dit systeem wijzigt geen DNS.',
     rollbackReason: 'De opgegeven reden was:',
+    grantedOrganisation: 'Organisatie',
+    grantedIntro:
+      'Uw aanvraag is toegekend en uw organisatie staat klaar. Er is nog één ding te doen:',
+    grantedSignIn: 'Meld u hier aan:',
+    grantedUseThisAddress: 'Gebruik dit e-mailadres — hieraan is uw toegang gekoppeld:',
+    grantedVerify:
+      'Heeft u nog geen account, maak er daar dan een aan met dat adres en bevestig de ' +
+      'bevestigingsmail. Uw organisatie verschijnt zodra u zich voor het eerst aanmeldt.',
+    grantedNoLink:
+      'Deze e-mail bevat geen link of code om te bewaren: u kunt hem gerust doorsturen en hij ' +
+      'geeft niemand toegang. Uw wachtwoord staat bij de aanmeldservice, nooit bij ons.',
     act: 'Open de app om actie te ondernemen.',
   },
 };
@@ -845,6 +909,14 @@ export function renderEvent(
       lines.push(`${b.migration}: ${event.mappingId}`, '');
       lines.push(b.finished);
       break;
+    case 'access_granted':
+      lines.push(`${b.grantedOrganisation}: ${event.organisation}`, '');
+      lines.push(b.grantedIntro, '');
+      lines.push(`${b.grantedSignIn} ${event.appUrl}`, '');
+      lines.push(`${b.grantedUseThisAddress} ${event.email}`, '');
+      lines.push(b.grantedVerify, '');
+      lines.push(b.grantedNoLink);
+      break;
     case 'rollback_finished':
       lines.push(`${b.migration}: ${event.mappingId}`, '');
       lines.push(b.rolledBack, '');
@@ -855,6 +927,10 @@ export function renderEvent(
       break;
   }
 
-  lines.push('', b.act);
+  // Every event closes with "open the app to take action" — except the one read
+  // by somebody who has no account yet. Telling them to open an app they cannot
+  // open is the sentence that makes an otherwise clear email confusing, and the
+  // instruction they DO need is already three lines above.
+  if (event.kind !== 'access_granted') lines.push('', b.act);
   return { subject, body: lines.join('\n') };
 }

@@ -19,8 +19,8 @@ what is being tested.
 
 | | Why it has to be before, not during |
 |---|---|
-| **Self-registration in `setup-zitadel.sh`** ([0095 T0](./workplans/0095-telling-somebody-they-are-in.md)) | Blocked on your decision, and it is the one that stops the run dead: a granted person with no way to create an account cannot sign in, and no amount of debugging on the day will fix a setting that was never scripted. |
-| **The access-granted email** (0095 T1–T3) | Otherwise the live run proves a flow that ends with "and now Rob sends an email by hand", which is not the flow. |
+| ~~**Self-registration in `setup-zitadel.sh`**~~ | ✅ **Done.** Decision A, 2026-08-22. The script turns it on and reads the setting back, because `api` runs `curl -sS` without `-f` and a silent no-op here surfaces in front of a customer. |
+| ~~**The access-granted email**~~ (0095 T1–T3) | ✅ **Done.** The grant response now says `sent`, `off` or `failed`, so an operator knows whether the manual step is back. |
 | **A rehearsal script** | One command that knocks, grants, and asserts the invitation bound — against the local stack, with a stub issuer. It cannot prove Zitadel works. It can prove that *everything either side of Zitadel* works, so the live run is testing one thing. |
 | **`/api/ready` reachable through the proxy** | It is mounted at `/ready` and `/api/ready`, but no reverse-proxy config has been exercised. If the status page cannot reach it, its first impression is four red lights that mean nothing. |
 

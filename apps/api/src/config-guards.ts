@@ -60,6 +60,22 @@ export const describeUrlConfigProblems = (env: {
     }
   }
 
+  // WEB_URL matters beyond Mollie now: a granted person's email names it as the
+  // place to sign in (workplan 0095), so without it a grant provisions an
+  // organisation and tells nobody. Non-fatal on purpose — the operator learns
+  // per grant, in the response, and refusing to boot would take a deployment
+  // that worked yesterday off the air over a courtesy email.
+  if (!env.MOLLIE_API_KEY && (!env.WEB_URL || isLocalhostUrl(env.WEB_URL))) {
+    problems.push({
+      fatal: false,
+      message:
+        `WEB_URL is ${env.WEB_URL ? `'${env.WEB_URL}'` : 'unset'} in production. ` +
+        'Granting an access request will provision the organisation and send no email, ' +
+        "because there would be no address to tell the person to sign in at. The grant " +
+        'response says so each time.',
+    });
+  }
+
   if (!env.CORS_ORIGIN || isLocalhostUrl(env.CORS_ORIGIN)) {
     problems.push({
       fatal: false,

@@ -48,6 +48,7 @@ import { authenticateSubject, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { log } from '@openmig/shared';
+import { tell, type TellOutcome } from '../access-notify.ts';
 import { serverFault } from '../server-fault.ts';
 import { createKnockLimiter, knockLimitFromEnv, type KnockLimiter } from '../knock-limit.ts';
 
@@ -200,6 +201,28 @@ const QUEUE_COLUMNS = {
 };
 
 /**
+ * Where to send somebody to sign in, or null if this deployment cannot say.
+ *
+ * `WEB_URL` is the address a BROWSER uses — the same value the status page
+ * probes and the identity provider registers its redirect against. Never
+ * defaulted: a grant email carrying `http://localhost:3123` has told somebody
+ * to go nowhere, and would go out looking exactly like a successful one.
+ *
+ * **And never thrown, either.** The first version of this threw, which turned a
+ * missing variable into a 500 on a grant whose transaction had ALREADY
+ * COMMITTED — the organisation existed and the operator was told it had failed.
+ * That is precisely the inversion the send is placed after the commit to avoid,
+ * reintroduced two lines away from the comment saying so. CI caught it.
+ *
+ * A deployment with no `WEB_URL` gets a warning at boot (`config-guards.ts`)
+ * and, per grant, an operator who is told nobody was emailed.
+ */
+function appUrl(): string | null {
+  const url = process.env.WEB_URL;
+  return url ? url.replace(/\/+$/, '') : null;
+}
+
+/**
  * GET /api/access-requests — the queue.
  *
  * Open ones first and oldest first within that, because the queue is worked
@@ -337,7 +360,9 @@ router.post('/:id/grant', authenticateSubject, async (req: AuthenticatedRequest,
         })
         .where(eq(accessRequest.id, id));
 
-      return { kind: 'granted', tenantId, name, email: request.email } as const;
+      // `locale` travels out because the mail is written in the language they
+      // asked in (ADR-0013), and the transaction is the only place the row is read.
+      return { kind: 'granted', tenantId, name, email: request.email, locale: request.locale } as const;
     });
 
     if (outcome.kind === 'notFound') {
@@ -357,7 +382,37 @@ router.post('/:id/grant', authenticateSubject, async (req: AuthenticatedRequest,
     // The address, because it is what makes the line useful for support; not
     // the note or the name (§17, same rule the knock above follows).
     log.info(`[access-request] granted ${outcome.email} tenant ${tenantId}`);
-    res.status(201).json({ tenantId, name: outcome.name, email: outcome.email });
+
+    // AFTER the commit, and outside it (workplan 0095 T3). Granting is three
+    // writes or none; the email is not a fourth. A mail server that is down
+    // must not roll back an organisation that was correctly created — and
+    // equally the mail must only ever describe something that actually
+    // happened, which is why it is here rather than inside the transaction.
+    //
+    // `tell` never throws. What it returns goes back to the operator, because
+    // "nobody was told" means the manual step is back and they are the only
+    // one who can take it.
+    const where = appUrl();
+    let notified: TellOutcome;
+    if (where) {
+      notified = await tell(outcome.email, outcome.locale, {
+        kind: 'access_granted',
+        organisation: outcome.name,
+        appUrl: where,
+        email: outcome.email,
+      });
+    } else {
+      // `off` to the operator, because what they need to know is the same in
+      // both cases: nobody was told, and the manual step is theirs. WHY goes to
+      // the log, where it names the variable to set.
+      log.error(
+        `[access-request] WEB_URL is not set — granted ${outcome.email} but sent no email, ` +
+          'because it would have named no address to sign in at',
+      );
+      notified = 'off';
+    }
+
+    res.status(201).json({ tenantId, name: outcome.name, email: outcome.email, notified });
   } catch (error) {
     serverFault(res, 'access_request_grant_failed', 'granting this request', error);
   }
