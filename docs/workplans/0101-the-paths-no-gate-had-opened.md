@@ -8,7 +8,7 @@
 | T2 Ask for the reports | ✅ **Done 2026-08-23** | New `reports` phase in `smoke-managed.sh`: readiness (`.database` pinned to `up`), shared addresses, the group runbook, the permission report, billing usage, invoices. Asserted on SHAPE — a 200 that dropped a key fails, and markdown is checked for its heading rather than its length. |
 | T3 Exercise offboarding where it can be undone | ✅ **Done 2026-08-23** | `close` then `reopen` on T1, the throwaway tenant the invitation phase creates and deletes. The closure ROW is asserted, not the response; the window is checked to be a window (`purge_after > closed_at`); reopen must clear the row. |
 | T4 Stop the coverage list from going stale | ✅ **Done 2026-08-23** | `scripts/gate-coverage.unit.test.ts` — 12 cases. The route families are DERIVED from `index.ts`; each must be requested by the smoke or carry a written reason. Both directions checked: an undecided family fails, and a reason that outlived its route fails. |
-| T5 Rollback | ⛔ **Cannot be gated — implemented, and nothing calls it** | `apps/worker/src/jobs/run-rollback.ts` is a complete, deployed Trigger.dev task (`trigger.config.ts` registers everything under `src/jobs`). What is missing is every caller: no API route, no `resolveRollbackJob` beside `resolveCutoverJob`, no UI. `grep -rn "run-rollback\|runRollback"` across the repo returns two lines, both inside that file. See below. |
+| T5 Rollback | ⛔ **Cannot be gated — it exists twice, and the two do different things** | An operator CLI (`apps/worker/src/cli/cutover-commands.ts`) drives the whole state machine including `rollback`, and a Trigger.dev job (`apps/worker/src/jobs/run-rollback.ts`) does a *different* rollback that nothing calls. Neither is reachable from the API or the UI, which is why no gate can drive one. See below. |
 
 ## What the grep found
 
@@ -45,48 +45,55 @@ is unreachable from inside the API container until `ZITADEL_EXTERNALDOMAIN`
 names an address both a browser and that container resolve, the identity phase
 already says so precisely, and a second report of the same outage is noise.
 
-## T5: rollback is built, deployed, and unreachable
+## T5: rollback exists twice, and the two do different things
 
-**An earlier draft of this section said "no route, no handler". The handler part
-was wrong**, and the correction matters because it changes what is missing.
+**Two earlier drafts of this section were wrong** — first "no route, no
+handler", then "nothing reaches `CUTOVER_IN_PROGRESS` or `GRACE_PERIOD`". Both
+came from grepping `apps/api/src` and stopping. The picture after reading
+`apps/worker` as well:
 
-`apps/worker/src/jobs/run-rollback.ts` is a complete implementation, and a
-careful one: it refuses `notifyUsers: true` BEFORE touching anything when no
-channel is configured, it reactivates the mapping so shadow sync resumes, it
-transitions the cutover to `ROLLED_BACK` with a reason and a timestamp, and it
-logs loudly rather than claiming a DNS restore that the verify-only DNS decision
-means it does not perform. `trigger.config.ts` has `dirs: ['./src/jobs']`, so it
-is registered and deployed like every other task.
+### The state machine has an operator path, and it is a CLI
 
-What is missing is every **caller**:
+`apps/worker/src/cli/cutover-commands.ts` drives the whole thing —
+`start` → `verify` → `approve` (APPROVED) → `execute` (CUTOVER_IN_PROGRESS →
+GRACE_PERIOD) → `complete` (COMPLETED), with `rollback` (ROLLED_BACK) beside it.
+So the states DO get reached; a person reaches them, from a terminal.
 
-```
-$ grep -rn "run-rollback\|runRollback" --include="*.ts" .
-apps/worker/src/jobs/run-rollback.ts:52:export const runRollback = schemaTask({
-apps/worker/src/jobs/run-rollback.ts:53:  id: 'run-rollback',
-```
+The API is prepare-only by design: `POST /api/migrations/:mappingId/cutover`
+enqueues `run-cutover`, whose own comment says it "prepares and verifies a
+cutover and stops at `READY_FOR_CUTOVER`; it does not execute one". Nothing in
+`apps/api` or `apps/web` advances past that, and nothing there rolls back.
 
-Two lines, both inside the file that defines it. No API route, no
-`resolveRollbackJob` beside `resolveCutoverJob` in `job-resolution.ts`, no
-button in `apps/web`. The only way to run it today is to trigger the task by
-hand from the Trigger.dev dashboard.
+### And rollback is implemented twice, differently
 
-Two more things found while establishing that, both concrete:
+| | CLI `rollback` | job `run-rollback` |
+|---|---|---|
+| Marks the cutover `ROLLED_BACK` | ✅ | ✅ |
+| Reactivates the mapping so shadow sync resumes | ❌ **no** | ✅ `status → active` |
+| Notifies (`rollback_finished`) | ❌ — says so in its own prompt | ✅ opt-in, refused up front if no channel |
+| Reverts MX | ❌ deferred — verify-only DNS, a manual step | ❌ same, and it logs rather than claiming otherwise |
+| Reachable | operator terminal | **nothing calls it** |
 
-1. **`rollbackAvailable` is hardcoded `false` on the read path.**
-   `cutover-state.ts` computes `rollbackAvailable: canRollback(newState)` on
-   transition, and `CutoverStore`'s row-to-status mapping throws that away and
-   returns `false` unconditionally. Anything that reads a cutover's status is
-   told rollback is unavailable, whatever state the row is in.
+`grep -rn "run-rollback\|runRollback" --include="*.ts" .` returns two lines,
+both inside the file that defines it. `trigger.config.ts` has
+`dirs: ['./src/jobs']`, so it IS registered and deployed — the Trigger.dev
+dashboard is the only place it can be started from.
 
-2. **`canRollback` is only true in `CUTOVER_IN_PROGRESS` or `GRACE_PERIOD`**,
-   and nothing in the product reaches either: `resolveCutoverJob`'s own comment
-   says the task "prepares and verifies a cutover and stops at
-   `READY_FOR_CUTOVER`; it does not execute one".
+The divergence is the finding: **the reachable rollback is the one that does not
+resume syncing.** An operator who rolls back from the CLI has a mapping marked
+rolled back and a migration that is not running.
 
-So the gate cannot cover rollback, and neither can a customer. Whether that is a
-missing route, a missing execute-the-cutover step, or a state machine that
-outgrew its plan is a decision — written here rather than worked around.
+### And a third thing, concrete
+
+`rollbackAvailable` is hardcoded `false` on `CutoverStore`'s read path.
+`cutover-state.ts` computes `rollbackAvailable: canRollback(newState)` on
+transition; the row-to-status mapping discards it and returns `false`
+unconditionally. So anything reading a cutover's status is told rollback is
+unavailable even in `GRACE_PERIOD`, where it is exactly what the operator is
+being invited to consider.
+
+None of this is a test's decision to make, so it is recorded rather than worked
+around.
 
 ## What is still not covered, and why
 
