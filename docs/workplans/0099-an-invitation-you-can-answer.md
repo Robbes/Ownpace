@@ -104,6 +104,31 @@ the next bring-up rebuilds it. The API half reads `JWT_ISSUER` at run time and i
 unaffected, so the smoke's checks are honest either way — but a first-run demo
 box needs a second bring-up before its login page works.
 
+## One thing only the operator can decide: where the issuer lives
+
+`ZITADEL_EXTERNALDOMAIN` defaults to `localhost`, so `setup-zitadel.sh` writes
+`JWT_ISSUER=http://localhost:8080`. That address is baked into every token's
+`iss`, and it has to be resolvable by **two different things**:
+
+| Who | Needs to reach the issuer for |
+|---|---|
+| A browser | the sign-in redirect, and the token exchange |
+| The `ownpace-api` container | `/.well-known/openid-configuration` and `jwks_uri`, on every token it verifies |
+
+`localhost` satisfies the first and breaks the second: inside `ownpace-api`,
+`localhost` is the API. So a stack left on the default starts, provisions, and
+verifies no token at all.
+
+**That is a deployment decision, not a code one** — it wants an address the box
+actually answers on (its DNS name, or the Tailscale address the Trigger URLs
+already use), set as `ZITADEL_EXTERNALDOMAIN` before the first bring-up. Changing
+it later invalidates every token already issued, because `iss` moves.
+
+The smoke asks the discovery and JWKS questions **from inside the API
+container** for exactly this reason. Asked from the host they would pass against
+the broken default — the port is published, so `localhost:8080` answers there —
+which is the kind of green this repository keeps having to un-learn.
+
 ## What is still owed
 
 **T7: the smoke does not drive a real browser sign-in.** It asserts that the

@@ -74,6 +74,19 @@ describe('the smoke can tell a configured issuer from a running container', () =
     expect(smoke).toMatch(/docker exec "\$API_CONTAINER" printenv JWT_ISSUER/);
   });
 
+  it('asks from INSIDE the API container, not from the host', () => {
+    // The difference between a real check and a green that lies.
+    // ZITADEL_EXTERNALDOMAIN defaults to `localhost`, which the host can reach
+    // (the port is published) and the API container cannot (there `localhost`
+    // is the API). Checked from the host, a stack whose API can verify no token
+    // at all passes. The only question worth asking is whether the thing that
+    // verifies tokens can reach the keys.
+    expect(smoke).toMatch(/docker exec "\$API_CONTAINER".*openid-configuration/s);
+    expect(smoke, 'the JWKS fetch must come from there too').toMatch(
+      /docker exec "\$API_CONTAINER".*\$JWKS/s,
+    );
+  });
+
   it('fetches the discovery document and the keys, and FAILS on either', () => {
     expect(smoke).toContain('/.well-known/openid-configuration');
     expect(smoke).toContain('jwks_uri');

@@ -371,9 +371,18 @@ describe('the operator half of /api/access-requests', () => {
     expect(rows[0]?.state).toBe('open');
   });
 
-  it('lets the granted person IN on their first sign-in, and only with a verified email', async () => {
-    // The case the whole feature exists for, end to end.
-    const asked = await knock(`${MARK}-newcomer@example.test`);
+  it('OFFERS the granted person their organisation, and only with a verified email', async () => {
+    // The case the whole feature exists for, end to end — and its premise
+    // CHANGED in workplan 0099. This used to assert that signing in BOUND the
+    // invitation: `/api/me` claimed every one addressed to a verified address,
+    // silently, so reading your own account joined you to things.
+    //
+    // That is gone, because it left no moment at which anybody could decline.
+    // What survives is the half that always mattered and is now asserted more
+    // precisely: an unverified address gets NOTHING, a verified one gets an
+    // OFFER, and only an explicit answer creates a membership.
+    const email = `${MARK}-newcomer@example.test`;
+    const asked = await knock(email);
     const granted = await request
       .post(`/api/access-requests/${asked.id}/grant`)
       .set('Authorization', `Bearer ${token(OPERATOR)}`)
@@ -381,36 +390,121 @@ describe('the operator half of /api/access-requests', () => {
     expect(granted.status).toBe(201);
     provisioned.push(granted.body.tenantId);
 
-    // First: the issuer does NOT say the address is verified. Nothing binds —
-    // otherwise whoever registers an address inherits what was sent to it.
-    const unverified = await request
-      .get('/api/me')
-      .set(
+    const signIn = (verified: boolean) =>
+      request.get('/api/me').set(
         'Authorization',
-        `Bearer ${jwt.sign({ sub: 'newcomer-sub', email: `${MARK}-newcomer@example.test` }, process.env.JWT_SECRET!)}`,
+        `Bearer ${jwt.sign(
+          verified ? { sub: 'newcomer-sub', email, email_verified: true } : { sub: 'newcomer-sub', email },
+          process.env.JWT_SECRET!,
+        )}`,
       );
-    // 200 with nothing, not a refusal: `/api/me` reports (T7). What matters is
-    // that the invitation did NOT bind — the organisation is still nobody's.
+
+    // First: the issuer does NOT say the address is verified. Nothing is even
+    // OFFERED — otherwise whoever registers an address learns what was sent to
+    // it, which is a smaller leak than inheriting it and still a leak.
+    const unverified = await signIn(false);
     expect(unverified.status).toBe(200);
     expect(unverified.body.tenants).toEqual([]);
+    expect(unverified.body.invitations).toEqual([]);
 
     // Then: the same person, with the claim the issuer is supposed to make.
-    const verified = await request.get('/api/me').set(
-      'Authorization',
-      `Bearer ${jwt.sign(
-        { sub: 'newcomer-sub', email: `${MARK}-newcomer@example.test`, email_verified: true },
-        process.env.JWT_SECRET!,
-      )}`,
-    );
-
+    const verified = await signIn(true);
     expect(verified.status).toBe(200);
-    expect(verified.body.tenantId).toBe(granted.body.tenantId);
-    expect(verified.body.role).toBe('owner');
+    // Offered, NOT joined. Both halves matter: the organisation is named so a
+    // person can decide about it, and they are still in nothing.
+    expect(verified.body.tenants).toEqual([]);
+    expect(verified.body.tenantId).toBeUndefined();
+    expect(verified.body.invitations).toHaveLength(1);
+    expect(verified.body.invitations[0]).toMatchObject({
+      tenantId: granted.body.tenantId,
+      role: 'owner',
+    });
+    // The name, read across a join the invitee has no tenant scope for — which
+    // works only because managed 0008 gave them a policy and ledger 0028 kept
+    // `tenant_isolation_select` from raising on the empty string.
+    expect(verified.body.invitations[0].name).toBeTruthy();
+
+    // SKIP is the absence of a call, so this is what skipping looks like: ask
+    // again, and it is still offered.
+    const skipped = await signIn(true);
+    expect(skipped.body.invitations).toHaveLength(1);
+    const stillOpen = await pool.query<{ user_id: string; status: string }>(
+      `SELECT user_id, status FROM tenant_member WHERE tenant_id = $1`,
+      [granted.body.tenantId],
+    );
+    expect(stillOpen.rows[0]?.status).toBe('invited');
+    expect(stillOpen.rows[0]?.user_id.startsWith('pending:')).toBe(true);
+
+    // And now the answer.
+    const accepted = await request
+      .post(`/api/invitations/${granted.body.tenantId}/accept`)
+      .set(
+        'Authorization',
+        `Bearer ${jwt.sign({ sub: 'newcomer-sub', email, email_verified: true }, process.env.JWT_SECRET!)}`,
+      )
+      .send({});
+    expect(accepted.status).toBe(200);
+    expect(accepted.body.outcome).toBe('accepted');
+
+    const after = await signIn(true);
+    expect(after.body.tenantId).toBe(granted.body.tenantId);
+    expect(after.body.role).toBe('owner');
+    expect(after.body.invitations).toEqual([]);
 
     const { rows } = await pool.query<{ user_id: string; status: string }>(
       `SELECT user_id, status FROM tenant_member WHERE tenant_id = $1`,
       [granted.body.tenantId],
     );
     expect(rows[0]).toMatchObject({ user_id: 'newcomer-sub', status: 'active' });
+  });
+
+  it('records a REFUSAL that names nobody, and stops offering it', async () => {
+    // The answer that had nowhere to go before 0099. Asserted here as well as
+    // under RLS because this is the path a person actually takes, and because
+    // the property worth guarding — a refusal names nobody — has to survive the
+    // route, not only the policy.
+    const email = `${MARK}-refuser@example.test`;
+    const asked = await knock(email);
+    const granted = await request
+      .post(`/api/access-requests/${asked.id}/grant`)
+      .set('Authorization', `Bearer ${token(OPERATOR)}`)
+      .send({});
+    expect(granted.status).toBe(201);
+    provisioned.push(granted.body.tenantId);
+
+    const bearer = `Bearer ${jwt.sign(
+      { sub: 'refuser-sub', email, email_verified: true },
+      process.env.JWT_SECRET!,
+    )}`;
+
+    const declined = await request
+      .post(`/api/invitations/${granted.body.tenantId}/decline`)
+      .set('Authorization', bearer)
+      .send({});
+    expect(declined.status).toBe(200);
+    expect(declined.body.outcome).toBe('declined');
+
+    const { rows } = await pool.query<{ user_id: string; status: string }>(
+      `SELECT user_id, status FROM tenant_member WHERE tenant_id = $1`,
+      [granted.body.tenantId],
+    );
+    expect(rows[0]?.status).toBe('declined');
+    // Migration 0008's WITH CHECK, read from the outside: the row records that
+    // the ADDRESS refused, and links the person to nothing.
+    expect(rows[0]?.user_id.startsWith('pending:')).toBe(true);
+    expect(rows[0]?.user_id).not.toBe('refuser-sub');
+
+    // And it is not offered again — declining is an answer, unlike skipping.
+    const after = await request.get('/api/me').set('Authorization', bearer);
+    expect(after.body.invitations).toEqual([]);
+    expect(after.body.tenants).toEqual([]);
+
+    // Answering twice is a 404, not a second refusal: there is no open
+    // invitation there any more, and to this caller that row is now not found.
+    const again = await request
+      .post(`/api/invitations/${granted.body.tenantId}/decline`)
+      .set('Authorization', bearer)
+      .send({});
+    expect(again.status).toBe(404);
   });
 });

@@ -750,7 +750,17 @@ if [ -z "$ISSUER" ]; then
   echo "the API has no JWT_ISSUER — setup-zitadel.sh has not provisioned this stack."
   fail=1
 else
-  DISCOVERY="$(curl -sS --max-time 10 "${ISSUER%/}/.well-known/openid-configuration" || true)"
+  # FROM INSIDE THE API CONTAINER, and this is the whole point of the check.
+  #
+  # Curling from the host would prove the wrong thing. `ZITADEL_EXTERNALDOMAIN`
+  # defaults to `localhost`, so `JWT_ISSUER` becomes http://localhost:8080 —
+  # which the HOST can reach, because the port is published, and which the API
+  # container cannot, because there `localhost` is the API itself. A host-side
+  # check would go green against a stack whose API can verify no token at all.
+  #
+  # The question is only ever "can the thing that verifies tokens reach the keys",
+  # so it is asked from there.
+  DISCOVERY="$(docker exec "$API_CONTAINER" sh -lc "curl -sS --max-time 10 '${ISSUER%/}/.well-known/openid-configuration'" 2>/dev/null || true)"
   DECLARED="$(printf '%s' "$DISCOVERY" | jq -r '.issuer // empty' 2>/dev/null || true)"
   JWKS="$(printf '%s' "$DISCOVERY" | jq -r '.jwks_uri // empty' 2>/dev/null || true)"
 
@@ -759,7 +769,10 @@ else
   # `auth.ts` refuse on a mismatch. A trailing slash is the difference between
   # a working sign-in and a refusal nobody can explain.
   if [ "$DECLARED" != "${ISSUER%/}" ] && [ "$DECLARED" != "$ISSUER" ]; then
-    echo "the issuer at $ISSUER declares '$DECLARED' — sign-in would refuse this."
+    echo "the issuer at $ISSUER declares '$DECLARED' (as seen BY THE API) — sign-in would refuse this."
+    echo "If DECLARED is empty, the API cannot reach the issuer at all. The usual cause is"
+    echo "ZITADEL_EXTERNALDOMAIN=localhost: reachable from the host, and the API container"
+    echo "itself from inside. It has to be an address BOTH a browser and the API resolve."
     fail=1
   else
     echo "issuer: $ISSUER (declares its own name)"
@@ -767,7 +780,7 @@ else
 
   # The keys the API verifies every token against. Discovery naming a jwks_uri
   # nothing serves is a stack that authenticates nobody, and it looks healthy.
-  if [ -z "$JWKS" ] || ! curl -sf --max-time 10 "$JWKS" >/dev/null; then
+  if [ -z "$JWKS" ] || ! docker exec "$API_CONTAINER" sh -lc "curl -sf --max-time 10 '$JWKS'" >/dev/null 2>&1; then
     echo "jwks_uri '$JWKS' is not fetchable — no token could be verified."
     fail=1
   else
