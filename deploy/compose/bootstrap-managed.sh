@@ -46,6 +46,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env"
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml")
+
+# What a log line looks like when it is reporting that something FAILED, across
+# every image this stack runs: logfmt (Zitadel, Trigger.dev, Caddy), JSON, bare
+# uppercase severities (Postgres `FATAL:`), Go panics, Node errors, Python
+# tracebacks.
+#
+# Deliberately narrow. A pattern that also matched the word "error" anywhere
+# would match Zitadel's own `verify` lines and half of Nextcloud's start-up, and
+# a failure window the size of the log is a third copy of the log.
+#
+# Written with `[^A-Za-z]` rather than `[[:space:]]` so that the SAME string is
+# a valid ERE for grep and a valid regex for the test that applies it to real
+# captured log lines. A test that re-types the pattern tests its own copy.
+FATAL_LINE_RE='level=(error|fatal)|"level":"(error|fatal)"|(^|[^A-Za-z])(FATAL|PANIC|ERROR)([^A-Za-z]|$)|panic:|(^|[ |])Error:|Traceback \(most recent call last\)'
 # shellcheck source=trigger-cli-lib.sh
 . "${SCRIPT_DIR}/trigger-cli-lib.sh"
 
@@ -194,15 +208,88 @@ explain_failure() { # explain_failure <service> [service...]
     # It had never bitten before because every container this ran on had a log
     # SHORTER than twenty lines, so `head` read to EOF and nothing was signalled.
     #
-    # `|| true` on the display pipelines, deliberately and not as a shrug: the
-    # exit status of printing is not information anybody acts on, and the thing
-    # it would otherwise suppress is the diagnosis itself.
+    # SLICED FROM AN ARRAY, NOT THROUGH A PIPE. `|| true` kept the SIGPIPE from
+    # killing the function, but the pipe still fired and E2E (managed) #43 still
+    # printed `bootstrap-managed.sh: line 203: printf: write error: Broken pipe`
+    # into the middle of its own diagnosis. A window that cannot break does not
+    # need forgiving.
     local full
     full="$("${COMPOSE[@]}" logs "$svc" 2>&1 || true)"
-    echo "!!! --- ${svc} (${state:-not running}) — FIRST 20 log lines (start-up):" >&2
-    printf '%s\n' "$full" | head -20 | sed 's/^/    /' >&2 || true
-    echo "!!! --- ${svc} — last 20:" >&2
-    printf '%s\n' "$full" | tail -20 | sed 's/^/    /' >&2 || true
+    local -a lines=()
+    # `if`, not `[ … ] && mapfile`: under `set -e` an && list whose left side
+    # fails is exempt only by a rule subtle enough that nobody should have to
+    # know it to read a diagnosis.
+    if [ -n "$full" ]; then mapfile -t lines <<<"$full"; fi
+    local n=${#lines[@]}
+
+    echo "!!! --- ${svc} (${state:-not running}) — ${n} log lines. FIRST 20 (start-up):" >&2
+    if [ "$n" -eq 0 ]; then
+      echo "    (this container produced no output at all — that IS the finding)" >&2
+    else
+      printf '    %s\n' "${lines[@]:0:20}" >&2
+    fi
+    if [ "$n" -gt 20 ]; then
+      echo "!!! --- ${svc} — last 20:" >&2
+      printf '    %s\n' "${lines[@]: -20}" >&2
+    fi
+
+    # THE THIRD WINDOW, AND ON A RESTARTING CONTAINER IT IS THE ONLY ONE THAT
+    # CAN HOLD THE CAUSE.
+    #
+    # Both windows above assume the log has two interesting ends. A container
+    # under `restart: unless-stopped` has neither: it fails, restarts, fails
+    # again, and after a few minutes the head is the FIRST attempt's start-up
+    # and the tail is the LATEST attempt's — with every failure in between.
+    #
+    # E2E (managed) #43 is what that costs. Zitadel's first attempt failed
+    # part-way through `03_default_instance` at 12:59:57; twelve minutes and
+    # some dozens of restarts later the tail showed 13:12:08 failing on
+    # `Errors.Instance.Domain.AlreadyExists` — a CONSEQUENCE of the first
+    # failure, reported as though it were the cause, which is what sent the
+    # last four rounds of debugging at the database instead of at the reason.
+    #
+    # So: every line in the whole log that says something FAILED, oldest first.
+    # In a crash loop the first one is the cause and the rest are its echoes.
+    local -a errs=()
+    if [ "$n" -gt 0 ]; then
+      mapfile -t errs < <(grep -aE "$FATAL_LINE_RE" <<<"$full" || true)
+    fi
+    if [ "${#errs[@]}" -gt 0 ]; then
+      echo "!!! --- ${svc} — ${#errs[@]} line(s) reporting a failure. THE FIRST 10, OLDEST FIRST:" >&2
+      printf '    %s\n' "${errs[@]:0:10}" >&2
+      echo "!!! ^ on a container that restarts, read the OLDEST of these. The newest" >&2
+      echo "!!!   is what the first failure left behind, not what went wrong." >&2
+    fi
+
+    # A HALF-INITIALISED ZITADEL CANNOT RECOVER, AND LIES ABOUT WHY.
+    #
+    # `setup failed, skipping cleanup` is Zitadel saying it aborted a migration
+    # and deliberately did NOT roll back what that migration had already
+    # written. `03_default_instance` registers the instance domain BEFORE it
+    # creates the first human, so a failure at the human — a password the
+    # default complexity policy rejects, say — leaves the domain behind. Every
+    # restart after that dies on the leftover unique constraint with
+    # `Errors.Instance.Domain.AlreadyExists`, which names the leftover and
+    # never the failure that left it.
+    #
+    # Naming the remedy here rather than only in the failure table because this
+    # is the one failure in the stack where the visible error is reliably the
+    # wrong one, and an operator who acts on it clears the database, watches the
+    # same thing happen again, and has learned nothing.
+    case "$full" in
+      *'setup failed, skipping cleanup'*)
+        echo "!!! ---" >&2
+        echo "!!! ${svc} FAILED PART-WAY THROUGH ITS OWN SETUP and does not roll back." >&2
+        echo "!!! Whatever it reports NOW is the leftover, not the cause. The cause is" >&2
+        echo "!!! the OLDEST line in the failure window above." >&2
+        echo "!!! Fix that first. The half-written state then has to be cleared by hand," >&2
+        echo "!!! because dropping a database is not a thing a bring-up may decide to do:" >&2
+        echo "!!!   ${COMPOSE[*]} rm -sf ${svc}" >&2
+        echo "!!!   docker exec -i ownpace-db psql -U \"\$POSTGRES_USER\" -d postgres \\" >&2
+        echo "!!!     -c 'DROP DATABASE zitadel WITH (FORCE)'" >&2
+        echo "!!!   docker volume rm ownpace-managed_zitadel_machinekey" >&2
+        ;;
+    esac
   done
   echo "!!! docs/managed-bring-up.md has a failure table; the log above is the answer." >&2
   exit 1
