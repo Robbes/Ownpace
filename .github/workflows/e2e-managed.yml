@@ -118,29 +118,39 @@ jobs:
     runs-on: [self-hosted, linux, arm64]
     timeout-minutes: 10
     steps:
-      - name: A — what the API container can reach, and what it is told there
+      - name: A — what the API container can reach, asked with what it actually has
         run: |
           set -uo pipefail
           echo "=== what the API verifies against ==="
           docker exec ownpace-api printenv JWT_ISSUER JWT_AUDIENCE JWT_JWKS_URI 2>&1 || true
+          echo "=== what the API container has to ask with ==="
+          docker exec ownpace-api sh -lc 'for b in curl wget node; do command -v $b || echo "no $b"; done' 2>&1 || true
 
-          probe() { # probe <label> <curl args...>
-            local label="$1"; shift
-            echo "--- $label"
-            docker exec ownpace-api sh -lc \
-              "curl -sS -m 5 -o /tmp/d -w 'http %{http_code}\n' $* ; head -c 500 /tmp/d; echo" 2>&1 || true
-          }
-          probe "localhost:3126 (what JWT_ISSUER says today)" \
-            "'http://localhost:3126/.well-known/openid-configuration'"
-          probe "zitadel:8080 (service name, in-network)" \
-            "'http://zitadel:8080/.well-known/openid-configuration'"
-          probe "ownpace-idp:8080 (container name, in-network)" \
-            "'http://ownpace-idp:8080/.well-known/openid-configuration'"
-          probe "zitadel:8080 with Host: localhost:3126" \
-            "-H 'Host: localhost:3126' 'http://zitadel:8080/.well-known/openid-configuration'"
-
-          echo "=== from the HOST, at the published port ==="
-          curl -sS -m 5 http://localhost:3126/.well-known/openid-configuration | head -c 700; echo
+          # node, not curl: the image has no curl, and node's fetch is the exact
+          # client auth.ts uses. Probe #1 asked with curl and got "" for every
+          # URL, which reads identically to "unreachable".
+          echo "=== discovery, from INSIDE ownpace-api, via node fetch ==="
+          docker exec ownpace-api node -e '
+            const urls = [
+              "http://localhost:3126/.well-known/openid-configuration",
+              "http://zitadel:8080/.well-known/openid-configuration",
+              "http://ownpace-idp:8080/.well-known/openid-configuration",
+            ];
+            (async () => {
+              for (const u of urls) {
+                try {
+                  const r = await fetch(u, { signal: AbortSignal.timeout(5000) });
+                  const b = await r.text();
+                  let d = "";
+                  try { const j = JSON.parse(b); d = `issuer=${j.issuer} jwks_uri=${j.jwks_uri}`; }
+                  catch { d = b.slice(0, 200); }
+                  console.log(`${u}\n  http ${r.status}  ${d}`);
+                } catch (e) {
+                  console.log(`${u}\n  THREW ${e.name}: ${e.message}${e.cause ? " / " + e.cause : ""}`);
+                }
+              }
+            })();
+          ' 2>&1 || true
 
       - name: B — a real token, the way a browser would get one
         run: |
@@ -154,15 +164,19 @@ jobs:
           echo "::add-mask::$PAT"
           auth() { curl -sS -m 15 -H "Authorization: Bearer $PAT" -H 'Content-Type: application/json' "$@"; }
 
-          PROJ="$(auth -X POST "$ISS/management/v1/projects/_search" -d '{"queries":[]}' \
-                  | jq -r '.result[]? | .id' | head -1)"
+          # The project IS the audience — that is what setup-zitadel.sh wrote.
+          # Probe #1 took the first project the search returned, which was
+          # Zitadel's own, and everything downstream of it was about the wrong one.
+          PROJ="$(docker exec ownpace-api printenv JWT_AUDIENCE)"
           echo "project: ${PROJ:-<none>}"
           APPS="$(auth -X POST "$ISS/management/v1/projects/$PROJ/apps/_search" -d '{"queries":[]}')"
-          APP_ID="$(jq -r '.result[0].id // empty' <<<"$APPS")"
-          CLIENT_ID="$(auth "$ISS/management/v1/projects/$PROJ/apps/$APP_ID" | jq -r '.app.oidcConfig.clientId // empty')"
+          APP_ID="$(jq -r '.result[]? | select(.name=="Ownpace Web") | .id' <<<"$APPS" | head -1)"
+          echo "app:     ${APP_ID:-<none>}   (all: $(jq -rc '[.result[]?.name]' <<<"$APPS"))"
+          APP="$(auth "$ISS/management/v1/projects/$PROJ/apps/$APP_ID")"
+          CLIENT_ID="$(jq -r '.app.oidcConfig.clientId // empty' <<<"$APP")"
           echo "client:  ${CLIENT_ID:-<none>}"
-          auth "$ISS/management/v1/projects/$PROJ/apps/$APP_ID" \
-            | jq '.app.oidcConfig | {redirectUris, accessTokenType, appType, authMethodType}'
+          jq '.app.oidcConfig | {redirectUris, accessTokenType, appType, authMethodType, grantTypes}' <<<"$APP"
+          [ -n "$CLIENT_ID" ] || exit 0
 
           EMAIL="probe-$$@smoke.local"
           PW='Pr0be-Secret!42'
@@ -174,13 +188,18 @@ jobs:
           UID_="$(jq -r '.userId // empty' <<<"$NEW")"
           echo "user:    ${UID_:-<none>}  $( [ -z "$UID_" ] && echo "$NEW" )"
           [ -n "$UID_" ] || exit 0
+          cleanup() { auth -X DELETE "$ISS/v2/users/$UID_" -o /dev/null -w 'delete http %{http_code}\n' || true; }
+          trap cleanup EXIT
 
           VERIFIER="$(openssl rand -hex 32)"
           CHALLENGE="$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 | openssl base64 | tr '+/' '-_' | tr -d '=\n')"
-          LOC="$(curl -sS -m 15 -o /dev/null -D - \
+          HDRS="$(curl -sS -m 15 -o /tmp/az -D - \
             "$ISS/oauth/v2/authorize?client_id=$CLIENT_ID&redirect_uri=$REDIRECT&response_type=code&scope=openid%20email%20profile&code_challenge=$CHALLENGE&code_challenge_method=S256" \
-            | tr -d '\r' | sed -n 's/^[Ll]ocation: //p' | head -1)"
+            | tr -d '\r')"
+          echo "authorize status: $(head -1 <<<"$HDRS")"
+          LOC="$(sed -n 's/^[Ll]ocation: //p' <<<"$HDRS" | head -1)"
           echo "authorize -> ${LOC:-<no redirect>}"
+          [ -n "$LOC" ] || { echo "body:"; head -c 400 /tmp/az; echo; }
           AR="$(sed -n 's/.*authRequest=\([^&]*\).*/\1/p' <<<"$LOC")"
           echo "authRequest: ${AR:-<none>}"
 
@@ -190,6 +209,7 @@ jobs:
           STOK="$(jq -r '.sessionToken // empty' <<<"$SESS")"
           [ -n "$STOK" ] && echo "::add-mask::$STOK"
           echo "session: ${SID:-<none>}  $( [ -z "$SID" ] && echo "$SESS" )"
+          [ -n "$AR" ] || exit 0
 
           CB="$(auth -X POST "$ISS/v2/oidc/auth_requests/$AR" -d "$(jq -nc --arg s "$SID" --arg t "$STOK" \
             '{session:{sessionId:$s,sessionToken:$t}}')")"
@@ -205,20 +225,18 @@ jobs:
             --data-urlencode "client_id=$CLIENT_ID" \
             --data-urlencode "code_verifier=$VERIFIER")"
           AT="$(jq -r '.access_token // empty' <<<"$TOK")"
-          if [ -z "$AT" ]; then echo "no access token: $TOK"; else
-            echo "::add-mask::$AT"
-            echo "--- access token HEADER"
-            cut -d. -f1 <<<"$AT" | tr '_-' '/+' | base64 -d 2>/dev/null | jq . || true
-            echo "--- access token CLAIMS"
-            cut -d. -f2 <<<"$AT" | tr '_-' '/+' | base64 -d 2>/dev/null | jq . || true
-            echo "--- what the API says to it (500 = the reachability bug, 401/403 = the verified path)"
-            curl -sS -m 10 -o /tmp/me -w 'http %{http_code}\n' \
-              -H "Authorization: Bearer $AT" http://localhost:3001/api/me || true
-            head -c 300 /tmp/me; echo
-          fi
-
-          echo "--- taking the probe user back out"
-          auth -X DELETE "$ISS/v2/users/$UID_" -o /dev/null -w 'delete http %{http_code}\n' || true
+          if [ -z "$AT" ]; then echo "no access token: $TOK"; exit 0; fi
+          echo "::add-mask::$AT"
+          b64() { local s="$1"; case $(( ${#s} % 4 )) in 2) s="$s==";; 3) s="$s=";; esac; tr '_-' '/+' <<<"$s" | base64 -d 2>/dev/null; }
+          echo "--- access token HEADER"; b64 "$(cut -d. -f1 <<<"$AT")" | jq . || true
+          echo "--- access token CLAIMS"; b64 "$(cut -d. -f2 <<<"$AT")" | jq . || true
+          echo "--- id token CLAIMS"
+          IDT="$(jq -r '.id_token // empty' <<<"$TOK")"; [ -n "$IDT" ] && echo "::add-mask::$IDT"
+          [ -n "$IDT" ] && b64 "$(cut -d. -f2 <<<"$IDT")" | jq . || echo "(no id_token)"
+          echo "--- what the API says to it (500 = the reachability bug, 401/403 = the verified path)"
+          curl -sS -m 10 -o /tmp/me -w 'http %{http_code}\n' \
+            -H "Authorization: Bearer $AT" http://localhost:3001/api/me || true
+          head -c 300 /tmp/me; echo
 
   e2e-managed:
     if: ${{ !inputs.probe_only }}
