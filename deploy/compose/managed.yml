@@ -446,7 +446,14 @@ services:
       # which is the fourth variable carrying a browser-visible address, and
       # belongs with the three workplan 0091 T1 is about.
       ZITADEL_EXTERNALDOMAIN: ${ZITADEL_EXTERNALDOMAIN:-localhost}
-      ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNALPORT:-8080}
+      # Defaults to the published port rather than repeating its number, because
+      # on a plain bring-up the browser reaches the provider AT the published
+      # port — the two are the same address seen from two sides. They separate
+      # only when something fronts it (netbird terminating TLS on 443), and then
+      # the operator sets this one explicitly. Written as a fallback so that
+      # moving ZITADEL_PORT moves the issuer with it; a hand-copied second number
+      # is how a stack ends up serving one port and stamping another into `iss`.
+      ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNALPORT:-${ZITADEL_PORT:-3126}}
       ZITADEL_EXTERNALSECURE: ${ZITADEL_EXTERNALSECURE:-false}
       # The first human, so a fresh stack has somebody who can sign in.
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: ${ZITADEL_ADMIN_USERNAME:-owner}
@@ -466,7 +473,13 @@ services:
       # tree, where a `git add -A` could find it (hard rule 3).
       - zitadel_machinekey:/machinekey
     ports:
-      - "${ZITADEL_PORT:-8080}:8080"
+      # NOT 8080. That is the most contended port on any machine, and the E2E
+      # (managed) gate proved it: the provider's very first bring-up on the
+      # self-hosted runner died with "Bind for 0.0.0.0:8080 failed: port is
+      # already allocated" before it ever started. 3126 continues this stack's
+      # own block — web 3123, status 3124, www 3125 — which is unclaimed by
+      # convention and by anything else in this repo.
+      - "${ZITADEL_PORT:-3126}:8080"
     depends_on:
       postgres:
         condition: service_healthy
