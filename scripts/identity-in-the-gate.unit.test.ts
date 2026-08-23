@@ -417,17 +417,46 @@ describe('nothing but the token comes out of the thing that mints tokens', () =>
     expect(chatty, 'a bare echo here is prepended to the credential').toEqual([]);
   });
 
+  it('and the CHOKE POINT checks it too, whatever produced it', () => {
+    // A per-producer check catches the producers that exist. Both #523's PAT
+    // and #60's JWT were produced by something nobody had thought about yet, so
+    // the one place every authenticated call passes through checks as well —
+    // and complains at most once, because fifteen calls carrying the same bad
+    // token is one fact, not fifteen.
+    const httpBody = /\nhttp\(\) \{[\s\S]*?\n\}/.exec(smoke)?.[0] ?? '';
+    expect(httpBody, 'the http helper must be readable').toContain('Authorization: Bearer');
+    expect(httpBody).toContain('looks_like_a_jwt');
+    // AND IT REFUSES IN THE VALUE, not in a variable. Every call site reads this
+    // with `r="$(http …)"`, so `fail=1` set inside would be set in a SUBSHELL
+    // and lost — the check would print and the run would still pass, which is
+    // the masking hard rule 9 is about. Answering `000` makes each caller's own
+    // assertion fail, and those callers are at top level.
+    expect(httpBody, 'the refusal has to travel in the answer').toMatch(/printf '%s %s\\n' "000"/);
+    expect(httpBody, 'and it must not try to set the verdict from a subshell').not.toMatch(
+      /^\s*fail=1/m,
+    );
+    // Defined before it is used, or the check is a no-op.
+    expect(smoke.indexOf('looks_like_a_jwt() {')).toBeLessThan(smoke.indexOf('\nhttp() {'));
+  });
+
   it('and whatever comes out is checked for the SHAPE of a token', () => {
     // The durable half of #523's lesson: a JWT has three dot-separated segments
     // and no whitespace. A warning has whitespace; so does a stack trace, a
     // deprecation notice and an OCI error. This catches the class whatever
     // produces the garbage next.
     expect(smoke).toContain('assert_looks_like_a_jwt');
-    const check = /assert_looks_like_a_jwt\(\) \{[\s\S]*?\n\}/.exec(smoke)?.[0] ?? '';
-    expect(check, 'whitespace is what an error message has and a token does not').toContain(
+    // One rule, two presentations: the quiet predicate holds the rule, and the
+    // two callers differ only in how they are placed to fail.
+    const rule = /\nlooks_like_a_jwt\(\) \{[\s\S]*?\n\}/.exec(smoke)?.[0] ?? '';
+    expect(rule, 'whitespace is what an error message has and a token does not').toContain(
       '*[[:space:]]*',
     );
-    expect(check, 'and three segments is what a JWT is').toContain('*.*.*');
+    expect(rule, 'and three segments is what a JWT is').toContain('*.*.*');
+    const check = /assert_looks_like_a_jwt\(\) \{[\s\S]*?\n\}/.exec(smoke)?.[0] ?? '';
+    expect(check, 'the loud one is built on the quiet one').toContain('looks_like_a_jwt "$2"');
+    expect(check, 'and it speaks on stderr, because its readers capture stdout').toMatch(
+      /\}\s*>&2/,
+    );
     // In the callee, not at each call site — fixing the caller and not the
     // callee is how #519 survived in nineteen other places.
     expect(mintBody).toContain('assert_looks_like_a_jwt');

@@ -190,17 +190,40 @@ warn_minted_tokens_are_not_verifiable() {
 # than #523 applied it. A JWT is three dot-separated segments and contains no
 # whitespace; a warning, a stack trace, a deprecation notice and an OCI error
 # all do. This catches the class regardless of what produces the garbage next.
+# ONE RULE, TWO PRESENTATIONS. `looks_like_a_jwt` is the rule and says nothing;
+# the two callers below present it differently because they are in different
+# positions to fail.
+#
+# A JWT is three dot-separated segments and contains no whitespace. A warning
+# has whitespace; so does a stack trace, a deprecation notice and an OCI error.
+# That is the durable half of #523's lesson and it catches the class whatever
+# produces the garbage next.
+looks_like_a_jwt() { # looks_like_a_jwt <value> — quiet; 0 if it has the shape
+  case "$1" in
+    ''|*[[:space:]]*) return 1 ;;
+  esac
+  case "$1" in
+    *.*.*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# At TOP LEVEL, where `fail=1` reaches the verdict.
 assert_looks_like_a_jwt() { # assert_looks_like_a_jwt <what> <value>
-  case "$2" in
-    '')            echo "$1 came back empty — nothing signed it"; fail=1; return 1 ;;
-    *[[:space:]]*) echo "$1 is not a token: it contains whitespace, and no token does."
-                   echo "  first 200 bytes: ${2:0:200}"; fail=1; return 1 ;;
-  esac
-  case "$2" in
-    *.*.*) : ;;
-    *) echo "$1 is not a token: a JWT has three dot-separated segments, this has $(($(printf '%s' "$2" | tr -cd . | wc -c) + 1))."
-       echo "  first 200 bytes: ${2:0:200}"; fail=1; return 1 ;;
-  esac
+  looks_like_a_jwt "$2" && return 0
+  # >&2 because this is also read from places whose stdout is a value — the
+  # same trap as #60, made impossible rather than remembered. The script's own
+  # `tee` merges stderr into the evidence log, so nothing is lost by it.
+  {
+    if [ -z "$2" ]; then
+      echo "$1 came back empty — nothing signed it"
+    else
+      echo "$1 is not a token: a JWT has three dot-separated segments and no whitespace."
+      echo "  first 200 bytes: ${2:0:200}"
+    fi
+  } >&2
+  fail=1
+  return 1
 }
 
 mint() { # mint <sub> <tenantId>  — signed with the API container's real secret
@@ -220,9 +243,31 @@ console.log(jwt.sign({sub:process.env.SUB,email:process.env.SUB+'@smoke.local',t
   printf '%s' "$tok"
 }
 
+# THE CHOKE POINT EVERY AUTHENTICATED CALL GOES THROUGH, WHICH MAKES IT THE ONE
+# PLACE A BAD TOKEN IS CAUGHT WHATEVER PRODUCED IT.
+#
+# `mint` and the invitee's token are both checked where they are made, and that
+# is the right place — but it is also exactly what was true of #523's PAT and of
+# #60's JWT, and each of them got through anyway, from a producer nobody had
+# thought about yet. A per-producer check catches the producers that exist. This
+# catches the next one.
+#
+# It complains at most once: fifteen calls carrying the same bad token is one
+# fact, not fifteen, which is the whole argument of the section below.
 # http <method> <url> <token> — prints "<code> <body>" on one line
 http() {
   local body code
+  # AND IT REFUSES TO SEND ONE THAT IS NOT A TOKEN, in the VALUE rather than in
+  # a variable. This runs inside `$( )` at every call site, so `fail=1` set here
+  # would be set in a subshell and lost — the check would print and the run
+  # would still pass, which is the masking hard rule 9 is about. Answering `000`
+  # instead makes every caller's own assertion fail on a code that is not an
+  # HTTP status, and those callers ARE at top level.
+  if ! looks_like_a_jwt "$3"; then
+    echo "refusing to send $1 $2: that is not a token (${3:0:60}…)" >&2
+    printf '%s %s\n' "000" "refused before sending — the bearer is not a token"
+    return 0
+  fi
   body="$(curl -sS -X "$1" -H "Authorization: Bearer $3" -w '\n%{http_code}' "$2")"
   code="${body##*$'\n'}"
   body="${body%$'\n'*}"
