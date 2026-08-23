@@ -93,12 +93,49 @@ describe('the provider connects the way a thing that runs its own migrations mus
     expect(block).not.toContain('pgbouncer');
   });
 
-  it('waits on its own readiness signal rather than on a port', () => {
+  it('is not gated by a probe that runs where the answer cannot be reached', () => {
+    // This service used to carry
+    //   test: ["CMD", "/app/zitadel", "ready", "--config", "/dev/null"]
+    // and E2E (managed) #47 showed it cannot work. Zitadel came up perfectly —
+    // every migration applied, OIDC routes registered, `server is listening` —
+    // and compose called it unhealthy for thirty-one minutes, while
+    // `curl http://localhost:3126/debug/ready` answered 200 from the host.
+    //
+    // `zitadel ready` builds its URL from ExternalPort, which is BY DEFINITION
+    // the address the outside reaches Zitadel on. Inside the container nothing
+    // listens there: here 3126 is a published port, and behind a front it is
+    // 443, terminated by something that is not Zitadel.
     const block = /\n {2}zitadel:\n([\s\S]*?)\n {2}[a-z][a-z-]*:\n/.exec(COMPOSE)?.[1] ?? '';
-    // It listens well before its migrations finish; a port check would let the
-    // setup script start provisioning into errors that read like bugs.
-    expect(block).toContain('healthcheck:');
-    expect(block).toMatch(/"ready"/);
+    expect(block, 'the zitadel service block could not be found').not.toEqual('');
+    expect(
+      block.replace(/^\s*#.*$/gm, ''),
+      'a probe asking ExternalPort from INSIDE the container cannot be answered',
+    ).not.toMatch(/^\s*test:.*zitadel.*ready/m);
+    // And the removal has to carry its reason, or somebody restores it.
+    expect(block, 'a healthcheck removed without a reason is one that comes back').
+      toMatch(/NO HEALTHCHECK, AND THAT IS THE FIX/);
+  });
+
+  it('checks readiness from the host, which is the side that can ask', () => {
+    // Not weaker — the same question, asked by something in a position to hear
+    // the answer, and able to say which of "nothing answered" and "answered and
+    // said no" happened.
+    const BOOTSTRAP = read('deploy/compose/bootstrap-managed.sh');
+    const fn = BOOTSTRAP.slice(
+      BOOTSTRAP.indexOf('wait_for_idp_ready() {'),
+      BOOTSTRAP.indexOf('\n}', BOOTSTRAP.indexOf('wait_for_idp_ready() {')),
+    );
+    expect(fn.length, 'the readiness wait is gone or renamed').toBeGreaterThan(200);
+    expect(fn, 'it must ask the readiness endpoint, not a port').toContain('/debug/ready');
+    // The PUBLISHED port. ExternalPort is 443 behind a front and the host can
+    // only reach what compose published — using it here rebuilds the bug.
+    expect(fn, 'the host can only reach the published port').toMatch(/env_get ZITADEL_PORT/);
+    expect(fn, 'ExternalPort is exactly the address that cannot be reached').
+      not.toMatch(/ZITADEL_EXTERNALPORT/);
+    // A timeout is still a diagnosis, not a silent give-up.
+    expect(fn).toMatch(/explain_failure zitadel/);
+    expect(fn, 'the reader needs to know whether anything answered at all').
+      toMatch(/000/);
   });
 
   it('keeps the provisioning token off the working tree', () => {
@@ -319,7 +356,11 @@ describe('the provisioning token can actually be written (E2E managed #44)', () 
     // Ordering is the entire fix. Preparing it afterwards is preparing it for
     // the next run, which is how this looked for six dispatches.
     const prep = BOOTSTRAP.indexOf('\n  prepare_machinekey_volume\n');
-    const up = BOOTSTRAP.indexOf('\n  up_wait zitadel\n');
+    // `up -d zitadel`, not `up_wait`: the container no longer carries a
+    // healthcheck for `--wait` to gate on (#47 — the probe asked an address that
+    // cannot be reached from inside it). Readiness moved to a host-side poll,
+    // and the ordering this case exists for is unchanged.
+    const up = BOOTSTRAP.indexOf('" up -d zitadel"'.slice(1, -1));
     expect(prep, 'the bring-up no longer prepares the volume at all').toBeGreaterThan(-1);
     expect(up, 'the zitadel bring-up moved or went away').toBeGreaterThan(-1);
     expect(prep, 'preparing it after the provider starts prepares it for the NEXT run').

@@ -46,6 +46,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env"
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml")
+# How long the identity provider gets to finish its own setup. A FIRST init
+# applies every migration from scratch; #47 took roughly two minutes on the
+# Spark, and a machine with slower disk will take longer.
+IDP_READY_TIMEOUT="${IDP_READY_TIMEOUT:-300}"
 
 # What a log line looks like when it is reporting that something FAILED, across
 # every image this stack runs: logfmt (Zitadel, Trigger.dev, Caddy), JSON, bare
@@ -785,6 +789,59 @@ prepare_machinekey_volume() {
   ZITADEL_UID="$user" "${COMPOSE[@]}" run --rm --quiet-pull zitadel-machinekey
 }
 # ---------------------------------------------------------------------------
+# Wait for the identity provider to be READY, from the one side that can ask.
+#
+# E2E (managed) #47: Zitadel v4.17.1 came up perfectly — every migration applied,
+# OIDC routes registered, `server is listening address=[::]:8080` — and compose
+# reported `container ownpace-idp is unhealthy` for thirty-one minutes. The probe
+# was wrong, not the provider:
+#
+#   docker inspect  →  "Output":"Error: not ready", FailingStreak: 188
+#   curl http://localhost:3126/debug/ready  (from the host)  →  200
+#
+# `zitadel ready` builds its URL from ExternalPort, and ExternalPort is by
+# definition the address the OUTSIDE reaches Zitadel on. Inside the container
+# nothing is listening there: on this stack 3126 is a published port, and on a
+# fronted deployment it is 443, terminated by something that is not Zitadel. So
+# the probe asks an address that cannot answer, and v4.17.1 reports an
+# unreachable endpoint as `Error: not ready` — indistinguishable, from inside,
+# from a considered no.
+#
+# A container-side healthcheck therefore cannot express this readiness at all,
+# and the compose healthcheck was removed rather than left failing. This is NOT
+# the check being weakened: it is the same check, asked from the side that can
+# ask it, by something that can say what went wrong. `--wait` cannot gate on it,
+# so this does, and a timeout still goes through `explain_failure`.
+#
+# The PUBLISHED port, deliberately, not ExternalPort. They are the same number
+# on a plain bring-up and they are not behind a front, and the host can only
+# reach what compose published.
+wait_for_idp_ready() {
+  local port url waited=0
+  port="$(env_get ZITADEL_PORT)"
+  port="${port:-3126}"
+  url="http://localhost:${port}/debug/ready"
+
+  note "waiting for the identity provider at ${url} (up to ${IDP_READY_TIMEOUT}s)"
+  while [ "$waited" -lt "$IDP_READY_TIMEOUT" ]; do
+    # `-o /dev/null -w %{http_code}` and a comparison to 200: `curl -f` would
+    # collapse "not ready yet" and "no such host" into the same silence, and the
+    # difference between those two is the whole reason this function exists.
+    if [ "$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$url" 2>/dev/null || echo 000)" = "200" ]; then
+      note "identity provider is ready after ${waited}s"
+      return 0
+    fi
+    sleep 5
+    waited=$((waited + 5))
+  done
+
+  echo >&2
+  echo "!!! the identity provider never became ready at ${url} (${IDP_READY_TIMEOUT}s)" >&2
+  echo "!!! 000 above means nothing answered; any other code means it answered and said no." >&2
+  explain_failure zitadel
+}
+
+# ---------------------------------------------------------------------------
 phase_app() {
   say app "api, web, and anything else not yet running"
   load_env
@@ -846,7 +903,12 @@ phase_app() {
   # image runs as a non-root user. See managed.yml's zitadel-machinekey service
   # for the whole story, including why this is `run` and not a dependency.
   prepare_machinekey_volume
-  up_wait zitadel
+  # `up -d`, NOT `up_wait`: the container has no healthcheck to wait on any
+  # more, for the reason wait_for_idp_ready's header sets out. Readiness is
+  # asked from the host immediately below, and a timeout there still lands in
+  # `explain_failure` — so the diagnosis path is unchanged, only the asker is.
+  "${COMPOSE[@]}" up -d zitadel || explain_failure zitadel
+  wait_for_idp_ready
   "${SCRIPT_DIR}/setup-zitadel.sh"
   note "identity provider provisioned before the web build (idempotent)"
 

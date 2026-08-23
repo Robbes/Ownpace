@@ -684,3 +684,80 @@ check.
 The interesting column is the gap between the last two. It closes at #44 — the
 run after the failure window shipped — and has stayed closed since. Every run
 from there on says what is wrong on the first read.
+
+### The probe was asking an address that cannot exist
+
+`curl http://localhost:3126/debug/ready` answers **200** from the host. That
+port publishes to container 8080 — the same address and scheme the probe would
+use if it were asking `http://localhost:8080` — so the probe is not asking that,
+and Zitadel is not the thing that is wrong.
+
+`zitadel ready` builds its URL from **ExternalPort**, and ExternalPort is by
+definition *the address the outside reaches Zitadel on*. Inside the container
+nothing is listening there. On this stack it is 3126, a published port. On
+`id.ota.ownpace.eu` it is 443, terminated by netbird — something that is not
+Zitadel and is not in the container at all.
+
+So the probe is not merely misconfigured here. **It cannot be made correct by
+configuration in any deployment with a front**, which is the deployment this
+product ships. And no substitute exists inside the image: it is built with no
+shell and no HTTP client but that one.
+
+### So the check moved to the side that can ask it
+
+`wait_for_idp_ready` in `bootstrap-managed.sh` polls
+`http://localhost:${ZITADEL_PORT}/debug/ready` from the HOST — the published
+port, never ExternalPort, because the host can only reach what compose
+published and using ExternalPort would rebuild the bug one layer out.
+
+The compose healthcheck is removed rather than left failing, and the reason is
+written where the healthcheck used to be, because a healthcheck deleted without
+one is a healthcheck somebody restores.
+
+**This is not the check being weakened.** It is the same question — Zitadel's own
+`/debug/ready` — asked by something in a position to hear the answer, and able
+to distinguish the two failures the old probe collapsed into one word:
+
+```
+!!! the identity provider never became ready at http://localhost:3126/debug/ready (300s)
+!!! 000 above means nothing answered; any other code means it answered and said no.
+```
+
+A timeout still ends in `explain_failure`, so the four log windows are unchanged
+— only the asker moved. `curl -f` was deliberately not used: it collapses "not
+ready yet" and "no such host" into the same silence, and telling those apart is
+the entire reason the function exists.
+
+### Three readings, three corrections
+
+Worth recording as a sequence rather than as a conclusion:
+
+| Reading | Basis | Verdict |
+|---|---|---|
+| probes a host-side port, refused | ExternalPort is in the container env | **right, and abandoned too early** |
+| both modes eliminated, Zitadel says no | #9495 formats transport errors differently | wrong — that is an older line |
+| the probe cannot reach any address it asks | `ready=200` from the host | holds |
+
+The first reading was correct and was talked out of by an upstream issue that
+looked closer than it was. What settled it was not a better hypothesis but a
+`curl`, and every step of this workplan since #38 says the same thing in a
+different costume.
+
+### How this sits with the fourth window
+
+These two changes were written an hour apart and they overlap, so: the fourth
+window (`what the HEALTHCHECK said`) reads `.State.Health.Log` for any service
+that has a healthcheck, and this change removes zitadel's. That does not make
+the window redundant — postgres, pgbouncer, nextcloud, api, web and six
+Trigger.dev services all still have one, and any of them going unhealthy hits
+exactly the blind spot #47 exposed. It does mean the failure-table row that
+window came with now describes a shape a current checkout cannot produce, and
+that row is scoped once both are on main.
+
+One thing this loses honestly: the workflow's closing "what state did we leave
+it in?" step can no longer speak for `ownpace-idp`, which now joins the four
+services already listed under "no healthcheck defined (this gate cannot speak
+for these)". Readiness is asserted at bring-up by the poll and again by the
+smoke's identity section; what is gone is the continuous signal between them.
+That is the price of a probe that could not be asked from where it ran, and it
+is recorded rather than glossed.
