@@ -144,13 +144,13 @@ export SELFHOST_BIND=127.0.0.1
 wait_healthy "released appliance"
 
 BEFORE_STATUS="$(curl -sf "${BASE}/status")" || fail "released appliance served no /status"
-echo "$BEFORE_STATUS" | head -c 400; echo
+echo "${BEFORE_STATUS:0:400}"
 
 # THE GUARD THAT MAKES STEP 4 MEAN SOMETHING. With no mappings configured, the
 # "same mappings before and after" comparison is empty-set against empty-set —
 # it passes while proving nothing, which is how the first real run of this
 # drill (2026-08-04) reported success on `"mappings":[]`. Refuse to continue.
-if ! echo "$BEFORE_STATUS" | grep -q '"mappingId"'; then
+if ! grep -q '"mappingId"' <<<"$BEFORE_STATUS"; then
   fail "the released appliance configured NO mappings, so nothing downstream can be compared.
     Check $DRILL_CONFIG_DIR/mapping.json — the appliance logs will say why it was rejected:
       ${COMPOSE[*]} logs app"
@@ -183,7 +183,8 @@ AFTER_STATUS="$(curl -sf "${BASE}/status")" || fail "upgraded appliance served n
 # The startup migration path ran at all. Its own log line is the evidence; an
 # upgrade that silently skipped migrations is the failure mode with no symptom
 # until a query hits a missing column.
-if ! "${COMPOSE[@]}" logs app --no-color --tail 200 | grep -qi 'migrat'; then
+app_log="$("${COMPOSE[@]}" logs app --no-color --tail 200)"
+if ! grep -qi 'migrat' <<<"$app_log"; then
   "${COMPOSE[@]}" logs app --no-color --tail 60
   fail "the upgraded appliance logged nothing about migrations on startup"
 fi

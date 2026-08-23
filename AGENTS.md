@@ -91,6 +91,7 @@ operative section, regenerate: `node scripts/adr-operative.mjs --write`.**
 7. **Decisions → ADRs** (append-only; supersede, don't delete — except each ADR's `## Operative rules` section, which is amended IN PLACE and regenerated into `OPERATIVE.md`, ADR-0038). Operational findings → a Rule + one-line rationale in the relevant reference doc (e.g. the Stalwart fix doc).
 8. **Gates before "done":** lint + typecheck + unit + relevant integration; update docs.
 9. **Never mask errors.** No null-fallbacks or catch-and-continue that turn failures into empty results (`scanned=0` must be unreachable via a swallowed error) — unmask, quote, fix the root cause. Connector (IMAP/JMAP) failures must surface.
+10. **A status must belong to the thing that happened.** Rule 9's mirror image: a SUCCESS reported as a failure is just as much a lie, and shell makes one easy. Under `set -o pipefail`, `producer | grep -q` returns 141 when grep MATCHES — `grep -q` exits at the first hit without draining, the producer dies of SIGPIPE, and pipefail hands back the signal instead of grep's yes. Same for `| head -N` and `| sed '…q'`. Read from a here-string (`grep -q P <<<"$v"`), or use bash's own `[[ =~ ]]`; never `| head -1 || true`, which only stops the abort and keeps the wrong answer. `scripts/no-pipeline-its-own-consumer-can-kill.unit.test.ts` enforces this across every shell script and every workflow `run:` block — GitHub Actions turns `pipefail` on for you.
 
 ## Safety notes
 - The test O365 source is a **real SMB tenant**: read-only, least-privilege, never write back.

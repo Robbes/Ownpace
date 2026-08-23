@@ -128,11 +128,11 @@ http() {
 }
 
 json_state() { # crude but dependency-free: first "state":"..." in the body
-  printf '%s' "$1" | grep -o '"state":"[a-z-]*"' | head -1 | cut -d'"' -f4
+  grep -o '"state":"[a-z-]*"' <<<"$1" | awk 'NR==1' | cut -d'"' -f4
 }
 
 json_number() { # json_number <body> <key> — first "key":N in the body, or empty
-  printf '%s' "$1" | grep -o "\"$2\":[0-9]*" | head -1 | cut -d: -f2
+  grep -o "\"$2\":[0-9]*" <<<"$1" | awk 'NR==1' | cut -d: -f2
 }
 
 # ---------- preflights ----------
@@ -146,7 +146,8 @@ fi
 # index.html back. Assert both that the SPA serves AND that /api through the
 # web origin reaches the API (JSON, not the SPA fallback's HTML).
 WEB="${SMOKE_WEB:-http://localhost:3123}"
-if ! curl -sf "$WEB/" | grep -qi '<html'; then
+web_root="$(curl -sf "$WEB/" || true)"
+if ! grep -qi '<html' <<<"$web_root"; then
   echo "FATAL: web app not serving at $WEB/"
   exit 1
 fi
@@ -429,7 +430,7 @@ fi
   # Matching on that id rather than on the status field because the per-domain
   # blocks contain nested `issues` arrays, which no `[^}]*` grep survives.
 for d in "${REQUIRED_DOMAINS[@]}"; do
-  if printf '%s' "$rbody" | grep -q "SKIPPED_${d}"; then
+  if grep -q "SKIPPED_${d}" <<<"$rbody"; then
     echo ""
     echo "verify ($VERIFY_LABEL) SKIPPED the '${d}' domain, which this mapping exists to cover."
     echo "The report says it plainly: 'this domain was NOT checked'. A verify that skips"

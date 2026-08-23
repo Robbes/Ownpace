@@ -38,7 +38,7 @@ jobs:
           for file in $ADDED_FILES; do
             # allow the committed template
             if [ "$file" = ".env.example" ]; then continue; fi
-            if echo "$file" | grep -qE "$BAD_PATTERN"; then
+            if grep -qE "$BAD_PATTERN" <<<"$file"; then
               echo "::error file=$file::Artifact must not be committed: $file"
               echo "Add it to .gitignore and run 'git rm -r --cached <path>'."
               violations=$((violations + 1))

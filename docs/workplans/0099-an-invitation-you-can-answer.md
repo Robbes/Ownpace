@@ -876,3 +876,115 @@ for these)". Readiness is asserted at bring-up by the poll and again by the
 smoke's identity section; what is gone is the continuous signal between them.
 That is the price of a probe that could not be asked from where it ran, and it
 is recorded rather than glossed.
+
+---
+
+## A pipeline its own consumer could kill (PR #518's red, and eighteen more)
+
+`unit-tests` went red on #518, on a test file and a script the branch does not
+touch:
+
+```
+FAIL scripts/bootstrap-managed.unit.test.ts > trigger-credentials.sh
+     > treats "no project yet" as the expected pre-setup answer
+  [trigger-credentials] This Trigger.dev instance's schema is not the one this
+  script knows.
+  [trigger-credentials] Missing: Project.id
+```
+
+`Project.id` is in the fixture. The script had looked for it, found it, and
+reported it missing.
+
+### What it actually was
+
+```bash
+for col in $NEEDED; do
+  printf '%s\n' "$present" | grep -qxF "$col" || missing="${missing} ${col}"
+done
+```
+
+`grep -q` exits the instant it matches, without draining its input. The
+producer's next write lands on a closed pipe, it dies of SIGPIPE, and
+`set -o pipefail` returns the 141 rather than grep's 0. Instrumented under CPU
+contention:
+
+```
+MISS col=Project.id  PIPESTATUS=(141 0)
+```
+
+Grep said **yes**. The producer was killed for being interrupted mid-sentence.
+`pipefail` reported the killing.
+
+It is a race, which is why it is a CI bug and not a local one: 0 spurious
+failures in 15,000 unloaded iterations, ~1 in 1,400 with the machine loaded —
+a runner with 323 test files in flight.
+
+### Why the fix is not one line
+
+This has cost a run before. **E2E (managed) #40** died at exit 255 inside the
+bring-up's own failure diagnosis, because `docker compose logs "$svc" | head -20`
+did the same thing: `head` closed the pipe, the still-writing container took
+the SIGPIPE, and `explain_failure` aborted between its first window and its
+second — so the window holding the fatal line never printed. That was fixed in
+`explain_failure`, and the lesson was written into a twenty-line comment
+directly above the fix.
+
+Eighteen more instances of the same shape were sitting in eight other files at
+the time, including:
+
+| Where | What a spurious failure would have said |
+|---|---|
+| `e2e-managed.yml` | "PgBouncer is not in transaction mode" — on the gate this workplan exists to make green |
+| `no-committed-artifacts.yml` | nothing: a false *pass*, letting a committed artifact through |
+| `ci.yml` | "Unexpected markdown file at repo root" about an allowed one |
+| `upgrade-drill.sh` | "the upgraded appliance logged nothing about migrations" |
+| `ensure-env-secrets.sh` | silently skipping the replacement of a password Zitadel will reject |
+| `smoke-managed.sh` | "web app not serving" |
+
+The workflows count because GitHub Actions runs every `run:` step as
+`bash --noprofile --norc -eo pipefail {0}` — `pipefail` is on whether the step
+asked for it or not.
+
+### The shape of the fix
+
+Remove the producer from the pipeline; do not silence the status.
+
+```bash
+grep -qxF "$col" <<<"$present"            # here-string: no producer to kill
+if [[ "$err" =~ required\ variable\ (…) ]] # bash, no fork at all
+grep -o … <<<"$x" | awk 'NR==1'           # awk reads to EOF; head does not
+```
+
+`| head -1 || true` is not a fix. It stops the abort and keeps the wrong answer.
+
+### The guard, and what it caught first
+
+`scripts/no-pipeline-its-own-consumer-can-kill.unit.test.ts` reads every shell
+script in the repository and every workflow `run:` block, parses out the pipes
+the shell would actually see — not the ones inside `jq` programs, `grep -E`
+patterns, `||`, comments or heredocs — and refuses an early-exit consumer on
+the right of any of them.
+
+Its first run failed on a nineteenth site the hand survey had missed, and its
+second failure was its own:
+
+```
+deploy/compose/seed-demo-dav-content.sh:161 — grep -l stops at the first match
+```
+
+on the line `… | grep -o "$2" | wc -l | tr -d ' '`. There is no `grep -l`
+there. The scanner had read the rest of the LINE as grep's arguments and found
+the `-l` belonging to `wc`.
+
+That is the **fourth** time in one day an assertion matched something
+*adjacent* to what it meant to check — after #514's assertion matching a
+comment that quoted the code, #516's slicing to the wrong `fi`, and #518's own
+window reading a comment. It now has a test case of its own, and the scanner
+cuts the script into segments at every unquoted separator instead of guessing
+where a command ends.
+
+Six mutations were run against the finished guard; all six were caught:
+putting the pipe back in `trigger-credentials.sh`, putting it back in
+`e2e-managed.yml`, adding a fresh `| head` to a file that never had one,
+treating `||` as a pipe, dropping quote tracking, dropping heredoc tracking —
+plus both vacuity guards, which fail if discovery ever stops finding files.

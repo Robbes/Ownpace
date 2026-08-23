@@ -266,7 +266,7 @@ jobs:
           #    product bug.
           rt="$(curl -s -u "${NEXTCLOUD_TARGET_USER}:${TARGET_DAV_PASSWORD}" \
             -X PROPFIND -H 'Depth: 0' "${NC}/${NEXTCLOUD_TARGET_USER}/${POISON}")"
-          echo "$rt" | grep -qi '<[a-z]*:collection' \
+          grep -qi '<[a-z]*:collection' <<<"$rt" \
             || { echo "target/${POISON} is not a collection — fixture is not in place"; exit 1; }
           echo "verified: target/${POISON} is a collection, source/${POISON} is a file"
 
