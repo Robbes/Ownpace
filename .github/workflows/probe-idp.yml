@@ -1,0 +1,116 @@
+name: Probe (idp)
+
+# TEMPORARY. Not a gate — a question put to the running stack, because the two
+# things that have to be decided (how the API reaches the issuer, and what a
+# real token from it actually contains) are facts about a live Zitadel and not
+# something to be guessed at. Delete before this branch is proposed.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: [self-hosted, linux, arm64]
+    timeout-minutes: 10
+    steps:
+      - name: A — what the API container can reach, and what it is told there
+        run: |
+          set -uo pipefail
+          echo "=== what the API verifies against ==="
+          docker exec ownpace-api printenv JWT_ISSUER JWT_AUDIENCE JWT_JWKS_URI 2>&1 || true
+
+          probe() { # probe <label> <curl args...>
+            local label="$1"; shift
+            echo "--- $label"
+            docker exec ownpace-api sh -lc \
+              "curl -sS -m 5 -o /tmp/d -w 'http %{http_code}\n' $* ; head -c 500 /tmp/d; echo" 2>&1 || true
+          }
+          probe "localhost:3126 (what JWT_ISSUER says today)" \
+            "'http://localhost:3126/.well-known/openid-configuration'"
+          probe "zitadel:8080 (service name, in-network)" \
+            "'http://zitadel:8080/.well-known/openid-configuration'"
+          probe "ownpace-idp:8080 (container name, in-network)" \
+            "'http://ownpace-idp:8080/.well-known/openid-configuration'"
+          probe "zitadel:8080 with Host: localhost:3126" \
+            "-H 'Host: localhost:3126' 'http://zitadel:8080/.well-known/openid-configuration'"
+
+          echo "=== from the HOST, at the published port ==="
+          curl -sS -m 5 http://localhost:3126/.well-known/openid-configuration | head -c 700; echo
+
+      - name: B — a real token, the way a browser would get one
+        run: |
+          set -uo pipefail
+          ISS=http://localhost:3126
+          REDIRECT=http://localhost:3123/auth/callback
+
+          PAT="$(docker run --rm -v ownpace-managed_zitadel_machinekey:/machinekey alpine \
+                  cat /machinekey/pat.txt | tr -d '\r\n')"
+          if [ -z "$PAT" ]; then echo "no PAT — cannot probe"; exit 0; fi
+          echo "::add-mask::$PAT"
+          auth() { curl -sS -m 15 -H "Authorization: Bearer $PAT" -H 'Content-Type: application/json' "$@"; }
+
+          PROJ="$(auth -X POST "$ISS/management/v1/projects/_search" -d '{"queries":[]}' \
+                  | jq -r '.result[]? | select(.name=="Ownpace") | .id' | head -1)"
+          echo "project: ${PROJ:-<none>}"
+          APPS="$(auth -X POST "$ISS/management/v1/projects/$PROJ/apps/_search" -d '{"queries":[]}')"
+          APP_ID="$(jq -r '.result[0].id // empty' <<<"$APPS")"
+          CLIENT_ID="$(auth "$ISS/management/v1/projects/$PROJ/apps/$APP_ID" | jq -r '.app.oidcConfig.clientId // empty')"
+          echo "client:  ${CLIENT_ID:-<none>}"
+          auth "$ISS/management/v1/projects/$PROJ/apps/$APP_ID" \
+            | jq '.app.oidcConfig | {redirectUris, accessTokenType, appType, authMethodType}'
+
+          EMAIL="probe-$$@smoke.local"
+          PW='Pr0be-Secret!42'
+          NEW="$(auth -X POST "$ISS/v2/users/human" -d "$(jq -nc --arg e "$EMAIL" --arg p "$PW" \
+            '{username:$e,
+              profile:{givenName:"Probe",familyName:"User"},
+              email:{email:$e,isVerified:true},
+              password:{password:$p,changeRequired:false}}')")"
+          UID_="$(jq -r '.userId // empty' <<<"$NEW")"
+          echo "user:    ${UID_:-<none>}  $( [ -z "$UID_" ] && echo "$NEW" )"
+          [ -n "$UID_" ] || exit 0
+
+          VERIFIER="$(openssl rand -hex 32)"
+          CHALLENGE="$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 | openssl base64 | tr '+/' '-_' | tr -d '=\n')"
+          LOC="$(curl -sS -m 15 -o /dev/null -D - \
+            "$ISS/oauth/v2/authorize?client_id=$CLIENT_ID&redirect_uri=$REDIRECT&response_type=code&scope=openid%20email%20profile&code_challenge=$CHALLENGE&code_challenge_method=S256" \
+            | tr -d '\r' | sed -n 's/^[Ll]ocation: //p' | head -1)"
+          echo "authorize -> ${LOC:-<no redirect>}"
+          AR="$(sed -n 's/.*authRequest=\([^&]*\).*/\1/p' <<<"$LOC")"
+          echo "authRequest: ${AR:-<none>}"
+
+          SESS="$(auth -X POST "$ISS/v2/sessions" -d "$(jq -nc --arg u "$EMAIL" --arg p "$PW" \
+            '{checks:{user:{loginName:$u},password:{password:$p}}}')")"
+          SID="$(jq -r '.sessionId // empty' <<<"$SESS")"
+          STOK="$(jq -r '.sessionToken // empty' <<<"$SESS")"
+          [ -n "$STOK" ] && echo "::add-mask::$STOK"
+          echo "session: ${SID:-<none>}  $( [ -z "$SID" ] && echo "$SESS" )"
+
+          CB="$(auth -X POST "$ISS/v2/oidc/auth_requests/$AR" -d "$(jq -nc --arg s "$SID" --arg t "$STOK" \
+            '{session:{sessionId:$s,sessionToken:$t}}')")"
+          CALLBACK="$(jq -r '.callbackUrl // empty' <<<"$CB")"
+          echo "callback: $( [ -z "$CALLBACK" ] && echo "$CB" || echo "(got one)" )"
+          CODE="$(sed -n 's/.*[?&]code=\([^&]*\).*/\1/p' <<<"$CALLBACK")"
+          [ -n "$CODE" ] && echo "::add-mask::$CODE"
+
+          TOK="$(curl -sS -m 15 -X POST "$ISS/oauth/v2/token" \
+            --data-urlencode grant_type=authorization_code \
+            --data-urlencode "code=$CODE" \
+            --data-urlencode "redirect_uri=$REDIRECT" \
+            --data-urlencode "client_id=$CLIENT_ID" \
+            --data-urlencode "code_verifier=$VERIFIER")"
+          AT="$(jq -r '.access_token // empty' <<<"$TOK")"
+          if [ -z "$AT" ]; then echo "no access token: $TOK"; else
+            echo "::add-mask::$AT"
+            echo "--- access token HEADER"
+            cut -d. -f1 <<<"$AT" | tr '_-' '/+' | base64 -d 2>/dev/null | jq . || true
+            echo "--- access token CLAIMS"
+            cut -d. -f2 <<<"$AT" | tr '_-' '/+' | base64 -d 2>/dev/null | jq . || true
+            echo "--- what the API says to it (500 = the reachability bug, 401/403 = verified path)"
+            curl -sS -m 10 -o /tmp/me -w 'http %{http_code}\n' \
+              -H "Authorization: Bearer $AT" http://localhost:3001/api/me || true
+            head -c 300 /tmp/me; echo
+          fi
+
+          echo "--- taking the probe user back out"
+          auth -X DELETE "$ISS/v2/users/$UID_" -o /dev/null -w 'delete http %{http_code}\n' || true
