@@ -19,6 +19,14 @@
 #     0018 T5 lesson: silent runner deaths with zero evidence).
 #   Stuck rows — a poll that times out lands the row by hand with an
 #     explanatory error (never left `running`/`queued` pointing at nothing).
+#   Offboarding — close a tenant and reopen it, on the throwaway tenant the
+#     invitation phase created and deletes. The closure ROW is what is checked,
+#     not the response: it is what the purge job reads, and its window is
+#     somebody's erasure date.
+#   Reports — the four route families no gate had ever asked a running stack
+#     for: readiness, shared addresses, the permission report, billing and its
+#     invoices. Reads, so they change nothing; asserted on SHAPE, so a 200 that
+#     dropped a key fails.
 #   Balance — take back what this run added. A prepare that seeds six DAV
 #     resources into the demo source, and a sync that copies them into the demo
 #     target, used to leave both there for good; this gate runs nightly against
@@ -891,12 +899,118 @@ left="$(printf '%s' "${ME_AFTER#* }" | grep -o '"invitations":\[[^]]*\]' | grep 
 echo "still offered after answering: $left"
 [ "$left" = "1" ] || { echo "expected exactly the skipped invitation to remain, got $left"; fail=1; }
 
+note "closing a tenant, and changing your mind"
+#
+# OFFBOARDING, which nothing in either gate had ever exercised — and it is the
+# path with the most weight behind it: a closure starts an erasure clock, and
+# `purge_after` is the date somebody's data stops existing. `close` and `reopen`
+# were shipped with integration tests and nothing that ran them against a live
+# stack, RLS, and a real tenant row.
+#
+# It runs on T1 — the tenant the invitation above ACCEPTED, so the subject is an
+# active owner there, which is what `requireRole('owner')` wants — and it is
+# reopened immediately. The tenant is deleted a few lines below either way, so
+# this borrows a fixture that was already being taken back rather than inventing
+# one that needs its own cleanup.
+cls="$(http POST "$API/api/tenants/${T1}/close" "$INV_TOKEN")"
+echo "close:  $cls"
+[ "${cls%% *}" = "200" ] || { echo "closing a tenant failed"; fail=1; }
+
+# The ROW, not the response. A 200 describing a closure that was never recorded
+# is the shape of failure this whole script exists to catch, and the closure row
+# is what the purge job actually reads.
+closed="$(q "SELECT count(*) FROM tenant_closure WHERE tenant_id='${T1}'")"
+due="$(q "SELECT purge_after > closed_at FROM tenant_closure WHERE tenant_id='${T1}'")"
+echo "closure rows: ${closed:-0}   purge_after is after closed_at: ${due:-<none>}"
+[ "${closed:-0}" = "1" ] || { echo "the close wrote no closure row — nothing would ever purge"; fail=1; }
+# A window that ends before it starts would purge immediately, which is the one
+# way this path can quietly become destructive.
+[ "${due:-f}" = "t" ] || { echo "purge_after is not after closed_at — that window is not a window"; fail=1; }
+
+reo="$(http POST "$API/api/tenants/${T1}/reopen" "$INV_TOKEN")"
+echo "reopen: $reo"
+[ "${reo%% *}" = "200" ] || { echo "reopening a closed tenant failed"; fail=1; }
+still="$(q "SELECT count(*) FROM tenant_closure WHERE tenant_id='${T1}'")"
+echo "closure rows after reopen: ${still:-?}"
+# The point of reopen is that the clock STOPS. A reopen that leaves the row
+# behind is a tenant that gets erased on schedule despite having been reopened.
+[ "${still:-1}" = "0" ] || { echo "reopen left the closure row — the erasure clock is still running"; fail=1; }
+
 # Clean up after itself. This gate runs nightly against a long-lived stack, and
 # a smoke that leaves rows behind grows the thing it is measuring.
 for t in "$T1" "$T2" "$T3"; do
   q "DELETE FROM tenant_member WHERE tenant_id='${t}' AND email='${INV_EMAIL}'" >/dev/null
   q "DELETE FROM tenant WHERE id='${t}'" >/dev/null
 done
+
+# ---------- the reports nothing had ever opened ----------
+#
+# COVERAGE, plainly. Grep either gate before this and `shared-addresses`,
+# `permissions`, `billing` and `invoices` return nothing at all: four route
+# families the product ships, sells and renders screens for, and no gate had
+# ever asked the running stack for one of them. They are reads, so they cost a
+# few HTTP round trips and change nothing — which is exactly why there was no
+# excuse for their absence.
+#
+# WHAT IS ASSERTED, and what deliberately is not. Each must answer 200 AND
+# return the shape its route documents. What is NOT asserted is the CONTENT:
+# the demo tenants have no shared addresses and no invoices, so `0 addresses` is
+# the true answer and pretending otherwise would mean seeding fixtures for the
+# sake of a bigger number. `null`, a missing key or a 500 all fail; an honest
+# empty list passes.
+note "reports nothing had ever opened"
+
+TOK_R="$(mint "$APPLY_SUB" "$APPLY_TENANT")"
+
+report_json() { # report_json <label> <path> <jq filter> [value it must equal]
+  local r code body value
+  r="$(http GET "$API$2" "$TOK_R")"
+  code="${r%% *}"; body="${r#* }"
+  value="$(printf '%s' "$body" | jq -r "$3" 2>/dev/null || true)"
+  if [ "$code" != "200" ] || [ -z "$value" ] || [ "$value" = "null" ]; then
+    echo "$1: HTTP $code, $3 -> '${value:-<unreadable>}' — ${body:0:200}"
+    fail=1
+  elif [ -n "${4:-}" ] && [ "$value" != "$4" ]; then
+    # The fourth argument is for answers where only ONE is acceptable. Without
+    # it a report passes on any answer it manages to produce, which is right for
+    # a count (0 addresses is a true answer) and wrong for a health verdict.
+    echo "$1: HTTP 200 but $3 -> '$value', expected '$4'"
+    fail=1
+  else
+    echo "$1: HTTP 200, $3 -> $value"
+  fi
+}
+
+report_markdown() { # report_markdown <label> <path> <heading it must carry>
+  local r code body
+  r="$(http GET "$API$2" "$TOK_R")"
+  code="${r%% *}"; body="${r#* }"
+  # A heading rather than a length: an error page is also several hundred bytes,
+  # and `serverFault` renders JSON that would sail past a size check.
+  case "$code:$body" in
+    "200:"*"$3"*) echo "$1: HTTP 200, carries '$3'" ;;
+    *) echo "$1: HTTP $code, no '$3' — ${body:0:200}"; fail=1 ;;
+  esac
+}
+
+# The readiness endpoint, which exists to be asked and which nothing asked. Its
+# `signIn` half is deliberately NOT pinned to `up`: the issuer is unreachable
+# from inside the API container until ZITADEL_EXTERNALDOMAIN names an address
+# both a browser and that container resolve, the identity section above says so
+# in as many words, and duplicating that verdict here would just report the same
+# outage twice. The database half has no such excuse.
+report_json "readiness (database)" "/api/ready" '.database' up
+report_json "readiness (verdict)" "/api/ready" '.status'
+report_json "shared addresses" "/api/shared-addresses" '.addresses | length'
+report_markdown "shared-address runbook" "/api/shared-addresses/runbook" "## Before you start"
+# A mailbox is required and the demo owner's is the one address this tenant is
+# certain to have. The report renders whether or not a scan can read anything —
+# it says which categories it could NOT inventory, which is the point of it.
+report_markdown "permissions report" \
+  "/api/permissions/report?mailbox=${APPLY_SUB}@demo.openmigrate.test" \
+  "# Who can see what, and what happens to it"
+report_json "billing usage" "/api/billing/usage" '.period'
+report_json "invoices" "/api/billing/invoices" '.invoices | length'
 
 # ---------- balance ----------
 #
