@@ -67,7 +67,11 @@ read_env() { # read_env <key> [default]
 # rejecting every token with a message about signatures, when the real cause is
 # a trailing slash or a port.
 IDP_DOMAIN="$(read_env ZITADEL_EXTERNALDOMAIN localhost)"
-IDP_PORT="$(read_env ZITADEL_EXTERNALPORT 8080)"
+# Falls back to the PUBLISHED port, matching managed.yml's own fallback, so the
+# issuer this script writes and the port the stack serves cannot disagree. On a
+# plain bring-up they are one address seen from two sides; they separate only
+# when something fronts the provider, and then ZITADEL_EXTERNALPORT is set.
+IDP_PORT="$(read_env ZITADEL_EXTERNALPORT "$(read_env ZITADEL_PORT 3126)")"
 IDP_SECURE="$(read_env ZITADEL_EXTERNALSECURE false)"
 if [ "$IDP_SECURE" = "true" ]; then SCHEME=https; else SCHEME=http; fi
 # The port is omitted when it is the scheme's default, because the provider

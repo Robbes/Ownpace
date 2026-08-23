@@ -107,7 +107,7 @@ box needs a second bring-up before its login page works.
 ## One thing only the operator can decide: where the issuer lives
 
 `ZITADEL_EXTERNALDOMAIN` defaults to `localhost`, so `setup-zitadel.sh` writes
-`JWT_ISSUER=http://localhost:8080`. That address is baked into every token's
+`JWT_ISSUER=http://localhost:3126`. That address is baked into every token's
 `iss`, and it has to be resolvable by **two different things**:
 
 | Who | Needs to reach the issuer for |
@@ -126,7 +126,7 @@ it later invalidates every token already issued, because `iss` moves.
 
 The smoke asks the discovery and JWKS questions **from inside the API
 container** for exactly this reason. Asked from the host they would pass against
-the broken default — the port is published, so `localhost:8080` answers there —
+the broken default — the port is published, so `localhost:3126` answers there —
 which is the kind of green this repository keeps having to un-learn.
 
 ## What is still owed
@@ -156,3 +156,63 @@ work.
 **The bring-up and smoke changes are not proved by running them**, for the same
 reason as 0098: they need the Spark. The scripts are pinned by tests that read
 them; whether the gate goes green is the next dispatch's answer.
+
+## What the next dispatch answered: run #38
+
+It got one step further than the last three and stopped, 29 seconds in:
+
+```
+Container ownpace-idp Created
+Container ownpace-db Healthy
+Container ownpace-idp Starting
+Error response from daemon: failed to set up container networking: driver failed
+programming external connectivity on endpoint ownpace-idp: Bind for
+0.0.0.0:8080 failed: port is already allocated
+```
+
+Nothing in this stack held 8080 — the teardown's `docker compose ps` lists every
+service and none of them publishes it. 8080 is simply the port that everything
+else on a machine wants, and picking it was the whole mistake. This repository
+already knew better in two places: `setup-stalwart.sh` publishes JMAP on `18080`,
+and the E2E (selfhost) gate binds port 0 to get genuinely free ports at run time
+rather than assuming fixed ones are available.
+
+The provider is the one service that cannot use that trick, because its port
+goes into every token's `iss` and has to still be there tomorrow. So it gets a
+fixed number that is free by convention instead: **3126**, continuing the block
+this stack already owns — web 3123, status 3124, www 3125.
+
+### The pair that must not drift
+
+`ZITADEL_PORT` is where the stack publishes. `ZITADEL_EXTERNALPORT` is what goes
+into `iss`. On a plain bring-up they are one address seen from two sides; they
+separate only when something fronts the provider (netbird terminating TLS on
+443). Two hand-copied numbers is how a stack ends up serving one port and
+stamping the other, which surfaces as every sign-in failing with a message about
+signatures.
+
+So the second is derived from the first, in both places that compute it:
+
+```yaml
+ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNALPORT:-${ZITADEL_PORT:-3126}}
+```
+
+```bash
+IDP_PORT="$(read_env ZITADEL_EXTERNALPORT "$(read_env ZITADEL_PORT 3126)")"
+```
+
+Verified against `docker compose config`: with neither set both resolve to 3126;
+with `ZITADEL_PORT=9999` alone, the publish and the issuer both move to 9999.
+`identity-in-the-gate.unit.test.ts` pins the derivation, the agreement between
+the three fallbacks and `managed.env.example`, that the provider does not sit on
+a contended port, and that no two services on this host default to the same one
+— each case proved by breaking it.
+
+### What run #39 will find next
+
+The identity section, and it will be right to. `ZITADEL_EXTERNALDOMAIN` is still
+`localhost` on the runner, so the API container cannot reach the issuer and the
+smoke says so in as many words. That is the deployment decision above, not a
+code change: the box needs an address that answers for **both** a browser and
+`ownpace-api` — its netbird name, or `id.ota.ownpace.eu` under workplan 0091's
+scheme — set in the runner's persisted `.env` before the next dispatch.

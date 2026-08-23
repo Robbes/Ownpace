@@ -753,7 +753,7 @@ else
   # FROM INSIDE THE API CONTAINER, and this is the whole point of the check.
   #
   # Curling from the host would prove the wrong thing. `ZITADEL_EXTERNALDOMAIN`
-  # defaults to `localhost`, so `JWT_ISSUER` becomes http://localhost:8080 —
+  # defaults to `localhost`, so `JWT_ISSUER` becomes http://localhost:3126 —
   # which the HOST can reach, because the port is published, and which the API
   # container cannot, because there `localhost` is the API itself. A host-side
   # check would go green against a stack whose API can verify no token at all.

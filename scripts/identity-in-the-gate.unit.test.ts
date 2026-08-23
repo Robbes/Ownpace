@@ -162,3 +162,125 @@ describe('the smoke answers an invitation three ways', () => {
     expect(section).toMatch(/DELETE FROM tenant WHERE id=/);
   });
 });
+
+/**
+ * The port the provider is published on — and the port it says it is on.
+ *
+ * E2E (managed) run #38 was the identity provider's FIRST bring-up on the
+ * self-hosted runner. It got as far as creating the container and then died:
+ *
+ *   Bind for 0.0.0.0:8080 failed: port is already allocated
+ *
+ * Not to anything in this stack. 8080 is simply the port every other thing on
+ * a machine wants, and this repository already knew that — `setup-stalwart.sh`
+ * publishes JMAP on 18080 rather than 8080 for the same reason, and the E2E
+ * (selfhost) gate picks genuinely free ports at run time instead of assuming.
+ * The provider is the one service that cannot do that, because its port is
+ * baked into every token's `iss`; so it needs a number that is free by
+ * convention, and 3126 continues the block this stack already owns.
+ *
+ * The second half is the pair that must never drift. ZITADEL_PORT is where the
+ * stack publishes; ZITADEL_EXTERNALPORT is what goes into `iss`. On a plain
+ * bring-up they are one address seen from two sides, and they separate only
+ * when something fronts the provider on 443. Two hand-copied numbers is how a
+ * stack ends up serving one port and stamping the other — which surfaces as
+ * every sign-in failing with a message about signatures.
+ */
+describe('the identity provider is published somewhere it can actually bind', () => {
+  // `- "${SOME_PORT:-1234}:5678"` → [SOME_PORT, 1234, 5678], per compose file.
+  const publishes = (yaml: string): { variable: string; host: string; container: string }[] => {
+    const found: { variable: string; host: string; container: string }[] = [];
+    for (const [line, variable, host, container] of yaml.matchAll(
+      /^\s*-\s*"\$\{([A-Z_]+):-(\d+)\}:(\d+)"/gm,
+    )) {
+      // None of the three groups is optional in that pattern, which the
+      // compiler cannot see. Defaulting them would invent a port number and
+      // every case below would then agree with itself about nothing.
+      if (variable === undefined || host === undefined || container === undefined) {
+        throw new Error(`matched a port mapping and could not read it back: ${line}`);
+      }
+      found.push({ variable, host, container });
+    }
+    return found;
+  };
+
+  const www = read('www.yml');
+  const managedPorts = publishes(managed);
+
+  it('read the real compose files', () => {
+    // Vacuity guard: a regex that stops matching turns every case below green.
+    expect(managedPorts.length).toBeGreaterThan(5);
+    expect(publishes(www).length).toBeGreaterThan(0);
+  });
+
+  it('does not camp on 8080, or on any other port everything else wants', () => {
+    // The literal regression. 8080 is not a port a stack gets to assume.
+    const idp = managedPorts.find((p) => p.variable === 'ZITADEL_PORT');
+    expect(idp, 'zitadel must publish through ${ZITADEL_PORT:-…}').toBeDefined();
+    expect(
+      ['80', '443', '3000', '5000', '8000', '8080', '8443', '8888'],
+      `ZITADEL_PORT defaults to ${idp?.host}, which is contended on any ordinary machine`,
+    ).not.toContain(idp?.host);
+  });
+
+  it('gives every service on this host a host port of its own', () => {
+    // www.yml is a separate file that deliberately runs on the SAME host (its
+    // header says so), so its port counts against the same pool.
+    const all = [...managedPorts, ...publishes(www)];
+    const seen = new Map<string, string>();
+    const clashes: string[] = [];
+    for (const p of all) {
+      const owner = seen.get(p.host);
+      if (owner) clashes.push(`${p.host}: ${owner} and ${p.variable}`);
+      else seen.set(p.host, p.variable);
+    }
+    expect(clashes, 'two services default to the same host port — one of them cannot start').toEqual(
+      [],
+    );
+  });
+
+  it('derives the issuer port from the published one instead of repeating it', () => {
+    // `${ZITADEL_EXTERNALPORT:-${ZITADEL_PORT:-3126}}` — verified against
+    // `docker compose config`: setting ZITADEL_PORT alone moves both.
+    expect(
+      managed,
+      'ZITADEL_EXTERNALPORT must fall back to ZITADEL_PORT, not to a second copy of the number',
+    ).toContain('ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNALPORT:-${ZITADEL_PORT:-');
+  });
+
+  it('agrees on the fallback everywhere it is written down', () => {
+    // Three places compute the same port: the publish, the issuer's fallback,
+    // and setup-zitadel.sh (which writes JWT_ISSUER, so its copy is the one
+    // that reaches the API). A disagreement here is a stack that provisions an
+    // issuer nobody serves.
+    const published = managedPorts.find((p) => p.variable === 'ZITADEL_PORT')?.host;
+    const issuerFallback = /ZITADEL_EXTERNALPORT:-\$\{ZITADEL_PORT:-(\d+)\}/.exec(managed)?.[1];
+    const script = read('setup-zitadel.sh');
+    const scriptFallback = /read_env ZITADEL_EXTERNALPORT "\$\(read_env ZITADEL_PORT (\d+)\)"/.exec(
+      script,
+    )?.[1];
+
+    expect(published).toBeDefined();
+    expect(issuerFallback, 'managed.yml lost its ZITADEL_PORT fallback').toBe(published);
+    expect(
+      scriptFallback,
+      'setup-zitadel.sh must chain ZITADEL_EXTERNALPORT → ZITADEL_PORT → the same number',
+    ).toBe(published);
+  });
+
+  it('ships an example whose two ports agree with the fallback and each other', () => {
+    // The example is what an operator copies, and what the gate backfills from.
+    const example = read('managed.env.example');
+    const published = managedPorts.find((p) => p.variable === 'ZITADEL_PORT')?.host;
+    const value = (key: string): string | undefined =>
+      new RegExp(`^${key}=(\\d+)$`, 'm').exec(example)?.[1];
+
+    expect(value('ZITADEL_PORT'), 'managed.env.example must document the default it ships').toBe(
+      published,
+    );
+    expect(
+      value('ZITADEL_EXTERNALPORT'),
+      'a browser reaching the published port is the default case — these separate only behind a proxy',
+    ).toBe(published);
+  });
+});
