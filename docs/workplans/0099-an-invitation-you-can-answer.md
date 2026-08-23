@@ -1046,3 +1046,91 @@ putting the pipe back in `trigger-credentials.sh`, putting it back in
 `e2e-managed.yml`, adding a fresh `| head` to a file that never had one,
 treating `||` as a pipe, dropping quote tracking, dropping heredoc tracking —
 plus both vacuity guards, which fail if discovery ever stops finding files.
+
+---
+
+## Run #49 — through the identity provider, and into a refusal that said nothing
+
+The first run in which nothing about the identity provider itself went wrong:
+
+```
+    waiting for the identity provider at http://localhost:3126/debug/ready (up to 300s)
+    identity provider is ready after 5s
+[setup-zitadel] starting the identity provider (issuer will be http://localhost:3126)
+[setup-zitadel] waiting for it to report ready at http://localhost:3126/debug/ready
+[setup-zitadel] ready
+```
+
+Both waits cleared — #517's from the host, #518's in the script that had been
+asking for a health field that no longer exists. Twelve runs of work, and the
+provider is now a solved problem: `ghcr.io/zitadel/zitadel:v4.17.1`, uid 1000,
+a writable machinekey volume, a password its own policy accepts, a port nothing
+else holds, and readiness asked from the one side that can hear the answer.
+
+Then:
+
+```
+[setup-zitadel] looking for an existing 'Ownpace' project
+[setup-zitadel] creating it
+[setup-zitadel] FATAL: could not create the project
+```
+
+### What the run could not tell anyone
+
+Seven words, every one of them already known. At least three unrelated failures
+arrive at that line:
+
+| What happened | What it needs |
+|---|---|
+| the instance will not accept this token | a new token — REPROVISIONING |
+| `ownpace-setup` lacks the grant | a role in the console |
+| something other than the provider answered | look at what is in front of it |
+
+The provider had said which. `api` ran `curl -sS` with no `-f`, returned the
+body alone, and the caller piped it into `jq -r '.id'` — so a 401 became `null`
+and `null` became seven words.
+
+The search above it was worse, because it **could not fail at all**:
+
+```bash
+api POST /management/v1/projects/_search … | jq -r '.result[]? | select(…) | .id'
+```
+
+`.result[]?` turns an error body into no output, which is byte-identical to
+"no such project". A refused search reports that no project exists, and the
+script goes on to create one. An error swallowed into an empty result — hard
+rule 9, in the one script standing between the stack and a working provider.
+
+### The lesson was already written down, one caller away
+
+`read_allow_register` reads its setting back instead of trusting the call, and
+the note above it says exactly why: *"`api` runs `curl -sS` without `-f`, so an
+HTTP 404 or 400 still exits 0."* One caller defended itself and the callee was
+left as it was — the same shape as #519, where a SIGPIPE lesson was written into
+the twenty lines above the function it bit while eighteen other instances of it
+survived elsewhere. **The place to fix a thing is the place that is wrong, not
+the place where it was noticed.**
+
+### What this run does NOT settle
+
+It does not say which of the three it was. Nothing available from outside the
+Spark distinguishes them, and guessing is how #516 nearly shipped a fix for a
+failure mode that was not happening. What #50 will do is print the status and
+the provider's own words, and refuse at the first call that proves the token
+rather than the fourth call that happens to use it.
+
+### Three more adjacent matches, two of them in this change
+
+The count is now seven in one day, and this PR contributed three:
+
+| Where | What it matched instead |
+|---|---|
+| the pipeline assertion, `[^)]*` | wandered across newlines to a `\| jq` elsewhere — but in doing so found a REAL missed site, `CLIENT_ID="$(api GET … \` + `\| jq …)"`, which a line-bounded `[^)\n]*` would have missed |
+| `expect(CODE).toContain('%{http_code}')` | #518's readiness poll three lines above, so deleting the flag from `api` changed nothing |
+| the stub `curl` | appended a status unconditionally, modelling a tool more helpful than the real one — so the break that removed `-w` passed |
+
+The third is the one worth keeping. **A stub that is more capable than the
+thing it stands in for cannot catch the caller forgetting to ask.** The break
+that does not fail is the finding, every time.
+
+Nine mutations against the finished guard, nine caught.
