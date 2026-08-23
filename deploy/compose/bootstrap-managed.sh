@@ -700,8 +700,9 @@ EOF
 # config the daemon applies, so this cannot disagree with reality the way a
 # number in a comment can. A version bump that changes the user is then handled
 # rather than discovered in a nightly — which is not hypothetical: v4.6.2
-# reports `zitadel`, a NAME, and a hardcoded 1000 would have chowned the token
-# directory to whoever else holds that uid.
+# reported `zitadel`, a NAME, and a hardcoded 1000 would have chowned the token
+# directory to whoever else holds that uid. The pin has moved since; the lookup
+# is what makes that a non-event.
 #
 # An EMPTY answer is not a failure and not a default: it means the image
 # declares no USER, so it runs as root, and root needs no help writing to a
@@ -709,7 +710,7 @@ EOF
 # uid there would be inventing a fact (hard rule 9).
 # Turn the NAME an image declares into the number `chown` needs.
 #
-# E2E (managed) #45 is why this exists. `ghcr.io/zitadel/zitadel:v4.6.2` reports
+# E2E (managed) #45 is why this exists. `ghcr.io/zitadel/zitadel:v4.6.2` reported
 # `Config.User` as `zitadel`, not a uid, and the bring-up refused — correctly,
 # because `chown zitadel` inside busybox resolves against BUSYBOX's passwd,
 # where no such user exists. But refusing is half an answer when the number is

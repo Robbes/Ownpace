@@ -607,3 +607,80 @@ refuses, a numeric user skips the lookup, and an empty user still means root.
 The real uid is whatever the real passwd says — this environment has a compose
 parser, no Docker daemon, and no route to ghcr.io, so it is read on the Spark
 and nowhere else.
+
+### Run #46 — uid 1000, and a provider older than its database
+
+The lookup worked and printed the number nobody had been able to read:
+
+```
+ghcr.io/zitadel/zitadel:v4.6.2 runs as 'zitadel', which is uid 1000 in its own /etc/passwd
+ghcr.io/zitadel/zitadel:v4.6.2 runs as 1000; making the machinekey volume writable by it
+machinekey volume is now owned by 1000, mode 700
+```
+
+**It was 1000 after all.** That is worth sitting with rather than passing over:
+the guess would have been right, and guessing would still have been wrong. The
+value was unverifiable from the dev box, `Config.User` was a NAME rather than a
+number, and the only reason anybody can now say "1000" with a straight face is
+that something read it. A guess that happens to be correct is indistinguishable
+from a guess that is not, until a stack is broken in a way nobody can explain.
+
+Then Zitadel got further than it ever has — past `01_tables`, through twenty-odd
+verified migrations — and died somewhere new:
+
+```
+migration failed  name=34_add_cache_schema
+  error="ERROR: partitioned tables cannot be unlogged (SQLSTATE 0A000)"
+setup failed, skipping cleanup
+```
+
+All three windows agreed for the first time: nine failure lines, the oldest at
+15:22:27, and every one of them the same error. No echo, no leftover, no
+misdirection. The diagnosis had nothing to disentangle because there was nothing
+tangled — which is what it should look like when a container fails once for one
+reason.
+
+### The finding
+
+**Zitadel v4.6.2 cannot initialise against PostgreSQL 18 at all.** Its cache
+schema created an UNLOGGED PARTITIONED table; PostgreSQL removed support for
+that shape, so setup step 34 fails on every attempt, for everyone, always. It is
+not a misconfiguration and no setting avoids it — `zitadel/zitadel#10712`.
+
+Upstream fixed it in `zitadel/zitadel#11484`, merged 2026-02-03 into main with
+the `version/v4` label and backported to the v4 line: step 34 now creates the
+parent LOGGED and keeps the individual partitions unlogged, and a new step 69
+migrates deployments carrying the old shape. Zitadel's own requirements page now
+documents PostgreSQL 14–18.
+
+So the pin moves to **v4.17.1**, the current v4, rather than to the oldest
+release carrying the fix. Two reasons: there is nothing to regress, this
+provider having never once completed an init here; and an identity provider is
+the last component in a stack that should be running seven months behind. What
+cannot be checked from here is config drift across eleven minors — no Docker
+daemon, no route to ghcr.io — and the honest mitigation is that the bring-up can
+now name whatever breaks instead of restarting quietly, which is exactly what
+the last six runs bought.
+
+`zitadel-image-matches-postgres.unit.test.ts` refuses the pairing rather than
+either number: a Postgres major that forbids unlogged partitions may not sit
+beside a Zitadel below the floor, in either direction, and the floor is written
+down as a floor rather than as a claim about the earliest release that works —
+naming an exact first-fixed version would be inventing precision nobody here can
+check.
+
+### What the six runs actually bought
+
+| Run | Died at | Visible cause | True cause |
+|---|---|---|---|
+| #38 | port bind | `port is already allocated` | the same |
+| #39–#40 | zitadel restart | *nothing* | password, unreadable |
+| #41 | zitadel restart | password (read by hand) | the same |
+| #42–#43 | zitadel restart | `Domain.AlreadyExists` | pat.txt permission denied |
+| #44 | zitadel restart | `Domain.AlreadyExists` | pat.txt, **now visible** |
+| #45 | prepare volume | `not a numeric uid[:gid]` | the same, refused not guessed |
+| #46 | setup step 34 | `cannot be unlogged` | the same |
+
+The interesting column is the gap between the last two. It closes at #44 — the
+run after the failure window shipped — and has stayed closed since. Every run
+from there on says what is wrong on the first read.
