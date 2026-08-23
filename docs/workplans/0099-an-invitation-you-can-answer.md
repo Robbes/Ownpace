@@ -300,3 +300,67 @@ repair saw its own bad output and healed it. Defence in depth is good; a test
 that cannot see the regression is not. So a fresh `.env` now also asserts that
 the repair does **not** fire — if it does, the generator is writing what the
 policy rejects.
+
+### The diagnosis did NOT print that itself — and that is a second bug
+
+The error above was read off the box by hand. The run's own diagnosis stopped
+one line short of it:
+
+```
+container ownpace-idp is unhealthy
+!!! compose could not bring these up healthy: zitadel
+!!! --- zitadel (restarting ) — FIRST 20 log lines (start-up):
+    ownpace-idp | … "initialization started"
+    …
+    ownpace-idp | … "starting migration" name=01_tables
+##[error]Process completed with exit code 255.
+```
+
+Twenty lines of initialisation, which say nothing, and then the run **died**.
+The `last 20` window — where `PasswordComplexityPolicy.HasUpper` was sitting on
+the fatal line — never printed. Neither did the pointer to the failure table.
+
+`docker compose logs "$svc" | head -20` is why. `head` closes the pipe after
+twenty lines; a container with a LONG log is still writing, takes SIGPIPE, and
+under `set -euo pipefail` that failed pipeline aborts the function — after the
+first window and before the second. Reproduced exactly:
+
+```
+$ set -euo pipefail; long() { seq 1 100000; }
+$ long | head -3 | sed 's/^/    /'; echo "never reached"
+    1
+    2
+    3
+[exit 141]
+```
+
+It had never bitten before because every container this had run on had a log
+SHORTER than twenty lines, so `head` read to EOF and nothing was signalled. The
+first service with a long log was the first service it mattered for — and it was
+the one the whole mechanism had just been built for.
+
+The log is now read ONCE into a variable and both windows are sliced out of it,
+each guarded so that printing cannot abort the thing it exists to print.
+
+### Run #41, which is why this fix is not cosmetic
+
+The password fix merged and the gate was dispatched again. Real progress:
+
+```
+Container ownpace-idp Recreate / Recreated          the new password reached it
+0.0.0.0:3126->8080/tcp                              the port fix is live
+… "verify migration" … name=03_default_instance     verified, not re-applied
+```
+
+Every migration in run #41 is a `verify`, where run #39's were `starting` — the
+earlier attempt did record them. And the container still exits.
+
+**Why, nobody can say from that run**, because `verify migration …
+name=03_default_instance` is the TWENTIETH line, and the window closes there.
+Whether that migration was retried and passed, retried and failed, or something
+else entirely broke afterwards are three different problems with three different
+fixes, and one of them means dropping the `zitadel` database.
+
+A diagnosis that stops one line before the answer is not a smaller version of a
+diagnosis. It is the same as not having one, twice over — and it has now cost
+two dispatches.

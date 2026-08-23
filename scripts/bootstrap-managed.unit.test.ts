@@ -529,8 +529,49 @@ describe('a bring-up that waits can say why it failed', () => {
       bootstrap.indexOf('explain_failure() {'),
       bootstrap.indexOf('\n}', bootstrap.indexOf('explain_failure() {')),
     );
-    expect(body, 'the start-up window is the half that matters').toMatch(/logs "\$svc".*head -20/s);
-    expect(body).toMatch(/logs --tail 20 "\$svc"/);
+    // Asserted as the two WINDOWS, not as the commands that produce them. This
+    // case used to match `logs --tail 20 "$svc"` and broke when the same two
+    // windows started being sliced out of one captured read — a test pinned to
+    // the shape of a command rather than to what it prints.
+    expect(body, 'the start-up window is the half that matters').toContain(
+      'FIRST 20 log lines (start-up)',
+    );
+    expect(body, 'and the current symptom is the other half').toContain('— last 20:');
+    expect(body).toMatch(/\| head -20/);
+    expect(body).toMatch(/\| tail -20/);
+  });
+
+  it('reads the log ONCE and prints from a variable, so no window can kill the next', () => {
+    // E2E (managed) #40 is why. `docker compose logs "$svc" | head -20` looks
+    // harmless: `head` closes the pipe after twenty lines, a container with a
+    // LONG log is still writing, it takes SIGPIPE, and under `set -euo pipefail`
+    // that failed pipeline aborts the function — after the first window and
+    // before the second. The run died at exit 255 having printed Zitadel's
+    // initialisation, which says nothing, while the `last 20` window holding
+    // `PasswordComplexityPolicy.HasUpper` never printed at all.
+    //
+    // It had never bitten before because every container this had run on had a
+    // log shorter than twenty lines, so `head` read to EOF and nothing was
+    // signalled.
+    const body = bootstrap.slice(
+      bootstrap.indexOf('explain_failure() {'),
+      bootstrap.indexOf('\n}', bootstrap.indexOf('explain_failure() {')),
+    );
+    expect(body, 'the log must be captured before it is sliced').toMatch(
+      /full="\$\("\$\{COMPOSE\[@\]\}" logs "\$svc"/,
+    );
+    expect(
+      body,
+      'no window may pipe `docker compose logs` straight into head or tail again',
+    ).not.toMatch(/logs (--tail \d+ )?"\$svc" 2>&1 \| (head|tail)/);
+    // And the display pipelines cannot abort the diagnosis they exist to print.
+    const windows = [...body.matchAll(/printf '%s\\n' "\$full" \| (head|tail) -20[^\n]*/g)];
+    expect(windows.length, 'both windows must print from the captured log').toBe(2);
+    for (const [line] of windows) {
+      expect(line, 'a display pipeline that can abort takes the diagnosis with it').toContain(
+        '|| true',
+      );
+    }
   });
 
   it('stops the bring-up rather than carrying on past a service that never started', () => {
