@@ -66,7 +66,11 @@ read_env() { # read_env <key> [default]
 # checks it against. Two hand-written copies of a URL is how a stack ends up
 # rejecting every token with a message about signatures, when the real cause is
 # a trailing slash or a port.
-IDP_DOMAIN="$(read_env ZITADEL_EXTERNALDOMAIN localhost)"
+# The fallback is managed.yml's, not a second opinion — `ownpace-idp`, the
+# provider's container name and its network alias. This said `localhost` while
+# compose said the same thing, and that agreement was the bug: see the refusal
+# below for why no containerised API can ever reach an issuer on loopback.
+IDP_DOMAIN="$(read_env ZITADEL_EXTERNALDOMAIN ownpace-idp)"
 # Falls back to the PUBLISHED port, matching managed.yml's own fallback, so the
 # issuer this script writes and the port the stack serves cannot disagree. On a
 # plain bring-up they are one address seen from two sides; they separate only

@@ -159,26 +159,65 @@ warn_minted_tokens_are_not_verifiable() {
   [ "$MINT_WARNED" = "0" ] || return 0
   MINT_WARNED=1
   [ -n "${STACK_ISSUER:-}" ] || return 0
-  echo
-  echo "!!! this stack verifies tokens against ${STACK_ISSUER}, and the tokens below"
-  echo "!!! are signed with JWT_SECRET, which managed mode does not use. Every"
-  echo "!!! authenticated check that follows will be refused, and NONE of those"
-  echo "!!! refusals is about the endpoint it names."
-  echo "!!! The remedy is workplan 0099's remaining task: get a real token from the"
-  echo "!!! provider. Until then this is one true sentence instead of fifteen"
-  echo "!!! misleading ones."
-  echo
+  # >&2, AND THAT IS NOT A STYLE CHOICE. `mint`'s STDOUT IS THE TOKEN — it is
+  # read with `TOK="$(mint …)"`. Written to stdout, these lines are prepended to
+  # every JWT the script mints, and the API then answers HTTP 400 with an empty
+  # body to a header it cannot parse. That is what E2E (managed) #60 did:
+  #
+  #   verify: start-http-400   apply: start-http-400
+  #   readiness (database): HTTP 400, .database -> '<unreadable>' —
+  #
+  # It is #523's bug exactly — output that is not the credential ending up in
+  # the credential — committed an hour after the test that catches #523 was
+  # written. The whole script's output is `tee`d, so stderr still reaches the
+  # log and the reader loses nothing.
+  {
+    echo
+    echo "!!! this stack verifies tokens against ${STACK_ISSUER}, and the tokens below"
+    echo "!!! are signed with JWT_SECRET, which managed mode does not use. Every"
+    echo "!!! authenticated check that follows will be refused, and NONE of those"
+    echo "!!! refusals is about the endpoint it names."
+    echo "!!! The remedy is workplan 0099's remaining task: get a real token from the"
+    echo "!!! provider. Until then this is one true sentence instead of fifteen"
+    echo "!!! misleading ones."
+    echo
+  } >&2
   fail=1
+}
+
+# AND WHATEVER COMES OUT OF HERE IS CHECKED FOR THE SHAPE OF A TOKEN BEFORE IT
+# IS SENT AS ONE — the durable half of #523's lesson, applied one caller further
+# than #523 applied it. A JWT is three dot-separated segments and contains no
+# whitespace; a warning, a stack trace, a deprecation notice and an OCI error
+# all do. This catches the class regardless of what produces the garbage next.
+assert_looks_like_a_jwt() { # assert_looks_like_a_jwt <what> <value>
+  case "$2" in
+    '')            echo "$1 came back empty — nothing signed it"; fail=1; return 1 ;;
+    *[[:space:]]*) echo "$1 is not a token: it contains whitespace, and no token does."
+                   echo "  first 200 bytes: ${2:0:200}"; fail=1; return 1 ;;
+  esac
+  case "$2" in
+    *.*.*) : ;;
+    *) echo "$1 is not a token: a JWT has three dot-separated segments, this has $(($(printf '%s' "$2" | tr -cd . | wc -c) + 1))."
+       echo "  first 200 bytes: ${2:0:200}"; fail=1; return 1 ;;
+  esac
 }
 
 mint() { # mint <sub> <tenantId>  — signed with the API container's real secret
   warn_minted_tokens_are_not_verifiable
-  (
+  # DECLARED, THEN ASSIGNED — `local tok="$(…)"` makes the exit status `local`'s,
+  # which is always 0 (#520). And CHECKED HERE, in the callee, rather than at
+  # each of the four call sites: fixing the caller and not the callee is how
+  # #519 survived in nineteen other places.
+  local tok
+  tok="$(
     cd "$REPO_ROOT/apps/api" &&
       JWT_SECRET="$JW" SUB="$1" T="$2" node -e "
 const jwt=require('jsonwebtoken');
 console.log(jwt.sign({sub:process.env.SUB,email:process.env.SUB+'@smoke.local',tenantId:process.env.T,role:'owner'},process.env.JWT_SECRET,{expiresIn:'1h'}));"
-  )
+  )"
+  assert_looks_like_a_jwt "the token minted for '$1'" "$tok" || return 1
+  printf '%s' "$tok"
 }
 
 # http <method> <url> <token> — prints "<code> <body>" on one line
@@ -963,12 +1002,16 @@ note "an invitation, answered three ways"
 # what the policies key on: without it there is nothing to answer.
 INV_EMAIL="smoke-invitee-$$@smoke.local"
 INV_SUB="smoke-invitee-$$"
+warn_minted_tokens_are_not_verifiable
 INV_TOKEN="$(
   cd "$REPO_ROOT/apps/api" &&
     JWT_SECRET="$JW" SUB="$INV_SUB" EM="$INV_EMAIL" node -e "
 const jwt=require('jsonwebtoken');
 console.log(jwt.sign({sub:process.env.SUB,email:process.env.EM,email_verified:true},process.env.JWT_SECRET,{expiresIn:'1h'}));"
 )"
+# The one token not minted by `mint` — it carries `email_verified`, which the
+# invitation path reads. It gets the same check for the same reason.
+assert_looks_like_a_jwt "the invitee's token" "$INV_TOKEN" || true
 
 # Three open invitations, written the way granting an access request writes one:
 # addressed to an email, holding a `pending:` placeholder nobody owns yet.

@@ -343,6 +343,25 @@ describe('the identity provider is published somewhere it can actually bind', ()
     ).toBe(published);
   });
 
+  it('agrees with compose on the DOMAIN fallback too, not just the port', () => {
+    // Three files compute the issuer, and the one that writes JWT_ISSUER is the
+    // script. A disagreement here is a stack that provisions an issuer nobody
+    // serves — the same failure the port fallback above exists to prevent, one
+    // component to the left.
+    const script = read('setup-zitadel.sh');
+    const composeDefault = /ZITADEL_EXTERNALDOMAIN: \$\{ZITADEL_EXTERNALDOMAIN:-([^}]+)\}/.exec(
+      managed,
+    )?.[1];
+    const scriptDefault = /read_env ZITADEL_EXTERNALDOMAIN ([^)\s]+)\)/.exec(script)?.[1];
+    expect(composeDefault, 'managed.yml must default the domain').toBeDefined();
+    expect(scriptDefault, 'setup-zitadel.sh must fall back to the same name').toBe(composeDefault);
+    const example = read('managed.env.example');
+    expect(
+      /^ZITADEL_EXTERNALDOMAIN=(.+)$/m.exec(example)?.[1],
+      'and the example an operator copies must ship it too',
+    ).toBe(composeDefault);
+  });
+
   it('ships an example whose two ports agree with the fallback and each other', () => {
     // The example is what an operator copies, and what the gate backfills from.
     const example = read('managed.env.example');
@@ -357,5 +376,62 @@ describe('the identity provider is published somewhere it can actually bind', ()
       value('ZITADEL_EXTERNALPORT'),
       'a browser reaching the published port is the default case — these separate only behind a proxy',
     ).toBe(published);
+  });
+});
+
+/**
+ * A FUNCTION WHOSE STDOUT IS A CREDENTIAL MAY NOT SAY ANYTHING ON STDOUT.
+ *
+ * E2E (managed) #60, and it was self-inflicted an hour after the test that
+ * catches #523 was written. A warning was added at the top of `mint`, printed
+ * with a bare `echo` — and `mint`'s stdout IS the token, read with
+ * `TOK="$(mint …)"`. So every JWT the smoke minted arrived with eight lines of
+ * prose in front of it, and the API answered a header it could not parse the
+ * only way it can:
+ *
+ *   verify: start-http-400   apply: start-http-400
+ *   readiness (database): HTTP 400, .database -> '<unreadable>' —
+ *
+ * An empty body and a 400, which says nothing about tokens at all. Exactly
+ * #523's shape — output that is not the credential ending up in the credential
+ * — one caller further along.
+ */
+describe('nothing but the token comes out of the thing that mints tokens', () => {
+  const mintBody = /\nmint\(\) \{[\s\S]*?\n\}/.exec(smoke)?.[0] ?? '';
+
+  it('read the real function', () => {
+    // Vacuity guard: an empty body passes every case below.
+    expect(mintBody).toContain('jwt.sign');
+  });
+
+  it('the warning goes to stderr, because stdout is the token', () => {
+    const warn = /warn_minted_tokens_are_not_verifiable\(\) \{[\s\S]*?\n\}/.exec(smoke)?.[0] ?? '';
+    expect(warn, 'the warning function must be readable').toContain('!!!');
+    expect(warn, 'every line of it must be redirected').toMatch(/\}\s*>&2/);
+  });
+
+  it('mint itself prints the token and nothing else', () => {
+    const chatty = mintBody
+      .split('\n')
+      .filter((l) => /^\s*echo\b/.test(l) && !/>&2/.test(l));
+    expect(chatty, 'a bare echo here is prepended to the credential').toEqual([]);
+  });
+
+  it('and whatever comes out is checked for the SHAPE of a token', () => {
+    // The durable half of #523's lesson: a JWT has three dot-separated segments
+    // and no whitespace. A warning has whitespace; so does a stack trace, a
+    // deprecation notice and an OCI error. This catches the class whatever
+    // produces the garbage next.
+    expect(smoke).toContain('assert_looks_like_a_jwt');
+    const check = /assert_looks_like_a_jwt\(\) \{[\s\S]*?\n\}/.exec(smoke)?.[0] ?? '';
+    expect(check, 'whitespace is what an error message has and a token does not').toContain(
+      '*[[:space:]]*',
+    );
+    expect(check, 'and three segments is what a JWT is').toContain('*.*.*');
+    // In the callee, not at each call site — fixing the caller and not the
+    // callee is how #519 survived in nineteen other places.
+    expect(mintBody).toContain('assert_looks_like_a_jwt');
+    // And the one token not minted by `mint` gets the same check.
+    expect(smoke).toMatch(/assert_looks_like_a_jwt "the invitee's token" "\$INV_TOKEN"/);
   });
 });
