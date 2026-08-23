@@ -159,28 +159,115 @@ PAT="$("${COMPOSE[@]}" exec -T zitadel cat /machinekey/pat.txt 2>/dev/null | tr 
 This file is written on FIRST INIT only. If this instance was initialised
 before, see REPROVISIONING at the bottom of this script."
 
-api() { # api <method> <path> [json-body]
+# THE ANSWER IS READ, NOT THROWN AWAY.
+#
+# This ran `curl -sS` with no `-f` and returned the body alone, so every caller
+# was handed an error page and no way to know it was one. E2E (managed) #49 is
+# what that costs:
+#
+#   [setup-zitadel] looking for an existing 'Ownpace' project
+#   [setup-zitadel] creating it
+#   [setup-zitadel] FATAL: could not create the project
+#
+# Three different failures reach that line — a token this instance will not
+# accept, a machine user without the grant, a provider that answered something
+# other than JSON — and it prints the same seven words for all of them. Worse,
+# the SEARCH above it cannot fail at all: `.result[]?` turns an error body into
+# no output, which is byte-identical to "no such project", so a refused search
+# reports "there is no project" and the script confidently goes on to create
+# one. An error swallowed into an empty result, which is the thing hard rule 9
+# is about.
+#
+# The workaround for this already existed in ONE place — `read_allow_register`
+# reads its setting back precisely because the call could not be trusted — and
+# the note above it says why. Fixing the caller and not the callee is how the
+# other nineteen instances of #519 survived. So it is fixed here, once.
+api() { # api <method> <path> [json-body] — dies on any non-2xx, prints the body
   local method="$1" path="$2" body="${3:-}"
+  # DECLARED, THEN ASSIGNED. `local out="$(curl …)"` makes the exit status
+  # `local`'s, which is always 0, and the failure disappears.
+  local out status rc
   local args=(-sS -X "$method" "${ISSUER}${path}"
     -H "Authorization: Bearer ${PAT}"
-    -H "Content-Type: application/json")
+    -H "Content-Type: application/json"
+    -w '\n%{http_code}')
   [ -n "$body" ] && args+=(-d "$body")
-  curl "${args[@]}"
+
+  out="$(curl "${args[@]}")"; rc=$?
+  [ "$rc" -eq 0 ] || die "could not reach ${ISSUER}${path} at all (curl exited ${rc}).
+Is the identity provider still up?  docker compose -f ${SCRIPT_DIR}/managed.yml ps zitadel"
+
+  status="${out##*$'\n'}"
+  out="${out%$'\n'*}"
+
+  case "$status" in
+    401)
+      die "${method} ${path} answered HTTP 401 — the provisioning token was NOT accepted.
+    ${out}
+
+The token at /machinekey/pat.txt is written on FIRST INIT and belongs to the
+instance initialised at that moment. A non-empty file is not a valid token: if
+the zitadel DATABASE was cleared while the machinekey VOLUME was kept, this
+file holds a token for an instance that no longer exists, and every call here
+is refused exactly like this. See REPROVISIONING at the bottom of this script." ;;
+    403)
+      die "${method} ${path} answered HTTP 403 — the token is valid, and the machine
+user behind it is not allowed to do this.
+    ${out}
+
+That is a GRANT, not a credential: 'ownpace-setup' exists but lacks the
+permission this call needs. Sign in at ${ISSUER}/ui/console as the first user
+and give it the org role it is missing, or see REPROVISIONING at the bottom of
+this script." ;;
+    2*) : ;;
+    *)  die "${method} ${path} answered HTTP ${status}:
+    ${out}" ;;
+  esac
+
+  # A 200 carrying an HTML error page from something in front of the provider
+  # parses as neither JSON nor an answer, and `jq` would report `null` for it
+  # in exactly the shape a real "not found" has.
+  if [ -n "$out" ] && ! printf '%s' "$out" | jq -e . >/dev/null 2>&1; then
+    die "${method} ${path} answered HTTP ${status} with something that is not JSON:
+    ${out}
+
+Something other than the identity provider may be answering on ${ISSUER}."
+  fi
+
+  printf '%s' "$out"
 }
+
+# THE ONE PLACE THAT MEANS "TRY IT". `api` dies on a non-2xx, which is what
+# every call here wants except the login-policy pair below, where exactly one of
+# two verbs is EXPECTED to fail and the setting is read back to decide. Running
+# it in a subshell keeps its `exit` from taking the script with it — `|| true`
+# does NOT catch an `exit`, which is how a stricter `api` would otherwise have
+# turned a deliberate best-effort call into a fatal one.
+api_try() { ( api "$@" ) >/dev/null 2>&1 || true; }
 
 need_jq() { command -v jq >/dev/null || die "jq is required — install it and re-run"; }
 need_jq
 
+# A NON-EMPTY FILE IS NOT A VALID TOKEN, and the check above only proved the
+# file. One call whose entire job is to make the provider say whether it still
+# accepts this token, so a dead one is named HERE — where the remedy is — and
+# not four calls later as "could not create the project".
+say "checking the identity provider still accepts this provisioning token"
+api GET /auth/v1/users/me >/dev/null
+
 # ------------------------------------------------------------------- project --
 
 say "looking for an existing '${PROJECT_NAME}' project"
-PROJECT_ID="$(api POST /management/v1/projects/_search '{"queries":[]}' \
-  | jq -r --arg n "$PROJECT_NAME" '.result[]? | select(.name == $n) | .id' | awk 'NR==1')"
+projects="$(api POST /management/v1/projects/_search '{"queries":[]}')"
+PROJECT_ID="$(jq -r --arg n "$PROJECT_NAME" '.result[]? | select(.name == $n) | .id' <<<"$projects" | awk 'NR==1')"
 
 if [ -z "$PROJECT_ID" ] || [ "$PROJECT_ID" = "null" ]; then
   say "creating it"
-  PROJECT_ID="$(api POST /management/v1/projects "$(jq -nc --arg n "$PROJECT_NAME" '{name:$n}')" | jq -r '.id')"
-  [ -n "$PROJECT_ID" ] && [ "$PROJECT_ID" != "null" ] || die "could not create the project"
+  created="$(api POST /management/v1/projects "$(jq -nc --arg n "$PROJECT_NAME" '{name:$n}')")"
+  PROJECT_ID="$(jq -r '.id // empty' <<<"$created")"
+  [ -n "$PROJECT_ID" ] || die "the provider accepted POST /management/v1/projects and the
+answer carries no project id:
+    ${created}"
 else
   say "found it"
 fi
@@ -196,8 +283,8 @@ REDIRECT_URIS="$(jq -nc --arg w "$WEB_URL" '[$w + "/auth/callback"]')"
 LOGOUT_URIS="$(jq -nc --arg w "$WEB_URL" '[$w + "/login"]')"
 
 say "looking for an existing '${APP_NAME}' application"
-APP_ID="$(api POST "/management/v1/projects/${PROJECT_ID}/apps/_search" '{"queries":[]}' \
-  | jq -r --arg n "$APP_NAME" '.result[]? | select(.name == $n) | .id' | awk 'NR==1')"
+apps="$(api POST "/management/v1/projects/${PROJECT_ID}/apps/_search" '{"queries":[]}')"
+APP_ID="$(jq -r --arg n "$APP_NAME" '.result[]? | select(.name == $n) | .id' <<<"$apps" | awk 'NR==1')"
 
 if [ -z "$APP_ID" ] || [ "$APP_ID" = "null" ]; then
   say "creating it (authorization-code + PKCE, no client secret)"
@@ -219,8 +306,8 @@ if [ -z "$APP_ID" ] || [ "$APP_ID" = "null" ]; then
   [ -n "$CLIENT_ID" ] && [ "$CLIENT_ID" != "null" ] || die "could not create the application: $CREATED"
 else
   say "found it — reading its client id"
-  CLIENT_ID="$(api GET "/management/v1/projects/${PROJECT_ID}/apps/${APP_ID}" \
-    | jq -r '.app.oidcConfig.clientId')"
+  app="$(api GET "/management/v1/projects/${PROJECT_ID}/apps/${APP_ID}")"
+  CLIENT_ID="$(jq -r '.app.oidcConfig.clientId // empty' <<<"$app")"
   [ -n "$CLIENT_ID" ] && [ "$CLIENT_ID" != "null" ] || die "the application exists but has no client id"
 fi
 say "client ${CLIENT_ID}"
@@ -248,9 +335,13 @@ say "client ${CLIENT_ID}"
 # the two settings below travel together: self-registration without verified
 # email would mean whoever types an address inherits what was granted to it.
 say "allowing people to register, with a verified email"
-read_allow_register() { api GET /management/v1/policies/login | jq -r '.policy.allowRegister // empty'; }
+# Two readers, deliberately. The PROBE runs before anything has been written and
+# must survive an organisation that has no login policy of its own; the DECIDER
+# runs after the writes, where a call that cannot be made is the answer.
+probe_allow_register() { jq -r '.policy.allowRegister // empty' <<<"$( ( api GET /management/v1/policies/login ) 2>/dev/null || true)"; }
+read_allow_register() { jq -r '.policy.allowRegister // empty' <<<"$(api GET /management/v1/policies/login)"; }
 
-if [ "$(read_allow_register)" = "true" ]; then
+if [ "$(probe_allow_register)" = "true" ]; then
   say "already allowed"
 else
   POLICY="$(jq -nc '{allowRegister:true, allowUsernamePassword:true, allowExternalIdp:false}')"
@@ -258,13 +349,14 @@ else
   # inherits the instance default and the PUT has nothing to update — so both
   # verbs are attempted and NEITHER is trusted.
   #
-  # `api` runs `curl -sS` without `-f`, so an HTTP 404 or 400 still exits 0.
-  # Chaining on the exit code would report success for a call that changed
-  # nothing, which for this setting means a granted person reaches a sign-in
-  # page they cannot pass — a failure that surfaces days later, in front of a
+  # NEITHER VERB IS TRUSTED, even now that `api` reports what it was told.
+  # `api_try` is used precisely because one of these two is expected to be
+  # refused, so "it did not error" cannot mean "it took". For this setting a
+  # call that changed nothing means a granted person reaches a sign-in page
+  # they cannot pass — a failure that surfaces days later, in front of a
   # customer. So the setting is READ BACK, and that is what decides.
-  api PUT /management/v1/policies/login "$POLICY" >/dev/null 2>&1 || true
-  api POST /management/v1/policies/login "$POLICY" >/dev/null 2>&1 || true
+  api_try PUT /management/v1/policies/login "$POLICY"
+  api_try POST /management/v1/policies/login "$POLICY"
 
   [ "$(read_allow_register)" = "true" ] \
     || die "could not allow people to register.

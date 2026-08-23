@@ -174,16 +174,21 @@ describe('letting a granted person in (workplan 0095 T0)', () => {
   });
 
   it('VERIFIES the setting rather than trusting the call', () => {
-    // `api` runs `curl -sS` without `-f`, so an HTTP 404 or 400 still exits 0.
-    // Chaining on the exit code would report success for a call that changed
-    // nothing — and this particular nothing surfaces days later, in front of a
-    // customer who cannot sign in. So it is read back.
+    // `api` used to run `curl -sS` without `-f`, so an HTTP 404 or 400 still
+    // exited 0, and chaining on the exit code would have reported success for a
+    // call that changed nothing — a nothing that surfaces days later, in front
+    // of a customer who cannot sign in. So it is read back.
+    //
+    // `api` now reports what it was told and dies on a non-2xx, which is why
+    // the writes below say `api_try`: exactly one of the two verbs is EXPECTED
+    // to be refused, so "it did not error" still cannot mean "it took". The
+    // read-back is what decides, then as now.
     const block = script.slice(script.indexOf('allowing people to register'));
     expect(block).toContain('read_allow_register');
     // The LAST read-back, not the first: the first is the "already allowed"
-    // guard that skips the writes entirely. What this pins is that the one
+    // probe that skips the writes entirely. What this pins is that the one
     // deciding whether to `die` runs AFTER them.
-    const write = block.indexOf('api PUT /management/v1/policies/login');
+    const write = block.indexOf('api_try PUT /management/v1/policies/login');
     const decides = block.lastIndexOf('read_allow_register)');
     expect(write).toBeGreaterThan(-1);
     expect(decides).toBeGreaterThan(write);
