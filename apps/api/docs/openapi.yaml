@@ -72,7 +72,11 @@ security:
 
 tags:
   - name: Service
-    description: Liveness, build identity and metrics. No tenant, no token.
+    description: Liveness, readiness, build identity and metrics. No tenant, no token.
+  - name: Account
+    description: Who the caller is, and which organisations they may act in. The one authenticated surface that answers before any tenant is resolved.
+  - name: Access
+    description: Asking to be let in, and an operator's half of answering. Invite-only, so the asking is public and the deciding is not.
   - name: Tenants
     description: The tenant record and its members.
   - name: Migrations
@@ -163,6 +167,271 @@ paths:
           content:
             text/plain:
               schema: { type: string }
+
+  /ready:
+    get:
+      tags: [Service]
+      summary: Readiness — can this instance actually serve
+      description: |
+        Unlike `/health`, this one can fail. It checks the database through the
+        **same pool the request path uses** (PgBouncer included, when one is in
+        front), so it proves the route customers take rather than a different
+        one that happens to work, and it checks that the sign-in issuer is
+        answering at its discovery document.
+
+        **`503` only when the database is down**, because that is the only
+        check whose absence means no request can be served at all. A sign-in
+        outage is `degraded` and still `200`: the API IS serving the people
+        already inside it, and a load balancer that pulled it from rotation
+        would turn a partial problem into a total one.
+
+        The body publishes STATES, never reasons — an unauthenticated endpoint
+        that reported *why* the database was unreachable would be describing
+        internal topology to anybody who asked. The reason goes to the log.
+      security: []
+      responses:
+        '200':
+          description: Serving. `status` is `ok`, or `degraded` when something non-fatal is down.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Readiness' }
+        '503':
+          description: The database is unreachable, so nothing can be served.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Readiness' }
+
+  /api/ready:
+    get:
+      tags: [Service]
+      summary: Readiness (same-origin path)
+      description: |
+        Identical to `/ready`, prefixed for the same reason `/api/health` is:
+        the web front proxies `/api` to this service.
+      security: []
+      responses:
+        '200':
+          description: Serving, possibly degraded.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Readiness' }
+        '503':
+          description: The database is unreachable.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Readiness' }
+
+  /api/me:
+    get:
+      tags: [Account]
+      summary: Who am I, and where may I go
+      description: |
+        **This route REPORTS rather than refuses**, which is what makes it
+        different from every other authenticated endpoint. They resolve a
+        tenant and refuse what they cannot decide; this one exists precisely to
+        answer *"these two, currently neither"* without a `400`, because a
+        client handles that by asking a person.
+
+        A subject who belongs to nothing is a normal, documented state — the
+        first sign-in after self-registration, or before a grant. It answers
+        with an empty `tenants` and no `tenantId`.
+
+        It also has one side effect: **an invitation is claimed here.** When the
+        caller belongs to nothing, a `tenant_member` row addressed to their
+        email and still carrying a `pending:` placeholder is bound to their
+        subject — but only against an address the issuer says it VERIFIED,
+        since otherwise whoever registers an address inherits what was granted
+        to it.
+      responses:
+        '200':
+          description: The caller, their memberships, and which one they are currently acting as.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/access-requests:
+    post:
+      tags: [Access]
+      summary: Ask to be let in
+      description: |
+        **Unauthenticated and it WRITES**, which is the whole of its risk. Four
+        things carry that: the table grants `app_user` INSERT and nothing else;
+        every field is length-capped before the insert; a refusing rate limit
+        sized as a service-wide cap (without `TRUST_PROXY` every caller shares
+        the ingress's address); and **the response is identical whatever
+        happens**.
+
+        That last one is deliberate. It never says whether an address is
+        already known, already granted, or new — a public endpoint that
+        distinguishes those is an account-enumeration oracle. It is also
+        honest: from the asker's side all of those genuinely are *"we have it,
+        a person will read it"*.
+
+        It holds no credentials and nothing about a mailbox. `tier` is
+        indicative only — a tier is DERIVED from what actually runs, never
+        picked.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AccessRequestCreate' }
+      responses:
+        '201':
+          description: Recorded. Says nothing about the address — see above.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received: { type: boolean, enum: [true] }
+                  message: { type: string }
+                required: [received, message]
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '429':
+          description: More requests than expected from one place. Carries `Retry-After`.
+          headers:
+            Retry-After:
+              schema: { type: integer }
+              description: Seconds to wait.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    get:
+      tags: [Access]
+      summary: The queue an operator works
+      description: |
+        Open first, oldest first within that — the queue is worked from the
+        top, and somebody who asked on Monday should not sit behind somebody
+        who asked on Friday. No filter shows everything, which is what makes a
+        decision reviewable afterwards.
+
+        **Nothing in this route authorises the caller.** Policies on
+        `access_request` do: the rows are invisible unless `app.current_user`
+        names a row in `platform_operator`, enforced against the role the API
+        really connects as. So a non-operator gets `200` and an empty list,
+        because to the database that is exactly what is there.
+      parameters:
+        - name: state
+          in: query
+          required: false
+          description: Narrow to one state. Anything else is a `400` naming the three.
+          schema: { type: string, enum: [open, granted, declined] }
+      responses:
+        '200':
+          description: The queue. Empty for a non-operator, and that is not an error.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requests:
+                    type: array
+                    items: { $ref: '#/components/schemas/AccessRequest' }
+                required: [requests]
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/access-requests/{id}/grant:
+    parameters:
+      - $ref: '#/components/parameters/AccessRequestId'
+    post:
+      tags: [Access]
+      summary: Say yes, and mean it
+      description: |
+        **Granting is not a flag.** It creates the organisation and its first
+        owner in the SAME transaction that marks the request granted, because
+        the three facts are one fact: a tenant nobody asked for, or a request
+        pointing at an organisation that does not exist, are both worse than a
+        failure.
+
+        The owner row is an **invitation, not a member**. The person has not
+        signed in yet and there is no way to know their subject before they do;
+        inventing one keyed on their email would mean anybody who can create an
+        account with that address gets the organisation. `GET /api/me` binds it
+        on first sign-in, against a verified address only.
+
+        The email is sent **after the commit and outside it**. A mail server
+        being down must not roll back an organisation that was correctly
+        created — and equally the mail must only ever describe something that
+        actually happened. `notified` comes back because *"nobody was told"*
+        means the manual step is back and the operator is the only one who can
+        take it.
+
+        A `404` here means *invisible or absent*, deliberately not
+        distinguished: a non-operator must not be able to tell whether an id
+        exists.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GrantDecision' }
+      responses:
+        '201':
+          description: The organisation exists and the invitation is waiting.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GrantResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: No such request — or one this caller cannot see. The same answer on purpose.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: Already decided. Deciding twice would create a second organisation or lose the first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /api/access-requests/{id}/decline:
+    parameters:
+      - $ref: '#/components/parameters/AccessRequestId'
+    post:
+      tags: [Access]
+      summary: Say no, and keep the record
+      description: |
+        No tenant, and **the row is not deleted** — `access_request` has no
+        DELETE grant for anybody, so a refusal cannot be made to disappear
+        afterwards. That is the queue's whole value as a record.
+
+        The person is emailed unless `notify` is `false`. That flag exists on
+        this decision and not on granting, and the asymmetry is the point: an
+        unannounced grant is one the person can never use, so there is nothing
+        to opt out of, while the form answered here is PUBLIC and rate-limited,
+        and mailing a refusal to a forged address means mailing a stranger who
+        never wrote to us. It defaults to `true` so silence is chosen rather
+        than fallen into.
+
+        **The email carries no reason and never the decision note.** The
+        operator's note is labelled *"not for them"* on the screen that
+        collects it, and the event type behind this mail has no fields at all,
+        so there is nothing to leak through.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeclineDecision' }
+      responses:
+        '200':
+          description: Declined, and the record stands.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeclineResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: No such request — or one this caller cannot see.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: Already decided.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
   /api/tenants:
     get:
@@ -2000,6 +2269,12 @@ components:
       required: true
       description: The item's natural-key hash — stable across re-runs, which is what makes a re-run converge instead of duplicating.
       schema: { type: string }
+    AccessRequestId:
+      name: id
+      in: path
+      required: true
+      description: The access request's id, from the operator queue.
+      schema: { type: string, format: uuid }
 
   responses:
     BadRequest:
@@ -2082,6 +2357,178 @@ components:
           description: The build's commit, or `unknown` when the image was built without one.
           examples: ['63d1414c9e2f…']
       required: [version, commit]
+
+    CheckState:
+      type: string
+      enum: [up, down, off]
+      description: |
+        `off` is not a failure. A dependency nobody configured is a documented
+        state, not a broken one — the self-host edition has no issuer at all,
+        and a managed deployment that has not run identity setup yet is fine.
+
+    Readiness:
+      type: object
+      description: |
+        States, never reasons. This endpoint is unauthenticated, so a body that
+        explained WHY the database was unreachable would describe internal
+        topology to anybody who asked; the reason goes to the log instead.
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, down]
+          description: Only the database can make this `down` — it is the only check whose absence means nothing can be served.
+        database: { $ref: '#/components/schemas/CheckState' }
+        signIn: { $ref: '#/components/schemas/CheckState' }
+      required: [status, database, signIn]
+
+    Membership:
+      type: object
+      properties:
+        tenantId: { type: string, format: uuid }
+        name: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+      required: [tenantId, role]
+
+    Me:
+      type: object
+      properties:
+        userId:
+          type: string
+          description: The issuer's `sub`. Opaque, and never assumed to be an email.
+        email:
+          type: string
+          description: From the verified `email` claim, not the database — what the issuer asserts about whoever just signed in.
+        tenantId:
+          type: string
+          format: uuid
+          description: |
+            The organisation this caller is currently acting as. **ABSENT when
+            that cannot be decided** — two memberships and no choice made is an
+            answer, not an error, and a client resolves it by asking a person.
+        role: { $ref: '#/components/schemas/Role' }
+        tenants:
+          type: array
+          description: Every organisation this subject belongs to. Empty is normal — a new account belongs to nothing.
+          items: { $ref: '#/components/schemas/Membership' }
+        operator:
+          type: boolean
+          description: |
+            Whether to OFFER the access queue. The queue itself is guarded by
+            database policies; being wrong here shows or hides a link and
+            grants nothing.
+      required: [userId, tenants, operator]
+
+    AccessRequestCreate:
+      type: object
+      properties:
+        email: { type: string, format: email, maxLength: 320 }
+        name: { type: string, maxLength: 200 }
+        organisation: { type: string, maxLength: 200 }
+        note:
+          type: string
+          maxLength: 2000
+          description: What they are moving, in their own words. Several paragraphs' worth.
+        tier:
+          type: string
+          maxLength: 40
+          description: |
+            Which tier they think they need. INDICATIVE ONLY, and not validated
+            against the tier list on purpose: a stale name here would refuse a
+            request over a label, and the value is read by a human who knows
+            what the tiers are called.
+        locale:
+          type: string
+          enum: [en, nl]
+          default: en
+          description: The language they asked in, and the language every reply comes back in.
+      required: [email]
+
+    AccessRequest:
+      type: object
+      description: One row of the operator queue. Their own words plus what was decided.
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        name: { type: string, nullable: true }
+        organisation: { type: string, nullable: true }
+        note: { type: string, nullable: true }
+        tier: { type: string, nullable: true }
+        locale: { type: string, enum: [en, nl] }
+        state: { type: string, enum: [open, granted, declined] }
+        tenantId:
+          type: string
+          format: uuid
+          nullable: true
+          description: The organisation created by granting. Present exactly when `state` is `granted`, and the database enforces that.
+        decidedBy: { type: string, nullable: true }
+        decidedAt: { type: string, format: date-time, nullable: true }
+        decisionNote:
+          type: string
+          nullable: true
+          description: |
+            **Written for the operator, not for the asker.** It is never sent to
+            them: the decline email's event type carries no fields at all, so
+            there is nothing for this to travel in.
+        createdAt: { type: string, format: date-time }
+      required: [id, email, locale, state, createdAt]
+
+    GrantDecision:
+      type: object
+      properties:
+        note: { type: string, maxLength: 2000, description: See `decisionNote` — not shown to the asker. }
+        organisationName:
+          type: string
+          maxLength: 200
+          description: What the organisation will be called. Defaults to what they told us, which is usually right and occasionally a typo worth fixing before it becomes a customer's name.
+
+    DeclineDecision:
+      type: object
+      properties:
+        note: { type: string, maxLength: 2000, description: See `decisionNote` — not shown to the asker. }
+        notify:
+          type: boolean
+          default: true
+          description: |
+            Email them. Defaults to `true` so silence is deliberate rather than
+            forgotten. Set `false` for junk — this form is public, so a made-up
+            address belongs to a stranger who never wrote to us.
+
+    NotifiedOutcome:
+      type: string
+      enum: [sent, off, failed, skipped]
+      description: |
+        What became of the courtesy email — four states rather than a boolean,
+        because each asks something different of the operator.
+
+        `sent` needs nothing. `off` means no mail is configured, so nobody was
+        told and nobody will be. `failed` means the mail server refused, which
+        is also manual but a different conversation — something is broken
+        rather than absent. `skipped` means the operator asked for no email;
+        collapsing it into `off` would tell them to go and contact somebody
+        they deliberately ignored.
+
+        Granting never answers `skipped`: an unannounced grant is one the
+        person can never use.
+
+    GrantResult:
+      type: object
+      properties:
+        tenantId: { type: string, format: uuid }
+        name: { type: string, description: What the organisation is called. }
+        email: { type: string, format: email, description: The address the invitation and the email were addressed to. }
+        notified:
+          allOf:
+            - $ref: '#/components/schemas/NotifiedOutcome'
+          description: Never `skipped` here.
+      required: [tenantId, name, email, notified]
+
+    DeclineResult:
+      type: object
+      properties:
+        declined: { type: boolean, enum: [true] }
+        id: { type: string, format: uuid }
+        notified: { $ref: '#/components/schemas/NotifiedOutcome' }
+      required: [declined, id, notified]
 
     Role:
       type: string
