@@ -520,6 +520,48 @@ attempts left behind, so it needs the clear-down the bring-up now prints —
 **after** this fix is on main, not before. Clearing it first buys one run and
 poisons the database again, which is exactly the loop #42 and #43 were.
 
+### A hint nobody could paste, for the second time
+
+The clear-down remedy shipped in #511 printed this:
+
+```
+docker exec -i ownpace-db psql -U "$POSTGRES_USER" -d postgres -c 'DROP DATABASE zitadel WITH (FORCE)'
+```
+
+An operator pasted it the same afternoon and got:
+
+```
+psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed:
+FATAL:  role "root" does not exist
+```
+
+`POSTGRES_USER` is set inside `ownpace-db` and nowhere else. Pasted into a host
+shell it expands to nothing, `psql` falls back to the host username, and `root`
+is not a role. The container and the volume were removed; the drop — the one
+step that actually mattered — silently did not happen.
+
+**This exact bug, with this exact error message, was found and fixed in
+`seed-demo-dav-content.sh` in #487.** The test written for it asserted the
+`sh -c` wrapper — in that one file. So when a second script printed the same
+shape it had nothing to say, and `smoke-managed.sh`'s `run_event` hint turned
+out to be carrying the same bug at the same time, unnoticed and unreported by
+anybody.
+
+The fix is both instances plus the thing that let it recur:
+`scripts/pasteable-hints.unit.test.ts` reads **every** script in
+`deploy/compose` and refuses the shape wherever it appears. It also refuses
+`sh -c` with the dollars in DOUBLE quotes, which looks correct and expands in
+the pasting shell just the same, and requires `IF EXISTS` on the clear-down so
+that pasting it twice does not add a failure to the pile somebody is already
+reading.
+
+It carries a vacuity case, proved by breaking the selector: without one, a
+regex that stops matching turns the whole guard green while it checks nothing —
+which is a fair description of what the per-file version had become.
+
+> A guard scoped to the file where a bug was found does not stop the class. It
+> stops the instance, and reports success for the class.
+
 ### Run #45 — the refusal was right, and it was only half an answer
 
 The machinekey fix reached the Spark and the bring-up stopped on its own guard:
