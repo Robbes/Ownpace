@@ -285,8 +285,15 @@ explain_failure() { # explain_failure <service> [service...]
         echo "!!! Fix that first. The half-written state then has to be cleared by hand," >&2
         echo "!!! because dropping a database is not a thing a bring-up may decide to do:" >&2
         echo "!!!   ${COMPOSE[*]} rm -sf ${svc}" >&2
-        echo "!!!   docker exec -i ownpace-db psql -U \"\$POSTGRES_USER\" -d postgres \\" >&2
-        echo "!!!     -c 'DROP DATABASE zitadel WITH (FORCE)'" >&2
+        # `sh -c '...'` in SINGLE quotes, and that is the whole point: the
+        # operator pastes this into THEIR shell, where POSTGRES_USER is not set.
+        # Printed bare it expands to nothing, psql falls back to the host
+        # username, and the answer is `FATAL: role "root" does not exist` —
+        # which is exactly what this line did to an operator on 2026-08-23,
+        # having shipped in #511 the same afternoon. Single quotes defer the
+        # expansion to the container, which HAS the variable. IF EXISTS so a
+        # second paste is not an error.
+        echo "!!!   docker exec -i ownpace-db sh -c 'psql -U \"\$POSTGRES_USER\" -d postgres -c \"DROP DATABASE IF EXISTS zitadel WITH (FORCE)\"'" >&2
         echo "!!!   docker volume rm ownpace-managed_zitadel_machinekey" >&2
         ;;
     esac

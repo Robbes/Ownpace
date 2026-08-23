@@ -667,7 +667,12 @@ describe('a bring-up that waits can say why it failed', () => {
       expect(body, 'and the operator told which of the two errors to believe').toMatch(
         /is the leftover, not the cause/,
       );
-      expect(body, 'and given the clear-down that the fix needs').toContain('DROP DATABASE zitadel');
+      // `IF EXISTS`, because this prints while somebody is already debugging and
+      // pasting it twice must not add a failure to the pile they are reading.
+      // pasteable-hints.unit.test.ts requires the same of every clear-down.
+      expect(body, 'and given the clear-down that the fix needs').toContain(
+        'DROP DATABASE IF EXISTS zitadel',
+      );
     });
 
     it('prints the clear-down rather than performing it', () => {
