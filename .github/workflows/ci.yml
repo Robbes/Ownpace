@@ -39,8 +39,30 @@
 name: CI
 
 on:
+  # NO `branches:` FILTER, deliberately. It used to read `branches: [main]`,
+  # which meant a pull request whose BASE was any other branch produced no
+  # checks at all — and the failure that causes is not "merges unverified", it
+  # is worse than that and harder to diagnose.
+  #
+  # A stacked pull request (one opened against another feature branch, so its
+  # diff shows only its own commits) got nothing. When the branch underneath it
+  # merged, GitHub retargeted it to `main` — and a retarget fires
+  # `pull_request.edited`, which is not in the default activity set, so still
+  # nothing ran. The result is a pull request to `main` carrying four required
+  # contexts that will never be reported: "Expected — waiting for status to be
+  # reported", nothing queued in Actions to explain it, and no amount of
+  # re-running fixing it. Exactly the shape `every-pr-check-is-classified`
+  # already documents for `images.yml`'s `paths:` filter. Only a fresh push
+  # escapes it. Found 2026-08-23 on #501, which sat at zero checks.
+  #
+  # THIS DOES NOT WIDEN WHAT RUNS ON THE SPARK. Every `runs-on` above keys on
+  # `github.event_name == 'push'`, never on the branch, so a pull request from
+  # anywhere still runs on a GitHub-hosted runner. The policy in the header is
+  # untouched.
+  #
+  # `push` keeps its filter: that one is about which branches deserve a build
+  # after the fact, which is a different question.
   pull_request:
-    branches: [main]
   push:
     branches: [main]
     # Release refs are test-gated (release-readiness, 2026-08-10): before

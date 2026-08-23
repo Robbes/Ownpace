@@ -408,6 +408,22 @@ and `images.yml` has a `paths:` filter — so a docs-only PR blocks forever on "
 for status to be reported", with nothing queued in Actions to explain it. Full rationale is the
 `SCOPE:` comment above `ci-complete` in `ci.yml`.
 
+**No `pull_request` trigger filters by base branch**, and that is now a guard rather than a
+convention — `every-pr-gets-checked.unit.test.ts`. The three PR workflows carried
+`branches: [main]` until 2026-08-23, which meant a pull request opened against any other branch
+produced *no checks at all*. That is the same "Expected — waiting for status to be reported" trap
+as the paragraph above, reached from the other direction and harder to see: a stacked pull request
+reports nothing, and when the branch beneath it merges GitHub retargets it to `main` with a
+`pull_request.edited` event, which is not in the default activity set — so still nothing runs, and
+only a fresh push escapes. A `paths:` filter stays allowed because a workflow it skips is one whose
+subject the PR did not touch, and the honest response is to leave that check out of branch
+protection. A `branches:` filter cannot be rescued that way: the check is required and unreportable.
+
+Removing it does not widen what runs on the Spark. Every `runs-on` in `ci.yml` keys on
+`github.event_name == 'push'`, never on the branch, so pull requests from anywhere still run on
+GitHub-hosted runners — and `push` keeps its `branches: [main]` filter, which is what makes that
+true.
+
 Runners: GitHub-hosted for lint/unit/build and multi-arch image builds; the self-hosted arm64
 Spark runner for integration/e2e. The Spark runner executes trusted workflows only. Both the
 `integration-tests` job and `e2e.yml` install `stalwart-cli` as a host binary for their respective

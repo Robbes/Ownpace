@@ -17,8 +17,10 @@ on:
     # with nothing behind it — found reviewing the tag path before the first
     # tag was pushed (0025 T2/T3, 2026-08-04).
     tags: ['v*']
+  # No `branches:` filter — see ci.yml's trigger block for why. A base other
+  # than `main` used to mean this check was never reported at all, which
+  # wedges a required context rather than failing it.
   pull_request:
-    branches: [main]
   schedule:
     - cron: '0 6 * * 1'   # weekly, Monday 06:00 UTC, to catch newly disclosed CVEs
   workflow_dispatch:

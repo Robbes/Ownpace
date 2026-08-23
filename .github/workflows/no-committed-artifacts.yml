@@ -3,8 +3,10 @@
 name: No Committed Artifacts
 
 on:
+  # No `branches:` filter — see ci.yml's trigger block for why. A base other
+  # than `main` used to mean this check was never reported at all, which
+  # wedges a required context rather than failing it.
   pull_request:
-    branches: [main]
 
 jobs:
   check-artifacts:
