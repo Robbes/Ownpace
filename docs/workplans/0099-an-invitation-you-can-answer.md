@@ -561,3 +561,49 @@ which is a fair description of what the per-file version had become.
 
 > A guard scoped to the file where a bug was found does not stop the class. It
 > stops the instance, and reports success for the class.
+
+### Run #45 — the refusal was right, and it was only half an answer
+
+The machinekey fix reached the Spark and the bring-up stopped on its own guard:
+
+```
+!!! ghcr.io/zitadel/zitadel:v4.6.2 runs as 'zitadel', which is not a numeric uid[:gid].
+```
+
+**`Config.User` is a NAME.** A hardcoded `1000` — which is what an afternoon of
+"everyone uses 1000" would have produced — would have chowned a token directory
+to whoever else holds that uid, and the run would have failed later and
+differently. Reading the value rather than assuming it is what caught this, and
+it caught it in one run rather than three.
+
+But the refusal rested on a claim that #45 also disproved. #512's comment said
+the image is `FROM scratch` and therefore has no passwd to resolve a name
+against. It cannot be: **Docker resolves `USER zitadel` against the image's own
+`/etc/passwd` when it starts the container**, so that file is in there. A
+scratch image can carry one — COPYing a prepared passwd in is a common way to
+get a non-root user without a distro.
+
+So the name is now looked up rather than rejected:
+
+```
+docker create "$image"                 a container, NOT started
+docker cp "$cid:/etc/passwd" - | tar -xO
+awk -F: -v u="$name" '$1 == u { print $3; exit }'
+docker rm -f "$cid"                    unconditionally, on any outcome
+```
+
+No shell, no entrypoint, no running process — which matters precisely because
+what is in that image beyond the binary is what nothing here can assume.
+
+**The refusal stays**, for a name the image's own passwd does not explain.
+There is no number anybody can justify in that case, and chowning a credential
+directory to an unjustified uid is how a token ends up owned by whoever happens
+to hold it. The refusal prints the `docker run` that prepares the volume by
+hand.
+
+Proved against a stubbed docker whose fixture passwd maps `zitadel` to a uid:
+the name resolves, `name:group` resolves, a name absent from passwd still
+refuses, a numeric user skips the lookup, and an empty user still means root.
+The real uid is whatever the real passwd says — this environment has a compose
+parser, no Docker daemon, and no route to ghcr.io, so it is read on the Spark
+and nowhere else.

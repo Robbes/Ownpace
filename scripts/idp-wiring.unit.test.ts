@@ -301,10 +301,17 @@ describe('the provisioning token can actually be written (E2E managed #44)', () 
     BOOTSTRAP.indexOf('prepare_machinekey_volume() {'),
     BOOTSTRAP.indexOf('\n}', BOOTSTRAP.indexOf('prepare_machinekey_volume() {')),
   );
+  // The uid lookup is its own function, above the caller like every other
+  // helper in that file, so it is not inside the slice above.
+  const bootstrapFn = BOOTSTRAP.slice(
+    BOOTSTRAP.indexOf('resolve_image_uid() {'),
+    BOOTSTRAP.indexOf('\n}', BOOTSTRAP.indexOf('resolve_image_uid() {')),
+  );
 
   it('read the real files', () => {
     // Vacuity guard: an empty string satisfies every "does not contain" below.
     expect(prepare.length).toBeGreaterThan(200);
+    expect(bootstrapFn.length, 'the uid lookup is gone or renamed').toBeGreaterThan(150);
     expect(COMPOSE).toContain('zitadel-machinekey:');
   });
 
@@ -320,9 +327,11 @@ describe('the provisioning token can actually be written (E2E managed #44)', () 
   });
 
   it('reads the user off the image instead of writing a uid down', () => {
-    // The image is built FROM scratch, so there is no shell in it to ask — but
-    // `docker image inspect` reads the same config the daemon applies, so this
-    // cannot disagree with reality the way a number in a comment can.
+    // The image carries no shell this can rely on, but `docker image inspect`
+    // reads the same config the daemon applies, so this cannot disagree with
+    // reality the way a number in a comment can. E2E (managed) #45 proved the
+    // point: v4.6.2 reports `zitadel`, a NAME, and a hardcoded 1000 would have
+    // chowned the token directory to whoever else holds that uid.
     expect(prepare).toMatch(/docker image inspect "\$image" --format '\{\{\.Config\.User\}\}'/);
     // A literal uid anywhere in the helper would be the guess this avoids.
     expect(
@@ -363,14 +372,47 @@ describe('the provisioning token can actually be written (E2E managed #44)', () 
     expect(prepare).toMatch(/runs as root/);
   });
 
-  it('refuses a user that is a NAME, naming the manual path', () => {
-    // `chown` inside busybox resolves a name against BUSYBOX's passwd, where a
-    // name from another image does not exist. Zitadel's scratch image cannot
-    // use one today — there is no passwd file for Docker to resolve it against
-    // — but that is a property of the base image, not a promise.
-    expect(prepare, 'a non-numeric user must be refused, not passed to chown').
-      toMatch(/\*\[!0-9:\]\*/);
-    expect(prepare).toMatch(/not a numeric uid\[:gid\]/);
+  it('resolves a NAME to a number instead of refusing it', () => {
+    // E2E (managed) #45: `ghcr.io/zitadel/zitadel:v4.6.2` reports `Config.User`
+    // as `zitadel`. The first version of this refused, correctly — `chown
+    // zitadel` inside busybox resolves against BUSYBOX's passwd, where no such
+    // user exists. But refusing is half an answer when the number is readable,
+    // and it is: Docker resolves `USER zitadel` against the IMAGE'S OWN
+    // /etc/passwd to start the container at all, so that file is in there.
+    expect(prepare, 'a name must be looked up, not rejected outright').
+      toMatch(/resolve_image_uid "\$image" "\$user"/);
+    expect(bootstrapFn, 'the lookup reads the image\'s own passwd').
+      toMatch(/\/etc\/passwd/);
+    expect(bootstrapFn, 'and finds the third field of the matching line').
+      toMatch(/awk -F: -v u="\$name"/);
+  });
+
+  it('reads that passwd WITHOUT running the image', () => {
+    // `docker create` makes a container and does not start it; `docker cp`
+    // reads files out of one. So this needs no shell, no entrypoint and no
+    // running process — which matters, because what is in that image beyond
+    // the binary is exactly what nothing here can assume.
+    expect(bootstrapFn).toMatch(/docker create "\$image"/);
+    expect(bootstrapFn).toMatch(/docker cp "\$\{cid\}:\/etc\/passwd" -/);
+    expect(bootstrapFn, 'a container started to read a file is a container that can fail to stop').
+      not.toMatch(/docker run[^\n]*\$image/);
+  });
+
+  it('removes the container it created, whether or not the read worked', () => {
+    // A created-and-abandoned container is litter on a long-lived box, and the
+    // Spark is the definition of one.
+    expect(bootstrapFn).toMatch(/docker rm -f "\$cid"/);
+    const rmLine = bootstrapFn.split('\n').find((l) => /docker rm -f "\$cid"/.test(l)) ?? '';
+    expect(rmLine, 'a removal that only happens on success does not happen when it matters').
+      toContain('|| true');
+  });
+
+  it('still refuses a name the image cannot explain', () => {
+    // The lookup replaces the guess, not the refusal. A name that is not in the
+    // image's own passwd has no number anybody can justify, and chowning a
+    // token directory to an unjustified uid is how a credential ends up owned
+    // by whoever happens to hold it.
+    expect(prepare).toMatch(/not in the image's own \/etc\/passwd/);
     expect(prepare, 'a refusal that does not say what to do next is half a refusal').
       toMatch(/docker run --rm -v ownpace-managed_zitadel_machinekey/);
   });

@@ -526,10 +526,12 @@ services:
   # `run` returns the one-shot's exit code and nothing else.
   #
   # ZITADEL_UID is READ OFF THE IMAGE by the bring-up (`docker image inspect`),
-  # not guessed here. The image is built FROM scratch so there is no shell to
-  # ask, but its config answers exactly — and a version bump that changes the
-  # user then cannot quietly bring this failure back. The default is only for a
-  # hand-run `compose run` with nothing exported.
+  # not guessed here, and v4.6.2 is why: it reports `zitadel`, a NAME, so a
+  # hardcoded 1000 would have chowned this directory to whoever else holds that
+  # uid. The bring-up reads `Config.User`, and where that is a name it reads the
+  # number out of the image's own /etc/passwd — the file Docker itself resolves
+  # the name against. The default here is only for a hand-run `compose run` with
+  # nothing exported.
   zitadel-machinekey:
     image: busybox:1.37
     profiles: ["init"]
