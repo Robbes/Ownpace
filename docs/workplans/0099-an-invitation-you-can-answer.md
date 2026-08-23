@@ -1513,3 +1513,53 @@ night each. Detecting "a function whose stdout is a value must not print
 diagnostics" is not mechanically decidable — `read_env` returns its value with
 `printf` — but "this string reached an `Authorization: Bearer` header without
 being checked" is.
+
+### E2E (managed) #61 — the identity provider works, and one of my conclusions was wrong
+
+The first run with all of the above in place:
+
+```
+--- identity provider ---
+issuer: http://ownpace-idp:3126 (declares its own name)
+jwks:   http://ownpace-idp:3126/oauth/v2/keys (fetchable)
+
+readiness (verdict): HTTP 200, .status -> ok
+```
+
+Asked from inside the API container, with node, against the live provider. The
+reachability bug is gone, `checkSignIn` returns `up`, and every remaining failure
+is the one known cause:
+
+```
+close: 401 {"error":"Unauthorized","message":"Token verification failed:
+             Unsupported "alg" value for a JSON Web Key Set"}
+verify: start-http-401   apply: start-http-401
+```
+
+That is `jose` refusing an **HS256** token against an **RS256** key set — the
+smoke's minted tokens meeting a managed-mode API, exactly as the one-line warning
+above them predicts, and now a 401 that names its cause rather than a 500 that
+names nothing.
+
+**AND IT NEEDED NO RE-INITIALISATION.** The instance on that machine was
+initialised as `localhost` and has never been re-initialised. The conclusion
+written three sections above — *"the origin is fixed at first init and cannot be
+corrected afterwards"* — was wrong, and wrong in a way worth recording:
+
+> A trusted domain was added by hand while the provider still LISTENED on 8080
+> and published 3126. Every in-network probe therefore went to
+> `ownpace-idp:8080`, an origin that could not match `ownpace-idp:3126` whatever
+> was trusted. The port was the fault, and the host got the blame.
+
+Zitadel resolves an instance by origin — **host and port**. Once the two agreed,
+the trusted domain did exactly what its name says. So `setup-zitadel.sh` now
+registers `ZITADEL_EXTERNALDOMAIN` as a trusted domain on every run, idempotently,
+and a stack whose external domain changes repairs itself instead of asking
+somebody to destroy a database (hard rule 2). The re-initialisation stays in the
+refusals as the last resort it actually is: for when nothing the instance knows
+resolves, so the script cannot even ask.
+
+The lesson is not about Zitadel. **A negative result from a test with two
+variables in it is not a negative result.** One evening went into "trusted
+domains do not affect origin resolution", concluded from a probe that could not
+have succeeded either way.

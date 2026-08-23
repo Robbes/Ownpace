@@ -137,11 +137,17 @@ here is destroyed by the next \`actions/checkout\` clean:
 A deployment with real DNS sets its real hostname instead and needs no hosts
 entry, because DNS answers for both sides.
 
-AND IF THIS PROVIDER HAS ALREADY BEEN INITIALISED under the old name, changing
-the variable is not enough: the origin is fixed at first init and no API adds
-one afterwards. The provider's own database has to go — that destroys the
-provider's accounts and NOTHING else, and this script rebuilds the project, the
-application and the client id on the next run:
+AND IF THIS PROVIDER WAS ALREADY INITIALISED under the old name, changing the
+variable IS still enough — this script registers the new origin as a TRUSTED
+domain on the way past, and the instance then answers for it. Measured: E2E
+(managed) #61 reached `issuer: http://ownpace-idp:3126 (declares its own name)`
+from inside the API container, on an instance initialised as `localhost` and
+never re-initialised.
+
+Only if this script cannot reach the instance AT ALL — no origin it knows still
+resolves, so it cannot even ask — is there nothing left but to initialise it
+again. That destroys the provider's accounts and NOTHING else, and this script
+rebuilds the project, the application and the client id on the next run:
 
     docker compose -f ${SCRIPT_DIR}/managed.yml rm -sf zitadel
     docker exec -i ownpace-db sh -c 'psql -U \"\$POSTGRES_USER\" -d postgres -c \"DROP DATABASE IF EXISTS zitadel WITH (FORCE)\"'
@@ -370,16 +376,21 @@ the origin this script is presenting.
 
     presenting:  ${IDP_DOMAIN}:${IDP_PORT}
 
-Zitadel resolves the instance by the ORIGIN of the request and refuses any other,
-and the origin is fixed AT FIRST INIT from ZITADEL_EXTERNALDOMAIN. There is no
-API that adds one afterwards with this token: AddInstanceDomain lives on the
-System API, which a provisioning token cannot reach, and an instance TRUSTED
-domain does not change origin resolution.
+Zitadel resolves the instance by the ORIGIN of a request — host AND PORT — and
+refuses any other. This script adds \${IDP_DOMAIN} as a TRUSTED domain, which is
+enough to make an instance answer for an origin it was not initialised with; but
+it can only do that once it can reach the instance, and reaching it is what has
+just failed. Something the instance already knows has to answer first.
 
-So an instance initialised under a DIFFERENT domain has to be initialised again.
-That destroys the provider's own database and nothing else — no Ownpace data, no
-Trigger.dev account — and this script rebuilds the project, the application and
-the client id from scratch afterwards:
+CHECK THE PORT BEFORE ASSUMING THE HOST IS WRONG. \${IDP_DOMAIN}:8080 and
+\${IDP_DOMAIN}:3126 are different origins, and an evening went into concluding
+that trusted domains cannot work when the real fault was a provider LISTENING on
+one port and stamping another into its issuer.
+
+If nothing reaches it, the instance has to be initialised again. That destroys
+the provider's own database and nothing else — no Ownpace data, no Trigger.dev
+account — and this script rebuilds the project, the application and the client
+id from scratch afterwards:
 
     docker compose -f ${SCRIPT_DIR}/managed.yml rm -sf zitadel
     docker exec -i ownpace-db sh -c 'psql -U \"\$POSTGRES_USER\" -d postgres -c \"DROP DATABASE IF EXISTS zitadel WITH (FORCE)\"'
@@ -557,6 +568,40 @@ else
   fi
 fi
 say "client ${CLIENT_ID}"
+
+# ------------------------------------------------- the origin, made durable --
+#
+# THE ORIGIN THIS STACK USES IS REGISTERED AS A TRUSTED DOMAIN, so that it keeps
+# resolving on an instance that was initialised under a different one.
+#
+# Zitadel decides which instance a request is for from its ORIGIN — host AND
+# port — and refuses any other with 404 "Instance not found". A FRESH instance
+# registers ${IDP_DOMAIN} at first init and needs nothing here. An instance
+# initialised under an older ZITADEL_EXTERNALDOMAIN does not know the new one,
+# and there is no AddInstanceDomain a provisioning token can reach: the Admin
+# API has no such endpoint (404) and the System API refuses a PAT (401). A
+# TRUSTED domain is the one thing that token can add, and it is enough.
+#
+# THE PORT IS WHY THIS LOOKED IMPOSSIBLE FOR AN EVENING. A trusted domain was
+# added by hand while the provider still LISTENED on 8080 and published 3126, so
+# every in-network probe went to ${IDP_DOMAIN}:8080 — an origin that could not
+# match ${IDP_DOMAIN}:3126 whatever was trusted. The conclusion drawn was that
+# trusted domains do not affect origin resolution and the instance had to be
+# re-initialised. Both halves were wrong, and the same run that made the ports
+# agree proved it: E2E (managed) #61, `issuer: http://ownpace-idp:3126 (declares
+# its own name)` from inside the API container, on the instance that had been
+# initialised as `localhost` and never re-initialised.
+#
+# So the stack repairs itself instead of asking somebody to destroy a database
+# (hard rule 2). It is idempotent: read first, write only when it is missing.
+say "checking ${IDP_DOMAIN} is an origin this instance answers for"
+trusted="$(api POST /admin/v1/trusted_domains/_search '{}')"
+if jq -e --arg d "$IDP_DOMAIN" '[.result[]?.domain] | index($d)' >/dev/null <<<"$trusted"; then
+  say "it already is"
+else
+  say "adding it"
+  api POST /admin/v1/trusted_domains "$(jq -nc --arg d "$IDP_DOMAIN" '{domain:$d}')" >/dev/null
+fi
 
 # ------------------------------------------------------- letting people in --
 #

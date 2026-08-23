@@ -580,6 +580,30 @@ describe('one origin, and every side of the stack can present it', () => {
     );
   });
 
+  it('registers the origin as a TRUSTED domain, so an old instance still answers', () => {
+    // A fresh instance registers ZITADEL_EXTERNALDOMAIN at first init and needs
+    // nothing here. One initialised under an older name does not know the new
+    // origin — and a provisioning token cannot add an instance domain
+    // (`POST /admin/v1/domains` -> 404, System API -> 401). A TRUSTED domain is
+    // the one thing it CAN add, and it is enough: E2E (managed) #61 reached
+    // `issuer: http://ownpace-idp:3126 (declares its own name)` from inside the
+    // API container, on an instance initialised as `localhost` and never
+    // re-initialised.
+    //
+    // So the stack repairs itself rather than asking somebody to destroy a
+    // database (hard rule 2).
+    expect(SETUP).toContain('/admin/v1/trusted_domains');
+    expect(SETUP, 'the domain added must be the one the issuer uses').toMatch(
+      /--arg d "\$IDP_DOMAIN" '\{domain:\$d\}'/,
+    );
+    // Read first, write only when missing — idempotent, and a correct stack
+    // stays untouched and quiet (hard rule 1).
+    expect(SETUP).toContain('/admin/v1/trusted_domains/_search');
+    const block = /say "checking \$\{IDP_DOMAIN\} is an origin[\s\S]*?\nfi\n/.exec(SETUP)?.[0] ?? '';
+    expect(block, 'the block must be readable').toContain('trusted_domains');
+    expect(block, 'it must look before it writes').toMatch(/_search[\s\S]*?index\(\$d\)/);
+  });
+
   it('names the instance-not-found refusal instead of printing a bare status', () => {
     // A 404 from this provider has two completely different meanings — "no such
     // object" and "I do not serve this origin" — and only one of them is fixed
