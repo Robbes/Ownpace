@@ -691,6 +691,73 @@ describe('a bring-up that waits can say why it failed', () => {
       ).toEqual([]);
     });
   });
+  /**
+   * A container that is RUNNING and unhealthy is the one shape none of the
+   * three log windows can describe, because the answer is not in the log.
+   *
+   * `docker compose logs` shows what the CONTAINER wrote. A healthcheck runs
+   * beside it and its output goes somewhere else entirely — Docker keeps the
+   * last few attempts in `.State.Health.Log`, reachable only via `docker
+   * inspect`. Nothing in the bring-up had ever looked there.
+   *
+   * E2E (managed) #47: Zitadel v4.17.1 came up perfectly — every migration
+   * applied, OIDC routes registered, `server is listening address=[::]:8080`,
+   * and ZERO lines in the failure window. It sat at `Up 5 minutes (unhealthy)`
+   * and the run died at `--wait`, with a diagnosis that could only report the
+   * log was clean. It was clean. The probe was the answer and it was one
+   * `docker inspect` away the whole time.
+   */
+  describe('a container that is running and unhealthy', () => {
+    const body = bootstrap.slice(
+      bootstrap.indexOf('explain_failure() {'),
+      bootstrap.indexOf('\n}', bootstrap.indexOf('explain_failure() {')),
+    );
+
+    it('asks docker for the healthcheck output, which is not in the log', () => {
+      expect(body, 'the probe window has to exist at all').
+        toMatch(/docker inspect "\$cname"/);
+      expect(body, 'and read the attempts docker records').
+        toMatch(/\.State\.Health\.Log/);
+      expect(body, 'a probe that failed without saying so is the thing being fixed').
+        toMatch(/\{\{\.ExitCode\}\}/);
+      expect(body).toMatch(/\{\{\.Output\}\}/);
+    });
+
+    it('says the output is NOT in the log, because that is the confusing part', () => {
+      // Somebody reading three clean windows and one failing container needs
+      // telling why the fourth exists.
+      expect(body).toMatch(/what the HEALTHCHECK said/);
+      expect(body).toMatch(/not in the log above/);
+    });
+
+    it('does not assume every service HAS a healthcheck', () => {
+      // Four services in this stack have none. A template that dereferences a
+      // missing .State.Health errors instead of saying nothing.
+      // Comments stripped: the line above the template EXPLAINS the guard by
+      // quoting it, and a test that reads prose cannot tell the explanation
+      // from the thing explained. Removing the guard left the comment behind
+      // and this case passed anyway, until it was proved by breaking.
+      expect(body.replace(/^\s*#.*$/gm, ''), 'the template must guard the field it reads').
+        toMatch(/\{\{if \.State\.Health\}\}/);
+    });
+
+    it('cannot abort the rest of the diagnosis it sits inside', () => {
+      // This runs after two log windows and a failure window and before the
+      // pointer to the failure table. Under `set -e` an inspect that fails on
+      // a container compose could not name would take all of that with it.
+      // Scoped to the ASSIGNMENT, not to a slice that runs on past it. The
+      // first version cut at the outer `fi` and swept in the `printf … || true`
+      // below, so deleting the inspect's own guard changed nothing it looked
+      // at — found by breaking it.
+      expect(
+        body,
+        'an inspect that can abort takes the diagnosis with it',
+      ).toMatch(/probe="\$\(docker inspect[\s\S]*?\|\| true\)"/);
+      expect(body, 'and a container compose cannot name is not a crash').
+        toMatch(/if \[ -n "\$cname" \]; then/);
+    });
+  });
+
   it('stops the bring-up rather than carrying on past a service that never started', () => {
     const body = bootstrap.slice(bootstrap.indexOf('explain_failure() {'));
     expect(body.slice(0, body.indexOf('\n}')), 'a diagnosis that returns 0 is a warning').toContain(
