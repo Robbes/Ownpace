@@ -689,15 +689,47 @@ EOF
 # Make the machinekey volume writable by the user the identity provider RUNS AS.
 #
 # The user is read off the image rather than written down here. Zitadel's image
-# is built FROM scratch — there is no shell in it to ask — but `docker image
-# inspect` reads the same config the daemon applies, so this cannot disagree
-# with reality the way a number in a comment can. A version bump that changes
-# the user is then handled rather than discovered in a nightly.
+# carries no shell this can rely on, but `docker image inspect` reads the same
+# config the daemon applies, so this cannot disagree with reality the way a
+# number in a comment can. A version bump that changes the user is then handled
+# rather than discovered in a nightly — which is not hypothetical: v4.6.2
+# reports `zitadel`, a NAME, and a hardcoded 1000 would have chowned the token
+# directory to whoever else holds that uid.
 #
 # An EMPTY answer is not a failure and not a default: it means the image
 # declares no USER, so it runs as root, and root needs no help writing to a
 # root-owned directory. Saying so is the honest branch; substituting a guessed
 # uid there would be inventing a fact (hard rule 9).
+# Turn the NAME an image declares into the number `chown` needs.
+#
+# E2E (managed) #45 is why this exists. `ghcr.io/zitadel/zitadel:v4.6.2` reports
+# `Config.User` as `zitadel`, not a uid, and the bring-up refused — correctly,
+# because `chown zitadel` inside busybox resolves against BUSYBOX's passwd,
+# where no such user exists. But refusing is half an answer when the number is
+# readable.
+#
+# AND IT IS READABLE, which corrected an assumption written into #512: that
+# comment said the image is FROM scratch and therefore has no passwd to resolve
+# a name against. It cannot be: Docker resolves `USER zitadel` against the
+# IMAGE'S OWN /etc/passwd when it starts the container, so that file is in
+# there. A scratch image can carry one — COPYing a prepared passwd into scratch
+# is a common way to get a non-root user without a distro.
+#
+# `docker create` makes a container WITHOUT STARTING IT, and `docker cp` reads
+# files out of one. So this needs no shell, no entrypoint and no running
+# process — which matters, because what is in that image beyond the binary is
+# exactly what nothing here can assume.
+resolve_image_uid() { # resolve_image_uid <image> <user-from-config>
+  local image="$1" name="${2%%:*}" cid passwd
+  cid="$(docker create "$image")" || return 0
+  # `|| true` on the read and an unconditional `rm`: a container created and not
+  # removed is litter on a long-lived box, and it must go whether or not the
+  # file came back. The empty answer is handled by the caller.
+  passwd="$(docker cp "${cid}:/etc/passwd" - 2>/dev/null | tar -xO 2>/dev/null || true)"
+  docker rm -f "$cid" >/dev/null 2>&1 || true
+  printf '%s\n' "$passwd" | awk -F: -v u="$name" '$1 == u { print $3; exit }'
+}
+
 prepare_machinekey_volume() {
   # Explicit pull first: `inspect` reads the LOCAL image, and on a fresh machine
   # the image arrives with `up` — which is after this. Cached, this is a no-op.
@@ -721,22 +753,24 @@ prepare_machinekey_volume() {
     return 0
   fi
 
-  # NUMERIC ONLY, and refusing is the point. `chown` inside busybox resolves a
-  # NAME against busybox's own /etc/passwd, where a name from another image does
-  # not exist — so `USER nonroot` would fail there with `unknown user`, one
-  # layer further from the cause than the failure it is supposed to prevent.
-  # Zitadel's image is FROM scratch and therefore cannot use a name today (there
-  # is no passwd file in it for Docker to resolve one against), but that is a
-  # property of the current base image, not a guarantee. Saying so beats
-  # inventing a uid.
+  # A NAME is not an error any more — it is a lookup. Only a name the image's
+  # own passwd does not explain is an error, and that one stays a refusal
+  # rather than a guess: chowning a token directory to a number nobody can
+  # justify is how a credential ends up owned by whoever happens to hold it.
   case "$user" in
-    *[!0-9:]* | '' | *::* )
-      die "$image runs as '${user}', which is not a numeric uid[:gid].
+    *[!0-9:]*)
+      local resolved
+      resolved="$(resolve_image_uid "$image" "$user")"
+      [ -n "$resolved" ] ||
+        die "$image runs as '${user}', and that name is not in the image's own /etc/passwd.
     The machinekey volume is prepared by a busybox container, and \`chown\` there
     can only resolve numbers — a name from another image is not in its passwd.
-    Prepare the volume by hand with the right owner, then re-run:
+    Find the uid and prepare the volume by hand, then re-run:
       docker run --rm -v ownpace-managed_zitadel_machinekey:/machinekey busybox:1.37 \\
-        sh -c 'mkdir -p /machinekey && chown <uid> /machinekey && chmod 700 /machinekey'" ;;
+        sh -c 'mkdir -p /machinekey && chown <uid> /machinekey && chmod 700 /machinekey'"
+      note "$image runs as '${user}', which is uid ${resolved} in its own /etc/passwd"
+      user="$resolved"
+      ;;
   esac
 
   note "$image runs as ${user}; making the machinekey volume writable by it"
