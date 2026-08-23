@@ -364,3 +364,80 @@ fixes, and one of them means dropping the `zitadel` database.
 A diagnosis that stops one line before the answer is not a smaller version of a
 diagnosis. It is the same as not having one, twice over — and it has now cost
 two dispatches.
+
+### Runs #42 and #43 — the database was cleared, and nothing changed
+
+The `zitadel` database was dropped by hand on the Spark, the container removed
+and the machinekey volume with it. Run #42 shows that landing: `verify
+database`, `verify grant`, then `starting migration name=14_events_push`,
+`40_init_push_func_v4`, `01_tables` — **starting**, not verifying. A genuinely
+empty database.
+
+It failed anyway, and #42 could not say why: it was dispatched before the
+window fix merged, so it printed twenty lines of initialisation and died at
+exit 255 exactly as #40 had.
+
+Run #43, on a main that carried the fix, printed both windows and this at the
+tail:
+
+```
+level=error msg="migration failed" … Errors.Instance.Domain.AlreadyExists
+  detail="Key (instance_id, unique_type, unique_field)=(, instance_domain, localhost) already exists."
+level=fatal msg="setup failed, skipping cleanup"
+```
+
+The same error the cleanup was supposed to remove. Which looks like the cleanup
+failing, and is not.
+
+**Read the timestamps.** The head of #43's window is `12:59:57` — run #42's
+container, still restarting twelve minutes later, still the same container, so
+`docker compose logs` holds every attempt end to end. The tail is `13:12:08`.
+Between them sit some dozens of restarts, and the first of them is the one that
+matters: on a clean database Zitadel got through every migration, began
+`03_default_instance`, wrote the instance domain, and then failed at something
+after it. `setup failed, skipping cleanup` is not a warning — it is Zitadel
+saying it will not undo what the failed migration already wrote. From that
+moment the database is poisoned and every restart dies on the leftover.
+
+So the cycle we had been in for four runs:
+
+| | what the log said | what was true |
+|---|---|---|
+| first attempt | (past line 20 in one window, past line -20 in the other) | the cause |
+| every attempt after | `Errors.Instance.Domain.AlreadyExists` | the leftover |
+| the remedy that follows from it | drop the database | correct, and insufficient |
+
+Dropping the database is the second half of the fix. Doing it without the first
+half buys exactly one more run before the same first failure poisons the same
+database again — which is precisely what #42 and #43 were.
+
+### What the windows could not do, and now can
+
+A head and a tail assume the log has two interesting ENDS. A container under
+`restart: unless-stopped` has neither; it has one interesting line, somewhere in
+the middle, and dozens of copies of its consequence on either side.
+
+`explain_failure` gains a third window: **every line in the whole log that
+reports a failure, oldest first**, capped at ten with the total stated. In a
+crash loop the oldest is the cause and the rest are its echoes, and the output
+says so rather than leaving the reader to notice.
+
+Two smaller things came with it:
+
+- The windows are sliced out of a bash array instead of piped. `|| true` had
+  stopped SIGPIPE from killing the function, but the pipe still fired — run #43
+  printed `bootstrap-managed.sh: line 203: printf: write error: Broken pipe`
+  into the middle of its own diagnosis. A window that cannot break needs no
+  forgiving, and the empty-log case now says so in words instead of printing a
+  blank indent.
+- `setup failed, skipping cleanup` is recognised by name. The bring-up prints
+  the clear-down it needs and does **not** perform it: a bring-up that drops a
+  database because a migration failed is one bad heuristic away from erasing the
+  identity store of a stack with real users in it. A test refuses any
+  `DROP DATABASE`, `docker volume rm` or `rm -sf` line in the file that is not
+  inside an `echo`.
+
+Proved against a stub of run #43's own log — 62 lines, the cause at line 21 and
+its consequences at 40 through 62. The head window shows initialisation, the
+tail window shows `AlreadyExists`, and the failure window's first line is the
+cause neither of them could reach.

@@ -533,12 +533,24 @@ describe('a bring-up that waits can say why it failed', () => {
     // case used to match `logs --tail 20 "$svc"` and broke when the same two
     // windows started being sliced out of one captured read — a test pinned to
     // the shape of a command rather than to what it prints.
-    expect(body, 'the start-up window is the half that matters').toContain(
-      'FIRST 20 log lines (start-up)',
+    expect(body, 'the start-up window is the half that matters').toMatch(
+      /FIRST 20 \(start-up\)/,
+    );
+    // And the header states the TOTAL, so a reader can see at a glance whether
+    // the two windows overlap — i.e. whether they are the whole log or a
+    // keyhole into a much longer one.
+    expect(body, 'a window with no idea how much it is not showing').toMatch(
+      /\$\{n\} log lines/,
     );
     expect(body, 'and the current symptom is the other half').toContain('— last 20:');
-    expect(body).toMatch(/\| head -20/);
-    expect(body).toMatch(/\| tail -20/);
+    // The windows are SLICED FROM AN ARRAY now, not piped. Pinning `| head -20`
+    // here is the mistake this case's own comment warns about one paragraph up:
+    // it describes the command rather than what prints. It also pinned the
+    // defect — see the broken-pipe case below.
+    expect(body, 'the start-up window is sliced, not piped').toMatch(
+      /\$\{lines\[@\]:0:20\}/,
+    );
+    expect(body, 'and so is the tail').toMatch(/\$\{lines\[@\]: -20\}/);
   });
 
   it('reads the log ONCE and prints from a variable, so no window can kill the next', () => {
@@ -564,16 +576,116 @@ describe('a bring-up that waits can say why it failed', () => {
       body,
       'no window may pipe `docker compose logs` straight into head or tail again',
     ).not.toMatch(/logs (--tail \d+ )?"\$svc" 2>&1 \| (head|tail)/);
-    // And the display pipelines cannot abort the diagnosis they exist to print.
-    const windows = [...body.matchAll(/printf '%s\\n' "\$full" \| (head|tail) -20[^\n]*/g)];
-    expect(windows.length, 'both windows must print from the captured log').toBe(2);
-    for (const [line] of windows) {
-      expect(line, 'a display pipeline that can abort takes the diagnosis with it').toContain(
-        '|| true',
-      );
-    }
+    // And no window may pipe the captured log either. `|| true` stopped the
+    // SIGPIPE from killing the function, but the pipe still FIRED: E2E
+    // (managed) #43 printed `bootstrap-managed.sh: line 203: printf: write
+    // error: Broken pipe` into the middle of its own diagnosis, from a line
+    // whose entire job is to be readable. Slicing an array cannot break, so
+    // there is nothing left to forgive.
+    expect(body, 'the log is read into an array once').toMatch(/mapfile -t lines <<<"\$full"/);
+    expect(
+      body,
+      'a window that pipes the captured log can still emit a broken-pipe line into the diagnosis',
+    ).not.toMatch(/printf '%s\\n' "\$full" \| (head|tail)/);
   });
 
+  /**
+   * Both windows above assume the log has two interesting ENDS. A container
+   * under `restart: unless-stopped` has neither.
+   *
+   * E2E (managed) #43: Zitadel's first attempt failed part-way through
+   * `03_default_instance` at 12:59:57. Twelve minutes and some dozens of
+   * restarts later the diagnosis printed a head from 12:59:57 (initialisation,
+   * which says nothing) and a tail from 13:12:08 saying
+   * `Errors.Instance.Domain.AlreadyExists` — which is what the FIRST failure
+   * left behind, not what went wrong. Four rounds of debugging went at the
+   * database because the log's two ends agreed on a symptom.
+   */
+  describe('the failure window — the only one a crash loop cannot hide the cause from', () => {
+    const body = bootstrap.slice(
+      bootstrap.indexOf('explain_failure() {'),
+      bootstrap.indexOf('\n}', bootstrap.indexOf('explain_failure() {')),
+    );
+
+    // The script's OWN pattern, lifted out of the script. A test that re-types
+    // it tests its copy; this one breaks when the real one stops matching.
+    const declared = /^FATAL_LINE_RE='(.+)'$/m.exec(bootstrap);
+    const pattern = declared?.[1];
+
+    // Real lines, from run #43's `docker compose logs zitadel`. The order is
+    // the order they appeared in: cause at the top, consequences below.
+    const CAUSE =
+      'ownpace-idp  | time="2026-08-23T12:59:58Z" level=error msg="migration failed" ' +
+      'error="Message=Errors.User.PasswordComplexityPolicy.HasUpper" name=03_default_instance';
+    const CONSEQUENCE =
+      'ownpace-idp  | time="2026-08-23T13:12:08Z" level=error msg="migration failed" ' +
+      'error="ID=V3-DKcYh Message=Errors.Instance.Domain.AlreadyExists" name=03_default_instance';
+    const CHATTER = [
+      'ownpace-idp  | time="2026-08-23T12:59:57Z" level=info msg="verify user" username=zitadel',
+      'ownpace-idp  | time="2026-08-23T12:59:57Z" level=info msg="verify database" database=zitadel',
+      'ownpace-idp  | time="2026-08-23T12:59:57Z" level=info msg="verify encryption keys"',
+      'ownpace-idp  | time="2026-08-23T12:59:57Z" level=info msg="starting migration" name=01_tables',
+      'ownpace-nextcloud  | [core] Trusted domain check passed',
+    ];
+
+    it('greps the WHOLE log, and leads with the oldest match', () => {
+      expect(body, 'the third window has to exist at all').toMatch(/grep -aE "\$FATAL_LINE_RE"/);
+      expect(body, 'a tail-of-the-errors window repeats the mistake it fixes').toContain(
+        'OLDEST FIRST',
+      );
+      expect(
+        body,
+        'and it must say so in the output, because the newest line is the plausible one',
+      ).toMatch(/read the OLDEST of these/);
+    });
+
+    it("uses the script's own pattern to find the cause a crash loop buried", () => {
+      expect(pattern, 'FATAL_LINE_RE is gone or no longer a single-quoted one-liner').toBeTruthy();
+      const re = new RegExp(pattern as string);
+      expect(re.test(CAUSE), 'the buried cause must match').toBe(true);
+      expect(re.test(CONSEQUENCE), 'so must its echoes — they are just not first').toBe(true);
+    });
+
+    it('does not match ordinary start-up chatter', () => {
+      // A pattern matching every line containing "error" would match Zitadel's
+      // `verify` lines and half of Nextcloud's boot, and a failure window the
+      // size of the log is a third copy of the log.
+      const re = new RegExp(pattern as string);
+      for (const line of CHATTER) {
+        expect(re.test(line), `matched ordinary chatter: ${line}`).toBe(false);
+      }
+    });
+
+    it('recognises a setup that failed part-way and says the visible error is the leftover', () => {
+      // `03_default_instance` registers the instance domain BEFORE it creates
+      // the first human, and Zitadel says `setup failed, skipping cleanup` —
+      // it does not roll back. A failure at the human therefore leaves the
+      // domain behind, and every restart afterwards dies on the leftover.
+      expect(body, 'the half-initialised state has to be recognised by name').toContain(
+        'setup failed, skipping cleanup',
+      );
+      expect(body, 'and the operator told which of the two errors to believe').toMatch(
+        /is the leftover, not the cause/,
+      );
+      expect(body, 'and given the clear-down that the fix needs').toContain('DROP DATABASE zitadel');
+    });
+
+    it('prints the clear-down rather than performing it', () => {
+      // Non-destructive by default. A bring-up that drops a database because a
+      // migration failed is one bad heuristic away from erasing the identity
+      // store of a stack that had real users in it.
+      const dropLines = bootstrap
+        .split('\n')
+        .map((line, i) => ({ line: line.trim(), n: i + 1 }))
+        .filter(({ line }) => /DROP DATABASE|docker volume rm|rm -sf/i.test(line));
+      expect(dropLines.length, 'the remedy text has gone missing').toBeGreaterThan(0);
+      const executed = dropLines.filter(({ line }) => !line.startsWith('echo '));
+      expect(
+        executed.map(({ n, line }) => `${n}: ${line}`),
+        'the bring-up may name a destructive remedy; it may not run one',
+      ).toEqual([]);
+    });
+  });
   it('stops the bring-up rather than carrying on past a service that never started', () => {
     const body = bootstrap.slice(bootstrap.indexOf('explain_failure() {'));
     expect(body.slice(0, body.indexOf('\n}')), 'a diagnosis that returns 0 is a warning').toContain(
