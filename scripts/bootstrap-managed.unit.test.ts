@@ -464,3 +464,79 @@ describe('trigger_cli_logged_in (trigger-cli-lib.sh)', () => {
     expect(loggedIn(envLoggedOut)).toBe(false);
   });
 });
+
+/**
+ * Every bring-up that WAITS has to be able to say why it failed.
+ *
+ * The header above says `bootstrap-managed.sh` cannot usefully be tested
+ * because every phase is a `docker compose` call. That is true of its
+ * behaviour and not of its wiring, and the wiring is what went wrong.
+ *
+ * `up_wait` has existed since the PgBouncer hunt of 2026-08-18, and it exists
+ * for exactly one reason: `up --wait` reports `container X is unhealthy`, which
+ * names the service and never the cause, and the cause is always in that
+ * container's own log. Every bring-up in the file went through it — except two.
+ *
+ * E2E (managed) #39 is what that cost. The zitadel bring-up added in #504
+ * called compose directly, the container exited 1 on every restart, and the run
+ * reported `ownpace-idp Restarting (1)` and not one word about why. A whole
+ * dispatch spent to learn nothing, on a failure whose explanation was sitting
+ * in `docker logs` the entire time.
+ *
+ * So: the diagnosis is split out as `explain_failure`, the two direct callers
+ * reach it, and this refuses any future bring-up that waits without one.
+ */
+describe('a bring-up that waits can say why it failed', () => {
+  const bootstrap = readFileSync(join(REPO_ROOT, 'deploy/compose/bootstrap-managed.sh'), 'utf8');
+
+  it('read the real script', () => {
+    // Vacuity guard: an empty string satisfies every "no line does X" below.
+    expect(bootstrap.length).toBeGreaterThan(5000);
+    expect(bootstrap).toContain('explain_failure()');
+  });
+
+  it('routes every waiting bring-up through the diagnosis', () => {
+    // `up -d … --wait` is the shape that can hang and then give up with one
+    // uninformative line. `up -d` without `--wait` is fire-and-forget and is
+    // not this rule's business.
+    const waiting = bootstrap
+      .split('\n')
+      .map((line, i) => ({ line, n: i + 1 }))
+      .filter(({ line }) => /\bup -d\b/.test(line) && line.includes('--wait'));
+
+    expect(waiting.length, 'no waiting bring-up found at all — the regex stopped matching').
+      toBeGreaterThan(0);
+
+    const blind = waiting.filter(
+      ({ line }) =>
+        // `up_wait`'s own implementation IS the diagnosis path.
+        !line.includes('if "${COMPOSE[@]}" up -d --wait "$@"') &&
+        // Anything else has to reach it explicitly.
+        !line.includes('|| explain_failure'),
+    );
+    expect(
+      blind.map(({ n, line }) => `${n}: ${line.trim()}`),
+      'waits for a container and cannot say why it never came up',
+    ).toEqual([]);
+  });
+
+  it('prints BOTH ends of the log, not just the tail', () => {
+    // A misconfigured service says why at START-UP and then loops on the
+    // consequence, so a tail-only window shows twenty copies of the symptom and
+    // none of the cause — PgBouncer's `could not open auth_file … Permission
+    // denied` sat one line above it for three rounds of debugging.
+    const body = bootstrap.slice(
+      bootstrap.indexOf('explain_failure() {'),
+      bootstrap.indexOf('\n}', bootstrap.indexOf('explain_failure() {')),
+    );
+    expect(body, 'the start-up window is the half that matters').toMatch(/logs "\$svc".*head -20/s);
+    expect(body).toMatch(/logs --tail 20 "\$svc"/);
+  });
+
+  it('stops the bring-up rather than carrying on past a service that never started', () => {
+    const body = bootstrap.slice(bootstrap.indexOf('explain_failure() {'));
+    expect(body.slice(0, body.indexOf('\n}')), 'a diagnosis that returns 0 is a warning').toContain(
+      'exit 1',
+    );
+  });
+});

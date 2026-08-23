@@ -154,6 +154,16 @@ load_env() {
 # minute of confusion per occurrence, every time, forever.
 up_wait() { # up_wait <service> [service...]
   if "${COMPOSE[@]}" up -d --wait "$@"; then return 0; fi
+  explain_failure "$@"
+}
+
+# The diagnosis half, separated from the `up` half so that a bring-up which
+# cannot go through `up_wait` — the app services need `--build` and a GIT_SHA —
+# can still reach it. It used to be inlined here, and the two calls that could
+# not use the wrapper therefore had no diagnosis at all: E2E (managed) #39
+# reported `ownpace-idp Restarting (1)` and not one word about why, because the
+# zitadel bring-up added in #504 called compose directly.
+explain_failure() { # explain_failure <service> [service...]
   echo >&2
   echo "!!! compose could not bring these up healthy: $*" >&2
   for svc in "$@"; do
@@ -612,7 +622,10 @@ phase_app() {
   # had never been configured, and a nightly that could not have noticed.
   # Idempotent by construction — it reads its settings back rather than trusting
   # its writes — so running it every pass is safe.
-  "${COMPOSE[@]}" up -d --wait zitadel
+  # THROUGH `up_wait`, like every other bring-up in this file. Calling compose
+  # directly here is what made E2E (managed) #39 unreadable: the container
+  # exited 1 on every restart and the run reported only that it was restarting.
+  up_wait zitadel
   "${SCRIPT_DIR}/setup-zitadel.sh"
   note "identity provider provisioned before the web build (idempotent)"
 
@@ -620,8 +633,12 @@ phase_app() {
   # VITE_ values, and the build below has to see them.
   load_env
 
+  # `|| explain_failure` because this one cannot go through `up_wait`: it needs
+  # `--build` and a GIT_SHA in the environment. Without it, a web or api image
+  # that starts and dies reports one line naming the service and nothing about
+  # the cause — the same blindness as the zitadel call above.
   GIT_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)" \
-    "${COMPOSE[@]}" up -d --build --wait "${services[@]}"
+    "${COMPOSE[@]}" up -d --build --wait "${services[@]}" || explain_failure "${services[@]}"
   note "up and healthy: ${services[*]}"
   note "api: ${API_URL:-http://localhost:3001}   web: ${WEB_URL:-http://localhost:3123}"
 }

@@ -216,3 +216,46 @@ smoke says so in as many words. That is the deployment decision above, not a
 code change: the box needs an address that answers for **both** a browser and
 `ownpace-api` — its netbird name, or `id.ota.ownpace.eu` under workplan 0091's
 scheme — set in the runner's persisted `.env` before the next dispatch.
+
+## And run #39, which got further and said less
+
+The port fix landed and the provider bound its port: `ownpace-idp` existed for
+the first time. Then it exited 1, restarted, exited 1 again — and the run
+reported this and nothing else:
+
+```
+ownpace-idp   ghcr.io/zitadel/zitadel:v4.6.2   3 seconds ago   Restarting (1) Less than a second ago
+```
+
+Not one word about why. A whole dispatch spent to learn that something went
+wrong, on a failure whose explanation was sitting in `docker logs` the entire
+time.
+
+**And the tool for that already existed.** `bootstrap-managed.sh` has had
+`up_wait` since the PgBouncer hunt of 2026-08-18, written for exactly this: on a
+failed `up --wait` it prints the failing container's log, both ends, because
+`container X is unhealthy` names the service and never the cause. Every bring-up
+in the file goes through it — postgres, pgbouncer, nextcloud, the whole Trigger
+stack, the supervisor.
+
+Except two. The zitadel bring-up added by this workplan called compose directly:
+
+```bash
+"${COMPOSE[@]}" up -d --wait zitadel     # no diagnosis
+```
+
+and the app services could not use the wrapper at all, because they need
+`--build` and a `GIT_SHA` in the environment — so a web or api image that
+started and died was equally silent.
+
+The diagnosis is now split out as `explain_failure`, `up_wait` calls it, and so
+do both direct callers. `bootstrap-managed.unit.test.ts` refuses any line that
+runs `up -d … --wait` without reaching it, and refuses a diagnosis reduced to a
+tail-only window or to a warning — each proved by breaking it.
+
+**This does not say why Zitadel exited.** It makes the next run say it. The
+answer is available now, on the box, in one command:
+
+```
+docker compose -f deploy/compose/managed.yml logs zitadel | head -40
+```
