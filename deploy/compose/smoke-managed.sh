@@ -673,8 +673,15 @@ if [ -z "$HASH" ]; then
     echo "tombstone either — a sync ran and the copying did not succeed. This is a"
     echo "product fault, not a missing fixture; the breakdown above says which domain"
     echo "and status it stalled in."
-    echo "  docker exec $DB_CONTAINER psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -Atc \\"
-    echo "    \"SELECT level,message,at FROM run_event WHERE tenant_id='$APPLY_TENANT' ORDER BY at DESC LIMIT 20\""
+    # Paste-safe, for the reason bootstrap-managed.sh's remedy documents: the
+    # names resolve INSIDE the container or not at all. The SQL carries single
+    # quotes around the tenant id, so it goes in through a heredoc rather than
+    # `-c` — nesting it in the `sh -c '...'` would end that quoting early.
+    echo "  docker exec -i $DB_CONTAINER sh -c 'psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -At' <<'SQL'"
+    echo "  SELECT level,message,at FROM run_event"
+    echo "   WHERE tenant_id='$APPLY_TENANT'"
+    echo "   ORDER BY at DESC LIMIT 20;"
+    echo "SQL"
   else
     echo "DIAGNOSIS: there ARE eligible items, but none carries a target_ref id."
     echo "Something wrote the ledger row without the handle the target returned,"
