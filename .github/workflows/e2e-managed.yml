@@ -118,125 +118,114 @@ jobs:
     runs-on: [self-hosted, linux, arm64]
     timeout-minutes: 10
     steps:
-      - name: A — what the API container can reach, asked with what it actually has
+      - name: C — can an instance domain be added without re-initialising?
         run: |
           set -uo pipefail
-          echo "=== what the API verifies against ==="
-          docker exec ownpace-api printenv JWT_ISSUER JWT_AUDIENCE JWT_JWKS_URI 2>&1 || true
-          echo "=== what the API container has to ask with ==="
-          docker exec ownpace-api sh -lc 'for b in curl wget node; do command -v $b || echo "no $b"; done' 2>&1 || true
+          ISS=http://localhost:3126
+          PAT="$(docker run --rm -v ownpace-managed_zitadel_machinekey:/machinekey alpine \
+                  cat /machinekey/pat.txt | tr -d '\r\n')"
+          [ -n "$PAT" ] || { echo "no PAT"; exit 0; }
+          echo "::add-mask::$PAT"
+          try() { # try <verb> <path> [body]
+            printf '%-46s ' "$1 $2"
+            if [ -n "${3:-}" ]; then
+              curl -sS -m 10 -o /tmp/r -w 'http %{http_code}  ' -X "$1" "$ISS$2" \
+                -H "Authorization: Bearer $PAT" -H 'Content-Type: application/json' -d "$3"
+            else
+              curl -sS -m 10 -o /tmp/r -w 'http %{http_code}  ' -X "$1" "$ISS$2" \
+                -H "Authorization: Bearer $PAT"
+            fi
+            head -c 240 /tmp/r; echo
+          }
+          # What origins does this instance actually accept today?
+          try POST /admin/v1/domains/_search '{}'
+          try GET  /admin/v1/domains
+          try POST /admin/v1/trusted_domains/_search '{}'
+          # And can one be added with nothing but the provisioning token?
+          try POST /admin/v1/trusted_domains '{"domain":"ownpace-idp"}'
+          try POST /system/v1/instances/_search '{}'
 
-          # node, not curl: the image has no curl, and node's fetch is the exact
-          # client auth.ts uses. Probe #1 asked with curl and got "" for every
-          # URL, which reads identically to "unreachable".
-          echo "=== discovery, from INSIDE ownpace-api, via node fetch ==="
-          docker exec ownpace-api node -e '
-            const urls = [
-              "http://localhost:3126/.well-known/openid-configuration",
-              "http://zitadel:8080/.well-known/openid-configuration",
-              "http://ownpace-idp:8080/.well-known/openid-configuration",
-            ];
-            (async () => {
-              for (const u of urls) {
-                try {
-                  const r = await fetch(u, { signal: AbortSignal.timeout(5000) });
-                  const b = await r.text();
-                  let d = "";
-                  try { const j = JSON.parse(b); d = `issuer=${j.issuer} jwks_uri=${j.jwks_uri}`; }
-                  catch { d = b.slice(0, 200); }
-                  console.log(`${u}\n  http ${r.status}  ${d}`);
-                } catch (e) {
-                  console.log(`${u}\n  THREW ${e.name}: ${e.message}${e.cause ? " / " + e.cause : ""}`);
-                }
-              }
-            })();
-          ' 2>&1 || true
-
-      - name: B — a real token, the way a browser would get one
+      - name: D — with devMode on, the whole sign-in, and what the token carries
         run: |
           set -uo pipefail
           ISS=http://localhost:3126
           REDIRECT=http://localhost:3123/auth/callback
-
           PAT="$(docker run --rm -v ownpace-managed_zitadel_machinekey:/machinekey alpine \
                   cat /machinekey/pat.txt | tr -d '\r\n')"
-          if [ -z "$PAT" ]; then echo "no PAT — cannot probe"; exit 0; fi
+          [ -n "$PAT" ] || { echo "no PAT"; exit 0; }
           echo "::add-mask::$PAT"
           auth() { curl -sS -m 15 -H "Authorization: Bearer $PAT" -H 'Content-Type: application/json' "$@"; }
 
-          # The project IS the audience — that is what setup-zitadel.sh wrote.
-          # Probe #1 took the first project the search returned, which was
-          # Zitadel's own, and everything downstream of it was about the wrong one.
           PROJ="$(docker exec ownpace-api printenv JWT_AUDIENCE)"
-          echo "project: ${PROJ:-<none>}"
-          APPS="$(auth -X POST "$ISS/management/v1/projects/$PROJ/apps/_search" -d '{"queries":[]}')"
-          APP_ID="$(jq -r '.result[]? | select(.name=="Ownpace Web") | .id' <<<"$APPS" | head -1)"
-          echo "app:     ${APP_ID:-<none>}   (all: $(jq -rc '[.result[]?.name]' <<<"$APPS"))"
-          APP="$(auth "$ISS/management/v1/projects/$PROJ/apps/$APP_ID")"
-          CLIENT_ID="$(jq -r '.app.oidcConfig.clientId // empty' <<<"$APP")"
-          echo "client:  ${CLIENT_ID:-<none>}"
-          jq '.app.oidcConfig | {redirectUris, accessTokenType, appType, authMethodType, grantTypes}' <<<"$APP"
-          [ -n "$CLIENT_ID" ] || exit 0
+          APP_ID="$(auth -X POST "$ISS/management/v1/projects/$PROJ/apps/_search" -d '{"queries":[]}' \
+                    | jq -r '.result[]? | select(.name=="Ownpace Web") | .id' | head -1)"
+          CFG="$(auth "$ISS/management/v1/projects/$PROJ/apps/$APP_ID" | jq '.app.oidcConfig')"
+          CLIENT_ID="$(jq -r '.clientId' <<<"$CFG")"
+          echo "app $APP_ID  client $CLIENT_ID  devMode now: $(jq -r '.devMode' <<<"$CFG")"
 
-          EMAIL="probe-$$@smoke.local"
-          PW='Pr0be-Secret!42'
-          NEW="$(auth -X POST "$ISS/v2/users/human" -d "$(jq -nc --arg e "$EMAIL" --arg p "$PW" \
-            '{username:$e,
-              profile:{givenName:"Probe",familyName:"User"},
-              email:{email:$e,isVerified:true},
-              password:{password:$p,changeRequired:false}}')")"
-          UID_="$(jq -r '.userId // empty' <<<"$NEW")"
-          echo "user:    ${UID_:-<none>}  $( [ -z "$UID_" ] && echo "$NEW" )"
+          # Turn devMode ON, run the flow, turn it back OFF — the stack is left
+          # exactly as it was found.
+          put_dev() {
+            auth -X PUT "$ISS/management/v1/projects/$PROJ/apps/$APP_ID/oidc_config" \
+              -o /tmp/pd -w 'set devMode='"$1"' -> http %{http_code}\n' \
+              -d "$(jq -c --argjson d "$1" '{redirectUris:.redirectUris, responseTypes:.responseTypes,
+                    grantTypes:.grantTypes, appType:.appType, authMethodType:.authMethodType,
+                    postLogoutRedirectUris:.postLogoutRedirectUris, accessTokenType:.accessTokenType,
+                    devMode:$d}' <<<"$CFG")"
+            head -c 200 /tmp/pd; echo
+          }
+          put_dev true
+          restore() { put_dev false; }
+          trap restore EXIT
+
+          EMAIL="probe-$$@smoke.local"; PW='Pr0be-Secret!42'
+          UID_="$(auth -X POST "$ISS/v2/users/human" -d "$(jq -nc --arg e "$EMAIL" --arg p "$PW" \
+            '{username:$e, profile:{givenName:"Probe",familyName:"User"},
+              email:{email:$e,isVerified:true}, password:{password:$p,changeRequired:false}}')" \
+            | jq -r '.userId // empty')"
+          echo "user: ${UID_:-<none>}"
           [ -n "$UID_" ] || exit 0
-          cleanup() { auth -X DELETE "$ISS/v2/users/$UID_" -o /dev/null -w 'delete http %{http_code}\n' || true; }
-          trap cleanup EXIT
+          restore() { put_dev false; auth -X DELETE "$ISS/v2/users/$UID_" -o /dev/null -w 'delete http %{http_code}\n'; }
 
           VERIFIER="$(openssl rand -hex 32)"
           CHALLENGE="$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 | openssl base64 | tr '+/' '-_' | tr -d '=\n')"
           HDRS="$(curl -sS -m 15 -o /tmp/az -D - \
-            "$ISS/oauth/v2/authorize?client_id=$CLIENT_ID&redirect_uri=$REDIRECT&response_type=code&scope=openid%20email%20profile&code_challenge=$CHALLENGE&code_challenge_method=S256" \
-            | tr -d '\r')"
-          echo "authorize status: $(head -1 <<<"$HDRS")"
+            "$ISS/oauth/v2/authorize?client_id=$CLIENT_ID&redirect_uri=$REDIRECT&response_type=code&scope=openid%20email%20profile&code_challenge=$CHALLENGE&code_challenge_method=S256" | tr -d '\r')"
+          echo "authorize: $(head -1 <<<"$HDRS")"
           LOC="$(sed -n 's/^[Ll]ocation: //p' <<<"$HDRS" | head -1)"
-          echo "authorize -> ${LOC:-<no redirect>}"
-          [ -n "$LOC" ] || { echo "body:"; head -c 400 /tmp/az; echo; }
+          [ -n "$LOC" ] || { echo "body: $(head -c 300 /tmp/az)"; exit 0; }
+          echo "-> $LOC"
           AR="$(sed -n 's/.*authRequest=\([^&]*\).*/\1/p' <<<"$LOC")"
           echo "authRequest: ${AR:-<none>}"
+          [ -n "$AR" ] || exit 0
 
           SESS="$(auth -X POST "$ISS/v2/sessions" -d "$(jq -nc --arg u "$EMAIL" --arg p "$PW" \
             '{checks:{user:{loginName:$u},password:{password:$p}}}')")"
           SID="$(jq -r '.sessionId // empty' <<<"$SESS")"
           STOK="$(jq -r '.sessionToken // empty' <<<"$SESS")"
           [ -n "$STOK" ] && echo "::add-mask::$STOK"
-          echo "session: ${SID:-<none>}  $( [ -z "$SID" ] && echo "$SESS" )"
-          [ -n "$AR" ] || exit 0
+          echo "session: ${SID:-<none>} $( [ -z "$SID" ] && echo "$SESS" )"
 
           CB="$(auth -X POST "$ISS/v2/oidc/auth_requests/$AR" -d "$(jq -nc --arg s "$SID" --arg t "$STOK" \
             '{session:{sessionId:$s,sessionToken:$t}}')")"
           CALLBACK="$(jq -r '.callbackUrl // empty' <<<"$CB")"
-          echo "callback: $( [ -z "$CALLBACK" ] && echo "$CB" || echo "(got one)" )"
+          [ -n "$CALLBACK" ] || { echo "callback: $CB"; exit 0; }
           CODE="$(sed -n 's/.*[?&]code=\([^&]*\).*/\1/p' <<<"$CALLBACK")"
           [ -n "$CODE" ] && echo "::add-mask::$CODE"
 
           TOK="$(curl -sS -m 15 -X POST "$ISS/oauth/v2/token" \
-            --data-urlencode grant_type=authorization_code \
-            --data-urlencode "code=$CODE" \
-            --data-urlencode "redirect_uri=$REDIRECT" \
-            --data-urlencode "client_id=$CLIENT_ID" \
+            --data-urlencode grant_type=authorization_code --data-urlencode "code=$CODE" \
+            --data-urlencode "redirect_uri=$REDIRECT" --data-urlencode "client_id=$CLIENT_ID" \
             --data-urlencode "code_verifier=$VERIFIER")"
           AT="$(jq -r '.access_token // empty' <<<"$TOK")"
-          if [ -z "$AT" ]; then echo "no access token: $TOK"; exit 0; fi
+          [ -n "$AT" ] || { echo "no access token: $TOK"; exit 0; }
           echo "::add-mask::$AT"
-          b64() { local s="$1"; case $(( ${#s} % 4 )) in 2) s="$s==";; 3) s="$s=";; esac; tr '_-' '/+' <<<"$s" | base64 -d 2>/dev/null; }
-          echo "--- access token HEADER"; b64 "$(cut -d. -f1 <<<"$AT")" | jq . || true
-          echo "--- access token CLAIMS"; b64 "$(cut -d. -f2 <<<"$AT")" | jq . || true
-          echo "--- id token CLAIMS"
           IDT="$(jq -r '.id_token // empty' <<<"$TOK")"; [ -n "$IDT" ] && echo "::add-mask::$IDT"
-          [ -n "$IDT" ] && b64 "$(cut -d. -f2 <<<"$IDT")" | jq . || echo "(no id_token)"
-          echo "--- what the API says to it (500 = the reachability bug, 401/403 = the verified path)"
-          curl -sS -m 10 -o /tmp/me -w 'http %{http_code}\n' \
-            -H "Authorization: Bearer $AT" http://localhost:3001/api/me || true
-          head -c 300 /tmp/me; echo
+          b64() { local s="$1"; case $(( ${#s} % 4 )) in 2) s="$s==";; 3) s="$s=";; esac; tr '_-' '/+' <<<"$s" | base64 -d 2>/dev/null; }
+          echo "--- access token CLAIMS"; b64 "$(cut -d. -f2 <<<"$AT")" | jq . || true
+          echo "--- id token CLAIMS";     [ -n "$IDT" ] && b64 "$(cut -d. -f2 <<<"$IDT")" | jq . || echo "(none)"
+          echo "--- userinfo"
+          curl -sS -m 10 -H "Authorization: Bearer $AT" "$ISS/oidc/v1/userinfo" | jq . || true
 
   e2e-managed:
     if: ${{ !inputs.probe_only }}
