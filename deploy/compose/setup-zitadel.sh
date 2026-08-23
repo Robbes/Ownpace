@@ -155,7 +155,7 @@ need_jq
 
 say "looking for an existing '${PROJECT_NAME}' project"
 PROJECT_ID="$(api POST /management/v1/projects/_search '{"queries":[]}' \
-  | jq -r --arg n "$PROJECT_NAME" '.result[]? | select(.name == $n) | .id' | head -1)"
+  | jq -r --arg n "$PROJECT_NAME" '.result[]? | select(.name == $n) | .id' | awk 'NR==1')"
 
 if [ -z "$PROJECT_ID" ] || [ "$PROJECT_ID" = "null" ]; then
   say "creating it"
@@ -177,7 +177,7 @@ LOGOUT_URIS="$(jq -nc --arg w "$WEB_URL" '[$w + "/login"]')"
 
 say "looking for an existing '${APP_NAME}' application"
 APP_ID="$(api POST "/management/v1/projects/${PROJECT_ID}/apps/_search" '{"queries":[]}' \
-  | jq -r --arg n "$APP_NAME" '.result[]? | select(.name == $n) | .id' | head -1)"
+  | jq -r --arg n "$APP_NAME" '.result[]? | select(.name == $n) | .id' | awk 'NR==1')"
 
 if [ -z "$APP_ID" ] || [ "$APP_ID" = "null" ]; then
   say "creating it (authorization-code + PKCE, no client secret)"

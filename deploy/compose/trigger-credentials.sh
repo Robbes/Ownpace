@@ -102,8 +102,9 @@ if ! present="$(run_sql "$probe_sql")"; then
   # anything, so one `${VAR:?…}` with no value in .env makes every compose
   # command against managed.yml fail — including this one, which only wanted to
   # reach trigger-db and never touches the service that is missing a variable.
-  if printf '%s\n' "$present" | grep -qE 'required variable|error while interpolating'; then
-    var="$(printf '%s\n' "$present" | grep -oE 'required variable [A-Za-z_][A-Za-z0-9_]*' | head -1 | awk '{print $3}')"
+  if grep -qE 'required variable|error while interpolating' <<<"$present"; then
+    var=""
+    if [[ "$present" =~ required\ variable\ ([A-Za-z_][A-Za-z0-9_]*) ]]; then var="${BASH_REMATCH[1]}"; fi
     echo "[trigger-credentials] That is NOT a database problem, and probably not a stopped stack." >&2
     echo "[trigger-credentials] docker compose could not read managed.yml at all: ${var:-a required variable}" >&2
     echo "[trigger-credentials] has no value in deploy/compose/.env, and compose interpolates the" >&2
@@ -119,9 +120,25 @@ if ! present="$(run_sql "$probe_sql")"; then
   exit 1
 fi
 
+# READ FROM A HERE-STRING, NOT THROUGH A PIPE.
+#
+# `printf '%s\n' "$present" | grep -qxF "$col"` is what stood here, and under
+# `set -o pipefail` it reports failure when grep SUCCEEDS. `grep -q` exits the
+# instant it matches, without draining its input; the producer's next write
+# lands on a closed pipe and it dies of SIGPIPE. PIPESTATUS is then `(141 0)` —
+# grep said yes, the producer was killed for being interrupted mid-sentence,
+# and pipefail returns the 141. The column IS there and this loop calls it
+# missing, which the block below reports as somebody else's schema being wrong.
+#
+# It is a race, so it needs a loaded machine to show itself: 0 in 15,000
+# unloaded iterations, ~1 in 1,400 under CPU contention. That is exactly a
+# CI runner with a full test suite in flight, and it turned `unit-tests` red
+# on PR #518 claiming `Missing: Project.id` for a column the fixture defines.
+#
+# A here-string has no producer process to kill, so there is nothing to signal.
 missing=""
 for col in $NEEDED; do
-  printf '%s\n' "$present" | grep -qxF "$col" || missing="${missing} ${col}"
+  grep -qxF "$col" <<<"$present" || missing="${missing} ${col}"
 done
 if [ -n "$missing" ]; then
   echo "[trigger-credentials] This Trigger.dev instance's schema is not the one this script knows." >&2
@@ -168,13 +185,13 @@ key="$(printf '%s\n' "$rows" | cut -d'|' -f2)"
 # Shape checks. These are what makes reading somebody else's schema safe: a
 # column that turns out to hold something else fails HERE, before the value is
 # written into .env and believed for the rest of the deployment's life.
-if ! printf '%s' "$ref" | grep -qE '^proj_[A-Za-z0-9]+$'; then
+if ! grep -qE '^proj_[A-Za-z0-9]+$' <<<"$ref"; then
   echo "[trigger-credentials] The project ref does not look like a project ref (expected proj_…)." >&2
   echo "[trigger-credentials] Refusing to write it. Nothing was changed." >&2
   manual_instructions
   exit 1
 fi
-if ! printf '%s' "$key" | grep -qE "^tr_${ENV_SLUG}_[A-Za-z0-9]+$"; then
+if ! grep -qE "^tr_${ENV_SLUG}_[A-Za-z0-9]+$" <<<"$key"; then
   echo "[trigger-credentials] The '${ENV_SLUG}' key does not look like a tr_${ENV_SLUG}_ key." >&2
   echo "[trigger-credentials] Refusing to write it. Nothing was changed." >&2
   manual_instructions

@@ -188,7 +188,7 @@ ensure ZITADEL_ADMIN_PASSWORD 16
 # policy was deliberately relaxed, where a hex password DID initialise an
 # account. The note says so rather than assuming it away.
 current_admin="$(grep -E '^ZITADEL_ADMIN_PASSWORD=' "$ENV_FILE" | tail -1 | cut -d= -f2- || true)"
-if printf '%s' "$current_admin" | grep -qE '^[0-9a-f]{32}$'; then
+if grep -qE '^[0-9a-f]{32}$' <<<"$current_admin"; then
   sed -i '/^ZITADEL_ADMIN_PASSWORD=/d' "$ENV_FILE"
   echo "ZITADEL_ADMIN_PASSWORD=$(zitadel_password)" >>"$ENV_FILE"
   echo "[ensure-env-secrets] REPLACED ZITADEL_ADMIN_PASSWORD — it was plain hex, which"
@@ -207,7 +207,7 @@ fi
 # redeploy it. Generated rather than committed, and gitignored, because a
 # password in a public repository is not a password.
 USERLIST="${SCRIPT_DIR}/pgbouncer/userlist.txt"
-PGB_PW="$(grep -E '^PGBOUNCER_AUTH_PASSWORD=' "$ENV_FILE" | head -1 | cut -d= -f2-)"
+PGB_PW="$(grep -E '^PGBOUNCER_AUTH_PASSWORD=' "$ENV_FILE" | awk 'NR==1' | cut -d= -f2-)"
 if [ -n "$PGB_PW" ]; then
   mkdir -p "${SCRIPT_DIR}/pgbouncer"
   printf '"pgbouncer_auth" "%s"\n' "$PGB_PW" >"$USERLIST"

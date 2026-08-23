@@ -351,7 +351,7 @@ jobs:
             exit 1
           fi
           # Transaction mode, and at least one client actually connected through it.
-          echo "$pools" | grep -q "transaction" || {
+          grep -q "transaction" <<<"$pools" || {
             echo "::error::PgBouncer is not in transaction mode. managed.yml sets pool_mode=transaction."
             exit 1
           }

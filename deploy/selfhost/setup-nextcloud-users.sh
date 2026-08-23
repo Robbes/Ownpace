@@ -87,7 +87,7 @@ echo "[setup-nextcloud-users] Waiting for install to finish (occ status)..."
 installed=false
 for _ in $(seq 1 60); do
   status_json="$(docker exec "$CONTAINER" php occ status --output=json 2>/dev/null || echo '{}')"
-  if echo "$status_json" | grep -q '"installed":true'; then
+  if grep -q '"installed":true' <<<"$status_json"; then
     installed=true
     break
   fi
@@ -133,7 +133,7 @@ create_user() {
     -d "userid=${userid}" --data-urlencode "password=${password}" \
     "${BASE_URL}/ocs/v1.php/cloud/users")"
   # statuscode 100 = created, 102 = user already exists — both fine (idempotent re-run).
-  if echo "$body" | grep -qE '<statuscode>(100|102)</statuscode>'; then
+  if grep -qE '<statuscode>(100|102)</statuscode>' <<<"$body"; then
     echo "[setup-nextcloud-users] User '${userid}' ready"
   else
     echo "[setup-nextcloud-users] Unexpected OCS response creating '${userid}':" >&2
