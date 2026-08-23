@@ -118,7 +118,7 @@ jobs:
     runs-on: [self-hosted, linux, arm64]
     timeout-minutes: 10
     steps:
-      - name: C — can an instance domain be added without re-initialising?
+      - name: E — does a trusted domain make the internal origin resolvable?
         run: |
           set -uo pipefail
           ISS=http://localhost:3126
@@ -126,26 +126,38 @@ jobs:
                   cat /machinekey/pat.txt | tr -d '\r\n')"
           [ -n "$PAT" ] || { echo "no PAT"; exit 0; }
           echo "::add-mask::$PAT"
-          try() { # try <verb> <path> [body]
-            printf '%-46s ' "$1 $2"
-            if [ -n "${3:-}" ]; then
-              curl -sS -m 10 -o /tmp/r -w 'http %{http_code}  ' -X "$1" "$ISS$2" \
-                -H "Authorization: Bearer $PAT" -H 'Content-Type: application/json' -d "$3"
-            else
-              curl -sS -m 10 -o /tmp/r -w 'http %{http_code}  ' -X "$1" "$ISS$2" \
-                -H "Authorization: Bearer $PAT"
-            fi
-            head -c 240 /tmp/r; echo
-          }
-          # What origins does this instance actually accept today?
-          try POST /admin/v1/domains/_search '{}'
-          try GET  /admin/v1/domains
-          try POST /admin/v1/trusted_domains/_search '{}'
-          # And can one be added with nothing but the provisioning token?
-          try POST /admin/v1/trusted_domains '{"domain":"ownpace-idp"}'
-          try POST /system/v1/instances/_search '{}'
+          auth() { curl -sS -m 15 -H "Authorization: Bearer $PAT" -H 'Content-Type: application/json' "$@"; }
 
-      - name: D — with devMode on, the whole sign-in, and what the token carries
+          echo "=== instance domains ==="
+          auth -X POST "$ISS/admin/v1/domains/_search" -d '{}' | jq -c '.result[]? | {domain, generated, primary}'
+          echo "=== trusted domains (ownpace-idp was added by probe 3) ==="
+          auth -X POST "$ISS/admin/v1/trusted_domains/_search" -d '{}' | jq -c '.result[]? | {domain}'
+          echo "=== add the host:port form too ==="
+          auth -X POST "$ISS/admin/v1/trusted_domains" -d '{"domain":"ownpace-idp:8080"}' \
+            -o /tmp/td -w 'http %{http_code}  '; head -c 160 /tmp/td; echo
+          auth -X POST "$ISS/admin/v1/trusted_domains" -d '{"domain":"zitadel"}' \
+            -o /tmp/td -w 'http %{http_code}  '; head -c 160 /tmp/td; echo
+
+          echo "=== and now, from INSIDE ownpace-api ==="
+          docker exec ownpace-api node -e '
+            const urls = [
+              "http://ownpace-idp:8080/.well-known/openid-configuration",
+              "http://zitadel:8080/.well-known/openid-configuration",
+            ];
+            (async () => {
+              for (const u of urls) {
+                try {
+                  const r = await fetch(u, { signal: AbortSignal.timeout(5000) });
+                  const b = await r.text();
+                  let d; try { const j = JSON.parse(b); d = `issuer=${j.issuer}  jwks_uri=${j.jwks_uri}`; }
+                  catch { d = b.slice(0, 180); }
+                  console.log(`${u}\n  http ${r.status}  ${d}`);
+                } catch (e) { console.log(`${u}\n  THREW ${e.name}: ${e.message}`); }
+              }
+            })();
+          ' 2>&1 || true
+
+      - name: F — what CreateCallback actually needs, and what the token carries
         run: |
           set -uo pipefail
           ISS=http://localhost:3126
@@ -156,63 +168,64 @@ jobs:
           echo "::add-mask::$PAT"
           auth() { curl -sS -m 15 -H "Authorization: Bearer $PAT" -H 'Content-Type: application/json' "$@"; }
 
+          ME="$(auth "$ISS/auth/v1/users/me")"
+          MYID="$(jq -r '.user.id // empty' <<<"$ME")"
+          echo "the provisioning user: $MYID ($(jq -r '.user.userName // "?"' <<<"$ME"))"
+          echo "=== IAM members and their roles ==="
+          auth -X POST "$ISS/admin/v1/members/_search" -d '{}' | jq -c '.result[]? | {userId, roles}'
+          echo "=== grant IAM_LOGIN_CLIENT alongside what it already has ==="
+          ROLES="$(auth -X POST "$ISS/admin/v1/members/_search" -d '{}' \
+            | jq -c --arg u "$MYID" '[.result[]? | select(.userId==$u) | .roles[]?] + ["IAM_LOGIN_CLIENT"] | unique')"
+          echo "roles -> $ROLES"
+          auth -X PUT "$ISS/admin/v1/members/$MYID" -d "$(jq -nc --argjson r "$ROLES" '{roles:$r}')" \
+            -o /tmp/g -w 'grant http %{http_code}  '; head -c 200 /tmp/g; echo
+
           PROJ="$(docker exec ownpace-api printenv JWT_AUDIENCE)"
           APP_ID="$(auth -X POST "$ISS/management/v1/projects/$PROJ/apps/_search" -d '{"queries":[]}' \
                     | jq -r '.result[]? | select(.name=="Ownpace Web") | .id' | head -1)"
           CFG="$(auth "$ISS/management/v1/projects/$PROJ/apps/$APP_ID" | jq '.app.oidcConfig')"
           CLIENT_ID="$(jq -r '.clientId' <<<"$CFG")"
-          echo "app $APP_ID  client $CLIENT_ID  devMode now: $(jq -r '.devMode' <<<"$CFG")"
-
-          # Turn devMode ON, run the flow, turn it back OFF — the stack is left
-          # exactly as it was found.
           put_dev() {
             auth -X PUT "$ISS/management/v1/projects/$PROJ/apps/$APP_ID/oidc_config" \
-              -o /tmp/pd -w 'set devMode='"$1"' -> http %{http_code}\n' \
+              -o /dev/null -w 'devMode='"$1"' http %{http_code}\n' \
               -d "$(jq -c --argjson d "$1" '{redirectUris:.redirectUris, responseTypes:.responseTypes,
                     grantTypes:.grantTypes, appType:.appType, authMethodType:.authMethodType,
                     postLogoutRedirectUris:.postLogoutRedirectUris, accessTokenType:.accessTokenType,
                     devMode:$d}' <<<"$CFG")"
-            head -c 200 /tmp/pd; echo
           }
           put_dev true
-          restore() { put_dev false; }
-          trap restore EXIT
-
           EMAIL="probe-$$@smoke.local"; PW='Pr0be-Secret!42'
           UID_="$(auth -X POST "$ISS/v2/users/human" -d "$(jq -nc --arg e "$EMAIL" --arg p "$PW" \
             '{username:$e, profile:{givenName:"Probe",familyName:"User"},
               email:{email:$e,isVerified:true}, password:{password:$p,changeRequired:false}}')" \
             | jq -r '.userId // empty')"
           echo "user: ${UID_:-<none>}"
+          cleanup() {
+            put_dev false
+            [ -n "${UID_:-}" ] && auth -X DELETE "$ISS/v2/users/$UID_" -o /dev/null -w 'delete http %{http_code}\n'
+          }
+          trap cleanup EXIT
           [ -n "$UID_" ] || exit 0
-          restore() { put_dev false; auth -X DELETE "$ISS/v2/users/$UID_" -o /dev/null -w 'delete http %{http_code}\n'; }
 
           VERIFIER="$(openssl rand -hex 32)"
           CHALLENGE="$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 | openssl base64 | tr '+/' '-_' | tr -d '=\n')"
-          HDRS="$(curl -sS -m 15 -o /tmp/az -D - \
-            "$ISS/oauth/v2/authorize?client_id=$CLIENT_ID&redirect_uri=$REDIRECT&response_type=code&scope=openid%20email%20profile&code_challenge=$CHALLENGE&code_challenge_method=S256" | tr -d '\r')"
-          echo "authorize: $(head -1 <<<"$HDRS")"
-          LOC="$(sed -n 's/^[Ll]ocation: //p' <<<"$HDRS" | head -1)"
-          [ -n "$LOC" ] || { echo "body: $(head -c 300 /tmp/az)"; exit 0; }
-          echo "-> $LOC"
+          LOC="$(curl -sS -m 15 -o /dev/null -D - \
+            "$ISS/oauth/v2/authorize?client_id=$CLIENT_ID&redirect_uri=$REDIRECT&response_type=code&scope=openid%20email%20profile&code_challenge=$CHALLENGE&code_challenge_method=S256" \
+            | tr -d '\r' | sed -n 's/^[Ll]ocation: //p' | head -1)"
           AR="$(sed -n 's/.*authRequest=\([^&]*\).*/\1/p' <<<"$LOC")"
           echo "authRequest: ${AR:-<none>}"
-          [ -n "$AR" ] || exit 0
-
           SESS="$(auth -X POST "$ISS/v2/sessions" -d "$(jq -nc --arg u "$EMAIL" --arg p "$PW" \
             '{checks:{user:{loginName:$u},password:{password:$p}}}')")"
           SID="$(jq -r '.sessionId // empty' <<<"$SESS")"
           STOK="$(jq -r '.sessionToken // empty' <<<"$SESS")"
           [ -n "$STOK" ] && echo "::add-mask::$STOK"
-          echo "session: ${SID:-<none>} $( [ -z "$SID" ] && echo "$SESS" )"
-
           CB="$(auth -X POST "$ISS/v2/oidc/auth_requests/$AR" -d "$(jq -nc --arg s "$SID" --arg t "$STOK" \
             '{session:{sessionId:$s,sessionToken:$t}}')")"
           CALLBACK="$(jq -r '.callbackUrl // empty' <<<"$CB")"
-          [ -n "$CALLBACK" ] || { echo "callback: $CB"; exit 0; }
+          [ -n "$CALLBACK" ] || { echo "callback REFUSED: $CB"; exit 0; }
+          echo "callback: got one"
           CODE="$(sed -n 's/.*[?&]code=\([^&]*\).*/\1/p' <<<"$CALLBACK")"
           [ -n "$CODE" ] && echo "::add-mask::$CODE"
-
           TOK="$(curl -sS -m 15 -X POST "$ISS/oauth/v2/token" \
             --data-urlencode grant_type=authorization_code --data-urlencode "code=$CODE" \
             --data-urlencode "redirect_uri=$REDIRECT" --data-urlencode "client_id=$CLIENT_ID" \
@@ -224,8 +237,9 @@ jobs:
           b64() { local s="$1"; case $(( ${#s} % 4 )) in 2) s="$s==";; 3) s="$s=";; esac; tr '_-' '/+' <<<"$s" | base64 -d 2>/dev/null; }
           echo "--- access token CLAIMS"; b64 "$(cut -d. -f2 <<<"$AT")" | jq . || true
           echo "--- id token CLAIMS";     [ -n "$IDT" ] && b64 "$(cut -d. -f2 <<<"$IDT")" | jq . || echo "(none)"
-          echo "--- userinfo"
-          curl -sS -m 10 -H "Authorization: Bearer $AT" "$ISS/oidc/v1/userinfo" | jq . || true
+          echo "--- what the API says to it"
+          curl -sS -m 10 -o /tmp/me -w 'http %{http_code}\n' -H "Authorization: Bearer $AT" http://localhost:3001/api/me || true
+          head -c 300 /tmp/me; echo
 
   e2e-managed:
     if: ${{ !inputs.probe_only }}
