@@ -511,15 +511,31 @@ services:
       # NOT a `condition:` — this one is run explicitly by the bring-up, before
       # the `up` that starts this service. See zitadel-machinekey below for why
       # it cannot simply be an init container compose starts for us.
-    healthcheck:
-      # Its own readiness endpoint, not a port check: the container listens well
-      # before it has finished applying its migrations, and a script that starts
-      # provisioning in that window gets errors that read like bugs.
-      test: ["CMD", "/app/zitadel", "ready", "--config", "/dev/null"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 30s
+    # NO HEALTHCHECK, AND THAT IS THE FIX RATHER THAN A GAP.
+    #
+    # This carried `test: ["CMD", "/app/zitadel", "ready", "--config",
+    # "/dev/null"]`, and E2E (managed) #47 showed it cannot work. Zitadel came up
+    # perfectly — every migration applied, OIDC routes registered, `server is
+    # listening address=[::]:8080` — and compose called it unhealthy for
+    # thirty-one minutes:
+    #
+    #   docker inspect  →  "Output":"Error: not ready", FailingStreak: 188
+    #   curl http://localhost:3126/debug/ready  (from the host)  →  200
+    #
+    # `zitadel ready` builds its URL from ExternalPort, which is BY DEFINITION
+    # the address the outside reaches Zitadel on. Inside the container nothing
+    # listens there — here 3126 is a published port, and on a fronted deployment
+    # it is 443, terminated by something that is not Zitadel. The probe asks an
+    # address that cannot answer, and v4.17.1 reports unreachable as `Error: not
+    # ready`, which from inside is indistinguishable from a considered no.
+    #
+    # No command in this image can ask the question correctly: it is built with
+    # no shell and no HTTP client but that one, so there is nothing to substitute.
+    # The readiness check therefore moved to `wait_for_idp_ready` in
+    # bootstrap-managed.sh, which asks the PUBLISHED port from the host — the
+    # side that can reach it — and says which of "nothing answered" and "answered
+    # and said no" happened. The check did not get weaker; it got asked by
+    # somebody in a position to hear the answer.
     networks:
       - ownpace-network
 
