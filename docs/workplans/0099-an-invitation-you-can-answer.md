@@ -1134,3 +1134,67 @@ thing it stands in for cannot catch the caller forgetting to ask.** The break
 that does not fail is the finding, every time.
 
 Nine mutations against the finished guard, nine caught.
+
+---
+
+## Run #50 — the answer, in one line, in thirty seconds
+
+```
+[setup-zitadel] checking the identity provider still accepts this provisioning token
+[setup-zitadel] FATAL: GET /auth/v1/users/me answered HTTP 401 — the provisioning token was NOT accepted.
+    {"code":16, "message":"Errors.Token.Invalid (AUTH-7fs1e)", …}
+```
+
+#49 spent a whole run to say `could not create the project`. #50 named the
+cause on the first API call, with Zitadel's own error id, before touching
+anything. That is the entire value of #520, delivered on its first outing.
+
+**The finding.** `/machinekey/pat.txt` is written at FIRST INIT and belongs to
+the instance created at that moment. The zitadel database was cleared during
+today's debugging while the machinekey volume was kept — the volume is chowned
+on every bring-up but never removed — so the file holds a token for an instance
+that no longer exists. Non-empty, well-formed, and refused by everything.
+
+**The pairing is the rule:** clear the database and keep the volume, and the
+token outlives its instance. Clear the volume and keep the database, and no
+token is ever written, because init does not run twice. Both halves, every
+time.
+
+### The remedy the refusal points at could not be pasted
+
+Two of its three commands were wrong, in the note a 401 sends the operator to:
+
+| Printed | Why it fails |
+|---|---|
+| `docker volume rm compose_zitadel_machinekey` | the project is `ownpace-managed`, so the volume is `ownpace-managed_zitadel_machinekey`. `docker volume rm` answers "no such volume", which reads as *already gone* rather than *you have not done this step* — and skipping exactly this step is what produces the 401 |
+| `psql "$DATABASE_URL" -c 'DROP DATABASE zitadel'` | `$DATABASE_URL` is empty in the operator's shell, points through PgBouncer when it is not, and the statement has no `IF EXISTS`, so a second paste is an error |
+
+The correct three-line form was already printed **correctly** by
+`bootstrap-managed.sh` and by the failure table. Only the copy the refusal
+names was wrong.
+
+### The guard written to stop this had three holes, and one is exquisite
+
+`pasteable-hints.unit.test.ts` exists because this bug happened twice (#487,
+then #513). Its header says, in as many words, that *a guard scoped to the file
+where a bug was found does not stop the class*. And then:
+
+| Hole | What it meant |
+|---|---|
+| the variable list was `POSTGRES_USER` and `POSTGRES_DB` — the two the original bug used | `$DATABASE_URL` is just as container-only and sailed straight through |
+| the `DROP DATABASE … IF EXISTS` case read **one file**, `bootstrap-managed.sh` | scoped to the file where the bug was found, inside the test whose header forbids exactly that |
+| nothing checked volume names at all | a printed name matching no volume is indistinguishable from a volume already removed |
+
+All three are closed by deriving from the files: the container-only list is
+named once and used by every case, every case reads every script, and volume
+names are checked against `managed.yml`'s own `name:` and `volumes:` keys, so a
+rename cannot drift past.
+
+Six mutations, six caught. The sharpest is a controlled A/B: with the variable
+list shrunk back to two, tonight's `$DATABASE_URL` line passes 7/7; with the
+list as it now stands, the same line fails two cases.
+
+One of the new cases was wrong first and flagged *everything* — the volumes
+block was matched with `\Z`, which JavaScript reads as a literal `Z`, so
+nothing parsed and every name looked invalid. A guard that flags everything is
+as useless as one that flags nothing. It is a line scan now.
