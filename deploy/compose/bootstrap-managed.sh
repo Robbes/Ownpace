@@ -176,10 +176,33 @@ explain_failure() { # explain_failure <service> [service...]
     # `could not open auth_file … Permission denied` sat one line above the
     # visible window for three rounds of debugging (Spark, 2026-08-18) while
     # the repeating authentication failures below it got all the attention.
+    #
+    # READ ONCE, PRINT TWICE, AND LET NEITHER PIPELINE KILL THE SCRIPT.
+    #
+    # `docker compose logs "$svc" | head -20` looks harmless and is not. `head`
+    # closes the pipe after twenty lines; a container with a LONG log is still
+    # writing, gets SIGPIPE, and under `set -euo pipefail` that failed pipeline
+    # aborts the whole function — after the first window and before the second.
+    #
+    # E2E (managed) #40 is what that costs. The first twenty lines were
+    # Zitadel's initialisation, which says nothing, and the run died there with
+    # exit 255. The `last 20` window — where `PasswordComplexityPolicy.HasUpper`
+    # was waiting on the fatal line — never printed, and neither did the pointer
+    # to the failure table. The diagnosis cut itself off one line before the
+    # answer.
+    #
+    # It had never bitten before because every container this ran on had a log
+    # SHORTER than twenty lines, so `head` read to EOF and nothing was signalled.
+    #
+    # `|| true` on the display pipelines, deliberately and not as a shrug: the
+    # exit status of printing is not information anybody acts on, and the thing
+    # it would otherwise suppress is the diagnosis itself.
+    local full
+    full="$("${COMPOSE[@]}" logs "$svc" 2>&1 || true)"
     echo "!!! --- ${svc} (${state:-not running}) — FIRST 20 log lines (start-up):" >&2
-    "${COMPOSE[@]}" logs "$svc" 2>&1 | head -20 | sed 's/^/    /' >&2
+    printf '%s\n' "$full" | head -20 | sed 's/^/    /' >&2 || true
     echo "!!! --- ${svc} — last 20:" >&2
-    "${COMPOSE[@]}" logs --tail 20 "$svc" 2>&1 | sed 's/^/    /' >&2
+    printf '%s\n' "$full" | tail -20 | sed 's/^/    /' >&2 || true
   done
   echo "!!! docs/managed-bring-up.md has a failure table; the log above is the answer." >&2
   exit 1

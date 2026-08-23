@@ -259,3 +259,43 @@ answer is available now, on the box, in one command:
 ```
 docker compose -f deploy/compose/managed.yml logs zitadel | head -40
 ```
+
+### And in run #40 it cut itself off one line before the answer
+
+The diagnosis fired, exactly as intended:
+
+```
+container ownpace-idp is unhealthy
+!!! compose could not bring these up healthy: zitadel
+!!! --- zitadel (restarting ) — FIRST 20 log lines (start-up):
+    ownpace-idp | … "initialization started"
+    …
+    ownpace-idp | … "starting migration" name=01_tables
+##[error]Process completed with exit code 255.
+```
+
+Twenty lines of initialisation, which say nothing, and then the run **died**.
+The `last 20` window — where `PasswordComplexityPolicy.HasUpper` was sitting on
+the fatal line — never printed. Neither did the pointer to the failure table.
+
+`docker compose logs "$svc" | head -20` is why. `head` closes the pipe after
+twenty lines; a container with a LONG log is still writing, takes SIGPIPE, and
+under `set -euo pipefail` that failed pipeline aborts the function — after the
+first window and before the second. Reproduced exactly:
+
+```
+$ set -euo pipefail; long() { seq 1 100000; }
+$ long | head -3 | sed 's/^/    /'; echo "never reached"
+    1
+    2
+    3
+[exit 141]
+```
+
+It had never bitten before because every container this had run on had a log
+SHORTER than twenty lines, so `head` read to EOF and nothing was signalled. The
+first service with a long log was the first service it mattered for — and it was
+the one the whole mechanism had just been built for.
+
+The log is now read ONCE into a variable and both windows are sliced out of it,
+each guarded so that printing cannot abort the thing it exists to print.
