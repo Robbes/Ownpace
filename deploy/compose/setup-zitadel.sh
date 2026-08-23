@@ -151,13 +151,70 @@ say "ready"
 
 # ---------------------------------------------------------------- credentials --
 
-# Read from inside the container: the token is on a named volume precisely so
-# it never lands in the working tree, where `git add -A` could reach it.
-PAT="$("${COMPOSE[@]}" exec -T zitadel cat /machinekey/pat.txt 2>/dev/null | tr -d '\r\n' || true)"
-[ -n "$PAT" ] || die "no provisioning token at /machinekey/pat.txt.
+# READ THE VOLUME, NOT THE PROVIDER — AND THEN CHECK WHAT CAME BACK.
+#
+# `exec -T zitadel cat /machinekey/pat.txt` is what stood here. The Zitadel
+# image has no `cat`: no shell, no coreutils, nothing. Docker reports that on
+# STDOUT, not stderr, and exits 127:
+#
+#   OCI runtime exec failed: exec failed: unable to start container process:
+#   exec: "cat": executable file not found in $PATH
+#
+# So `2>/dev/null` silenced the wrong stream, `|| true` swallowed the 127, and
+# `[ -n "$PAT" ]` — "is it non-empty" — was satisfied by the error message.
+# Zitadel was then handed that sentence as a Bearer token, and said so exactly:
+#
+#   illegal base64 data at input byte 3
+#
+# Byte 3 is the space after `OCI`. E2E (managed) #49, #50 and #51 all died of
+# it, and two full clear-downs of a database and volume that were never at
+# fault were spent chasing it.
+#
+# THIS WAS ALREADY KNOWN IN THIS REPOSITORY. `prepare_machinekey_volume` reads
+# `/etc/passwd` out of this same image with `docker create` + `docker cp`
+# precisely because nothing can be assumed to exist inside it, and says so in a
+# comment. The lesson was written next to one caller and not applied to the
+# other — the same shape as #519 and #521.
+#
+# busybox has `cat`, and the VOLUME is what actually holds the file. The
+# `zitadel-machinekey` service already mounts it for exactly this reason, so
+# its command is overridden rather than a second definition invented.
+read_provisioning_token() {
+  local out rc
+  out="$("${COMPOSE[@]}" run --rm --quiet-pull -T zitadel-machinekey cat /machinekey/pat.txt)"
+  rc=$?
+  [ "$rc" -eq 0 ] || die "could not read /machinekey/pat.txt (exit ${rc}):
+    ${out}
+
+That is a failure to READ the file, not a missing token. The file lives on the
+${COMPOSE_PROJECT:-ownpace-managed}_zitadel_machinekey volume; this reads it
+with busybox because the provider's own image has no shell."
+  printf '%s' "$out"
+}
+
+PAT="$(read_provisioning_token | tr -d '\r\n')"
+
+# A TOKEN IS NOT MERELY NON-EMPTY. Whatever produced these bytes, they are about
+# to be sent to the provider as a credential, so they are checked for the shape
+# of one first. An error message is non-empty; so is a progress line, a warning,
+# and a YAML dump. Every one of those has a space in it, and no token does.
+case "$PAT" in
+  '')            die "no provisioning token at /machinekey/pat.txt.
 
 This file is written on FIRST INIT only. If this instance was initialised
-before, see REPROVISIONING at the bottom of this script."
+before, see REPROVISIONING at the bottom of this script." ;;
+  *[[:space:]]*) die "what came back from /machinekey/pat.txt is not a token —
+it contains whitespace, and a provisioning token does not:
+
+    ${PAT}
+
+Read that line: it is far more likely to be something's error message than a
+credential. Nothing was sent to the provider." ;;
+esac
+[ "${#PAT}" -ge 20 ] || die "the provisioning token at /machinekey/pat.txt is
+${#PAT} characters long, which is too short to be one:
+
+    ${PAT}"
 
 # THE ANSWER IS READ, NOT THROWN AWAY.
 #
@@ -205,11 +262,20 @@ Is the identity provider still up?  docker compose -f ${SCRIPT_DIR}/managed.yml 
       die "${method} ${path} answered HTTP 401 — the provisioning token was NOT accepted.
     ${out}
 
-The token at /machinekey/pat.txt is written on FIRST INIT and belongs to the
-instance initialised at that moment. A non-empty file is not a valid token: if
-the zitadel DATABASE was cleared while the machinekey VOLUME was kept, this
-file holds a token for an instance that no longer exists, and every call here
-is refused exactly like this. See REPROVISIONING at the bottom of this script." ;;
+The token was READ successfully and has the shape of one, so this is the
+provider DECLINING it rather than something malformed reaching it.
+
+The likeliest reason is that it belongs to an instance that no longer exists:
+/machinekey/pat.txt is written on FIRST INIT only, so clearing the zitadel
+DATABASE while keeping the machinekey VOLUME leaves exactly this. It is NOT the
+only reason, and the provider's own log says which:
+
+    docker compose -f ${SCRIPT_DIR}/managed.yml logs zitadel --no-color | tail -40
+
+Read that before clearing anything. E2E (managed) #49-#51 were spent on an
+earlier version of this message naming one cause for a code that has several,
+and on two clear-downs of a database and a volume that were never at fault.
+See REPROVISIONING at the bottom of this script." ;;
     403)
       die "${method} ${path} answered HTTP 403 — the token is valid, and the machine
 user behind it is not allowed to do this.

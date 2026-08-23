@@ -81,7 +81,11 @@ afterEach(() => rmSync(dir, { recursive: true, force: true }));
  * clears, and answers every API path with the status and body given here —
  * honouring `-w '\n%{http_code}'`, which is how the script learns the status.
  */
-function stubs(apiStatus: string, apiBody: string, opts: { pat?: string } = {}): NodeJS.ProcessEnv {
+function stubs(
+  apiStatus: string,
+  apiBody: string,
+  opts: { pat?: string; readExit?: number } = {},
+): NodeJS.ProcessEnv {
   mkdirSync(binDir, { recursive: true });
 
   // MODELS `-w`, because real curl prints a status only when asked for one.
@@ -117,12 +121,27 @@ function stubs(apiStatus: string, apiBody: string, opts: { pat?: string } = {}):
     join(binDir, 'docker'),
     [
       '#!/usr/bin/env bash',
-      '# `compose exec -T zitadel cat /machinekey/pat.txt` is the only call whose',
-      '# output the script reads; everything else just has to succeed.',
+      '# Reading /machinekey/pat.txt is the only call whose output the script',
+      '# reads; everything else just has to succeed.',
       'for a in "$@"; do',
       '  if [ "$a" = "/machinekey/pat.txt" ]; then',
+      // MODELS THE IMAGE, NOT JUST THE CALL. `exec … zitadel cat` cannot work:
+      // that image has no shell and no coreutils, so Docker answers on STDOUT
+      // with exit 127. `run … zitadel-machinekey cat` uses busybox and works.
+      //
+      // The first version of this stub answered the same way for both, so
+      // reverting the fix to the broken call changed nothing here and the break
+      // passed — the third time tonight a stub was more capable than the tool
+      // it stands in for.
+      '    case " $* " in',
+      '      *" exec "*" zitadel "*)',
+      `        printf '%s\\n' 'OCI runtime exec failed: exec failed: unable to start container process: exec: cat: executable file not found in $PATH'`,
+      '        exit 127 ;;',
+      '    esac',
+      // MODELS A FAILED READ THE WAY DOCKER REPORTS ONE: message on STDOUT,
+      // non-zero exit. A stub that wrote it to stderr could not catch #49–#51.
       `    printf '%s\\n' ${JSON.stringify(opts.pat ?? 'a-token-that-looks-fine')}`,
-      '    exit 0',
+      `    exit ${opts.readExit ?? 0}`,
       '  fi',
       'done',
       'exit 0',
@@ -155,7 +174,12 @@ describe('what the identity provider said, when it refused', () => {
     // Named as a credential problem, with the scenario this repo actually hit:
     // the database cleared while the machinekey volume was kept.
     expect(r.stderr).toMatch(/token was NOT accepted/);
-    expect(r.stderr).toMatch(/machinekey VOLUME was kept/);
+    // Names the scenario without claiming it is the only one — the earlier
+    // wording asserted a single cause for a code that has several, and cost
+    // two clear-downs of a database that was never at fault.
+    expect(r.stderr).toMatch(/machinekey VOLUME/);
+    expect(r.stderr).toMatch(/NOT the\s+only reason/);
+    expect(r.stderr).toMatch(/logs zitadel/);
     expect(r.stderr).toContain('REPROVISIONING');
   });
 
@@ -190,6 +214,58 @@ describe('what the identity provider said, when it refused', () => {
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/not JSON/);
     expect(r.stderr).toContain('502 Bad Gateway');
+  });
+
+  /**
+   * WHAT E2E (managed) #49, #50 AND #51 ACTUALLY DIED OF.
+   *
+   * The read was `compose exec -T zitadel cat /machinekey/pat.txt`, and the
+   * Zitadel image has no `cat` — no shell, no coreutils. Docker reports that on
+   * STDOUT and exits 127:
+   *
+   *   OCI runtime exec failed: … exec: "cat": executable file not found in $PATH
+   *
+   * `2>/dev/null` silenced the wrong stream, `|| true` swallowed the 127, and
+   * `[ -n "$PAT" ]` was satisfied by the error message — which was then sent to
+   * the provider as a Bearer token. Zitadel named it precisely: `illegal base64
+   * data at input byte 3`, byte 3 being the space after `OCI`.
+   *
+   * Two full clear-downs of a database and a volume that were never at fault
+   * were spent on it, because the refusal confidently blamed a stale token.
+   */
+  const OCI_FAILURE =
+    'OCI runtime exec failed: exec failed: unable to start container process: ' +
+    'exec: "cat": executable file not found in $PATH';
+
+  it('refuses when READING the token fails, instead of using the error as one', () => {
+    const r = run(stubs('200', '{"result":[]}', { pat: OCI_FAILURE, readExit: 127 }));
+
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/could not read \/machinekey\/pat\.txt/);
+    expect(r.stderr).toContain('127');
+    // The operator sees what came back, not a story about what it might mean.
+    expect(r.stderr).toContain('executable file not found');
+    // And it must NOT be the stale-token narrative, which sent somebody
+    // clearing a database twice for a machine that was fine.
+    expect(r.stderr).not.toMatch(/REPROVISIONING/);
+  });
+
+  it('refuses an error message that arrives with exit 0, because it has spaces', () => {
+    // The nastier half: a read that "succeeds" and returns prose. Exit status
+    // alone cannot catch this, so the shape of a token is checked too.
+    const r = run(stubs('200', '{"result":[]}', { pat: OCI_FAILURE, readExit: 0 }));
+
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/is not a token/);
+    expect(r.stderr).toMatch(/contains whitespace/);
+    expect(r.stderr).toContain('OCI runtime exec failed');
+  });
+
+  it('refuses something too short to be a token', () => {
+    const r = run(stubs('200', '{"result":[]}', { pat: 'nope' }));
+
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/too short to be one/);
   });
 
   it('still refuses when the token file is empty, before asking anything', () => {

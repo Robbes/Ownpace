@@ -1235,3 +1235,101 @@ Two mutations, two caught. A third — neutralising the `echo` so the vacuity ca
 would fire — did **not** fail, and that is the guard being right rather than
 wrong: `smoke-managed.sh` prints a second such hint, so the population was never
 empty. An incomplete break, not a hole.
+
+---
+
+## Runs #49, #50 and #51 — the token was an error message
+
+Three runs, two full clear-downs of the Spark, and a diagnosis that was wrong
+twice. The actual bug, in one line:
+
+```
+PAT="$("${COMPOSE[@]}" exec -T zitadel cat /machinekey/pat.txt 2>/dev/null | tr -d '\r\n' || true)"
+[ -n "$PAT" ] || die "no provisioning token at /machinekey/pat.txt."
+```
+
+**The Zitadel image has no `cat`.** No shell, no coreutils, nothing. Docker
+reports that on **stdout**, not stderr, and exits 127:
+
+```
+OCI runtime exec failed: exec failed: unable to start container process:
+exec: "cat": executable file not found in $PATH
+```
+
+Three maskings, stacked, in one line:
+
+| | |
+|---|---|
+| `2>/dev/null` | silences stderr; Docker wrote this to **stdout** |
+| `\|\| true` | swallows exit **127** |
+| `[ -n "$PAT" ]` | an error message **is** non-empty |
+
+So `setup-zitadel.sh` sent that sentence to the identity provider as a Bearer
+token, every run, for ever. And Zitadel said so exactly:
+
+```
+illegal base64 data at input byte 3
+token contains an invalid number of segments
+Errors.Token.Invalid (AUTH-7fs1e)
+```
+
+**Byte 3 is the space after `OCI`.** The provider had been naming the bug
+precisely since #49; nobody was reading its log, because the script's own
+refusal was busy telling a different story.
+
+### The refusal that sent us the wrong way twice
+
+#520 replaced `could not create the project` with a 401 message that named a
+cause — *"the zitadel DATABASE was cleared while the machinekey VOLUME was
+kept"*. That is a real failure mode, it fits a 401, and it was **not what was
+happening**. It was asserted rather than offered, so two clear-downs of a
+database and a volume that were never at fault followed, one of them after I
+told the operator it was "the clean state".
+
+A refusal that names ONE cause for a status code with several is worse than one
+that names none: it is confident, and it moves somebody.
+
+The message now says the token was read and has the shape of one, offers the
+stale-instance case as the likeliest rather than the only, and prints the
+command that gets the provider's own account.
+
+### It was already known here, one caller away
+
+`prepare_machinekey_volume` reads `/etc/passwd` out of **this same image** with
+`docker create` + `docker cp`, and its comment says why in as many words: no
+shell in the image can be assumed, and nothing is started. That was written in
+#514. The very next thing to read a file out of that image used `exec … cat`.
+
+That is the third time in one day: #519 (a SIGPIPE lesson written above the
+function it bit, eighteen instances elsewhere), #521 (a guard scoped to the file
+where its own bug was found), and now this. **A lesson written next to one
+caller is not a lesson the codebase has learned.**
+
+### What the fix is
+
+- Read the **volume**, not the provider — with busybox, via the
+  `zitadel-machinekey` service that already mounts it.
+- Do not swallow the exit status.
+- **A token is not merely non-empty.** Whatever produced the bytes, they are
+  checked for the shape of a credential before being sent as one: no
+  whitespace, at least twenty characters. An error message has spaces; so does
+  a progress line, a warning, and a YAML dump. No token does.
+
+The last of those is the durable part. It catches this class regardless of
+which mechanism produces the garbage next time.
+
+### The stub was the weak link, a third time
+
+Two of the five mutations passed at first, and both were the test's fault:
+
+| Break | Why it passed |
+|---|---|
+| the whitespace check removed | the mutation was `[[:space:]NEVER]`, still a bracket expression matching a space — a bad break, not a hole |
+| reverting to `exec … zitadel cat` | the stub answered identically for `exec zitadel` and `run zitadel-machinekey`, so it could not tell the broken call from the fixed one |
+
+The second is the same finding as #520's `curl` stub, which appended a status
+whether or not `-w` was passed, and #521's parser that flagged every name. The
+stub now models the image: `exec … zitadel cat` returns the OCI failure on
+stdout with 127, `run … zitadel-machinekey cat` returns the file. With that,
+reverting the fix fails **7 of 14** cases — which is what a fix worth having
+looks like when you take it away.
