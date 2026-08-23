@@ -1,0 +1,135 @@
+// Copyright 2026 The Ownpace authors (Apache-2.0)
+
+/**
+ * Every variable `managed.yml` demands can actually be obtained.
+ *
+ * ## The failure this comes from
+ *
+ * `managed.yml` marks a variable it cannot run without as `${VAR:?message}`.
+ * Compose interpolates the WHOLE file before running anything, so **one missing
+ * variable fails every compose command** — `up`, `ps`, `logs`, all of them,
+ * whichever services they name.
+ *
+ * E2E (managed) #36 reported its `[data]` step — postgres, the pooler's lookup
+ * role, pgbouncer — failing with:
+ *
+ *     error while interpolating services.zitadel.command:
+ *     required variable ZITADEL_MASTERKEY is missing a value
+ *
+ * A true statement about a service that step does not start. The gate had been
+ * red since #496 added Zitadel and #497 added the status page's `WEB_URL`: the
+ * self-hosted runner's persisted `.env` predated both, which is the ORDINARY
+ * condition after any change that adds a service, not an edge case.
+ *
+ * The workflow had a pre-flight check for exactly this class of problem, and it
+ * listed its keys **by hand** — with a comment explaining the hazard in detail,
+ * for `PGBOUNCER_AUTH_PASSWORD`. Two later PRs added required variables and
+ * neither added them to that list. The lesson was written down; the list was
+ * not derived from anything, so writing it down changed nothing.
+ *
+ * ## What is asserted
+ *
+ * Every `${VAR:?}` in `managed.yml` must be obtainable from one of the two
+ * files that supply values, so the workflow can fill it without a human:
+ *
+ *   - **generated** by `ensure-env-secrets.sh` — for secrets. That script fills
+ *     a MISSING key and refuses to replace a live one, so running it on every
+ *     pass is safe.
+ *   - **defaulted** in `managed.env.example` with a NON-EMPTY value — for
+ *     configuration that is not secret.
+ *
+ * A variable in neither is a real gap: it demands something no automated path
+ * can produce, and the first anybody hears of it is a red nightly on a runner,
+ * pointing at the wrong service. Adding one now fails here instead.
+ *
+ * The example's empty entries (`ZITADEL_MASTERKEY=`) are deliberately NOT
+ * treated as defaults — an empty value satisfies neither compose's `:?` nor a
+ * human reading the file for what to set.
+ *
+ * ## What this cannot do
+ *
+ * It cannot see a runner's `.env`. A persisted file can still fall behind, and
+ * that is the workflow's job — it now derives the same list and backfills from
+ * the same two sources. This asserts the sources can answer; it cannot assert
+ * anybody asked them.
+ */
+
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const COMPOSE_DIR = fileURLToPath(new URL('../deploy/compose/', import.meta.url));
+const read = (name: string): string => readFileSync(COMPOSE_DIR + name, 'utf8');
+
+/** Variables `managed.yml` refuses to start without — `${NAME:?...}`. */
+function requiredByCompose(): string[] {
+  const yml = read('managed.yml');
+  const found = [...yml.matchAll(/\$\{([A-Z_]+):\?/g)].map((m) => m[1]!);
+  return [...new Set(found)].sort();
+}
+
+/** Secrets `ensure-env-secrets.sh` will generate into a `.env` that lacks them. */
+function generatedBySecretsScript(): Set<string> {
+  const sh = read('ensure-env-secrets.sh');
+  return new Set([...sh.matchAll(/^ensure\s+([A-Z_]+)\s/gm)].map((m) => m[1]!));
+}
+
+/** Keys `managed.env.example` gives a NON-EMPTY value. An empty one is not a default. */
+function defaultedInExample(): Set<string> {
+  const example = read('managed.env.example');
+  const out = new Set<string>();
+  for (const line of example.split('\n')) {
+    const m = /^([A-Z_]+)=(.*)$/.exec(line.trim());
+    if (m && m[2]!.trim() !== '') out.add(m[1]!);
+  }
+  return out;
+}
+
+const required = requiredByCompose();
+const generated = generatedBySecretsScript();
+const defaulted = defaultedInExample();
+
+describe('managed.yml cannot demand a variable nothing can supply', () => {
+  it('read all three files, with real content in each', () => {
+    // The vacuity guard. Every assertion below passes trivially against empty
+    // sets, and a moved file or a changed script idiom produces exactly that.
+    expect(required.length, 'no `${VAR:?}` found in managed.yml').toBeGreaterThan(5);
+    expect(generated.size, 'no `ensure` lines found in ensure-env-secrets.sh').toBeGreaterThan(5);
+    expect(defaulted.size, 'no populated keys found in managed.env.example').toBeGreaterThan(20);
+  });
+
+  it('supplies every required variable from the generator or the example', () => {
+    // The whole point. A variable in neither is one no automated path can
+    // produce, and the first report of it is a red nightly naming the wrong
+    // service — see this file's header.
+    const orphans = required.filter((key) => !generated.has(key) && !defaulted.has(key));
+    expect(
+      orphans,
+      'required by managed.yml but neither generated by ensure-env-secrets.sh nor ' +
+        'given a non-empty default in managed.env.example — so no runner can obtain it',
+    ).toEqual([]);
+  });
+
+  it('generates the secrets rather than shipping them as defaults', () => {
+    // The other direction, and it is a secrets rule rather than a plumbing one
+    // (hard rule 3): a generated secret must not ALSO have a value sitting in
+    // a file in the repository, because that value is not a secret and a
+    // deployment that keeps it has published its own keys.
+    const shipped = [...generated].filter((key) => defaulted.has(key)).sort();
+    expect(shipped, 'ensure-env-secrets.sh generates these, so the example must leave them EMPTY').toEqual(
+      [],
+    );
+  });
+
+  it('keeps ZITADEL_MASTERKEY on the never-replace list', () => {
+    // Not plumbing either. It is the key the identity provider encrypts its own
+    // data with, so regenerating it on an instance that holds users strands
+    // them — which is precisely what the workflow's new "persist the .env back"
+    // step exists to prevent, and this is the other half of that guarantee.
+    const sh = read('ensure-env-secrets.sh');
+    const guard = /needs_rotation_procedure\(\)[\s\S]*?\n}/.exec(sh)?.[0] ?? '';
+    expect(guard, 'ensure-env-secrets.sh must refuse to replace a live ZITADEL_MASTERKEY').toContain(
+      'ZITADEL_MASTERKEY',
+    );
+  });
+});
