@@ -98,6 +98,53 @@ describe('a psql hint a human is meant to paste', () => {
     ).toEqual([]);
   });
 
+  /**
+   * WHICH FORM IS RIGHT DEPENDS ON WHETHER THE LINE IS PRINTED OR READ, and
+   * both wrong answers were live in this repo at the same time. Proved at a
+   * shell, not reasoned about:
+   *
+   *   echo "… sh -c 'psql -U \\"$POSTGRES_USER\\" …'"   → psql -U ""
+   *   echo "… sh -c 'psql -U \\"\\$POSTGRES_USER\\" …'"  → psql -U "$POSTGRES_USER"
+   *   sh -c 'echo psql -U "\\$POSTGRES_USER"'          → psql -U $POSTGRES_USER
+   *   sh -c 'echo psql -U "$POSTGRES_USER"'            → psql -U openmigrate
+   *
+   * So an `echo` needs the backslash — bash eats one level and prints a literal
+   * `$` — and a COMMENT must not have it, because nothing eats it and the
+   * operator copies the backslash too, leaving `sh` an ESCAPED dollar inside
+   * double quotes and psql asking for a role literally named `$POSTGRES_USER`.
+   *
+   * Both end at the same printed text, which is the point: whatever the source
+   * form, what reaches the operator is `psql -U "$POSTGRES_USER"`.
+   *
+   * The comment half of this shipped broken in the fix for the previous bug —
+   * the guard accepted `\\$` in either context, so correcting the
+   * REPROVISIONING note introduced a new way for the same line to fail.
+   */
+  const escapedDollar = new RegExp(`\\\\\\$\\{?(${CONTAINER_ONLY.join('|')})`);
+  const bareDollar = new RegExp(`(^|[^\\\\])\\$\\{?(${CONTAINER_ONLY.join('|')})`);
+
+  it('does NOT escape the dollars in a comment, which nothing strips', () => {
+    const wrong = psqlLines.filter(({ line }) => /^\s*#/.test(line) && escapedDollar.test(line));
+    expect(
+      wrong.map(({ file, n, line }) => `${file}:${n}: ${line.trim()}`),
+      'a comment is copied verbatim, so the backslash reaches the container and psql asks for a role named `$POSTGRES_USER`',
+    ).toEqual([]);
+  });
+
+  it('DOES escape them in an echo, whose own shell would eat the name first', () => {
+    // Nested single quotes inside a double-quoted `echo` protect nothing: the
+    // script's shell expands `$POSTGRES_USER` before `echo` ever runs, and on a
+    // machine where it is unset the hint prints `psql -U ""`. That is #487.
+    const printed = psqlLines.filter(({ line }) => /\b(echo|printf)\s+"/.test(line) && !/^\s*#/.test(line));
+    const wrong = printed.filter(({ line }) => !escapedDollar.test(line) && bareDollar.test(line));
+    expect(
+      wrong.map(({ file, n, line }) => `${file}:${n}: ${line.trim()}`),
+      "the printing shell expands the name before it is printed — an unset one prints `psql -U \"\"`",
+    ).toEqual([]);
+    // Vacuity: this only means anything while such lines exist.
+    expect(printed.length, 'no echo-printed psql hints found at all').toBeGreaterThan(0);
+  });
+
   it('the clear-down remedy is idempotent, so a second paste is not an error', () => {
     // It is printed at a moment when somebody is already debugging; pasting it
     // twice must not add a failure to the pile they are reading.

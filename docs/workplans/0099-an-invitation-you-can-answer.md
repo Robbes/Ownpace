@@ -1198,3 +1198,40 @@ One of the new cases was wrong first and flagged *everything* — the volumes
 block was matched with `\Z`, which JavaScript reads as a literal `Z`, so
 nothing parsed and every name looked invalid. A guard that flags everything is
 as useless as one that flags nothing. It is a line scan now.
+
+### A postscript: the fix for the paste bug had a paste bug
+
+The corrected REPROVISIONING note shipped an hour later with this line:
+
+```
+#   docker exec -i ownpace-db sh -c 'psql -U "\$POSTGRES_USER" -d postgres -c "DROP DATABASE …"'
+```
+
+The backslash was copied from `bootstrap-managed.sh`, where it is **correct** —
+that line lives inside `echo "…"`, and bash eats one level and prints a literal
+`$`. A comment is not printed. It is read out of the file, so nothing eats the
+backslash, the operator copies it too, and `sh -c` receives an *escaped* dollar
+inside double quotes. Proved at a shell rather than reasoned about:
+
+```
+echo "… sh -c 'psql -U \"$POSTGRES_USER\" …'"     →  psql -U ""
+echo "… sh -c 'psql -U \"\$POSTGRES_USER\" …'"    →  psql -U "$POSTGRES_USER"
+sh -c 'echo psql -U "\$POSTGRES_USER"'            →  psql -U $POSTGRES_USER
+sh -c 'echo psql -U "$POSTGRES_USER"'             →  psql -U openmigrate
+```
+
+Both wrong answers were live in this repository at the same moment: the comment
+had an escape it must not have, and the guard would have accepted an `echo` that
+lost the escape it must have. The first prints a role named `$POSTGRES_USER`;
+the second is `psql -U ""`, which is #487 verbatim.
+
+**Which form is right depends on whether the line is PRINTED or READ**, and the
+guard had no opinion — it accepted `\$` in either context, which is precisely
+what let the correction ship broken. It now checks both directions, and they
+meet in the middle: whatever the source form, what reaches the operator must be
+`psql -U "$POSTGRES_USER"`.
+
+Two mutations, two caught. A third — neutralising the `echo` so the vacuity case
+would fire — did **not** fail, and that is the guard being right rather than
+wrong: `smoke-managed.sh` prints a second such hint, so the population was never
+empty. An incomplete break, not a hole.
