@@ -19,6 +19,21 @@
 #     0018 T5 lesson: silent runner deaths with zero evidence).
 #   Stuck rows — a poll that times out lands the row by hand with an
 #     explanatory error (never left `running`/`queued` pointing at nothing).
+#   Offboarding — close a tenant and reopen it, on the throwaway tenant the
+#     invitation phase created and deletes. The closure ROW is what is checked,
+#     not the response: it is what the purge job reads, and its window is
+#     somebody's erasure date.
+#   Reports — the four route families no gate had ever asked a running stack
+#     for: readiness, shared addresses, the permission report, billing and its
+#     invoices. Reads, so they change nothing; asserted on SHAPE, so a 200 that
+#     dropped a key fails.
+#   Balance — take back what this run added. A prepare that seeds six DAV
+#     resources into the demo source, and a sync that copies them into the demo
+#     target, used to leave both there for good; this gate runs nightly against
+#     a long-lived stack it also measures. Source object, target copy and ledger
+#     row are removed together, because any two of the three without the
+#     third leaves a record that disagrees with reality. The tombstone stays:
+#     net zero minus one erasure per run, by design (ADR-0024).
 #
 # Success = verify `done` AND apply terminal as `applied` or `refused`
 # (`refused` is a legitimate answer — the gates said no and said why) AND at
@@ -47,6 +62,9 @@
 #                            item per pass and a tombstone is never re-copied —
 #                            see the prepare phase for what that cost (run #20).
 #   SMOKE_PREPARE_POLLS (60) how long that preparation may wait, in POLL_SLEEPs.
+#   SMOKE_TARGET_DAV_USER/PASSWORD (tenant-b-target) the other end of the apply
+#                            mapping, so the balance section can take the copies
+#                            back out of it.
 #
 # NOTE: runner debug logs print the full task environment (DATABASE_URL,
 # SECRET_ENCRYPTION_KEY, the tr_prod_ key). The evidence file this script
@@ -73,6 +91,15 @@ VERIFY_MAPPING="${SMOKE_VERIFY_MAPPING:-a0000000-0000-4000-8000-0000000000d1}"
 APPLY_TENANT="${SMOKE_APPLY_TENANT:-b0000000-0000-4000-8000-000000000002}"
 APPLY_SUB="${SMOKE_APPLY_SUB:-demo-owner-b}"
 APPLY_MAPPING="${SMOKE_APPLY_MAPPING:-b0000000-0000-4000-8000-0000000000d1}"
+# Tenant B's TARGET account — the other end of the mapping above, and the half
+# the balance section takes back. Same source: seed-managed.ts.
+TARGET_DAV_USER="${SMOKE_TARGET_DAV_USER:-tenant-b-target}"
+TARGET_DAV_PASSWORD="${SMOKE_TARGET_DAV_PASSWORD:-tenant_b_target_pw}"
+
+# Set by the prepare phase when it seeds, read by the balance section at the
+# end. Empty means prepare did not run, and then there is nothing to take back —
+# which is a state to report, not to paper over.
+BALANCE_TAG=""
 
 exec > >(tee "$OUT") 2>&1
 echo "########## smoke-managed $(date -u +%FT%TZ) — evidence: $OUT ##########"
@@ -527,8 +554,14 @@ HASH="$(pick_disposable)"
 if [ -z "$HASH" ] && [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
   note "prepare (SMOKE_PREPARE_APPLY=1) — give the apply half something real to act on"
 
-  if "$SCRIPT_DIR/seed-demo-dav-content.sh" --fresh; then
-    echo "prepare: DAV source seeded with fresh, never-tombstoned natural keys"
+  # THE TAG IS CHOSEN HERE rather than left to the seeder's default, because
+  # what this run created is what the balance section has to take back, and it
+  # cannot take back a name it never learned. `--fresh` on its own mints a
+  # timestamp+pid inside a subprocess and prints it; parsing that back out of
+  # the log would be a second source of truth for one string.
+  BALANCE_TAG="smoke-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  if "$SCRIPT_DIR/seed-demo-dav-content.sh" --fresh "$BALANCE_TAG"; then
+    echo "prepare: DAV source seeded with fresh, never-tombstoned natural keys (tag ${BALANCE_TAG})"
   else
     echo "prepare: SEEDING FAILED — the diagnosis below will say what the ledger holds."
   fi
@@ -866,12 +899,212 @@ left="$(printf '%s' "${ME_AFTER#* }" | grep -o '"invitations":\[[^]]*\]' | grep 
 echo "still offered after answering: $left"
 [ "$left" = "1" ] || { echo "expected exactly the skipped invitation to remain, got $left"; fail=1; }
 
+note "closing a tenant, and changing your mind"
+#
+# OFFBOARDING, which nothing in either gate had ever exercised — and it is the
+# path with the most weight behind it: a closure starts an erasure clock, and
+# `purge_after` is the date somebody's data stops existing. `close` and `reopen`
+# were shipped with integration tests and nothing that ran them against a live
+# stack, RLS, and a real tenant row.
+#
+# It runs on T1 — the tenant the invitation above ACCEPTED, so the subject is an
+# active owner there, which is what `requireRole('owner')` wants — and it is
+# reopened immediately. The tenant is deleted a few lines below either way, so
+# this borrows a fixture that was already being taken back rather than inventing
+# one that needs its own cleanup.
+cls="$(http POST "$API/api/tenants/${T1}/close" "$INV_TOKEN")"
+echo "close:  $cls"
+[ "${cls%% *}" = "200" ] || { echo "closing a tenant failed"; fail=1; }
+
+# The ROW, not the response. A 200 describing a closure that was never recorded
+# is the shape of failure this whole script exists to catch, and the closure row
+# is what the purge job actually reads.
+closed="$(q "SELECT count(*) FROM tenant_closure WHERE tenant_id='${T1}'")"
+due="$(q "SELECT purge_after > closed_at FROM tenant_closure WHERE tenant_id='${T1}'")"
+echo "closure rows: ${closed:-0}   purge_after is after closed_at: ${due:-<none>}"
+[ "${closed:-0}" = "1" ] || { echo "the close wrote no closure row — nothing would ever purge"; fail=1; }
+# A window that ends before it starts would purge immediately, which is the one
+# way this path can quietly become destructive.
+[ "${due:-f}" = "t" ] || { echo "purge_after is not after closed_at — that window is not a window"; fail=1; }
+
+reo="$(http POST "$API/api/tenants/${T1}/reopen" "$INV_TOKEN")"
+echo "reopen: $reo"
+[ "${reo%% *}" = "200" ] || { echo "reopening a closed tenant failed"; fail=1; }
+still="$(q "SELECT count(*) FROM tenant_closure WHERE tenant_id='${T1}'")"
+echo "closure rows after reopen: ${still:-?}"
+# The point of reopen is that the clock STOPS. A reopen that leaves the row
+# behind is a tenant that gets erased on schedule despite having been reopened.
+[ "${still:-1}" = "0" ] || { echo "reopen left the closure row — the erasure clock is still running"; fail=1; }
+
 # Clean up after itself. This gate runs nightly against a long-lived stack, and
 # a smoke that leaves rows behind grows the thing it is measuring.
 for t in "$T1" "$T2" "$T3"; do
   q "DELETE FROM tenant_member WHERE tenant_id='${t}' AND email='${INV_EMAIL}'" >/dev/null
   q "DELETE FROM tenant WHERE id='${t}'" >/dev/null
 done
+
+# ---------- the reports nothing had ever opened ----------
+#
+# COVERAGE, plainly. Grep either gate before this and `shared-addresses`,
+# `permissions`, `billing` and `invoices` return nothing at all: four route
+# families the product ships, sells and renders screens for, and no gate had
+# ever asked the running stack for one of them. They are reads, so they cost a
+# few HTTP round trips and change nothing — which is exactly why there was no
+# excuse for their absence.
+#
+# WHAT IS ASSERTED, and what deliberately is not. Each must answer 200 AND
+# return the shape its route documents. What is NOT asserted is the CONTENT:
+# the demo tenants have no shared addresses and no invoices, so `0 addresses` is
+# the true answer and pretending otherwise would mean seeding fixtures for the
+# sake of a bigger number. `null`, a missing key or a 500 all fail; an honest
+# empty list passes.
+note "reports nothing had ever opened"
+
+TOK_R="$(mint "$APPLY_SUB" "$APPLY_TENANT")"
+
+report_json() { # report_json <label> <path> <jq filter> [value it must equal]
+  local r code body value
+  r="$(http GET "$API$2" "$TOK_R")"
+  code="${r%% *}"; body="${r#* }"
+  value="$(printf '%s' "$body" | jq -r "$3" 2>/dev/null || true)"
+  if [ "$code" != "200" ] || [ -z "$value" ] || [ "$value" = "null" ]; then
+    echo "$1: HTTP $code, $3 -> '${value:-<unreadable>}' — ${body:0:200}"
+    fail=1
+  elif [ -n "${4:-}" ] && [ "$value" != "$4" ]; then
+    # The fourth argument is for answers where only ONE is acceptable. Without
+    # it a report passes on any answer it manages to produce, which is right for
+    # a count (0 addresses is a true answer) and wrong for a health verdict.
+    echo "$1: HTTP 200 but $3 -> '$value', expected '$4'"
+    fail=1
+  else
+    echo "$1: HTTP 200, $3 -> $value"
+  fi
+}
+
+report_markdown() { # report_markdown <label> <path> <heading it must carry>
+  local r code body
+  r="$(http GET "$API$2" "$TOK_R")"
+  code="${r%% *}"; body="${r#* }"
+  # A heading rather than a length: an error page is also several hundred bytes,
+  # and `serverFault` renders JSON that would sail past a size check.
+  case "$code:$body" in
+    "200:"*"$3"*) echo "$1: HTTP 200, carries '$3'" ;;
+    *) echo "$1: HTTP $code, no '$3' — ${body:0:200}"; fail=1 ;;
+  esac
+}
+
+# The readiness endpoint, which exists to be asked and which nothing asked. Its
+# `signIn` half is deliberately NOT pinned to `up`: the issuer is unreachable
+# from inside the API container until ZITADEL_EXTERNALDOMAIN names an address
+# both a browser and that container resolve, the identity section above says so
+# in as many words, and duplicating that verdict here would just report the same
+# outage twice. The database half has no such excuse.
+report_json "readiness (database)" "/api/ready" '.database' up
+report_json "readiness (verdict)" "/api/ready" '.status'
+report_json "shared addresses" "/api/shared-addresses" '.addresses | length'
+report_markdown "shared-address runbook" "/api/shared-addresses/runbook" "## Before you start"
+# A mailbox is required and the demo owner's is the one address this tenant is
+# certain to have. The report renders whether or not a scan can read anything —
+# it says which categories it could NOT inventory, which is the point of it.
+report_markdown "permissions report" \
+  "/api/permissions/report?mailbox=${APPLY_SUB}@demo.openmigrate.test" \
+  "# Who can see what, and what happens to it"
+report_json "billing usage" "/api/billing/usage" '.period'
+report_json "invoices" "/api/billing/invoices" '.invoices | length'
+
+# ---------- balance ----------
+#
+# WHY THIS EXISTS. This gate runs nightly against a LONG-LIVED stack, and every
+# green run used to leave more behind than it found: `--fresh` seeds six DAV
+# resources into the demo SOURCE, a real sync copies them into the demo TARGET,
+# and nothing ever took either set away. Six objects a night, in the two accounts
+# this same script measures — a measurement changing the thing it measures, and
+# the same shape as run #20's fixture exhaustion running the other way.
+#
+# So the run takes back what it added, and it does so in the only unit that stays
+# truthful: source object, target copy and ledger row TOGETHER. Removing the
+# ledger row alone would destroy the record of objects that still exist.
+# Removing the objects alone would leave the ledger describing things that are
+# gone — and `pick_disposable` would hand a later run an item whose target
+# vanished, which is a failure with no visible cause.
+#
+# ONE ROW SURVIVES ON PURPOSE. The tombstone the apply half wrote says a natural
+# key was erased and `classifyKnownItem` must never re-create it (ADR-0024, hard
+# rule 2). Deleting it to make a number come out at zero would be exactly the
+# trade this script exists to refuse. So: net zero MINUS one tombstone per run,
+# and the counts below say which is which rather than asserting a round number.
+note "balance — take back what this run added"
+
+if [ -z "$BALANCE_TAG" ]; then
+  # Not a failure and not a silence. Prepare only seeds when nothing eligible
+  # exists, so on a run that found an item already there this is the honest
+  # state — and saying so is what stops "balanced" from meaning "did nothing".
+  echo "prepare did not seed this run, so this run added no DAV resources — nothing to take back."
+else
+  echo "tag: $BALANCE_TAG"
+  TAGGED="$HREF_EXPR LIKE '%${BALANCE_TAG}%'"
+  SCOPE="tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING'"
+  echo "ledger rows carrying this tag before removal:"
+  q "SELECT status, count(*) FROM item WHERE $SCOPE AND $TAGGED GROUP BY 1 ORDER BY 1" | sed 's/^/  /'
+
+  # THE TARGET FIRST, and through the same script that wrote the names into the
+  # source. The natural key IS the name — `openmig-demo-event-<tag>-1` is the
+  # VEVENT UID, and the writers record `targetId: written.path`, an href built
+  # from that UID — so the copies land under the same names in the target's own
+  # collections. `--remove` deletes them and then PROPFINDs to prove nothing
+  # tagged is left, which is the part that makes this an assertion rather than
+  # an assumption: if the copies live somewhere else, this says so and fails.
+  objects_gone=1
+  if DAV_USER="$TARGET_DAV_USER" DAV_PASSWORD="$TARGET_DAV_PASSWORD" \
+     "$SCRIPT_DIR/seed-demo-dav-content.sh" --remove "$BALANCE_TAG"; then
+    echo "target: the copies this run's sync made are gone"
+  else
+    echo "target: REMOVAL FAILED — this run's copies are still in ${TARGET_DAV_USER}."
+    echo "If the message above is about a missing personal calendar or address book,"
+    echo "the target writer re-homed the collection under a different slug"
+    echo "(caldav-target-writer.ts ensureCalendar) and this removal is looking in the"
+    echo "wrong place — not a sync bug."
+    objects_gone=0
+    fail=1
+  fi
+
+  # Then the source, with the script's own defaults (tenant B's source account).
+  # Attempted even when the target removal failed: they are two accounts, and
+  # skipping the second because the first went wrong would leave more behind and
+  # tell us less.
+  if "$SCRIPT_DIR/seed-demo-dav-content.sh" --remove "$BALANCE_TAG"; then
+    echo "source: the set this run seeded is gone"
+  else
+    echo "source: REMOVAL FAILED — this run's seeded set is still in the demo source."
+    objects_gone=0
+    fail=1
+  fi
+
+  # The ledger LAST, AND ONLY IF THE OBJECTS REALLY WENT. A row deleted while
+  # its object is still there is the one move this section must never make: it
+  # destroys the record of something that exists, and the next sync would then
+  # meet the resource as brand new. Ordering alone does not give that — it has
+  # to be a condition, which is what this is.
+  if [ "$objects_gone" = "1" ]; then
+    # Everything except the tombstone, which is the record of an erasure and
+    # outlives its fixture on purpose.
+    echo "ledger: $(q "DELETE FROM item WHERE $SCOPE AND $TAGGED AND status <> 'tombstoned'")"
+    left="$(q "SELECT count(*) FROM item WHERE $SCOPE AND $TAGGED AND status <> 'tombstoned'")"
+    kept="$(q "SELECT count(*) FROM item WHERE $SCOPE AND $TAGGED AND status = 'tombstoned'")"
+    echo "ledger: ${left:-?} row(s) carrying this tag remain, ${kept:-0} tombstone(s) kept deliberately"
+    # Asserted, not trusted. A DELETE that removed nothing prints "DELETE 0" and
+    # reads exactly like one that worked.
+    [ "${left:-1}" = "0" ] || {
+      echo "the ledger still carries ${left} non-tombstone row(s) for this run's tag"
+      fail=1
+    }
+  else
+    echo "ledger: rows LEFT IN PLACE on purpose — the objects they describe are still"
+    echo "there, and this run has no business deleting the record of things that exist."
+    echo "Take them back by hand once the removal above is fixed:"
+    echo "  ./deploy/compose/seed-demo-dav-content.sh --remove ${BALANCE_TAG}"
+  fi
+fi
 
 # ---------- verdict ----------
 note "verdict"

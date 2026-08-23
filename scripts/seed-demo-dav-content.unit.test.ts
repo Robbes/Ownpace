@@ -48,6 +48,11 @@ if [ "$m" = "PROPFIND" ]; then
   esac
   exit 0
 fi
+if [ "$m" = "DELETE" ]; then
+  printf '%s\\n' "$url" >> "$ARGDIR/deleted.txt"
+  echo -n "\${DELETE_ANSWER:-204}"
+  exit 0
+fi
 cat >> "$ARGDIR/bodies.txt" 2>/dev/null; echo -n 201
 `;
 
@@ -132,6 +137,88 @@ describe('it reports what is true, not what it attempted', () => {
   });
 });
 
+describe('--remove takes one --fresh set back (0100)', () => {
+  // The gate seeds six resources a night into a long-lived demo account and,
+  // until 0100, never took any of them away. These are the cases that decide
+  // whether the removal can be trusted to run unattended, and they are here
+  // rather than in a scratch harness because an unattended DELETE is exactly
+  // the thing that must not go unwatched.
+  const deleted = () => {
+    try {
+      return readFileSync(join(dir, 'deleted.txt'), 'utf8').trim().split('\n').filter(Boolean);
+    } catch {
+      return [];
+    }
+  };
+
+  it('deletes exactly the six paths --fresh writes, and nothing else', () => {
+    const r = run({ VERIFY_ANSWER: '' }, ['--remove', 'tag-1']);
+    expect(r.status).toBe(0);
+    const paths = deleted().map((u) => u.replace(/^.*remote\.php\/dav\//, ''));
+    expect(paths.sort()).toEqual(
+      [
+        'addressbooks/users/tenant-b-source/contacts/openmig-demo-contact-tag-1-1.vcf',
+        'addressbooks/users/tenant-b-source/contacts/openmig-demo-contact-tag-1-2.vcf',
+        'calendars/tenant-b-source/personal/openmig-demo-event-tag-1-1.ics',
+        'calendars/tenant-b-source/personal/openmig-demo-event-tag-1-2.ics',
+        'files/tenant-b-source/openmig-demo-file-tag-1-1.txt',
+        'files/tenant-b-source/openmig-demo-file-tag-1-2.txt',
+      ].sort(),
+    );
+  });
+
+  it('converges when the set is already gone (404 is the outcome we wanted)', () => {
+    // Idempotency, hard rule 1: a re-run, or a seed that half-failed, has to
+    // finish rather than refuse. 404 means the resource is not there, which is
+    // precisely what was asked for.
+    const r = run({ VERIFY_ANSWER: '', DELETE_ANSWER: '404' }, ['--remove', 'tag-2']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('source is clean of tag tag-2');
+  });
+
+  it('refuses on any other status, naming the resource and the code', () => {
+    const r = run({ VERIFY_ANSWER: '', DELETE_ANSWER: '403' }, ['--remove', 'tag-3']);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('returned 403');
+    expect(r.stderr).toContain('refusing to report a removal that did not happen');
+  });
+
+  it('refuses when something tagged survives, even though every DELETE said 204', () => {
+    // The distinction the whole script is built on: six status codes are what
+    // it attempted, and a re-read is what happened.
+    const r = run({ VERIFY_ANSWER: 'openmig-demo-event-tag-4-1' }, ['--remove', 'tag-4']);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/still present after removal/);
+  });
+
+  it('refuses without a tag, before issuing a single request', () => {
+    // A delete that defaults its own target is not a delete anybody should
+    // write (hard rule 2). A leftover SEED_DAV_TAG in the environment would
+    // otherwise take away a set somebody is still using.
+    const r = run({ SEED_DAV_TAG: 'someone-elses-set' }, ['--remove']);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('--remove needs the tag to remove');
+    expect(deleted(), 'it must not touch anything before refusing').toEqual([]);
+  });
+
+  it('cleans the TARGET account when pointed at it', () => {
+    // The sync copies the seeded set into tenant B's target, under the same
+    // names — the natural key IS the name. One script, both ends.
+    const r = run(
+      {
+        VERIFY_ANSWER: '',
+        NCUSER: 'tenant-b-target',
+        DAV_USER: 'tenant-b-target',
+        DAV_PASSWORD: 'tenant_b_target_pw',
+      },
+      ['--remove', 'tag-5'],
+    );
+    expect(r.status).toBe(0);
+    expect(deleted().every((u) => u.includes('tenant-b-target'))).toBe(true);
+    expect(deleted()).toHaveLength(6);
+  });
+});
+
 describe('it never hands the smoke its precondition', () => {
   it('writes to the DAV source, never to the ledger', () => {
     // Inserting `status='copied'` rows directly would satisfy the apply half
@@ -142,9 +229,17 @@ describe('it never hands the smoke its precondition', () => {
     expect(text).not.toMatch(/UPDATE\s+\w+\s+SET/i);
     expect(text).not.toMatch(/DELETE\s+FROM/i);
     // It does mention the ledger — but only to tell the operator how to WATCH
-    // the rows arrive. Every SQL statement in the file is a SELECT.
-    const sql = text.match(/\b(SELECT|INSERT|UPDATE|DELETE)\b/gi) ?? [];
-    expect(new Set(sql.map((k) => k.toUpperCase()))).toEqual(new Set(['SELECT']));
+    // the rows arrive.
+    //
+    // This used to assert that the only SQL KEYWORD in the file was SELECT.
+    // `--remove` broke that without breaking anything real: `dav DELETE <href>`
+    // is an HTTP method, and a bare-keyword scan cannot tell it from a table
+    // write. Statement SHAPES can, and they are what the rule was always about
+    // — so the three writes are refused by shape (above), and what remains is
+    // the positive half: it still talks to the database, read-only.
+    const writes = text.match(/\b(INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM)\b/gi) ?? [];
+    expect(writes, 'the seeder must never write to a table').toEqual([]);
+    expect(text, 'and it must still be the read-only observer it documents').toMatch(/\bSELECT\b/);
   });
 });
 

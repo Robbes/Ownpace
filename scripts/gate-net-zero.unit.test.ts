@@ -1,0 +1,168 @@
+// Copyright 2026 The Ownpace authors (Apache-2.0)
+
+/**
+ * The managed gate takes back what it added.
+ *
+ * ## What this is guarding against, which was happening every night
+ *
+ * `smoke-managed.sh`'s prepare phase seeds SIX DAV resources into the demo
+ * source with `--fresh`, a real sync copies them into the demo target, and the
+ * apply half spends exactly one. Nothing ever removed the other eleven. The
+ * gate runs nightly against a long-lived stack — and it MEASURES those same two
+ * accounts — so it was changing the thing it measures, one run at a time. The
+ * same shape as run #20's fixture exhaustion, running the other way.
+ *
+ * ## The unit that stays truthful
+ *
+ * Source object, target copy and ledger row go TOGETHER, and the order and the
+ * condition both matter:
+ *
+ *   ledger row alone  destroys the record of objects that still exist
+ *   objects alone     leaves the ledger describing things that are gone, and
+ *                     `pick_disposable` hands a later run an item whose target
+ *                     vanished — a failure with no visible cause
+ *
+ * So the ledger delete is CONDITIONAL on the objects having actually gone, not
+ * merely sequenced after it. A test for that is the point of this file: putting
+ * the delete last reads the same and is not the same.
+ *
+ * ## And the one row that survives
+ *
+ * The tombstone. `applyDeletion` wrote it to say a natural key was erased, and
+ * `classifyKnownItem` must never re-create it (ADR-0024, hard rule 2). Net zero
+ * MINUS one tombstone per run, deliberately — a cleanup that reversed it to
+ * make a number come out round would be the exact trade the smoke exists to
+ * refuse.
+ */
+
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const COMPOSE = fileURLToPath(new URL('../deploy/compose/', import.meta.url));
+const read = (name: string): string => readFileSync(COMPOSE + name, 'utf8');
+
+const smoke = read('smoke-managed.sh');
+const seeder = read('seed-demo-dav-content.sh');
+const balance = smoke.slice(smoke.indexOf('# ---------- balance ----------'));
+
+describe('the seeder can take a seeded set back', () => {
+  it('read the real scripts', () => {
+    // Vacuity guard: every assertion below passes against an empty string.
+    expect(smoke.length).toBeGreaterThan(2000);
+    expect(seeder.length).toBeGreaterThan(2000);
+    expect(balance, 'smoke-managed.sh has no balance section at all').toContain('--remove');
+  });
+
+  it('requires the tag, and does not invent one', () => {
+    // A `--fresh` default is a new timestamp, which is harmless. A `--remove`
+    // default is a DELETE against a guess — and if it fell back to SEED_DAV_TAG
+    // left over in the environment, it would take away a set somebody is still
+    // using. A delete that chooses its own target is not a delete anyone should
+    // write (hard rule 2).
+    const arm = /--remove\)([\s\S]*?);;/.exec(seeder)?.[1] ?? '';
+    expect(arm, 'the --remove arm disappeared').toContain('REMOVE_ONLY=1');
+    expect(arm, '--remove must take the tag as an argument').toContain('TAG="${2:-}"');
+    expect(arm, '--remove must refuse without one').toMatch(/\[ -n "\$TAG" \] \|\| fail/);
+    expect(arm, 'no fallback may reach --remove').not.toContain('SEED_DAV_TAG');
+  });
+
+  it('treats an already-absent resource as success, and any other status as failure', () => {
+    // Idempotency (hard rule 1): a re-run, or a seed that half-failed, has to
+    // converge rather than refuse. Everything else must stop — a removal that
+    // reports success it did not achieve is worse than one that fails.
+    const block = balanceBlockOf(seeder);
+    expect(block, '404 must count as gone').toMatch(/204\|200\|404/);
+    expect(block, 'any other status must refuse').toMatch(/\*\)\s*fail /);
+  });
+
+  it('proves the removal instead of trusting six status codes', () => {
+    const block = balanceBlockOf(seeder);
+    expect(block).toContain('count "$CAL"');
+    expect(block).toMatch(/still present after removal/);
+  });
+
+  it('defines count() above every caller, which is the bug that was there', () => {
+    // Bash defines a function when execution REACHES it. `count()` lived beside
+    // the verification at the bottom of the file, and `--remove` — which runs
+    // near the top and verifies its own work — called it from above: `count:
+    // command not found`, AFTER the deletes had already happened.
+    const lines = seeder.split('\n');
+    const defined = lines.findIndex((l) => l.startsWith('count() {'));
+    const firstCall = lines.findIndex((l) => /\$\(count "/.test(l));
+    expect(defined, 'count() is gone').toBeGreaterThan(-1);
+    expect(firstCall, 'nothing calls count()').toBeGreaterThan(-1);
+    expect(
+      defined,
+      `count() is defined on line ${defined + 1} and first called on line ${firstCall + 1}`,
+    ).toBeLessThan(firstCall);
+  });
+});
+
+// The removal arm of the seeder: from the REMOVE_ONLY branch to the exit that
+// ends it. Sliced rather than read whole, so the assertions above cannot be
+// satisfied by text somewhere else in the file.
+function balanceBlockOf(script: string): string {
+  const start = script.indexOf('if [ "$REMOVE_ONLY" = "1" ]; then\n  # WHY THIS EXISTS');
+  return start === -1 ? '' : script.slice(start, script.indexOf('\n  exit 0\nfi', start));
+}
+
+describe('the smoke removes what it added, in the only order that stays truthful', () => {
+  it('chooses the tag itself rather than parsing it back out of a log', () => {
+    // The seeder's own default is minted inside a subprocess. The balance
+    // section cannot take back a name it never learned, and scraping stdout for
+    // it would make the log a second source of truth for one string.
+    expect(smoke).toMatch(/BALANCE_TAG="smoke-\$\(date/);
+    expect(smoke, '--fresh must be told the tag, not left to invent one').toContain(
+      'seed-demo-dav-content.sh" --fresh "$BALANCE_TAG"',
+    );
+  });
+
+  it('takes the copies out of the TARGET account, not just the source', () => {
+    // The sync copies six resources into tenant B's target. Removing only the
+    // source halves the leak and hides the other half.
+    expect(balance).toContain('DAV_USER="$TARGET_DAV_USER"');
+    expect(balance).toMatch(/DAV_PASSWORD="\$TARGET_DAV_PASSWORD"[\s\S]{0,120}--remove "\$BALANCE_TAG"/);
+    // And the source, through the script's own defaults.
+    expect(
+      [...balance.matchAll(/--remove "\$BALANCE_TAG"/g)].length,
+      'both accounts must be cleaned',
+    ).toBeGreaterThanOrEqual(2);
+  });
+
+  it('deletes ledger rows only once the objects are actually gone', () => {
+    // THE POINT OF THIS FILE. Sequencing the delete last reads identical to
+    // guarding it and is not the same: on a failed removal, an unguarded delete
+    // destroys the record of resources that are still sitting there.
+    expect(balance, 'the removals must set a flag the ledger step reads').toContain(
+      'objects_gone=0',
+    );
+    const guard = /if \[ "\$objects_gone" = "1" \]; then([\s\S]*?)\n {2}else/.exec(balance)?.[1] ?? '';
+    expect(guard, 'the DELETE must sit inside the guard').toContain('DELETE FROM item');
+  });
+
+  it('never deletes the tombstone', () => {
+    // ADR-0024 / hard rule 2: a tombstoned natural key is never re-created, so
+    // the row that records the erasure outlives the fixture it belonged to.
+    const del = /DELETE FROM item WHERE[^"]*/.exec(balance)?.[0] ?? '';
+    expect(del, 'no DELETE against item at all').not.toEqual('');
+    expect(del, "the tombstone must be excluded from the gate's own cleanup").toContain(
+      "status <> 'tombstoned'",
+    );
+  });
+
+  it('asserts the balance rather than reporting it', () => {
+    // A `DELETE 0` prints and reads exactly like a delete that worked.
+    expect(balance).toMatch(/left="\$\(q "SELECT count/);
+    expect(balance, 'a leftover row must fail the smoke').toMatch(
+      /\[ "\$\{left:-1\}" = "0" \] \|\|[\s\S]{0,200}fail=1/,
+    );
+  });
+
+  it('says so when there was nothing to take back', () => {
+    // Prepare only seeds when nothing eligible exists. On a run that found an
+    // item already there, "balanced" must not come to mean "did nothing".
+    expect(balance).toMatch(/if \[ -z "\$BALANCE_TAG" \]; then/);
+    expect(balance).toMatch(/nothing to take back/);
+  });
+});

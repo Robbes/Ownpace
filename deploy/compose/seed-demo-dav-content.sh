@@ -57,18 +57,34 @@
 # to a long-lived source instead of overwriting them. It seeds SIX (two per
 # domain) and the smoke spends one per run, and it only ever runs when nothing
 # eligible is left — so the steady state is roughly one new object per run, each
-# a few hundred bytes. If that ever needs bounding, prune the tagged resources
-# from the source; do NOT prune the ledger rows, which are the record.
+# a few hundred bytes.
+#
+# `--remove <tag>` is how that is bounded, and the smoke now calls it against
+# BOTH accounts at the end of a run: the source it seeded, and the target the
+# sync copied into. An earlier version of this note said to prune the source and
+# never the ledger, "which is the record". That is right about pruning the
+# LEDGER ALONE — rows deleted while their objects remain destroy the record of
+# things that still exist. It is wrong about the coordinated removal the smoke
+# does now: source object, target copy and ledger row go together, as one
+# fixture being taken back, and what is left describes exactly what is there.
+#
+# The one row that STAYS is the tombstone. `applyDeletion` wrote it to say a key
+# was erased and `classifyKnownItem` must never re-create it (ADR-0024, hard
+# rule 2) — so the gate is net zero minus one tombstone per run, deliberately.
 #
 # USAGE
 #   ./deploy/compose/seed-demo-dav-content.sh            # seed fixed demo content, then verify
 #   ./deploy/compose/seed-demo-dav-content.sh --verify   # verify only
 #   ./deploy/compose/seed-demo-dav-content.sh --fresh    # seed a uniquely-tagged set (never tombstoned)
+#   ./deploy/compose/seed-demo-dav-content.sh --remove T # take one --fresh set back again
 #
 # Env overrides:
 #   NEXTCLOUD_CONTAINER  (default ownpace-nextcloud, matches managed.yml)
 #   DAV_USER / DAV_PASSWORD  the demo SOURCE account; the defaults match
-#                            seed-managed.ts's tenant B source credentials.
+#                            seed-managed.ts's tenant B source credentials. Point
+#                            them at the TARGET account and `--remove` cleans the
+#                            copies the sync made there — same names, because the
+#                            natural key IS the name.
 #   SEED_DAV_TAG         the tag `--fresh` uses; defaults to a UTC timestamp
 #                        plus this process's pid. Set it to make a run
 #                        reproducible, never to a value used before.
@@ -91,11 +107,25 @@ TAG=""
 
 fail() { echo "ERROR: $*" >&2; exit 1; }
 
+REMOVE_ONLY=0
 case "${1:-}" in
   --verify) VERIFY_ONLY=1 ;;
   --fresh) TAG="${2:-${SEED_DAV_TAG:-$(date -u +%Y%m%dT%H%M%SZ)-$$}}" ;;
+  # `--remove <tag>` undoes one `--fresh <tag>`, and takes the tag as a REQUIRED
+  # argument rather than defaulting it. A default here would be a timestamp
+  # nothing was ever seeded under — harmless — or, worse, an environment
+  # variable left over from a seed, which would delete a set somebody is still
+  # using. A delete that guesses its own target is not a delete anybody should
+  # write (hard rule 2).
+  --remove)
+    REMOVE_ONLY=1
+    TAG="${2:-}"
+    [ -n "$TAG" ] || fail "--remove needs the tag to remove: --remove <tag>"
+    # The fixed fixture has no tag, and is the thing bring-up depends on. An
+    # empty tag would match every resource in the account.
+    ;;
   "") ;;
-  *) fail "unknown argument '$1' (expected --verify, --fresh, or nothing)" ;;
+  *) fail "unknown argument '$1' (expected --verify, --fresh <tag>, --remove <tag>, or nothing)" ;;
 esac
 # The names carry the tag in the middle, so `openmig-demo-event-` stays the
 # prefix everything greps for — the verification below, and anybody reading the
@@ -120,6 +150,15 @@ dav() {
   [ -n "$ctype" ] && args+=(-H "Content-Type: ${ctype}")
   [ -n "$body" ] && args+=(--data-binary @-)
   docker exec -i "$NC" curl "${args[@]}" "http://localhost/remote.php/dav/${path}" <<<"$body"
+}
+
+# The read-side twin of `dav`, and defined HERE rather than beside its first
+# reader: `--remove` verifies its own work and runs long before the seeding
+# section, so a definition further down is one bash reaches only after the
+# deletes have already happened. `count: command not found`, after the fact.
+count() { # count <collection> <needle>  — number of matching hrefs, not lines
+  docker exec "$NC" curl -sS -X PROPFIND -H 'Depth: 1' -u "${DAVUSER}:${PASS}" \
+    "http://localhost/remote.php/dav/$1" 2>/dev/null | grep -o "$2" | wc -l | tr -d ' '
 }
 
 # Nextcloud's own layout is not symmetric — calendars live under
@@ -149,10 +188,49 @@ echo "[seed-dav] account ${DAVUSER}"
 echo "[seed-dav]   calendar     ${CAL}"
 echo "[seed-dav]   addressbook  ${ABK}"
 echo "[seed-dav]   files        ${FILES}"
-if [ -n "$TAG" ]; then
+if [ "$REMOVE_ONLY" = "1" ]; then
+  echo "[seed-dav]   mode         REMOVE, tag ${TAG} — undoing one --fresh seed"
+elif [ -n "$TAG" ]; then
   echo "[seed-dav]   mode         FRESH, tag ${TAG} — natural keys the ledger has never seen"
 else
   echo "[seed-dav]   mode         fixed demo fixture (openmig-demo-*-1, -2), overwritten in place"
+fi
+
+if [ "$REMOVE_ONLY" = "1" ]; then
+  # WHY THIS EXISTS. `--fresh` adds three resources per invocation and the
+  # managed gate calls it whenever nothing is eligible, so the demo SOURCE grew
+  # by a set that nothing ever took away — for as long as the gate kept running.
+  # That is a measurement changing the thing it measures.
+  #
+  # Removal is bounded by the tag and by the `openmig-demo-` prefix, both. The
+  # tag alone would already be narrow; the prefix means a mistyped tag deletes
+  # nothing rather than something, which is the direction an error should fall.
+  #
+  # 404 is SUCCESS here. The point is that the resource is gone, and a set that
+  # was already removed — a re-run, or a seed that half-failed — must converge
+  # rather than refuse (hard rule 1).
+  gone=0
+  for n in 1 2; do
+    for spec in "${CAL}openmig-demo-event-${SUFFIX}${n}.ics" \
+                "${ABK}openmig-demo-contact-${SUFFIX}${n}.vcf" \
+                "${FILES}openmig-demo-file-${SUFFIX}${n}.txt"; do
+      code=$(dav DELETE "$spec")
+      case "$code" in
+        204|200|404) gone=$((gone + 1)) ;;
+        *) fail "DELETE ${spec} returned ${code} — refusing to report a removal that did not happen" ;;
+      esac
+    done
+  done
+  echo "[seed-dav] removed (or already absent): ${gone} resources under tag ${TAG}"
+
+  # And PROVE it, rather than trusting six status codes — the same distinction
+  # the verification below was written for.
+  left=$(( $(count "$CAL" "openmig-demo-event-${SUFFIX}") \
+         + $(count "$ABK" "openmig-demo-contact-${SUFFIX}") \
+         + $(count "$FILES" "openmig-demo-file-${SUFFIX}") ))
+  [ "$left" = "0" ] || fail "${left} resource(s) tagged ${TAG} are still present after removal"
+  echo "[seed-dav] source is clean of tag ${TAG}"
+  exit 0
 fi
 
 if [ "$VERIFY_ONLY" = "0" ]; then
@@ -203,10 +281,6 @@ fi
 # reads "event 1: HTTP 204 / event 2: HTTP 204 / present now — events:1". Two
 # writes, one reported. A verification step that cannot tell one from two is
 # most of the way back to trusting the PUT's own status code.
-count() { # count <collection> <needle>  — number of matching hrefs, not lines
-  docker exec "$NC" curl -sS -X PROPFIND -H 'Depth: 1' -u "${DAVUSER}:${PASS}" \
-    "http://localhost/remote.php/dav/$1" 2>/dev/null | grep -o "$2" | wc -l | tr -d ' '
-}
 # In `--fresh` mode the needle carries the tag: the fixed resources are almost
 # certainly still sitting there from bring-up, and counting them would let a
 # fresh seed that wrote nothing at all report itself present.
