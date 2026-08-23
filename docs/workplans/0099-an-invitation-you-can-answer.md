@@ -441,3 +441,81 @@ Proved against a stub of run #43's own log — 62 lines, the cause at line 21 an
 its consequences at 40 through 62. The head window shows initialisation, the
 tail window shows `AlreadyExists`, and the failure window's first line is the
 cause neither of them could reach.
+
+### Run #44 — the line nobody had read
+
+The failure window worked on its first outing, and the answer was not the one
+anybody had been chasing:
+
+```
+!!! --- zitadel — 215 line(s) reporting a failure. THE FIRST 10, OLDEST FIRST:
+    12:59:58  migration failed  name=03_default_instance
+                error="open /machinekey/pat.txt: permission denied"
+    12:59:58  setup failed, skipping cleanup
+    12:59:59  add unique constraint failed … unique_constraints_pkey
+    12:59:59  Errors.Instance.Domain.AlreadyExists
+    …
+```
+
+Three lines of cause and 212 lines of echo, the echo starting **one second
+later** — the first restart. Six dispatches had been spent reading the echo.
+
+**It was never the password.** `03_default_instance` creates the first HUMAN
+before the machine account, so while the admin password was being rejected the
+migration died earlier and never reached the token. #509 fixed a real bug; what
+it actually did was let the next one become reachable. Two bugs in a queue, and
+the second could not be seen until the first was gone.
+
+Docker creates a new named volume's mount point owned by root. The Zitadel image
+runs as a non-root user — which the error proves, since root could have written
+anywhere. So `/machinekey` was never writable and the provisioning token could
+never be written. **This had not regressed; it had never worked once.**
+
+### Why the fix reads the uid instead of writing one down
+
+`setup-zitadel.sh:136` reads exactly `/machinekey/pat.txt` to provision the
+project and client without anybody clicking through a console, and the volume is
+what keeps that token out of the working tree (hard rule 3). So the path stays
+and the ownership changes.
+
+The user is read off the image with `docker image inspect --format
+'{{.Config.User}}'`. Zitadel's image is built `FROM scratch`, so there is no
+shell in it to ask — but its config is the same one the daemon applies, so this
+cannot disagree with reality the way a number in a comment can, and a version
+bump that changes the user is handled rather than discovered in a nightly.
+Nobody in this session could have verified a hardcoded `1000`: the environment
+this was written in has a compose parser but no Docker daemon.
+
+Two branches that are answers rather than fallbacks:
+
+- **Empty** means the image declares no USER, so it runs as root, and root needs
+  no help writing to a root-owned directory. Substituting a guessed uid there
+  would be inventing a fact (hard rule 9).
+- **A name** (`nonroot`, say) is REFUSED, because `chown` inside the busybox
+  that prepares the volume resolves names against BUSYBOX's passwd, where a name
+  from another image does not exist — the failure would land one layer further
+  from the cause than the one being fixed. A scratch image cannot use a name
+  today, having no passwd file to resolve one against, but that is a property of
+  the current base image and not a promise. The refusal prints the one-line
+  `docker run` that prepares the volume by hand.
+
+One trap found while writing it. `docker compose config --images zitadel` looks
+like the obvious way to name the image and is not: it prints the service's
+DEPENDENCIES too — `postgres:18-alpine` came back on the second line — so taking
+the first line is a coin flip on an ordering nothing documents, and losing it
+means inspecting Postgres and chowning the token volume to whatever user THAT
+runs as. It is asked for by key instead, `.services.zitadel.image`, with `jq`
+that setup-zitadel.sh and smoke-managed.sh already require.
+
+The preparation runs through `compose run --rm` from the bring-up rather than as
+a compose dependency. `up -d --wait` and a container that exits 0 have a fraught
+history across compose versions, and a new way for the identity provider's
+bring-up to hang or misreport is the one thing this stack cannot afford right
+now. `run` returns the one-shot's exit code and nothing else.
+
+### What is still owed after this
+
+The Spark's `zitadel` database still holds the instance-domain row the failed
+attempts left behind, so it needs the clear-down the bring-up now prints —
+**after** this fix is on main, not before. Clearing it first buys one run and
+poisons the database again, which is exactly the loop #42 and #43 were.

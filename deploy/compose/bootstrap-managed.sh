@@ -686,6 +686,63 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
+# Make the machinekey volume writable by the user the identity provider RUNS AS.
+#
+# The user is read off the image rather than written down here. Zitadel's image
+# is built FROM scratch — there is no shell in it to ask — but `docker image
+# inspect` reads the same config the daemon applies, so this cannot disagree
+# with reality the way a number in a comment can. A version bump that changes
+# the user is then handled rather than discovered in a nightly.
+#
+# An EMPTY answer is not a failure and not a default: it means the image
+# declares no USER, so it runs as root, and root needs no help writing to a
+# root-owned directory. Saying so is the honest branch; substituting a guessed
+# uid there would be inventing a fact (hard rule 9).
+prepare_machinekey_volume() {
+  # Explicit pull first: `inspect` reads the LOCAL image, and on a fresh machine
+  # the image arrives with `up` — which is after this. Cached, this is a no-op.
+  "${COMPOSE[@]}" pull -q zitadel
+
+  # ASKED BY NAME, not by position. `config --images zitadel` looks like the
+  # obvious call and is a trap: it prints the service's DEPENDENCIES too —
+  # `postgres:18-alpine` came back on the second line here — so taking the first
+  # line is a coin flip on an ordering nothing documents, and losing it means
+  # inspecting Postgres and chowning the volume to whatever user THAT runs as.
+  # A silently wrong answer is worse than an error. `jq` is already required by
+  # setup-zitadel.sh and smoke-managed.sh, so this adds no new dependency.
+  local image user
+  image="$("${COMPOSE[@]}" config --format json | jq -r '.services.zitadel.image // empty')"
+  [ -n "$image" ] || die "compose could not name the zitadel image — cannot tell what user it runs as."
+
+  user="$(docker image inspect "$image" --format '{{.Config.User}}')"
+
+  if [ -z "$user" ]; then
+    note "$image declares no USER, so it runs as root — /machinekey needs no preparation"
+    return 0
+  fi
+
+  # NUMERIC ONLY, and refusing is the point. `chown` inside busybox resolves a
+  # NAME against busybox's own /etc/passwd, where a name from another image does
+  # not exist — so `USER nonroot` would fail there with `unknown user`, one
+  # layer further from the cause than the failure it is supposed to prevent.
+  # Zitadel's image is FROM scratch and therefore cannot use a name today (there
+  # is no passwd file in it for Docker to resolve one against), but that is a
+  # property of the current base image, not a guarantee. Saying so beats
+  # inventing a uid.
+  case "$user" in
+    *[!0-9:]* | '' | *::* )
+      die "$image runs as '${user}', which is not a numeric uid[:gid].
+    The machinekey volume is prepared by a busybox container, and \`chown\` there
+    can only resolve numbers — a name from another image is not in its passwd.
+    Prepare the volume by hand with the right owner, then re-run:
+      docker run --rm -v ownpace-managed_zitadel_machinekey:/machinekey busybox:1.37 \\
+        sh -c 'mkdir -p /machinekey && chown <uid> /machinekey && chmod 700 /machinekey'" ;;
+  esac
+
+  note "$image runs as ${user}; making the machinekey volume writable by it"
+  ZITADEL_UID="$user" "${COMPOSE[@]}" run --rm --quiet-pull zitadel-machinekey
+}
+# ---------------------------------------------------------------------------
 phase_app() {
   say app "api, web, and anything else not yet running"
   load_env
@@ -735,6 +792,18 @@ phase_app() {
   # THROUGH `up_wait`, like every other bring-up in this file. Calling compose
   # directly here is what made E2E (managed) #39 unreadable: the container
   # exited 1 on every restart and the run reported only that it was restarting.
+  # THE PROVISIONING TOKEN'S DIRECTORY, MADE WRITABLE BEFORE ANYTHING NEEDS IT.
+  #
+  # E2E (managed) #44's oldest failure line, from the first attempt on a clean
+  # database — and this had never once worked:
+  #
+  #   migration failed  name=03_default_instance
+  #     error="open /machinekey/pat.txt: permission denied"
+  #
+  # Docker creates a new named volume's mount point owned by root; the Zitadel
+  # image runs as a non-root user. See managed.yml's zitadel-machinekey service
+  # for the whole story, including why this is `run` and not a dependency.
+  prepare_machinekey_volume
   up_wait zitadel
   "${SCRIPT_DIR}/setup-zitadel.sh"
   note "identity provider provisioned before the web build (idempotent)"

@@ -274,3 +274,127 @@ describe('the admin password is one the provider will accept', () => {
     expect(envFile()).toEqual(first);
   });
 });
+
+/**
+ * E2E (managed) #44, the oldest line in the failure window, from the FIRST
+ * attempt on a genuinely clean database:
+ *
+ *   migration failed  name=03_default_instance
+ *     error="open /machinekey/pat.txt: permission denied"
+ *   setup failed, skipping cleanup
+ *
+ * Docker creates a new named volume's mount point owned by root, and the
+ * Zitadel image runs as a non-root user — which that error proves, since root
+ * could have written anywhere. So the provisioning token could never be
+ * written, and this had never worked once.
+ *
+ * It stayed hidden because `03_default_instance` creates the first HUMAN before
+ * the machine account: while the admin password was being rejected (#509) the
+ * migration died earlier and never reached the token. Fixing the password is
+ * what exposed it. Two bugs in a queue, the second unreachable until the first
+ * was gone — and every restart in between reported
+ * `Errors.Instance.Domain.AlreadyExists`, the leftover of the first failure.
+ */
+describe('the provisioning token can actually be written (E2E managed #44)', () => {
+  const BOOTSTRAP = read('deploy/compose/bootstrap-managed.sh');
+  const prepare = BOOTSTRAP.slice(
+    BOOTSTRAP.indexOf('prepare_machinekey_volume() {'),
+    BOOTSTRAP.indexOf('\n}', BOOTSTRAP.indexOf('prepare_machinekey_volume() {')),
+  );
+
+  it('read the real files', () => {
+    // Vacuity guard: an empty string satisfies every "does not contain" below.
+    expect(prepare.length).toBeGreaterThan(200);
+    expect(COMPOSE).toContain('zitadel-machinekey:');
+  });
+
+  it('prepares the volume BEFORE the provider that has to write into it', () => {
+    // Ordering is the entire fix. Preparing it afterwards is preparing it for
+    // the next run, which is how this looked for six dispatches.
+    const prep = BOOTSTRAP.indexOf('\n  prepare_machinekey_volume\n');
+    const up = BOOTSTRAP.indexOf('\n  up_wait zitadel\n');
+    expect(prep, 'the bring-up no longer prepares the volume at all').toBeGreaterThan(-1);
+    expect(up, 'the zitadel bring-up moved or went away').toBeGreaterThan(-1);
+    expect(prep, 'preparing it after the provider starts prepares it for the NEXT run').
+      toBeLessThan(up);
+  });
+
+  it('reads the user off the image instead of writing a uid down', () => {
+    // The image is built FROM scratch, so there is no shell in it to ask — but
+    // `docker image inspect` reads the same config the daemon applies, so this
+    // cannot disagree with reality the way a number in a comment can.
+    expect(prepare).toMatch(/docker image inspect "\$image" --format '\{\{\.Config\.User\}\}'/);
+    // A literal uid anywhere in the helper would be the guess this avoids.
+    expect(
+      prepare.replace(/^\s*#.*$/gm, ''),
+      'a hardcoded uid is exactly what a version bump silently invalidates',
+    ).not.toMatch(/\b1000\b/);
+  });
+
+  it('names the image by KEY, never by position in a list', () => {
+    // `config --images zitadel` looks like the obvious call and is a trap: it
+    // prints the service's DEPENDENCIES too (`postgres:18-alpine` came back on
+    // the second line), so taking the first line is a coin flip on an ordering
+    // nothing documents. Losing it means inspecting Postgres and chowning the
+    // token volume to whatever user THAT runs as — a silently wrong answer,
+    // which is worse than an error.
+    expect(prepare).toMatch(/\.services\.zitadel\.image/);
+    // Comments stripped: the helper's own comment NAMES the trap in order to
+    // explain it, and a test that reads prose cannot tell a warning about a
+    // call from the call.
+    expect(prepare.replace(/^\s*#.*$/gm, ''), 'a list of images is not an answer to "which image"').
+      not.toMatch(/config --images/);
+  });
+
+  it('pulls before it inspects, because inspect reads the LOCAL image', () => {
+    // On a fresh machine the image arrives with `up`, which is after this.
+    const pull = prepare.indexOf('pull -q zitadel');
+    const inspect = prepare.indexOf('docker image inspect');
+    expect(pull, 'inspect on a machine that has never pulled reports nothing').
+      toBeGreaterThan(-1);
+    expect(pull).toBeLessThan(inspect);
+  });
+
+  it('treats "no USER" as root rather than substituting a guess', () => {
+    // An empty answer is a real answer: the image declares no USER, so it runs
+    // as root, and root needs no help writing to a root-owned directory.
+    // Falling back to a uid there would be inventing a fact (hard rule 9).
+    expect(prepare).toMatch(/if \[ -z "\$user" \]; then/);
+    expect(prepare).toMatch(/runs as root/);
+  });
+
+  it('refuses a user that is a NAME, naming the manual path', () => {
+    // `chown` inside busybox resolves a name against BUSYBOX's passwd, where a
+    // name from another image does not exist. Zitadel's scratch image cannot
+    // use one today — there is no passwd file for Docker to resolve it against
+    // — but that is a property of the base image, not a promise.
+    expect(prepare, 'a non-numeric user must be refused, not passed to chown').
+      toMatch(/\*\[!0-9:\]\*/);
+    expect(prepare).toMatch(/not a numeric uid\[:gid\]/);
+    expect(prepare, 'a refusal that does not say what to do next is half a refusal').
+      toMatch(/docker run --rm -v ownpace-managed_zitadel_machinekey/);
+  });
+
+  it('the init service is kept out of `up` and writes only the one directory', () => {
+    const block = /\n {2}zitadel-machinekey:\n([\s\S]*?)\n {2}[a-z][a-z-]*:\n/.exec(COMPOSE)?.[1] ?? '';
+    expect(block, 'the service block could not be found').not.toEqual('');
+    // A profile, so a plain `up` never starts it and `--wait` never has to have
+    // an opinion about a container that exits 0.
+    expect(block).toMatch(/profiles: \["init"\]/);
+    expect(block).toContain('zitadel_machinekey:/machinekey');
+    expect(block).toMatch(/chmod 700 \/machinekey/);
+    // It gets the uid from the environment the bring-up exports; the default is
+    // only for a hand-run `compose run`.
+    expect(block).toMatch(/\$\{ZITADEL_UID:-1000\}/);
+  });
+
+  it('the volume stays the only home for the token', () => {
+    // The whole reason for a named volume is that a machine credential with
+    // owner rights must not be somewhere `git add -A` can reach (hard rule 3).
+    // A bind mount would make the permission problem go away and the secret
+    // problem appear, which is not a trade this repository makes.
+    const block = /\n {2}zitadel-machinekey:\n([\s\S]*?)\n {2}[a-z][a-z-]*:\n/.exec(COMPOSE)?.[1] ?? '';
+    expect(block).not.toMatch(/\.\/[^\s:]*:\/machinekey/);
+    expect(prepare).not.toMatch(/\/machinekey.*\$\{?(REPO_ROOT|SCRIPT_DIR|PWD)/);
+  });
+});
