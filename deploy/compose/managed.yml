@@ -420,7 +420,32 @@ services:
   # ADMIN credentials are how it creates that database and role on first boot;
   # after that it uses its own.
   zitadel:
-    image: ghcr.io/zitadel/zitadel:v4.6.2
+    # PINNED ABOVE THE POSTGRESQL 18 FIX, and E2E (managed) #46 is why.
+    #
+    # v4.6.2 could not initialise against this stack's database at all:
+    #
+    #   migration failed  name=34_add_cache_schema
+    #     error="ERROR: partitioned tables cannot be unlogged (SQLSTATE 0A000)"
+    #
+    # Zitadel's cache schema created an UNLOGGED PARTITIONED table. PostgreSQL
+    # removed support for that — `postgres` above is 18 — so setup step 34 fails
+    # on every attempt and the provider can never finish starting. It is not a
+    # misconfiguration and no setting avoids it: zitadel/zitadel#10712.
+    #
+    # Fixed by zitadel/zitadel#11484 (merged 2026-02-03, backported to the v4
+    # line): step 34 now creates the parent LOGGED and keeps the partitions
+    # unlogged, and a new step 69 migrates deployments that got the old shape.
+    # Zitadel's own requirements now document PostgreSQL 14–18.
+    #
+    # The pin moves to the current v4 rather than the oldest release carrying
+    # the fix. There is nothing to regress — this provider has never once
+    # completed an init here — and an identity provider is the last thing in a
+    # stack that should be running seven months behind.
+    #
+    # `zitadel-image-matches-postgres.unit.test.ts` refuses a pairing of this
+    # image with a Postgres major it cannot initialise against, in either
+    # direction, so neither number can be moved alone by accident.
+    image: ghcr.io/zitadel/zitadel:v4.17.1
     container_name: ownpace-idp
     restart: unless-stopped
     # `start-from-init` is init-then-start in one command and is idempotent: on
@@ -526,7 +551,7 @@ services:
   # `run` returns the one-shot's exit code and nothing else.
   #
   # ZITADEL_UID is READ OFF THE IMAGE by the bring-up (`docker image inspect`),
-  # not guessed here, and v4.6.2 is why: it reports `zitadel`, a NAME, so a
+  # not guessed here, and v4.6.2 is why: it reported `zitadel`, a NAME, so a
   # hardcoded 1000 would have chowned this directory to whoever else holds that
   # uid. The bring-up reads `Config.User`, and where that is a name it reads the
   # number out of the image's own /etc/passwd — the file Docker itself resolves

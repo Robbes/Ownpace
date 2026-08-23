@@ -330,7 +330,7 @@ describe('the provisioning token can actually be written (E2E managed #44)', () 
     // The image carries no shell this can rely on, but `docker image inspect`
     // reads the same config the daemon applies, so this cannot disagree with
     // reality the way a number in a comment can. E2E (managed) #45 proved the
-    // point: v4.6.2 reports `zitadel`, a NAME, and a hardcoded 1000 would have
+    // point: v4.6.2 reported `zitadel`, a NAME, and a hardcoded 1000 would have
     // chowned the token directory to whoever else holds that uid.
     expect(prepare).toMatch(/docker image inspect "\$image" --format '\{\{\.Config\.User\}\}'/);
     // A literal uid anywhere in the helper would be the guess this avoids.
@@ -373,7 +373,7 @@ describe('the provisioning token can actually be written (E2E managed #44)', () 
   });
 
   it('resolves a NAME to a number instead of refusing it', () => {
-    // E2E (managed) #45: `ghcr.io/zitadel/zitadel:v4.6.2` reports `Config.User`
+    // E2E (managed) #45: `ghcr.io/zitadel/zitadel:v4.6.2` reported `Config.User`
     // as `zitadel`. The first version of this refused, correctly — `chown
     // zitadel` inside busybox resolves against BUSYBOX's passwd, where no such
     // user exists. But refusing is half an answer when the number is readable,
