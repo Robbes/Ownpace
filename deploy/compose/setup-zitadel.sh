@@ -425,7 +425,7 @@ EOF
 #   and a kept database with a cleared volume leaves no token at all.
 #
 #     docker compose -f deploy/compose/managed.yml rm -sf zitadel
-#     docker exec -i ownpace-db sh -c 'psql -U "\$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS zitadel WITH (FORCE)"'
+#     docker exec -i ownpace-db sh -c 'psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS zitadel WITH (FORCE)"'
 #     docker volume rm ownpace-managed_zitadel_machinekey
 #     ./deploy/compose/setup-zitadel.sh
 #
