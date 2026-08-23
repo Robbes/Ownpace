@@ -125,8 +125,14 @@ It has to be a name that resolves to the provider from INSIDE the compose
 network as well as from a browser. The default is 'ownpace-idp', which is this
 provider's container name and a network alias:
 
-    ./deploy/compose/env-upsert.sh ZITADEL_EXTERNALDOMAIN=ownpace-idp
+    ${UPSERT} ${ENV_FILE} ZITADEL_EXTERNALDOMAIN=ownpace-idp
     echo '127.0.0.1  ownpace-idp' | sudo tee -a /etc/hosts   # only for a browser
+
+On a self-hosted runner, edit the PERSISTED .env as well or instead — the
+checkout's copy is restored from it at the top of every run and anything written
+here is destroyed by the next \`actions/checkout\` clean:
+
+    \${MANAGED_ENV_PERSIST_DIR:-~/.persistent/ownpace-managed}/.env
 
 A deployment with real DNS sets its real hostname instead and needs no hosts
 entry, because DNS answers for both sides.
