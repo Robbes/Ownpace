@@ -71,6 +71,38 @@ needs_rotation_procedure() { # needs_rotation_procedure <name>
   esac
 }
 
+# THE IDENTITY PROVIDER'S FIRST HUMAN NEEDS A PASSWORD IT WILL ACCEPT.
+#
+# Zitadel's default password complexity policy demands a lowercase letter, an
+# UPPERCASE letter, a number and a symbol. `openssl rand -hex` produces
+# lowercase letters and digits and nothing else — so a hex admin password
+# cannot start an instance at all. E2E (managed) #39 and #40 were spent on it:
+#
+#   migration failed  name=03_default_instance
+#   error="ID=COMMA-VoaRj Message=Errors.User.PasswordComplexityPolicy.HasUpper"
+#   level=fatal msg="setup failed, skipping cleanup"
+#
+# and the container then exits 1 and restarts forever, which reads like a crash
+# and is a rejected password.
+#
+# Fixing only the uppercase would fail again on the symbol, so all four classes
+# are satisfied at once. THE ENTROPY IS ENTIRELY IN THE HEX — 128 bits — and the
+# suffix contributes none of it. It is there to satisfy a policy, and saying so
+# is better than pretending four fixed characters are a secret. `_` rather than
+# a livelier symbol because it is punctuation to Unicode (category Pc), it is in
+# every symbol allowlist worth the name, and it cannot be expanded, quoted or
+# history-substituted by any shell that touches this file.
+zitadel_password() { printf '%sAa1_' "$(openssl rand -hex 16)"; }
+
+# Which generator a key gets. One place, so a key with a policy behind it cannot
+# quietly go back to plain hex.
+generate() { # generate <name> <bytes>
+  case "$1" in
+    ZITADEL_ADMIN_PASSWORD) zitadel_password ;;
+    *) openssl rand -hex "$2" ;;
+  esac
+}
+
 ensure() { # ensure <name> <bytes>
   local name="$1" bytes="$2"
   local current
@@ -103,7 +135,7 @@ ensure() { # ensure <name> <bytes>
 
   # Drop the old line — empty, or a placeholder — then append the real value.
   sed -i "/^${name}=/d" "$ENV_FILE"
-  echo "${name}=$(openssl rand -hex "$bytes")" >>"$ENV_FILE"
+  echo "${name}=$(generate "$name" "$bytes")" >>"$ENV_FILE"
   if [ "$was_placeholder" -eq 1 ]; then
     echo "[ensure-env-secrets] REPLACED ${name} — it held a shipped placeholder, which is not a secret"
     PLACEHOLDERS_REPLACED=1
@@ -140,6 +172,32 @@ ensure ZITADEL_MASTERKEY 16
 ensure ZITADEL_DB_PASSWORD 24
 # The first human account, so a fresh stack has somebody who can sign in at all.
 ensure ZITADEL_ADMIN_PASSWORD 16
+
+# AND REPAIR ONE THE OLD GENERATOR ALREADY WROTE, which `ensure` above will not:
+# it fills a MISSING key and never touches a present one, which is right for a
+# secret and wrong for a value that provably cannot work.
+#
+# The test is the old generator's exact fingerprint — 32 lowercase hex
+# characters, nothing else. That value has no uppercase and no symbol, so
+# Zitadel's default policy rejects it, so `03_default_instance` FAILED, so no
+# account was ever created with it. Replacing it therefore strands nothing:
+# there is nothing on the other side to strand. A password an operator chose,
+# or one already carrying the four classes, does not match and is left alone.
+#
+# The one case where this could surprise somebody is an instance whose password
+# policy was deliberately relaxed, where a hex password DID initialise an
+# account. The note says so rather than assuming it away.
+current_admin="$(grep -E '^ZITADEL_ADMIN_PASSWORD=' "$ENV_FILE" | tail -1 | cut -d= -f2- || true)"
+if printf '%s' "$current_admin" | grep -qE '^[0-9a-f]{32}$'; then
+  sed -i '/^ZITADEL_ADMIN_PASSWORD=/d' "$ENV_FILE"
+  echo "ZITADEL_ADMIN_PASSWORD=$(zitadel_password)" >>"$ENV_FILE"
+  echo "[ensure-env-secrets] REPLACED ZITADEL_ADMIN_PASSWORD — it was plain hex, which"
+  echo "[ensure-env-secrets] Zitadel's password policy rejects (no uppercase, no symbol), so the"
+  echo "[ensure-env-secrets] instance it was written for could never have finished starting."
+  echo "[ensure-env-secrets] If yours DID start — a relaxed policy — that account keeps its old"
+  echo "[ensure-env-secrets] password; change it in the console, because this file no longer holds it."
+  PLACEHOLDERS_REPLACED=1
+fi
 
 # PgBouncer's own credential file (workplan 0082 T4).
 #

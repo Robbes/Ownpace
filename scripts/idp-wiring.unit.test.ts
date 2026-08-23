@@ -22,8 +22,10 @@
  * lint on a file that has just been added.
  */
 
-import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import { readFileSync, writeFileSync, copyFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -158,5 +160,117 @@ describe('letting a granted person in (workplan 0095 T0)', () => {
     const block = script.slice(script.indexOf('allowing people to register'));
     expect(block).toMatch(/ui\/console/);
     expect(block).toMatch(/Register allowed/i);
+  });
+});
+
+/**
+ * The first human's password, which the provider has to ACCEPT.
+ *
+ * Zitadel's default password complexity policy demands a lowercase letter, an
+ * uppercase letter, a number and a symbol. `openssl rand -hex` produces
+ * lowercase letters and digits and nothing else, so the password this repo
+ * generated could never start an instance. E2E (managed) #39 and #40 both died
+ * on it, the second only saying so because #507 had taught the bring-up to
+ * print the container's log:
+ *
+ *   migration failed  name=03_default_instance
+ *   error="ID=COMMA-VoaRj Message=Errors.User.PasswordComplexityPolicy.HasUpper"
+ *   level=fatal msg="setup failed, skipping cleanup"
+ *
+ * after which the container exits 1 and restarts forever, which reads like a
+ * crash and is a rejected password.
+ *
+ * These cases RUN the script rather than reading it. A static assertion that
+ * some function is called proves nothing about the string that comes out, and
+ * the string is the entire subject.
+ */
+describe('the admin password is one the provider will accept', () => {
+  const SCRIPT = join(REPO, 'deploy/compose/ensure-env-secrets.sh');
+  let dir: string;
+
+  // The script writes .env and pgbouncer/userlist.txt beside ITSELF, so it is
+  // copied into a temp directory rather than run in place — otherwise every run
+  // of this suite would rewrite the developer's own secrets.
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'secrets-'));
+    copyFileSync(SCRIPT, join(dir, 'ensure-env-secrets.sh'));
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  const run = () => spawnSync('bash', [join(dir, 'ensure-env-secrets.sh')], { encoding: 'utf8' });
+  const envFile = () => readFileSync(join(dir, '.env'), 'utf8');
+  const adminPassword = () => /^ZITADEL_ADMIN_PASSWORD=(.*)$/m.exec(envFile())?.[1] ?? '';
+
+  it('generates one carrying all four classes the policy demands', () => {
+    expect(run().status).toBe(0);
+    const pw = adminPassword();
+    expect(pw, 'nothing was generated at all').not.toEqual('');
+    expect(pw, 'no uppercase — this is the exact failure of #39/#40').toMatch(/[A-Z]/);
+    expect(pw, 'no lowercase').toMatch(/[a-z]/);
+    expect(pw, 'no digit').toMatch(/[0-9]/);
+    expect(pw, 'no symbol — the next refusal after HasUpper').toMatch(/[^A-Za-z0-9]/);
+    expect(pw.length, 'shorter than any sane minimum length').toBeGreaterThanOrEqual(12);
+  });
+
+  it('generates it correctly the FIRST time, without the repair covering for it', () => {
+    // THE CASE THAT ALMOST WAS NOT HERE. Reverting the generator to plain hex
+    // left every other case green: the repair below saw its own bad output and
+    // healed it, so the end state was compliant and nothing complained. Defence
+    // in depth is good and a test that cannot see the regression is not.
+    //
+    // On a FRESH .env the repair must never fire. If it does, the generator
+    // produced something that had to be fixed — which is precisely the bug.
+    const r = run();
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('generated ZITADEL_ADMIN_PASSWORD');
+    expect(
+      r.stdout,
+      'the repair fired on a fresh file — the generator is writing what the policy rejects',
+    ).not.toContain('REPLACED ZITADEL_ADMIN_PASSWORD');
+  });
+
+  it('keeps the entropy in the random half, not in the suffix', () => {
+    // The four fixed characters satisfy a policy and are not a secret. What
+    // must not happen is somebody "simplifying" this to a short password plus
+    // decoration, so the random part is asserted at full width.
+    expect(run().status).toBe(0);
+    expect(adminPassword()).toMatch(/^[0-9a-f]{32}/);
+  });
+
+  it('repairs a plain-hex password the old generator already wrote', () => {
+    // `ensure` fills a MISSING key and never touches a present one, which is
+    // right for a secret and wrong for a value that provably cannot work: the
+    // policy rejected it, so `03_default_instance` failed, so no account was
+    // ever created with it. This is what heals a runner whose .env predates the
+    // fix without anybody editing a file by hand.
+    const stale = '0123456789abcdef0123456789abcdef';
+    writeFileSync(join(dir, '.env'), `ZITADEL_ADMIN_PASSWORD=${stale}\n`);
+    const r = run();
+    expect(r.status).toBe(0);
+    expect(adminPassword(), 'the unusable value survived').not.toEqual(stale);
+    expect(adminPassword()).toMatch(/[A-Z]/);
+    expect(r.stdout, 'a silent replacement is worse than none').toContain(
+      'REPLACED ZITADEL_ADMIN_PASSWORD',
+    );
+  });
+
+  it("leaves an operator's own password alone", () => {
+    // Only the old generator's exact fingerprint is repaired. Anything a person
+    // chose is theirs, and rewriting it would be this script deciding it knows
+    // better than the operator about their own instance.
+    const chosen = 'MyOwnCarefullyChosen1!';
+    writeFileSync(join(dir, '.env'), `ZITADEL_ADMIN_PASSWORD=${chosen}\n`);
+    expect(run().status).toBe(0);
+    expect(adminPassword()).toEqual(chosen);
+  });
+
+  it('changes nothing on a second run', () => {
+    // The script's central promise, and the repair is the kind of addition that
+    // breaks it: a rewrite keyed on a pattern its own output matches would
+    // rotate the password on every bring-up.
+    expect(run().status).toBe(0);
+    const first = envFile();
+    expect(run().status).toBe(0);
+    expect(envFile()).toEqual(first);
   });
 });
