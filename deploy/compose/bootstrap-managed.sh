@@ -149,8 +149,8 @@ load_env() {
   if ! config_err="$("${COMPOSE[@]}" config -q 2>&1)"; then
     echo "!!! docker compose cannot read managed.yml:" >&2
     printf '%s\n' "$config_err" | sed 's/^/    /' >&2
-    local var
-    var="$(printf '%s\n' "$config_err" | grep -oE 'required variable [A-Za-z_][A-Za-z0-9_]*' | head -1 | awk '{print $3}')"
+    local var=""
+    if [[ "$config_err" =~ required\ variable\ ([A-Za-z_][A-Za-z0-9_]*) ]]; then var="${BASH_REMATCH[1]}"; fi
     if [ -n "$var" ]; then
       echo "!!! ${var} has no value in ${ENV_FILE}." >&2
       echo "!!! This breaks EVERY compose command, not just the service named above." >&2
@@ -485,7 +485,7 @@ phase_data() {
   # nobody configured. Check it here, where both values are in hand.
   local ini="${SCRIPT_DIR}/pgbouncer/pgbouncer.ini"
   local auth_db configured_db
-  auth_db="$(grep -oE 'auth_dbname=[A-Za-z0-9_]+' "$ini" | head -1 | cut -d= -f2)"
+  auth_db="$(grep -oE 'auth_dbname=[A-Za-z0-9_]+' "$ini" | awk 'NR==1' | cut -d= -f2)"
   configured_db="${POSTGRES_DB:-openmigrate}"
   if [ -n "$auth_db" ] && [ "$auth_db" != "$configured_db" ]; then
     echo "!!! pgbouncer.ini runs auth_query in '${auth_db}', but POSTGRES_DB is '${configured_db}'." >&2
