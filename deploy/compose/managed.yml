@@ -483,6 +483,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      # NOT a `condition:` — this one is run explicitly by the bring-up, before
+      # the `up` that starts this service. See zitadel-machinekey below for why
+      # it cannot simply be an init container compose starts for us.
     healthcheck:
       # Its own readiness endpoint, not a port check: the container listens well
       # before it has finished applying its migrations, and a script that starts
@@ -492,6 +495,55 @@ services:
       timeout: 5s
       retries: 30
       start_period: 30s
+    networks:
+      - ownpace-network
+
+  # MAKES THE PROVISIONING TOKEN'S DIRECTORY WRITABLE BY THE IDENTITY PROVIDER.
+  #
+  # E2E (managed) #44 is why this exists, and it had never worked once:
+  #
+  #   migration failed  name=03_default_instance
+  #     error="open /machinekey/pat.txt: permission denied"
+  #   setup failed, skipping cleanup
+  #
+  # Docker creates a NEW named volume's mount point owned by root, and the
+  # Zitadel image runs as a non-root user — which that error proves, since root
+  # could have written anywhere. `03_default_instance` creates the first human
+  # BEFORE the machine account, so while the admin password was being rejected
+  # (#509) this failure was never reached; fixing the password is what exposed
+  # it. Two bugs in a queue, the second invisible until the first was gone.
+  #
+  # The path cannot simply move somewhere already writable: setup-zitadel.sh
+  # reads exactly this file to provision the project and client without anybody
+  # clicking through a console, and the volume is what keeps the token out of
+  # the working tree where a `git add -A` could find it (hard rule 3).
+  #
+  # `profiles` keeps it out of `up`, and the BRING-UP runs it with
+  # `compose run --rm` rather than compose starting it as a dependency. That is
+  # deliberate: `up -d --wait` and a container that exits 0 have a fraught
+  # history across compose versions, and the one thing this stack cannot afford
+  # is a new way for the identity provider's bring-up to hang or misreport.
+  # `run` returns the one-shot's exit code and nothing else.
+  #
+  # ZITADEL_UID is READ OFF THE IMAGE by the bring-up (`docker image inspect`),
+  # not guessed here. The image is built FROM scratch so there is no shell to
+  # ask, but its config answers exactly — and a version bump that changes the
+  # user then cannot quietly bring this failure back. The default is only for a
+  # hand-run `compose run` with nothing exported.
+  zitadel-machinekey:
+    image: busybox:1.37
+    profiles: ["init"]
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        mkdir -p /machinekey
+        chown "${ZITADEL_UID:-1000}" /machinekey
+        chmod 700 /machinekey
+        echo "machinekey volume is now owned by ${ZITADEL_UID:-1000}, mode 700"
+    volumes:
+      - zitadel_machinekey:/machinekey
     networks:
       - ownpace-network
 
