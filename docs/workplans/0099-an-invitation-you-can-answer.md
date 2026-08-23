@@ -1470,3 +1470,46 @@ Each of those returned what it should. What remains is wiring it into the smoke:
 one Zitadel person per tenant the smoke touches, so each token resolves through
 a single membership and no tenant header is needed, and the `tenant_member` rows
 seeded against the Zitadel subject rather than a made-up one.
+
+### E2E (managed) #60 — the same bug, committed by me, one hour later
+
+The fix for #52's "fifteen misleading refusals" was a warning printed once at
+the top of `mint`. It made things worse, and in the most instructive way
+available:
+
+```
+verify: start-http-400   apply: start-http-400
+readiness (database): HTTP 400, .database -> '<unreadable>' —
+shared addresses: HTTP 400, .addresses | length -> '<unreadable>' —
+```
+
+An empty body and a 400 — which says nothing about tokens at all. **`mint`'s
+stdout IS the token**: it is read with `TOK="$(mint …)"`. A bare `echo` inside it
+prepends eight lines of prose to every JWT, and the API answers an unparseable
+header the only way it can.
+
+That is #523's shape exactly — *output that is not the credential ending up in
+the credential* — one caller further along, written by the same hand that had
+just finished writing the test which catches #523. Fifth time in a day. The
+lesson is not "remember this"; it is that **remembering does not work**, which is
+why the fix is two mechanical things rather than a comment:
+
+- the warning goes to **stderr**, which the script's own `tee` still captures;
+- and `mint` **checks its own output for the shape of a token** before returning
+  it — no whitespace, three dot-separated segments — in the callee, not at the
+  four call sites, because fixing the caller and not the callee is how #519
+  survived in nineteen other places.
+
+The invitee's token, which is the one `mint` does not produce, gets the same
+check for the same reason.
+
+### What is still owed after that
+
+A guard that generalises this rather than pinning it: **every value sent as a
+`Bearer` must have passed a shape check.** Two different mechanisms have now
+produced garbage into a credential (`docker exec` on an image with no `cat`; an
+`echo` in a function whose stdout is a value), and both were caught only after a
+night each. Detecting "a function whose stdout is a value must not print
+diagnostics" is not mechanically decidable — `read_env` returns its value with
+`printf` — but "this string reached an `Authorization: Bearer` header without
+being checked" is.
