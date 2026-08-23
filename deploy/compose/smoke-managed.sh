@@ -107,9 +107,72 @@ echo "########## smoke-managed $(date -u +%FT%TZ) — evidence: $OUT ##########"
 fail=0
 note() { printf '\n--- %s ---\n' "$*"; }
 
+# WHICH MODE THIS STACK IS IN, read before anything mints a token — the identity
+# section far below asks the same question, but the first `mint` happens long
+# before it and the answer changes what that token means.
+#
+# THREE ANSWERS, NOT TWO. `printenv` exits 1 when the variable is not set and
+# `docker exec` exits 125+ when it could not run at all, and those are different
+# facts: one says this stack has no identity provider configured, the other says
+# nothing has been established either way. Collapsing them with `|| true` is how
+# "could not ask" gets reported as "not provisioned" — the same shape as the
+# curl-that-was-not-there below.
+STACK_ISSUER="$(docker exec "$API_CONTAINER" printenv JWT_ISSUER 2>&1)"
+STACK_ISSUER_RC=$?
+if [ "$STACK_ISSUER_RC" -ge 125 ]; then
+  echo "!!! cannot read JWT_ISSUER from '$API_CONTAINER' (exit ${STACK_ISSUER_RC}): ${STACK_ISSUER}"
+  echo "!!! nothing below can speak for this stack's sign-in either way."
+  STACK_ISSUER=""
+  fail=1
+elif [ "$STACK_ISSUER_RC" -ne 0 ]; then
+  STACK_ISSUER=""
+fi
+
 q() { docker exec "$DB_CONTAINER" sh -lc "psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -Atc \"$1\""; }
 
+# ON A PROVISIONED STACK THE API WILL NOT ACCEPT WHAT THIS MINTS, AND SAYS SO
+# ONCE RATHER THAN FIFTEEN TIMES.
+#
+# `selectAuthMode` returns `managed` the moment JWT_ISSUER is set, and the
+# symmetric JWT_SECRET then STOPS BEING USED — deliberately, so that a lingering
+# secret (managed.yml used to ship a known default) cannot silently downgrade
+# verification to it. Every token minted here is signed with that secret, so
+# once the identity provider is provisioned every authenticated assertion below
+# is refused, and none of the refusals is about the endpoint it names. E2E
+# (managed) #52 is what that reads like: seven checks, seven failures, one cause
+# and no mention of it anywhere.
+#
+# The honest fix is for this script to obtain a real token the way a browser
+# does — create the person, POST /v2/sessions with a password check, finalise
+# the auth request, exchange the code with PKCE — which is workplan 0099's "what
+# is still owed" and is now a measured, working sequence rather than a plan (the
+# whole flow was driven against the live provider on 2026-08-23; CreateCallback
+# needs IAM_LOGIN_CLIENT on the calling machine user, and the ID token it
+# returns carries the `email` claim the API requires).
+#
+# Until that lands, this states the cause ONCE, up front, and fails — rather
+# than letting the reader work backwards from fifteen unrelated-looking 401s.
+# It is not a skip: a gate that cannot prove something must say so and be red
+# (hard rule 9), not quietly pass.
+MINT_WARNED=0
+warn_minted_tokens_are_not_verifiable() {
+  [ "$MINT_WARNED" = "0" ] || return 0
+  MINT_WARNED=1
+  [ -n "${STACK_ISSUER:-}" ] || return 0
+  echo
+  echo "!!! this stack verifies tokens against ${STACK_ISSUER}, and the tokens below"
+  echo "!!! are signed with JWT_SECRET, which managed mode does not use. Every"
+  echo "!!! authenticated check that follows will be refused, and NONE of those"
+  echo "!!! refusals is about the endpoint it names."
+  echo "!!! The remedy is workplan 0099's remaining task: get a real token from the"
+  echo "!!! provider. Until then this is one true sentence instead of fifteen"
+  echo "!!! misleading ones."
+  echo
+  fail=1
+}
+
 mint() { # mint <sub> <tenantId>  — signed with the API container's real secret
+  warn_minted_tokens_are_not_verifiable
   (
     cd "$REPO_ROOT/apps/api" &&
       JWT_SECRET="$JW" SUB="$1" T="$2" node -e "
@@ -782,8 +845,9 @@ note "identity provider"
 
 # Read out of the API CONTAINER, the way JWT_SECRET is above — not out of .env.
 # The question is what the running service verifies tokens against, and a file
-# on the host is at best a claim about that.
-ISSUER="$(docker exec "$API_CONTAINER" printenv JWT_ISSUER 2>/dev/null || true)"
+# on the host is at best a claim about that. Read ONCE, at the top of this
+# script, because the first token is minted long before this section runs.
+ISSUER="$STACK_ISSUER"
 if [ -z "$ISSUER" ]; then
   # Not a warning. JWT_ISSUER is written by setup-zitadel.sh, which the bring-up
   # now runs — its absence means that step did not happen, and a stack whose
