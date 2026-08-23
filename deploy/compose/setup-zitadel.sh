@@ -418,9 +418,16 @@ EOF
 #     ./deploy/compose/env-upsert.sh deploy/compose/.env \
 #        JWT_ISSUER=... JWT_AUDIENCE=... VITE_OIDC_CLIENT_ID=...
 #
-#   Start over, which DESTROYS every account it holds:
-#     docker compose -f deploy/compose/managed.yml down zitadel
-#     docker volume rm compose_zitadel_machinekey
-#     psql "$DATABASE_URL" -c 'DROP DATABASE zitadel'
+#   Start over, which DESTROYS every account it holds. THE DATABASE AND THE
+#   VOLUME GO TOGETHER, and doing half of it is what produces the refusal you
+#   are probably reading: the token is written at FIRST INIT only, so a cleared
+#   database with a kept volume leaves a token for an instance that is gone,
+#   and a kept database with a cleared volume leaves no token at all.
+#
+#     docker compose -f deploy/compose/managed.yml rm -sf zitadel
+#     docker exec -i ownpace-db sh -c 'psql -U "\$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS zitadel WITH (FORCE)"'
+#     docker volume rm ownpace-managed_zitadel_machinekey
 #     ./deploy/compose/setup-zitadel.sh
-#   Only reasonable before there are real customers in it.
+#
+#   The `zitadel` ROLE can stay — setup reuses it with the unchanged
+#   ZITADEL_DB_PASSWORD. Only reasonable before there are real customers in it.

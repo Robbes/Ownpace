@@ -35,6 +35,22 @@ const scripts = readdirSync(COMPOSE_DIR)
   .filter((f) => f.endsWith('.sh'))
   .map((f) => ({ file: f, text: readFileSync(join(COMPOSE_DIR, f), 'utf8') }));
 
+/**
+ * Variables that exist ONLY inside a container. Named rather than derived,
+ * because the point is what the OPERATOR'S shell does not have.
+ *
+ * The first version of this list held `POSTGRES_USER` and `POSTGRES_DB` and
+ * nothing else — the two the original bug happened to use. `setup-zitadel.sh`
+ * was meanwhile printing `psql "$DATABASE_URL" -c 'DROP DATABASE zitadel'` in
+ * the remedy its own 401 refusal points at, and this guard had no opinion,
+ * because `DATABASE_URL` was not on a list of two. A rule scoped to the
+ * variables a bug happened to use is the same mistake as one scoped to the
+ * file it happened in.
+ */
+const CONTAINER_ONLY = ['POSTGRES_USER', 'POSTGRES_DB', 'POSTGRES_PASSWORD', 'DATABASE_URL', 'DIRECT_DATABASE_URL'];
+const CONTAINER_VAR = new RegExp(`\\$\\{?(${CONTAINER_ONLY.join('|')})\\b`);
+const CONTAINER_VAR_WITH_DEFAULT = new RegExp(`\\$\\{(${CONTAINER_ONLY.join('|')}):-`);
+
 /** Lines that run OR print a psql call carrying a container-only variable. */
 const psqlLines = scripts.flatMap(({ file, text }) =>
   text
@@ -43,11 +59,11 @@ const psqlLines = scripts.flatMap(({ file, text }) =>
     .filter(
       ({ line }) =>
         /\bpsql\b/.test(line) &&
-        /\$\{?POSTGRES_(USER|DB)\b/.test(line) &&
+        CONTAINER_VAR.test(line) &&
         // A `${POSTGRES_USER:-openmigrate}` default resolves in ANY shell, so
         // it is not this rule's business — that is a script calling psql for
         // itself, not a line somebody is meant to paste.
-        !/\$\{POSTGRES_(USER|DB):-/.test(line),
+        !CONTAINER_VAR_WITH_DEFAULT.test(line),
     ),
 );
 
@@ -73,11 +89,9 @@ describe('a psql hint a human is meant to paste', () => {
     // DOUBLE quotes the operator's shell expands the name before `sh` sees it.
     // Either single-quote the whole `sh -c` argument, or backslash-escape the
     // dollars so what PRINTS still carries them.
-    const leaky = psqlLines.filter(({ line }) => {
-      const inSingles = /sh -l?c '[^']*\$\{?POSTGRES_/.test(line);
-      const escaped = /\\\$\{?POSTGRES_/.test(line);
-      return !inSingles && !escaped;
-    });
+    const inSingles = new RegExp(`sh -l?c '[^']*\\$\\{?(${CONTAINER_ONLY.join('|')})`);
+    const escaped = new RegExp(`\\\\\\$\\{?(${CONTAINER_ONLY.join('|')})`);
+    const leaky = psqlLines.filter(({ line }) => !inSingles.test(line) && !escaped.test(line));
     expect(
       leaky.map(({ file, n, line }) => `${file}:${n}: ${line.trim()}`),
       'the operator\'s shell expands these before the container ever sees them',
@@ -87,12 +101,92 @@ describe('a psql hint a human is meant to paste', () => {
   it('the clear-down remedy is idempotent, so a second paste is not an error', () => {
     // It is printed at a moment when somebody is already debugging; pasting it
     // twice must not add a failure to the pile they are reading.
-    const bootstrap = readFileSync(join(COMPOSE_DIR, 'bootstrap-managed.sh'), 'utf8');
-    const drops = bootstrap.split('\n').filter((l) => /DROP DATABASE/.test(l));
+    //
+    // THIS CASE USED TO READ ONE FILE — `bootstrap-managed.sh`, where the bug
+    // was found — inside the very test whose header says a guard scoped to one
+    // file does not stop the class. `setup-zitadel.sh` was printing a bare
+    // `DROP DATABASE zitadel` the whole time.
+    const drops = scripts.flatMap(({ file, text }) =>
+      text
+        .split('\n')
+        .map((line, i) => ({ file, n: i + 1, line }))
+        .filter(({ line }) => /DROP DATABASE/.test(line)),
+    );
     expect(drops.length, 'the clear-down remedy has gone missing').toBeGreaterThan(0);
-    for (const line of drops) {
-      expect(line, 'DROP DATABASE without IF EXISTS errors on a second run').
-        toMatch(/DROP DATABASE IF EXISTS/);
+    expect(
+      drops
+        .filter(({ line }) => !/DROP DATABASE IF EXISTS/.test(line))
+        .map(({ file, n, line }) => `${file}:${n}: ${line.trim()}`),
+      'DROP DATABASE without IF EXISTS errors on a second run',
+    ).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+/**
+ * A VOLUME NAME IS PART OF THE REMEDY, AND COMPOSE PREFIXES IT.
+ *
+ * `docker volume rm compose_zitadel_machinekey` sat in the REPROVISIONING note
+ * that `setup-zitadel.sh`'s own 401 refusal points at. The project is
+ * `ownpace-managed`, so the volume is `ownpace-managed_zitadel_machinekey` and
+ * the printed name matches nothing. `docker volume rm` answers "no such
+ * volume" — a line an operator working through a four-step recipe reads as
+ * "already gone" rather than "you have not done this step".
+ *
+ * The cost of getting it wrong is precise: the provisioning token is written
+ * at FIRST INIT only, so clearing the database while keeping the volume leaves
+ * a token for an instance that no longer exists, and every call is refused
+ * with `Errors.Token.Invalid`. E2E (managed) #50 spent a run proving it.
+ *
+ * Both sides are read from `managed.yml`, so a rename cannot drift past this.
+ */
+describe('a docker volume a human is meant to remove', () => {
+  const compose = readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8');
+  const project = /^name:\s*(\S+)/m.exec(compose)?.[1];
+  // Walked line by line rather than matched as a block: the first draft ended
+  // the block with `\Z`, which JavaScript reads as a literal `Z`, so it parsed
+  // nothing and every volume name looked invalid. A guard that flags
+  // everything is as useless as one that flags nothing.
+  const declared: string[] = [];
+  let inVolumes = false;
+  for (const line of compose.split('\n')) {
+    if (/^volumes:\s*$/.test(line)) {
+      inVolumes = true;
+      continue;
     }
+    if (inVolumes && /^\S/.test(line)) break; // the next top-level key ends it
+    const m = inVolumes ? /^ {2}([A-Za-z0-9_-]+):/.exec(line) : null;
+    if (m?.[1]) declared.push(m[1]);
+  }
+
+  /** Every `docker volume rm <literal-name>` printed by a compose script. */
+  const removals = scripts.flatMap(({ file, text }) =>
+    text
+      .split('\n')
+      .map((line, i) => ({ file, n: i + 1, line }))
+      .flatMap(({ file: f, n, line }) => {
+        const m = /docker volume rm\s+("?)([A-Za-z0-9_.-]+)\1\s*$/.exec(line.trim());
+        // A `$VARIABLE` name is resolved by the script itself, not pasted.
+        return m && !line.includes('$') ? [{ file: f, n, name: m[2] as string, line }] : [];
+      }),
+  );
+
+  it('read the project name and its volumes out of managed.yml', () => {
+    expect(project, 'managed.yml no longer declares a project name').toBe('ownpace-managed');
+    expect(declared, 'no volumes parsed out of managed.yml').toContain('zitadel_machinekey');
+  });
+
+  it('found some to check', () => {
+    expect(removals.length, 'no literal `docker volume rm` lines found at all').toBeGreaterThan(0);
+  });
+
+  it('names a volume this compose project actually creates', () => {
+    const valid = new Set(declared.map((v) => `${project}_${v}`));
+    expect(
+      removals
+        .filter(({ name }) => !valid.has(name))
+        .map(({ file, n, name }) => `${file}:${n}: '${name}' — no such volume; expected one of ${[...valid].join(', ')}`),
+      'docker volume rm on a name that does not exist reads as "already gone"',
+    ).toEqual([]);
   });
 });
