@@ -259,3 +259,44 @@ answer is available now, on the box, in one command:
 ```
 docker compose -f deploy/compose/managed.yml logs zitadel | head -40
 ```
+
+## Run #40: the diagnosis worked, and named a password
+
+The bring-up printed the container's own log for the first time, and the answer
+had been sitting there since #39:
+
+```
+level=info  msg="starting migration"  name=03_default_instance
+level=error msg="migration failed"    name=03_default_instance
+  error="ID=COMMA-VoaRj Message=Errors.User.PasswordComplexityPolicy.HasUpper"
+level=fatal msg="setup failed, skipping cleanup"
+```
+
+**`ZITADEL_ADMIN_PASSWORD` was generated as `openssl rand -hex 16`** — 32
+lowercase hex characters. Zitadel's default password complexity policy demands a
+lowercase letter, an **uppercase** letter, a number and a symbol; hex supplies
+the first and the third and nothing else. So the first human could never be
+created, `03_default_instance` failed, and the container exited 1 and restarted
+forever — which reads like a crash and was a rejected password.
+
+Fixing only the uppercase would have failed again on the symbol, so all four
+classes are satisfied at once. The entropy stays where it was — 128 bits of hex
+— and the four fixed characters that follow it add none and are not pretended to.
+
+**And a value already written is repaired**, which `ensure` would not do: it
+fills a MISSING key and never touches a present one, which is right for a secret
+and wrong for one that provably cannot work. The repair is keyed on the old
+generator's exact fingerprint (32 lowercase hex characters), and such a value
+is safe to replace *because* it is non-compliant: the policy rejected it, so no
+account was ever created with it, so there is nothing on the other side to
+strand. A password an operator chose is left alone.
+
+That is what heals the runner without anybody editing `.env` by hand — the gate
+runs `ensure-env-secrets.sh` and persists the result back.
+
+Five cases, each proved by breaking it, and one of them nearly was not here:
+reverting the generator to plain hex left every other case green, because the
+repair saw its own bad output and healed it. Defence in depth is good; a test
+that cannot see the regression is not. So a fresh `.env` now also asserts that
+the repair does **not** fire — if it does, the generator is writing what the
+policy rejects.
