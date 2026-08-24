@@ -10,6 +10,6 @@
     "./drive-replay": "./src/drive-replay.ts"
   },
   "dependencies": {
-    "imapflow": "^1.7.0"
+    "imapflow": "^1.7.1"
   }
 }
