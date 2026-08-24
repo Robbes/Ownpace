@@ -2132,3 +2132,46 @@ committed file relabelled as generated without a `.gitignore` entry.
 The honest summary is that a year-old line in a compose file beat a day of
 tooling, and the only reason it cost an afternoon rather than a weekend is that
 the migration refused to half-finish.
+
+## The float that was named, and therefore fixed
+
+`bitnamilegacy/minio` sat in `NAMED_FLOATS` for exactly one commit. That list
+was built so a remaining float would be a **debt somebody could see** rather
+than a line nobody had looked at since it was written — and the entry had been
+in the repository for under an hour before Rob read it and said take it along.
+That is the whole argument for naming things instead of allowing them
+silently, demonstrated faster than expected.
+
+**And `latest` here told a slightly worse lie than ClickHouse's.** ClickHouse's
+was frozen: bitnamilegacy stopped publishing, and `latest` stopped with it. But
+`bitnamilegacy/minio:latest` stopped moving on **2025-07-03** at `2025.5.24`,
+while that same repository went on publishing until **2025-08-19** and ends at
+`2025.7.23-debian-12-r5`. So `latest` was not even bitnamilegacy's last word —
+it quietly stopped six weeks before the lights went out, and pointed at a build
+two versions behind the final one. "It's archived, so `latest` is effectively
+pinned" was wrong twice over: it does not tell you *where* it stopped, and it
+does not even stop where the repository does.
+
+The pin is deliberately to **what was already running** — `2025.5.24-debian-12-r5`
+by digest, the exact bytes `latest` resolved to. It changes the NAME of what
+runs and not the thing itself. That is the right shape for a de-floating
+commit on a service holding Trigger.dev's packets: recording what you have is
+not the same act as changing it, and doing both at once would have hidden which
+one moved. `2025.7.23` and upstream's `minio/minio` are both real options and
+both are somebody's deliberate next decision.
+
+**Upstream's is emphatically not a tag swap**, and the four things it needs are
+written down in `docs/managed-bring-up.md` rather than discovered at bring-up.
+The one that would bite hardest is the third: `MINIO_DEFAULT_BUCKETS` is a
+bitnami convenience that does not exist upstream, and it is what creates the
+`packets` bucket. Upstream uses a separate `minio-init` service running
+`mc mb`. Miss it and MinIO comes up **healthy** while every packet write fails
+— the same shape as the ClickHouse credential rename, and the reason both are
+recorded as prose and not left to whoever tries it next.
+
+Proved by breaking, three ways: minio back to `:latest` with the excuse list
+now empty; minio re-listed as a float after it had been pinned; and — the one
+that proves the rule stayed narrow rather than creeping — minio pinned by
+VERSION with no digest, which must **pass**, because the rule is "no `latest`",
+not "digest everywhere". A guard that quietly widened its own remit would be a
+different guard than the one that was argued for.

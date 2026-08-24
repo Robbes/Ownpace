@@ -868,10 +868,14 @@ describe('nothing in the managed stack runs whatever `latest` happens to mean', 
    * Emptying this map is the goal; adding to it is a decision to argue for.
    */
   const NAMED_FLOATS: Record<string, string> = {
-    'bitnamilegacy/minio':
-      'Pinning it recreates the object store holding Trigger.dev packets and run artifacts, ' +
-      'and the bitnami and upstream minio images disagree on data path and env var names. ' +
-      'That is a deliberate change with a restore plan of its own, not a rider on a ClickHouse fix.',
+    // EMPTY, and that is the point. `bitnamilegacy/minio` lived here for
+    // exactly one commit — long enough to be a debt somebody could see rather
+    // than a line nobody had looked at since it was written. Naming it is what
+    // got it fixed in the same afternoon.
+    //
+    // Adding an entry back is a deliberate act with a reason attached, which
+    // is the whole contract. It is not a place to park an image you have not
+    // got round to.
   };
 
   /** `${VAR:-default}` is what compose runs when .env is silent, so read the default. */
@@ -891,12 +895,15 @@ describe('nothing in the managed stack runs whatever `latest` happens to mean', 
 
   function repositoryOf(reference: string): string {
     const image = withDefaults(reference);
-    const cut = image.search(/[@:]/) === -1 ? image.length : undefined;
     const lastSlash = image.lastIndexOf('/');
     const at = image.indexOf('@');
     const colon = image.indexOf(':', lastSlash + 1);
-    const end = at !== -1 ? at : colon !== -1 ? colon : cut ?? image.length;
-    return image.slice(0, end);
+    // The EARLIEST of the two, not '@' by preference: `repo:tag@sha256:…` is a
+    // legal reference and carries both, so preferring '@' would report the tag
+    // as part of the repository name. Only ever visible in a failure message —
+    // which is exactly when a guard must not be confusing.
+    const marks = [at, colon].filter((i) => i !== -1);
+    return marks.length === 0 ? image : image.slice(0, Math.min(...marks));
   }
 
   const references = [...composeYml.matchAll(/^\s*image:\s*(\S+)\s*$/gm)].map((m) => m[1]!);

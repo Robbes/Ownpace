@@ -829,6 +829,36 @@ pinned.
 > docker volume rm ownpace-managed_clickhouse_data
 > ```
 
+> **MinIO was floating too, and told a slightly worse lie.** It was
+> `bitnamilegacy/minio:latest`, and that tag stopped moving on **2025-07-03** at
+> `2025.5.24` — while the repository went on publishing until 2025-08-19 and ends
+> at `2025.7.23-debian-12-r5`. So `latest` was not even bitnamilegacy's last
+> word: it quietly stopped six weeks early, and nothing recorded which MinIO the
+> stack ran.
+>
+> It is now pinned to **what was already running** —
+> `bitnamilegacy/minio:2025.5.24-debian-12-r5` by digest. That changes the name
+> of what runs and not the bytes, on a service holding Trigger.dev's packets and
+> run artifacts, so it needs no volume move and no bring-up ceremony. Nothing in
+> `managed.yml` floats any more, and `bootstrap-managed.unit.test.ts` refuses a
+> new one.
+>
+> **Moving to upstream's `minio/minio` is a separate job**, and it is not a tag
+> swap. Whoever does it needs all four of these:
+>
+> 1. `command: server /data --console-address ":9001"` — bitnami's entrypoint
+>    supplies this; upstream's does not, and the container exits without it.
+> 2. The data path changes from `/bitnami/minio/data` to `/data`, so a **new
+>    volume** and an empty object store, exactly as ClickHouse did.
+> 3. `MINIO_DEFAULT_BUCKETS` **does not exist** upstream. It is a bitnami
+>    convenience, and it is what creates the `packets` bucket. Upstream uses a
+>    separate `minio-init` service running `mc mb -p local/packets`; without it
+>    MinIO comes up healthy and every packet write fails.
+> 4. A healthcheck on `/minio/health/live`, which this service has never had.
+>
+> Losing the packets store costs historical large run payloads and outputs — not
+> deployments, which live in the registry, and not the ability to run anything.
+
 **Rotating a secret**: change it in `.env`, `docker compose up -d` the affected
 services, re-run `set-task-env.sh` if a task variable changed, and re-mint any
 JWTs signed with a rotated `JWT_SECRET`. Rotating `SECRET_ENCRYPTION_KEY`
