@@ -22,9 +22,9 @@
     "adr:operative": "node scripts/adr-operative.mjs --write"
   },
   "dependencies": {
-    "@azure/msal-node": "^5.5.0",
-    "@trigger.dev/core": "4.5.11",
-    "@trigger.dev/sdk": "4.5.11",
+    "@azure/msal-node": "^5.6.0",
+    "@trigger.dev/core": "4.5.12",
+    "@trigger.dev/sdk": "4.5.12",
     "croner": "^10.0.1",
     "jmap-jam": "^0.13.3"
   },
@@ -37,12 +37,12 @@
     "@typescript-eslint/eslint-plugin": "^8.67.0",
     "@typescript-eslint/parser": "^8.67.0",
     "@typescript/native": "npm:typescript@7.0.2",
-    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/coverage-v8": "4.1.11",
     "drizzle-kit": "^0.31.10",
     "drizzle-orm": "catalog:",
     "esbuild": "^0.28.2",
     "eslint": "10.8.1",
-    "imapflow": "^1.7.0",
+    "imapflow": "^1.7.1",
     "jsdom": "^30.0.1",
     "pg": "catalog:",
     "playwright-core": "^1.62.1",
@@ -51,7 +51,7 @@
     "tsx": "^4.23.12",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "typescript-eslint": "^8.67.0",
-    "vitest": "4.1.10",
+    "vitest": "4.1.11",
     "yaml": "^2.9.0"
   }
 }

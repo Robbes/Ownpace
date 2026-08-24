@@ -27,7 +27,7 @@
     "cors": "^2.8.5",
     "express": "^5.2.1",
     "helmet": "^8.3.0",
-    "jose": "^6.2.8",
+    "jose": "^6.2.9",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "pg": "catalog:",
@@ -41,7 +41,7 @@
     "@types/node": "^26.2.0",
     "@typescript/native": "npm:typescript@7.0.2",
     "typescript": "npm:@typescript/typescript6@6.0.2",
-    "vitest": "^4.1.10",
+    "vitest": "^4.1.11",
     "yaml": "^2.9.0"
   }
 }
