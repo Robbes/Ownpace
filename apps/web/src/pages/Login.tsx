@@ -6,6 +6,7 @@ import { LogIn } from 'lucide-react';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { useT } from '../i18n/index.tsx';
 import { beginSignIn, oidcConfig } from '../services/oidc.ts';
+import BuildStamp from '../components/BuildStamp.tsx';
 
 interface TokenClaims {
   sub: string;
@@ -208,6 +209,14 @@ const Login: React.FC = () => {
         ) : (
           tokenForm
         )}
+
+        {/* Outside `Layout`, so the sidebar's stamp never reaches this page —
+            and this is a page somebody sees BEFORE they are inside the app,
+            which makes it where "what build is this?" gets asked most. See
+            components/BuildStamp.tsx. */}
+        <div className="text-center">
+          <BuildStamp />
+        </div>
       </div>
     </div>
   );

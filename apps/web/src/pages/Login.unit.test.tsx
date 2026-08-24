@@ -19,6 +19,18 @@ vi.mock('react-router', async () => {
 // mocked here, which is also what decides which of the two sign-in paths this
 // page renders.
 vi.mock('../services/oidc.ts', () => ({ oidcConfig: vi.fn(), beginSignIn: vi.fn() }));
+
+// The page mounts BuildStamp, which asks the server what IT is running. That
+// question belongs to build-identity's own tests; what this file has to show
+// is that the sign-in page MOUNTS it at all — the gap reported from the Spark
+// was a stamp that existed everywhere except the page you can see without an
+// account.
+vi.mock('../services/build-identity.ts', () => ({
+  uiBuild: () => ({ version: '0.1.0-rc.1', commit: '72a78d4' }),
+  fetchServerBuild: () => Promise.resolve(null),
+  describeBuild: () => 'v0.1.0-rc.1 · 72a78d4',
+  shortCommit: (c: string) => c.slice(0, 7),
+}));
 const oidcConfigMock = vi.mocked(oidcConfig);
 const beginSignInMock = vi.mocked(beginSignIn);
 
@@ -100,6 +112,18 @@ describe('Login', () => {
     // would strand a deployment mid-rollout.
     expect(screen.getByLabelText(/access token/i)).toBeVisible();
     expect(screen.queryByText(/sign in with a token instead/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('what build this is, before anybody has signed in', () => {
+  it('the sign-in page carries its own stamp, having no sidebar to inherit one from', () => {
+    // `Layout` renders BuildStamp in the sidebar and mounts only under
+    // ProtectedRoute, so every route outside it — this one, /request-access,
+    // /invitations — had no version on screen at all. The route-level rule is
+    // in scripts/a-version-you-can-see-before-you-sign-in.unit.test.ts.
+    oidcConfigMock.mockReturnValue(null);
+    renderLogin();
+    expect(screen.getByText('v0.1.0-rc.1 · 72a78d4')).toBeVisible();
   });
 });
 
