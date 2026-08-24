@@ -34,7 +34,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -117,5 +119,112 @@ describe('the rule itself', () => {
 
   it('answers nothing for a file with no services block, instead of guessing', () => {
     expect(servicesIn('name: x\nvolumes:\n  data:\n')).toEqual([]);
+  });
+});
+
+/**
+ * A STATUS PAGE THAT PROBES ITSELF.
+ *
+ * Starting `gatus` (above) makes visible something that could not be seen while
+ * it never ran: it reads `STATUS_WEB_URL`, defaulting to `WEB_URL`, and the
+ * shipped default is `http://localhost:3123`. The probe runs INSIDE the gatus
+ * container, where `localhost` is gatus and nothing serves 3123 — so a
+ * perfectly healthy stack lights four red lamps.
+ *
+ * `WEB_URL` cannot simply be changed: the issuer, the redirect URIs and the
+ * grant email all read it, and it has to stay the address a BROWSER uses. So
+ * `STATUS_WEB_URL` became overridable, defaulting to `WEB_URL` — and the
+ * bring-up says so when the effective value is a loopback one.
+ *
+ * A status page wrong in the pessimistic direction is exactly as useless as one
+ * wrong in the optimistic direction, and gatus.yaml's own header says the
+ * second half of that out loud.
+ *
+ * RUN, not read: the condition is a `case` over four URL shapes, which is
+ * precisely the kind of thing that reads correct and behaves otherwise.
+ */
+describe('the bring-up says when the status page would probe itself', () => {
+  function noteFor(env: Record<string, string>): string {
+    const home = mkdtempSync(join(tmpdir(), 'statusnote-'));
+    try {
+      const envFile = join(home, '.env');
+      writeFileSync(
+        envFile,
+        Object.entries(env).map(([k, v]) => `${k}=${v}`).join('\n') + '\n',
+      );
+      const fn = (name: string) => {
+        const at = bootstrap.indexOf(`${name}() {`);
+        return at < 0 ? '' : bootstrap.slice(at, bootstrap.indexOf('\n}\n', at) + 3);
+      };
+      const program = [
+        'set -uo pipefail',
+        `ENV_FILE="${envFile}"`,
+        'note() { echo "    $*"; }',
+        fn('env_get'),
+        fn('note_status_page_probes_itself'),
+        'note_status_page_probes_itself',
+      ].join('\n');
+      const r = spawnSync('bash', ['-c', program], { encoding: 'utf8' });
+      return `${r.stdout ?? ''}${r.stderr ?? ''}`.trim();
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  }
+
+  it('the function is in the script and is called', () => {
+    expect(bootstrap).toContain('note_status_page_probes_itself() {');
+    expect(bootstrap, 'defined but never called').toMatch(
+      /^ {2}note_status_page_probes_itself$/m,
+    );
+  });
+
+  it('speaks for the shipped default, which is the case that bites', () => {
+    const said = noteFor({ WEB_URL: 'http://localhost:3123' });
+    expect(said).toContain('PROBE ITSELF');
+    expect(said, 'does not name the address it is complaining about').toContain(
+      'http://localhost:3123',
+    );
+    expect(said, 'no way to fix it').toContain('STATUS_WEB_URL=');
+    expect(said, 'does not say WEB_URL must stay as it is').toMatch(/WEB_URL must/);
+  });
+
+  it('says nothing once STATUS_WEB_URL points somewhere reachable', () => {
+    expect(noteFor({ WEB_URL: 'http://localhost:3123', STATUS_WEB_URL: 'http://web:80' })).toBe('');
+  });
+
+  it('says nothing for a real deployment', () => {
+    expect(noteFor({ WEB_URL: 'https://app.ota.ownpace.eu' })).toBe('');
+  });
+
+  it('covers 127.0.0.1 as well as the word localhost', () => {
+    expect(noteFor({ WEB_URL: 'http://127.0.0.1:3123' })).toContain('PROBE ITSELF');
+  });
+
+  it('names the port the page is published on, from .env', () => {
+    const said = noteFor({ WEB_URL: 'http://localhost:3123', STATUS_PORT: '3999' });
+    expect(said).toContain('http://localhost:3999');
+  });
+});
+
+describe('what gatus reads is what /api/ready answers', () => {
+  // The other half of the same risk: field names that drifted would show red
+  // for a healthy stack just as surely as an unreachable URL, and nothing
+  // compared them while the page never ran.
+  const gatus = readFileSync(join(COMPOSE, 'gatus.yaml'), 'utf8');
+  const ready = readFileSync(join(REPO_ROOT, 'apps/api/src/routes/ready.ts'), 'utf8');
+
+  it.each([...gatus.matchAll(/\[BODY\]\.([A-Za-z][A-Za-z0-9]*)/g)].map((m) => m[1]!))(
+    'ready.ts answers with a `%s` field',
+    (field) => {
+      expect(
+        new RegExp(`\\b${field}\\b`).test(ready),
+        `gatus.yaml reads [BODY].${field} and apps/api/src/routes/ready.ts never\n` +
+          'names it, so that lamp is red on a healthy stack.',
+      ).toBe(true);
+    },
+  );
+
+  it('found conditions to check, rather than passing on an empty list', () => {
+    expect([...gatus.matchAll(/\[BODY\]\.([A-Za-z][A-Za-z0-9]*)/g)].length).toBeGreaterThan(1);
   });
 });

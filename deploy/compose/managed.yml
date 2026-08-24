@@ -822,7 +822,22 @@ services:
       # http://api:3001 would prove the container talks to itself and say
       # nothing about the path a customer actually takes — through the reverse
       # proxy, the certificate and the same-origin /api proxy.
-      STATUS_WEB_URL: ${WEB_URL:?set WEB_URL in .env}
+      # WEB_URL by default, and OVERRIDABLE — because on a single box those are
+      # legitimately two different addresses.
+      #
+      # WEB_URL is the address a BROWSER uses, and it has to stay that: the
+      # issuer, the redirect URIs and the grant email all read it. But this
+      # probe runs INSIDE this container, and the shipped default is
+      # `http://localhost:3123` — where `localhost` is gatus itself, with
+      # nothing on 3123. So a default stack would light four red lamps for a
+      # perfectly healthy service, which is the same corrosion as a green one
+      # that means nothing.
+      #
+      # Invisible until now only because this service had never once been
+      # started (see bootstrap-managed.sh). Set STATUS_WEB_URL to an address
+      # this container can actually reach; bootstrap-managed.sh says so when
+      # the effective value is a loopback one.
+      STATUS_WEB_URL: ${STATUS_WEB_URL:-${WEB_URL:?set WEB_URL in .env}}
       GATUS_CONFIG_PATH: /config/config.yaml
     volumes:
       - ./gatus.yaml:/config/config.yaml:ro

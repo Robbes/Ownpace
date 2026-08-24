@@ -2754,6 +2754,35 @@ The scan stops at the next top-level key, because a naive two-space-indent read
 takes `ownpace-network` for a service and then demands the bring-up start a
 network. That case is in the tests.
 
+### And what starting it revealed
+
+Turning a service on for the first time is its own kind of test. Two things
+about the status page could not be seen while it never ran, and both would have
+shown **red lamps on a healthy stack** — which corrodes trust in a status page
+exactly as fast as a green one that means nothing, a point `gatus.yaml`'s own
+header makes about the other direction.
+
+**It would have probed itself.** `STATUS_WEB_URL` defaults to `WEB_URL`, and the
+shipped default is `http://localhost:3123`. The probe runs INSIDE the gatus
+container, where `localhost` is gatus and nothing serves 3123. Web app, API,
+Database, Sign-in: four reds, on a stack that is fine.
+
+`WEB_URL` cannot simply change — the issuer, the redirect URIs and the grant
+email all read it, and it has to stay the address a **browser** uses. So
+`STATUS_WEB_URL` is overridable now, still defaulting to `WEB_URL`, and the
+bring-up says so when the effective value is a loopback one. It names the fix
+and says why `WEB_URL` must stay put, because "set it to something else" without
+that sentence is advice that breaks sign-in.
+
+**And the field names had never been compared.** gatus reads `[BODY].database`
+and `[BODY].signIn` from `/api/ready`. They match — but nothing checked, and a
+rename on either side is a red lamp nobody could explain. Every `[BODY].x` in
+`gatus.yaml` must now name a field `ready.ts` answers with.
+
+Both are run rather than read: the first is a `case` over four URL shapes, the
+second a pair of names in two files. Proved by breaking — dropping `127.0.0.1`
+from the case, and renaming `signIn` to `signin` in the config.
+
 ### The same shape, one file over
 
 `${FOO:?message}` in `managed.yml` means compose refuses **every** command —
