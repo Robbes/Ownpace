@@ -2420,3 +2420,45 @@ one that is not.
 
 Proved by breaking: the cleanup removed from one of the fixed files, and the
 guard names it.
+
+## A version you can see before you sign in
+
+> "I don't see a version on the front app page 'Aanmelden bij Ownpace'?"
+
+The stamp shipped three days ago in `Layout`'s sidebar. `Layout` mounts only
+under `ProtectedRoute` at `/`. So the answer to *what build is this?* was
+rendered exactly where somebody had already signed in, and nowhere on the four
+routes that live outside the shell: `/login`, `/auth/callback`,
+`/request-access`, `/invitations`.
+
+Everything else about it was working. `GET /version` returned
+`{"version":"0.1.0-rc.1","commit":"72a78d4…"}` — the exact merge commit of
+#539 — and the bundle was stamped too: `vite.config.ts` reads `GIT_SHA` into
+`import.meta.env.VITE_COMMIT`, `managed.yml` passes `GIT_SHA` to the web build,
+and the bring-up exports it from `git rev-parse HEAD`. The whole chain held.
+The one place nobody could look was the page everybody looks at first.
+
+That is worth saying plainly, because "show the running version in web, site
+and the API" read as done and was: three surfaces, each stamped, each tested.
+The question the task never asked was **who is looking, and where are they
+standing when they ask.** An operator diagnosing a stack, a person answering an
+invitation, somebody asking for access — none of them are past the sign-in
+page, and all of them are the ones who need the number.
+
+### The rule, not the page
+
+`Login`, `RequestAccess` and `Invitations` now render their own `<BuildStamp />`.
+`AuthCallback` does not, and is exempt by name in the guard with its reason: it
+renders for the length of one token exchange and then navigates, so a version
+line nobody can finish reading is noise.
+
+`scripts/a-version-you-can-see-before-you-sign-in.unit.test.ts` reads
+`AppRoutes.tsx`, takes every page rendered before the single `<Layout />`, and
+requires a stamp or an exemption. It asserts there is exactly one `<Layout />`
+— the split has no meaning if a second one moves the boundary silently — and it
+asserts `Login` is in the list it found, so a refactor cannot satisfy the rule
+by removing the case that motivated it.
+
+Proved by breaking: the stamp removed from `Login.tsx` fails both the route
+rule (naming the page and what to do) and the component test that renders the
+page and looks for the line.
