@@ -20,6 +20,7 @@ import { Mail } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import apiClient from '../services/api.ts';
 import { useT, useLocale } from '../i18n/index.tsx';
+import BuildStamp from '../components/BuildStamp.tsx';
 
 /**
  * ADR-0014's five, by name only.
@@ -229,6 +230,14 @@ const RequestAccess: React.FC = () => {
             </Link>
           </p>
         </form>
+
+        {/* Outside `Layout`, so the sidebar's stamp never reaches this page —
+            and this is a page somebody sees BEFORE they are inside the app,
+            which makes it where "what build is this?" gets asked most. See
+            components/BuildStamp.tsx. */}
+        <div className="text-center">
+          <BuildStamp />
+        </div>
       </div>
     </div>
   );
