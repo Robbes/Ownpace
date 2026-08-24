@@ -464,3 +464,51 @@ describe('nothing but the token comes out of the thing that mints tokens', () =>
     expect(smoke).toMatch(/assert_looks_like_a_jwt "the invitee's token" "\$INV_TOKEN"/);
   });
 });
+
+/**
+ * `trap … EXIT` REPLACES THE HANDLER. IT DOES NOT ADD TO IT.
+ *
+ * A second `trap … EXIT` anywhere in a script silently disables the first, and
+ * the symptom is a leak nobody notices: here, the runner-log watcher would have
+ * been left running for the rest of the smoke by a cleanup trap added a hundred
+ * lines below it.
+ *
+ * So every EXIT trap in these scripts has to name every job. Checked by reading
+ * rather than by waiting for a leak to be noticed.
+ */
+describe('an EXIT trap does not quietly replace the one above it', () => {
+  const trapLines = (text: string) =>
+    text
+      .split('\n')
+      .map((line, i) => ({ n: i + 1, line }))
+      .filter(({ line }) => /^\s*trap\s+.*\bEXIT\b/.test(line));
+
+  it('read the real script', () => {
+    expect(trapLines(smoke).length).toBeGreaterThan(0);
+  });
+
+  it('the last EXIT trap in the smoke does every job the earlier ones did', () => {
+    // A PLAIN RULE, NOT A CLEVER ONE. The first version of this extracted
+    // "commands" with a lookahead for `;`, `'` or end-of-line — and
+    // `kill "$WATCHER_PID" 2>/dev/null` is followed by none of those, so the
+    // one job it existed to protect was the one job it could not see. It stayed
+    // green when the break was put in. Over-matching and under-matching parsers
+    // have each cost an hour tonight; this one just splits the handler on `;`.
+    const handler = (line: string) => /trap\s+'([^']*)'/.exec(line)?.[1] ?? '';
+    const traps = trapLines(smoke);
+    if (traps.length < 2) return; // one trap cannot shadow anything
+    const last = handler(traps[traps.length - 1]!.line);
+    expect(last, 'the final EXIT handler must be readable').not.toBe('');
+
+    const earlier = traps
+      .slice(0, -1)
+      .flatMap(({ line }) => handler(line).split(';'))
+      .map((c) => c.trim())
+      .filter(Boolean);
+    const missing = earlier.filter((c) => !last.includes(c));
+    expect(
+      missing,
+      `the final EXIT trap drops: ${missing.join(' | ')} — trap EXIT replaces, it does not add`,
+    ).toEqual([]);
+  });
+});
