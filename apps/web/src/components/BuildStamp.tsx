@@ -24,11 +24,22 @@ const BuildStamp: React.FC = () => {
   const [server, setServer] = React.useState<BuildIdentity | null>(null);
 
   React.useEffect(() => {
-    // Aborted on unmount: a version stamp must never be the reason a state
-    // update lands on a component that has gone.
-    const controller = new AbortController();
-    void fetchServerBuild(operatingBaseUrl(), controller.signal).then(setServer);
-    return () => controller.abort();
+    // A CANCELLED FLAG, NOT AN AbortController.
+    //
+    // Aborting looks tidier and is worse here: the browser records the
+    // cancelled request as a genuine network failure — `net::ERR_ABORTED` —
+    // which lands in devtools as a red line, and in the UI suite's
+    // `badResponses` as a failed request. A version stamp must not be the
+    // reason a page looks like it is erroring. There is nothing to save by
+    // aborting a single small GET, and this way the only cost of unmounting
+    // mid-flight is a response nobody reads.
+    let cancelled = false;
+    void fetchServerBuild(operatingBaseUrl()).then((got) => {
+      if (!cancelled) setServer(got);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const text = describeBuild(ui, server);
