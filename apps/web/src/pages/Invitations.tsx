@@ -32,6 +32,7 @@ import { Mail, Check, X } from 'lucide-react';
 import { answerInvitation, fetchMe, type Invitation } from '../services/session.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
+import BuildStamp from '../components/BuildStamp.tsx';
 
 const Invitations: React.FC = () => {
   const t = useT();
@@ -174,6 +175,14 @@ const Invitations: React.FC = () => {
         )}
 
         <p className="text-xs text-gray-500">{t('invite.skipHelp')}</p>
+
+        {/* Outside `Layout`, so the sidebar's stamp never reaches this page —
+            and this is a page somebody sees BEFORE they are inside the app,
+            which makes it where "what build is this?" gets asked most. See
+            components/BuildStamp.tsx. */}
+        <div className="text-center">
+          <BuildStamp />
+        </div>
       </div>
     </div>
   );
