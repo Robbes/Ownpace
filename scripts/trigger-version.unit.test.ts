@@ -196,3 +196,30 @@ describe('the backup lands where the next run can still find it', () => {
     expect(script).not.toMatch(/BACKUP_DIR=.*SCRIPT_DIR/);
   });
 });
+
+describe('nothing but the path comes out of the thing that returns a path', () => {
+  /**
+   * `cmd_backup` returns the file it wrote by printing it, and `cmd_drill`
+   * captures that. So anything else printed to stdout becomes part of the
+   * value — which is how the drill's first live run logged its verdict but
+   * not the "dumping"/"verified" lines above it: `$(cmd_backup drill |
+   * tail -1)` had eaten them.
+   *
+   * The same shape as smoke-managed.sh's `mint()`, whose stdout was the token
+   * and which printed a warning into it. A lesson written next to one caller,
+   * again, not reaching the next one.
+   */
+  it('say goes to stderr', () => {
+    expect(script).toMatch(/^say\(\) \{ echo "\[trigger-version\] \$\*" >&2; \}$/m);
+  });
+
+  it('cmd_backup prints exactly one thing to stdout: the path', () => {
+    const fn = /cmd_backup\(\) \{[\s\S]*?\n\}/.exec(script)?.[0] ?? '';
+    expect(fn.length).toBeGreaterThan(200);
+    // Every bare `echo` in it would land in the caller's captured value.
+    const bare = [...fn.matchAll(/^\s*echo .*$/gm)]
+      .map((m) => m[0])
+      .filter((l) => !/>&2/.test(l));
+    expect(bare.map((l) => l.trim())).toEqual(['echo "$out"']);
+  });
+});

@@ -42,7 +42,14 @@ DB_CONTAINER="${TRIGGER_DB_CONTAINER:-trigger-db}"
 DB_USER="${TRIGGER_DB_USER:-trigger}"
 DB_NAME="${TRIGGER_DB_NAME:-triggerdb}"
 
-say() { echo "[trigger-version] $*"; }
+# STDERR, BECAUSE ONE FUNCTION'S STDOUT IS ITS VALUE. `cmd_backup` returns the
+# path it wrote by printing it, so anything else it says on stdout is part of
+# that value to a caller — and `cmd_drill` captures it. Written to stdout
+# first, and the drill's own live run proved it: "dumping" and "verified"
+# never appeared in the job log, because `$(cmd_backup drill | tail -1)` ate
+# them. Exactly the shape of the mint() bug in smoke-managed.sh, in a new
+# file, one day later.
+say() { echo "[trigger-version] $*" >&2; }
 die() { echo "[trigger-version] FATAL: $*" >&2; exit 1; }
 
 need() { command -v "$1" >/dev/null || die "$1 is required — install it and re-run"; }

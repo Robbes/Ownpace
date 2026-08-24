@@ -1788,3 +1788,33 @@ It also caught a worse habit than the bug: `pnpm test | grep 'Tests'` was read
 as green because the shell reported exit code 0 — the GREP's status, not the
 suite's — and the branch was pushed on that reading. The summary line said
 `1 failed` in plain sight.
+
+### The drill's first live run reported its verdict and swallowed its evidence
+
+E2E (managed) #74, the drill's first execution against the real database:
+
+```
+[trigger-version] restoring it into triggerdb_drill — the live triggerdb is not touched
+[trigger-version] round trip proved: 83 tables, 2 project(s), restored and compared
+```
+
+The round trip works. But two lines that should have preceded those —
+`dumping triggerdb from trigger-db` and `verified …` — are absent from the job
+log, and their absence is the finding. `cmd_backup` returns the path it wrote
+by PRINTING it, and `cmd_drill` captures that with
+`$(cmd_backup drill | tail -1)`. `say` wrote to stdout, so every diagnostic
+inside the backup became part of the captured value and `tail -1` discarded
+all of it.
+
+**This is `mint()` again** — smoke-managed.sh, earlier the same day, whose
+stdout was the token and which printed a warning into it. That one cost a run;
+this one cost the evidence from the run that mattered most, which is cheaper
+and exactly as avoidable. `say` writes to stderr now, and a test pins both
+halves: `say` is redirected, and `cmd_backup` prints exactly one unredirected
+thing — the path.
+
+Three times in two days: #519's pipelines, the mint() stdout rule, and now
+both again in one new file. The pattern is not carelessness about the rule; it
+is that a rule lives where it was written. What generalises it is a test that
+reads every file, and the only reason these cost nothing is that somebody had
+already written those tests and something ran them.
