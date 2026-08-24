@@ -4,6 +4,36 @@
 #   ./deploy/compose/zitadel-db-password.sh            # check, change nothing
 #   ./deploy/compose/zitadel-db-password.sh --sync     # set the ROLE to .env's value
 #
+# Exit codes, because bootstrap-managed.sh acts on them:
+#   0  the role accepts it — or role and database do not exist yet (first run)
+#   1  the role REFUSES it
+#   2  nothing was established: the question could not be asked
+#
+# WHY EVERY QUERY HERE CARRIES `-h`, AND WHY THAT IS THE WHOLE POINT.
+#
+# `docker exec ownpace-db psql -U zitadel` connects over the UNIX SOCKET, and
+# the official Postgres image's generated pg_hba.conf trusts the socket and
+# 127.0.0.1 outright (`local all all trust`). PGPASSWORD is never sent and
+# never checked: the query succeeds with ANY password, including a wrong one.
+# Only a connection to the container's real network address matches the
+# appended `host all all all scram-sha-256` line — which is the line Zitadel's
+# own connection, arriving from another container, matches.
+#
+# The first version of this script asked over the socket. On 2026-08-24 it told
+# an operator "the zitadel role accepts the password in .env — nothing to do",
+# twice, and then Zitadel presented that same password over the network and was
+# refused: `failed SASL auth: FATAL: password authentication failed for user
+# "zitadel" (SQLSTATE 28P01)`, after the bring-up had spent the full 300-second
+# readiness timeout looking like a slow boot. And because the vacuous pass
+# short-circuits everything below it, `--sync` refused to perform the repair:
+# the check said there was nothing to repair.
+#
+# managed.yml's own header has said this since 2026-07-25 — "a local-socket/
+# 127.0.0.1 psql check ... never actually check the password ... only a
+# connection from another container's real IP exercises the scram-sha-256 rule".
+# It was written about the `openmigrate` role. Nobody carried it thirty lines
+# down the same file to `zitadel`.
+#
 # WHY THIS IS A SCRIPT AND NOT A PASTED COMMAND.
 #
 # The repair is one ALTER ROLE, and the obvious way to hand it over is to print
@@ -35,9 +65,18 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env"
 CONTAINER="${OWNPACE_DB_CONTAINER:-ownpace-db}"
+# Inside the container Postgres listens on 5432 whatever POSTGRES_PORT publishes
+# on the host. This is a container-to-itself connection, so the published port
+# is not involved.
+DB_PORT=5432
 
 say() { echo "[zitadel-db-password] $*"; }
 die() { echo "[zitadel-db-password] FATAL: $*" >&2; exit 1; }
+# Exit 2, not 1: "the role refuses the password" and "I could not ask" are
+# different answers, and a caller that cannot tell them apart will send an
+# operator to ALTER ROLE for a database that was merely still starting
+# (hard rule 9).
+cannot_tell() { echo "[zitadel-db-password] NOT ESTABLISHED: $*" >&2; exit 2; }
 
 SYNC=0
 case "${1:-}" in
@@ -71,13 +110,64 @@ docker inspect "$CONTAINER" >/dev/null 2>&1 ||
   die "no ${CONTAINER} container — bring the database up first:
     docker compose -f ${SCRIPT_DIR}/managed.yml up -d --wait postgres"
 
+# --------------------------------------------------------- the real channel --
+
+# The container's own address on the compose network — the only kind of
+# address that gets the password looked at.
+#
+# Reads whatever the container can tell us about itself on stdin and prints the
+# first routable address in it, or nothing. Loopback is DISCARDED rather than
+# preferred-against: `-h 127.0.0.1` is answered by the same `trust` line as the
+# socket, so accepting one would leave this check exactly as vacuous as the one
+# it replaces.
+first_routable_address() {
+  tr -s ' \t' '\n\n' |
+    grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$|^[0-9a-fA-F]*:[0-9a-fA-F:]+$' |
+    grep -Ev '^(127\.|::1$|0\.0\.0\.0$)' |
+    awk 'NR==1'
+}
+
+# A GLOBAL set by a function rather than a `$(...)` result, deliberately:
+# `exit 2` inside a command substitution leaves only the subshell, and the
+# caller would carry on with an empty address — which psql reads as "use the
+# socket". The failure this script exists to stop would then be reintroduced by
+# the code that detects it.
+#
+# Three sources because one command is one dependency: busybox and GNU
+# `hostname -i` disagree about what they print, `getent` is absent from musl
+# images, and /etc/hosts is always there. All three are asked, the answers are
+# pooled, and the filter above decides.
+resolve_db_addr() { # sets DB_ADDR
+  local out
+  out="$(docker exec "$CONTAINER" sh -c '
+      hostname -i 2>/dev/null || true
+      getent hosts "$(hostname)" 2>/dev/null || true
+      grep -w "$(hostname)" /etc/hosts 2>/dev/null || true
+    ' 2>&1)" ||
+    cannot_tell "could not ask ${CONTAINER} for its own address:
+    ${out}"
+
+  DB_ADDR="$(printf '%s\n' "$out" | first_routable_address || true)"
+  [ -n "$DB_ADDR" ] || cannot_tell "${CONTAINER} reports no routable address of its own (got: ${out}).
+    Asking over the loopback instead is not an option: pg_hba.conf answers that
+    with \`trust\`, so the check would pass without the password being looked
+    at. Read this script's header."
+}
+resolve_db_addr
+
+ask_pg() { # ask_pg <user> <password> <database> — prints psql's output, returns its status
+  docker exec -e PGPASSWORD="$2" "$CONTAINER" \
+    psql -h "$DB_ADDR" -p "$DB_PORT" -U "$1" -d "$3" -tAc 'SELECT 1' 2>&1
+}
+
 # --------------------------------------------------------------------- check --
 
-# The SAME question the container asks at start-up, asked with the same
-# credential. Anything else here would be a different test wearing its name.
-if out="$(docker exec -e PGPASSWORD="$ZITADEL_PASS" "$CONTAINER" \
-    psql -U "$ZITADEL_USER" -d "$ZITADEL_DB" -tAc 'SELECT 1' 2>&1)"; then
+# The SAME question the container asks at start-up, asked over the same kind of
+# connection with the same credential. Anything else here would be a different
+# test wearing this one's name.
+if out="$(ask_pg "$ZITADEL_USER" "$ZITADEL_PASS" "$ZITADEL_DB")"; then
   say "the ${ZITADEL_USER} role accepts the password in .env — nothing to do"
+  say "  (asked over ${DB_ADDR}:${DB_PORT}, the way Zitadel asks — not the socket)"
   exit 0
 fi
 
@@ -92,7 +182,8 @@ case "$out" in
     # container, a Postgres still starting up all land here, and calling any of
     # them an authentication failure would send the operator to ALTER ROLE for
     # a problem that is not one (hard rule 9).
-    die "could not ask ${CONTAINER} at all, so nothing is established about the password:
+    cannot_tell "could not ask ${CONTAINER} at ${DB_ADDR}:${DB_PORT} at all, so nothing
+    is established about the password:
     ${out}" ;;
 esac
 
@@ -110,17 +201,23 @@ fi
 
 # Over stdin, never as an argument: a password in argv is visible in `ps` to
 # every user on the box and lands in the operator's shell history.
+#
+# Doubled quotes because the value is a literal in SQL text and there is no
+# parameter form of ALTER ROLE. A generated secret has no quote in it; a
+# hand-set one might, and the failure mode of not doing this is an ALTER that
+# sets a DIFFERENT password than the one in .env and then reports success.
 say "setting the ${ZITADEL_USER} role's password to the value in .env"
 docker exec -e PGPASSWORD="$ADMIN_PASS" -i "$CONTAINER" \
-  psql -U "$ADMIN_USER" -d postgres -v ON_ERROR_STOP=1 >/dev/null <<SQL
-ALTER ROLE ${ZITADEL_USER} WITH PASSWORD '${ZITADEL_PASS}';
+  psql -h "$DB_ADDR" -p "$DB_PORT" -U "$ADMIN_USER" -d postgres -v ON_ERROR_STOP=1 >/dev/null <<SQL
+ALTER ROLE "${ZITADEL_USER//\"/\"\"}" WITH PASSWORD '${ZITADEL_PASS//\'/\'\'}';
 SQL
 
 # PROVE IT, rather than trusting that a command which exited 0 achieved the
 # thing. The ALTER could succeed against a role nobody uses, or a pooler could
-# be serving a cached authentication — and "it ran" is not "it works".
-docker exec -e PGPASSWORD="$ZITADEL_PASS" "$CONTAINER" \
-  psql -U "$ZITADEL_USER" -d "$ZITADEL_DB" -tAc 'SELECT 1' >/dev/null 2>&1 ||
+# be serving a cached authentication — and "it ran" is not "it works". Over the
+# network for the same reason as the check: a proof the socket would have given
+# for free proves nothing.
+ask_pg "$ZITADEL_USER" "$ZITADEL_PASS" "$ZITADEL_DB" >/dev/null ||
   die "the ALTER ROLE succeeded and the role still refuses the password. Nothing
     else here can explain that; read ${CONTAINER}'s log."
 
