@@ -93,9 +93,11 @@ export function verifiesAPassword(command: string): boolean {
  * no better: the image trusts 127.0.0.1 too.
  */
 export function asksOverAnAuthenticatedChannel(command: string): boolean {
-  const host = /\s-h\s+["']?([^\s"']+)/.exec(command);
+  const host = /\s-h\s+["']?([^\s"']+)/.exec(command)?.[1];
+  // No `-h` at all, or a `-h` with nothing after it: psql falls back to the
+  // socket either way, which is the case this whole file exists to refuse.
   if (!host) return false;
-  return !/^(localhost|127\.|::1$|\[::1\])/.test(host[1]);
+  return !/^(localhost|127\.|::1$|\[::1\])/.test(host);
 }
 
 describe('every password check reaches Postgres the way the thing it speaks for does', () => {
