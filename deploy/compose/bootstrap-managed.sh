@@ -250,27 +250,28 @@ note_env_divergence() {
 #
 # One query answers it in a second, and it is the SAME question the container
 # is about to ask.
+#
+# ASKED BY THE SCRIPT, NOT HERE. This used to be an inline `docker exec ...
+# psql -U zitadel`, a copy of the one in zitadel-db-password.sh. Both connected
+# over the Unix socket, which pg_hba.conf answers with `trust` — so both
+# reported a pass without the password being looked at, and on 2026-08-24 they
+# said so three times while Zitadel crash-looped on 28P01 behind the 300-second
+# timeout. Two copies of a question is how a wrong answer gets given twice:
+# fixing one would have left the other lying. There is now one, and it is the
+# same script the refusal below tells you to run.
 assert_zitadel_role_password() {
-  local user pass db out
+  local user pass out rc=0
   user="$(env_get ZITADEL_DB_USER)"; user="${user:-zitadel}"
-  db="$(env_get ZITADEL_DB_NAME)"; db="${db:-zitadel}"
   pass="$(env_get ZITADEL_DB_PASSWORD)"
   # Unset is managed.yml's `:?` to report, not ours — it names the fix already.
   [ -n "$pass" ] || return 0
 
-  if out="$(docker exec -e PGPASSWORD="$pass" ownpace-db \
-      psql -U "$user" -d "$db" -tAc 'SELECT 1' 2>&1)"; then
-    note "the ${user} role accepts the password in $(basename "$ENV_FILE")"
-    return 0
-  fi
+  out="$("${SCRIPT_DIR}/zitadel-db-password.sh" --check 2>&1)" || rc=$?
+  printf '%s\n' "$out" | sed 's/^/    /'
 
-  case "$out" in
-    *"does not exist"*)
-      # First bring-up: Zitadel creates both the role and the database itself,
-      # using the ADMIN credentials. Nothing to check yet.
-      note "no ${user} role or ${db} database yet — Zitadel will create them"
-      return 0 ;;
-    *"password authentication failed"*)
+  case "$rc" in
+    0) return 0 ;;
+    1)
       echo >&2
       echo "!!! the ${user} Postgres role will NOT accept the password in ${ENV_FILE}." >&2
       echo "!!! Zitadel is about to present exactly this and be refused. It logs" >&2
@@ -288,10 +289,13 @@ assert_zitadel_role_password() {
       exit 1 ;;
     *)
       # Says what it established, which is nothing — rather than reporting a
-      # pass it never got (hard rule 9).
-      note "could not pre-check the ${user} role — NOT verified here: ${out}" ;;
+      # pass it never got (hard rule 9). Exit 2 from the script means the
+      # question could not be asked at all: an unreachable database, a wrong
+      # container, a Postgres still starting.
+      note "the ${user} role was NOT verified here — the check above could not run" ;;
   esac
 }
+
 
 # The diagnosis half, separated from the `up` half so that a bring-up which
 # cannot go through `up_wait` — the app services need `--build` and a GIT_SHA —

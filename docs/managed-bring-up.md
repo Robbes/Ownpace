@@ -657,7 +657,32 @@ Three things now make that loud instead of silent:
   every phase, including the `--from …` resumes that skip preflight. Names
   only — the values are secrets.
 - It asks the `zitadel` role for its password **before** starting the
-  container, so the answer takes a second rather than five minutes.
+  container, so the answer takes a second rather than five minutes — and it
+  asks over the container's **network address**, not the socket. See below:
+  the first version of this check could not fail.
+
+**The check that could not fail** (2026-08-24, same day, one bring-up later).
+Both the preflight and `zitadel-db-password.sh` asked with
+`docker exec ownpace-db psql -U zitadel`. That connects over the **Unix
+socket**, and the official Postgres image's generated `pg_hba.conf` answers the
+socket and `127.0.0.1` with `trust`: `PGPASSWORD` is never sent and never
+looked at, so the query succeeds with *any* password. Both reported
+
+> the zitadel role accepts the password in .env — nothing to do
+
+three times across two runs — and Zitadel, connecting from its own container,
+matched the appended `host all all all scram-sha-256` line instead and was
+refused with `SQLSTATE 28P01`, five minutes later. The vacuous pass also
+short-circuited the repair: `--sync` exits at the check, so the one command
+that fixes this declined to run on the grounds that there was nothing to fix.
+
+`managed.yml`'s own header had said so since 2026-07-25, about the
+`openmigrate` role — "only a connection from another container's real IP
+exercises the scram-sha-256 rule". Nobody carried it thirty lines down the same
+file. Every query in `zitadel-db-password.sh` now goes to the container's real
+address, refuses to run at all if it cannot resolve one, and **says which
+address it asked over** in the passing message. There is one copy of the
+question, and `bootstrap-managed.sh` calls it.
 - `env-upsert.sh` **follows the link instead of replacing it**. Its write is
   write-temp-then-rename, and `mv -f tmp link` would silently turn the link
   back into a regular file — re-forking the two on the first `TRIGGER_CLI_PROFILE`
