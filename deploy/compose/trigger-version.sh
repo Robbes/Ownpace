@@ -52,8 +52,14 @@ need() { command -v "$1" >/dev/null || die "$1 is required — install it and re
 # with it; bootstrap-managed.sh refuses at bring-up when they do not, and
 # bootstrap-managed.unit.test.ts refuses in CI.
 repo_tag() {
-  grep -oE '\$\{TRIGGER_IMAGE_TAG:-v[^}]+\}' "${SCRIPT_DIR}/managed.yml" \
-    | head -1 | sed 's/.*:-//;s/}//'
+  # HERE-STRING, NOT A PIPE. `head` closes the pipe after its limit and the
+  # writer upstream dies of SIGPIPE — which `set -o pipefail` then reports as
+  # the pipeline's failure. That is #519, fixed repo-wide and guarded by
+  # no-pipeline-its-own-consumer-can-kill.unit.test.ts, and this script
+  # reintroduced it four times over before that guard said so.
+  local all
+  all="$(grep -oE '\$\{TRIGGER_IMAGE_TAG:-v[^}]+\}' "${SCRIPT_DIR}/managed.yml")"
+  sed 's/.*:-//;s/}//' <<<"$(head -1 <<<"$all")"
 }
 
 running_tag() { # what is ACTUALLY running, which is the only thing that is not a claim
@@ -183,10 +189,14 @@ verify_dump() { # verify_dump <file> — a file is not a backup until it looks l
   # the archive decompresses, what comes out is a pg_dump, and there is enough
   # of it to be a database.
   gzip -t "$f" 2>/dev/null || die "the dump at ${f} is not a valid gzip archive."
-  zcat "$f" | head -20 | grep -q 'PostgreSQL database dump' ||
+  # Decompressed ONCE into a variable: `head` and `grep -q` both stop reading
+  # early, and either would kill `zcat` mid-stream (#519).
+  local first
+  first="$(zcat "$f" 2>/dev/null | sed -n '1,20p')"
+  grep -q 'PostgreSQL database dump' <<<"$first" ||
     die "the dump at ${f} decompresses, but its first lines are not a pg_dump header.
 Whatever is in there, it is not a backup:
-$(zcat "$f" | head -3)"
+$(sed -n '1,3p' <<<"$first")"
   # THE SIZE THAT MATTERS IS THE UNCOMPRESSED ONE. SQL compresses ferociously
   # — a real dump can land under a hundred KB on disk — so a floor on the
   # archive would reject good backups and accept a truncated one that happened
@@ -234,8 +244,9 @@ cmd_backups() {
 }
 
 latest_backup() {
-  find "$BACKUP_DIR" -maxdepth 1 -name "${DB_NAME}-*.sql.gz" -printf '%T@ %p\n' 2>/dev/null \
-    | sort -rn | head -1 | cut -d' ' -f2-
+  local listing
+  listing="$(find "$BACKUP_DIR" -maxdepth 1 -name "${DB_NAME}-*.sql.gz" -printf '%T@ %p\n' 2>/dev/null | sort -rn)"
+  cut -d' ' -f2- <<<"$(head -1 <<<"$listing")"
 }
 
 # ----------------------------------------------------------------- drill --
@@ -346,7 +357,7 @@ cmd_pin() {
   local want="${1:-}" bare
   [ -n "$want" ] || die "pin needs a version (v4.5.12), or --latest. See: $0 list"
   if [ "$want" = "--latest" ]; then
-    want="$(probe_upgrades "$(repo_tag)" | head -1)"
+    want="$(head -1 <<<"$(probe_upgrades "$(repo_tag)")")"
     [ -n "$want" ] || die "nothing newer than $(repo_tag) is published — already on the latest."
     say "latest published in both images: ${want}"
   fi

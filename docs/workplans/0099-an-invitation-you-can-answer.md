@@ -1756,3 +1756,35 @@ it refuses without `--yes`, refuses while `trigger-api` is running, and prints
 the stop commands instead. Proved by breaking, five mutations, five caught,
 including the one that would matter: the drill's `DROP DATABASE` pointed at
 the live database instead of the throwaway.
+
+### And the guard from #519 caught the author of #519
+
+The full suite came back `1 failed | 3825 passed`, and the failure was in the
+new script:
+
+```
+trigger-version.sh:55  — head stops reading after its limit.
+trigger-version.sh:181 — head stops reading after its limit.
+trigger-version.sh:181 — grep -q stops at the first match.
+trigger-version.sh:232 — head stops reading after its limit.
+```
+
+Four instances of #519 — a pipeline its own consumer can kill — written into a
+new file by the same hands that fixed nineteen of them repo-wide a day
+earlier. `zcat "$f" | head -20 | grep -q …` closes the pipe the moment grep
+matches; `zcat` dies of SIGPIPE; `set -o pipefail` reports that as the
+pipeline failing. Worse than a plain bug, because it depends on whether the
+writer has finished before the reader leaves: it would have passed here and
+failed on the Spark, or passed a hundred times and failed once.
+
+Every early-exit consumer now reads from a here-string. **The lesson is about
+the guard, not the bug**: knowing a rule, having written the rule, and having
+written the test for the rule were all insufficient — what caught it was the
+test running. That is the third time in two days a lesson written next to one
+caller failed to reach the next one, and the first time the cost was zero,
+because by now something automated was watching.
+
+It also caught a worse habit than the bug: `pnpm test | grep 'Tests'` was read
+as green because the shell reported exit code 0 — the GREP's status, not the
+suite's — and the branch was pushed on that reading. The summary line said
+`1 failed` in plain sight.
