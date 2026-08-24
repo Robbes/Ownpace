@@ -98,3 +98,43 @@ export async function tell(
     return 'failed';
   }
 }
+
+/**
+ * Tell the OPERATOR that somebody knocked.
+ *
+ * `tell` above addresses one person on an `access_request` row. This one goes
+ * the other way, to the fixed list the rest of the product already uses —
+ * `NOTIFY_TO`, in `NOTIFY_LOCALE` — so it takes `config.settings` verbatim
+ * rather than building an envelope per recipient. `readNotifierConfig` only
+ * reports `enabled` when `SMTP_HOST`, `NOTIFY_FROM` and `NOTIFY_TO` are all
+ * present, so an enabled channel always has somebody to send to.
+ *
+ * WHY THIS EXISTS. `POST /api/access-requests` inserted a row, wrote one log
+ * line and told nobody: the queue was the intended channel, which works
+ * exactly as well as somebody's habit of opening it. Reported from the live
+ * site on 2026-08-24 — "i filled in the request access, but did not receive
+ * mail" — and the honest answer was that no code path sent one.
+ *
+ * Never throws, for the same reason as `tell`: the row is already committed,
+ * and a mail server being down must not turn a recorded request into a 500
+ * that tells the asker to try again. It reports what happened and the route
+ * decides what that means.
+ */
+export async function tellOperator(event: NotificationEvent): Promise<TellOutcome> {
+  const { config } = envChannel();
+  if (!config.enabled) return 'off';
+
+  try {
+    // NOTIFY_LOCALE is optional, and `en` is the default the rest of the
+    // product already settles on (`raw.locale === 'nl' ? 'nl' : 'en'`).
+    // Resolved once so the rendered message and the notifier cannot disagree
+    // about which language this is.
+    const locale: NotificationLocale = config.settings.locale ?? 'en';
+    const notifier = createNotifier(smtpTransport(config.smtp), { ...config.settings, locale });
+    await notifier.notify(renderEvent(event, locale));
+    return 'sent';
+  } catch (error) {
+    log.error('[access-notify] could not tell the operator about a new request:', error);
+    return 'failed';
+  }
+}

@@ -624,6 +624,39 @@ be wrong silently. Neither side is the safe side; being told is.
 If you are ever unsure which environment a served `dist` was built for, read the
 host out of a *Request access* link in the page source.
 
+## Mail: caught, not delivered
+
+Every notification this stack sends goes to **Mailpit**, a catcher on the
+compose network. Read what it caught at `http://localhost:3127` (`MAILPIT_PORT`).
+
+```bash
+docker compose -f deploy/compose/managed.yml up -d mailpit
+curl -s localhost:3127/api/v1/messages | head -c 400
+```
+
+**A catcher rather than a relay, on purpose.** Every mail the product sends is
+visible in a browser; the gate exercises grant, decline and now request on every
+nightly run, and none of it can reach a real inbox. `NOTIFY_FROM` and
+`NOTIFY_TO` default to `…@ownpace.invalid` — RFC 2606 reserved, so if these ever
+reach a real relay the result is a bounce rather than mail to a stranger.
+
+**For real delivery**, point `SMTP_HOST` at a relay, set `SMTP_PORT` /
+`SMTP_SECURE` to match, and set `NOTIFY_TO` to an address a person reads. Then
+re-run `./deploy/compose/set-task-env.sh` — task containers inherit nothing from
+compose, so a value only in `.env` is a value the digest will never see.
+
+`bootstrap-managed.sh` says so out loud when `SMTP_HOST` is still the catcher
+and `WEB_URL` is an https origin that is not localhost: every send would report
+`sent`, because it *was* sent — to a server whose job is to keep it.
+
+**Somebody knocking now reaches you.** Until 2026-08-24,
+`POST /api/access-requests` inserted a row, wrote one log line and told nobody:
+the queue was the intended channel, which works exactly as well as somebody's
+habit of opening it. It now sends `access_requested` to `NOTIFY_TO`, carrying
+the address, organisation and tier — **not** the applicant's note, which stays
+in the database behind authentication where the queue shows it. When no channel
+is configured the API logs, per request, that nobody was told.
+
 ## The CI runner is a different checkout from wherever you did this by hand
 
 If you brought the stack up manually — following this document, on this same

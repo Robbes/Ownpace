@@ -235,3 +235,95 @@ describe('the shared library keeps its own contract', () => {
     expect(fn).not.toMatch(/^\s*(echo|printf|say)\b/m);
   });
 });
+
+/**
+ * MAIL THAT REPORTS `sent` AND REACHES NOBODY.
+ *
+ * `SMTP_HOST` defaults to `mailpit`, the catcher in this stack. Right here and
+ * wrong on a real deployment, and quiet in the worst way: every send reports
+ * `sent`, because it WAS sent — to a server whose job is to keep it. Nobody
+ * hears about a granted account until somebody asks why they never got the
+ * email.
+ *
+ * `WEB_URL` already says which kind of deployment this is, so the two facts
+ * can be compared instead of trusted to agree — the same shape as `--public`
+ * against `OWNPACE_APP_URL` in the site build.
+ *
+ * RUN, not read. The condition is three cases of a `case` statement and a
+ * string comparison, which is exactly the kind of thing that reads correct and
+ * behaves otherwise.
+ */
+describe('a catcher serving what looks like a real deployment', () => {
+  function noteFor(env: Record<string, string>): string {
+    const home = mkdtempSync(join(tmpdir(), 'mailnote-'));
+    try {
+      const envFile = join(home, '.env');
+      writeFileSync(
+        envFile,
+        Object.entries(env)
+          .map(([k, v]) => `${k}=${v}`)
+          .join('\n') + '\n',
+      );
+      // The three functions this one needs, lifted from the real script so the
+      // text under test is the text that ships.
+      const fn = (name: string) => {
+        const at = bootstrap.indexOf(`${name}() {`);
+        return at < 0 ? '' : bootstrap.slice(at, bootstrap.indexOf('\n}\n', at) + 3);
+      };
+      const program = [
+        'set -uo pipefail',
+        `ENV_FILE="${envFile}"`,
+        'note() { echo "    $*"; }',
+        fn('env_get'),
+        fn('note_mail_goes_nowhere_real'),
+        'note_mail_goes_nowhere_real',
+      ].join('\n');
+      const r = spawnSync('bash', ['-c', program], { encoding: 'utf8' });
+      return `${r.stdout ?? ''}${r.stderr ?? ''}`.trim();
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  }
+
+  it('the function was found in the script, not silently skipped', () => {
+    expect(bootstrap).toContain('note_mail_goes_nowhere_real() {');
+    expect(bootstrap, 'defined but never called').toMatch(/^ {2}note_mail_goes_nowhere_real$/m);
+  });
+
+  it('speaks when a real https WEB_URL is served by the catcher', () => {
+    const said = noteFor({ SMTP_HOST: 'mailpit', WEB_URL: 'https://app.ota.ownpace.eu' });
+    expect(said).toContain('GOES TO THE CATCHER');
+    expect(said, 'the note does not name the deployment it is about').toContain(
+      'https://app.ota.ownpace.eu',
+    );
+    expect(said, 'no way to look at what was caught').toContain('http://localhost:');
+  });
+
+  it('says nothing on a local stack, which is the ordinary case', () => {
+    expect(noteFor({ SMTP_HOST: 'mailpit', WEB_URL: 'http://localhost:3123' })).toBe('');
+    expect(noteFor({ SMTP_HOST: 'mailpit', WEB_URL: 'https://localhost:3123' })).toBe('');
+  });
+
+  it('says nothing once a real relay is configured', () => {
+    // The whole point is the pairing, not the hostname. A real deployment with
+    // a real relay is the state this is steering towards and must be quiet.
+    expect(noteFor({ SMTP_HOST: 'smtp.example.test', WEB_URL: 'https://app.ota.ownpace.eu' })).toBe(
+      '',
+    );
+  });
+
+  it('says nothing when SMTP is unset, because that is a different problem', () => {
+    // Nothing is being sent anywhere, and `readNotifierConfig` already names
+    // that. Two notes about one silence is how both get ignored.
+    expect(noteFor({ SMTP_HOST: '', WEB_URL: 'https://app.ota.ownpace.eu' })).toBe('');
+  });
+
+  it('names the port from .env rather than assuming the default', () => {
+    const said = noteFor({
+      SMTP_HOST: 'mailpit',
+      WEB_URL: 'https://app.ota.ownpace.eu',
+      MAILPIT_PORT: '3999',
+    });
+    expect(said).toContain('http://localhost:3999');
+  });
+});
