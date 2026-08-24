@@ -2715,3 +2715,41 @@ which the hardcoded-host rule now asserts rather than merely exempts.
 A third incoherence went with it: a `--public` build printed *"Every placeholder
 must be filled"* and *"MUST NOT be published publicly"* **about the same build**,
 and published anyway. `must be filled` is now enforced where it is claimed.
+
+## A service nobody ever started, twice
+
+`docker ps | grep own` on the Spark had no `ownpace-status` in it. The status
+page was in `managed.yml`, had `STATUS_PORT` in `managed.env.example`, a section
+in `docs/managed-bring-up.md` stating it **"starts with everything else"**, and
+a whole `status-page.md` of its own.
+
+`grep -c '\bgatus\b' deploy/compose/bootstrap-managed.sh` → **0**.
+
+Named nowhere. No bring-up had ever started it, and the documentation had been
+saying otherwise since the day it was written.
+
+**This is the second time.** `zitadel` was added in #496 and left out of the same
+list: for three weeks every compose command had to satisfy `ZITADEL_MASTERKEY`
+for a container that did not exist, E2E (managed) #34–#36 died on it, and the
+nightly said nothing whatsoever about whether anybody could sign in.
+
+Neither was a typo. It is what happens when the file that DEFINES the stack and
+the file that STARTS it are two files nothing compares. So they are compared now.
+
+### A deliberately weak rule
+
+`scripts/every-service-somebody-starts.unit.test.ts` asks only whether the
+bring-up **mentions** each service by name — not whether it starts it correctly,
+in the right phase, with the right flags. A stronger rule would have to model
+`up_wait`, the phase list, `--with-demo` and `--from`, and **a guard that models
+its subject is a guard that goes stale.** "Named nowhere at all" is exactly the
+shape both failures had, and it is cheap to be certain of.
+
+One exemption, with its reason in the source: `zitadel-machinekey`, a one-shot
+`run` that chowns a volume rather than a service to start. The rule also asserts
+every exemption still names a service that exists — an exemption for something
+deleted is a comment claiming a decision nobody is making.
+
+The scan stops at the next top-level key, because a naive two-space-indent read
+takes `ownpace-network` for a service and then demands the bring-up start a
+network. That case is in the tests.

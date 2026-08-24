@@ -1047,6 +1047,17 @@ phase_app() {
     # scenery (workplan 0099).
     zitadel
     api web
+    # The status page (workplan 0094). It was in managed.yml, had STATUS_PORT in
+    # managed.env.example, a section in docs/managed-bring-up.md claiming it
+    # "starts with everything else", and its own status-page.md — and it was
+    # named NOWHERE in this script, so no bring-up had ever started it. Exactly
+    # what happened to zitadel above, discovered the same way: a `docker ps` on
+    # the Spark with no `ownpace-status` in it.
+    #
+    # It has no `depends_on` by design — "a status page that will not start
+    # until the thing it is watching is healthy is a status page that is never
+    # there when it matters" — so it can come up anywhere in this list.
+    gatus
   )
   [ "$WITH_DEMO" -eq 1 ] && services+=(nextcloud)
 
