@@ -38,6 +38,11 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// `prices.mjs` refuses to resolve APP_URL without being told which app it is
+// building for, and `build.mjs` imports it at load. Set before any dynamic
+// import below — a default here would put back the thing the refusal removes.
+process.env.OWNPACE_APP_URL = 'https://app.ota.ownpace.eu';
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, '..');
 const read = (p: string) => readFileSync(join(REPO, p), 'utf8');

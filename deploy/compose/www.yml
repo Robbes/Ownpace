@@ -6,17 +6,27 @@
 # without a migration. Bringing the app stack down does not take the site with
 # it, and the site cannot be the reason the app stack fails to start.
 #
-#   node site/build.mjs                                  # generate site/dist
-#   docker compose -f deploy/compose/www.yml up -d        # serve it
+#   OWNPACE_APP_URL=https://app.ota.ownpace.eu node site/build.mjs   # site/dist
+#   docker compose -f deploy/compose/www.yml up -d                    # serve it
+#
+# OWNPACE_APP_URL HAS NO DEFAULT, AND THE BUILD REFUSES WITHOUT IT. It is where
+# every "Request access" button points. It used to default to production, and on
+# 2026-08-24 this site was rebuilt without it: every button on
+# `www.ota.ownpace.eu` pointed at `https://app.ownpace.eu/request-access`, so a
+# click on the TEST site filed a real access request against the real tenant.
+# Production is not the safe side of an environment boundary — being told is.
+# Use `https://app.ownpace.eu` when building the production site.
 #
 # Netbird maps the external name to WWW_PORT on this host; externally the name
 # is on 443/https and the port is an internal detail, which is why the redirect
 # URIs registered with Google carry no port.
 #
 # THE BUILD IS NOT RUN HERE. `site/dist` is generated and mounted read-only
-# rather than baked into an image, so re-publishing is `node site/build.mjs`
-# and nothing else. It also means a stale dist serves silently — check the
-# build stamp in the page source if something looks old.
+# rather than baked into an image, so re-publishing is the build command above
+# and nothing else — nginx serves from the mount, so no restart is needed. It
+# also means a stale dist serves silently: check the build stamp in the page
+# source if something looks old, and the host in a "Request access" href if you
+# are not certain which environment this dist was built for.
 
 services:
   www:
