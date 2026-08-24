@@ -1712,3 +1712,47 @@ only fires in the one environment nobody runs on a pull request is not a
 rule, it is a landmine with a date on it.** The credential's clock, the
 take-back nobody counted, and now a version pin nobody could see — each
 invisible until something independent checked, and each cheap once it was.
+
+## What no gate has ever driven
+
+A sweep of the three e2e gates — `e2e.yml` (self-hosted, two nightly
+backends), `e2e-managed.yml` (05:30 on the Spark) and `e2e-o365.yml`
+(secret-gated, a real read-only tenant) — against the connector list DERIVED
+from `config.ts` rather than a list written by hand.
+
+**The gates are in better shape than the question implies.** All four domains
+— mail, calendar, contact, file — are seeded and migrated and verified by
+`e2e.yml`; the managed smoke verifies two mappings across a mail tenant and a
+DAV tenant with required-domain assertions; API route families are already
+derived from `index.ts` and guarded by `gate-coverage.unit.test.ts`, with a
+written reason demanded for each one the smoke skips.
+
+**One shipping path has never run.** `imap-dav` is a first-class TARGET type:
+the API constructs it (`routes/migrations/index.ts`), `config.ts` parses it,
+`build-deps.ts` builds it — and no gate, seed, appliance config or smoke has
+ever selected it. Mail written to an IMAP target rather than a JMAP one is
+covered by unit tests and by nothing that runs. It is also plainly
+**coverable**: the Stalwart the gates already stand up serves IMAP on 993 with
+the target account provisioned, so closing it needs no new infrastructure and
+no credentials.
+
+The gap was invisible from any one place, which is why a guard now derives the
+list and demands one of three verdicts per type: **driven** (a gate stands it
+up), **uncoverable** (something outside this repository is needed — a Google
+account, a Box app — with the reason), or **owed** (coverable here, not done).
+Owed is kept separate from uncoverable on purpose: folding "we have not got to
+it" in with "it needs somebody's Google account" is exactly how a closable gap
+becomes permanent, because both read as "not covered" and only one of them
+should ever be accepted. The owed list is asserted EXACTLY, so a second entry
+fails until somebody writes that decision down.
+
+**And the gate was still carrying scaffolding.** A `probe:` job added on
+2026-08-23 to ask the running Zitadel two questions — commented "Deleted
+before this branch is proposed", with a `probe_only` dispatch input that
+switched the real gate OFF — was never deleted. It lived on `main` for a day:
+a second job, an extra input on every dispatch dialog, and an `if:` on the
+real job whose only purpose was to dodge a probe nobody would run again.
+Harmless, and the point is that the promise was in a comment, and a comment
+cannot delete anything. The workflow now declares exactly one job, takes no
+dispatch input, carries no `if:` and says TEMPORARY nowhere — each asserted,
+and each proved by putting the probe back.

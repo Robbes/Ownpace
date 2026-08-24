@@ -73,11 +73,6 @@ on:
     # and the loser would be blamed on whatever it happened to be testing.
     - cron: '30 5 * * *'
   workflow_dispatch:
-    inputs:
-      probe_only:
-        description: 'TEMPORARY (branch-only): run just the idp probe, not the gate'
-        type: boolean
-        default: false
 
 concurrency:
   group: ${{ github.workflow }}
@@ -109,56 +104,7 @@ env:
   TRIGGER_API_URL: http://localhost:3090
 
 jobs:
-  # TEMPORARY. Not a gate — two questions put to the running stack, because how
-  # the API reaches the issuer and what a real token from it contains are facts
-  # about a live Zitadel, not things to guess at. Deleted before this branch is
-  # proposed.
-  probe:
-    if: inputs.probe_only
-    runs-on: [self-hosted, linux, arm64]
-    timeout-minutes: 10
-    steps:
-      - name: H — can an INSTANCE domain be added with the provisioning token?
-        run: |
-          set -uo pipefail
-          exec 3>/tmp/findings; f() { echo "$*" >&3; }
-          trap 'echo; echo "================ FINDINGS ================"; cat /tmp/findings' EXIT
-          ISS=http://localhost:3126
-          PAT="$(docker run --rm -v ownpace-managed_zitadel_machinekey:/machinekey alpine \
-                  cat /machinekey/pat.txt | tr -d '\r\n')"
-          [ -n "$PAT" ] || { f "no PAT"; exit 0; }
-          echo "::add-mask::$PAT"
-          try() {
-            local out
-            out="$(curl -sS -m 10 -w ' [http %{http_code}]' -X "$1" "$ISS$2" \
-              -H "Authorization: Bearer $PAT" -H 'Content-Type: application/json' \
-              ${3:+-d "$3"} 2>&1)"
-            f "$1 $2 ${3:-} -> ${out:0:200}"
-          }
-          f "=== is AddInstanceDomain reachable with a PAT? ==="
-          try POST /admin/v1/domains '{"domain":"ownpace-idp"}'
-          try POST /admin/v1/instance/domains '{"domain":"ownpace-idp"}'
-          try POST /admin/v1/iam/domains '{"domain":"ownpace-idp"}'
-          try POST /admin/v1/domains/_search '{}'
-          f "=== instance domains after ==="
-          f "$(curl -sS -m 10 -X POST "$ISS/admin/v1/domains/_search" -d '{}' \
-               -H "Authorization: Bearer $PAT" -H 'Content-Type: application/json' | jq -c '[.result[]?.domain]')"
-          f "=== and the origin, from inside ownpace-api ==="
-          f "$(docker exec ownpace-api node -e '
-            (async () => {
-              for (const u of ["http://ownpace-idp:8080/.well-known/openid-configuration"]) {
-                try {
-                  const r = await fetch(u, { signal: AbortSignal.timeout(5000) });
-                  const b = await r.text();
-                  let d; try { const j = JSON.parse(b); d = `issuer=${j.issuer}`; } catch { d = b.slice(0, 150); }
-                  console.log(`  ${u} -> http ${r.status}  ${d}`);
-                } catch (e) { console.log(`  ${u} -> THREW ${e.message}`); }
-              }
-            })();
-          ' 2>&1)"
-
   e2e-managed:
-    if: ${{ !inputs.probe_only }}
     runs-on: [self-hosted, linux, arm64]
     timeout-minutes: 60
     steps:
