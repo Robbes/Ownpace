@@ -765,3 +765,69 @@ describe('a bring-up that waits can say why it failed', () => {
     );
   });
 });
+
+describe('the Trigger.dev images and the SDK that builds the tasks agree', () => {
+  /**
+   * `bootstrap-managed.sh` refuses to bring the stack up when
+   * `apps/worker`'s `@trigger.dev/sdk` and the image tag disagree (0018 T0):
+   * the tasks it deploys RUN inside those images, and "the 4.5.x family is
+   * SDK-compatible" is a hope, not a deploy story.
+   *
+   * That refusal is a RUNTIME one — it fires at `docker compose up`, which
+   * only the managed gate ever performs, and which no pull request runs. So
+   * the agreement was invisible to CI, and dependabot walked straight through
+   * it: PR #528 bumped the SDK 4.5.9 -> 4.5.12, passed all seventeen checks,
+   * merged, and the next managed run died at the bring-up. The nightly would
+   * have died the same way. Two hand-maintained numbers in three files and
+   * nothing comparing them — the same shape as the service list (0099), the
+   * MOUNTS list (0096) and the trigger filters (0097).
+   *
+   * So the numbers are compared HERE, where a pull request can see it. The
+   * fix for a red from this test is a decision, not an edit: either hold the
+   * SDK back, or move all three and accept that the next bring-up recreates
+   * the Trigger.dev webapp and supervisor at the new tag.
+   */
+  const workerPkg = JSON.parse(readFileSync(join(REPO_ROOT, 'apps/worker/package.json'), 'utf8'));
+  const compose = readFileSync(join(REPO_ROOT, 'deploy/compose/managed.yml'), 'utf8');
+  const example = readFileSync(join(REPO_ROOT, 'deploy/compose/managed.env.example'), 'utf8');
+
+  /** Every `${TRIGGER_IMAGE_TAG:-vX}` default in managed.yml. */
+  const composeDefaults = [...compose.matchAll(/\$\{TRIGGER_IMAGE_TAG:-(v[^}]+)\}/g)].map((m) => m[1]);
+
+  it('read the real files', () => {
+    expect(workerPkg.dependencies?.['@trigger.dev/sdk']).toBeTruthy();
+    // Both the webapp and the supervisor carry the tag; one of them drifting
+    // alone would run a split-version plane.
+    expect(composeDefaults.length).toBe(2);
+  });
+
+  it('every image in managed.yml carries the SAME tag', () => {
+    expect(new Set(composeDefaults).size, `managed.yml disagrees with itself: ${composeDefaults.join(' vs ')}`).toBe(1);
+  });
+
+  it('the image tag matches the SDK apps/worker builds its tasks with', () => {
+    // The exact comparison bootstrap-managed.sh makes, made where CI can see
+    // it: tag without the leading v, against the SDK's pinned version.
+    const sdk = workerPkg.dependencies['@trigger.dev/sdk'];
+    // Read once and asserted present: an empty match list would otherwise
+    // make every comparison below vacuously true.
+    const tag = composeDefaults[0] ?? '';
+    expect(tag, 'managed.yml declares no TRIGGER_IMAGE_TAG default at all').not.toBe('');
+    expect(
+      tag.replace(/^v/, ''),
+      `managed.yml runs images ${tag} but apps/worker builds tasks with SDK ${sdk}. ` +
+        'bootstrap-managed.sh refuses this at bring-up, so a merge with it red breaks E2E (managed). ' +
+        'Reconcile deliberately: hold the SDK back, or move BOTH managed.yml defaults and ' +
+        'managed.env.example forward and accept that the next bring-up recreates the Trigger.dev plane.',
+    ).toBe(sdk);
+  });
+
+  it('the example env agrees too, or a fresh .env reintroduces the drift', () => {
+    // managed.env.example is copied to .env on a new machine, and a value
+    // there WINS over managed.yml's default — so a stale one here puts the
+    // drift back on exactly the machine least able to debug it.
+    const exampleTag = /^TRIGGER_IMAGE_TAG=(.+)$/m.exec(example)?.[1]?.trim();
+    expect(exampleTag, 'managed.env.example names no TRIGGER_IMAGE_TAG').toBeTruthy();
+    expect(exampleTag).toBe(composeDefaults[0] ?? '');
+  });
+});
