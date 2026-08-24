@@ -1886,3 +1886,133 @@ both again in one new file. The pattern is not carelessness about the rule; it
 is that a rule lives where it was written. What generalises it is a test that
 reads every file, and the only reason these cost nothing is that somebody had
 already written those tests and something ran them.
+
+## The one dependency that floated
+
+The v4.5.12 upgrade was prepared about as carefully as this repository knows
+how. Four places identified and a tool built to move them together. A guard so
+dependabot could not move one of them alone again. A backup taken, verified by
+decompressing it and reading the SQL, and a restore drill that proves the round
+trip on every nightly pass. The queue drained first. And it crash-looped inside
+a minute:
+
+```
+Code: 80. DB::Exception: Only literals can be skip index arguments. (version 25.5.2.47)
+```
+
+Not Trigger.dev. **ClickHouse** — `bitnamilegacy/clickhouse:latest`, a line
+nobody had looked at since it was written, in a service the upgrade checklist
+never mentions because it is not one of the four places.
+
+**Everything the preparation covered, it covered. It just described the wrong
+surface.** `trigger-version.sh list` answers "which Trigger.dev versions can I
+move to" precisely and reliably — it probes manifests rather than trusting a
+tag list, because that lesson had already been paid for. What it cannot see is
+what runs *underneath* Trigger.dev, and the version agreement it enforces spans
+four hand-maintained numbers that are all in the same layer. A dependency one
+level down, with no number at all, was outside every check by construction.
+
+I told Rob this was "a genuinely low-risk afternoon". That was wrong, and it
+was wrong in a specific way worth naming: I assessed the risk of the thing I
+had built tooling for. The tooling was good. The estimate covered its blast
+radius and called that the whole risk.
+
+**`latest` on an archived repository is the worst of both worlds.** It never
+moves, so nothing ever breaks and nothing draws attention. And it never says
+where it stopped — `bitnamilegacy` was frozen in August 2025, so `latest` had
+quietly meant 25.5.2 for a year, a version whose SQL dialect rejects a
+migration the new webapp ships. There was no newer tag to move to; the family
+tops out at 25.7.5. The apparent safety of "it's pinned in practice, the repo
+is archived" is exactly what made it invisible.
+
+The one part that went right went right for a designed reason: the migration
+**failed closed**. It refused, the API crash-looped instead of half-migrating,
+and the rollback to v4.5.9 was clean with no restore needed. The backup was not
+the thing that saved this. A migration that stops when it cannot proceed was.
+
+### What changed
+
+ClickHouse is `clickhouse/clickhouse-server:26.2.19.43`, pinned **by digest**,
+which is what upstream's own `docker-compose.yml` runs for this release — the
+only ClickHouse the failing migration has ever been proved against. The
+override file moves to `/etc/clickhouse-server/config.d/`, where the official
+image reads it, and `ulimits nofile` comes across too, since ClickHouse opening
+more files than the default soft limit allows surfaces as errors that look like
+corruption.
+
+The environment variables are renamed with the image, and that rename is the
+part that would have failed silently. Bitnami reads `CLICKHOUSE_ADMIN_USER` /
+`CLICKHOUSE_ADMIN_PASSWORD`; the official image reads `CLICKHOUSE_USER` /
+`CLICKHOUSE_PASSWORD`. Carrying the old names across would have started an
+instance on DEFAULT credentials while `CLICKHOUSE_URL` and
+`RUN_REPLICATION_CLICKHOUSE_URL` — which already interpolate the configured
+ones — kept presenting the configured password. A bring-up that comes up
+healthy and refuses every query.
+
+The data mount moves to a **new volume**, `clickhouse_data_v2`, and the old
+`clickhouse_data` is left on disk (hard rule 2). Bitnami kept its data under
+`/bitnami/clickhouse`; pointing the old volume at the official path would hand
+ClickHouse a directory laid out by a different vendor. So the first bring-up
+starts empty, and what is lost is dashboard task-event history — the event
+store is derived from the run records in `triggerdb`, so nothing about running,
+deploying or recovering tasks depends on it.
+
+Upstream's `clickhouse-disable-system-logs.xml` comes across too, and it comes
+across **now** rather than later for a reason the empty volume creates: with no
+accumulated ceiling, ClickHouse's eleven internal log tables start filling a
+fresh disk from the first boot, on the same box that holds Postgres, MinIO, the
+registry, the task images and the nightly Trigger.dev dumps. That is yesterday's
+lesson — the drill quietly filling the disk — arriving from a different
+direction, and it is cheaper to bring the file in with the pin than to discover
+it at 90% full.
+
+### And the class, not the instance
+
+`bootstrap-managed.unit.test.ts` now reads every `image:` in `managed.yml` and
+refuses `latest` or a bare repository name. The rule is deliberately narrow: it
+does **not** demand a digest everywhere, because `postgres:18-alpine` and
+`redis:7-alpine` fix a major version and take patches on purpose — somebody
+made that trade. `latest` is not a trade, it is the absence of one.
+
+**A float that remains is named with its reason rather than allowed in
+silence**, the way the connector coverage guard lists what it is owed. There is
+exactly one: `bitnamilegacy/minio`. Pinning it recreates the object store
+holding Trigger.dev's packets and run artifacts, and the bitnami and upstream
+minio images disagree on both data path and environment variable names — a
+deliberate change with a restore plan of its own, not a rider on a ClickHouse
+fix. The list is asserted **exactly**, so an unlisted float fails and so does a
+listed one somebody has since pinned. It cannot rot in either direction.
+
+### The guard that found something while being written
+
+Adding a second ClickHouse config file meant adding a second bind mount, and a
+bind mount is another thing nothing checked. **A missing mount source does not
+fail** — Docker creates an empty *directory* at that path and mounts that, so
+the container starts, the config is silently absent, and the service runs on
+defaults. For `clickhouse-override.xml` that means the <16GB-RAM tuning quietly
+stops applying on a 16GB box; for `pgbouncer.ini`, a pooler with no
+configuration at all.
+
+The guard for that found a missing file on its first run: `pgbouncer/
+userlist.txt`. Which is **correct** — it holds the pooler's md5 credentials, so
+`ensure-env-secrets.sh` writes it at bring-up and `.gitignore` keeps it out
+(hard rule 3). Absence is right; presence would be the bug.
+
+So it takes the same shape as the float list, with one addition worth the extra
+five lines: a mount may be absent if it is named as generated, **and every name
+must be gitignored**. Without that second half the list is a place to put files
+somebody merely forgot to commit. "Generated" is a claim; `.gitignore` is where
+this repository records having meant it. It is also checked against
+`.gitignore` rather than against the disk on purpose — on a machine that has
+run the bring-up the file exists, so "is it there" would pass on the Spark and
+fail in CI for the same commit.
+
+Seven mutations, seven caught: ClickHouse back to `bitnamilegacy:latest`;
+ClickHouse pinned by version but not by digest; minio dropped from the named
+list while still floating; minio pinned while still listed; a float excused
+with a five-character reason; the new config file left uncommitted; and a
+committed file relabelled as generated without a `.gitignore` entry.
+
+The honest summary is that a year-old line in a compose file beat a day of
+tooling, and the only reason it cost an afternoon rather than a weekend is that
+the migration refused to half-finish.

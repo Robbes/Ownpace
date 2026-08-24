@@ -33,6 +33,7 @@ import {
   readFileSync,
   rmSync,
   chmodSync,
+  existsSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -829,5 +830,184 @@ describe('the Trigger.dev images and the SDK that builds the tasks agree', () =>
     const exampleTag = /^TRIGGER_IMAGE_TAG=(.+)$/m.exec(example)?.[1]?.trim();
     expect(exampleTag, 'managed.env.example names no TRIGGER_IMAGE_TAG').toBeTruthy();
     expect(exampleTag).toBe(composeDefaults[0] ?? '');
+  });
+});
+
+describe('nothing in the managed stack runs whatever `latest` happens to mean', () => {
+  /**
+   * THE ONE DEPENDENCY THAT FLOATED.
+   *
+   * The v4.5.12 upgrade was reasoned about carefully — four places to move,
+   * a tool to move them, a verified backup and a restore drill first — and it
+   * crash-looped anyway, on the one input none of that looked at:
+   *
+   *   Code: 80. DB::Exception: Only literals can be skip index arguments.
+   *   (version 25.5.2.47)
+   *
+   * `clickhouse` was `bitnamilegacy/clickhouse:latest`. Nothing in the repo
+   * said which ClickHouse the stack ran, so nothing could notice that it ran a
+   * version whose SQL dialect rejects a migration v4.5.12 ships. `latest` on an
+   * ARCHIVED repository is the worst of both: it never moves, and it never
+   * tells you where it stopped. `trigger-version.sh list` cannot see this class
+   * — it reads Trigger.dev's tags, and the thing that broke was underneath.
+   *
+   * So the rule is narrow and absolute: NO image in the managed stack may be
+   * `latest` or tagless. It deliberately does NOT demand a digest everywhere —
+   * `postgres:18-alpine` and `redis:7-alpine` fix the major version and take
+   * patches on purpose, which is a trade somebody made. `latest` is not a
+   * trade; it is the absence of one.
+   *
+   * A float that remains is NAMED here with its reason, the way the connector
+   * coverage guard lists what it is owed. An unlisted float fails, and so does
+   * a listed one that has been fixed — the list cannot rot in either direction.
+   */
+  const composeYml = readFileSync(join(REPO_ROOT, 'deploy/compose/managed.yml'), 'utf8');
+
+  /**
+   * Floats this repository still carries, and why each is not fixed HERE.
+   * Emptying this map is the goal; adding to it is a decision to argue for.
+   */
+  const NAMED_FLOATS: Record<string, string> = {
+    'bitnamilegacy/minio':
+      'Pinning it recreates the object store holding Trigger.dev packets and run artifacts, ' +
+      'and the bitnami and upstream minio images disagree on data path and env var names. ' +
+      'That is a deliberate change with a restore plan of its own, not a rider on a ClickHouse fix.',
+  };
+
+  /** `${VAR:-default}` is what compose runs when .env is silent, so read the default. */
+  function withDefaults(image: string): string {
+    return image.replace(/\$\{[A-Za-z_][A-Za-z0-9_]*:-([^}]*)\}/g, '$1');
+  }
+
+  /** The tag an image reference resolves to, or null when pinned by digest. */
+  function tagOf(reference: string): string | null {
+    const image = withDefaults(reference);
+    if (image.includes('@sha256:')) return null;
+    // A ':' before the last '/' is a registry port, not a tag.
+    const lastSlash = image.lastIndexOf('/');
+    const colon = image.indexOf(':', lastSlash + 1);
+    return colon === -1 ? 'latest' : image.slice(colon + 1);
+  }
+
+  function repositoryOf(reference: string): string {
+    const image = withDefaults(reference);
+    const cut = image.search(/[@:]/) === -1 ? image.length : undefined;
+    const lastSlash = image.lastIndexOf('/');
+    const at = image.indexOf('@');
+    const colon = image.indexOf(':', lastSlash + 1);
+    const end = at !== -1 ? at : colon !== -1 ? colon : cut ?? image.length;
+    return image.slice(0, end);
+  }
+
+  const references = [...composeYml.matchAll(/^\s*image:\s*(\S+)\s*$/gm)].map((m) => m[1]!);
+
+  it('read every image in managed.yml', () => {
+    // A scanner that matches nothing passes forever.
+    expect(references.length).toBeGreaterThanOrEqual(14);
+    expect(references.some((r) => r.includes('clickhouse'))).toBe(true);
+  });
+
+  it('every float is a named one, and every named one is still floating', () => {
+    const floating = references
+      .filter((r) => {
+        const tag = tagOf(r);
+        // An unsubstituted ${VAR} means the file itself does not know.
+        return tag === 'latest' || (tag !== null && tag.includes('${'));
+      })
+      .map(repositoryOf)
+      .sort();
+
+    expect(
+      floating,
+      'An image here runs whatever `latest` resolved to on the day it was pulled. ' +
+        'Pin it to a version, or add it to NAMED_FLOATS with the reason it cannot be pinned yet.',
+    ).toEqual(Object.keys(NAMED_FLOATS).sort());
+  });
+
+  it('each named float says why, at length', () => {
+    for (const [repository, reason] of Object.entries(NAMED_FLOATS)) {
+      expect(reason.length, `${repository} is excused without a reason`).toBeGreaterThan(60);
+    }
+  });
+
+  it('clickhouse is pinned by DIGEST, not merely by version', () => {
+    // The one that bit us gets the strongest form available. A version tag can
+    // be repointed; a digest names the bytes. It is also what upstream's own
+    // docker-compose.yml for this Trigger.dev release runs, which is the only
+    // ClickHouse the migration in question has been proved against.
+    const clickhouse = references.find((r) => r.includes('clickhouse'));
+    expect(clickhouse, 'no clickhouse image in managed.yml at all').toBeTruthy();
+    expect(clickhouse).toContain('@sha256:');
+    expect(
+      clickhouse,
+      'bitnamilegacy tops out at 25.7.5, and 25.5.2 is the version that rejected the v4.5.12 migration',
+    ).not.toContain('bitnamilegacy');
+  });
+});
+
+describe('every file managed.yml mounts is a file that exists', () => {
+  /**
+   * A bind mount whose SOURCE is missing does not fail. Docker creates an
+   * empty DIRECTORY at that path and mounts that instead, so the container
+   * starts, the config is silently absent, and the service runs on defaults —
+   * which for `clickhouse-override.xml` means the <16GB-RAM tuning quietly
+   * stops applying on a 16GB box, and for `pgbouncer.ini` a pooler with no
+   * configuration at all. Nothing checked this until a second ClickHouse
+   * config file was added (2026-08-24).
+   *
+   * The exception is real and must stay one: `pgbouncer/userlist.txt` holds
+   * the pooler's md5 credentials, so it is GENERATED at bring-up by
+   * `ensure-env-secrets.sh` and gitignored — hard rule 3. Absence there is
+   * correct; presence in the repository would be the bug.
+   *
+   * So an absent mount must be named below, and every name below must be
+   * gitignored. That second half is what keeps the list from becoming a place
+   * to put files somebody merely forgot to commit: "generated" is a claim,
+   * and `.gitignore` is where this repository records having meant it.
+   */
+  const composeYml = readFileSync(join(REPO_ROOT, 'deploy/compose/managed.yml'), 'utf8');
+  const gitignore = readFileSync(join(REPO_ROOT, '.gitignore'), 'utf8');
+  const COMPOSE_DIR = join(REPO_ROOT, 'deploy/compose');
+
+  /** Mounts that are WRITTEN at bring-up, and why each cannot be committed. */
+  const GENERATED_AT_BRING_UP: Record<string, string> = {
+    './pgbouncer/userlist.txt':
+      "The pooler's md5 credentials. ensure-env-secrets.sh writes it from .env at bring-up; " +
+      'committing it would put a working secret in the repository (hard rule 3).',
+  };
+
+  /** Every `- ./x:/y` bind mount source in the file. */
+  const sources = [...composeYml.matchAll(/^\s*-\s+(\.\/[^:\s]+):/gm)].map((m) => m[1]!);
+
+  it('found the bind mounts', () => {
+    expect(sources.length).toBeGreaterThanOrEqual(5);
+    expect(sources).toContain('./clickhouse-disable-system-logs.xml');
+  });
+
+  it('each one is committed, or named as generated', () => {
+    const unexplained = sources.filter(
+      (source) => !existsSync(join(COMPOSE_DIR, source)) && !(source in GENERATED_AT_BRING_UP),
+    );
+    expect(
+      unexplained,
+      'managed.yml mounts a path that is neither in the repository nor listed as generated. ' +
+        'Docker will create an empty DIRECTORY there and the service will start WITHOUT the ' +
+        'config, on defaults.',
+    ).toEqual([]);
+  });
+
+  it('every mount called generated is actually gitignored', () => {
+    // Checked against .gitignore rather than against the filesystem: on a
+    // machine that HAS run the bring-up the file exists, and a test that reads
+    // "is it there" would pass on the Spark and fail in CI for the same repo.
+    for (const [source, reason] of Object.entries(GENERATED_AT_BRING_UP)) {
+      const path = `deploy/compose/${source.replace(/^\.\//, '')}`;
+      expect(
+        gitignore.split('\n').some((line) => line.trim() === path),
+        `${source} is called generated but .gitignore does not mention ${path} — ` +
+          'so nothing stops it being committed, and nothing says it was meant to be absent.',
+      ).toBe(true);
+      expect(reason.length, `${source} is excused without a reason`).toBeGreaterThan(60);
+    }
   });
 });

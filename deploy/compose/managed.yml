@@ -241,17 +241,64 @@ services:
       - ownpace-network
 
   # Task-event store the webapp actually queries (see the CLICKHOUSE comment
-  # above). The reference stack's service, with its own <16GB-RAM tuning file.
+  # above), with its own <16GB-RAM tuning file.
+  #
+  # PINNED BY DIGEST, TO THE IMAGE TRIGGER.DEV ITSELF RUNS. This was
+  # `bitnamilegacy/clickhouse:latest` until 2026-08-24 — the one floating
+  # dependency in a stack that pins everything else — and `latest` had
+  # resolved to 25.5.2.47. Upgrading Trigger.dev to v4.5.12 then died in its
+  # own ClickHouse migration, on a machine that had been fine for weeks:
+  #
+  #   goose run: ERROR 040_create_task_events_search_v2.sql:
+  #     INDEX idx_search_text search_text TYPE text(tokenizer = 'ngrams',
+  #       preprocessor = lowerUTF8(search_text))
+  #   Code: 80. DB::Exception: Only literals can be skip index arguments.
+  #
+  # v4.5.12 writes a FUNCTION as a skip-index argument; 25.5 only accepts
+  # literals. The webapp crash-looped and the plane was down until the tag
+  # went back. `managed.env.example` has carried "4.5.11 has an outage" since
+  # August with no cause recorded — very likely this, unrecognised because it
+  # presents as a Trigger.dev failure rather than a ClickHouse-version one.
+  #
+  # `bitnamilegacy` is what its name says: Bitnami stopped publishing there,
+  # and its newest ClickHouse is 25.7.5. It can never reach what upstream
+  # needs, so this follows THEIR pin exactly — same image, same digest, as
+  # read from trigger.dev's own docker/docker-compose.yml at v4.5.12. What
+  # they test against is the only version this stack has evidence about.
   clickhouse:
-    image: bitnamilegacy/clickhouse:latest
+    image: clickhouse/clickhouse-server:26.2.19.43@sha256:c2f2605585899d5103a0447daadbc0005f362200d5f0fcca7f40db3ca0dd36dd
     container_name: trigger-clickhouse
     restart: unless-stopped
+    # Upstream's, and not decoration: ClickHouse opens a lot of files and the
+    # default soft limit is where that shows up as corruption-looking errors.
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
     environment:
-      CLICKHOUSE_ADMIN_USER: ${CLICKHOUSE_USER:-default}
-      CLICKHOUSE_ADMIN_PASSWORD: ${CLICKHOUSE_PASSWORD:-password}
+      # The official image's names. Bitnami used CLICKHOUSE_ADMIN_USER /
+      # _ADMIN_PASSWORD; passing those here would start an instance with the
+      # DEFAULT credentials while every consumer used the configured ones.
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-password}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
     volumes:
-      - clickhouse_data:/bitnami/clickhouse
-      - ./clickhouse-override.xml:/bitnami/clickhouse/etc/config.d/override.xml:ro
+      # A NEW VOLUME, and the old one is left alone (hard rule 2). Bitnami
+      # kept its data under /bitnami/clickhouse; the official image reads
+      # /var/lib/clickhouse. Pointing the old volume at the new path would
+      # hand ClickHouse a directory laid out by a different vendor. So this
+      # starts empty — the task-EVENT store is derived from the run records in
+      # triggerdb, so what is lost is dashboard history, not the ability to
+      # run anything — and `clickhouse_data` remains on disk until somebody
+      # deliberately removes it:
+      #     docker volume rm ownpace-managed_clickhouse_data
+      - clickhouse_data_v2:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
+      - ./clickhouse-override.xml:/etc/clickhouse-server/config.d/override.xml:ro
+      # Also upstream's, and it arrives with the pin rather than after it: a
+      # fresh empty volume has no accumulated ceiling, and ClickHouse's own
+      # eleven system log tables would start filling it from the first boot.
+      - ./clickhouse-disable-system-logs.xml:/etc/clickhouse-server/config.d/disable-system-logs.xml:ro
     healthcheck:
       test: ["CMD", "clickhouse-client", "--host", "localhost", "--port", "9000", "--user", "${CLICKHOUSE_USER:-default}", "--password", "${CLICKHOUSE_PASSWORD:-password}", "--query", "SELECT 1"]
       interval: 5s
@@ -814,4 +861,8 @@ volumes:
   minio_data:
   trigger_tls_data:
   trigger_tls_config:
+  # Kept, not reused: the Bitnami-era event store. Safe to remove once
+  # nobody wants the old dashboard history.
   clickhouse_data:
+  clickhouse_data_v2:
+  clickhouse_logs:
