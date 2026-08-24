@@ -596,6 +596,34 @@ it.
 
 ---
 
+## The public site is a separate stack, and it must be told which one it is
+
+`bootstrap-managed.sh` does not bring the site up — `deploy/compose/www.yml` is
+its own stack, deliberately, so that taking the app down does not take the site
+with it. To publish or re-publish:
+
+```bash
+OWNPACE_APP_URL=https://app.ota.ownpace.eu node site/build.mjs   # test (OTA)
+OWNPACE_APP_URL=https://app.ownpace.eu     node site/build.mjs   # production
+docker compose -f deploy/compose/www.yml up -d
+```
+
+`site/dist` is bind-mounted read-only, so a rebuild is live immediately and no
+restart is needed.
+
+**`OWNPACE_APP_URL` has no default and the build refuses without it.** It is
+where every *Request access* button points, and the environment is a domain
+level (workplan 0091). It used to default to production, on the argument that a
+forgotten variable should land on the safe side. On 2026-08-24 the OTA site was
+rebuilt without it, and every button on `www.ota.ownpace.eu` pointed at
+`https://app.ownpace.eu/request-access` — a click on the *test* site filing a
+real access request against the real tenant. The build that forgets is by
+definition the one whose value is not the default, so a default can only ever
+be wrong silently. Neither side is the safe side; being told is.
+
+If you are ever unsure which environment a served `dist` was built for, read the
+host out of a *Request access* link in the page source.
+
 ## The CI runner is a different checkout from wherever you did this by hand
 
 If you brought the stack up manually — following this document, on this same
