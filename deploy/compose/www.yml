@@ -23,10 +23,22 @@
 #
 # THE BUILD IS NOT RUN HERE. `site/dist` is generated and mounted read-only
 # rather than baked into an image, so re-publishing is the build command above
-# and nothing else — nginx serves from the mount, so no restart is needed. It
-# also means a stale dist serves silently: check the build stamp in the page
-# source if something looks old, and the host in a "Request access" href if you
-# are not certain which environment this dist was built for.
+# and nothing else — no restart — BECAUSE `site/build.mjs` EMPTIES `dist`
+# instead of replacing it.
+#
+# That distinction is load-bearing, not a detail. A bind mount resolves to an
+# INODE when the container starts. A build that removed and recreated the
+# directory would leave this nginx holding the old, unlinked one: `total 0`
+# inside the container, every file present and correct outside, and
+# `directory index of "/usr/share/nginx/html/" is forbidden` on every request —
+# a 403 that reads like a permissions problem and is not one. This header
+# claimed "no restart is needed" while the build did exactly that, and cost an
+# evening on the Spark (2026-08-24). If anything ever does replace the
+# directory, `up -d --force-recreate` re-resolves the mount.
+#
+# A stale dist also serves silently: check the build stamp in the page source
+# if something looks old, and the host in a "Request access" href if you are
+# not certain which environment this dist was built for.
 
 services:
   www:
