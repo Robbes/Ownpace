@@ -177,9 +177,7 @@ router.post('/', async (req: Request, res: Response) => {
     // 201 and nothing about them. See point 4 above.
     res.status(201).json({
       received: true,
-      message:
-        'Thank you — we have your request. A person reads these, and you will hear back by ' +
-        'email.',
+      message: 'Thank you — we have your request. You will hear back by email.',
     });
   } catch (error) {
     serverFault(res, 'access_request_failed', 'recording this request', error);

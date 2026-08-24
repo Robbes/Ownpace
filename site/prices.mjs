@@ -134,6 +134,20 @@ export const APP_URL = (() => {
   return raw.replace(/\/+$/, '');
 })();
 
+/**
+ * The production site's app, named ONCE so that `--public` and `OWNPACE_APP_URL`
+ * can be checked against each other rather than trusted to agree.
+ *
+ * They are two ways of saying which environment a build is for — `--public`
+ * decides `noindex` and `robots.txt`, this decides where every "Request access"
+ * button points — and until 2026-08-24 nothing compared them. A public build
+ * linking to the test app, or a noindex build linking to production, both
+ * produced happily. The second of those is the bug that put production links on
+ * `www.ota.ownpace.eu`; making the variable required stopped the *silent* case
+ * and left the *contradictory* one. `build.mjs` refuses both now.
+ */
+export const PUBLIC_APP_URL = 'https://app.ownpace.eu';
+
 /** The page a visitor asks for an account on. Invite-only: asking is not signing up. */
 export const REQUEST_ACCESS_URL = `${APP_URL}/request-access`;
 
