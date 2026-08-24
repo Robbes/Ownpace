@@ -793,6 +793,42 @@ pinned.
 > when an upgrade goes wrong: the older version has run history behind it and
 > the newer one does not.
 
+> ⚠️ **The four places are not the only thing an upgrade depends on.** The
+> v4.5.12 attempt did all of the above — verified backup, drained queue, all
+> four numbers moved with the tool — and `trigger-api` crash-looped anyway on
+> a dependency none of it looked at:
+>
+> ```
+> Code: 80. DB::Exception: Only literals can be skip index arguments. (version 25.5.2.47)
+> ```
+>
+> `clickhouse` was `bitnamilegacy/clickhouse:latest`. Nothing in the repository
+> said which ClickHouse the stack ran, so nothing could notice it ran one whose
+> SQL dialect rejects a migration the new webapp ships. `bitnamilegacy` is
+> archived and tops out at 25.7.5, so there was no newer tag there to move to.
+> The migration failed closed and the rollback to v4.5.9 was clean — no restore
+> needed — which is the one part that went right.
+>
+> ClickHouse is now `clickhouse/clickhouse-server:26.2.19.43`, pinned **by
+> digest**, which is what upstream's own compose file runs for this release and
+> therefore the only ClickHouse the migration has been proved against.
+> `bootstrap-managed.unit.test.ts` refuses any `latest` in `managed.yml` from
+> here on, so this cannot happen quietly a second time.
+>
+> **The first bring-up after that change starts ClickHouse EMPTY, on purpose.**
+> Bitnami kept its data under `/bitnami/clickhouse` and the official image reads
+> `/var/lib/clickhouse`; handing one vendor's directory layout to the other is
+> not an upgrade. So the mount moves to a new volume, `clickhouse_data_v2`, and
+> the old `clickhouse_data` is left on disk untouched. What is lost is
+> **dashboard task-event history** — ClickHouse is the event store, derived from
+> the run records in `triggerdb`, so nothing about running, deploying or
+> recovering tasks depends on it. Remove the old volume only when you have
+> decided you want the space:
+>
+> ```
+> docker volume rm ownpace-managed_clickhouse_data
+> ```
+
 **Rotating a secret**: change it in `.env`, `docker compose up -d` the affected
 services, re-run `set-task-env.sh` if a task variable changed, and re-mint any
 JWTs signed with a rotated `JWT_SECRET`. Rotating `SECRET_ENCRYPTION_KEY`
