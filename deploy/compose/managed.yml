@@ -793,6 +793,10 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-/api}
+        # Same argument the api build takes above, for the same reason: the
+        # sidebar's build stamp reports this, and an unstamped bundle shows
+        # nothing rather than a made-up number.
+        GIT_SHA: ${GIT_SHA:-}
     container_name: ownpace-web
     restart: unless-stopped
     ports:

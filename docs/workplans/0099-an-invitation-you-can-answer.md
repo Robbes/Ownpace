@@ -2287,6 +2287,81 @@ of `note_env_divergence` further down — so it passed with the call deleted.
 Caught by mutating the script it guards, which is the only reason to mutate:
 five mutations, four caught, one that revealed the test rather than the code.
 
+## What build is this?
+
+Every support conversation starts with that question, and until now the only
+thing that could answer it was `GET /version` — which nobody looking at a
+screen was going to curl. The app's sidebar and the public site's footer now
+say it, quietly, in the smallest type on the page.
+
+**Most of it already existed**, which is worth recording because the instinct
+was to build a subsystem. `buildIdentity()` in `packages/core` already read
+`OPENMIG_VERSION` / `OPENMIG_COMMIT` with a fallback to the root
+`package.json`; the api and selfhost images already took a `GIT_SHA` build
+argument; both editions already served `/version`. What was missing was the
+display, and one build argument the web image never received. Reading before
+writing turned a subsystem into a hundred lines.
+
+### Two answers, because one of them can be wrong
+
+A bundle can only ever report the version it was BUILT from. On this stack the
+UI and the API are separate containers with nothing making them move together,
+so `docker compose up -d api` without `web` leaves a stale bundle in front of a
+newer server — and a single number captioned "the version that is running"
+would then be a status that does not belong to the thing that happened
+(hard rule 10).
+
+So the UI reports its own build, asks the server for the server's, and shows
+**both, but only when they disagree**. Agreeing is the ordinary case and it
+says so once: printing two identical strings every time trains the reader to
+stop looking, which is exactly when a mismatch would slip past. The likelier
+stale-bundle shape is the same release at a different commit, which is why the
+comparison includes the commit and not just the version.
+
+**An unstamped build renders nothing at all** — not `v0.0.0`, not `unknown`.
+A stamp that invents a number is a wrong answer wearing the clothes of a right
+one; an absent line at least prompts the question. `buildIdentity()` still
+answers `unknown` to its own callers, so the UI treats that word as "no
+answer" rather than rendering it.
+
+### One number, one file
+
+The version comes from the monorepo root `package.json` everywhere: the app's
+bundle (stamped by `vite.config.ts`), the site's footer (read by `build.mjs`),
+and the server (`buildIdentity()`'s fallback). `site/` still imports no
+workspace package — reading one JSON at build time is not a dependency, and
+`@openmig/core` for a version string would have been.
+
+`scripts/what-build-is-this.unit.test.ts` refuses a second copy, and it does it
+by searching for the ACTUAL current version string rather than anything
+semver-shaped: precise instead of clever, because a regex over version-looking
+literals would trip on every dependency pin and teach people to work around the
+guard. It also checks the half that cannot come from a file — that every image
+building a bundle takes `GIT_SHA` **before** the `RUN` that consumes it, since
+an `ARG` declared after is simply not in scope for it and the bundle ships
+unstamped while the Dockerfile looks right.
+
+Proved by breaking, three ways: `ARG GIT_SHA` moved below the build; a
+component hardcoding today's version; and `managed.yml` no longer passing the
+argument to the web image.
+
+### Two things the work turned up
+
+**A partial mock is a trap that springs later.** Six test files mock
+`services/edition` with only the one function they happened to need. Adding a
+sidebar element that imports `operatingBaseUrl` broke twenty-seven tests in two
+of them with "No export is defined on the mock" — not because the component was
+wrong, but because a hand-written stand-in for a module goes stale the moment
+the module is used differently. Fixed by completing the two mocks that render
+`Layout`; worth knowing that the next import will do it again.
+
+**And the comment-stripping lesson had to be learned twice in one day.** This
+guard flagged `site/build.mjs` on its first run — for a doc comment describing
+what the stamp looks like, which naturally used today's real version. The
+integration-test guard written that same morning had needed exactly the same
+treatment for exactly the same reason. Prose is not code, and a scanner that
+cannot tell an example from a value flags its own explanation.
+
 ## The tests that filled the disk
 
 The development box ran out of disk. Not the managed stack, not a runaway
@@ -2345,4 +2420,3 @@ one that is not.
 
 Proved by breaking: the cleanup removed from one of the fixed files, and the
 guard names it.
-

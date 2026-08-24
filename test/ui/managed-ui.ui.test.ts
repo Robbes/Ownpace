@@ -53,7 +53,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, type Browser, type Page } from 'playwright-core';
@@ -94,6 +94,17 @@ const TOKEN = [
  * suite to accept a UI that could never work against the real one.
  */
 const FIXTURES: Record<string, unknown> = {
+  // The build stamp in the sidebar asks the server what IT is running
+  // (services/build-identity.ts). Answered from the ROOT package.json rather
+  // than a literal, for the same reason every other consumer reads it there:
+  // a copy here would drift and this suite would go on asserting against the
+  // wrong one. Commit left empty, which is what an unstamped build sends —
+  // and what the bundle under test has, since nothing passes GIT_SHA here.
+  [`GET /api/version`]: {
+    version: (JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8')) as { version: string })
+      .version,
+    commit: '',
+  },
   [`GET /api/migrations`]: {
     mappings: [
       {
@@ -395,6 +406,34 @@ describe('the migrations list', () => {
     } finally {
       failures.delete('GET /api/migrations');
     }
+  });
+});
+
+describe('the build stamp', () => {
+  it('shows the version the server reports, in a real browser', async () => {
+    // The one thing the unit tests structurally cannot check: that the element
+    // is mounted, the fetch resolves against a server, and the result reaches
+    // the DOM. describeBuild() is pure and covered; this is the wiring.
+    const l = await open('/mappings');
+    const version = (
+      JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8')) as { version: string }
+    ).version;
+
+    // Rendered by an effect after the fetch settles, so wait for the text
+    // rather than reading whatever the first paint happened to contain.
+    await l.page.waitForFunction(
+      (v: string) => document.body.innerText.includes(`v${v}`),
+      version,
+      { timeout: 10_000 },
+    );
+
+    expect(await l.text()).toContain(`v${version}`);
+    // The bundle and the fixture agree here, so it must say it ONCE — the
+    // `UI … · API …` form is reserved for a genuine mismatch, and showing it
+    // always would train the reader to stop looking at it.
+    expect(await l.text(), 'the stamp claimed a mismatch where there is none').not.toContain('UI v');
+    expectClean(l, 'the build stamp');
+    await l.page.close();
   });
 });
 
