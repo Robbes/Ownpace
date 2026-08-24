@@ -51,8 +51,11 @@ export function pagesOutsideLayout(source: string): string[] {
   const boundary = source.indexOf('<Layout />');
   const before = boundary < 0 ? source : source.slice(0, boundary);
   const found = new Set<string>();
-  for (const [, name] of before.matchAll(/<([A-Z][A-Za-z0-9]*)\s*\/>/g)) {
-    if (!NOT_A_PAGE.has(name)) found.add(name);
+  for (const match of before.matchAll(/<([A-Z][A-Za-z0-9]*)\s*\/>/g)) {
+    // A capture group is `string | undefined` to the compiler even when the
+    // pattern cannot match without it. Read it, then decide.
+    const name = match[1];
+    if (name && !NOT_A_PAGE.has(name)) found.add(name);
   }
   return [...found].sort();
 }
