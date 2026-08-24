@@ -884,3 +884,43 @@ describe('the last two services nothing spoke for (0084 T7.1)', () => {
     expect(block('trigger-docker-proxy')).not.toContain('healthcheck:');
   });
 });
+
+describe('nothing temporary is still living in the gate', () => {
+  /**
+   * A `probe:` job went into this workflow on 2026-08-23 to ask the running
+   * Zitadel two questions, carrying the comment "Deleted before this branch is
+   * proposed" and a `probe_only` dispatch input to switch the real gate off.
+   * It was not deleted. It sat on `main` for a day — a second job in the gate,
+   * an extra input on every dispatch dialog, and an `if:` on the real job
+   * whose only purpose was to dodge a probe nobody would run again.
+   *
+   * Harmless this time, and that is the point: the promise was in a comment,
+   * and a comment cannot delete anything. Everything scaffolding-shaped now
+   * has to justify itself to a test that outlives the branch.
+   */
+  it('declares exactly the jobs the gate is, and no scaffolding beside them', () => {
+    // From the `jobs:` block only — a bare two-space key also matches
+    // `schedule:` under `on:`, which this test caught itself doing.
+    const jobsBlock = workflow.slice(workflow.search(/^jobs:$/m));
+    const jobs = [...jobsBlock.matchAll(/^ {2}([a-z][a-z0-9-]*):\s*$/gm)].map((m) => m[1]);
+    expect(jobs).toEqual(['e2e-managed']);
+  });
+
+  it('takes no dispatch input that exists to switch the gate off', () => {
+    // `workflow_dispatch:` with no `inputs:` is the shape to keep. An input
+    // that gates the gate is how a run can look green having done nothing.
+    const dispatch = /workflow_dispatch:\s*\n((?: {4}.*\n|\s*\n)*)/.exec(workflow)?.[1] ?? '';
+    expect(dispatch.includes('inputs:'), `unexpected dispatch inputs:\n${dispatch}`).toBe(false);
+  });
+
+  it('no job is conditional on anything but the event that fired it', () => {
+    // `if:` on a top-level job in THIS workflow has meant exactly one thing so
+    // far: skipping the gate. If a real need appears, this test is the place
+    // to record why.
+    expect(workflow).not.toMatch(/^ {4}if:/m);
+  });
+
+  it('says TEMPORARY nowhere, because the last thing that did outlived its branch', () => {
+    expect(workflow).not.toMatch(/TEMPORARY/i);
+  });
+});
