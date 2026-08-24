@@ -139,7 +139,7 @@ services:
     # deploy story). The old hardcoded v4.5.4 pin claimed to match an SDK that
     # had moved to 4.5.7 — and the v4.5.7 pin then repeated the same drift
     # when the SDK moved to 4.5.9.
-    image: ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.5.9}
+    image: ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.5.12}
     container_name: trigger-api
     restart: unless-stopped
     user: root
@@ -352,7 +352,7 @@ services:
   # deployed task is dequeued by nobody — which is exactly what this stack
   # was before 0018: bootstrap env vars with no consumer.
   trigger-supervisor:
-    image: ghcr.io/triggerdotdev/supervisor:${TRIGGER_IMAGE_TAG:-v4.5.9}
+    image: ghcr.io/triggerdotdev/supervisor:${TRIGGER_IMAGE_TAG:-v4.5.12}
     container_name: trigger-supervisor
     restart: unless-stopped
     environment:
@@ -399,7 +399,27 @@ services:
   # credentials as the OBJECT_STORE_* values above; the bitnami image is used
   # for MINIO_DEFAULT_BUCKETS (auto-creates the bucket the webapp expects).
   minio:
-    image: bitnamilegacy/minio:latest
+    # PINNED TO WHAT WAS ALREADY RUNNING, not to something newer. The digest is
+    # the one `bitnamilegacy/minio:latest` resolved to on 2026-08-24, so this
+    # line changes the NAME of what runs and not the bytes — deliberately, on a
+    # service that holds Trigger.dev's packets and run artifacts.
+    #
+    # `latest` here told the same lie ClickHouse's did, and a slightly worse
+    # one. It is not merely frozen: it stopped moving on 2025-07-03 at
+    # 2025.5.24, while the repository went on publishing until 2025-08-19 and
+    # ends at 2025.7.23-debian-12-r5. So `latest` was not even bitnamilegacy's
+    # last word — it was a tag that quietly stopped six weeks early, and
+    # nothing anywhere said which MinIO this stack ran.
+    #
+    # Moving to 2025.7.23, or to upstream's `minio/minio`, are both real
+    # options and neither belongs in a de-floating commit. Upstream's in
+    # particular is NOT a tag swap: it reads /data rather than
+    # /bitnami/minio/data, and it has no MINIO_DEFAULT_BUCKETS — the `packets`
+    # bucket is created by a separate `minio-init` service running `mc mb`
+    # (trigger.dev docker-compose.yml @ v4.5.12). Doing that means a new volume
+    # and an empty object store, which is a decision with a restore plan, not a
+    # rider. See docs/managed-bring-up.md.
+    image: bitnamilegacy/minio:2025.5.24-debian-12-r5@sha256:451fe6858cb770cc9d0e77ba811ce287420f781c7c1b806a386f6896471a349c
     container_name: trigger-minio
     restart: unless-stopped
     environment:
