@@ -42,6 +42,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ImapFlow } from 'imapflow';
+import { createPgDb } from '@openmig/ledger';
 import { parseMappingConfigJson } from '@openmig/shared';
 import type { MailFolder, RawMessage } from '@openmig/shared';
 import { buildDeps } from './build-deps.ts';
@@ -63,6 +64,32 @@ if (!STALWART_IMAP_HOST) {
     });
   });
 } else {
+  // `buildDeps` builds the WHOLE bundle — ledger and cursor store included —
+  // even though this file only asks about the mail target. Its ledger arm reads
+  // `DATABASE_URL`, and the integration run does not set that: the
+  // Testcontainers Postgres is published as `TEST_DATABASE_URL`
+  // (`vitest.global-setup.ts`). The first version of this file called
+  // `buildDeps(config)` with no second argument and died on the runner with
+  // "DATABASE_URL environment variable is required" — green here, red in CI,
+  // the very failure the header warns about, one layer down.
+  //
+  // `LedgerOptions.ledgerDb` is the contract that exists for this; the
+  // appliance passes its own handle the same way (`apps/selfhost/src/index.ts`).
+  // Because the handle is the CALLER's, `deps.close()` deliberately leaves it
+  // open — so this file closes it.
+  //
+  // Not a skip: Stalwart being up means containers started, and containers
+  // starting means Postgres did too. A missing URL here is a broken harness,
+  // not an unconfigured one.
+  const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
+  if (!TEST_DATABASE_URL) {
+    throw new Error(
+      'TEST_DATABASE_URL is not set while STALWART_IMAP_HOST is. Both come from ' +
+      'the same Testcontainers global setup, so this is a harness fault rather ' +
+      'than a missing option — do not paper over it by skipping.',
+    );
+  }
+
   // Unique per run: a leftover from an earlier run must never look like a pass.
   const MESSAGE_ID = `<imap-dav-${Date.now()}-${process.pid}@dev.local>`;
 
@@ -106,15 +133,25 @@ if (!STALWART_IMAP_HOST) {
     });
     await client.connect();
     try {
-      const exists = await client.getMailboxLock(MAILBOX).catch(() => undefined);
-      if (!exists) return 0;
+      // "Does the mailbox exist yet" is answered by ASKING, not by locking it
+      // and treating the exception as a no. `getMailboxLock(...).catch(() => 0)`
+      // returns the same 0 for "not created yet" as for a rejected login or a
+      // dropped connection — so the BEFORE assertion would pass for exactly the
+      // reason that invalidates it. `list()` throws on a real fault and answers
+      // an absent mailbox with data.
+      const boxes = await client.list();
+      if (!boxes.some((box) => box.path === MAILBOX)) return 0;
+
+      const lock = await client.getMailboxLock(MAILBOX);
       try {
         const uids = await client.search({ header: { 'message-id': MESSAGE_ID } }, { uid: true });
         return Array.isArray(uids) ? uids.length : 0;
       } finally {
-        exists.release();
+        lock.release();
       }
     } finally {
+      // The only swallow in this file, and only because a throw from a `finally`
+      // REPLACES the error that brought us here. The answer is already in hand.
       await client.logout().catch(() => undefined);
     }
   }
@@ -146,6 +183,7 @@ if (!STALWART_IMAP_HOST) {
 
   describe('the imap-dav mail target against a real IMAP server', () => {
     let deps: Awaited<ReturnType<typeof buildDeps>> | undefined;
+    let ledgerDb: ReturnType<typeof createPgDb> | undefined;
     let mailboxId = '';
 
     beforeAll(() => {
@@ -156,12 +194,15 @@ if (!STALWART_IMAP_HOST) {
 
     afterAll(async () => {
       await deps?.close();
+      // Ours, because we opened it. `deps.close()` will not.
+      await ledgerDb?.close();
     });
 
     it('the config parses, and buildDeps dispatches an imap-dav target', async () => {
       const config = parseMappingConfigJson(mappingJson());
       expect(config.target.type).toBe('imap-dav');
-      deps = await buildDeps(config);
+      ledgerDb = createPgDb(TEST_DATABASE_URL);
+      deps = await buildDeps(config, { ledgerDb });
       expect(deps.target).toBeTruthy();
     });
 

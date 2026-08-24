@@ -1952,3 +1952,53 @@ verified, never before: pruning to make room for a backup that then fails
 would trade a full disk for no backup at all. Found by a human running the
 thing and reading the output, which is the same way everything else today was
 found.
+
+## The file that made the argument, and then made the mistake
+
+The section above says, in bold, that a test which passes here and dies on the
+Spark is worse than no test. The file it shipped to make that argument did
+exactly that, one layer down, and CI caught it on both architectures within
+eight minutes of the pull request opening:
+
+```
+Error: DATABASE_URL environment variable is required.
+ ❯ openLedger packages/orchestration/src/build-deps.ts:152:11
+ ❯ buildDeps  packages/orchestration/src/build-deps.ts:183:41
+ ❯ imap-dav-target.integration.test.ts:164:20
+```
+
+`buildDeps` builds the WHOLE bundle — ledger and cursor store included — even
+when the caller only wants a mail target, and its ledger arm falls back to
+`process.env.DATABASE_URL` when handed no handle. The Testcontainers harness
+publishes its Postgres as `TEST_DATABASE_URL` and never sets `DATABASE_URL`;
+that name belongs to a deployed appliance. So `buildDeps(config)` with no
+second argument could not have worked, on any run, on any architecture.
+
+**Nothing on the local fast path could have said so.** `tsc` was clean, lint
+was clean, and 327 unit files were green — because the unit projects are
+container-free by design (0084), so the integration project never runs here
+and a missing argument stays invisible until a runner with Docker picks it up.
+The same gap that made the e2e mistake possible made this one possible: the
+check that would have failed is the one that does not run locally.
+
+The fix is the door that already existed. `LedgerOptions.ledgerDb` is how the
+appliance passes its own handle (`apps/selfhost/src/index.ts`), and it is how
+this file passes the Testcontainers one — closing it itself, since a handle the
+caller supplies is deliberately not closed by `deps.close()`. The tempting
+alternative, `process.env.DATABASE_URL = process.env.TEST_DATABASE_URL`, would
+have made the symptom vanish and left a mutation of global state behind for
+every other file sharing that worker.
+
+**And the class is guarded now, not just the instance** — the lesson from the
+nineteen pipeline bugs, applied to my own file this time.
+`scripts/an-integration-test-is-handed-its-database.unit.test.ts` reads every
+`*.integration.test.ts` in the repository and refuses two shapes: a call to
+`buildDeps`/`buildDomainDeps` whose arguments carry no `ledgerDb`, and any
+reference to `process.env.DATABASE_URL`. It strips comments before scanning,
+because this fix's own prose spells out the wrong form as an example and a
+scanner that cannot tell a call from a cautionary tale flags its own
+explanation.
+
+Proved by breaking, against the real thing rather than a mock-up: the exact
+source CI rejected was copied back into the tree, and the guard named it at
+**line 164** — the line the runner named.
