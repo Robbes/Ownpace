@@ -2753,3 +2753,22 @@ deleted is a comment claiming a decision nobody is making.
 The scan stops at the next top-level key, because a naive two-space-indent read
 takes `ownpace-network` for a service and then demands the bring-up start a
 network. That case is in the tests.
+
+### The same shape, one file over
+
+`${FOO:?message}` in `managed.yml` means compose refuses **every** command —
+`up`, `ps`, `config`, `logs` — until FOO is set. A fresh `.env` is a copy of
+`managed.env.example`, so a `:?` variable the example does not carry and
+`ensure-env-secrets.sh` does not generate makes a new machine unbringable-up,
+with an error naming a variable nobody has heard of. That is exactly what
+`ZITADEL_MASTERKEY` did for three weeks.
+
+Nothing compared the two. There were per-variable assertions — `ZITADEL_PORT`
+here, `TRIGGER_IMAGE_TAG` there — each added by whoever got bitten, which is **a
+list of past incidents rather than a rule.**
+
+The rule now exists, and it currently finds nothing: all twelve required
+variables are satisfied. That is worth saying plainly — it is a guardrail, not a
+repair. It is here because the next service added with a required variable is
+the one that would have found it the expensive way. Proved by breaking:
+`WEB_URL` renamed in the example fails it by name.
