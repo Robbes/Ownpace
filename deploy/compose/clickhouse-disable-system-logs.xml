@@ -1,0 +1,35 @@
+<!-- ClickHouse's own internal log tables, turned off.
+
+     Verbatim from Trigger.dev's self-hosting reference
+     (docker/config/clickhouse-disable-system-logs.xml @ v4.5.12), and it comes
+     across with the image pin for the same reason the pin does: this is the
+     configuration the version we run has been deployed with.
+
+     ClickHouse writes eleven system tables into its own data directory by
+     default — metric_log and asynchronous_metric_log alone insert a row per
+     metric per collection interval, forever. On a single box that also holds
+     Postgres, MinIO, the registry, the task images and the nightly Trigger.dev
+     dumps, that is a slow leak nobody goes looking for, in the store where
+     nobody keeps anything they would miss: this is the task-EVENT store, and
+     the events that matter are replicated from triggerdb.
+
+     It matters more from 2026-08-24 than it did before, because the move off
+     bitnamilegacy starts ClickHouse on a NEW, EMPTY volume — so whatever the
+     old instance had accumulated is no longer the ceiling.
+
+     `remove="1"` deletes the config node the server ships, which is how
+     ClickHouse spells "do not start this logger at all" — an empty <table/>
+     would still create the writer. -->
+<clickhouse>
+    <metric_log remove="1"/>
+    <asynchronous_metric_log remove="1"/>
+    <part_log remove="1"/>
+    <trace_log remove="1"/>
+    <query_thread_log remove="1"/>
+    <session_log remove="1"/>
+    <text_log remove="1"/>
+    <zookeeper_log remove="1"/>
+    <processors_profile_log remove="1"/>
+    <asynchronous_insert_log remove="1"/>
+    <backup_log remove="1"/>
+</clickhouse>
