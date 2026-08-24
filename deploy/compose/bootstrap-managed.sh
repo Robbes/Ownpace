@@ -145,6 +145,12 @@ load_env() {
   #
   # So: check once, here, where every compose-using phase passes through, and
   # name the actual fix.
+  # Same "check once, here" reasoning as the compose check below: every
+  # compose-using phase passes through this function, including the `--from X`
+  # resumes that skip preflight entirely — which is exactly how a divergent
+  # .env reached a bring-up unremarked on 2026-08-24.
+  note_env_divergence
+
   local config_err
   if ! config_err="$("${COMPOSE[@]}" config -q 2>&1)"; then
     echo "!!! docker compose cannot read managed.yml:" >&2
@@ -173,6 +179,118 @@ load_env() {
 up_wait() { # up_wait <service> [service...]
   if "${COMPOSE[@]}" up -d --wait "$@"; then return 0; fi
   explain_failure "$@"
+}
+
+# TWO .env FILES DESCRIBING ONE STACK.
+#
+# The Spark runs a SINGLE managed stack — `managed.yml` pins
+# `name: ownpace-managed` and every service has a fixed `container_name`, both
+# of which are global to the host — and drives it from two checkouts: the
+# operator's, and the nightly gate's. The gate's cannot keep a `.env` at all
+# (`actions/checkout` deletes ignored files before every run), so the workflow
+# restores one from ~/.persistent/ownpace-managed/. That restore is a
+# workaround for a checkout that cannot hold secrets. It is not a second
+# configuration, and the day it became one cost an afternoon (0099):
+#
+#   the `zitadel` role's password matched the GATE's copy, a hand-run bring-up
+#   presented the operator's, and the answer was 300 seconds of waiting
+#   followed by `password authentication failed for user "zitadel"` — for a
+#   password nobody had changed.
+#
+# A NOTE AND NOT A REFUSAL, deliberately. During a gate run the checkout's copy
+# legitimately moves ahead of the persisted one — setup-zitadel.sh writes the
+# issuer and the rotated PAT expiry into it, and the workflow persists it back
+# at the end — so "these differ" is a normal mid-run state and refusing it
+# would break the very thing that keeps them in step. What is NOT normal is
+# nobody ever seeing it.
+#
+# KEY NAMES ONLY. The values are secrets (hard rule 3), and the names are
+# enough to act on.
+ENV_DIVERGENCE_REPORTED=0
+note_env_divergence() {
+  [ "$ENV_DIVERGENCE_REPORTED" = "1" ] && return 0
+  ENV_DIVERGENCE_REPORTED=1
+
+  local persisted="${MANAGED_ENV_PERSIST_DIR:-${HOME}/.persistent/ownpace-managed}/.env"
+  [ -f "$persisted" ] || return 0
+  # Already one file, by link or by bind mount: nothing to diverge.
+  [ -L "$ENV_FILE" ] && return 0
+  [ "$ENV_FILE" -ef "$persisted" ] && return 0
+
+  local differing=() k a b
+  # A here-string, NOT a pipe: `differing+=()` inside a piped `while` runs in a
+  # subshell and the appends are thrown away at the end of it (0099).
+  while IFS= read -r k; do
+    [ -n "$k" ] || continue
+    a="$(grep -E "^${k}=" "$persisted" | tail -1 | cut -d= -f2- || true)"
+    b="$(grep -E "^${k}=" "$ENV_FILE" | tail -1 | cut -d= -f2- || true)"
+    [ "$a" = "$b" ] || differing+=("$k")
+  done <<<"$(sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' "$persisted" | sort -u)"
+
+  [ "${#differing[@]}" -eq 0 ] && return 0
+
+  note "TWO .env FILES DESCRIBE THIS ONE STACK, and they disagree on ${#differing[@]} key(s):"
+  for k in "${differing[@]}"; do note "      ${k}"; done
+  note "  ${ENV_FILE}"
+  note "  ${persisted}   (restored into the gate's checkout on every nightly run)"
+  note "  Whichever ran last wins, and the other gets authentication failures"
+  note "  against credentials nobody changed. Make it one file:"
+  note "      ln -sfn ${persisted} ${ENV_FILE}"
+  note "  (env-upsert.sh follows the link rather than replacing it.)"
+}
+
+# THE `zitadel` ROLE'S PASSWORD, ASKED BEFORE THE CONTAINER IS STARTED.
+#
+# Zitadel finds an existing role, logs `user already exists, skipping
+# creation`, and does NOT reset its password — so a `.env` whose
+# ZITADEL_DB_PASSWORD does not match what the role actually has produces a
+# container that crash-loops on every restart. `wait_for_idp_ready` cannot tell
+# that from a slow boot, so the operator waits the full IDP_READY_TIMEOUT
+# before seeing a single word about it.
+#
+# One query answers it in a second, and it is the SAME question the container
+# is about to ask.
+assert_zitadel_role_password() {
+  local user pass db out
+  user="$(env_get ZITADEL_DB_USER)"; user="${user:-zitadel}"
+  db="$(env_get ZITADEL_DB_NAME)"; db="${db:-zitadel}"
+  pass="$(env_get ZITADEL_DB_PASSWORD)"
+  # Unset is managed.yml's `:?` to report, not ours — it names the fix already.
+  [ -n "$pass" ] || return 0
+
+  if out="$(docker exec -e PGPASSWORD="$pass" ownpace-db \
+      psql -U "$user" -d "$db" -tAc 'SELECT 1' 2>&1)"; then
+    note "the ${user} role accepts the password in $(basename "$ENV_FILE")"
+    return 0
+  fi
+
+  case "$out" in
+    *"does not exist"*)
+      # First bring-up: Zitadel creates both the role and the database itself,
+      # using the ADMIN credentials. Nothing to check yet.
+      note "no ${user} role or ${db} database yet — Zitadel will create them"
+      return 0 ;;
+    *"password authentication failed"*)
+      echo >&2
+      echo "!!! the ${user} Postgres role will NOT accept the password in ${ENV_FILE}." >&2
+      echo "!!! Zitadel is about to present exactly this and be refused. It logs" >&2
+      echo "!!!   user already exists, skipping creation" >&2
+      echo "!!! and then crash-loops, which looks identical to a slow boot until" >&2
+      echo "!!! the ${IDP_READY_TIMEOUT}s readiness timeout runs out." >&2
+      echo "!!!" >&2
+      echo "!!! Zitadel does not reset an existing role's password, so one of the two" >&2
+      echo "!!! has to move. To point the ROLE at this file (Zitadel's data is untouched):" >&2
+      echo "!!!   ./deploy/compose/zitadel-db-password.sh --sync" >&2
+      echo "!!!" >&2
+      echo "!!! BEFORE YOU DO: if a second .env exists, the role may be matching THAT" >&2
+      echo "!!! one and this file may be the stale copy — changing the role would then" >&2
+      echo "!!! break the other consumer instead. Any divergence is listed above." >&2
+      exit 1 ;;
+    *)
+      # Says what it established, which is nothing — rather than reporting a
+      # pass it never got (hard rule 9).
+      note "could not pre-check the ${user} role — NOT verified here: ${out}" ;;
+  esac
 }
 
 # The diagnosis half, separated from the `up` half so that a bring-up which
@@ -714,9 +832,9 @@ phase_login() {
 
   cat <<EOF
 
-    The deploy CLI is not logged in on this machine. Run this yourself — it
-    opens a browser and waits for you, which is why the script does not run it
-    for you:
+    The deploy CLI is not logged in on this machine under the profile
+    '${profile}'. Run this yourself — it opens a browser and waits for you,
+    which is why the script does not run it for you:
 
       npx -y trigger.dev@${cli_version} login -a ${url} --profile ${profile}
 
@@ -726,6 +844,34 @@ phase_login() {
     "Connection error" when it did).
 
 EOF
+
+  # THE PROFILE NAME IS A SETTING, and until this said so an operator already
+  # logged in under another name had nothing to go on: they ran the command
+  # above with the name they knew, it succeeded, and this phase refused again.
+  local present
+  present="$(trigger_cli_profiles_present)"
+  if [ -n "$present" ]; then
+    cat <<EOF
+    This machine IS logged in under:
+
+$(printf '      %s\n' $present)
+    The name comes from TRIGGER_CLI_PROFILE in ${ENV_FILE} (default
+    '${profile}'). If one of the above is the account you want, point the
+    setting at it instead of logging in a second time:
+
+      ./deploy/compose/env-upsert.sh ${ENV_FILE} TRIGGER_CLI_PROFILE=<name>
+
+EOF
+  else
+    cat <<EOF
+    The name comes from TRIGGER_CLI_PROFILE in ${ENV_FILE} (default
+    '${profile}'), so if you are already logged in under a different one,
+    set that here rather than logging in again:
+
+      ./deploy/compose/env-upsert.sh ${ENV_FILE} TRIGGER_CLI_PROFILE=<name>
+
+EOF
+  fi
   your_turn login
 }
 
@@ -936,6 +1082,12 @@ phase_app() {
   # image runs as a non-root user. See managed.yml's zitadel-machinekey service
   # for the whole story, including why this is `run` and not a dependency.
   prepare_machinekey_volume
+  # Postgres first and on its own, so the credential Zitadel is about to
+  # present can be TRIED before the container that presents it exists. Zitadel
+  # declares this dependency anyway, so this costs nothing on the happy path —
+  # it only moves a `up -d` that was going to happen either way.
+  up_wait postgres
+  assert_zitadel_role_password
   # `up -d`, NOT `up_wait`: the container has no healthcheck to wait on any
   # more, for the reason wait_for_idp_ready's header sets out. Readiness is
   # asked from the host immediately below, and a timeout there still lands in

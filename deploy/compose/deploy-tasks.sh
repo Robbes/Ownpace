@@ -116,8 +116,21 @@ fi
 # a naive check and fails later, inside `deploy`, with an error that looks
 # like a broken deployment rather than a login nobody did.
 if ! trigger_cli_logged_in "${CLI_VERSION}" "${PROFILE}"; then
-  echo "[deploy-tasks] Not logged in. Run this once, then re-run this script:" >&2
+  echo "[deploy-tasks] Not logged in under the profile '${PROFILE}'. Run this once," >&2
+  echo "[deploy-tasks] then re-run this script:" >&2
   echo "               npx -y trigger.dev@${CLI_VERSION} login -a ${TRIGGER_URL} --profile ${PROFILE}" >&2
+  # The same omission bootstrap-managed.sh's login phase had: naming the
+  # profile without ever saying it is a SETTING leaves an operator who is
+  # logged in under another name with nothing to act on (0099).
+  present="$(trigger_cli_profiles_present)"
+  if [ -n "$present" ]; then
+    echo "[deploy-tasks] This machine IS logged in under:" >&2
+    # shellcheck disable=SC2086
+    printf '[deploy-tasks]   %s\n' $present >&2
+  fi
+  echo "[deploy-tasks] The name comes from TRIGGER_CLI_PROFILE in deploy/compose/.env" >&2
+  echo "[deploy-tasks] (default '${PROFILE}'). To point it at one you already have:" >&2
+  echo "[deploy-tasks]   ./deploy/compose/env-upsert.sh deploy/compose/.env TRIGGER_CLI_PROFILE=<name>" >&2
   exit 1
 fi
 

@@ -86,3 +86,38 @@ trigger_cli_logged_in() { # trigger_cli_logged_in <cli_version> <profile>
   fi
   return 1
 }
+
+# WHICH PROFILES THIS MACHINE IS LOGGED IN UNDER.
+#
+# "Not logged in, run login --profile openmig" is a true statement and a
+# useless one when you ARE logged in, as `ownpace`, and nothing on screen
+# mentions that a profile NAME is configurable at all. That happened on the
+# Spark (0099): the operator ran the printed command with a different profile,
+# it succeeded, and the phase refused again — because the script kept asking
+# about `openmig`, which is pre-rename branding nobody had reason to guess.
+#
+# `openmig` stays the DEFAULT deliberately: the gate's runner may be logged in
+# under it, and silently moving the default would strand that instead. What is
+# fixed is that the refusal now names TRIGGER_CLI_PROFILE and shows what is
+# actually there, so the operator can point the variable at what they have
+# rather than log in a second time.
+#
+# STDOUT IS THIS FUNCTION'S VALUE — one profile name per line, nothing else,
+# and nothing at all when the answer is unknown. A caller decides how to say
+# it; guessing here would put prose where a list was expected.
+trigger_cli_profiles_present() {
+  local file
+  # Both layouts seen across 4.x. Whichever exists is read; a machine with
+  # neither has never logged in, which the caller already knows.
+  for file in "${HOME}/.config/trigger/config.json" "${HOME}/.config/.trigger/config.json"; do
+    [ -f "$file" ] || continue
+    command -v jq >/dev/null 2>&1 || return 0
+    # Two shapes, again version-dependent: profiles under a `profiles` key, or
+    # as the top-level object itself. `// empty` and the `?` keep a shape this
+    # does not recognise silent rather than noisy — an unreadable config is not
+    # evidence about what is logged in.
+    jq -r 'if type == "object" then (if has("profiles") then .profiles else . end | keys[]?) else empty end' \
+      "$file" 2>/dev/null || true
+    return 0
+  done
+}

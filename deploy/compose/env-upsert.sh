@@ -48,6 +48,46 @@ if [ -z "$ENV_FILE" ] || [ "$#" -eq 0 ]; then
   exit 1
 fi
 
+# A SYMLINKED .env IS FOLLOWED, NOT REPLACED.
+#
+# The write below is write-temp-then-rename, and `mv -f tmp link` REPLACES THE
+# LINK with a regular file. Silently: the next reader sees a perfectly good
+# `.env`, and only the file it used to point at knows it has been orphaned.
+#
+# That matters because the Spark runs ONE managed stack from TWO checkouts —
+# the operator's, and the gate's, which `actions/checkout` wipes of ignored
+# files before every run and which therefore restores `.env` from
+# `~/.persistent/ownpace-managed/`. The intended arrangement is one canonical
+# file with the operator's checkout SYMLINKED to it, and a single upsert that
+# quietly de-links it puts the two copies back out of step with nothing said.
+#
+# They did drift, on 2026-08-24, and the afternoon it cost is written up in
+# workplan 0099: the `zitadel` role's password matched one copy, the bring-up
+# presented the other, and the answer was a 300-second timeout followed by a
+# crash loop that named a password nobody had changed.
+#
+# Resolving first also keeps the rename atomic. `mktemp "${ENV_FILE}.XXXXXX"`
+# puts the temp file beside whatever ENV_FILE names — beside the LINK, on the
+# link's filesystem, which need not be the target's. Renaming across
+# filesystems is not atomic and `mv` falls back to copy-then-unlink.
+if [ -L "$ENV_FILE" ]; then
+  # `readlink -f` tolerates a missing FINAL component and nothing else, which
+  # happens to be exactly the distinction worth making. A target file that does
+  # not exist yet is a fresh machine — the operator linked to where the
+  # persisted `.env` is going to live, and `touch` below creates it there. A
+  # missing DIRECTORY on the way makes it fail, and refusing here is what stops
+  # the run dying later inside `mktemp` with a bare "No such file or directory"
+  # naming a path nobody typed.
+  RESOLVED="$(readlink -f "$ENV_FILE" || true)"
+  [ -n "$RESOLVED" ] || {
+    echo "[env-upsert] REFUSED: ${ENV_FILE} is a symlink that cannot be resolved —" >&2
+    echo "[env-upsert] a directory on the way to $(readlink "$ENV_FILE") does not exist." >&2
+    echo "[env-upsert] Create it, or re-point the link. Nothing was written." >&2
+    exit 1
+  }
+  ENV_FILE="$RESOLVED"
+fi
+
 touch "$ENV_FILE"
 
 # VALUE RULES. Every consumer of this file sources it with `set -a; . .env`
