@@ -464,3 +464,85 @@ describe('nothing but the token comes out of the thing that mints tokens', () =>
     expect(smoke).toMatch(/assert_looks_like_a_jwt "the invitee's token" "\$INV_TOKEN"/);
   });
 });
+
+/**
+ * `trap … EXIT` REPLACES THE HANDLER. IT DOES NOT ADD TO IT.
+ *
+ * A second `trap … EXIT` anywhere in a script silently disables the first, and
+ * the symptom is a leak nobody notices: here, the runner-log watcher would have
+ * been left running for the rest of the smoke by a cleanup trap added a hundred
+ * lines below it.
+ *
+ * So every EXIT trap in these scripts has to name every job. Checked by reading
+ * rather than by waiting for a leak to be noticed.
+ */
+describe('an EXIT trap does not quietly replace the one above it', () => {
+  const trapLines = (text: string) =>
+    text
+      .split('\n')
+      .map((line, i) => ({ n: i + 1, line }))
+      .filter(({ line }) => /^\s*trap\s+.*\bEXIT\b/.test(line));
+
+  it('read the real script', () => {
+    expect(trapLines(smoke).length).toBeGreaterThan(0);
+  });
+
+  it('the last EXIT trap in the smoke does every job the earlier ones did', () => {
+    // A PLAIN RULE, NOT A CLEVER ONE. The first version of this extracted
+    // "commands" with a lookahead for `;`, `'` or end-of-line — and
+    // `kill "$WATCHER_PID" 2>/dev/null` is followed by none of those, so the
+    // one job it existed to protect was the one job it could not see. It stayed
+    // green when the break was put in. Over-matching and under-matching parsers
+    // have each cost an hour tonight; this one just splits the handler on `;`.
+    const handler = (line: string) => /trap\s+'([^']*)'/.exec(line)?.[1] ?? '';
+    const traps = trapLines(smoke);
+    if (traps.length < 2) return; // one trap cannot shadow anything
+    const last = handler(traps[traps.length - 1]!.line);
+    expect(last, 'the final EXIT handler must be readable').not.toBe('');
+
+    const earlier = traps
+      .slice(0, -1)
+      .flatMap(({ line }) => handler(line).split(';'))
+      .map((c) => c.trim())
+      .filter(Boolean);
+    const missing = earlier.filter((c) => !last.includes(c));
+    expect(
+      missing,
+      `the final EXIT trap drops: ${missing.join(' | ')} — trap EXIT replaces, it does not add`,
+    ).toEqual([]);
+  });
+});
+
+/**
+ * A CALL THAT NEEDS A BODY SENDS ONE — AND NOT THE IRREVERSIBLE VALUE.
+ *
+ * `POST /api/tenants/:id/close` requires `windowDays` ∈ {0, 7, 30, 90}. The
+ * smoke posted nothing, so the API answered `400 bad_window`, and that had been
+ * true since the check was written: every earlier run failed AUTHENTICATION
+ * first, so the request never reached the validation behind it. A gate that
+ * cannot get past the door cannot tell you the room is on fire — which is the
+ * argument for fixing auth before believing anything else this script says.
+ *
+ * And `0` is the one value it must never send: it erases at the next purge and
+ * cannot be undone, so it would make the reopen two lines later meaningless and
+ * destroy a tenant on a live stack (hard rule 2).
+ */
+describe('the close call sends a window, and never the irreversible one', () => {
+  const closeCall = /http POST "\$API\/api\/tenants\/\$\{T1\}\/close"[^\n]*/.exec(smoke)?.[0] ?? '';
+
+  it('read the real call', () => {
+    expect(closeCall).toContain('/close');
+  });
+
+  it('sends a windowDays the endpoint accepts', () => {
+    const window = /"windowDays":\s*(\d+)/.exec(closeCall)?.[1];
+    expect(window, 'the close endpoint refuses a body without windowDays').toBeDefined();
+    expect([7, 30, 90], 'must be one of the allowed windows, and not 0').toContain(Number(window));
+  });
+
+  it('the http helper can carry a body at all', () => {
+    const httpBody = /\nhttp\(\) \{[\s\S]*?\n\}/.exec(smoke)?.[0] ?? '';
+    expect(httpBody).toMatch(/\$\{4:-\}/);
+    expect(httpBody, 'and declare its content type when it does').toContain('Content-Type: application/json');
+  });
+});

@@ -254,7 +254,126 @@ console.log(jwt.sign({sub:process.env.SUB,email:process.env.SUB+'@smoke.local',t
 #
 # It complains at most once: fifteen calls carrying the same bad token is one
 # fact, not fifteen, which is the whole argument of the section below.
-# http <method> <url> <token> — prints "<code> <body>" on one line
+# ---------------- a token this API will actually accept ----------------------
+#
+# WHY THIS EXISTS. `selectAuthMode` returns `managed` the moment JWT_ISSUER is
+# set, and the symmetric JWT_SECRET then STOPS BEING USED — deliberately, so a
+# lingering secret cannot silently downgrade verification. Tokens minted with
+# that secret meet an RS256 key set and the provider's own library says exactly
+# what it thinks of them:
+#
+#   401 {"error":"Unauthorized","message":"Token verification failed:
+#        Unsupported \"alg\" value for a JSON Web Key Set"}
+#
+# So the gate signs in for real, the way a browser does — authorization request,
+# a session proved with a password, the auth request finalised against that
+# session, and the code exchanged with PKCE. Every call below was driven against
+# the live provider before it was written here (probes, 2026-08-23).
+#
+# THREE PEOPLE, ONE MEMBERSHIP EACH, AND THAT IS THE DESIGN. `resolveTenant`
+# takes the tenant from a header, a claim, or THE SUBJECT'S SINGLE MEMBERSHIP —
+# and a Zitadel token carries no tenant claim. One person in two tenants would
+# be ambiguous and would need an X-Tenant-Id on every call site; one person per
+# tenant needs none, and reads like what it is: three different people signing
+# in to three different places.
+IDP_USERS=()          # every human created here, for the take-back at the end
+IDP_ROLE_ADDED=0      # whether IAM_LOGIN_CLIENT had to be granted
+
+# The provisioning token, read off the VOLUME rather than out of the provider —
+# that image has no shell and no coreutils, which cost E2E (managed) #49-#51.
+idp_pat() {
+  docker run --rm -v ownpace-managed_zitadel_machinekey:/machinekey:ro \
+    busybox:1.37 cat /machinekey/pat.txt 2>/dev/null | tr -d '\r\n'
+}
+
+# The origin is a compose network alias: the API container has the name, this
+# host has the published port. `curl --resolve` presents the one while
+# connecting to the other — the same thing setup-zitadel.sh does, and for the
+# same reason.
+IDP_RESOLVE=()
+idp_api() { # idp_api <method> <path> [json] — body on stdout, "" and rc 1 on refusal
+  local out status
+  local args=(-sS "${IDP_RESOLVE[@]}" -X "$1" "${STACK_ISSUER%/}$2"
+    -H "Authorization: Bearer ${IDP_PAT}" -H "Content-Type: application/json"
+    -w '\n%{http_code}')
+  [ -n "${3:-}" ] && args+=(-d "$3")
+  out="$(curl "${args[@]}" 2>/dev/null)" || { echo "could not reach the provider at $2" >&2; return 1; }
+  status="${out##*$'\n'}"; out="${out%$'\n'*}"
+  case "$status" in
+    2*) printf '%s' "$out"; return 0 ;;
+    *)  echo "the provider answered HTTP ${status} to ${1} ${2}: ${out:0:200}" >&2; return 1 ;;
+  esac
+}
+
+# sign_in_as <email> <password> — prints "<subject> <id token>", or nothing.
+#
+# The ID token, not the access token: Zitadel puts user info claims in the ID
+# token only, and the API requires `email` (ADR-0042). Its audience is
+# [client id, PROJECT id] and JWT_AUDIENCE is that project id, so it validates
+# exactly as an access token would. `apps/web/src/services/oidc.ts` sends the
+# same one for the same reason.
+sign_in_as() {
+  local email="$1" password="$2"
+  local uid verifier challenge loc ar sess sid stok cb code tok idt
+
+  uid="$(idp_api POST /v2/users/human "$(jq -nc --arg e "$email" --arg p "$password" \
+    '{username:$e, profile:{givenName:"Smoke",familyName:"Person"},
+      email:{email:$e,isVerified:true}, password:{password:$p,changeRequired:false}}')" \
+    | jq -r '.userId // empty')"
+  [ -n "$uid" ] || { echo "could not create $email at the provider" >&2; return 1; }
+  IDP_USERS+=("$uid")
+
+  verifier="$(openssl rand -hex 32)"
+  challenge="$(printf '%s' "$verifier" | openssl dgst -binary -sha256 | openssl base64 | tr '+/' '-_' | tr -d '=\n')"
+  loc="$(curl -sS "${IDP_RESOLVE[@]}" -m 15 -o /dev/null -D - \
+    "${STACK_ISSUER%/}/oauth/v2/authorize?client_id=${IDP_CLIENT_ID}&redirect_uri=${IDP_REDIRECT}&response_type=code&scope=openid%20email%20profile&code_challenge=${challenge}&code_challenge_method=S256" \
+    2>/dev/null | tr -d '\r' | sed -n 's/^[Ll]ocation: //p' | head -1)"
+  ar="$(sed -n 's/.*authRequest=\([^&]*\).*/\1/p' <<<"$loc")"
+  [ -n "$ar" ] || { echo "the provider started no authorization request for $email (-> ${loc:-<no redirect>})" >&2; return 1; }
+
+  sess="$(idp_api POST /v2/sessions "$(jq -nc --arg u "$email" --arg p "$password" \
+    '{checks:{user:{loginName:$u},password:{password:$p}}}')")" || return 1
+  sid="$(jq -r '.sessionId // empty' <<<"$sess")"
+  stok="$(jq -r '.sessionToken // empty' <<<"$sess")"
+  [ -n "$sid" ] && [ -n "$stok" ] || { echo "no session for $email" >&2; return 1; }
+
+  cb="$(idp_api POST "/v2/oidc/auth_requests/${ar}" "$(jq -nc --arg s "$sid" --arg t "$stok" \
+    '{session:{sessionId:$s,sessionToken:$t}}')")" || return 1
+  code="$(jq -r '.callbackUrl // empty' <<<"$cb" | sed -n 's/.*[?&]code=\([^&]*\).*/\1/p')"
+  [ -n "$code" ] || { echo "the provider returned no authorization code for $email" >&2; return 1; }
+
+  tok="$(curl -sS "${IDP_RESOLVE[@]}" -m 15 -X POST "${STACK_ISSUER%/}/oauth/v2/token" \
+    --data-urlencode grant_type=authorization_code --data-urlencode "code=${code}" \
+    --data-urlencode "redirect_uri=${IDP_REDIRECT}" --data-urlencode "client_id=${IDP_CLIENT_ID}" \
+    --data-urlencode "code_verifier=${verifier}" 2>/dev/null)"
+  idt="$(jq -r '.id_token // empty' <<<"$tok")"
+  [ -n "$idt" ] || { echo "no ID token for $email: ${tok:0:200}" >&2; return 1; }
+  printf '%s %s' "$uid" "$idt"
+}
+
+# Everything this section added, taken back — the same rule the balance section
+# below applies to DAV resources. A crash before this leaves a human with no
+# membership and a role on a machine user whose token expires within the day,
+# which is the least bad of the leftovers available.
+idp_take_back() {
+  local u
+  for u in ${IDP_USERS+"${IDP_USERS[@]}"}; do
+    idp_api DELETE "/v2/users/${u}" >/dev/null 2>&1 || true
+  done
+  if [ "$IDP_ROLE_ADDED" = "1" ] && [ -n "${IDP_SETUP_USER:-}" ]; then
+    idp_api PUT "/admin/v1/members/${IDP_SETUP_USER}" \
+      "$(jq -nc --argjson r "${IDP_ROLES_BEFORE:-[]}" '{roles:$r}')" >/dev/null 2>&1 || true
+  fi
+}
+
+# http <method> <url> <token> [json] — prints "<code> <body>" on one line
+#
+# THE BODY ARGUMENT EXISTS BECAUSE A CALL THAT NEEDS ONE WAS SENDING NONE. The
+# close endpoint requires `windowDays` (0, 7, 30 or 90 — days before erasure)
+# and answered `400 bad_window` to the smoke's empty POST. That had been true
+# since the check was written and was invisible: every earlier run failed
+# authentication first, so the request never reached the validation behind it.
+# A gate that cannot get past the door cannot tell you the room is on fire.
 http() {
   local body code
   # AND IT REFUSES TO SEND ONE THAT IS NOT A TOKEN, in the VALUE rather than in
@@ -268,7 +387,9 @@ http() {
     printf '%s %s\n' "000" "refused before sending — the bearer is not a token"
     return 0
   fi
-  body="$(curl -sS -X "$1" -H "Authorization: Bearer $3" -w '\n%{http_code}' "$2")"
+  local args=(-sS -X "$1" -H "Authorization: Bearer $3" -w '\n%{http_code}' "$2")
+  [ -n "${4:-}" ] && args+=(-H "Content-Type: application/json" -d "$4")
+  body="$(curl "${args[@]}")"
   code="${body##*$'\n'}"
   body="${body%$'\n'*}"
   printf '%s %s\n' "$code" "$body"
@@ -495,6 +616,114 @@ else
   fail=1
 fi
 
+# ---------- whoever this stack is willing to believe ----------
+#
+# In MANAGED mode the tokens below come from the provider, through a real
+# sign-in. With no JWT_ISSUER — self-host, or a managed stack before
+# setup-zitadel.sh has run — `selectAuthMode` uses JWT_SECRET and a minted token
+# is exactly the right thing, so that is what it uses. Which of the two is not a
+# preference: it is what the running API verifies against.
+note "signing in"
+
+VERIFY_SUBJECT="$VERIFY_SUB"
+APPLY_SUBJECT="$APPLY_SUB"
+INV_EMAIL="smoke-invitee-$$@smoke.local"
+INV_SUB="smoke-invitee-$$"
+
+if [ -z "$STACK_ISSUER" ]; then
+  echo "no JWT_ISSUER — this API verifies with JWT_SECRET, so these are minted"
+  VERIFY_TOKEN="$(mint "$VERIFY_SUB" "$VERIFY_TENANT")"
+  APPLY_TOKEN="$(mint "$APPLY_SUB" "$APPLY_TENANT")"
+  INV_TOKEN="$(
+    cd "$REPO_ROOT/apps/api" &&
+      JWT_SECRET="$JW" SUB="$INV_SUB" EM="$INV_EMAIL" node -e "
+const jwt=require('jsonwebtoken');
+console.log(jwt.sign({sub:process.env.SUB,email:process.env.EM,email_verified:true},process.env.JWT_SECRET,{expiresIn:'1h'}));"
+  )"
+  assert_looks_like_a_jwt "the invitee's token" "$INV_TOKEN" || true
+else
+  echo "issuer: $STACK_ISSUER — signing in for real"
+  IDP_PAT="$(idp_pat)"
+  # A PAT IS NOT A JWT — it is opaque, so `looks_like_a_jwt` is the wrong rule
+  # for it. What #523 established still holds: no whitespace, and long enough
+  # to be a credential rather than an error message.
+  case "${IDP_PAT}" in ''|*[[:space:]]*) IDP_PAT="" ;; esac
+  if [ "${#IDP_PAT}" -lt 20 ]; then
+    echo "no usable provisioning token on the machinekey volume — cannot sign anybody in."
+    echo "  read it by hand with:"
+    echo "    docker run --rm -v ownpace-managed_zitadel_machinekey:/m:ro busybox:1.37 cat /m/pat.txt"
+    fail=1
+  fi
+
+  # The host has the published port, not the network alias the origin names.
+  IDP_PORT_ONLY="${STACK_ISSUER##*:}"
+  IDP_HOST_ONLY="${STACK_ISSUER#*://}"; IDP_HOST_ONLY="${IDP_HOST_ONLY%%:*}"
+  case "$STACK_ISSUER" in *:[0-9]*) IDP_RESOLVE=(--resolve "${IDP_HOST_ONLY}:${IDP_PORT_ONLY}:127.0.0.1") ;; esac
+
+  # The application, asked for rather than assumed — its client id and the
+  # redirect URI it will actually accept.
+  IDP_PROJECT="$(docker exec "$API_CONTAINER" printenv JWT_AUDIENCE 2>/dev/null || true)"
+  IDP_APP="$(idp_api POST "/management/v1/projects/${IDP_PROJECT}/apps/_search" '{"queries":[]}' \
+    | jq -r '.result[]? | select(.name=="Ownpace Web") | .id' | head -1)"
+  IDP_APP_CFG="$(idp_api GET "/management/v1/projects/${IDP_PROJECT}/apps/${IDP_APP}" || true)"
+  IDP_CLIENT_ID="$(jq -r '.app.oidcConfig.clientId // empty' <<<"$IDP_APP_CFG")"
+  IDP_REDIRECT="$(jq -r '.app.oidcConfig.redirectUris[0] // empty' <<<"$IDP_APP_CFG")"
+  if [ -z "$IDP_CLIENT_ID" ] || [ -z "$IDP_REDIRECT" ]; then
+    echo "the provider has no 'Ownpace Web' application to sign in to — setup-zitadel.sh has not finished here."
+    fail=1
+  fi
+
+  # FINALISING AN AUTH REQUEST AGAINST A SESSION NEEDS `IAM_LOGIN_CLIENT`, which
+  # is the role Zitadel's own login UI holds — so this is the provider's normal
+  # mechanism, not a way round it. Without it CreateCallback answers
+  # `No matching permissions found (AUTH-AWfge)`.
+  #
+  # It is added to the PROVISIONING user and taken off again, rather than given
+  # to a machine user of the gate's own: that user's token expires within the
+  # day (setup-zitadel.sh sets the expiry), so the leftover from a crash here is
+  # a role on a credential that is about to die, instead of a fresh machine
+  # account with a working token and the right to impersonate.
+  IDP_SETUP_USER="$(idp_api GET /auth/v1/users/me | jq -r '.user.id // empty')"
+  IDP_ROLES_BEFORE="$(idp_api POST /admin/v1/members/_search '{}' \
+    | jq -c --arg u "$IDP_SETUP_USER" '[.result[]? | select(.userId==$u) | .roles[]?]')"
+  if ! jq -e 'index("IAM_LOGIN_CLIENT")' >/dev/null <<<"${IDP_ROLES_BEFORE:-[]}"; then
+    idp_api PUT "/admin/v1/members/${IDP_SETUP_USER}" \
+      "$(jq -nc --argjson r "${IDP_ROLES_BEFORE:-[]}" '{roles:($r + ["IAM_LOGIN_CLIENT"] | unique)}')" >/dev/null \
+      && IDP_ROLE_ADDED=1
+  fi
+  # ONE TRAP, BOTH JOBS. There is already an EXIT trap above for the runner
+  # watcher, and `trap … EXIT` REPLACES the handler rather than adding to it —
+  # so a second one here silently leaks that process for the rest of the run.
+  # Caught by looking, not by it going wrong, which is the cheaper way round.
+  trap 'idp_take_back; kill "$WATCHER_PID" 2>/dev/null || true' EXIT
+
+  IDP_PW='Smoke-Person!42'
+  read -r VERIFY_SUBJECT VERIFY_TOKEN <<<"$(sign_in_as "smoke-verify-$$@smoke.local" "$IDP_PW")" || true
+  read -r APPLY_SUBJECT APPLY_TOKEN   <<<"$(sign_in_as "smoke-apply-$$@smoke.local" "$IDP_PW")" || true
+  read -r INV_SUB INV_TOKEN           <<<"$(sign_in_as "$INV_EMAIL" "$IDP_PW")" || true
+
+  for t in "the verify half:$VERIFY_TOKEN" "the apply half:$APPLY_TOKEN" "the invitee:$INV_TOKEN"; do
+    assert_looks_like_a_jwt "${t%%:*}'s token" "${t#*:}" || true
+  done
+
+  # A REAL SUBJECT NEEDS A REAL MEMBERSHIP. The token proves who signed in; the
+  # `tenant_member` row is what says they belong here, and `authenticate` reads
+  # the ROLE from that row and never from the token (0020 T1). One tenant each,
+  # so `resolveTenant` has a single membership to resolve and no call site needs
+  # a tenant header.
+  if [ -n "${VERIFY_TOKEN:-}" ]; then
+    q "INSERT INTO tenant_member (tenant_id, user_id, email, role, status, invited_at, joined_at)
+       VALUES ('${VERIFY_TENANT}', '${VERIFY_SUBJECT}', 'smoke-verify-$$@smoke.local', 'owner', 'active', now(), now())
+       ON CONFLICT DO NOTHING" >/dev/null
+  fi
+  if [ -n "${APPLY_TOKEN:-}" ]; then
+    q "INSERT INTO tenant_member (tenant_id, user_id, email, role, status, invited_at, joined_at)
+       VALUES ('${APPLY_TENANT}', '${APPLY_SUBJECT}', 'smoke-apply-$$@smoke.local', 'owner', 'active', now(), now())
+       ON CONFLICT DO NOTHING" >/dev/null
+  fi
+  echo "signed in: verify=${VERIFY_SUBJECT:-<none>}  apply=${APPLY_SUBJECT:-<none>}  invitee=${INV_SUB:-<none>}"
+fi
+
 # ---------- VERIFY half ----------
 #
 # TWO MAPPINGS, and until 2026-08-19 only one of them was ever verified.
@@ -522,7 +751,14 @@ verify_mapping() { # verify_mapping <tenant> <sub> <mapping> <label> <required-d
 
   note "VERIFY ($label) — mapping $mapping (tenant $tenant, sub $sub)"
   local tok vcode vbody i rcode state
-  tok="$(mint "$sub" "$tenant")"
+  # Whoever this stack is willing to believe for this tenant — see "signing in".
+  # `$sub` stays the label it always was; the token's real subject is whatever
+  # signed in, and the membership row seeded up there is what makes it belong.
+  case "$tenant" in
+    "$VERIFY_TENANT") tok="$VERIFY_TOKEN" ;;
+    "$APPLY_TENANT")  tok="$APPLY_TOKEN" ;;
+    *) echo "no signed-in person for tenant $tenant"; fail=1; return 1 ;;
+  esac
   read -r vcode vbody <<<"$(http POST "$API/api/migrations/$mapping/verify/start" "$tok")"
   echo "verify/start: HTTP $vcode"
   echo "$vbody"
@@ -714,7 +950,7 @@ if [ -z "$HASH" ] && [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
     echo "prepare: SEEDING FAILED — the diagnosis below will say what the ledger holds."
   fi
 
-  TOK_P="$(mint "$APPLY_SUB" "$APPLY_TENANT")"
+  TOK_P="$APPLY_TOKEN"
   # An explicit JSON body: the endpoint runs req.body through zod, and an absent
   # body is not the same thing as an empty object.
   sync_out="$(curl -sS -X POST -H 'Content-Type: application/json' -d '{"type":"delta"}' \
@@ -842,7 +1078,7 @@ else
   q "UPDATE mailbox_mapping SET allow_apply_deletions=true WHERE tenant_id='$APPLY_TENANT' AND id='$APPLY_MAPPING'"
   q "UPDATE item SET deletion_reported_at=now() WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND natural_key_hash='$HASH' AND deletion_reported_at IS NULL"
 
-  TOK_A="$(mint "$APPLY_SUB" "$APPLY_TENANT")"
+  TOK_A="$APPLY_TOKEN"
   read -r acode abody <<<"$(http POST "$API/api/migrations/$APPLY_MAPPING/deletions/$HASH/apply" "$TOK_A")"
   echo "apply: HTTP $acode"
   echo "$abody"
@@ -1045,18 +1281,10 @@ note "an invitation, answered three ways"
 # this script — this section is about the product's invitation logic, not about
 # Zitadel's token endpoint. `email_verified` is asserted because the claim is
 # what the policies key on: without it there is nothing to answer.
-INV_EMAIL="smoke-invitee-$$@smoke.local"
-INV_SUB="smoke-invitee-$$"
-warn_minted_tokens_are_not_verifiable
-INV_TOKEN="$(
-  cd "$REPO_ROOT/apps/api" &&
-    JWT_SECRET="$JW" SUB="$INV_SUB" EM="$INV_EMAIL" node -e "
-const jwt=require('jsonwebtoken');
-console.log(jwt.sign({sub:process.env.SUB,email:process.env.EM,email_verified:true},process.env.JWT_SECRET,{expiresIn:'1h'}));"
-)"
-# The one token not minted by `mint` — it carries `email_verified`, which the
-# invitation path reads. It gets the same check for the same reason.
-assert_looks_like_a_jwt "the invitee's token" "$INV_TOKEN" || true
+# INV_EMAIL, INV_SUB and INV_TOKEN are all set by "signing in" above, from a
+# real sign-in where this stack has an issuer and from a minted token where it
+# does not. The invitations below are addressed to that same email, which is
+# what `pendingInvitations` matches on.
 
 # Three open invitations, written the way granting an access request writes one:
 # addressed to an email, holding a `pending:` placeholder nobody owns yet.
@@ -1129,7 +1357,11 @@ note "closing a tenant, and changing your mind"
 # reopened immediately. The tenant is deleted a few lines below either way, so
 # this borrows a fixture that was already being taken back rather than inventing
 # one that needs its own cleanup.
-cls="$(http POST "$API/api/tenants/${T1}/close" "$INV_TOKEN")"
+# SEVEN DAYS, not zero. `windowDays: 0` erases at the next purge and cannot be
+# undone — so the one value that would make the reopen below meaningless is the
+# one this must never send. Seven also gives the `purge_after > closed_at`
+# assertion an actual window to check.
+cls="$(http POST "$API/api/tenants/${T1}/close" "$INV_TOKEN" '{"windowDays":7}')"
 echo "close:  $cls"
 [ "${cls%% *}" = "200" ] || { echo "closing a tenant failed"; fail=1; }
 
@@ -1177,7 +1409,7 @@ done
 # empty list passes.
 note "reports nothing had ever opened"
 
-TOK_R="$(mint "$APPLY_SUB" "$APPLY_TENANT")"
+TOK_R="$APPLY_TOKEN"
 
 report_json() { # report_json <label> <path> <jq filter> [value it must equal]
   local r code body value
