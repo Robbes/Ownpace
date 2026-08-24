@@ -2585,3 +2585,62 @@ by removing the case that motivated it.
 Proved by breaking: the stamp removed from `Login.tsx` fails both the route
 rule (naming the page and what to do) and the component test that renders the
 page and looks for the line.
+
+## The test site sent people to production
+
+> "the www.ota webpages have links to production. that should never happen!
+> https://app.ownpace.eu/request-access?locale=en&tier=Small"
+
+Every *Request access* button on `www.ota.ownpace.eu` pointed at the production
+app. A click there does not put a test visitor on a test form — it files a real
+access request against the real tenant, from the one site whose entire purpose
+is to not be real.
+
+### The mechanism was already there
+
+`site/prices.mjs` read `OWNPACE_APP_URL`, and its own comment already said to
+set it for the OTA build. What defeated it was one line:
+
+```js
+process.env.OWNPACE_APP_URL || 'https://app.ownpace.eu'
+```
+
+defended, in the comment directly above it, as:
+
+> production is the default because a forgotten variable should land on the
+> safe side of that boundary rather than the surprising one.
+
+That reasoning is backwards, and this is the day that showed it. **The build
+that forgets is by definition the one whose value is not the default.** A
+production build with no variable set produces the right site by luck; an OTA
+build with no variable set produces a site that hands its visitors to
+production — silently, because a wrong link renders exactly like a right one.
+Production is not the safe side of an environment boundary. Neither side is.
+Being told is.
+
+So there is no default now, and the build refuses without one, naming both
+commands. Two guards keep the refusal meaningful:
+
+- **Nothing in the site hardcodes an environment host** — every absolute app
+  link comes from `APP_URL`.
+- **A site built for one environment contains no link to another.** Built for
+  OTA in a child process, the output must contain the OTA link and zero
+  production links; built for production, the reverse. Not "never say prod":
+  the production build has to work too.
+
+### Two things caught while writing it
+
+**The rule flagged its own refusal message.** The first version of the
+hardcoded-host scan reported three offenders, and two of them were the lines in
+the refusal *telling an operator what to set* — the opposite of hardcoding a
+link. Narrowed to ignore any line that also names `OWNPACE_APP_URL`, with the
+limit written into its header. Same lesson as the temp-directory guard eight
+hours earlier: **a guard that cries wolf gets disabled**, and a narrower rule
+that is right beats a broader one that is not.
+
+**`Tests  no tests` is not a pass.** The builds ran while collecting the
+describe blocks, so restoring the old default made the whole file fail to
+*collect* — and vitest printed `Tests  no tests`, which on a dashboard is
+indistinguishable from a file that ran clean. Moved into the test bodies, the
+same break names four tests. Work that can fail belongs where a failure has a
+name — which is the day's other lesson, arriving from a third direction.

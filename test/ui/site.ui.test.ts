@@ -54,7 +54,14 @@ let base: string;
 beforeAll(async () => {
   // Build first: a stale dist would let this suite pass against a site nobody
   // is shipping, which is the same class of lie it exists to prevent.
-  execFileSync('node', [join(REPO, 'site', 'build.mjs')], { stdio: 'pipe' });
+  // OWNPACE_APP_URL has no default and the build refuses without it, so that
+  // a site cannot be produced without saying which app its call to action
+  // points at. A test build says so explicitly rather than inheriting whatever
+  // the runner happens to have exported.
+  execFileSync('node', [join(REPO, 'site', 'build.mjs')], {
+    stdio: 'pipe',
+    env: { ...process.env, OWNPACE_APP_URL: 'https://app.ota.ownpace.eu' },
+  });
   expect(existsSync(join(DIST, 'index.html')), 'site/build.mjs produced no index.html').toBe(true);
 
   server = createServer((req, res) => {

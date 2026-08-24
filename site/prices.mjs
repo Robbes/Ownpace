@@ -96,13 +96,43 @@ export const SUPPORT_EMAIL = 'support@ownpace.eu';
  * relative. The environment is a domain LEVEL (workplan 0091), so the test
  * site must point at the test app or a visitor to `www.ota.ownpace.eu` is
  * handed production — which is precisely the boundary 0091 T4 exists to make
- * real. Set `OWNPACE_APP_URL=https://app.ota.ownpace.eu` when building that
- * site; production is the default because a forgotten variable should land on
- * the safe side of that boundary rather than the surprising one.
+ * real.
+ *
+ * THERE IS NO DEFAULT, AND THERE USED TO BE. It was `https://app.ownpace.eu`,
+ * on the argument that "a forgotten variable should land on the safe side of
+ * that boundary". That argument is backwards, and on 2026-08-24 it cost what
+ * it was written to prevent: the OTA site was rebuilt without the variable and
+ * every "Request access" button on `www.ota.ownpace.eu` pointed at
+ * `https://app.ownpace.eu/request-access`. A click there does not land a test
+ * visitor on a test form — it files a real access request against the real
+ * tenant.
+ *
+ * Production is not the safe side of this boundary. NEITHER side is: the build
+ * that forgets is by definition the one whose value is not the default, so a
+ * default can only ever be wrong silently. Being told is the safe side, so the
+ * build refuses rather than guessing (hard rule 9).
  *
  * Trailing slashes are stripped so the joined path cannot come out doubled.
  */
-export const APP_URL = (process.env.OWNPACE_APP_URL || 'https://app.ownpace.eu').replace(/\/+$/, '');
+export const APP_URL = (() => {
+  const raw = (process.env.OWNPACE_APP_URL ?? '').trim();
+  if (!raw) {
+    throw new Error(
+      [
+        'OWNPACE_APP_URL is not set, so this build does not know which app its',
+        '"Request access" buttons should point at. There is deliberately no',
+        'default: the build that forgets is the one whose value is not the',
+        'default, so guessing can only ever be wrong silently.',
+        '',
+        '  production   OWNPACE_APP_URL=https://app.ownpace.eu   node site/build.mjs',
+        '  test (OTA)   OWNPACE_APP_URL=https://app.ota.ownpace.eu node site/build.mjs',
+        '',
+        'See deploy/compose/www.yml and docs/managed-bring-up.md.',
+      ].join('\n'),
+    );
+  }
+  return raw.replace(/\/+$/, '');
+})();
 
 /** The page a visitor asks for an account on. Invite-only: asking is not signing up. */
 export const REQUEST_ACCESS_URL = `${APP_URL}/request-access`;
