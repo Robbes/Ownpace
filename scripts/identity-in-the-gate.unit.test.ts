@@ -512,3 +512,37 @@ describe('an EXIT trap does not quietly replace the one above it', () => {
     ).toEqual([]);
   });
 });
+
+/**
+ * A CALL THAT NEEDS A BODY SENDS ONE — AND NOT THE IRREVERSIBLE VALUE.
+ *
+ * `POST /api/tenants/:id/close` requires `windowDays` ∈ {0, 7, 30, 90}. The
+ * smoke posted nothing, so the API answered `400 bad_window`, and that had been
+ * true since the check was written: every earlier run failed AUTHENTICATION
+ * first, so the request never reached the validation behind it. A gate that
+ * cannot get past the door cannot tell you the room is on fire — which is the
+ * argument for fixing auth before believing anything else this script says.
+ *
+ * And `0` is the one value it must never send: it erases at the next purge and
+ * cannot be undone, so it would make the reopen two lines later meaningless and
+ * destroy a tenant on a live stack (hard rule 2).
+ */
+describe('the close call sends a window, and never the irreversible one', () => {
+  const closeCall = /http POST "\$API\/api\/tenants\/\$\{T1\}\/close"[^\n]*/.exec(smoke)?.[0] ?? '';
+
+  it('read the real call', () => {
+    expect(closeCall).toContain('/close');
+  });
+
+  it('sends a windowDays the endpoint accepts', () => {
+    const window = /"windowDays":\s*(\d+)/.exec(closeCall)?.[1];
+    expect(window, 'the close endpoint refuses a body without windowDays').toBeDefined();
+    expect([7, 30, 90], 'must be one of the allowed windows, and not 0').toContain(Number(window));
+  });
+
+  it('the http helper can carry a body at all', () => {
+    const httpBody = /\nhttp\(\) \{[\s\S]*?\n\}/.exec(smoke)?.[0] ?? '';
+    expect(httpBody).toMatch(/\$\{4:-\}/);
+    expect(httpBody, 'and declare its content type when it does').toContain('Content-Type: application/json');
+  });
+});

@@ -366,7 +366,14 @@ idp_take_back() {
   fi
 }
 
-# http <method> <url> <token> — prints "<code> <body>" on one line
+# http <method> <url> <token> [json] — prints "<code> <body>" on one line
+#
+# THE BODY ARGUMENT EXISTS BECAUSE A CALL THAT NEEDS ONE WAS SENDING NONE. The
+# close endpoint requires `windowDays` (0, 7, 30 or 90 — days before erasure)
+# and answered `400 bad_window` to the smoke's empty POST. That had been true
+# since the check was written and was invisible: every earlier run failed
+# authentication first, so the request never reached the validation behind it.
+# A gate that cannot get past the door cannot tell you the room is on fire.
 http() {
   local body code
   # AND IT REFUSES TO SEND ONE THAT IS NOT A TOKEN, in the VALUE rather than in
@@ -380,7 +387,9 @@ http() {
     printf '%s %s\n' "000" "refused before sending — the bearer is not a token"
     return 0
   fi
-  body="$(curl -sS -X "$1" -H "Authorization: Bearer $3" -w '\n%{http_code}' "$2")"
+  local args=(-sS -X "$1" -H "Authorization: Bearer $3" -w '\n%{http_code}' "$2")
+  [ -n "${4:-}" ] && args+=(-H "Content-Type: application/json" -d "$4")
+  body="$(curl "${args[@]}")"
   code="${body##*$'\n'}"
   body="${body%$'\n'*}"
   printf '%s %s\n' "$code" "$body"
@@ -1348,7 +1357,11 @@ note "closing a tenant, and changing your mind"
 # reopened immediately. The tenant is deleted a few lines below either way, so
 # this borrows a fixture that was already being taken back rather than inventing
 # one that needs its own cleanup.
-cls="$(http POST "$API/api/tenants/${T1}/close" "$INV_TOKEN")"
+# SEVEN DAYS, not zero. `windowDays: 0` erases at the next purge and cannot be
+# undone — so the one value that would make the reopen below meaningless is the
+# one this must never send. Seven also gives the `purge_after > closed_at`
+# assertion an actual window to check.
+cls="$(http POST "$API/api/tenants/${T1}/close" "$INV_TOKEN" '{"windowDays":7}')"
 echo "close:  $cls"
 [ "${cls%% *}" = "200" ] || { echo "closing a tenant failed"; fail=1; }
 
