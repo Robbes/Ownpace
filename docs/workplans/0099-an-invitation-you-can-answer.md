@@ -1665,3 +1665,50 @@ again. The `IAM_LOGIN_CLIENT` warning fired on the same run: a leftover grant
 from some earlier failed revoke, present ever since, now at least said out
 loud. A cleanup mechanism whose failure mode is silence does not exist until
 something independent counts what it left behind.
+
+## A version agreement that only the Spark could check
+
+A confirmation run dispatched for an unrelated reason — proving the identity
+provider still granted and revoked cleanly after a hand-edit — died at the
+bring-up instead, twenty-one seconds in:
+
+```
+!!! Trigger.dev version drift (0018 T0):
+!!!   images:  v4.5.9   (TRIGGER_IMAGE_TAG, or managed.yml's default when unset)
+!!!   SDK/CLI: 4.5.12   (apps/worker/package.json)
+```
+
+Nothing to do with identity. **Dependabot's #528 had bumped
+`@trigger.dev/sdk` from 4.5.9 to 4.5.12 in `apps/worker`, and that number has
+to match the image tag** — the tasks it deploys RUN inside those images. The
+bump passed all seventeen checks, merged, and broke the managed gate on main;
+the 05:30 nightly would have died the same way.
+
+Two things had to be true at once for this to land:
+
+1. **The agreement was enforced only at bring-up.** `bootstrap-managed.sh`
+   compares the two numbers and refuses — deliberately, "checked rather than
+   corrected", since the two directions have different consequences. But a
+   `docker compose up` happens only in the managed gate, which no pull request
+   runs. Nothing static compared them, so nothing could fail in CI. Two
+   hand-maintained numbers across three files with nothing checking them:
+   the same shape as the service list here, `MOUNTS` (0096) and the trigger
+   filters (0097).
+2. **`apps/worker` was being deliberately held back.** The root and the
+   scheduler had already drifted to 4.5.11 while the worker stayed at 4.5.9 to
+   match the images — a pin nothing recorded as a pin, which reads to
+   dependabot as simply out of date.
+
+The worker goes back to 4.5.9, restoring the arrangement that was green, and
+the comparison moves to where a pull request can see it. Its failure message
+states the decision rather than an edit: hold the SDK back, or move all three
+and accept that the next bring-up recreates the Trigger.dev webapp and
+supervisor at the new tag — on the one machine whose Trigger.dev account
+cannot be rebuilt unattended, which is why nothing does that on its own
+initiative.
+
+The general lesson, third time today in a different costume: **a rule that
+only fires in the one environment nobody runs on a pull request is not a
+rule, it is a landmine with a date on it.** The credential's clock, the
+take-back nobody counted, and now a version pin nobody could see — each
+invisible until something independent checked, and each cheap once it was.
