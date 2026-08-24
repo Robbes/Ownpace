@@ -2645,6 +2645,77 @@ indistinguishable from a file that ran clean. Moved into the test bodies, the
 same break names four tests. Work that can fail belongs where a failure has a
 name — which is the day's other lesson, arriving from a third direction.
 
+## The mount that went blind, and a guard that could not fail
+
+Republishing the site made it disappear. `www.ota.ownpace.eu` served `200` at
+19:49 and `403` from 20:20, with every file present and correct on disk the
+whole time.
+
+```
+2026/08/24 20:20:36 [error] directory index of "/usr/share/nginx/html/" is forbidden
+$ docker exec ownpace-www ls -la /usr/share/nginx/html
+total 0
+```
+
+`site/build.mjs` began with `rmSync(DIST)` followed by `mkdirSync(DIST)`. That
+replaces the directory, and therefore its **inode**. A bind mount resolves to an
+inode when the container starts, so the running nginx went on holding the old,
+now-unlinked one: empty from inside, complete from outside, and a 403 that reads
+exactly like a permissions problem.
+
+**And I had documented the opposite.** `www.yml`'s header, in my own words from
+the PR eight hours earlier:
+
+> re-publishing is the build command above and nothing else — nginx serves from
+> the mount, so no restart is needed.
+
+A property of the mount asserted without looking at what the build did to the
+directory. The same shape as the credential check that opened the day: the
+right-sounding claim about a mechanism nobody had read.
+
+The fix is not to document the restart. It is to make the sentence true —
+`emptyDist()` clears the contents and keeps the directory — and to put the
+mechanism *beside* the promise in the header, so that whoever changes one meets
+the other.
+
+### The guard that passed with the bug restored
+
+First version: `statSync(DIST).ino` before the build, again after, compare. It
+passed with `rmSync(DIST)` deliberately put back.
+
+Nothing held a reference to the removed directory, so the filesystem handed its
+inode **number** straight back to the `mkdir` that followed. The comparison was
+true and meaningless — a guard that could only answer yes, which is the exact
+defect of the socket credential check ten hours earlier, arriving again in the
+test written to prevent that class.
+
+An open directory fd is what a bind mount *is*. It pins the inode so the number
+cannot be recycled, and `fstat(fd)` against `stat(path)` is the comparison nginx
+makes without knowing it. With that, restoring the bug fails three tests instead
+of one.
+
+**Ask of every green check: what would have made it fail?** Twice in one day the
+answer was *nothing*, and both times the check looked completely reasonable.
+
+### Two switches that both named the environment
+
+The build already had `--public` (noindex, `robots.txt`). Making
+`OWNPACE_APP_URL` required earlier the same day added a **second** way to say
+which environment a build is for, and nothing compared them:
+
+- `--public` with the test app: an indexable production site whose every call
+  to action leads somewhere private.
+- no `--public` with production: the reported bug itself.
+
+Both built happily. Requiring the variable stopped the *silent* case; it left
+the *contradictory* one. `build.mjs` refuses both now, comparing against
+`PUBLIC_APP_URL` — production named exactly once, in the file the check reads,
+which the hardcoded-host rule now asserts rather than merely exempts.
+
+A third incoherence went with it: a `--public` build printed *"Every placeholder
+must be filled"* and *"MUST NOT be published publicly"* **about the same build**,
+and published anyway. `must be filled` is now enforced where it is claimed.
+
 ## Nothing else writes the `.env`
 
 "will the one `.env` survive other features, upgrades, other work we do? are

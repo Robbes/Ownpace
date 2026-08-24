@@ -27,7 +27,7 @@
  * thing to avoid, so on this site an unfilled placeholder is loud.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, rmSync, cpSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, rmSync, cpSync, existsSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
@@ -35,6 +35,8 @@ import {
   BEYOND,
   SUPPORT_EMAIL,
   REQUEST_ACCESS_URL,
+  APP_URL,
+  PUBLIC_APP_URL,
   money,
   size,
   total,
@@ -61,6 +63,45 @@ const DIST = join(HERE, 'dist');
  * what actually says "do not index", so both are emitted.
  */
 const PUBLIC = process.argv.includes('--public');
+
+/**
+ * THE TWO SWITCHES HAVE TO AGREE.
+ *
+ * `--public` and `OWNPACE_APP_URL` both say which environment this build is
+ * for, and nothing compared them until now. Either contradiction ships a real
+ * mistake:
+ *
+ *   --public with a test app URL   an indexable production site whose every
+ *                                  call to action leads somewhere private.
+ *   no --public with production    a noindex test site handing its visitors to
+ *                                  the real app — which is what put
+ *                                  `https://app.ownpace.eu/request-access` on
+ *                                  `www.ota.ownpace.eu` on 2026-08-24. A click
+ *                                  there files a real access request against
+ *                                  the real tenant.
+ *
+ * Requiring the variable stopped the SILENT case (a forgotten default). This
+ * stops the CONTRADICTORY one. Refuse, rather than deriving one from the other:
+ * deriving would mean `--public` silently rewriting an operator's explicit
+ * URL, which is a different way of not being told.
+ */
+if (PUBLIC && APP_URL !== PUBLIC_APP_URL) {
+  throw new Error(
+    `--public builds the site for ${PUBLIC_APP_URL}, but OWNPACE_APP_URL is ${APP_URL}.\n` +
+      'An indexable public site whose "Request access" buttons lead somewhere\n' +
+      'private is not a site anybody can use. Drop --public, or set\n' +
+      `OWNPACE_APP_URL=${PUBLIC_APP_URL}.`,
+  );
+}
+if (!PUBLIC && APP_URL === PUBLIC_APP_URL) {
+  throw new Error(
+    `OWNPACE_APP_URL is ${PUBLIC_APP_URL} — production — but this is a test build\n` +
+      '(no --public), so it will be served on a test host with noindex set. Its\n' +
+      '"Request access" buttons would hand test visitors to the real app, and a\n' +
+      'click there files a real access request against the real tenant.\n' +
+      'Set the test app\u2019s URL, or pass --public if this really is production.',
+  );
+}
 
 // ---------------------------------------------------------------- markdown --
 
@@ -614,14 +655,56 @@ function build() {
  */
 export const { rendered, drafts } = build();
 
+/**
+ * CLEAR THE CONTENTS OF `dist`, NEVER THE DIRECTORY ITSELF.
+ *
+ * `rmSync(DIST) + mkdirSync(DIST)` is the obvious way to start from clean and
+ * it hands the directory a NEW INODE. A Docker bind mount resolves to an inode
+ * when the container starts, so a running nginx keeps looking at the old,
+ * now-unlinked directory: `ls` inside the container shows `total 0`, and every
+ * request gets `directory index of "/usr/share/nginx/html/" is forbidden` —
+ * a 403 that looks like a permissions problem and is not one.
+ *
+ * That happened on the Spark on 2026-08-24. The site served 200s at 19:49,
+ * a republish at 20:20 replaced the directory, and `www.ota.ownpace.eu`
+ * answered 403 from then on with the files sitting correctly on disk the
+ * whole time. `deploy/compose/www.yml` promised in its own header that a
+ * rebuild needs no restart — which was false precisely because of these two
+ * lines, and is true because of this function.
+ *
+ * Same inode, same mount, contents replaced. `readdirSync` + per-entry remove
+ * does exactly that, and creates the directory when it is genuinely absent.
+ */
+function emptyDist() {
+  if (!existsSync(DIST)) {
+    mkdirSync(DIST, { recursive: true });
+    return;
+  }
+  for (const entry of readdirSync(DIST)) rmSync(join(DIST, entry), { recursive: true, force: true });
+}
+
 const runDirectly = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (runDirectly && process.argv.includes('--check')) {
   for (const p of rendered) console.log(`  ${p.file.padEnd(26)} ${p.html.length} bytes`);
   console.log(`[site] ${rendered.length} pages across ${LOCALES.length} locales, ${drafts} unfilled placeholder(s)`);
 } else if (runDirectly) {
-  rmSync(DIST, { recursive: true, force: true });
-  mkdirSync(DIST, { recursive: true });
+  // A PUBLIC BUILD WITH UNFILLED PLACEHOLDERS IS NOT A WARNING, IT IS A STOP.
+  //
+  // The two messages below used to be printed about the SAME build: "PUBLIC
+  // build — indexable. Every placeholder must be filled." and then "This build
+  // is fine for a test host and MUST NOT be published publicly." Both true,
+  // flatly contradictory, and neither stopped anything — so the way to publish
+  // a terms page reading `[[COMPANY_ADDRESS]]` was to ignore two lines of
+  // output. `must be filled` is now enforced where it is claimed.
+  if (PUBLIC && drafts > 0) {
+    throw new Error(
+      `${drafts} placeholder token(s) are still unfilled, and --public makes this site\n` +
+        'indexable. Legal pages carrying [[TOKENS]] are not publishable.\n' +
+        'Fill them — see site/legal/README.md — or build without --public.',
+    );
+  }
+  emptyDist();
   for (const p of rendered) {
     const dest = join(DIST, p.file);
     mkdirSync(dirname(dest), { recursive: true });

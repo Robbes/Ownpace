@@ -609,7 +609,19 @@ docker compose -f deploy/compose/www.yml up -d
 ```
 
 `site/dist` is bind-mounted read-only, so a rebuild is live immediately and no
-restart is needed.
+restart is needed — because the build **empties** `dist` rather than replacing
+it. A bind mount resolves to an inode at container start, so a build that
+removed and recreated the directory would leave nginx holding an unlinked one:
+`total 0` inside the container, every file present outside, and a 403 on every
+request that reads like a permissions problem. If that ever happens,
+`docker compose -f deploy/compose/www.yml up -d --force-recreate` re-resolves
+the mount.
+
+`--public` and `OWNPACE_APP_URL` must agree, and the build refuses if they do
+not: a public build must point at the production app, and a test build must
+not. A `--public` build with unfilled legal placeholders is refused too — the
+output used to claim "every placeholder must be filled" and then publish
+anyway.
 
 **`OWNPACE_APP_URL` has no default and the build refuses without it.** It is
 where every *Request access* button points, and the environment is a domain

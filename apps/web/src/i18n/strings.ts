@@ -1022,7 +1022,7 @@ const en = {
   'access.title': 'Request access',
   'access.intro':
     'Ownpace is invite-only while we are getting started. Tell us what you want to move and ' +
-    'we will come back to you by email — a person reads these.',
+    'we will come back to you by email.',
   'access.email': 'Email address',
   'access.emailHint': 'Where we reply. Nothing else is sent here.',
   'access.name': 'Your name',
@@ -1039,7 +1039,7 @@ const en = {
   'access.submit': 'Send request',
   'access.sending': 'Sending…',
   'access.sent': 'Thank you — we have your request.',
-  'access.sentDetail': 'A person reads these, and you will hear back by email.',
+  'access.sentDetail': 'You will hear back by email.',
   'access.failed': 'We could not send that:',
   'access.failedFallback': 'the request did not complete.',
   'access.privacy':
@@ -2012,7 +2012,7 @@ const nl: Record<keyof typeof en, string> = {
   'access.title': 'Toegang aanvragen',
   'access.intro':
     'Ownpace werkt voorlopig op uitnodiging. Vertel ons wat u wilt verhuizen, dan komen we per ' +
-    'e-mail bij u terug — een mens leest dit.',
+    'e-mail bij u terug.',
   'access.email': 'E-mailadres',
   'access.emailHint': 'Hier antwoorden wij. Er gaat verder niets naartoe.',
   'access.name': 'Uw naam',
@@ -2030,7 +2030,7 @@ const nl: Record<keyof typeof en, string> = {
   'access.submit': 'Aanvraag versturen',
   'access.sending': 'Versturen…',
   'access.sent': 'Dank u — wij hebben uw aanvraag.',
-  'access.sentDetail': 'Een mens leest dit, en u hoort per e-mail van ons.',
+  'access.sentDetail': 'U hoort per e-mail van ons.',
   'access.failed': 'Wij konden dat niet versturen:',
   'access.failedFallback': 'de aanvraag is niet voltooid.',
   'access.privacy':
