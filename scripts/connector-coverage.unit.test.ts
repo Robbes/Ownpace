@@ -71,14 +71,26 @@ const SOURCE_COVERAGE: Record<string, Verdict> = {
   caldav: { driven: 'e2e.yml — Nextcloud calendars, seeded then migrated and verified' },
   carddav: { driven: 'e2e.yml — Nextcloud contacts, same pass' },
   webdav: { driven: 'e2e.yml — Nextcloud files, same pass' },
-  'graph-mail': { driven: 'e2e-o365.yml — a real SMB tenant, read-only, secret-gated' },
-  'graph-calendar': {
-    uncoverable:
-      'the O365 tenant is real and read-only, and e2e-o365.yml is secret-gated: it ' +
-      'covers mail. Standing up a fake Graph would test the fake.',
+  // THE O365 HARNESS HAS NEVER RUN. e2e-o365.yml is workflow_dispatch-only and
+  // has ZERO runs in its lifetime; the suite it invokes skips silently unless
+  // O365_CLIENT_ID and O365_TENANT_ID are set, so even a run without them
+  // would report pass having executed nothing. It was recorded here as
+  // `driven` on first writing — the exact laundering of an appearance into an
+  // assertion this file exists to prevent, caught by asking the API how many
+  // times the workflow had actually run.
+  'graph-mail': {
+    owed:
+      'a harness exists (test/e2e/o365-scenario.e2e.test.ts) and has never once ' +
+      'executed. The tenant is real and available, so this is UNWIRED, not ' +
+      'impossible: secrets are not set and no schedule fires it.',
   },
-  'graph-contacts': { uncoverable: 'same tenant, same reason as graph-calendar.' },
-  'graph-drive': { uncoverable: 'same tenant, same reason as graph-calendar.' },
+  'graph-calendar': {
+    owed:
+      'the tenant is real and read-only and could serve this, and no harness covers ' +
+      'it — the O365 suite is mail-only, and has never run even for mail.',
+  },
+  'graph-contacts': { owed: 'same tenant, same absence of a harness, as graph-calendar.' },
+  'graph-drive': { owed: 'same tenant, same absence of a harness, as graph-calendar.' },
   gmail: { uncoverable: 'needs a Google account and its OAuth consent. Nothing in CI can hold one.' },
   'google-calendar': { uncoverable: 'same Google account, same reason as gmail.' },
   'google-contacts': { uncoverable: 'same Google account, same reason as gmail.' },
@@ -144,7 +156,7 @@ describe('every connector the config accepts is classified', () => {
   }
 });
 
-describe('what is owed stays visible, and stays small', () => {
+describe('what is owed stays visible, and stays exact', () => {
   const owed = [
     ...Object.entries(SOURCE_COVERAGE).filter(([, v]) => v.owed).map(([t]) => `source:${t}`),
     ...Object.entries(TARGET_COVERAGE).filter(([, v]) => v.owed).map(([t]) => `target:${t}`),
@@ -154,7 +166,19 @@ describe('what is owed stays visible, and stays small', () => {
     // A HARD list, not a ceiling. Adding a connector and marking it `owed`
     // fails here until somebody writes that decision down on purpose — which
     // is the moment to ask whether it should just be driven instead.
-    expect(owed).toEqual(['target:imap-dav']);
+    //
+    // Four of these five are the O365 family, and they are one decision, not
+    // four: whether a real-tenant path is exercised by a harness nobody runs,
+    // by a documented manual migration somebody actually performs, or not at
+    // all. Until that is decided, saying so here is more honest than a
+    // workflow file that has never executed.
+    expect(owed).toEqual([
+      'source:graph-mail',
+      'source:graph-calendar',
+      'source:graph-contacts',
+      'source:graph-drive',
+      'target:imap-dav',
+    ]);
   });
 
   it('nothing is filed as uncoverable when this repo can plainly cover it', () => {

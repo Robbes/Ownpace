@@ -1756,3 +1756,28 @@ Harmless, and the point is that the promise was in a comment, and a comment
 cannot delete anything. The workflow now declares exactly one job, takes no
 dispatch input, carries no `if:` and says TEMPORARY nowhere — each asserted,
 and each proved by putting the probe back.
+
+### And the gate that had never run at all
+
+Writing the verdicts above, `graph-mail` was recorded as **driven** — "e2e-o365.yml,
+a real SMB tenant, read-only, secret-gated". Checking rather than assuming:
+
+```
+list_workflow_runs(e2e-o365.yml) -> total_count: 0
+```
+
+**It has never executed. Not rarely — never, in its entire lifetime.** It is
+`workflow_dispatch`-only, so nothing fires it; and the suite it invokes skips
+silently unless `O365_CLIENT_ID` and `O365_TENANT_ID` are set, so a run
+without them would report pass having executed nothing. Its only commits since
+creation are a repo-wide rename and a transpiler change — nobody has
+maintained it against the product.
+
+So the first draft of the coverage guard did the exact thing the guard exists
+to prevent: it took a workflow file's existence as evidence of coverage and
+wrote that down as an assertion. A file that mentions O365 is not a test of
+O365. **The correction is the finding**: the four Graph types move to `owed`,
+which makes the O365 question visible as one decision — is that path exercised
+by a harness nobody runs, by a documented manual migration somebody actually
+performs, or not at all? — rather than as a green-looking workflow that has
+never once run.
