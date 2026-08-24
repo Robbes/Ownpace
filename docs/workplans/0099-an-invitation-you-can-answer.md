@@ -1886,3 +1886,69 @@ both again in one new file. The pattern is not carelessness about the rule; it
 is that a rule lives where it was written. What generalises it is a test that
 reads every file, and the only reason these cost nothing is that somebody had
 already written those tests and something ran them.
+
+## The target nothing had ever written to
+
+`imap-dav` — the single entry the coverage guard listed as **owed** — is now
+driven. Mail written to an IMAP target rather than a JMAP one had been covered
+by unit tests and by nothing that ran, on a path the API constructs
+(`routes/migrations/index.ts`), `config.ts` parses and `build-deps.ts`
+dispatches.
+
+**Two wrong shapes were tried before the right one, and both were caught by
+guards somebody else had already written.**
+
+The first instinct was a second mapping file in the appliance's config dir,
+since `loadConfigDir` reads a DIRECTORY. That would have broken four other
+gates: `getDeletions()` takes `Object.keys(body)[0]` and `getDomainStatus()`
+takes `mappings[0]` — both pick the first mapping *arbitrarily* — and a file
+named `mapping-imap-dav.json` sorts BEFORE `mapping.json`. Every
+apply-deletion and verification assertion would have silently retargeted and
+started passing or failing for reasons unrelated to what it tests. Caught by
+reading the helpers first. `assertSingleMapping` now states that assumption
+instead of leaving it implicit, so the next person to reach for a second
+mapping is told rather than misled.
+
+The second was a root-level e2e that imported `buildDeps`. It compiled, it
+passed locally, and `test/e2e/no-workspace-imports.unit.test.ts` refused it:
+`test/e2e` is not inside a workspace package, so pnpm links no `@openmig/*`
+there and the import would have died on the runner with
+`ERR_MODULE_NOT_FOUND` — while `tsc` and `tsx` both resolved it locally
+through tsconfig paths. **A test that passes here and dies on the Spark is
+worse than no test**, and the only thing standing between that and a merged
+pull request was a guard written for exactly this. Its second half is the
+deeper rule: an e2e talks to a RUNNING appliance over the wire, and pulling
+library code into one makes it partly a test of this checkout.
+
+So the coverage lives where library-level questions belong: an INTEGRATION
+test, where the workspace is linked and Testcontainers provides a real
+Stalwart. It drives the product's own `buildDeps` — so the `case 'imap-dav'`
+arm and its environment password resolution are on the path — then confirms
+the write with an INDEPENDENT `ImapFlow` client rather than the writer's own
+report, and writes a second time to prove adoption rather than duplication, by
+count on the server. It runs on **every pull request, on both architectures**,
+rather than nightly: strictly more often than the e2e would have.
+
+**And the guard grew the half the O365 correction taught.** A `driven` verdict
+that names a test file must name one that EXISTS and that something actually
+RUNS — a workflow by path for an e2e, `pnpm test:integration` for an
+integration test. "A file mentions O365" was never evidence O365 was tested;
+"a verdict names a file" is the same laundering one step later. Proved by
+breaking: the named file deleted; a verdict naming a file that never existed;
+the verdict moved back to `owed` without the owed list following.
+
+## The drill was quietly filling the disk
+
+Running the new tooling by hand on the Spark showed two backups where there
+should have been one: a `-drill` dump from the gate's own run, 14MB
+compressed (185MB of SQL). **The drill takes a real backup every pass and kept
+every one of them** — about 14MB a night, 5GB a year, on the machine whose
+gate is supposed to be near-net-zero (0084). Nobody asked for a dump per
+night; the dump is a byproduct of proving the round trip.
+
+Retention is bounded now — `TRIGGER_BACKUP_KEEP`, seven by default, `0` to
+keep everything deliberately — and pruning happens AFTER the new dump is
+verified, never before: pruning to make room for a backup that then fails
+would trade a full disk for no backup at all. Found by a human running the
+thing and reading the output, which is the same way everything else today was
+found.

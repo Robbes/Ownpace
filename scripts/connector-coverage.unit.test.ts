@@ -41,6 +41,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const REPO = fileURLToPath(new URL('../', import.meta.url));
@@ -106,12 +107,10 @@ const TARGET_COVERAGE: Record<string, Verdict> = {
   carddav: { driven: 'e2e.yml — Nextcloud, contact target' },
   webdav: { driven: 'e2e.yml — Nextcloud, file target' },
   'imap-dav': {
-    owed:
-      'mail written to an IMAP target instead of a JMAP one. The API constructs this ' +
-      'type (routes/migrations/index.ts), config.ts parses it and build-deps builds it — ' +
-      'and no gate, seed or appliance config has ever selected it. COVERABLE HERE: the ' +
-      'same Stalwart the gates already stand up serves IMAP on 993 and already has the ' +
-      'target account provisioned, so this needs no new infrastructure and no credentials.',
+    driven:
+      "imap-dav-target.integration.test.ts drives the product's own buildDeps into a real " +
+      'Stalwart from Testcontainers and confirms the write with an INDEPENDENT IMAP client. ' +
+      'Runs on every pull request, on both architectures. Owed until 2026-08-24.',
   },
 };
 
@@ -172,12 +171,13 @@ describe('what is owed stays visible, and stays exact', () => {
     // by a documented manual migration somebody actually performs, or not at
     // all. Until that is decided, saying so here is more honest than a
     // workflow file that has never executed.
+    // imap-dav left this list on 2026-08-24 — the only entry that was ever
+    // coverable with what the gates already stand up, and now driven.
     expect(owed).toEqual([
       'source:graph-mail',
       'source:graph-calendar',
       'source:graph-contacts',
       'source:graph-drive',
-      'target:imap-dav',
     ]);
   });
 
@@ -189,6 +189,54 @@ describe('what is owed stays visible, and stays exact', () => {
     for (const [type, v] of [...Object.entries(SOURCE_COVERAGE), ...Object.entries(TARGET_COVERAGE)]) {
       if (localTypes.includes(type)) {
         expect(v.uncoverable, `${type} is served by Stalwart or Nextcloud — it cannot be "uncoverable"`).toBeUndefined();
+      }
+    }
+  });
+});
+
+describe('a "driven" verdict names something that actually runs', () => {
+  /**
+   * The O365 correction earlier in this file was caught by asking the API how
+   * many times a workflow had run. That check cannot live in a unit test — but
+   * a cheaper half can: a verdict that names a test FILE must name one that
+   * exists, and a gate must actually invoke it. A verdict pointing at a
+   * deleted file, or at one no workflow runs, is the same laundering one step
+   * later.
+   */
+  const workflows = ['e2e.yml', 'e2e-managed.yml', 'e2e-o365.yml']
+    .map((f) => readFileSync(REPO + '.github/workflows/' + f, 'utf8'))
+    .join('\n');
+  const ci = readFileSync(REPO + '.github/workflows/ci.yml', 'utf8');
+
+  /** Where a named test file actually is, or '' if it is nowhere. */
+  function locate(file: string): string {
+    const candidates = execFileSync(
+      'find',
+      ['test', 'packages', 'apps', 'scripts', '-name', file, '-not', '-path', '*/node_modules/*'],
+      { cwd: REPO, encoding: 'utf8' },
+    )
+      .split('\n')
+      .filter(Boolean);
+    return candidates[0] ?? '';
+  }
+
+  it('every test file a verdict names exists, and something actually runs it', () => {
+    const named = [...Object.values(SOURCE_COVERAGE), ...Object.values(TARGET_COVERAGE)]
+      .map((v) => v.driven ?? '')
+      .flatMap((reason) =>
+        [...reason.matchAll(/([\w.-]+\.(?:e2e|integration)\.test\.ts)/g)].map((m) => m[1]!),
+      );
+    expect(named.length, 'no verdict names a test file — this test would be vacuous').toBeGreaterThan(0);
+    for (const file of named) {
+      const at = locate(file);
+      expect(at, `${file} is named as driving a connector but exists nowhere`).not.toBe('');
+      if (file.endsWith('.e2e.test.ts')) {
+        // An e2e runs only if a workflow names the path.
+        expect(workflows, `${file} exists but no gate runs it`).toContain(file);
+      } else {
+        // Integration tests run as a project, not by path — so what has to be
+        // true is that CI runs that project at all.
+        expect(ci, 'ci.yml does not run the integration project').toContain('pnpm test:integration');
       }
     }
   });
