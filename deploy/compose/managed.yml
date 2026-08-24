@@ -139,7 +139,7 @@ services:
     # deploy story). The old hardcoded v4.5.4 pin claimed to match an SDK that
     # had moved to 4.5.7 — and the v4.5.7 pin then repeated the same drift
     # when the SDK moved to 4.5.9.
-    image: ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.5.9}
+    image: ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.5.12}
     container_name: trigger-api
     restart: unless-stopped
     user: root
@@ -305,7 +305,7 @@ services:
   # deployed task is dequeued by nobody — which is exactly what this stack
   # was before 0018: bootstrap env vars with no consumer.
   trigger-supervisor:
-    image: ghcr.io/triggerdotdev/supervisor:${TRIGGER_IMAGE_TAG:-v4.5.9}
+    image: ghcr.io/triggerdotdev/supervisor:${TRIGGER_IMAGE_TAG:-v4.5.12}
     container_name: trigger-supervisor
     restart: unless-stopped
     environment:
