@@ -694,3 +694,85 @@ describe('a sign-in that can actually complete', () => {
     );
   });
 });
+
+describe('the provisioning token rotates before it dies', () => {
+  /**
+   * The expiry is a FIRSTINSTANCE setting: the provider reads
+   * ZITADEL_PAT_EXPIRY once, at init, and the seed is written --if-absent — so
+   * without rotation the whole gate ran on a credential whose deadline was
+   * frozen by whichever run FIRST executed the script. The Spark's instance
+   * was re-initialised during the E2E (managed) #50-#52 clear-downs and
+   * inherited a seed written hours earlier: a token due to die the next
+   * afternoon, taking every later run with it — and taking the ability to
+   * mint a successor too, because minting needs the very token that died.
+   */
+  // The header line, not the seed comment that mentions the section by name.
+  const start = SETUP.indexOf("- the credential's clock --");
+  const end = SETUP.indexOf('------- project --');
+  const ROTATION = start >= 0 && end > start ? SETUP.slice(start, end) : '';
+
+  it('has a rotation section between the token check and the project work', () => {
+    expect(ROTATION).not.toBe('');
+  });
+
+  it('asks the PROVIDER for the deadline, never the note in .env', () => {
+    // Reading ZITADEL_PAT_EXPIRY back as the truth would trust the exact
+    // staleness this section exists to end.
+    expect(ROTATION).toContain('/pats/_search');
+    expect(ROTATION).not.toMatch(/read_env ZITADEL_PAT_EXPIRY/);
+  });
+
+  it('mints, proves, lands, reads back, and only then deletes — in that order', () => {
+    // A failure at any step must leave a working token somewhere rather than
+    // none anywhere, and the order is what guarantees it.
+    const order = [
+      ROTATION.indexOf('users/${SETUP_UID}/pats"'), // mint the successor
+      ROTATION.indexOf('Authorization: Bearer ${NEW_TOKEN}'), // prove it
+      ROTATION.indexOf('pat.txt.next'), // land it atomically
+      ROTATION.indexOf('read_provisioning_token | tr'), // read it back
+      ROTATION.indexOf('users/${SETUP_UID}/pats/${old_id}'), // delete the old
+    ];
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it('the policy owns both ends: too close to death AND longer than the lifetime', () => {
+    // A fresh init mints under the compose default — months out — and with
+    // only the lower bound that token would sail outside the policy until
+    // three days before it dies. Both bounds, or the lifetime knob is a wish.
+    // The CONDITION lines themselves — a bare '-gt …' would also match the
+    // say-branch and stay green with the upper bound gone (first version did).
+    expect(ROTATION).toContain('-lt $(( PAT_ROTATE_BELOW_DAYS * 86400 )) ] ||');
+    expect(ROTATION).toContain('\n   [ "$LEFT_SECONDS" -gt $(( PAT_LIFETIME_DAYS * 86400 )) ]; then');
+  });
+
+  it('moves the .env note with a PLAIN upsert — --if-absent would keep the stale date', () => {
+    const writes = [...ROTATION.matchAll(/"\$UPSERT"[^\n]*ZITADEL_PAT_EXPIRY/g)].map((m) => m[0]);
+    // Both branches write it: the rotated expiry, or the live token's real one.
+    expect(writes.length).toBeGreaterThanOrEqual(2);
+    for (const w of writes) expect(w).not.toContain('--if-absent');
+  });
+
+  it('the first-init seed and the rotation share one lifetime knob', () => {
+    // A literal '+1 day' here and a knob there is two clocks; the seed must be
+    // derived from the same ZITADEL_PAT_LIFETIME_DAYS the successors get.
+    expect(SETUP).not.toContain("'+1 day'");
+    expect(SETUP).toContain('PAT_EXPIRY="$(future_iso "$PAT_LIFETIME_DAYS")"');
+    expect(SETUP).toContain('"$UPSERT" --if-absent "$ENV_FILE" "ZITADEL_PAT_EXPIRY=');
+  });
+
+  it('a 401 names expiry as a cause, next to the instance-mismatch one', () => {
+    const refusal = /401\)\n\s*die[\s\S]*?;;/.exec(SETUP)?.[0] ?? '';
+    expect(refusal).toContain('IT EXPIRED');
+    expect(refusal).toContain('IT BELONGS TO AN INSTANCE THAT NO LONGER EXISTS');
+  });
+
+  it('tolerates the provider stamping fractional seconds on the expiry', () => {
+    expect(SETUP).toContain('local iso="${1%%.*}"');
+  });
+
+  it('documents the knobs where every other knob is', () => {
+    expect(EXAMPLE).toContain('ZITADEL_PAT_LIFETIME_DAYS=');
+    expect(EXAMPLE).toContain('ZITADEL_PAT_ROTATE_BELOW_DAYS=');
+  });
+});

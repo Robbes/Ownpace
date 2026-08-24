@@ -174,16 +174,42 @@ if ! curl -sS --max-time 3 -o /dev/null "${ISSUER}/debug/healthz" 2>/dev/null; t
   CURL_ORIGIN=(--resolve "${IDP_DOMAIN}:${IDP_PORT}:127.0.0.1")
 fi
 
-# The provisioning token's expiry, computed now so it is short-lived rather
-# than a date somebody picked once and left in a file for a year. Written
-# BEFORE the container starts, because the provider reads it at first init.
-if command -v date >/dev/null && date -u -d '+1 day' >/dev/null 2>&1; then
-  PAT_EXPIRY="$(date -u -d '+1 day' +%Y-%m-%dT%H:%M:%SZ)"        # GNU
-elif date -u -v+1d >/dev/null 2>&1; then
-  PAT_EXPIRY="$(date -u -v+1d +%Y-%m-%dT%H:%M:%SZ)"              # BSD/macOS
-else
-  die "could not compute a date one day from now — neither GNU nor BSD \`date\` worked"
-fi
+# THE CREDENTIAL'S LIFETIME, in one place. The seed below is read by the
+# provider exactly once — at FIRST INIT — and the rotation section further down
+# ("the credential's clock") owns the token from then on, minting a successor
+# whenever fewer than ZITADEL_PAT_ROTATE_BELOW_DAYS days remain. Seed and
+# successor use the same lifetime, so the first credential and every later one
+# live by the same rule.
+PAT_LIFETIME_DAYS="$(read_env ZITADEL_PAT_LIFETIME_DAYS 7)"
+PAT_ROTATE_BELOW_DAYS="$(read_env ZITADEL_PAT_ROTATE_BELOW_DAYS 3)"
+[[ "$PAT_LIFETIME_DAYS" =~ ^[1-9][0-9]*$ ]] ||
+  die "ZITADEL_PAT_LIFETIME_DAYS must be a whole number of days, not '${PAT_LIFETIME_DAYS}'"
+[[ "$PAT_ROTATE_BELOW_DAYS" =~ ^[1-9][0-9]*$ ]] ||
+  die "ZITADEL_PAT_ROTATE_BELOW_DAYS must be a whole number of days, not '${PAT_ROTATE_BELOW_DAYS}'"
+[ "$PAT_ROTATE_BELOW_DAYS" -lt "$PAT_LIFETIME_DAYS" ] ||
+  die "ZITADEL_PAT_ROTATE_BELOW_DAYS (${PAT_ROTATE_BELOW_DAYS}) must be smaller than
+ZITADEL_PAT_LIFETIME_DAYS (${PAT_LIFETIME_DAYS}), or every single run would rotate the token"
+
+future_iso() { # future_iso <days> — UTC, RFC3339; GNU date, then BSD
+  date -u -d "+${1} day" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null && return 0
+  date -u -v"+${1}d" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null && return 0
+  return 1
+}
+iso_to_epoch() { # tolerates the provider stamping fractional seconds
+  local iso="${1%%.*}"
+  iso="${iso%Z}Z"
+  date -u -d "$iso" +%s 2>/dev/null && return 0
+  date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$iso" +%s 2>/dev/null && return 0
+  return 1
+}
+
+# The seed. --if-absent, because on an already-provisioned stack this value is
+# maintained by the rotation section against the LIVE token, and overwriting it
+# here would put a date in the file that no credential actually carries. It is
+# written before the container starts because first init is the one moment the
+# provider reads it.
+PAT_EXPIRY="$(future_iso "$PAT_LIFETIME_DAYS")" ||
+  die "could not compute a date ${PAT_LIFETIME_DAYS} days from now — neither GNU nor BSD \`date\` worked"
 "$UPSERT" --if-absent "$ENV_FILE" "ZITADEL_PAT_EXPIRY=${PAT_EXPIRY}" >/dev/null
 
 # ------------------------------------------------------------------- bring up --
@@ -344,12 +370,24 @@ Is the identity provider still up?  docker compose -f ${SCRIPT_DIR}/managed.yml 
     ${out}
 
 The token was READ successfully and has the shape of one, so this is the
-provider DECLINING it rather than something malformed reaching it.
+provider DECLINING it rather than something malformed reaching it. Two causes
+cover nearly every case:
 
-The likeliest reason is that it belongs to an instance that no longer exists:
-/machinekey/pat.txt is written on FIRST INIT only, so clearing the zitadel
-DATABASE while keeping the machinekey VOLUME leaves exactly this. It is NOT the
-only reason, and the provider's own log says which:
+  IT EXPIRED. The token carries its own deadline. This script's note of it —
+  ZITADEL_PAT_EXPIRY in ${ENV_FILE}, last written when a run last synced it —
+  says: $(read_env ZITADEL_PAT_EXPIRY unknown).
+  Every run of this script rotates the token when fewer than
+  ${PAT_ROTATE_BELOW_DAYS} days remain, so an expired one means the gate has
+  not run since before that window closed. The way back in without destroying
+  anything: sign in at ${ISSUER}/ui/console as the first user, mint a new
+  personal access token on the 'ownpace-setup' service user, and write it over
+  /machinekey/pat.txt on the ${COMPOSE_PROJECT:-ownpace-managed}_zitadel_machinekey volume.
+
+  IT BELONGS TO AN INSTANCE THAT NO LONGER EXISTS. /machinekey/pat.txt is
+  written on FIRST INIT only, so clearing the zitadel DATABASE while keeping
+  the machinekey VOLUME leaves exactly this.
+
+The provider's own log says which:
 
     docker compose -f ${SCRIPT_DIR}/managed.yml logs zitadel --no-color | tail -40
 
@@ -433,7 +471,122 @@ need_jq
 # accepts this token, so a dead one is named HERE — where the remedy is — and
 # not four calls later as "could not create the project".
 say "checking the identity provider still accepts this provisioning token"
-api GET /auth/v1/users/me >/dev/null
+me="$(api GET /auth/v1/users/me)"
+SETUP_UID="$(jq -r '.user.id // empty' <<<"$me")"
+[ -n "$SETUP_UID" ] || die "the provider accepted the token but named no user id in its answer:
+    ${me}"
+
+# ------------------------------------------------------ the credential's clock --
+#
+# THE TOKEN THIS SCRIPT RUNS ON EXPIRES, AND UNTIL NOW NOTHING RENEWED IT. Its
+# expiry is a FIRSTINSTANCE setting: the provider reads ZITADEL_PAT_EXPIRY from
+# .env exactly once, at init, and the --if-absent seed above means that value
+# was the timestamp of whichever run FIRST executed this script, plus a
+# lifetime — it never moved again. E2E (managed) #66 MEASURED the note and the
+# truth already apart: the gate's .env said 2026-08-24 while the live token
+# holds 2026-12-31 — the lucky direction, and an accident of plumbing (the gate
+# restores .env from a copy persisted before this script runs, so its writes
+# evaporate and no seed ever reached an init). On a host where
+# deploy/compose/.env is the real, durable file, the same drift arms the
+# opposite trap: a re-init reads a seed that has meanwhile slipped into the
+# past and mints a token BORN DEAD. And past any deadline no rotation is
+# possible at all, because minting a successor needs the very token that died.
+#
+# So the credential keeps its own clock. Every run asks the PROVIDER when the
+# token dies — the .env note is a note, not the truth — and inside the rotation
+# window mints a successor, PROVES the successor works, writes it to the
+# volume, reads it back, and only then deletes the predecessors. In that order:
+# a failure at any step leaves a working token somewhere rather than none
+# anywhere. A crash mid-rotation leaves two live tokens, and the next run's
+# delete-everything-but-the-successor takes the extra one back.
+#
+# The .env note then moves to the successor's real expiry with a PLAIN upsert —
+# --if-absent here would keep the stale date forever, which is the exact bug
+# this section exists to end. That also un-poisons REPROVISIONING: a re-init
+# now reads a seed at most one lifetime old, never one from the first bring-up.
+say "asking the provider when this provisioning token expires"
+pats="$(api POST "/management/v1/users/${SETUP_UID}/pats/_search" '{}')"
+NEAREST="$(jq -r '[.result[]?.expirationDate | select(. != null)] | min // empty' <<<"$pats")"
+[ -n "$NEAREST" ] || die "the provider lists no personal access tokens for user ${SETUP_UID},
+yet one of them just authenticated this very call. Refusing to guess; it answered:
+    ${pats}"
+NEAREST="${NEAREST%%.*}"
+NEAREST="${NEAREST%Z}Z"
+
+EXP_EPOCH="$(iso_to_epoch "$NEAREST")" ||
+  die "could not parse the expiry the provider reported: '${NEAREST}'"
+LEFT_SECONDS=$(( EXP_EPOCH - $(date -u +%s) ))
+
+# THE POLICY OWNS BOTH ENDS. Too close to death is the obvious trigger; too
+# far past the lifetime is the other half, because a fresh init mints under
+# the compose default (months out) and without this branch that token would
+# sail outside the policy until three days before New Year. Either way the
+# successor lives exactly ZITADEL_PAT_LIFETIME_DAYS.
+if [ "$LEFT_SECONDS" -lt $(( PAT_ROTATE_BELOW_DAYS * 86400 )) ] ||
+   [ "$LEFT_SECONDS" -gt $(( PAT_LIFETIME_DAYS * 86400 )) ]; then
+  if [ "$LEFT_SECONDS" -lt 0 ]; then
+    say "the nearest token expiry is ${NEAREST} — already past. The token in use still works, so that one is a dead leftover; rotating and sweeping"
+  elif [ "$LEFT_SECONDS" -gt $(( PAT_LIFETIME_DAYS * 86400 )) ]; then
+    say "it expires ${NEAREST} — $(( LEFT_SECONDS / 86400 )) days out, LONGER than the ${PAT_LIFETIME_DAYS}-day policy (a first-init default, or hand-minted). Rotating it under the policy"
+  else
+    say "it expires ${NEAREST} — $(( LEFT_SECONDS / 3600 ))h from now, inside the ${PAT_ROTATE_BELOW_DAYS}-day window. Rotating it"
+  fi
+
+  NEW_EXPIRY="$(future_iso "$PAT_LIFETIME_DAYS")" ||
+    die "could not compute a date ${PAT_LIFETIME_DAYS} days from now — neither GNU nor BSD \`date\` worked"
+  minted="$(api POST "/management/v1/users/${SETUP_UID}/pats" \
+    "$(jq -nc --arg d "$NEW_EXPIRY" '{expirationDate:$d}')")"
+  # The answer holds a live credential: it is never printed, and every check on
+  # it speaks in lengths, not bytes.
+  NEW_TOKEN="$(jq -r '.token // empty' <<<"$minted")"
+  NEW_TOKEN_ID="$(jq -r '.tokenId // empty' <<<"$minted")"
+  [ -n "$NEW_TOKEN" ] && [ -n "$NEW_TOKEN_ID" ] ||
+    die "the provider answered 2xx to the mint but returned no token or no token id — rotating nothing"
+  case "$NEW_TOKEN" in *[[:space:]]*)
+    die "the minted token contains whitespace, and no token does — rotating nothing" ;;
+  esac
+  [ "${#NEW_TOKEN}" -ge 20 ] ||
+    die "the minted token is ${#NEW_TOKEN} characters long, too short to be one — rotating nothing"
+
+  # PROVE THE SUCCESSOR before the predecessor is touched: the same question
+  # the old token just answered.
+  new_code="$(curl -sS "${CURL_ORIGIN[@]}" -o /dev/null -w '%{http_code}' \
+    -H "Authorization: Bearer ${NEW_TOKEN}" "${ISSUER}/auth/v1/users/me" || echo 000)"
+  case "$new_code" in
+    2*) : ;;
+    *) die "the freshly minted token was refused (HTTP ${new_code}) — keeping the old one, rotating nothing" ;;
+  esac
+
+  # LAND IT IN THE VOLUME atomically — pat.txt.next, then mv — and READ IT
+  # BACK, because a write this script cannot verify is the machinekey story
+  # all over again.
+  printf '%s' "$NEW_TOKEN" |
+    "${COMPOSE[@]}" run --rm --quiet-pull -T zitadel-machinekey \
+      sh -c 'cat > /machinekey/pat.txt.next && mv /machinekey/pat.txt.next /machinekey/pat.txt' ||
+    die "could not write the rotated token into the machinekey volume — the old token stays in force"
+  back="$(read_provisioning_token | tr -d '\r\n')"
+  [ "$back" = "$NEW_TOKEN" ] ||
+    die "wrote the rotated token (${#NEW_TOKEN} characters) and read ${#back} back — the volume did not keep the write; the old token stays in force"
+
+  # THE SUCCESSOR TAKES OVER: every later call in this run — the deletions
+  # right here first — authenticates with it, which is also its second proof.
+  PAT="$NEW_TOKEN"
+  removed=0
+  while IFS= read -r old_id; do
+    [ -n "$old_id" ] || continue
+    [ "$old_id" = "$NEW_TOKEN_ID" ] && continue
+    api DELETE "/management/v1/users/${SETUP_UID}/pats/${old_id}" >/dev/null
+    removed=$(( removed + 1 ))
+  done <<<"$(jq -r '.result[]?.id // empty' <<<"$pats")"
+
+  "$UPSERT" "$ENV_FILE" "ZITADEL_PAT_EXPIRY=${NEW_EXPIRY}" >/dev/null
+  say "rotated — the new token expires ${NEW_EXPIRY}, ${removed} predecessor(s) deleted"
+else
+  say "good until ${NEAREST} ($(( LEFT_SECONDS / 86400 )) days) — within policy, no rotation needed"
+  # The note tracks the LIVE token even when nothing rotates, so the file never
+  # again carries a date no credential holds.
+  "$UPSERT" "$ENV_FILE" "ZITADEL_PAT_EXPIRY=${NEAREST}" >/dev/null
+fi
 
 # ------------------------------------------------------------------- project --
 
@@ -700,9 +853,12 @@ EOF
 
 # ------------------------------------------------------------ REPROVISIONING --
 #
-# The provisioning token is written on FIRST INIT and expires. If this script
-# says it cannot find one, the instance is already initialised and the token is
-# gone or stale. Two honest ways forward:
+# The provisioning token is written on FIRST INIT, and every later run of this
+# script rotates it before it expires ("the credential's clock" above) — a
+# stack the gate visits at least every few days renews itself. If this script
+# says it cannot find one, or the 401 above named an expiry the gate slept
+# through, the instance is initialised and the token is gone or stale. Two
+# honest ways forward:
 #
 #   Keep the instance. Sign in at ${ISSUER}/ui/console as the first user, and
 #   read the client id from the Ownpace project's application. Then:

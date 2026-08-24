@@ -174,11 +174,15 @@ describe('what the identity provider said, when it refused', () => {
     // Named as a credential problem, with the scenario this repo actually hit:
     // the database cleared while the machinekey volume was kept.
     expect(r.stderr).toMatch(/token was NOT accepted/);
-    // Names the scenario without claiming it is the only one — the earlier
-    // wording asserted a single cause for a code that has several, and cost
-    // two clear-downs of a database that was never at fault.
+    // Names the scenarios without claiming either is the only one — the
+    // earlier wording asserted a single cause for a code that has several, and
+    // cost two clear-downs of a database that was never at fault. Since the
+    // rotation change the refusal names both known causes side by side, and
+    // still sends the reader to the provider's own log to pick.
     expect(r.stderr).toMatch(/machinekey VOLUME/);
-    expect(r.stderr).toMatch(/NOT the\s+only reason/);
+    expect(r.stderr).toMatch(/Two causes/);
+    expect(r.stderr).toContain('IT EXPIRED');
+    expect(r.stderr).toContain('IT BELONGS TO AN INSTANCE THAT NO LONGER EXISTS');
     expect(r.stderr).toMatch(/logs zitadel/);
     expect(r.stderr).toContain('REPROVISIONING');
   });
