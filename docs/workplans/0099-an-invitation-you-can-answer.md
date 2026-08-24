@@ -1563,3 +1563,60 @@ The lesson is not about Zitadel. **A negative result from a test with two
 variables in it is not a negative result.** One evening went into "trusted
 domains do not affect origin resolution", concluded from a probe that could not
 have succeeded either way.
+
+## The credential with a deadline nobody was watching
+
+Answering an unrelated question — "where should `IAM_LOGIN_CLIENT` live?" —
+meant tracing what the provisioning token actually is, and the trace ended
+somewhere else entirely: **the token the whole managed gate runs on has an
+expiry nobody was tracking.** The chain, each link reasonable on its own:
+
+1. `ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE` is read by the
+   provider **once, at first init**, from `ZITADEL_PAT_EXPIRY` in `.env`.
+2. `setup-zitadel.sh` wrote that value as *now + 1 day*, `--if-absent` — the
+   timestamp of whichever run FIRST executed the script, frozen. The comment on
+   it said *"computed now so it is short-lived rather than a date somebody
+   picked once and left in a file"*, and `--if-absent` made it exactly that.
+3. The trace concluded the live token had inherited a seed from run #47/#48 at
+   the #50–#52 re-inits and **would die that same afternoon**, taking with it
+   the ability to mint a successor — minting needs the very token that died.
+
+Then the fix ran, and **E2E (managed) #66 measured it**:
+
+```
+[setup-zitadel] good until 2026-12-31T23:59:59Z (129 days) — no rotation needed
+```
+
+The trace was wrong, and the way it was wrong is itself the finding. The gate
+restores `.env` from a persisted copy at the start of every run, and persists
+it back **before** `setup-zitadel.sh` runs — so every write this script makes
+to `.env` evaporates at the next restore. No seed ever reached an init; the
+compose default applied every time. The note said 2026-08-24 while the
+credential holds 2026-12-31: **the note and the truth had drifted apart, in
+the lucky direction, by an accident of plumbing.** On a self-managed host —
+where `deploy/compose/.env` is the durable file the provider actually reads —
+the same drift arms the unlucky trap instead: a re-init reads a seed that has
+meanwhile slipped into the past and mints a token **born dead**.
+
+So the credential now keeps its own clock, in `setup-zitadel.sh` where the
+token already proves itself, and the fix never reads the note: every run asks
+the PROVIDER when the token dies and, inside the rotation window, mints a
+successor, **proves** it with the same call the predecessor just answered,
+lands it in the machinekey volume, **reads it back**, and only then deletes
+the predecessors — an order chosen so a failure at any step leaves a working
+token somewhere rather than none anywhere. The `.env` note then moves to the
+successor's real expiry with a **plain** upsert; on a durable-`.env` host that
+un-poisons the re-init path, and everywhere it stops the file asserting a date
+no credential carries. Past the deadline with no runs in between, the 401
+refusal now names expiry as a cause beside the instance-mismatch one, with the
+console remedy that destroys nothing.
+
+Two lessons, one old and one earned tonight:
+
+- **`--if-absent` is for an operator's own choices; it is the wrong mode for
+  anything with a clock in it.** A value computed at write time and consumed
+  at read time is only as fresh as the day nobody re-wrote it.
+- **The note is not the truth — and neither was the archaeology.** A deadline
+  for a live system was reconstructed here from git history and stated as
+  fact; one run against the system itself contradicted it. Same lesson as
+  #61, one day later: a conclusion with the system left unasked is a draft.
