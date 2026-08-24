@@ -99,11 +99,34 @@ export interface DeletionsForMapping {
   acknowledged: DeletionEntry[];
 }
 
+/**
+ * Refuse when the appliance carries more than one mapping.
+ *
+ * Every helper below reaches for the FIRST mapping — `Object.keys(body)[0]`,
+ * `mappings[0]` — which is correct only while there is exactly one. The
+ * appliance's `loadConfigDir` reads a DIRECTORY, so a second config file is a
+ * one-line change away, and a file named `mapping-something.json` sorts BEFORE
+ * `mapping.json`: every assertion in this suite would silently retarget, and
+ * pass or fail for reasons unrelated to what it tests.
+ *
+ * Stated rather than assumed, so that change fails loudly here instead.
+ */
+function assertSingleMapping(ids: ReadonlyArray<string>, where: string): void {
+  if (ids.length > 1) {
+    throw new Error(
+      `${where} returned ${ids.length} mappings (${ids.join(', ')}), and every helper in ` +
+        'apply-deletion-lib.ts takes the FIRST one. Adding a mapping to the appliance means ' +
+        'selecting one explicitly here — not letting readdir order decide what these gates assert against.',
+    );
+  }
+}
+
 export async function getDeletions(): Promise<{ mappingId: string } & DeletionsForMapping> {
   const response = await fetch(DELETIONS_URL);
   const raw = await response.text();
   if (!response.ok) throw new Error(`GET /deletions -> ${response.status}: ${raw}`);
   const body = JSON.parse(raw) as Record<string, DeletionsForMapping>;
+  assertSingleMapping(Object.keys(body), 'GET /deletions');
   const mappingId = Object.keys(body)[0];
   if (!mappingId) throw new Error('GET /deletions returned no mapping at all');
   return { mappingId, ...body[mappingId]! };
@@ -231,6 +254,10 @@ interface StatusPayload {
 export async function getDomainStatus(domain: string): Promise<DomainStatus | null> {
   const response = await fetch(STATUS_URL);
   const status = JSON.parse(await response.text()) as StatusPayload;
+  assertSingleMapping(
+    (status.mappings ?? []).map((m, i) => (m as { mappingId?: string }).mappingId ?? `#${i}`),
+    'GET /status',
+  );
   return status.mappings?.[0]?.domains?.find((d) => d.domain === domain) ?? null;
 }
 

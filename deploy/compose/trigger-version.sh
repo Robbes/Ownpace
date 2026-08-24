@@ -38,6 +38,14 @@ COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml")
 # backups with them.
 BACKUP_DIR="${MANAGED_BACKUP_DIR:-${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/ownpace-managed}/trigger-backups}"
 
+# HOW MANY DUMPS TO KEEP. The gate drills on every pass, and each drill takes
+# a real backup — 14MB compressed on the reference machine. Unbounded that is
+# ~5GB a year of a disk whose gate is supposed to be near-net-zero (0084), and
+# nobody asked for a dump per night. Keeping a handful gives a rolling safety
+# net without the growth; 0 disables pruning for somebody who wants to keep
+# everything deliberately.
+BACKUP_KEEP="${TRIGGER_BACKUP_KEEP:-7}"
+
 DB_CONTAINER="${TRIGGER_DB_CONTAINER:-trigger-db}"
 DB_USER="${TRIGGER_DB_USER:-trigger}"
 DB_NAME="${TRIGGER_DB_NAME:-triggerdb}"
@@ -236,7 +244,25 @@ cmd_backup() {
     die "pg_dump failed. Nothing was written; the previous backups are untouched."
   fi
   verify_dump "$out"
+  prune_backups
   echo "$out"
+}
+
+# Oldest first, keeping the newest BACKUP_KEEP. Runs AFTER the new dump is
+# verified, never before: pruning to make room for a backup that then fails
+# would trade a full disk for no backup at all.
+prune_backups() {
+  [ "$BACKUP_KEEP" -gt 0 ] 2>/dev/null || return 0
+  local listing count doomed
+  listing="$(find "$BACKUP_DIR" -maxdepth 1 -name "${DB_NAME}-*.sql.gz" -printf '%T@ %p\n' 2>/dev/null | sort -rn)"
+  count="$(grep -c . <<<"$listing" || true)"
+  [ "${count:-0}" -gt "$BACKUP_KEEP" ] || return 0
+  doomed="$(tail -n +$(( BACKUP_KEEP + 1 )) <<<"$listing" | cut -d" " -f2-)"
+  local f
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    rm -f "$f" && say "pruned $(basename "$f") — keeping the newest ${BACKUP_KEEP}"
+  done <<<"$doomed"
 }
 
 cmd_backups() {
