@@ -117,12 +117,63 @@ if (!STALWART_IMAP_HOST) {
     ),
   };
 
+  /** `<id@host>` and `id@host` are the same key, and servers return either. */
+  function bareId(id: string | undefined | null): string {
+    return (id ?? '').trim().replace(/^</, '').replace(/>$/, '');
+  }
+
+  /** Every mailbox path the account can see, for a failure that says which half broke. */
+  async function mailboxPaths(): Promise<string[]> {
+    return withClient(async (client) => (await client.list()).map((box) => box.path));
+  }
+
   /**
    * How many copies of `MESSAGE_ID` the server holds in `MAILBOX`, asked with
    * an INDEPENDENT client. The writer's own return value is what is under
    * test; using it to check itself would prove nothing.
+   *
+   * COUNTED FROM ENVELOPES OVER A UID RANGE, not from `client.search(...)`.
+   * The first version asked the server to search `HEADER MESSAGE-ID`, and got
+   * 0 back on the runner for a message the APPEND had demonstrably landed —
+   * `upsertEmail` throws when the server refuses, and it did not throw.
+   *
+   * `imapflow-dav-target.ts` had already learned every part of this, and its
+   * `findByNaturalKey` is the shape copied here:
+   *
+   *   - ENVELOPE rather than a header-string scan, because a folded or
+   *     unusually-cased header is missed by the latter and parsed by the
+   *     former;
+   *   - both sides of the comparison normalised, because the search argument
+   *     carried angle brackets the header value need not;
+   *   - a UID range with NO `mailbox.exists` short-circuit, because `exists`
+   *     is a snapshot from SELECT time — the exact stale read that once made
+   *     the product answer "not present" for messages that were right there.
+   *
+   * Independence is not lost by borrowing the technique: this reads the
+   * server's own ENVELOPE data through a separate connection, and the thing
+   * under test is whether the message is THERE.
    */
   async function countOnServer(): Promise<number> {
+    return withClient(async (client) => {
+      // "Does the mailbox exist yet" is answered by ASKING, not by locking it
+      // and reading the exception as a no: that returns the same 0 for "not
+      // created yet" as for a rejected login, so the BEFORE assertion would
+      // pass for exactly the reason that invalidates it.
+      const boxes = await client.list();
+      if (!boxes.some((box) => box.path === MAILBOX)) return 0;
+
+      const lock = await client.getMailboxLock(MAILBOX);
+      try {
+        const messages = await client.fetchAll('1:*', { uid: true, envelope: true }, { uid: true });
+        return messages.filter((m) => bareId(m.envelope?.messageId) === bareId(MESSAGE_ID)).length;
+      } finally {
+        lock.release();
+      }
+    });
+  }
+
+  /** One connection, always closed, whatever the body does. */
+  async function withClient<T>(body: (client: ImapFlow) => Promise<T>): Promise<T> {
     const client = new ImapFlow({
       host: STALWART_IMAP_HOST!,
       port: STALWART_IMAP_PORT,
@@ -133,22 +184,7 @@ if (!STALWART_IMAP_HOST) {
     });
     await client.connect();
     try {
-      // "Does the mailbox exist yet" is answered by ASKING, not by locking it
-      // and treating the exception as a no. `getMailboxLock(...).catch(() => 0)`
-      // returns the same 0 for "not created yet" as for a rejected login or a
-      // dropped connection — so the BEFORE assertion would pass for exactly the
-      // reason that invalidates it. `list()` throws on a real fault and answers
-      // an absent mailbox with data.
-      const boxes = await client.list();
-      if (!boxes.some((box) => box.path === MAILBOX)) return 0;
-
-      const lock = await client.getMailboxLock(MAILBOX);
-      try {
-        const uids = await client.search({ header: { 'message-id': MESSAGE_ID } }, { uid: true });
-        return Array.isArray(uids) ? uids.length : 0;
-      } finally {
-        lock.release();
-      }
+      return await body(client);
     } finally {
       // The only swallow in this file, and only because a throw from a `finally`
       // REPLACES the error that brought us here. The answer is already in hand.
@@ -213,6 +249,14 @@ if (!STALWART_IMAP_HOST) {
 
       mailboxId = await deps!.target.ensureMailbox(FOLDER);
       expect(mailboxId).toBeTruthy();
+      // Asserted separately from the count so a failure says WHICH half broke.
+      // "0 messages" reads identically whether the mailbox is missing or the
+      // append went somewhere else, and those are different bugs.
+      expect(
+        await mailboxPaths(),
+        'ensureMailbox returned a name the server does not list',
+      ).toContain(mailboxId);
+
       await deps!.target.upsertEmail(mailboxId, MESSAGE, []);
 
       expect(await countOnServer()).toBe(1);
