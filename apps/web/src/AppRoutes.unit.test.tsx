@@ -20,6 +20,11 @@ const { editionFlag } = vi.hoisted(() => ({ editionFlag: { selfhost: false } }))
 // (the 0034 guardrail's sanctioned seam — see MappingDetail.unit.test.tsx).
 vi.mock('./services/edition', () => ({
   isSelfHost: () => editionFlag.selfhost,
+  // Layout renders BuildStamp, which asks the server what IT is running.
+  // A partial mock of a module the component tree imports from fails at
+  // render with "No export is defined on the mock", so the mock has to
+  // grow whenever the tree reaches for something new.
+  operatingBaseUrl: () => '',
 }));
 
 vi.mock('./stores/auth-store', () => {

@@ -21,6 +21,7 @@ import { isSelfHost } from '../services/edition.ts';
 import { useLocale } from '../i18n/index.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import { LOCALES } from '../i18n/strings.ts';
+import BuildStamp from './BuildStamp.tsx';
 import {
   activeNavHref,
   mappingRouteContext,
@@ -214,6 +215,8 @@ const Layout: React.FC = () => {
                 {t('nav.signOut')}
               </button>
             )}
+            {/* Last, and smallest: what build this is. See BuildStamp.tsx. */}
+            <BuildStamp />
           </div>
         </div>
       </aside>

@@ -51,6 +51,11 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 # as-is, but a browser cannot. Built with `--base=/ui/` and VITE_EDITION=selfhost, which the
 # `build:selfhost` script sets, so the bundle matches the mount the appliance
 # serves it from and knows it has no login to offer.
+# The BUNDLE's stamp. The runtime stage below sets OPENMIG_COMMIT for the
+# server's own GET /version; this is the other half, and it has to be here
+# because the bundle is built in this stage.
+ARG GIT_SHA=
+ENV GIT_SHA=$GIT_SHA
 RUN pnpm --filter @openmig/web build:selfhost
 # Stage the SHIPPED artefact (workplan 0015 T3). The image now runs this, not
 # the source tree — see the runtime stage for why that is the point rather than
