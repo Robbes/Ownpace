@@ -2420,3 +2420,126 @@ one that is not.
 
 Proved by breaking: the cleanup removed from one of the fixed files, and the
 guard names it.
+
+## The check Postgres never made
+
+The preflight added a few hours earlier — the one whose whole point was that a
+`zitadel` role and a `.env` out of step should cost a second rather than five
+minutes — ran on the Spark and said:
+
+```
+ ✔ Container ownpace-db Healthy    the zitadel role accepts the password in .env
+```
+
+Three hundred seconds later:
+
+```
+initialize ZITADEL failed: failed to connect to `user=zitadel database=zitadel`:
+172.23.0.9:5432 (postgres): failed SASL auth:
+FATAL: password authentication failed for user "zitadel" (SQLSTATE 28P01)
+```
+
+Both statements are about the same role, the same password and the same
+database, thirty seconds apart, and exactly one of them was produced by asking
+Postgres.
+
+### `trust`
+
+`docker exec ownpace-db psql -U zitadel` connects over the **Unix socket**. The
+official Postgres image runs `initdb` without `-A`, so the generated
+`pg_hba.conf` opens with `local all all trust` and `host all all 127.0.0.1/32
+trust`; the entrypoint then *appends* `host all all all scram-sha-256`. A
+connection over the socket matches the first line and is let in without the
+password being sent, let alone checked. `PGPASSWORD` might as well not be set.
+Zitadel, arriving from its own container on `172.23.0.9`, matches the last
+line, and that one asks.
+
+So the check succeeded with a password the server would refuse. It was not a
+check at all — it was a connection, wearing a check's message. That is hard
+rule 10 (**a status must belong to the thing that happened**) violated by the
+code written to enforce it.
+
+And it was worse than useless, because the same vacuous pass sits at the top of
+the repair:
+
+```bash
+if out="$(docker exec … psql …)"; then say "…nothing to do"; exit 0; fi
+```
+
+`--sync` never reaches its `ALTER ROLE`. The one command that fixes this
+refused to run, on the grounds that there was nothing to fix. **A wrong check
+does not merely fail to help; it disables everything downstream of it.**
+
+### It was written down thirty lines away
+
+`deploy/compose/managed.yml`, in its header, since **2026-07-25**:
+
+> …every app-tier connection failed with "password authentication failed"
+> despite .env, the container's own POSTGRES_PASSWORD env var, and a
+> local-socket/127.0.0.1 psql check all agreeing (the latter two are trusted by
+> Postgres's default pg_hba.conf and **never actually check the password** —
+> only a connection from another container's real IP exercises the
+> scram-sha-256 rule and exposed this).
+
+Same file. Same failure. Same box. Written about the `openmigrate` role, thirty
+lines above the `postgres` service that the `zitadel` role lives in. I read that
+file to pin the ClickHouse digest, and to add `GIT_SHA`, and did not carry the
+paragraph down to the role I was writing a credential check for.
+
+A comment cannot make anyone read it. So the knowledge is now a test —
+`scripts/the-check-postgres-never-made.unit.test.ts` — which scans every shell
+script under `deploy/` and `scripts/` for a `psql` carrying `PGPASSWORD`, and
+refuses any that has no `-h` at a non-loopback address. It fails on the exact
+command that shipped, and names the file and the line.
+
+`-h 127.0.0.1` is in the rule deliberately: it is the fix one reaches for
+first, it looks like a real TCP connection, and it is trusted by the very same
+`pg_hba` line as the socket. It changes nothing.
+
+### What changed
+
+- Every query in `zitadel-db-password.sh` goes to the container's own
+  non-loopback address, resolved by asking the container. If it cannot resolve
+  one it **exits 2 and does nothing** — a fallback to the socket would be the
+  detector reintroducing the defect it detects.
+- That resolution sets a global rather than returning through `$( )`, because
+  `exit 2` inside a command substitution leaves only the subshell, and the
+  caller would have carried on with an empty `-h` — which is the socket. The
+  bug's own shape, one layer down.
+- The passing message now names the channel: *asked over 172.23.0.9:5432, the
+  way Zitadel asks — not the socket*. A status that says how it was obtained is
+  one you can argue with.
+- Three exit codes, not two: **0** accepts (or nothing exists yet), **1**
+  refuses, **2** could not be established. Collapsing 1 and 2 is how an
+  operator gets sent to `ALTER ROLE` for a Postgres that was still starting.
+- `bootstrap-managed.sh` no longer carries its own copy of the query. There
+  were two, they were identical, and they were identically wrong — fixing
+  either alone would have left the other still lying. It calls the script now,
+  which is also the script its refusal tells you to run.
+- The `ALTER ROLE` doubles quotes in the password literal. There is no
+  parameter form of `ALTER ROLE`, and the failure mode is setting a *different*
+  password than `.env` holds and then reporting success — this class again,
+  one step further along.
+
+### A guard from this morning caught the fix
+
+`first_routable_address` was written as `grep … | head -1`, and
+`scripts/no-pipeline-its-own-consumer-can-kill.unit.test.ts` — written earlier
+the same day, for an unrelated failure — refused it before it could be
+committed. `head` closes the pipe at the first line, the still-writing `grep`
+dies of SIGPIPE, and under `pipefail` the function returns 141 having produced
+the right answer. `awk 'NR==1'` reads to EOF and does not.
+
+That is what a guard for a *class* buys that a fix in one file does not: it
+caught a shape in code written hours after it, by someone who knew about the
+rule and wrote the bug anyway.
+
+### The shape of it
+
+Every real finding today came from something that **counted what was actually
+there**: the leaked directories, the token table's one row, the two `.env`
+files differing in one named key. This one is the same lesson stated in the
+negative — a check that cannot come back negative is not counting anything.
+The question to ask of any green check is not "did it pass" but **"what would
+have made it fail?"** For this one the answer was *nothing*, and it took a
+five-minute timeout and a crash-loop to say so.
