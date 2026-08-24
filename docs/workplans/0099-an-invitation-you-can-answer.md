@@ -1649,3 +1649,19 @@ the EXIT trap, after the verdict), and a leftover `IAM_LOGIN_CLIENT` is
 announced where the grant happens and never removed: the humans are
 unambiguously ours; a role on the provisioning user might be an operator's
 own choice.
+
+**And the sweep's first live run settled something nobody had asked.** E2E
+(managed) #68 printed `swept 18 leftover(s) from earlier runs` — three people
+for every run since sign-in was built. Not "some runs crash": **the take-back
+had never taken back anybody.** `sign_in_as` appended each created user to
+`IDP_USERS` from inside the command substitution it runs in, the append died
+with the subshell, and `idp_take_back` iterated an empty array on every run —
+with `|| true` keeping the silence. The same shape as the `fail=1` a subshell
+swallowed in run #60, one function over. The array is now filled in the
+parent shell, from the subjects the reads hand back — pinned by a test that
+extracts the read variables and the capture list from the script and checks
+one against the other — and `sign_in_as` is pinned to never touch the array
+again. The `IAM_LOGIN_CLIENT` warning fired on the same run: a leftover grant
+from some earlier failed revoke, present ever since, now at least said out
+loud. A cleanup mechanism whose failure mode is silence does not exist until
+something independent counts what it left behind.

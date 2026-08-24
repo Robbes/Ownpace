@@ -276,7 +276,7 @@ console.log(jwt.sign({sub:process.env.SUB,email:process.env.SUB+'@smoke.local',t
 # be ambiguous and would need an X-Tenant-Id on every call site; one person per
 # tenant needs none, and reads like what it is: three different people signing
 # in to three different places.
-IDP_USERS=()          # every human created here, for the take-back at the end
+IDP_USERS=()          # every human handed back to the PARENT shell, for the take-back
 IDP_ROLE_ADDED=0      # whether IAM_LOGIN_CLIENT had to be granted
 
 # The provisioning token, read off the VOLUME rather than out of the provider —
@@ -321,7 +321,9 @@ sign_in_as() {
       email:{email:$e,isVerified:true}, password:{password:$p,changeRequired:false}}')" \
     | jq -r '.userId // empty')"
   [ -n "$uid" ] || { echo "could not create $email at the provider" >&2; return 1; }
-  IDP_USERS+=("$uid")
+  # NO append to IDP_USERS here. This function runs inside a command
+  # substitution, and an array append made in that subshell dies with it —
+  # the caller appends the subject it reads back, in the parent shell.
 
   verifier="$(openssl rand -hex 32)"
   challenge="$(printf '%s' "$verifier" | openssl dgst -binary -sha256 | openssl base64 | tr '+/' '-_' | tr -d '=\n')"
@@ -760,6 +762,20 @@ else
   read -r VERIFY_SUBJECT VERIFY_TOKEN <<<"$(sign_in_as "smoke-verify-$$@smoke.local" "$IDP_PW")" || true
   read -r APPLY_SUBJECT APPLY_TOKEN   <<<"$(sign_in_as "smoke-apply-$$@smoke.local" "$IDP_PW")" || true
   read -r INV_SUB INV_TOKEN           <<<"$(sign_in_as "$INV_EMAIL" "$IDP_PW")" || true
+
+  # THE ARRAY IS FILLED HERE, IN THE PARENT SHELL — never inside sign_in_as.
+  # That function runs in a command substitution, and an append made there
+  # dies with the subshell. That exact append is how the take-back iterated an
+  # empty array for six straight runs while `|| true` kept it quiet — the
+  # sweep's first live run (E2E managed #68) found all eighteen people, three
+  # per run since sign-in was built. Same class as the fail=1 a subshell
+  # swallowed in run #60. A person created but never handed back — sign_in_as
+  # failing after its create — still leaks, and the sweep at the next run's
+  # start is the backstop for exactly that window.
+  for subject_id in "${VERIFY_SUBJECT:-}" "${APPLY_SUBJECT:-}" "${INV_SUB:-}"; do
+    [ -n "$subject_id" ] || continue
+    IDP_USERS+=("$subject_id")
+  done
 
   for t in "the verify half:$VERIFY_TOKEN" "the apply half:$APPLY_TOKEN" "the invitee:$INV_TOKEN"; do
     assert_looks_like_a_jwt "${t%%:*}'s token" "${t#*:}" || true

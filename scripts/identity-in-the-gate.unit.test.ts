@@ -620,3 +620,37 @@ describe('the people a dead run leaves behind get taken back', () => {
     expect(takeBack).toContain('"$IDP_ROLE_ADDED" = "1"');
   });
 });
+
+describe('the take-back list is filled where it can survive: the parent shell', () => {
+  /**
+   * sign_in_as runs inside a command substitution. The original code appended
+   * each created user to IDP_USERS from within it, and that append died with
+   * the subshell — so idp_take_back iterated an EMPTY array on every run,
+   * `|| true` kept it quiet, and the take-back this script promised had never
+   * once happened. The sweep's first live run (E2E managed #68) found all
+   * eighteen people: three per run, every run since sign-in was built. Same
+   * class as the fail=1 a subshell swallowed in run #60.
+   */
+  const signInAs = /sign_in_as\(\) \{[\s\S]*?\n\}/.exec(smoke)?.[0] ?? '';
+
+  it('read the real function', () => {
+    expect(signInAs.length).toBeGreaterThan(400);
+  });
+
+  it('sign_in_as itself never touches IDP_USERS — an append there dies with the subshell', () => {
+    expect(signInAs).not.toContain('IDP_USERS+=');
+  });
+
+  it('the parent captures every subject it read back', () => {
+    const capture = /for subject_id in ([^\n]*); do\s*\n\s*\[ -n "\$subject_id" \] \|\| continue\s*\n\s*IDP_USERS\+=\("\$subject_id"\)/.exec(smoke);
+    expect(capture).not.toBeNull();
+    // Every variable the read lines assign a subject into is in the capture
+    // list — extracted from the reads themselves, so a fourth sign-in added
+    // without extending the capture fails here.
+    const subjects = [...smoke.matchAll(/read -r ([A-Z_]+) [A-Z_]+ +<<<"\$\(sign_in_as/g)].map((m) => m[1]);
+    expect(subjects.length).toBe(3);
+    for (const v of subjects) {
+      expect(capture?.[1], `${v} is read but never captured into IDP_USERS`).toContain(`"\${${v}:-}"`);
+    }
+  });
+});
