@@ -2792,3 +2792,24 @@ a real relay already configured.
 
 That makes it three times in one day that a check written to prove something was
 found unable to fail. The question is never "did it pass".
+
+### And the assertion that was nearly guessed
+
+The smoke check was going to be skipped: it needs Mailpit's API shape, and
+there is no Docker in the environment this was written in. Writing an assertion
+against a mechanism nobody had read is exactly what produced the socket
+credential check and the inode comparison — so it was left out and said so.
+
+Then read from Mailpit's own source instead of guessed: `GET /api/v1/search`
+takes `query`, answers with `messages_count` and a `messages` array whose items
+carry **Go field names** — `Subject`, `To`, `Snippet` — because `MessageSummary`
+declares no JSON tags. An assertion written against `subject` in lower case
+would have found nothing and reported "nobody was told" on a working stack.
+
+So the gate now sends a real request through the real front door and reads the
+real mail out of the catcher: the subject must be the knock, and it must be
+addressed to `NOTIFY_TO` and never to the applicant. Nothing is deleted — a
+smoke that empties the catcher wipes whatever an operator was looking at.
+
+**No gate had ever asserted that this product can send a single email.** The
+rendering is unit-tested exhaustively; the wire was never exercised once.
