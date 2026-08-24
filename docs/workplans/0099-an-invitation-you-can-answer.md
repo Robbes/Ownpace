@@ -1781,3 +1781,108 @@ which makes the O365 question visible as one decision — is that path exercised
 by a harness nobody runs, by a documented manual migration somebody actually
 performs, or not at all? — rather than as a green-looking workflow that has
 never once run.
+## A backup you have actually restored
+
+The Trigger.dev upgrade question — "can it be done, and how" — had a clean
+answer everywhere except one place. The images exist, the four-place version
+agreement is now guarded in CI, and the procedure has been documented since
+somebody upgraded with runs in flight and watched every run loop on
+`Snapshot changed inside startRunAttempt`. What was missing was the part that
+makes any of it reversible: **nothing backed `triggerdb` up.**
+
+That database holds what a person cannot rebuild unattended — the account, the
+project, its API keys, the worker group, the deployed-task records. The webapp
+applies its own schema migrations on boot and Prisma has no down-migrations,
+so the documented rollback restores the IMAGES and not the schema they
+migrated. The self-hosted appliance has had a Backup/Restore Drill since
+§22.1; the managed plane, the half that genuinely cannot be rebuilt without a
+browser, had none.
+
+`trigger-version.sh` covers both halves of the problem, because they are the
+same problem: you upgrade when a version appears, and you can only upgrade
+safely if you can get back.
+
+**Listing versions had to be done the awkward way.** ghcr's `/tags/list` is
+neither newest-first nor complete in one page: with `n=1000` the newest
+`v4.5.x` it returns is `v4.5.4`, while `v4.5.9` (running) and `v4.5.12` both
+answer a manifest request with 200. Following the `last=` Link header works
+and walks thousands of SHA-shaped tags to do it. So versions are PROBED by
+manifest, upward from the one already pinned — the only question that registry
+answers reliably. Measured: 5 seconds, and it finds v4.5.10, v4.5.11, v4.5.12.
+
+**And the size check was wrong on the first pass.** `verify_dump` rejected a
+dump under 1KB — measuring the ARCHIVE. SQL compresses ferociously, so a real
+dump can land under a hundred KB on disk while a truncated one that compressed
+badly sails through. The floor now measures the DECOMPRESSED SQL, which is the
+quantity the question is actually about. Found by a test whose own fixture
+compressed to 78 bytes.
+
+The drill is the piece that matters most: dump, restore into a THROWAWAY
+database, compare table counts and project counts, drop the throwaway. It
+never touches the live database — `restore` is the only thing that does, and
+it refuses without `--yes`, refuses while `trigger-api` is running, and prints
+the stop commands instead. Proved by breaking, five mutations, five caught,
+including the one that would matter: the drill's `DROP DATABASE` pointed at
+the live database instead of the throwaway.
+
+### And the guard from #519 caught the author of #519
+
+The full suite came back `1 failed | 3825 passed`, and the failure was in the
+new script:
+
+```
+trigger-version.sh:55  — head stops reading after its limit.
+trigger-version.sh:181 — head stops reading after its limit.
+trigger-version.sh:181 — grep -q stops at the first match.
+trigger-version.sh:232 — head stops reading after its limit.
+```
+
+Four instances of #519 — a pipeline its own consumer can kill — written into a
+new file by the same hands that fixed nineteen of them repo-wide a day
+earlier. `zcat "$f" | head -20 | grep -q …` closes the pipe the moment grep
+matches; `zcat` dies of SIGPIPE; `set -o pipefail` reports that as the
+pipeline failing. Worse than a plain bug, because it depends on whether the
+writer has finished before the reader leaves: it would have passed here and
+failed on the Spark, or passed a hundred times and failed once.
+
+Every early-exit consumer now reads from a here-string. **The lesson is about
+the guard, not the bug**: knowing a rule, having written the rule, and having
+written the test for the rule were all insufficient — what caught it was the
+test running. That is the third time in two days a lesson written next to one
+caller failed to reach the next one, and the first time the cost was zero,
+because by now something automated was watching.
+
+It also caught a worse habit than the bug: `pnpm test | grep 'Tests'` was read
+as green because the shell reported exit code 0 — the GREP's status, not the
+suite's — and the branch was pushed on that reading. The summary line said
+`1 failed` in plain sight.
+
+### The drill's first live run reported its verdict and swallowed its evidence
+
+E2E (managed) #74, the drill's first execution against the real database:
+
+```
+[trigger-version] restoring it into triggerdb_drill — the live triggerdb is not touched
+[trigger-version] round trip proved: 83 tables, 2 project(s), restored and compared
+```
+
+The round trip works. But two lines that should have preceded those —
+`dumping triggerdb from trigger-db` and `verified …` — are absent from the job
+log, and their absence is the finding. `cmd_backup` returns the path it wrote
+by PRINTING it, and `cmd_drill` captures that with
+`$(cmd_backup drill | tail -1)`. `say` wrote to stdout, so every diagnostic
+inside the backup became part of the captured value and `tail -1` discarded
+all of it.
+
+**This is `mint()` again** — smoke-managed.sh, earlier the same day, whose
+stdout was the token and which printed a warning into it. That one cost a run;
+this one cost the evidence from the run that mattered most, which is cheaper
+and exactly as avoidable. `say` writes to stderr now, and a test pins both
+halves: `say` is redirected, and `cmd_backup` prints exactly one unredirected
+thing — the path.
+
+Three times in two days: #519's pipelines, the mint() stdout rule, and now
+both again in one new file. The pattern is not carelessness about the rule; it
+is that a rule lives where it was written. What generalises it is a test that
+reads every file, and the only reason these cost nothing is that somebody had
+already written those tests and something ran them.

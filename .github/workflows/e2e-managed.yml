@@ -364,6 +364,21 @@ jobs:
           esac
           echo "pooler in front, migrations direct"
 
+      # A BACKUP NOBODY HAS RESTORED IS A HOPE. `triggerdb` holds the one thing
+      # on this machine that cannot be rebuilt unattended — the account, the
+      # project, its API keys, the worker group, the deployed-task records —
+      # and the webapp migrates its own schema on boot, so a version bump is
+      # one way and the documented rollback restores IMAGES, not schema.
+      #
+      # The drill dumps it, restores the dump into a THROWAWAY database and
+      # compares, then drops the throwaway. The live database is never touched:
+      # `restore` is the only thing that drops it, and it refuses without
+      # --yes. Cheap (seconds) and it is the only thing that can tell us the
+      # dump would actually load — the self-hosted appliance has had a
+      # Backup/Restore Drill since §22.1 and the managed plane had none.
+      - name: Backup/Restore drill for the Trigger.dev control plane
+        run: ./deploy/compose/trigger-version.sh drill
+
       - name: The acceptance smoke (verify + apply, through real runners)
         # 0020 T5's script. It mints a seeded-member token, drives verify and
         # apply to terminal states, captures runner logs before AutoRemove
