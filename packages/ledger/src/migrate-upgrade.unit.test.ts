@@ -53,13 +53,37 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pgliteDriver } from './pglite-driver.ts';
 import { runMigrations } from './migrate.ts';
 import type { LedgerDriver } from './driver.ts';
+
+/**
+ * Temp directories this file makes, and the removal that used to be missing.
+ *
+ * See the sweep in workplan 0099: `mkdtempSync` with no matching `rmSync`
+ * leaks for the lifetime of the machine, a PGlite data directory is 41MB, and
+ * the suite was measured leaking 322MB per run after quietly accumulating
+ * 29GB and filling the disk of the box running it. `unit-tests` runs on the
+ * SELF-HOSTED runner for pushes to main — the same Spark the managed stack
+ * needs ~15GB free on.
+ *
+ * Registered rather than removed at each call site, so a new test here cannot
+ * forget.
+ */
+const tempDirs: string[] = [];
+function tempDir(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  tempDirs.push(dir);
+  return dir;
+}
+afterAll(() => {
+  for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
+});
+
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const MIGRATIONS_PATH = 'packages/ledger/migrations';
@@ -119,7 +143,7 @@ function headFilenames(): string[] {
  * production.
  */
 function materialiseReleasedMigrations(): string {
-  const dir = join(mkdtempSync(join(tmpdir(), 'openmig-upgrade-')), 'migrations');
+  const dir = join(tempDir('openmig-upgrade-'), 'migrations');
   mkdirSync(dir, { recursive: true });
   for (const name of releasedFilenames()) {
     writeFileSync(join(dir, name), git('show', `${FROM_REF}:${MIGRATIONS_PATH}/${name}`));

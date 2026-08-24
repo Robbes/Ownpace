@@ -11,10 +11,34 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { start, type SelfhostHandle } from './index.ts';
+
+/**
+ * Temp directories this file makes, and the removal that used to be missing.
+ *
+ * See the sweep in workplan 0099: `mkdtempSync` with no matching `rmSync`
+ * leaks for the lifetime of the machine, a PGlite data directory is 41MB, and
+ * the suite was measured leaking 322MB per run after quietly accumulating
+ * 29GB and filling the disk of the box running it. `unit-tests` runs on the
+ * SELF-HOSTED runner for pushes to main — the same Spark the managed stack
+ * needs ~15GB free on.
+ *
+ * Registered rather than removed at each call site, so a new test here cannot
+ * forget.
+ */
+const tempDirs: string[] = [];
+function tempDir(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  tempDirs.push(dir);
+  return dir;
+}
+afterAll(() => {
+  for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
+});
+
 
 const MAPPING_ON = '22222222-2222-4222-8222-2222222222aa';
 const MAPPING_OFF = '22222222-2222-4222-8222-2222222222bb';
@@ -47,7 +71,7 @@ function mappingJson(mappingId: string, allow?: boolean): string {
 
 beforeAll(async () => {
   delete process.env.OPENMIG_TEST_NOPE;
-  const configDir = mkdtempSync(join(tmpdir(), 'openmig-applyflag-cfg-'));
+  const configDir = tempDir('openmig-applyflag-cfg-');
   writeFileSync(join(configDir, 'mapping-on.json'), mappingJson(MAPPING_ON, true));
   // The OFF mapping omits the field entirely: absent must read as off — a
   // capability that destroys data is opted INTO, never defaulted on.
@@ -55,7 +79,7 @@ beforeAll(async () => {
 
   handle = await start({
     persistence: 'pglite',
-    pgliteDataDir: mkdtempSync(join(tmpdir(), 'openmig-applyflag-db-')),
+    pgliteDataDir: tempDir('openmig-applyflag-db-'),
     configDir,
     port: 0,
     host: '127.0.0.1',

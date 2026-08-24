@@ -23,7 +23,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Pool } from 'pg';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -33,6 +33,30 @@ import { asTenantId, asMappingId, MAX_ITEM_ATTEMPTS, wantsAttention } from '@ope
 import { start, type SelfhostHandle } from './index.ts';
 import { uuidFromString } from './config-dir.ts';
 import { collectAttention } from './digest-collect.ts';
+
+/**
+ * Temp directories this file makes, and the removal that used to be missing.
+ *
+ * See the sweep in workplan 0099: `mkdtempSync` with no matching `rmSync`
+ * leaks for the lifetime of the machine, a PGlite data directory is 41MB, and
+ * the suite was measured leaking 322MB per run after quietly accumulating
+ * 29GB and filling the disk of the box running it. `unit-tests` runs on the
+ * SELF-HOSTED runner for pushes to main — the same Spark the managed stack
+ * needs ~15GB free on.
+ *
+ * Registered rather than removed at each call site, so a new test here cannot
+ * forget.
+ */
+const tempDirs: string[] = [];
+function tempDir(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  tempDirs.push(dir);
+  return dir;
+}
+afterAll(() => {
+  for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
+});
+
 
 const ADMIN_URL = process.env.TEST_DATABASE_URL;
 if (!ADMIN_URL) {
@@ -144,7 +168,7 @@ beforeAll(async () => {
   ledger = new PgLedger(db);
   decisions = new PgDecisionStore(db);
 
-  const configDir = mkdtempSync(join(tmpdir(), 'openmig-queues-cfg-'));
+  const configDir = tempDir('openmig-queues-cfg-');
   writeFileSync(
     join(configDir, 'mapping.json'),
     JSON.stringify({

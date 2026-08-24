@@ -18,11 +18,40 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { start, type SelfhostHandle } from './index.ts';
 import type { VerificationRunReport, VerifyStartResponse } from '@openmig/shared';
+
+/**
+ * Temp directories this file makes, and the removal that used to be missing.
+ *
+ * `mkdtempSync` with no matching `rmSync` leaks for the lifetime of the
+ * machine. A PGlite data directory is 41MB, and the unit suite as a whole was
+ * measured on 2026-08-24 leaking 24 directories — 322MB — PER RUN, having
+ * quietly accumulated 29GB and filled the disk of the box it was running on.
+ *
+ * That matters beyond a developer's laptop: `unit-tests` runs on the
+ * SELF-HOSTED runner for pushes to main, which is the same Spark the managed
+ * stack needs ~15GB free on. Nothing was watching, because a test that leaks
+ * still passes.
+ *
+ * Registered rather than removed at each call site: every directory this file
+ * creates goes through here, so a new test cannot forget.
+ */
+const tempDirs: string[] = [];
+function tempDir(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  tempDirs.push(dir);
+  return dir;
+}
+afterAll(() => {
+  // `force` so a directory a test already removed is not an error, and
+  // `recursive` because these hold whole databases.
+  for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
+});
+
 
 const MAPPING_ID = '11111111-1111-4111-8111-1111111111ee';
 
@@ -51,7 +80,7 @@ beforeAll(async () => {
   // rather than a hang inside this suite.
   delete process.env.OPENMIG_TEST_NOPE;
 
-  const configDir = mkdtempSync(join(tmpdir(), 'openmig-verify-cfg-'));
+  const configDir = tempDir('openmig-verify-cfg-');
   writeFileSync(
     join(configDir, 'mapping.json'),
     JSON.stringify({
@@ -77,7 +106,7 @@ beforeAll(async () => {
 
   handle = await start({
     persistence: 'pglite',
-    pgliteDataDir: mkdtempSync(join(tmpdir(), 'openmig-verify-db-')),
+    pgliteDataDir: tempDir('openmig-verify-db-'),
     configDir,
     port: 0,
     host: '127.0.0.1',

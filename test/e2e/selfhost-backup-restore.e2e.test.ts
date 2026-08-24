@@ -54,12 +54,32 @@
 // creates nothing" assertion available. A drill placed after Finish could
 // only count rows.
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { execSync } from 'node:child_process';
 import { setTimeout } from 'node:timers/promises';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+/**
+ * Temp directories this file makes, and the removal that used to be missing.
+ *
+ * See the sweep in workplan 0099: `mkdtempSync` with no matching `rmSync`
+ * leaks for the lifetime of the machine, a PGlite data directory is 41MB, and
+ * the suite was measured leaking 322MB per run after quietly accumulating
+ * 29GB and filling the disk of the box running it. `unit-tests` runs on the
+ * SELF-HOSTED runner for pushes to main — the same Spark the managed stack
+ * needs ~15GB free on.
+ *
+ * This file registers its one directory directly rather than through a
+ * `tempDir()` helper, because it deliberately prefers RUNNER_TEMP over
+ * tmpdir() — see the call site.
+ */
+const tempDirs: string[] = [];
+afterAll(() => {
+  for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
+});
+
 
 /**
  * THE WORKFLOW'S OWN FILE LIST, verbatim, whenever it is exported.
@@ -114,6 +134,9 @@ const PG_VOLUME = `${PROJECT}_pgdata`;
 const APP_VOLUME = `${PROJECT}_appdata`;
 
 const BACKUP_DIR = mkdtempSync(join(process.env.RUNNER_TEMP || tmpdir(), 'openmig-drill-'));
+// Not via tempDir(): this one deliberately prefers RUNNER_TEMP, which the
+// runner wipes between jobs. Registered so a LOCAL run cleans up too.
+tempDirs.push(BACKUP_DIR);
 const SQL_DUMP = join(BACKUP_DIR, 'openmigrate.sql');
 const TAR_DUMP = 'openmigrate-pglite.tar.gz'; // inside the mounted /backup
 

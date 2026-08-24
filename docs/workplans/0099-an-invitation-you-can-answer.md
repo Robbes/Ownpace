@@ -2362,3 +2362,61 @@ integration-test guard written that same morning had needed exactly the same
 treatment for exactly the same reason. Prose is not code, and a scanner that
 cannot tell an example from a value flags its own explanation.
 
+## The tests that filled the disk
+
+The development box ran out of disk. Not the managed stack, not a runaway
+container: **29GB of `/tmp/openmig-*` directories left behind by the unit
+suite**, one `mkdtempSync` at a time.
+
+Everything about finding it was harder than it should have been. `pnpm vitest
+run` reported **235 test FILES failing to collect** — errors about ports, about
+undefined properties, about nothing recognisable — and the actual message was
+one line among them:
+
+```
+Error: ENOSPC: no space left on device, write
+```
+
+A disk that is full does not fail like a disk that is full. It fails like the
+code is broken, which is where twenty minutes went before `df` got run.
+
+### Twelve files, none of them cleaning up
+
+`mkdtempSync` with no matching `rmSync`. Not a subtle leak: three of the files
+had **no teardown hook at all**, and a PGlite data directory is 41MB. Measured
+before the fix: **24 directories, 322MB, per run**. After: **zero**.
+
+**It is not only a laptop problem.** `unit-tests` and `integration-tests` run
+on the SELF-HOSTED runner for pushes to main — the same Spark the managed stack
+needs ~15GB free on. Five merges today would have been about 1.6GB of dead
+PGlite databases on the box we spent the afternoon trying to bring a stack up
+on.
+
+And that is the second disk leak on that machine in two days. Yesterday it was
+the backup drill keeping every dump it ever took (~14MB a night, ~5GB a year).
+Two unrelated leaks on one box inside forty-eight hours is a pattern rather
+than bad luck: **anything that writes to disk on every run needs somebody to
+say when it stops**, and nothing in a green test suite ever says it. A test
+that leaks still passes.
+
+### The guard, and the version of it that was wrong
+
+The first rule was "a file that calls `mkdtempSync` must call `rmSync` **in an
+`afterEach`/`afterAll`**", and it flagged eight perfectly healthy files. Wrong
+twice over:
+
+- `try { … } finally { rmSync(dir) }` inside a test is a good scoped cleanup,
+  and there is no reason to demand a hook instead.
+- `afterEach(() => rmSync(dir, { recursive: true }))` has **no braced body**,
+  so a brace-scanner walks forward from `afterEach(` and reads the OPTIONS
+  OBJECT as the hook — finding no cleanup inside `{ recursive: true }`.
+
+So the rule narrowed to what actually went wrong: a file that makes a temp
+directory must call `rmSync` **somewhere**, an import alone not counting. A
+file that cleans two paths out of three still passes, and that is an accepted
+limit written into the guard's own header rather than hidden. **A guard that
+cries wolf gets disabled**, and a weaker rule that is right beats a stronger
+one that is not.
+
+Proved by breaking: the cleanup removed from one of the fixed files, and the
+guard names it.
