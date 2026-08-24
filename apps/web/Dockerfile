@@ -34,6 +34,11 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 
 ARG VITE_API_URL=/api
 ENV VITE_API_URL=$VITE_API_URL
+# Surfaced by the sidebar's build stamp, and by GET /version on the api and
+# selfhost images which already take this same argument. A static bundle cannot
+# ask at runtime what it was built from, so it is stamped in here.
+ARG GIT_SHA=
+ENV GIT_SHA=$GIT_SHA
 RUN pnpm --filter @openmig/web build
 
 FROM nginx:1.27-alpine AS runtime

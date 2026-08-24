@@ -346,6 +346,7 @@ nav.site a.lang:hover { border-color: var(--teal); color: var(--teal); }
 footer.site { border-top: 1px solid var(--line); margin-top: 5rem; padding: 2.5rem 0 4rem; color: var(--muted); font-size: 0.92rem; }
 footer.site .wrap { display: flex; gap: 2rem; flex-wrap: wrap; justify-content: space-between; }
 footer.site a { color: var(--muted); }
+footer.site .build { font-size: 0.8rem; opacity: 0.7; }
 .skip { position: absolute; left: -9999px; }
 .skip:focus { left: 1rem; top: 1rem; background: var(--bg); padding: 0.5rem 1rem; z-index: 10; }
 `;
@@ -359,6 +360,36 @@ const urlFor = (locale, key) => {
   const file = COPY[locale].files[key];
   return `${localeRoot(locale)}/${file === 'index.html' ? '' : file}`;
 };
+
+// WHAT BUILD THIS PAGE CAME FROM.
+//
+// The monorepo root package.json, which is the same single source the app's
+// bundle and the server's GET /version use. `site/` imports no workspace
+// package by design (see this file's header), and reading one JSON file at
+// build time does not change that: nothing is linked, nothing is resolved
+// through node_modules, and the site still builds if the rest of the
+// repository is not installed.
+//
+// The commit is optional and comes from the environment, because git is not
+// necessarily present wherever this runs. Absent, the footer shows the version
+// alone rather than the word "unknown".
+const BUILD = (() => {
+  try {
+    const { version } = JSON.parse(readFileSync(join(HERE, '..', 'package.json'), 'utf8'));
+    const sha = (process.env.GIT_SHA || '').trim().slice(0, 7);
+    return { version: version || '', commit: sha };
+  } catch {
+    // A site that cannot read the version still builds. The stamp is the least
+    // important thing on the page.
+    return { version: '', commit: '' };
+  }
+})();
+
+/** `v0.1.0-rc.1 · a1b2c3d`, or as much of it as is known, or nothing. */
+function buildStamp() {
+  if (!BUILD.version) return '';
+  return BUILD.commit ? `v${BUILD.version} \u00b7 ${BUILD.commit}` : `v${BUILD.version}`;
+}
 
 function layout({ title, description, body, locale, key, draft }) {
   const c = COPY[locale];
@@ -405,7 +436,9 @@ ${banner}
 ${body}
 </div></main>
 <footer class="site"><div class="wrap">
-  <div><strong>Ownpace</strong> — ${c.footerTag}<br />${c.footerOss}</div>
+  <div><strong>Ownpace</strong> — ${c.footerTag}<br />${c.footerOss}${
+    buildStamp() ? `<br /><span class="build">${buildStamp()}</span>` : ''
+  }</div>
   <div>
     <a href="${urlFor(locale, 'privacy')}">${c.nav.privacy}</a> ·
     <a href="${urlFor(locale, 'terms')}">${c.nav.terms}</a> ·
