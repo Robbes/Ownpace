@@ -41,6 +41,7 @@ const bootstrap = readFileSync(join(COMPOSE_DIR, 'bootstrap-managed.sh'), 'utf8'
 const deployTasks = readFileSync(join(COMPOSE_DIR, 'deploy-tasks.sh'), 'utf8');
 const cliLib = readFileSync(join(COMPOSE_DIR, 'trigger-cli-lib.sh'), 'utf8');
 const envExample = readFileSync(join(COMPOSE_DIR, 'managed.env.example'), 'utf8');
+const zitadelDbPassword = readFileSync(join(COMPOSE_DIR, 'zitadel-db-password.sh'), 'utf8');
 
 describe('the profile name is a setting, and both refusals now say so', () => {
   // Both scripts refuse on the same condition. A fix in one of them is how the
@@ -146,7 +147,12 @@ describe('the zitadel role password is asked BEFORE the container is started', (
   it('treats a missing role as a first bring-up rather than a failure', () => {
     // Zitadel creates both the role and the database itself, with the admin
     // credentials. Refusing here would break every fresh install.
-    expect(bootstrap).toMatch(/\*"does not exist"\*\)/);
+    //
+    // Asserted on the SCRIPT, not on bootstrap: the query and its branches now
+    // live in one place, because two copies of this check is how the same
+    // wrong answer came to be given by both of them. See
+    // scripts/the-check-postgres-never-made.unit.test.ts.
+    expect(zitadelDbPassword).toMatch(/\*"does not exist"\*\)/);
   });
 
   it('refuses to call an unreachable database an authentication failure', () => {
