@@ -625,6 +625,55 @@ cp deploy/compose/.env ~/.persistent/ownpace-managed/.env
 cp deploy/compose/pgbouncer/userlist.txt ~/.persistent/ownpace-managed/userlist.txt
 ```
 
+### One box, one stack, one `.env`
+
+**Then replace your copy with a link, and do not skip this.** The `cp` above is
+a one-time seed. Left as two files it becomes two *configurations* for one
+stack, and they drift the moment either side writes — which both sides do:
+`setup-zitadel.sh` writes the issuer and the rotated PAT expiry, and you write
+whatever you tune by hand.
+
+```bash
+ln -sfn ~/.persistent/ownpace-managed/.env deploy/compose/.env
+```
+
+Only *your* checkout gets the link. The runner's cannot have one — `git clean
+-ffdx` deletes it like any other ignored file — which is exactly why the
+workflow restores a copy at the start of every run and persists it back at the
+end.
+
+**What it costs when they drift** (2026-08-24, workplan 0099). The `zitadel`
+Postgres role's password matched the *runner's* copy. A hand-run bring-up
+presented the other one, and Zitadel — which finds an existing role, logs
+`user already exists, skipping creation`, and does **not** reset its password —
+crash-looped. A crash-looping container is indistinguishable from a slow one
+until the readiness deadline passes, so the answer arrived after 300 seconds of
+silence, and it named a password nobody had changed. The same divergence had
+`ZITADEL_PAT_EXPIRY` in one file describing a token the database did not have.
+
+Three things now make that loud instead of silent:
+
+- `bootstrap-managed.sh` lists any diverging keys **by name** at the top of
+  every phase, including the `--from …` resumes that skip preflight. Names
+  only — the values are secrets.
+- It asks the `zitadel` role for its password **before** starting the
+  container, so the answer takes a second rather than five minutes.
+- `env-upsert.sh` **follows the link instead of replacing it**. Its write is
+  write-temp-then-rename, and `mv -f tmp link` would silently turn the link
+  back into a regular file — re-forking the two on the first `TRIGGER_CLI_PROFILE`
+  or rotated PAT expiry, with nothing said.
+
+If the role and your `.env` have already parted company:
+
+```bash
+./deploy/compose/zitadel-db-password.sh          # check, change nothing
+./deploy/compose/zitadel-db-password.sh --sync   # point the ROLE at .env
+```
+
+Check the divergence list first. If a second `.env` exists, the role may be
+matching *that* one, and syncing would break the other consumer instead of
+fixing yours.
+
 **Do not run a fresh `bootstrap-managed.sh` or `ensure-env-secrets.sh` in the
 CI checkout to "set it up independently.**" It would generate different
 random secrets for the *same*, pinned-name containers your manual checkout

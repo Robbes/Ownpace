@@ -2175,3 +2175,114 @@ that proves the rule stayed narrow rather than creeping — minio pinned by
 VERSION with no digest, which must **pass**, because the rule is "no `latest`",
 not "digest everywhere". A guard that quietly widened its own remit would be a
 different guard than the one that was argued for.
+
+## One stack, two `.env` files, and an afternoon
+
+The ClickHouse pin went to the Spark and the bring-up stopped dead at the
+identity provider. Five minutes of nothing, then:
+
+```
+!!! the identity provider never became ready (300s)
+    initialize ZITADEL failed: failed to connect to `user=zitadel database=zitadel`:
+    failed SASL auth: FATAL: password authentication failed for user "zitadel" (28P01)
+```
+
+For a password nobody had changed. The failure table's entry for that message
+blames a volume collision, and it was not that — Zitadel's ADMIN credentials
+had just worked, three log lines earlier, on `verify database` / `verify grant`
+/ `verify zitadel`. A stranger's volume would have failed those too. Only the
+`zitadel` role's own password was refused.
+
+**The cause was that the Spark runs ONE managed stack and had TWO `.env` files
+describing it.** `managed.yml` pins `name: ownpace-managed` and every service
+carries a fixed `container_name`, both global to the host — so the operator's
+checkout and the nightly gate's checkout drive the very same containers,
+volumes and ports. But the gate's checkout cannot keep a `.env` at all
+(`actions/checkout` runs `git clean -ffdx` before every run, and `-x` reaches
+ignored files), so the workflow restores one from
+`~/.persistent/ownpace-managed/`.
+
+That restore was a workaround for a checkout that cannot hold secrets. Nobody
+decided it should become a second configuration; it became one by sitting
+there. The role's password matched the gate's copy. The hand-run bring-up
+presented the other. Whichever ran last won, and the loser got an
+authentication failure naming a credential it had never touched.
+
+The same divergence had already produced a quieter symptom nobody chased:
+`ZITADEL_PAT_EXPIRY` in one file said `2026-08-31T14:35:20Z` while the
+provisioning token in the database expired at `07:02:53` — the file's own
+account of a credential, one rotation out of date.
+
+### I fixed the wrong layer first
+
+I read the 28P01, produced an `ALTER ROLE` to point the role at the operator's
+`.env`, and it worked. It was also close to the wrong thing to do: the role's
+password was not corrupt, it was **correct for the other consumer**, and I had
+just pointed the shared stack at whichever file happened to be in front of me.
+The gate would have failed that night exactly as the operator failed that
+afternoon.
+
+I knew the persisted `.env` existed — it is in this very workplan, several
+sections up — and did not think to compare the two before handing over a
+repair. Reading an error and producing a plausible fix for it is not the same
+act as understanding which of two things is wrong.
+
+### The fix is one file, and one write that respects it
+
+The canonical `.env` lives in the persist directory; the operator's checkout is
+a **symlink** to it. Then divergence is not discouraged, it is impossible.
+
+Which puts all the weight on `env-upsert.sh`, because its write is
+write-temp-then-rename and **`mv -f tmp link` replaces the link with a regular
+file**. One upsert — `TRIGGER_CLI_PROFILE`, a rotated PAT expiry, anything —
+and the two files are separate again, silently, with the canonical one quietly
+orphaned. It resolves the link first now, which also keeps the rename on one
+filesystem and therefore atomic. Proved by running the real script against a
+real symlink, and by running the pre-fix version to watch it fork.
+
+Three things now say it early rather than after a timeout:
+
+- **The divergence is named at the top of every phase** — from `load_env`,
+  which every `--from …` resume passes through, because the failure arrived on
+  `--from trigger` and `--from app` and a preflight-only check would have
+  missed the day it was written for. Key names only; the values are secrets.
+- **The role's password is asked before the container starts**, between
+  `up_wait postgres` and `up -d zitadel`. The same question Zitadel is about to
+  ask, one second instead of three hundred.
+- **A note, not a refusal.** During a gate run the checkout's copy legitimately
+  moves ahead — `setup-zitadel.sh` writes into it and the workflow persists it
+  back — so refusing a mid-run difference would break the mechanism that keeps
+  them in step.
+
+### And the profile nobody could guess
+
+The same afternoon, one phase earlier: the `login` phase refused with "run
+`login --profile openmig`". The operator *was* logged in, as `ownpace`. They
+ran the printed command, watched it succeed, and were refused again — because
+the script kept asking about `openmig`, which is pre-rename branding
+(ADR-0040), and **nothing anywhere said the name was a setting**.
+`TRIGGER_CLI_PROFILE` was not in `managed.env.example` either.
+
+`openmig` stays the default deliberately: the gate's runner may be logged in
+under it, and moving the default silently would strand that instead of fixing
+this. What changed is that both refusals — `bootstrap-managed.sh` and
+`deploy-tasks.sh`, which was carrying the identical omission — now name the
+variable, list the profiles the machine **is** logged in under, and offer the
+`env-upsert` line that points at one.
+
+### Two things caught while writing the fix
+
+`pasteable-hints.unit.test.ts` refused my repair message. It printed
+`$POSTGRES_USER` and `$POSTGRES_PASSWORD`, which exist inside `ownpace-db` and
+not in the operator's shell — the shape that guard was written for, twice. It
+worked in the message I had sent by hand only because a `set -a; . .env` line
+came first. Rather than argue with a guard that is right in general, the remedy
+became a script: `zitadel-db-password.sh`, which checks by default, syncs on
+`--sync`, and **proves the change** by re-authenticating afterwards rather than
+trusting that a command exiting 0 achieved the thing.
+
+And one of my own new tests was vacuous. "load_env checks for divergence"
+searched from `load_env() {` to the end of the file and found the *definition*
+of `note_env_divergence` further down — so it passed with the call deleted.
+Caught by mutating the script it guards, which is the only reason to mutate:
+five mutations, four caught, one that revealed the test rather than the code.
