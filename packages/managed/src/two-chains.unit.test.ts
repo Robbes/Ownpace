@@ -36,10 +36,34 @@ import {
   type LedgerConnection,
 } from '@openmig/ledger';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+/**
+ * Temp directories this file makes, and the removal that used to be missing.
+ *
+ * See the sweep in workplan 0099: `mkdtempSync` with no matching `rmSync`
+ * leaks for the lifetime of the machine, a PGlite data directory is 41MB, and
+ * the suite was measured leaking 322MB per run after quietly accumulating
+ * 29GB and filling the disk of the box running it. `unit-tests` runs on the
+ * SELF-HOSTED runner for pushes to main — the same Spark the managed stack
+ * needs ~15GB free on.
+ *
+ * Registered rather than removed at each call site, so a new test here cannot
+ * forget.
+ */
+const tempDirs: string[] = [];
+function tempDir(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  tempDirs.push(dir);
+  return dir;
+}
+afterAll(() => {
+  for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
+});
+
 import {
   runManagedMigrations,
   managedMigrationsDir,
@@ -115,7 +139,7 @@ function ensureReleasedRef(): void {
 /** The released shared chain, written out so the real loader reads it. */
 function materialiseReleasedMigrations(): string {
   ensureReleasedRef();
-  const dir = join(mkdtempSync(join(tmpdir(), 'openmig-presplit-')), 'migrations');
+  const dir = join(tempDir('openmig-presplit-'), 'migrations');
   mkdirSync(dir, { recursive: true });
   const names = git('ls-tree', '--name-only', RELEASED_REF, `${MIGRATIONS_PATH}/`)
     .split('\n')

@@ -14,10 +14,34 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { start, type SelfhostHandle } from './index.ts';
+
+/**
+ * Temp directories this file makes, and the removal that used to be missing.
+ *
+ * See the sweep in workplan 0099: `mkdtempSync` with no matching `rmSync`
+ * leaks for the lifetime of the machine, a PGlite data directory is 41MB, and
+ * the suite was measured leaking 322MB per run after quietly accumulating
+ * 29GB and filling the disk of the box running it. `unit-tests` runs on the
+ * SELF-HOSTED runner for pushes to main — the same Spark the managed stack
+ * needs ~15GB free on.
+ *
+ * Registered rather than removed at each call site, so a new test here cannot
+ * forget.
+ */
+const tempDirs: string[] = [];
+function tempDir(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  tempDirs.push(dir);
+  return dir;
+}
+afterAll(() => {
+  for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
+});
+
 
 let handle: SelfhostHandle;
 /** Reused by the configured-appliance suite below, so the mapping is one fact. */
@@ -30,7 +54,7 @@ beforeAll(async () => {
     delete process.env[key];
   }
 
-  const configDir = mkdtempSync(join(tmpdir(), 'openmig-notify-cfg-'));
+  const configDir = tempDir('openmig-notify-cfg-');
   baseConfigDir = configDir;
   writeFileSync(
     join(configDir, 'mapping.json'),
@@ -57,7 +81,7 @@ beforeAll(async () => {
 
   handle = await start({
     persistence: 'pglite',
-    pgliteDataDir: mkdtempSync(join(tmpdir(), 'openmig-notify-db-')),
+    pgliteDataDir: tempDir('openmig-notify-db-'),
     configDir,
     port: 0,
     host: '127.0.0.1',
@@ -107,12 +131,12 @@ describe('the appliance with SMTP and both digests configured', () => {
     process.env.NOTIFY_TO = 'owner@example.nl';
     process.env.NOTIFY_DIGEST = 'both';
 
-    const configDir = mkdtempSync(join(tmpdir(), 'openmig-digest-cfg-'));
+    const configDir = tempDir('openmig-digest-cfg-');
     writeFileSync(join(configDir, 'mapping.json'), readFileSync(join(baseConfigDir, 'mapping.json')));
 
     configured = await start({
       persistence: 'pglite',
-      pgliteDataDir: mkdtempSync(join(tmpdir(), 'openmig-digest-db-')),
+      pgliteDataDir: tempDir('openmig-digest-db-'),
       configDir,
       port: 0,
       host: '127.0.0.1',
