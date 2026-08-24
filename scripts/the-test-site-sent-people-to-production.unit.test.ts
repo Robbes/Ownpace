@@ -77,7 +77,14 @@ function siteSources(): string[] {
  * disabled, and this rule flagged its own refusal message on first run.
  */
 function isAboutTheVariable(line: string): boolean {
-  return line.includes('OWNPACE_APP_URL');
+  // A host named beside `OWNPACE_APP_URL` is the refusal telling an operator
+  // what to set — the line that STOPS a hardcoded link, not one.
+  //
+  // `PUBLIC_APP_URL` is the single canonical declaration of what production
+  // is, and the value both halves of the coherence check compare against. The
+  // rule above asserts there is exactly one of it, which is a stronger
+  // guarantee than "nobody may say it": somewhere has to know.
+  return line.includes('OWNPACE_APP_URL') || /export const PUBLIC_APP_URL/.test(line);
 }
 
 /** Lines that are prose about the code rather than code. */
@@ -97,7 +104,10 @@ function withoutComments(source: string): string {
  * whole graph. A child also proves the thing that actually ships: the build as
  * an operator runs it, with an environment and nothing else.
  */
-function buildFor(appUrl: string | null): { status: number; stdout: string; stderr: string } {
+function buildFor(
+  appUrl: string | null,
+  opts: { public?: boolean } = {},
+): { status: number; stdout: string; stderr: string } {
   const env = { ...process.env };
   delete env.OWNPACE_APP_URL;
   if (appUrl) env.OWNPACE_APP_URL = appUrl;
@@ -108,10 +118,26 @@ function buildFor(appUrl: string | null): { status: number; stdout: string; stde
       `import('${join(SITE, 'build.mjs').replace(/\\/g, '/')}')
          .then((m) => { process.stdout.write(m.rendered.map((p) => p.html).join('\\n')); })
          .catch((e) => { process.stderr.write(String(e && e.message)); process.exit(1); });`,
+      // `--` first: without it node claims `--public` as one of its own
+      // options and dies with "bad option" before the script ever runs.
+      '--',
+      ...(opts.public ? ['--public'] : []),
     ],
     { env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] as const },
   );
   return { status: 0, stdout: r, stderr: '' };
+}
+
+/** Runs a build expected to refuse, and hands back what it said. */
+function refusalFrom(appUrl: string | null, opts: { public?: boolean } = {}): string {
+  try {
+    buildFor(appUrl, opts);
+  } catch (e) {
+    const err = e as { stderr?: string; status?: number };
+    expect(err.status, 'the build exited 0 where it should have refused').not.toBe(0);
+    return err.stderr ?? '';
+  }
+  throw new Error(`the build accepted ${appUrl} with public=${opts.public === true}`);
 }
 
 function buildExpectingRefusal(): string {
@@ -163,9 +189,53 @@ describe('a site built for one environment carries no link to another', () => {
   });
 
   it('renders production when told production, so the rule is not "never say prod"', () => {
-    const prod = siteFor(PROD);
+    // `--public` because that is now the only coherent way to say production:
+    // a noindex build pointing at the real app is the reported bug itself.
+    const prod = buildFor(PROD, { public: true }).stdout;
     expect(prod).toContain(`${PROD}/request-access`);
     expect(prod).not.toContain(OTA);
+  });
+});
+
+/**
+ * `--public` and `OWNPACE_APP_URL` are two ways of saying which environment a
+ * build is for. Requiring the variable stopped the SILENT case — a forgotten
+ * default quietly choosing production. It left the CONTRADICTORY one, and both
+ * contradictions ship a real mistake.
+ */
+describe('the two switches that both name an environment have to agree', () => {
+  it('refuses a test build pointing at production — the bug as reported', () => {
+    // "the www.ota webpages have links to production. that should never
+    // happen!" — 2026-08-24. A click there files a real access request
+    // against the real tenant.
+    const said = refusalFrom(PROD);
+    expect(said).toContain('test build');
+    expect(said, 'the refusal does not say what it would cost').toMatch(/real tenant/);
+  });
+
+  it('refuses a public build pointing at the test app', () => {
+    // The other direction: an indexable production site whose every call to
+    // action leads somewhere private.
+    const said = refusalFrom(OTA, { public: true });
+    expect(said).toContain(PROD);
+    expect(said).toContain(OTA);
+  });
+
+  it('accepts each coherent pairing, so the rule is a check and not a ban', () => {
+    expect(buildFor(OTA).stdout).toContain(`${OTA}/request-access`);
+    expect(buildFor(PROD, { public: true }).stdout).toContain(`${PROD}/request-access`);
+  });
+
+  it('names production exactly once, and in the file the check compares against', () => {
+    // The hardcoded-host rule below would otherwise have to exempt every
+    // mention. One declaration is stronger than none: it is the thing both
+    // halves of the check agree on.
+    const prices = readFileSync(join(SITE, 'prices.mjs'), 'utf8');
+    expect(prices).toContain(`export const PUBLIC_APP_URL = '${PROD}'`);
+    const declarations = siteSources()
+      .flatMap((f) => readFileSync(f, 'utf8').split('\n'))
+      .filter((l) => /^\s*export const PUBLIC_APP_URL/.test(l));
+    expect(declarations).toHaveLength(1);
   });
 });
 
