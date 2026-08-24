@@ -736,10 +736,40 @@ neither. `TRIGGER_PROJECT_REF` and `TRIGGER_SECRET_KEY` in particular belong to
 the *old* instance and are meaningless on the new one; the script will read the
 new instance's own.
 
-**Upgrading Trigger.dev** is one number in two places that must agree:
-`TRIGGER_IMAGE_TAG` in `.env` and `@trigger.dev/sdk` in
-`apps/worker/package.json`. Check both when bumping either — `--from trigger`
-refuses when they disagree.
+**Upgrading Trigger.dev** is one number in FOUR places that must agree: the
+two `${TRIGGER_IMAGE_TAG:-…}` defaults in `managed.yml`, `TRIGGER_IMAGE_TAG` in
+`managed.env.example`, and `@trigger.dev/sdk` in `apps/worker/package.json`
+(`.env`'s `TRIGGER_IMAGE_TAG`, when set, overrides the compose default on that
+machine). `--from trigger` refuses at bring-up when they disagree, and
+`bootstrap-managed.unit.test.ts` refuses in CI — added after dependabot moved
+the SDK alone, passed all seventeen checks and broke the managed gate.
+
+`trigger-version.sh` does the whole thing rather than leaving it to `sed`:
+
+```
+./deploy/compose/trigger-version.sh list              # running / pinned / what you can move to
+./deploy/compose/trigger-version.sh backup pre-4.5.12 # verified dump of triggerdb
+./deploy/compose/trigger-version.sh pin --latest      # moves all four places
+./deploy/compose/trigger-version.sh backups           # what dumps exist
+./deploy/compose/trigger-version.sh restore --latest --yes   # DESTRUCTIVE rollback
+```
+
+`list` probes the registry by manifest rather than reading its tag list: ghcr's
+`/tags/list` is neither newest-first nor complete in one page — with `n=1000`
+the newest `v4.5.x` it returns is `v4.5.4`, while `v4.5.9` and `v4.5.12` both
+exist. Asking whether a specific tag exists is the question it answers
+reliably, so that is the question asked, upward from the version already
+pinned.
+
+> **Back the database up first, because the upgrade is one way.** The webapp
+> applies its own schema migrations on boot and Prisma has no down-migrations,
+> so putting the old tag back restores the IMAGES and not the schema they
+> migrated. `triggerdb` holds the account, the project, its API keys, the
+> worker group and the deployed-task records — the things whose loss needs a
+> person, a browser and a magic link to repair. The managed gate runs
+> `trigger-version.sh drill` on every pass, which dumps that database,
+> restores it into a throwaway and compares, so the backup is never only a
+> claim.
 
 > ⚠️ **Do not upgrade with runs in flight.** Recreating the webapp and
 > supervisor under load left the reference deployment looping on
@@ -901,9 +931,11 @@ then `up -d`. Every service reads them, so nothing in `managed.yml` is edited.
   addressed by IP or `localhost`. A real deployment needs a reverse proxy with
   real certificates in front of ports 3001 and 3123, and `CORS_ORIGIN` /
   `WEB_URL` / `API_URL` set to those addresses.
-- **Backups.** Nothing here backs up the Postgres volume — including the
-  identity provider's tables, which after 8b hold the only copy of who can sign
-  in.
+- **Backups of the APPLICATION database.** Nothing here backs up `ownpace-db`
+  — including the identity provider's tables, which after 8b hold the only copy
+  of who can sign in. (Trigger.dev's own `triggerdb` IS covered, by
+  `trigger-version.sh backup`, and its restore is drilled on every managed gate
+  run. The same treatment for `ownpace-db` is not built.)
 - **Anybody's first account.** `setup-zitadel.sh` stands the provider up; it
   does not create people. Invite-only means the owner does that, and the
   provisioning path for it is workplan 0093 T6, not yet built.

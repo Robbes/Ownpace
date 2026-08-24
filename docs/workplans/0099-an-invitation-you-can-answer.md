@@ -1712,3 +1712,47 @@ only fires in the one environment nobody runs on a pull request is not a
 rule, it is a landmine with a date on it.** The credential's clock, the
 take-back nobody counted, and now a version pin nobody could see — each
 invisible until something independent checked, and each cheap once it was.
+
+## A backup you have actually restored
+
+The Trigger.dev upgrade question — "can it be done, and how" — had a clean
+answer everywhere except one place. The images exist, the four-place version
+agreement is now guarded in CI, and the procedure has been documented since
+somebody upgraded with runs in flight and watched every run loop on
+`Snapshot changed inside startRunAttempt`. What was missing was the part that
+makes any of it reversible: **nothing backed `triggerdb` up.**
+
+That database holds what a person cannot rebuild unattended — the account, the
+project, its API keys, the worker group, the deployed-task records. The webapp
+applies its own schema migrations on boot and Prisma has no down-migrations,
+so the documented rollback restores the IMAGES and not the schema they
+migrated. The self-hosted appliance has had a Backup/Restore Drill since
+§22.1; the managed plane, the half that genuinely cannot be rebuilt without a
+browser, had none.
+
+`trigger-version.sh` covers both halves of the problem, because they are the
+same problem: you upgrade when a version appears, and you can only upgrade
+safely if you can get back.
+
+**Listing versions had to be done the awkward way.** ghcr's `/tags/list` is
+neither newest-first nor complete in one page: with `n=1000` the newest
+`v4.5.x` it returns is `v4.5.4`, while `v4.5.9` (running) and `v4.5.12` both
+answer a manifest request with 200. Following the `last=` Link header works
+and walks thousands of SHA-shaped tags to do it. So versions are PROBED by
+manifest, upward from the one already pinned — the only question that registry
+answers reliably. Measured: 5 seconds, and it finds v4.5.10, v4.5.11, v4.5.12.
+
+**And the size check was wrong on the first pass.** `verify_dump` rejected a
+dump under 1KB — measuring the ARCHIVE. SQL compresses ferociously, so a real
+dump can land under a hundred KB on disk while a truncated one that compressed
+badly sails through. The floor now measures the DECOMPRESSED SQL, which is the
+quantity the question is actually about. Found by a test whose own fixture
+compressed to 78 bytes.
+
+The drill is the piece that matters most: dump, restore into a THROWAWAY
+database, compare table counts and project counts, drop the throwaway. It
+never touches the live database — `restore` is the only thing that does, and
+it refuses without `--yes`, refuses while `trigger-api` is running, and prints
+the stop commands instead. Proved by breaking, five mutations, five caught,
+including the one that would matter: the drill's `DROP DATABASE` pointed at
+the live database instead of the throwaway.
