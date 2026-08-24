@@ -1620,3 +1620,32 @@ Two lessons, one old and one earned tonight:
   for a live system was reconstructed here from git history and stated as
   fact; one run against the system itself contradicted it. Same lesson as
   #61, one day later: a conclusion with the system left unasked is a draft.
+
+## The people a dead run leaves behind
+
+Rob blessed the throwaway-people design — three humans created per run, signed
+in, deleted in the EXIT trap — and asked for the residue closed. The residue
+was two silences:
+
+- **A hard-killed run never reaches its trap.** Runner loss, SIGKILL, power:
+  its three people linger in the provider forever, invisible unless somebody
+  opens the console. Nothing looked for them.
+- **`|| true` on the take-back.** A delete that failed was indistinguishable
+  from one that worked, in the one place whose whole job is putting things
+  back.
+
+So the smoke now sweeps before it creates: at the start of the sign-in
+section, anybody matching the gate's own naming is a leftover by definition
+(runs on the one runner are serialised) and is taken back, loudly. Two fences
+before anything is deleted, because deleting PEOPLE on a loose match is the
+worst kind of thorough: the provider is asked only for addresses ending in
+`@smoke.local`, and each hit must still match the exact shape `sign_in_as`
+creates — pinned by a test that EXTRACTS the guard regex and the three
+creation emails from the script and runs one against the other, so the two
+cannot drift apart. A leftover the sweep can see but not delete fails the
+run: an orphan named and left standing is a finding, not a shrug. The
+take-back's failures are now said out loud too (still non-fatal — it fires in
+the EXIT trap, after the verdict), and a leftover `IAM_LOGIN_CLIENT` is
+announced where the grant happens and never removed: the humans are
+unambiguously ours; a role on the provisioning user might be an operator's
+own choice.

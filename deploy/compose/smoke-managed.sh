@@ -353,16 +353,64 @@ sign_in_as() {
 
 # Everything this section added, taken back — the same rule the balance section
 # below applies to DAV resources. A crash before this leaves a human with no
-# membership and a role on a machine user whose token expires within the day,
-# which is the least bad of the leftovers available.
+# membership and possibly a lingering IAM_LOGIN_CLIENT on the provisioning
+# user; the sweep below reclaims the humans on the next run, and the role is
+# warned about where it is granted — the gate does not remove what it did not
+# add, because an operator may have put it there on purpose.
+#
+# A failed delete here is SAID, not swallowed. It cannot fail the run — this
+# fires in the EXIT trap, after the verdict — but `|| true` was hiding the one
+# fact the next reader needs: that the take-back this comment promises did not
+# actually happen.
 idp_take_back() {
   local u
   for u in ${IDP_USERS+"${IDP_USERS[@]}"}; do
-    idp_api DELETE "/v2/users/${u}" >/dev/null 2>&1 || true
+    idp_api DELETE "/v2/users/${u}" >/dev/null 2>&1 ||
+      echo "[take-back] could not delete user ${u} — the next run's sweep will get them" >&2
   done
   if [ "$IDP_ROLE_ADDED" = "1" ] && [ -n "${IDP_SETUP_USER:-}" ]; then
     idp_api PUT "/admin/v1/members/${IDP_SETUP_USER}" \
-      "$(jq -nc --argjson r "${IDP_ROLES_BEFORE:-[]}" '{roles:$r}')" >/dev/null 2>&1 || true
+      "$(jq -nc --argjson r "${IDP_ROLES_BEFORE:-[]}" '{roles:$r}')" >/dev/null 2>&1 ||
+      echo "[take-back] could not restore the provisioning user's roles — IAM_LOGIN_CLIENT may linger" >&2
+  fi
+}
+
+# The people a dead run leaves behind. Every run deletes its own three humans
+# in that EXIT trap — but a hard-killed run (runner loss, SIGKILL, power)
+# never reaches its trap, and its people linger in the provider, invisible
+# unless somebody opens the console. Runs on this runner are serialised, so at
+# the START of a run anybody matching the gate's own naming is a leftover by
+# definition, never a colleague's live session.
+#
+# Two fences before anything is deleted, because deleting PEOPLE on a loose
+# match is the worst kind of thorough. The provider is asked only for
+# addresses ending in @smoke.local; each hit must then match the exact shape
+# sign_in_as creates. And a leftover this sweep can SEE but cannot DELETE
+# fails the sweep: an orphan named and left standing is a finding, not a
+# shrug.
+idp_sweep_leftovers() {
+  local listing
+  listing="$(idp_api POST /v2/users \
+    '{"queries":[{"emailQuery":{"emailAddress":"@smoke.local","method":"TEXT_QUERY_METHOD_ENDS_WITH"}}]}')" ||
+    { echo "could not ask the provider for leftover smoke people" >&2; return 1; }
+  # The shape is checked before the loop: a renamed field would otherwise read
+  # as "no leftovers", which is the silent lie this sweep exists to end.
+  jq -e '[.result[]?] | all(has("userId") and has("username"))' >/dev/null <<<"$listing" ||
+    { echo "the user listing does not look like one (no userId/username) — refusing to guess: $(jq -c '.result[0] // empty' <<<"$listing")" >&2; return 1; }
+  local swept=0 uid uname
+  while IFS=$'\t' read -r uid uname; do
+    [ -n "$uid" ] || continue
+    [[ "$uname" =~ ^smoke-(verify|apply|invitee)-[0-9]+@smoke\.local$ ]] ||
+      { echo "leaving ${uname} alone — @smoke.local, but not a name this gate creates" >&2; continue; }
+    idp_api DELETE "/v2/users/${uid}" >/dev/null ||
+      { echo "could not delete leftover ${uname} (${uid})" >&2; return 1; }
+    echo "  took back ${uname} — a dead run left them behind"
+    swept=$(( swept + 1 ))
+  done <<<"$(jq -r '.result[]? | [.userId, .username] | @tsv' <<<"$listing")"
+  if [ "$swept" -gt 0 ]; then
+    echo "swept ${swept} leftover(s) from earlier runs"
+  else
+    echo "no leftover smoke people to sweep"
   fi
 }
 
@@ -660,6 +708,11 @@ else
   IDP_HOST_ONLY="${STACK_ISSUER#*://}"; IDP_HOST_ONLY="${IDP_HOST_ONLY%%:*}"
   case "$STACK_ISSUER" in *:[0-9]*) IDP_RESOLVE=(--resolve "${IDP_HOST_ONLY}:${IDP_PORT_ONLY}:127.0.0.1") ;; esac
 
+  # Before this run creates anybody: the people a dead run left behind. A
+  # sweep that errors fails the RUN, not only itself — an orphan we can name
+  # and cannot remove is a finding.
+  idp_sweep_leftovers || fail=1
+
   # The application, asked for rather than assumed — its client id and the
   # redirect URI it will actually accept.
   IDP_PROJECT="$(docker exec "$API_CONTAINER" printenv JWT_AUDIENCE 2>/dev/null || true)"
@@ -679,10 +732,11 @@ else
   # `No matching permissions found (AUTH-AWfge)`.
   #
   # It is added to the PROVISIONING user and taken off again, rather than given
-  # to a machine user of the gate's own: that user's token expires within the
-  # day (setup-zitadel.sh sets the expiry), so the leftover from a crash here is
-  # a role on a credential that is about to die, instead of a fresh machine
-  # account with a working token and the right to impersonate.
+  # to a machine user of the gate's own — one credential under
+  # setup-zitadel.sh's rotation policy instead of a second standing account
+  # with the right to impersonate. A crash can leave the role behind; the
+  # grant below says so out loud when it finds it already present, and
+  # removes nothing it did not add.
   IDP_SETUP_USER="$(idp_api GET /auth/v1/users/me | jq -r '.user.id // empty')"
   IDP_ROLES_BEFORE="$(idp_api POST /admin/v1/members/_search '{}' \
     | jq -c --arg u "$IDP_SETUP_USER" '[.result[]? | select(.userId==$u) | .roles[]?]')"
@@ -690,6 +744,11 @@ else
     idp_api PUT "/admin/v1/members/${IDP_SETUP_USER}" \
       "$(jq -nc --argjson r "${IDP_ROLES_BEFORE:-[]}" '{roles:($r + ["IAM_LOGIN_CLIENT"] | unique)}')" >/dev/null \
       && IDP_ROLE_ADDED=1
+  else
+    # Already there before this run granted anything: a crashed run's leftover,
+    # or an operator's own choice — indistinguishable from here. Said, not
+    # swept: contrast the humans above, which are unambiguously ours.
+    echo "IAM_LOGIN_CLIENT was already on the provisioning user before this run granted it" >&2
   fi
   # ONE TRAP, BOTH JOBS. There is already an EXIT trap above for the runner
   # watcher, and `trap … EXIT` REPLACES the handler rather than adding to it —
