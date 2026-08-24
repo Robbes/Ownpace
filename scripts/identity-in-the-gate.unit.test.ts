@@ -546,3 +546,111 @@ describe('the close call sends a window, and never the irreversible one', () => 
     expect(httpBody, 'and declare its content type when it does').toContain('Content-Type: application/json');
   });
 });
+
+describe('the people a dead run leaves behind get taken back', () => {
+  /**
+   * Every run deletes its own three humans in the EXIT trap — and a
+   * hard-killed run never reaches its trap, so its people lingered in the
+   * provider with nothing looking for them. The sweep reclaims them at the
+   * start of the next run; what is pinned here is that it cannot silently do
+   * either too little (run after the sign-ins, swallow its own failures) or
+   * too much (match anybody the gate did not create).
+   */
+  const sweep = /idp_sweep_leftovers\(\) \{[\s\S]*?\n\}/.exec(smoke)?.[0] ?? '';
+  const takeBack = /idp_take_back\(\) \{[\s\S]*?\n\}/.exec(smoke)?.[0] ?? '';
+
+  it('read the real functions', () => {
+    expect(sweep.length).toBeGreaterThan(200);
+    expect(takeBack.length).toBeGreaterThan(100);
+  });
+
+  it('sweeps BEFORE this run creates anybody, and a failed sweep fails the run', () => {
+    const call = smoke.indexOf('idp_sweep_leftovers || fail=1');
+    const firstPerson = smoke.indexOf('sign_in_as "smoke-verify');
+    expect(call).toBeGreaterThan(-1);
+    expect(firstPerson).toBeGreaterThan(-1);
+    expect(call).toBeLessThan(firstPerson);
+  });
+
+  it('asks the provider only for the gate\'s own domain, then re-checks each hit', () => {
+    // Server-side fence: the search itself is scoped to @smoke.local.
+    expect(sweep).toContain('"emailQuery"');
+    expect(sweep).toContain('@smoke.local');
+    expect(sweep).toContain('ENDS_WITH');
+  });
+
+  it('deletes exactly the names sign_in_as creates — proven against those very names', () => {
+    // The guard regex is EXTRACTED from the script and run against the three
+    // creation emails also extracted from the script, so the two cannot drift
+    // apart without this failing: a fourth person added to the sign-in section
+    // is not swept until the guard learns their name.
+    const guardSrc = /=~ (\^smoke-[^ ]+) \]\]/.exec(sweep)?.[1] ?? '';
+    expect(guardSrc).not.toBe('');
+    const guard = new RegExp(guardSrc);
+    const created = [...new Set([...smoke.matchAll(/smoke-[a-z]+-\$\$@smoke\.local/g)].map((m) => m[0]))];
+    expect(created.length).toBe(3);
+    for (const email of created) {
+      expect(email.replace('$$', '12345'), `${email} is not matched by the sweep guard`).toMatch(guard);
+    }
+    // And the fences hold: a person, and a shape the gate never makes.
+    expect('real-person@smoke.local').not.toMatch(guard);
+    expect('smoke-verify-abc@smoke.local').not.toMatch(guard);
+  });
+
+  it('a leftover it can see but not delete fails the sweep, never a shrug', () => {
+    expect(sweep).toContain('could not delete leftover');
+    expect(sweep).toMatch(/could not delete leftover[^\n]*\n?[^\n]*return 1/);
+  });
+
+  it('checks the listing has the shape of one before concluding "no leftovers"', () => {
+    // A renamed field would otherwise read as an empty result — the exact
+    // silent lie the curl-that-does-not-exist bug taught this gate about.
+    expect(sweep).toContain('has("userId") and has("username")');
+  });
+
+  it('the take-back says when it fails, instead of || true-ing the failure away', () => {
+    expect(takeBack).not.toContain('|| true');
+    expect(takeBack).toContain('could not delete user');
+    expect(takeBack).toContain('could not restore the provisioning user');
+  });
+
+  it('a role that was already there is announced, and never removed', () => {
+    expect(smoke).toContain('IAM_LOGIN_CLIENT was already on the provisioning user');
+    // The take-back restores roles only when THIS run added the grant.
+    expect(takeBack).toContain('"$IDP_ROLE_ADDED" = "1"');
+  });
+});
+
+describe('the take-back list is filled where it can survive: the parent shell', () => {
+  /**
+   * sign_in_as runs inside a command substitution. The original code appended
+   * each created user to IDP_USERS from within it, and that append died with
+   * the subshell — so idp_take_back iterated an EMPTY array on every run,
+   * `|| true` kept it quiet, and the take-back this script promised had never
+   * once happened. The sweep's first live run (E2E managed #68) found all
+   * eighteen people: three per run, every run since sign-in was built. Same
+   * class as the fail=1 a subshell swallowed in run #60.
+   */
+  const signInAs = /sign_in_as\(\) \{[\s\S]*?\n\}/.exec(smoke)?.[0] ?? '';
+
+  it('read the real function', () => {
+    expect(signInAs.length).toBeGreaterThan(400);
+  });
+
+  it('sign_in_as itself never touches IDP_USERS — an append there dies with the subshell', () => {
+    expect(signInAs).not.toContain('IDP_USERS+=');
+  });
+
+  it('the parent captures every subject it read back', () => {
+    const capture = /for subject_id in ([^\n]*); do\s*\n\s*\[ -n "\$subject_id" \] \|\| continue\s*\n\s*IDP_USERS\+=\("\$subject_id"\)/.exec(smoke);
+    expect(capture).not.toBeNull();
+    // Every variable the read lines assign a subject into is in the capture
+    // list — extracted from the reads themselves, so a fourth sign-in added
+    // without extending the capture fails here.
+    const subjects = [...smoke.matchAll(/read -r ([A-Z_]+) [A-Z_]+ +<<<"\$\(sign_in_as/g)].map((m) => m[1]);
+    expect(subjects.length).toBe(3);
+    for (const v of subjects) {
+      expect(capture?.[1], `${v} is read but never captured into IDP_USERS`).toContain(`"\${${v}:-}"`);
+    }
+  });
+});
