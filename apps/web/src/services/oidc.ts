@@ -184,7 +184,25 @@ export async function beginSignIn(config: OidcConfig | null = oidcConfig()): Pro
 }
 
 /**
- * Finish sign-in: check the state, exchange the code, return the access token.
+ * Finish sign-in: check the state, exchange the code, return the ID token.
+ *
+ * **THE ID TOKEN, NOT THE ACCESS TOKEN, AND THAT IS NOT A SLIP.** The API needs
+ * `email` — narrowed to `sub` + `email` and nothing else by ADR-0042, because
+ * invitations are addressed to an email address and a first-time signer-in has
+ * no database row to look one up in. Zitadel puts user info claims in the ID
+ * token and NOT in the access token: with `idTokenUserinfoAssertion` on, the ID
+ * token carries `email`, `email_verified`, `name` and the rest, and the JWT
+ * access token carries `iss/sub/aud/exp/iat/nbf/client_id/jti` with the flag on
+ * or off. Measured on a live instance, both ways.
+ *
+ * Sending the access token instead is what the code used to do, and the API
+ * refused every request with "Missing required claims in token payload" — a
+ * sign-in that completes and then cannot be used.
+ *
+ * It is a legitimate bearer here rather than a shortcut: the ID token's audience
+ * is `[client id, PROJECT id]`, and `JWT_AUDIENCE` is that project id, so the
+ * API validates issuer, audience, signature and expiry exactly as it would for
+ * an access token. It is not a token borrowed from a different audience.
  *
  * **The state check is the CSRF defence** and comes first: without it, an
  * attacker can hand somebody a callback URL carrying a code from the attacker's
@@ -238,14 +256,14 @@ export async function completeSignIn(
   });
 
   const body = (await response.json().catch(() => ({}))) as {
-    access_token?: string;
+    id_token?: string;
     error?: string;
     error_description?: string;
   };
-  if (!response.ok || !body.access_token) {
+  if (!response.ok || !body.id_token) {
     throw new Error(
       body.error_description || body.error || `The sign-in service refused the exchange (${response.status}).`,
     );
   }
-  return body.access_token;
+  return body.id_token;
 }

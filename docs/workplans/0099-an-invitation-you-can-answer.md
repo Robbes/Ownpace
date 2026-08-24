@@ -1333,3 +1333,233 @@ stub now models the image: `exec … zitadel cat` returns the OCI failure on
 stdout with 127, `run … zitadel-machinekey cat` returns the file. With that,
 reverting the fix fails **7 of 14** cases — which is what a fix worth having
 looks like when you take it away.
+
+---
+
+## E2E (managed) #52 — the first run past the identity provider, and what it showed
+
+`Bring the stack up` succeeded for the first time ever: 3m45s, every service
+healthy, `setup-zitadel.sh` all the way through. The smoke then failed in five
+seconds with every authenticated request answering the same thing:
+
+```
+close:  500 {"error":"auth_failed","reason":"Something went wrong verifying your session …"}
+shared addresses: HTTP 500 …   billing usage: HTTP 500 …   invoices: HTTP 500 …
+readiness (database): HTTP 200, .database -> up
+```
+
+Seven checks, seven failures, one cause, and no mention of it anywhere. The
+unauthenticated endpoint answered 200 throughout, which is the shape of a
+verification problem rather than a service being down.
+
+### Four things, none of which could work, all of which reported success
+
+Everything below was **measured against the running provider**, after two wrong
+diagnoses earlier the same night taught me not to reason about it.
+
+**1. The check that could not measure anything.** The smoke's identity section
+asked the API container with `curl`, under `2>/dev/null || true`. The API image
+is `node:24-slim`: no curl, no wget. Its own `HEALTHCHECK` is
+`node -e "fetch(...)"` for exactly this reason.
+
+```
+docker exec ownpace-api sh -lc 'command -v curl'  ->  no curl
+docker exec ownpace-api sh -lc 'command -v node'  ->  /usr/local/bin/node
+```
+
+So on every run ever made, `curl: not found` became the empty string, and the
+empty string was printed as *"the API cannot reach the issuer at all"*. It was
+right by accident in #52 and would have said the same about a perfectly
+reachable issuer. **Fourth time in one day** — after #519, #521 and #523 — that
+a lesson written next to one caller was not a lesson the codebase had learned.
+
+**2. An issuer the API can never mean.** `ZITADEL_EXTERNALDOMAIN` defaulted to
+`localhost`, so `JWT_ISSUER` was `http://localhost:3126`. Inside the API
+container, `localhost` is the API:
+
+```
+fetch("http://localhost:3126/.well-known/openid-configuration")
+  TypeError: fetch failed / Error: connect ECONNREFUSED 127.0.0.1:3126
+```
+
+`getJWKS` is called outside `verifyManagedToken`'s try/catch, so that throw is
+not a JWT error and lands in `serverFault` as a 500 — which is *correct*, and is
+why not one of the seven failures mentioned a token.
+
+There is no internal shortcut. Zitadel resolves the instance from the request's
+**origin** — host and port — and refuses every other one:
+
+```
+http://zitadel:8080/.well-known/openid-configuration
+  404  unable to set instance using origin &{zitadel:8080  http}
+       (ExternalDomain is localhost): Instance not found.
+```
+
+Three ways round it were tried and all three are closed:
+
+| Attempt | Result |
+|---|---|
+| instance **trusted** domain (`POST /admin/v1/trusted_domains`) | accepted, `http 200` — and the origin still 404s. It is not origin resolution |
+| `AddInstanceDomain` via the Admin API (`POST /admin/v1/domains`, `/instance/domains`, `/iam/domains`) | `404 Not Found` — the endpoint does not exist |
+| the System API (`POST /system/v1/instances/_search`) | `401 Errors.Token.Invalid` — it needs a system user, which a provisioning token is not |
+
+**So the origin is fixed at first init and cannot be corrected afterwards.**
+Everything else has to agree with it: the domain defaults to `ownpace-idp` and
+is registered as a network alias written as the same expression; the provider
+listens on the number it publishes, because `3126:8080` gave one address two
+meanings; and `setup-zitadel.sh`, which runs on the host, presents the origin
+with `curl --resolve` — only when this machine cannot reach it unaided, so a
+real deployment is left alone.
+
+**3. A redirect URI the provider refuses outright.**
+
+```
+GET /oauth/v2/authorize?...&redirect_uri=http://localhost:3123/auth/callback
+  400 {"error":"invalid_request","error_description":"This client's redirect_uri
+       is http and is not allowed."}
+```
+
+The application was created with `devMode:false` against the default
+`WEB_URL=http://localhost:3123`. Zitadel refuses a plaintext redirect URI before
+any login screen, so **the sign-in button could never have worked** — while
+provisioning reported complete success: project created, application created,
+client id written to `.env`, "done". `devMode` is now derived from the scheme of
+`WEB_URL`, and the found-branch RECONCILES the application instead of reading
+one field off it: the stack that already exists is the broken one.
+
+**4. A token with no email address in it.** With dev mode on, the whole sign-in
+completes — and the API then refuses every request for want of a claim.
+`verifyManagedToken` requires `sub` and `email` (ADR-0042: invitations are
+addressed to an email address, and a first-time signer-in has no row to look one
+up in). Measured with `idTokenUserinfoAssertion` off and on:
+
+```
+access token   iss sub aud exp iat nbf client_id jti          (both ways)
+ID token       ... + email email_verified name given_name ...  (flag ON only)
+```
+
+There is no setting that puts user info in a Zitadel access token, and
+`apps/web/src/services/oidc.ts` was sending exactly that. It now sends the ID
+token — a legitimate bearer rather than a shortcut: its audience is
+`[client id, PROJECT id]` and `JWT_AUDIENCE` is that project id, so the API
+validates issuer, audience, signature and expiry exactly as it would otherwise.
+
+### What is still owed, and it is no longer a plan
+
+The smoke mints its tokens with the API's `JWT_SECRET`, and `selectAuthMode`
+returns `managed` the moment `JWT_ISSUER` is set — at which point that secret
+stops being used, deliberately, so a lingering one cannot silently downgrade
+verification. So on a provisioned stack every authenticated assertion in the
+smoke is refused whatever else is fixed. The smoke now says that **once**,
+up front, and is red — rather than letting a reader work backwards from fifteen
+unrelated-looking failures.
+
+The replacement was driven end to end against the live provider on 2026-08-23:
+
+1. read the provisioning token off the machinekey volume;
+2. grant `IAM_LOGIN_CLIENT` to the calling machine user — `CreateCallback`
+   refuses without it (`No matching permissions found (AUTH-AWfge)`), and it is
+   the role Zitadel's own login UI holds;
+3. `POST /v2/users/human` with a verified email and a password;
+4. `GET /oauth/v2/authorize` → `302 /ui/v2/login/login?authRequest=V2_…`;
+5. `POST /v2/sessions` with a password check → session id and token;
+6. `POST /v2/oidc/auth_requests/{id}` → a callback URL carrying the code;
+7. `POST /oauth/v2/token` with the PKCE verifier → an ID token carrying `email`.
+
+Each of those returned what it should. What remains is wiring it into the smoke:
+one Zitadel person per tenant the smoke touches, so each token resolves through
+a single membership and no tenant header is needed, and the `tenant_member` rows
+seeded against the Zitadel subject rather than a made-up one.
+
+### E2E (managed) #60 — the same bug, committed by me, one hour later
+
+The fix for #52's "fifteen misleading refusals" was a warning printed once at
+the top of `mint`. It made things worse, and in the most instructive way
+available:
+
+```
+verify: start-http-400   apply: start-http-400
+readiness (database): HTTP 400, .database -> '<unreadable>' —
+shared addresses: HTTP 400, .addresses | length -> '<unreadable>' —
+```
+
+An empty body and a 400 — which says nothing about tokens at all. **`mint`'s
+stdout IS the token**: it is read with `TOK="$(mint …)"`. A bare `echo` inside it
+prepends eight lines of prose to every JWT, and the API answers an unparseable
+header the only way it can.
+
+That is #523's shape exactly — *output that is not the credential ending up in
+the credential* — one caller further along, written by the same hand that had
+just finished writing the test which catches #523. Fifth time in a day. The
+lesson is not "remember this"; it is that **remembering does not work**, which is
+why the fix is two mechanical things rather than a comment:
+
+- the warning goes to **stderr**, which the script's own `tee` still captures;
+- and `mint` **checks its own output for the shape of a token** before returning
+  it — no whitespace, three dot-separated segments — in the callee, not at the
+  four call sites, because fixing the caller and not the callee is how #519
+  survived in nineteen other places.
+
+The invitee's token, which is the one `mint` does not produce, gets the same
+check for the same reason.
+
+### What is still owed after that
+
+A guard that generalises this rather than pinning it: **every value sent as a
+`Bearer` must have passed a shape check.** Two different mechanisms have now
+produced garbage into a credential (`docker exec` on an image with no `cat`; an
+`echo` in a function whose stdout is a value), and both were caught only after a
+night each. Detecting "a function whose stdout is a value must not print
+diagnostics" is not mechanically decidable — `read_env` returns its value with
+`printf` — but "this string reached an `Authorization: Bearer` header without
+being checked" is.
+
+### E2E (managed) #61 — the identity provider works, and one of my conclusions was wrong
+
+The first run with all of the above in place:
+
+```
+--- identity provider ---
+issuer: http://ownpace-idp:3126 (declares its own name)
+jwks:   http://ownpace-idp:3126/oauth/v2/keys (fetchable)
+
+readiness (verdict): HTTP 200, .status -> ok
+```
+
+Asked from inside the API container, with node, against the live provider. The
+reachability bug is gone, `checkSignIn` returns `up`, and every remaining failure
+is the one known cause:
+
+```
+close: 401 {"error":"Unauthorized","message":"Token verification failed:
+             Unsupported "alg" value for a JSON Web Key Set"}
+verify: start-http-401   apply: start-http-401
+```
+
+That is `jose` refusing an **HS256** token against an **RS256** key set — the
+smoke's minted tokens meeting a managed-mode API, exactly as the one-line warning
+above them predicts, and now a 401 that names its cause rather than a 500 that
+names nothing.
+
+**AND IT NEEDED NO RE-INITIALISATION.** The instance on that machine was
+initialised as `localhost` and has never been re-initialised. The conclusion
+written three sections above — *"the origin is fixed at first init and cannot be
+corrected afterwards"* — was wrong, and wrong in a way worth recording:
+
+> A trusted domain was added by hand while the provider still LISTENED on 8080
+> and published 3126. Every in-network probe therefore went to
+> `ownpace-idp:8080`, an origin that could not match `ownpace-idp:3126` whatever
+> was trusted. The port was the fault, and the host got the blame.
+
+Zitadel resolves an instance by origin — **host and port**. Once the two agreed,
+the trusted domain did exactly what its name says. So `setup-zitadel.sh` now
+registers `ZITADEL_EXTERNALDOMAIN` as a trusted domain on every run, idempotently,
+and a stack whose external domain changes repairs itself instead of asking
+somebody to destroy a database (hard rule 2). The re-initialisation stays in the
+refusals as the last resort it actually is: for when nothing the instance knows
+resolves, so the script cannot even ask.
+
+The lesson is not about Zitadel. **A negative result from a test with two
+variables in it is not a negative result.** One evening went into "trusted
+domains do not affect origin resolution", concluded from a probe that could not
+have succeeded either way.

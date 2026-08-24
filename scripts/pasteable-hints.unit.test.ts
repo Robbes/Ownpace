@@ -237,3 +237,79 @@ describe('a docker volume a human is meant to remove', () => {
     ).toEqual([]);
   });
 });
+
+/**
+ * AND A HINT THAT NAMES A SCRIPT MUST CALL IT THE WAY THE SCRIPT TAKES IT.
+ *
+ * `env-upsert.sh` takes the env FILE first and key/value pairs after it:
+ *
+ *   env-upsert.sh <env-file> KEY=VALUE [KEY=VALUE ...]
+ *
+ * Printed without the file, the first `KEY=VALUE` is read AS the file — so the
+ * paste fails on a path that was never a path, and the message that was meant
+ * to unblock somebody is one more thing to debug. This was written into the
+ * loopback refusal added the same night, and into the pull request telling the
+ * owner to run it; the correct two-argument form was three lines further down
+ * the same file and in two places in the bring-up doc.
+ *
+ * Same shape as the psql rule above and caught the same way: read every script
+ * and every doc, and refuse the form rather than the instance.
+ */
+const DOCS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'docs');
+const upsertSources = [
+  ...scripts,
+  ...readdirSync(DOCS_DIR)
+    .filter((f) => f.endsWith('.md'))
+    .map((f) => ({ file: `docs/${f}`, text: readFileSync(join(DOCS_DIR, f), 'utf8') })),
+];
+
+/**
+ * An invocation is every line naming the script and then something. The first
+ * argument after it (skipping `--if-absent`) must not be a KEY=VALUE — that is
+ * the file slot.
+ *
+ * NAMING IT INCLUDES NAMING IT THROUGH A VARIABLE, and leaving that out made
+ * this guard blind to the exact line it was written for: `setup-zitadel.sh`
+ * holds `UPSERT="${SCRIPT_DIR}/env-upsert.sh"` and prints `${UPSERT} …`, so a
+ * rule that matched only the literal filename saw nothing there. Found by
+ * breaking the fixed line and watching the guard stay green — which is the
+ * whole reason to break a test rather than admire it.
+ *
+ * So each file is scanned for its own aliases first. Any name is handled, not
+ * the one this repository happens to use.
+ */
+const upsertCalls = upsertSources.flatMap(({ file, text }) => {
+  const aliases = [...text.matchAll(/^\s*([A-Za-z_][A-Za-z0-9_]*)=[^\n]*env-upsert\.sh/gm)].map(
+    (m) => m[1]!,
+  );
+  const names = ['env-upsert\\.sh', ...aliases.map((a) => `\\$\\{?${a}\\}?`)];
+  const call = new RegExp(`(?:${names.join('|')})\\s+\\S`);
+  return text
+    .split('\n')
+    .map((line, i) => ({ file, n: i + 1, line }))
+    .filter(({ line }) => call.test(line) && !/^\s*[A-Za-z_][A-Za-z0-9_]*=/.test(line));
+});
+
+describe('a hint that names env-upsert.sh calls it the way it is written', () => {
+  it('read the real files', () => {
+    // Vacuity guard: a regex that stops matching turns the case below green.
+    expect(upsertCalls.length).toBeGreaterThan(2);
+  });
+
+  it('always passes the env FILE before the first KEY=VALUE', () => {
+    const wrong = upsertCalls.filter(({ line }) => {
+      const after =
+        /(?:env-upsert\.sh|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)\s+(.*)$/.exec(line)?.[1] ?? '';
+      const args = after.split(/\s+/).filter(Boolean);
+      const first = args[0] === '--if-absent' ? args[1] : args[0];
+      // No argument at all on the line is prose referring to the script, not a
+      // call — `and \`env-upsert.sh\` JWT_ISSUER by hand` is a sentence.
+      if (!first) return false;
+      return /^[A-Z_][A-Z0-9_]*=/.test(first);
+    });
+    expect(
+      wrong.map(({ file, n, line }) => `${file}:${n}: ${line.trim()}`),
+      'env-upsert.sh takes <env-file> first — a KEY=VALUE there is read AS the file',
+    ).toEqual([]);
+  });
+});

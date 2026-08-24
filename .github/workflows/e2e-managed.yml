@@ -498,8 +498,14 @@ jobs:
           set -uo pipefail
           f="managed-evidence/smoke-managed-${{ github.run_id }}.log"
           if [ -f "$f" ]; then
-            echo "===== last 45 lines of $f (redacted copy) ====="
-            tail -45 "$f"
+            # 90, NOT 45. The window used to stop one section short of the
+            # thing that explains the rest: in E2E (managed) #52 and #59 every
+            # authenticated check failed, and the identity-provider section that
+            # says WHY sat immediately above the first line shown. A summary
+            # that cuts off the cause is a summary that sends the reader to the
+            # artifact every time, which is what it exists to avoid.
+            echo "===== last 90 lines of $f (redacted copy) ====="
+            tail -90 "$f"
           else
             echo "no redacted evidence at $f — the run ended before the smoke, see the steps above"
           fi

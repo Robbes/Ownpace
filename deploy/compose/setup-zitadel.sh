@@ -66,7 +66,11 @@ read_env() { # read_env <key> [default]
 # checks it against. Two hand-written copies of a URL is how a stack ends up
 # rejecting every token with a message about signatures, when the real cause is
 # a trailing slash or a port.
-IDP_DOMAIN="$(read_env ZITADEL_EXTERNALDOMAIN localhost)"
+# The fallback is managed.yml's, not a second opinion — `ownpace-idp`, the
+# provider's container name and its network alias. This said `localhost` while
+# compose said the same thing, and that agreement was the bug: see the refusal
+# below for why no containerised API can ever reach an issuer on loopback.
+IDP_DOMAIN="$(read_env ZITADEL_EXTERNALDOMAIN ownpace-idp)"
 # Falls back to the PUBLISHED port, matching managed.yml's own fallback, so the
 # issuer this script writes and the port the stack serves cannot disagree. On a
 # plain bring-up they are one address seen from two sides; they separate only
@@ -85,12 +89,89 @@ fi
 
 WEB_URL="$(read_env WEB_URL http://localhost:3123)"
 
+
 if [ "${1:-}" = "--print" ]; then
   echo "issuer:      $ISSUER"
   echo "web:         $WEB_URL"
   echo "JWT_ISSUER:  $(read_env JWT_ISSUER '(unset)')"
   echo "client id:   $(read_env VITE_OIDC_CLIENT_ID '(unset)')"
   exit 0
+fi
+
+# AN ISSUER ON LOOPBACK CANNOT WORK HERE, AND SAYING SO NOW SAVES A NIGHT.
+#
+# `localhost` names the API to the API. Every service in managed.yml runs in a
+# container, so an issuer on loopback is one the thing that verifies tokens can
+# never reach — and the failure is silent and four steps away. E2E (managed) #52
+# and #59 are both exactly that: bring-up green in under four minutes, every
+# service healthy, and then every authenticated request answering
+#
+#   HTTP 500 {"error":"auth_failed","reason":"... Reference a101bd7c ..."}
+#
+# because discovery threw ECONNREFUSED before a token was ever looked at. Not one
+# of those refusals mentions an issuer, a token or a URL.
+#
+# Refused HERE, where the remedy is two lines, rather than found in a server log.
+case "$IDP_DOMAIN" in
+  localhost|localhost.localdomain|127.*|::1|'[::1]')
+    die "ZITADEL_EXTERNALDOMAIN is '${IDP_DOMAIN}', and this stack cannot work with it.
+
+Everything in managed.yml runs in a container, and inside the API's container
+'localhost' is the API. So JWT_ISSUER would be ${ISSUER} — an address the host
+can reach through the published port and the API can never reach at all. The
+stack comes up healthy and every authenticated request answers HTTP 500.
+
+It has to be a name that resolves to the provider from INSIDE the compose
+network as well as from a browser. The default is 'ownpace-idp', which is this
+provider's container name and a network alias:
+
+    ${UPSERT} ${ENV_FILE} ZITADEL_EXTERNALDOMAIN=ownpace-idp
+    echo '127.0.0.1  ownpace-idp' | sudo tee -a /etc/hosts   # only for a browser
+
+On a self-hosted runner, edit the PERSISTED .env as well or instead — the
+checkout's copy is restored from it at the top of every run and anything written
+here is destroyed by the next \`actions/checkout\` clean:
+
+    \${MANAGED_ENV_PERSIST_DIR:-~/.persistent/ownpace-managed}/.env
+
+A deployment with real DNS sets its real hostname instead and needs no hosts
+entry, because DNS answers for both sides.
+
+AND IF THIS PROVIDER WAS ALREADY INITIALISED under the old name, changing the
+variable IS still enough — this script registers the new origin as a TRUSTED
+domain on the way past, and the instance then answers for it. Measured: E2E
+(managed) #61 reached `issuer: http://ownpace-idp:3126 (declares its own name)`
+from inside the API container, on an instance initialised as `localhost` and
+never re-initialised.
+
+Only if this script cannot reach the instance AT ALL — no origin it knows still
+resolves, so it cannot even ask — is there nothing left but to initialise it
+again. That destroys the provider's accounts and NOTHING else, and this script
+rebuilds the project, the application and the client id on the next run:
+
+    docker compose -f ${SCRIPT_DIR}/managed.yml rm -sf zitadel
+    docker exec -i ownpace-db sh -c 'psql -U \"\$POSTGRES_USER\" -d postgres -c \"DROP DATABASE IF EXISTS zitadel WITH (FORCE)\"'
+    docker volume rm -f ownpace-managed_zitadel_machinekey
+    docker compose -f ${SCRIPT_DIR}/managed.yml up -d zitadel
+    ${SCRIPT_DIR}/setup-zitadel.sh" ;;
+esac
+
+# THIS SCRIPT RUNS ON THE HOST, AND THE ORIGIN IS NOT THE HOST'S TO RESOLVE.
+#
+# The provider answers only for the origin it was initialised with, and refuses
+# every other one with 404 "Instance not found" — so every call below has to
+# present ${IDP_DOMAIN}:${IDP_PORT}. But that name is a COMPOSE NETWORK ALIAS:
+# it resolves inside the stack's network and, on a plain bring-up, nowhere else.
+# The host has the published port and not the name; the API container has the
+# name and not the port.
+#
+# `curl --resolve` is exactly this: connect to an address of our choosing while
+# presenting the Host we were asked to. Only used when this machine genuinely
+# cannot reach the origin on its own, so a deployment with real DNS — where the
+# provider may not even be on this machine — is left alone.
+CURL_ORIGIN=()
+if ! curl -sS --max-time 3 -o /dev/null "${ISSUER}/debug/healthz" 2>/dev/null; then
+  CURL_ORIGIN=(--resolve "${IDP_DOMAIN}:${IDP_PORT}:127.0.0.1")
 fi
 
 # The provisioning token's expiry, computed now so it is short-lived rather
@@ -244,7 +325,7 @@ api() { # api <method> <path> [json-body] — dies on any non-2xx, prints the bo
   # DECLARED, THEN ASSIGNED. `local out="$(curl …)"` makes the exit status
   # `local`'s, which is always 0, and the failure disappears.
   local out status rc
-  local args=(-sS -X "$method" "${ISSUER}${path}"
+  local args=(-sS "${CURL_ORIGIN[@]}" -X "$method" "${ISSUER}${path}"
     -H "Authorization: Bearer ${PAT}"
     -H "Content-Type: application/json"
     -w '\n%{http_code}')
@@ -286,6 +367,39 @@ permission this call needs. Sign in at ${ISSUER}/ui/console as the first user
 and give it the org role it is missing, or see REPROVISIONING at the bottom of
 this script." ;;
     2*) : ;;
+    404)
+      case "$out" in
+        *"Instance not found"*|*"unable to set instance using origin"*)
+          die "${method} ${path} answered HTTP 404 — the provider does not recognise
+the origin this script is presenting.
+    ${out}
+
+    presenting:  ${IDP_DOMAIN}:${IDP_PORT}
+
+Zitadel resolves the instance by the ORIGIN of a request — host AND PORT — and
+refuses any other. This script adds \${IDP_DOMAIN} as a TRUSTED domain, which is
+enough to make an instance answer for an origin it was not initialised with; but
+it can only do that once it can reach the instance, and reaching it is what has
+just failed. Something the instance already knows has to answer first.
+
+CHECK THE PORT BEFORE ASSUMING THE HOST IS WRONG. \${IDP_DOMAIN}:8080 and
+\${IDP_DOMAIN}:3126 are different origins, and an evening went into concluding
+that trusted domains cannot work when the real fault was a provider LISTENING on
+one port and stamping another into its issuer.
+
+If nothing reaches it, the instance has to be initialised again. That destroys
+the provider's own database and nothing else — no Ownpace data, no Trigger.dev
+account — and this script rebuilds the project, the application and the client
+id from scratch afterwards:
+
+    docker compose -f ${SCRIPT_DIR}/managed.yml rm -sf zitadel
+    docker exec -i ownpace-db sh -c 'psql -U \"\$POSTGRES_USER\" -d postgres -c \"DROP DATABASE IF EXISTS zitadel WITH (FORCE)\"'
+    docker volume rm -f ownpace-managed_zitadel_machinekey
+    docker compose -f ${SCRIPT_DIR}/managed.yml up -d zitadel
+    ${SCRIPT_DIR}/setup-zitadel.sh" ;;
+        *) die "${method} ${path} answered HTTP 404:
+    ${out}" ;;
+      esac ;;
     *)  die "${method} ${path} answered HTTP ${status}:
     ${out}" ;;
   esac
@@ -348,6 +462,49 @@ say "project ${PROJECT_ID}"
 REDIRECT_URIS="$(jq -nc --arg w "$WEB_URL" '[$w + "/auth/callback"]')"
 LOGOUT_URIS="$(jq -nc --arg w "$WEB_URL" '[$w + "/login"]')"
 
+# AND `idTokenUserinfoAssertion` IS WHAT PUTS AN EMAIL ADDRESS IN THE TOKEN.
+#
+# The API requires `sub` AND `email` and nothing else (ADR-0042): invitations are
+# addressed to an email address, and somebody signing in for the first time has
+# no row anywhere to look one up in. Zitadel puts user info claims in the ID
+# token and NOT in the access token — measured on a live instance with the flag
+# both off and on:
+#
+#   access token  iss sub aud exp iat nbf client_id jti          (both ways)
+#   ID token      ... + email email_verified name given_name ...  (flag ON)
+#
+# Without it the sign-in completes and every subsequent request is refused for
+# "Missing required claims in token payload". `apps/web/src/services/oidc.ts`
+# sends the ID token for the same reason, and says so.
+
+# DEV MODE IS NOT A PREFERENCE. IT IS WHAT AN http REDIRECT URI REQUIRES.
+#
+# Zitadel refuses a plaintext redirect_uri outright unless the application is in
+# dev mode, and it refuses it at /oauth/v2/authorize — before any login screen,
+# before the user has typed anything:
+#
+#   {"error":"invalid_request","error_description":"This client's redirect_uri
+#    is http and is not allowed. If you have any questions, you may contact the
+#    administrator of the application."}
+#
+# Provisioned with devMode:false against the default WEB_URL of
+# http://localhost:3123, the sign-in button on the web app could not work, and
+# NOTHING SAID SO: the project was created, the application was created, the
+# client id was written to .env, and this script said "done". The whole of
+# workplan 0099's sign-in was dead on arrival and every check passed.
+#
+# So it is DERIVED from the scheme of WEB_URL, for the same reason
+# ZITADEL_EXTERNALPORT is derived from ZITADEL_PORT: two values that have to
+# agree, written in two places, are two values that will one day disagree.
+case "$WEB_URL" in
+  https://*) DEV_MODE=false ;;
+  http://*)  DEV_MODE=true  ;;
+  *) die "WEB_URL must be an http:// or https:// URL — it is '${WEB_URL}'.
+It is the address a browser comes back to after signing in, so the provider has
+to be told the scheme; it refuses a plaintext one unless the application is in
+dev mode, and this script cannot decide that without knowing which it is." ;;
+esac
+
 say "looking for an existing '${APP_NAME}' application"
 apps="$(api POST "/management/v1/projects/${PROJECT_ID}/apps/_search" '{"queries":[]}')"
 APP_ID="$(jq -r --arg n "$APP_NAME" '.result[]? | select(.name == $n) | .id' <<<"$apps" | awk 'NR==1')"
@@ -358,6 +515,7 @@ if [ -z "$APP_ID" ] || [ "$APP_ID" = "null" ]; then
     --arg n "$APP_NAME" \
     --argjson r "$REDIRECT_URIS" \
     --argjson l "$LOGOUT_URIS" \
+    --argjson dm "$DEV_MODE" \
     '{name:$n,
       redirectUris:$r,
       postLogoutRedirectUris:$l,
@@ -366,17 +524,84 @@ if [ -z "$APP_ID" ] || [ "$APP_ID" = "null" ]; then
       appType:"OIDC_APP_TYPE_USER_AGENT",
       authMethodType:"OIDC_AUTH_METHOD_TYPE_NONE",
       accessTokenType:"OIDC_TOKEN_TYPE_JWT",
-      devMode:false}')")"
+      idTokenUserinfoAssertion:true,
+      devMode:$dm}')")"
   CLIENT_ID="$(echo "$CREATED" | jq -r '.clientId')"
   APP_ID="$(echo "$CREATED" | jq -r '.appId')"
   [ -n "$CLIENT_ID" ] && [ "$CLIENT_ID" != "null" ] || die "could not create the application: $CREATED"
 else
-  say "found it — reading its client id"
+  say "found it — reading its configuration"
   app="$(api GET "/management/v1/projects/${PROJECT_ID}/apps/${APP_ID}")"
   CLIENT_ID="$(jq -r '.app.oidcConfig.clientId // empty' <<<"$app")"
   [ -n "$CLIENT_ID" ] && [ "$CLIENT_ID" != "null" ] || die "the application exists but has no client id"
+
+  # RECONCILED, NOT MERELY READ — and this is the half that matters, because the
+  # stack that already exists is the broken one. An application provisioned by
+  # an earlier version of this script has devMode:false and cannot complete a
+  # sign-in; a stack whose WEB_URL has since moved has redirect URIs pointing
+  # somewhere else. Neither is fixed by a script that, finding an application,
+  # reads one field off it and stops.
+  #
+  # Idempotent means "converges on the described state" (hard rule 1), not
+  # "does nothing the second time". Only writes when something actually
+  # differs, so a correct stack is untouched and the log stays quiet.
+  CURRENT_DEV="$(jq -r '.app.oidcConfig.devMode // false' <<<"$app")"
+  CURRENT_URIS="$(jq -c '.app.oidcConfig.redirectUris // []' <<<"$app")"
+  CURRENT_USERINFO="$(jq -r '.app.oidcConfig.idTokenUserinfoAssertion // false' <<<"$app")"
+  if [ "$CURRENT_DEV" != "$DEV_MODE" ] ||
+     [ "$CURRENT_URIS" != "$REDIRECT_URIS" ] ||
+     [ "$CURRENT_USERINFO" != "true" ]; then
+    say "its dev mode, redirect URIs or claims do not match this stack — putting that right"
+    api PUT "/management/v1/projects/${PROJECT_ID}/apps/${APP_ID}/oidc_config" "$(jq -nc \
+      --argjson r "$REDIRECT_URIS" \
+      --argjson l "$LOGOUT_URIS" \
+      --argjson dm "$DEV_MODE" \
+      '{redirectUris:$r,
+        postLogoutRedirectUris:$l,
+        responseTypes:["OIDC_RESPONSE_TYPE_CODE"],
+        grantTypes:["OIDC_GRANT_TYPE_AUTHORIZATION_CODE","OIDC_GRANT_TYPE_REFRESH_TOKEN"],
+        appType:"OIDC_APP_TYPE_USER_AGENT",
+        authMethodType:"OIDC_AUTH_METHOD_TYPE_NONE",
+        accessTokenType:"OIDC_TOKEN_TYPE_JWT",
+        idTokenUserinfoAssertion:true,
+        devMode:$dm}')" >/dev/null
+  fi
 fi
 say "client ${CLIENT_ID}"
+
+# ------------------------------------------------- the origin, made durable --
+#
+# THE ORIGIN THIS STACK USES IS REGISTERED AS A TRUSTED DOMAIN, so that it keeps
+# resolving on an instance that was initialised under a different one.
+#
+# Zitadel decides which instance a request is for from its ORIGIN — host AND
+# port — and refuses any other with 404 "Instance not found". A FRESH instance
+# registers ${IDP_DOMAIN} at first init and needs nothing here. An instance
+# initialised under an older ZITADEL_EXTERNALDOMAIN does not know the new one,
+# and there is no AddInstanceDomain a provisioning token can reach: the Admin
+# API has no such endpoint (404) and the System API refuses a PAT (401). A
+# TRUSTED domain is the one thing that token can add, and it is enough.
+#
+# THE PORT IS WHY THIS LOOKED IMPOSSIBLE FOR AN EVENING. A trusted domain was
+# added by hand while the provider still LISTENED on 8080 and published 3126, so
+# every in-network probe went to ${IDP_DOMAIN}:8080 — an origin that could not
+# match ${IDP_DOMAIN}:3126 whatever was trusted. The conclusion drawn was that
+# trusted domains do not affect origin resolution and the instance had to be
+# re-initialised. Both halves were wrong, and the same run that made the ports
+# agree proved it: E2E (managed) #61, `issuer: http://ownpace-idp:3126 (declares
+# its own name)` from inside the API container, on the instance that had been
+# initialised as `localhost` and never re-initialised.
+#
+# So the stack repairs itself instead of asking somebody to destroy a database
+# (hard rule 2). It is idempotent: read first, write only when it is missing.
+say "checking ${IDP_DOMAIN} is an origin this instance answers for"
+trusted="$(api POST /admin/v1/trusted_domains/_search '{}')"
+if jq -e --arg d "$IDP_DOMAIN" '[.result[]?.domain] | index($d)' >/dev/null <<<"$trusted"; then
+  say "it already is"
+else
+  say "adding it"
+  api POST /admin/v1/trusted_domains "$(jq -nc --arg d "$IDP_DOMAIN" '{domain:$d}')" >/dev/null
+fi
 
 # ------------------------------------------------------- letting people in --
 #

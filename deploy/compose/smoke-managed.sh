@@ -107,20 +107,167 @@ echo "########## smoke-managed $(date -u +%FT%TZ) — evidence: $OUT ##########"
 fail=0
 note() { printf '\n--- %s ---\n' "$*"; }
 
+# WHICH MODE THIS STACK IS IN, read before anything mints a token — the identity
+# section far below asks the same question, but the first `mint` happens long
+# before it and the answer changes what that token means.
+#
+# THREE ANSWERS, NOT TWO. `printenv` exits 1 when the variable is not set and
+# `docker exec` exits 125+ when it could not run at all, and those are different
+# facts: one says this stack has no identity provider configured, the other says
+# nothing has been established either way. Collapsing them with `|| true` is how
+# "could not ask" gets reported as "not provisioned" — the same shape as the
+# curl-that-was-not-there below.
+STACK_ISSUER="$(docker exec "$API_CONTAINER" printenv JWT_ISSUER 2>&1)"
+STACK_ISSUER_RC=$?
+if [ "$STACK_ISSUER_RC" -ge 125 ]; then
+  echo "!!! cannot read JWT_ISSUER from '$API_CONTAINER' (exit ${STACK_ISSUER_RC}): ${STACK_ISSUER}"
+  echo "!!! nothing below can speak for this stack's sign-in either way."
+  STACK_ISSUER=""
+  fail=1
+elif [ "$STACK_ISSUER_RC" -ne 0 ]; then
+  STACK_ISSUER=""
+fi
+
 q() { docker exec "$DB_CONTAINER" sh -lc "psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -Atc \"$1\""; }
 
+# ON A PROVISIONED STACK THE API WILL NOT ACCEPT WHAT THIS MINTS, AND SAYS SO
+# ONCE RATHER THAN FIFTEEN TIMES.
+#
+# `selectAuthMode` returns `managed` the moment JWT_ISSUER is set, and the
+# symmetric JWT_SECRET then STOPS BEING USED — deliberately, so that a lingering
+# secret (managed.yml used to ship a known default) cannot silently downgrade
+# verification to it. Every token minted here is signed with that secret, so
+# once the identity provider is provisioned every authenticated assertion below
+# is refused, and none of the refusals is about the endpoint it names. E2E
+# (managed) #52 is what that reads like: seven checks, seven failures, one cause
+# and no mention of it anywhere.
+#
+# The honest fix is for this script to obtain a real token the way a browser
+# does — create the person, POST /v2/sessions with a password check, finalise
+# the auth request, exchange the code with PKCE — which is workplan 0099's "what
+# is still owed" and is now a measured, working sequence rather than a plan (the
+# whole flow was driven against the live provider on 2026-08-23; CreateCallback
+# needs IAM_LOGIN_CLIENT on the calling machine user, and the ID token it
+# returns carries the `email` claim the API requires).
+#
+# Until that lands, this states the cause ONCE, up front, and fails — rather
+# than letting the reader work backwards from fifteen unrelated-looking 401s.
+# It is not a skip: a gate that cannot prove something must say so and be red
+# (hard rule 9), not quietly pass.
+MINT_WARNED=0
+warn_minted_tokens_are_not_verifiable() {
+  [ "$MINT_WARNED" = "0" ] || return 0
+  MINT_WARNED=1
+  [ -n "${STACK_ISSUER:-}" ] || return 0
+  # >&2, AND THAT IS NOT A STYLE CHOICE. `mint`'s STDOUT IS THE TOKEN — it is
+  # read with `TOK="$(mint …)"`. Written to stdout, these lines are prepended to
+  # every JWT the script mints, and the API then answers HTTP 400 with an empty
+  # body to a header it cannot parse. That is what E2E (managed) #60 did:
+  #
+  #   verify: start-http-400   apply: start-http-400
+  #   readiness (database): HTTP 400, .database -> '<unreadable>' —
+  #
+  # It is #523's bug exactly — output that is not the credential ending up in
+  # the credential — committed an hour after the test that catches #523 was
+  # written. The whole script's output is `tee`d, so stderr still reaches the
+  # log and the reader loses nothing.
+  {
+    echo
+    echo "!!! this stack verifies tokens against ${STACK_ISSUER}, and the tokens below"
+    echo "!!! are signed with JWT_SECRET, which managed mode does not use. Every"
+    echo "!!! authenticated check that follows will be refused, and NONE of those"
+    echo "!!! refusals is about the endpoint it names."
+    echo "!!! The remedy is workplan 0099's remaining task: get a real token from the"
+    echo "!!! provider. Until then this is one true sentence instead of fifteen"
+    echo "!!! misleading ones."
+    echo
+  } >&2
+  fail=1
+}
+
+# AND WHATEVER COMES OUT OF HERE IS CHECKED FOR THE SHAPE OF A TOKEN BEFORE IT
+# IS SENT AS ONE — the durable half of #523's lesson, applied one caller further
+# than #523 applied it. A JWT is three dot-separated segments and contains no
+# whitespace; a warning, a stack trace, a deprecation notice and an OCI error
+# all do. This catches the class regardless of what produces the garbage next.
+# ONE RULE, TWO PRESENTATIONS. `looks_like_a_jwt` is the rule and says nothing;
+# the two callers below present it differently because they are in different
+# positions to fail.
+#
+# A JWT is three dot-separated segments and contains no whitespace. A warning
+# has whitespace; so does a stack trace, a deprecation notice and an OCI error.
+# That is the durable half of #523's lesson and it catches the class whatever
+# produces the garbage next.
+looks_like_a_jwt() { # looks_like_a_jwt <value> — quiet; 0 if it has the shape
+  case "$1" in
+    ''|*[[:space:]]*) return 1 ;;
+  esac
+  case "$1" in
+    *.*.*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# At TOP LEVEL, where `fail=1` reaches the verdict.
+assert_looks_like_a_jwt() { # assert_looks_like_a_jwt <what> <value>
+  looks_like_a_jwt "$2" && return 0
+  # >&2 because this is also read from places whose stdout is a value — the
+  # same trap as #60, made impossible rather than remembered. The script's own
+  # `tee` merges stderr into the evidence log, so nothing is lost by it.
+  {
+    if [ -z "$2" ]; then
+      echo "$1 came back empty — nothing signed it"
+    else
+      echo "$1 is not a token: a JWT has three dot-separated segments and no whitespace."
+      echo "  first 200 bytes: ${2:0:200}"
+    fi
+  } >&2
+  fail=1
+  return 1
+}
+
 mint() { # mint <sub> <tenantId>  — signed with the API container's real secret
-  (
+  warn_minted_tokens_are_not_verifiable
+  # DECLARED, THEN ASSIGNED — `local tok="$(…)"` makes the exit status `local`'s,
+  # which is always 0 (#520). And CHECKED HERE, in the callee, rather than at
+  # each of the four call sites: fixing the caller and not the callee is how
+  # #519 survived in nineteen other places.
+  local tok
+  tok="$(
     cd "$REPO_ROOT/apps/api" &&
       JWT_SECRET="$JW" SUB="$1" T="$2" node -e "
 const jwt=require('jsonwebtoken');
 console.log(jwt.sign({sub:process.env.SUB,email:process.env.SUB+'@smoke.local',tenantId:process.env.T,role:'owner'},process.env.JWT_SECRET,{expiresIn:'1h'}));"
-  )
+  )"
+  assert_looks_like_a_jwt "the token minted for '$1'" "$tok" || return 1
+  printf '%s' "$tok"
 }
 
+# THE CHOKE POINT EVERY AUTHENTICATED CALL GOES THROUGH, WHICH MAKES IT THE ONE
+# PLACE A BAD TOKEN IS CAUGHT WHATEVER PRODUCED IT.
+#
+# `mint` and the invitee's token are both checked where they are made, and that
+# is the right place — but it is also exactly what was true of #523's PAT and of
+# #60's JWT, and each of them got through anyway, from a producer nobody had
+# thought about yet. A per-producer check catches the producers that exist. This
+# catches the next one.
+#
+# It complains at most once: fifteen calls carrying the same bad token is one
+# fact, not fifteen, which is the whole argument of the section below.
 # http <method> <url> <token> — prints "<code> <body>" on one line
 http() {
   local body code
+  # AND IT REFUSES TO SEND ONE THAT IS NOT A TOKEN, in the VALUE rather than in
+  # a variable. This runs inside `$( )` at every call site, so `fail=1` set here
+  # would be set in a subshell and lost — the check would print and the run
+  # would still pass, which is the masking hard rule 9 is about. Answering `000`
+  # instead makes every caller's own assertion fail on a code that is not an
+  # HTTP status, and those callers ARE at top level.
+  if ! looks_like_a_jwt "$3"; then
+    echo "refusing to send $1 $2: that is not a token (${3:0:60}…)" >&2
+    printf '%s %s\n' "000" "refused before sending — the bearer is not a token"
+    return 0
+  fi
   body="$(curl -sS -X "$1" -H "Authorization: Bearer $3" -w '\n%{http_code}' "$2")"
   code="${body##*$'\n'}"
   body="${body%$'\n'*}"
@@ -782,8 +929,9 @@ note "identity provider"
 
 # Read out of the API CONTAINER, the way JWT_SECRET is above — not out of .env.
 # The question is what the running service verifies tokens against, and a file
-# on the host is at best a claim about that.
-ISSUER="$(docker exec "$API_CONTAINER" printenv JWT_ISSUER 2>/dev/null || true)"
+# on the host is at best a claim about that. Read ONCE, at the top of this
+# script, because the first token is minted long before this section runs.
+ISSUER="$STACK_ISSUER"
 if [ -z "$ISSUER" ]; then
   # Not a warning. JWT_ISSUER is written by setup-zitadel.sh, which the bring-up
   # now runs — its absence means that step did not happen, and a stack whose
@@ -801,31 +949,88 @@ else
   #
   # The question is only ever "can the thing that verifies tokens reach the keys",
   # so it is asked from there.
-  DISCOVERY="$(docker exec "$API_CONTAINER" sh -lc "curl -sS --max-time 10 '${ISSUER%/}/.well-known/openid-configuration'" 2>/dev/null || true)"
-  DECLARED="$(printf '%s' "$DISCOVERY" | jq -r '.issuer // empty' 2>/dev/null || true)"
-  JWKS="$(printf '%s' "$DISCOVERY" | jq -r '.jwks_uri // empty' 2>/dev/null || true)"
+  # ASKED WITH THE CLIENT THE API ITSELF USES, because the API image has neither
+  # curl nor wget. It is `node:24-slim`: node and little else, which is why the
+  # image's own HEALTHCHECK is `node -e "fetch(...)"` (apps/api/Dockerfile).
+  #
+  # This check used `curl`, with `2>/dev/null || true` around it. So on every run
+  # ever made, `sh: 1: curl: not found` became the empty string, the empty string
+  # became an empty `.issuer`, and the empty `.issuer` was reported as "the API
+  # cannot reach the issuer at all" — a conclusion this check had not measured
+  # and, with no curl in the image, could never have measured. It was right by
+  # accident in run #52 and would have said the same thing had the issuer been
+  # perfectly reachable.
+  #
+  # THREE OUTCOMES, KEPT APART. "The probe could not run", "the issuer could not
+  # be reached" and "the issuer answered X" are three different facts about three
+  # different things, and only the last one is about the issuer (hard rule 10).
+  idp_get() { # idp_get <url> — body on stdout; 0 ok, 22 non-2xx, 7 unreachable, else the exec failed
+    docker exec "$API_CONTAINER" node -e '
+      fetch(process.argv[1], { signal: AbortSignal.timeout(10000) })
+        .then(async (r) => {
+          process.stdout.write(await r.text());
+          process.exit(r.ok ? 0 : 22);
+        })
+        .catch((e) => {
+          process.stderr.write(`${e.name}: ${e.message}` + (e.cause ? ` / ${e.cause}` : ""));
+          process.exit(7);
+        });
+    ' "$1" 2>&1
+  }
+
+  DISCOVERY="$(idp_get "${ISSUER%/}/.well-known/openid-configuration")"
+  DISC_RC=$?
+  case "$DISC_RC" in
+    0) ;;
+    7)  echo "the API cannot reach the issuer at $ISSUER — the fetch never got an answer:"
+        echo "  $DISCOVERY"
+        echo "The usual cause is an issuer whose ORIGIN the API can never present."
+        echo "ZITADEL_EXTERNALDOMAIN=localhost makes it http://localhost:3126, which the"
+        echo "host reaches through the published port and the API container cannot: there,"
+        echo "localhost is the API. It has to be an address BOTH a browser and the API"
+        echo "resolve, AND the one the provider was initialised with — Zitadel answers 404"
+        echo "'Instance not found' to any other origin, so an internal shortcut is not one."
+        fail=1 ;;
+    22) echo "the issuer at $ISSUER answered, but not with a discovery document:"
+        echo "  ${DISCOVERY:0:300}"
+        fail=1 ;;
+    *)  echo "this check could not run: asking the API container failed (exit ${DISC_RC})."
+        echo "  ${DISCOVERY:0:300}"
+        echo "That is a fact about the probe, not about the issuer — nothing here has been"
+        echo "measured either way."
+        fail=1 ;;
+  esac
+
+  DECLARED="$(jq -r '.issuer // empty' <<<"$DISCOVERY" 2>/dev/null || true)"
+  JWKS="$(jq -r '.jwks_uri // empty' <<<"$DISCOVERY" 2>/dev/null || true)"
 
   # Byte for byte, and that is the point: OIDC Discovery §4.3 says a document
   # declaring a different issuer is not this issuer, and both `oidc.ts` and
   # `auth.ts` refuse on a mismatch. A trailing slash is the difference between
   # a working sign-in and a refusal nobody can explain.
-  if [ "$DECLARED" != "${ISSUER%/}" ] && [ "$DECLARED" != "$ISSUER" ]; then
+  if [ "$DISC_RC" -eq 0 ] && [ "$DECLARED" != "${ISSUER%/}" ] && [ "$DECLARED" != "$ISSUER" ]; then
     echo "the issuer at $ISSUER declares '$DECLARED' (as seen BY THE API) — sign-in would refuse this."
-    echo "If DECLARED is empty, the API cannot reach the issuer at all. The usual cause is"
-    echo "ZITADEL_EXTERNALDOMAIN=localhost: reachable from the host, and the API container"
-    echo "itself from inside. It has to be an address BOTH a browser and the API resolve."
     fail=1
-  else
+  elif [ "$DISC_RC" -eq 0 ]; then
     echo "issuer: $ISSUER (declares its own name)"
   fi
 
   # The keys the API verifies every token against. Discovery naming a jwks_uri
   # nothing serves is a stack that authenticates nobody, and it looks healthy.
-  if [ -z "$JWKS" ] || ! docker exec "$API_CONTAINER" sh -lc "curl -sf --max-time 10 '$JWKS'" >/dev/null 2>&1; then
-    echo "jwks_uri '$JWKS' is not fetchable — no token could be verified."
-    fail=1
-  else
-    echo "jwks:   $JWKS (fetchable)"
+  if [ "$DISC_RC" -eq 0 ]; then
+    if [ -z "$JWKS" ]; then
+      echo "the discovery document names no jwks_uri — no token could be verified."
+      fail=1
+    else
+      idp_get "$JWKS" >/dev/null
+      JWKS_RC=$?
+      if [ "$JWKS_RC" -ne 0 ]; then
+        echo "jwks_uri '$JWKS' is not fetchable from the API (exit ${JWKS_RC}) — no token could be verified."
+        fail=1
+      else
+        echo "jwks:   $JWKS (fetchable)"
+      fi
+    fi
   fi
 fi
 
@@ -842,12 +1047,16 @@ note "an invitation, answered three ways"
 # what the policies key on: without it there is nothing to answer.
 INV_EMAIL="smoke-invitee-$$@smoke.local"
 INV_SUB="smoke-invitee-$$"
+warn_minted_tokens_are_not_verifiable
 INV_TOKEN="$(
   cd "$REPO_ROOT/apps/api" &&
     JWT_SECRET="$JW" SUB="$INV_SUB" EM="$INV_EMAIL" node -e "
 const jwt=require('jsonwebtoken');
 console.log(jwt.sign({sub:process.env.SUB,email:process.env.EM,email_verified:true},process.env.JWT_SECRET,{expiresIn:'1h'}));"
 )"
+# The one token not minted by `mint` — it carries `email_verified`, which the
+# invitation path reads. It gets the same check for the same reason.
+assert_looks_like_a_jwt "the invitee's token" "$INV_TOKEN" || true
 
 # Three open invitations, written the way granting an access request writes one:
 # addressed to an email, holding a `pending:` placeholder nobody owns yet.
