@@ -278,6 +278,9 @@ console.log(jwt.sign({sub:process.env.SUB,email:process.env.SUB+'@smoke.local',t
 # in to three different places.
 IDP_USERS=()          # every human handed back to the PARENT shell, for the take-back
 IDP_ROLE_ADDED=0      # whether IAM_LOGIN_CLIENT had to be granted
+IDP_SIGNIN_APP=""     # the throwaway OIDC client this gate signs in with, for the take-back
+IDP_SIGNIN_CLIENT=""  # its client id
+IDP_SMOKE_APP_NAME="Ownpace Smoke $$"
 
 # The provisioning token, read off the VOLUME rather than out of the provider —
 # that image has no shell and no coreutils, which cost E2E (managed) #49-#51.
@@ -328,10 +331,26 @@ sign_in_as() {
   verifier="$(openssl rand -hex 32)"
   challenge="$(printf '%s' "$verifier" | openssl dgst -binary -sha256 | openssl base64 | tr '+/' '-_' | tr -d '=\n')"
   loc="$(curl -sS "${IDP_RESOLVE[@]}" -m 15 -o /dev/null -D - \
-    "${STACK_ISSUER%/}/oauth/v2/authorize?client_id=${IDP_CLIENT_ID}&redirect_uri=${IDP_REDIRECT}&response_type=code&scope=openid%20email%20profile&code_challenge=${challenge}&code_challenge_method=S256" \
+    "${STACK_ISSUER%/}/oauth/v2/authorize?client_id=${IDP_SIGNIN_CLIENT}&redirect_uri=${IDP_REDIRECT}&response_type=code&scope=openid%20email%20profile&code_challenge=${challenge}&code_challenge_method=S256" \
     2>/dev/null | tr -d '\r' | sed -n 's/^[Ll]ocation: //p' | head -1)"
-  ar="$(sed -n 's/.*authRequest=\([^&]*\).*/\1/p' <<<"$loc")"
-  [ -n "$ar" ] || { echo "the provider started no authorization request for $email (-> ${loc:-<no redirect>})" >&2; return 1; }
+  ar="$(sed -n 's/.*[?&]authRequest=\([^&]*\).*/\1/p' <<<"$loc")"
+  if [ -z "$ar" ]; then
+    # THE TWO FAILURES LOOK THE SAME AND ARE NOT. A login v1 redirect carries
+    # `authRequestID=` and a bare number; a login v2 one carries `authRequest=`
+    # and a `V2_` id. The old message read "started no authorization request"
+    # for both, which is false for the first — the provider started one this
+    # gate cannot finalise. E2E (managed) #80 spent its whole run on that
+    # sentence.
+    case "$loc" in
+      *authRequestID=*)
+        echo "the provider sent $email to the login v1 UI (${loc})." >&2
+        echo "  /v2/sessions + CreateCallback finalises V2_ authorization requests only — a v1 one does not exist to it." >&2
+        echo "  the client this gate signs in with must carry loginVersion:{loginV2:{}}; ${IDP_SMOKE_APP_NAME} did not get it." >&2 ;;
+      *)
+        echo "the provider started no authorization request for $email (-> ${loc:-<no redirect>})" >&2 ;;
+    esac
+    return 1
+  fi
 
   sess="$(idp_api POST /v2/sessions "$(jq -nc --arg u "$email" --arg p "$password" \
     '{checks:{user:{loginName:$u},password:{password:$p}}}')")" || return 1
@@ -346,7 +365,7 @@ sign_in_as() {
 
   tok="$(curl -sS "${IDP_RESOLVE[@]}" -m 15 -X POST "${STACK_ISSUER%/}/oauth/v2/token" \
     --data-urlencode grant_type=authorization_code --data-urlencode "code=${code}" \
-    --data-urlencode "redirect_uri=${IDP_REDIRECT}" --data-urlencode "client_id=${IDP_CLIENT_ID}" \
+    --data-urlencode "redirect_uri=${IDP_REDIRECT}" --data-urlencode "client_id=${IDP_SIGNIN_CLIENT}" \
     --data-urlencode "code_verifier=${verifier}" 2>/dev/null)"
   idt="$(jq -r '.id_token // empty' <<<"$tok")"
   [ -n "$idt" ] || { echo "no ID token for $email: ${tok:0:200}" >&2; return 1; }
@@ -370,6 +389,10 @@ idp_take_back() {
     idp_api DELETE "/v2/users/${u}" >/dev/null 2>&1 ||
       echo "[take-back] could not delete user ${u} — the next run's sweep will get them" >&2
   done
+  if [ -n "${IDP_SIGNIN_APP:-}" ] && [ -n "${IDP_PROJECT:-}" ]; then
+    idp_api DELETE "/management/v1/projects/${IDP_PROJECT}/apps/${IDP_SIGNIN_APP}" >/dev/null 2>&1 ||
+      echo "[take-back] could not delete the gate's sign-in client ${IDP_SIGNIN_APP} — the next run's sweep will get it" >&2
+  fi
   if [ "$IDP_ROLE_ADDED" = "1" ] && [ -n "${IDP_SETUP_USER:-}" ]; then
     idp_api PUT "/admin/v1/members/${IDP_SETUP_USER}" \
       "$(jq -nc --argjson r "${IDP_ROLES_BEFORE:-[]}" '{roles:$r}')" >/dev/null 2>&1 ||
@@ -413,6 +436,36 @@ idp_sweep_leftovers() {
     echo "swept ${swept} leftover(s) from earlier runs"
   else
     echo "no leftover smoke people to sweep"
+  fi
+}
+
+# The other residue a dead run leaves: the throwaway OIDC client it signs in
+# with. Same discipline as the humans above and the same reason — a leftover
+# client is a standing credential on a real deployment that nobody is rotating.
+# Runs after IDP_PROJECT is known, which is why it is not folded into the sweep
+# above.
+idp_sweep_leftover_clients() {
+  local listing id name swept=0
+  listing="$(idp_api POST "/management/v1/projects/${IDP_PROJECT}/apps/_search" '{"queries":[]}')" ||
+    { echo "could not ask the provider for leftover sign-in clients" >&2; return 1; }
+  # The shape is checked before the loop, for the reason the people sweep checks
+  # it: a renamed field would read as "nothing to sweep".
+  jq -e '[.result[]?] | all(has("id") and has("name"))' >/dev/null <<<"$listing" ||
+    { echo "the application listing does not look like one (no id/name) — refusing to guess: $(jq -c '.result[0] // empty' <<<"$listing")" >&2; return 1; }
+  while IFS=$'\t' read -r id name; do
+    [ -n "$id" ] || continue
+    # ONLY the gate's own naming. "Ownpace Web" lives in this project too, and
+    # a sweep that took it would delete the sign-in of the running stack.
+    [[ "$name" =~ ^Ownpace\ Smoke\ [0-9]+$ ]] || continue
+    idp_api DELETE "/management/v1/projects/${IDP_PROJECT}/apps/${id}" >/dev/null ||
+      { echo "could not delete leftover client ${name} (${id})" >&2; return 1; }
+    echo "  took back ${name} — a dead run left it behind"
+    swept=$(( swept + 1 ))
+  done <<<"$(jq -r '.result[]? | [.id, .name] | @tsv' <<<"$listing")"
+  if [ "$swept" -gt 0 ]; then
+    echo "swept ${swept} leftover sign-in client(s) from earlier runs"
+  else
+    echo "no leftover sign-in clients to sweep"
   fi
 }
 
@@ -773,10 +826,75 @@ else
   IDP_APP_CFG="$(idp_api GET "/management/v1/projects/${IDP_PROJECT}/apps/${IDP_APP}" || true)"
   IDP_CLIENT_ID="$(jq -r '.app.oidcConfig.clientId // empty' <<<"$IDP_APP_CFG")"
   IDP_REDIRECT="$(jq -r '.app.oidcConfig.redirectUris[0] // empty' <<<"$IDP_APP_CFG")"
+  # Mirrored onto the gate's own client below: an http redirect URI is refused
+  # without it, and whether this stack has one is WEB_URL's business, not a
+  # thing to guess at twice.
+  IDP_DEV_MODE="$(jq -r '.app.oidcConfig.devMode // false' <<<"$IDP_APP_CFG")"
   if [ -z "$IDP_CLIENT_ID" ] || [ -z "$IDP_REDIRECT" ]; then
     echo "the provider has no 'Ownpace Web' application to sign in to — setup-zitadel.sh has not finished here."
     fail=1
   fi
+
+  # ---- the login page a browser is actually sent to ----
+  #
+  # EVERYTHING ELSE IN THIS GATE SIGNS IN LIKE A MACHINE. `sign_in_as` takes the
+  # authorization request straight to /v2/sessions and CreateCallback with a
+  # provisioning token — the same mechanism Zitadel's own login UI uses — so it
+  # is green whether or not a human could have got through.
+  #
+  # On 2026-08-25 a human could not. The instance required login v2, a separate
+  # application this stack does not run, so every sign-in ended on the
+  # gateway's JSON `code: 5, message: "Not Found"` instead of a login form —
+  # and this gate was green for the whole of it, because no assertion had ever
+  # loaded the page a person is sent to. setup-zitadel.sh now pins the login
+  # version; this is what would have said so.
+  #
+  # THE COOKIE JAR IS NOT OPTIONAL. Zitadel binds an authorization request to
+  # the user-agent cookie set on the authorize response and refuses to render a
+  # login page for any other agent — `User Agent does not correspond
+  # (EVENT-adk13)`. Two curls without a shared jar are two agents, so the
+  # second would fail for a reason that has nothing to do with what is being
+  # checked here. It is also the answer when a person hits that error: the
+  # authorization request in the address bar belongs to a different browser
+  # session than the one asking for it.
+  login_verifier="$(openssl rand -hex 32)"
+  login_challenge="$(printf '%s' "$login_verifier" | openssl dgst -binary -sha256 | openssl base64 | tr '+/' '-_' | tr -d '=\n')"
+  login_jar="$(mktemp)"
+  login_loc="$(curl -sS "${IDP_RESOLVE[@]}" -m 15 -o /dev/null -D - -c "$login_jar" \
+    "${STACK_ISSUER%/}/oauth/v2/authorize?client_id=${IDP_CLIENT_ID}&redirect_uri=${IDP_REDIRECT}&response_type=code&scope=openid%20email&code_challenge=${login_challenge}&code_challenge_method=S256" \
+    2>/dev/null | tr -d '\r' | sed -n 's/^[Ll]ocation: //p' | head -1)"
+  case "$login_loc" in
+    '')
+      echo "the provider sent a browser nowhere — no Location on the authorization request."
+      fail=1 ;;
+    */ui/v2/login*)
+      # The exact failure this section exists for, named rather than left to be
+      # read off an HTTP code.
+      echo "the provider sends people to login v2 (${login_loc}), and nothing in this stack serves that path."
+      echo "  a human would get a JSON 'Not Found' page instead of a login form."
+      echo "  setup-zitadel.sh pins {\"loginV2\":{\"required\":false}} — it has not run here, or it did not take."
+      fail=1 ;;
+    *)
+      login_url="$login_loc"
+      case "$login_url" in http*) ;; *) login_url="${STACK_ISSUER%/}${login_loc}" ;; esac
+      login_page="$(curl -sS "${IDP_RESOLVE[@]}" -m 15 -b "$login_jar" -c "$login_jar" \
+        -w '\n%{http_code}' "$login_url" 2>/dev/null)"
+      login_code="${login_page##*$'\n'}"
+      login_page="${login_page%$'\n'*}"
+      if [ "$login_code" != "200" ]; then
+        echo "the login page answered HTTP ${login_code} at ${login_url}: ${login_page:0:200}"
+        fail=1
+      # A HERE-STRING, NOT A PIPE. `curl … | grep -q` kills the producer with
+      # SIGPIPE and `pipefail` then takes the killed producer's status — the
+      # repo-wide correction in #556.
+      elif ! grep -qi '<form' <<<"$login_page"; then
+        echo "the login page at ${login_url} served no form: ${login_page:0:200}"
+        fail=1
+      else
+        echo "the login page a browser is sent to renders a form"
+      fi ;;
+  esac
+  rm -f "$login_jar"
 
   # FINALISING AN AUTH REQUEST AGAINST A SESSION NEEDS `IAM_LOGIN_CLIENT`, which
   # is the role Zitadel's own login UI holds — so this is the provider's normal
@@ -807,6 +925,55 @@ else
   # so a second one here silently leaks that process for the rest of the run.
   # Caught by looking, not by it going wrong, which is the cheaper way round.
   trap 'idp_take_back; kill "$WATCHER_PID" 2>/dev/null || true' EXIT
+
+  # ---- the client this gate signs in with ----
+  #
+  # NOT "Ownpace Web", AND THAT NEEDS SAYING because it looks like an oversight.
+  #
+  # `sign_in_as` finalises an authorization request with /v2/sessions and
+  # CreateCallback — the only way a script completes a sign-in without driving a
+  # login form. That API finalises `V2_`-prefixed authorization requests and no
+  # others: `LinkSessionToAuthRequest` loads a write model keyed on `V2_<id>`,
+  # and a login v1 request, whose id is a bare number, is
+  # `Errors.AuthRequest.NotExisting` to it.
+  #
+  # WHICH KIND THE AUTHORIZE ENDPOINT MAKES IS THE CLIENT'S PROPERTY —
+  # instance-wide `loginV2.required`, or failing that the application's own
+  # `loginVersion`. "Ownpace Web" is now pinned to v1, because v1 is the login
+  # UI this stack actually serves and a human sent to v2 gets a JSON 404
+  # (#566). So one client cannot both carry the humans and be finalised by the
+  # session API, and the gate stops trying to make it.
+  #
+  # E2E (managed) #80 is what this costs when it is left implicit: the moment
+  # the instance flag was turned off, every sign-in here returned "the provider
+  # started no authorization request" and the whole run failed on an unrelated
+  # sentence. Nothing had said the gate depended on that flag.
+  #
+  # A THROWAWAY, not a second permanent application — the reason the smoke's
+  # people are throwaways. A standing test client on a real deployment is a
+  # credential nobody is rotating. Same project, so JWT_AUDIENCE still matches
+  # and the API accepts its tokens exactly as it accepts the web app's.
+  idp_sweep_leftover_clients || fail=1
+  smoke_app="$(idp_api POST "/management/v1/projects/${IDP_PROJECT}/apps/oidc" "$(jq -nc \
+    --arg n "$IDP_SMOKE_APP_NAME" --arg r "$IDP_REDIRECT" --argjson dm "$IDP_DEV_MODE" \
+    '{name:$n,
+      redirectUris:[$r],
+      responseTypes:["OIDC_RESPONSE_TYPE_CODE"],
+      grantTypes:["OIDC_GRANT_TYPE_AUTHORIZATION_CODE"],
+      appType:"OIDC_APP_TYPE_USER_AGENT",
+      authMethodType:"OIDC_AUTH_METHOD_TYPE_NONE",
+      accessTokenType:"OIDC_TOKEN_TYPE_JWT",
+      idTokenUserinfoAssertion:true,
+      loginVersion:{loginV2:{}},
+      devMode:$dm}')")" || true
+  IDP_SIGNIN_APP="$(jq -r '.appId // empty' <<<"${smoke_app:-}" 2>/dev/null || true)"
+  IDP_SIGNIN_CLIENT="$(jq -r '.clientId // empty' <<<"${smoke_app:-}" 2>/dev/null || true)"
+  if [ -z "$IDP_SIGNIN_CLIENT" ]; then
+    echo "could not create ${IDP_SMOKE_APP_NAME}, the client this gate signs in with: ${smoke_app:0:200}"
+    fail=1
+  else
+    echo "signing in through ${IDP_SMOKE_APP_NAME} (login v2), not the humans' client (login v1)"
+  fi
 
   IDP_PW='Smoke-Person!42'
   read -r VERIFY_SUBJECT VERIFY_TOKEN <<<"$(sign_in_as "smoke-verify-$$@smoke.local" "$IDP_PW")" || true

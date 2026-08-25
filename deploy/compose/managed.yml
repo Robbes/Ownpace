@@ -586,6 +586,20 @@ services:
       # nothing inside — one address, two meanings, which is the whole bug this
       # is fixing. One number, both sides, no second place to get it wrong.
       ZITADEL_PORT: ${ZITADEL_PORT:-3126}
+      # WHICH LOGIN UI A FRESH INSTANCE REQUIRES, decided here rather than
+      # inherited. `cmd/defaults.yaml` at v4.17.1 ships
+      # `DefaultInstance.Features.LoginV2.Required: true`, and login v2 is a
+      # SEPARATE application — `ghcr.io/zitadel/zitadel-login`, routed at
+      # /ui/v2/login — which this stack does not deploy. An instance left on
+      # that default therefore redirects every human sign-in to a path where
+      # nothing listens, and the browser renders the gateway's JSON
+      # `code: 5, "Not Found"` in place of a login form (#566).
+      #
+      # DEFAULTINSTANCE IS READ ONCE, AT FIRST INIT. This fixes a stack that
+      # does not exist yet and does nothing for one that does, which is why
+      # setup-zitadel.sh ALSO sets it through the API and reads it back. Two
+      # mechanisms because there are two populations, not belt and braces.
+      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "false"
       # The first human, so a fresh stack has somebody who can sign in.
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: ${ZITADEL_ADMIN_USERNAME:-owner}
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_ADMIN_PASSWORD:?run ./deploy/compose/ensure-env-secrets.sh first}

@@ -678,6 +678,7 @@ if [ -z "$APP_ID" ] || [ "$APP_ID" = "null" ]; then
       authMethodType:"OIDC_AUTH_METHOD_TYPE_NONE",
       accessTokenType:"OIDC_TOKEN_TYPE_JWT",
       idTokenUserinfoAssertion:true,
+      loginVersion:{loginV1:{}},
       devMode:$dm}')")"
   CLIENT_ID="$(echo "$CREATED" | jq -r '.clientId')"
   APP_ID="$(echo "$CREATED" | jq -r '.appId')"
@@ -701,10 +702,18 @@ else
   CURRENT_DEV="$(jq -r '.app.oidcConfig.devMode // false' <<<"$app")"
   CURRENT_URIS="$(jq -c '.app.oidcConfig.redirectUris // []' <<<"$app")"
   CURRENT_USERINFO="$(jq -r '.app.oidcConfig.idTokenUserinfoAssertion // false' <<<"$app")"
+  # WHICH LOGIN UI THIS APPLICATION SENDS PEOPLE TO, read the same way. Left
+  # unset it follows the instance default, which on a fresh v4 instance is a
+  # login v2 this stack does not run — a redirect to a 404 on every sign-in.
+  # See "the login page people get" below for the whole story; the instance
+  # setting there and this one are deliberately both written, because either
+  # alone leaves the choice to something that can change underneath it.
+  CURRENT_LOGIN="$(jq -r 'if .app.oidcConfig.loginVersion.loginV1 then "v1" else "unset-or-v2" end' <<<"$app")"
   if [ "$CURRENT_DEV" != "$DEV_MODE" ] ||
      [ "$CURRENT_URIS" != "$REDIRECT_URIS" ] ||
+     [ "$CURRENT_LOGIN" != "v1" ] ||
      [ "$CURRENT_USERINFO" != "true" ]; then
-    say "its dev mode, redirect URIs or claims do not match this stack — putting that right"
+    say "its dev mode, redirect URIs, login page or claims do not match this stack — putting that right"
     api PUT "/management/v1/projects/${PROJECT_ID}/apps/${APP_ID}/oidc_config" "$(jq -nc \
       --argjson r "$REDIRECT_URIS" \
       --argjson l "$LOGOUT_URIS" \
@@ -717,6 +726,7 @@ else
         authMethodType:"OIDC_AUTH_METHOD_TYPE_NONE",
         accessTokenType:"OIDC_TOKEN_TYPE_JWT",
         idTokenUserinfoAssertion:true,
+        loginVersion:{loginV1:{}},
         devMode:$dm}')" >/dev/null
   fi
 fi
@@ -936,6 +946,70 @@ silently as no provider at all, which is the failure this configures away."
     # different claims, and this is only the first.
     say "  configured, not proved — a test send would mail a real address"
   fi
+fi
+
+# ---------------------------------------------- the login page people get --
+#
+# THIS INSTANCE IS POINTED AT THE LOGIN UI THIS STACK ACTUALLY RUNS.
+#
+# Zitadel v4 ships two login UIs. V1 is built into the server and served at
+# ${ISSUER}/ui/login. V2 is a SEPARATE application — `ghcr.io/zitadel/zitadel-login`,
+# a Next.js app that has to be deployed and routed at /ui/v2/login — which
+# `managed.yml` does not run and this project has not adopted. A fresh v4
+# instance nonetheless comes up with `loginV2.required = true` at instance
+# scope, so the server sends every human sign-in to a path where nothing is
+# listening.
+#
+# WHAT A PERSON SEES IS NOT A LOGIN PAGE. "Sign in" reaches
+# ${ISSUER}/ui/v2/login/login?authRequest=V2_… and the browser renders the
+# gRPC-gateway's not-found body — a JSON viewer showing `code: 5`,
+# `message: "Not Found"`. Nothing on that screen names the login UI, the
+# feature, or this stack, so the first guess is a routing fault at the reverse
+# proxy. It cost an evening on the Spark (2026-08-25) before the feature flag
+# was found.
+#
+# AND NO GATE WOULD HAVE CAUGHT IT. smoke-managed.sh signs in the way a machine
+# does — /oauth/v2/authorize, then /v2/sessions and CreateCallback with a
+# provisioning token — and never loads the login UI at all. The only thing this
+# breaks is the path every human takes and no test took. The smoke now fetches
+# the page a browser is sent to, for that reason.
+#
+# BOTH LEVELS ARE WRITTEN, and that is not belt-and-braces. The application's
+# own `loginVersion` is set above, so the humans' client does not depend on this
+# instance setting staying where it was put; this instance setting is written
+# here, so a client that expresses no preference — the console, anything added
+# later by hand — lands on the UI this stack serves rather than on a 404.
+#
+# THE GATE SIGNS IN THROUGH A CLIENT OF ITS OWN, pinned the other way. It
+# finalises authorization requests with /v2/sessions and CreateCallback, which
+# works on V2_-prefixed requests only, so it cannot use a client pinned to v1.
+# `smoke-managed.sh` creates that client, uses it, and deletes it — the reason
+# is written out where it happens.
+#
+# TO SERVE V2 INSTEAD: deploy the login container, route it under ${ISSUER},
+# and set {"loginV2":{"required":true,"baseUri":"…"}} here. Until something
+# answers on that path, requiring it is a promise this deployment cannot keep.
+say "checking which login page this instance sends people to"
+login_v2_required() { jq -r '.loginV2.required // false' <<<"$(api GET /v2/features/instance)"; }
+
+if [ "$(login_v2_required)" = "true" ]; then
+  say "it sends them to login v2, which this stack does not run — pointing it back at the built-in one"
+  api PUT /v2/features/instance '{"loginV2":{"required":false}}' >/dev/null
+  # READ BACK, because the answer to this PUT is a `details` block saying a
+  # sequence advanced — it names no feature and does not say which way one
+  # moved. Believing a write that did not take costs a stack where every
+  # sign-in ends on a 404, so the SETTING decides and not the response.
+  [ "$(login_v2_required)" = "false" ] || die "could not point this instance at the built-in login page.
+
+It still requires login v2, and this stack runs no login v2 — so every sign-in
+will end on a JSON 'Not Found' page instead of a login form.
+
+Set it by hand with the provisioning token:
+  curl -X PUT ${ISSUER}/v2/features/instance -H 'Content-Type: application/json' \\
+    -H \"Authorization: Bearer \$PAT\" -d '{\"loginV2\":{\"required\":false}}'"
+  say "it now sends them to the built-in login page"
+else
+  say "the built-in login page — which is the one this stack serves"
 fi
 
 # ------------------------------------------------------- letting people in --
