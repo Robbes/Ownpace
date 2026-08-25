@@ -48,7 +48,7 @@ import { authenticateSubject, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { log } from '@openmig/shared';
-import { tell, type TellOutcome } from '../access-notify.ts';
+import { tell, tellOperator, type TellOutcome } from '../access-notify.ts';
 import { serverFault } from '../server-fault.ts';
 import { createKnockLimiter, knockLimitFromEnv, type KnockLimiter } from '../knock-limit.ts';
 
@@ -141,6 +141,38 @@ router.post('/', async (req: Request, res: Response) => {
     // somebody's contact details, and logs travel further than the database
     // does (§17). The address is what makes the line useful for support.
     log.info(`[access-request] ${body.email} asked for access (${body.locale})`);
+
+    // TELL THE OPERATOR, and say so when nobody was told.
+    //
+    // Until this existed the row and that log line were the whole of it: the
+    // queue was the intended channel, which works exactly as well as somebody's
+    // habit of opening it. Awaited rather than fired and forgotten — an unawaited
+    // promise here would let the process finish the response and log the failure
+    // into nowhere — but its outcome cannot change the 201, because the request
+    // IS recorded and telling the asker otherwise would be false.
+    //
+    // Note deliberately not passed: it stays in the database where the queue
+    // shows it, behind authentication. See the event's own doc.
+    const announced = await tellOperator({
+      kind: 'access_requested',
+      email: body.email,
+      ...(body.organisation ? { organisation: body.organisation } : {}),
+      ...(body.tier ? { tier: body.tier } : {}),
+    });
+    if (announced === 'off') {
+      // Per request, not once per process. "Nobody was told about THIS one" is
+      // a fact about this request, and an operator who believes they are being
+      // notified is exactly who rule 9 protects.
+      log.warn(
+        `[access-request] nobody was told about ${body.email} — no SMTP configured. ` +
+          'Set SMTP_HOST, NOTIFY_FROM and NOTIFY_TO; the request is in the queue either way.',
+      );
+    } else if (announced === 'failed') {
+      log.error(
+        `[access-request] could not announce ${body.email} — the request is recorded ` +
+          'and is in the queue, but no mail went out.',
+      );
+    }
 
     // 201 and nothing about them. See point 4 above.
     res.status(201).json({

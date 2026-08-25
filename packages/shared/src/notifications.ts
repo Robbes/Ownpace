@@ -729,6 +729,33 @@ export type NotificationEvent =
     }
   | {
       /**
+       * Somebody knocked (workplan 0093 T3).
+       *
+       * THE ONLY EVENT IN THIS UNION ADDRESSED TO THE OPERATOR ABOUT A PERSON
+       * WHO IS NOT A MEMBER. `access_granted` and `access_declined` are the
+       * two halves of the reply; this is the arrival, and until it existed
+       * `POST /api/access-requests` inserted a row, wrote one log line and told
+       * nobody. The queue was the intended channel, which works exactly as well
+       * as somebody's habit of opening it.
+       *
+       * IT CARRIES NO `note`. The applicant's own words about what they are
+       * moving are the most useful field on the row and they stay in the
+       * database, behind authentication, where the queue shows them. An email
+       * is forwarded, archived and searched far more casually than a table is
+       * — the same reasoning that keeps the name and the note out of the log
+       * line (§17). Address, organisation and tier are enough to decide
+       * whether to open the queue, which is all this needs to do.
+       */
+      readonly kind: 'access_requested';
+      /** Who asked. The operator replies to a person, so this is the point. */
+      readonly email: string;
+      /** As they typed it. Absent when they left the optional field empty. */
+      readonly organisation?: string;
+      /** Their own guess at a package — triage, never a commitment. */
+      readonly tier?: string;
+    }
+  | {
+      /**
        * Somebody's access request was declined (workplan 0095 T5).
        *
        * CARRIES NOTHING. Not the organisation they named, not what they asked
@@ -804,6 +831,7 @@ const EVENT: Record<NotificationLocale, Record<NotificationEvent['kind'], string
     verification_finished: 'Ownpace — the check has finished',
     migration_finished: 'Ownpace — the migration is finished',
     rollback_finished: 'Ownpace — the migration was rolled back',
+    access_requested: 'Ownpace — somebody asked for access',
     access_granted: 'Ownpace — your access is ready',
     access_declined: 'Ownpace — about your request',
   },
@@ -813,6 +841,7 @@ const EVENT: Record<NotificationLocale, Record<NotificationEvent['kind'], string
     verification_finished: 'Ownpace — de controle is afgerond',
     migration_finished: 'Ownpace — de migratie is afgerond',
     rollback_finished: 'Ownpace — de migratie is teruggedraaid',
+    access_requested: 'Ownpace — iemand vraagt toegang',
     access_granted: 'Ownpace — uw toegang staat klaar',
     access_declined: 'Ownpace — over uw aanvraag',
   },
@@ -830,6 +859,10 @@ interface EventLines {
   readonly rolledBack: string;
   readonly rollbackReason: string;
   readonly act: string;
+  readonly requestedIntro: string;
+  readonly requestedFrom: string;
+  readonly requestedOrganisation: string;
+  readonly requestedTier: string;
   readonly grantedOrganisation: string;
   readonly grantedIntro: string;
   readonly grantedSignIn: string;
@@ -856,6 +889,10 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'and syncing has resumed. If the MX record was changed, revert it by hand — ' +
       'this system does not change DNS.',
     rollbackReason: 'The reason given was:',
+    requestedIntro: 'Somebody has asked for access. Nothing has been granted.',
+    requestedFrom: 'From:',
+    requestedOrganisation: 'Organisation:',
+    requestedTier: 'Package they guessed at:',
     grantedOrganisation: 'Organisation',
     grantedIntro:
       'Your request has been granted and your organisation is ready. One thing left to do:',
@@ -896,6 +933,10 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'synchronisatie loopt weer. Is het MX-record gewijzigd, zet het dan handmatig ' +
       'terug — dit systeem wijzigt geen DNS.',
     rollbackReason: 'De opgegeven reden was:',
+    requestedIntro: 'Iemand vraagt toegang. Er is nog niets toegekend.',
+    requestedFrom: 'Van:',
+    requestedOrganisation: 'Organisatie:',
+    requestedTier: 'Pakket dat zij inschatten:',
     grantedOrganisation: 'Organisatie',
     grantedIntro:
       'Uw aanvraag is toegekend en uw organisatie staat klaar. Er is nog één ding te doen:',
@@ -944,6 +985,15 @@ export function renderEvent(
     case 'migration_finished':
       lines.push(`${b.migration}: ${event.mappingId}`, '');
       lines.push(b.finished);
+      break;
+    case 'access_requested':
+      lines.push(b.requestedIntro, '');
+      lines.push(`${b.requestedFrom} ${event.email}`);
+      // Only what they actually filled in. An empty `Organisation:` reads like
+      // a value that went missing rather than a field left blank, and the
+      // operator would go looking for it.
+      if (event.organisation) lines.push(`${b.requestedOrganisation} ${event.organisation}`);
+      if (event.tier) lines.push(`${b.requestedTier} ${event.tier}`);
       break;
     case 'access_granted':
       lines.push(`${b.grantedOrganisation}: ${event.organisation}`, '');

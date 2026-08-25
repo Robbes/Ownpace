@@ -2895,6 +2895,104 @@ repair. It is here because the next service added with a required variable is
 the one that would have found it the expensive way. Proved by breaking:
 `WEB_URL` renamed in the example fails it by name.
 
+## A knock that reaches somebody
+
+> "i filled in the request access, but did not receive mail."
+
+Two independent reasons, and the transport was neither of them.
+
+**Nothing emailed anyone when a request arrived.** `POST /api/access-requests`
+inserted the row, wrote one log line, returned 201. The notification kinds were
+`decision_raised`, `runs_failing`, `verification_finished`,
+`migration_finished`, `rollback_finished`, `access_granted`,
+`access_declined` — **no `access_requested`**. Mail went out when a request was
+*answered*, never when one *arrived*. The queue page was the intended channel,
+which works exactly as well as somebody's habit of opening it.
+
+**And no SMTP was configured**, so even a grant would have come back
+`notified: "off"` — which the route did report honestly rather than pretending.
+
+### Why not the host's `mail`
+
+The suggestion was the crontab line that already works on that box. The API runs
+inside a container: no MTA, no `mail`, no host access. But the testing worry
+attached to the question pointed *toward* wiring mail rather than away, just not
+at a real mailbox.
+
+**Mailpit, a catcher, in the stack.** It accepts everything on 1025 and delivers
+nothing outward.
+
+- Every mail the product sends is **visible**, in a browser, on the box.
+- The mail path becomes **assertable** — nothing verified that end of the
+  product at all.
+- An automated run can **never** reach a real inbox, which a relay cannot
+  promise and the nightly gate now needs, because it exercises grant, decline
+  and request.
+
+`NOTIFY_FROM` and `NOTIFY_TO` default to `…@ownpace.invalid` (RFC 2606
+reserved): if these ever reach a real relay the result is a bounce, not mail to
+a stranger.
+
+### The default that would have been quiet
+
+`SMTP_HOST=mailpit` is right for this stack and wrong for a real one, and wrong
+in the worst available way: every send reports `sent`, because it **was** sent —
+to a server whose job is to keep it. Nobody would hear about a granted account
+until somebody asked why they never got the email.
+
+`WEB_URL` already says which kind of deployment this is, so the bring-up
+compares the two facts instead of trusting them to agree, and notes when a
+catcher is serving an https origin that is not localhost. Same shape as
+`--public` against `OWNPACE_APP_URL` in the site build, four hours earlier —
+**two settings that both name the environment, checked against each other.**
+
+A note rather than a refusal: a real deployment mid-setup legitimately passes
+through this state.
+
+### What the mail carries, and what it does not
+
+Address, organisation, tier. **Not the note** — the applicant's own words about
+what they are moving, which is the most useful field on the row and stays in the
+database behind authentication, where the queue shows it. An email is forwarded,
+archived and searched far more casually than a table is; the same reasoning that
+already keeps the name and the note out of the log line (§17).
+
+### Two of my own tests caught being useless
+
+The first version of "sends to NOTIFY_TO, not to the person who asked" asserted
+on the **fixture the test itself built**. It would have passed with
+`tellOperator` mailing anybody at all. Rewritten to observe the transport, it
+fails when the recipient is switched to the applicant.
+
+The bootstrap note is **run**, not read — its condition is three `case` arms and
+a string comparison, exactly the kind of thing that reads correct and behaves
+otherwise. Six cases, including the two silences that matter: a local stack, and
+a real relay already configured.
+
+That makes it three times in one day that a check written to prove something was
+found unable to fail. The question is never "did it pass".
+
+### And the assertion that was nearly guessed
+
+The smoke check was going to be skipped: it needs Mailpit's API shape, and
+there is no Docker in the environment this was written in. Writing an assertion
+against a mechanism nobody had read is exactly what produced the socket
+credential check and the inode comparison — so it was left out and said so.
+
+Then read from Mailpit's own source instead of guessed: `GET /api/v1/search`
+takes `query`, answers with `messages_count` and a `messages` array whose items
+carry **Go field names** — `Subject`, `To`, `Snippet` — because `MessageSummary`
+declares no JSON tags. An assertion written against `subject` in lower case
+would have found nothing and reported "nobody was told" on a working stack.
+
+So the gate now sends a real request through the real front door and reads the
+real mail out of the catcher: the subject must be the knock, and it must be
+addressed to `NOTIFY_TO` and never to the applicant. Nothing is deleted — a
+smoke that empties the catcher wipes whatever an operator was looking at.
+
+**No gate had ever asserted that this product can send a single email.** The
+rendering is unit-tested exhaustively; the wire was never exercised once.
+
 ## Nothing ever parsed the bring-up
 
 Found by rehearsing a merge rather than waiting for one. Five PRs were open and

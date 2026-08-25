@@ -1467,6 +1467,87 @@ for t in "$T1" "$T2" "$T3"; do
   q "DELETE FROM tenant WHERE id='${t}'" >/dev/null
 done
 
+# ---------- the knock, and the mail nobody was getting ----------
+#
+# WHY THIS SECTION EXISTS. `POST /api/access-requests` inserted a row, wrote one
+# log line and told nobody: there was no `access_requested` event at all, and
+# SMTP was unconfigured on top of that. Somebody filled in the form on the live
+# site and heard nothing, which was correct behaviour and useless behaviour at
+# once (workplan 0099). No gate had ever asserted that this product can send a
+# single email — the rendering is unit-tested exhaustively, and the wire was
+# never exercised.
+#
+# WHAT MAKES IT ASSERTABLE. `mailpit` catches everything this stack sends and
+# delivers nothing outward, so the gate can read what was sent without any run
+# ever reaching a real inbox. The API shapes below are read from Mailpit's own
+# source rather than guessed: `GET /api/v1/search?query=…` answers with
+# `messages_count` and a `messages` array whose items carry Go field names —
+# `Subject`, `To`, `Snippet` — because `MessageSummary` declares no JSON tags.
+#
+# The address is unique per run so this asserts on THIS request's mail, not on
+# something a previous run left behind, and nothing is deleted: a smoke that
+# empties the catcher would wipe whatever an operator was looking at.
+note "an access request, and the mail it produces"
+
+# Same shape as SMOKE_API at the top: an explicit override, else the port
+# from .env if it was exported, else the documented default.
+MAILPIT="${SMOKE_MAILPIT:-http://localhost:${MAILPIT_PORT:-3127}}"
+# $$ — the same per-run uniqueness INV_EMAIL uses above, so this asserts on
+# THIS run's mail rather than on something a previous one left behind.
+knock="smoke-knock-$$@example.invalid"
+
+if ! curl -fsS -o /dev/null "${MAILPIT}/api/v1/messages"; then
+  # Not skipped quietly. The catcher is in managed.yml and in the bring-up's
+  # service list; if it is not answering, the mail path is unproven and this
+  # gate must say so rather than pass by omission.
+  echo "mailpit is not answering at ${MAILPIT} — the mail path is unproven"; fail=1
+else
+  knock_code="$(curl -fsS -o /tmp/knock.$$ -w '%{http_code}' -X POST "${API}/api/access-requests" \
+    -H 'Content-Type: application/json' \
+    -d "$(jq -nc --arg e "$knock" '{email:$e, locale:"en", tier:"Small", organisation:"Smoke BV"}')" \
+    || echo 000)"
+  [ "$knock_code" = "201" ] ||
+    { echo "the front door refused a request: HTTP ${knock_code} $(head -c 200 /tmp/knock.$$ 2>/dev/null)"; fail=1; }
+  rm -f "/tmp/knock.$$"
+
+  # The send happens inside the request, so one look would usually do — but a
+  # mail server is a network hop and a gate that flakes gets ignored. Bounded,
+  # and it reports the wait it actually did rather than a number in a comment.
+  caught=0
+  for _ in $(seq 1 20); do
+    caught="$(curl -fsS --get "${MAILPIT}/api/v1/search" --data-urlencode "query=${knock}" \
+      | jq -r '.messages_count // 0')"
+    [ "${caught:-0}" != "0" ] && break
+    sleep 1
+  done
+
+  if [ "${caught:-0}" = "0" ]; then
+    # The exact failure this section was written for: a request recorded, and
+    # nobody told. Names where to look, because "no mail" is the symptom of at
+    # least three different causes.
+    echo "nobody was told about ${knock}: no mail reached mailpit within 20s."
+    echo "  Check SMTP_HOST/NOTIFY_FROM/NOTIFY_TO in .env, and the api container's log"
+    echo "  for '[access-request] nobody was told' — the request itself is recorded."
+    fail=1
+  else
+    # Not merely "a mail exists". The operator's mail must be the one that
+    # arrived, and it must carry the address they have to reply to.
+    hit="$(curl -fsS --get "${MAILPIT}/api/v1/search" --data-urlencode "query=${knock}" \
+      | jq -r '.messages[0] // empty')"
+    subject="$(jq -r '.Subject // empty' <<<"$hit")"
+    case "$subject" in
+      *"asked for access"*|*"vraagt toegang"*) : ;;
+      *) echo "mail arrived but is not the knock: subject '${subject}'"; fail=1 ;;
+    esac
+    # Addressed to NOTIFY_TO, never to the person who asked. Mailing the
+    # applicant their own request would leak the operator's channel.
+    to_applicant="$(jq -r --arg k "$knock" '[.To[]?.Address] | index($k) // empty' <<<"$hit")"
+    [ -z "$to_applicant" ] ||
+      { echo "the knock mail was addressed to the applicant (${knock}), not to NOTIFY_TO"; fail=1; }
+    echo "    the operator was told: '${subject}'"
+  fi
+fi
+
 # ---------- the reports nothing had ever opened ----------
 #
 # COVERAGE, plainly. Grep either gate before this and `shared-addresses`,
