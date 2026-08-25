@@ -174,6 +174,65 @@ describe('the smoke can tell a configured issuer from a running container', () =
   });
 });
 
+describe('the issuer check takes the path the API actually takes', () => {
+  /**
+   * `middleware/auth.ts` resolves the key source as
+   * `JWT_JWKS_URI || discoverJwksUri(JWT_ISSUER)`. The variable SHORT-CIRCUITS
+   * discovery: when it is set, the API never fetches a discovery document at
+   * all.
+   *
+   * That escape hatch is for a real topology. On a stack where something fronts
+   * the provider, `JWT_ISSUER` is a public https name and `managed.yml` gives
+   * the provider a network alias of exactly that name — so from inside the
+   * network it resolves to the CONTAINER, and a fetch asks for 443 where
+   * nothing listens.
+   *
+   * This section asked for the discovery document regardless. E2E (managed) #82
+   * is the bill: `connect ECONNREFUSED 172.23.0.11:443`, reported as "the API
+   * cannot reach the issuer" against a stack whose API verifies tokens
+   * perfectly — and whose readiness endpoint said `ok` on the same run, because
+   * #567 taught THAT probe this lesson and this one was left behind.
+   */
+  it('asks the API which key source it is configured with', () => {
+    expect(
+      smoke,
+      'the gate does not read JWT_JWKS_URI, so it cannot know whether discovery\n' +
+        'is a path this API ever takes.',
+    ).toMatch(/printenv JWT_JWKS_URI/);
+  });
+
+  it('proves THAT address from the API when it is set', () => {
+    // The key source is the one thing the API must be able to reach; proving
+    // some other address instead is a green about the wrong thing.
+    expect(smoke).toMatch(/idp_get "\$API_JWKS"/);
+  });
+
+  it('still proves the discovery document, from the side that can reach it', () => {
+    /**
+     * NOT DROPPED, MOVED. The browser reads that document — `oidc.ts` fetches
+     * it for the authorization and token endpoints — so the assertion belongs
+     * with a caller on the browser's path. The host is on it; the API container
+     * is not. Same correction as #517: ask from the side that can hear the
+     * answer.
+     */
+    expect(smoke, 'the discovery document is no longer checked at all').toMatch(/HOST_DECLARED=/);
+    const at = smoke.indexOf('HOST_DECLARED=');
+    expect(
+      smoke.slice(Math.max(0, at - 600), at),
+      'the host-side discovery check does not use curl from the host',
+    ).toMatch(/curl -sS "\$\{IDP_RESOLVE\[@\]\}"/);
+  });
+
+  it('keeps the byte-for-byte issuer comparison on both paths', () => {
+    // OIDC Discovery §4.3: a document declaring a different issuer is not this
+    // issuer, and both `oidc.ts` and `auth.ts` refuse on a mismatch. A trailing
+    // slash is the difference between a working sign-in and a refusal nobody
+    // can explain — so BOTH branches compare, not just the one that existed.
+    const comparisons = (smoke.match(/declares '\$/g) ?? []).length;
+    expect(comparisons, 'only one branch compares the declared issuer').toBeGreaterThanOrEqual(2);
+  });
+});
+
 describe('the smoke answers an invitation three ways', () => {
   const section = smoke.slice(smoke.indexOf('note "an invitation, answered three ways"'));
 

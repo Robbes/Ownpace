@@ -1587,6 +1587,62 @@ else
     ' "$1" 2>&1
   }
 
+  # WHICH ADDRESS THE API ACTUALLY VERIFIES AGAINST, asked before anything is
+  # asserted about it.
+  #
+  # `middleware/auth.ts` resolves the key source as
+  # `JWT_JWKS_URI || discoverJwksUri(JWT_ISSUER)` — the variable SHORT-CIRCUITS
+  # discovery, so when it is set the API never fetches a discovery document at
+  # all. That escape hatch exists for a real topology: on a stack where
+  # something fronts the provider, `JWT_ISSUER` is a public https name and
+  # `managed.yml` gives the provider a network alias of exactly that name, so
+  # from inside the network it resolves to the CONTAINER and a fetch asks for
+  # 443 where nothing listens.
+  #
+  # This check asked for the discovery document regardless, and E2E (managed)
+  # #82 is the bill: `connect ECONNREFUSED 172.23.0.11:443`, reported as "the
+  # API cannot reach the issuer" on a stack whose API verifies tokens perfectly
+  # — and whose readiness endpoint says `ok`, because #567 taught THAT probe the
+  # same lesson and this one was left behind.
+  #
+  # SO EACH HALF IS ASKED FROM THE SIDE THAT CAN ANSWER IT (the correction of
+  # #517, again). The key source is proved from the API container, because that
+  # is the thing that must reach it. The discovery document is proved from the
+  # HOST, because the browser is what reads it — `oidc.ts` fetches it to find
+  # the authorization and token endpoints — and the host takes the browser's
+  # path. Neither assertion is dropped; both move to a caller in a position to
+  # make them.
+  API_JWKS="$(docker exec "$API_CONTAINER" printenv JWT_JWKS_URI 2>/dev/null || true)"
+
+  if [ -n "$API_JWKS" ]; then
+    idp_get "$API_JWKS" >/dev/null
+    JWKS_RC=$?
+    if [ "$JWKS_RC" -ne 0 ]; then
+      echo "JWT_JWKS_URI '$API_JWKS' is not fetchable from the API (exit ${JWKS_RC}) — no token could be verified."
+      fail=1
+    else
+      echo "jwks:   $API_JWKS (fetchable by the API; JWT_JWKS_URI is set, so discovery is not the API's path)"
+    fi
+
+    # The browser's half. `IDP_RESOLVE` is empty unless the issuer names a port,
+    # in which case it pins that name to loopback — the same array `sign_in_as`
+    # uses, so this takes exactly the route the gate's own sign-ins take.
+    HOST_DISC="$(curl -sS "${IDP_RESOLVE[@]}" -m 15 "${ISSUER%/}/.well-known/openid-configuration" 2>&1)" || HOST_DISC=""
+    HOST_DECLARED="$(jq -r '.issuer // empty' <<<"$HOST_DISC" 2>/dev/null || true)"
+    if [ -z "$HOST_DECLARED" ]; then
+      echo "the issuer serves no discovery document at ${ISSUER} from outside the stack:"
+      echo "  ${HOST_DISC:0:300}"
+      echo "The web app reads its authorization and token endpoints there, so a browser"
+      echo "could not begin a sign-in at all."
+      fail=1
+    elif [ "$HOST_DECLARED" != "${ISSUER%/}" ] && [ "$HOST_DECLARED" != "$ISSUER" ]; then
+      echo "the issuer at $ISSUER declares '$HOST_DECLARED' — sign-in would refuse this."
+      fail=1
+    else
+      echo "issuer: $ISSUER (declares its own name, as a browser sees it)"
+    fi
+  else
+
   DISCOVERY="$(idp_get "${ISSUER%/}/.well-known/openid-configuration")"
   DISC_RC=$?
   case "$DISC_RC" in
@@ -1640,6 +1696,7 @@ else
         echo "jwks:   $JWKS (fetchable)"
       fi
     fi
+  fi
   fi
 fi
 
