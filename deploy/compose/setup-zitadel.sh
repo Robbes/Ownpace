@@ -1247,10 +1247,28 @@ say "allowing people to register, with a verified email"
 # was true about what it read and wrong about the world, and it took the
 # bring-up down with it — so nothing else could run either.
 #
-# So: "true", "false", or "" for genuinely absent, and null counts as absent
-# because `has()` alone would report an explicit null as present.
+# AND ABSENT MEANS FALSE HERE, WHICH IS THE HALF THE FIRST FIX GOT WRONG.
+#
+# The first attempt at this mapped a missing value to "" and still refused a
+# correctly-configured instance, because of what Zitadel actually puts on the
+# wire. Asked on the live box, with `allowExternalIdp` genuinely off:
+#
+#     { "allowRegister": true, "allowUsernamePassword": true,
+#       "allowExternalIdp": null }
+#
+# The two true flags are there and the false one is NOT. That is proto3 JSON:
+# a field holding its default — `false` for a bool — is omitted from the
+# response unless the server asks for defaults to be emitted. So `null` is not
+# "unknown" here, it is how `false` arrives, every time, and a reader that
+# treats it as unknown can no more report a false than `// empty` could.
+#
+# So within a policy that exists, absent is false — and `// false` is exactly
+# right for that, collapsing null and false onto the one answer they share.
+# The empty string is kept for the case it genuinely means: no policy at all.
 policy_flag() {   # <key> — reads the policy JSON on stdin
-  jq -r --arg k "$1" '(.policy // {})[$k] | if . == null then "" else tostring end' 2>/dev/null || true
+  jq -r --arg k "$1" '
+    if (has("policy") | not) then ""
+    else ((.policy[$k] // false) | tostring) end' 2>/dev/null || true
 }
 probe_allow_register() { policy_flag allowRegister <<<"$( ( api GET /management/v1/policies/login ) 2>/dev/null || true)"; }
 read_allow_register() { policy_flag allowRegister <<<"$(api GET /management/v1/policies/login)"; }
@@ -1296,15 +1314,30 @@ Organisation -> Login Behaviour, tick 'Register allowed'."
 
   # Read back separately, because the two settings fail differently and a person
   # reading the log deserves to know WHICH one did not take.
-  [ "$(read_allow_external)" = "$WANT_EXTERNAL" ] \
+  # READ ONCE, AND REPORT WHAT CAME BACK. The version of this that shipped in
+  # #576 said "and it is not", which asserted a value it never showed — and
+  # then sent the reader to a console switch without saying which way to move
+  # it. On the 0-provider path the wanted value is OFF, so "set it by hand" was
+  # an invitation to turn ON exactly the thing being refused. A remedy that can
+  # be followed backwards is worse than none.
+  GOT_EXTERNAL="$(read_allow_external)"
+  [ "$GOT_EXTERNAL" = "$WANT_EXTERNAL" ] \
     || die "could not set whether a sign-in provider may be offered.
 
 ${IDP_COUNT:-0} provider(s) are configured, so 'External IDP allowed' should be
-${WANT_EXTERNAL} — and it is not. Every provider button stays invisible until
-it is, however correctly the provider itself is configured.
+${WANT_EXTERNAL}. Asked just now, this instance answered: ${GOT_EXTERNAL:-(nothing at all)}
 
-Set it by hand: the console at ${ISSUER}/ui/console, under
-Organisation -> Login Behaviour."
+CHECK THE VALUE BEFORE CHANGING ANYTHING. If it already reads ${WANT_EXTERNAL},
+the setting is right and this refusal is the bug — nothing in the console needs
+touching. Read it directly with:
+
+    curl -sS -X GET ${ISSUER}/management/v1/policies/login \\
+      -H \"Authorization: Bearer \$PAT\" | jq .policy.allowExternalIdp
+
+If it genuinely disagrees, the console at ${ISSUER}/ui/console under
+Organisation -> Login Behaviour holds it — and the value to leave it on is
+${WANT_EXTERNAL}, which with ${IDP_COUNT:-0} provider(s) configured means the
+box stays $([ "$WANT_EXTERNAL" = "true" ] && echo TICKED || echo UNTICKED)."
   say "allowed (providers offered: ${WANT_EXTERNAL})"
 fi
 

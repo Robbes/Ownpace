@@ -95,10 +95,68 @@ describe('a boolean setting is read in a way that can report false', () => {
     ).toMatch(/policy_flag\(\)\s*\{/);
     expect(
       setup,
-      'policy_flag no longer maps null to the empty string, so an explicit\n' +
-        'JSON null now reads back as the string "null" and compares equal to\n' +
-        'nothing. Zitadel returns null for a policy an organisation has not\n' +
-        'overridden.',
-    ).toMatch(/if \. == null then "" else tostring end/);
+      'policy_flag no longer reads a missing value as false.\n\n' +
+        'This is the half the first fix got wrong, so it is pinned rather than\n' +
+        'left to memory. Zitadel speaks proto3 JSON: a bool holding its default\n' +
+        'is OMITTED from the response. Asked on the live box with the setting\n' +
+        'genuinely off, it answered {allowRegister: true, allowUsernamePassword:\n' +
+        'true, allowExternalIdp: null} — the two true flags present, the false\n' +
+        'one gone. So null is not "unknown" here, it is how false arrives, and a\n' +
+        'reader that treats it as unknown refuses a correct instance exactly as\n' +
+        '`// empty` did.',
+    ).toMatch(/\.policy\[\$k\] \/\/ false/);
+  });
+
+  /**
+   * AND THE REFUSAL ITSELF WAS A SECOND BUG, smaller and separate.
+   *
+   * What #576 shipped said "'External IDP allowed' should be false — and it is
+   * not", then: "Set it by hand: the console ... under Organisation -> Login
+   * Behaviour." Two faults in four lines.
+   *
+   * It ASSERTED A VALUE IT NEVER SHOWED. The reader is told what the setting
+   * is, by a comparison they cannot see, made by the reader that was broken.
+   * Printing what came back would have made the jq bug self-diagnosing — the
+   * answer was the empty string, and "answered: (nothing at all)" is not a
+   * value any policy holds.
+   *
+   * AND THE REMEDY COULD BE FOLLOWED BACKWARDS. On the path that fires with
+   * zero providers the wanted value is OFF, so "set it by hand" sent somebody
+   * to a switch without saying which way — and the obvious reading of "the
+   * provider button stays invisible until it is" is to go and turn the thing
+   * ON. That is the opposite of what the script wants, and the next run would
+   * try to undo it. This happened: the operator asked "is it just click and
+   * activate, or does it need any specifics?" — the honest answer being that
+   * they should not touch it at all.
+   *
+   * A remedy that can be followed backwards is worse than no remedy, because
+   * somebody acts on it.
+   */
+  it('shows the value it read, rather than asserting one', () => {
+    expect(
+      setup,
+      'the external-IdP refusal no longer prints what the instance actually\n' +
+        'answered. It then asserts a value from a comparison the reader cannot\n' +
+        'see — and if the reader is what is broken, as it was, the message\n' +
+        'confidently describes a world that does not exist.\n\n' +
+        'Print the value. "answered: (nothing at all)" would have named the jq\n' +
+        'bug on sight.',
+    ).toMatch(/answered: \$\{GOT_EXTERNAL:-\(nothing at all\)\}/);
+  });
+
+  it('names which way to set it, and says to look first', () => {
+    expect(
+      setup,
+      'the external-IdP refusal no longer tells somebody to check the value\n' +
+        'before changing anything. With zero providers the wanted value is OFF,\n' +
+        'so a bare "set it by hand" reads as an invitation to turn the setting\n' +
+        'ON — the opposite of what is being asked for.',
+    ).toMatch(/CHECK THE VALUE BEFORE CHANGING ANYTHING/);
+    expect(
+      setup,
+      'the refusal no longer says which state the box should be left in. It\n' +
+        'fires in both directions — too few providers and too many — so naming\n' +
+        'the console without naming the direction is a coin flip.',
+    ).toMatch(/TICKED \|\| echo UNTICKED/);
   });
 });
