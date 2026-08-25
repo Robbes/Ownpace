@@ -130,6 +130,117 @@ describe('and a gate proves it actually sends', () => {
   it('skips rather than fails when no relay is configured', () => {
     expect(smoke).toMatch(/no SMTP_HOST in \.env, so nothing to assert/);
   });
+
+  /**
+   * AND IT ASKS ABOUT THIS RUN'S MAIL, WHICH `$$` DOES NOT GUARANTEE.
+   *
+   * Both mail assertions work by sending to a unique address and then asking
+   * Mailpit whether anything arrived for it. That is only a proof if the
+   * address belongs to this run. `$$` is a pid, and a pid comes back — while
+   * the managed gate deliberately runs against a long-lived stack that is
+   * never torn down between runs, so Mailpit is still holding what earlier
+   * runs sent.
+   *
+   * The failure that combination produces is the bad one. A repeated pid lets
+   * a previous run's message answer for this one, so the gate goes GREEN
+   * exactly when the mail path has broken — in the one assertion whose whole
+   * purpose is to catch "nobody was told".
+   *
+   * So the rule is about the token rather than about `date`: whatever builds
+   * it, it may not be the pid on its own, and both addresses must use the
+   * same one so they cannot drift apart.
+   */
+  it('searches for an address a previous run cannot have used', () => {
+    const addresses = [...smoke.matchAll(/^\s*(knock|idp_mail)="([^"]*)"/gm)];
+    expect(
+      addresses.length,
+      'neither mail assertion assigns a search address any more — this rule\n' +
+        'has lost its subject and needs rewriting, not deleting.',
+    ).toBe(2);
+
+    const tokens = new Set<string>();
+    for (const match of addresses) {
+      // Both groups are mandatory in the pattern above, so a match has them.
+      const name = match[1]!;
+      const value = match[2]!;
+      expect(
+        value,
+        `${name} searches Mailpit for "${value}", which is built from the pid.\n` +
+          'The managed gate never tears its stack down, so Mailpit still holds\n' +
+          "earlier runs' mail — and a repeated pid means a previous message\n" +
+          'answers for this run. The gate then passes precisely when nobody was\n' +
+          'told, which is the failure it exists to catch.',
+      ).not.toMatch(/\$\$/);
+      const ref = /\$\{([A-Z_][A-Z0-9_]*)\}/.exec(value);
+      expect(
+        ref,
+        `${name} searches for "${value}", which interpolates no run token at\n` +
+          'all, so every run asks about the same address.',
+      ).toBeTruthy();
+      tokens.add(ref![1]!);
+    }
+    expect(
+      tokens.size,
+      `the two mail assertions use different run tokens (${[...tokens].join(', ')}).\n` +
+        'One of them can then be made unique while the other quietly is not.',
+    ).toBe(1);
+
+    const token = [...tokens][0]!;
+    const definition = new RegExp(`^\\s*${token}=(.*)$`, 'm').exec(smoke);
+    expect(definition, `${token} is used but never assigned`).toBeTruthy();
+    expect(
+      definition![1],
+      `${token} is ${definition![1]}, which is the pid and nothing else — see\n` +
+        'above. Mix in something that differs between two runs that happen to\n' +
+        'share one.',
+    ).toMatch(/\$\(/);
+  });
+
+  /**
+   * AND IT LOOKS WHERE THE CATCHER ACTUALLY IS.
+   *
+   * `MAILPIT_BIND` exists so an operator can reach the catcher over a private
+   * mesh without a tunnel every time, and the rule further down keeps its
+   * default at loopback. The gate hard-coded `localhost` anyway — so the first
+   * time somebody took the documented option, both assertions above started
+   * answering "mailpit is not answering" and E2E (managed) #84 went red on a
+   * stack whose mail was fine.
+   *
+   * A DOCUMENTED SETTING THAT BREAKS THE GATE IS A BUG IN THE GATE, and this
+   * one pointed the wrong way as well: "the mail path is unproven" reads as
+   * the API failing to send, which is the one thing it was not doing.
+   *
+   * AND THE VALUE COMES OUT OF THE FILE. This script sources no `.env` — it
+   * greps it, as the SMTP_HOST line does and says. So `${MAILPIT_PORT:-3127}`
+   * was never reading the setting; it was the default wearing a variable's
+   * clothes, and it would have missed a moved PORT exactly as it missed the
+   * moved BIND. Both keys are covered here so the surviving one is not left as
+   * the next instance of this.
+   */
+  it('derives the catcher address instead of assuming loopback', () => {
+    const assignment = /^MAILPIT=.*$/m.exec(smoke);
+    expect(assignment, 'the smoke no longer assigns MAILPIT').toBeTruthy();
+    expect(
+      assignment![0],
+      `the gate asks ${assignment![0]} — a hard-coded loopback host.\n\n` +
+        'MAILPIT_BIND is a documented setting (#574) and a mesh publish\n' +
+        'REPLACES loopback rather than adding to it, so on any stack that uses\n' +
+        'it every mail assertion fails and blames the sender. Derive the host\n' +
+        'from the bind.',
+    ).not.toMatch(/localhost/);
+  });
+
+  it('reads the catcher settings from .env, which it does not source', () => {
+    for (const key of ['MAILPIT_BIND', 'MAILPIT_PORT']) {
+      expect(
+        smoke,
+        `the smoke reads ${key} as a shell variable. It sources no .env — see\n` +
+          'the SMTP_HOST line, which greps the file and says why — so that\n' +
+          'expression never sees the operator\'s setting and silently uses its\n' +
+          'own default instead.',
+      ).not.toMatch(new RegExp(`\\$\\{?${key}[:}\\s]`));
+    }
+  });
 });
 
 describe('and it is proved where the proof is needed', () => {

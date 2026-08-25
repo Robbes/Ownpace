@@ -1841,15 +1841,53 @@ done
 #
 # The address is unique per run so this asserts on THIS request's mail, not on
 # something a previous run left behind, and nothing is deleted: a smoke that
-# empties the catcher would wipe whatever an operator was looking at.
+# empties the catcher would wipe whatever an operator was looking at. What
+# makes it unique is SMOKE_MAIL_RUN below, and the note there is about why the
+# obvious way to build it is not enough.
 note "an access request, and the mail it produces"
 
-# Same shape as SMOKE_API at the top: an explicit override, else the port
-# from .env if it was exported, else the documented default.
-MAILPIT="${SMOKE_MAILPIT:-http://localhost:${MAILPIT_PORT:-3127}}"
-# $$ — the same per-run uniqueness INV_EMAIL uses above, so this asserts on
-# THIS run's mail rather than on something a previous one left behind.
-knock="smoke-knock-$$@example.invalid"
+# THE BIND IS A SETTING, SO THE ADDRESS IS DERIVED RATHER THAN ASSUMED.
+#
+# #574 made the publish interface configurable: `MAILPIT_BIND` lets an operator
+# reach the catcher over a private mesh without a tunnel every time, and the
+# shipped default stays loopback for everybody who does not ask. This line
+# hard-coded `localhost` anyway — so the day somebody took the documented
+# option, both mail assertions below started answering "mailpit is not
+# answering", and E2E (managed) #84 went red on a stack whose mail was fine.
+#
+# A DOCUMENTED SETTING THAT BREAKS THE GATE IS A BUG IN THE GATE. The failure
+# also pointed the wrong way: "the mail path is unproven" reads as the API not
+# sending, which is the one thing it was not.
+#
+# READ OUT OF .env, not out of the environment. This script sources no `.env`
+# (see the SMTP_HOST line further down, which says so and does it this way), so
+# `${MAILPIT_PORT:-3127}` was never the setting — it was the default wearing a
+# variable's clothes, and would have missed a moved PORT exactly as it missed
+# the moved BIND.
+smoke_env_value() {   # <key> — the last assignment in .env, or empty
+  grep -E "^$1=.+" "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- || true
+}
+mailpit_bind="$(smoke_env_value MAILPIT_BIND)"
+mailpit_port="$(smoke_env_value MAILPIT_PORT)"
+# 0.0.0.0 is every interface, and every interface includes loopback — so it is
+# still reachable here. A mesh address is not: that publish replaces loopback
+# rather than adding to it, which is the case that went red.
+case "$mailpit_bind" in
+  '' | 127.0.0.1 | 0.0.0.0 | '[::]') mailpit_host=localhost ;;
+  *) mailpit_host="$mailpit_bind" ;;
+esac
+MAILPIT="${SMOKE_MAILPIT:-http://${mailpit_host}:${mailpit_port:-3127}}"
+# AND A PID COMES BACK, WHICH IS WHY THIS IS NOT JUST `$$`. The paragraph above
+# promises these addresses name THIS run's mail. `$$` alone does not keep that
+# promise: the managed gate deliberately runs against a long-lived stack and
+# never does `down -v` (e2e-managed.yml says why), so Mailpit still holds what
+# earlier runs sent, and a repeated pid makes a previous run's message answer
+# for this one. That is a FALSE PASS in the one assertion written to catch
+# "nobody was told" — the gate would be greenest exactly when the mail path had
+# broken. A timestamp beside the pid is what BALANCE_TAG already does, for this
+# same reason.
+SMOKE_MAIL_RUN="$(date -u +%Y%m%d%H%M%S)-$$"
+knock="smoke-knock-${SMOKE_MAIL_RUN}@example.invalid"
 
 if ! curl -fsS -o /dev/null "${MAILPIT}/api/v1/messages"; then
   # Not skipped quietly. The catcher is in managed.yml and in the bring-up's
@@ -1938,7 +1976,7 @@ if [ -z "$smtp_configured" ]; then
   note "the identity provider's own mail: no SMTP_HOST in .env, so nothing to assert"
 elif [ -n "${STACK_ISSUER:-}" ] && [ -n "${IDP_PAT:-}" ]; then
   note "the identity provider's own mail"
-  idp_mail="smoke-idp-$$@example.invalid"
+  idp_mail="smoke-idp-${SMOKE_MAIL_RUN}@example.invalid"
   providers="$(idp_api POST /admin/v1/email/_search '{}' || true)"
   smtp_id="$(jq -r 'first(.result[]? | select(.smtp) | .id) // empty' <<<"${providers:-{\}}")"
   smtp_state="$(jq -r 'first(.result[]? | select(.smtp) | .state) // empty' <<<"${providers:-{\}}")"
