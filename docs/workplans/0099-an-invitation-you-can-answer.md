@@ -3453,3 +3453,60 @@ is what produced the socket credential check.
 Each looked exactly like the correct thing. **A check is not a check until
 something has watched it fail for the right reason** — and the corollary this
 one adds: a *default* is not a default until something has watched it apply.
+
+## A 404 that reached nobody, and a status link where it is asked for
+
+Three reports from the live test host, hours after the 404 pages shipped.
+
+### `/blabla` came back as `/login`
+
+The catch-all route lived inside the `/` subtree, which is wrapped in
+`ProtectedRoute`. A signed-in visitor saw the page; a signed-**out** one was
+redirected before it could render, so **a wrong address was indistinguishable
+from an expired session** — the single most alarming thing it could have been
+mistaken for.
+
+The reasoning for putting it there was written down and was wrong: *"a person
+who mistyped a path is still signed in, and taking the navigation away treats a
+typo like a session failure."* Every word true, about the case that does not
+happen. Somebody following a stale link is usually **not** signed in, and for
+them the arrangement produced exactly the session failure it was written to
+avoid.
+
+Moved outside `ProtectedRoute`. The cost is that a signed-in visitor sees it
+without the nav chrome — a fair trade for a page whose whole job is to say "this
+address is not a page" and offer one link back. The redirect stays where it
+belongs: `/dashboard` signed out still goes to the login form, and that case is
+pinned too, because removing it would be a security change dressed as a 404 fix.
+
+**Why the tests did not catch it.** `AppRoutes.unit.test.tsx` mocked the auth
+store to `isAuthenticated: true` — a fixed object, every case signed in. The
+route table behaves differently in the other state and nothing exercised it.
+Auth is now a hoisted flag, like the edition flag beside it, and both states are
+pinned. *A test suite that can only be in one state proves things about one
+state.*
+
+### The page did not say 404
+
+"i want '404 Nothing here. Not even a copy!' so add the 404, to be clear on
+that." Right, and for a reason worth keeping: a visitor who has been redirected,
+or served the wrong page, **cannot tell a real 404 from a site that lost its
+way**. The number removes the doubt. The joke stays.
+
+### The app had no status link
+
+The site footer got one; the app did not — and the app is where it matters more.
+Somebody who cannot sign in is precisely the person asking *is it me or is it
+them*, and the sign-in screen is where they are standing when they ask.
+
+**Derived at runtime from the address in the browser's bar** (`app.` →
+`status.`), which is the whole design. A `VITE_STATUS_URL` baked at build time
+would mean a rebuild to move it, an argument threaded through the Dockerfile and
+compose, and **a fourth setting that names the environment and can therefore
+disagree with the other three**. The hostname cannot disagree with itself: it
+*is* the environment, on every deployment, with nothing to configure.
+
+Same refusal as the site build: render **nothing** when the host is not an
+`app.` one. `localhost`, an IP address, and the appliance are all hosts where
+guessing would produce a link to a status page that does not exist — which
+answers "is it down" with a browser error, and is worse than no link at all.

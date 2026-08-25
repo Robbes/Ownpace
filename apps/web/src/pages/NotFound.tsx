@@ -29,6 +29,7 @@ import React from 'react';
 import { Link } from 'react-router';
 import { Compass } from 'lucide-react';
 import { useT } from '../i18n/index.tsx';
+import StatusLink from '../components/StatusLink.tsx';
 
 const NotFound: React.FC = () => {
   const t = useT();
@@ -44,6 +45,11 @@ const NotFound: React.FC = () => {
       >
         {t('notFound.back')}
       </Link>
+      {/* If the address was right and the screen still is not there, the next
+          question is whether anything is down. */}
+      <div className="mt-8">
+        <StatusLink />
+      </div>
     </div>
   );
 };

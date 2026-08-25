@@ -318,17 +318,27 @@ const AppRoutes: React.FC = () => {
             </ManagedOnly>
           }
         />
-        {/*
-          THE LAST ROUTE, AND IT MUST STAY LAST.
-          Without it, react-router matched nothing for an unknown path and
-          rendered NOTHING — nginx's SPA fallback had already answered HTTP 200,
-          so `/blabla` was a blank white page that every monitor read as
-          success. Inside the layout on purpose: a person who mistyped a path is
-          still signed in, and taking the navigation away from them treats a
-          typo like a session failure.
-        */}
-        <Route path="*" element={<NotFound />} />
       </Route>
+      {/*
+        THE LAST ROUTE, AND IT MUST STAY LAST — and OUTSIDE ProtectedRoute.
+        Without it, react-router matched nothing for an unknown path and
+        rendered NOTHING: nginx's SPA fallback had already answered HTTP 200, so
+        `/blabla` was a blank white page that every monitor read as success.
+
+        It lived INSIDE the layout for exactly one day, on the reasoning that a
+        person who mistyped a path is still signed in and should keep their
+        navigation. That was wrong in the case that actually happens: the
+        subtree is wrapped in ProtectedRoute, so a signed-OUT visitor was sent
+        to /login before NotFound could render, and a wrong address looked like
+        an expired session. Reported from the live test host — `/blabla` came
+        back as `/login`.
+
+        Out here it answers everybody, signed in or not. The cost is that a
+        signed-in visitor sees it without the nav chrome, which is a fair trade
+        for a page whose whole job is to say "this address is not a page" and
+        offer one link back.
+      */}
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 };
