@@ -825,6 +825,15 @@ services:
         # sidebar's build stamp reports this, and an unstamped bundle shows
         # nothing rather than a made-up number.
         GIT_SHA: ${GIT_SHA:-}
+        # WITHOUT THESE THE LOGIN PAGE HAS NO SIGN-IN BUTTON. setup-zitadel.sh
+        # writes them into .env and phase_app reloads it before building — but a
+        # build arg is a separate boundary from the shell environment, and these
+        # were never declared, so every managed bundle was built not knowing it
+        # had an issuer. Empty is still the honest default: a stack that has not
+        # run the identity setup has none, and `Login.tsx` correctly falls back
+        # to the paste box there.
+        VITE_OIDC_ISSUER: ${VITE_OIDC_ISSUER:-}
+        VITE_OIDC_CLIENT_ID: ${VITE_OIDC_CLIENT_ID:-}
     container_name: ownpace-web
     restart: unless-stopped
     ports:

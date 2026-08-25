@@ -39,6 +39,24 @@ ENV VITE_API_URL=$VITE_API_URL
 # ask at runtime what it was built from, so it is stamped in here.
 ARG GIT_SHA=
 ENV GIT_SHA=$GIT_SHA
+# THE ISSUER, WITHOUT WHICH THERE IS NO SIGN-IN BUTTON.
+#
+# `setup-zitadel.sh` writes these into `.env` and `bootstrap-managed.sh` reloads
+# it with the comment "the build below has to see them". It could not: a compose
+# build arg is a separate boundary from the shell's environment, and nothing
+# declared these, so Vite inside this stage never saw them. `oidcConfig()`
+# returned null on every managed build ever made, and `Login.tsx` rendered the
+# paste box ALONE — the authorization-code flow ADR-0042 specifies was
+# unreachable from the UI since the day it was written.
+#
+# Nothing caught it because nothing asked the BUNDLE. The smoke signs in against
+# the provider's endpoints with curl, and the browser suite mocks `oidcConfig`
+# and signs in by pasting a token, so both proved sign-in works while the screen
+# offered no way to do it. Reported from the reference box on 2026-08-25.
+ARG VITE_OIDC_ISSUER=
+ENV VITE_OIDC_ISSUER=$VITE_OIDC_ISSUER
+ARG VITE_OIDC_CLIENT_ID=
+ENV VITE_OIDC_CLIENT_ID=$VITE_OIDC_CLIENT_ID
 RUN pnpm --filter @openmig/web build
 
 FROM nginx:1.27-alpine AS runtime
