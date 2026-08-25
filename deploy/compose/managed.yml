@@ -878,11 +878,34 @@ services:
       - ownpace-network
     # No `depends_on`. A status page that will not start until the thing it is
     # watching is healthy is a status page that is never there when it matters.
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
+    # NO HEALTHCHECK, AND THIS IS NOT AN OMISSION.
+    #
+    # There was one until 2026-08-25:
+    #
+    #     test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+    #
+    # It could never have passed. `ghcr.io/twin/gatus`'s final stage is
+    # `FROM scratch` — the binary and ca-certificates, nothing else. No wget,
+    # no curl, no shell, so `CMD-SHELL` is out too, and `main.go` parses no
+    # arguments at all, so there is no `gatus healthcheck` subcommand the way
+    # mailpit has `/mailpit readyz`. Verified against the upstream Dockerfile
+    # and main.go at v5.36.0 rather than assumed.
+    #
+    # WRITTEN IN #498 AND NEVER ONCE RUN, because nothing started this service
+    # until #547 put it in the bring-up's list. Its first real execution was
+    # E2E (managed) #77, where it marked a perfectly healthy gatus `unhealthy`
+    # and failed the gate's residue check — the only thing red in the run.
+    #
+    # A healthcheck that can never pass is worse than none: it is a permanent
+    # false negative that hides a real one. So the question moves to a side
+    # that can answer it — smoke-managed.sh probes /health over the published
+    # port, from the host, where curl exists. Same correction as #517 ("ask
+    # readiness from the side that can reach the answer") and the same shape as
+    # the smoke's issuer probe, which asked with a curl the API image had not
+    # got.
+    #
+    # `up -d --wait` still waits for this container to be RUNNING; it simply no
+    # longer waits for a verdict the image cannot produce.
 
   # Mailpit — the mail this stack sends, CAUGHT rather than delivered.
   #

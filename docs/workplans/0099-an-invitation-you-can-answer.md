@@ -3197,6 +3197,76 @@ and another enables it, and the product reports the disabled state so politely
 that nobody notices.** `notified: "off"` was correct on every occasion it was
 printed, which is exactly why it never looked like a bug.
 
+## A healthcheck that could never run
+
+E2E (managed) #77, the first nightly after the whole night's work merged. One
+thing red, at the very last step:
+
+```
+--- unhealthy ---
+ownpace-status
+::error::Left unhealthy after the run: ownpace-status
+```
+
+Everything else passed. api healthy, mailpit healthy, web healthy, the smoke
+green. The only casualty was the service #547 had started for the first time.
+
+```yaml
+test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+```
+
+`ghcr.io/twin/gatus`'s final stage is `FROM scratch` — the binary and
+ca-certificates, nothing else. No wget. No curl. No shell, so `CMD-SHELL` is
+out too. And `main.go` parses no arguments at all, so there is no
+`gatus health` subcommand the way mailpit has `/mailpit readyz`. Read from the
+upstream Dockerfile and `main.go` at v5.36.0, not assumed — the same discipline
+that produced the Mailpit field names, applied to the question "what can this
+image actually execute".
+
+**Written in #498 and never once run.** The service was in `managed.yml`, had
+its port in `managed.env.example`, a page in `docs/`, and a healthcheck — and
+no bring-up had ever started it, so nothing ever asked the healthcheck to
+produce a verdict. #547 fixed the not-started half and thereby handed the
+never-run half its first execution.
+
+### Third time, same shape
+
+The smoke's issuer probe asked with a `curl` the API image had not got (#517).
+The MinIO healthcheck was deliberately NOT written for exactly this reason —
+"naming a binary an image may not have is the guess that costs a bring-up".
+This one was already in the tree when that sentence was written.
+
+**Starting a service for the first time is its own kind of test**, and it keeps
+finding things that reading could not. #547 said that about the self-probe; the
+same run proved it about the healthcheck.
+
+### The fix is not deletion
+
+A healthcheck that can never pass is a permanent false negative — worse than
+none, because it hides a real one and trains everybody to ignore the lamp. But
+removing it and stopping there would leave a started service unchecked.
+
+So the question moves to a side that can answer it: `smoke-managed.sh` probes
+`/health` over the published port, from the host, where curl exists. Same
+correction as #517 — *ask readiness from the side that can reach the answer*.
+It asserts only that gatus is **serving**; whether its lamps are green depends
+on `STATUS_WEB_URL` being an address its container can reach, which is the
+operator's call and not this gate's.
+
+`up -d --wait` still waits for the container to be running. It simply no longer
+waits for a verdict the image cannot produce.
+
+### The rule, and what it deliberately is not
+
+Both halves are pinned: gatus has no healthcheck, and the smoke probes it. Re-adding
+a `CMD` here without changing the image fails a unit test rather than the nightly.
+
+The general rule — *every service without a healthcheck is probed by the smoke or
+exempted with a reason* — would also cover zitadel, minio, the registry, the docker
+proxy and the TLS terminator. It is worth writing when somebody has read what each
+of those five images can execute. **Guessing that is how this defect was written in
+the first place**, so it stays unwritten and named rather than half-done.
+
 ## A healthcheck that asked the wrong address
 
 Found by reading `docker ps | grep unh` on the Spark while chasing a different
