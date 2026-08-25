@@ -1656,7 +1656,12 @@ elif [ -n "${STACK_ISSUER:-}" ] && [ -n "${IDP_PAT:-}" ]; then
     # A real send through the stored config, then read from the catcher. Not
     # "the API returned 200": Zitadel answers the test call before delivery
     # completes, so the proof is the message arriving.
-    idp_api POST "/admin/v1/email/smtp/${smtp_id}/_test" \
+    # The DEPRECATED path, deliberately: v4.17.1 declares the modern
+    # `/email/smtp/{id}/_test` and does not implement it (HTTP 501, gRPC
+    # UNIMPLEMENTED). Only `TestSMTPConfigById` and `TestSMTPConfig` have
+    # implementations, both on `/smtp`. It still tests the STORED config, which
+    # is the property that matters.
+    idp_api POST "/admin/v1/smtp/${smtp_id}/_test" \
       "$(jq -nc --arg r "$idp_mail" '{receiverAddress:$r}')" >/dev/null || true
     landed=""
     for _ in 1 2 3 4 5 6 7 8 9 10; do

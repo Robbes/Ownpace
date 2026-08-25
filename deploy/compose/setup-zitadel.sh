@@ -884,11 +884,23 @@ silently as no provider at all, which is the failure this configures away."
   if [ "$SMTP_RELAY" = "mailpit" ] && curl -fsS -o /dev/null -m 5 "${MAILPIT_API}/api/v1/messages" 2>/dev/null; then
     say "sending one test message, and reading the catcher for it"
     probe="setup-zitadel-$$@example.invalid"
-    # `/email/smtp/{id}/_test`, NOT `/email/{id}/_test`. The activate verb sits
-    # on `/email/{id}` and the test verb sits on `/email/smtp/{id}` — two
-    # neighbouring endpoints in the same admin API with different shapes, and
-    # the first version of this used the activate shape for both and answered
-    # HTTP 404 on the reference box.
+    # `/smtp/{id}/_test`, WHICH THE PROTO MARKS DEPRECATED, AND THAT IS CORRECT.
+    #
+    # v4.17.1 declares `TestEmailProviderSMTPById` at `/email/smtp/{id}/_test`
+    # and says to prefer it. The server has no implementation for it: the
+    # reference box answered HTTP 501, `{"code":12, "message":"method
+    # TestEmailProviderSMTPById not implemented"}` — gRPC UNIMPLEMENTED.
+    # `internal/api/grpc/admin/smtp.go` at that tag implements exactly two test
+    # verbs, `TestSMTPConfigById` and `TestSMTPConfig`, both on the deprecated
+    # paths.
+    #
+    # DEPRECATED IS NOT ABSENT, AND DECLARED IS NOT IMPLEMENTED. The proto is an
+    # interface; only the Go says what exists. Choosing the modern endpoint on
+    # the proto's advice is what produced the 501 — after a 404 from getting the
+    # path wrong the other way, on the same three lines.
+    #
+    # The CONFIG verbs above stay on `/email/smtp`, which IS implemented. It is
+    # only the test verb that has no modern implementation yet.
     #
     # AND IT IS NOT FATAL, which matters more than the path. `api` dies on any
     # non-2xx, so that 404 exited the script MID-PHASE — before `up -d --build`
@@ -896,7 +908,7 @@ silently as no provider at all, which is the failure this configures away."
     # the mail channel took down the whole bring-up: the shape of a healthcheck
     # that kills the service it is watching. Delivery is REPORTED here and
     # asserted in smoke-managed.sh, which is the place where failing is the job.
-    if ! probe_out="$( ( api POST "/admin/v1/email/smtp/${SMTP_ID}/_test" \
+    if ! probe_out="$( ( api POST "/admin/v1/smtp/${SMTP_ID}/_test" \
           "$(jq -nc --arg r "$probe" '{receiverAddress:$r}')" ) 2>&1 )"; then
       say "  the provider REFUSED the test send, so delivery is unproven:"
       say "  ${probe_out}"

@@ -61,15 +61,26 @@ describe('the identity provider is given a way to send mail', () => {
     ).toMatch(/\/admin\/v1\/email\/smtp/);
   });
 
-  it('uses the endpoint this version has, not the deprecated one', () => {
-    // v4.17.1's admin.proto marks the whole `/smtp` family `deprecated: true`
-    // in favour of the email-provider endpoints. Checked against the proto for
-    // the pinned tag rather than remembered.
-    const calls = [...setup.matchAll(/\/admin\/v1\/(email\/smtp|smtp)\b/g)].map((m) => m[1]);
+  it('uses the modern endpoints for CONFIG, where they are implemented', () => {
+    /**
+     * This rule used to forbid `/admin/v1/smtp` outright, because v4.17.1's
+     * proto marks the whole family `deprecated: true`. That was the proto's
+     * advice taken as fact, and the reference box disproved it: the modern
+     * TEST verb answers HTTP 501 UNIMPLEMENTED while the deprecated one works.
+     *
+     * So the rule says what is actually true. Configuring — add, search,
+     * activate — belongs on `/email`, which IS implemented. The test verb is
+     * the single exception, pinned by its own case below with the reason.
+     */
+    const calls = [...setup.matchAll(/\/admin\/v1\/(email\/smtp|email|smtp)\b[^"']*/g)]
+      .map((m) => m[0]);
     expect(calls.length, 'no SMTP endpoint is called at all').toBeGreaterThan(0);
+    const legacy = calls.filter((c) => /^\/admin\/v1\/smtp\b/.test(c));
     expect(
-      calls.filter((c) => c === 'smtp'),
-      'the deprecated /admin/v1/smtp endpoints are used; v4 wants /admin/v1/email/smtp',
+      legacy.filter((c) => !c.includes('_test')),
+      'a CONFIG verb is on the deprecated /admin/v1/smtp family. Those have\n' +
+        'modern equivalents that this version implements; only the test verb\n' +
+        'does not.',
     ).toEqual([]);
   });
 
@@ -107,7 +118,7 @@ describe('and a gate proves it actually sends', () => {
     // pass against settings this instance does not use — green about the relay
     // being reachable, silent about whether the issuer will ever send through
     // it. `/email/smtp/{id}/_test` uses what is stored.
-    expect(smoke).toMatch(/\/admin\/v1\/email\/smtp\/\$\{smtp_id\}\/_test/);
+    expect(smoke).toMatch(/\/admin\/v1\/smtp\/\$\{smtp_id\}\/_test/);
   });
 
   it('reads the catcher rather than trusting the test call', () => {
@@ -151,15 +162,31 @@ describe('and it is proved where the proof is needed', () => {
     expect(setup).toMatch(/api\/v1\/messages/);
   });
 
-  it('uses the TEST endpoint, which is not the ACTIVATE endpoint', () => {
-    // Two neighbouring verbs in the same admin API with different shapes:
-    // activate is `/email/{id}/_activate`, test is `/email/smtp/{id}/_test`.
-    // The first version used the activate shape for both and answered HTTP 404
-    // on the reference box, which is also where it was measured.
+  it('tests on the endpoint the server IMPLEMENTS, not the one it advertises', () => {
+    /**
+     * Three attempts, on the same three lines, and the third is the one the
+     * server actually answers:
+     *
+     *   /email/{id}/_test        → HTTP 404, that is the activate shape
+     *   /email/smtp/{id}/_test   → HTTP 501, code 12 UNIMPLEMENTED
+     *   /smtp/{id}/_test         → implemented
+     *
+     * v4.17.1's proto declares `TestEmailProviderSMTPById` and says to prefer
+     * it over the deprecated one. `internal/api/grpc/admin/smtp.go` at that tag
+     * implements exactly two test verbs — `TestSMTPConfigById` and
+     * `TestSMTPConfig` — and both are on the deprecated paths.
+     *
+     * DEPRECATED IS NOT ABSENT, AND DECLARED IS NOT IMPLEMENTED. The proto is
+     * an interface; only the Go says what exists.
+     */
     expect(
       setup,
-      'the test send does not use /admin/v1/email/smtp/{id}/_test',
-    ).toMatch(/\/admin\/v1\/email\/smtp\/\$\{SMTP_ID\}\/_test/);
+      'the test send moved off /admin/v1/smtp/{id}/_test. The modern\n' +
+        '/email/smtp/{id}/_test is declared in the proto and NOT implemented in\n' +
+        'v4.17.1 — it answers 501. Re-check the Go before changing this back.',
+    ).toMatch(/\/admin\/v1\/smtp\/\$\{SMTP_ID\}\/_test/);
+    // The CONFIG verbs stay modern, because those ARE implemented.
+    expect(setup).toMatch(/\/admin\/v1\/email\/smtp\b/);
     expect(setup).toMatch(/\/admin\/v1\/email\/\$\{SMTP_ID\}\/_activate/);
   });
 
