@@ -441,3 +441,41 @@ describe('CardDAV write cost', () => {
     expect(calls.find((c) => c.method === 'PUT')?.headers?.['If-None-Match']).toBe('*');
   });
 });
+
+/**
+ * THE MAIL A MIGRATION MUST NOT SEND (0103 T1 / ADR-0043) — proved on the
+ * wire, not on the helper. RFC 6638's default makes a scheduling target MAIL
+ * every ATTENDEE of a PUT calendar object; the writer therefore neutralises
+ * at its one choke point. These cases assert on the actual PUT body a real
+ * upsert produced, so unwiring the transform fails here even if the helper
+ * itself stays correct.
+ */
+describe('the calendar writer neutralises scheduling on the wire', () => {
+  it('PUTs SCHEDULE-AGENT=CLIENT for a bare attendee, keeping the attendee', async () => {
+    const { writer, calls } = calServer([]);
+    const calendarId = 'calendars/alice/personal/';
+    await writer.upsertCalendarEvent(calendarId, {
+      icalendar:
+        'BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:sched-1\r\nSUMMARY:s\r\n' +
+        'ORGANIZER:mailto:boss@example.com\r\nATTENDEE:mailto:a@example.com\r\n' +
+        'END:VEVENT\r\nEND:VCALENDAR',
+    } as never);
+    const put = calls.find((c) => c.method === 'PUT');
+    expect(put, 'no PUT reached the server').toBeTruthy();
+    const body = String(put!.body);
+    expect(body).toContain('ATTENDEE;SCHEDULE-AGENT=CLIENT:mailto:a@example.com');
+    expect(body).toContain('ORGANIZER;SCHEDULE-AGENT=CLIENT:mailto:boss@example.com');
+  });
+
+  it('leaves an explicit SCHEDULE-AGENT=NONE alone on the wire', async () => {
+    const { writer, calls } = calServer([]);
+    await writer.upsertCalendarEvent('calendars/alice/personal/', {
+      icalendar:
+        'BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:sched-2\r\nSUMMARY:s\r\n' +
+        'ATTENDEE;SCHEDULE-AGENT=NONE:mailto:a@example.com\r\nEND:VEVENT\r\nEND:VCALENDAR',
+    } as never);
+    const body = String(calls.find((c) => c.method === 'PUT')!.body);
+    expect(body).toContain('SCHEDULE-AGENT=NONE');
+    expect(body).not.toContain('SCHEDULE-AGENT=CLIENT');
+  });
+});

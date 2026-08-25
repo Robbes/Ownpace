@@ -20,7 +20,7 @@ import type {
   TargetEntry,
   RemovalResult,
 } from '@openmig/shared';
-import { calendarNaturalKeyHash, calendarContentHash, isOnTarget } from '@openmig/shared';
+import { calendarNaturalKeyHash, calendarContentHash, isOnTarget, neutraliseScheduling } from '@openmig/shared';
 import { collectionSlug } from './dav-collection-path.ts';
 import {
   parseMultiStatus,
@@ -699,7 +699,14 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     const response = await this.requestWithRetry({
       method: 'PUT',
       url: this.buildUrl(eventPath),
-      body: raw.icalendar,
+      // NEUTERED, at the one choke point every calendar byte passes through
+      // (0103 T1 / ADR-0043). SCHEDULE-AGENT=CLIENT on every ATTENDEE and
+      // ORGANIZER, so an RFC 6638 target stores the copy instead of MAILING
+      // the attendees of every migrated meeting — and so our own later
+      // DELETE (take-back, gated apply) does not fan out CANCELs. This
+      // cannot disturb change detection: calendarContentHash fingerprints
+      // UID/SUMMARY/DESCRIPTION/LOCATION only, pinned by test.
+      body: neutraliseScheduling(raw.icalendar),
       headers: {
         'Content-Type': 'text/calendar',
         // Create-only, atomically, UNLESS this is a deliberate rewrite.
