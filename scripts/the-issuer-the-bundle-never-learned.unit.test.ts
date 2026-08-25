@@ -94,6 +94,36 @@ const NEEDS_NEITHER: Record<string, string> = {
     'back to per edition, and managed does not implement the contract yet',
 };
 
+describe('and a gate asks the artefact, not just the declarations', () => {
+  const smoke = readFileSync(join(REPO_ROOT, 'deploy/compose/smoke-managed.sh'), 'utf8')
+    .split('\n')
+    .filter((l) => !/^\s*#/.test(l))
+    .join('\n');
+
+  /**
+   * The rules above check that the value is DECLARED — an ARG and a build arg.
+   * That is where this bug lived, and it is not the same claim as "the bundle a
+   * browser downloads actually carries it". A Dockerfile can declare an ARG
+   * that compose passes from an empty `.env`, and every rule above still
+   * passes while the login page still has no button.
+   */
+  it('fetches the built JavaScript and looks for the issuer in it', () => {
+    expect(
+      smoke,
+      'The smoke proves the SPA serves and its /api proxy works, and asks nothing\n' +
+        'about what the JavaScript was built with. That is the gap the missing\n' +
+        'build arg lived in for the whole life of the OIDC flow.',
+    ).toMatch(/\/assets\/\[A-Za-z0-9\._-\]\+\\\.js/);
+    expect(smoke).toMatch(/bundle_knows/);
+  });
+
+  it('only demands it when the stack actually has an issuer', () => {
+    // Without one the paste box IS the right screen, and failing a bring-up
+    // over it would be the gate inventing a requirement.
+    expect(smoke).toMatch(/if \[ -n "\$\{STACK_ISSUER:-\}" \]; then/);
+  });
+});
+
 describe('every VITE_ the app reads can actually reach it', () => {
   const dockerfile = readFileSync(join(WEB, 'Dockerfile'), 'utf8');
   const declaredArgs = new Set(

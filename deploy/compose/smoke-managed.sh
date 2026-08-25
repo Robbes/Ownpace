@@ -481,6 +481,50 @@ case "$web_health" in
     exit 1
     ;;
 esac
+
+# AND THE BUNDLE'S OWN KNOWLEDGE, WHICH NOTHING HAD EVER ASKED FOR.
+#
+# The two checks above prove the SPA is served and its /api proxy works. Neither
+# says anything about what the JavaScript was BUILT with, and that is the gap
+# that shipped a login page with no sign-in button: VITE_OIDC_ISSUER was written
+# into .env, reloaded before the build, and never declared as a build arg — so
+# Vite read nothing, `oidcConfig()` returned null, and Login.tsx offered the
+# paste box alone. Correct behaviour, given what it had been told.
+#
+# EVERY GATE PROVED SIGN-IN WORKS AND NONE OF THEM USED THE SCREEN. This one
+# drives the provider's endpoints with curl; the browser suite mocks
+# `oidcConfig` and pastes a token. So the question is asked of the artefact a
+# browser actually downloads.
+#
+# Asserted only when the stack HAS an issuer: without one the paste box is the
+# right screen, and demanding otherwise would fail a bring-up that has simply
+# not run the identity setup yet.
+if [ -n "${STACK_ISSUER:-}" ]; then
+  # Vite emits `import.meta.env` as a static object, so a configured issuer is a
+  # string literal somewhere in the entry chunk. Its ORIGIN is matched rather
+  # than the whole URL — a trailing slash is not a disagreement.
+  idp_origin="${STACK_ISSUER%/}"
+  web_assets="$(grep -oE '/assets/[A-Za-z0-9._-]+\.js' <<<"$web_root" | sort -u)"
+  if [ -z "$web_assets" ]; then
+    echo "FATAL: no /assets/*.js in the page at $WEB/ — cannot tell what the bundle knows"
+    exit 1
+  fi
+  bundle_knows=0
+  for asset in $web_assets; do
+    if curl -sf "${WEB}${asset}" | grep -qF "$idp_origin"; then bundle_knows=1; break; fi
+  done
+  if [ "$bundle_knows" -eq 0 ]; then
+    echo "FATAL: the web bundle does not carry the issuer ${idp_origin}."
+    echo "       The API verifies against it, so this stack HAS one — but the bundle was"
+    echo "       built without VITE_OIDC_ISSUER, which means oidcConfig() is null and the"
+    echo "       login page shows the paste box with NO sign-in button. Check that"
+    echo "       managed.yml passes VITE_OIDC_ISSUER as a build arg and that"
+    echo "       apps/web/Dockerfile declares it, then rebuild: --only app"
+    exit 1
+  fi
+  echo "the bundle was built knowing its issuer (${idp_origin})"
+fi
+
 if ! docker exec "$DB_CONTAINER" true 2>/dev/null; then
   echo "FATAL: cannot exec into DB container '$DB_CONTAINER'"
   exit 1
