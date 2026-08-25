@@ -98,6 +98,24 @@ describe('the mail nobody should get — the gate stays armed and asserting', ()
         'write under RFC 6638, so removal needs its own assertion.',
     ).toBe(2);
   });
+
+  it('the apply half can never spend the canary (E2E #88)', () => {
+    const smoke = strip('smoke-managed.sh');
+    expect(
+      smoke,
+      'CANARY_RE is gone or reshaped. The byte-check reads fresh event 1 off\n' +
+        'the target AFTER the apply half runs; E2E #88 applied a real deletion\n' +
+        'to exactly that item four seconds before the read, and the gate\n' +
+        'reported its own deletion as an unproven byte-check.',
+    ).toMatch(/CANARY_RE="openmig-demo-event-\.\+-1\[\.\]ics\$"/);
+    expect(
+      smoke,
+      'pick_disposable no longer excludes the canary. The prepare wait loop\n' +
+        'polls pick_disposable itself, so this one predicate is what keeps the\n' +
+        'apply half off the byte-check’s fixture — in the wait and the pick\n' +
+        'both, by construction.',
+    ).toMatch(/pick_disposable\(\)[\s\S]{0,600}!~ '\$CANARY_RE'/);
+  });
 });
 
 /**
