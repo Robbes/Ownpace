@@ -7,7 +7,7 @@
 | T0 Record the invariant | ✅ **Done 2026-08-25** | `sub` is the identity, email is a label. ADR-0042 amended below. Nothing here is built yet; this is the decision the three tasks depend on. |
 | T1 Gate the paste box on the API's runtime mode | ✅ **Done 2026-08-25** | `GET /api/auth/mode` answers `acceptsSeedToken`, derived from `selectAuthMode` in one place. `Login.tsx` renders nothing until it has that answer, hides the box entirely in managed mode, and names the state where neither credential is available. Rules in `scripts/a-box-the-api-would-refuse.unit.test.ts`. |
 | T2 Federation, with account linking decided BEFORE it is offered | ⬜ Not started | — |
-| T3 Change your address, verified before the switch | 🟡 **Partly true already** | The app half holds: `/api/me` reports the verified claim, never a stored copy. The provider's flow is reachable and its mail lands (#560–#564, proved live 2026-08-25). One gap found and NOT built — `tenant_member.email` never follows a change; see below. |
+| T3 Change your address, verified before the switch | ✅ **Done 2026-08-25** | `/api/me` reports the verified claim and now RECONCILES the stored label to it — only on a verified claim, only on rows already carrying that subject, never on an invitation. The statement's `user_id` predicate is proved by an integration test that seeds a second member of the same organisation and shows they are untouched. Rules in `middleware/a-label-that-follows-the-claim.unit.test.ts`. |
 
 ## The invariant everything here rests on
 
@@ -182,10 +182,39 @@ constraints, and the last is why this is a decision rather than a tidy-up:
    COLUMN changes, because RLS is row-level.
 4. **The statement must carry `user_id = <subject>`.** Without it, the
    tenant-scoped policy would happily rewrite the address of every member in
-   that tenant. That blast radius is the reason this is recorded rather than
+   that tenant. That blast radius is the reason this was recorded rather than
    built on the way past: it is a data-mutation path added to a read route, and
-   it wants a deliberate review rather than a commit at the end of a long
+   it wanted a deliberate review rather than a commit at the end of a long
    afternoon.
+
+### Built 2026-08-25, after that review
+
+`reconcileMemberEmail` in `middleware/auth.ts`, called from `/api/me` — the one
+request made on every sign-in, and the moment the claim is freshest.
+
+**The decision is pure and the write is bounded.** `labelsToUpdate(rows, claimed,
+verified)` returns the organisations whose label is behind, and nothing else
+decides. It is case-insensitive, because the comparison decides whether to
+WRITE: a provider that starts asserting `Rob@…` where it asserted `rob@…` is
+asserting the same address, and calling that a change would put an UPDATE on
+every sign-in for the life of the deployment.
+
+**Read before write.** The ordinary sign-in — the one where nothing has changed
+— costs one SELECT and no UPDATE at all. An integration case asserts
+`updated_at` does not move on a second identical sign-in, because "idempotent"
+is a claim worth measuring rather than asserting.
+
+**The predicate is proved, not reviewed.** `me.integration.test.ts` seeds a
+second member of the same organisation and checks their label is exactly as it
+was found. That case fails if the `user_id` clause is ever deleted — which every
+unit test that does not read the source would pass. A source-scanning rule
+catches the same deletion in a unit run seconds after somebody makes it; the
+integration case is what makes it true rather than merely written down.
+
+**Reported, never masked, if it fails.** A label that could not be written must
+not cost somebody their sign-in, so the error goes to the log with the subject
+on it — never the address, which is what this endpoint exists not to publish —
+and `/api/me` answers either way.
 
 ## What this workplan does NOT cover
 

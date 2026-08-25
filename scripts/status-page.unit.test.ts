@@ -204,4 +204,38 @@ describe('the service that serves it', () => {
       './gatus.yaml:/config/config.yaml:ro',
     );
   });
+
+  it('declares no healthcheck — the image has nothing that could run one', () => {
+    /**
+     * E2E (managed) #77 failed the whole bring-up on this container while every
+     * other service — api, web, db, pgbouncer — was already `(healthy)`:
+     *
+     *   OCI runtime exec failed: exec: "wget": executable file not found in $PATH
+     *
+     * `ghcr.io/twin/gatus`'s own Dockerfile builds its final stage `FROM
+     * scratch`: the compiled binary and CA certificates, nothing else. No shell,
+     * so `CMD-SHELL` is out too, and `main.go` parses no arguments, so there is
+     * no `gatus healthcheck` subcommand the way mailpit has `mailpit readyz`.
+     * The check could not have passed on any tag of this image, and upstream has
+     * no substitute — TwiN/gatus#711 asks for exactly this and has been open
+     * since March 2024.
+     *
+     * Same shape as #517 (zitadel): when no command in the image can ask the
+     * question, REMOVING the check is the fix rather than a gap. Unlike zitadel
+     * nothing waits on gatus's health — "No depends_on" is already the design
+     * above — so there is no readiness probe to move to the host either.
+     *
+     * THE FIX LANDED AND THIS RULE DID NOT, until 2026-08-25. `managed.yml`
+     * carried the whole argument in a comment and nothing stopped a healthcheck
+     * coming back; the branch that wrote the rule was superseded before it
+     * merged. A decision that lives only in prose is a decision somebody
+     * re-makes.
+     */
+    expect(
+      (gatus() as { healthcheck?: unknown }).healthcheck,
+      'a healthcheck came back on gatus. See E2E (managed) #77: this image is\n' +
+        'FROM scratch — no shell, no wget, no curl — so no healthcheck it can\n' +
+        'run exists, and one that cannot pass fails the entire bring-up.',
+    ).toBeUndefined();
+  });
 });

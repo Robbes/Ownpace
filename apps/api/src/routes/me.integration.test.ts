@@ -192,3 +192,139 @@ describe('GET /api/me', () => {
     expect((await request.get('/api/me').set('Authorization', 'Bearer garbage')).status).toBe(401);
   });
 });
+
+/**
+ * THE MEMBERSHIP LABEL FOLLOWS THE VERIFIED CLAIM (workplan 0102 T3).
+ *
+ * `tenant_member.email` was written once and never updated, so somebody who
+ * changed their address at the provider kept every membership — `sub` is the
+ * identity — while the members table went on showing colleagues an address they
+ * had moved off.
+ *
+ * WHY THIS NEEDS A REAL DATABASE. The write runs under the tenant-scoped UPDATE
+ * policy, which permits rewriting ANY row in that organisation; only the
+ * statement's own `user_id` predicate keeps it to one. A unit test can read that
+ * predicate, and does. Nothing but a real table with RLS in force and the
+ * connection made as `app_user` can show that a NEIGHBOUR in the same
+ * organisation is left alone — which is the whole reason this feature was
+ * written down for a decision instead of shipped past one.
+ */
+describe('GET /api/me — the label follows a verified address change', () => {
+  const TENANT = '5e5e0000-e29b-41d4-a716-446655441003';
+  const MOVER = 'me-mover-subject';
+  const NEIGHBOUR = 'me-neighbour-subject';
+  const MOVED_TO = 'moved@integration.test';
+
+  let pool: Pool;
+  const request = supertest(app);
+
+  const labelOf = async (userId: string): Promise<string> => {
+    const { rows } = await pool.query<{ email: string }>(
+      `SELECT email FROM tenant_member WHERE tenant_id = $1 AND user_id = $2`,
+      [TENANT, userId],
+    );
+    return rows[0]?.email ?? '<no row>';
+  };
+
+  beforeAll(async () => {
+    pool = new Pool({ connectionString: PG });
+    await pool.query(
+      `INSERT INTO tenant (id, name, status, settings)
+       VALUES ($1, 'Me Tenant Three', 'active', '{}') ON CONFLICT (id) DO NOTHING`,
+      [TENANT],
+    );
+    await seedMembership(pool, TENANT, MOVER, 'owner');
+    await seedMembership(pool, TENANT, NEIGHBOUR, 'member');
+  });
+
+  afterAll(async () => {
+    await pool.query(`DELETE FROM tenant WHERE id = $1`, [TENANT]);
+    await pool.end();
+  });
+
+  it('leaves every label alone when the claim is not verified', async () => {
+    // An unverified address is a typo or somebody else's inbox. Asserted FIRST,
+    // so a later pass cannot be mistaken for this one having worked.
+    const res = await request
+      .get('/api/me')
+      .set('Authorization', `Bearer ${token(MOVER, { email: MOVED_TO })}`);
+
+    expect(res.status).toBe(200);
+    expect(await labelOf(MOVER)).toBe(`${MOVER}@integration.test`);
+  });
+
+  it('moves the label when the issuer says it verified the new address', async () => {
+    const res = await request
+      .get('/api/me')
+      .set('Authorization', `Bearer ${token(MOVER, { email: MOVED_TO, email_verified: true })}`);
+
+    expect(res.status).toBe(200);
+    // The response has always reported the claim; this is the row catching up.
+    expect(res.body.email).toBe(MOVED_TO);
+    expect(await labelOf(MOVER)).toBe(MOVED_TO);
+  });
+
+  it('leaves the OTHER member of that organisation exactly as it found them', async () => {
+    // THE CASE THIS FILE EXISTS FOR. The policy the write runs under would
+    // permit rewriting this row too; only the statement's `user_id` predicate
+    // does not. Deleting that predicate passes every unit test that does not
+    // read the source, and fails here.
+    expect(await labelOf(NEIGHBOUR)).toBe(`${NEIGHBOUR}@integration.test`);
+  });
+
+  it('does not claim an invitation addressed to somebody else', async () => {
+    /**
+     * An `invited` row carries an email and no subject yet — workplan 0099 made
+     * answering one a choice. A reconcile that touched invited rows would bind
+     * memberships by side effect, which is exactly what that workplan removed.
+     */
+    await pool.query(
+      `INSERT INTO tenant_member (tenant_id, user_id, email, role, status, invited_at)
+       VALUES ($1, $2, $3, 'member', 'invited', now())
+       ON CONFLICT (tenant_id, user_id) DO NOTHING`,
+      [TENANT, 'pending:me-invitee', 'someone-else@integration.test'],
+    );
+    try {
+      const res = await request
+        .get('/api/me')
+        .set('Authorization', `Bearer ${token(MOVER, { email: MOVED_TO, email_verified: true })}`);
+      expect(res.status).toBe(200);
+
+      const { rows } = await pool.query<{ email: string; status: string }>(
+        `SELECT email, status FROM tenant_member WHERE tenant_id = $1 AND user_id = $2`,
+        [TENANT, 'pending:me-invitee'],
+      );
+      expect(rows[0]).toMatchObject({
+        email: 'someone-else@integration.test',
+        status: 'invited',
+      });
+    } finally {
+      await pool.query(`DELETE FROM tenant_member WHERE tenant_id = $1 AND user_id = $2`, [
+        TENANT,
+        'pending:me-invitee',
+      ]);
+    }
+  });
+
+  it('is idempotent: signing in again with the same address writes nothing new', async () => {
+    // The ordinary case for the rest of this deployment's life. `updated_at`
+    // moving on every sign-in would mean an UPDATE on every sign-in.
+    const before = await pool.query<{ updated_at: Date }>(
+      `SELECT updated_at FROM tenant_member WHERE tenant_id = $1 AND user_id = $2`,
+      [TENANT, MOVER],
+    );
+    await request
+      .get('/api/me')
+      .set('Authorization', `Bearer ${token(MOVER, { email: MOVED_TO, email_verified: true })}`);
+    const after = await pool.query<{ updated_at: Date }>(
+      `SELECT updated_at FROM tenant_member WHERE tenant_id = $1 AND user_id = $2`,
+      [TENANT, MOVER],
+    );
+
+    // Asserted rather than indexed blindly: a missing row here would otherwise
+    // read as "the timestamps match".
+    expect(before.rows[0], 'the mover has no membership row').toBeDefined();
+    expect(after.rows[0], 'the mover lost their membership row').toBeDefined();
+    expect(after.rows[0]!.updated_at.getTime()).toBe(before.rows[0]!.updated_at.getTime());
+  });
+});
