@@ -2992,3 +2992,55 @@ smoke that empties the catcher wipes whatever an operator was looking at.
 
 **No gate had ever asserted that this product can send a single email.** The
 rendering is unit-tested exhaustively; the wire was never exercised once.
+
+## The mail the api could not send
+
+#546 shipped a mail catcher, an `access_requested` notification, a rendering in
+two languages, a smoke that reads the caught message, and documentation for all
+of it. It could not send a single email.
+
+`readNotifierConfig` reads `process.env` — `SMTP_HOST`, `NOTIFY_FROM`,
+`NOTIFY_TO` and seven more. `managed.yml` lists the `api` service's environment
+key by key, and named **none of them**. Compose passes nothing it has not been
+told to pass, so the variable an operator sets in `.env` never reached the
+process that reads it. `notified: "off"` on every grant, decline and request —
+truthfully, and uselessly, because the setting that would have turned it on
+could not arrive.
+
+Found by preparing the hand-over summary: checking, rather than asserting from
+memory, that "set `SMTP_HOST=mailpit` in `.env`" was advice that would work.
+
+### Why nothing caught it
+
+- The unit tests inject a channel directly (`__setChannelForTests`), which is
+  right for testing the three outcomes and blind to how the real one is built.
+- `managed.env.example` documents the keys, and the bring-up warns when
+  `SMTP_HOST=mailpit` looks wrong for the deployment. Both describe a setting
+  that could not take effect.
+- **The self-host edition was never affected.** `deploy/selfhost/compose.yml`
+  uses `env_file: .env`, so the whole file arrives. Only the managed edition
+  enumerates, and only an enumeration can forget an entry.
+- The managed smoke *does* assert a mail arrives — in the nightly gate, not on
+  a pull request. This would have been a red gate hours after the merge,
+  naming the assertion rather than the cause.
+
+### The rule, and what it found on its first run
+
+The two lists are compared directly, both read from the files themselves: the
+env names are extracted from `readNotifierConfig`'s own body, so a tenth
+setting added there and forgotten in compose fails here rather than in a
+bring-up.
+
+It immediately failed on `NOTIFY_DIGEST` — a tenth name I had not put in the
+fix, consulted by the same function and missed by the same enumeration. Not
+documented in `managed.env.example` either; both are now. **A guard that finds
+something on its first run is the only kind worth writing**, and this is the
+first one today that failed for a real reason rather than by crying wolf.
+
+### Fifth instance today
+
+After services-vs-bring-up, `${VAR:?}`-vs-example, task-reads-vs-uploads and
+gatus-vs-ready. The shape is worth naming: **one file describes a capability
+and another enables it, and the product reports the disabled state so politely
+that nobody notices.** `notified: "off"` was correct on every occasion it was
+printed, which is exactly why it never looked like a bug.
