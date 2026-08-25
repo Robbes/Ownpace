@@ -30,6 +30,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const COMPOSE = fileURLToPath(new URL('../deploy/compose/', import.meta.url));
@@ -652,5 +654,86 @@ describe('the take-back list is filled where it can survive: the parent shell', 
     for (const v of subjects) {
       expect(capture?.[1], `${v} is read but never captured into IDP_USERS`).toContain(`"\${${v}:-}"`);
     }
+  });
+});
+
+/**
+ * THE GATE SIGNS IN FOR REAL, AND NOTHING SAID SO.
+ *
+ * Workplan 0099's status table carried this until 2026-08-24:
+ *
+ *   | T7 A real browser sign-in in the smoke | Planned, and honestly not done |
+ *
+ * and "what is still owed" said the smoke "does not obtain a token FROM Zitadel
+ * through the authorization code flow. That needs its session API and a PKCE
+ * exchange."
+ *
+ * It does. `sign_in_as` in smoke-managed.sh runs the whole thing — authorize,
+ * session proved with a password, auth request finalised against that session,
+ * code exchanged with a verifier — and its header records that every call was
+ * driven against the live provider before it was written. The status block was
+ * a rotation out of date, understating what shipped, which is the same defect
+ * as overstating it: **a status has to belong to the thing that happened.**
+ *
+ * Worse, nothing pinned the flow. `selectAuthMode` falls back to the symmetric
+ * JWT_SECRET when JWT_ISSUER is unset, so a smoke that quietly went back to
+ * minting its own tokens would still be green — while asserting nothing about
+ * whether anybody can actually sign in. That is precisely the blindness T5 and
+ * T6 were written to end.
+ */
+describe('the smoke gets its token FROM the provider, not from a secret', () => {
+  const smoke = read('smoke-managed.sh');
+  const signIn = smoke.slice(smoke.indexOf('sign_in_as() {'), smoke.indexOf('\n}\n', smoke.indexOf('sign_in_as() {')));
+
+  it('found the function, rather than asserting against an empty string', () => {
+    expect(signIn.length).toBeGreaterThan(500);
+  });
+
+  const steps: Array<[string, RegExp]> = [
+    ['starts an authorization request', /\/oauth\/v2\/authorize\?/],
+    ['asks for PKCE with S256', /code_challenge_method=S256/],
+    ['proves a session with a password', /\/v2\/sessions/],
+    ['finalises the auth request against that session', /\/v2\/oidc\/auth_requests\//],
+    ['exchanges the code at the token endpoint', /\/oauth\/v2\/token/],
+    ['sends the verifier, which is what makes it PKCE', /code_verifier=/],
+  ];
+  it.each(steps)('%s', (_name, pattern) => {
+    expect(pattern.test(signIn), `sign_in_as no longer matches ${pattern}`).toBe(true);
+  });
+
+  it('takes the ID token, because the API needs an email claim', () => {
+    // Zitadel puts user info claims in the ID token only, and ADR-0042 requires
+    // `email`. The access token validates and carries nothing the API can use.
+    expect(signIn).toMatch(/\.id_token/);
+  });
+
+  it('mints a fresh verifier per sign-in rather than carrying a constant', () => {
+    // A hardcoded verifier would still work — and would make every run of the
+    // gate replayable by anybody who read the source.
+    expect(signIn).toMatch(/verifier="\$\(openssl rand/);
+  });
+
+  it('derives the challenge from the verifier the way RFC 7636 says', () => {
+    // RUN, not read. This is the one piece of arithmetic in the flow, and a
+    // scan can only see that some pipeline exists — not that it produces
+    // base64url(sha256(verifier)) with the padding stripped.
+    // The WHOLE LINE, not a capture between quotes: the derivation is a command
+    // substitution containing its own quotes, so `[^"]+` stops at the first
+    // inner one and hands back a fragment that evaluates to nothing — which is
+    // how the first version of this test "passed" against an empty string.
+    const derive = /^\s*challenge=.*$/m.exec(signIn)?.[0];
+    expect(derive, 'no challenge derivation found').toBeTruthy();
+
+    const verifier = 'a3f1c0de'.repeat(8);
+    const script = `verifier=${verifier}\n${derive}\nprintf '%s' "$challenge"`;
+    const got = spawnSync('bash', ['-c', script], { encoding: 'utf8' }).stdout?.trim();
+
+    const want = createHash('sha256')
+      .update(verifier)
+      .digest('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    expect(got, 'the challenge is not base64url(sha256(verifier)) — the provider will refuse it').toBe(want);
   });
 });
