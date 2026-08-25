@@ -787,6 +787,14 @@ docker compose -f deploy/compose/managed.yml up -d mailpit
 
 Then http://100.97.25.131:3127 from any device on the mesh.
 
+That command **recreates the container**, and what it already caught survives
+it: Mailpit writes to `mailpit_data` rather than to memory, so verification
+links, email-change confirmations and password resets are still there
+afterwards — as they are after a version bump, or after any other edit to
+`managed.yml` that replaces the container. The store is capped at
+`MP_MAX_MESSAGES` (500), which is what stops a volume nothing prunes from
+becoming the next thing to fill the disk.
+
 Two things that stay true after you do it:
 
 - **It is still unauthenticated to everyone ON that mesh.** The question moves

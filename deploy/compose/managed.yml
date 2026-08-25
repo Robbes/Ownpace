@@ -1002,7 +1002,30 @@ services:
       MP_SMTP_AUTH_ALLOW_INSECURE: "1"
       # Bounded, like every other thing on this box that writes forever. Two
       # disk leaks in one week is a pattern, not bad luck (workplan 0099).
+      # THE CAP IS LOAD-BEARING NOW, not just tidy: with MP_DATABASE set below
+      # this is what the store costs on disk rather than in RAM, and an
+      # uncapped persistent catcher is that third disk leak. The rule in
+      # the-mail-the-issuer-could-not-send.unit.test.ts refuses one without
+      # the other.
       MP_MAX_MESSAGES: "500"
+      # KEEP WHAT WAS CAUGHT. Unset, mailpit holds messages in memory only, so
+      # every verification link, email-change confirmation and password reset
+      # vanishes the moment the container is recreated — and recreating it is
+      # not an exotic event: changing MAILPIT_BIND does it, so does a version
+      # bump, so does `up -d` after almost any edit to this file. An operator
+      # who is halfway through a sign-up when that happens has no way back to
+      # the code they were sent, and the failure looks like the identity
+      # provider never sent the mail.
+      #
+      # Mailpit appends `mailpit.db` when handed a directory; the path is
+      # written out in full here so it does not depend on that.
+      #
+      # WHAT THIS COSTS is that those links now sit in a volume instead of only
+      # in RAM. They are short-lived codes, the volume is root-owned on the
+      # box, and the UI in front of them is already loopback-bound by default —
+      # so this moves the exposure no further than the port above already does,
+      # which is the boundary that was argued out there and still holds.
+      MP_DATABASE: /data/mailpit.db
     ports:
       # 127.0.0.1, LIKE THE REGISTRY AND FOR A SHARPER REASON. Mailpit has no
       # authentication of any kind — it is a catcher, and asking it to hold
@@ -1039,6 +1062,8 @@ services:
       # this box" to "who is on this mesh" — worth answering deliberately, and
       # worth `MP_UI_AUTH_FILE` if the answer is more than one person.
       - "${MAILPIT_BIND:-127.0.0.1}:${MAILPIT_PORT:-3127}:8025"
+    volumes:
+      - mailpit_data:/data
     networks:
       - ownpace-network
     healthcheck:
@@ -1081,6 +1106,8 @@ networks:
 
 volumes:
   gatus_data:
+  # What the mail catcher caught. Bounded by MP_MAX_MESSAGES, not by luck.
+  mailpit_data:
   # The identity provider's first-init provisioning token (ADR-0042).
   zitadel_machinekey:
   postgres_data:
