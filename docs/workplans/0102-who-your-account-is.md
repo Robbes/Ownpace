@@ -6,7 +6,7 @@
 |---|---|---|
 | T0 Record the invariant | ✅ **Done 2026-08-25** | `sub` is the identity, email is a label. ADR-0042 amended below. Nothing here is built yet; this is the decision the three tasks depend on. |
 | T1 Gate the paste box on the API's runtime mode | ✅ **Done 2026-08-25** | `GET /api/auth/mode` answers `acceptsSeedToken`, derived from `selectAuthMode` in one place. `Login.tsx` renders nothing until it has that answer, hides the box entirely in managed mode, and names the state where neither credential is available. Rules in `scripts/a-box-the-api-would-refuse.unit.test.ts`. |
-| T2 Federation, with account linking decided BEFORE it is offered | ⬜ Not started | — |
+| T2 Federation, with account linking decided BEFORE it is offered | ✅ **Done 2026-08-25** | Google, Microsoft, GitHub and Apple, all as configuration inside Zitadel — no provider name reaches the product. Linking decided first (owner, 2026-08-25): **prompt on a verified email match**, never a silent merge, and no prompt at all when several accounts match. Rules in `scripts/a-second-door-with-the-linking-decided.unit.test.ts`. |
 | T3 Change your address, verified before the switch | ✅ **Done 2026-08-25** | `/api/me` reports the verified claim and now RECONCILES the stored label to it — only on a verified claim, only on rows already carrying that subject, never on an invitation. The statement's `user_id` predicate is proved by an integration test that seeds a second member of the same organisation and shows they are untouched. Rules in `middleware/a-label-that-follows-the-claim.unit.test.ts`. |
 
 ## The invariant everything here rests on
@@ -119,6 +119,53 @@ not put migrated data in Google — the custody claim is about the mail and file
 But for somebody whose goal is to leave Google, making Google the key to their
 Ownpace account rebuilds the dependency somewhere new. Offer it; do not default
 to it; and do not let it become the only method on an account.
+
+### Decided and built 2026-08-25
+
+**Four providers, all configuration.** Google, Microsoft (Entra), GitHub and
+Apple, provisioned by `setup-zitadel.sh` from credentials in `.env`. Nothing
+about them reaches `apps/` or `packages/`; the buttons appear because Zitadel
+renders them. `no-issuer-lock-in.unit.test.ts` is what keeps that true, and it
+did not have to change.
+
+**The linking question, answered before the second door opened.**
+`autoLinking: AUTO_LINKING_OPTION_EMAIL` on every provider: Zitadel asks "is
+this you?" when the upstream's VERIFIED email matches an existing account, and
+the person confirms. Not a silent merge. And Zitadel shows **no prompt at all**
+when several accounts match — the ambiguous case fails closed rather than
+guessing, which answers the second of the three questions above without us
+having to.
+
+**The third question — an upstream that will not assert `email_verified` — has
+a concrete answer now, and it is Microsoft.** Zitadel's own note on the Azure
+field: *"Azure AD doesn't send if the email has been verified. Enable this if
+the user email should always be added verified in Zitadel (no verification
+emails will be sent)."* It stays **off**. `email_verified` is what binds an
+invitation (migration 0006) and what moves a membership label (T3 above); an
+address asserted but never proved would be enough to answer an invitation
+addressed to somebody else. Zitadel sends its own verification mail instead —
+one click, and every claim downstream means what it says.
+
+**`isAutoUpdate` is off, and T3 is why.** T3 makes `tenant_member.email` follow
+the verified claim on every sign-in. Auto-update chains the two: the upstream
+asserts a different address, Zitadel rewrites the account, `/api/me` rewrites
+the membership label, and an organisation's members table follows Google. The
+membership is safe — it is keyed on `sub` — but the address colleagues see would
+not be ours to explain. Somebody may change their address deliberately; an
+upstream may not change it for them.
+
+**Two settings that both have to be true, and neither is the obvious one.**
+Creating the IdP configures it; adding it to the **login policy** is what puts
+the button on the screen; and `allowExternalIdp` is what allows any button at
+all. Miss either and the stack looks configured from the API and offers a person
+nothing. `allowExternalIdp` now follows what is configured rather than being a
+knob of its own, so a deployment that removes its last provider has it turned
+back off on the next run.
+
+**What is still the operator's:** registering an OAuth client at each provider's
+console, with the right redirect URI — and Apple's is not the same as the other
+three, because Apple POSTs its answer. `managed.env.example` carries both, and
+the refusal in `setup-zitadel.sh` names them when a provider will not add.
 
 ## T3 — Changing your address, verified before the switch
 

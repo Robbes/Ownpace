@@ -1,0 +1,201 @@
+// Copyright 2026 The Ownpace authors (Apache-2.0)
+
+/**
+ * A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
+ *
+ * Federation is CONFIGURATION, not code. ADR-0042's third operative rule keeps
+ * provider names out of the product, and `no-issuer-lock-in.unit.test.ts`
+ * enforces it by scanning `apps/api/src`, `apps/web/src` and `packages` — so a
+ * "Login with Google" button in the web app is the one implementation CI
+ * rejects, and correctly. The permitted shape puts the upstream inside Zitadel:
+ * Zitadel still mints the token, `iss` is still ours, `sub` is still a Zitadel
+ * subject, and `tenant_member` never learns anybody used Google.
+ *
+ * THE ORDER MATTERED. ADR-0042's amended invariant is that
+ * `tenant_member.user_id` IS the token's `sub`. A flow that preserves `sub` is
+ * safe; one that mints a NEW `sub` orphans a membership — somebody who signed
+ * up by email in March and presses a provider button in April is a different
+ * subject unless something links the two, and finds themselves locked out of an
+ * organisation they are still a member of. Which is why 0102 T2 said the
+ * linking decision comes BEFORE the second method is offered, and why these
+ * rules pin the decision rather than only the wiring.
+ */
+
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const COMPOSE = join(REPO_ROOT, 'deploy/compose');
+
+/** Shell source with comment-only lines removed — a rule must not forbid its
+ *  own explanation. */
+function directives(path: string): string {
+  return readFileSync(join(COMPOSE, path), 'utf8')
+    .split('\n')
+    .filter((l) => !/^\s*#/.test(l))
+    .join('\n');
+}
+
+const setup = directives('setup-zitadel.sh');
+
+describe('the linking decision is configured, not left to a default', () => {
+  it('prompts to link on a verified email rather than merging silently', () => {
+    /**
+     * `AUTO_LINKING_OPTION_EMAIL` is Zitadel's *prompt* — "is this you?" — on a
+     * match of the upstream's VERIFIED email. The proto is explicit that when
+     * several users match, no prompt is shown at all, which is the ambiguous
+     * case failing closed rather than guessing. Leaving this unset
+     * (`UNSPECIFIED`) means every provider sign-in silently creates a second
+     * account.
+     */
+    expect(
+      setup,
+      'no auto-linking option is set, so a provider sign-in by somebody who\n' +
+        'already has an account creates a SECOND one — and orphans their\n' +
+        'membership, which is keyed on the subject.',
+    ).toMatch(/AUTO_LINKING_OPTION_EMAIL/);
+  });
+
+  it('leaves auto-update OFF, so an upstream cannot move somebody\'s address', () => {
+    /**
+     * Workplan 0102 T3 makes `tenant_member.email` follow the verified claim on
+     * every sign-in. With `isAutoUpdate` on, those two chain: the upstream
+     * asserts a different address, Zitadel rewrites the account, `/api/me`
+     * rewrites the membership label, and an organisation's members table
+     * follows Google. The membership survives — it is keyed on `sub` — but the
+     * address colleagues see would not be ours to explain.
+     */
+    expect(setup, 'isAutoUpdate is on: an upstream can move a member label').toMatch(
+      /isAutoUpdate:\s*false/,
+    );
+  });
+
+  it('never treats an unproven address as verified', () => {
+    /**
+     * Zitadel's own note on the Azure field: "Azure AD doesn't send if the email
+     * has been verified. Enable this if the user email should always be added
+     * verified in Zitadel (no verification emails will be sent)."
+     *
+     * `email_verified` is what binds an invitation (migration 0006) and what
+     * moves a membership label (0102 T3). An address asserted but never proved
+     * would be enough to answer an invitation addressed to somebody else.
+     */
+    expect(
+      setup,
+      'the Microsoft provider marks addresses verified without verifying them.\n' +
+        'That is enough to answer somebody else’s invitation.',
+    ).toMatch(/emailVerified:\s*false/);
+  });
+});
+
+describe('and a provider that is configured is a provider somebody can see', () => {
+  it('adds each one to the login policy, not only to the instance', () => {
+    // Creating the IdP configures it; adding it to the login policy is what
+    // puts the button on the sign-in screen. Skipping the second leaves a stack
+    // that looks configured from the API and offers a person nothing.
+    expect(setup).toMatch(/\/admin\/v1\/policies\/login\/idps/);
+  });
+
+  it('turns external sign-in on exactly when a provider exists', () => {
+    /**
+     * A third way to have a stack that looks configured and shows nothing:
+     * `allowExternalIdp` false. It follows what is configured rather than being
+     * a knob of its own — on with providers, off without — so a deployment that
+     * removes its last one has it turned back off on the next run.
+     */
+    expect(setup, 'nothing derives whether providers may be offered').toMatch(/WANT_EXTERNAL=/);
+    expect(setup, 'the login policy does not carry that decision').toMatch(
+      /allowExternalIdp:\$x/,
+    );
+  });
+
+  it('reads the setting back, because the answer to the write names no field', () => {
+    expect(setup).toMatch(/read_allow_external/);
+  });
+
+  it('offers nothing, and says so, when no provider is configured', () => {
+    // Not a warning: a deployment with no upstream is the ordinary case, and
+    // this line is what tells an operator the absence was noticed.
+    expect(setup).toMatch(/none configured/);
+  });
+});
+
+describe('and the credentials stay where credentials go', () => {
+  it('reads every provider secret from the environment', () => {
+    for (const key of [
+      'IDP_GOOGLE_CLIENT_SECRET',
+      'IDP_MICROSOFT_CLIENT_SECRET',
+      'IDP_GITHUB_CLIENT_SECRET',
+      'IDP_APPLE_PRIVATE_KEY',
+    ]) {
+      expect(setup, `${key} is not read from the environment`).toMatch(
+        new RegExp(`read_env ${key}`),
+      );
+    }
+  });
+
+  it('carries no client id or secret of its own', () => {
+    /**
+     * Hard rule 3. A provider credential in the repository is a credential in
+     * every clone of it, and these are the ones that let somebody mint sign-ins
+     * as this deployment.
+     */
+    const raw = readFileSync(join(COMPOSE, 'setup-zitadel.sh'), 'utf8');
+    expect(raw, 'something that looks like a Google client id is in the script').not.toMatch(
+      /\d{10,}-[a-z0-9]{20,}\.apps\.googleusercontent\.com/,
+    );
+    expect(raw, 'a PEM private key block is in the script').not.toMatch(/-----BEGIN [A-Z ]*PRIVATE KEY-----/);
+  });
+
+  it('documents every one of them in the env example', () => {
+    const example = readFileSync(join(COMPOSE, 'managed.env.example'), 'utf8');
+    for (const key of [
+      'IDP_GOOGLE_CLIENT_ID',
+      'IDP_MICROSOFT_CLIENT_ID',
+      'IDP_MICROSOFT_TENANT',
+      'IDP_GITHUB_CLIENT_ID',
+      'IDP_APPLE_CLIENT_ID',
+      'IDP_APPLE_TEAM_ID',
+      'IDP_APPLE_KEY_ID',
+      'IDP_APPLE_PRIVATE_KEY',
+    ]) {
+      expect(example, `${key} is read but never documented`).toContain(`${key}=`);
+    }
+  });
+
+  it('names the callback Apple needs, which is not the one the others need', () => {
+    /**
+     * Apple POSTS its answer, so Zitadel hands it
+     * `/ui/login/login/externalidp/callback/form` while everyone else gets
+     * `/ui/login/login/externalidp/callback`. Registering the wrong one at
+     * Apple fails at the last step of a flow that looked fine, which is the
+     * expensive kind of wrong.
+     */
+    const example = readFileSync(join(COMPOSE, 'managed.env.example'), 'utf8');
+    expect(example).toContain('/ui/login/login/externalidp/callback');
+    expect(example, 'the form-post callback Apple needs is not documented').toContain(
+      '/ui/login/login/externalidp/callback/form',
+    );
+  });
+});
+
+describe('and none of it reached the product', () => {
+  it('names no provider in the web app or the API', () => {
+    /**
+     * `no-issuer-lock-in.unit.test.ts` is the rule that enforces this and it
+     * runs on every unit pass. This case exists so that THIS change is read as
+     * having respected it: everything above is deployment configuration, and
+     * the buttons appear because Zitadel renders them, not because we wrote
+     * one.
+     */
+    const lock = readFileSync(
+      join(REPO_ROOT, 'apps/api/src/middleware/no-issuer-lock-in.unit.test.ts'),
+      'utf8',
+    );
+    expect(lock, 'the lock-in rule is gone — that is what kept this honest').toMatch(
+      /apps\/web\/src|apps\/api\/src/,
+    );
+  });
+});

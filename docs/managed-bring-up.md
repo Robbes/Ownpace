@@ -455,6 +455,62 @@ fail if that stops being true.
 > Changing the address later invalidates every live session — it belongs with
 > the other browser-visible addresses in `.env`, decided once.
 
+#### Offering Google, Microsoft, GitHub or Apple as a second way in
+
+Optional, and configuration only — nothing in the product knows a provider's
+name (ADR-0042; `no-issuer-lock-in.unit.test.ts` fails the build on one). The
+upstream goes into Zitadel, Zitadel still mints the token, and `tenant_member`
+never learns anybody used Google.
+
+**Your half** is registering an OAuth client at each provider's console. The
+redirect URI is **not the same for all four** — Apple posts its answer back,
+the others redirect:
+
+| Provider | Where | Redirect / Return URI |
+|---|---|---|
+| Google | Cloud Console → Credentials → OAuth client ID (Web) | `$JWT_ISSUER/ui/login/login/externalidp/callback` |
+| Microsoft | Entra ID → App registrations | `$JWT_ISSUER/ui/login/login/externalidp/callback` |
+| GitHub | Settings → Developer settings → OAuth Apps | `$JWT_ISSUER/ui/login/login/externalidp/callback` |
+| Apple | Developer → Services ID (**paid account**) | `$JWT_ISSUER/ui/login/login/externalidp/callback/form` |
+
+**Our half** is `.env` and a re-run. Fill in the pairs you want — a provider
+with no credentials is simply not offered — and:
+
+```bash
+./deploy/compose/bootstrap-managed.sh --only app
+```
+
+Apple needs four values rather than two, and the key is sent as bytes:
+
+```bash
+base64 -w0 AuthKey_XXXXXXXXXX.p8     # -> IDP_APPLE_PRIVATE_KEY
+```
+
+**What happens when the address already has an account:** the person is prompted
+to link, on a match of a *verified* email — never a silent merge. When several
+accounts match, Zitadel shows no prompt at all, so the ambiguous case fails
+closed. That decision is set once for every provider and is the reason this was
+built after workplan 0102 T2 rather than alongside it: a provider sign-in that
+minted a second subject would orphan a membership, and the person would be
+locked out of an organisation they are still in.
+
+**Microsoft addresses are not treated as verified**, deliberately. Entra does not
+say whether it verified an address, and `email_verified` is what binds an
+invitation and what moves a membership label — so Zitadel sends its own
+verification mail. One click, and every claim downstream means what it says.
+
+**Verify** — the buttons appear on `$JWT_ISSUER/ui/login`, and the bring-up says
+what it configured:
+
+```
+[setup-zitadel] checking which sign-in providers this instance offers
+[setup-zitadel]   Google: added
+[setup-zitadel]   Google: now offered on the sign-in screen
+[setup-zitadel] allowed (providers offered: true)
+```
+
+If a provider will not add, the refusal names the redirect URI to check.
+
 #### Whatever fronts the provider must pass the original `Host` header
 
 If something terminates TLS in front of the identity provider — a reverse
