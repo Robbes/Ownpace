@@ -17,6 +17,7 @@ import { eq, and } from 'drizzle-orm';
 import {
   withTenant as ledgerWithTenant,
   withSubject as ledgerWithSubject,
+  withSubjectAndTenant as ledgerWithSubjectAndTenant,
   tenant as tenantTable,
   type PgDatabase,
 } from '@openmig/ledger';
@@ -338,6 +339,119 @@ export function membershipsForSubject(
 /** TEST SEAM ONLY, as `__setMembershipLookupForTests`. */
 export function __setMembershipsLookupForTests(fn: MembershipsLookup | null): void {
   membershipsLookup = fn ?? lookupMemberships;
+}
+
+/** A membership row's stored address, beside the organisation it belongs to. */
+export interface StoredLabel {
+  readonly tenantId: string;
+  readonly email: string;
+}
+
+/**
+ * WHICH STORED LABELS NO LONGER MATCH THE VERIFIED CLAIM (workplan 0102 T3).
+ *
+ * Pure on purpose: the rule is the part worth reading, and it can be read
+ * without a database in front of it.
+ *
+ * CASE-INSENSITIVE, because the comparison decides whether to WRITE. A provider
+ * that starts asserting `Rob@example.com` where it used to assert
+ * `rob@example.com` is asserting the same address, and treating that as a change
+ * would put an UPDATE on every sign-in for the rest of the deployment's life.
+ * The claim is written verbatim when it genuinely differs; the old casing is
+ * kept when it does not.
+ */
+export function labelsToUpdate(
+  rows: ReadonlyArray<StoredLabel>,
+  claimed: string | undefined,
+  emailVerified: boolean | undefined,
+): string[] {
+  // ONLY WHAT THE ISSUER VOUCHED FOR. An unverified claim is a typo or somebody
+  // else's inbox, and migration 0006 already refuses to bind an invitation on
+  // one — the same address, held to the same standard.
+  if (emailVerified !== true) return [];
+  const next = claimed?.trim();
+  if (!next) return [];
+  const lowered = next.toLowerCase();
+  return rows.filter((r) => r.email.trim().toLowerCase() !== lowered).map((r) => r.tenantId);
+}
+
+/**
+ * MAKE THE MEMBERSHIP LABEL FOLLOW THE VERIFIED CLAIM (workplan 0102 T3).
+ *
+ * `tenant_member.email` was written once, when the row was created, and nothing
+ * ever updated it. `sub` is the identity (ADR-0042, amended) so a person who
+ * changes their address at the provider keeps every membership — that part was
+ * always safe. What went stale is the LABEL, and the asymmetry is the sting:
+ * `GET /api/me` reports the claim, so the person who moved sees the new address
+ * everywhere, while everyone else in their organisation goes on seeing the old
+ * one in the members table. The one person who could report it is the one
+ * person who cannot see it.
+ *
+ * ONLY ROWS THAT ALREADY CARRY THIS SUBJECT. An `invited` row is addressed to an
+ * email with no subject on it yet; rewriting one would be CLAIMING an
+ * invitation, which workplan 0099 deliberately made an offer somebody answers.
+ * `status = 'active'` is what keeps those out.
+ *
+ * THROUGH THE TENANT-SCOPED POLICY, not a self-service one. Migration 0003
+ * reasoned it out when it added `own_membership_select`: "reading which tenants
+ * you belong to is answering a question about yourself; changing your own role
+ * or admitting yourself to a tenant is not". That still holds — and a
+ * self-service UPDATE policy could not restrict which COLUMN changes, because
+ * RLS is row-level. So the write runs with both settings, in the tenant this
+ * subject was just read to be an active member of.
+ *
+ * AND THE STATEMENT CARRIES `user_id`. Without that predicate the tenant-scoped
+ * policy would permit rewriting the address of every member in the
+ * organisation. It is the one line between this being a label following a claim
+ * and this being a way to overwrite a table, which is why
+ * `me.integration.test.ts` seeds a second member and proves they are untouched
+ * rather than trusting a reading of the code.
+ *
+ * Returns how many rows moved — 0 on nearly every call, which is the point.
+ */
+export async function reconcileMemberEmail(
+  userId: string,
+  claimed: string | undefined,
+  emailVerified: boolean | undefined,
+): Promise<number> {
+  if (emailVerified !== true) return 0;
+  const next = claimed?.trim();
+  if (!next) return 0;
+
+  // Read first, write only if it differs. This runs on `/api/me`, which a client
+  // calls on every sign-in; an unconditional UPDATE would be a write on a read
+  // path for a value that is nearly always already correct.
+  const rows: StoredLabel[] = await ledgerWithSubject(getAuthPool(), userId, async (db) =>
+    db
+      .select({ tenantId: tenantMember.tenantId, email: tenantMember.email })
+      .from(tenantMember)
+      .where(and(eq(tenantMember.userId, userId), eq(tenantMember.status, 'active'))),
+  );
+
+  let moved = 0;
+  for (const tenantId of labelsToUpdate(rows, next, emailVerified)) {
+    moved += await ledgerWithSubjectAndTenant(
+      getAuthPool(),
+      userId,
+      tenantId,
+      async (db) => {
+        const updated = await db
+          .update(tenantMember)
+          .set({ email: next, updatedAt: new Date() })
+          .where(
+            and(
+              // THE PREDICATE. See above: without it this rewrites everybody.
+              eq(tenantMember.userId, userId),
+              eq(tenantMember.tenantId, tenantId),
+              eq(tenantMember.status, 'active'),
+            ),
+          )
+          .returning({ id: tenantMember.id });
+        return updated.length;
+      },
+    );
+  }
+  return moved;
 }
 
 /**

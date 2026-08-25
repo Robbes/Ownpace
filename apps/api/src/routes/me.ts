@@ -40,9 +40,11 @@ import {
   pendingInvitations,
   isPlatformOperator,
   membershipsForSubject,
+  reconcileMemberEmail,
 } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
+import { log } from '@openmig/shared';
 
 const router = Router();
 
@@ -55,6 +57,33 @@ router.get('/', authenticateSubject, async (req: AuthenticatedRequest, res: Resp
     }
 
     const tenants = await membershipsForSubject(userId);
+
+    /**
+     * THE LABEL FOLLOWS THE VERIFIED CLAIM (workplan 0102 T3).
+     *
+     * `tenant_member.email` was written once and never updated, so somebody who
+     * changed their address at the provider kept every membership — `sub` is
+     * the identity — while the members table went on showing colleagues an
+     * address they had moved off. This route is where it is put right, because
+     * it is the one call made on every sign-in, and the moment the claim is
+     * freshest.
+     *
+     * REPORTED, NOT MASKED, IF IT FAILS. It is a side effect of answering "who
+     * am I", and refusing to answer that because a cosmetic label could not be
+     * written would trade a stale address for no sign-in at all. So the error
+     * goes to the log with the subject on it — never the address, which is the
+     * kind of thing this endpoint exists not to publish — and the answer below
+     * is served either way. Nothing is swallowed: a failure is visible where an
+     * operator looks, which is the distinction hard rule 9 draws.
+     */
+    try {
+      const moved = await reconcileMemberEmail(userId, req.userEmail, req.emailVerified);
+      if (moved > 0) {
+        log.info(`[me] ${moved} membership label(s) followed a verified address change for ${userId}`);
+      }
+    } catch (error) {
+      log.error(`[me] could not reconcile the membership label for ${userId}:`, error);
+    }
 
     // Invitations are REPORTED, never claimed here (workplan 0099). This route
     // used to bind every one of them addressed to a verified address, which
