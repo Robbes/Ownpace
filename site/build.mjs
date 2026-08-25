@@ -37,6 +37,7 @@ import {
   REQUEST_ACCESS_URL,
   APP_URL,
   PUBLIC_APP_URL,
+  STATUS_URL,
   money,
   size,
   total,
@@ -483,6 +484,7 @@ ${body}
   <div>
     <a href="${urlFor(locale, 'privacy')}">${c.nav.privacy}</a> ·
     <a href="${urlFor(locale, 'terms')}">${c.nav.terms}</a> ·
+    <a href="${STATUS_URL}">${c.footerStatus}</a> ·
     <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>
   </div>
 </div></footer>
@@ -642,6 +644,42 @@ function build() {
       });
     }
   }
+  // THE PAGE FOR AN ADDRESS THAT IS NOT A PAGE.
+  //
+  // Deliberately NOT in PAGE_KEYS: it must not appear in the nav, and it has no
+  // entry in `files` because nginx addresses it directly (`error_page 404
+  // /404.html`, and `/nl/404.html` for the Dutch tree).
+  //
+  // Until 2026-08-25 `www-nginx.conf` said `error_page 404 /index.html`, so
+  // every wrong address served the HOME PAGE — with a 404 status, which is the
+  // worst of both: a visitor sees a working site and concludes the link was
+  // fine, while a crawler is told the page is missing.
+  //
+  // `key: 'home'` marks the nav's Home entry as current. There is no truthful
+  // answer here — this address is no page — and Home is where the only link on
+  // it goes.
+  for (const locale of LOCALES) {
+    const c = COPY[locale];
+    const body =
+      `<h1>${c.notFound.heading}</h1>\n` +
+      `<p class="lede">${c.notFound.lede}</p>\n` +
+      `<p><a class="cta" href="${localeRoot(locale) || '/'}">${c.notFound.back}</a></p>\n` +
+      `<p class="fineprint">${c.notFound.status} <a href="${STATUS_URL}">${STATUS_URL.replace(/^https?:\/\//, '')}</a></p>`;
+    rendered.push({
+      locale,
+      key: 'home',
+      file: `${localeRoot(locale).replace(/^\//, '')}${localeRoot(locale) ? '/' : ''}404.html`,
+      html: layout({
+        title: c.notFound.title,
+        description: c.notFound.title,
+        body,
+        locale,
+        key: 'home',
+        draft: false,
+      }),
+    });
+  }
+
   const drafts = rendered.reduce((n, p) => n + (p.html.match(/class="todo"/g) ?? []).length, 0);
   return { rendered, drafts };
 }
