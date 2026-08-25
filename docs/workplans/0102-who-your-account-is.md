@@ -5,7 +5,7 @@
 | Task | Status | Evidence |
 |---|---|---|
 | T0 Record the invariant | ✅ **Done 2026-08-25** | `sub` is the identity, email is a label. ADR-0042 amended below. Nothing here is built yet; this is the decision the three tasks depend on. |
-| T1 Gate the paste box on the API's runtime mode | ⬜ Not started | — |
+| T1 Gate the paste box on the API's runtime mode | ✅ **Done 2026-08-25** | `GET /api/auth/mode` answers `acceptsSeedToken`, derived from `selectAuthMode` in one place. `Login.tsx` renders nothing until it has that answer, hides the box entirely in managed mode, and names the state where neither credential is available. Rules in `scripts/a-box-the-api-would-refuse.unit.test.ts`. |
 | T2 Federation, with account linking decided BEFORE it is offered | ⬜ Not started | — |
 | T3 Change your address, verified before the switch | ⬜ Not started | — |
 
@@ -55,6 +55,41 @@ only way in.
 So: the API reports its mode, and the page renders what the API will accept. A
 real break-glass path — if one is wanted — is a separate decision with its own
 security argument, not a leftover textarea.
+
+### Done 2026-08-25
+
+`GET /api/auth/mode` — unauthenticated, like `/health`, because its reader has
+no credential yet and it discloses only what the sign-in page already shows.
+
+**It answers the question, not the inputs.** The body is
+`{ mode, acceptsSeedToken }`, and the page renders on the second. Handing over
+only `mode` would have made the page re-derive "managed means no" — the same
+rule in a second process, which is the defect this task is about, moved one
+layer down rather than removed. `mode` is reported alongside it for an operator
+reading an answer that surprises them.
+
+**Three states, all named.** The box shows only where `acceptsSeedToken`; in
+managed mode it is gone rather than folded away, because a disclosure holding a
+credential the API refuses is a drawer with nothing usable in it. Where the API
+is managed and the bundle carries no issuer — the state #562 left behind — the
+page says exactly that, naming `VITE_OIDC_ISSUER` and `VITE_OIDC_CLIENT_ID`,
+since only an operator can fix it and they need the words to search for.
+
+**A failure is not a fallback.** If the mode cannot be fetched, the page offers
+neither credential and says why. Falling back to the box would invent a way in
+on precisely the stacks that refuse it — and an API that cannot answer this
+cannot verify a token either.
+
+**Nothing renders while the answer is outstanding.** A box that appears and is
+then taken away has offered a way in that was never there, which is the same
+flicker, one frame earlier.
+
+**Still to do, and deliberately not done here:** the issuer and client id
+reaching the page the same way. They are still build-time values, which is why
+the misconfigured state above can exist at all — the API could report them and
+the bundle would stop needing a rebuild to change issuer. That is a change to
+how the OIDC client bootstraps, with its own argument to make, not a rider on
+this one.
 
 ## T2 — Federation, and the linking decision that must come first
 

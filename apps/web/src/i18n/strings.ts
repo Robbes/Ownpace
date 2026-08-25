@@ -93,7 +93,11 @@ const en = {
   // "Sign in" that do different things is a coin toss, not a choice.
   'login.submit': 'Use this token',
   'login.help.pre': 'Paste the access token from the seed script',
-  'login.help.post': 'or your identity provider.',
+  // WAS 'or your identity provider.' — which stopped being true when the box
+  // started appearing only where the API accepts a seed token (0102 T1). In
+  // that state a provider token is not what this API verifies against either,
+  // so the old sentence offered a second way in that does not exist.
+  'login.help.post': '\u2014 this deployment has no identity provider configured.',
   // ---- Signing in with the configured issuer (ADR-0042) ----
   'login.withProvider': 'Sign in',
   'login.redirecting': 'Taking you to sign in…',
@@ -103,9 +107,26 @@ const en = {
   // issuer is configured the API is in managed mode and verifies against the
   // provider's keys ONLY — never falling back to the secret the seed signs
   // with. A seed token here is not discouraged, it is refused.
+  // The disclosure now appears ONLY where the API will accept a seed token
+  // (0102 T1), which makes the old sentence — "a seed token will be refused
+  // here" — the exact opposite of the case it labels. The odd state it labels
+  // now: this build carries a provider's address while the API is not using
+  // one.
   'login.pasteFallback':
-    'The way in before an identity provider was configured. Now that there is one, the API accepts only tokens it issued — a seed token will be refused here.',
+    'This deployment\u2019s API is not using an identity provider, so a token from the seed script is what it accepts.',
   'login.oidcFailed': 'We could not reach the sign-in service.',
+  // ---- Asking the API what it accepts, before offering it (workplan 0102 T1) ----
+  'login.checking': 'Checking how this deployment signs people in…',
+  // Not a fallback to the paste box: on a managed stack that box is refused
+  // anyway, so offering it after a failed check would be inventing a way in
+  // that does not exist.
+  'login.modeUnavailable':
+    'We could not ask this deployment which sign-in it accepts, so there is nothing to offer here yet.',
+  // The state #562 left behind: the stack has an issuer and this build was
+  // never told its address. Named exactly, because only an operator can fix it
+  // and they need the two words to search for.
+  'login.providerNotBuilt':
+    'This deployment signs in with an identity provider, but this web build was not given its address. Rebuild the web image with VITE_OIDC_ISSUER and VITE_OIDC_CLIENT_ID set.',
   'login.callback.working': 'Signing you in…',
   'login.callback.failed': 'That sign-in did not complete.',
   'login.callback.again': 'Try again',
@@ -1135,15 +1156,21 @@ const nl: Record<keyof typeof en, string> = {
     'Dit token is verlopen. Maak een nieuw token aan (seedscript of uw identityprovider) en plak dat in plaats hiervan.',
   'login.submit': 'Dit token gebruiken',
   'login.help.pre': 'Plak het toegangstoken uit het seedscript',
-  'login.help.post': 'of van uw identiteitsprovider.',
+  'login.help.post': '\u2014 deze omgeving heeft geen identiteitsprovider ingesteld.',
   // ---- Signing in with the configured issuer (ADR-0042) ----
   'login.withProvider': 'Aanmelden',
   'login.redirecting': 'U wordt doorgestuurd om aan te melden…',
   'login.verifying': 'Token wordt gecontroleerd…',
   'login.pasteToggle': 'Aanmelden met een token',
   'login.pasteFallback':
-    'De manier van vóór er een identiteitsprovider was. Nu die er is, accepteert de API alleen tokens die zij zelf heeft uitgegeven — een seedtoken wordt hier geweigerd.',
+    'De API van deze omgeving gebruikt geen identiteitsprovider, dus een token uit het seedscript is wat zij accepteert.',
   'login.oidcFailed': 'Wij konden de aanmeldservice niet bereiken.',
+  // ---- De API vragen wat zij accepteert (workplan 0102 T1) — zie het Engelse blok. ----
+  'login.checking': 'Bezig met controleren hoe deze omgeving mensen aanmeldt…',
+  'login.modeUnavailable':
+    'Wij konden deze omgeving niet vragen welke aanmelding zij accepteert, dus er valt hier nog niets aan te bieden.',
+  'login.providerNotBuilt':
+    'Deze omgeving meldt aan via een identiteitsprovider, maar deze webbuild heeft het adres daarvan nooit meegekregen. Bouw het webimage opnieuw met VITE_OIDC_ISSUER en VITE_OIDC_CLIENT_ID ingesteld.',
   'login.callback.working': 'U wordt aangemeld…',
   'login.callback.failed': 'Die aanmelding is niet voltooid.',
   'login.callback.again': 'Opnieuw proberen',

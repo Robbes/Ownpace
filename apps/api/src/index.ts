@@ -35,7 +35,7 @@ import accessRequestRoutes from './routes/access-requests.ts';
 import meRoutes from './routes/me.ts';
 import invitationRoutes from './routes/invitations.ts';
 import readyRoutes from './routes/ready.ts';
-import { assertProductionAuthConfig } from './middleware/auth.ts';
+import { assertProductionAuthConfig, selectAuthMode } from './middleware/auth.ts';
 import { assertProductionUrlConfig } from './config-guards.ts';
 import { serverFault } from './server-fault.ts';
 import { buildIdentity } from '@openmig/core';
@@ -94,6 +94,39 @@ const version = (req: Request, res: Response) => {
 };
 app.get('/version', version);
 app.get('/api/version', version);
+
+/**
+ * WHICH CREDENTIAL THIS API WILL ACTUALLY ACCEPT (workplan 0102 T1).
+ *
+ * The sign-in page used to decide what to offer from `VITE_OIDC_ISSUER`, a
+ * BUILD-time value baked into the bundle. The authority is here, at REQUEST
+ * time: `selectAuthMode` returns `managed` the moment `JWT_ISSUER` is set, and
+ * managed mode verifies against the provider's JWKS and never falls back to
+ * `JWT_SECRET` — deliberately, so a lingering secret cannot silently downgrade
+ * verification. A seed token is signed with that secret, so on such a stack it
+ * is well-formed, unexpired and unusable.
+ *
+ * The two agreed only because `setup-zitadel.sh` writes both. They were still
+ * two values in two processes, and the page was guessing — which showed as a
+ * textarea that accepted a token, logged somebody in, and bounced them straight
+ * back here (reported from the test host, 2026-08-25).
+ *
+ * `acceptsSeedToken` IS THE ANSWER, not `mode`. A page that read the mode would
+ * have to re-derive "managed means no" — the same rule in a second process,
+ * which is the shape of the bug this endpoint exists to end. The mode is
+ * reported alongside it because it is what an operator wants when the answer
+ * surprises them.
+ *
+ * UNAUTHENTICATED, like /health and /version, and necessarily so: it is read by
+ * somebody who has no credential yet, to find out which kind to bring. It
+ * publishes no secret — which sign-in a deployment offers is visible from the
+ * page itself.
+ */
+const authMode = (req: Request, res: Response) => {
+  const mode = selectAuthMode(process.env.JWT_ISSUER, process.env.JWT_SECRET);
+  res.json({ mode, acceptsSeedToken: mode !== 'managed' });
+};
+app.get('/api/auth/mode', authMode);
 
 // Readiness, which unlike /health can answer NO (workplan 0094 T1). Mounted at
 // both paths for the same reason /health is: the web image's same-origin proxy

@@ -106,6 +106,18 @@ const FIXTURES: Record<string, unknown> = {
     commit: '',
   },
   /**
+   * WHAT THIS DEPLOYMENT ACCEPTS, asked before the page offers anything at all
+   * (workplan 0102 T1).
+   *
+   * The bundle under test carries no `VITE_OIDC_ISSUER`, and the paste box used
+   * to follow from that alone. It now follows from the API's answer, so without
+   * this fixture the page renders its "checking" line forever and every case
+   * below times out looking for a textarea — the same shape of failure the
+   * missing `/api/me` fixture caused in #559, and the reason it is spelled out
+   * here rather than left as one more line in a table.
+   */
+  [`GET /api/auth/mode`]: { mode: 'local', acceptsSeedToken: true },
+  /**
    * WHO THE SIGN-IN SCREEN ASKS ABOUT, and the reason `open()` below can reach
    * a dashboard at all.
    *
