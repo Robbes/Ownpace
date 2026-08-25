@@ -10,7 +10,7 @@
 | T2 The gate: prove silence, don't assume it | ✅ **Done 2026-08-25** | Demo Nextcloud's SMTP now points at Mailpit — ARMED, so silence is falsifiable. Fresh event 1 carries a tag-addressed canary (third-party organiser, as most migrated meetings are). The smoke asserts the target copy's bytes carry SCHEDULE-AGENT=CLIENT (the writer observed on a real server) and catcher silence twice: after sync and after the take-back's DELETE (the CANCEL side). 4 rules in `the-mail-nobody-should-get.unit.test.ts`, proved by breaking. Owner-as-organiser on an armed server stays T3's measurement. |
 | T3 Measure the target, per mapping | ⬜ proposed | A canary event at verify time — some servers ignore `SCHEDULE-AGENT`. Honouring is a fact to record per target, not a spec to trust. |
 | T4 The operator switches, documented | ⬜ proposed | Nextcloud and Stalwart both have a global off-switch; both are instance-wide, so on a customer's LIVE server they silence real users too. A migration-window decision, never a silent default. |
-| T5 The delete path | ⬜ proposed | `Schedule-Reply: F` on our DELETEs. Take-back and gated apply-deletion currently fan out CANCELs by the same mechanism that import fans out invitations. |
+| T5 The delete path | ✅ **Done 2026-08-25** | `Schedule-Reply: F` on both DELETE sites: `removeDavResource` (the gated apply path) and the take-back tool's `dav()`. Belt to T1's braces — either alone silences an honouring server; a server honouring neither is T3's to expose. Both proved by breaking. |
 | T6 Shares: record the silence flags | ⬜ proposed | 0052 made share application one-at-a-time and human-pressed — no storm by construction. If a bulk verb ever exists, the per-API flags below are where it starts. |
 
 ## The question
