@@ -332,6 +332,71 @@ describe('and a stack that does not exist yet never has the problem', () => {
   });
 });
 
+describe('and it names the Host header the ingress rewrote', () => {
+  const smoke = directives('smoke-managed.sh');
+
+  /**
+   * MEASURED ON THE REFERENCE HOST, 2026-08-25. The same authorization request,
+   * two ways:
+   *
+   *   through the mesh ingress   ->  Domain=100.97.25.131
+   *   straight at the container  ->  Domain=id.ota.ownpace.eu
+   *
+   * Zitadel builds that domain from the RAW `Host` header
+   * (`domain := strings.Split(host, ":")[0]`, `internal/api/http/cookie.go`),
+   * and the ingress was forwarding its own peer address. A browser may accept a
+   * cookie only for its own domain or a parent, so it dropped the cookie, every
+   * request arrived with a fresh user-agent id, and the login page answered
+   * `EVENT-adk13` to everybody, every time.
+   *
+   * NOTHING ELSE NOTICED, which is why it needs a rule rather than a look.
+   * Instance resolution reads the FORWARDED name, so the provider's own log
+   * reported the right host while the cookie said an IP; verification, the
+   * sessions API and every machine path never touch that cookie. The only
+   * thing broken was the path a person walks — and the gate walked it and
+   * reported an error page, which is a symptom four steps downstream.
+   */
+  it('compares the cookie it was given against the issuer it asked', () => {
+    expect(
+      smoke,
+      'the gate reads no cookie domain off the authorization response, so a\n' +
+        'rewritten Host surfaces as an unexplained error page.',
+    ).toMatch(/login_cookie_domain/);
+    expect(smoke, 'nothing derives the host the issuer names').toMatch(/login_issuer_host/);
+  });
+
+  it('says the ingress is rewriting Host, rather than leaving it to be inferred', () => {
+    // A finding whose cause is not in the message costs the same afternoon
+    // twice. The remedy is not ours to apply, so it has to be named.
+    const at = smoke.indexOf('login_cookie_domain" != "$login_issuer_host');
+    expect(at, 'the comparison is gone').toBeGreaterThan(-1);
+    expect(smoke.slice(at, at + 900), 'the failure does not name the Host header').toMatch(
+      /rewriting Host/,
+    );
+    expect(smoke.slice(at, at + 900), 'the failure does not name the symptom a person sees').toMatch(
+      /EVENT-adk13/,
+    );
+  });
+
+  it('stays silent when the cookie carries no domain at all', () => {
+    /**
+     * A `__Host-` prefixed cookie has no `Domain` by definition, and that is
+     * the healthy shape — there is nothing for a proxy to get wrong. A rule
+     * that fired on its absence would be red on the deployments that are right.
+     */
+    expect(smoke).toMatch(/\[ -n "\$login_cookie_domain" \]/);
+  });
+
+  it('asks once, and reads both answers off that one response', () => {
+    // Two authorization requests are two different auth requests with two
+    // different cookies, and a comparison across them would be meaningless.
+    expect(smoke, 'the head of the authorize response is not kept').toMatch(/login_head=/);
+    const heads = (smoke.match(/oauth\/v2\/authorize/g) ?? []).length;
+    expect(heads, 'the login-page block asks for an authorization request more than once')
+      .toBeLessThanOrEqual(2);
+  });
+});
+
 describe('and the premise is pinned, not assumed', () => {
   /**
    * "Login v2 off" is right ONLY while this stack serves no login v2. The day

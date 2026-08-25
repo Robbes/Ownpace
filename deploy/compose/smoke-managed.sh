@@ -860,9 +860,52 @@ else
   login_verifier="$(openssl rand -hex 32)"
   login_challenge="$(printf '%s' "$login_verifier" | openssl dgst -binary -sha256 | openssl base64 | tr '+/' '-_' | tr -d '=\n')"
   login_jar="$(mktemp)"
-  login_loc="$(curl -sS "${IDP_RESOLVE[@]}" -m 15 -o /dev/null -D - -c "$login_jar" \
+  # THE WHOLE HEAD, KEPT. Two questions are answered from this one response —
+  # where a browser is sent, and what cookie it is sent with — and asking twice
+  # would be two authorization requests with two different answers.
+  login_head="$(curl -sS "${IDP_RESOLVE[@]}" -m 15 -o /dev/null -D - -c "$login_jar" \
     "${STACK_ISSUER%/}/oauth/v2/authorize?client_id=${IDP_CLIENT_ID}&redirect_uri=${IDP_REDIRECT}&response_type=code&scope=openid%20email&code_challenge=${login_challenge}&code_challenge_method=S256" \
-    2>/dev/null | tr -d '\r' | sed -n 's/^[Ll]ocation: //p' | head -1)"
+    2>/dev/null | tr -d '\r')"
+  login_loc="$(sed -n 's/^[Ll]ocation: //p' <<<"$login_head" | head -1)"
+
+  # ---- the Host header the thing in front of us forwarded ----
+  #
+  # READ OFF THE COOKIE, because that is the only place the raw Host shows up
+  # from out here. Zitadel builds the user-agent cookie's domain from
+  # `r.Host` — `domain := strings.Split(host, ":")[0]` in
+  # `internal/api/http/cookie.go` — so a proxy that rewrites Host produces a
+  # cookie scoped to whatever it rewrote it to.
+  #
+  # AND A BROWSER THEN REFUSES IT. A site may set cookies only for its own
+  # domain or a parent, so a cookie scoped elsewhere is dropped, nothing is
+  # stored, every request mints a fresh agent id, and the login page answers
+  # `User Agent does not correspond (EVENT-adk13)` — for everyone, every time.
+  #
+  # NOTHING ELSE NOTICES. Instance resolution reads the FORWARDED name, so the
+  # provider's own log says the right host while the cookie says an IP; token
+  # verification, the session API and every machine path never touch a cookie.
+  # The only thing that breaks is the one path no gate walked, which is how it
+  # survived on the reference host until somebody tried to sign in by hand
+  # (2026-08-25).
+  #
+  # SILENT WHEN THERE IS NO DOMAIN AT ALL. A `__Host-` prefixed cookie carries
+  # none by definition, and that is the healthy shape — there is nothing for a
+  # proxy to get wrong.
+  login_cookie_domain="$(sed -n 's/^[Ss]et-[Cc]ookie:.*[Dd]omain=\([^;]*\).*/\1/p' <<<"$login_head" | head -1)"
+  login_cookie_domain="${login_cookie_domain# }"
+  login_cookie_domain="${login_cookie_domain#.}"
+  login_issuer_host="${STACK_ISSUER#*://}"
+  login_issuer_host="${login_issuer_host%%[:/]*}"
+  if [ -n "$login_cookie_domain" ] && [ "$login_cookie_domain" != "$login_issuer_host" ]; then
+    echo "the provider scoped its sign-in cookie to '${login_cookie_domain}', not '${login_issuer_host}'."
+    echo "  a browser on ${login_issuer_host} REFUSES a cookie scoped to another host, so none is stored,"
+    echo "  every request gets a fresh user-agent id, and the login page answers"
+    echo "  'User Agent does not correspond (EVENT-adk13)' to everybody, every time."
+    echo "  That domain is the raw Host header the provider was given. Something in front of it is"
+    echo "  rewriting Host; the ingress has to pass the original through (docs/managed-bring-up.md)."
+    fail=1
+  fi
+
   case "$login_loc" in
     '')
       echo "the provider sent a browser nowhere — no Location on the authorization request."
