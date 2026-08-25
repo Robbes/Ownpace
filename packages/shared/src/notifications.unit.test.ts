@@ -212,6 +212,63 @@ describe('immediate events', () => {
   });
 });
 
+describe('access requested — the knock, addressed to the operator (0093 T3)', () => {
+  const full = {
+    kind: 'access_requested',
+    email: 'stranger@example.test',
+    organisation: 'Familie de Vries',
+    tier: 'Small',
+  } as const;
+
+  it('carries the address, because replying to a person is the whole job', () => {
+    for (const locale of ['en', 'nl'] as const) {
+      expect(renderEvent(full, locale).body).toContain('stranger@example.test');
+    }
+  });
+
+  it('carries NO note — the applicant’s own words stay in the database', () => {
+    // The row's most useful field, and deliberately not in the mail. An email
+    // is forwarded, archived and searched far more casually than a table is;
+    // the queue shows the note behind authentication. Same reasoning that
+    // keeps the name and the note out of the log line (§17).
+    const withNote = { ...full, note: 'Moving 40 mailboxes off Microsoft 365' } as const;
+    for (const locale of ['en', 'nl'] as const) {
+      expect(renderEvent(withNote, locale).body).not.toContain('Moving 40 mailboxes');
+    }
+  });
+
+  it('says plainly that nothing has been granted', () => {
+    // The operator is being told to LOOK, not that a decision was made. A
+    // subject line somebody skims at 23:00 must not read like a completed act.
+    expect(renderEvent(full, 'en').body).toMatch(/[Nn]othing has been granted/);
+    expect(renderEvent(full, 'nl').body).toMatch(/nog niets toegekend/);
+  });
+
+  it('omits the optional fields rather than printing them empty', () => {
+    // `Organisation:` with nothing after it reads like a value that went
+    // missing, and the operator goes looking for it. They left the field blank.
+    const bare = { kind: 'access_requested', email: 'a@b.test' } as const;
+    for (const locale of ['en', 'nl'] as const) {
+      const { body } = renderEvent(bare, locale);
+      expect(body).not.toMatch(/Organisation:\s*$/m);
+      expect(body).not.toMatch(/Organisatie:\s*$/m);
+      expect(body).toContain('a@b.test');
+    }
+  });
+
+  it('closes with "open the app", because this reader HAS one', () => {
+    // Unlike the two events addressed to a stranger. The operator's next step
+    // is the queue, and the line that would confuse a non-member is the right
+    // one here.
+    expect(renderEvent(full, 'en').body).toMatch(/[Oo]pen the app/);
+  });
+
+  it('is a different subject and body in each language', () => {
+    expect(renderEvent(full, 'en').subject).not.toEqual(renderEvent(full, 'nl').subject);
+    expect(renderEvent(full, 'en').body).not.toEqual(renderEvent(full, 'nl').body);
+  });
+});
+
 describe('access granted — the one event addressed to a non-member (0095)', () => {
   const event = {
     kind: 'access_granted',

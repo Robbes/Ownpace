@@ -856,6 +856,51 @@ services:
       timeout: 5s
       retries: 5
 
+  # Mailpit — the mail this stack sends, CAUGHT rather than delivered.
+  #
+  # Until 2026-08-24 nothing here could send mail at all: SMTP_HOST was empty,
+  # so `readNotifierConfig` reported the channel off and every notification the
+  # product renders went nowhere. Somebody filled in the access-request form on
+  # the live test site and heard nothing, which was correct behaviour and
+  # useless behaviour at the same time.
+  #
+  # A CATCHER, NOT A RELAY, and that is the point rather than a compromise:
+  #
+  #   - Every mail the product sends is VISIBLE, in a browser, on this box.
+  #   - The smoke can ASSERT one arrived and read what it said. Nothing
+  #     verified that end of the product before.
+  #   - No automated run can ever reach a real inbox. A relay cannot promise
+  #     that, and the nightly gate exercises grant, decline and now request.
+  #
+  # For real delivery, point SMTP_HOST at a relay — see managed.env.example.
+  # bootstrap-managed.sh says so out loud if a deployment that looks real is
+  # still pointed here.
+  #
+  # SMTP stays on the compose network: 1025 is not published, because the only
+  # things that should reach it are services in this stack. The web UI is.
+  mailpit:
+    image: axllent/mailpit:v1.31.0@sha256:c96991d9bef73594c246d89ca81411d4e916f03e76a7d2d72fa2ab5dd3c9ce24
+    container_name: ownpace-mailpit
+    restart: unless-stopped
+    environment:
+      # A catcher accepts whatever it is handed. Refusing on auth or TLS would
+      # turn a configuration question into a delivery failure that reads like
+      # a broken product.
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+      # Bounded, like every other thing on this box that writes forever. Two
+      # disk leaks in one week is a pattern, not bad luck (workplan 0099).
+      MP_MAX_MESSAGES: "500"
+    ports:
+      - "${MAILPIT_PORT:-3127}:8025"
+    networks:
+      - ownpace-network
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
   nextcloud:
     image: nextcloud:34-apache
     container_name: ownpace-nextcloud
