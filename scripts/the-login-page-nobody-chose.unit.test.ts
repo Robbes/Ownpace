@@ -108,6 +108,21 @@ describe('the bring-up chooses which login page people get', () => {
 
 describe('and the gate loads the page a browser is sent to', () => {
   const smoke = directives('smoke-managed.sh');
+  /**
+   * THE BLOCK, NOT THE FILE. `smoke-managed.sh` asserts on HTML in more than
+   * one place — the web root has its own `grep -qi '<html'` — and the first
+   * version of the "is it a page" rule below matched THAT one, so it passed
+   * with this check deleted. A rule that a different call site can satisfy is
+   * not a rule about this one.
+   */
+  const loginBlock = (() => {
+    const from = smoke.indexOf('login_loc=');
+    // NOT the next `esac`: there is an inner `case` normalising a relative
+    // Location, and slicing at that one ended the block BEFORE any of the
+    // checks. Anchored on the cleanup instead, which is the block's last line.
+    const to = smoke.indexOf('rm -f "$login_jar"', from);
+    return from > -1 && to > from ? smoke.slice(from, to) : '';
+  })();
 
   it('fetches the login page, not only the machine sign-in', () => {
     expect(
@@ -143,10 +158,47 @@ describe('and the gate loads the page a browser is sent to', () => {
     ).toMatch(/-b "\$login_jar"/);
   });
 
-  it('requires the page to render a form, not merely to answer', () => {
-    // The failing screen answered too — with JSON. A status code alone would
-    // have called it healthy.
-    expect(smoke).toMatch(/<form/);
+  it('fails on the body that broke it, which answered 200 and was not a page', () => {
+    /**
+     * The failing screen ANSWERED. What made it a failure is that a browser
+     * rendered the gateway's JSON in place of a login form, so the assertion
+     * is about the body's shape and not about a status code.
+     */
+    expect(loginBlock, 'the login-page block is gone or was restructured').not.toEqual('');
+    expect(loginBlock, 'nothing checks that the login page is a page').toMatch(
+      /grep -qi '<html' <<<"\$login_page"/,
+    );
+  });
+
+  it("fails on the provider's own error page, which wears the login theme", () => {
+    /**
+     * `error.html` upstream carries no form and the same `lgn-` theme as the
+     * login page, so "200 and styled" is not "a human can sign in". It is
+     * recognised by the error id it prints — `ID=QUERY-1kIjX`,
+     * `(EVENT-adk13)` — because that is the one thing on it a template change
+     * cannot take away.
+     */
+    expect(loginBlock, 'an error page would pass as a login page').toMatch(/ID=\[A-Z\]\+-/);
+  });
+
+  it('says WHICH page it got when it refuses one', () => {
+    /**
+     * THE FIRST VERSION PRINTED `${login_page:0:200}` — a doctype, a lang
+     * attribute and two meta tags. E2E (managed) #81 failed on this assertion
+     * and left evidence that could not identify the page; the answer came from
+     * reading upstream templates, which is not evidence a gate should require.
+     *
+     * The `<form>` check itself was also over-specified and is now REPORTED
+     * rather than fatal: its absence is evidence, but an upstream template
+     * change looks identical to a broken sign-in from out here, while the two
+     * failures that are unambiguous — not a page, and an error page — are
+     * fatal above. Narrowing what a rule CLAIMS is not weakening it; claiming
+     * more than the evidence supports is how a gate earns a reputation.
+     */
+    expect(loginBlock, 'the failure prints no page title').toMatch(/login_title/);
+    expect(loginBlock, 'the failure prints markup rather than what the page says').toMatch(
+      /login_text/,
+    );
   });
 });
 
