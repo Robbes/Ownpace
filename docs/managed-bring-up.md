@@ -529,6 +529,25 @@ is no way to know it before they have signed in once. So:
 curl -fsS -H "Authorization: Bearer <token>" http://localhost:3001/api/me
 ```
 
+   <a id="where-the-token-comes-from"></a>
+   **Where `<token>` comes from.** The web app already holds one: after signing
+   in it keeps the token under `auth_token` in `localStorage`, on its own
+   origin. Open the app, then in the browser console:
+
+   ```js
+   copy(localStorage.getItem('auth_token'))   // Chrome/Firefox: straight to the clipboard
+   localStorage.getItem('auth_token')         // or just read it
+   ```
+
+   It must be **that** value. It is the OIDC **ID token** — `completeSignIn`
+   returns `id_token` and the app sends exactly it — and the API validates the
+   ID token's claims. An access token minted for the same account, from the
+   same provider, is a different token and is refused, which reads as a broken
+   appointment rather than as the wrong credential.
+
+   It is short-lived. If either curl here answers `401`, the token has expired:
+   sign in again and take a fresh one. Nothing else needs redoing.
+
 3. Take the `userId` from that answer and appoint it, over the **owner**
    connection — `app_user` cannot write this table, which is the point of it:
 
