@@ -130,6 +130,71 @@ describe('and a gate proves it actually sends', () => {
   it('skips rather than fails when no relay is configured', () => {
     expect(smoke).toMatch(/no SMTP_HOST in \.env, so nothing to assert/);
   });
+
+  /**
+   * AND IT ASKS ABOUT THIS RUN'S MAIL, WHICH `$$` DOES NOT GUARANTEE.
+   *
+   * Both mail assertions work by sending to a unique address and then asking
+   * Mailpit whether anything arrived for it. That is only a proof if the
+   * address belongs to this run. `$$` is a pid, and a pid comes back — while
+   * the managed gate deliberately runs against a long-lived stack that is
+   * never torn down between runs, so Mailpit is still holding what earlier
+   * runs sent.
+   *
+   * The failure that combination produces is the bad one. A repeated pid lets
+   * a previous run's message answer for this one, so the gate goes GREEN
+   * exactly when the mail path has broken — in the one assertion whose whole
+   * purpose is to catch "nobody was told".
+   *
+   * So the rule is about the token rather than about `date`: whatever builds
+   * it, it may not be the pid on its own, and both addresses must use the
+   * same one so they cannot drift apart.
+   */
+  it('searches for an address a previous run cannot have used', () => {
+    const addresses = [...smoke.matchAll(/^\s*(knock|idp_mail)="([^"]*)"/gm)];
+    expect(
+      addresses.length,
+      'neither mail assertion assigns a search address any more — this rule\n' +
+        'has lost its subject and needs rewriting, not deleting.',
+    ).toBe(2);
+
+    const tokens = new Set<string>();
+    for (const match of addresses) {
+      // Both groups are mandatory in the pattern above, so a match has them.
+      const name = match[1]!;
+      const value = match[2]!;
+      expect(
+        value,
+        `${name} searches Mailpit for "${value}", which is built from the pid.\n` +
+          'The managed gate never tears its stack down, so Mailpit still holds\n' +
+          "earlier runs' mail — and a repeated pid means a previous message\n" +
+          'answers for this run. The gate then passes precisely when nobody was\n' +
+          'told, which is the failure it exists to catch.',
+      ).not.toMatch(/\$\$/);
+      const ref = /\$\{([A-Z_][A-Z0-9_]*)\}/.exec(value);
+      expect(
+        ref,
+        `${name} searches for "${value}", which interpolates no run token at\n` +
+          'all, so every run asks about the same address.',
+      ).toBeTruthy();
+      tokens.add(ref![1]!);
+    }
+    expect(
+      tokens.size,
+      `the two mail assertions use different run tokens (${[...tokens].join(', ')}).\n` +
+        'One of them can then be made unique while the other quietly is not.',
+    ).toBe(1);
+
+    const token = [...tokens][0]!;
+    const definition = new RegExp(`^\\s*${token}=(.*)$`, 'm').exec(smoke);
+    expect(definition, `${token} is used but never assigned`).toBeTruthy();
+    expect(
+      definition![1],
+      `${token} is ${definition![1]}, which is the pid and nothing else — see\n` +
+        'above. Mix in something that differs between two runs that happen to\n' +
+        'share one.',
+    ).toMatch(/\$\(/);
+  });
 });
 
 describe('and it is proved where the proof is needed', () => {
