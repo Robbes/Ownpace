@@ -756,6 +756,116 @@ else
   api POST /admin/v1/trusted_domains "$(jq -nc --arg d "$IDP_DOMAIN" '{domain:$d}')" >/dev/null
 fi
 
+# ------------------------------------------------ mail this instance sends --
+#
+# ZITADEL SENDS ITS OWN MAIL, AND UNTIL NOW IT HAD NOWHERE TO SEND IT.
+#
+# Two things on this stack send mail and only one was ever wired. `managed.yml`
+# hands the API SMTP_HOST and friends (#551), so an access-request digest
+# reaches Mailpit. Zitadel's mail is its own and never touches the API: the
+# verification link on a new account, an email-change confirmation, a password
+# reset, the invitation to set a first password. This instance had no email
+# provider configured at all, so every one of those was composed and dropped.
+#
+# IT FAILS INVISIBLY, which is the whole cost. The account is created, the screen
+# says to check your mail, and Mailpit stays empty. Nothing anywhere says the
+# provider had no way to send — so it reads as a broken feature rather than an
+# unconfigured one, and the first place anybody looks is the half that works.
+#
+# ONE SETTING FOR BOTH SENDERS. SMTP_HOST/SMTP_PORT are the ones the API already
+# reads, used here rather than given a ZITADEL_ prefix of their own — the reason
+# STATUS_URL is derived rather than configured beside APP_URL: two settings that
+# name one relay drift, and the day they disagree half the stack's mail vanishes
+# and the other half does not.
+#
+# EMPTY MEANS OFF, exactly as it does for the API. A deployment that has not
+# chosen a relay is not misconfigured, and refusing a bring-up over a channel
+# the operator may not want yet would be this script inventing a requirement.
+SMTP_RELAY="$(read_env SMTP_HOST '')"
+SMTP_RELAY_PORT="$(read_env SMTP_PORT 1025)"
+SMTP_SENDER="$(read_env NOTIFY_FROM '')"
+SMTP_TLS="$(read_env SMTP_SECURE false)"
+
+if [ -z "$SMTP_RELAY" ]; then
+  say "no SMTP_HOST in ${ENV_FILE} — this instance is left with no way to send mail"
+  say "  sign-up and email-change verification will be composed and DROPPED until it is set"
+  say "  for the OTA/dev stack that is: SMTP_HOST=mailpit, SMTP_PORT=1025"
+elif [ -z "$SMTP_SENDER" ]; then
+  # Zitadel requires a sender address, and guessing one is how a stack ends up
+  # sending as `noreply@localhost`. Named rather than invented.
+  say "SMTP_HOST is set but NOTIFY_FROM is not — leaving this instance's mail alone"
+  say "  set NOTIFY_FROM to the address this stack should send as, then re-run --only app"
+else
+  SMTP_ADDR="${SMTP_RELAY}:${SMTP_RELAY_PORT}"
+  say "checking this instance can send mail through ${SMTP_ADDR}"
+
+  # THE POLICY THAT SILENTLY REFUSES THE CONFIG. Zitadel can require a sender
+  # address whose domain matches the instance's own, which exists to stop one
+  # org spoofing another on a SHARED instance. This instance is single-org and
+  # operator-owned, and its domain is `ownpace-idp` — a compose alias no address
+  # can be `@`. So the policy protects nothing here and blocks every sender
+  # worth configuring. Read first, and relaxed only when it would actually bite.
+  DOMAIN_POLICY="$(api GET /admin/v1/policies/domain)"
+  if [ "$(jq -r '.policy.smtpSenderAddressMatchesInstanceDomain // false' <<<"$DOMAIN_POLICY")" = "true" ]; then
+    say "relaxing the sender-must-match-instance-domain policy (single-org instance)"
+    # A FULL update: the other two flags are re-sent as they were read, because
+    # PUT replaces the policy and omitting them would reset them to false.
+    api PUT /admin/v1/policies/domain "$(jq -c '{
+      userLoginMustBeDomain: (.policy.userLoginMustBeDomain // false),
+      validateOrgDomains: (.policy.validateOrgDomains // false),
+      smtpSenderAddressMatchesInstanceDomain: false
+    }' <<<"$DOMAIN_POLICY")" >/dev/null
+  fi
+
+  # Idempotent the same way trusted_domains is: read first, write only what is
+  # missing. Matched on the RELAY ADDRESS rather than on "is there any provider",
+  # so changing SMTP_HOST in .env and re-running actually moves the mail.
+  PROVIDERS="$(api POST /admin/v1/email/_search '{}')"
+  SMTP_ID="$(jq -r --arg h "$SMTP_ADDR" \
+    'first(.result[]? | select(.smtp.host == $h) | .id) // empty' <<<"$PROVIDERS")"
+
+  if [ -n "$SMTP_ID" ]; then
+    say "already configured (${SMTP_ID})"
+  else
+    say "adding it"
+    # `/email/smtp`, not `/smtp`: the latter is marked deprecated in this
+    # version's admin.proto in favour of the email-provider endpoints.
+    CREATED="$(api POST /admin/v1/email/smtp "$(jq -nc \
+      --arg from "$SMTP_SENDER" --arg host "$SMTP_ADDR" --argjson tls "${SMTP_TLS:-false}" '{
+        senderAddress: $from,
+        senderName: "Ownpace",
+        host: $host,
+        tls: $tls,
+        user: "",
+        password: "",
+        description: "ownpace-managed"
+      }')")"
+    SMTP_ID="$(jq -r '.id // empty' <<<"$CREATED")"
+    [ -n "$SMTP_ID" ] || die "the provider accepted POST /admin/v1/email/smtp and the
+answer carried no id. Body:
+
+    ${CREATED}"
+  fi
+
+  # ACTIVATED, AND READ BACK. Adding a provider does not make it the one in use,
+  # and an inactive provider drops mail exactly as silently as no provider at
+  # all — the failure this whole section exists to end. The state is read from
+  # the API rather than inferred from the call not erroring, for the reason
+  # `read_allow_register` exists twenty lines below.
+  STATE="$(jq -r --arg id "$SMTP_ID" \
+    'first(.result[]? | select(.id == $id) | .state) // empty' <<<"$PROVIDERS")"
+  if [ "$STATE" != "EMAIL_PROVIDER_ACTIVE" ]; then
+    api POST "/admin/v1/email/${SMTP_ID}/_activate" '{}' >/dev/null || true
+  fi
+  FINAL="$(jq -r --arg id "$SMTP_ID" \
+    'first(.result[]? | select(.id == $id) | .state) // empty' \
+    <<<"$(api POST /admin/v1/email/_search '{}')")"
+  [ "$FINAL" = "EMAIL_PROVIDER_ACTIVE" ] || die "the email provider ${SMTP_ID} is '${FINAL}',
+not EMAIL_PROVIDER_ACTIVE. An inactive provider drops verification mail as
+silently as no provider at all, which is the failure this configures away."
+  say "mail from this instance goes to ${SMTP_ADDR} (sender ${SMTP_SENDER})"
+fi
+
 # ------------------------------------------------------- letting people in --
 #
 # SELF-REGISTRATION, ON (owner decision 2026-08-22, workplan 0095 T0).

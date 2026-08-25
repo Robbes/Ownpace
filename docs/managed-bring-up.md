@@ -645,13 +645,79 @@ host out of a *Request access* link in the page source.
 
 ## Mail: caught, not delivered
 
-Every notification this stack sends goes to **Mailpit**, a catcher on the
-compose network. Read what it caught at `http://localhost:3127` (`MAILPIT_PORT`).
+Every mail this stack sends goes to **Mailpit**, a catcher on the compose
+network.
+
+**Two different things send mail, and they are configured separately.** The API
+sends operator notifications — an access request, a grant, a decline, the daily
+digest — and reads `SMTP_HOST` and friends from `.env` via `managed.yml`. The
+**identity provider sends its own**: the verification link on a new account, an
+email-change confirmation, a password reset, the invitation to set a first
+password. None of that goes through the API. `setup-zitadel.sh` configures it
+from the same `SMTP_HOST`/`SMTP_PORT`/`NOTIFY_FROM`, so there is one relay
+setting rather than two that can drift — but it only runs during the `app`
+phase, so a stack brought up before 2026-08-25 has an issuer with **no email
+provider at all**, silently dropping every one of those.
+
+Until then the failure looks like a broken product rather than an unconfigured
+one: the account is created, the screen says to check your mail, and Mailpit
+stays empty.
+
+### Is it actually pointed at the catcher?
 
 ```bash
-docker compose -f deploy/compose/managed.yml up -d mailpit
-curl -s localhost:3127/api/v1/messages | head -c 400
+grep -E '^(SMTP_HOST|SMTP_PORT|SMTP_SECURE|NOTIFY_FROM|NOTIFY_TO)=' deploy/compose/.env
 ```
+
+For the OTA/dev stack you want:
+
+```
+SMTP_HOST=mailpit
+SMTP_PORT=1025
+NOTIFY_FROM=ownpace@ownpace.invalid
+NOTIFY_TO=operator@ownpace.invalid
+```
+
+An **absent or empty `SMTP_HOST` means the channel is off** — for both senders,
+and by design: a deployment that has not chosen a relay is not misconfigured. It
+is also indistinguishable from a broken one unless you look here. `.env` files
+copied from an older `managed.env.example` predate these keys entirely, so an
+empty result means "never configured", not "deliberately disabled".
+
+What the containers actually got, which is the only thing that matters:
+
+```bash
+docker compose -f deploy/compose/managed.yml exec api printenv SMTP_HOST SMTP_PORT NOTIFY_FROM
+./deploy/compose/setup-zitadel.sh --print
+```
+
+After changing any of them: `./deploy/compose/bootstrap-managed.sh --only app`
+(the API reads them at boot, and the issuer's provider is written by
+`setup-zitadel.sh` inside that phase).
+
+### Reading what it caught
+
+Mailpit is bound to **loopback only** (`127.0.0.1:3127`), which is not an
+oversight and not something to "fix" by opening it up. It has no authentication
+of any kind, and what it holds is every verification link and password reset the
+stack sends — an unauthenticated reader of those, on a box with a public name,
+is an account-takeover primitive. So it is reached from the box itself, or
+through a tunnel:
+
+```bash
+# On the box
+curl -s localhost:3127/api/v1/messages | head -c 400
+
+# From your laptop — then open http://localhost:3127
+ssh -N -L 3127:127.0.0.1:3127 you@the-box
+```
+
+`MAILPIT_PORT` moves it; the bind address stays loopback.
+
+**Mailpit is for OTA and development only.** It is in `managed.yml` because
+every environment that is not production wants its mail caught rather than
+delivered. A production stack points `SMTP_HOST` at a real relay and never
+starts this service.
 
 **A catcher rather than a relay, on purpose.** Every mail the product sends is
 visible in a browser; the gate exercises grant, decline and now request on every
