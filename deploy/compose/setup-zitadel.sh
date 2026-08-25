@@ -1084,7 +1084,33 @@ the same URI:
     Apple                       ${ISSUER}/ui/login/login/externalidp/callback/form"
     say "  ${name}: added"
   else
-    say "  ${name}: already configured"
+    # "ALREADY CONFIGURED" WOULD BE A CLAIM THIS HAS NOT CHECKED. All that was
+    # established is a provider of this NAME — nothing here compared the client
+    # id, the secret, or any option against what `.env` now says.
+    #
+    # THE SMTP BLOCK ABOVE IS THE PATTERN THIS ONE MISSED. It matches on
+    # `.smtp.host` — the relay address out of `.env` — so changing SMTP_HOST and
+    # re-running genuinely moves the mail, and its comment says so. This matches
+    # on "Google", which is a constant, so no change to any credential can ever
+    # make it look different.
+    #
+    # IT IS NOT SIMPLY FIXABLE THE SAME WAY, which is why this says something
+    # instead of doing something. Matching on the client id would converge when
+    # THAT changes and would then create a SECOND provider rather than update
+    # the first, leaving two buttons and one of them broken. A secret cannot be
+    # read back to compare at all. Converging properly needs
+    # `PUT /admin/v1/idps/{google,azure,github,apple}/{id}`, whose behaviour on
+    # an omitted secret this has not established — and guessing at that on a
+    # live provider is how you take sign-in down.
+    #
+    # So it says what it knows. The case that makes the difference matter: fix
+    # a mistyped secret in `.env`, re-run, and this leaves the old one in place
+    # — every button still fails, and the log said "configured". Naming it here
+    # is what turns that into a five-second answer rather than a search.
+    say "  ${name}: a provider of this name exists — left as it is"
+    say "      credentials in ${ENV_FILE} are NOT re-sent; to change them,"
+    say "      remove it in the console under Settings -> Identity Providers"
+    say "      and run this again"
   fi
 
   # A PROVIDER THAT IS NOT ON THE LOGIN POLICY IS A PROVIDER NOBODY CAN SEE.

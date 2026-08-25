@@ -198,4 +198,49 @@ describe('and none of it reached the product', () => {
       /apps\/web\/src|apps\/api\/src/,
     );
   });
+
+  /**
+   * AND IT DOES NOT CLAIM TO HAVE CHECKED WHAT IT HAS NOT.
+   *
+   * `configure_idp` finds an existing provider by NAME — "Google" — and that
+   * is all it establishes. It compares no client id, no secret, no option
+   * against what `.env` now says, and a secret cannot be read back to compare
+   * even if it tried. So "already configured" was a claim about the world made
+   * from a match on a constant.
+   *
+   * The SMTP block a few hundred lines up is the pattern this one missed: it
+   * matches on `.smtp.host`, the relay address out of `.env`, so changing
+   * SMTP_HOST and re-running genuinely moves the mail. Matching on a name that
+   * never changes cannot converge on anything.
+   *
+   * WHAT THAT COSTS SOMEBODY: mistype a secret, fix it in `.env`, re-run, and
+   * the old one stays. Every button still fails and the log says the provider
+   * is configured. The rule keeps the line honest about which of those two
+   * things it actually knows — the full fix needs update endpoints whose
+   * behaviour on an omitted secret is not established, and this file's job is
+   * to stop the message drifting back to the comfortable version meanwhile.
+   */
+  it('does not report an unchecked provider as configured', () => {
+    const claim = /say\s+"\s*\$\{name\}:\s*already configured/;
+    expect(
+      setup,
+      'configure_idp reports an existing provider as "already configured".\n\n' +
+        'It matched on the provider NAME and nothing else — not the client id,\n' +
+        'not the secret, not one option. Somebody who fixes a mistyped secret\n' +
+        'in .env and re-runs gets that line and an unchanged provider, so every\n' +
+        'button still fails while the log says it is configured.\n\n' +
+        'Say what was established (a provider of this name exists, left as it\n' +
+        'is) or make the claim true by reconciling the configuration.',
+    ).not.toMatch(claim);
+  });
+
+  it('tells somebody how to change a credential, since a re-run will not', () => {
+    expect(
+      setup,
+      'the existing-provider branch no longer says that the credentials in\n' +
+        '.env are not re-sent. That sentence is the whole remedy: without it,\n' +
+        'the only way to discover that a re-run changed nothing is to watch a\n' +
+        'sign-in keep failing.',
+    ).toMatch(/NOT re-sent/);
+  });
 });
