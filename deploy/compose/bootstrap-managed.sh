@@ -227,7 +227,27 @@ note_env_divergence() {
     [ "$a" = "$b" ] || differing+=("$k")
   done <<<"$(sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' "$persisted" | sort -u)"
 
-  [ "${#differing[@]}" -eq 0 ] && return 0
+  # TWO FILES IS THE HAZARD; DISAGREEING IS ONLY THE SYMPTOM.
+  #
+  # This used to return here when every key matched, which meant the note
+  # arrived only once something had already drifted — i.e. after the damage,
+  # not before it. Two separate files describing one stack WILL drift; the
+  # question is whether anybody hears about it while it is still cheap.
+  #
+  # Skipped under CI, and that is not squeamishness about noise: the gate's
+  # checkout CANNOT hold a symlink — `actions/checkout` runs `git clean -ffdx`
+  # and deletes it like any other ignored file, which is why the workflow
+  # restores a copy in the first place. Printing advice a runner is structurally
+  # unable to take, on every run forever, is how a real warning gets tuned out.
+  if [ "${#differing[@]}" -eq 0 ]; then
+    [ -n "${CI:-}" ] && return 0
+    note "TWO .env FILES DESCRIBE THIS ONE STACK. They agree right now:"
+    note "  ${ENV_FILE}"
+    note "  ${persisted}   (restored into the gate's checkout on every nightly run)"
+    note "  Nothing keeps them that way. Make it one file:"
+    note "      ln -sfn ${persisted} ${ENV_FILE}"
+    return 0
+  fi
 
   note "TWO .env FILES DESCRIBE THIS ONE STACK, and they disagree on ${#differing[@]} key(s):"
   for k in "${differing[@]}"; do note "      ${k}"; done
