@@ -12,6 +12,18 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env"
+UPSERT="${SCRIPT_DIR}/env-upsert.sh"
+
+# Named here rather than discovered at the write. Without this the failure is a
+# bare `127` from a subshell somewhere inside a loop, which says nothing about
+# what is missing or why this script needs it (hard rule 9).
+[ -x "$UPSERT" ] || {
+  echo "[ensure-env-secrets] FATAL: ${UPSERT} is missing or not executable." >&2
+  echo "[ensure-env-secrets] Every write to .env goes through it: it resolves a" >&2
+  echo "[ensure-env-secrets] symlinked .env instead of replacing it, which is what" >&2
+  echo "[ensure-env-secrets] keeps one canonical file on a box running two checkouts." >&2
+  exit 1
+}
 touch "$ENV_FILE"
 
 # A PLACEHOLDER IS NOT A SECRET, AND `^NAME=.` CANNOT TELL THE DIFFERENCE.
@@ -133,9 +145,34 @@ ensure() { # ensure <name> <bytes>
     return 0
   fi
 
-  # Drop the old line — empty, or a placeholder — then append the real value.
-  sed -i "/^${name}=/d" "$ENV_FILE"
-  echo "${name}=$(generate "$name" "$bytes")" >>"$ENV_FILE"
+  # THROUGH env-upsert.sh, NOT `sed -i`.
+  #
+  # `sed -i` on a SYMLINK replaces the link with a regular file — GNU sed
+  # writes a temp file and renames it over the target, and without
+  # `--follow-symlinks` the target it renames over is the link itself. Verified,
+  # not assumed:
+  #
+  #     $ ln -s real.env link.env      # real.env: A=1 B=2
+  #     $ sed -i '/^A=/d' link.env
+  #     link.env   NOW A REGULAR FILE, holding B=2
+  #     real.env   UNTOUCHED, still A=1 B=2
+  #
+  # So it does not merely break the link: it leaves the canonical file STALE
+  # while the checkout carries a fork nobody can see. That is exactly the
+  # divergence that cost 2026-08-24 — the `zitadel` role matching one copy
+  # while the bring-up presented the other — reintroduced by the script that
+  # generates the credentials.
+  #
+  # It only fires when a key is absent, empty or a shipped placeholder, so an
+  # established `.env` is untouched and the hole stays shut until the day a new
+  # feature adds a new required secret. Which is the day nobody would connect
+  # to a broken symlink.
+  #
+  # env-upsert.sh resolves the link first, replaces the key WHERE IT ALREADY IS
+  # rather than moving it to the end, and is driven against a real symlink by
+  # scripts/one-stack-one-env.unit.test.ts. Both generators here produce
+  # `[0-9a-f]` plus `Aa1_`, so nothing trips its value rules.
+  "$UPSERT" "$ENV_FILE" "${name}=$(generate "$name" "$bytes")" >/dev/null
   if [ "$was_placeholder" -eq 1 ]; then
     echo "[ensure-env-secrets] REPLACED ${name} — it held a shipped placeholder, which is not a secret"
     PLACEHOLDERS_REPLACED=1
@@ -189,8 +226,10 @@ ensure ZITADEL_ADMIN_PASSWORD 16
 # account. The note says so rather than assuming it away.
 current_admin="$(grep -E '^ZITADEL_ADMIN_PASSWORD=' "$ENV_FILE" | tail -1 | cut -d= -f2- || true)"
 if grep -qE '^[0-9a-f]{32}$' <<<"$current_admin"; then
-  sed -i '/^ZITADEL_ADMIN_PASSWORD=/d' "$ENV_FILE"
-  echo "ZITADEL_ADMIN_PASSWORD=$(zitadel_password)" >>"$ENV_FILE"
+  # Through env-upsert.sh for the reason set out at the other write above:
+  # `sed -i` would replace a symlinked .env with a regular file and leave the
+  # canonical copy stale.
+  "$UPSERT" "$ENV_FILE" "ZITADEL_ADMIN_PASSWORD=$(zitadel_password)" >/dev/null
   echo "[ensure-env-secrets] REPLACED ZITADEL_ADMIN_PASSWORD — it was plain hex, which"
   echo "[ensure-env-secrets] Zitadel's password policy rejects (no uppercase, no symbol), so the"
   echo "[ensure-env-secrets] instance it was written for could never have finished starting."
