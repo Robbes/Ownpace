@@ -1711,6 +1711,32 @@ else
   fi
 fi
 
+# ---------- the status page answers ----------
+#
+# gatus has NO container healthcheck, and cannot have one: its image is
+# `FROM scratch` — no wget, no curl, no shell, and no CLI subcommand. The one
+# that used to be there marked a healthy container `unhealthy` forever and was
+# the only red thing in E2E (managed) #77.
+#
+# So the question is asked from here, where curl exists and the port is
+# published. This asserts only that gatus is SERVING — not that its lamps are
+# green, which depends on STATUS_WEB_URL being an address its container can
+# reach and is the operator's call, not this gate's.
+note "the status page"
+
+STATUS="${SMOKE_STATUS:-http://localhost:${STATUS_PORT:-3124}}"
+if curl -fsS -o /dev/null -m 10 "${STATUS}/health"; then
+  echo "status page: answering at ${STATUS}/health"
+else
+  # Not skipped quietly, for the same reason as mailpit above: gatus is in
+  # managed.yml and in the bring-up's service list, so silence here means a
+  # service the stack starts is not serving.
+  echo "the status page is not answering at ${STATUS}/health"
+  echo "  It has no container healthcheck by design (scratch image), so this"
+  echo "  probe is the only thing that speaks for it."
+  fail=1
+fi
+
 # ---------- verdict ----------
 note "verdict"
 echo "verify: $VERIFY_RESULT   apply: $APPLY_RESULT"

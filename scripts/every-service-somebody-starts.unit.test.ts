@@ -39,6 +39,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse as parseYaml } from 'yaml';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE = join(REPO_ROOT, 'deploy/compose');
@@ -226,5 +227,79 @@ describe('what gatus reads is what /api/ready answers', () => {
 
   it('found conditions to check, rather than passing on an empty list', () => {
     expect([...gatus.matchAll(/\[BODY\]\.([A-Za-z][A-Za-z0-9]*)/g)].length).toBeGreaterThan(1);
+  });
+});
+
+/**
+ * A HEALTHCHECK THAT COULD NEVER RUN.
+ *
+ * gatus carried this from #498 until 2026-08-25:
+ *
+ *     test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+ *
+ * `ghcr.io/twin/gatus`'s final stage is `FROM scratch` — the binary and
+ * ca-certificates, nothing else. No wget, no curl, no shell (so `CMD-SHELL` is
+ * out too), and `main.go` parses no arguments, so there is no `gatus health`
+ * subcommand the way mailpit has `/mailpit readyz`.
+ *
+ * It was never executed once, because nothing started the service until #547
+ * added it to the bring-up's list. Its first real run was E2E (managed) #77,
+ * where it marked a perfectly healthy container `unhealthy` and failed the
+ * gate's residue check — the only red thing in the run.
+ *
+ * A healthcheck that can never pass is a permanent false negative, which is
+ * worse than none: it hides a real one. So the question moved to the side that
+ * can answer it, and this pins BOTH halves of that decision — the absence, and
+ * the probe that replaces it. Re-adding a `CMD` healthcheck here without
+ * changing the image fails this file rather than the nightly.
+ *
+ * DELIBERATELY NARROW. The general rule — every service without a healthcheck
+ * is probed by the smoke or exempted with a reason — would also cover zitadel,
+ * minio, the registry, the docker proxy and the TLS terminator, and is worth
+ * writing when somebody has read what each of those images can actually
+ * execute. Guessing that for five images is how this defect was written in the
+ * first place.
+ */
+describe('the status page, which cannot check itself', () => {
+  const smoke = readFileSync(join(COMPOSE, 'smoke-managed.sh'), 'utf8');
+  // The gatus block as text, for the one assertion that is ABOUT the comment:
+  // from its key to the next top-level service key.
+  const gatusStart = managedYml.indexOf('\n  gatus:');
+  const nextService = managedYml.slice(gatusStart + 1).search(/\n {2}[a-z][a-z0-9-]*:\n/);
+  const gatusService = managedYml.slice(
+    gatusStart,
+    nextService === -1 ? undefined : gatusStart + 1 + nextService,
+  );
+
+  it('has no container healthcheck, because its image can execute nothing', () => {
+    // Parsed rather than grepped: a commented-out `healthcheck:` in the
+    // explanation above it must not read as a live one, and vice versa.
+    const doc = parseYaml(managedYml) as {
+      services: Record<string, { healthcheck?: unknown; image?: string }>;
+    };
+    expect(doc.services.gatus, 'the gatus service disappeared').toBeTruthy();
+    expect(
+      doc.services.gatus?.healthcheck,
+      'gatus has a healthcheck again. Its image is FROM scratch — no wget, no\n' +
+        'curl, no shell, no CLI subcommand — so any CMD here is a permanent\n' +
+        'false negative that fails the gate on a healthy container. The probe\n' +
+        'lives in smoke-managed.sh instead.',
+    ).toBeUndefined();
+    // The reasoning has to stay next to the absence, or the next person
+    // "fixes" the missing healthcheck.
+    expect(gatusService).toMatch(/NO HEALTHCHECK, AND THIS IS NOT AN OMISSION/);
+  });
+
+  it('is probed by the smoke instead, and a silent one fails the gate', () => {
+    expect(
+      /curl [^\n]*"\$\{STATUS\}\/health"/.test(smoke),
+      'smoke-managed.sh no longer probes the status page. gatus has no\n' +
+        'container healthcheck by design, so this probe is the only thing that\n' +
+        'speaks for it — dropping both leaves a started service unchecked.',
+    ).toBe(true);
+    // Asserted, not merely present: a probe whose failure is only echoed lets
+    // the gate pass while the service is down.
+    const block = smoke.slice(smoke.indexOf('# ---------- the status page answers'));
+    expect(block.slice(0, block.indexOf('# ---------- verdict'))).toMatch(/fail=1/);
   });
 });
