@@ -170,6 +170,7 @@ load_env() {
   note_env_divergence
   note_mail_goes_nowhere_real
   note_status_page_probes_itself
+  note_site_row_half_configured
 
   local config_err
   if ! config_err="$("${COMPOSE[@]}" config -q 2>&1)"; then
@@ -350,6 +351,38 @@ note_status_page_probes_itself() {
   note "      ./deploy/compose/env-upsert.sh ${ENV_FILE} STATUS_WEB_URL=http://web:80"
   note "  accepting that it then proves the stack talks to itself. WEB_URL must"
   note "  stay the browser address: the issuer and redirect URIs read it."
+}
+
+# A SITE ROW SET UP HALFWAY.
+#
+# The Website row on the status page needs an address AND a switch, because
+# gatus cannot skip an endpoint whose URL is empty — it refuses to load the
+# config at all and the page goes down with it. Two settings means two ways to
+# set only one of them, and either way the operator gets silence: a row that
+# never appears, or a row permanently red about a `.invalid` hostname.
+#
+# A NOTE, NOT A REFUSAL — like the probe warning above, an incomplete status
+# page is cosmetic and refusing a bring-up over it would be absurd.
+note_site_row_half_configured() {
+  local url on
+  url="$(env_get STATUS_SITE_URL)"
+  on="$(env_get STATUS_SITE_ENABLED)"
+
+  if [ -n "$url" ] && [ "$on" != "true" ]; then
+    note "THE STATUS PAGE'S WEBSITE ROW IS SET UP BUT SWITCHED OFF."
+    note "  STATUS_SITE_URL is ${url}, and STATUS_SITE_ENABLED is not 'true',"
+    note "  so the row will not appear at all. Turn it on with"
+    note "      ./deploy/compose/env-upsert.sh ${ENV_FILE} STATUS_SITE_ENABLED=true"
+    return 0
+  fi
+
+  if [ "$on" = "true" ] && [ -z "$url" ]; then
+    note "THE STATUS PAGE'S WEBSITE ROW IS ON WITH NO ADDRESS TO PROBE."
+    note "  It will show red against a placeholder hostname that cannot resolve,"
+    note "  which says nothing about the site. Give it the address a visitor"
+    note "  uses:"
+    note "      ./deploy/compose/env-upsert.sh ${ENV_FILE} STATUS_SITE_URL=https://www.example.com"
+  fi
 }
 
 # THE `zitadel` ROLE'S PASSWORD, ASKED BEFORE THE CONTAINER IS STARTED.

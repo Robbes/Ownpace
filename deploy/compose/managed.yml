@@ -889,6 +889,29 @@ services:
       # this container can actually reach; bootstrap-managed.sh says so when
       # the effective value is a loopback one.
       STATUS_WEB_URL: ${STATUS_WEB_URL:-${WEB_URL:?set WEB_URL in .env}}
+      # THE PROVIDER, ASKED DIRECTLY. Every other Ownpace row on that page reads
+      # a field off one `/api/ready`, so nothing ever named the identity
+      # provider and the whole group went dark together whenever the API was
+      # the thing that was down.
+      #
+      # The default is the SERVICE NAME and the container's own port, not the
+      # issuer: `JWT_ISSUER` on a fronted stack is a public https name, and this
+      # container would resolve it through the network alias to the provider's
+      # own address and then ask for 443, where nothing listens. An operator who
+      # wants the public path probed runs the page off this box — which the
+      # header of gatus.yaml already says is the eventual plan.
+      STATUS_IDP_URL: ${STATUS_IDP_URL:-http://zitadel:${ZITADEL_PORT:-3126}}
+      # THE PUBLIC SITE, OFF UNTIL BOTH ARE SET. `www.yml` is a separate deploy
+      # that this stack does not start, so a row for it is opt-in: a red light
+      # for a service nobody deployed is a lamp that lies.
+      #
+      # The URL still needs a value even while the row is off, because gatus
+      # refuses to load a config containing an endpoint with no URL and takes
+      # the whole page down with it. The placeholder is a `.invalid` name — it
+      # can never resolve, so it can never be accidentally green, and it names
+      # itself in the failure if the switch is turned on without an address.
+      STATUS_SITE_ENABLED: ${STATUS_SITE_ENABLED:-false}
+      STATUS_SITE_URL: ${STATUS_SITE_URL:-http://status-site-url-is-not-set.invalid}
       GATUS_CONFIG_PATH: /config/config.yaml
     volumes:
       - ./gatus.yaml:/config/config.yaml:ro

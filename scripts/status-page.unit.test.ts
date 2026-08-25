@@ -72,11 +72,46 @@ describe('what the page watches', () => {
     );
   });
 
-  it('probes the address a BROWSER uses, never an internal service name', () => {
-    // `http://api:3001` would prove the container can talk to itself and say
-    // nothing about the reverse proxy, the certificate, or the same-origin
-    // /api proxy — every hop a customer actually goes through.
+  it('probes the address a BROWSER uses, unless there is a reason on the record', () => {
+    /**
+     * `http://api:3001` would prove the container can talk to itself and say
+     * nothing about the reverse proxy, the certificate, or the same-origin
+     * /api proxy — every hop a customer actually goes through.
+     *
+     * THIS USED TO SAY "every Ownpace row reads STATUS_WEB_URL", which was true
+     * only while every Ownpace row read `/api/ready`. Two rows now legitimately
+     * name their own address, and each is listed here WITH its reason rather
+     * than the rule being loosened to let anything through:
+     *
+     * The provider is not behind the app's origin at all, and its own public
+     * name cannot be probed from this container — managed.yml gives it a
+     * network alias equal to that name, so it resolves inward to the container
+     * instead of outward to the ingress.
+     *
+     * The site is a separate deploy with a separate public name, and that name
+     * is NOT aliased — so that row does leave the box and come back through the
+     * ingress, which makes it the one row that can see an ingress outage.
+     *
+     * A row that is in neither list fails, which is the point: a new Ownpace
+     * check has to say which of the two it is.
+     */
+    const THROUGH_THE_APP = ['Web app', 'API', 'Database', 'Sign-in'];
+    const OWN_ADDRESS: Record<string, string> = {
+      'Identity provider': '${STATUS_IDP_URL}',
+      Website: '${STATUS_SITE_URL}',
+    };
     for (const endpoint of config.endpoints.filter((e) => e.group === 'Ownpace')) {
+      const own = OWN_ADDRESS[endpoint.name];
+      if (own) {
+        expect(endpoint.url, `${endpoint.name} does not read ${own}`).toContain(own);
+        continue;
+      }
+      expect(
+        THROUGH_THE_APP,
+        `${endpoint.name} is an Ownpace row this rule has never heard of. Add it\n` +
+          'to THROUGH_THE_APP if it asks the app, or to OWN_ADDRESS with the\n' +
+          'reason it cannot.',
+      ).toContain(endpoint.name);
       expect(endpoint.url, `${endpoint.name} bypasses the public path`).toContain(
         '${STATUS_WEB_URL}',
       );

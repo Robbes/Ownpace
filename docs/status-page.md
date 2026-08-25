@@ -42,7 +42,7 @@ last Tuesday even though it could not tell you at the time.
 
 | Group | What a red light means |
 |---|---|
-| **Ownpace** | Something of ours. `Web app` and `API` are liveness; `Database` and `Sign-in` read the two fields of `/api/ready` that can genuinely fail. |
+| **Ownpace** | Something of ours. `Web app` and `API` are liveness; `Database` and `Sign-in` read the two fields of `/api/ready` that can genuinely fail; `Identity provider` asks the provider itself; `Website` is the public marketing site, off unless configured. |
 | **Sources** | Somebody else's service that migrations read FROM. Nothing is wrong with Ownpace; migrations out of that provider will be stalled until it returns. |
 | **Targets** | A destination we RECOMMEND (ADR-0011). Self-hosted targets are not listed: those are the customer's to operate, and reporting on infrastructure we do not run would be claiming a responsibility we explicitly decline. |
 
@@ -67,6 +67,46 @@ somebody's OAuth grant still being valid.
 **It probes `WEB_URL`, not `http://api:3001`.** The internal name would prove the
 container can talk to itself. The browser address exercises the path a customer
 actually takes: reverse proxy, certificate, and the same-origin `/api` proxy.
+
+**`Sign-in` is a field the API computed; `Identity provider` is the provider.**
+They are different questions and both are worth asking. `Sign-in` reads
+`[BODY].signIn` off `/api/ready`, which the API answers by fetching the key
+source it verifies tokens against — so a green there means *the API can still
+check a token*. `Identity provider` asks the provider's own `/debug/ready`
+directly, so it stays meaningful when the API is the thing that is down. Four
+rows that all read one endpoint go dark together, and until 2026-08-25 nothing
+on this page ever named the provider at all.
+
+**`Identity provider` asks `/debug/ready`, not the discovery document.** Zitadel
+decides which instance a request is for from its ORIGIN — host *and* port — and
+answers `404 Instance not found` to any other. A discovery probe would therefore
+report the provider down whenever it was merely asked by a name that instance
+does not answer for, which is a red light about the question rather than about
+the provider. `/debug/ready` is served before instance resolution: the bring-up
+already waits on `http://localhost:3126/debug/ready` and gets `200` with a Host
+header no instance has heard of.
+
+**`Website` is off by default, and needs two settings.** `www.yml` is a separate
+deploy on its own network; bringing this stack up does not start it, and a red
+light for a service nobody deployed is a lamp that lies. So the row takes
+`STATUS_SITE_URL` *and* `STATUS_SITE_ENABLED=true`. It needs both because gatus
+expands the environment and then refuses to load a config containing an endpoint
+with no URL — which would take the entire page down rather than skip one row.
+The bring-up says so when only one of the two is set.
+
+Give that row the address a **visitor** uses. `www.<domain>` is not aliased on
+the compose network the way the provider is, so the probe genuinely leaves the
+box and comes back through the ingress — making it the one row that can see an
+ingress outage while it is happening.
+
+**The identity provider is probed from inside, and that is a limit.** The
+default `STATUS_IDP_URL` is the provider's service name and port on this stack's
+network. Pointing it at a public https issuer does not do what it looks like:
+`managed.yml` gives the provider a network alias equal to its external domain,
+so from inside this container that name resolves to the container rather than to
+the ingress, and the probe would ask for 443 where nothing listens. Probing the
+public issuer means running this page off this box — which the file header
+already names as the eventual plan.
 
 ## Bringing it up
 

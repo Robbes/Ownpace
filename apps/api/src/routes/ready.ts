@@ -105,6 +105,31 @@ async function checkDatabase(): Promise<CheckState> {
   }
 }
 
+/**
+ * WHERE THIS ASKS, AND WHY IT IS NOT ALWAYS THE ISSUER.
+ *
+ * `middleware/auth.ts` resolves the key source as
+ * `JWT_JWKS_URI || discoverJwksUri(JWT_ISSUER)` — the environment variable
+ * short-circuits discovery entirely. That escape hatch exists for a real
+ * topology: on a stack where something fronts the provider, the issuer ORIGIN
+ * is a public name that this container cannot reach as-is, because compose
+ * gives the provider a network alias of exactly that name and it resolves to
+ * the container rather than to the ingress.
+ *
+ * A readiness check that ignored `JWT_JWKS_URI` therefore probed an address
+ * NOTHING uses, and reported `signIn: down` on a stack whose sign-in works —
+ * a red light for a service that is fine, which costs exactly as much trust as
+ * a green one for a service that is not.
+ *
+ * So it asks in the same order the verifier asks, and the status belongs to the
+ * thing that actually happens on every request.
+ */
+export function signInProbeUrl(issuer: string): string {
+  const configured = process.env.JWT_JWKS_URI?.trim();
+  if (configured) return configured;
+  return `${issuer.replace(/\/+$/, '')}/.well-known/openid-configuration`;
+}
+
 async function checkSignIn(): Promise<CheckState> {
   const issuer = process.env.JWT_ISSUER;
   // No issuer configured is not a failure: the self-host edition has none, and
@@ -112,17 +137,18 @@ async function checkSignIn(): Promise<CheckState> {
   // documented state, not a broken one.
   if (!issuer) return 'off';
 
+  const url = signInProbeUrl(issuer);
   try {
-    const response = await fetch(`${issuer.replace(/\/+$/, '')}/.well-known/openid-configuration`, {
-      signal: AbortSignal.timeout(5_000),
-    });
+    const response = await fetch(url, { signal: AbortSignal.timeout(5_000) });
     if (!response.ok) {
-      log.error(`[ready] issuer answered ${response.status} at its discovery document`);
+      // The URL goes to the log, not to the body: a readiness endpoint a status
+      // page reads without a credential must not publish internal hostnames.
+      log.error(`[ready] the issuer's key source answered ${response.status} at ${url}`);
       return 'down';
     }
     return 'up';
   } catch (error) {
-    log.error('[ready] issuer unreachable:', error);
+    log.error(`[ready] the issuer's key source at ${url} is unreachable:`, error);
     return 'down';
   }
 }

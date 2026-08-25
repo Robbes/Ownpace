@@ -83,6 +83,67 @@ endpoints:
     conditions:
       - "[BODY].signIn == up"
 
+  # THE PROVIDER ITSELF, asked directly — because "Sign-in" above is a field the
+  # API computed, not a probe of the identity provider. Reading four rows off
+  # one `/api/ready` means the whole group goes dark together the moment the API
+  # is the thing that is down, and it means nothing on this page ever named the
+  # provider. Somebody looking for it did not find it (owner, 2026-08-25).
+  #
+  # `/debug/ready` AND NOT THE DISCOVERY DOCUMENT. Zitadel resolves which
+  # instance a request is for from its ORIGIN — host and port — and answers 404
+  # "Instance not found" to any other, so a discovery probe would report the
+  # provider down whenever it was merely asked by a name it does not answer for.
+  # `/debug/ready` is served before instance resolution: `setup-zitadel.sh`
+  # waits on `http://localhost:<published port>/debug/ready` and gets 200 with a
+  # Host header no instance has ever heard of, which is the proof.
+  #
+  # That port is written out in words rather than as a dollar-brace expansion,
+  # on purpose: gatus expands the environment over this WHOLE file, comments
+  # included, so a variable named in prose is a variable this config reads.
+  #
+  # WHAT A GREEN LIGHT HERE MEANS: the provider is up and ready to serve. It
+  # does NOT mean the public issuer name resolves, because this probe goes
+  # straight to the container over the compose network — see the header of this
+  # file for why the whole page is inside the stack it watches. The rows above
+  # probe STATUS_WEB_URL, which on a real deployment IS the public address, so
+  # an ingress outage shows there.
+  - name: Identity provider
+    group: Ownpace
+    url: "${STATUS_IDP_URL}/debug/ready"
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+
+  # THE PUBLIC SITE, OFF BY DEFAULT AND THAT IS DELIBERATE. `www.yml` is a
+  # separate deploy on its own network (workplan 0091 T2) — bringing the app
+  # stack up does not start it, and plenty of stacks will never run it. A row
+  # that went red because a service was never deployed would be a lamp that
+  # lies, which is the failure the header of this file is about.
+  #
+  # So it takes an address AND a switch. There is no way to express "skip this
+  # endpoint when its URL is empty" here — gatus expands the environment and
+  # then refuses to load a config with an endpoint that has no URL, taking the
+  # whole page down with it — so the two are separate settings and
+  # bootstrap-managed.sh says so when only one of them is set.
+  #
+  # Give it the address a VISITOR uses. `www.ota.ownpace.eu` is not aliased on
+  # this network the way the provider is, so the probe genuinely leaves the box
+  # and comes back through the ingress — which makes this the one row that can
+  # see an ingress outage while it is happening.
+  #
+  # NO CERTIFICATE CONDITION, unlike the Targets group below. Those are URLs
+  # this file names and they are all https; this one is whatever the operator
+  # set. `[CERTIFICATE_EXPIRATION]` is zero over plain http, so the condition
+  # would fail forever on an http site and the row would be red about the wrong
+  # thing entirely.
+  - name: Website
+    group: Ownpace
+    enabled: ${STATUS_SITE_ENABLED}
+    url: "${STATUS_SITE_URL}"
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+
   # ------------------------------------------------------ Sources (from) --
   # Where mail and files are migrated FROM. These are other people's services:
   # when one is down, migrations out of it stall and there is nothing wrong with
@@ -105,9 +166,23 @@ endpoints:
     conditions:
       - "[STATUS] == 200"
 
+  # `$$discovery`, NOT `$discovery`, AND THIS ROW HAS BEEN RED SINCE #498.
+  #
+  # gatus runs `os.ExpandEnv` over this file before parsing it, so a bare
+  # `$discovery` is an environment variable — an unset one, which expands to
+  # nothing. What was actually probed was
+  # `https://gmail.googleapis.com//rest?version=v1`, which answers 404 while the
+  # intended URL answers 200. Google's discovery endpoint genuinely contains a
+  # literal dollar in its path, and gatus's escape for that is `$$` (it swaps
+  # `$$` out before expanding and back afterwards).
+  #
+  # A permanently red row for a healthy service is the same corrosion as a green
+  # one for a sick service, and worse in one way: it trains the reader to ignore
+  # a colour. Found by parsing this file the way gatus parses it, not by
+  # noticing (2026-08-25).
   - name: Gmail API
     group: Sources
-    url: "https://gmail.googleapis.com/$discovery/rest?version=v1"
+    url: "https://gmail.googleapis.com/$$discovery/rest?version=v1"
     interval: 5m
     conditions:
       - "[STATUS] == 200"
