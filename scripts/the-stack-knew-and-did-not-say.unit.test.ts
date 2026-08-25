@@ -310,6 +310,10 @@ describe('a catcher serving what looks like a real deployment', () => {
         `ENV_FILE="${envFile}"`,
         'note() { echo "    $*"; }',
         fn('env_get'),
+        // env_or too: the note's port default goes through it, and a harness
+        // that lifts only half the helpers makes the note print an empty port
+        // — which is exactly the production defect, reproduced in the test rig.
+        fn('env_or'),
         fn('note_mail_goes_nowhere_real'),
         'note_mail_goes_nowhere_real',
       ].join('\n');
@@ -360,5 +364,25 @@ describe('a catcher serving what looks like a real deployment', () => {
       MAILPIT_PORT: '3999',
     });
     expect(said).toContain('http://localhost:3999');
+  });
+
+  it('still names a port when MAILPIT_PORT is not set at all', () => {
+    // THE CASE THIS FILE DID NOT TEST, and the one an operator hit on
+    // 2026-08-25: the note read `Read what it caught:  http://localhost:` with
+    // nothing after the colon. The case above passes a port explicitly, so it
+    // exercised the branch that worked and never the default.
+    const said = noteFor({ SMTP_HOST: 'mailpit', WEB_URL: 'https://app.ota.ownpace.eu' });
+    expect(said, 'the default port did not appear').toContain('http://localhost:3127');
+  });
+
+  it('and when it is present but empty, which is how the example ships it', () => {
+    // managed.env.example carries `MAILPIT_PORT=3127`, but a key edited to
+    // nothing is the same amount of port as no key at all.
+    const said = noteFor({
+      SMTP_HOST: 'mailpit',
+      WEB_URL: 'https://app.ota.ownpace.eu',
+      MAILPIT_PORT: '',
+    });
+    expect(said).toContain('http://localhost:3127');
   });
 });

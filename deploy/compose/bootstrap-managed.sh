@@ -125,6 +125,24 @@ env_get() { # env_get NAME — the value in force, i.e. the last one
   grep -E "^$1=" "$ENV_FILE" | tail -1 | cut -d= -f2- || true
 }
 
+# env_or NAME DEFAULT — the value in force, or DEFAULT when unset OR EMPTY.
+#
+# `$(env_get X || echo default)` READS correctly and cannot work: env_get ends
+# in `|| true` precisely so that "not set" is a normal answer rather than an
+# error, so it always exits 0 and the `||` branch is unreachable. Both uses of
+# that shape printed an empty string where a port belonged, and one of them
+# reached an operator as:
+#
+#     Read what it caught:  http://localhost:
+#
+# The advice survived; the address it was about did not. A default has to test
+# the VALUE, because the command already succeeded.
+env_or() { # env_or NAME DEFAULT
+  local value
+  value="$(env_get "$1")"
+  printf '%s' "${value:-$2}"
+}
+
 # Load .env for our own use. Only after the `env` phase has had a chance to
 # create it, hence a function rather than a line at the top.
 load_env() {
@@ -291,7 +309,7 @@ note_mail_goes_nowhere_real() {
   note "MAIL ON THIS STACK GOES TO THE CATCHER, and WEB_URL looks like a real"
   note "  deployment (${web}). Every notification will report as sent and no"
   note "  person will receive one — grants, declines and access requests alike."
-  note "  Read what it caught:  http://localhost:$(env_get MAILPIT_PORT || echo 3127)"
+  note "  Read what it caught:  http://localhost:$(env_or MAILPIT_PORT 3127)"
   note "  For real delivery, point SMTP_HOST at a relay and set NOTIFY_TO to an"
   note "  address somebody reads, then re-run ./deploy/compose/set-task-env.sh"
   note "  so the task containers see it too."
@@ -327,7 +345,7 @@ note_status_page_probes_itself() {
   note "THE STATUS PAGE WILL PROBE ITSELF, and show red for a healthy stack."
   note "  It asks ${probe} from INSIDE its own container, where localhost is"
   note "  gatus rather than the web app. Web app, API, Database and Sign-in"
-  note "  will all be red at http://localhost:$(env_get STATUS_PORT || echo 3124)."
+  note "  will all be red at http://localhost:$(env_or STATUS_PORT 3124)."
   note "  Set STATUS_WEB_URL to an address that container can reach — e.g."
   note "      ./deploy/compose/env-upsert.sh ${ENV_FILE} STATUS_WEB_URL=http://web:80"
   note "  accepting that it then proves the stack talks to itself. WEB_URL must"
