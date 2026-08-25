@@ -20,7 +20,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
@@ -106,5 +108,126 @@ describe('the mail nobody should get — the gate stays armed and asserting', ()
         'canary above does — and on a scheduling server a bare DELETE fans\n' +
         'out CANCEL to all of them.',
     ).toMatch(/"\$method" = "DELETE"[^\n]*Schedule-Reply: F/);
+  });
+});
+
+/**
+ * THE BYTES THE SEED ACTUALLY PUTS (E2E managed #87).
+ *
+ * Every rule above greps the script's TEXT, and text is not what a server
+ * parses. The canary shipped with `$(printf '%s' "$SCHED_PROPS")END:VEVENT`,
+ * command substitution stripped the trailing newline, END:VEVENT fused onto
+ * the ATTENDEE line, and the first live run answered 415 to its own fixture —
+ * the fresh seed died, the apply half had no item, and the gate went red on a
+ * body no test had ever rendered. So this suite RUNS the real script with a
+ * stub `docker` on PATH that records what curl would have sent, and asserts
+ * on the captured bytes. No live server: what a server would parse, not what
+ * it would answer.
+ */
+describe('the bytes the seed actually puts', () => {
+  const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const SEED = join(REPO_ROOT, 'deploy', 'compose', 'seed-demo-dav-content.sh');
+
+  // The stub answers exactly the calls seed-demo-dav-content.sh makes:
+  // the two exec probes; discover()'s Depth:0 PROPFIND (207); dav() PUTs
+  // (record stdin, 201) and DELETEs (204); count()'s Depth:1 PROPFIND
+  // (list what was stored, so the script's own verification stays honest).
+  const STUB = `#!/usr/bin/env bash
+set -u
+CAP="\${SEED_STUB_DIR:?}"
+shift                                  # 'exec'
+if [ "$1" = "-i" ]; then shift; fi
+shift                                  # container name
+case "$1" in
+  true) exit 0 ;;
+  sh) exit 0 ;;
+  curl) shift ;;
+  *) echo "stub docker: unexpected command $1" >&2; exit 64 ;;
+esac
+method=""; wantscode=0; hasbody=0; url=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -X) method="$2"; shift 2 ;;
+    -w) wantscode=1; shift 2 ;;
+    --data-binary) hasbody=1; shift 2 ;;
+    -H|-u|-o) shift 2 ;;
+    -sS|-s|-S) shift ;;
+    *) url="$1"; shift ;;
+  esac
+done
+path="\${url#http://localhost/remote.php/dav/}"
+case "$method" in
+  PUT)
+    [ "$hasbody" = 1 ] || { echo "stub docker: PUT without --data-binary" >&2; exit 64; }
+    mkdir -p "$CAP/puts"
+    cat > "$CAP/puts/$(printf '%s' "$path" | tr '/' '_')"
+    printf '%s\\n' "$path" >> "$CAP/manifest.txt"
+    printf 201 ;;
+  DELETE) printf 204 ;;
+  PROPFIND)
+    if [ "$wantscode" = 1 ]; then printf 207; else cat "$CAP/manifest.txt" 2>/dev/null || true; fi ;;
+  *) echo "stub docker: unexpected method '$method'" >&2; exit 64 ;;
+esac
+`;
+
+  function runSeed(args: string[]): { dir: string; stdout: string } {
+    const dir = mkdtempSync(join(tmpdir(), 'seedbytes-'));
+    writeFileSync(join(dir, 'docker'), STUB, { mode: 0o755 });
+    const stdout = execFileSync('bash', [SEED, ...args], {
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${dir}:${process.env.PATH ?? ''}`, SEED_STUB_DIR: dir },
+    });
+    return { dir, stdout };
+  }
+
+  const put = (dir: string, name: string): string =>
+    readFileSync(join(dir, 'puts', name), 'utf8');
+
+  it('a tagged seed renders the canary AND a closed VEVENT — the #87 regression', () => {
+    const tag = 't415guard';
+    const { dir, stdout } = runSeed(['--fresh', tag]);
+    try {
+      expect(stdout).toContain(`[seed-dav] event ${tag}-1: HTTP 201`);
+      const event1 = put(dir, `calendars_tenant-b-source_personal_openmig-demo-event-${tag}-1.ics`);
+      expect(
+        event1,
+        'the exact #87 failure: command substitution stripped the newline after\n' +
+          'the canary and fused END:VEVENT onto the ATTENDEE line. Sabre answers\n' +
+          '415 to this body and the whole fresh seed dies.',
+      ).not.toMatch(/invalidEND:VEVENT/);
+      expect(
+        event1,
+        'END:VEVENT must sit on its own line — an unterminated VEVENT is not\n' +
+          'iCalendar, whatever the surrounding text greps like.',
+      ).toMatch(/\nEND:VEVENT\r?\n/);
+      expect(event1).toMatch(
+        new RegExp(`\\nORGANIZER;CN=Someone Else:mailto:openmig-organizer-${tag}@example\\.invalid\\r?\\n`),
+      );
+      expect(event1).toMatch(
+        new RegExp(
+          `\\nATTENDEE;CN=Migration Canary;PARTSTAT=NEEDS-ACTION:mailto:openmig-attendee-${tag}@example\\.invalid\\r?\\n`,
+        ),
+      );
+      const event2 = put(dir, `calendars_tenant-b-source_personal_openmig-demo-event-${tag}-2.ics`);
+      expect(event2, 'the canary rides event 1 only').not.toMatch(/ATTENDEE|ORGANIZER/);
+      expect(event2).toMatch(/\nEND:VEVENT\r?\n/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('an untagged seed stays canary-free, in the bytes and not just the text', () => {
+    const { dir } = runSeed([]);
+    try {
+      const event1 = put(dir, 'calendars_tenant-b-source_personal_openmig-demo-event-1.ics');
+      expect(
+        event1,
+        'the fixed demo fixture belongs to the demo UI; a canary here would\n' +
+          'also give the smoke a constant address a previous run could answer for.',
+      ).not.toMatch(/ATTENDEE|ORGANIZER/);
+      expect(event1).toMatch(/\nEND:VEVENT\r?\n/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
