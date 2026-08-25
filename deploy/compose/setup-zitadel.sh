@@ -1203,13 +1203,36 @@ say "allowing people to register, with a verified email"
 # Two readers, deliberately. The PROBE runs before anything has been written and
 # must survive an organisation that has no login policy of its own; the DECIDER
 # runs after the writes, where a call that cannot be made is the answer.
-probe_allow_register() { jq -r '.policy.allowRegister // empty' <<<"$( ( api GET /management/v1/policies/login ) 2>/dev/null || true)"; }
-read_allow_register() { jq -r '.policy.allowRegister // empty' <<<"$(api GET /management/v1/policies/login)"; }
+# A BOOLEAN `false` IS AN ANSWER, AND `//` SWALLOWS IT.
+#
+# jq's `//` fires on `false` exactly as it fires on `null`, so
+# `.policy.allowExternalIdp // empty` can NEVER report a genuine `false` — it
+# reports "absent" instead, and the two become indistinguishable. For a flag
+# whose whole job is to be true or false that is not a nuance, it is a reader
+# that cannot read half its domain.
+#
+# It cost E2E (managed) #85, which failed the entire bring-up with
+#
+#     FATAL: could not set whether a sign-in provider may be offered.
+#     0 provider(s) are configured, so 'External IDP allowed' should be
+#     false — and it is not.
+#
+# on an instance where it HAD just been set to false, correctly. The refusal
+# was true about what it read and wrong about the world, and it took the
+# bring-up down with it — so nothing else could run either.
+#
+# So: "true", "false", or "" for genuinely absent, and null counts as absent
+# because `has()` alone would report an explicit null as present.
+policy_flag() {   # <key> — reads the policy JSON on stdin
+  jq -r --arg k "$1" '(.policy // {})[$k] | if . == null then "" else tostring end' 2>/dev/null || true
+}
+probe_allow_register() { policy_flag allowRegister <<<"$( ( api GET /management/v1/policies/login ) 2>/dev/null || true)"; }
+read_allow_register() { policy_flag allowRegister <<<"$(api GET /management/v1/policies/login)"; }
 # AND WHETHER A PROVIDER BUTTON IS ALLOWED TO APPEAR AT ALL. Configuring an IdP
 # and adding it to the login policy still shows nobody anything while this is
 # false — a third way to have a stack that looks configured and offers nothing.
-probe_allow_external() { jq -r '.policy.allowExternalIdp // empty' <<<"$( ( api GET /management/v1/policies/login ) 2>/dev/null || true)"; }
-read_allow_external() { jq -r '.policy.allowExternalIdp // empty' <<<"$(api GET /management/v1/policies/login)"; }
+probe_allow_external() { policy_flag allowExternalIdp <<<"$( ( api GET /management/v1/policies/login ) 2>/dev/null || true)"; }
+read_allow_external() { policy_flag allowExternalIdp <<<"$(api GET /management/v1/policies/login)"; }
 
 # It follows what is actually configured, rather than being a knob of its own.
 # On for a deployment with providers, off for one without — and a deployment
