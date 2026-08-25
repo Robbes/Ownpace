@@ -2152,14 +2152,30 @@ report_json "invoices" "/api/billing/invoices" '.invoices | length'
 # an armed server is T3's per-target measurement, not this fixture. And on a
 # run where prepare seeded nothing there is no canary, so the checks say so
 # and stand down — the writer-side rules in CI cover every run regardless.
+# MEASURED, NOT TRUSTED (0103 T3). One OPTIONS request asks the target
+# whether it runs RFC 6638 auto-scheduling at all — the compliance class is
+# required to be advertised in the DAV header. No object written, no mail
+# risked, nothing but the API: the same question the product can ask any
+# customer target. "unknown" is reported as unmeasured, never as safe.
+nc_port="$(smoke_env_value NEXTCLOUD_PORT)"
+sched_dav_header="$(curl -fsS -o /dev/null -D - -X OPTIONS \
+  -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" \
+  "http://localhost:${nc_port:-8083}/remote.php/dav/calendars/${TARGET_DAV_USER}/personal/" 2>/dev/null \
+  | tr -d '\r' | grep -i '^dav:' || true)"
+if [ -z "$sched_dav_header" ]; then
+  echo "target scheduling: UNKNOWN — OPTIONS answered no DAV header (unmeasured, not safe)"
+elif grep -qiE '(^|[,\ ])calendar-auto-schedule([,\ ]|$)' <<<"$sched_dav_header"; then
+  echo "target scheduling: auto-schedule ADVERTISED — the neutralising below is load-bearing here"
+else
+  echo "target scheduling: not advertised — RFC 6638 fan-out cannot happen on this target"
+fi
+
 if [ -n "$BALANCE_TAG" ]; then
   note "the mail nobody should get"
   sched_href="remote.php/dav/calendars/${TARGET_DAV_USER}/personal/openmig-demo-event-${BALANCE_TAG}-1.ics"
   # Through the PUBLISHED port, as any real DAV client would — the product
   # itself only ever has the API, and the gate should walk through the same
-  # door (owner's point, 2026-08-25). Port read from .env, never assumed
-  # (a-port-the-gate-assumed).
-  nc_port="$(smoke_env_value NEXTCLOUD_PORT)"
+  # door (owner's point, 2026-08-25). nc_port read above, from .env.
   sched_copy="$(curl -fsS -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" \
     "http://localhost:${nc_port:-8083}/${sched_href}" 2>/dev/null || true)"
   if [ -z "$sched_copy" ]; then
