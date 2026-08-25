@@ -7,7 +7,7 @@
 | T0 Record the invariant | ✅ **Done 2026-08-25** | `sub` is the identity, email is a label. ADR-0042 amended below. Nothing here is built yet; this is the decision the three tasks depend on. |
 | T1 Gate the paste box on the API's runtime mode | ✅ **Done 2026-08-25** | `GET /api/auth/mode` answers `acceptsSeedToken`, derived from `selectAuthMode` in one place. `Login.tsx` renders nothing until it has that answer, hides the box entirely in managed mode, and names the state where neither credential is available. Rules in `scripts/a-box-the-api-would-refuse.unit.test.ts`. |
 | T2 Federation, with account linking decided BEFORE it is offered | ⬜ Not started | — |
-| T3 Change your address, verified before the switch | ⬜ Not started | — |
+| T3 Change your address, verified before the switch | 🟡 **Partly true already** | The app half holds: `/api/me` reports the verified claim, never a stored copy. The provider's flow is reachable and its mail lands (#560–#564, proved live 2026-08-25). One gap found and NOT built — `tenant_member.email` never follows a change; see below. |
 
 ## The invariant everything here rests on
 
@@ -135,6 +135,57 @@ This is Zitadel's own flow, so T3 is mostly: make sure it is reachable, make
 sure it sends (see #560 — the instance had no email provider at all until
 2026-08-25, so every verification mail it composed was dropped), and make sure
 the app reads the new address from `/api/me` rather than caching the old one.
+
+### Where it already stands, 2026-08-25
+
+**The app half is true.** `/api/me` answers `email: req.userEmail` — the
+verified claim off the token, explicitly not the database — so the moment
+somebody signs in after changing their address, the app shows the new one.
+
+**The provider's half is reachable and its mail lands.** Sign-in through the
+built-in login UI works end to end (#566, #571 — the outage was an ingress
+rewriting the `Host` header, not this stack), and the instance now has an email
+provider, proved by a verification mail arriving in the catcher.
+
+### The gap this left, found by looking rather than by breaking
+
+**`tenant_member.email` is written once and never updated.** Nothing in
+`apps/api/src` writes that column after the row is created. So after a verified
+address change:
+
+- `/api/me` is right, because it reports the claim;
+- the **member list other people see** is wrong — `routes/tenants/members.ts`
+  selects `tenantMember.email`, so colleagues keep seeing the address somebody
+  has just moved off;
+- anything that later mails a member from that row would mail an inbox they no
+  longer control. Nothing does today — `access-notify.ts` takes an explicit
+  recipient — which is exactly why this is worth writing down before something
+  does.
+
+### What closing it would take, and why it is not done here
+
+The label follows the verified claim, reconciled in `/api/me` — the one call
+made once per sign-in, which is also the moment the claim is fresh. Four
+constraints, and the last is why this is a decision rather than a tidy-up:
+
+1. **Only when `email_verified` is true.** An unverified claim is a typo or
+   somebody else's inbox, and migration 0006 already refuses to bind an
+   invitation on one.
+2. **Only rows already carrying this `user_id`.** An `invited` row is addressed
+   to an email with no subject on it yet; rewriting one would be *claiming* an
+   invitation, which workplan 0099 deliberately made an offer somebody answers.
+3. **Through the tenant-scoped UPDATE policy**, not a new self-service one.
+   Migration 0003 reasoned it out when it added `own_membership_select`:
+   "reading which tenants you belong to is answering a question about yourself;
+   changing your own role or admitting yourself to a tenant is not". That
+   reasoning still holds — a self-service UPDATE policy could not restrict which
+   COLUMN changes, because RLS is row-level.
+4. **The statement must carry `user_id = <subject>`.** Without it, the
+   tenant-scoped policy would happily rewrite the address of every member in
+   that tenant. That blast radius is the reason this is recorded rather than
+   built on the way past: it is a data-mutation path added to a read route, and
+   it wants a deliberate review rather than a commit at the end of a long
+   afternoon.
 
 ## What this workplan does NOT cover
 
