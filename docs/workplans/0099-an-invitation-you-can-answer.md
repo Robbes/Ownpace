@@ -3053,6 +3053,98 @@ single-quoted shell argument. *"the operator's override"* closed the quote, and
 which punishes ordinary English in a file whose every other line is English
 deserves a rule rather than a scar.
 
+## Nothing ever parsed the bring-up
+
+Found by rehearsing a merge rather than waiting for one. Five PRs were open and
+green against an unmoved `main`; merging them in numeric order, in a scratch
+worktree, to see what Rob would hit. Three conflicted, all in the same
+harmless-looking way — two branches appending to the same tail.
+
+One of them was not harmless. #546 and #547 each add a `note_*` helper to
+`bootstrap-managed.sh` at the same place, and git factors the closing brace the
+two sides **share** out of the conflict region, so each side appears to end
+without one:
+
+```
+<<<<<<< HEAD
+note_mail_goes_nowhere_real() {
+  ...
+=======
+note_status_page_probes_itself() {
+  ...
+>>>>>>> origin/claude/a-status-page-nobody-started
+}
+```
+
+Delete the three markers and keep both sides — the obvious resolution, and the
+one a web editor invites — and the file is one brace short:
+
+```
+$ bash -n deploy/compose/bootstrap-managed.sh
+deploy/compose/bootstrap-managed.sh: line 1262: syntax error: unexpected end of file
+```
+
+Line 1262 is the end of the file, 900 lines below the edit that caused it.
+`bash -n` finds it in twelve milliseconds; an eye reading the diff does not.
+
+### The hole that made it worth a guard
+
+**Nothing in this repo had ever handed a shell script to a shell.** `lint` is
+ESLint and does not look at `.sh`. There is no shellcheck. Six unit tests do
+spawn `bash`, and every one of them passes a `-c` string or one small library —
+never the script under test. No test parses `bootstrap-managed.sh` at all: they
+all `readFileSync` it and run regexes over the text.
+
+So a syntax error in the 1200-line script that starts the entire managed stack
+was invisible to CI, and the first thing that would have noticed is the 05:30
+E2E (managed) or an operator's own bring-up. A five-hour feedback loop for a
+one-second question.
+
+`bash -n` over all 23 scripts, each judged by the interpreter its own shebang
+names. It cannot cry wolf — the judge is the parser, not a heuristic — and an
+unrecognised shebang fails rather than skips, because a scanner that quietly
+passes over what it does not understand is how a rule ends up covering nothing.
+
+### What it is not
+
+`-n` answers "does this parse". It says nothing about an unquoted variable, a
+wrong flag, or a function that does the wrong thing. It is the cheapest
+question available and the only one nobody was asking.
+
+### A guard written for the wrong reason first
+
+The first version of this file was a scan for **nested function definitions**,
+on the theory that the naive resolution silently defines one helper inside the
+other — legal bash, invisible to `bash -n`, and fatal at run time because the
+outer helper returns early on any stack with a real SMTP relay.
+
+That theory was wrong, and running it said so: the fixture failed with
+`unexpected end of file`, not `command not found`. Removing one brace from a
+balanced file leaves it unbalanced; there was never a silently-nested
+definition to catch. The guard was deleted and replaced with the one the
+measurement justified.
+
+Which is the same lesson as the socket credential check, in the other
+direction: that one asserted a mechanism nobody had read, and this one asserted
+a consequence nobody had run. **The fixture that fails for the wrong reason is
+the cheapest correction available** — it arrives before the guard is pushed
+rather than after it is trusted.
+
+### And the rehearsal itself
+
+Merging the five in a scratch worktree needed `node_modules`, and symlinking
+the main checkout's was faster than installing. It also resolved
+`@openmig/shared` to the main checkout — sitting on `main`, without
+`access_requested` — so two of #546's own tests failed against a merge that was
+fine. Nearly reported as "the merge broke #546".
+
+A workspace link points at a path, and a second checkout of the same repo is a
+different path with the same shape. The shortcut is not available; the real
+install takes eight seconds.
+
+With the links right: **4062 unit tests, 15 UI tests, typecheck and lint all
+clean** on all five merged together. The conflicts are textual only.
+
 ## The mail the api could not send
 
 #546 shipped a mail catcher, an `access_requested` notification, a rendering in
