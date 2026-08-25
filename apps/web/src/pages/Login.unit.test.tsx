@@ -8,6 +8,7 @@ import Login, { decodeTokenClaims } from './Login.tsx';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { beginSignIn, oidcConfig } from '../services/oidc.ts';
 import { fetchMe } from '../services/session.ts';
+import { fetchAuthMode } from '../services/auth-mode.ts';
 
 const navigateMock = vi.fn();
 vi.mock('react-router', async () => {
@@ -37,6 +38,13 @@ vi.mock('../services/build-identity.ts', () => ({
 vi.mock('../services/session.ts', () => ({ fetchMe: vi.fn() }));
 const fetchMeMock = vi.mocked(fetchMe);
 
+// WHAT THE API WILL ACCEPT, which is now what decides whether the paste box is
+// rendered at all (0102 T1). Mocked rather than stubbed through the http layer
+// because this file is about what the page DOES with the answer; `auth-mode.ts`
+// has its own test for how it asks.
+vi.mock('../services/auth-mode.ts', () => ({ fetchAuthMode: vi.fn() }));
+const fetchAuthModeMock = vi.mocked(fetchAuthMode);
+
 const oidcConfigMock = vi.mocked(oidcConfig);
 const beginSignInMock = vi.mocked(beginSignIn);
 
@@ -48,15 +56,28 @@ function makeToken(payload: Record<string, unknown>): string {
   return `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64(payload)}.sig`;
 }
 
-const renderLogin = () =>
-  render(
+/**
+ * Render AND let the mode answer land.
+ *
+ * The page asks the API what it accepts before offering anything, and renders
+ * only a "checking" line until that resolves — deliberately, because a box that
+ * appears and then vanishes has offered a way in that was never there. Every
+ * case therefore has to wait, or it asserts against that intermediate state.
+ */
+const renderLogin = async () => {
+  const utils = render(
     <MemoryRouter>
       <Login />
     </MemoryRouter>
   );
+  await vi.waitFor(() =>
+    expect(screen.queryByText(/checking how this deployment/i)).toBeNull()
+  );
+  return utils;
+};
 
 describe('decodeTokenClaims', () => {
-  it('returns claims for a well-formed token', () => {
+  it('returns claims for a well-formed token', async () => {
     const token = makeToken({ sub: 'u1', email: 'a@b.c', tenantId: 't1', role: 'owner' });
     expect(decodeTokenClaims(token)).toEqual({
       sub: 'u1',
@@ -66,7 +87,7 @@ describe('decodeTokenClaims', () => {
     });
   });
 
-  it('rejects tokens missing required claims', () => {
+  it('rejects tokens missing required claims', async () => {
     expect(decodeTokenClaims(makeToken({ sub: 'u1' }))).toBeNull();
     expect(decodeTokenClaims('not-a-jwt')).toBeNull();
   });
@@ -82,6 +103,11 @@ describe('Login', () => {
     // The paste path now ASKS THE API rather than trusting its own decode, so
     // every case here needs an answer. This is the accepting one; the refusals
     // live in their own describe below.
+    // No issuer on the API either, by default — the same deployment the
+    // `oidcConfig` default above describes, seen from the other side. The
+    // managed case is set explicitly where it is the subject.
+    fetchAuthModeMock.mockReset();
+    fetchAuthModeMock.mockResolvedValue({ mode: 'local', acceptsSeedToken: true });
     fetchMeMock.mockReset();
     fetchMeMock.mockResolvedValue({
       userId: 'u1',
@@ -98,7 +124,7 @@ describe('Login', () => {
     const user = userEvent.setup();
     const token = makeToken({ sub: 'u1', email: 'owner-a@demo.test', tenantId: 'tenant-a', role: 'owner' });
 
-    renderLogin();
+    await renderLogin();
     await user.type(screen.getByLabelText(/access token/i), token);
     await user.click(screen.getByRole('button', { name: /use this token/i }));
 
@@ -114,7 +140,7 @@ describe('Login', () => {
   it('rejects an invalid token and does not sign in', async () => {
     const user = userEvent.setup();
 
-    renderLogin();
+    await renderLogin();
     await user.type(screen.getByLabelText(/access token/i), 'garbage');
     await user.click(screen.getByRole('button', { name: /use this token/i }));
 
@@ -123,8 +149,8 @@ describe('Login', () => {
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
-  it('offers the paste box plainly when there is no provider to offer instead', () => {
-    renderLogin();
+  it('offers the paste box plainly when there is no provider to offer instead', async () => {
+    await renderLogin();
     // Not folded away: it is the only way in, and hiding it behind a disclosure
     // would strand a deployment mid-rollout.
     expect(screen.getByLabelText(/access token/i)).toBeVisible();
@@ -133,13 +159,13 @@ describe('Login', () => {
 });
 
 describe('what build this is, before anybody has signed in', () => {
-  it('the sign-in page carries its own stamp, having no sidebar to inherit one from', () => {
+  it('the sign-in page carries its own stamp, having no sidebar to inherit one from', async () => {
     // `Layout` renders BuildStamp in the sidebar and mounts only under
     // ProtectedRoute, so every route outside it — this one, /request-access,
     // /invitations — had no version on screen at all. The route-level rule is
     // in scripts/a-version-you-can-see-before-you-sign-in.unit.test.ts.
     oidcConfigMock.mockReturnValue(null);
-    renderLogin();
+    await renderLogin();
     expect(screen.getByText('v0.1.0-rc.1 · 72a78d4')).toBeVisible();
   });
 });
@@ -157,7 +183,7 @@ describe('Login with an issuer configured (ADR-0042)', () => {
     const user = userEvent.setup();
     beginSignInMock.mockResolvedValue(undefined);
 
-    renderLogin();
+    await renderLogin();
     // Exactly one button reads "Sign in". The paste box's own button says
     // something else, or the two are a coin toss rather than a choice.
     await user.click(screen.getByRole('button', { name: /^sign in$/i }));
@@ -171,7 +197,7 @@ describe('Login with an issuer configured (ADR-0042)', () => {
     const user = userEvent.setup();
     beginSignInMock.mockRejectedValue(new Error('The sign-in service did not answer at ... (503).'));
 
-    renderLogin();
+    await renderLogin();
     await user.click(screen.getByRole('button', { name: /^sign in$/i }));
 
     // One alert, not two: the token form has its own error and must stay quiet.
@@ -208,7 +234,7 @@ describe('a pasted token is checked with the API, not just decoded', () => {
 
   const paste = async (token: string) => {
     const user = userEvent.setup();
-    renderLogin();
+    await renderLogin();
     // The box is folded away behind a disclosure once a provider is configured.
     await user.click(screen.getByText(/token instead/i));
     await user.type(screen.getByLabelText(/access token/i), token);
@@ -269,3 +295,87 @@ describe('a pasted token is checked with the API, not just decoded', () => {
     expect(s.user?.role).toBe('member');
   });
 });
+
+/**
+ * WHAT THE API WILL ACCEPT DECIDES WHAT IS OFFERED (workplan 0102 T1).
+ *
+ * The page used to decide from `VITE_OIDC_ISSUER`, a build-time value. The
+ * authority is `selectAuthMode(JWT_ISSUER, JWT_SECRET)` in the API at request
+ * time, and on a stack where the two disagreed the box took a token, signed
+ * somebody in, and bounced them back here.
+ */
+describe('the paste box follows the API, not the bundle', () => {
+  beforeEach(() => {
+    navigateMock.mockReset();
+    beginSignInMock.mockReset();
+    fetchAuthModeMock.mockReset();
+    fetchMeMock.mockReset();
+    useAuthStore.getState().logout();
+    localStorage.clear();
+  });
+
+  it('offers no paste box at all when the API is in managed mode', async () => {
+    oidcConfigMock.mockReturnValue({ issuer: 'https://id.example.com', clientId: 'web' });
+    fetchAuthModeMock.mockResolvedValue({ mode: 'managed', acceptsSeedToken: false });
+
+    await renderLogin();
+
+    // Not folded away — GONE. Managed mode verifies against the provider's
+    // JWKS and never falls back to the secret a seed token is signed with, so
+    // a disclosure holding that box is a drawer with nothing usable in it.
+    expect(screen.queryByLabelText(/access token/i)).toBeNull();
+    expect(screen.queryByText(/token instead/i)).toBeNull();
+    expect(screen.getByRole('button', { name: /^sign in$/i })).toBeVisible();
+  });
+
+  it('names the misconfiguration when the API is managed and the build knows no issuer', async () => {
+    // The state #562 left behind. Neither credential is on offer, and saying
+    // nothing would leave an empty screen under a heading.
+    oidcConfigMock.mockReturnValue(null);
+    fetchAuthModeMock.mockResolvedValue({ mode: 'managed', acceptsSeedToken: false });
+
+    await renderLogin();
+
+    expect(screen.queryByLabelText(/access token/i)).toBeNull();
+    expect(screen.getByRole('alert')).toHaveTextContent(/identity provider/i);
+    expect(screen.getByRole('alert')).toHaveTextContent(/VITE_OIDC_ISSUER/);
+  });
+
+  it('offers neither when it could not ask, rather than falling back to the box', async () => {
+    // A FAILURE IS NOT A FALLBACK. On a managed stack the box is refused
+    // anyway, so offering it here would invent a way in; and an API that
+    // cannot answer this cannot verify a token either.
+    oidcConfigMock.mockReturnValue(null);
+    fetchAuthModeMock.mockRejectedValue(new Error('Network Error'));
+
+    await renderLogin();
+
+    expect(screen.queryByLabelText(/access token/i)).toBeNull();
+    expect(screen.getByRole('alert')).toHaveTextContent(/could not ask this deployment/i);
+  });
+
+  it('shows nothing to sign in with while the answer is outstanding', async () => {
+    // The flicker this task is about, from the other direction: a box that
+    // appears and is then taken away has offered a way in that was never there.
+    oidcConfigMock.mockReturnValue(null);
+    let settle: (mode: { mode: 'local'; acceptsSeedToken: boolean }) => void = () => {};
+    fetchAuthModeMock.mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      })
+    );
+
+    render(
+      <MemoryRouter>
+        <Login />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByLabelText(/access token/i)).toBeNull();
+    expect(screen.getByText(/checking how this deployment/i)).toBeVisible();
+
+    settle({ mode: 'local', acceptsSeedToken: true });
+    expect(await screen.findByLabelText(/access token/i)).toBeVisible();
+  });
+});
+

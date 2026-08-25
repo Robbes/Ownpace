@@ -153,6 +153,26 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Version' }
 
+  /api/auth/mode:
+    get:
+      tags: [Service]
+      summary: Which credential this API will accept
+      description: >
+        Read by the sign-in page before anybody has a credential, so it can
+        offer the one this deployment will actually take. `acceptsSeedToken` is
+        false whenever `JWT_ISSUER` is set: managed mode verifies against the
+        provider's JWKS and never falls back to `JWT_SECRET`, which is what a
+        seed token is signed with. Unauthenticated for the same reason
+        `/health` is — it is asked by somebody who has nothing to authenticate
+        with yet, and it discloses only what the sign-in page already shows.
+      security: []
+      responses:
+        '200':
+          description: How this deployment signs people in.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthMode' }
+
   /metrics:
     get:
       tags: [Service]
@@ -2432,6 +2452,28 @@ components:
           description: The build's commit, or `unknown` when the image was built without one.
           examples: ['63d1414c9e2f…']
       required: [version, commit]
+
+    AuthMode:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [managed, local, dev]
+          description: >
+            `managed` verifies against the issuer's JWKS and nothing else;
+            `local` verifies with the shared secret; `dev` has neither
+            configured. Reported so an operator can see WHY the answer below is
+            what it is.
+          examples: ['managed']
+        acceptsSeedToken:
+          type: boolean
+          description: >
+            Whether a token signed with `JWT_SECRET` — what the seed script
+            mints — will be accepted. False in managed mode, and the sign-in
+            page hides the paste box on the strength of it rather than
+            re-deriving the rule from a build-time value.
+          examples: [false]
+      required: [mode, acceptsSeedToken]
 
     CheckState:
       type: string

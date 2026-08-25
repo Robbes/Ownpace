@@ -1,11 +1,12 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { LogIn } from 'lucide-react';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { useT } from '../i18n/index.tsx';
 import { beginSignIn, oidcConfig } from '../services/oidc.ts';
+import { fetchAuthMode, type AuthMode } from '../services/auth-mode.ts';
 import { fetchMe } from '../services/session.ts';
 import { serverMessage } from '../services/api.ts';
 import StatusLink from '../components/StatusLink.tsx';
@@ -79,7 +80,45 @@ const Login: React.FC = () => {
   // Read once at render: this is a build-time value, and a page that could
   // change its mind about whether authentication exists would not be a
   // boundary (the reasoning `services/edition.ts` gives for the same choice).
+  //
+  // IT IS NO LONGER WHAT DECIDES WHAT IS OFFERED. It says what this BUILD can
+  // start — an authorization-code flow needs an issuer and a client id, and
+  // only the bundle has them. What the API will ACCEPT is a different question
+  // with a different answer, asked below.
   const issuer = oidcConfig();
+
+  /**
+   * WHAT THIS DEPLOYMENT WILL ACCEPT, ASKED RATHER THAN ASSUMED (0102 T1).
+   *
+   * `null` while the answer is outstanding, and nothing is rendered in that
+   * window on purpose: a page that shows the paste box and then removes it has
+   * offered a way in that was never there, which is the flicker this whole task
+   * is about.
+   *
+   * A FAILURE IS NOT A FALLBACK. If the API cannot be asked, the page says so
+   * and offers neither — because on a managed stack the box is refused anyway,
+   * so falling back to it would invent a way in rather than provide one. And
+   * an API that cannot answer this is an API that cannot verify a token either.
+   */
+  const [authMode, setAuthMode] = useState<AuthMode | null>(null);
+  const [modeError, setModeError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Guarded against a resolution after unmount: React 18's StrictMode mounts
+    // this twice in development, and setting state on the dead one is a warning
+    // in the console of the page somebody is debugging.
+    let cancelled = false;
+    void fetchAuthMode()
+      .then((mode) => {
+        if (!cancelled) setAuthMode(mode);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setModeError(serverMessage(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const startSignIn = () => {
     setOidcError(null);
@@ -238,34 +277,61 @@ const Login: React.FC = () => {
           <p className="mt-2 text-center text-sm text-gray-600">{t('login.tagline')}</p>
         </div>
 
-        {issuer && (
-          <div className="mt-8 space-y-3">
-            <button
-              type="button"
-              onClick={startSignIn}
-              disabled={redirecting}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-            >
-              {redirecting ? t('login.redirecting') : t('login.withProvider')}
-            </button>
-            {oidcError !== null && (
-              <p role="alert" className="text-sm text-red-600">
-                {oidcError}
+        {modeError !== null ? (
+          <p role="alert" className="mt-8 text-sm text-red-600">
+            {t('login.modeUnavailable')} {modeError}
+          </p>
+        ) : authMode === null ? (
+          <p className="mt-8 text-center text-sm text-gray-500">{t('login.checking')}</p>
+        ) : (
+          <>
+            {issuer && (
+              <div className="mt-8 space-y-3">
+                <button
+                  type="button"
+                  onClick={startSignIn}
+                  disabled={redirecting}
+                  className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  {redirecting ? t('login.redirecting') : t('login.withProvider')}
+                </button>
+                {oidcError !== null && (
+                  <p role="alert" className="text-sm text-red-600">
+                    {oidcError}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* THE STATE #562 LEFT BEHIND, NAMED. The API is in managed mode —
+                so a seed token is refused — and this build was never given the
+                issuer's address, so there is no button either. Falling back to
+                the box here would offer a credential this API will not take;
+                an empty screen would say nothing at all. */}
+            {!authMode.acceptsSeedToken && !issuer && (
+              <p role="alert" className="mt-8 text-sm text-red-600">
+                {t('login.providerNotBuilt')}
               </p>
             )}
-          </div>
-        )}
 
-        {issuer ? (
-          <details className="mt-6">
-            <summary className="cursor-pointer text-sm text-gray-500 hover:text-gray-700">
-              {t('login.pasteToggle')}
-            </summary>
-            <p className="mt-2 text-xs text-gray-500">{t('login.pasteFallback')}</p>
-            {tokenForm}
-          </details>
-        ) : (
-          tokenForm
+            {/* THE BOX APPEARS ONLY WHERE THE API WILL TAKE WHAT IT HOLDS. It
+                used to appear whenever the BUNDLE had no issuer, which is a
+                different question with a different answer — and on a stack
+                where they disagreed it accepted a token, signed somebody in,
+                and bounced them straight back here. */}
+            {authMode.acceptsSeedToken &&
+              (issuer ? (
+                <details className="mt-6">
+                  <summary className="cursor-pointer text-sm text-gray-500 hover:text-gray-700">
+                    {t('login.pasteToggle')}
+                  </summary>
+                  <p className="mt-2 text-xs text-gray-500">{t('login.pasteFallback')}</p>
+                  {tokenForm}
+                </details>
+              ) : (
+                tokenForm
+              ))}
+          </>
         )}
 
         {/* Outside `Layout`, so the sidebar's stamp never reaches this page —
