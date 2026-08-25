@@ -48,7 +48,15 @@ const composeText = readFileSync(join(ROOT, 'deploy/compose/managed.yml'), 'utf8
  * on a service that was correct — prose about a key is not the key.
  */
 const compose = parse(composeText) as {
-  services: Record<string, { image?: string; volumes?: string[]; depends_on?: unknown }>;
+  services: Record<
+    string,
+    {
+      image?: string;
+      volumes?: string[];
+      depends_on?: unknown;
+      environment?: Record<string, string>;
+    }
+  >;
   volumes?: Record<string, unknown>;
 };
 function gatus(): NonNullable<(typeof compose)['services'][string]> {
@@ -237,5 +245,93 @@ describe('the service that serves it', () => {
         'FROM scratch — no shell, no wget, no curl — so no healthcheck it can\n' +
         'run exists, and one that cannot pass fails the entire bring-up.',
     ).toBeUndefined();
+  });
+});
+
+/**
+ * THE GMAIL ROW WAS RED FOR THREE WEEKS AND THE FIX WAS A POINT FIX.
+ *
+ * gatus runs Go's `os.ExpandEnv` over this whole file before parsing it. A
+ * bare `$discovery` in Google's URL was therefore read as a variable named
+ * `discovery`, which nobody sets, which expands to nothing — so what was
+ * actually probed was `https://gmail.googleapis.com//rest?version=v1`. That
+ * answers 404. The row had been red since #498 and read, for three weeks, as
+ * Google having a bad month.
+ *
+ * WHAT MAKES IT INVISIBLE is that the broken URL is still a perfectly valid
+ * URL. Nothing about `//rest?version=v1` looks wrong; it only looks wrong next
+ * to the URL that was meant. So a rule checking that the URLs parse would have
+ * passed on the bug, and did not exist anyway.
+ *
+ * The property that actually holds is narrower and checkable: every variable
+ * this config names must be one the compose file hands the container. A name
+ * outside that set is a mistake either way — a literal dollar that needed
+ * gatus's `$$` escape, or a variable nobody sets — and both expand to nothing
+ * and both go quietly red.
+ *
+ * READ FROM THE PARSED VALUES, not the file text, for the reason recorded
+ * above: this file's own comments discuss `$discovery` by name, and a rule
+ * that scanned prose would flag the paragraph explaining it.
+ */
+describe('every variable the status config names is one somebody sets', () => {
+  /** `$$` is gatus's literal-dollar escape; it is consumed before expansion. */
+  function referencedVariables(node: unknown, into: Set<string>): Set<string> {
+    if (typeof node === 'string') {
+      for (const m of node.replace(/\$\$/g, '').matchAll(
+        /\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?/g,
+      )) {
+        into.add(m[1]!);
+      }
+    } else if (Array.isArray(node)) {
+      for (const v of node) referencedVariables(v, into);
+    } else if (node && typeof node === 'object') {
+      for (const [k, v] of Object.entries(node)) {
+        referencedVariables(k, into);
+        referencedVariables(v, into);
+      }
+    }
+    return into;
+  }
+
+  it('names nothing the gatus container is not given', () => {
+    const supplied = new Set(Object.keys(gatus().environment ?? {}));
+    expect(
+      supplied.size,
+      'the gatus service has no environment block, so every variable in\n' +
+        'gatus.yaml expands to nothing and every row is red.',
+    ).toBeGreaterThan(0);
+
+    const referenced = referencedVariables(config, new Set<string>());
+    const unset = [...referenced].filter((v) => !supplied.has(v)).sort();
+    expect(
+      unset,
+      `gatus.yaml names ${unset.join(', ')}, which managed.yml does not hand\n` +
+        `the gatus container (it hands ${[...supplied].sort().join(', ')}).\n\n` +
+        'os.ExpandEnv turns each of those into an empty string, so the URL that\n' +
+        'is actually probed is not the one written here — and the result is a\n' +
+        'permanently red row that reads as somebody else having an outage.\n\n' +
+        'If it was meant as a LITERAL DOLLAR — Google\'s discovery path has\n' +
+        'one — write it `$$`, which is the escape gatus swaps out before\n' +
+        'expanding and back afterwards.',
+    ).toEqual([]);
+  });
+
+  it('uses every variable it is given, or stops being given it', () => {
+    // The other direction, and a weaker claim: an unused variable is not an
+    // outage, it is a setting somebody has to keep true. It earns a rule
+    // because the last one to go stale (STATUS_URL) was carried in three
+    // files for a fortnight after nothing read it.
+    const referenced = referencedVariables(config, new Set<string>());
+    const unused = Object.keys(gatus().environment ?? {})
+      .filter((v) => !referenced.has(v))
+      // Read by gatus itself rather than by this config's contents.
+      .filter((v) => v !== 'GATUS_CONFIG_PATH')
+      .sort();
+    expect(
+      unused,
+      `managed.yml hands the gatus container ${unused.join(', ')}, and\n` +
+        'gatus.yaml never names it. Either a row was meant to read it and does\n' +
+        'not, or the setting outlived its row and should come out of both files.',
+    ).toEqual([]);
   });
 });
