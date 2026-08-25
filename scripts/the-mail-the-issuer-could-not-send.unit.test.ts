@@ -195,6 +195,52 @@ describe('and a gate proves it actually sends', () => {
         'share one.',
     ).toMatch(/\$\(/);
   });
+
+  /**
+   * AND IT LOOKS WHERE THE CATCHER ACTUALLY IS.
+   *
+   * `MAILPIT_BIND` exists so an operator can reach the catcher over a private
+   * mesh without a tunnel every time, and the rule further down keeps its
+   * default at loopback. The gate hard-coded `localhost` anyway — so the first
+   * time somebody took the documented option, both assertions above started
+   * answering "mailpit is not answering" and E2E (managed) #84 went red on a
+   * stack whose mail was fine.
+   *
+   * A DOCUMENTED SETTING THAT BREAKS THE GATE IS A BUG IN THE GATE, and this
+   * one pointed the wrong way as well: "the mail path is unproven" reads as
+   * the API failing to send, which is the one thing it was not doing.
+   *
+   * AND THE VALUE COMES OUT OF THE FILE. This script sources no `.env` — it
+   * greps it, as the SMTP_HOST line does and says. So `${MAILPIT_PORT:-3127}`
+   * was never reading the setting; it was the default wearing a variable's
+   * clothes, and it would have missed a moved PORT exactly as it missed the
+   * moved BIND. Both keys are covered here so the surviving one is not left as
+   * the next instance of this.
+   */
+  it('derives the catcher address instead of assuming loopback', () => {
+    const assignment = /^MAILPIT=.*$/m.exec(smoke);
+    expect(assignment, 'the smoke no longer assigns MAILPIT').toBeTruthy();
+    expect(
+      assignment![0],
+      `the gate asks ${assignment![0]} — a hard-coded loopback host.\n\n` +
+        'MAILPIT_BIND is a documented setting (#574) and a mesh publish\n' +
+        'REPLACES loopback rather than adding to it, so on any stack that uses\n' +
+        'it every mail assertion fails and blames the sender. Derive the host\n' +
+        'from the bind.',
+    ).not.toMatch(/localhost/);
+  });
+
+  it('reads the catcher settings from .env, which it does not source', () => {
+    for (const key of ['MAILPIT_BIND', 'MAILPIT_PORT']) {
+      expect(
+        smoke,
+        `the smoke reads ${key} as a shell variable. It sources no .env — see\n` +
+          'the SMTP_HOST line, which greps the file and says why — so that\n' +
+          'expression never sees the operator\'s setting and silently uses its\n' +
+          'own default instead.',
+      ).not.toMatch(new RegExp(`\\$\\{?${key}[:}\\s]`));
+    }
+  });
 });
 
 describe('and it is proved where the proof is needed', () => {
