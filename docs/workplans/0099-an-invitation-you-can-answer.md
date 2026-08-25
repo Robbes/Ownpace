@@ -10,7 +10,7 @@
 | T4 The three answers, on screen | ✅ **Done 2026-08-23** | `apps/web/src/pages/Invitations.tsx` — Join / Decline / **Not now**. `AuthCallback` routes there ahead of both existing cases, including for somebody who already belongs somewhere. EN + NL. |
 | T5 Zitadel in the managed gate | ✅ **Done 2026-08-23** | Added to `bootstrap-managed.sh`'s explicit service list, and `setup-zitadel.sh` is now INVOKED — nothing had ever invoked it. `scripts/identity-in-the-gate.unit.test.ts` pins both. |
 | T6 The smoke answers an invitation three ways | ✅ **Done 2026-08-23** | Accept, decline and skip over real HTTP against the running API, plus issuer discovery and JWKS. Skip is asserted as an ABSENCE — no request is made, and the guard fails if `T3` ever appears in a URL. |
-| T7 A real browser sign-in in the smoke | 📋 **Planned, and honestly not done** | See "what is still owed". |
+| T7 A real browser sign-in in the smoke | ✅ **Done — and this row said otherwise until 2026-08-24** | `sign_in_as` in `smoke-managed.sh` runs the whole authorization-code flow against the live provider: `/oauth/v2/authorize` with an S256 challenge, a session proved with a password at `/v2/sessions`, the auth request finalised against that session, and the code exchanged at `/oauth/v2/token` with the verifier. `scripts/identity-in-the-gate.unit.test.ts` pins every step and **runs** the challenge derivation. |
 
 ## What changed, and why it had to
 
@@ -129,25 +129,50 @@ container** for exactly this reason. Asked from the host they would pass against
 the broken default — the port is published, so `localhost:3126` answers there —
 which is the kind of green this repository keeps having to un-learn.
 
-## What is still owed
+## What was still owed — and was quietly paid
 
-**T7: the smoke does not drive a real browser sign-in.** It asserts that the
-issuer is running and serving the exact document `oidc.ts` and `auth.ts` both
-read, that its `jwks_uri` is fetchable, and that the declared issuer matches byte
-for byte — and it exercises the invitation logic end to end over real HTTP with
-tokens minted from the API's own secret, as every other check in that script
-does.
+**This section described T7 as undone from 2026-08-23 until 2026-08-24, and it
+had been done in between.** What it said:
 
-What it does not do is obtain a token FROM Zitadel through the authorization
-code flow. That needs its session API and a PKCE exchange, and it was not
-written here for a reason worth recording: this environment has no Docker to run
-it against and no network access to Zitadel's API documentation, so it would
-have been several hundred lines of unverifiable shell against remembered
-endpoint shapes — the exact recipe for a confident PR that turns the nightly red
-again, two days after 0098 turned it green.
+> What it does not do is obtain a token FROM Zitadel through the authorization
+> code flow. That needs its session API and a PKCE exchange…
+>
+> It is worth doing properly, against the live gate, where each step can be seen
+> to work.
 
-It is worth doing properly, against the live gate, where each step can be seen to
-work.
+That is exactly what happened, and nothing came back to say so. `sign_in_as`
+creates a human at the provider, starts an authorization request with an S256
+challenge, proves a session with the password, finalises the auth request
+against that session, and exchanges the code with the verifier — taking the **ID
+token**, because Zitadel puts user info claims there only and ADR-0042 requires
+`email`. Its own header records the reason to trust it: *"every call below was
+driven against the live provider before it was written here (probes,
+2026-08-23)."*
+
+**A status that understates what shipped is the same defect as one that
+overstates it.** A reader deciding what to work on next would have rebuilt a
+thing that exists. The rule was written here for green checks — *a status must
+belong to the thing that happened* — and it cuts both ways.
+
+### And nothing pinned it
+
+Worse than the stale row: no test asserted that the smoke gets its token from
+the provider at all. `selectAuthMode` falls back to the symmetric `JWT_SECRET`
+when `JWT_ISSUER` is unset, so a smoke that quietly went back to minting its own
+tokens would have stayed green while asserting nothing about whether anybody can
+sign in — the precise blindness T5 and T6 were written to end.
+
+`scripts/identity-in-the-gate.unit.test.ts` now pins all six steps, and **runs**
+the one piece of arithmetic in the flow: the whole `challenge=` line is lifted
+out of the script, executed, and compared against `base64url(sha256(verifier))`
+computed independently. A scan can only see that some pipeline exists; it cannot
+see that the pipeline is right.
+
+The first version of that check extracted the challenge with `/challenge="([^"]+)"/`
+— which stops at the first quote *inside* the command substitution and hands
+back a fragment evaluating to the empty string. It failed loudly rather than
+passing vacuously, which is the only reason it was noticed. **Fourth time in a
+day** that a check needed checking.
 
 ## Gates
 
