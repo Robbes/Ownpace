@@ -259,6 +259,27 @@ describe("and the gate signs in through a client of its own", () => {
   });
 });
 
+describe('and a stack that does not exist yet never has the problem', () => {
+  /**
+   * `cmd/defaults.yaml` at v4.17.1 ships
+   * `DefaultInstance.Features.LoginV2.Required: true`. Every fresh instance
+   * therefore requires a login UI this stack does not deploy, and the API call
+   * in setup-zitadel.sh is a repair of a state that never needed to exist.
+   *
+   * DefaultInstance is read once, at first init — so this fixes new stacks and
+   * nothing else, and the API call fixes existing ones. Both, deliberately.
+   */
+  it('a new instance is told at init, not corrected afterwards', () => {
+    const managed = readFileSync(join(COMPOSE, 'managed.yml'), 'utf8');
+    expect(
+      managed,
+      "the identity provider is started without a login-version default, so a\n" +
+        'brand-new stack requires login v2 from its first second until\n' +
+        'setup-zitadel.sh gets to it.',
+    ).toMatch(/ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED:\s*"false"/);
+  });
+});
+
 describe('and the premise is pinned, not assumed', () => {
   /**
    * "Login v2 off" is right ONLY while this stack serves no login v2. The day
@@ -268,7 +289,19 @@ describe('and the premise is pinned, not assumed', () => {
    * fails HERE, next to the explanation of what to change.
    */
   it('this stack deploys no login v2 application', () => {
-    const managed = readFileSync(join(COMPOSE, 'managed.yml'), 'utf8');
+    /**
+     * READS THE `image:` DIRECTIVES, not the file. The first version scanned
+     * the whole of managed.yml and failed on the comment that explains WHY the
+     * login-version default is set — a rule must not forbid its own
+     * explanation, which this repo has now got wrong nine times. Naming the
+     * container is how you say what is not deployed; running it is the change
+     * that matters.
+     */
+    const managed = readFileSync(join(COMPOSE, 'managed.yml'), 'utf8')
+      .split('\n')
+      .filter((l) => /^\s*image:/.test(l))
+      .join('\n');
+    expect(managed, 'managed.yml declares no images at all').toMatch(/image:/);
     expect(
       managed,
       'a login v2 application appears in managed.yml. If it is now served, then\n' +
