@@ -769,7 +769,37 @@ curl -s localhost:3127/api/v1/messages | head -c 400
 ssh -N -L 3127:127.0.0.1:3127 you@the-box
 ```
 
-`MAILPIT_PORT` moves it; the bind address stays loopback.
+`MAILPIT_PORT` moves the port. `MAILPIT_BIND` moves the interface, and its
+default is loopback.
+
+#### Reaching it over a private mesh, without a tunnel every time
+
+A WireGuard peer address — NetBird, Tailscale — is **not** the same thing as
+`0.0.0.0`. It is reachable only by devices holding a key for that network, which
+is an authentication boundary Mailpit does not have to provide itself. So it is
+a legitimate place to publish the catcher, and the shipped default stays
+loopback for everyone who does not ask:
+
+```bash
+./deploy/compose/env-upsert.sh deploy/compose/.env MAILPIT_BIND=100.97.25.131
+docker compose -f deploy/compose/managed.yml up -d mailpit
+```
+
+Then http://100.97.25.131:3127 from any device on the mesh.
+
+Two things that stay true after you do it:
+
+- **It is still unauthenticated to everyone ON that mesh.** The question moves
+  from "who can route to this box" to "who is on this network" — and a default
+  peer-to-peer policy includes every device you enroll later. If the answer is
+  more than one person, give Mailpit its own password as well
+  (`MP_UI_AUTH_FILE`).
+- **A public name is still the wrong answer.** `mail.example.com` with public
+  DNS and a certificate publishes every password-reset link this stack sends to
+  whoever finds it. `0.0.0.0` — and a bind variable with no default, which is
+  the same mistake by omission — are refused by a rule in
+  `scripts/the-mail-the-issuer-could-not-send.unit.test.ts` rather than by
+  convention.
 
 **Mailpit is for OTA and development only.** It is in `managed.yml` because
 every environment that is not production wants its mail caught rather than
