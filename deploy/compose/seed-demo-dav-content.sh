@@ -253,6 +253,13 @@ fi
 
 if [ "$VERIFY_ONLY" = "0" ]; then
   for n in 1 2; do
+    # Injected by PARAMETER expansion, never command substitution: `$(...)`
+    # strips every trailing newline, which glued END:VEVENT onto the ATTENDEE
+    # line — one unterminated VEVENT, Sabre answered 415, and the whole fresh
+    # seed died (E2E managed #87). `${EVENT_PROPS}` hands the value over
+    # byte-for-byte, trailing newline included.
+    EVENT_PROPS=""
+    if [ "$n" = "1" ]; then EVENT_PROPS="$SCHED_PROPS"; fi
     code=$(dav PUT "${CAL}openmig-demo-event-${SUFFIX}${n}.ics" 'text/calendar; charset=utf-8' \
 "BEGIN:VCALENDAR
 VERSION:2.0
@@ -265,7 +272,7 @@ DTEND:2026010${n}T110000Z
 SUMMARY:Ownpace demo event ${SUFFIX}${n}
 DESCRIPTION:Seeded by seed-demo-dav-content.sh so the demo has something to sync.
 STATUS:CONFIRMED
-$([ "$n" = "1" ] && printf '%s' "$SCHED_PROPS")END:VEVENT
+${EVENT_PROPS}END:VEVENT
 END:VCALENDAR")
     echo "[seed-dav] event ${SUFFIX}${n}: HTTP ${code}"
     case "$code" in 201|204) ;; *) fail "calendar PUT ${SUFFIX}${n} returned ${code}" ;; esac
