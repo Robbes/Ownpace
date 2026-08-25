@@ -1284,10 +1284,19 @@ APPLY_RESULT="skipped-no-item"
 # the extension" identifies exactly the fixtures and nothing else.
 ELIGIBLE="status IN ('copied','updated') AND coalesce(target_ref->>'id','') <> ''"
 FIXTURE_RE="openmig-demo-(event|contact|file)-[0-9]+[.][a-z]+$"
+# Fresh event 1 is the SCHEDULING CANARY (0103 T2), and the byte-check further
+# down reads its copy off the target AFTER this half has run — so the apply
+# half must never spend it. It did, once: E2E managed #88 applied a real
+# deletion to exactly that item (natural-key hash c52e5949…, the canary event)
+# four seconds before the read, and the gate reported its own deletion as an
+# unproven byte-check. Five other fresh items per seed stay disposable. The
+# prepare wait loop polls pick_disposable itself, so wait and pick carry this
+# exclusion by construction, not by agreement (the run-#18 lesson).
+CANARY_RE="openmig-demo-event-.+-1[.]ics$"
 HREF_EXPR="coalesce(source_ref_href, source_ref->>'href', '')"
 
 pick_disposable() {
-  q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND $ELIGIBLE AND $HREF_EXPR !~ '$FIXTURE_RE' ORDER BY first_seen_at DESC, natural_key_hash LIMIT 1"
+  q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND $ELIGIBLE AND $HREF_EXPR !~ '$FIXTURE_RE' AND $HREF_EXPR !~ '$CANARY_RE' ORDER BY first_seen_at DESC, natural_key_hash LIMIT 1"
 }
 pick_fixture() {
   q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND $ELIGIBLE ORDER BY natural_key_hash LIMIT 1"
@@ -2164,7 +2173,9 @@ if [ -n "$BALANCE_TAG" ]; then
     "http://localhost:${nc_port:-8083}/${sched_href}" 2>/dev/null || true)"
   if [ -z "$sched_copy" ]; then
     echo "could not read the canary copy at ${sched_href} — the byte half of this"
-    echo "gate is unproven (did the target writer re-home the collection?)"
+    echo "gate is unproven. Either the sync never copied it, or the writer re-homed"
+    echo "the collection; the apply half cannot have consumed it (pick_disposable"
+    echo "excludes the canary — the E2E #88 lesson)."
     fail=1
   else
     if grep -q "SCHEDULE-AGENT=CLIENT" <<<"$sched_copy" \
