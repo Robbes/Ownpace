@@ -3333,3 +3333,67 @@ lasted five days in the first place.
 Both were **written and never once verified against a running container**. The
 pattern across the whole night is now unmistakable: *a check is not a check
 until something has watched it fail for the right reason.*
+
+## Pages that do not exist, and the page that says whether anything is down
+
+Reported from the live test host:
+
+```
+https://app.ota.ownpace.eu/blabla   →  a blank white page, HTTP 200
+https://www.ota.ownpace.eu/blabla   →  the landing page,   HTTP 404
+```
+
+**Two different lies, and the app's is the worse one.**
+
+The app's nginx does the SPA fallback — `try_files $uri $uri/ /index.html` —
+which is correct and unavoidable: the server cannot know which client-side paths
+exist without a copy of the route table, and *two files that must agree* is the
+failure this repo has spent a week removing. But `AppRoutes.tsx` had no
+`path="*"`, so react-router matched nothing and drew nothing. **A 200 with an
+empty body is success** as far as every crawler and uptime monitor is concerned.
+Neither half was wrong alone; together they answered "everything is fine" over a
+blank page.
+
+`www-nginx.conf` said `error_page 404 /index.html;`, so a wrong address served
+the **home page** — with the 404 status intact, which is the worst of both: the
+visitor sees a working site and concludes their link was fine, while the crawler
+is told the page is missing. Two audiences, two wrong answers, one line.
+
+### What the pages say
+
+A 404 on a product that moves somebody's mail has one job before it has any
+other: the first thought on an unexpected screen is *has something of mine gone
+missing?* So the reassurance is a statement of fact and comes first — "nothing
+of yours was lost", "uw migraties zijn ongemoeid" — and the joke is allowed to
+be dry. Both are asserted, in both languages, because a reassurance nobody
+checks is a reassurance that quietly disappears in a refactor.
+
+The app's page renders **inside the layout**, not instead of it. Somebody who
+mistyped a path is still signed in, and taking their navigation away treats a
+typo like a session failure.
+
+### The status page finally has a link
+
+gatus has been running since #547 with **nothing pointing at it** — reachable
+only by knowing the port. It is now in the site footer on every page, which is
+where somebody asking "is it down" already is.
+
+The host is **derived** from `OWNPACE_APP_URL` (`app.` → `status.`) rather than
+configured beside it, for exactly the reason `PUBLIC_APP_URL` exists: two
+settings that both name an environment drift, and the drift is silent. A test
+site linking production's status page answers "is it down" about the wrong
+machine — the same class as the production links that reached
+`www.ota.ownpace.eu` the day before. It **refuses rather than guesses** when the
+host is not an `app.` one, because a wrong status link is worse than none.
+
+`OWNPACE_STATUS_URL` overrides it, which is what the eventual move needs: a
+status page hosted on the machine it watches cannot answer the question when
+that machine is the problem (docs/status-page.md).
+
+### Sixth guard this week to cry wolf on its own first run
+
+The nginx rule flagged the comment **above** the fix — the one quoting
+`error_page 404 /index.html;` as the record of what went wrong. Narrowed to
+directives, comments excluded. The tally is now hard to dismiss as coincidence:
+a rule written against a file that documents its own history will flag the
+documentation unless told not to, every single time.

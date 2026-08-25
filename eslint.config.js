@@ -18,6 +18,10 @@ export default tseslint.config(
         module: 'readonly',
         exports: 'readonly',
         fetch: 'readonly',
+        // Web-standard and a Node global since v10, like `fetch` above. Added
+        // when site/prices.mjs began deriving the status host from APP_URL —
+        // parsing a URL by hand to satisfy a lint list is how a wrong link ships.
+        URL: 'readonly',
         Buffer: 'readonly',
       },
     },
