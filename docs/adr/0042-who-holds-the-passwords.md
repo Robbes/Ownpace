@@ -38,6 +38,37 @@
 - **The appliance never gains an issuer dependency**, enforced by
   `apps/selfhost/src/no-managed-leakage.unit.test.ts`.
 
+### Amended 2026-08-25 — `sub` is the identity, email is a label
+
+Three questions arrived at once (a second sign-in method, changing your login
+address, and whether the seed-token box still has a job), and all three turn on
+one rule that was implied by the operative rules above and never written down.
+
+- **`tenant_member.user_id` IS the token's `sub`.** `lookupMemberships` filters
+  on it; `resolveTenant` refuses when it finds nothing. Email appears nowhere in
+  that lookup.
+- **A flow that PRESERVES `sub` is safe. A flow that mints a NEW `sub` orphans
+  the membership** — the person is still a member of an organisation their new
+  subject cannot reach, and the API answers 403 on every route.
+- So **changing somebody's email inside their existing account is safe by
+  construction**, and **a second account for the same person is the failure**.
+  This is the whole content of "configure account linking": not a preference,
+  a correctness requirement, and it has to be decided before a second sign-in
+  method is offered rather than after.
+- **A second method must never become the only method on an account.** Removing
+  the last remaining one strands the subject, and for somebody whose reason for
+  using this product is to leave a platform, making that platform the key to
+  their account is a dependency rebuilt in a new place.
+- **Federation belongs in the issuer, never in the app.** "Login with Google" as
+  app code is exactly what the third operative rule forbids, and
+  `no-issuer-lock-in.unit.test.ts` rejects it. Upstream providers are configured
+  in the issuer, which keeps `iss` ours, keeps `sub` ours, and keeps the
+  integration inside plain OIDC — which is the property that makes any of this
+  reversible.
+
+Nothing in this amendment is built. It records the decision the three tasks in
+`docs/workplans/0102-who-your-account-is.md` depend on.
+
 ## Context
 
 Workplan 0092 T4 established what the path from stranger to signed-in customer actually
