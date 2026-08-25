@@ -74,7 +74,26 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-API="${SMOKE_API:-http://localhost:3001}"
+# WHAT THE OPERATOR ACTUALLY SET, READ OUT OF THE FILE.
+#
+# This script sources no `.env` — by design; see the SMTP_HOST section, which
+# greps it and says why. So `${SOME_PORT:-1234}` in here NEVER read the
+# operator's setting: the variable is unset in this shell, so it was the
+# default wearing a variable's clothes and quietly right only while nobody
+# changed anything.
+#
+# That is not hypothetical. Every published port in managed.yml is a setting,
+# and E2E (managed) #84 went red on a healthy stack the first time one of them
+# was moved — the catcher had been published on a mesh address and the gate
+# still asked localhost, then blamed the mail path. A gate that breaks when a
+# documented setting is used is a bug in the gate, and it fails pointing at the
+# wrong thing.
+smoke_env_value() {   # <key> — the last assignment in .env, or empty
+  grep -E "^$1=.+" "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- || true
+}
+
+api_port="$(smoke_env_value API_PORT)"
+API="${SMOKE_API:-http://localhost:${api_port:-3001}}"
 DB_CONTAINER="${SMOKE_DB_CONTAINER:-ownpace-db}"
 API_CONTAINER="${SMOKE_API_CONTAINER:-ownpace-api}"
 POLLS="${SMOKE_POLLS:-45}"
@@ -516,7 +535,8 @@ fi
 # container whose nginx had no /api proxy — every browser API call got
 # index.html back. Assert both that the SPA serves AND that /api through the
 # web origin reaches the API (JSON, not the SPA fallback's HTML).
-WEB="${SMOKE_WEB:-http://localhost:3123}"
+web_port="$(smoke_env_value WEB_PORT)"
+WEB="${SMOKE_WEB:-http://localhost:${web_port:-3123}}"
 web_root="$(curl -sf "$WEB/" || true)"
 if ! grep -qi '<html' <<<"$web_root"; then
   echo "FATAL: web app not serving at $WEB/"
@@ -657,7 +677,8 @@ fi
 # `-k` because the certificate is internally minted on purpose: no public CA
 # signs a private IP. A status code — ANY status code — means TLS terminated
 # and Caddy answered. `000` is curl for "no response at all".
-TLS_PORT="${TRIGGER_TLS_PORT:-3443}"
+tls_port="$(smoke_env_value TRIGGER_TLS_PORT)"
+TLS_PORT="${TRIGGER_TLS_PORT:-${tls_port:-3443}}"
 tls_code="$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 \
   "https://127.0.0.1:${TLS_PORT}/" 2>/dev/null || echo 000)"
 if [ "$tls_code" != "000" ]; then
@@ -724,7 +745,8 @@ note "trigger-registry and trigger-docker-proxy (the last two unasserted service
 # task images can be pushed and pulled. A dead registry means every deploy
 # fails, and the failure surfaces as a task that will not start rather than as
 # anything naming the registry.
-REGISTRY_PORT_CHECK="${SMOKE_REGISTRY_PORT:-5000}"
+registry_port="$(smoke_env_value REGISTRY_PORT)"
+REGISTRY_PORT_CHECK="${SMOKE_REGISTRY_PORT:-${registry_port:-5000}}"
 # NO `|| echo 000` HERE, and the unit test is what found that out. On a refused
 # connection curl BOTH prints `000` (that is what `%{http_code}` is when there
 # was no response) AND exits non-zero — so the fallback appended a second one,
@@ -1864,9 +1886,6 @@ note "an access request, and the mail it produces"
 # `${MAILPIT_PORT:-3127}` was never the setting — it was the default wearing a
 # variable's clothes, and would have missed a moved PORT exactly as it missed
 # the moved BIND.
-smoke_env_value() {   # <key> — the last assignment in .env, or empty
-  grep -E "^$1=.+" "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- || true
-}
 mailpit_bind="$(smoke_env_value MAILPIT_BIND)"
 mailpit_port="$(smoke_env_value MAILPIT_PORT)"
 # 0.0.0.0 is every interface, and every interface includes loopback — so it is
@@ -2200,7 +2219,8 @@ fi
 # reach and is the operator's call, not this gate's.
 note "the status page"
 
-STATUS="${SMOKE_STATUS:-http://localhost:${STATUS_PORT:-3124}}"
+status_port="$(smoke_env_value STATUS_PORT)"
+STATUS="${SMOKE_STATUS:-http://localhost:${status_port:-3124}}"
 if curl -fsS -o /dev/null -m 10 "${STATUS}/health"; then
   echo "status page: answering at ${STATUS}/health"
 else
