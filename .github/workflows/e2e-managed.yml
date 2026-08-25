@@ -350,9 +350,53 @@ jobs:
             echo "::error::PgBouncer's admin console answered nothing — the pooler is not serving."
             exit 1
           fi
-          # Transaction mode, and at least one client actually connected through it.
-          grep -q "transaction" <<<"$pools" || {
-            echo "::error::PgBouncer is not in transaction mode. managed.yml sets pool_mode=transaction."
+          # THE APPLICATION POOL, NOT WHATEVER `SHOW POOLS` HAPPENS TO LIST.
+          #
+          # `SHOW POOLS` always includes the admin pseudo-database `pgbouncer`,
+          # whose pool_mode is `statement` and always will be. Grepping the whole
+          # output for "transaction" therefore answers "has any client connected
+          # yet" while REPORTING "PgBouncer is not in transaction mode" — a
+          # sentence about configuration, produced by a fact about traffic.
+          #
+          # Run #79 was exactly that. The api had been up for two seconds, no
+          # application pool existed, the only row was the admin one, and the
+          # gate blamed pgbouncer.ini — which says `pool_mode = transaction` on
+          # line 58 and is mounted read-only. A true statement about the wrong
+          # thing sends the reader to a file that is already correct.
+          #
+          # THREE OUTCOMES, KEPT APART, because they have three different
+          # remedies: the app never connected, the app connected in the wrong
+          # mode, and everything is fine.
+          app_db="${POSTGRES_DB:-openmigrate}"
+          app_pool() {
+            docker compose $MANAGED_COMPOSE exec -T pgbouncer \
+              psql "postgresql://pgbouncer_auth:${PGBOUNCER_AUTH_PASSWORD}@127.0.0.1:6432/pgbouncer" \
+              -tAc "SHOW POOLS" 2>/dev/null | awk -F'|' -v db="$app_db" '$1==db' || true
+          }
+          row="$(app_pool)"
+          if [ -z "$row" ]; then
+            # Not a wait-and-hope: ask the API for something that needs the
+            # database, so a pool has to exist afterwards or the app is not
+            # using the pooler at all — which is the thing this step is for.
+            curl -fsS -o /dev/null -m 10 "${SMOKE_API}/ready" || true
+            for _ in 1 2 3 4 5 6 7 8 9 10; do
+              row="$(app_pool)"
+              [ -n "$row" ] && break
+              sleep 2
+            done
+          fi
+          if [ -z "$row" ]; then
+            echo "::error::No pool for '${app_db}' after asking the API for a database-backed read. The app is not reaching Postgres THROUGH the pooler — which is the failure this step exists to catch."
+            exit 1
+          fi
+          echo "app pool: $row"
+          # LAST NON-EMPTY FIELD, not `${row##*|}`. The rows end with a trailing
+          # separator, so the naive form yields the empty string and the refusal
+          # below would read "is in '' mode" — a gate failing a correct stack
+          # while saying nothing. Measured against the real row from run #79.
+          mode="$(awk -F'|' '{for (i = NF; i >= 1; i--) if ($i != "") { print $i; exit }}' <<<"$row")"
+          [ "$mode" = "transaction" ] || {
+            echo "::error::The '${app_db}' pool is in '${mode}' mode, not transaction. pgbouncer.ini sets pool_mode=transaction, so the running pooler disagrees with the file mounted into it."
             exit 1
           }
           # And the migration path is direct: DIRECT_DATABASE_URL must not point at the pooler.
