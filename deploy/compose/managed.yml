@@ -1017,7 +1017,28 @@ services:
       # Reach it through an SSH tunnel instead — docs/managed-bring-up.md says
       # how. The smoke and the nightly both ask on localhost from the host, so
       # neither notices.
-      - "127.0.0.1:${MAILPIT_PORT:-3127}:8025"
+      #
+      # THE BIND ADDRESS IS A SETTING, AND ITS DEFAULT IS STILL LOOPBACK. A
+      # private mesh address is not the same thing as `0.0.0.0`: on a WireGuard
+      # network — NetBird, Tailscale — the peer address is reachable only by
+      # devices holding a key for it, which is an authentication boundary this
+      # container does not have to provide itself. An operator who wants the
+      # catcher on their laptop without a tunnel every time sets
+      # `MAILPIT_BIND` to that peer address and gets it, and nothing about the
+      # shipped default changes for anyone who does not.
+      #
+      # WHAT STAYS FORBIDDEN is the thing the paragraph above is about: a
+      # public name, and every interface. `MAILPIT_BIND=0.0.0.0` publishes an
+      # unauthenticated reader of every password reset to whatever can route to
+      # the box, and the rule in the-mail-the-issuer-could-not-send.unit.test.ts
+      # refuses it — along with a bind that has no default, which is the same
+      # mistake made by omission.
+      #
+      # ON A MESH IT IS STILL UNAUTHENTICATED. Everyone on that network can read
+      # every verification link, so the question moves from "who can route to
+      # this box" to "who is on this mesh" — worth answering deliberately, and
+      # worth `MP_UI_AUTH_FILE` if the answer is more than one person.
+      - "${MAILPIT_BIND:-127.0.0.1}:${MAILPIT_PORT:-3127}:8025"
     networks:
       - ownpace-network
     healthcheck:

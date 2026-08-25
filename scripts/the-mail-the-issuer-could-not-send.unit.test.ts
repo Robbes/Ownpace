@@ -231,17 +231,49 @@ describe('the catcher is not readable from the internet', () => {
     services: Record<string, { ports?: string[] }>;
   };
 
-  it('binds mailpit to loopback', () => {
+  /**
+   * THE RULE IS ABOUT THE DEFAULT, NOT ABOUT LOOPBACK.
+   *
+   * It said `^127.0.0.1:` and meant "nobody gets this by accident". Those are
+   * not the same sentence, and the difference showed up the first time somebody
+   * wanted the catcher on their laptop without a tunnel every time (owner,
+   * 2026-08-25).
+   *
+   * A private mesh address is not `0.0.0.0`. On WireGuard — NetBird, Tailscale
+   * — the peer address is reachable only by devices holding a key for it, which
+   * is an authentication boundary this container does not have to provide
+   * itself. Forbidding that outright bought no safety and cost a tunnel.
+   *
+   * SO THE BIND IS A SETTING WHOSE DEFAULT IS LOOPBACK, and this checks exactly
+   * that: an operator has to say a different address out loud, in their own
+   * `.env`, and nobody who says nothing is exposed. Both ways of getting it
+   * wrong are still refused — `0.0.0.0`, and a variable with no default, which
+   * is the same mistake by omission.
+   */
+  const LOOPBACK_DEFAULT = /^(127\.0\.0\.1|\$\{[A-Z_][A-Z0-9_]*:-127\.0\.0\.1\}):/;
+
+  it('publishes mailpit on loopback unless somebody says otherwise', () => {
     const ports = compose.services.mailpit?.ports ?? [];
     expect(ports.length, 'mailpit publishes no port at all').toBeGreaterThan(0);
     for (const p of ports) {
       expect(
         p,
-        `mailpit publishes ${p}, which is every interface. It has no authentication\n` +
-          'and it holds every verification link and password reset this stack sends —\n' +
-          'on a box with a public name that is an account-takeover primitive.\n' +
-          'Reach it through an SSH tunnel instead.',
-      ).toMatch(/^127\.0\.0\.1:/);
+        `mailpit publishes ${p}. It has no authentication and it holds every\n` +
+          'verification link, email-change confirmation and password reset this\n' +
+          'stack sends — on a box with a public name that is an account-takeover\n' +
+          'primitive, so the DEFAULT has to be loopback and the exception has to\n' +
+          'be typed out.\n\n' +
+          'Write it as "${MAILPIT_BIND:-127.0.0.1}:…" — a variable WITH the\n' +
+          'loopback default. A bare "${MAILPIT_BIND}" exposes every deployment\n' +
+          'that never set it.',
+      ).toMatch(LOOPBACK_DEFAULT);
+      expect(
+        p,
+        `mailpit publishes ${p}, which is every interface — see above. A private\n` +
+          'mesh address (NetBird, Tailscale) is a legitimate value for\n' +
+          'MAILPIT_BIND; 0.0.0.0 is not, because "who can route to this box" is\n' +
+          'not an authentication boundary.',
+      ).not.toMatch(/0\.0\.0\.0|\[::\]/);
     }
   });
 });
