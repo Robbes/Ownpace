@@ -198,6 +198,41 @@ describe('two .env files describing one stack are reported, not hidden', () => {
     expect(fn, 'the divergence report prints a value').not.toMatch(/note ".*\$\{?[ab]\}?/);
   });
 
+  it('speaks when there are TWO FILES, not only when they have already drifted', () => {
+    // It used to return silently while every key matched — so the warning
+    // arrived after the damage rather than before it. Two separate files
+    // describing one stack WILL drift; the point is to be told while it is
+    // still cheap.
+    const fn = bootstrap.slice(
+      bootstrap.indexOf('note_env_divergence() {'),
+      bootstrap.indexOf('# THE `zitadel` ROLE'),
+    );
+    expect(fn).toContain('They agree right now:');
+    expect(fn, 'the agreeing case offers no way to fix it').toMatch(
+      /They agree right now[\s\S]*ln -sfn/,
+    );
+  });
+
+  it('stays quiet about it under CI, where a symlink is impossible', () => {
+    // Not noise-squeamishness: `actions/checkout` runs `git clean -ffdx` and
+    // deletes the link like any other ignored file, which is why the workflow
+    // restores a copy at all. Advice a runner structurally cannot take, printed
+    // every run forever, is how a real warning gets tuned out.
+    const fn = bootstrap.slice(
+      bootstrap.indexOf('note_env_divergence() {'),
+      bootstrap.indexOf('# THE `zitadel` ROLE'),
+    );
+    expect(fn).toMatch(/\[ -n "\$\{CI:-\}" \] && return 0/);
+  });
+
+  it('still reports the DISAGREEING case, which is the louder one', () => {
+    const fn = bootstrap.slice(
+      bootstrap.indexOf('note_env_divergence() {'),
+      bootstrap.indexOf('# THE `zitadel` ROLE'),
+    );
+    expect(fn).toContain('they disagree on');
+  });
+
   it('says nothing when the two are already one file', () => {
     const fn = bootstrap.slice(
       bootstrap.indexOf('note_env_divergence() {'),

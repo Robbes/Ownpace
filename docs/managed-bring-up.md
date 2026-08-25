@@ -772,6 +772,21 @@ Check the divergence list first. If a second `.env` exists, the role may be
 matching *that* one, and syncing would break the other consumer instead of
 fixing yours.
 
+**What still could not break the link, and what could.** `env-upsert.sh` is now
+the *only* thing that writes `.env`. `ensure-env-secrets.sh` used to write with
+`sed -i`, which replaces a symlink with a regular file and leaves the canonical
+copy **stale** — the 2026-08-24 divergence exactly, reintroduced by the script
+that generates the credentials. It only ran when a key was absent, empty or a
+placeholder, so an established `.env` never tripped it: the link would have
+survived every ordinary bring-up and died on the first feature that added a new
+required secret. `scripts/one-stack-one-env.unit.test.ts` now refuses `sed -i`
+and `mv` aimed at the live `.env` anywhere under `deploy/compose/`, and runs
+`sed -i` against a real symlink to show why.
+
+The bring-up also reports two files **when they still agree**, not only once
+they have drifted — quiet under CI, where `git clean -ffdx` makes a symlink
+impossible and the advice would be untakeable.
+
 **Do not run a fresh `bootstrap-managed.sh` or `ensure-env-secrets.sh` in the
 CI checkout to "set it up independently.**" It would generate different
 random secrets for the *same*, pinned-name containers your manual checkout

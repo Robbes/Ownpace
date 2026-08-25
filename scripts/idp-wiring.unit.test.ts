@@ -24,7 +24,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync, copyFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, copyFileSync, mkdtempSync, rmSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -233,9 +233,16 @@ describe('the admin password is one the provider will accept', () => {
   // The script writes .env and pgbouncer/userlist.txt beside ITSELF, so it is
   // copied into a temp directory rather than run in place — otherwise every run
   // of this suite would rewrite the developer's own secrets.
+  //
+  // env-upsert.sh comes too, because every write to .env now goes through it:
+  // `sed -i` replaces a symlinked .env with a regular file and leaves the
+  // canonical copy stale. Copying one file was only ever valid while the script
+  // had no siblings; the isolation is unchanged, the dependency is now real.
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'secrets-'));
     copyFileSync(SCRIPT, join(dir, 'ensure-env-secrets.sh'));
+    copyFileSync(join(REPO, 'deploy/compose/env-upsert.sh'), join(dir, 'env-upsert.sh'));
+    chmodSync(join(dir, 'env-upsert.sh'), 0o755);
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
