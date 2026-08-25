@@ -35,12 +35,18 @@
  * All writes go through `withTenant()` (transaction-scoped `app.current_tenant`),
  * so the script is correct whether it connects as the DB owner or as `app_user`.
  *
- * Usage (from repo root, with the managed stack + demo backend up — see
- * deploy/compose/setup-managed-demo.sh — and Postgres port exposed):
- *   DATABASE_URL=postgres://openmigrate:...@localhost:5432/openmigrate \
- *   JWT_SECRET=<the value in deploy/compose/.env — MUST match the api container> \
- *   SECRET_ENCRYPTION_KEY=<32-byte key, same as the api/worker containers> \
- *   pnpm --filter @openmig/api seed:managed
+ * Usage (from the repo root, with the managed stack + demo backend up — see
+ * deploy/compose/setup-managed-demo.sh):
+ *
+ *   ./deploy/compose/seed-managed.sh
+ *
+ * That is the whole command, and it is now the only form this file teaches.
+ * The hand-typed one it used to print began
+ * `DATABASE_URL=postgres://openmigrate:...@localhost:5432/openmigrate`, and
+ * 5432 is somebody else's database on any host running more than one thing —
+ * on the reference box an unrelated service owns it while this stack's
+ * Postgres is published on 55432. The wrapper asks compose which port it
+ * actually got, so the guess is not available to get wrong.
  *
  * SECURITY: this is a *demo* seed against a throwaway local backend. The
  * printed JWTs and the hardcoded demo passwords below are for local
@@ -274,18 +280,70 @@ async function seedTenant(
   );
 }
 
+/**
+ * THE THREE SETTINGS THE SEED CANNOT FIND ON ITS OWN, AND THE COMMAND THAT
+ * SUPPLIES THEM.
+ *
+ * One fact is behind every way this refuses: THE SEED RUNS ON THE HOST. It is
+ * not a container, it inherits nothing from compose, and nothing in `apps/api`
+ * loads a dotenv file — so all three come from whatever environment the caller
+ * happened to have, which for anyone who has not hand-exported them is none.
+ *
+ * Until 2026-08-25 the refusal named a variable and stopped there. An operator
+ * on the live test host ran the command this file's own header taught, and got:
+ *
+ *     Seed failed: DATABASE_URL (DB owner connection) is required to seed
+ *
+ * Every word true, and no use to the person reading it: it answers "what is
+ * missing" to somebody who needs the answer to "what do I run".
+ * `deploy/compose/seed-managed.sh` had supplied all three for three days by
+ * then, and the refusal did not mention it — so the failure went into a chat
+ * window instead of a shell.
+ *
+ * ALL THREE IN ONE MESSAGE, not one refusal at a time. They go missing
+ * together, for one reason, with one remedy; naming the first and exiting
+ * turns a single fix into three round trips through a failing command.
+ *
+ * PRESENCE ONLY, AND THAT LINE MATTERS. A key that is set but malformed is a
+ * real configuration error, and `SecretStore.validate()` already says so in
+ * terms that fit it. Sending that person to the wrapper — which would hand
+ * them the same broken value again — is this same unhelpfulness pointing the
+ * other way.
+ */
+function hostSettings(env: NodeJS.ProcessEnv): {
+  readonly connectionString: string;
+  readonly jwtSecret: string;
+} {
+  const connectionString = env.DATABASE_URL ?? env.SEED_DATABASE_URL ?? '';
+  const jwtSecret = env.JWT_SECRET ?? '';
+
+  const missing: string[] = [];
+  if (!connectionString) missing.push('DATABASE_URL');
+  if (!jwtSecret) missing.push('JWT_SECRET');
+  if (!env.SECRET_ENCRYPTION_KEY) missing.push('SECRET_ENCRYPTION_KEY');
+
+  if (missing.length > 0) {
+    throw new Error(
+      `${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} not set.\n\n` +
+        'The seed runs on the host and reads its settings from the environment.\n' +
+        'Nothing in apps/api loads a .env file, so running it directly finds none\n' +
+        'of them.\n\n' +
+        '  Run this instead:  ./deploy/compose/seed-managed.sh\n\n' +
+        'It reads deploy/compose/.env and asks compose which port Postgres is\n' +
+        'published on — which is not 5432 on any host running more than one thing.\n' +
+        'It is idempotent, and re-running it is also how you mint fresh demo\n' +
+        'tokens once the old ones expire.',
+    );
+  }
+
+  return { connectionString, jwtSecret };
+}
+
 async function main(): Promise<void> {
   // Seed as the DB owner (bypasses RLS) — but withTenant makes app_user work too.
-  const connectionString = process.env.DATABASE_URL ?? process.env.SEED_DATABASE_URL;
-  if (!connectionString) {
-    throw new Error('DATABASE_URL (DB owner connection) is required to seed');
-  }
-  const jwtSecret = process.env.JWT_SECRET;
-  if (!jwtSecret) {
-    throw new Error('JWT_SECRET is required to mint demo tokens (must match the API)');
-  }
-  // Fails fast with a clear message via SecretStore.validate() -> validateSecretKey()
-  // if SECRET_ENCRYPTION_KEY is missing/malformed, before any connection is encrypted.
+  const { connectionString, jwtSecret } = hostSettings(process.env);
+  // The SHAPE check, after the presence one above: this fails a key that is
+  // set and wrong, before any connection credential is encrypted with it.
   SecretStore.validate();
 
   // The demo run order (setup-managed-demo.sh's header) runs this seed BEFORE
