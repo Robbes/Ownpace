@@ -2716,6 +2716,74 @@ A third incoherence went with it: a `--public` build printed *"Every placeholder
 must be filled"* and *"MUST NOT be published publicly"* **about the same build**,
 and published anyway. `must be filled` is now enforced where it is claimed.
 
+## Nothing else writes the `.env`
+
+"will the one `.env` survive other features, upgrades, other work we do? are
+there safeguards?" — a better question than it looks, because the honest answer
+was *no, and it would have failed silently on the next feature that needed a
+secret*.
+
+Three things did protect it: `env-upsert.sh` resolves the link before writing
+(driven against a real symlink by its own test), the bring-up lists diverging
+key names at the top of every phase, and the `zitadel` role check catches the
+worst consequence in a second. What none of them covered was **a second
+writer** — and there was one.
+
+`ensure-env-secrets.sh`:
+
+```bash
+sed -i "/^${name}=/d" "$ENV_FILE"
+echo "${name}=$(generate "$name" "$bytes")" >>"$ENV_FILE"
+```
+
+GNU `sed -i` writes a temp file and renames it over its target, and without
+`--follow-symlinks` the target is the **link**. Measured rather than reasoned
+about:
+
+```
+$ ln -s real.env link.env          # real.env: A=1 B=2
+$ sed -i '/^A=/d' link.env
+link.env   NOW A REGULAR FILE, holding B=2
+real.env   UNTOUCHED, still A=1 B=2
+```
+
+So not merely a broken link: the canonical file left **stale** while the
+checkout carries a fork nobody can see. Precisely the failure that cost the
+afternoon, arriving through the script that generates the credentials.
+
+**And it was invisible by construction.** `ensure()` returns early when a key
+already holds a real value, so an established `.env` never reached the write.
+The link would have survived every ordinary bring-up — every `--from app`,
+every upgrade, every gate run — and died on the first feature that added a new
+required secret. Which is the day nobody would think to check a symlink.
+
+### What changed
+
+- Both writes go through `env-upsert.sh`. It resolves the link, replaces the
+  key **where it already is** rather than moving it to the end, and is the one
+  writer with a test that drives it against a real symlink. Both generators
+  produce `[0-9a-f]` plus `Aa1_`, so nothing trips its value rules.
+- `scripts/one-stack-one-env.unit.test.ts` refuses `sed -i` or `mv` aimed at
+  the live `.env` anywhere under `deploy/compose/`, and **runs `sed -i` against
+  a real symlink** to show the reason rather than assert it. `>` and `>>` are
+  deliberately not flagged: redirection opens *through* a link and writes the
+  target, which is why `touch` and bootstrap's `cp` of the example are safe.
+- The divergence note now speaks when the two files still **agree**. It used to
+  return silently while every key matched — so the warning arrived after the
+  damage rather than before it. Two files describing one stack will drift; the
+  point is to hear about it while it is still cheap. Quiet under CI, where
+  `git clean -ffdx` makes a symlink impossible and the advice would be
+  untakeable — a warning nobody can act on is how a real one gets tuned out.
+
+### The rule the day keeps producing
+
+The first version of the `sed -i` scan flagged `trigger-version.sh` rewriting
+`managed.env.example` — a tracked repo file that is never a symlink and is
+`sed`-ed entirely correctly. Narrowed by requiring a `/` before `.env`, which is
+what separates the live file from the example. **Third guard today to cry wolf
+on its first run**, and the third to end up narrower and right rather than
+broader and wrong.
+
 ## Nothing ever parsed the bring-up
 
 Found by rehearsing a merge rather than waiting for one. Five PRs were open and
