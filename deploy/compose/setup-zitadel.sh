@@ -864,6 +864,50 @@ answer carried no id. Body:
 not EMAIL_PROVIDER_ACTIVE. An inactive provider drops verification mail as
 silently as no provider at all, which is the failure this configures away."
   say "mail from this instance goes to ${SMTP_ADDR} (sender ${SMTP_SENDER})"
+
+  # PROVED HERE, BECAUSE THE GATE THAT PROVED IT CANNOT RUN HERE.
+  #
+  # smoke-managed.sh asserts this too, and on a REAL deployment it never runs:
+  # `phase_smoke` returns early without --with-demo, because the smoke drives
+  # the demo tenants. So the check that existed to prove the issuer can send
+  # was live on the nightly and dead on every stack anybody actually uses —
+  # the gatus shape again, a check that reads as coverage where it cannot
+  # execute. Reported from the reference box on 2026-08-25.
+  #
+  # ONLY AGAINST THE CATCHER, and both conditions are required. A test send is
+  # a REAL email: against a production relay this would mail somebody on every
+  # `--only app`, which is not a thing a setup script may do uninvited. So it
+  # runs when the relay is the catcher this stack ships AND that catcher
+  # answers on the host — the second test being what stops a real relay that
+  # happens to be called `mailpit` from being trusted as one.
+  MAILPIT_API="http://localhost:$(read_env MAILPIT_PORT 3127)"
+  if [ "$SMTP_RELAY" = "mailpit" ] && curl -fsS -o /dev/null -m 5 "${MAILPIT_API}/api/v1/messages" 2>/dev/null; then
+    say "sending one test message, and reading the catcher for it"
+    probe="setup-zitadel-$$@example.invalid"
+    api POST "/admin/v1/email/${SMTP_ID}/_test" \
+      "$(jq -nc --arg r "$probe" '{receiverAddress:$r}')" >/dev/null || true
+    # Zitadel answers the test before delivery completes, so the proof is the
+    # message arriving rather than the call returning 200.
+    landed=0
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      landed="$(curl -fsS --get "${MAILPIT_API}/api/v1/search" \
+        --data-urlencode "query=${probe}" 2>/dev/null | jq -r '.messages_count // 0' || echo 0)"
+      [ "${landed:-0}" -gt 0 ] && break
+      sleep 1
+    done
+    if [ "${landed:-0}" -gt 0 ]; then
+      say "  it arrived — this instance can send"
+    else
+      die "the provider accepted the test send and nothing reached the catcher at
+${MAILPIT_API}. The email provider ${SMTP_ID} is configured and ACTIVE, so what
+is wrong is the relay address it holds (${SMTP_ADDR}) or the route to it from
+the identity provider's container. Every verification mail would be dropped."
+    fi
+  else
+    # Said rather than skipped silently: "configured" and "proved to work" are
+    # different claims, and this is only the first.
+    say "  configured, not proved — a test send would mail a real address"
+  fi
 fi
 
 # ------------------------------------------------------- letting people in --
