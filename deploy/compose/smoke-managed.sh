@@ -2133,6 +2133,62 @@ report_json "invoices" "/api/billing/invoices" '.invoices | length'
 # rule 2). Deleting it to make a number come out at zero would be exactly the
 # trade this script exists to refuse. So: net zero MINUS one tombstone per run,
 # and the counts below say which is which rather than asserting a round number.
+# ---------- the mail nobody should get (0103 T2 / ADR-0043) ----------
+#
+# Fresh event 1 carried an ORGANIZER and an ATTENDEE, tag-addressed, and the
+# demo target's SMTP points at the catcher — so the fan-out path is ARMED and
+# silence is falsifiable, not true by inability. Two assertions here, one
+# after the take-back further down:
+#
+#   1. THE BYTES. The copy on the target carries SCHEDULE-AGENT=CLIENT on both
+#      properties: the writer's neutralising observed on a real server's copy
+#      of a real synced event, not on a unit fake.
+#   2. THE SILENCE. Nothing addressed to the canary reached the catcher during
+#      seed or sync. (And nothing after removal — the CANCEL side — checked
+#      after balance below.)
+#
+# WHAT THIS DOES AND DOES NOT PROVE. The canary's organiser is a third party,
+# as most of a migrated mailbox's meetings are; the owner-as-organiser case on
+# an armed server is T3's per-target measurement, not this fixture. And on a
+# run where prepare seeded nothing there is no canary, so the checks say so
+# and stand down — the writer-side rules in CI cover every run regardless.
+if [ -n "$BALANCE_TAG" ]; then
+  note "the mail nobody should get"
+  sched_href="remote.php/dav/calendars/${TARGET_DAV_USER}/personal/openmig-demo-event-${BALANCE_TAG}-1.ics"
+  # Through the PUBLISHED port, as any real DAV client would — the product
+  # itself only ever has the API, and the gate should walk through the same
+  # door (owner's point, 2026-08-25). Port read from .env, never assumed
+  # (a-port-the-gate-assumed).
+  nc_port="$(smoke_env_value NEXTCLOUD_PORT)"
+  sched_copy="$(curl -fsS -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" \
+    "http://localhost:${nc_port:-8083}/${sched_href}" 2>/dev/null || true)"
+  if [ -z "$sched_copy" ]; then
+    echo "could not read the canary copy at ${sched_href} — the byte half of this"
+    echo "gate is unproven (did the target writer re-home the collection?)"
+    fail=1
+  else
+    if grep -q "SCHEDULE-AGENT=CLIENT" <<<"$sched_copy" \
+       && grep -q "openmig-attendee-${BALANCE_TAG}@example.invalid" <<<"$sched_copy"; then
+      echo "target copy carries SCHEDULE-AGENT=CLIENT and the attendee — the writer neutralised on real bytes"
+    else
+      echo "the canary copy on the target is MISSING the neutralising or the attendee:"
+      grep -E "ATTENDEE|ORGANIZER" <<<"$sched_copy" | awk 'NR<=4 {print "    " $0}'
+      echo "  every ATTENDEE and ORGANIZER the writer PUTs must carry SCHEDULE-AGENT=CLIENT"
+      echo "  (0103 T1, ADR-0043) — an RFC 6638 target without it MAILS these people."
+      fail=1
+    fi
+  fi
+  sched_mail="$(curl -fsS --get "${MAILPIT}/api/v1/search" \
+    --data-urlencode "query=openmig-attendee-${BALANCE_TAG}" | jq -r '.messages_count // 0')"
+  if [ "${sched_mail:-0}" -gt 0 ]; then
+    echo "THE MIGRATION SENT MAIL: ${sched_mail} message(s) mention the canary attendee."
+    echo "  Importing a calendar must never invite its attendees (ADR-0043)."
+    fail=1
+  else
+    echo "nothing addressed to the canary reached the catcher during seed or sync"
+  fi
+fi
+
 note "balance — take back what this run added"
 
 if [ -z "$BALANCE_TAG" ]; then
@@ -2217,6 +2273,21 @@ fi
 # published. This asserts only that gatus is SERVING — not that its lamps are
 # green, which depends on STATUS_WEB_URL being an address its container can
 # reach and is the operator's call, not this gate's.
+# THE CANCEL SIDE (0103 T2). The take-back just DELETEd the organiser copy on
+# an armed target — under RFC 6638 exactly the write that fans out CANCEL.
+if [ -n "$BALANCE_TAG" ]; then
+  sched_mail_after="$(curl -fsS --get "${MAILPIT}/api/v1/search" \
+    --data-urlencode "query=openmig-attendee-${BALANCE_TAG}" | jq -r '.messages_count // 0')"
+  if [ "${sched_mail_after:-0}" -gt 0 ]; then
+    echo "THE TAKE-BACK SENT MAIL: ${sched_mail_after} message(s) mention the canary"
+    echo "  attendee after removal — deleting a migrated copy must not CANCEL its"
+    echo "  attendees (ADR-0043; Schedule-Reply and the neutralised copy are the guards)."
+    fail=1
+  else
+    echo "and nothing after the take-back either — no CANCEL fan-out"
+  fi
+fi
+
 note "the status page"
 
 status_port="$(smoke_env_value STATUS_PORT)"

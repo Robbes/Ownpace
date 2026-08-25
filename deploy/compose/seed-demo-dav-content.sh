@@ -233,6 +233,24 @@ if [ "$REMOVE_ONLY" = "1" ]; then
   exit 0
 fi
 
+# THE SCHEDULING CANARY (0103 T2 / ADR-0043). Fresh event 1 carries an
+# ORGANIZER and an ATTENDEE, tag-addressed so one run's mail can never answer
+# for another's (the SMOKE_MAIL_RUN lesson). The ORGANIZER is deliberately a
+# THIRD PARTY — not the seeding account — which is what a migrated mailbox
+# mostly holds: other people's meetings. Sabre-family servers schedule only
+# when the collection owner matches ORGANIZER or an ATTENDEE, so seeding this
+# does not mail; what the smoke then asserts is that syncing and taking it
+# back did not either, and that the copy on the target carries
+# SCHEDULE-AGENT=CLIENT — the writer's neutralising, observed on real bytes.
+# Fixed-fixture mode (no tag) stays canary-free: those two events belong to
+# the demo UI, not to this gate.
+SCHED_PROPS=""
+if [ -n "$TAG" ]; then
+  SCHED_PROPS="ORGANIZER;CN=Someone Else:mailto:openmig-organizer-${TAG}@example.invalid
+ATTENDEE;CN=Migration Canary;PARTSTAT=NEEDS-ACTION:mailto:openmig-attendee-${TAG}@example.invalid
+"
+fi
+
 if [ "$VERIFY_ONLY" = "0" ]; then
   for n in 1 2; do
     code=$(dav PUT "${CAL}openmig-demo-event-${SUFFIX}${n}.ics" 'text/calendar; charset=utf-8' \
@@ -247,7 +265,7 @@ DTEND:2026010${n}T110000Z
 SUMMARY:Ownpace demo event ${SUFFIX}${n}
 DESCRIPTION:Seeded by seed-demo-dav-content.sh so the demo has something to sync.
 STATUS:CONFIRMED
-END:VEVENT
+$([ "$n" = "1" ] && printf '%s' "$SCHED_PROPS")END:VEVENT
 END:VCALENDAR")
     echo "[seed-dav] event ${SUFFIX}${n}: HTTP ${code}"
     case "$code" in 201|204) ;; *) fail "calendar PUT ${SUFFIX}${n} returned ${code}" ;; esac
