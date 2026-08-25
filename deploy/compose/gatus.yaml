@@ -102,8 +102,10 @@ endpoints:
   # included, so a variable named in prose is a variable this config reads.
   #
   # WHAT A GREEN LIGHT HERE MEANS: the provider is up and ready to serve. It
-  # does NOT mean the public issuer name resolves, because this probe goes
-  # straight to the container over the compose network — see the header of this
+  # does NOT mean the public issuer name resolves — and the PORT on this row is
+  # how a reader can tell. `:3126` is the container's own port; a visitor's
+  # address has no port on it. The probe goes straight to the container over
+  # the compose network — see the header of this
   # file for why the whole page is inside the stack it watches. The rows above
   # probe STATUS_WEB_URL, which on a real deployment IS the public address, so
   # an ingress outage shows there.

@@ -894,13 +894,28 @@ services:
       # provider and the whole group went dark together whenever the API was
       # the thing that was down.
       #
-      # The default is the SERVICE NAME and the container's own port, not the
-      # issuer: `JWT_ISSUER` on a fronted stack is a public https name, and this
-      # container would resolve it through the network alias to the provider's
-      # own address and then ask for 443, where nothing listens. An operator who
-      # wants the public path probed runs the page off this box — which the
-      # header of gatus.yaml already says is the eventual plan.
-      STATUS_IDP_URL: ${STATUS_IDP_URL:-http://zitadel:${ZITADEL_PORT:-3126}}
+      # THE NAME AN OPERATOR THINKS IN, over the port that says what this
+      # actually reaches.
+      #
+      # This defaulted to the compose SERVICE name — `http://zitadel:3126` — and
+      # the row on the page then read `zitadel` while every other Ownpace row
+      # read a domain. That is a real cost: somebody scanning the page has to
+      # stop and work out whether `zitadel` is even the right machine (owner,
+      # 2026-08-25).
+      #
+      # It is the SAME EXPRESSION as the network alias below, so the two cannot
+      # drift: whatever external domain the provider answers for, that name
+      # resolves to its container from everywhere on this network. On a fronted
+      # stack it renders `id.example.com:3126`.
+      #
+      # AND THE PORT IS THE TELL, deliberately left visible. `:3126` is the
+      # container's own port, so this row proves the provider is SERVING and
+      # not that its public https name resolves — the alias means a probe for
+      # that name never leaves this network. Writing it as the bare public URL
+      # would hide that distinction behind an address that looks like the one a
+      # visitor uses. Probing the public path means running this page off this
+      # box, which gatus.yaml's header already names as the eventual plan.
+      STATUS_IDP_URL: ${STATUS_IDP_URL:-http://${ZITADEL_EXTERNALDOMAIN:-ownpace-idp}:${ZITADEL_PORT:-3126}}
       # THE PUBLIC SITE, OFF UNTIL BOTH ARE SET. `www.yml` is a separate deploy
       # that this stack does not start, so a row for it is opt-in: a red light
       # for a service nobody deployed is a lamp that lies.
