@@ -97,6 +97,7 @@ const en = {
   // ---- Signing in with the configured issuer (ADR-0042) ----
   'login.withProvider': 'Sign in',
   'login.redirecting': 'Taking you to sign in…',
+  'login.verifying': 'Checking that token…',
   'login.pasteToggle': 'Sign in with a token instead',
   'login.pasteFallback':
     'The way in before an identity provider was configured. You should not need this.',
@@ -1134,6 +1135,7 @@ const nl: Record<keyof typeof en, string> = {
   // ---- Signing in with the configured issuer (ADR-0042) ----
   'login.withProvider': 'Aanmelden',
   'login.redirecting': 'U wordt doorgestuurd om aan te melden…',
+  'login.verifying': 'Token wordt gecontroleerd…',
   'login.pasteToggle': 'Aanmelden met een token',
   'login.pasteFallback':
     'De manier van vóór er een identiteitsprovider was. U zou dit niet nodig moeten hebben.',
