@@ -3333,3 +3333,59 @@ lasted five days in the first place.
 Both were **written and never once verified against a running container**. The
 pattern across the whole night is now unmistakable: *a check is not a check
 until something has watched it fail for the right reason.*
+
+## A fallback that could never fire
+
+An operator ran the bring-up and was told:
+
+```
+Read what it caught:  http://localhost:
+```
+
+The advice survived. The address it was about did not.
+
+```bash
+note "  Read what it caught:  http://localhost:$(env_get MAILPIT_PORT || echo 3127)"
+```
+
+`env_get` ends in `|| true` — deliberately, and the comment above it says why:
+"this key is not set" is a normal answer rather than an error, and under
+`set -o pipefail` a grep that finds nothing would otherwise fail the whole
+pipeline. So it **always exits 0**, and `|| echo 3127` is unreachable. The
+substitution returns the empty string and the port disappears.
+
+**It reads perfectly.** `X || default` is the most ordinary idiom in shell, and
+it is wrong here for a reason that lives in another function twenty lines away.
+Both instances were written the same night by the same hand — the two notes
+added by #546 and #547 — which is what a plausible idiom does: it gets used
+twice before anybody runs it once.
+
+### The fix tests the value, because the command cannot fail
+
+`env_or NAME DEFAULT` covers unset **and empty**. Empty is the likelier state:
+`managed.env.example` ships keys with nothing after the `=`, and a fresh `.env`
+is a copy of it — so `MAILPIT_PORT=` is exactly as portless as no line at all,
+and only `${value:-$2}` catches both.
+
+### What the rule is careful not to say
+
+Not "no `||` after a command substitution". `cmd || fallback` is correct
+wherever `cmd` can fail, and this script is full of places it does — a rule that
+broad would flag dozens of correct lines and get switched off. It names **the
+one function whose contract makes the idiom a lie**, and the behaviour is
+*executed* rather than asserted: the old shape is run against a real `.env` and
+shown to yield nothing. A file resting on "env_get exits 0 when the key is
+missing" must not take that on trust; assuming a mechanism instead of running it
+is what produced the socket credential check.
+
+### The same class, three times in one day
+
+| | the check | why it could not work |
+|---|---|---|
+| `gatus` | `wget` in a `FROM scratch` image | the binary is not there |
+| `www` | `localhost` against an IPv4-only listener | `::1` is not served |
+| this | `\|\| echo` after a command that cannot fail | the branch is unreachable |
+
+Each looked exactly like the correct thing. **A check is not a check until
+something has watched it fail for the right reason** — and the corollary this
+one adds: a *default* is not a default until something has watched it apply.

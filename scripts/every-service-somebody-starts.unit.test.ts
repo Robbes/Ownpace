@@ -162,6 +162,10 @@ describe('the bring-up says when the status page would probe itself', () => {
         `ENV_FILE="${envFile}"`,
         'note() { echo "    $*"; }',
         fn('env_get'),
+        // env_or too: the note's port default goes through it, and a harness
+        // that lifts only half the helpers makes the note print an empty port
+        // — which is exactly the production defect, reproduced in the test rig.
+        fn('env_or'),
         fn('note_status_page_probes_itself'),
         'note_status_page_probes_itself',
       ].join('\n');
