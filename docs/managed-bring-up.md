@@ -455,6 +455,63 @@ fail if that stops being true.
 > Changing the address later invalidates every live session — it belongs with
 > the other browser-visible addresses in `.env`, decided once.
 
+#### Whatever fronts the provider must pass the original `Host` header
+
+If something terminates TLS in front of the identity provider — a reverse
+proxy, a mesh ingress, a tunnel — it has to forward the request with the
+original `Host:` intact. A proxy that rewrites it to its own address breaks
+sign-in for every human on the deployment, and breaks it in a way that reads
+like anything but a proxy problem.
+
+**What it looks like.** Pressing *Sign in* reaches
+`…/ui/login/login?authRequestID=…` and the page says:
+
+```
+User Agent komt niet overeen (EVENT-adk13)
+```
+
+**Why.** Zitadel builds the domain of its user-agent cookie from the raw `Host`
+header (`domain := strings.Split(host, ":")[0]`, `internal/api/http/cookie.go`).
+Rewritten Host, cookie scoped to the proxy's address. A browser may accept a
+cookie only for its own domain or a parent, so it drops the cookie entirely —
+and every subsequent request therefore arrives with a *fresh* user-agent id,
+which never matches the one recorded on the authorization request.
+
+**Why nothing else notices.** Instance resolution reads the FORWARDED name, so
+the provider's own log reports the right host while the cookie says otherwise.
+Token verification, the sessions API and every machine-driven path never touch
+that cookie. The only thing that breaks is the path a person walks.
+
+**How to check.** Ask the same endpoint twice — once through the ingress, once
+straight at the container with the right `Host` — and compare the cookie:
+
+```bash
+cd ~/ownpace && set -a; . deploy/compose/.env; set +a
+AUTHZ="oauth/v2/authorize?client_id=${VITE_OIDC_CLIENT_ID}&redirect_uri=${WEB_URL}/auth/callback\
+&response_type=code&scope=openid%20email&state=probe\
+&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256"
+
+# through whatever fronts it
+curl -sS -o /dev/null -D - "${JWT_ISSUER}/${AUTHZ}"                       | grep -i '^set-cookie'
+# straight at the container, with the Host it should have been given
+curl -sS -o /dev/null -D - -H "Host: ${ZITADEL_EXTERNALDOMAIN}" \
+     "http://localhost:${ZITADEL_PORT:-3126}/${AUTHZ}"                    | grep -i '^set-cookie'
+```
+
+Two different `Domain=` values means the ingress is rewriting `Host`. One value,
+matching `ZITADEL_EXTERNALDOMAIN`, means it is not — and neither is `Domain=`
+being absent altogether, which is the healthy shape for a `__Host-` prefixed
+cookie.
+
+**The fix is in the ingress**, not here: nginx `proxy_set_header Host $host`,
+Traefik `passHostHeader: true`, or the equivalent. Where the ingress genuinely
+cannot be told, put a proxy on the box in front of the provider that restores
+it — the same shape as `www-nginx.conf` and the Caddy in front of Trigger.
+
+`smoke-managed.sh` asserts this: it reads the cookie's domain off the
+authorization response and names the rewrite rather than letting it surface as
+an unexplained error page.
+
 ### 8c. Somebody who can answer the door *(needed before anybody can be let in)*
 
 Also not a `bootstrap-managed.sh` phase. `access_request` is written by
