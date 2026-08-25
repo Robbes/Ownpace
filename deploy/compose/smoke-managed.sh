@@ -1548,6 +1548,84 @@ else
   fi
 fi
 
+# ---------- the mail the ISSUER could not send ----------
+#
+# THERE ARE TWO SENDERS ON THIS STACK AND ONLY ONE WAS EVER WIRED.
+#
+# The section above proves the API can send. Zitadel's mail is its own and never
+# touches the API: the verification link on a new account, an email-change
+# confirmation, a password reset, the invitation to set a first password. Until
+# setup-zitadel.sh configured an email provider, this instance had none at all,
+# so every one of those was composed and dropped.
+#
+# THAT FAILURE IS INVISIBLE FROM BOTH ENDS, which is why it needs a gate rather
+# than a look. The account is created, the screen says to check your mail, and
+# Mailpit stays empty — indistinguishable from a product whose mail is broken.
+# Nothing in a log says the provider had nowhere to send.
+#
+# TESTED BY ID, NOT BY SETTINGS. `/email/smtp/_test` takes a full config in the
+# request and would pass against settings this instance does not use — a green
+# that proves the relay is reachable and says nothing about whether Zitadel will
+# ever send through it. `/email/smtp/{id}/_test` uses the STORED config, which
+# is the thing under test. An inactive provider is the same silence as no
+# provider, so its state is asserted too.
+#
+# AND EMPTY STILL MEANS OFF, HERE TOO. `.env` decides whether this stack has a
+# relay at all, and a deployment that has not chosen one is not broken — so this
+# asks the file rather than demanding a provider unconditionally. Read from the
+# file and not from the environment because this script sources no `.env`: the
+# caller exports what it exports, and on the nightly that is not this key.
+# Without it, a stack whose operator never configured mail would fail a gate for
+# a channel they never asked for, which is a gate inventing a requirement.
+smtp_configured="$(grep -E '^SMTP_HOST=.+' "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- || true)"
+
+if [ -z "$smtp_configured" ]; then
+  note "the identity provider's own mail: no SMTP_HOST in .env, so nothing to assert"
+elif [ -n "${STACK_ISSUER:-}" ] && [ -n "${IDP_PAT:-}" ]; then
+  note "the identity provider's own mail"
+  idp_mail="smoke-idp-$$@example.invalid"
+  providers="$(idp_api POST /admin/v1/email/_search '{}' || true)"
+  smtp_id="$(jq -r 'first(.result[]? | select(.smtp) | .id) // empty' <<<"${providers:-{\}}")"
+  smtp_state="$(jq -r 'first(.result[]? | select(.smtp) | .state) // empty' <<<"${providers:-{\}}")"
+
+  if [ -z "$smtp_id" ]; then
+    echo "the identity provider has NO email provider configured."
+    echo "  Every verification and email-change mail it composes is dropped, and the"
+    echo "  screen still says to check your mail. Run --only app to configure it,"
+    echo "  or set SMTP_HOST/NOTIFY_FROM in .env first if they are empty."
+    fail=1
+  elif [ "$smtp_state" != "EMAIL_PROVIDER_ACTIVE" ]; then
+    echo "the identity provider's email provider ${smtp_id} is '${smtp_state}',"
+    echo "  not EMAIL_PROVIDER_ACTIVE. An inactive provider drops mail exactly as"
+    echo "  silently as no provider at all."
+    fail=1
+  elif ! curl -fsS -o /dev/null "${MAILPIT}/api/v1/messages"; then
+    echo "cannot reach Mailpit at ${MAILPIT} — the provider's mail cannot be read."
+    fail=1
+  else
+    # A real send through the stored config, then read from the catcher. Not
+    # "the API returned 200": Zitadel answers the test call before delivery
+    # completes, so the proof is the message arriving.
+    idp_api POST "/admin/v1/email/smtp/${smtp_id}/_test" \
+      "$(jq -nc --arg r "$idp_mail" '{receiverAddress:$r}')" >/dev/null || true
+    landed=""
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      landed="$(curl -fsS --get "${MAILPIT}/api/v1/search" \
+        --data-urlencode "query=${idp_mail}" | jq -r '.messages_count // 0')"
+      [ "${landed:-0}" -gt 0 ] && break
+      sleep 1
+    done
+    if [ "${landed:-0}" -gt 0 ]; then
+      echo "    the issuer's mail reached Mailpit (${idp_mail})"
+    else
+      echo "the identity provider accepted the test send and NOTHING reached Mailpit"
+      echo "  at ${MAILPIT}. Its email provider is configured and active, so the"
+      echo "  relay address it holds is wrong or unreachable from its container."
+      fail=1
+    fi
+  fi
+fi
+
 # ---------- the reports nothing had ever opened ----------
 #
 # COVERAGE, plainly. Grep either gate before this and `shared-addresses`,

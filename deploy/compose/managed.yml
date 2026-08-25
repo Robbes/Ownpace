@@ -943,7 +943,20 @@ services:
       # disk leaks in one week is a pattern, not bad luck (workplan 0099).
       MP_MAX_MESSAGES: "500"
     ports:
-      - "${MAILPIT_PORT:-3127}:8025"
+      # 127.0.0.1, LIKE THE REGISTRY AND FOR A SHARPER REASON. Mailpit has no
+      # authentication of any kind — it is a catcher, and asking it to hold
+      # credentials would defeat the point — and what it catches is every
+      # verification link, every email-change confirmation and every password
+      # reset this stack sends. Published on 0.0.0.0 that is an unauthenticated
+      # reader of the identity provider's mail, reachable by anyone who can
+      # route to the box. Harmless on a laptop, which is where this was written;
+      # not harmless the day the box gets a public name, which ota.ownpace.eu
+      # did on 2026-08-24.
+      #
+      # Reach it through an SSH tunnel instead — docs/managed-bring-up.md says
+      # how. The smoke and the nightly both ask on localhost from the host, so
+      # neither notices.
+      - "127.0.0.1:${MAILPIT_PORT:-3127}:8025"
     networks:
       - ownpace-network
     healthcheck:
