@@ -216,7 +216,7 @@ const Login: React.FC = () => {
 
       <div className="text-center text-sm text-gray-600">
         <p>
-          {t('login.help.pre')} (<code>pnpm --filter @openmig/api seed:managed</code>){' '}
+          {t('login.help.pre')} (<code>./deploy/compose/seed-managed.sh</code>){' '}
           {t('login.help.post')}
         </p>
       </div>
