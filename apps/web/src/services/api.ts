@@ -25,9 +25,53 @@ const apiClient: AxiosInstance = axios.create({
   },
 });
 
+/**
+ * THE SIGN-IN EXCHANGE, WHICH IS NOT A SESSION REQUEST.
+ *
+ * Same address and timeout as `apiClient`, and deliberately NONE of its
+ * interceptors, because both of them are wrong for this one call:
+ *
+ *   THE STORED TOKEN MUST NOT WIN. `fetchMe` is handed the token that was just
+ *   exchanged and passes it explicitly. `apiClient`'s request interceptor
+ *   overwrote `Authorization` with `localStorage.auth_token` — which during a
+ *   callback is the PREVIOUS session's token, if there is one. The single
+ *   request whose job is to validate the NEW token was sent with the OLD one,
+ *   and answered 401 about a token nobody was trying to use.
+ *
+ *   A 401 MUST REJECT, NOT REDIRECT. `AuthCallback` is built to show the
+ *   service's own sentence, and a 401 here has several causes an operator can
+ *   fix — an `iss` that stopped matching `JWT_ISSUER` after the issuer moved, a
+ *   wrong audience, an expired token — distinguishable ONLY by what the API
+ *   said. `apiClient` sent the browser to `/login` first, and axios runs
+ *   response interceptors BEFORE the caller's catch, so the error was set on a
+ *   page that was already leaving. Reported from the live test host on
+ *   2026-08-25 as "fast flashing and back at the login", with no message: a
+ *   sentence written, translated, and thrown away.
+ *
+ * "Your session died, go and sign in" is also simply untrue here. Nobody is
+ * signed in yet — that is what this request is for.
+ *
+ * A SEPARATE CLIENT RATHER THAN A FLAG ON THE REQUEST, because the flag does
+ * not survive: axios's `mergeConfig` drops config keys it does not know, so an
+ * opt-out passed to `.get()` is `undefined` by the time the response
+ * interceptor reads `error.config`. Measured, after writing it the other way.
+ */
+export const signInClient: AxiosInstance = axios.create({
+  baseURL: (import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL || '/api',
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
 // Request interceptor - add auth token to requests
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    // NEVER overwrite a header the caller set. `fetchMe` passes the token that
+    // was just exchanged, while localStorage still holds the PREVIOUS session's
+    // — so the one request whose job is to validate the new token was being
+    // sent with the old one, and answering 401 about a token nobody was using.
+    if (config.headers?.Authorization) return config;
     const token = localStorage.getItem('auth_token');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
