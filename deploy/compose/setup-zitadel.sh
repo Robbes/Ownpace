@@ -1012,6 +1012,171 @@ else
   say "the built-in login page — which is the one this stack serves"
 fi
 
+# ------------------------------------------- signing in with a provider --
+#
+# FEDERATION IS CONFIGURATION, NOT CODE (ADR-0042, workplan 0102 T2).
+#
+# A "Login with Google" button in `apps/web/src` is the ONE implementation CI
+# rejects: `no-issuer-lock-in.unit.test.ts` scans the app and the packages for
+# provider names, because the moment one appears there the issuer stops being
+# replaceable. The permitted shape is the one the ADR already bought — the
+# upstream goes into Zitadel, Zitadel still mints the token, `iss` is still
+# ours, `sub` is still a Zitadel subject, and `tenant_member` never learns
+# anybody used Google. Which makes adding one a matter of credentials in .env
+# and this block, and nothing else in the product.
+#
+# THE LINKING DECISION CAME FIRST, and that ordering is the point (0102 T2,
+# owner decision 2026-08-25). ADR-0042's amended invariant is that
+# `tenant_member.user_id` IS the token's `sub`: a flow that preserves `sub` is
+# safe, and one that mints a NEW `sub` orphans a membership. Somebody who signed
+# up by email in March and presses "Login with Google" in April is a different
+# subject unless something links the two — they would find themselves locked out
+# of an organisation they are still a member of, with no way to see why.
+#
+# So every provider here carries `autoLinking: EMAIL`: Zitadel asks "is this
+# you?" when the upstream's VERIFIED email matches an existing account, and the
+# person confirms. Not a silent merge — a prompt. And Zitadel shows no prompt
+# at all when several users match, which is the ambiguous case failing closed
+# rather than guessing.
+#
+# `isAutoUpdate` IS OFF, and that is not laziness. Workplan 0102 T3 makes
+# `tenant_member.email` follow the verified claim on every sign-in. Turning auto
+# update on would chain the two: the upstream asserts a different address,
+# Zitadel rewrites the account, `/api/me` rewrites the membership label, and an
+# organisation's members table follows Google. The membership itself is safe —
+# it is keyed on `sub` — but the address colleagues see would not be ours to
+# explain. Somebody can change their address deliberately; an upstream should
+# not change it for them.
+say "checking which sign-in providers this instance offers"
+
+IDP_OPTIONS="$(jq -nc '{
+  isLinkingAllowed: true,
+  isCreationAllowed: true,
+  isAutoCreation: true,
+  isAutoUpdate: false,
+  autoLinking: "AUTO_LINKING_OPTION_EMAIL"
+}')"
+
+IDP_COUNT=0
+
+# configure_idp <display name> <api path> <payload>
+#
+# Idempotent in the sense hard rule 1 means: it converges on the described
+# state and says nothing when a stack is already correct. Read first, write only
+# what is missing.
+configure_idp() {
+  local name="$1" path="$2" payload="$3" existing id
+  existing="$(api POST /admin/v1/idps/_search '{}')"
+  id="$(jq -r --arg n "$name" '.result[]? | select(.name == $n) | .id' <<<"$existing" | awk 'NR==1')"
+
+  if [ -z "$id" ] || [ "$id" = "null" ]; then
+    local created
+    created="$(api POST "$path" "$payload")"
+    id="$(jq -r '.id // empty' <<<"$created")"
+    [ -n "$id" ] || die "could not add the ${name} sign-in provider:
+    ${created}
+
+Check the client id and secret in ${ENV_FILE}, and the redirect URI registered
+with ${name}. Apple posts its answer, everyone else redirects, so they are not
+the same URI:
+
+    Google, Microsoft, GitHub   ${ISSUER}/ui/login/login/externalidp/callback
+    Apple                       ${ISSUER}/ui/login/login/externalidp/callback/form"
+    say "  ${name}: added"
+  else
+    say "  ${name}: already configured"
+  fi
+
+  # A PROVIDER THAT IS NOT ON THE LOGIN POLICY IS A PROVIDER NOBODY CAN SEE.
+  # Creating the IdP configures it; adding it to the login policy is what puts
+  # the button on the sign-in screen. Two steps, and skipping the second leaves
+  # a stack that looks configured from the API and offers nothing to a person.
+  local on_screen
+  on_screen="$(api POST /admin/v1/policies/login/idps/_search '{}')"
+  if jq -e --arg i "$id" '[.result[]?.idpId] | index($i)' >/dev/null <<<"$on_screen"; then
+    :
+  else
+    api POST /admin/v1/policies/login/idps "$(jq -nc --arg i "$id" '{idpId:$i}')" >/dev/null
+    say "  ${name}: now offered on the sign-in screen"
+  fi
+  IDP_COUNT=$(( IDP_COUNT + 1 ))
+}
+
+IDP_GOOGLE_CLIENT_ID="$(read_env IDP_GOOGLE_CLIENT_ID)"
+IDP_GOOGLE_CLIENT_SECRET="$(read_env IDP_GOOGLE_CLIENT_SECRET)"
+if [ -n "$IDP_GOOGLE_CLIENT_ID" ] && [ -n "$IDP_GOOGLE_CLIENT_SECRET" ]; then
+  configure_idp "Google" /admin/v1/idps/google "$(jq -nc \
+    --arg c "$IDP_GOOGLE_CLIENT_ID" --arg s "$IDP_GOOGLE_CLIENT_SECRET" --argjson o "$IDP_OPTIONS" \
+    '{name:"Google", clientId:$c, clientSecret:$s, scopes:["openid","profile","email"], providerOptions:$o}')"
+fi
+
+IDP_MICROSOFT_CLIENT_ID="$(read_env IDP_MICROSOFT_CLIENT_ID)"
+IDP_MICROSOFT_CLIENT_SECRET="$(read_env IDP_MICROSOFT_CLIENT_SECRET)"
+if [ -n "$IDP_MICROSOFT_CLIENT_ID" ] && [ -n "$IDP_MICROSOFT_CLIENT_SECRET" ]; then
+  # WHICH MICROSOFT ACCOUNTS. `common` is every kind; a tenant id restricts it to
+  # one organisation, which is what a deployment serving one customer wants.
+  IDP_MICROSOFT_TENANT="$(read_env IDP_MICROSOFT_TENANT)"
+  case "$IDP_MICROSOFT_TENANT" in
+    ''|common)     tenant='{"tenantType":"AZURE_AD_TENANT_TYPE_COMMON"}' ;;
+    organisations|organizations) tenant='{"tenantType":"AZURE_AD_TENANT_TYPE_ORGANISATIONS"}' ;;
+    consumers)     tenant='{"tenantType":"AZURE_AD_TENANT_TYPE_CONSUMERS"}' ;;
+    *)             tenant="$(jq -nc --arg t "$IDP_MICROSOFT_TENANT" '{tenantId:$t}')" ;;
+  esac
+  # `emailVerified: false`, DELIBERATELY, AND IT COSTS A CLICK.
+  #
+  # Zitadel's own note on this field: "Azure AD doesn't send if the email has
+  # been verified. Enable this if the user email should always be added verified
+  # in Zitadel (no verification emails will be sent)."
+  #
+  # Enabling it would mean this stack treats every address Entra asserts as
+  # verified WITHOUT anybody verifying it — and `email_verified` is what binds
+  # an invitation (migration 0006) and what moves a membership label (0102 T3).
+  # An address asserted but never proved would be enough to answer an invitation
+  # addressed to somebody else. So it stays off: Zitadel sends its own
+  # verification mail, the person clicks it once, and every claim downstream
+  # means what it says.
+  configure_idp "Microsoft" /admin/v1/idps/azure "$(jq -nc \
+    --arg c "$IDP_MICROSOFT_CLIENT_ID" --arg s "$IDP_MICROSOFT_CLIENT_SECRET" \
+    --argjson t "$tenant" --argjson o "$IDP_OPTIONS" \
+    '{name:"Microsoft", clientId:$c, clientSecret:$s, tenant:$t, emailVerified:false,
+      scopes:["openid","profile","email","User.Read"], providerOptions:$o}')"
+fi
+
+IDP_GITHUB_CLIENT_ID="$(read_env IDP_GITHUB_CLIENT_ID)"
+IDP_GITHUB_CLIENT_SECRET="$(read_env IDP_GITHUB_CLIENT_SECRET)"
+if [ -n "$IDP_GITHUB_CLIENT_ID" ] && [ -n "$IDP_GITHUB_CLIENT_SECRET" ]; then
+  # `user:email` rather than the whole profile: an address is the only thing
+  # this product needs from GitHub, and asking for more would be asking for what
+  # we cannot say we use.
+  configure_idp "GitHub" /admin/v1/idps/github "$(jq -nc \
+    --arg c "$IDP_GITHUB_CLIENT_ID" --arg s "$IDP_GITHUB_CLIENT_SECRET" --argjson o "$IDP_OPTIONS" \
+    '{name:"GitHub", clientId:$c, clientSecret:$s, scopes:["user:email"], providerOptions:$o}')"
+fi
+
+IDP_APPLE_CLIENT_ID="$(read_env IDP_APPLE_CLIENT_ID)"
+IDP_APPLE_TEAM_ID="$(read_env IDP_APPLE_TEAM_ID)"
+IDP_APPLE_KEY_ID="$(read_env IDP_APPLE_KEY_ID)"
+IDP_APPLE_PRIVATE_KEY="$(read_env IDP_APPLE_PRIVATE_KEY)"
+if [ -n "$IDP_APPLE_CLIENT_ID" ] && [ -n "$IDP_APPLE_PRIVATE_KEY" ]; then
+  # FOUR VALUES, NOT TWO, and a key file rather than a secret. Apple signs with
+  # an ES256 key (.p8) identified by a team and a key id; `privateKey` is a
+  # protobuf `bytes` field, so .env carries it BASE64-ENCODED — see
+  # managed.env.example for the one-liner that produces it.
+  [ -n "$IDP_APPLE_TEAM_ID" ] && [ -n "$IDP_APPLE_KEY_ID" ] || die \
+    "IDP_APPLE_CLIENT_ID is set but IDP_APPLE_TEAM_ID or IDP_APPLE_KEY_ID is not.
+Apple needs all four: the Services ID, the team id, the key id and the .p8 key.
+See ${ENV_FILE} for what each one is and where Apple shows it."
+  configure_idp "Apple" /admin/v1/idps/apple "$(jq -nc \
+    --arg c "$IDP_APPLE_CLIENT_ID" --arg t "$IDP_APPLE_TEAM_ID" \
+    --arg k "$IDP_APPLE_KEY_ID" --arg p "$IDP_APPLE_PRIVATE_KEY" --argjson o "$IDP_OPTIONS" \
+    '{name:"Apple", clientId:$c, teamId:$t, keyId:$k, privateKey:$p,
+      scopes:["name","email"], providerOptions:$o}')"
+fi
+
+if [ "$IDP_COUNT" -eq 0 ]; then
+  say "  none configured — sign-in is this instance's own accounts only"
+fi
+
 # ------------------------------------------------------- letting people in --
 #
 # SELF-REGISTRATION, ON (owner decision 2026-08-22, workplan 0095 T0).
@@ -1040,11 +1205,23 @@ say "allowing people to register, with a verified email"
 # runs after the writes, where a call that cannot be made is the answer.
 probe_allow_register() { jq -r '.policy.allowRegister // empty' <<<"$( ( api GET /management/v1/policies/login ) 2>/dev/null || true)"; }
 read_allow_register() { jq -r '.policy.allowRegister // empty' <<<"$(api GET /management/v1/policies/login)"; }
+# AND WHETHER A PROVIDER BUTTON IS ALLOWED TO APPEAR AT ALL. Configuring an IdP
+# and adding it to the login policy still shows nobody anything while this is
+# false — a third way to have a stack that looks configured and offers nothing.
+probe_allow_external() { jq -r '.policy.allowExternalIdp // empty' <<<"$( ( api GET /management/v1/policies/login ) 2>/dev/null || true)"; }
+read_allow_external() { jq -r '.policy.allowExternalIdp // empty' <<<"$(api GET /management/v1/policies/login)"; }
 
-if [ "$(probe_allow_register)" = "true" ]; then
+# It follows what is actually configured, rather than being a knob of its own.
+# On for a deployment with providers, off for one without — and a deployment
+# that removes its last provider gets it turned back off on the next run, which
+# is what "converges on the described state" means (hard rule 1).
+WANT_EXTERNAL=false
+[ "${IDP_COUNT:-0}" -gt 0 ] && WANT_EXTERNAL=true
+
+if [ "$(probe_allow_register)" = "true" ] && [ "$(probe_allow_external)" = "$WANT_EXTERNAL" ]; then
   say "already allowed"
 else
-  POLICY="$(jq -nc '{allowRegister:true, allowUsernamePassword:true, allowExternalIdp:false}')"
+  POLICY="$(jq -nc --argjson x "$WANT_EXTERNAL" '{allowRegister:true, allowUsernamePassword:true, allowExternalIdp:$x}')"
   # An organisation may not have a login policy of its own yet, in which case it
   # inherits the instance default and the PUT has nothing to update — so both
   # verbs are attempted and NEITHER is trusted.
@@ -1067,7 +1244,19 @@ reaches a sign-in page they cannot get past.
 
 Set it by hand: the console at ${ISSUER}/ui/console, under
 Organisation -> Login Behaviour, tick 'Register allowed'."
-  say "allowed"
+
+  # Read back separately, because the two settings fail differently and a person
+  # reading the log deserves to know WHICH one did not take.
+  [ "$(read_allow_external)" = "$WANT_EXTERNAL" ] \
+    || die "could not set whether a sign-in provider may be offered.
+
+${IDP_COUNT:-0} provider(s) are configured, so 'External IDP allowed' should be
+${WANT_EXTERNAL} — and it is not. Every provider button stays invisible until
+it is, however correctly the provider itself is configured.
+
+Set it by hand: the console at ${ISSUER}/ui/console, under
+Organisation -> Login Behaviour."
+  say "allowed (providers offered: ${WANT_EXTERNAL})"
 fi
 
 # ACCESS TOKENS AS JWT, above, is what makes the API's JWKS path work at all.
