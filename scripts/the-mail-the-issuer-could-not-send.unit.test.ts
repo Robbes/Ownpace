@@ -277,3 +277,95 @@ describe('the catcher is not readable from the internet', () => {
     }
   });
 });
+
+describe('and it still has what it caught tomorrow', () => {
+  const compose = parse(readFileSync(join(COMPOSE, 'managed.yml'), 'utf8')) as {
+    services: Record<
+      string,
+      { environment?: Record<string, string>; volumes?: string[] }
+    >;
+    volumes?: Record<string, unknown>;
+  };
+  const mailpit = compose.services.mailpit ?? {};
+  const env = mailpit.environment ?? {};
+
+  /**
+   * A CATCHER THAT FORGETS IS A CATCHER THAT NEVER CAUGHT.
+   *
+   * Mailpit holds messages in memory unless it is told otherwise, so the whole
+   * store dies with the container — and the container dies for ordinary
+   * reasons. Changing `MAILPIT_BIND` recreates it. So does a version bump, and
+   * so does `up -d` after almost any edit to `managed.yml`. Somebody halfway
+   * through a sign-up when that happens has no route back to the code they
+   * were sent, and what they see is a stack whose mail is broken: the same
+   * symptom this whole file exists to make impossible, arrived by a different
+   * road.
+   *
+   * IT IS NOT ENOUGH FOR THE SETTING TO BE PRESENT. `MP_DATABASE=/tmp/x.db`
+   * reads as persistence and is not: it is a path in the container's own
+   * filesystem, which is the thing being thrown away. So the rule follows the
+   * path to a mount and refuses one that does not land on a declared volume —
+   * because that, not the variable, is what survives.
+   */
+  it('writes the mail somewhere that outlives the container', () => {
+    const db = env.MP_DATABASE;
+    expect(
+      db,
+      'mailpit has no MP_DATABASE, so it keeps every verification link,\n' +
+        'email-change confirmation and password reset in memory and loses all\n' +
+        'of them the next time the container is recreated — which changing\n' +
+        'MAILPIT_BIND does, and so does `up -d` after most edits here.',
+    ).toBeTruthy();
+
+    // The expectation above already threw if it was not set.
+    const path = db as string;
+    // `source:target[:opts]`. An entry with no target is an anonymous volume,
+    // which is not a named one and so cannot satisfy this rule — dropping it
+    // here means it fails the check below rather than passing it by accident.
+    const mounts = (mailpit.volumes ?? []).flatMap((v) => {
+      const [source, target] = v.split(':');
+      return source && target ? [{ source, target }] : [];
+    });
+    const onAVolume = mounts.find(
+      (m) =>
+        (path === m.target ||
+          path.startsWith(`${m.target.replace(/\/$/, '')}/`)) &&
+        compose.volumes?.[m.source] !== undefined,
+    );
+    expect(
+      onAVolume,
+      `mailpit stores its mail at ${path}, which is not inside any volume it\n` +
+        `mounts (${mounts.map((m) => m.target).join(', ') || 'it mounts none'}).\n` +
+        'That path lives in the container filesystem, so setting MP_DATABASE\n' +
+        'bought nothing: the store still dies with the container. Mount a\n' +
+        'named volume and put the database inside it.',
+    ).toBeTruthy();
+  });
+
+  /**
+   * AND A STORE THAT PERSISTS IS A STORE THAT GROWS.
+   *
+   * The cap above was written when this was an in-memory catcher, where an
+   * unbounded store costs RAM and a restart clears it. On a volume it costs
+   * disk and nothing clears it — which is precisely the shape of the two leaks
+   * workplan 0099 was written about. So the two settings are tied together
+   * here rather than left to be noticed later: persistence may not arrive
+   * without the bound that makes it affordable.
+   */
+  it('does not let the store grow forever now that it is on a disk', () => {
+    if (!env.MP_DATABASE) return;
+    expect(
+      env.MP_MAX_MESSAGES,
+      'mailpit persists to MP_DATABASE with no MP_MAX_MESSAGES, so the store\n' +
+        'grows without limit on a disk that nothing prunes. That is the third\n' +
+        'disk leak on this box (workplan 0099). Cap it.',
+    ).toBeTruthy();
+    expect(
+      Number(env.MP_MAX_MESSAGES),
+      `MP_MAX_MESSAGES is ${env.MP_MAX_MESSAGES}, which is not a positive\n` +
+        'number of messages. Mailpit reads it with strconv.Atoi and treats a\n' +
+        'failed parse as 0 — unlimited — so a typo here silently removes the\n' +
+        'bound rather than failing.',
+    ).toBeGreaterThan(0);
+  });
+});
