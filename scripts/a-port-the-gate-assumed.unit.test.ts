@@ -31,6 +31,16 @@
  * SO THE RULE IS DERIVED FROM `managed.yml`, NOT FROM A LIST. Add a service
  * tomorrow with `${NEW_PORT:-9999}` and this covers it the moment the smoke
  * mentions it, without anybody remembering to come back here.
+ *
+ * FOUR PORTS ARE DELIBERATELY SILENT HERE, and this is the record of why so
+ * that the next reader does not take their absence for an oversight:
+ * `POSTGRES_PORT`, `TRIGGER_PORT`, `ZITADEL_PORT` and `NEXTCLOUD_PORT` are
+ * never mentioned by the smoke at all. It reaches those services by container
+ * name on the compose network, or through a URL variable that already carries
+ * the port — `STACK_ISSUER` for the identity provider, `TRIGGER_API_URL` for
+ * the task plane. Nothing is assumed about them, so there is nothing to
+ * refuse; the rule fires only on a port the gate actually names, and it would
+ * catch any of these the day one grows a hard-coded reference.
  */
 
 import { describe, it, expect } from 'vitest';
