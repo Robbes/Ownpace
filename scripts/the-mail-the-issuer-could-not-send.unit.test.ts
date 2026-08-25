@@ -121,6 +121,43 @@ describe('and a gate proves it actually sends', () => {
   });
 });
 
+describe('and it is proved where the proof is needed', () => {
+  const setup = directives('setup-zitadel.sh');
+
+  /**
+   * `smoke-managed.sh` asserts the issuer can send, and on a REAL deployment it
+   * never runs: `phase_smoke` returns early without `--with-demo`, because the
+   * smoke drives the demo tenants. So the check was live on the nightly and
+   * dead on every stack anybody actually uses — coverage where it cannot
+   * execute, which is the gatus healthcheck's shape exactly. Reported from the
+   * reference box on 2026-08-25, where `--only smoke` printed "skipped".
+   */
+  it('the bring-up itself proves delivery, not only the demo gate', () => {
+    expect(
+      setup,
+      'Only smoke-managed.sh proves the issuer can send, and that script does not\n' +
+        'run without --with-demo. A real deployment would configure mail and never\n' +
+        'find out whether it works.',
+    ).toMatch(/_test/);
+    expect(setup).toMatch(/messages_count/);
+  });
+
+  it('only sends a test when the relay is the catcher, and the catcher answers', () => {
+    // A test send is a REAL email. Against a production relay this would mail
+    // somebody on every `--only app`, which a setup script may not do uninvited
+    // — and the second condition is what stops a real relay that happens to be
+    // named `mailpit` from being mistaken for one.
+    expect(setup).toMatch(/\[ "\$SMTP_RELAY" = "mailpit" \] &&/);
+    expect(setup).toMatch(/api\/v1\/messages/);
+  });
+
+  it('says "configured, not proved" rather than skipping in silence', () => {
+    // Two different claims. Reporting the weaker one as the stronger is how a
+    // stack ends up trusted for something nobody measured.
+    expect(setup).toMatch(/configured, not proved/);
+  });
+});
+
 describe('the catcher is not readable from the internet', () => {
   const compose = parse(readFileSync(join(COMPOSE, 'managed.yml'), 'utf8')) as {
     services: Record<string, { ports?: string[] }>;
