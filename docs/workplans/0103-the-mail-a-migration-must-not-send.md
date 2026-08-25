@@ -4,7 +4,7 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| Research | ✅ **Done 2026-08-25** | This document. The question (issue #493) is answered: the fan-out is real, our write path does nothing about it, and the engine that would send it is already in the Stalwart binary this repo pins. Sources at the bottom; repo facts verified by grep, not memory. |
+| Research | ✅ **Done 2026-08-25** | This document — extended the same day with the owner's follow-up: the two-pass idea assessed (moved mail, not suppressed mail), and the notification channels beyond invitations. The question (issue #493) is answered: the fan-out is real, our write path does nothing about it, and the engine that would send it is already in the Stalwart binary this repo pins. Sources at the bottom; repo facts verified by grep, not memory. |
 | T0 The posture, as an ADR | ⬜ proposed | "A migration is silent by default; outward mail is a human-pressed action." 0052 already decided this for shares — this generalises it to calendars and writes it down where a reviewer can hold code to it. |
 | T1 Neutralise the object at write | ⬜ proposed | `caldav-target-writer` injects `SCHEDULE-AGENT=CLIENT` on every `ATTENDEE` and `ORGANIZER` before PUT. One engineering subtlety below. |
 | T2 The gate: prove silence, don't assume it | ⬜ proposed | A fixture event with an `ATTENDEE` at a Mailpit-routed address; assert **zero** mail after sync AND after take-back. Today no fixture carries an attendee at all, so every green run is silent about this by blindness, not by safety. |
@@ -122,10 +122,60 @@ every server unconditionally — and destroys data a person still wants to see
 in their own copy of the event. ADR-0024's spirit applies: the copy should be
 faithful; the *side effects* are what we suppress.
 
+## "Add the events without people, and the people in a second pass?"
+
+Asked by the owner (2026-08-25), because it is the most commonly recommended
+trick out there — it circulates in the Microsoft world precisely because Graph
+has no suppression parameter. The direct answer: **it does not suppress
+anything on a scheduling server; it only moves the mail to the second pass.**
+
+RFC 6638 scheduling is computed from the *change* each write makes: the server
+inspects the attendees that appeared, disappeared or changed and mails
+accordingly. Pass 1 (no attendees) is silent because there is nobody to tell.
+Pass 2 (attendees added) is, to the server, *you have just invited these
+people* — and it sends exactly the invitations pass 1 avoided. Microsoft's own
+suggested workaround concedes this in its wording: create the event without
+attendees "and then share the invite in a separate email" — the second pass
+must never be an API pass, or it mails.
+
+So the idea collapses into one of two strategies already weighed here:
+
+- **Pass 2 never happens** → this is the strip-`ATTENDEE` strategy wearing two
+  passes, with the same data loss, rejected above.
+- **Pass 2 carries `SCHEDULE-AGENT=CLIENT`** → the parameter did all the work,
+  and one pass with it (T1) achieves the same silence without the second
+  write, the second change-detection entry, or the window between passes.
+
+Not adopted. T1 + the T2 gate dominate it on every axis. The one place the
+instinct behind it is right: on a target where nothing can silence the fan-out
+(today's Microsoft 365), importing bare and never adding attendees via API is
+the only silent option — which is a data-loss decision to put in front of the
+owner, not a technique.
+
+## Not only invitations — the other notification channels
+
+Issue #493's word is *notifications*, which is wider than iMIP invitations.
+What each channel does with imported events, verified where marked:
+
+- **Invitations / cancellations (iTIP/iMIP)** — the body of this document.
+- **Reminders (`VALARM`)** — Nextcloud's `ReminderService` materialises EMAIL
+  and DISPLAY alarms, and **skips triggers already in the past** (verified in
+  source), so imported *history* cannot re-fire there. Future events imported
+  with `VALARM` will remind on schedule — which is usually *wanted*: the
+  person migrated their calendar to keep being reminded. The admin switches
+  (`dav sendEventReminders`, and the source-verified
+  `sendEventRemindersToSharedUsers`) belong in T4's operator table as
+  migration-window options, not as defaults.
+- **In-app / activity digests** — Nextcloud's activity mails are a third
+  channel. Not investigated here; T4's builder should spend ten minutes on it
+  rather than inherit a guess.
+- **Share notifications** — the shares section above; storm-proof by 0052's
+  one-at-a-time design.
+
 ## Sources
 
 - [RFC 6638 — Scheduling Extensions to CalDAV](https://www.rfc-editor.org/rfc/rfc6638) (behaviour on PUT; `SCHEDULE-AGENT` values; `Schedule-Reply`); readable summary: [tech-invite rendering](https://www.tech-invite.com/y65/tinv-ietf-rfc-6638-2.html), [Open-Xchange iTIP notes](https://documentation.open-xchange.com/8/middleware/calendar/iTip.html)
-- Nextcloud source: [`apps/dav/lib/Server.php`](https://github.com/nextcloud/server/blob/master/apps/dav/lib/Server.php) (`sendInvitations` gate, default `yes`), [`IMipPlugin.php`](https://github.com/nextcloud/server/blob/master/apps/dav/lib/CalDAV/Schedule/IMipPlugin.php) (past-event skip)
+- Nextcloud source: [`apps/dav/lib/Server.php`](https://github.com/nextcloud/server/blob/master/apps/dav/lib/Server.php) (`sendInvitations` gate, default `yes`), [`IMipPlugin.php`](https://github.com/nextcloud/server/blob/master/apps/dav/lib/CalDAV/Schedule/IMipPlugin.php) (past-event skip), [`ReminderService.php`](https://github.com/nextcloud/server/blob/master/apps/dav/lib/CalDAV/Reminder/ReminderService.php) (past-trigger skip; `sendEventRemindersToSharedUsers`)
 - [Stalwart scheduling docs](https://stalw.art/docs/collaboration/scheduling/), [changelog](https://github.com/stalwartlabs/stalwart/blob/main/CHANGELOG.md) (RFC 6638 + iMIP in v0.12.1; global disable)
 - [Google Calendar `events.import`](https://developers.google.com/calendar/v3/reference/events/import), [`events.insert` `sendUpdates`](https://developers.google.com/workspace/calendar/v3/reference/events/insert)
 - Microsoft: [no suppression on Graph event create (Q&A)](https://learn.microsoft.com/en-us/answers/questions/1339837/disable-the-invitation-mail-to-the-participants-wh), [EWS retirement](https://techcommunity.microsoft.com/blog/exchange/retirement-of-exchange-web-services-in-exchange-online/3924440), [EWSAllowedAppIDs / final phase](https://techcommunity.microsoft.com/blog/exchange/introducing-ewsallowedappids-preparing-for-the-final-phase-of-ews-retirement/4529471)
