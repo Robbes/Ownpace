@@ -243,4 +243,80 @@ describe('and none of it reached the product', () => {
         'sign-in keep failing.',
     ).toMatch(/NOT re-sent/);
   });
+
+  /**
+   * AND THE OPERATOR GUIDE KEEPS UP WITH THE KEYS.
+   *
+   * The provider section of docs/managed-bring-up.md is the operator guide for
+   * this feature — console table, both return URIs, the .env half, rotation,
+   * removal. Three of its claims are load-bearing enough to pin:
+   *
+   * The KEYS rule is derived from managed.env.example rather than listed here,
+   * for the reason a-port-the-gate-assumed derives its ports from managed.yml:
+   * add IDP_FACEBOOK_CLIENT_ID tomorrow and the guide must name it the same
+   * day, without anybody remembering this file exists.
+   *
+   * The ROTATION sentence mirrors the script-side rule above: the script may
+   * not claim an unchecked provider is configured, and the guide must carry
+   * the consequence — a re-run never re-sends credentials — because the guide
+   * is where an operator looks BEFORE they are stuck, and the script's line is
+   * what they see after.
+   */
+  const bringUp = readFileSync(join(REPO_ROOT, 'docs/managed-bring-up.md'), 'utf8');
+  const sectionStart = bringUp.indexOf('#### Offering Google');
+  const guide =
+    sectionStart >= 0
+      ? bringUp.slice(sectionStart, bringUp.indexOf('\n#### ', sectionStart + 1))
+      : '';
+
+  it('still has an operator guide to hold to account', () => {
+    expect(
+      sectionStart,
+      'docs/managed-bring-up.md no longer has the "Offering Google…" provider\n' +
+        'section. If the guide moved, point these rules at the new home — the\n' +
+        'keys, the two return URIs and the rotation caveat still need a page.',
+    ).toBeGreaterThan(-1);
+  });
+
+  it('names every provider key the stack accepts', () => {
+    const example = readFileSync(
+      join(REPO_ROOT, 'deploy/compose/managed.env.example'),
+      'utf8',
+    );
+    const keys = [...example.matchAll(/^(IDP_[A-Z0-9_]+)=/gm)].map((m) => m[1]!);
+    expect(keys.length, 'managed.env.example declares no IDP_ keys').toBeGreaterThan(0);
+    for (const key of keys) {
+      expect(
+        guide,
+        `managed.env.example accepts ${key} and the operator guide never names\n` +
+          'it. An operator copying key names out of the guide silently skips\n' +
+          'this one, and the provider it belongs to is then "not offered" with\n' +
+          'no error anywhere.',
+      ).toContain(key);
+    }
+  });
+
+  it('shows both return URIs, because Apple is not like the others', () => {
+    expect(
+      guide,
+      'the guide no longer shows the plain /callback return URI.',
+    ).toMatch(/externalidp\/callback(?!\/form)/);
+    expect(
+      guide,
+      "the guide no longer shows Apple's /callback/form return URI. Apple\n" +
+        'POSTS its answer instead of redirecting, so registering the plain\n' +
+        'callback there fails at the last step of setup with an error that\n' +
+        'names neither the URI nor Apple.',
+    ).toContain('externalidp/callback/form');
+  });
+
+  it('warns that a re-run never re-sends credentials', () => {
+    expect(
+      guide,
+      'the guide no longer says a re-run never re-sends credentials. That is\n' +
+        'the one lifecycle fact an operator cannot guess: fixing a secret in\n' +
+        '.env and re-running looks like the obvious remedy, does nothing, and\n' +
+        'the script only says so after they are already stuck.',
+    ).toMatch(/never re-sends credentials/);
+  });
 });

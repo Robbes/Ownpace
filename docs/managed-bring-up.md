@@ -474,7 +474,20 @@ the others redirect:
 | Apple | Developer → Services ID (**paid account**) | `$JWT_ISSUER/ui/login/login/externalidp/callback/form` |
 
 **Our half** is `.env` and a re-run. Fill in the pairs you want — a provider
-with no credentials is simply not offered — and:
+with no credentials is simply not offered. The keys, exactly as `.env` spells
+them:
+
+```bash
+IDP_GOOGLE_CLIENT_ID=       IDP_GOOGLE_CLIENT_SECRET=
+IDP_MICROSOFT_CLIENT_ID=    IDP_MICROSOFT_CLIENT_SECRET=    IDP_MICROSOFT_TENANT=
+IDP_GITHUB_CLIENT_ID=       IDP_GITHUB_CLIENT_SECRET=
+IDP_APPLE_CLIENT_ID=        IDP_APPLE_TEAM_ID=
+IDP_APPLE_KEY_ID=           IDP_APPLE_PRIVATE_KEY=
+```
+
+`IDP_MICROSOFT_TENANT` decides which Microsoft accounts may sign in — empty or
+`common` for any, `organisations` / `consumers` to narrow it, or a tenant id to
+pin one organisation. Then:
 
 ```bash
 ./deploy/compose/bootstrap-managed.sh --only app
@@ -510,6 +523,29 @@ what it configured:
 ```
 
 If a provider will not add, the refusal names the redirect URI to check.
+
+**A re-run never re-sends credentials.** An existing provider is matched by
+name and left exactly as it is — the script says so when it happens (*"a
+provider of this name exists — left as it is"*). So fixing a mistyped secret
+in `.env` and re-running changes nothing: remove the provider in the console
+first (**Settings → Identity Providers**, at the instance), then re-run. The
+button is gone for the seconds in between and anybody mid-sign-in through it
+fails, so on a stack with real users do it deliberately, not casually.
+
+**Emptying a pair removes less than it looks like.** The provider stays
+configured and on the login policy. Emptying the *last* pair flips "External
+IDP allowed" off on the next run, which hides *every* provider button; emptying
+one of several leaves that provider's button showing and working, because the
+run no longer carries credentials to compare and does not touch what exists.
+Actual removal is the console, the same place as rotation.
+
+**Where the Microsoft verification mail lands.** Entra addresses arrive
+unverified on purpose (above), so the first Microsoft sign-in triggers the
+issuer's own verification mail — which goes wherever this stack's mail goes.
+On the OTA stack that is Mailpit, not an inbox: an operator offering Microsoft
+there reads the code out of Mailpit ("Mail: caught, not delivered", below),
+or the person waits on a mail that
+never arrives anywhere they can see.
 
 #### Whatever fronts the provider must pass the original `Host` header
 
