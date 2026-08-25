@@ -881,15 +881,53 @@ else
         -w '\n%{http_code}' "$login_url" 2>/dev/null)"
       login_code="${login_page##*$'\n'}"
       login_page="${login_page%$'\n'*}"
+      # WHAT THE PAGE SAYS, not the first 200 characters of its `<head>`.
+      #
+      # The first version of this check printed exactly that, and E2E (managed)
+      # #81 is what it cost: the assertion failed, and the evidence it left was
+      # a doctype, a lang attribute and two meta tags — the part of an HTML page
+      # that never says anything. Working out WHICH page had been served meant
+      # reading upstream templates.
+      #
+      # So the tags come off and the visible text goes in the message. `<body`
+      # onwards, because everything before it is machinery.
+      login_text="$(tr '\n' ' ' <<<"$login_page" | sed 's/.*<body[^>]*>//; s/<[^>]*>/ /g; s/  */ /g; s/^ *//')"
+      login_title="$(sed -n 's/.*<title>\([^<]*\)<\/title>.*/\1/p' <<<"$login_page" | head -1)"
+
       if [ "$login_code" != "200" ]; then
         echo "the login page answered HTTP ${login_code} at ${login_url}: ${login_page:0:200}"
+        fail=1
+      # THE GATEWAY'S NOT-FOUND BODY, which is the failure this whole section
+      # exists for: a redirect to a login UI nothing serves renders as JSON in
+      # the browser. Checked by shape rather than by status, because the
+      # gateway answers it with a 200 in some configurations.
+      elif ! grep -qi '<html' <<<"$login_page"; then
+        echo "the login page at ${login_url} served no HTML at all — a human would see this raw:"
+        echo "  ${login_page:0:300}"
+        fail=1
+      # ZITADEL'S OWN ERROR PAGE, which wears the login theme and carries no
+      # form. Recognised by the error id it prints — `ID=QUERY-1kIjX`,
+      # `(EVENT-adk13)` — because that is the only thing on it that a template
+      # change cannot take away, and it is what a human would be staring at.
+      elif grep -qE '(ID=[A-Z]+-|\([A-Z]+-[A-Za-z0-9]{4,}\))' <<<"$login_text"; then
+        echo "the login page at ${login_url} is an error page, not a login form:"
+        echo "  title: ${login_title:-<none>}"
+        echo "  text:  ${login_text:0:400}"
         fail=1
       # A HERE-STRING, NOT A PIPE. `curl … | grep -q` kills the producer with
       # SIGPIPE and `pipefail` then takes the killed producer's status — the
       # repo-wide correction in #556.
+      #
+      # REPORTED AND NOT FATAL, unlike the two above. A form is what this SHOULD
+      # find, but its absence is only evidence: an upstream template change
+      # would look identical to a broken sign-in from out here, and the two
+      # failures that are unambiguous are already fatal above. Saying it out
+      # loud keeps it from becoming a silence.
       elif ! grep -qi '<form' <<<"$login_page"; then
-        echo "the login page at ${login_url} served no form: ${login_page:0:200}"
-        fail=1
+        echo "the login page at ${login_url} answered with a page that carries no form."
+        echo "  it is HTML and names no error, so this is not the login-version outage."
+        echo "  title: ${login_title:-<none>}"
+        echo "  text:  ${login_text:0:400}"
       else
         echo "the login page a browser is sent to renders a form"
       fi ;;
