@@ -151,6 +151,41 @@ export const PUBLIC_APP_URL = 'https://app.ownpace.eu';
 /** The page a visitor asks for an account on. Invite-only: asking is not signing up. */
 export const REQUEST_ACCESS_URL = `${APP_URL}/request-access`;
 
+/**
+ * Where "is Ownpace down?" is answerable.
+ *
+ * DERIVED from APP_URL rather than configured beside it, for the reason
+ * PUBLIC_APP_URL exists at all: two settings that both name an environment
+ * drift, and the drift is silent. `app.` and `status.` are siblings on the same
+ * domain by deployment convention (docs/status-page.md: "put it behind the
+ * reverse proxy at status.<your domain> alongside the app"), so one variable
+ * can name both and no test host can link to production's status page.
+ *
+ * `OWNPACE_STATUS_URL` overrides it for a deployment that puts the page
+ * somewhere else — which is the eventual plan: a status page hosted on the
+ * machine it watches cannot answer the question when that machine is the
+ * problem.
+ *
+ * Refuses rather than guesses when APP_URL is not an `app.` host: a wrong
+ * status link is worse than none, because it answers "is it down" about
+ * something else.
+ */
+export const STATUS_URL = (() => {
+  const override = process.env.OWNPACE_STATUS_URL?.trim();
+  if (override) return override.replace(/\/+$/, '');
+  const url = new URL(APP_URL);
+  if (!url.hostname.startsWith('app.')) {
+    throw new Error(
+      `Cannot derive a status URL from OWNPACE_APP_URL=${APP_URL}: its host does not\n` +
+        `start with "app.", so "status." is a guess rather than a sibling.\n` +
+        'Set OWNPACE_STATUS_URL explicitly.',
+    );
+  }
+  url.hostname = `status.${url.hostname.slice('app.'.length)}`;
+  url.pathname = '/';
+  return url.toString().replace(/\/+$/, '');
+})();
+
 /** @param {number} euro */
 export const money = (euro) => `€${euro}`;
 

@@ -42,6 +42,18 @@ export const COPY = {
     skip: 'Skip to content',
     footerTag: 'move your own data, at your own pace.',
     footerOss: 'Open source under the Apache License 2.0. Run it yourself, or let us run it.',
+    footerStatus: 'Status',
+    // A 404 on a site about moving data should reassure before it jokes: the
+    // first thing a visitor wonders is whether something of theirs went
+    // missing. It did not — nothing here is their data.
+    notFound: {
+      title: 'Page not found',
+      heading: 'Nothing here. Not even a copy.',
+      lede:
+        'We move data at your own pace, but this page never made the trip. It may have been renamed, or it may never have existed \u2014 either way, nothing of yours was lost.',
+      back: 'Back to the home page',
+      status: 'Checking whether something is broken?',
+    },
     heroTitle: 'Move off Google or Microsoft. At your own pace.',
     heroLede:
       'Ownpace copies your mail, contacts, calendar and files to a European provider you choose — and keeps the copy in step until <em>you</em> decide to switch over. No weekend deadline. No big-bang cutover. Your old account stays exactly where it is until you say otherwise.',
@@ -108,6 +120,15 @@ export const COPY = {
     footerTag: 'verhuis uw eigen gegevens, in uw eigen tempo.',
     footerOss:
       'Open source onder de Apache License 2.0. Draai het zelf, of laat ons het draaien.',
+    footerStatus: 'Status',
+    notFound: {
+      title: 'Pagina niet gevonden',
+      heading: 'Hier staat niets. Zelfs geen kopie.',
+      lede:
+        'Wij verhuizen gegevens in uw eigen tempo, maar deze pagina is nooit meegegaan. Misschien is hij hernoemd, misschien heeft hij nooit bestaan \u2014 hoe dan ook, er is niets van u verloren gegaan.',
+      back: 'Terug naar de startpagina',
+      status: 'Wilt u weten of er iets stuk is?',
+    },
     heroTitle: 'Weg bij Google of Microsoft. In uw eigen tempo.',
     heroLede:
       'Ownpace kopieert uw e-mail, contacten, agenda en bestanden naar een Europese aanbieder die u zelf kiest — en houdt die kopie bij tot <em>u</em> besluit over te stappen. Geen deadline in het weekend. Geen big bang. Uw oude account blijft precies waar het is, tot u iets anders zegt.',

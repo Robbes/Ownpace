@@ -39,6 +39,7 @@ import Verify from './pages/Verify.tsx';
 import Finish from './pages/Finish.tsx';
 import Confirm from './pages/Confirm.tsx';
 import { isSelfHost } from './services/edition.ts';
+import NotFound from './pages/NotFound.tsx';
 
 /**
  * The billing screen, and only on the edition that bills (ADR-0036).
@@ -317,6 +318,16 @@ const AppRoutes: React.FC = () => {
             </ManagedOnly>
           }
         />
+        {/*
+          THE LAST ROUTE, AND IT MUST STAY LAST.
+          Without it, react-router matched nothing for an unknown path and
+          rendered NOTHING — nginx's SPA fallback had already answered HTTP 200,
+          so `/blabla` was a blank white page that every monitor read as
+          success. Inside the layout on purpose: a person who mistyped a path is
+          still signed in, and taking the navigation away from them treats a
+          typo like a session failure.
+        */}
+        <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
   );
