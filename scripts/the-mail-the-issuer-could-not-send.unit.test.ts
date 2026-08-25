@@ -202,7 +202,12 @@ describe('and it is proved where the proof is needed', () => {
     // rule read every `die` in the script. It failed for a reason that had
     // nothing to do with what it guards.
     const from = setup.indexOf('sending one test message');
-    const to = setup.indexOf('allowing people to register');
+    // The end anchor is the first line of the NEXT section, and it moved once
+    // already: the login-version block (#566) landed between the mail block and
+    // the registration policy, and its `die` — which is correct, choosing the
+    // login page is this script's job — failed this rule. A window that ends at
+    // the next-but-one section reads code it does not guard.
+    const to = setup.indexOf('checking which login page');
     expect(from, 'the test-send block moved or was renamed').toBeGreaterThan(-1);
     expect(to, 'the anchor after it moved or was renamed').toBeGreaterThan(from);
     const upTo = setup.slice(from, to);
