@@ -151,6 +151,42 @@ describe('and it is proved where the proof is needed', () => {
     expect(setup).toMatch(/api\/v1\/messages/);
   });
 
+  it('uses the TEST endpoint, which is not the ACTIVATE endpoint', () => {
+    // Two neighbouring verbs in the same admin API with different shapes:
+    // activate is `/email/{id}/_activate`, test is `/email/smtp/{id}/_test`.
+    // The first version used the activate shape for both and answered HTTP 404
+    // on the reference box, which is also where it was measured.
+    expect(
+      setup,
+      'the test send does not use /admin/v1/email/smtp/{id}/_test',
+    ).toMatch(/\/admin\/v1\/email\/smtp\/\$\{SMTP_ID\}\/_test/);
+    expect(setup).toMatch(/\/admin\/v1\/email\/\$\{SMTP_ID\}\/_activate/);
+  });
+
+  it('never lets a mail check take down the bring-up', () => {
+    // `api` dies on any non-2xx, so an unguarded call here exits the script
+    // MID-PHASE — before `up -d --build` has built api and web, which is what
+    // phase_app exists to do. A check on the mail channel took down the whole
+    // deployment: a healthcheck killing the service it watches. Delivery is
+    // REPORTED here and asserted in the smoke, where failing is the job.
+    // Bounded by CODE at both ends. The first version ended the slice at the
+    // `# ---- letting people in ----` section header, which `directives()`
+    // strips — so indexOf returned -1, the slice ran to end of file, and the
+    // rule read every `die` in the script. It failed for a reason that had
+    // nothing to do with what it guards.
+    const from = setup.indexOf('sending one test message');
+    const to = setup.indexOf('allowing people to register');
+    expect(from, 'the test-send block moved or was renamed').toBeGreaterThan(-1);
+    expect(to, 'the anchor after it moved or was renamed').toBeGreaterThan(from);
+    const upTo = setup.slice(from, to);
+    expect(
+      upTo,
+      'the mail verification calls `die`, which aborts phase_app before api and\n' +
+        'web are built. Report it here; assert it in smoke-managed.sh.',
+    ).not.toMatch(/\bdie\b/);
+    expect(upTo, 'the test send is not guarded against a refusal').toMatch(/if ! probe_out=/);
+  });
+
   it('says "configured, not proved" rather than skipping in silence', () => {
     // Two different claims. Reporting the weaker one as the stronger is how a
     // stack ends up trusted for something nobody measured.

@@ -884,24 +884,40 @@ silently as no provider at all, which is the failure this configures away."
   if [ "$SMTP_RELAY" = "mailpit" ] && curl -fsS -o /dev/null -m 5 "${MAILPIT_API}/api/v1/messages" 2>/dev/null; then
     say "sending one test message, and reading the catcher for it"
     probe="setup-zitadel-$$@example.invalid"
-    api POST "/admin/v1/email/${SMTP_ID}/_test" \
-      "$(jq -nc --arg r "$probe" '{receiverAddress:$r}')" >/dev/null || true
-    # Zitadel answers the test before delivery completes, so the proof is the
-    # message arriving rather than the call returning 200.
-    landed=0
-    for _ in 1 2 3 4 5 6 7 8 9 10; do
-      landed="$(curl -fsS --get "${MAILPIT_API}/api/v1/search" \
-        --data-urlencode "query=${probe}" 2>/dev/null | jq -r '.messages_count // 0' || echo 0)"
-      [ "${landed:-0}" -gt 0 ] && break
-      sleep 1
-    done
-    if [ "${landed:-0}" -gt 0 ]; then
-      say "  it arrived — this instance can send"
+    # `/email/smtp/{id}/_test`, NOT `/email/{id}/_test`. The activate verb sits
+    # on `/email/{id}` and the test verb sits on `/email/smtp/{id}` — two
+    # neighbouring endpoints in the same admin API with different shapes, and
+    # the first version of this used the activate shape for both and answered
+    # HTTP 404 on the reference box.
+    #
+    # AND IT IS NOT FATAL, which matters more than the path. `api` dies on any
+    # non-2xx, so that 404 exited the script MID-PHASE — before `up -d --build`
+    # had built api and web, which is what `phase_app` exists to do. A check on
+    # the mail channel took down the whole bring-up: the shape of a healthcheck
+    # that kills the service it is watching. Delivery is REPORTED here and
+    # asserted in smoke-managed.sh, which is the place where failing is the job.
+    if ! probe_out="$( ( api POST "/admin/v1/email/smtp/${SMTP_ID}/_test" \
+          "$(jq -nc --arg r "$probe" '{receiverAddress:$r}')" ) 2>&1 )"; then
+      say "  the provider REFUSED the test send, so delivery is unproven:"
+      say "  ${probe_out}"
     else
-      die "the provider accepted the test send and nothing reached the catcher at
-${MAILPIT_API}. The email provider ${SMTP_ID} is configured and ACTIVE, so what
-is wrong is the relay address it holds (${SMTP_ADDR}) or the route to it from
-the identity provider's container. Every verification mail would be dropped."
+      # Zitadel answers the test before delivery completes, so the proof is the
+      # message arriving rather than the call returning 200.
+      landed=0
+      for _ in 1 2 3 4 5 6 7 8 9 10; do
+        landed="$(curl -fsS --get "${MAILPIT_API}/api/v1/search" \
+          --data-urlencode "query=${probe}" 2>/dev/null | jq -r '.messages_count // 0' || echo 0)"
+        [ "${landed:-0}" -gt 0 ] && break
+        sleep 1
+      done
+      if [ "${landed:-0}" -gt 0 ]; then
+        say "  it arrived — this instance can send"
+      else
+        say "  the provider ACCEPTED the test send and nothing reached the catcher at"
+        say "  ${MAILPIT_API}. The provider is configured and ACTIVE, so what is wrong is"
+        say "  the relay address it holds (${SMTP_ADDR}) or the route to it from the"
+        say "  identity provider's container. Every verification mail would be dropped."
+      fi
     fi
   else
     # Said rather than skipped silently: "configured" and "proved to work" are
