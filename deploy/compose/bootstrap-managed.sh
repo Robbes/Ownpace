@@ -151,6 +151,7 @@ load_env() {
   # .env reached a bring-up unremarked on 2026-08-24.
   note_env_divergence
   note_mail_goes_nowhere_real
+  note_status_page_probes_itself
 
   local config_err
   if ! config_err="$("${COMPOSE[@]}" config -q 2>&1)"; then
@@ -294,6 +295,43 @@ note_mail_goes_nowhere_real() {
   note "  For real delivery, point SMTP_HOST at a relay and set NOTIFY_TO to an"
   note "  address somebody reads, then re-run ./deploy/compose/set-task-env.sh"
   note "  so the task containers see it too."
+}
+
+# A STATUS PAGE PROBING ITSELF.
+#
+# gatus reads `STATUS_WEB_URL`, which defaults to `WEB_URL` — the address a
+# BROWSER uses, and rightly so: probing an internal service name would prove the
+# stack talks to itself and say nothing about the path a customer takes.
+#
+# But the probe runs INSIDE the gatus container, and the shipped default is
+# `http://localhost:3123`, where `localhost` is gatus. Nothing serves 3123
+# there, so a perfectly healthy stack lights four red lamps — Web app, API,
+# Database, Sign-in — and a status page that is wrong in that direction is as
+# useless as one that is wrong in the other.
+#
+# This was invisible until now for one reason: the service had never been
+# started. It is in this phase's list as of this change, so the first thing an
+# operator would have seen on a page they had never seen before is four reds.
+#
+# A NOTE, NOT A REFUSAL: a local stack whose status page is red is a cosmetic
+# problem, and refusing a bring-up over it would be absurd.
+note_status_page_probes_itself() {
+  local probe
+  probe="$(env_get STATUS_WEB_URL)"
+  [ -n "$probe" ] || probe="$(env_get WEB_URL)"
+  case "$probe" in
+    http://localhost*|https://localhost*|http://127.0.0.1*|https://127.0.0.1*) : ;;
+    *) return 0 ;;
+  esac
+
+  note "THE STATUS PAGE WILL PROBE ITSELF, and show red for a healthy stack."
+  note "  It asks ${probe} from INSIDE its own container, where localhost is"
+  note "  gatus rather than the web app. Web app, API, Database and Sign-in"
+  note "  will all be red at http://localhost:$(env_get STATUS_PORT || echo 3124)."
+  note "  Set STATUS_WEB_URL to an address that container can reach — e.g."
+  note "      ./deploy/compose/env-upsert.sh ${ENV_FILE} STATUS_WEB_URL=http://web:80"
+  note "  accepting that it then proves the stack talks to itself. WEB_URL must"
+  note "  stay the browser address: the issuer and redirect URIs read it."
 }
 
 # THE `zitadel` ROLE'S PASSWORD, ASKED BEFORE THE CONTAINER IS STARTED.
@@ -1110,6 +1148,17 @@ phase_app() {
     # nothing reaches a real inbox unless SMTP_HOST is changed on purpose.
     mailpit
     api web
+    # The status page (workplan 0094). It was in managed.yml, had STATUS_PORT in
+    # managed.env.example, a section in docs/managed-bring-up.md claiming it
+    # "starts with everything else", and its own status-page.md — and it was
+    # named NOWHERE in this script, so no bring-up had ever started it. Exactly
+    # what happened to zitadel above, discovered the same way: a `docker ps` on
+    # the Spark with no `ownpace-status` in it.
+    #
+    # It has no `depends_on` by design — "a status page that will not start
+    # until the thing it is watching is healthy is a status page that is never
+    # there when it matters" — so it can come up anywhere in this list.
+    gatus
   )
   [ "$WITH_DEMO" -eq 1 ] && services+=(nextcloud)
 

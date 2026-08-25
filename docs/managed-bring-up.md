@@ -505,16 +505,23 @@ first time they sign in, provided the identity provider asserts
 nothing. Neither can be undone by deleting the row: nobody has DELETE on that
 table, so a decision stays on the record.
 
-### 8d. The status page *(optional, comes up with the stack)*
+### 8d. The status page *(comes up with the stack)*
 
-`gatus` is in `managed.yml` and starts with everything else (workplan 0094). It
+`gatus` starts with everything else in the `app` phase (workplan 0094). It
 listens on `STATUS_PORT` (default `3124`); put it behind the reverse proxy at
 `status.<your domain>` alongside the app.
 
 ```bash
-docker compose -f deploy/compose/managed.yml up -d gatus
 curl -fsS "http://localhost:${STATUS_PORT:-3124}/health"
 ```
+
+**This section said "starts with everything else" from the day it was written,
+and it was not true.** `gatus` was named nowhere in `bootstrap-managed.sh`, so
+no bring-up had ever started it — the same thing that happened to `zitadel` for
+three weeks, and found the same way, by reading `docker ps` on the Spark and
+noticing what was not in it. `scripts/every-service-somebody-starts.unit.test.ts`
+now compares `managed.yml`'s service list against the bring-up's, so a service
+defined and never started fails a test instead of quietly not existing.
 
 **Read [`status-page.md`](./status-page.md) before you trust a green light.**
 This page runs INSIDE the stack it watches, so it cannot tell you the stack is
