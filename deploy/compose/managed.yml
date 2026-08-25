@@ -878,11 +878,33 @@ services:
       - ownpace-network
     # No `depends_on`. A status page that will not start until the thing it is
     # watching is healthy is a status page that is never there when it matters.
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
+    #
+    # NO HEALTHCHECK, AND THAT IS THE FIX RATHER THAN A GAP — same shape as
+    # zitadel above (#517).
+    #
+    # This carried `test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]`,
+    # and the first nightly to actually exercise this service after
+    # STATUS_WEB_URL landed (E2E (managed) #77, 2026-08-25) failed the whole
+    # bring-up on it — every OTHER container in the stack, api/web/db/pgbouncer
+    # included, was already `(healthy)`:
+    #
+    #   OCI runtime exec failed: exec failed: unable to start container
+    #   process: exec: "wget": executable file not found in $PATH
+    #
+    # ghcr.io/twin/gatus's own Dockerfile builds its final stage `FROM scratch`:
+    # no shell, no wget, no curl, nothing but the compiled binary and CA certs.
+    # `wget` was never once present in this image; the test above could not
+    # have passed on any tag. Upstream has no substitute — TwiN/gatus#711 asks
+    # for exactly this (`gatus --health`, exit 0/1) and has sat unresolved
+    # since March 2024.
+    #
+    # Same underlying shape as zitadel's #517: no command in this image can ask
+    # the question, so there is nothing to substitute it with. Unlike zitadel,
+    # nothing in this stack depends on gatus's health (see "No depends_on"
+    # above), so there is no readiness wait to move to the host — removing the
+    # healthcheck is the whole fix. `docker compose ps` now reports gatus
+    # alongside ownpace-idp, trigger-tls and the rest of the services this gate
+    # already accepts it cannot speak for.
 
   # Mailpit — the mail this stack sends, CAUGHT rather than delivered.
   #

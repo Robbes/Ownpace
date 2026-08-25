@@ -169,4 +169,18 @@ describe('the service that serves it', () => {
       './gatus.yaml:/config/config.yaml:ro',
     );
   });
+
+  it('declares no healthcheck — the image has nothing that could run one', () => {
+    // E2E (managed) #77: `wget` does not exist in ghcr.io/twin/gatus, on any
+    // tag — the image's own Dockerfile builds `FROM scratch`, with no shell
+    // and no HTTP client at all. `docker compose up --wait` failed the whole
+    // bring-up on this container while every other service, api/web/db/
+    // pgbouncer included, was already healthy. Same shape as #517 (zitadel):
+    // no command in the image can ask the question, so the fix is removing
+    // the check, not repairing it.
+    expect(
+      (gatus() as { healthcheck?: unknown }).healthcheck,
+      'a healthcheck came back — see #77: no shell/wget/curl exists in this scratch image',
+    ).toBeUndefined();
+  });
 });
