@@ -317,19 +317,24 @@ describe('and it still has what it caught tomorrow', () => {
         'MAILPIT_BIND does, and so does `up -d` after most edits here.',
     ).toBeTruthy();
 
-    const mounts = (mailpit.volumes ?? []).map((v) => {
+    // The expectation above already threw if it was not set.
+    const path = db as string;
+    // `source:target[:opts]`. An entry with no target is an anonymous volume,
+    // which is not a named one and so cannot satisfy this rule — dropping it
+    // here means it fails the check below rather than passing it by accident.
+    const mounts = (mailpit.volumes ?? []).flatMap((v) => {
       const [source, target] = v.split(':');
-      return { source, target };
+      return source && target ? [{ source, target }] : [];
     });
     const onAVolume = mounts.find(
       (m) =>
-        m.target &&
-        (db === m.target || db.startsWith(`${m.target.replace(/\/$/, '')}/`)) &&
+        (path === m.target ||
+          path.startsWith(`${m.target.replace(/\/$/, '')}/`)) &&
         compose.volumes?.[m.source] !== undefined,
     );
     expect(
       onAVolume,
-      `mailpit stores its mail at ${db}, which is not inside any volume it\n` +
+      `mailpit stores its mail at ${path}, which is not inside any volume it\n` +
         `mounts (${mounts.map((m) => m.target).join(', ') || 'it mounts none'}).\n` +
         'That path lives in the container filesystem, so setting MP_DATABASE\n' +
         'bought nothing: the store still dies with the container. Mount a\n' +
