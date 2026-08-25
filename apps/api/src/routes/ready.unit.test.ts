@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { rollUp } from './ready.ts';
+import { rollUp, signInProbeUrl } from './ready.ts';
 
 describe('rolling components up into one word', () => {
   it('is ok when everything is up', () => {
@@ -64,5 +64,66 @@ describe('what the body may contain', () => {
     }
     // And the reasons do go somewhere — just not to the caller.
     expect(source).toContain('log.error');
+  });
+});
+
+describe('where the sign-in check asks', () => {
+  /**
+   * `middleware/auth.ts` resolves the key source as
+   * `JWT_JWKS_URI || discoverJwksUri(JWT_ISSUER)`. Readiness has to ask in the
+   * same order or it reports on an address no request uses.
+   *
+   * That is not hypothetical. On a stack where something fronts the provider,
+   * `JWT_ISSUER` is a public https name that the API container CANNOT reach —
+   * compose gives the provider a network alias of exactly that name, so it
+   * resolves to the container and the probe asks for 443 where nothing listens.
+   * `JWT_JWKS_URI` exists for that case, and a readiness check that ignored it
+   * answered `signIn: down` for a sign-in that worked perfectly.
+   */
+  const withEnv = (env: Record<string, string | undefined>, fn: () => void): void => {
+    const before = { ...process.env };
+    try {
+      for (const [k, v] of Object.entries(env)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+      fn();
+    } finally {
+      process.env = before;
+    }
+  };
+
+  it('uses the configured key source when there is one', () => {
+    withEnv({ JWT_JWKS_URI: 'http://ownpace-idp:3126/oauth/v2/keys' }, () => {
+      expect(signInProbeUrl('https://id.example.com')).toBe(
+        'http://ownpace-idp:3126/oauth/v2/keys',
+      );
+    });
+  });
+
+  it('falls back to the issuer when there is not', () => {
+    withEnv({ JWT_JWKS_URI: undefined }, () => {
+      expect(signInProbeUrl('https://id.example.com')).toBe(
+        'https://id.example.com/.well-known/openid-configuration',
+      );
+    });
+  });
+
+  it('treats whitespace as unset, because an env file will hand it whitespace', () => {
+    // `JWT_JWKS_URI=` with a trailing space is not a URL, and probing '' would
+    // be an immediate failure reported as the provider being down.
+    withEnv({ JWT_JWKS_URI: '   ' }, () => {
+      expect(signInProbeUrl('https://id.example.com')).toBe(
+        'https://id.example.com/.well-known/openid-configuration',
+      );
+    });
+  });
+
+  it('does not double the slash on an issuer that carries one', () => {
+    withEnv({ JWT_JWKS_URI: undefined }, () => {
+      expect(signInProbeUrl('https://id.example.com/')).toBe(
+        'https://id.example.com/.well-known/openid-configuration',
+      );
+    });
   });
 });
