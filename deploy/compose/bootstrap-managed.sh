@@ -150,6 +150,7 @@ load_env() {
   # resumes that skip preflight entirely — which is exactly how a divergent
   # .env reached a bring-up unremarked on 2026-08-24.
   note_env_divergence
+  note_mail_goes_nowhere_real
   note_status_page_probes_itself
 
   local config_err
@@ -258,6 +259,42 @@ note_env_divergence() {
   note "  against credentials nobody changed. Make it one file:"
   note "      ln -sfn ${persisted} ${ENV_FILE}"
   note "  (env-upsert.sh follows the link rather than replacing it.)"
+}
+
+# A CATCHER SERVING WHAT LOOKS LIKE A REAL DEPLOYMENT.
+#
+# SMTP_HOST defaults to `mailpit`, which accepts everything and delivers
+# nothing. Right for this stack and wrong for a real one, and the failure is
+# quiet in the worst way: every send reports `sent`, because it WAS sent — to a
+# server whose job is to keep it. Nobody hears about a granted account until
+# somebody asks why they never got the email.
+#
+# WEB_URL already says which kind of deployment this is. An https origin that
+# is not localhost is somebody's real address, and the two facts can be
+# compared rather than trusted to agree — the same shape as `--public` against
+# OWNPACE_APP_URL in the site build.
+#
+# A NOTE, NOT A REFUSAL. A real deployment mid-setup legitimately passes
+# through this state, and refusing would stop a bring-up over a thing that is
+# about to be configured. Being told is the whole ask.
+note_mail_goes_nowhere_real() {
+  local smtp web
+  smtp="$(env_get SMTP_HOST)"
+  web="$(env_get WEB_URL)"
+  [ "$smtp" = "mailpit" ] || return 0
+  case "$web" in
+    https://localhost*|https://127.0.0.1*|http://*) return 0 ;;
+    https://*) : ;;
+    *) return 0 ;;
+  esac
+
+  note "MAIL ON THIS STACK GOES TO THE CATCHER, and WEB_URL looks like a real"
+  note "  deployment (${web}). Every notification will report as sent and no"
+  note "  person will receive one — grants, declines and access requests alike."
+  note "  Read what it caught:  http://localhost:$(env_get MAILPIT_PORT || echo 3127)"
+  note "  For real delivery, point SMTP_HOST at a relay and set NOTIFY_TO to an"
+  note "  address somebody reads, then re-run ./deploy/compose/set-task-env.sh"
+  note "  so the task containers see it too."
 }
 
 # A STATUS PAGE PROBING ITSELF.
@@ -1104,6 +1141,12 @@ phase_app() {
     # could sign in. A service the product cannot run without is not optional
     # scenery (workplan 0099).
     zitadel
+    # The mail catcher. In the list for the same reason zitadel is: it is
+    # defined, interpolated and depended on, and a service the product's
+    # notifications cannot work without is not optional scenery. Every
+    # notification this stack sends lands here and is readable in a browser;
+    # nothing reaches a real inbox unless SMTP_HOST is changed on purpose.
+    mailpit
     api web
     # The status page (workplan 0094). It was in managed.yml, had STATUS_PORT in
     # managed.env.example, a section in docs/managed-bring-up.md claiming it
