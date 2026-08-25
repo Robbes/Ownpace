@@ -26,6 +26,9 @@
 #                        task container has no credentials at all — the same
 #                        trap the SMTP values fell into.
 #   SMTP_* / NOTIFY_*  — the notification channel (workplan 0030), OPTIONAL.
+#   LEDGER_RETENTION_DAYS, TRIGGER_API_URL_IN_NETWORK, LOG_LEVEL — OPTIONAL
+#                        knobs the tasks read and nothing used to upload, so
+#                        setting them in .env did nothing at all.
 #                        Uploaded only when set, so a stack that does not want
 #                        email keeps a clean env rather than a row of blanks.
 #                        Without these the managed digest and the rollback
@@ -164,6 +167,9 @@ TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
   NOTIFY_FROM="${NOTIFY_FROM:-}" \
   NOTIFY_TO="${NOTIFY_TO:-}" \
   NOTIFY_LOCALE="${NOTIFY_LOCALE:-}" \
+  LEDGER_RETENTION_DAYS="${LEDGER_RETENTION_DAYS:-}" \
+  TRIGGER_API_URL_IN_NETWORK="${TRIGGER_API_URL_IN_NETWORK:-}" \
+  LOG_LEVEL="${LOG_LEVEL:-}" \
   FORCE_REWRITE="${SET_TASK_ENV_FORCE_REWRITE:-0}" \
   node -e '
 const { envvars } = require("@trigger.dev/sdk");
@@ -181,10 +187,23 @@ const { envvars } = require("@trigger.dev/sdk");
   // uploaded. Empty strings would make readNotifierConfig see a HALF
   // configured channel, which reports that somebody tried and names the
   // missing variables — noise for a stack that simply does not want email.
+  //
+  // THE THREE BELOW WERE READ BY TASKS AND UPLOADED BY NOBODY. Each has a
+  // working default, so nothing was broken — what was broken is that SETTING
+  // them did nothing, silently, which is the worse failure of the two:
+  //
+  //   LEDGER_RETENTION_DAYS       retention.ts calls this the operator
+  //                               override, and on managed there was nowhere
+  //                               to put it: managed-retention.ts reads it in
+  //                               a task container, which inherits nothing.
+  //   TRIGGER_API_URL_IN_NETWORK  the escape hatch beside the compose-network
+  //                               default that makes due ticks work at all.
+  //   LOG_LEVEL                   raising the log level on a task was impossible.
   for (const name of [
     "OAUTH2_CLIENT_ID", "OAUTH2_CLIENT_SECRET", "OAUTH2_REFRESH_TOKEN", "OAUTH2_TENANT_ID",
     "SMTP_HOST", "SMTP_PORT", "SMTP_SECURE", "SMTP_USER", "SMTP_PASSWORD",
     "NOTIFY_FROM", "NOTIFY_TO", "NOTIFY_LOCALE",
+    "LEDGER_RETENTION_DAYS", "TRIGGER_API_URL_IN_NETWORK", "LOG_LEVEL",
   ]) {
     const value = process.env[name];
     if (value) variables[name] = value;

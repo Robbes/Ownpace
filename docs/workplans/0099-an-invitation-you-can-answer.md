@@ -2993,6 +2993,66 @@ smoke that empties the catcher wipes whatever an operator was looking at.
 **No gate had ever asserted that this product can send a single email.** The
 rendering is unit-tested exhaustively; the wire was never exercised once.
 
+## A knob the tasks can never see
+
+Third instance of the same class in one night, and this one was found by going
+looking rather than by being bitten.
+
+Trigger.dev task containers inherit **nothing** from compose. The only way a
+value reaches one is `set-task-env.sh` uploading it — which is why that script
+exists, and its own header says so: *"a value only in this file and never
+uploaded is a value the digest will never see."*
+
+Three variables were read by tasks and uploaded by nobody:
+
+| | |
+|---|---|
+| `LEDGER_RETENTION_DAYS` | `retention.ts` calls it the operator override, and on managed there was nowhere to put it |
+| `TRIGGER_API_URL_IN_NETWORK` | the escape hatch beside the compose-network default that makes due ticks work at all |
+| `LOG_LEVEL` | raising a task's logging was impossible |
+
+**Each has a working default, so nothing was broken.** What was broken is that
+*setting* them did nothing, silently — and that is the worse of the two
+failures. A knob that is missing gets reported. A knob that is ignored gets
+believed.
+
+All three upload now, only when set, exactly as `SMTP_*` already did — so an
+empty `.env` behaves precisely as before. `managed.env.example` documents them
+under a heading that says why they need uploading at all.
+
+### The rule, and what it cannot see
+
+`scripts/a-knob-the-tasks-can-never-see.unit.test.ts` reads every
+`process.env.X` in `apps/worker/src/jobs/*.ts` and requires each to be uploaded
+or exempted by name — `TRIGGER_SECRET_KEY` and `TRIGGER_API_URL` are injected by
+the platform, `TEST_DATABASE_URL` comes from testcontainers.
+
+The limit is in the header: a variable a job reaches **through a package** is
+invisible to it. `LOG_LEVEL` is exactly that, found by hand and not by the rule.
+Widening the scan means resolving the import graph, and a guard that models its
+subject is a guard that goes stale.
+
+### The matcher that was wrong twice, in opposite directions
+
+First version matched `"NAME"` and so missed every **required** variable, which
+the upload writes as an unquoted object key — it failed on `DATABASE_URL`, the
+one variable every job reads.
+
+The obvious loosening — match the bare name anywhere — would have been worse:
+the prose two lines above the list now names all three of the variables this
+rule exists for, so the rule would have been satisfied by **its own
+documentation**. It matches the two shapes an upload actually takes and nothing
+else.
+
+### And an apostrophe that broke the script
+
+The comment documenting all this was written into a `node -e '…'` block — a
+single-quoted shell argument. *"the operator's override"* closed the quote, and
+`bash -n` reported a syntax error sixty lines further down, near an unrelated
+`(`. There is now a rule that the block contains no apostrophe, because a trap
+which punishes ordinary English in a file whose every other line is English
+deserves a rule rather than a scar.
+
 ## Nothing ever parsed the bring-up
 
 Found by rehearsing a merge rather than waiting for one. Five PRs were open and
