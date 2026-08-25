@@ -14,6 +14,7 @@
  */
 
 const en = {
+  'status.link': 'Service status',
   'notFound.heading': 'Nothing here.',
   'notFound.lede':
     'That address does not match any screen in Ownpace. It may have been renamed, or it may never have existed \u2014 either way, your migrations are untouched.',
@@ -1052,6 +1053,7 @@ const en = {
 } as const;
 
 const nl: Record<keyof typeof en, string> = {
+  'status.link': 'Storingsstatus',
   'notFound.heading': 'Hier staat niets.',
   'notFound.lede':
     'Dit adres hoort niet bij een scherm in Ownpace. Misschien is het hernoemd, misschien heeft het nooit bestaan \u2014 hoe dan ook, uw migraties zijn ongemoeid.',

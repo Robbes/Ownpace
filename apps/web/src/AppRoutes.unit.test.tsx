@@ -14,7 +14,14 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { editionFlag } = vi.hoisted(() => ({ editionFlag: { selfhost: false } }));
+const { editionFlag, authFlag } = vi.hoisted(() => ({
+  editionFlag: { selfhost: false },
+  // Signed-out is a state the route table behaves DIFFERENTLY in, and until
+  // 2026-08-25 nothing here exercised it. That is how a catch-all route inside
+  // ProtectedRoute shipped: every case in this file was signed in, so the
+  // redirect it caused for everybody else was invisible.
+  authFlag: { authenticated: true },
+}));
 
 // VITE_EDITION is baked by vite `define`; component tests mock the module
 // (the 0034 guardrail's sanctioned seam — see MappingDetail.unit.test.tsx).
@@ -30,8 +37,10 @@ vi.mock('./services/edition', () => ({
 vi.mock('./stores/auth-store', () => {
   const state = { isAuthenticated: true, user: null, logout: () => {} };
   return {
-    useAuthStore: (selector?: (s: typeof state) => unknown) =>
-      selector ? selector(state) : state,
+    useAuthStore: (selector?: (s: typeof state) => unknown) => {
+      state.isAuthenticated = authFlag.authenticated;
+      return selector ? selector(state) : state;
+    },
   };
 });
 
@@ -55,6 +64,7 @@ vi.mock('./pages/Docs', () => ({ default: () => <div>screen:docs</div> }));
 vi.mock('./pages/Verify', () => ({ default: () => <div>screen:verify</div> }));
 vi.mock('./pages/Finish', () => ({ default: () => <div>screen:finish</div> }));
 vi.mock('./pages/Confirm', () => ({ default: () => <div>screen:confirm</div> }));
+vi.mock('./pages/NotFound', () => ({ default: () => <div>screen:not-found</div> }));
 
 import AppRoutes from './AppRoutes.tsx';
 
@@ -67,6 +77,7 @@ const renderAt = (path: string) =>
 
 beforeEach(() => {
   editionFlag.selfhost = false;
+  authFlag.authenticated = true;
 });
 
 describe('appliance builds redirect managed-only URLs to /confirm', () => {
@@ -157,5 +168,42 @@ describe('the confirm route is real on managed (0037 T2)', () => {
 
     expect(await screen.findByText('screen:confirm-mapping')).toBeInTheDocument();
     expect(screen.queryByText('screen:mapping-detail')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * AN ADDRESS THAT IS NOT A SCREEN, ANSWERED THE SAME WAY TO EVERYBODY.
+ *
+ * The catch-all lived inside the `/` subtree for one day, which is wrapped in
+ * ProtectedRoute. A signed-in visitor saw NotFound; a signed-OUT one was sent
+ * to /login before it could render, so a wrong address was indistinguishable
+ * from an expired session. Reported from the live test host: `/blabla` came
+ * back as `/login`.
+ *
+ * Both states are pinned, because the bug was that only one of them was.
+ */
+describe('a wrong address is a 404, signed in or not', () => {
+  it('shows the not-found screen when signed in', async () => {
+    renderAt('/blabla');
+    expect(await screen.findByText('screen:not-found')).toBeInTheDocument();
+  });
+
+  it('shows it when signed out too, rather than the login form', async () => {
+    authFlag.authenticated = false;
+    renderAt('/blabla');
+    expect(await screen.findByText('screen:not-found')).toBeInTheDocument();
+    expect(
+      screen.queryByText('screen:login'),
+      'a wrong address redirected to the login form, which reads as an expired session',
+    ).not.toBeInTheDocument();
+  });
+
+  it('still sends a signed-out visitor to /login for a REAL protected screen', () => {
+    // The redirect is correct where it belongs. Removing it for /dashboard
+    // would be a security change dressed as a 404 fix.
+    authFlag.authenticated = false;
+    renderAt('/dashboard');
+    expect(screen.getByText('screen:login')).toBeInTheDocument();
+    expect(screen.queryByText('screen:dashboard')).not.toBeInTheDocument();
   });
 });

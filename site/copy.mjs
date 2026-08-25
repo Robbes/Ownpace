@@ -48,7 +48,10 @@ export const COPY = {
     // missing. It did not — nothing here is their data.
     notFound: {
       title: 'Page not found',
-      heading: 'Nothing here. Not even a copy.',
+      // The number is not decoration: a visitor who has been redirected, or
+      // served the wrong page, cannot tell a real 404 from a site that simply
+      // lost its way. Saying it removes the doubt.
+      heading: '404 \u2014 Nothing here. Not even a copy!',
       lede:
         'We move data at your own pace, but this page never made the trip. It may have been renamed, or it may never have existed \u2014 either way, nothing of yours was lost.',
       back: 'Back to the home page',
@@ -123,7 +126,7 @@ export const COPY = {
     footerStatus: 'Status',
     notFound: {
       title: 'Pagina niet gevonden',
-      heading: 'Hier staat niets. Zelfs geen kopie.',
+      heading: '404 \u2014 Hier staat niets. Zelfs geen kopie!',
       lede:
         'Wij verhuizen gegevens in uw eigen tempo, maar deze pagina is nooit meegegaan. Misschien is hij hernoemd, misschien heeft hij nooit bestaan \u2014 hoe dan ook, er is niets van u verloren gegaan.',
       back: 'Terug naar de startpagina',

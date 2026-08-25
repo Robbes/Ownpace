@@ -6,6 +6,7 @@ import { LogIn } from 'lucide-react';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { useT } from '../i18n/index.tsx';
 import { beginSignIn, oidcConfig } from '../services/oidc.ts';
+import StatusLink from '../components/StatusLink.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
 
 interface TokenClaims {
@@ -214,7 +215,12 @@ const Login: React.FC = () => {
             and this is a page somebody sees BEFORE they are inside the app,
             which makes it where "what build is this?" gets asked most. See
             components/BuildStamp.tsx. */}
-        <div className="text-center">
+        {/* The status link belongs HERE above all: somebody who cannot sign
+            in is the person asking "is it me or is it them". */}
+        <div className="text-center space-y-2">
+          <div>
+            <StatusLink />
+          </div>
           <BuildStamp />
         </div>
       </div>
