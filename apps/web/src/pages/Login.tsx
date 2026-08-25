@@ -6,6 +6,8 @@ import { LogIn } from 'lucide-react';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { useT } from '../i18n/index.tsx';
 import { beginSignIn, oidcConfig } from '../services/oidc.ts';
+import { fetchMe } from '../services/session.ts';
+import { serverMessage } from '../services/api.ts';
 import StatusLink from '../components/StatusLink.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
 
@@ -72,6 +74,7 @@ const Login: React.FC = () => {
   const [oidcError, setOidcError] = useState<string | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [redirecting, setRedirecting] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
   // Read once at render: this is a build-time value, and a page that could
   // change its mind about whether authentication exists would not be a
@@ -90,11 +93,37 @@ const Login: React.FC = () => {
     });
   };
 
+  /**
+   * ASK THE SERVER BEFORE DECLARING A SESSION.
+   *
+   * The two checks below are worth keeping and were never enough. Decoding a
+   * JWT says how it is SHAPED; only the API can say whether it will accept it,
+   * and on a stack with an issuer configured the answer for a pasted seed token
+   * is always no. `selectAuthMode` puts the API in managed mode the moment
+   * `JWT_ISSUER` is set, and managed mode verifies against the provider's JWKS
+   * and never falls back to `JWT_SECRET` — deliberately, so a lingering secret
+   * cannot silently downgrade verification. A seed token is signed with that
+   * secret. It is well-formed, unexpired, and unusable.
+   *
+   * This path used to log in on the strength of the decode alone, navigate to
+   * the dashboard, and let the first real request discover the truth — where a
+   * 401 sent the browser back here with nothing written on it. Reported from
+   * the live test host on 2026-08-25: "with a valid seed, i see it fast
+   * flashing and back at the login". The comment above the expiry check
+   * describes that same bounce, for the one cause that CAN be seen client-side;
+   * this is the rest of it.
+   *
+   * `fetchMe` also makes this path obey ADR-0042 like the other one: who
+   * somebody is comes from `GET /api/me`, not from claims this decoder read.
+   * Reading `tenantId` and `role` off the token was the pre-ADR-0042 design,
+   * left behind here when the OIDC path replaced it.
+   */
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setTokenError(null);
 
-    const claims = decodeTokenClaims(token.trim());
+    const pasted = token.trim();
+    const claims = decodeTokenClaims(pasted);
     if (!claims) {
       setTokenError(t('login.invalidToken'));
       return;
@@ -108,18 +137,45 @@ const Login: React.FC = () => {
       return;
     }
 
-    loginToStore(
-      token.trim(),
-      {
-        id: claims.sub,
-        email: claims.email,
-        name: claims.email.split('@')[0],
-        role: claims.role,
-      },
-      claims.tenantId,
-    );
-    void navigate('/dashboard');
+    setVerifying(true);
+    void (async () => {
+      try {
+        // `fetchMe` goes through `signInClient`, so a refusal REJECTS here
+        // instead of redirecting to this very page — see api.ts.
+        const me = await fetchMe(pasted);
+        if (me.tenants.length === 0 && me.operator !== true) {
+          // The same state AuthCallback names, reached the same way. Routing
+          // for invitations is deliberately not duplicated here: an invitation
+          // binds on a verified email from the provider, which is not something
+          // a pasted seed token carries.
+          setTokenError(t('login.noOrganisation'));
+          return;
+        }
+        const email = me.email ?? me.userId;
+        loginToStore(
+          pasted,
+          {
+            id: me.userId,
+            email,
+            name: email.split('@')[0],
+            role: me.role ?? 'member',
+          },
+          me.tenantId ?? '',
+          me.operator === true,
+        );
+        void navigate('/dashboard');
+      } catch (err: unknown) {
+        // The API's own sentence — "Invalid token" and "Token expired" are
+        // different problems with different remedies, and on a stack with an
+        // issuer the answer names the real one.
+        setTokenError(serverMessage(err));
+      } finally {
+        setVerifying(false);
+      }
+    })();
   };
+
+
 
   // Held as an element rather than duplicated, because it renders in two
   // places: on its own when there is no provider, and inside the disclosure
@@ -151,15 +207,16 @@ const Login: React.FC = () => {
       <div>
         <button
           type="submit"
-          className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          disabled={verifying}
+          className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
         >
-          {t('login.submit')}
+          {verifying ? t('login.verifying') : t('login.submit')}
         </button>
       </div>
 
       <div className="text-center text-sm text-gray-600">
         <p>
-          {t('login.help.pre')} (<code>pnpm --filter @openmig/api seed:managed</code>){' '}
+          {t('login.help.pre')} (<code>./deploy/compose/seed-managed.sh</code>){' '}
           {t('login.help.post')}
         </p>
       </div>

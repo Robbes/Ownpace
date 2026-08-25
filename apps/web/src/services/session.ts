@@ -13,7 +13,7 @@
  * first real request.
  */
 
-import apiClient from './api.ts';
+import apiClient, { signInClient } from './api.ts';
 
 export interface Membership {
   readonly tenantId: string;
@@ -71,7 +71,9 @@ export interface Invitation {
  * invitation has not bound.
  */
 export async function fetchMe(token: string): Promise<Me> {
-  const response = await apiClient.get<Me>('/me', {
+  // `signInClient`, NOT `apiClient` — the stored token must not override the one
+  // just exchanged, and a 401 has to reach AuthCallback so it can say why.
+  const response = await signInClient.get<Me>('/me', {
     headers: { Authorization: `Bearer ${token}` },
   });
   return response.data;

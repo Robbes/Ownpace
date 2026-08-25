@@ -97,9 +97,14 @@ const en = {
   // ---- Signing in with the configured issuer (ADR-0042) ----
   'login.withProvider': 'Sign in',
   'login.redirecting': 'Taking you to sign in…',
+  'login.verifying': 'Checking that token…',
   'login.pasteToggle': 'Sign in with a token instead',
+  // Not "you should not need this", which was true and too gentle. Once an
+  // issuer is configured the API is in managed mode and verifies against the
+  // provider's keys ONLY — never falling back to the secret the seed signs
+  // with. A seed token here is not discouraged, it is refused.
   'login.pasteFallback':
-    'The way in before an identity provider was configured. You should not need this.',
+    'The way in before an identity provider was configured. Now that there is one, the API accepts only tokens it issued — a seed token will be refused here.',
   'login.oidcFailed': 'We could not reach the sign-in service.',
   'login.callback.working': 'Signing you in…',
   'login.callback.failed': 'That sign-in did not complete.',
@@ -1134,9 +1139,10 @@ const nl: Record<keyof typeof en, string> = {
   // ---- Signing in with the configured issuer (ADR-0042) ----
   'login.withProvider': 'Aanmelden',
   'login.redirecting': 'U wordt doorgestuurd om aan te melden…',
+  'login.verifying': 'Token wordt gecontroleerd…',
   'login.pasteToggle': 'Aanmelden met een token',
   'login.pasteFallback':
-    'De manier van vóór er een identiteitsprovider was. U zou dit niet nodig moeten hebben.',
+    'De manier van vóór er een identiteitsprovider was. Nu die er is, accepteert de API alleen tokens die zij zelf heeft uitgegeven — een seedtoken wordt hier geweigerd.',
   'login.oidcFailed': 'Wij konden de aanmeldservice niet bereiken.',
   'login.callback.working': 'U wordt aangemeld…',
   'login.callback.failed': 'Die aanmelding is niet voltooid.',

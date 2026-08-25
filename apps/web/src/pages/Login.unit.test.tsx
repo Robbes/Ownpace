@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Login, { decodeTokenClaims } from './Login.tsx';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { beginSignIn, oidcConfig } from '../services/oidc.ts';
+import { fetchMe } from '../services/session.ts';
 
 const navigateMock = vi.fn();
 vi.mock('react-router', async () => {
@@ -31,6 +32,11 @@ vi.mock('../services/build-identity.ts', () => ({
   describeBuild: () => 'v0.1.0-rc.1 · 72a78d4',
   shortCommit: (c: string) => c.slice(0, 7),
 }));
+// The paste path now ASKS THE API whether the token is any good, rather than
+// trusting its own decode. That call is what these cases steer.
+vi.mock('../services/session.ts', () => ({ fetchMe: vi.fn() }));
+const fetchMeMock = vi.mocked(fetchMe);
+
 const oidcConfigMock = vi.mocked(oidcConfig);
 const beginSignInMock = vi.mocked(beginSignIn);
 
@@ -73,6 +79,17 @@ describe('Login', () => {
     // No issuer by default: that is the deployment that has not run the
     // identity setup script yet, and the reason the paste box still exists.
     oidcConfigMock.mockReturnValue(null);
+    // The paste path now ASKS THE API rather than trusting its own decode, so
+    // every case here needs an answer. This is the accepting one; the refusals
+    // live in their own describe below.
+    fetchMeMock.mockReset();
+    fetchMeMock.mockResolvedValue({
+      userId: 'u1',
+      email: 'owner-a@demo.test',
+      tenantId: 'tenant-a',
+      role: 'owner',
+      tenants: [{ tenantId: 'tenant-a', role: 'owner' }],
+    });
     useAuthStore.getState().logout();
     localStorage.clear();
   });
@@ -85,13 +102,13 @@ describe('Login', () => {
     await user.type(screen.getByLabelText(/access token/i), token);
     await user.click(screen.getByRole('button', { name: /use this token/i }));
 
+    await vi.waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/dashboard'));
     const state = useAuthStore.getState();
     expect(state.isAuthenticated).toBe(true);
     expect(state.tenantId).toBe('tenant-a');
     expect(state.user?.email).toBe('owner-a@demo.test');
     expect(state.token).toBe(token);
     expect(localStorage.getItem('auth_token')).toBe(token);
-    expect(navigateMock).toHaveBeenCalledWith('/dashboard');
   });
 
   it('rejects an invalid token and does not sign in', async () => {
@@ -161,5 +178,94 @@ describe('Login with an issuer configured (ADR-0042)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/did not answer/);
     expect(screen.getAllByRole('alert')).toHaveLength(1);
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
+  });
+});
+
+/**
+ * A PASTED TOKEN THAT THE API WILL NEVER ACCEPT.
+ *
+ * Reported from the live test host on 2026-08-25: "when login with a valid
+ * seed, i see it fast flashing and back at the login". The seed's tokens are
+ * signed with `JWT_SECRET`, and any stack that has run the identity setup has
+ * `JWT_ISSUER` set — which puts the API in managed mode, where verification
+ * goes to the provider's JWKS and never falls back to the secret. That is
+ * deliberate (a lingering secret must not silently downgrade verification), and
+ * it makes those tokens well-formed, unexpired, and unusable.
+ *
+ * The page could not see that, because it decided on its own decode: it logged
+ * in, navigated to the dashboard, and the first real request answered 401 —
+ * which the global handler turns into a redirect back to this page, carrying
+ * nothing. The person is returned to the screen they started on with no
+ * sentence anywhere.
+ */
+describe('a pasted token is checked with the API, not just decoded', () => {
+  beforeEach(() => {
+    oidcConfigMock.mockReturnValue({ issuer: 'https://idp.example', clientId: 'web' });
+    fetchMeMock.mockReset();
+    navigateMock.mockReset();
+    useAuthStore.getState().logout();
+  });
+
+  const paste = async (token: string) => {
+    const user = userEvent.setup();
+    renderLogin();
+    // The box is folded away behind a disclosure once a provider is configured.
+    await user.click(screen.getByText(/token instead/i));
+    await user.type(screen.getByLabelText(/access token/i), token);
+    await user.click(screen.getByRole('button', { name: /use this token/i }));
+  };
+
+  const good = makeToken({ sub: 'u1', email: 'a@b.io', tenantId: 't1', role: 'owner' });
+
+  it("shows the API's own sentence instead of bouncing", async () => {
+    const rejected = Object.assign(new Error('Request failed with status code 401'), {
+      isAxiosError: true,
+      response: { status: 401, data: { error: 'Unauthorized', message: 'Invalid token' } },
+    });
+    fetchMeMock.mockRejectedValue(rejected);
+
+    await paste(good);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Invalid token');
+    expect(
+      navigateMock,
+      'It navigated to the dashboard on the strength of its own decode. The ' +
+        'first request there answers 401 and the global handler returns the ' +
+        'browser to this page with nothing written on it — the reported flash.',
+    ).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+  });
+
+  it('does not declare a session before the API has agreed', async () => {
+    let settle: (v: unknown) => void = () => {};
+    fetchMeMock.mockReturnValue(new Promise((r) => { settle = r; }) as never);
+
+    await paste(good);
+
+    // Mid-flight: nothing stored, nowhere navigated.
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    expect(localStorage.getItem('auth_token')).toBeNull();
+    settle({ userId: 'u1', email: 'a@b.io', tenantId: 't1', role: 'owner', tenants: [{ tenantId: 't1', role: 'owner' }] });
+  });
+
+  it('signs in when the API accepts it, with the identity the API reported', async () => {
+    // ADR-0042: who somebody is comes from /api/me, never from claims this
+    // page decoded. Reading tenantId and role off the token was the design the
+    // OIDC path replaced, and this path was still doing it.
+    fetchMeMock.mockResolvedValue({
+      userId: 'zitadel-sub-9',
+      email: 'real@b.io',
+      tenantId: 'tenant-from-the-database',
+      role: 'member',
+      tenants: [{ tenantId: 'tenant-from-the-database', role: 'member' }],
+    });
+
+    await paste(good);
+
+    await vi.waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/dashboard'));
+    const s = useAuthStore.getState();
+    expect(s.tenantId).toBe('tenant-from-the-database');
+    expect(s.user?.id).toBe('zitadel-sub-9');
+    expect(s.user?.role).toBe('member');
   });
 });

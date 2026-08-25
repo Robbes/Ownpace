@@ -105,6 +105,31 @@ const FIXTURES: Record<string, unknown> = {
       .version,
     commit: '',
   },
+  /**
+   * WHO THE SIGN-IN SCREEN ASKS ABOUT, and the reason `open()` below can reach
+   * a dashboard at all.
+   *
+   * The paste path used to log in on the strength of its own decode. It now
+   * asks the API first, because a token this app can DECODE is not a token the
+   * API will ACCEPT — on a stack with an issuer configured it never is, and the
+   * old behaviour turned that into a dashboard flash and a silent bounce back
+   * to the login screen.
+   *
+   * So this fixture is not scaffolding for the test: it is the call the product
+   * makes, and its absence is why this suite timed out waiting to leave /login.
+   * The identity is the API's to state (ADR-0042) and deliberately differs from
+   * nothing in TOKEN — the claims agree here because a real `/api/me` resolving
+   * this subject WOULD agree.
+   */
+  [`GET /api/me`]: {
+    userId: 'ui-smoke',
+    email: 'owner-a@demo.openmigrate.test',
+    tenantId: TENANT,
+    role: 'owner',
+    tenants: [{ tenantId: TENANT, role: 'owner' }],
+    operator: false,
+    invitations: [],
+  },
   [`GET /api/migrations`]: {
     mappings: [
       {
