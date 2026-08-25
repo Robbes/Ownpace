@@ -769,6 +769,34 @@ services:
       # the close endpoint TELLS a customer about when their erasure actually
       # completes (0085 T5). Unset means the 7-day default in @openmig/shared.
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-}
+      # THE MAIL SETTINGS. Absent here until 2026-08-25, which meant this
+      # container could not send a single notification no matter what `.env`
+      # said: compose passes NOTHING it has not been told to pass, and
+      # `readNotifierConfig` reads `process.env` inside the container. Every
+      # grant, decline and access request reported `notified: "off"` — honestly,
+      # and uselessly, because the setting that would have turned it on could
+      # not reach the process that reads it.
+      #
+      # The self-host edition never had this problem: `deploy/selfhost/compose.yml`
+      # uses `env_file: .env`, so the whole file arrives. This one lists keys
+      # explicitly — safer, and it fails exactly this way when a key is
+      # forgotten. `scripts/the-mail-the-api-could-not-send.unit.test.ts`
+      # compares the two lists so the next one cannot be forgotten silently.
+      #
+      # All optional: an empty SMTP_HOST leaves the channel off, which is the
+      # correct default for a stack nobody has configured mail on.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_ALLOW_SELF_SIGNED: ${SMTP_ALLOW_SELF_SIGNED:-}
+      NOTIFY_FROM: ${NOTIFY_FROM:-}
+      NOTIFY_TO: ${NOTIFY_TO:-}
+      NOTIFY_LOCALE: ${NOTIFY_LOCALE:-}
+      # Found by the guard below on its first run, not by reading: this one is
+      # consulted by the same function and was missed by the same enumeration.
+      NOTIFY_DIGEST: ${NOTIFY_DIGEST:-}
     ports:
       - "${API_PORT:-3001}:3001"
     depends_on:
