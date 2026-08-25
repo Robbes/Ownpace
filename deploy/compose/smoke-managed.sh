@@ -511,7 +511,13 @@ if [ -n "${STACK_ISSUER:-}" ]; then
   fi
   bundle_knows=0
   for asset in $web_assets; do
-    if curl -sf "${WEB}${asset}" | grep -qF "$idp_origin"; then bundle_knows=1; break; fi
+    # Read into a variable and grep a HERE-STRING, never `curl | grep -q`:
+    # `-q` exits at the first match and SIGPIPEs curl, so under `pipefail` the
+    # pipeline reports the status of the producer this consumer just killed.
+    # That is the defect `no-pipeline-its-own-consumer-can-kill` exists for, and
+    # the first version of this block walked straight into it.
+    asset_js="$(curl -sf "${WEB}${asset}" || true)"
+    if grep -qF "$idp_origin" <<<"$asset_js"; then bundle_knows=1; break; fi
   done
   if [ "$bundle_knows" -eq 0 ]; then
     echo "FATAL: the web bundle does not carry the issuer ${idp_origin}."
